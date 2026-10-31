@@ -48,14 +48,22 @@ service cloud.firestore {
     match /uki_sucursales/{branch} {
       allow get: if mayUse(branch);
       allow list: if false;
-      allow create, update: if mayUse(branch) &&
-        request.resource.data.keys().hasOnly(["branch", "schemaVersion", "rev", "paquete"]) &&
-        request.resource.data.branch == branch &&
-        request.resource.data.schemaVersion == 1 &&
-        request.resource.data.rev is int &&
-        request.resource.data.rev >= 1 &&
-        request.resource.data.paquete is string &&
-        request.resource.data.paquete.size() < 800000;
+      function paqueteValido() {
+        return request.resource.data.keys().hasAll(["branch", "schemaVersion", "rev", "paquete"]) &&
+          request.resource.data.keys().hasOnly(["branch", "schemaVersion", "rev", "paquete"]) &&
+          request.resource.data.branch == branch &&
+          request.resource.data.schemaVersion == 1 &&
+          request.resource.data.rev is int &&
+          request.resource.data.paquete is string &&
+          request.resource.data.paquete.size() > 0 &&
+          request.resource.data.paquete.size() < 750000;
+      }
+      allow create: if mayUse(branch) && paqueteValido() &&
+        request.resource.data.rev == 1;
+      allow update: if mayUse(branch) && paqueteValido() &&
+        resource.data.branch == branch &&
+        resource.data.schemaVersion == 1 &&
+        request.resource.data.rev == resource.data.rev + 1;
       allow delete: if false;
     }
     // No crear reglas comodín con 'if true' ni 'auth != null' solamente.
