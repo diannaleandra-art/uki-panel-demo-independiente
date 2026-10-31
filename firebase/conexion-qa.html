@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<title>Uki Sushi · Comprobación Firebase · SOLO QA</title>
+<style>
+:root{color-scheme:light;font-family:system-ui,-apple-system,sans-serif}
+*{box-sizing:border-box}body{background:#f7f3ef;color:#29231e;margin:0}
+main{width:min(650px,100%);margin:18px auto;padding:16px}
+h1{font-size:1.5rem;margin:8px 0}p{line-height:1.55;color:#62574c}
+aside{padding:12px;border-radius:12px;background:#fff0df;color:#753700;margin:14px 0}
+section{border:1px solid #e8dbce;background:white;border-radius:18px;padding:18px;margin:16px 0}
+button{border:0;background:#dd8028;color:#fff;font-weight:700;font-size:1rem;padding:13px;border-radius:12px;min-height:44px;margin:4px 3px 4px 0}
+button:disabled{opacity:.45}button.secondary{background:#29231e}
+#estado{white-space:pre-wrap;overflow-wrap:anywhere;background:#fff;padding:14px;border-radius:12px}
+small{color:#705e50}
+</style>
+</head>
+<body><main>
+<header><small>UKI SUSHI · CONEXIÓN PRIVADA DE PRUEBAS</small><h1>Comprobación de Google y Firestore</h1></header>
+<aside><b>SOLO PRUEBAS.</b> No introducir nombres, teléfonos, pedidos o datos reales. Esta pantalla no es el panel operativo, no sincroniza pedidos y no modifica la v8.15.</aside>
+<section><h2>1. Acceso Google</h2>
+<button id="entrar" type="button">Entrar con Google</button>
+<button id="salir" class="secondary" type="button" disabled>Salir de Google</button>
+<p id="usuario">Sesión no iniciada.</p></section>
+<section><h2>2. Comprobar permisos</h2>
+<button id="leer" type="button" disabled>Comprobar lectura segura</button>
+<button id="escribir" type="button" disabled>Guardar PRUEBA FICTICIA</button>
+<p>La escritura se realiza solo en <code>uki_qa_conexion</code>, nunca en pedidos, caja ni timbres.</p></section>
+<section><h2>Resultado</h2><output id="estado" role="status" aria-live="polite">Cargando Firebase…</output></section>
+</main>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
+
+const config = {
+  apiKey: "AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",
+  authDomain: "uki-panel-f4909.firebaseapp.com",
+  projectId: "uki-panel-f4909",
+  storageBucket: "uki-panel-f4909.firebasestorage.app",
+  messagingSenderId: "1070481165758",
+  appId: "1:1070481165758:web:b8f0f9ff40caf5b8ac7def"
+};
+const app=initializeApp(config), auth=getAuth(app), db=getFirestore(app);
+const byId=id=>document.getElementById(id), status=msg=>{byId("estado").textContent=msg;};
+const who=()=>auth.currentUser;
+const err=e=>{
+  if(e?.code==="auth/unauthorized-domain")
+    return "El dominio aún no está autorizado en Firebase Authentication. Agrega diannaleandra-art.github.io en Settings > Authorized domains.";
+  if(e?.code==="permission-denied")
+    return "Firestore denegó el acceso. Es esperado mientras las reglas seguras aún no estén instaladas o el correo no esté habilitado.";
+  return "No se completó la prueba: "+String(e?.code||e?.message||e);
+};
+onAuthStateChanged(auth,user=>{
+  byId("usuario").textContent=user?"Google: "+(user.email||"correo sin mostrar"):"Sesión no iniciada.";
+  for(const id of ["leer","escribir","salir"])byId(id).disabled=!user;
+  status(user?"Autenticado. Comprueba primero la lectura.":"Sin sesión. Ningún pedido se ha modificado.");
+},e=>status(err(e)));
+
+byId("entrar").addEventListener("click",async()=>{
+ try{await signInWithPopup(auth,new GoogleAuthProvider());}
+ catch(e){status(err(e));}
+});
+byId("salir").addEventListener("click",async()=>{
+ try{await signOut(auth);}catch(e){status(err(e));}
+});
+byId("leer").addEventListener("click",async()=>{
+ if(!who())return status("Debes entrar con Google.");
+ try{
+  const qa=await getDoc(doc(db,"uki_qa_conexion",who().uid));
+  const reg=await getDoc(doc(db,"uki_sucursales","regimiento"));
+  status("Lectura con permiso verificado. Prueba ficticia: "+(qa.exists()?"registrada":"aún no creada")+
+    ". Documento de Regimiento: "+(reg.exists()?"existe":"todavía vacío")+
+    ". No se ha leído ni mostrado el contenido de pedidos.");
+ }catch(e){status(err(e));}
+});
+byId("escribir").addEventListener("click",async()=>{
+ if(!who())return status("Debes entrar con Google.");
+ try{
+  await setDoc(doc(db,"uki_qa_conexion",who().uid),{
+   uid:who().uid,tipo:"PRUEBA_FICTICIA",actualizada:Date.now()
+  });
+  status("Prueba ficticia guardada en Firebase. No se han guardado pedidos reales.");
+ }catch(e){status(err(e));}
+});
+</script></body></html>
