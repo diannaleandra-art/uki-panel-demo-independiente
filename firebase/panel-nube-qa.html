@@ -114,7 +114,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid #dc7703;outline-off
 <header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.15 · NUBE QA</h1></header>
 <nav id="nav" class="app-nav" aria-label="Navegación de Uki Sushi"></nav>
 <section style="margin:12px;padding:14px;background:#fff0dd;border:2px solid #b55e25;border-radius:14px">
-<b>SOLO QA · NO USAR PEDIDOS REALES · SIN SINCRONIZACIÓN AUTOMÁTICA</b>
+<b>SOLO QA · NO USAR PEDIDOS REALES · AUTOGUARDADO OPCIONAL</b>
 <p>Esta copia usa otro almacenamiento del navegador: no toca la v8.15 habitual. Solo la cuenta administradora puede usar la nube de pruebas. No usar pedidos reales.</p>
 <div id="ukiNubeEstado" role="status">Google sin iniciar.</div>
 <button id="ukiLoginQA" type="button">Entrar con Google</button>
@@ -125,7 +125,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid #dc7703;outline-off
  <input id="ukiAutoCheck" type="checkbox"> Activar autoguardado SOLO de pruebas, después de cargar la nube
 </label>
 <p id="ukiAutoEstado" role="status" style="font-size:14px">Autoguardado: desactivado.</p>
-<p>Primero entra a la sucursal ficticia, luego carga la revisión remota. Cada guardado requiere confirmación y se rechaza si otro equipo guardó antes.</p>
+<p>Primero entra a la sucursal ficticia y carga la nube. La casilla activa autoguardado SOLO de prueba, máximo 10 envíos por sesión. Ante error o conflicto se detiene y conserva la copia local. El botón manual requiere confirmación.</p>
 </section>
 <div class="aviso" style="margin:10px 12px 0;background:#fce8d7;border:1px solid #efb57c;font-weight:600">DEMO PÚBLICA · Solo datos ficticios · Sin WhatsApp real</div><main id="app"><div class="aviso">✅ v8 Timbres - 6 ventas = 12 piezas / 10 ventas = 36 + 2 korokes</div><div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Tarjeta de timbres: 6 ventas = 12 piezas gratis, 10 ventas = 36 piezas + 2 korokes</p><button class="big" onclick="pedirPin('Uki Regimiento Arica')">Uki Regimiento Arica</button><button class="big" onclick="pedirPin('Uki La Serena')">Uki La Serena</button></div><div class="card"><h2>💾 Respaldo para computador</h2><button class="big" onclick="descargarRespaldoCompleto()">💾 Descargar respaldo con tarjetas</button><label class="muted">Cargar respaldo</label><input type="file" accept=".json" onchange="cargarRespaldo(event)"></div></main>
 <script>
@@ -1191,6 +1191,7 @@ window.ukiQAOnLocalSaved=s=>{
 };
 window.ukiQASessionLeft=()=>{
  dejarDeVigilar();auto.desactivar();revision=null;sucursalCargada=null;
+ el("ukiAutoCheck").checked=false;
 };
 const msg=s=>{el("ukiNubeEstado").textContent=s};
 function contexto(){
@@ -1210,6 +1211,7 @@ async function accion(action){
 onAuthStateChanged(auth,user=>{
  revision=null;sucursalCargada=null;
  auto.desactivar();dejarDeVigilar();
+ el("ukiAutoCheck").checked=false;
  msg(user?"Google conectado. Ahora puedes cargar la nube de prueba.":"Google sin iniciar.");
 },e=>msg("Error de Google: "+String(e?.code||e)));
 el("ukiLoginQA").addEventListener("click",()=>accion(async()=>{
