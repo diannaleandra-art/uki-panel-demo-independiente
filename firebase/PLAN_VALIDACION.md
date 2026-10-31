@@ -56,3 +56,29 @@ Se creó `firebase/uki-cifrado-bloques.js` con cifrado AES-256-GCM por bloque, I
 **Prueba de estructura (7 casos):** recuperación de paquete, ausencia de texto claro en salida, rechazo de otra sucursal, otra generación, tipo alterado, contraseña incorrecta y contraseña demasiado corta. Las pruebas utilizaron **una simulación de WebCrypto**, no una verificación criptográfica real; se debe probar el WebCrypto nativo de Safari y la interoperabilidad entre dispositivos antes de operar.
 
 **Pendientes obligatorios:** protocolo de commit atómico/versionado que no exceda la cuota de 10 MiB por transacción, recolección segura de versiones antiguas sin pérdida de respaldos, reglas Firestore específicas por bloque, integración con acciones del panel existente, visualización de conflictos (no sobrescritura), recuperación de error de red y prueba concurrente con dos navegadores. El `uki-sync-core.js` que escribe un documento entero sigue siendo un prototipo de bloqueo, NO debe utilizarse como almacenamiento operativo. Las reglas actualmente publicadas solo permiten la colección `uki_qa_conexion` a la cuenta de administración y deniegan el resto.
+
+
+## 31 oct: copia de panel QA con conexión REAL preparada en rama (sin desplegar)
+
+Se agregó \`firebase/panel-nube-qa.html\`, derivada de la **v8.15 existente**, sin tocar \`main/index.html\`. Mantiene los controles y funciones de pedidos, caja y timbres, con una barra de carga y guardado de **datos exclusivamente ficticios**:
+
+- Autenticación Google por Firebase SDK.
+- Carga desde Firestore por sucursal, lectura desde servidor y descifrado de cada bloque.
+- Guardado **MANUAL de prueba**: primero debe leerse la revisión remota, luego confirmarse la escritura.
+- Cifrado AES-GCM por bloque, IV único y contexto autenticado de sucursal/generación/tipo. No se almacena contraseña.
+- Partición por períodos y grupos para evitar 1 MiB por documento.
+- Los bloques de una nueva generación se escriben primero en lotes de ocho; el manifiesto cambia al final en transacción que verifica la revisión. Otro equipo no puede sobrescribir silenciosamente un estado más reciente.
+- Los cambios de esta copia QA usan el prefijo de localStorage \`uki_qa_nube_v1_cifrado_\`, diferente del menú de demostración \`uki_demo_v813_cifrado_\`. No se suben automáticamente datos anteriores ni se transfieren pedidos.
+
+**Estado de las verificaciones:** inspección de 10 condiciones de aislamiento/rutas/código aprobada; 11 pruebas simuladas del protocolo y siete del módulo de cifrado. **Ninguna es una prueba con dos dispositivos reales** ni demuestra que las reglas compilen en Firestore.
+
+**No publicar esta copia en producción.** Las reglas actuales de Firestore publicadas por la usuaria habilitan solamente \`uki_qa_conexion\`. El archivo nuevo \`firebase/firestore.rules\` es un BORRADOR DE REGLAS para el protocolo \`schemaVersion=2\` y subcolecciones \`bloques\`; **NO ESTÁ APLICADO**. Por ello, la copia QA todavía no puede guardar estados de panel en la nube.
+
+**Puertas antes de cualquier uso en el local:**
+1. Validar reglas completas \`firebase/firestore.rules\` en el simulador/emulador y demostrar que otra cuenta Google no autorizada recibe «Permiso denegado».
+2. Solicitar aprobación para publicar SOLAMENTE \`firebase/panel-nube-qa.html\` en GitHub Pages y cambiar las reglas de Firebase. Publicación de pruebas no implica aprobación de uso real.
+3. Probar una sucursal con usuarios y pedidos FICTICIOS desde Safari iPhone y computador, incluido conflicto cuando ambos editan el mismo historial, cancelación, error de red y restauración de respaldos.
+4. Evaluar gastos, cuotas Spark, generación huérfana y recuperación de un historial incompleto antes de habilitar sincronización automática. No eliminar generaciones históricas sin un respaldo verificado.
+5. Recién tras lo anterior, habilitar guardado automático con un indicador inequívoco de «sincronizado / pendiente / error» y bloqueo de conflictos, sin modificar la carta original.
+
+**Aviso:** hoy \`panel-nube-qa.html\` tiene guardado manual expresamente para controlar las pruebas. No afirmar que es apto para operaciones normales.
