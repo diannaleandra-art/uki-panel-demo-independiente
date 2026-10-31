@@ -4,7 +4,7 @@ Esta rama contiene una **copia separada** del panel v8.15 para Regimiento Arica 
 
 ## Alcance
 
-- `operativo/panel-local.html`: misma interfaz de pedidos, caja, cierres, timbres, gastos y respaldos; se conserva la entrada por sucursal.
+- `operativo/panel-local.html`: misma interfaz de pedidos, caja, cierres, timbres, gastos y respaldos, con acceso directo a la sucursal desde un enlace, y aviso de estado de sincronización.
 - `operativo/uki-autoguardado.js`: elimina el máximo de 10 guardados por sesión de QA; mantiene guardado diferido, deduplicación de cambios y parada ante errores o revisiones concurrentes.
 - `operativo/uki-snapshot.js`: **usa exclusivamente la colección nueva `uki_operacion_v1`**, no `uki_sucursales` de las pruebas.
 - Almacenamiento del navegador: `uki_operativo_v1_cifrado_` (no comparte datos ni sobrescribe el de QA).
@@ -23,8 +23,19 @@ Esta rama contiene una **copia separada** del panel v8.15 para Regimiento Arica 
 2. Activar `UKI_OPERACION_HABILITADA` solo tras esa comprobación.
 3. Probar una venta FICTICIA por sucursal en colección operativa nueva, confirmar guardado, actualizar, volver a cargar y hacer respaldo; eliminar datos de ensayo antes de recibir ventas reales.
 4. Comprobar comportamiento ante 2 modificaciones simultáneas y recuperación segura; **un celular principal de escritura por sucursal** hasta completar esa validación.
-5. Verificar límites/alertas de gasto de Firebase y contar con procedimiento alternativo (registro manual/WhatsApp) si falla Internet.
+5. Comprobar el crecimiento acumulado de snapshots (las generaciones cifradas antiguas no se borran automáticamente), límites/alertas de gasto de Firebase y contar con procedimiento alternativo (registro manual/WhatsApp) si falla Internet.
 6. Publicar solo tras autorización explícita de la propietaria.
+
+## Enlaces previstos DESPUÉS de autorizar publicación
+
+- Regimiento Arica: `/operativo/panel-local.html?sucursal=regimiento`
+- Uki La Serena: `/operativo/panel-local.html?sucursal=la-serena`
+
+Los enlaces se refieren a la misma aplicación: solo preseleccionan una sucursal, no son una barrera de permisos. No son enlaces operativos hasta la publicación definitiva. No enviarlos todavía al personal.
+
+## Corrección en pagos y fidelización
+
+Los pedidos nuevos quedan **pendientes de pago** por defecto; requieren confirmación al marcar pagados. Solo los pagos confirmados incrementan ventas y timbres, y revertir un pago elimina ese movimiento. No se modificó el panel habitual.
 
 ## Uso previsto tras lanzamiento
 
