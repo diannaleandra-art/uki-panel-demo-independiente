@@ -48,3 +48,11 @@ Nueva prueba local `uki-particion-local.js`:
 - Pendiente: integrar partición y cifrado de bloques, sincronización segura, manejo de conflictos offline, respaldos exportables, revocación de trabajadores, pruebas reales de dos dispositivos, validación de consumo Spark.
 
 La v8.15 de GitHub Pages se mantiene sin cambios; no publicar ninguna migración sin autorización de la propietaria. Ningún archivo de esta rama se debe representar como listo para pedidos reales.
+
+## Cifrado de bloques preparado (rama aislada)
+
+Se creó `firebase/uki-cifrado-bloques.js` con cifrado AES-256-GCM por bloque, IV aleatorio, contexto autenticado que vincula sucursal+generación+tipo+grupo+número y clave derivada mediante PBKDF2 (300.000 rondas). No contiene contraseñas ni hace llamadas de red.
+
+**Prueba de estructura (7 casos):** recuperación de paquete, ausencia de texto claro en salida, rechazo de otra sucursal, otra generación, tipo alterado, contraseña incorrecta y contraseña demasiado corta. Las pruebas utilizaron **una simulación de WebCrypto**, no una verificación criptográfica real; se debe probar el WebCrypto nativo de Safari y la interoperabilidad entre dispositivos antes de operar.
+
+**Pendientes obligatorios:** protocolo de commit atómico/versionado que no exceda la cuota de 10 MiB por transacción, recolección segura de versiones antiguas sin pérdida de respaldos, reglas Firestore específicas por bloque, integración con acciones del panel existente, visualización de conflictos (no sobrescritura), recuperación de error de red y prueba concurrente con dos navegadores. El `uki-sync-core.js` que escribe un documento entero sigue siendo un prototipo de bloqueo, NO debe utilizarse como almacenamiento operativo. Las reglas actualmente publicadas solo permiten la colección `uki_qa_conexion` a la cuenta de administración y deniegan el resto.
