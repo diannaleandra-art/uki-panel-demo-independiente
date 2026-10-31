@@ -1,6 +1,6 @@
 <html lang="es"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Uki Sushi · Panel DEMO corregido</title>
+<title>Uki Sushi · Panel DEMO v8.11 en preparación</title>
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -111,7 +111,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid #dc7703;outline-off
 </style>
 </head>
 <body>
-<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.10 · DEMO</h1></header>
+<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.11 · DEMO</h1></header>
 <nav id="nav" class="app-nav" aria-label="Navegación de Uki Sushi"></nav>
 <div class="aviso" style="margin:10px 12px 0;background:#fce8d7;border:1px solid #efb57c;font-weight:600">DEMO PÚBLICA · Solo datos ficticios · Sin WhatsApp real</div><main id="app"><div class="aviso">✅ v8 Timbres - 6 ventas = 12 piezas / 10 ventas = 36 + 2 korokes</div><div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Tarjeta de timbres: 6 ventas = 12 piezas gratis, 10 ventas = 36 piezas + 2 korokes</p><button class="big" onclick="pedirPin('Uki Regimiento Arica')">Uki Regimiento Arica</button><button class="big" onclick="pedirPin('Uki La Serena')">Uki La Serena</button></div><div class="card"><h2>💾 Respaldo para computador</h2><button class="big" onclick="descargarRespaldoCompleto()">💾 Descargar respaldo con tarjetas</button><label class="muted">Cargar respaldo</label><input type="file" accept=".json" onchange="cargarRespaldo(event)"></div></main>
 <script>
@@ -196,11 +196,96 @@ function ir(v){
   render();
   window.scrollTo({top:0,behavior:"instant"});
 }
-function guardarEnLocalStorage(){try{localStorage.setItem("uki_v8_timbres_prueba_independiente_20261030",JSON.stringify(S));}catch(e){}}
-function cargarDesdeLocalStorage(){try{const saved=localStorage.getItem("uki_v8_timbres_prueba_independiente_20261030"); if(!saved){return;} else {const datos=JSON.parse(saved); if(datos.pedidos||datos.clientes){S={...S,...datos,vista:S.vista,suc:S.suc,pinSuc:S.pinSuc,msg:null}; if(!S.clientes) S.clientes={};if(!Array.isArray(S.incidencias))S.incidencias=[];if(!Number.isInteger(S.nextIncidenciaId))S.nextIncidenciaId=1;}}}catch(e){}}
-function descargarRespaldoCompleto(){const datos={fecha:new Date().toISOString(),sucursal:S.suc,pedidos:S.pedidos,incidencias:S.incidencias||[],nextIncidenciaId:S.nextIncidenciaId||1,gastos:S.gastos,retiros:S.retiros,propinas:S.propinas,cierres:S.cierres,apps:S.apps,pagoDelivery:S.pagoDelivery,pagoDeliveryMedio:S.pagoDeliveryMedio,deliveriesManuales:S.deliveriesManuales,cajaChica:S.cajaChica,base:S.base,cajasDiarias:S.cajasDiarias||{},nextId:S.nextId,codigos:S.codigos,clientes:S.clientes};const blob=new Blob([JSON.stringify(datos,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`uki-respaldo-${S.suc||"todas"}-${new Date().toISOString().slice(0,10)}.json`;a.click();aviso("Respaldo con tarjetas guardado");}
+
+const UKI_V811_META="uki_demo_v811_codigos";
+const UKI_V811_PREFIJO="uki_demo_v811_sucursal_";
+const claveSucursal=s=>UKI_V811_PREFIJO+(SUCURSALES.indexOf(s)===0?"regimiento":SUCURSALES.indexOf(s)===1?"la-serena":"desconocida");
+function estadoVacioSucursal(s){
+  return {suc:s,pinSuc:null,codigos:{},vista:"pedidos",base:18000,pedidos:[],
+    gastos:[],retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,
+    pagoDeliveryMedio:"Efectivo",deliveriesManuales:[],
+    cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},
+    incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,
+    filtro:"",filtroFecha:"",filtroCliente:""};
+}
+function validarEstadoSucursal(datos,suc){
+  if(!datos||typeof datos!=="object"||Array.isArray(datos)||datos.suc!==suc)return false;
+  for(const c of ["pedidos","gastos","retiros","propinas","cierres","deliveriesManuales","incidencias"]){
+    if(!Array.isArray(datos[c])||!datos[c].every(x=>x&&typeof x==="object"&&!Array.isArray(x)&&x.suc===suc))return false;
+  }
+  if(!datos.clientes||typeof datos.clientes!=="object"||Array.isArray(datos.clientes))return false;
+  if(!datos.cajasDiarias||typeof datos.cajasDiarias!=="object"||Array.isArray(datos.cajasDiarias))return false;
+  if(!Number.isInteger(datos.nextId)||datos.nextId<1||!Number.isInteger(datos.nextIncidenciaId)||datos.nextIncidenciaId<1)return false;
+  return true;
+}
+function datosSoloSucursal(){
+  const c=JSON.parse(JSON.stringify(S));
+  delete c.codigos;delete c.pinSuc;delete c.msg;delete c.busy;delete c.confirmCierre;
+  c.suc=S.suc;return c;
+}
+function guardarEnLocalStorage(){
+  try{
+    localStorage.setItem(UKI_V811_META,JSON.stringify({codigos:S.codigos||{}}));
+    if(S.suc)localStorage.setItem(claveSucursal(S.suc),JSON.stringify(datosSoloSucursal()));
+    return true;
+  }catch(e){console.error("No se pudo guardar",e);alert("No se guardaron los cambios. Comprueba el espacio del iPhone y descarga un respaldo.");return false;}
+}
+function cargarDesdeLocalStorage(){
+  try{
+    const m=JSON.parse(localStorage.getItem(UKI_V811_META)||"null");
+    if(m?.codigos && typeof m.codigos==="object"){S.codigos=m.codigos;return;}
+    // Conservar el archivo antiguo: leer solo los codigos existentes, sin migrar registros ambiguos.
+    const antiguo=JSON.parse(localStorage.getItem("uki_v8_timbres_prueba_independiente_20261030")||"null");
+    if(antiguo?.codigos&&typeof antiguo.codigos==="object")S.codigos=antiguo.codigos;
+  }catch(e){console.warn("No se pudieron leer los codigos",e);}
+}
+function entrarDatosSucursal(s){
+  const raw=localStorage.getItem(claveSucursal(s));
+  if(raw===null){const codigos=S.codigos;S=estadoVacioSucursal(s);S.codigos=codigos;return true;}
+  try{
+    const datos=JSON.parse(raw);
+    if(!validarEstadoSucursal(datos,s)){aviso("Datos guardados incompatibles. No se modificaron.");return false;}
+    const codigos=S.codigos;
+    S={...estadoVacioSucursal(s),...datos,codigos,suc:s,pinSuc:null,vista:"pedidos",msg:null,busy:false,confirmCierre:false};
+    return true;
+  }catch(e){aviso("El almacenamiento de esta sucursal no se pudo abrir. No se ha borrado.");return false;}
+}
+function guardarArchivoJson(datos,nombre){
+  const blob=new Blob([JSON.stringify(datos,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download=nombre;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},2000);
+}
+function descargarRespaldoCompleto(){
+  if(!S.suc){aviso("Entra primero a la sucursal.");return;}
+  const contenido={formato:"uki-v811-sucursal",version:1,sucursal:S.suc,fecha:new Date().toISOString(),datos:datosSoloSucursal()};
+  guardarArchivoJson(contenido,"uki-respaldo-"+(SUCURSALES.indexOf(S.suc)===0?"regimiento":"la-serena")+"-"+hoyLocal()+".json");
+  aviso("Respaldo descargado. Guardalo en Archivos del iPhone.");
+}
 function cargarRespaldo(event){
-  alert("Solo demostración: no cargues respaldos reales en esta versión pública."); return;const file=event.target.files[0]; if(!file) return; const reader=new FileReader(); reader.onload=function(e){try{const datos=JSON.parse(e.target.result); if(confirm(`¿Cargar respaldo del ${datos.fecha||""} con ${datos.cierres?.length||0} cierres y ${Object.keys(datos.clientes||{}).length} tarjetas?`)){S.pedidos=datos.pedidos||[];S.gastos=datos.gastos||[];S.retiros=datos.retiros||[];S.propinas=datos.propinas||[];S.cierres=datos.cierres||[];S.apps=datos.apps||{};S.pagoDelivery=datos.pagoDelivery||0;S.pagoDeliveryMedio=datos.pagoDeliveryMedio||"Efectivo";S.deliveriesManuales=datos.deliveriesManuales||[];S.cajaChica=datos.cajaChica||{inicial:20000,gastos:[]};S.base=datos.base||18000;S.nextId=datos.nextId||1;if(datos.codigos) S.codigos=datos.codigos;S.clientes=datos.clientes||{};guardarEnLocalStorage();aviso(`Respaldo cargado`);render();}}catch(err){aviso("Error: "+err.message);}}; reader.readAsText(file);}
+  if(!S.suc){aviso("Entra primero a la sucursal.");return;}
+  const file=event?.target?.files?.[0];if(!file)return;
+  if(file.size>5000000){aviso("El archivo supera 5 MB.");event.target.value="";return;}
+  const suc=S.suc,lector=new FileReader();
+  lector.onload=()=>{
+    try{
+      const paquete=JSON.parse(lector.result);
+      if(paquete?.formato!=="uki-v811-sucursal"||paquete.version!==1||paquete.sucursal!==suc||
+         !validarEstadoSucursal(paquete.datos,suc)){
+        aviso("El respaldo no es valido o corresponde a otra sucursal. Sin cambios.");return;
+      }
+      if(!confirm("Restaurar reemplazara TODOS los registros actuales de "+suc+". Antes guarda una copia de seguridad. ¿Continuar?"))return;
+      if(!confirm("Confirmacion final: se reemplazaran pedidos, timbres, cierres y errores. ¿Restaurar?"))return;
+      const state={...estadoVacioSucursal(suc),...paquete.datos,codigos:S.codigos,suc,pinSuc:null,vista:"pedidos",msg:null,busy:false,confirmCierre:false};
+      // Escribir primero: si falla no se toca el estado actual.
+      localStorage.setItem(claveSucursal(suc),JSON.stringify(paquete.datos));
+      S=state;aviso("Respaldo restaurado para "+suc);render();
+    }catch(e){aviso("No se pudo abrir el respaldo. Los datos actuales siguen intactos.");}
+    finally{if(event.target)event.target.value="";}
+  };
+  lector.onerror=()=>{aviso("No se pudo leer el archivo.");event.target.value="";};
+  lector.readAsText(file);
+}
 
 function render(){
   try{
@@ -220,11 +305,18 @@ function render(){
 }
 
 function pedirPin(s){S.pinSuc=s;render();}
-function entrarSuc(){const c=($("pin")?$("pin").value:"").trim(); if(!/^\d{4}$/.test(c)){aviso("El código debe tener 4 números.");return;} if(!S.codigos[S.pinSuc]){S.codigos[S.pinSuc]=c;} else if(S.codigos[S.pinSuc]!==c){aviso("Código incorrecto para esta sucursal.");return;} S.suc=S.pinSuc;S.pinSuc=null;S.vista="pedidos";render();}
-function salirSuc(){S.suc=null;S.pinSuc=null;S.vista="inicio";render();}
+function entrarSuc(){
+  const c=($("pin")?$("pin").value:"").trim(),s=S.pinSuc;
+  if(!/^\d{4}$/.test(c)){aviso("El codigo debe tener 4 numeros.");return;}
+  if(S.codigos[s]&&S.codigos[s]!==c){aviso("Codigo incorrecto para esta sucursal.");return;}
+  if(!entrarDatosSucursal(s))return;
+  S.codigos[s]=c;S.pinSuc=null;S.vista="pedidos";render();
+}
+function salirSuc(){guardarEnLocalStorage();const codigos=S.codigos;S=estadoVacioSucursal(null);S.codigos=codigos;S.vista="inicio";nuevoDraft();render();}
 function vInicio(){
   if(S.pinSuc){const nueva=!S.codigos[S.pinSuc]; return `<div class="card"><h2>${esc(S.pinSuc)}</h2><p class="muted">${nueva?"Crea código de 4 números":"Ingresa código de 4 números"}</p><input id="pin" type="password" inputmode="numeric" placeholder="****" maxlength="4"><button class="big" onclick="entrarSuc()">${nueva?"Crear y entrar":"Entrar"}</button></div>`;}
-  if(!S.suc){return `<div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Tarjeta de timbres: 6 ventas = 12 piezas gratis, 10 ventas = 36 piezas + 2 korokes</p>${SUCURSALES.map(s=>`<button class="big" onclick="pedirPin('${s}')">${s}</button>`).join("")}</div><div class="card"><h2>💾 Respaldo para computador</h2><button class="big" onclick="descargarRespaldoCompleto()">💾 Descargar respaldo con tarjetas</button><label class="muted">Cargar respaldo</label><input type="file" accept=".json" onchange="cargarRespaldo(event)"></div>`;}
+  if(!S.suc){return `<div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Cada sucursal tendra sus pedidos y timbres independientes.</p>${SUCURSALES.map(s=>`<button class="big" onclick="pedirPin('${s}')">${s}</button>`).join("")}</div><div class="card"><p class="muted"><b>Demostracion publica:</b> no registres clientes reales. Los datos de versiones anteriores siguen conservados en el almacenamiento anterior, pero no se trasladan automaticamente para evitar mezclas. El PIN de 4 digitos es solo una barrera basica, no seguridad para datos reales.</p></div>`;}
+
   const t=totales();return `<div class="welcome"><div class="eyebrow">RESUMEN DEL DÍA · ${hoyLocal()}</div><h2>Hola, Uki Sushi <span>🍣</span></h2><p class="muted">${esc(S.suc)}</p></div>
   <section class="kpis" aria-label="Resumen de ventas">
     <div class="kpi"><span>Venta de hoy</span><strong>${fmt(t.totalMedios)}</strong></div>
@@ -333,7 +425,7 @@ function vNuevo(){
   const sub=D.items.reduce((a,i)=>a+(i.cant||0)*(i.precio||0),0);
   const envio=D.modalidad==="Delivery"?D.envio:0; const total=sub+envio;
   const chip=on=>`class="chip${on?" on":""}"`;
-  const cli=getCliente(D.cliente);
+  const cli=getCliente(D.cliente,D.codigoCliente,D.telefono);
   const ventasCli=cli?ventasValidas(cli):0;
   return `<div class="section-head"><h2>${D.editando?`Editar pedido #${D.editando}`:"Nuevo pedido"}</h2><p>Elige cómo ingresar el pedido. Puedes revisar los datos antes de guardarlo.</p></div>
   <div class="mode-switch" role="group" aria-label="Modo de ingresar pedido"><button type="button" class="${modoNuevo==='whatsapp'?'selected':''}" onclick="cambiarModoNuevo('whatsapp')">📋 Pegar WhatsApp</button><button type="button" class="${modoNuevo==='manual'?'selected':''}" onclick="cambiarModoNuevo('manual')">✎ Manual</button></div>
@@ -347,8 +439,26 @@ function editarPedido(id){const p=S.pedidos.find(x=>x.id===id); if(!p)return; D=
 function reanalizar(){leerTextoD();}
 function copiarComanda(id){const p=S.pedidos.find(x=>x.id===id); if(!p) return; const txt=[`#${p.id} ${p.modalidad}`, ...(p.productos||[]).map(pr=>`${pr.cantidad}x ${pr.nombre}${pr.detalle?` (${pr.detalle})`:""}`), p.envio?`Delivery ${fmt(p.envio)}`:"", `Total ${fmt(p.total)}`].filter(Boolean).join("\n"); if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>aviso("Comanda copiada")).catch(()=>aviso(txt)); else aviso(txt);}
 function togglePagado(id){const p=S.pedidos.find(x=>x.id===id);if(p){p.pagado=!p.pagado;render();}}
-function getCliente(nombre){if(!nombre) return null; const key=nombre.trim().toLowerCase(); return S.clientes[key]||null;}
-function asegurarCliente(nombre){if(!nombre) return null; const key=nombre.trim().toLowerCase(); if(!S.clientes[key]){S.clientes[key]={nombre:nombre.trim(),ventas:0,gastado:0,pedidos:0,ultimo:"",movimientos:[],canje6:false,canje10:false};} if(!S.clientes[key].movimientos) S.clientes[key].movimientos=[]; return S.clientes[key];}
+function claveCliente(nombre,codigo="",telefono=""){
+  const c=String(codigo||"").trim(),t=String(telefono||"").replace(/[^\d]/g,"");
+  if(c)return "codigo:"+c+"|"+t;
+  if(t)return "telefono:"+t;
+  return "nombre:"+String(nombre||"").trim().toLocaleLowerCase("es-CL");
+}
+function getCliente(nombre,codigo="",telefono=""){
+  if(!nombre)return null;return S.clientes[claveCliente(nombre,codigo,telefono)]||null;
+}
+function asegurarCliente(nombre,codigo="",telefono=""){
+  if(!nombre)return null;
+  const key=claveCliente(nombre,codigo,telefono);
+  if(!Object.prototype.hasOwnProperty.call(S.clientes,key)){
+    S.clientes[key]={nombre:nombre.trim(),codigoCliente:String(codigo||"").trim(),
+      telefono:String(telefono||"").trim(),ventas:0,gastado:0,pedidos:0,
+      ultimo:"",movimientos:[],canje6:false,canje10:false};
+  }
+  if(!Array.isArray(S.clientes[key].movimientos))S.clientes[key].movimientos=[];
+  return S.clientes[key];
+}
 function fechaVencimiento(fechaISO){const d=new Date(fechaISO); d.setMonth(d.getMonth()+3); return d.toISOString();}
 function ventasValidas(cli){
   if(!cli||!cli.movimientos) return cli?.ventas||0;
@@ -372,9 +482,14 @@ function ventasValidas(cli){
 
 /* Historial por cliente; solo lee registros, no modifica calculos de timbres. */
 const nombreHist=n=>String(n||"").trim().toLocaleLowerCase("es-CL");
-function pedidosHist(nombre){return (S.pedidos||[]).filter(p=>nombreHist(p.cliente)===nombreHist(nombre)).slice().sort((a,b)=>String(b.fechaISO||"").localeCompare(String(a.fechaISO||"")));}
+function pedidosHist(nombre,codigo="",telefono=""){
+  const id=claveCliente(nombre,codigo,telefono);
+  return (S.pedidos||[]).filter(p=>nombreHist(p.cliente)===nombreHist(nombre)
+    && claveCliente(p.cliente,p.codigoCliente,p.telefono)===id)
+    .slice().sort((a,b)=>String(b.fechaISO||"").localeCompare(String(a.fechaISO||"")));
+}
 function fichaHistorial(cli){
-  const pedidos=pedidosHist(cli.nombre), compras=pedidos.filter(p=>!p.esPremio&&p.estado!=="Cancelado");
+  const pedidos=pedidosHist(cli.nombre,cli.codigoCliente,cli.telefono), compras=pedidos.filter(p=>!p.esPremio&&p.estado!=="Cancelado");
   const inc=(S.incidencias||[]).filter(x=>pedidos.some(p=>p.id===x.pedidoId&&p.suc===x.suc));
   const grupos=new Map();
   const fecha=x=>{const d=new Date(x||"");return Number.isNaN(d.getTime())?"Sin fecha":d.toLocaleDateString("es-CL");};
@@ -413,7 +528,7 @@ function fichaHistorial(cli){
     +'<div class="row"><span>Total productos</span><b>'+fmt(compras.reduce((n,p)=>n+(+p.subtotal||0),0))+'</b></div>'
     +'<div class="row"><span>Reclamos</span><b>'+inc.length+'</b></div>'
     +'<div class="row"><span>Premios canjeados</span><b>'+canjes.length+'</b></div>'
-    +'<p class="muted">Solo registros guardados en este navegador. Se identifican ambas sucursales si corresponde.</p>'
+    +'<p class="muted">Solo registros guardados en este navegador. Historial exclusivo de esta sucursal.</p>'
     +(codigos.size>1?'<p style="color:#9b3e00"><b>Atención:</b> este nombre aparece con distintos códigos. El historial está separado, pero los timbres antiguos siguen agrupados por nombre.</p>':'')
     +(secciones||'<p class="muted">No hay pedidos asociados en este dispositivo.</p>')
     +(canjes.length?'<details class="inner-details"><summary>Ver canjes ('+canjes.length+')</summary>'
@@ -427,15 +542,16 @@ function vClientes(){
   const lista=Object.values(S.clientes).filter(c=>{
     if(!buscar)return true;
     if(nombreHist(c.nombre).includes(buscar))return true;
-    return pedidosHist(c.nombre).some(p=>String(p.codigoCliente||"").toLowerCase().includes(buscar)||String(p.telefono||"").replace(/[^0-9]/g,"").includes(buscar));
+    return pedidosHist(c.nombre,c.codigoCliente,c.telefono).some(p=>String(p.codigoCliente||"").toLowerCase().includes(buscar)||String(p.telefono||"").replace(/[^0-9]/g,"").includes(buscar));
   }).sort((a,b)=>ventasValidas(b)-ventasValidas(a));
   return `<div class="card"><h2>⭐ Tarjetas de Timbres - 6=12 piezas / 10=36+2 korokes</h2><p class="muted">Cada venta = 1 timbre. Vence en 3 meses. 6 ventas = 12 piezas gratis. 10 ventas = 36 piezas + 2 korokes gratis.</p><label>Buscar cliente por nombre, código o teléfono</label><input placeholder="Ej: Camila o código 7362" value="${esc(S.filtroCliente||"")}" oninput="S.filtroCliente=this.value;render()"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px"><div class="card" style="margin:0"><h2 style="font-size:12px">Tarjetas</h2><b>${lista.length}</b></div><div class="card" style="margin:0"><h2 style="font-size:12px">Listos 6 ventas</h2><b>${lista.filter(c=>ventasValidas(c)>=6).length}</b></div><div class="card" style="margin:0"><h2 style="font-size:12px">Listos 10 ventas</h2><b>${lista.filter(c=>ventasValidas(c)>=10).length}</b></div></div></div>
   ${lista.length?lista.map(cli=>{
-    const key=cli.nombre.toLowerCase();
+    const key=claveCliente(cli.nombre,cli.codigoCliente,cli.telefono);
+    const keyArg=esc(JSON.stringify(key));
     const ventas=ventasValidas(cli);
     const puede6=ventas>=6 && !cli.canje6;
     const puede10=ventas>=10;
-    return `<div class="card" style="${puede10?'border:2px solid #111':puede6?'border:2px solid var(--ok)':''}"><h2>${esc(cli.nombre)} <span class="tag">🎫 ${ventas}/10 timbres</span> ${puede6?'<span class="tag" style="background:var(--ok);color:#fff">🎁 12 piezas listo!</span>':''} ${puede10?'<span class="tag" style="background:#111;color:#fff">🎉 36+2 korokes listo!</span>':''}</h2><p class="muted">${cli.pedidos} pedidos · Gastado ${fmt(cli.gastado)} · Último ${esc(cli.ultimo||"")}</p><div class="tarjeta">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventas?'lleno':''} ${i===5?'premio':''} ${i===9?'premio':''}" title="${i===5?'6 ventas = 12 piezas':i===9?'10 ventas = 36+2 korokes':''}">${i<ventas?'✓':i+1}${i===5?'<br><small style="font-size:8px">12p</small>':''}${i===9?'<br><small style="font-size:7px">36+2k</small>':''}</div>`).join("")}</div><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"><button class="sm ok" onclick="avisarTimbres('${key}')">📲 Avisar por WhatsApp</button>${puede6?`<button class="sm ok" onclick="canjear12('${key}')">🎁 Canjear 12 piezas (6)</button>`:''}${puede10?`<button class="sm" style="background:#111;color:#fff" onclick="canjear36('${key}')">🎉 Canjear 36+2 korokes (10)</button>`:''}<button class="sm" onclick="D.cliente='${esc(cli.nombre).replace(/'/g,"\\'")}';ir('nuevo');">+ Pedido</button></div><details style="margin-top:8px"><summary class="muted">Ver historial timbres</summary>${(cli.movimientos||[]).slice(-15).reverse().map(m=>`<div class="row"><span>${m.tipo==='venta'?'🟢 Venta':m.tipo==='canje6'?'🔴 Canje 12 piezas':m.tipo==='canje10'?'🔴 Canje 36+2k':esc(m.tipo)} - ${new Date(m.fecha).toLocaleDateString('es-CL')} ${m.vence?'· Vence '+new Date(m.vence).toLocaleDateString('es-CL'):''}</span></div>`).join("")||"<p class='muted'>Sin movimientos</p>"}</details>${fichaHistorial(cli)}</div>`;
+    return `<div class="card" style="${puede10?'border:2px solid #111':puede6?'border:2px solid var(--ok)':''}"><h2>${esc(cli.nombre)} <span class="tag">🎫 ${ventas}/10 timbres</span> ${puede6?'<span class="tag" style="background:var(--ok);color:#fff">🎁 12 piezas listo!</span>':''} ${puede10?'<span class="tag" style="background:#111;color:#fff">🎉 36+2 korokes listo!</span>':''}</h2><p class="muted">${cli.pedidos} pedidos · Gastado ${fmt(cli.gastado)} · Último ${esc(cli.ultimo||"")}</p><div class="tarjeta">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventas?'lleno':''} ${i===5?'premio':''} ${i===9?'premio':''}" title="${i===5?'6 ventas = 12 piezas':i===9?'10 ventas = 36+2 korokes':''}">${i<ventas?'✓':i+1}${i===5?'<br><small style="font-size:8px">12p</small>':''}${i===9?'<br><small style="font-size:7px">36+2k</small>':''}</div>`).join("")}</div><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"><button class="sm ok" onclick="avisarTimbres(${keyArg})">📲 Avisar por WhatsApp</button>${puede6?`<button class="sm ok" onclick="canjear12(${keyArg})">🎁 Canjear 12 piezas (6)</button>`:''}${puede10?`<button class="sm" style="background:#111;color:#fff" onclick="canjear36(${keyArg})">🎉 Canjear 36+2 korokes (10)</button>`:''}<button class="sm" onclick="D.cliente=${esc(JSON.stringify(cli.nombre))};D.codigoCliente=${esc(JSON.stringify(cli.codigoCliente||''))};D.telefono=${esc(JSON.stringify(cli.telefono||''))};ir('nuevo');">+ Pedido</button></div><details style="margin-top:8px"><summary class="muted">Ver historial timbres</summary>${(cli.movimientos||[]).slice(-15).reverse().map(m=>`<div class="row"><span>${m.tipo==='venta'?'🟢 Venta':m.tipo==='canje6'?'🔴 Canje 12 piezas':m.tipo==='canje10'?'🔴 Canje 36+2k':esc(m.tipo)} - ${new Date(m.fecha).toLocaleDateString('es-CL')} ${m.vence?'· Vence '+new Date(m.vence).toLocaleDateString('es-CL'):''}</span></div>`).join("")||"<p class='muted'>Sin movimientos</p>"}</details>${fichaHistorial(cli)}</div>`;
   }).join(""):`<div class="card muted">Sin tarjetas aún. Se crean al guardar pedidos con nombre. Cada venta = 1 timbre.</div>`}
   <div class="card"><h2>Ranking clientes frecuentes</h2>${Object.values(S.clientes).sort((a,b)=>b.pedidos-a.pedidos).slice(0,10).map((c,i)=>`<div class="row"><span>${i+1}. ${esc(c.nombre)} - ${ventasValidas(c)}/10 timbres</span><b>${c.pedidos} pedidos</b></div>`).join("")||"<p class='muted'>Sin datos</p>"}</div>`;
 }
@@ -443,7 +559,7 @@ function avisarTimbres(key){
   alert("Solo demostración: no se enviarán mensajes de WhatsApp. Usa únicamente datos ficticios."); return;
   const cli=S.clientes[key]; if(!cli) return;
   const ventas=ventasValidas(cli);
-  const pedidosCliente=S.pedidos.filter(p=>p.cliente&&p.cliente.toLowerCase()===key).reverse();
+  const pedidosCliente=pedidosHist(cli.nombre,cli.codigoCliente,cli.telefono);
   const ultimo=pedidosCliente[0];
   const telefono=(ultimo?.telefono||"").replace(/[^0-9]/g,"");
   let msg=`Hola ${cli.nombre}! 😊🍣\n\nTu tarjeta Uki Sushi: *${ventas}/10 timbres* 🎫\n`;
@@ -510,7 +626,7 @@ function canjear12(key){
   cli.canje6=true;
   aviso(`Canje 12 piezas para ${cli.nombre} registrado. Ahora puede seguir hacia 10 ventas para 36+2 korokes.`);
   // Crear pedido gratis de 12 piezas para cocina
-  S.pedidos.push({id:S.nextId++,suc:S.suc,fechaISO:ahora(),cliente:cli.nombre,telefono:"",modalidad:"Retiro",envio:0,medio:"Canje 6 ventas",medioEnvio:"Efectivo",pagado:true,estado:"Entregado",productos:[{nombre:"PREMIO 12 piezas - Canje 6 ventas",cantidad:1,precioUnit:0,detalle:"Gratis por tarjeta 6 timbres"}],total:0,subtotal:0,textoOriginal:`Canje premio 6 ventas - ${cli.nombre}`,esPremio:true});
+  S.pedidos.push({id:S.nextId++,suc:S.suc,fechaISO:ahora(),cliente:cli.nombre,telefono:cli.telefono||"",codigoCliente:cli.codigoCliente||"",modalidad:"Retiro",envio:0,medio:"Canje 6 ventas",medioEnvio:"Efectivo",pagado:true,estado:"Entregado",productos:[{nombre:"PREMIO 12 piezas - Canje 6 ventas",cantidad:1,precioUnit:0,detalle:"Gratis por tarjeta 6 timbres"}],total:0,subtotal:0,textoOriginal:`Canje premio 6 ventas - ${cli.nombre}`,esPremio:true});
   guardarEnLocalStorage(); render();
 }
 function canjear36(key){
@@ -523,7 +639,7 @@ function canjear36(key){
   cli.canje10=false;
   // Marcar todas las ventas anteriores como canjeadas (reset)
   aviso(`¡Canje 36+2 korokes para ${cli.nombre}! Tarjeta reiniciada a 0.`);
-  S.pedidos.push({id:S.nextId++,suc:S.suc,fechaISO:ahora(),cliente:cli.nombre,telefono:"",modalidad:"Retiro",envio:0,medio:"Canje 10 ventas",medioEnvio:"Efectivo",pagado:true,estado:"Entregado",productos:[{nombre:"PREMIO 36 piezas + 2 korokes - Canje 10 ventas",cantidad:1,precioUnit:0,detalle:"Gratis por tarjeta 10 timbres"}],total:0,subtotal:0,textoOriginal:`Canje premio 10 ventas - ${cli.nombre}`,esPremio:true});
+  S.pedidos.push({id:S.nextId++,suc:S.suc,fechaISO:ahora(),cliente:cli.nombre,telefono:cli.telefono||"",codigoCliente:cli.codigoCliente||"",modalidad:"Retiro",envio:0,medio:"Canje 10 ventas",medioEnvio:"Efectivo",pagado:true,estado:"Entregado",productos:[{nombre:"PREMIO 36 piezas + 2 korokes - Canje 10 ventas",cantidad:1,precioUnit:0,detalle:"Gratis por tarjeta 10 timbres"}],total:0,subtotal:0,textoOriginal:`Canje premio 10 ventas - ${cli.nombre}`,esPremio:true});
   guardarEnLocalStorage(); render();
 }
 
@@ -584,7 +700,7 @@ function vCaja(){
   const active=CAJA_TABS.find(x=>x[0]===cajaTab)||CAJA_TABS[0];
   const content=({resumen:vCajaResumen,movimientos:vMovimientos,cierre:vCierre,historial:vHistorialCompacto})[active[0]]();
   return `<div class="section-head"><h2>Caja</h2><p>Control diario · ${hoyLocal()}</p></div>
-  <div class="sub-tabs" role="group" aria-label="Secciones de caja">${CAJA_TABS.map(([k,l])=>`<button class="${cajaTab===k?'selected':''}" onclick="cambiarCajaTab('${k}')">${l}</button>`).join('')}</div>${content}`;
+  <div class="sub-tabs" role="group" aria-label="Secciones de caja">${CAJA_TABS.map(([k,l])=>`<button class="${cajaTab===k?'selected':''}" onclick="cambiarCajaTab('${k}')">${l}</button>`).join('')}</div>${content}<div class="card"><h2>💾 Respaldo de esta sucursal</h2><p class="muted">Descarga una copia cada dia. Restaurar reemplaza los registros, no combina archivos. El JSON NO esta cifrado: no lo compartas con desconocidos.</p><button class="big" onclick="descargarRespaldoCompleto()">Descargar respaldo JSON</button><label>Restaurar respaldo de esta sucursal</label><input type="file" accept=".json,application/json" onchange="cargarRespaldo(event)"></div>`;
 }
 function vCajaResumen(){
   const t=totales(), caja=cajaDelDia();
@@ -701,7 +817,7 @@ function ndGuardar(){
     if(p){
       // Si era premio, no afecta tarjeta
       if(!p.esPremio && p.cliente){
-        const cliOld=getCliente(p.cliente);
+        const cliOld=getCliente(p.cliente,p.codigoCliente,p.telefono);
         if(cliOld && cliOld.movimientos){
           cliOld.movimientos = cliOld.movimientos.filter(m=>m.pedidoId!==p.id);
           cliOld.pedidos=Math.max(0,(cliOld.pedidos||1)-1);
@@ -710,7 +826,7 @@ function ndGuardar(){
       }
       p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||"";p.codigoCarta=D.codigoCarta||"";p.codigoCliente=D.codigoCliente||"";p.sucursalCarta=D.sucursalCarta||""; p.modalidad=D.modalidad; p.envio=envio; p.medio=D.medio; p.medioEnvio=D.medioEnvio; p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})); p.total=total; p.subtotal=sub; p.textoOriginal=D.texto;
       if(!p.esPremio && D.cliente){
-        const cli=asegurarCliente(D.cliente);
+        const cli=asegurarCliente(D.cliente,D.codigoCliente,D.telefono);
         cli.gastado+=sub;
         cli.pedidos+=1;
         cli.ultimo=new Date().toLocaleDateString("es-CL");
@@ -725,7 +841,7 @@ function ndGuardar(){
   const nuevoPedido={id:idNuevo,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),cliente:D.cliente,telefono:D.telefono||"",codigoCarta:D.codigoCarta||"",codigoCliente:D.codigoCliente||"",sucursalCarta:D.sucursalCarta||"",modalidad:D.modalidad,envio:envio,medio:D.medio,medioEnvio:D.medioEnvio,pagado:D.pagado,estado:"Entregado",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),total:total,subtotal:sub,textoOriginal:D.texto,esPremio:false};
   S.pedidos.push(nuevoPedido);
   if(D.cliente){
-    const cli=asegurarCliente(D.cliente);
+    const cli=asegurarCliente(D.cliente,D.codigoCliente,D.telefono);
     cli.gastado+=sub;
     cli.pedidos+=1;
     cli.ultimo=new Date().toLocaleDateString("es-CL");
