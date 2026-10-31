@@ -82,3 +82,21 @@ Se agregó \`firebase/panel-nube-qa.html\`, derivada de la **v8.15 existente**, 
 5. Recién tras lo anterior, habilitar guardado automático con un indicador inequívoco de «sincronizado / pendiente / error» y bloqueo de conflictos, sin modificar la carta original.
 
 **Aviso:** hoy \`panel-nube-qa.html\` tiene guardado manual expresamente para controlar las pruebas. No afirmar que es apto para operaciones normales.
+
+## Avance 31 oct 2026: autoguardado y acceso de personal en preparación
+
+**Verificación ya realizada por la propietaria desde Safari iPhone:** la copia NUBE QA pública registró una prueba FICTICIA de Regimiento Arica y devolvió el estado «Prueba cifrada guardada, revisión 1, bloques 3». En otra sesión de Safari, se confirmó «Revisión cargada: 1. Datos ficticios recuperados» y un pedido pagado. Esto comprueba guardado y recuperación cifrados desde Safari, **no** sincronización concurrente entre dos dispositivos físicos.
+
+**Novedades exclusivamente en la rama de preparación:**
+- `firebase/uki-autoguardado-qa.js`: controlador de guardado con retardo, sin escrituras por navegación; comprueba revisiones; preserva cambios locales si hay una revisión más nueva, contraseña incorrecta o error de red. 9 pruebas simuladas iniciales y 2 comprobaciones adicionales de revisiones recibidas durante el guardado, aprobadas.
+- `firebase/panel-nube-qa.html`: barra de estado de sincronización (sincronizado, pendiente, guardando, conflicto o error) y casilla de activación deliberada; observación de revisiones de Firestore con `onSnapshot`. Se desactiva al salir y antes de reemplazar datos por una carga remota. No permite guardar manualmente mientras el autoguardado está activo. **No está publicado** el cambio.
+- `firebase/firestore-reglas-trabajadores-BORRADOR.rules`: ACL por Google UID, con documento `uki_staff/{uid}` de asignación por sucursal, campo `activo` para revocación; solo administradora puede crear/editar asignaciones. **Borrador no aplicado**.
+
+**Limitaciones y pendientes:**
+1. Comprobar con dos dispositivos físicos y errores de red; pendiente también la verificación de las reglas nuevas en Firebase Emulator.
+2. El autoguardado actual protege contra sobrescrituras, pero **no fusiona dos pedidos simultáneos**: ante conflicto exige recuperar o resolver la copia local. No representar como sincronización operativa completa.
+3. La lectura de una revisión remota más nueva informa y bloquea; no aplica la nube automáticamente mientras puedan existir formularios sin terminar.
+4. Permisos de trabajadores y acceso a los datos cifrados son asuntos distintos. Con la clave compartida actual, revocar la cuenta limita el acceso futuro a Firestore, pero **no elimina copias previamente descargadas** y sería necesario gestionar la distribución y rotación de claves antes de atender clientes reales.
+5. Es un repositorio público con HTML de QA, solo datos ficticios hasta el análisis de seguridad, prueba de aislamiento de cuentas y procedimiento de recuperación. No generar gastos o publicar las reglas de trabajadores sin nueva autorización.
+
+**Verificación de integridad GitHub actual:** `main/index.html` mantiene su SHA `ec6613efd922d6f83aed9ee128993758d616ab52`; `main/firebase/panel-nube-qa.html` conserva SHA `d08c2de01daf8db402e44d07f57c32e37da9124d`. Ninguna de las mejoras de autoguardado y trabajadores se ha desplegado.
