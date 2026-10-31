@@ -44,27 +44,63 @@ service cloud.firestore {
         validBranch(request.resource.data.sucursal);
       allow delete: if owner();
     }
-    // Documentos cifrados por sucursal: la app operativa aún NO está publicada.
+    // Manifest por sucursal: solo activa una generación CIFRADA cuando todos los
+    // bloques nuevos ya fueron escritos. Todavía NO aplicar en producción.
     match /uki_sucursales/{branch} {
       allow get: if mayUse(branch);
       allow list: if false;
-      function paqueteValido() {
-        return request.resource.data.keys().hasAll(["branch", "schemaVersion", "rev", "paquete"]) &&
-          request.resource.data.keys().hasOnly(["branch", "schemaVersion", "rev", "paquete"]) &&
+      function manifestValido() {
+        return request.resource.data.keys().hasAll(
+              ["branch","schemaVersion","rev","generacion","salt","totalBloques","actualizadoPor"]) &&
+          request.resource.data.keys().hasOnly(
+              ["branch","schemaVersion","rev","generacion","salt","totalBloques","actualizadoPor"]) &&
           request.resource.data.branch == branch &&
-          request.resource.data.schemaVersion == 1 &&
+          request.resource.data.schemaVersion == 2 &&
           request.resource.data.rev is int &&
-          request.resource.data.paquete is string &&
-          request.resource.data.paquete.size() > 0 &&
-          request.resource.data.paquete.size() < 750000;
+          request.resource.data.generacion is string &&
+          request.resource.data.generacion.matches("^[a-f0-9]{32}$") &&
+          request.resource.data.salt is string &&
+          request.resource.data.salt.size() >= 20 &&
+          request.resource.data.salt.size() <= 28 &&
+          request.resource.data.totalBloques is int &&
+          request.resource.data.totalBloques >= 1 &&
+          request.resource.data.totalBloques <= 180 &&
+          request.resource.data.actualizadoPor == request.auth.uid;
       }
-      allow create: if mayUse(branch) && paqueteValido() &&
+      allow create: if mayUse(branch) && manifestValido() &&
         request.resource.data.rev == 1;
-      allow update: if mayUse(branch) && paqueteValido() &&
+      allow update: if mayUse(branch) && manifestValido() &&
         resource.data.branch == branch &&
-        resource.data.schemaVersion == 1 &&
-        request.resource.data.rev == resource.data.rev + 1;
+        resource.data.schemaVersion == 2 &&
+        request.resource.data.rev == resource.data.rev + 1 &&
+        request.resource.data.salt == resource.data.salt &&
+        request.resource.data.generacion != resource.data.generacion;
       allow delete: if false;
+
+      // Bloques de cada generación: NO se pueden modificar ni eliminar.
+      match /bloques/{bloqueId} {
+        allow get: if mayUse(branch);
+        allow list: if false;
+        function bloqueValido() {
+          return request.resource.data.keys().hasAll(
+              ["branch","generacion","indice","formato","paquete"]) &&
+            request.resource.data.keys().hasOnly(
+              ["branch","generacion","indice","formato","paquete"]) &&
+            request.resource.data.branch == branch &&
+            request.resource.data.generacion is string &&
+            request.resource.data.generacion.matches("^[a-f0-9]{32}$") &&
+            bloqueId.matches("^[a-f0-9]{32}_[0-9]{4}$") &&
+            request.resource.data.indice is int &&
+            request.resource.data.indice >= 0 &&
+            request.resource.data.indice < 180 &&
+            request.resource.data.formato == "uki-cloud-chunk-v1" &&
+            request.resource.data.paquete is string &&
+            request.resource.data.paquete.size() > 0 &&
+            request.resource.data.paquete.size() < 350000;
+        }
+        allow create: if mayUse(branch) && bloqueValido();
+        allow update, delete: if false;
+      }
     }
     // No crear reglas comodín con 'if true' ni 'auth != null' solamente.
   }
