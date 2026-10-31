@@ -112,7 +112,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid #dc7703;outline-off
 </style>
 </head>
 <body>
-<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.15 · LOCALES</h1></header>
+<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.15 · LOCALES</h1><small id="ukiEstadoOperativo" role="status">Nube operativa: pendiente de activación</small></header>
 <nav id="nav" class="app-nav" aria-label="Navegación de Uki Sushi"></nav>
 <section style="margin:12px;padding:14px;background:#fff0dd;border:2px solid #b55e25;border-radius:14px">
 <b>VERSIÓN OPERATIVA EN PREPARACIÓN · ACCESO BLOQUEADO HASTA AUTORIZAR</b>
@@ -273,7 +273,12 @@ function guardarEnLocalStorage(){
  return colaGuardado.catch(e=>{console.error("No se pudieron guardar datos cifrados",e);
   alert("No se guardaron los ultimos cambios. Descarga un respaldo y revisa el espacio del telefono.");return false;});
 }
-function cargarDesdeLocalStorage(){S=estadoVacioSucursal(null);}
+function cargarDesdeLocalStorage(){
+ S=estadoVacioSucursal(null);
+ const desdeEnlace=new URLSearchParams(location.search).get("sucursal");
+ if(desdeEnlace==="regimiento")S.pinSuc="Uki Regimiento Arica";
+ else if(desdeEnlace==="la-serena")S.pinSuc="Uki La Serena";
+}
 async function entrarDatosSucursal(s,password){
  if(!globalThis.crypto?.subtle||!globalThis.crypto?.getRandomValues)throw Error("Cifrado no disponible");
  const raw=localStorage.getItem(claveLocal(s));let datos,key,salt;
@@ -419,7 +424,7 @@ async function entrarSuc(){
 async function salirSuc(){
  if(S.suc){const ok=await guardarEnLocalStorage();if(!ok)return;await colaGuardado;}
  revisionGuardado++;claveSesion=null;saltSesion=null;sucursalSesion=null;
- S=estadoVacioSucursal(null);nuevoDraft();
+ cargarDesdeLocalStorage();nuevoDraft();
  if(typeof window.ukiQASessionLeft==="function")window.ukiQASessionLeft();
  document.body.classList.remove("uki-operativo-bloqueado");
  render();
@@ -1184,6 +1189,8 @@ const auto=crearAutoGuardadoOperativo({
    const status=el("ukiAutoEstado");
    if(status)status.textContent="Nube local: "+estado+
      (rev===null?"":" · revisión "+rev)+(detalle?" · "+detalle:"");
+   const encabezado=el("ukiEstadoOperativo");
+   if(encabezado)encabezado.textContent="Nube: "+estado+(rev===null?"":" · revisión "+rev);
    el("ukiSaveQA").disabled=auto.resumen().activo;
    actualizarBloqueo();
  }
