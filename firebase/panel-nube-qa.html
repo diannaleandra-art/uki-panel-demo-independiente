@@ -115,7 +115,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid #dc7703;outline-off
 <nav id="nav" class="app-nav" aria-label="Navegación de Uki Sushi"></nav>
 <section style="margin:12px;padding:14px;background:#fff0dd;border:2px solid #b55e25;border-radius:14px">
 <b>SOLO QA · NO USAR PEDIDOS REALES · SIN SINCRONIZACIÓN AUTOMÁTICA</b>
-<p>Esta copia usa otro almacenamiento del navegador: no toca la v8.15 habitual. Firebase sigue bloqueado hasta autorizar reglas distintas.</p>
+<p>Esta copia usa otro almacenamiento del navegador: no toca la v8.15 habitual. Solo la cuenta administradora puede usar la nube de pruebas. No usar pedidos reales.</p>
 <div id="ukiNubeEstado" role="status">Google sin iniciar.</div>
 <button id="ukiLoginQA" type="button">Entrar con Google</button>
 <label for="ukiCloudPass" style="display:block">Clave de nube de prueba (12+ caracteres)</label>
@@ -1159,6 +1159,7 @@ const auto=crearAutoGuardadoQA({
    const status=el("ukiAutoEstado");
    if(status)status.textContent="Autoguardado QA: "+estado+
      (rev===null?"":" · revisión "+rev)+(detalle?" · "+detalle:"");
+   el("ukiSaveQA").disabled=auto.resumen().activo;
  }
 });
 function claveNube(){
@@ -1204,7 +1205,7 @@ async function accion(action){
  if(ocupado)return;
  ocupado=true;el("ukiLoadQA").disabled=true;el("ukiSaveQA").disabled=true;
  try{await action()}catch(e){msg("Error de pruebas: "+String(e?.code||"")+": "+String(e?.message||e))}
- finally{ocupado=false;el("ukiLoadQA").disabled=false;el("ukiSaveQA").disabled=false}
+ finally{ocupado=false;el("ukiLoadQA").disabled=false;el("ukiSaveQA").disabled=auto.resumen().activo}
 }
 onAuthStateChanged(auth,user=>{
  revision=null;sucursalCargada=null;
