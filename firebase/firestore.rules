@@ -1,0 +1,63 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // UKI: reglas cerradas. Nunca conceder acceso solo por tener Gmail.
+    function googleVerified() {
+      return request.auth != null &&
+        request.auth.token.email_verified == true &&
+        request.auth.token.firebase.sign_in_provider == "google.com";
+    }
+    function owner() {
+      return googleVerified() &&
+        request.auth.token.email == "ukiadministracion@gmail.com";
+    }
+    function validBranch(branch) {
+      return branch in ["regimiento", "la-serena"];
+    }
+    function staffBranch(branch) {
+      return googleVerified() &&
+        exists(/databases/$(database)/documents/uki_autorizados/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/uki_autorizados/$(request.auth.uid)).data.activo == true &&
+        get(/databases/$(database)/documents/uki_autorizados/$(request.auth.uid)).data.sucursal == branch;
+    }
+    function mayUse(branch) {
+      return validBranch(branch) && (owner() || staffBranch(branch));
+    }
+    // Registros de prueba: únicamente el administrador, ligados a su UID.
+    match /uki_qa_conexion/{uid} {
+      allow get: if owner() && request.auth.uid == uid;
+      allow list: if false;
+      allow create, update: if owner() && request.auth.uid == uid &&
+        request.resource.data.keys().hasOnly(["uid", "tipo", "actualizada"]) &&
+        request.resource.data.uid == uid &&
+        request.resource.data.tipo == "PRUEBA_FICTICIA" &&
+        request.resource.data.actualizada is int;
+      allow delete: if owner() && request.auth.uid == uid;
+    }
+    // Documentos de habilitación de trabajadores. Solo el administrador los edita.
+    match /uki_autorizados/{uid} {
+      allow get: if owner() || (googleVerified() && request.auth.uid == uid);
+      allow list: if false;
+      allow create, update: if owner() &&
+        request.resource.data.keys().hasOnly(["activo", "sucursal"]) &&
+        request.resource.data.activo is bool &&
+        validBranch(request.resource.data.sucursal);
+      allow delete: if owner();
+    }
+    // Documentos cifrados por sucursal: la app operativa aún NO está publicada.
+    match /uki_sucursales/{branch} {
+      allow get: if mayUse(branch);
+      allow list: if false;
+      allow create, update: if mayUse(branch) &&
+        request.resource.data.keys().hasOnly(["branch", "schemaVersion", "rev", "paquete"]) &&
+        request.resource.data.branch == branch &&
+        request.resource.data.schemaVersion == 1 &&
+        request.resource.data.rev is int &&
+        request.resource.data.rev >= 1 &&
+        request.resource.data.paquete is string &&
+        request.resource.data.paquete.size() < 800000;
+      allow delete: if false;
+    }
+    // No crear reglas comodín con 'if true' ni 'auth != null' solamente.
+  }
+}
