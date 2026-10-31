@@ -1,6 +1,6 @@
 <html lang="es"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Uki Sushi · Panel DEMO v8.11 en preparación</title>
+<title>Uki Sushi · Panel DEMO v8.14 (NO PUBLICADA)</title>
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -111,7 +111,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid #dc7703;outline-off
 </style>
 </head>
 <body>
-<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.13 · DEMO</h1></header>
+<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.14 · DEMO (NO PUBLICADA)</h1></header>
 <nav id="nav" class="app-nav" aria-label="Navegación de Uki Sushi"></nav>
 <div class="aviso" style="margin:10px 12px 0;background:#fce8d7;border:1px solid #efb57c;font-weight:600">DEMO PÚBLICA · Solo datos ficticios · Sin WhatsApp real</div><main id="app"><div class="aviso">✅ v8 Timbres - 6 ventas = 12 piezas / 10 ventas = 36 + 2 korokes</div><div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Tarjeta de timbres: 6 ventas = 12 piezas gratis, 10 ventas = 36 piezas + 2 korokes</p><button class="big" onclick="pedirPin('Uki Regimiento Arica')">Uki Regimiento Arica</button><button class="big" onclick="pedirPin('Uki La Serena')">Uki La Serena</button></div><div class="card"><h2>💾 Respaldo para computador</h2><button class="big" onclick="descargarRespaldoCompleto()">💾 Descargar respaldo con tarjetas</button><label class="muted">Cargar respaldo</label><input type="file" accept=".json" onchange="cargarRespaldo(event)"></div></main>
 <script>
@@ -172,7 +172,7 @@ function esDelPeriodo(x){
   return !corte||t>corte;
 }
 const delSucHoy=arr=>delSuc(arr).filter(esDelPeriodo);
-const row=(l,v,cls="")=>`<div class="row ${cls}"><span>${l}</span><b>${v}</b></div>`;
+const row=(l,v,cls="")=>`<div class="row ${esc(cls)}"><span>${esc(l)}</span><b>${esc(v)}</b></div>`;
 const VISTAS=[["inicio","Inicio","⌂"],["pedidos","Pedidos","▤"],["nuevo","Nuevo","＋"],["clientes","Timbres","✧"],["caja","Caja","▣"]];
 let cajaTab="resumen";
 let movimientoTab="gastos";
@@ -1070,6 +1070,13 @@ function descargarPDF(tipo){
     aviso("📄 Cierre TXT descargado");
   }
 }
+// Protege celdas de texto de Excel contra formulas y saltos de columna.
+function csvSeguro(valor){
+ let texto=String(valor??"").replace(/[\r\n\x00-\x1F]+/g," ");
+ if(/^\s*[=+\-@]/.test(texto))texto="'"+texto;
+ return '"'+texto.replace(/"/g,'""')+'"';
+}
+
 function descargarExcel(tipo){
   if(tipo==="historial"){
     const cierres=delSuc(S.cierres).filter(x=>!S.filtro||x.fecha.includes(S.filtro));
@@ -1077,7 +1084,7 @@ function descargarExcel(tipo){
     let csv="Fecha;Responsable;Pedidos;Efectivo;Transferencia;Debito;Edenred;Otros;Uber Eats;PedidosYa;Rappi;Venta con delivery;Venta sin delivery;Base;Deliveries;Gastos;Pago Delivery;Total final;Efectivo quedo;Obs\n";
     cierres.forEach(x=>{
       const m=x.medios||{};
-      csv+=`${x.fecha};${x.resp};${x.pedidos};${m.Efectivo||0};${m.Transferencia||0};${m.Débito||0};${m.Edenred||0};${m.Otros||0};${m["Uber Eats"]||0};${m.PedidosYa||0};${m.Rappi||0};${x.venta};${x.ventaSinDelivery||0};${x.base||0};${x.envios||0};${x.gastos};${x.pagadoDelivery};${x.final};${x.efectivo};${(x.obs||"").replace(/;/g,",")}\n`;
+      csv+=`${csvSeguro(x.fecha)};${csvSeguro(x.resp)};${x.pedidos};${m.Efectivo||0};${m.Transferencia||0};${m.Débito||0};${m.Edenred||0};${m.Otros||0};${m["Uber Eats"]||0};${m.PedidosYa||0};${m.Rappi||0};${x.venta};${x.ventaSinDelivery||0};${x.base||0};${x.envios||0};${x.gastos};${x.pagadoDelivery};${x.final};${x.efectivo};${csvSeguro(x.obs||"")}\n`;
     });
     descargarTextoArchivo(`historial-${S.suc}-${new Date().toISOString().slice(0,10)}.csv`, csv, "text/csv;charset=utf-8");
     aviso("📊 Excel historial descargado");
@@ -1145,8 +1152,8 @@ function vHistorial(){
     <p class="muted" style="margin:8px 0 4px"><b>💳 Desglose pagos</b></p>
     ${mediosRows||'<p class="muted">Sin desglose (cierre antiguo)</p>'}
     ${row("Pedidos",x.pedidos)}${row("Venta total con delivery",fmt(x.venta),"sub")}${row("Venta sin delivery",fmt(x.ventaSinDelivery||x.venta-(x.envios||0)))}
-    <p class="muted" style="margin:12px 0 2px"><b>🛵 Deliveries (${(x.dels||[]).length}) - Base $${x.base||0}</b></p>
-    ${(x.dels||[]).map(d=>row(`#${d.id} · ${esc(d.cliente||"sin nombre")}`,fmt(d.envio))).join("")||'<p class="muted">Sin deliveries</p>'}
+    <p class="muted" style="margin:12px 0 2px"><b>🛵 Deliveries (${(x.dels||[]).length}) - Base $${esc(x.base||0)}</b></p>
+    ${(x.dels||[]).map(d=>row(`#${d.id} · ${d.cliente||"sin nombre"}`,fmt(d.envio))).join("")||'<p class="muted">Sin deliveries</p>'}
     ${row("Deliveries pedidos",fmt(x.enviosPedidos||0))}${row("Deliveries manuales",fmt(x.enviosManuales||0))}${row("Total deliveries",fmt((x.dels||[]).reduce((a,d)=>a+(d.envio||0),0)+(x.base||0)),"sub")}
     <p class="muted" style="margin:12px 0 2px"><b>💰 Efectivo</b></p>
     ${row("Efectivo cobrado",fmt(x.efectivoCobrado))}${row("− Gastos en efectivo",fmt(x.gastosEf))}${row("− Retiros",fmt(x.retiros))}${row(`− Pago a delivery (${x.pagoDeliveryMedio||"Efectivo"})`,fmt(x.pagadoDelivery))}${row("Efectivo que quedó",fmt(x.efectivo),"sub")}
