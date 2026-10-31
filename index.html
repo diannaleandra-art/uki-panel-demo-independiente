@@ -1,6 +1,6 @@
 <html lang="es"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Uki Sushi · Panel DEMO v8.11 en preparación</title>
+<title>Uki Sushi · Panel DEMO v8.14</title>
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -111,7 +111,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid #dc7703;outline-off
 </style>
 </head>
 <body>
-<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.13 · DEMO</h1></header>
+<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.14 · DEMO</h1></header>
 <nav id="nav" class="app-nav" aria-label="Navegación de Uki Sushi"></nav>
 <div class="aviso" style="margin:10px 12px 0;background:#fce8d7;border:1px solid #efb57c;font-weight:600">DEMO PÚBLICA · Solo datos ficticios · Sin WhatsApp real</div><main id="app"><div class="aviso">✅ v8 Timbres - 6 ventas = 12 piezas / 10 ventas = 36 + 2 korokes</div><div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Tarjeta de timbres: 6 ventas = 12 piezas gratis, 10 ventas = 36 piezas + 2 korokes</p><button class="big" onclick="pedirPin('Uki Regimiento Arica')">Uki Regimiento Arica</button><button class="big" onclick="pedirPin('Uki La Serena')">Uki La Serena</button></div><div class="card"><h2>💾 Respaldo para computador</h2><button class="big" onclick="descargarRespaldoCompleto()">💾 Descargar respaldo con tarjetas</button><label class="muted">Cargar respaldo</label><input type="file" accept=".json" onchange="cargarRespaldo(event)"></div></main>
 <script>
@@ -172,7 +172,7 @@ function esDelPeriodo(x){
   return !corte||t>corte;
 }
 const delSucHoy=arr=>delSuc(arr).filter(esDelPeriodo);
-const row=(l,v,cls="")=>`<div class="row ${cls}"><span>${l}</span><b>${v}</b></div>`;
+const row=(l,v,cls="")=>`<div class="row ${esc(cls)}"><span>${esc(l)}</span><b>${esc(v)}</b></div>`;
 const VISTAS=[["inicio","Inicio","⌂"],["pedidos","Pedidos","▤"],["nuevo","Nuevo","＋"],["clientes","Timbres","✧"],["caja","Caja","▣"]];
 let cajaTab="resumen";
 let movimientoTab="gastos";
@@ -653,68 +653,9 @@ function vClientes(){
   <div class="card"><h2>Ranking clientes frecuentes</h2>${Object.values(S.clientes).sort((a,b)=>b.pedidos-a.pedidos).slice(0,10).map((c,i)=>`<div class="row"><span>${i+1}. ${esc(c.nombre)} - ${ventasValidas(c)}/10 timbres</span><b>${c.pedidos} pedidos</b></div>`).join("")||"<p class='muted'>Sin datos</p>"}</div>`;
 }
 function avisarTimbres(key){
-  alert("Solo demostración: no se enviarán mensajes de WhatsApp. Usa únicamente datos ficticios."); return;
-  const cli=S.clientes[key]; if(!cli) return;
-  const ventas=ventasValidas(cli);
-  const pedidosCliente=pedidosHist(cli.nombre,cli.codigoCliente,cli.telefono);
-  const ultimo=pedidosCliente[0];
-  const telefono=(ultimo?.telefono||"").replace(/[^0-9]/g,"");
-  let msg=`Hola ${cli.nombre}! 😊🍣\n\nTu tarjeta Uki Sushi: *${ventas}/10 timbres* 🎫\n`;
-  if(ventas>=10) msg+=`\n🎉 ¡Felicidades! Ya puedes reclamar *36 piezas + 2 korokes GRATIS* (10 ventas)!\n`;
-  else if(ventas>=6) msg+=`\n🎁 ¡Ya puedes reclamar *12 piezas GRATIS* (6 ventas)! Y si llegas a 10, ganas 36 + 2 korokes.\nTe faltan ${10-ventas} ventas para el premio mayor.\n`;
-  else msg+=`\nTe faltan ${6-ventas} ventas para ganar 12 piezas gratis, y ${10-ventas} para 36 + 2 korokes.\n`;
-  msg+=`\nHas hecho ${cli.pedidos} pedidos con nosotros.\n\n¡Te esperamos! Uki Sushi 🍣`;
-  
-  // Guardar mensaje para usar en botones
-  const encodedMsg=encodeURIComponent(msg);
-  const apiUrl=telefono?`https://api.whatsapp.com/send?phone=${telefono}&text=${encodedMsg}`:`https://api.whatsapp.com/send?text=${encodedMsg}`;
-  const waAppUrl=telefono?`whatsapp://send?phone=${telefono}&text=${encodedMsg}`:`whatsapp://send?text=${encodedMsg}`;
-  
-  // 1. Copiar siempre
-  if(navigator.clipboard){
-    navigator.clipboard.writeText(msg).catch(()=>{});
-  }
-  
-  // 2. Intentar abrir directo - crear link invisible y click (mejor para iPhone dentro de Meta AI)
-  try{
-    const a=document.createElement("a");
-    a.href=waAppUrl;
-    a.target="_blank";
-    a.rel="noopener";
-    a.style.display="none";
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(()=>{ try{document.body.removeChild(a);}catch(e){} },1000);
-  }catch(e){}
-  
-  // 3. Si tiene navigator.share (iPhone share sheet -> WhatsApp)
-  if(navigator.share){
-    setTimeout(()=>{
-      navigator.share({text:msg, title:"Uki Sushi"}).catch(()=>{
-        // Si cancela share, abrir api.whatsapp.com
-        window.open(apiUrl,"_blank");
-      });
-    },400);
-  } else {
-    // 4. Fallback abrir api.whatsapp.com en nueva pestaña
-    setTimeout(()=>{
-      const win=window.open(apiUrl,"_blank");
-      if(!win){
-        // Si bloquea popup, usar location
-        window.location.href=apiUrl;
-      }
-    },600);
-  }
-  
-  // 5. Aviso con botones para que elija
-  setTimeout(()=>{
-    const htmlMsg=`✅ Mensaje copiado\n\n${msg}\n\nSi no abrió WhatsApp automático, toca:`;
-    // Mostrar aviso con opciones
-    if(confirm(htmlMsg+"\n\n¿Abrir WhatsApp ahora? (Aceptar = abrir, Cancelar = solo copiado)")){
-      window.open(apiUrl,"_blank");
-    }
-  },1200);
+  alert("Solo demostración: los avisos a clientes por WhatsApp están desactivados.");
 }
+
 function canjear12(key){
   const cli=S.clientes[key]; if(!cli) return;
   if(ventasValidas(cli)<6){aviso("Necesita 6 ventas");return;}
@@ -1070,6 +1011,13 @@ function descargarPDF(tipo){
     aviso("📄 Cierre TXT descargado");
   }
 }
+// Protege celdas de texto de Excel contra formulas y saltos de columna.
+function csvSeguro(valor){
+ let texto=String(valor??"").replace(/[\r\n\x00-\x1F]+/g," ");
+ if(/^\s*[=+\-@]/.test(texto))texto="'"+texto;
+ return '"'+texto.replace(/"/g,'""')+'"';
+}
+
 function descargarExcel(tipo){
   if(tipo==="historial"){
     const cierres=delSuc(S.cierres).filter(x=>!S.filtro||x.fecha.includes(S.filtro));
@@ -1077,7 +1025,7 @@ function descargarExcel(tipo){
     let csv="Fecha;Responsable;Pedidos;Efectivo;Transferencia;Debito;Edenred;Otros;Uber Eats;PedidosYa;Rappi;Venta con delivery;Venta sin delivery;Base;Deliveries;Gastos;Pago Delivery;Total final;Efectivo quedo;Obs\n";
     cierres.forEach(x=>{
       const m=x.medios||{};
-      csv+=`${x.fecha};${x.resp};${x.pedidos};${m.Efectivo||0};${m.Transferencia||0};${m.Débito||0};${m.Edenred||0};${m.Otros||0};${m["Uber Eats"]||0};${m.PedidosYa||0};${m.Rappi||0};${x.venta};${x.ventaSinDelivery||0};${x.base||0};${x.envios||0};${x.gastos};${x.pagadoDelivery};${x.final};${x.efectivo};${(x.obs||"").replace(/;/g,",")}\n`;
+      csv+=`${csvSeguro(x.fecha)};${csvSeguro(x.resp)};${x.pedidos};${m.Efectivo||0};${m.Transferencia||0};${m.Débito||0};${m.Edenred||0};${m.Otros||0};${m["Uber Eats"]||0};${m.PedidosYa||0};${m.Rappi||0};${x.venta};${x.ventaSinDelivery||0};${x.base||0};${x.envios||0};${x.gastos};${x.pagadoDelivery};${x.final};${x.efectivo};${csvSeguro(x.obs||"")}\n`;
     });
     descargarTextoArchivo(`historial-${S.suc}-${new Date().toISOString().slice(0,10)}.csv`, csv, "text/csv;charset=utf-8");
     aviso("📊 Excel historial descargado");
@@ -1106,17 +1054,9 @@ function copiarResumen(){
   else aviso(txt.slice(0,1000));
 }
 function compartirWhatsAppCierre(){
-  alert("Solo demostración: compartir por WhatsApp está desactivado."); return;
-  const t=totales();
-  let txt=`Uki Sushi ${S.suc} - ${new Date().toLocaleDateString("es-CL")}\n`;
-  txt+=`=== DESGLOSE PAGOS ===\n`;
-  Object.keys(t.medios).forEach(k=>{ if(t.medios[k]>0) txt+=`${k}: ${fmt(t.medios[k])}\n`; });
-  txt+=`\nPedidos: ${t.n} - Venta con delivery: ${fmt(t.totalMedios)}\nVenta sin delivery: ${fmt(t.ventaSinDelivery)}\n`;
-  txt+=`Deliveries: ${fmt(t.envios)} (Base ${fmt(S.base)})\nGastos: ${fmt(t.gastosTotal)}\nTotal final: ${fmt(t.final)}\nEfectivo queda: ${fmt(t.efectivoCaja)}\n`;
-  const url=`https://api.whatsapp.com/send?text=${encodeURIComponent(txt)}`;
-  if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>{ aviso("✅ Cierre copiado"); window.open(url,"_blank"); });
-  else window.open(url,"_blank");
+  alert("Solo demostración: no se abre WhatsApp ni se envían datos. Usa únicamente datos ficticios.");
 }
+
 function vHistorialCompacto(){
   const tmp=document.createElement('div');tmp.innerHTML=vHistorial();
   Array.from(tmp.children).forEach((card,i)=>{
@@ -1145,8 +1085,8 @@ function vHistorial(){
     <p class="muted" style="margin:8px 0 4px"><b>💳 Desglose pagos</b></p>
     ${mediosRows||'<p class="muted">Sin desglose (cierre antiguo)</p>'}
     ${row("Pedidos",x.pedidos)}${row("Venta total con delivery",fmt(x.venta),"sub")}${row("Venta sin delivery",fmt(x.ventaSinDelivery||x.venta-(x.envios||0)))}
-    <p class="muted" style="margin:12px 0 2px"><b>🛵 Deliveries (${(x.dels||[]).length}) - Base $${x.base||0}</b></p>
-    ${(x.dels||[]).map(d=>row(`#${d.id} · ${esc(d.cliente||"sin nombre")}`,fmt(d.envio))).join("")||'<p class="muted">Sin deliveries</p>'}
+    <p class="muted" style="margin:12px 0 2px"><b>🛵 Deliveries (${(x.dels||[]).length}) - Base $${esc(x.base||0)}</b></p>
+    ${(x.dels||[]).map(d=>row(`#${d.id} · ${d.cliente||"sin nombre"}`,fmt(d.envio))).join("")||'<p class="muted">Sin deliveries</p>'}
     ${row("Deliveries pedidos",fmt(x.enviosPedidos||0))}${row("Deliveries manuales",fmt(x.enviosManuales||0))}${row("Total deliveries",fmt((x.dels||[]).reduce((a,d)=>a+(d.envio||0),0)+(x.base||0)),"sub")}
     <p class="muted" style="margin:12px 0 2px"><b>💰 Efectivo</b></p>
     ${row("Efectivo cobrado",fmt(x.efectivoCobrado))}${row("− Gastos en efectivo",fmt(x.gastosEf))}${row("− Retiros",fmt(x.retiros))}${row(`− Pago a delivery (${x.pagoDeliveryMedio||"Efectivo"})`,fmt(x.pagadoDelivery))}${row("Efectivo que quedó",fmt(x.efectivo),"sub")}
