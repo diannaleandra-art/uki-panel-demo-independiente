@@ -1,0 +1,583 @@
+<html lang="es"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Uki Sushi · Panel de prueba independiente</title>
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Uki Prueba">
+<style>
+:root{--bg:#fffaf5;--card:#ffffff;--ink:#2b2118;--muted:#8a6f5a;--accent:#f57c00;--accent-dark:#d96a00;--ok:#e65100;--line:#f1e3d6;color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink);padding-bottom:env(safe-area-inset-bottom,0px)}
+header{background:linear-gradient(135deg,#ff9800,#f57c00);color:#fff;box-shadow:0 2px 8px rgba(245,124,0,.25);padding:env(safe-area-inset-top,0px) 16px 12px;position:sticky;top:0;z-index:5}
+header h1{margin:10px 0 2px;font-size:18px}
+header small{opacity:.9;font-size:13px}
+nav{display:flex;overflow-x:auto;gap:8px;padding:10px 12px;background:var(--card);border-bottom:1px solid var(--line)}
+nav button{flex:0 0 auto;padding:9px 14px;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:15px}
+nav button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+main{padding:12px;max-width:560px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.card h2{font-size:16px;margin:0 0 8px}
+.muted{color:var(--muted);font-size:14px}
+.row{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:15px}
+.row:last-child{border-bottom:0}
+.row.sub{font-weight:700;border-top:2px solid var(--accent);border-bottom:0;margin-top:4px;padding-top:10px}
+.row.final{font-size:18px;font-weight:700;border-top:2px solid var(--accent);color:var(--accent-dark);border-bottom:0;margin-top:6px;padding-top:12px}
+.neg>span:first-child::before{content:"− "}
+label{display:block;font-size:14px;color:var(--muted);margin-top:8px}
+input,select,textarea{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:16px;margin:4px 0 6px}
+button.big{width:100%;padding:14px;border:0;border-radius:12px;background:var(--accent);color:#fff;box-shadow:0 2px 6px rgba(245,124,0,.25);font-size:17px;font-weight:600;margin-top:10px}
+button.sm{padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-size:14px;margin:4px 4px 0 0}
+button.sm.ok{background:var(--accent);border-color:var(--accent);color:#fff}
+.tag{display:inline-block;font-size:12px;padding:3px 8px;border-radius:999px;border:1px solid var(--line);margin:4px 4px 0 0}
+.aviso{background:#fff1e0;color:#8a4500;font-size:13px;padding:8px 10px;border-radius:8px;margin-bottom:12px;text-align:center}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 4px}
+.chips button{padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:15px}
+.chips button.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.check{display:flex;align-items:center;gap:8px;margin-top:10px;color:var(--ink)}
+.check input{width:auto;margin:0}
+.pegar{border:2px solid var(--accent)}
+.tarjeta{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:12px 0}
+.timbre{width:100%;aspect-ratio:1;border-radius:50%;border:2px dashed var(--line);display:flex;align-items:center;justify-content:center;font-size:18px;background:var(--bg)}
+.timbre.lleno{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.timbre.premio{border-style:solid;border-color:var(--ok);background:#fff1e0}
+</style>
+</head>
+<body>
+<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.7 · PRUEBA</h1></header>
+<nav id="nav"><button class="on" onclick="ir('inicio')">Inicio</button><button class="" onclick="ir('pedidos')">Pedidos</button><button class="" onclick="ir('nuevo')">+ Nuevo pedido</button><button class="" onclick="ir('registros')">Gastos y propinas</button><button class="" onclick="ir('clientes')">Tarjeta Timbres</button><button class="" onclick="ir('cierre')">Cierre del día</button><button class="" onclick="ir('historial')">Historial</button></nav>
+<div class="aviso" style="margin:10px 12px 0;background:#fce8d7;border:1px solid #efb57c;font-weight:600">VERSIÓN DE PRUEBA · Solo datos ficticios · No conectada con Uki real</div><main id="app"><div class="aviso">✅ v8 Timbres - 6 ventas = 12 piezas / 10 ventas = 36 + 2 korokes</div><div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Tarjeta de timbres: 6 ventas = 12 piezas gratis, 10 ventas = 36 piezas + 2 korokes</p><button class="big" onclick="pedirPin('Uki Regimiento Arica')">Uki Regimiento Arica</button><button class="big" onclick="pedirPin('Uki La Serena')">Uki La Serena</button></div><div class="card"><h2>💾 Respaldo para computador</h2><button class="big" onclick="descargarRespaldoCompleto()">💾 Descargar respaldo con tarjetas</button><label class="muted">Cargar respaldo</label><input type="file" accept=".json" onchange="cargarRespaldo(event)"></div></main>
+<script>
+const SUCURSALES=["Uki Regimiento Arica","Uki La Serena"];
+const MEDIOS=["Efectivo","Transferencia","Débito","Edenred","Otros","Uber Eats","PedidosYa","Rappi"];
+const APPS=["Uber Eats","PedidosYa","Rappi"];
+let S={suc:null,pinSuc:null,codigos:{},vista:"inicio",base:18000,pedidos:[],gastos:[],retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",deliveriesManuales:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},nextId:1,busy:false,msg:null,confirmCierre:false,filtro:"",filtroFecha:"",filtroCliente:""};
+let D={texto:"",fecha:"",cliente:"",telefono:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:true,items:[],editando:null};
+const $=id=>document.getElementById(id);
+const fmt=n=>"$"+Math.round(n||0).toLocaleString("es-CL");
+const esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ahora=()=>{const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,16);};
+const fechaTxt=s=>new Date(s).toLocaleString("es-CL",{weekday:"short",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
+const delSuc=arr=>arr.filter(x=>x.suc===S.suc);
+const pedidosSuc=()=>delSuc(S.pedidos);
+const row=(l,v,cls="")=>`<div class="row ${cls}"><span>${l}</span><b>${v}</b></div>`;
+const VISTAS=[["inicio","Inicio"],["pedidos","Pedidos"],["nuevo","+ Nuevo pedido"],["registros","Gastos y propinas"],["clientes","Tarjeta Timbres"],["cierre","Cierre del día"],["historial","Historial"]];
+
+function aviso(t){S.msg=t;render();window.scrollTo({top:0,behavior:"smooth"});}
+function ir(v){S.confirmCierre=false;S.vista=(!S.suc&&v!=="inicio")?"inicio":v;render();}
+function guardarEnLocalStorage(){try{localStorage.setItem("uki_v8_timbres_prueba_independiente_20261030",JSON.stringify(S));}catch(e){}}
+function cargarDesdeLocalStorage(){try{const saved=localStorage.getItem("uki_v8_timbres_prueba_independiente_20261030"); if(!saved){return;} else {const datos=JSON.parse(saved); if(datos.pedidos||datos.clientes){S={...S,...datos,vista:S.vista,suc:S.suc,pinSuc:S.pinSuc,msg:null}; if(!S.clientes) S.clientes={};}}}catch(e){}}
+function descargarRespaldoCompleto(){const datos={fecha:new Date().toISOString(),sucursal:S.suc,pedidos:S.pedidos,gastos:S.gastos,retiros:S.retiros,propinas:S.propinas,cierres:S.cierres,apps:S.apps,pagoDelivery:S.pagoDelivery,pagoDeliveryMedio:S.pagoDeliveryMedio,deliveriesManuales:S.deliveriesManuales,cajaChica:S.cajaChica,base:S.base,nextId:S.nextId,codigos:S.codigos,clientes:S.clientes};const blob=new Blob([JSON.stringify(datos,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`uki-respaldo-${S.suc||"todas"}-${new Date().toISOString().slice(0,10)}.json`;a.click();aviso("Respaldo con tarjetas guardado");}
+function cargarRespaldo(event){
+  alert("Solo demostración: no cargues respaldos reales en esta versión pública."); return;const file=event.target.files[0]; if(!file) return; const reader=new FileReader(); reader.onload=function(e){try{const datos=JSON.parse(e.target.result); if(confirm(`¿Cargar respaldo del ${datos.fecha||""} con ${datos.cierres?.length||0} cierres y ${Object.keys(datos.clientes||{}).length} tarjetas?`)){S.pedidos=datos.pedidos||[];S.gastos=datos.gastos||[];S.retiros=datos.retiros||[];S.propinas=datos.propinas||[];S.cierres=datos.cierres||[];S.apps=datos.apps||{};S.pagoDelivery=datos.pagoDelivery||0;S.pagoDeliveryMedio=datos.pagoDeliveryMedio||"Efectivo";S.deliveriesManuales=datos.deliveriesManuales||[];S.cajaChica=datos.cajaChica||{inicial:20000,gastos:[]};S.base=datos.base||18000;S.nextId=datos.nextId||1;if(datos.codigos) S.codigos=datos.codigos;S.clientes=datos.clientes||{};guardarEnLocalStorage();aviso(`Respaldo cargado`);render();}}catch(err){aviso("Error: "+err.message);}}; reader.readAsText(file);}
+
+function render(){
+  try{
+  $("suc").innerHTML=S.suc?`Sucursal: ${S.suc} · <a href="#" onclick="salirSuc();return false;" style="color:#fff;text-decoration:underline">Salir</a>`:"Elige una sucursal para empezar";
+  $("nav").innerHTML=VISTAS.map(([k,l])=>`<button class="${S.vista===k?"on":""}" onclick="ir('${k}')">${l}</button>`).join("");
+  const f={inicio:vInicio,pedidos:vPedidos,nuevo:vNuevo,registros:vRegistros,clientes:vClientes,cierre:vCierre,historial:vHistorial}[S.vista];
+  const msg=S.msg?`<div class="aviso" style="background:#ffe1e1;color:#7a0010">${esc(S.msg)}</div>`:"";
+  S.msg=null;
+  const persist=`<div class="aviso">✅ v8 Timbres - 6 ventas = 12 piezas / 10 ventas = 36 + 2 korokes</div>`;
+  $("app").innerHTML=persist+msg+f();
+  guardarEnLocalStorage();
+  }catch(error){
+    console.error("Error en pantalla Uki",error);
+    const app=document.getElementById("app");
+    if(app) app.innerHTML='<div class="card"><h2>No se pudo mostrar esta pantalla</h2><p class="muted">Tus datos no se han borrado. Puedes intentar nuevamente o descargar un respaldo.</p><button class="big" onclick="ir(\'inicio\')">Volver al inicio</button><button class="big" onclick="descargarRespaldoCompleto()">Descargar respaldo</button></div>';
+  }
+}
+
+function pedirPin(s){S.pinSuc=s;render();}
+function entrarSuc(){const c=($("pin")?$("pin").value:"").trim(); if(!/^\d{4}$/.test(c)){aviso("El código debe tener 4 números.");return;} if(!S.codigos[S.pinSuc]){S.codigos[S.pinSuc]=c;} else if(S.codigos[S.pinSuc]!==c){aviso("Código incorrecto para esta sucursal.");return;} S.suc=S.pinSuc;S.pinSuc=null;S.vista="pedidos";render();}
+function salirSuc(){S.suc=null;S.pinSuc=null;S.vista="inicio";render();}
+function vInicio(){
+  if(S.pinSuc){const nueva=!S.codigos[S.pinSuc]; return `<div class="card"><h2>${esc(S.pinSuc)}</h2><p class="muted">${nueva?"Crea código de 4 números":"Ingresa código de 4 números"}</p><input id="pin" type="password" inputmode="numeric" placeholder="****" maxlength="4"><button class="big" onclick="entrarSuc()">${nueva?"Crear y entrar":"Entrar"}</button></div>`;}
+  if(!S.suc){return `<div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Tarjeta de timbres: 6 ventas = 12 piezas gratis, 10 ventas = 36 piezas + 2 korokes</p>${SUCURSALES.map(s=>`<button class="big" onclick="pedirPin('${s}')">${s}</button>`).join("")}</div><div class="card"><h2>💾 Respaldo para computador</h2><button class="big" onclick="descargarRespaldoCompleto()">💾 Descargar respaldo con tarjetas</button><label class="muted">Cargar respaldo</label><input type="file" accept=".json" onchange="cargarRespaldo(event)"></div>`;}
+  const t=totales(); return `<div class="card"><h2>Hoy - ${esc(S.suc)}</h2>${row("Pedidos",t.n)}${row("Venta",fmt(t.totalMedios))}${row("Efectivo queda",fmt(t.efectivoCaja))}</div><div class="card"><h2>⭐ Tarjetas activas hoy</h2><p class="muted">${Object.keys(S.clientes).length} clientes con tarjeta</p><button class="sm ok" onclick="ir('clientes')">Ver tarjetas</button></div>`;
+}
+// Datos temporales de cierre: no alteran el respaldo ni el formato guardado.
+let cierreDraft={resp:"",obs:""};
+function setModalidad(modalidad){
+  D.modalidad=modalidad;
+  if(modalidad!=="Delivery") D.envio=0;
+  render();
+}
+function setEnvioManual(valor){
+  D.envio=Math.max(0,Number.parseInt(valor,10)||0);
+  const monto=D.modalidad==="Delivery"?D.envio:0;
+  const sub=D.items.reduce((s,x)=>s+(Number(x.cant)||0)*(Number(x.precio)||0),0);
+  const dl=$("pedidoEnvioVista"); if(dl) dl.textContent=fmt(monto);
+  const total=$("pedidoTotalVista"); if(total) total.textContent=fmt(sub+monto);
+  const txt=$("pedidoEnvioAyuda");
+  if(txt) txt.textContent=D.modalidad==="Delivery"?"Delivery seleccionado - "+fmt(monto)+" se suma al total":"Toca Delivery arriba para sumar envío";
+}
+function nuevoDraft(){D={texto:"",fecha:ahora(),cliente:"",telefono:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:true,items:[{nombre:"",cant:1,precio:0,det:""}],editando:null};}
+function delItem(k){D.items.splice(k,1);if(!D.items.length)D.items=[{nombre:"",cant:1,precio:0,det:""}];render();}
+function addItem(){const n=$("pNom").value.trim(); const c=parseInt($("pCant").value)||1; const p=parseInt($("pPre").value)||0; const d=$("pDet").value.trim(); if(!n||!p){aviso("Pon nombre y precio");return;} D.items=D.items.filter(x=>x.nombre); D.items.push({nombre:n,cant:c,precio:p,det:d}); $("pNom").value=""; $("pCant").value=1; $("pPre").value=""; $("pDet").value=""; render();}
+function leerTextoD(){
+  const t=(D.texto||"").trim(); if(!t)return;
+  const ml=t.toLowerCase();
+  const medio=MEDIOS.find(x=>ml.includes(x.toLowerCase().split(" ")[0])); if(medio)D.medio=medio;
+  if(/delivery|domicilio|envío|envio/.test(ml)){D.modalidad="Delivery";D.medioEnvio=D.medio;} else if(/retiro/.test(ml)) D.modalidad="Retiro";
+  const cli=t.match(/(?:cliente|nombre)\s*[:\-]\s*([^\n,]+)/i); if(cli)D.cliente=cli[1].trim().slice(0,40);
+  const tel=t.match(/(?:whatsapp|fono|tel|cel)\s*[:\-\s]*([+\d\s\-]{8,15})/i) || t.match(/(\+?56\s*9\s*\d{4}\s*\d{4})|(9\s*\d{4}\s*\d{4})/);
+  if(tel){D.telefono=tel[0].replace(/[^0-9+]/g,"").slice(0,15);}
+  const dm=t.match(/(?:delivery|envío|envio)\s*\$?\s*([\d\.\,]+)/i);
+  if(dm){D.envio=parseInt(dm[1].replace(/[^0-9]/g,""))||0;} else {
+    const allNums=[...t.matchAll(/\$\s*([\d\.\,]+)/g)].map(x=>parseInt(x[1].replace(/[^0-9]/g,""),10)).filter(n=>n>=0&&n<=5000);
+    if(/delivery|domicilio|envío|envio/i.test(t) && allNums.length){D.envio=Math.min(...allNums);}
+  }
+  const lines=t.split(/\n/); const tieneValidos=D.items.some(x=>x.nombre.trim()&&x.precio>0); if(!tieneValidos) D.items=[];
+  lines.forEach(line=>{
+    let l=line.trim(); if(!l) return;
+    if(l.length<40 && /^(cliente|nombre|total|delivery|envio|transferencia|efectivo|debito|edenred|pago)/i.test(l) && !/\d{4,}/.test(l) && !/promo|roll|sushi|poke|combo|gyoza|tempura/i.test(l.toLowerCase())) return;
+    const prodMatch=l.match(/^(?:\d+\s*x\s*)?(.+?)\s*(?:x\s*\d+)?\s*\$?\s*([\d\.\,]{4,7})\s*$/i);
+    if(prodMatch){
+      let nombreRaw=prodMatch[1].trim(); let precio=parseInt(prodMatch[2].replace(/[^0-9]/g,""))||0;
+      if(/delivery|total|envío|envio/i.test(nombreRaw)) return;
+      if(precio<1000||precio>100000) return; if(nombreRaw.length<2) return;
+      nombreRaw=nombreRaw.replace(/^\d+\s*x\s*/i,"").trim().slice(0,50);
+      if(!D.items.some(x=>x.nombre.toLowerCase()===nombreRaw.toLowerCase())){D.items.push({nombre:nombreRaw,cant:1,precio:precio,det:""});}
+    }
+  });
+  if(D.items.length===0){
+    const allNums=[...t.matchAll(/\$\s*([\d\.\,]+)/g)].map(x=>parseInt(x[1].replace(/[^0-9]/g,""),10)).filter(n=>n>=100&&n<=200000);
+    if(allNums.length){const totalVal=Math.max(...allNums); if(totalVal>=1000){const precioProd=totalVal-(D.envio||0); if(precioProd>=1000){D.items=[{nombre:"Pedido WhatsApp (revisar detalle)",cant:1,precio:precioProd,det:"Auto desde total $"+totalVal}];}}}
+  }
+  if(D.envio>0){D.modalidad="Delivery";}
+  if(D.items.length===1&&D.items[0].nombre===""&&D.items[0].precio===0) D.items=[];
+  if(D.items.length===0) D.items=[{nombre:"",cant:1,precio:0,det:""}];
+  const tmpTexto=D.texto;
+  render();
+  setTimeout(()=>{const el=document.getElementById("pegaTxt"); if(el && tmpTexto){ el.value=tmpTexto; }},50);
+}
+function vNuevo(){
+  if(!S.suc) return vInicio(); if(!D.fecha) nuevoDraft();
+  const sub=D.items.reduce((a,i)=>a+(i.cant||0)*(i.precio||0),0);
+  const envio=D.modalidad==="Delivery"?D.envio:0; const total=sub+envio;
+  const chip=on=>`class="chip${on?" on":""}"`;
+  const cli=getCliente(D.cliente);
+  const ventasCli=cli?ventasValidas(cli):0;
+  return `<div class="card pegar"><h2>1. Pedido: 2 opciones ${D.editando?`<span style="background:#111;color:#fff;padding:2px 8px;border-radius:999px;font-size:12px">Editando #${D.editando}</span>`:""}</h2><div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap"><span class="tag" style="background:var(--accent);color:#fff">Opción A: Pega WhatsApp → auto</span><span class="tag">Opción B: Manual local</span></div><label style="font-weight:700;color:var(--accent)">Opción A: Pega WhatsApp de la carta</label><textarea id="pegaTxt" rows="5" placeholder="Pega aquí mensaje completo de WhatsApp de la carta. Si cliente pide en local, deja vacío y usa Opción B abajo." style="font-size:15px" oninput="D.texto=this.value" onpaste="setTimeout(()=>{const el=document.getElementById('pegaTxt'); if(el){D.texto=el.value; leerTextoD();}},150)">${esc(D.texto)}</textarea><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="sm ok" onclick="leerTextoD()">🔄 Procesar WhatsApp pegado</button><button class="sm" onclick="D.texto='';D.items=[{nombre:'',cant:1,precio:0,det:''}];D.cliente='';D.telefono='';D.envio=0;D.modalidad='Retiro';render()">🗑️ Limpiar y usar manual</button></div>${D.editando?`<p class="aviso" style="background:#111;color:#fff">✏️ Editando pedido #${D.editando}</p>`:""}<p class="muted" style="margin-top:8px">A: Pega WhatsApp → auto marca Delivery y valor. B: Deja vacío → selecciona abajo manual.</p></div>
+  <div class="card"><h2>2. Datos del pedido - Opción B Manual</h2><label>Fecha y hora</label><input type="datetime-local" value="${D.fecha}" oninput="D.fecha=this.value"><label>Cliente (no se autocompleta con total)</label><input value="${esc(D.cliente)}" placeholder="Ej: Camila Rojas" oninput="D.cliente=this.value">${cli?`<div style="margin-top:8px;padding:8px;background:#fff1e0;border-radius:8px"><b>${esc(cli.nombre)}</b> tiene <b>${ventasCli}/10</b> timbres ${ventasCli>=6?'<span class="tag" style="background:var(--ok);color:#fff">Puede canjear 12 piezas!</span>':''} ${ventasCli>=10?'<span class="tag" style="background:#111;color:#fff">Puede canjear 36+2 korokes!</span>':''}<div class="tarjeta" style="margin-top:6px">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventasCli?'lleno':''} ${i===5||i===9?'premio':''}">${i<ventasCli?'✓':i+1}</div>`).join("")}</div></div>`:"<p class='muted'>Nuevo cliente - empezará con 1 timbre</p>"}<label>📱 WhatsApp / Teléfono</label><input value="${esc(D.telefono)}" placeholder="+56 9 1234 5678" oninput="D.telefono=this.value" inputmode="tel"><label>Entrega - toca para seleccionar (B)</label><div class="chips">${["Retiro","Delivery","Consumo en local"].map(m=>`<button ${chip(D.modalidad===m)} onclick="setModalidad('${m}')">${m}</button>`).join("")}</div><label>💰 Valor delivery ${D.modalidad==="Delivery"?"(se suma)":"(selecciona Delivery)"}</label><input type="number" inputmode="numeric" value="${D.envio||""}" placeholder="Ej: 2000" oninput="setEnvioManual(this.value)"><p class="muted" id="pedidoEnvioAyuda">${D.modalidad==="Delivery"?`Delivery seleccionado - $${D.envio||0} se suma al total`:`Toca Delivery arriba para sumar envío`}</p></div>
+  <div class="card"><h2>3. Productos - Manual y Automático</h2>${D.items.filter(x=>x.nombre).map((i,k)=>`<div class="row"><span>${i.cant} × ${esc(i.nombre)}${i.det?` <span class="muted">(${esc(i.det)})</span>`:""}</span><b>${fmt(i.cant*i.precio)} <button class="sm" onclick="delItem(${k})">✕</button></b></div>`).join("")||'<p class="muted">Aún no hay productos - Agrega manual abajo o pega WhatsApp arriba</p>'}<div style="display:grid;grid-template-columns:80px 1fr;gap:8px;margin-top:10px"><div><label>Cant</label><input id="pCant" type="number" value="1" style="text-align:center;font-weight:700"></div><div><label>Precio</label><input id="pPre" type="number" inputmode="numeric" placeholder="14900"></div></div><label>Nombre producto</label><input id="pNom" placeholder="Promo 24 piezas"><label>Detalle</label><input id="pDet" placeholder="sin cebollín"><button class="sm ok" onclick="addItem()">+ Agregar producto</button><div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:10px;border-top:2px solid var(--accent)"><div class="row sub"><span>Subtotal productos</span><b>${fmt(sub)}</b></div><div class="row"><span>Delivery</span><b id="pedidoEnvioVista">${fmt(envio)}</b></div><div class="row final"><span>Total pedido</span><b id="pedidoTotalVista">${fmt(total)}</b></div><div class="row"><span>Este pedido da</span><b>⭐ +1 timbre</b></div></div></div>
+  <div class="card"><h2>4. Pago</h2><label>Medio productos</label><div class="chips">${MEDIOS.map(m=>`<button ${chip(D.medio===m)} onclick="D.medio='${m}';render()">${m}</button>`).join("")}</div><label>Medio delivery</label><div class="chips">${MEDIOS.filter(m=>!APPS.includes(m)).map(m=>`<button ${chip(D.medioEnvio===m)} onclick="D.medioEnvio='${m}';render()">${m}</button>`).join("")}</div><label class="check"><input type="checkbox" ${D.pagado?"checked":""} onchange="D.pagado=this.checked;render()"> <b>Pagado</b></label></div><button class="big" onclick="ndGuardar()">${D.editando?`💾 Guardar cambios #${D.editando}`:`✅ Guardar pedido +1 timbre`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición</button>`:""}`;
+}
+
+function editarPedido(id){const p=S.pedidos.find(x=>x.id===id); if(!p)return; D={texto:p.textoOriginal||"",fecha:p.fechaISO||ahora(),cliente:p.cliente||"",telefono:p.telefono||"",modalidad:p.modalidad||"Retiro",envio:p.envio||0,medio:p.medio||"Efectivo",medioEnvio:p.medioEnvio||"Efectivo",pagado:!!p.pagado,items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}]; ir("nuevo"); aviso(`Editando pedido #${id}`);}
+function reanalizar(){leerTextoD();}
+function copiarComanda(id){const p=S.pedidos.find(x=>x.id===id); if(!p) return; const txt=[`#${p.id} ${p.modalidad}`, ...(p.productos||[]).map(pr=>`${pr.cantidad}x ${pr.nombre}${pr.detalle?` (${pr.detalle})`:""}`), p.envio?`Delivery ${fmt(p.envio)}`:"", `Total ${fmt(p.total)}`].filter(Boolean).join("\n"); if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>aviso("Comanda copiada")).catch(()=>aviso(txt)); else aviso(txt);}
+function togglePagado(id){const p=S.pedidos.find(x=>x.id===id);if(p){p.pagado=!p.pagado;render();}}
+function getCliente(nombre){if(!nombre) return null; const key=nombre.trim().toLowerCase(); return S.clientes[key]||null;}
+function asegurarCliente(nombre){if(!nombre) return null; const key=nombre.trim().toLowerCase(); if(!S.clientes[key]){S.clientes[key]={nombre:nombre.trim(),ventas:0,gastado:0,pedidos:0,ultimo:"",movimientos:[],canje6:false,canje10:false};} if(!S.clientes[key].movimientos) S.clientes[key].movimientos=[]; return S.clientes[key];}
+function fechaVencimiento(fechaISO){const d=new Date(fechaISO); d.setMonth(d.getMonth()+3); return d.toISOString();}
+function ventasValidas(cli){
+  if(!cli||!cli.movimientos) return cli?.ventas||0;
+  const hoy=new Date();
+  // Contar ventas no vencidas y no canjeadas por reseteo
+  let count=0;
+  // Si hubo reseteo (canje 10), solo contar después del último canje 10
+  const ultimoCanje10 = [...cli.movimientos].reverse().find(m=>m.tipo==='canje10');
+  const desde = ultimoCanje10? new Date(ultimoCanje10.fecha) : new Date(0);
+  cli.movimientos.forEach(m=>{
+    if(m.tipo==='venta'){
+      const f=new Date(m.fecha);
+      if(f>=desde){
+        const vence=new Date(m.vence||m.fecha);
+        if(vence>hoy) count++;
+      }
+    }
+  });
+  return count;
+}
+function vClientes(){
+  if(!S.suc) return vInicio();
+  const lista=Object.values(S.clientes).filter(c=>{
+    if(!S.filtroCliente) return true;
+    return c.nombre.toLowerCase().includes(S.filtroCliente.toLowerCase());
+  }).sort((a,b)=>ventasValidas(b)-ventasValidas(a));
+  return `<div class="card"><h2>⭐ Tarjetas de Timbres - 6=12 piezas / 10=36+2 korokes</h2><p class="muted">Cada venta = 1 timbre. Vence en 3 meses. 6 ventas = 12 piezas gratis. 10 ventas = 36 piezas + 2 korokes gratis.</p><label>Buscar cliente</label><input placeholder="Ej: Camila" value="${esc(S.filtroCliente||"")}" oninput="S.filtroCliente=this.value;render()"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px"><div class="card" style="margin:0"><h2 style="font-size:12px">Tarjetas</h2><b>${lista.length}</b></div><div class="card" style="margin:0"><h2 style="font-size:12px">Listos 6 ventas</h2><b>${lista.filter(c=>ventasValidas(c)>=6).length}</b></div><div class="card" style="margin:0"><h2 style="font-size:12px">Listos 10 ventas</h2><b>${lista.filter(c=>ventasValidas(c)>=10).length}</b></div></div></div>
+  ${lista.length?lista.map(cli=>{
+    const key=cli.nombre.toLowerCase();
+    const ventas=ventasValidas(cli);
+    const puede6=ventas>=6 && !cli.canje6;
+    const puede10=ventas>=10;
+    return `<div class="card" style="${puede10?'border:2px solid #111':puede6?'border:2px solid var(--ok)':''}"><h2>${esc(cli.nombre)} <span class="tag">🎫 ${ventas}/10 timbres</span> ${puede6?'<span class="tag" style="background:var(--ok);color:#fff">🎁 12 piezas listo!</span>':''} ${puede10?'<span class="tag" style="background:#111;color:#fff">🎉 36+2 korokes listo!</span>':''}</h2><p class="muted">${cli.pedidos} pedidos · Gastado ${fmt(cli.gastado)} · Último ${esc(cli.ultimo||"")}</p><div class="tarjeta">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventas?'lleno':''} ${i===5?'premio':''} ${i===9?'premio':''}" title="${i===5?'6 ventas = 12 piezas':i===9?'10 ventas = 36+2 korokes':''}">${i<ventas?'✓':i+1}${i===5?'<br><small style="font-size:8px">12p</small>':''}${i===9?'<br><small style="font-size:7px">36+2k</small>':''}</div>`).join("")}</div><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"><button class="sm ok" onclick="avisarTimbres('${key}')">📲 Avisar por WhatsApp</button>${puede6?`<button class="sm ok" onclick="canjear12('${key}')">🎁 Canjear 12 piezas (6)</button>`:''}${puede10?`<button class="sm" style="background:#111;color:#fff" onclick="canjear36('${key}')">🎉 Canjear 36+2 korokes (10)</button>`:''}<button class="sm" onclick="D.cliente='${esc(cli.nombre).replace(/'/g,"\\'")}';ir('nuevo');">+ Pedido</button></div><details style="margin-top:8px"><summary class="muted">Ver historial timbres</summary>${(cli.movimientos||[]).slice(-15).reverse().map(m=>`<div class="row"><span>${m.tipo==='venta'?'🟢 Venta':m.tipo==='canje6'?'🔴 Canje 12 piezas':m.tipo==='canje10'?'🔴 Canje 36+2k':esc(m.tipo)} - ${new Date(m.fecha).toLocaleDateString('es-CL')} ${m.vence?'· Vence '+new Date(m.vence).toLocaleDateString('es-CL'):''}</span></div>`).join("")||"<p class='muted'>Sin movimientos</p>"}</details></div>`;
+  }).join(""):`<div class="card muted">Sin tarjetas aún. Se crean al guardar pedidos con nombre. Cada venta = 1 timbre.</div>`}
+  <div class="card"><h2>Ranking clientes frecuentes</h2>${Object.values(S.clientes).sort((a,b)=>b.pedidos-a.pedidos).slice(0,10).map((c,i)=>`<div class="row"><span>${i+1}. ${esc(c.nombre)} - ${ventasValidas(c)}/10 timbres</span><b>${c.pedidos} pedidos</b></div>`).join("")||"<p class='muted'>Sin datos</p>"}</div>`;
+}
+function avisarTimbres(key){
+  alert("Solo demostración: no se enviarán mensajes de WhatsApp. Usa únicamente datos ficticios."); return;
+  const cli=S.clientes[key]; if(!cli) return;
+  const ventas=ventasValidas(cli);
+  const pedidosCliente=S.pedidos.filter(p=>p.cliente&&p.cliente.toLowerCase()===key).reverse();
+  const ultimo=pedidosCliente[0];
+  const telefono=(ultimo?.telefono||"").replace(/[^0-9]/g,"");
+  let msg=`Hola ${cli.nombre}! 😊🍣\n\nTu tarjeta Uki Sushi: *${ventas}/10 timbres* 🎫\n`;
+  if(ventas>=10) msg+=`\n🎉 ¡Felicidades! Ya puedes reclamar *36 piezas + 2 korokes GRATIS* (10 ventas)!\n`;
+  else if(ventas>=6) msg+=`\n🎁 ¡Ya puedes reclamar *12 piezas GRATIS* (6 ventas)! Y si llegas a 10, ganas 36 + 2 korokes.\nTe faltan ${10-ventas} ventas para el premio mayor.\n`;
+  else msg+=`\nTe faltan ${6-ventas} ventas para ganar 12 piezas gratis, y ${10-ventas} para 36 + 2 korokes.\n`;
+  msg+=`\nHas hecho ${cli.pedidos} pedidos con nosotros.\n\n¡Te esperamos! Uki Sushi 🍣`;
+  
+  // Guardar mensaje para usar en botones
+  const encodedMsg=encodeURIComponent(msg);
+  const apiUrl=telefono?`https://api.whatsapp.com/send?phone=${telefono}&text=${encodedMsg}`:`https://api.whatsapp.com/send?text=${encodedMsg}`;
+  const waAppUrl=telefono?`whatsapp://send?phone=${telefono}&text=${encodedMsg}`:`whatsapp://send?text=${encodedMsg}`;
+  
+  // 1. Copiar siempre
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(msg).catch(()=>{});
+  }
+  
+  // 2. Intentar abrir directo - crear link invisible y click (mejor para iPhone dentro de Meta AI)
+  try{
+    const a=document.createElement("a");
+    a.href=waAppUrl;
+    a.target="_blank";
+    a.rel="noopener";
+    a.style.display="none";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ try{document.body.removeChild(a);}catch(e){} },1000);
+  }catch(e){}
+  
+  // 3. Si tiene navigator.share (iPhone share sheet -> WhatsApp)
+  if(navigator.share){
+    setTimeout(()=>{
+      navigator.share({text:msg, title:"Uki Sushi"}).catch(()=>{
+        // Si cancela share, abrir api.whatsapp.com
+        window.open(apiUrl,"_blank");
+      });
+    },400);
+  } else {
+    // 4. Fallback abrir api.whatsapp.com en nueva pestaña
+    setTimeout(()=>{
+      const win=window.open(apiUrl,"_blank");
+      if(!win){
+        // Si bloquea popup, usar location
+        window.location.href=apiUrl;
+      }
+    },600);
+  }
+  
+  // 5. Aviso con botones para que elija
+  setTimeout(()=>{
+    const htmlMsg=`✅ Mensaje copiado\n\n${msg}\n\nSi no abrió WhatsApp automático, toca:`;
+    // Mostrar aviso con opciones
+    if(confirm(htmlMsg+"\n\n¿Abrir WhatsApp ahora? (Aceptar = abrir, Cancelar = solo copiado)")){
+      window.open(apiUrl,"_blank");
+    }
+  },1200);
+}
+function canjear12(key){
+  const cli=S.clientes[key]; if(!cli) return;
+  if(ventasValidas(cli)<6){aviso("Necesita 6 ventas");return;}
+  if(!confirm(`¿Canjear 12 piezas gratis para ${cli.nombre}? Tiene ${ventasValidas(cli)}/10 timbres. Después de canjear 12, seguirá con ${ventasValidas(cli)} timbres hacia las 10.`)) return;
+  cli.movimientos.push({tipo:'canje6',fecha:new Date().toISOString(),vence:null});
+  cli.canje6=true;
+  aviso(`Canje 12 piezas para ${cli.nombre} registrado. Ahora puede seguir hacia 10 ventas para 36+2 korokes.`);
+  // Crear pedido gratis de 12 piezas para cocina
+  S.pedidos.push({id:S.nextId++,suc:S.suc,fechaISO:ahora(),cliente:cli.nombre,telefono:"",modalidad:"Retiro",envio:0,medio:"Canje 6 ventas",medioEnvio:"Efectivo",pagado:true,estado:"Entregado",productos:[{nombre:"PREMIO 12 piezas - Canje 6 ventas",cantidad:1,precioUnit:0,detalle:"Gratis por tarjeta 6 timbres"}],total:0,subtotal:0,textoOriginal:`Canje premio 6 ventas - ${cli.nombre}`,esPremio:true});
+  guardarEnLocalStorage(); render();
+}
+function canjear36(key){
+  const cli=S.clientes[key]; if(!cli) return;
+  if(ventasValidas(cli)<10){aviso("Necesita 10 ventas");return;}
+  if(!confirm(`¿Canjear 36 piezas + 2 korokes GRATIS para ${cli.nombre}? Tiene ${ventasValidas(cli)}/10. Después de canjear, su tarjeta se reinicia a 0.`)) return;
+  cli.movimientos.push({tipo:'canje10',fecha:new Date().toISOString(),vence:null});
+  cli.ventas=0;
+  cli.canje6=false;
+  cli.canje10=false;
+  // Marcar todas las ventas anteriores como canjeadas (reset)
+  aviso(`¡Canje 36+2 korokes para ${cli.nombre}! Tarjeta reiniciada a 0.`);
+  S.pedidos.push({id:S.nextId++,suc:S.suc,fechaISO:ahora(),cliente:cli.nombre,telefono:"",modalidad:"Retiro",envio:0,medio:"Canje 10 ventas",medioEnvio:"Efectivo",pagado:true,estado:"Entregado",productos:[{nombre:"PREMIO 36 piezas + 2 korokes - Canje 10 ventas",cantidad:1,precioUnit:0,detalle:"Gratis por tarjeta 10 timbres"}],total:0,subtotal:0,textoOriginal:`Canje premio 10 ventas - ${cli.nombre}`,esPremio:true});
+  guardarEnLocalStorage(); render();
+}
+
+function addGasto(){const c=$("gCon").value.trim(); const m=parseInt($("gMon").value)||0; const med=$("gMed").value; if(!c||!m){aviso("Concepto y monto");return;} S.gastos.push({suc:S.suc,id:Date.now(),concepto:c,monto:m,medio:med}); $("gCon").value=""; $("gMon").value=""; render();}
+function quitarGasto(id){S.gastos=S.gastos.filter(x=>x.id!==id);render();}
+function addDM(){const monto=parseInt($("dmMon").value)||0; const cliente=$("dmCli").value.trim(); const nota=$("dmNota").value.trim(); const medio=$("dmMed").value; if(!monto){aviso("Monto delivery");return;} S.deliveriesManuales.push({suc:S.suc,id:Date.now(),monto:monto,cliente:cliente,nota:nota,medio:medio}); $("dmMon").value=""; $("dmCli").value=""; $("dmNota").value=""; render();}
+function quitarDM(id){S.deliveriesManuales=S.deliveriesManuales.filter(x=>x.id!==id);render();}
+function savePD(){const m=parseInt($("pdMon").value)||0; const med=$("pdMed").value; if(!m){aviso("Monto pago delivery");return;} S.pagoDelivery=m; S.pagoDeliveryMedio=med; aviso("Pago delivery guardado"); render();}
+function addPropina(){const m=parseInt($("prMon").value)||0; const med=$("prMed").value; if(!m){aviso("Monto propina");return;} S.propinas.push({suc:S.suc,id:Date.now(),monto:m,medio:med}); $("prMon").value=""; render();}
+function quitarPropina(id){S.propinas=S.propinas.filter(x=>x.id!==id);render();}
+function addRetiro(){const m=parseInt($("reMon").value)||0; const mot=$("reMot").value.trim(); if(!m){aviso("Monto retiro");return;} S.retiros.push({suc:S.suc,id:Date.now(),monto:m,motivo:mot}); $("reMon").value=""; $("reMot").value=""; render();}
+function quitarRetiro(id){S.retiros=S.retiros.filter(x=>x.id!==id);render();}
+function addCC(){const m=parseInt($("ccMon").value)||0; const con=$("ccCon").value.trim(); if(!m){aviso("Monto caja chica");return;} S.cajaChica.gastos.push({id:Date.now(),monto:m,concepto:con}); $("ccMon").value=""; $("ccCon").value=""; render();}
+function quitarCC(id){S.cajaChica.gastos=S.cajaChica.gastos.filter(x=>x.id!==id);render();}
+function setApp(k,v){S.apps=S.apps||{};S.apps[k]=parseInt(v,10)||0;render();}
+function totales(){
+  const pedidos=delSuc(S.pedidos); const pag=pedidos.filter(x=>x.pagado&&x.estado!=="Cancelado"&&!x.esPremio);
+  const medios={}; MEDIOS.forEach(m=>medios[m]=0); pag.forEach(p=>{medios[p.medio]=(medios[p.medio]||0)+(p.total||0);});
+  Object.keys(S.apps||{}).forEach(k=>{if(APPS.includes(k)||k==="Otros")medios[k]=(medios[k]||0)+(S.apps[k]||0);});
+  delSuc(S.deliveriesManuales).forEach(d=>{medios[d.medio]=(medios[d.medio]||0)+d.monto;});
+  const totalMedios=Object.values(medios).reduce((a,b)=>a+b,0);
+  const dels=pedidos.filter(x=>x.modalidad==="Delivery"&&x.estado!=="Cancelado"&&!x.esPremio);
+  const enviosPedidos=dels.reduce((a,x)=>a+(x.envio||0),0); const enviosManuales=delSuc(S.deliveriesManuales).reduce((a,d)=>a+d.monto,0); const envios=enviosPedidos+enviosManuales;
+  const nDeliv=dels.length+delSuc(S.deliveriesManuales).length;
+  const gastos=delSuc(S.gastos),retiros=delSuc(S.retiros),propinas=delSuc(S.propinas);
+  const gastosTotal=gastos.reduce((a,x)=>a+x.monto,0); const gastosEf=gastos.filter(g=>g.medio==="Efectivo").reduce((a,x)=>a+x.monto,0); const retirosTotal=retiros.reduce((a,x)=>a+x.monto,0); const pagoDelivery=S.pagoDelivery||0;
+  return {medios,totalMedios,nDeliv,envios,enviosPedidos,enviosManuales,base:S.base,pagoDelivery,ventaSinDelivery:totalMedios-envios,gastosTotal,gastosEf,retirosTotal,propinas:propinas.reduce((a,x)=>a+x.monto,0),efectivoCaja:(medios["Efectivo"]||0)-gastosEf-retirosTotal-(S.pagoDeliveryMedio==="Efectivo"?pagoDelivery:0),final:totalMedios-pagoDelivery-gastosTotal,n:pedidos.filter(x=>x.estado!=="Cancelado"&&!x.esPremio).length,dels,cancelados:pedidos.filter(x=>x.estado==="Cancelado").length,pagadosN:pag.length,pendientesN:pedidos.filter(x=>x.estado!=="Cancelado"&&!x.pagado&&!x.esPremio).length,delsConManuales:dels.map(x=>({id:x.id,cliente:x.cliente,envio:x.envio||0,medio:x.medio})).concat(delSuc(S.deliveriesManuales).map(d=>({id:"M"+d.id,cliente:d.cliente||"Manual",envio:d.monto,medio:d.medio})) )};
+}
+function vRegistros(){
+  if(!S.suc) return vInicio(); const t=totales(); const gastos=delSuc(S.gastos); const propinas=delSuc(S.propinas); const retiros=delSuc(S.retiros); const dms=delSuc(S.deliveriesManuales);
+  return `<div class="card"><h2>Precierre - se actualiza solo</h2>${row("Pedidos",t.n)}${row("Pagados",t.pagadosN)}${row("Pendientes pago",t.pendientesN)}${row("Cancelados",t.cancelados)}${row("Efectivo",fmt(t.medios.Efectivo))}${row("Transferencia",fmt(t.medios.Transferencia))}${row("Débito",fmt(t.medios.Débito))}${row("Edenred",fmt(t.medios.Edenred))}${row("Otros",fmt(t.medios.Otros))}${row("Uber Eats",fmt(t.medios["Uber Eats"]))}${row("PedidosYa",fmt(t.medios.PedidosYa))}${row("Rappi",fmt(t.medios.Rappi))}${row("Venta total con delivery",fmt(t.totalMedios),"sub")}${row("Deliveries del día ("+t.nDeliv+")",fmt(t.envios))}${row("− Pago a delivery ("+S.pagoDeliveryMedio+")",fmt(t.pagoDelivery),"neg")}${row("− Gastos",fmt(t.gastosTotal),"neg")}${row("Venta total - gastos",fmt(t.totalMedios-t.gastosTotal))}${row("Total final (venta - pago delivery - gastos)",fmt(t.final),"final")}</div>
+  <div class="card"><h2>💳 Ventas manuales por app - como v2 arriba</h2><p class="muted">Solo si no están como pedido. Se suman a la venta.</p>${APPS.concat("Otros").map(k=>`<label>${k}</label><input type="number" value="${S.apps[k]||""}" inputmode="numeric" placeholder="0" onchange="setApp('${k}',this.value)">`).join("")}</div>
+  <div class="card"><h2>🛵 Deliverys manuales del día</h2><label>Monto cobrado</label><input id="dmMon" type="number" inputmode="numeric" placeholder="Ej: 2000"><label>Cliente (opcional)</label><input id="dmCli" placeholder="Ej: Juan"><label>Nota</label><input id="dmNota" placeholder="Casa azul"><label>Medio</label><select id="dmMed">${MEDIOS.map(m=>`<option>${m}</option>`).join("")}</select><button class="big" onclick="addDM()">+ Agregar delivery manual</button>${dms.length?dms.map(d=>`<div class="row"><span>${esc(d.cliente||"Manual")} - ${esc(d.nota||"")}</span><b>${fmt(d.monto)} <button class="sm" onclick="quitarDM(${d.id})">✕</button></b></div>`).join(""):"<p class='muted'>Sin deliverys manuales hoy</p>"}</div>
+  <div class="card"><h2>Gastos del día</h2><label>Concepto</label><input id="gCon" placeholder="Ej: Palta"><label>Monto</label><input id="gMon" type="number" inputmode="numeric"><label>Medio</label><select id="gMed">${MEDIOS.map(m=>`<option>${m}</option>`).join("")}</select><button class="big" onclick="addGasto()">+ Agregar gasto</button>${gastos.map(g=>`<div class="row"><span>${esc(g.concepto)} - ${esc(g.medio)}</span><b>${fmt(g.monto)} <button class="sm" onclick="quitarGasto(${g.id})">✕</button></b></div>`).join("")||"<p class='muted'>Sin gastos</p>"}${row("Total gastos",fmt(t.gastosTotal),"sub")}</div>
+  <div class="card"><h2>Pago a delivery</h2><label>Monto pagado desde caja</label><input id="pdMon" type="number" value="${S.pagoDelivery||""}" inputmode="numeric"><label>Medio</label><select id="pdMed">${MEDIOS.map(m=>`<option ${m===S.pagoDeliveryMedio?"selected":""}>${m}</option>`).join("")}</select><button class="big" onclick="savePD()">Guardar pago delivery</button>${row("Pagado hoy",fmt(S.pagoDelivery))}</div>
+  <div class="card"><h2>Propinas (aparte)</h2><label>Monto</label><input id="prMon" type="number" inputmode="numeric"><label>Medio</label><select id="prMed">${MEDIOS.map(m=>`<option>${m}</option>`).join("")}</select><button class="big" onclick="addPropina()">+ Agregar propina</button>${propinas.map(p=>`<div class="row"><span>${esc(p.medio)}</span><b>${fmt(p.monto)} <button class="sm" onclick="quitarPropina(${p.id})">✕</button></b></div>`).join("")||"<p class='muted'>Sin propinas</p>"}</div>
+  <div class="card"><h2>Retiros de efectivo</h2><label>Monto</label><input id="reMon" type="number" inputmode="numeric"><label>Motivo</label><input id="reMot" placeholder="Ej: Compra"><button class="big" onclick="addRetiro()">+ Agregar retiro</button>${retiros.map(r=>`<div class="row"><span>${esc(r.motivo||"Retiro")}</span><b>${fmt(r.monto)} <button class="sm" onclick="quitarRetiro(${r.id})">✕</button></b></div>`).join("")||"<p class='muted'>Sin retiros</p>"}</div>
+  <div class="card"><h2>Caja chica</h2><label>Inicial</label><input type="number" value="${S.cajaChica.inicial}" onchange="S.cajaChica.inicial=parseInt(this.value)||0;render()" inputmode="numeric"><label>Concepto</label><input id="ccCon" placeholder="Detergente"><label>Monto</label><input id="ccMon" type="number" inputmode="numeric"><button class="big" onclick="addCC()">+ Agregar gasto caja chica</button>${S.cajaChica.gastos.map(g=>`<div class="row"><span>${esc(g.concepto)}</span><b>${fmt(g.monto)} <button class="sm" onclick="quitarCC(${g.id})">✕</button></b></div>`).join("")||"<p class='muted'>Sin gastos</p>"}${row("Saldo caja chica",fmt(S.cajaChica.inicial - S.cajaChica.gastos.reduce((a,g)=>a+g.monto,0)),"sub")}</div>`;
+}
+function vCierre(){
+  if(!S.suc) return vInicio(); const t=totales();
+  return `<div class="card"><h2>Venta del día</h2>${row("Pedidos del día",t.n)}${row("Pedidos pagados",t.pagadosN)}${row("Efectivo",fmt(t.medios.Efectivo))}${row("Transferencia",fmt(t.medios.Transferencia))}${row("Débito",fmt(t.medios.Débito))}${row("Edenred",fmt(t.medios.Edenred))}${row("Otros",fmt(t.medios.Otros))}${row("Uber Eats",fmt(t.medios["Uber Eats"]))}${row("PedidosYa",fmt(t.medios.PedidosYa))}${row("Rappi",fmt(t.medios.Rappi))}${row("Venta total con delivery",fmt(t.totalMedios),"sub")}${row("Venta sin delivery",fmt(t.ventaSinDelivery))}</div>
+  <div class="card" style="border:2px solid var(--accent)"><h2>🛵 Total de delivery</h2><label>Base diaria ($)</label><input type="number" value="${S.base}" inputmode="numeric" onchange="S.base=parseInt(this.value)||0;render()" style="font-weight:700">${row("Base diaria",fmt(S.base))}${row("Deliveries pedidos ("+delSuc(S.pedidos).filter(x=>x.modalidad==="Delivery"&&x.estado!=="Cancelado"&&!x.esPremio).length+")",fmt(t.enviosPedidos))}${row("Deliveries manuales ("+delSuc(S.deliveriesManuales).length+")",fmt(t.enviosManuales))}${row("Deliveries del día ("+t.nDeliv+")",fmt(t.envios))}${row("Total delivery (base + deliveries)",fmt(S.base+t.envios),"final")}</div>
+  <div class="card"><h2>Resultado final</h2>${row("Venta total con delivery",fmt(t.totalMedios))}${row("− Pago a delivery ("+S.pagoDeliveryMedio+")",fmt(t.pagoDelivery),"neg")}${row("Venta - pago delivery",fmt(t.totalMedios-t.pagoDelivery))}${row("− Gastos",fmt(t.gastosTotal),"neg")}${row("Venta total - gastos",fmt(t.totalMedios-t.gastosTotal),"sub")}${row("Total final (venta - pago delivery - gastos)",fmt(t.final),"final")}${row("Efectivo que queda en caja",fmt(t.efectivoCaja))}${row("Propinas (aparte)",fmt(t.propinas))}</div>
+  <div class="card"><h2>Cerrar el día</h2><label>Responsable</label><input id="resp" placeholder="Nombre" value="${esc(cierreDraft.resp)}" oninput="cierreDraft.resp=this.value"><label>Observaciones</label><textarea id="obs" rows="2" oninput="cierreDraft.obs=this.value">${esc(cierreDraft.obs)}</textarea>${S.confirmCierre?'<p class="aviso" style="background:#ffe1e1;color:#7a0010">Toca otra vez Confirmar cierre para guardar.</p>':""}<button class="big" onclick="cerrar()">${S.confirmCierre?"Confirmar cierre":"Cerrar día"}</button></div>
+  <div class="card"><h2>📱 Compartir y Descargar</h2><button class="big" style="background:#25D366" onclick="compartirWhatsAppCierre()">📲 Compartir cierre por WhatsApp</button><button class="big" onclick="descargarPDF('cierre')">📄 Descargar PDF cierre</button><button class="big" style="background:#111" onclick="descargarExcel('cierre')">📊 Descargar Excel cierre</button></div>`;
+}
+function vPedidos(){
+  if(!S.suc)return vInicio(); const todos=pedidosSuc().slice().reverse();
+  return `<div class="card"><h2>Pedidos - ${esc(S.suc)}</h2><p class="muted">${todos.length} pedidos - Los con 🎁 son premios por tarjeta</p></div>${todos.map(p=>`<div class="card" style="${p.esPremio?'border:2px solid var(--ok);background:#fff1e0':''}"><h2>#${p.id} · ${esc(p.cliente||"Sin nombre")} ${p.telefono?`<span class="tag">📱 ${esc(p.telefono)}</span>`:""} <span class="tag">${esc(p.estado)}</span> ${p.pagado?'<span class="tag" style="background:#111;color:#fff">Pagado</span>':''} ${p.esPremio?'<span class="tag" style="background:var(--ok);color:#fff">🎁 PREMIO</span>':''}</h2><p class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)} · ${esc(p.medio)} · ${fmt(p.total)} ${p.esPremio?'· GRATIS por tarjeta':''}</p>${(p.productos||[]).map(pr=>`<div class="row"><span>${pr.cantidad}x ${esc(pr.nombre)}</span><b>${fmt(pr.cantidad*pr.precioUnit)}</b></div>`).join("")}${p.envio?row("Delivery",fmt(p.envio)):""}${p.textoOriginal&&!p.esPremio?`<details style="margin-top:10px"><summary style="cursor:pointer;font-size:14px;color:var(--accent)">📱 Ver WhatsApp original</summary><p class="muted" style="white-space:pre-wrap;background:var(--bg);padding:10px;border-radius:8px;margin-top:6px">${esc(p.textoOriginal)}</p></details>`:""}<div style="margin-top:8px"><button class="sm ok" onclick="editarPedido(${p.id})">✏️ Editar</button><button class="sm ${p.pagado?"":"ok"}" onclick="togglePagado(${p.id})">${p.pagado?"Quitar pagado":"Marcar pagado"}</button>${p.telefono&&!p.esPremio?`<button class="sm" onclick="alert('Solo demostración: WhatsApp desactivado')">📲 WhatsApp</button>`:""}<button class="sm" onclick="copiarComanda(${p.id})">🍣 Comanda</button></div></div>`).join("")||'<div class="card muted">Sin pedidos</div>'}`;
+}
+function ndGuardar(){
+  if(!D.items.filter(x=>x.nombre).length){aviso("Agrega producto");return;}
+  let sub=D.items.filter(x=>x.nombre).reduce((a,i)=>a+i.cant*i.precio,0); 
+  const envio=D.modalidad==="Delivery"?D.envio:0; 
+  let total=sub+envio;
+  if(D.editando){
+    const p=S.pedidos.find(x=>x.id===D.editando);
+    if(p){
+      // Si era premio, no afecta tarjeta
+      if(!p.esPremio && p.cliente){
+        const cliOld=getCliente(p.cliente);
+        if(cliOld && cliOld.movimientos){
+          cliOld.movimientos = cliOld.movimientos.filter(m=>m.pedidoId!==p.id);
+          cliOld.pedidos=Math.max(0,(cliOld.pedidos||1)-1);
+          cliOld.gastado=Math.max(0,(cliOld.gastado||0)-(p.subtotal||0));
+        }
+      }
+      p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||""; p.modalidad=D.modalidad; p.envio=envio; p.medio=D.medio; p.medioEnvio=D.medioEnvio; p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})); p.total=total; p.subtotal=sub; p.textoOriginal=D.texto;
+      if(!p.esPremio && D.cliente){
+        const cli=asegurarCliente(D.cliente);
+        cli.gastado+=sub;
+        cli.pedidos+=1;
+        cli.ultimo=new Date().toLocaleDateString("es-CL");
+        cli.movimientos.push({tipo:'venta',fecha:new Date().toISOString(),vence:fechaVencimiento(new Date().toISOString()),pedidoId:p.id});
+      }
+      aviso(`Pedido #${p.id} actualizado $${total} - ${!p.esPremio?'tarjeta actualizada':''}`);
+    }
+    D={texto:"",fecha:"",cliente:"",telefono:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:true,items:[],editando:null};
+    S.vista="pedidos"; render(); return;
+  }
+  const idNuevo=S.nextId++;
+  const nuevoPedido={id:idNuevo,suc:S.suc,fechaISO:D.fecha,cliente:D.cliente,telefono:D.telefono||"",modalidad:D.modalidad,envio:envio,medio:D.medio,medioEnvio:D.medioEnvio,pagado:D.pagado,estado:"Entregado",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),total:total,subtotal:sub,textoOriginal:D.texto,esPremio:false};
+  S.pedidos.push(nuevoPedido);
+  if(D.cliente){
+    const cli=asegurarCliente(D.cliente);
+    cli.gastado+=sub;
+    cli.pedidos+=1;
+    cli.ultimo=new Date().toLocaleDateString("es-CL");
+    cli.movimientos.push({tipo:'venta',fecha:new Date().toISOString(),vence:fechaVencimiento(new Date().toISOString()),pedidoId:idNuevo});
+    const ventas=ventasValidas(cli);
+    if(ventas===6) aviso(`¡${cli.nombre} llegó a 6 ventas! Puede reclamar 12 piezas gratis 🎁`);
+    else if(ventas===10) aviso(`¡${cli.nombre} llegó a 10 ventas! Puede reclamar 36 piezas + 2 korokes gratis 🎉`);
+    else aviso(`Pedido #${idNuevo} guardado $${total} - ${cli.nombre} lleva ${ventas}/10 timbres`);
+  } else {
+    aviso(`Pedido #${idNuevo} guardado $${total}`);
+  }
+  D={texto:"",fecha:"",cliente:"",telefono:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:true,items:[],editando:null}; 
+  S.vista="pedidos"; render();
+}
+function cerrar(){
+  if(S.busy)return;
+  const respEl=$("resp");
+  const resp=respEl?respEl.value.trim():cierreDraft.resp.trim();
+  if(!resp){aviso("⚠️ Escribe quién cierra (ej: Dianna) en Responsable"); if(respEl) respEl.focus(); return;}
+  const t=totales();
+  if(!S.confirmCierre){
+    cierreDraft={resp,obs:$("obs")?$("obs").value.trim():cierreDraft.obs};
+    S.confirmCierre=true;
+    S.msg=`✅ Ahora toca de nuevo Confirmar cierre para guardar. Total final: ${fmt(t.final)}.`;
+    render();
+    setTimeout(()=>{ const b=document.querySelector('button.big'); if(b) b.scrollIntoView({behavior:'smooth'}); },200);
+    return;
+  }
+  S.confirmCierre=false; S.busy=true;
+  S.cierres.push({
+    suc:S.suc,
+    fecha:new Date().toLocaleString("es-CL",{dateStyle:"short",timeStyle:"short"}),
+    resp,
+    venta:t.totalMedios,
+    ventaSinDelivery:t.ventaSinDelivery,
+    gastos:t.gastosTotal,
+    delivery:t.pagoDelivery,
+    final:t.final,
+    efectivo:t.efectivoCaja,
+    propinas:t.propinas,
+    obs:($("obs")?$("obs").value.trim():cierreDraft.obs),
+    pedidos:t.n,
+    efectivoCobrado:t.medios.Efectivo,
+    gastosEf:t.gastosEf,
+    retiros:t.retirosTotal,
+    pagadoDelivery:t.pagoDelivery,
+    pagoDeliveryMedio:S.pagoDeliveryMedio,
+    dels:t.delsConManuales,
+    medios:t.medios,
+    base:S.base,
+    envios:t.envios,
+    enviosPedidos:t.enviosPedidos,
+    enviosManuales:t.enviosManuales
+  });
+  guardarEnLocalStorage();
+  S.busy=false;
+  cierreDraft={resp:"",obs:""};
+  aviso("✅ Día cerrado y guardado en Historial");
+  S.vista="historial";
+  render();
+}
+function descargarTextoArchivo(nombre, contenido, mime){
+  try{
+    const blob=new Blob([contenido],{type:mime});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download=nombre;
+    a.style.display="none";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(url); try{a.remove();}catch(e){} },1500);
+    // Fallback iPhone: si no descarga, abrir en nueva pestaña y copiar
+    setTimeout(()=>{
+      if(navigator.clipboard && mime.includes("csv")){
+        // no hacer nada extra
+      }
+    },800);
+    return true;
+  }catch(e){
+    // Fallback: mostrar texto para copiar
+    if(navigator.clipboard){
+      navigator.clipboard.writeText(contenido).then(()=>aviso("✅ Contenido copiado - pégalo en Notas/Excel")).catch(()=>{});
+    }
+    aviso(contenido.slice(0,500));
+    return false;
+  }
+}
+function descargarPDF(tipo){
+  if(tipo==="historial"){
+    const cierres=delSuc(S.cierres).filter(x=>!S.filtro||x.fecha.includes(S.filtro));
+    if(!cierres.length){aviso("No hay cierres para descargar");return;}
+    let txt=`Uki Sushi - ${S.suc} - HISTORIAL COMPLETO - ${new Date().toLocaleString("es-CL")}\n`;
+    txt+=`Total cierres: ${cierres.length}\n\n`;
+    cierres.forEach((x,i)=>{
+      txt+=`=== CIERRE ${i+1} - ${x.fecha} - ${x.resp} ===\n`;
+      txt+=`Pedidos: ${x.pedidos}\n`;
+      if(x.medios){
+        Object.keys(x.medios).forEach(k=>{ txt+=`${k}: $${x.medios[k]}\n`; });
+      }
+      txt+=`Venta con delivery: $${x.venta}\nVenta sin delivery: $${x.ventaSinDelivery}\n`;
+      txt+=`Base: $${x.base||0} - Deliveries: $${x.envios||0} (${x.enviosPedidos||0}+${x.enviosManuales||0})\n`;
+      txt+=`Gastos: $${x.gastos} - Delivery pagado: $${x.pagadoDelivery} (${x.pagoDeliveryMedio})\n`;
+      txt+=`Total final: $${x.final} - Efectivo quedó: $${x.efectivo}\n`;
+      if(x.obs) txt+=`Obs: ${x.obs}\n`;
+      txt+=`\n`;
+    });
+    descargarTextoArchivo(`historial-${S.suc||"todas"}-${new Date().toISOString().slice(0,10)}.txt`, txt, "text/plain");
+    aviso("📄 Historial TXT descargado (abre en Archivos)");
+  } else {
+    const t=totales();
+    let txt=`Uki Sushi - ${S.suc} - CIERRE DEL DÍA - ${new Date().toLocaleString("es-CL")}\n\n`;
+    txt+=`=== PAGOS DESGLOSADOS ===\n`;
+    Object.keys(t.medios).forEach(k=>{ txt+=`${k}: ${fmt(t.medios[k])}\n`; });
+    txt+=`\nPedidos: ${t.n} - Pagados: ${t.pagadosN} - Pendientes: ${t.pendientesN}\n`;
+    txt+=`Venta con delivery: ${fmt(t.totalMedios)}\nVenta sin delivery: ${fmt(t.ventaSinDelivery)}\n`;
+    txt+=`Deliveries: ${fmt(t.envios)} (${t.enviosPedidos} pedidos + ${t.enviosManuales} manuales)\n`;
+    txt+=`Base diaria: ${fmt(S.base)}\nTotal delivery (base+envios): ${fmt(S.base+t.envios)}\n`;
+    txt+=`Pago a delivery (${S.pagoDeliveryMedio}): ${fmt(t.pagoDelivery)}\n`;
+    txt+=`Gastos: ${fmt(t.gastosTotal)}\nVenta - gastos: ${fmt(t.totalMedios-t.gastosTotal)}\n`;
+    txt+=`Total final: ${fmt(t.final)}\nEfectivo queda: ${fmt(t.efectivoCaja)}\nPropinas: ${fmt(t.propinas)}\n`;
+    descargarTextoArchivo(`cierre-${S.suc}-${new Date().toISOString().slice(0,10)}.txt`, txt, "text/plain");
+    aviso("📄 Cierre TXT descargado");
+  }
+}
+function descargarExcel(tipo){
+  if(tipo==="historial"){
+    const cierres=delSuc(S.cierres).filter(x=>!S.filtro||x.fecha.includes(S.filtro));
+    if(!cierres.length){aviso("No hay cierres");return;}
+    let csv="Fecha;Responsable;Pedidos;Efectivo;Transferencia;Debito;Edenred;Otros;Uber Eats;PedidosYa;Rappi;Venta con delivery;Venta sin delivery;Base;Deliveries;Gastos;Pago Delivery;Total final;Efectivo quedo;Obs\n";
+    cierres.forEach(x=>{
+      const m=x.medios||{};
+      csv+=`${x.fecha};${x.resp};${x.pedidos};${m.Efectivo||0};${m.Transferencia||0};${m.Débito||0};${m.Edenred||0};${m.Otros||0};${m["Uber Eats"]||0};${m.PedidosYa||0};${m.Rappi||0};${x.venta};${x.ventaSinDelivery||0};${x.base||0};${x.envios||0};${x.gastos};${x.pagadoDelivery};${x.final};${x.efectivo};${(x.obs||"").replace(/;/g,",")}\n`;
+    });
+    descargarTextoArchivo(`historial-${S.suc}-${new Date().toISOString().slice(0,10)}.csv`, csv, "text/csv;charset=utf-8");
+    aviso("📊 Excel historial descargado");
+  } else {
+    const t=totales();
+    let csv="Concepto;Monto;Detalle\n";
+    Object.keys(t.medios).forEach(k=>{ csv+=`${k};${t.medios[k]};Pago\n`; });
+    csv+=`Pedidos;${t.n};\nPagados;${t.pagadosN};\nPendientes;${t.pendientesN};\n`;
+    csv+=`Venta con delivery;${t.totalMedios};\nVenta sin delivery;${t.ventaSinDelivery};\n`;
+    csv+=`Base diaria;${S.base};\nDeliveries pedidos;${t.enviosPedidos};\nDeliveries manuales;${t.enviosManuales};\nTotal deliveries;${t.envios};\nTotal delivery (base+envios);${S.base+t.envios};\n`;
+    csv+=`Pago a delivery (${S.pagoDeliveryMedio});${t.pagoDelivery};\n`;
+    csv+=`Gastos total;${t.gastosTotal};\nVenta - gastos;${t.totalMedios-t.gastosTotal};\n`;
+    csv+=`Total final;${t.final};\nEfectivo queda;${t.efectivoCaja};\nPropinas;${t.propinas};\n`;
+    descargarTextoArchivo(`cierre-${S.suc}-${new Date().toISOString().slice(0,10)}.csv`, csv, "text/csv;charset=utf-8");
+    aviso("📊 Excel cierre descargado con todos los pagos");
+  }
+}
+function copiarResumen(){
+  const c=delSuc(S.cierres).filter(x=>!S.filtro||x.fecha.includes(S.filtro));
+  if(!c.length){aviso("No hay cierres");return;}
+  const txt=["Fecha;Responsable;Pedidos;Efectivo;Transferencia;Debito;Venta con delivery;Deliveries;Efectivo que queda;Total final",...c.map(x=>{
+    const m=x.medios||{};
+    return [x.fecha,x.resp,x.pedidos,m.Efectivo||0,m.Transferencia||0,m.Débito||0,x.venta,(x.dels||[]).reduce((a,d)=>a+(d.envio||0),0),x.efectivo,x.final].join(";");
+  })].join("\n");
+  if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>aviso("✅ Resumen copiado - pega en Excel")).catch(()=>aviso(txt.slice(0,1000)));
+  else aviso(txt.slice(0,1000));
+}
+function compartirWhatsAppCierre(){
+  alert("Solo demostración: compartir por WhatsApp está desactivado."); return;
+  const t=totales();
+  let txt=`Uki Sushi ${S.suc} - ${new Date().toLocaleDateString("es-CL")}\n`;
+  txt+=`=== DESGLOSE PAGOS ===\n`;
+  Object.keys(t.medios).forEach(k=>{ if(t.medios[k]>0) txt+=`${k}: ${fmt(t.medios[k])}\n`; });
+  txt+=`\nPedidos: ${t.n} - Venta con delivery: ${fmt(t.totalMedios)}\nVenta sin delivery: ${fmt(t.ventaSinDelivery)}\n`;
+  txt+=`Deliveries: ${fmt(t.envios)} (Base ${fmt(S.base)})\nGastos: ${fmt(t.gastosTotal)}\nTotal final: ${fmt(t.final)}\nEfectivo queda: ${fmt(t.efectivoCaja)}\n`;
+  const url=`https://api.whatsapp.com/send?text=${encodeURIComponent(txt)}`;
+  if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>{ aviso("✅ Cierre copiado"); window.open(url,"_blank"); });
+  else window.open(url,"_blank");
+}
+function vHistorial(){
+  if(!S.suc) return vInicio(); const todos=delSuc(S.cierres); let c=todos;
+  if(S.filtro) c=c.filter(x=>x.fecha.includes(S.filtro));
+  if(S.filtroFecha){const f=S.filtroFecha; c=c.filter(x=>x.fecha.includes(f.split("-").reverse().join("-").slice(0,5)));}
+  c=c.slice().reverse();
+  const buscador=`<div class="card"><h2>Buscar por día</h2><label>Texto (ej: 29-10)</label><input placeholder="Ej: 29-10" value="${esc(S.filtro||"")}" oninput="S.filtro=this.value;render()"><label>Calendario</label><input type="date" value="${S.filtroFecha||""}" onchange="S.filtroFecha=this.value;render()"><p class="muted">Cada cierre queda guardado aquí.</p>${c.length?row("Días mostrados",c.length)+row("Deliveries en total",fmt(c.reduce((a,x)=>a+(x.dels||[]).reduce((b,d)=>b+(d.envio||0),0),0)))+row("Efectivo que quedó en total",fmt(c.reduce((a,x)=>a+x.efectivo,0))):""}<button class="sm" onclick="S.filtro='';S.filtroFecha='';render()">Limpiar</button><button class="sm" onclick="copiarResumen()">Copiar resumen</button><button class="sm" onclick="descargarPDF('historial')">PDF historial</button><button class="sm" onclick="descargarExcel('historial')">Excel historial</button><button class="sm ok" onclick="descargarRespaldoCompleto()">💾 Respaldo PC</button></div>`;
+  if(!c.length) return buscador+'<div class="card muted">Sin cierres para mostrar - Haz un cierre en Cierre del día con Responsable</div>';
+  return buscador+c.map(x=>{
+    const m=x.medios||{};
+    const mediosRows=Object.keys(m).length?Object.keys(m).map(k=>m[k]>0?row(k,fmt(m[k])):"").join(""):"";
+    return `<div class="card" style="border-left:4px solid var(--accent)"><h2>${esc(x.fecha)} · ${esc(x.resp)}</h2>
+    <p class="muted" style="margin:8px 0 4px"><b>💳 Desglose pagos</b></p>
+    ${mediosRows||'<p class="muted">Sin desglose (cierre antiguo)</p>'}
+    ${row("Pedidos",x.pedidos)}${row("Venta total con delivery",fmt(x.venta),"sub")}${row("Venta sin delivery",fmt(x.ventaSinDelivery||x.venta-(x.envios||0)))}
+    <p class="muted" style="margin:12px 0 2px"><b>🛵 Deliveries (${(x.dels||[]).length}) - Base $${x.base||0}</b></p>
+    ${(x.dels||[]).map(d=>row(`#${d.id} · ${esc(d.cliente||"sin nombre")}`,fmt(d.envio))).join("")||'<p class="muted">Sin deliveries</p>'}
+    ${row("Deliveries pedidos",fmt(x.enviosPedidos||0))}${row("Deliveries manuales",fmt(x.enviosManuales||0))}${row("Total deliveries",fmt((x.dels||[]).reduce((a,d)=>a+(d.envio||0),0)+(x.base||0)),"sub")}
+    <p class="muted" style="margin:12px 0 2px"><b>💰 Efectivo</b></p>
+    ${row("Efectivo cobrado",fmt(x.efectivoCobrado))}${row("− Gastos en efectivo",fmt(x.gastosEf))}${row("− Retiros",fmt(x.retiros))}${row(`− Pago a delivery (${x.pagoDeliveryMedio||"Efectivo"})`,fmt(x.pagadoDelivery))}${row("Efectivo que quedó",fmt(x.efectivo),"sub")}
+    <p class="muted" style="margin:12px 0 2px"><b>📊 Resultado</b></p>
+    ${row("Gastos",fmt(x.gastos),"neg")}${row("Total final",fmt(x.final),"final")}${row("Propinas (aparte)",fmt(x.propinas))}${x.obs?`<p class="muted" style="background:var(--bg);padding:8px;border-radius:6px;margin-top:8px">📝 ${esc(x.obs)}</p>`:""}
+    </div>`;
+  }).join("");
+}
+try { cargarDesdeLocalStorage(); render(); } catch(e) {
+  document.getElementById('app').innerHTML = '<div class="card"><h2>No se puede abrir el panel en este navegador</h2><p>Abre el enlace directamente en Safari. Esta copia no ha borrado tus datos.</p><button class="big" onclick="location.reload()">Reintentar</button></div>';
+}
+</script>
+
+
+</body></html>
