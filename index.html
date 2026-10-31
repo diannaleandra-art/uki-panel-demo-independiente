@@ -1,6 +1,6 @@
 <html lang="es"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Uki Sushi · Panel DEMO corregido</title>
+<title>Uki Sushi · Panel DEMO v8.11 en preparación</title>
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -315,7 +315,7 @@ function entrarSuc(){
 function salirSuc(){guardarEnLocalStorage();const codigos=S.codigos;S=estadoVacioSucursal(null);S.codigos=codigos;S.vista="inicio";nuevoDraft();render();}
 function vInicio(){
   if(S.pinSuc){const nueva=!S.codigos[S.pinSuc]; return `<div class="card"><h2>${esc(S.pinSuc)}</h2><p class="muted">${nueva?"Crea código de 4 números":"Ingresa código de 4 números"}</p><input id="pin" type="password" inputmode="numeric" placeholder="****" maxlength="4"><button class="big" onclick="entrarSuc()">${nueva?"Crear y entrar":"Entrar"}</button></div>`;}
-  if(!S.suc){return `<div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Cada sucursal tendra sus pedidos y timbres independientes.</p>${SUCURSALES.map(s=>`<button class="big" onclick="pedirPin('${s}')">${s}</button>`).join("")}</div><div class="card"><p class="muted"><b>Demostracion publica:</b> no registres clientes reales. Los datos de versiones anteriores siguen conservados en el almacenamiento anterior, pero no se trasladan automaticamente para evitar mezclas.</p></div>`;}
+  if(!S.suc){return `<div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Cada sucursal tendra sus pedidos y timbres independientes.</p>${SUCURSALES.map(s=>`<button class="big" onclick="pedirPin('${s}')">${s}</button>`).join("")}</div><div class="card"><p class="muted"><b>Demostracion publica:</b> no registres clientes reales. Los datos de versiones anteriores siguen conservados en el almacenamiento anterior, pero no se trasladan automaticamente para evitar mezclas. El PIN de 4 digitos es solo una barrera basica, no seguridad para datos reales.</p></div>`;}
 
   const t=totales();return `<div class="welcome"><div class="eyebrow">RESUMEN DEL DÍA · ${hoyLocal()}</div><h2>Hola, Uki Sushi <span>🍣</span></h2><p class="muted">${esc(S.suc)}</p></div>
   <section class="kpis" aria-label="Resumen de ventas">
@@ -700,7 +700,7 @@ function vCaja(){
   const active=CAJA_TABS.find(x=>x[0]===cajaTab)||CAJA_TABS[0];
   const content=({resumen:vCajaResumen,movimientos:vMovimientos,cierre:vCierre,historial:vHistorialCompacto})[active[0]]();
   return `<div class="section-head"><h2>Caja</h2><p>Control diario · ${hoyLocal()}</p></div>
-  <div class="sub-tabs" role="group" aria-label="Secciones de caja">${CAJA_TABS.map(([k,l])=>`<button class="${cajaTab===k?'selected':''}" onclick="cambiarCajaTab('${k}')">${l}</button>`).join('')}</div>${content}<div class="card"><h2>💾 Respaldo de esta sucursal</h2><p class="muted">Descarga una copia cada dia. Restaurar reemplaza los registros, no combina archivos.</p><button class="big" onclick="descargarRespaldoCompleto()">Descargar respaldo JSON</button><label>Restaurar respaldo de esta sucursal</label><input type="file" accept=".json,application/json" onchange="cargarRespaldo(event)"></div>`;
+  <div class="sub-tabs" role="group" aria-label="Secciones de caja">${CAJA_TABS.map(([k,l])=>`<button class="${cajaTab===k?'selected':''}" onclick="cambiarCajaTab('${k}')">${l}</button>`).join('')}</div>${content}<div class="card"><h2>💾 Respaldo de esta sucursal</h2><p class="muted">Descarga una copia cada dia. Restaurar reemplaza los registros, no combina archivos. El JSON NO esta cifrado: no lo compartas con desconocidos.</p><button class="big" onclick="descargarRespaldoCompleto()">Descargar respaldo JSON</button><label>Restaurar respaldo de esta sucursal</label><input type="file" accept=".json,application/json" onchange="cargarRespaldo(event)"></div>`;
 }
 function vCajaResumen(){
   const t=totales(), caja=cajaDelDia();
