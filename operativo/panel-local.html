@@ -134,7 +134,7 @@ const SUCURSALES=["Uki Regimiento Arica","Uki La Serena"];
 const MEDIOS=["Efectivo","Transferencia","Débito","Edenred","Otros","Uber Eats","PedidosYa","Rappi"];
 const APPS=["Uber Eats","PedidosYa","Rappi"];
 let S={suc:null,pinSuc:null,codigos:{},vista:"inicio",base:18000,pedidos:[],gastos:[],retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",deliveriesManuales:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,filtro:"",filtroFecha:"",filtroCliente:""};
-let D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:true,items:[],editando:null};
+let D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[],editando:null};
 const $=id=>document.getElementById(id);
 const fmt=n=>"$"+Math.round(n||0).toLocaleString("es-CL");
 const esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -463,7 +463,7 @@ function setEnvioManual(valor){
   const txt=$("pedidoEnvioAyuda");
   if(txt) txt.textContent=D.modalidad==="Delivery"?"Delivery seleccionado - "+fmt(monto)+" se suma al total":"Toca Delivery arriba para sumar envío";
 }
-function nuevoDraft(){D={texto:"",fecha:ahora(),cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:true,items:[{nombre:"",cant:1,precio:0,det:""}],editando:null};}
+function nuevoDraft(){D={texto:"",fecha:ahora(),cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[{nombre:"",cant:1,precio:0,det:""}],editando:null};}
 function delItem(k){D.items.splice(k,1);if(!D.items.length)D.items=[{nombre:"",cant:1,precio:0,det:""}];render();}
 function addItem(){const n=$("pNom").value.trim(); const c=parseInt($("pCant").value)||1; const p=parseInt($("pPre").value)||0; const d=$("pDet").value.trim(); if(!n||!p){aviso("Pon nombre y precio");return;} D.items=D.items.filter(x=>x.nombre); D.items.push({nombre:n,cant:c,precio:p,det:d}); $("pNom").value=""; $("pCant").value=1; $("pPre").value=""; $("pDet").value=""; render();}
 // El codigo del pedido proviene del encabezado de la carta digital, NO del numero interno ni del codigo de cliente.
@@ -557,7 +557,26 @@ function vNuevo(){
 function editarPedido(id){const p=S.pedidos.find(x=>x.id===id); if(!p)return; D={texto:p.textoOriginal||"",fecha:p.fechaISO||ahora(),cliente:p.cliente||"",telefono:p.telefono||"",codigoCarta:p.codigoCarta||"",codigoCliente:p.codigoCliente||"",sucursalCarta:p.sucursalCarta||"",modalidad:p.modalidad||"Retiro",envio:p.envio||0,medio:p.medio||"Efectivo",medioEnvio:p.medioEnvio||"Efectivo",pagado:!!p.pagado,items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}]; ir("nuevo"); aviso(`Editando pedido #${id}`);}
 function reanalizar(){leerTextoD();}
 function copiarComanda(id){const p=S.pedidos.find(x=>x.id===id); if(!p) return; const txt=[`#${p.id} ${p.modalidad}`, ...(p.productos||[]).map(pr=>`${pr.cantidad}x ${pr.nombre}${pr.detalle?` (${pr.detalle})`:""}`), p.envio?`Delivery ${fmt(p.envio)}`:"", `Total ${fmt(p.total)}`].filter(Boolean).join("\n"); if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>aviso("Comanda copiada")).catch(()=>aviso(txt)); else aviso(txt);}
-function togglePagado(id){const p=S.pedidos.find(x=>x.id===id);if(p){p.pagado=!p.pagado;render();}}
+function togglePagado(id){
+ const p=S.pedidos.find(x=>x.id===id);if(!p||p.esPremio)return;
+ if(!p.pagado && !confirm("¿Confirmas que recibiste el pago de "+fmt(p.total)+" por el pedido #"+id+"?"))return;
+ if(p.cliente){
+   const cli=asegurarCliente(p.cliente,p.codigoCliente,p.telefono);
+   if(p.pagado){
+     cli.movimientos=cli.movimientos.filter(m=>m.pedidoId!==p.id);
+     cli.pedidos=Math.max(0,(cli.pedidos||0)-1);
+     cli.gastado=Math.max(0,(cli.gastado||0)-(p.subtotal||0));
+   }else{
+     if(!cli.movimientos.some(m=>m.tipo==="venta"&&m.pedidoId===p.id)){
+       cli.movimientos.push({tipo:"venta",fecha:new Date().toISOString(),vence:fechaVencimiento(new Date().toISOString()),pedidoId:p.id});
+       cli.pedidos=(cli.pedidos||0)+1;
+       cli.gastado=(cli.gastado||0)+(p.subtotal||0);
+       cli.ultimo=new Date().toLocaleDateString("es-CL");
+     }
+   }
+ }
+ p.pagado=!p.pagado;render();
+}
 function claveCliente(nombre,codigo="",telefono=""){
   const c=String(codigo||"").trim(),t=String(telefono||"").replace(/[^\d]/g,"");
   if(c)return "codigo:"+c+"|"+t;
@@ -876,7 +895,7 @@ function ndGuardar(){
     const p=S.pedidos.find(x=>x.id===D.editando);
     if(p){
       // Si era premio, no afecta tarjeta
-      if(!p.esPremio && p.cliente){
+      if(!p.esPremio && p.cliente && p.pagado){
         const cliOld=getCliente(p.cliente,p.codigoCliente,p.telefono);
         if(cliOld && cliOld.movimientos){
           cliOld.movimientos = cliOld.movimientos.filter(m=>m.pedidoId!==p.id);
@@ -885,7 +904,7 @@ function ndGuardar(){
         }
       }
       p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||"";p.codigoCarta=D.codigoCarta||"";p.codigoCliente=D.codigoCliente||"";p.sucursalCarta=D.sucursalCarta||""; p.modalidad=D.modalidad; p.envio=envio; p.medio=D.medio; p.medioEnvio=D.medioEnvio; p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})); p.total=total; p.subtotal=sub; p.textoOriginal=D.texto;
-      if(!p.esPremio && D.cliente){
+      if(!p.esPremio && D.cliente && D.pagado){
         const cli=asegurarCliente(D.cliente,D.codigoCliente,D.telefono);
         cli.gastado+=sub;
         cli.pedidos+=1;
@@ -894,13 +913,13 @@ function ndGuardar(){
       }
       aviso(`Pedido #${p.id} actualizado $${total} - ${!p.esPremio?'tarjeta actualizada':''}`);
     }
-    D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:true,items:[],editando:null};
+    D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[],editando:null};
     S.vista="pedidos"; render(); return;
   }
   const idNuevo=S.nextId++;
-  const nuevoPedido={id:idNuevo,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),cliente:D.cliente,telefono:D.telefono||"",codigoCarta:D.codigoCarta||"",codigoCliente:D.codigoCliente||"",sucursalCarta:D.sucursalCarta||"",modalidad:D.modalidad,envio:envio,medio:D.medio,medioEnvio:D.medioEnvio,pagado:D.pagado,estado:"Entregado",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),total:total,subtotal:sub,textoOriginal:D.texto,esPremio:false};
+  const nuevoPedido={id:idNuevo,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),cliente:D.cliente,telefono:D.telefono||"",codigoCarta:D.codigoCarta||"",codigoCliente:D.codigoCliente||"",sucursalCarta:D.sucursalCarta||"",modalidad:D.modalidad,envio:envio,medio:D.medio,medioEnvio:D.medioEnvio,pagado:D.pagado,estado:"Pendiente",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),total:total,subtotal:sub,textoOriginal:D.texto,esPremio:false};
   S.pedidos.push(nuevoPedido);
-  if(D.cliente){
+  if(D.cliente && D.pagado){
     const cli=asegurarCliente(D.cliente,D.codigoCliente,D.telefono);
     cli.gastado+=sub;
     cli.pedidos+=1;
@@ -911,9 +930,9 @@ function ndGuardar(){
     else if(ventas===10) aviso(`¡${cli.nombre} llegó a 10 ventas! Puede reclamar 36 piezas + 2 korokes gratis 🎉`);
     else aviso(`Pedido #${idNuevo} guardado $${total} - ${cli.nombre} lleva ${ventas}/10 timbres`);
   } else {
-    aviso(`Pedido #${idNuevo} guardado $${total}`);
+    aviso(`Pedido #${idNuevo} guardado ${total}${D.pagado?"":" · Pendiente de pago"}`);
   }
-  D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:true,items:[],editando:null}; 
+  D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[],editando:null}; 
   S.vista="pedidos"; render();
 }
 function cerrar(){
