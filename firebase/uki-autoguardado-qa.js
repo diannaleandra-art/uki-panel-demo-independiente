@@ -16,14 +16,14 @@ export function crearAutoGuardadoQA({guardar,getEstado,avisar,delay=1500,
  if(typeof guardar!=="function"||typeof getEstado!=="function"||typeof avisar!=="function")
   throw Error("Faltan funciones de guardado");
  let sucursal=null,revision=null,huellaGuardada=null,timer=null;
- let activo=false,bloqueado=false,ocupado=false,estado="desactivado",token=0;
+ let activo=false,bloqueado=false,ocupado=false,estado="desactivado",token=0,remotoPendiente=null;
  function informar(nuevo,detalle=""){
   estado=nuevo;avisar({estado,detalle,revision,sucursal,activo,bloqueado});
  }
  function pararTimer(){if(timer!==null){cancel(timer);timer=null;}}
  function desactivar(){
   token++;pararTimer();activo=false;bloqueado=false;
-  sucursal=null;revision=null;huellaGuardada=null;informar("desactivado");
+  sucursal=null;revision=null;huellaGuardada=null;remotoPendiente=null;informar("desactivado");
  }
  function activar({suc,rev,estadoBase}){
   if(typeof suc!=="string"||!suc||!Number.isSafeInteger(rev)||rev<0)
@@ -65,12 +65,18 @@ export function crearAutoGuardadoQA({guardar,getEstado,avisar,delay=1500,
    informar(tipo,"Sin sobrescribir la nube. Se conservan los cambios locales: "+String(e?.message||e));
   }finally{
    ocupado=false;
-   if(id===token&&activo&&!bloqueado&&huellaOperativa(getEstado())!==huellaGuardada)cambioLocal();
+   if(id===token&&activo&&!bloqueado&&remotoPendiente!==null&&remotoPendiente>revision){
+     bloqueado=true;pararTimer();
+     informar("conflicto","Se detectó una revisión remota más reciente. Mantén esta copia local.");
+   }else if(id===token&&activo&&!bloqueado&&huellaOperativa(getEstado())!==huellaGuardada){
+     cambioLocal();
+   }
+   remotoPendiente=null;
   }
  }
  function revisionRemota(rev){
   if(!activo||bloqueado||!Number.isSafeInteger(rev)||rev<=revision)return;
-  if(ocupado)return; // El guardado propio se confirma primero con la transacción.
+  if(ocupado){remotoPendiente=Math.max(remotoPendiente||0,rev);return;} // Comprobar después del commit propio.
   bloqueado=true;pararTimer();
   informar("conflicto","Otro equipo guardó una revisión más reciente. Recarga la nube antes de seguir.");
  }
