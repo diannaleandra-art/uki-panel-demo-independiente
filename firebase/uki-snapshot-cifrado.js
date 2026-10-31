@@ -16,7 +16,7 @@ export class ErrorSnapshotUki extends Error {
 const RAMAS=Object.freeze({"Uki Regimiento Arica":"regimiento","Uki La Serena":"la-serena"});
 const LIMITE_BLOQUES=180;
 const TAMANO_BLOQUE_ENCRIPTADO=350000;
-const BATCH_SIZE=16; // ~3.8MiB por lote, bajo 10 MiB.
+const BATCH_SIZE=8; // Asegurar margen para el límite de 20 lecturas de reglas por lote.
 const MAX_PARALELO_LECTURA=6;
 const fail=(codigo,mensaje)=>{throw new ErrorSnapshotUki(codigo,mensaje)};
 const esGeneracion=id=>typeof id==="string"&&/^[a-f0-9]{32}$/.test(id);
