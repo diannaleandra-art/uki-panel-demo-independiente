@@ -1,6 +1,6 @@
 <html lang="es"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Uki Sushi · Panel DEMO v8.14</title>
+<title>Uki Sushi · Panel DEMO v8.15</title>
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -111,7 +111,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid #dc7703;outline-off
 </style>
 </head>
 <body>
-<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.14 · DEMO</h1></header>
+<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.15 · DEMO</h1></header>
 <nav id="nav" class="app-nav" aria-label="Navegación de Uki Sushi"></nav>
 <div class="aviso" style="margin:10px 12px 0;background:#fce8d7;border:1px solid #efb57c;font-weight:600">DEMO PÚBLICA · Solo datos ficticios · Sin WhatsApp real</div><main id="app"><div class="aviso">✅ v8 Timbres - 6 ventas = 12 piezas / 10 ventas = 36 + 2 korokes</div><div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Tarjeta de timbres: 6 ventas = 12 piezas gratis, 10 ventas = 36 piezas + 2 korokes</p><button class="big" onclick="pedirPin('Uki Regimiento Arica')">Uki Regimiento Arica</button><button class="big" onclick="pedirPin('Uki La Serena')">Uki La Serena</button></div><div class="card"><h2>💾 Respaldo para computador</h2><button class="big" onclick="descargarRespaldoCompleto()">💾 Descargar respaldo con tarjetas</button><label class="muted">Cargar respaldo</label><input type="file" accept=".json" onchange="cargarRespaldo(event)"></div></main>
 <script>
@@ -996,15 +996,15 @@ function descargarPDF(tipo){
     descargarTextoArchivo(`historial-${S.suc||"todas"}-${new Date().toISOString().slice(0,10)}.txt`, txt, "text/plain");
     aviso("📄 Historial TXT descargado (abre en Archivos)");
   } else {
-    const t=totales();
+    const t=totales(), caja=cajaDelDia();
     let txt=`Uki Sushi - ${S.suc} - CIERRE DEL DÍA - ${new Date().toLocaleString("es-CL")}\n\n`;
     txt+=`=== PAGOS DESGLOSADOS ===\n`;
     Object.keys(t.medios).forEach(k=>{ txt+=`${k}: ${fmt(t.medios[k])}\n`; });
     txt+=`\nPedidos: ${t.n} - Pagados: ${t.pagadosN} - Pendientes: ${t.pendientesN}\n`;
     txt+=`Venta con delivery: ${fmt(t.totalMedios)}\nVenta sin delivery: ${fmt(t.ventaSinDelivery)}\n`;
     txt+=`Deliveries: ${fmt(t.envios)} (${t.enviosPedidos} pedidos + ${t.enviosManuales} manuales)\n`;
-    txt+=`Base diaria: ${fmt(S.base)}\nTotal delivery (base+envios): ${fmt(S.base+t.envios)}\n`;
-    txt+=`Pago a delivery (${S.pagoDeliveryMedio}): ${fmt(t.pagoDelivery)}\n`;
+    txt+=`Base diaria: ${fmt(caja.base)}\nTotal delivery (base+envios): ${fmt(caja.base+t.envios)}\n`;
+    txt+=`Pago a delivery (${caja.pagoDeliveryMedio}): ${fmt(t.pagoDelivery)}\n`;
     txt+=`Gastos: ${fmt(t.gastosTotal)}\nVenta - gastos: ${fmt(t.totalMedios-t.gastosTotal)}\n`;
     txt+=`Total final: ${fmt(t.final)}\nEfectivo queda: ${fmt(t.efectivoCaja)}\nPropinas: ${fmt(t.propinas)}\n`;
     descargarTextoArchivo(`cierre-${S.suc}-${new Date().toISOString().slice(0,10)}.txt`, txt, "text/plain");
@@ -1030,13 +1030,13 @@ function descargarExcel(tipo){
     descargarTextoArchivo(`historial-${S.suc}-${new Date().toISOString().slice(0,10)}.csv`, csv, "text/csv;charset=utf-8");
     aviso("📊 Excel historial descargado");
   } else {
-    const t=totales();
+    const t=totales(), caja=cajaDelDia();
     let csv="Concepto;Monto;Detalle\n";
-    Object.keys(t.medios).forEach(k=>{ csv+=`${k};${t.medios[k]};Pago\n`; });
+    Object.keys(t.medios).forEach(k=>{ csv+=`${csvSeguro(k)};${t.medios[k]};Pago\n`; });
     csv+=`Pedidos;${t.n};\nPagados;${t.pagadosN};\nPendientes;${t.pendientesN};\n`;
     csv+=`Venta con delivery;${t.totalMedios};\nVenta sin delivery;${t.ventaSinDelivery};\n`;
-    csv+=`Base diaria;${S.base};\nDeliveries pedidos;${t.enviosPedidos};\nDeliveries manuales;${t.enviosManuales};\nTotal deliveries;${t.envios};\nTotal delivery (base+envios);${S.base+t.envios};\n`;
-    csv+=`Pago a delivery (${S.pagoDeliveryMedio});${t.pagoDelivery};\n`;
+    csv+=`Base diaria;${caja.base};\nDeliveries pedidos;${t.enviosPedidos};\nDeliveries manuales;${t.enviosManuales};\nTotal deliveries;${t.envios};\nTotal delivery (base+envios);${caja.base+t.envios};\n`;
+    csv+=`Pago a delivery (${csvSeguro(caja.pagoDeliveryMedio)});${t.pagoDelivery};\n`;
     csv+=`Gastos total;${t.gastosTotal};\nVenta - gastos;${t.totalMedios-t.gastosTotal};\n`;
     csv+=`Total final;${t.final};\nEfectivo queda;${t.efectivoCaja};\nPropinas;${t.propinas};\n`;
     descargarTextoArchivo(`cierre-${S.suc}-${new Date().toISOString().slice(0,10)}.csv`, csv, "text/csv;charset=utf-8");
