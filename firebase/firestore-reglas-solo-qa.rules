@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function admin() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.firebase.sign_in_provider == 'google.com'
+        && request.auth.token.email == 'ukiadministracion@gmail.com';
+    }
+    function sucursalValida(s) {
+      return s in ['regimiento', 'la-serena'];
+    }
+
+    // Conserva la prueba de conexión previamente validada.
+    match /uki_qa_conexion/{uid} {
+      allow get: if admin() && request.auth.uid == uid;
+      allow list: if false;
+      allow create, update: if admin()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['uid','tipo','actualizada'])
+        && request.resource.data.uid == uid
+        && request.resource.data.tipo == 'PRUEBA_FICTICIA'
+        && request.resource.data.actualizada is int;
+      allow delete: if false;
+    }
+
+    // SOLO QA: la cuenta administradora puede leer y guardar una sucursal.
+    match /uki_sucursales/{sucursal} {
+      allow get: if admin() && sucursalValida(sucursal);
+      allow list: if false;
+      function manifest() {
+        return request.resource.data.keys().hasAll(
+          ['branch','schemaVersion','rev','generacion','salt','totalBloques','actualizadoPor'])
+          && request.resource.data.keys().hasOnly(
+          ['branch','schemaVersion','rev','generacion','salt','totalBloques','actualizadoPor'])
+          && request.resource.data.branch == sucursal
+          && request.resource.data.schemaVersion == 2
+          && request.resource.data.rev is int
+          && request.resource.data.generacion is string
+          && request.resource.data.generacion.matches('^[a-f0-9]{32}$')
+          && request.resource.data.salt is string
+          && request.resource.data.salt.size() >= 20
+          && request.resource.data.salt.size() <= 28
+          && request.resource.data.totalBloques is int
+          && request.resource.data.totalBloques >= 1
+          && request.resource.data.totalBloques <= 180
+          && request.resource.data.actualizadoPor == request.auth.uid;
+      }
+      allow create: if admin() && sucursalValida(sucursal)
+        && manifest() && request.resource.data.rev == 1;
+      allow update: if admin() && sucursalValida(sucursal)
+        && manifest()
+        && resource.data.branch == sucursal
+        && resource.data.schemaVersion == 2
+        && request.resource.data.rev == resource.data.rev + 1
+        && request.resource.data.salt == resource.data.salt
+        && request.resource.data.generacion != resource.data.generacion;
+      allow delete: if false;
+
+      match /bloques/{id} {
+        allow get: if admin() && sucursalValida(sucursal);
+        allow list: if false;
+        allow create: if admin() && sucursalValida(sucursal)
+          && request.resource.data.keys().hasAll(
+            ['branch','generacion','indice','formato','paquete'])
+          && request.resource.data.keys().hasOnly(
+            ['branch','generacion','indice','formato','paquete'])
+          && request.resource.data.branch == sucursal
+          && request.resource.data.generacion is string
+          && request.resource.data.generacion.matches('^[a-f0-9]{32}$')
+          && id.matches('^[a-f0-9]{32}_[0-9]{4}$')
+          && id.matches('^' + request.resource.data.generacion + '_[0-9]{4}$')
+          && request.resource.data.indice is int
+          && request.resource.data.indice >= 0
+          && request.resource.data.indice < 180
+          && request.resource.data.formato == 'uki-cloud-chunk-v1'
+          && request.resource.data.paquete is string
+          && request.resource.data.paquete.size() > 0
+          && request.resource.data.paquete.size() < 350000;
+        allow update, delete: if false;
+      }
+    }
+  }
+}
