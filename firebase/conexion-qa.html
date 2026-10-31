@@ -69,13 +69,23 @@ byId("salir").addEventListener("click",async()=>{
 });
 byId("leer").addEventListener("click",async()=>{
  if(!who())return status("Debes entrar con Google.");
- try{
-  const qa=await getDoc(doc(db,"uki_qa_conexion",who().uid));
-  const reg=await getDoc(doc(db,"uki_sucursales","regimiento"));
-  status("Lectura con permiso verificado. Prueba ficticia: "+(qa.exists()?"registrada":"aún no creada")+
-    ". Documento de Regimiento: "+(reg.exists()?"existe":"todavía vacío")+
-    ". No se ha leído ni mostrado el contenido de pedidos.");
- }catch(e){status(err(e));}
+ let qa;
+ try {
+   qa=await getDoc(doc(db,"uki_qa_conexion",who().uid));
+ } catch(e) {
+   return status("No se pudo leer el registro ficticio: "+err(e));
+ }
+ // Validación independiente: antes de activar el panel, las sucursales deben estar bloqueadas.
+ let branchDenied=false;
+ try {
+   await getDoc(doc(db,"uki_sucursales","regimiento"));
+ } catch(e) {
+   if(e?.code==="permission-denied")branchDenied=true;
+   else return status("No se pudo comprobar el bloqueo de sucursal: "+err(e));
+ }
+ status("Lectura de prueba ficticia: "+(qa.exists()?"CORRECTA":"sin registro")+
+   ". Bloqueo de sucursal Regimiento: "+(branchDenied?"CORRECTO":"ALERTA: se permitió leer, revisar reglas")+
+   ". No se han leído ni mostrado los pedidos.");
 });
 byId("escribir").addEventListener("click",async()=>{
  if(!who())return status("Debes entrar con Google.");
