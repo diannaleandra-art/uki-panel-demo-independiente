@@ -17,6 +17,8 @@ export function crearAutoGuardadoQA({guardar,getEstado,avisar,delay=1500,
   throw Error("Faltan funciones de guardado");
  let sucursal=null,revision=null,huellaGuardada=null,timer=null;
  let activo=false,bloqueado=false,ocupado=false,estado="desactivado",token=0,remotoPendiente=null;
+ let guardados=0;
+ const MAX_AUTOGUARDADOS_QA=10;
  function informar(nuevo,detalle=""){
   estado=nuevo;avisar({estado,detalle,revision,sucursal,activo,bloqueado});
  }
@@ -45,6 +47,11 @@ export function crearAutoGuardadoQA({guardar,getEstado,avisar,delay=1500,
  }
  async function enviar(){
   if(!activo||bloqueado||ocupado)return;
+  if(guardados>=MAX_AUTOGUARDADOS_QA){
+   bloqueado=true;pararTimer();
+   informar("límite de prueba","Se completaron 10 guardados automáticos de esta sesión. Carga la nube de nuevo para continuar las pruebas.");
+   return;
+  }
   const copia=getEstado();
   if(!copia||copia.suc!==sucursal){desactivar();return;}
   const huella=huellaOperativa(copia);
@@ -56,7 +63,7 @@ export function crearAutoGuardadoQA({guardar,getEstado,avisar,delay=1500,
    if(id!==token||!activo||sucursal!==copia.suc)return;
    if(!Number.isSafeInteger(r?.revision)||r.revision!==revisionOriginal+1)
     throw Object.assign(Error("Revisión de guardado inesperada"),{code:"REVISION"});
-   revision=r.revision;huellaGuardada=huella;
+   revision=r.revision;huellaGuardada=huella;guardados++;
    informar("sincronizado","Guardado confirmado en Firebase");
   }catch(e){
    if(id!==token||!activo)return;
@@ -80,6 +87,6 @@ export function crearAutoGuardadoQA({guardar,getEstado,avisar,delay=1500,
   bloqueado=true;pararTimer();
   informar("conflicto","Otro equipo guardó una revisión más reciente. Recarga la nube antes de seguir.");
  }
- function resumen(){return Object.freeze({estado,revision,sucursal,activo,bloqueado,ocupado});}
+ function resumen(){return Object.freeze({estado,revision,sucursal,activo,bloqueado,ocupado,guardados});}
  return Object.freeze({activar,desactivar,cambioLocal,revisionRemota,enviar,resumen});
 }
