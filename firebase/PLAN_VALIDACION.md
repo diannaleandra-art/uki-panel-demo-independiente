@@ -34,3 +34,17 @@
 - Configuración de la app web: https://firebase.google.com/docs/web/setup
 - Problemas Safari/redirect: https://firebase.google.com/docs/auth/web/redirect-best-practices
 - Límites gratuitos Firestore: https://firebase.google.com/docs/firestore/pricing
+
+## Revisión de escala realizada el 31 de octubre de 2026
+
+La conexión QA con Google ya fue probada por la propietaria en Safari: autenticación, escritura ficticia, lectura ficticia y denegación de lectura de datos operativos. No repetir las pruebas salvo que se modifiquen permisos.
+
+**Hallazgo bloqueante para producción:** Firestore admite máximo **1 MiB por documento**. La primera versión de `uki-sync-core.js` utiliza un documento de estado completo por sucursal, útil para demostrar control de revisiones, pero **no debe conectarse como almacenamiento operativo definitivo**, porque crece con pedidos, clientes e historial. Además, no resuelve automáticamente conflictos de dos trabajadores; solo impide sobrescritura silenciosa.
+
+Nueva prueba local `uki-particion-local.js`:
+- Separa pedidos y movimientos por períodos y clientes/caja por grupos.
+- Se verificaron 5.000 pedidos y 1.000 clientes: 58 bloques de menos de 180 KB; reconstrucción exacta de pedidos y preservación de caja; rechazo de sucursales mezcladas.
+- **No contiene cifrado ni realiza escrituras de red.** Jamás subir estos bloques en texto claro. Deben cifrarse antes del almacenamiento y versionarse con transacciones y reglas por sucursal.
+- Pendiente: integrar partición y cifrado de bloques, sincronización segura, manejo de conflictos offline, respaldos exportables, revocación de trabajadores, pruebas reales de dos dispositivos, validación de consumo Spark.
+
+La v8.15 de GitHub Pages se mantiene sin cambios; no publicar ninguna migración sin autorización de la propietaria. Ningún archivo de esta rama se debe representar como listo para pedidos reales.
