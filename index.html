@@ -111,15 +111,15 @@ button:focus-visible,summary:focus-visible{outline:3px solid #dc7703;outline-off
 </style>
 </head>
 <body>
-<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.8 · DEMO</h1></header>
+<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.9 · DEMO (NO PUBLICADA)</h1></header>
 <nav id="nav" class="app-nav" aria-label="Navegación de Uki Sushi"></nav>
 <div class="aviso" style="margin:10px 12px 0;background:#fce8d7;border:1px solid #efb57c;font-weight:600">DEMO PÚBLICA · Solo datos ficticios · Sin WhatsApp real</div><main id="app"><div class="aviso">✅ v8 Timbres - 6 ventas = 12 piezas / 10 ventas = 36 + 2 korokes</div><div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Tarjeta de timbres: 6 ventas = 12 piezas gratis, 10 ventas = 36 piezas + 2 korokes</p><button class="big" onclick="pedirPin('Uki Regimiento Arica')">Uki Regimiento Arica</button><button class="big" onclick="pedirPin('Uki La Serena')">Uki La Serena</button></div><div class="card"><h2>💾 Respaldo para computador</h2><button class="big" onclick="descargarRespaldoCompleto()">💾 Descargar respaldo con tarjetas</button><label class="muted">Cargar respaldo</label><input type="file" accept=".json" onchange="cargarRespaldo(event)"></div></main>
 <script>
 const SUCURSALES=["Uki Regimiento Arica","Uki La Serena"];
 const MEDIOS=["Efectivo","Transferencia","Débito","Edenred","Otros","Uber Eats","PedidosYa","Rappi"];
 const APPS=["Uber Eats","PedidosYa","Rappi"];
-let S={suc:null,pinSuc:null,codigos:{},vista:"inicio",base:18000,pedidos:[],gastos:[],retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",deliveriesManuales:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},nextId:1,busy:false,msg:null,confirmCierre:false,filtro:"",filtroFecha:"",filtroCliente:""};
-let D={texto:"",fecha:"",cliente:"",telefono:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:true,items:[],editando:null};
+let S={suc:null,pinSuc:null,codigos:{},vista:"inicio",base:18000,pedidos:[],gastos:[],retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",deliveriesManuales:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,filtro:"",filtroFecha:"",filtroCliente:""};
+let D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:true,items:[],editando:null};
 const $=id=>document.getElementById(id);
 const fmt=n=>"$"+Math.round(n||0).toLocaleString("es-CL");
 const esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -197,8 +197,8 @@ function ir(v){
   window.scrollTo({top:0,behavior:"instant"});
 }
 function guardarEnLocalStorage(){try{localStorage.setItem("uki_v8_timbres_prueba_independiente_20261030",JSON.stringify(S));}catch(e){}}
-function cargarDesdeLocalStorage(){try{const saved=localStorage.getItem("uki_v8_timbres_prueba_independiente_20261030"); if(!saved){return;} else {const datos=JSON.parse(saved); if(datos.pedidos||datos.clientes){S={...S,...datos,vista:S.vista,suc:S.suc,pinSuc:S.pinSuc,msg:null}; if(!S.clientes) S.clientes={};}}}catch(e){}}
-function descargarRespaldoCompleto(){const datos={fecha:new Date().toISOString(),sucursal:S.suc,pedidos:S.pedidos,gastos:S.gastos,retiros:S.retiros,propinas:S.propinas,cierres:S.cierres,apps:S.apps,pagoDelivery:S.pagoDelivery,pagoDeliveryMedio:S.pagoDeliveryMedio,deliveriesManuales:S.deliveriesManuales,cajaChica:S.cajaChica,base:S.base,cajasDiarias:S.cajasDiarias||{},nextId:S.nextId,codigos:S.codigos,clientes:S.clientes};const blob=new Blob([JSON.stringify(datos,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`uki-respaldo-${S.suc||"todas"}-${new Date().toISOString().slice(0,10)}.json`;a.click();aviso("Respaldo con tarjetas guardado");}
+function cargarDesdeLocalStorage(){try{const saved=localStorage.getItem("uki_v8_timbres_prueba_independiente_20261030"); if(!saved){return;} else {const datos=JSON.parse(saved); if(datos.pedidos||datos.clientes){S={...S,...datos,vista:S.vista,suc:S.suc,pinSuc:S.pinSuc,msg:null}; if(!S.clientes) S.clientes={};if(!Array.isArray(S.incidencias))S.incidencias=[];if(!Number.isInteger(S.nextIncidenciaId))S.nextIncidenciaId=1;}}}catch(e){}}
+function descargarRespaldoCompleto(){const datos={fecha:new Date().toISOString(),sucursal:S.suc,pedidos:S.pedidos,incidencias:S.incidencias||[],nextIncidenciaId:S.nextIncidenciaId||1,gastos:S.gastos,retiros:S.retiros,propinas:S.propinas,cierres:S.cierres,apps:S.apps,pagoDelivery:S.pagoDelivery,pagoDeliveryMedio:S.pagoDeliveryMedio,deliveriesManuales:S.deliveriesManuales,cajaChica:S.cajaChica,base:S.base,cajasDiarias:S.cajasDiarias||{},nextId:S.nextId,codigos:S.codigos,clientes:S.clientes};const blob=new Blob([JSON.stringify(datos,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`uki-respaldo-${S.suc||"todas"}-${new Date().toISOString().slice(0,10)}.json`;a.click();aviso("Respaldo con tarjetas guardado");}
 function cargarRespaldo(event){
   alert("Solo demostración: no cargues respaldos reales en esta versión pública."); return;const file=event.target.files[0]; if(!file) return; const reader=new FileReader(); reader.onload=function(e){try{const datos=JSON.parse(e.target.result); if(confirm(`¿Cargar respaldo del ${datos.fecha||""} con ${datos.cierres?.length||0} cierres y ${Object.keys(datos.clientes||{}).length} tarjetas?`)){S.pedidos=datos.pedidos||[];S.gastos=datos.gastos||[];S.retiros=datos.retiros||[];S.propinas=datos.propinas||[];S.cierres=datos.cierres||[];S.apps=datos.apps||{};S.pagoDelivery=datos.pagoDelivery||0;S.pagoDeliveryMedio=datos.pagoDeliveryMedio||"Efectivo";S.deliveriesManuales=datos.deliveriesManuales||[];S.cajaChica=datos.cajaChica||{inicial:20000,gastos:[]};S.base=datos.base||18000;S.nextId=datos.nextId||1;if(datos.codigos) S.codigos=datos.codigos;S.clientes=datos.clientes||{};guardarEnLocalStorage();aviso(`Respaldo cargado`);render();}}catch(err){aviso("Error: "+err.message);}}; reader.readAsText(file);}
 
@@ -252,11 +252,47 @@ function setEnvioManual(valor){
   const txt=$("pedidoEnvioAyuda");
   if(txt) txt.textContent=D.modalidad==="Delivery"?"Delivery seleccionado - "+fmt(monto)+" se suma al total":"Toca Delivery arriba para sumar envío";
 }
-function nuevoDraft(){D={texto:"",fecha:ahora(),cliente:"",telefono:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:true,items:[{nombre:"",cant:1,precio:0,det:""}],editando:null};}
+function nuevoDraft(){D={texto:"",fecha:ahora(),cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:true,items:[{nombre:"",cant:1,precio:0,det:""}],editando:null};}
 function delItem(k){D.items.splice(k,1);if(!D.items.length)D.items=[{nombre:"",cant:1,precio:0,det:""}];render();}
 function addItem(){const n=$("pNom").value.trim(); const c=parseInt($("pCant").value)||1; const p=parseInt($("pPre").value)||0; const d=$("pDet").value.trim(); if(!n||!p){aviso("Pon nombre y precio");return;} D.items=D.items.filter(x=>x.nombre); D.items.push({nombre:n,cant:c,precio:p,det:d}); $("pNom").value=""; $("pCant").value=1; $("pPre").value=""; $("pDet").value=""; render();}
+// El codigo del pedido proviene del encabezado de la carta digital, NO del numero interno ni del codigo de cliente.
+function esMensajeCartaUki(t){return /^\s*\*?\s*UKI\s+SUSHI\s*[·•#:\-]/im.test(t);}
+function extraerMensajeCartaUki(t){
+  const buscar=(pat)=>{const m=t.match(pat);return m?m[1].trim():"";};
+  const monto=(pat)=>{const v=buscar(pat);return v?Number(v.replace(/[^\d]/g,"")):null;};
+  const codigoCarta=buscar(/^\s*\*?\s*UKI\s+SUSHI\s*[·•#:\-]\s*([A-Za-z0-9-]+)\s*\*?\s*$/im);
+  const codigoCliente=buscar(/^\s*C[oó]digo\s+del\s+cliente\s*:\s*([^\r\n]+)/im);
+  const sucursal=buscar(/^\s*Sucursal\s*:\s*([^\r\n]+)/im);
+  const cliente=buscar(/^\s*Cliente\s*:\s*([^\r\n]+)/im);
+  const telefono=buscar(/^\s*WhatsApp\s*:\s*([^\r\n]+)/im);
+  const pago=buscar(/^\s*Pago\s*:\s*([^\r\n]+)/im);
+  const productos=monto(/^\s*Total\s+productos\s*:\s*\$?\s*([\d.,]+)/im);
+  const delivery=monto(/^\s*Delivery\s*:\s*\$?\s*([\d.,]+)/im);
+  const total=monto(/^\s*(?:Total\s+con\s+delivery|Total\s+pedido|Total)\s*:\s*\$?\s*([\d.,]+)/im);
+  const mEntrega=t.match(/(?:^|\n)\s*\*?ENTREGA\*?\s*\n\s*(Delivery|Retiro|Consumo en local)/i);
+  const modalidad=mEntrega?mEntrega[1]:(delivery!==null&&delivery>0?"Delivery":"Retiro");
+  const cocina=t.match(/(?:^|\n)\s*\*?COCINA\*?\s*\n([\s\S]*?)(?=\n\s*\*?ENTREGA\*?\s*(?:\n|$)|$)/i);
+  const lineasCocina=cocina?cocina[1].split(/\r?\n/).map(v=>v.trim()).filter(Boolean):[];
+  const simple=lineasCocina.length===1?lineasCocina[0].replace(/^\d+\s*[×x]\s*/i,"").slice(0,90):"Productos de carta digital (ver detalle)";
+  const items=[{nombre:simple||"Pedido desde carta digital",cant:1,precio:productos||0,det:lineasCocina.length>1?lineasCocina.join(" · ").slice(0,1500):""}];
+  return {codigoCarta,codigoCliente,sucursal,cliente,telefono,pago,productos,delivery,total,modalidad,lineasCocina,items};
+}
 function leerTextoD(){
   const t=(D.texto||"").trim(); if(!t)return;
+  if(esMensajeCartaUki(t)){
+    const x=extraerMensajeCartaUki(t);
+    if(!x.codigoCarta||x.productos===null||!x.lineasCocina.length){aviso("No se reconocio el codigo o los productos. Revisa el mensaje pegado.");return;}
+    if(x.total!==null && x.total!==x.productos+(x.delivery||0)){aviso("El total del mensaje no coincide con productos + delivery. Revisa los importes.");return;}
+    D.codigoCarta=x.codigoCarta; D.codigoCliente=x.codigoCliente; D.sucursalCarta=x.sucursal;
+    D.cliente=x.cliente.slice(0,60);D.telefono=x.telefono.slice(0,30);
+    D.modalidad=x.modalidad;D.envio=x.modalidad==="Delivery"?(x.delivery||0):0;
+    D.items=x.items;
+    const medio=MEDIOS.find(m=>m.toLowerCase()===x.pago.toLowerCase());
+    if(medio){D.medio=medio;D.medioEnvio=medio;}
+    render();return;
+  }
+  // El formato libre permanece para pedidos pegados que no provengan de la carta digital.
+  D.codigoCarta=""; D.codigoCliente=""; D.sucursalCarta="";
   const ml=t.toLowerCase();
   const medio=MEDIOS.find(x=>ml.includes(x.toLowerCase().split(" ")[0])); if(medio)D.medio=medio;
   if(/delivery|domicilio|envío|envio/.test(ml)){D.modalidad="Delivery";D.medioEnvio=D.medio;} else if(/retiro/.test(ml)) D.modalidad="Retiro";
@@ -302,12 +338,12 @@ function vNuevo(){
   return `<div class="section-head"><h2>${D.editando?`Editar pedido #${D.editando}`:"Nuevo pedido"}</h2><p>Elige cómo ingresar el pedido. Puedes revisar los datos antes de guardarlo.</p></div>
   <div class="mode-switch" role="group" aria-label="Modo de ingresar pedido"><button type="button" class="${modoNuevo==='whatsapp'?'selected':''}" onclick="cambiarModoNuevo('whatsapp')">📋 Pegar WhatsApp</button><button type="button" class="${modoNuevo==='manual'?'selected':''}" onclick="cambiarModoNuevo('manual')">✎ Manual</button></div>
   ${modoNuevo==='whatsapp'?`<div class="card"><h2>Texto del pedido</h2><p class="muted">Pega el mensaje de la carta digital y toca Procesar.</p><textarea id="pegaTxt" rows="4" placeholder="Pega aquí el pedido de WhatsApp" oninput="D.texto=this.value" onpaste="setTimeout(()=>{const el=document.getElementById('pegaTxt');if(el){D.texto=el.value;leerTextoD();}},150)">${esc(D.texto)}</textarea><button class="big" onclick="leerTextoD()">Procesar pedido pegado</button><p class="muted">Revisa nombre, precio, delivery y productos antes de guardar.</p></div>`:`<div class="mini-help">Agrega los datos del pedido manualmente en el formulario siguiente.</div>`}
-  <div class="card"><h2>Datos del pedido</h2><label>Fecha y hora</label><input type="datetime-local" value="${D.fecha}" oninput="D.fecha=this.value"><label>Cliente (no se autocompleta con total)</label><input value="${esc(D.cliente)}" placeholder="Ej: Camila Rojas" oninput="D.cliente=this.value">${cli?`<div style="margin-top:8px;padding:8px;background:#fff1e0;border-radius:8px"><b>${esc(cli.nombre)}</b> tiene <b>${ventasCli}/10</b> timbres ${ventasCli>=6?'<span class="tag" style="background:var(--ok);color:#fff">Puede canjear 12 piezas!</span>':''} ${ventasCli>=10?'<span class="tag" style="background:#111;color:#fff">Puede canjear 36+2 korokes!</span>':''}<div class="tarjeta" style="margin-top:6px">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventasCli?'lleno':''} ${i===5||i===9?'premio':''}">${i<ventasCli?'✓':i+1}</div>`).join("")}</div></div>`:"<p class='muted'>Nuevo cliente - empezará con 1 timbre</p>"}<label>📱 WhatsApp / Teléfono</label><input value="${esc(D.telefono)}" placeholder="+56 9 1234 5678" oninput="D.telefono=this.value" inputmode="tel"><label>Tipo de entrega</label><div class="chips">${["Retiro","Delivery","Consumo en local"].map(m=>`<button ${chip(D.modalidad===m)} onclick="setModalidad('${m}')">${m}</button>`).join("")}</div><label>💰 Valor delivery ${D.modalidad==="Delivery"?"(se suma)":"(selecciona Delivery)"}</label><input type="number" inputmode="numeric" value="${D.envio||""}" placeholder="Ej: 2000" oninput="setEnvioManual(this.value)"><p class="muted" id="pedidoEnvioAyuda">${D.modalidad==="Delivery"?`Delivery seleccionado - $${D.envio||0} se suma al total`:`Toca Delivery arriba para sumar envío`}</p></div>
+  <div class="card"><h2>Datos del pedido</h2><label>Codigo del pedido en la carta digital</label><input value="${esc(D.codigoCarta||"")}" placeholder="Ej: 953" oninput="D.codigoCarta=this.value.trim()" inputmode="text"><label>Codigo del cliente (distinto del pedido)</label><input value="${esc(D.codigoCliente||"")}" placeholder="Ej: 7362" oninput="D.codigoCliente=this.value.trim()" inputmode="text"><label>Fecha y hora</label><input type="datetime-local" value="${D.fecha}" oninput="D.fecha=this.value"><label>Cliente (no se autocompleta con total)</label><input value="${esc(D.cliente)}" placeholder="Ej: Camila Rojas" oninput="D.cliente=this.value">${cli?`<div style="margin-top:8px;padding:8px;background:#fff1e0;border-radius:8px"><b>${esc(cli.nombre)}</b> tiene <b>${ventasCli}/10</b> timbres ${ventasCli>=6?'<span class="tag" style="background:var(--ok);color:#fff">Puede canjear 12 piezas!</span>':''} ${ventasCli>=10?'<span class="tag" style="background:#111;color:#fff">Puede canjear 36+2 korokes!</span>':''}<div class="tarjeta" style="margin-top:6px">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventasCli?'lleno':''} ${i===5||i===9?'premio':''}">${i<ventasCli?'✓':i+1}</div>`).join("")}</div></div>`:"<p class='muted'>Nuevo cliente - empezará con 1 timbre</p>"}<label>📱 WhatsApp / Teléfono</label><input value="${esc(D.telefono)}" placeholder="+56 9 1234 5678" oninput="D.telefono=this.value" inputmode="tel"><label>Tipo de entrega</label><div class="chips">${["Retiro","Delivery","Consumo en local"].map(m=>`<button ${chip(D.modalidad===m)} onclick="setModalidad('${m}')">${m}</button>`).join("")}</div><label>💰 Valor delivery ${D.modalidad==="Delivery"?"(se suma)":"(selecciona Delivery)"}</label><input type="number" inputmode="numeric" value="${D.envio||""}" placeholder="Ej: 2000" oninput="setEnvioManual(this.value)"><p class="muted" id="pedidoEnvioAyuda">${D.modalidad==="Delivery"?`Delivery seleccionado - $${D.envio||0} se suma al total`:`Toca Delivery arriba para sumar envío`}</p></div>
   <div class="card"><h2>Productos y total</h2>${D.items.filter(x=>x.nombre).map((i,k)=>`<div class="row"><span>${i.cant} × ${esc(i.nombre)}${i.det?` <span class="muted">(${esc(i.det)})</span>`:""}</span><b>${fmt(i.cant*i.precio)} <button class="sm" onclick="delItem(${k})">✕</button></b></div>`).join("")||'<p class="muted">Aún no hay productos. Agrégalos abajo.</p>'}<div style="display:grid;grid-template-columns:80px 1fr;gap:8px;margin-top:10px"><div><label>Cant</label><input id="pCant" type="number" value="1" style="text-align:center;font-weight:700"></div><div><label>Precio</label><input id="pPre" type="number" inputmode="numeric" placeholder="14900"></div></div><label>Nombre producto</label><input id="pNom" placeholder="Promo 24 piezas"><label>Detalle</label><input id="pDet" placeholder="sin cebollín"><button class="sm ok" onclick="addItem()">+ Agregar producto</button><div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:10px;border-top:2px solid var(--accent)"><div class="row sub"><span>Subtotal productos</span><b>${fmt(sub)}</b></div><div class="row"><span>Delivery</span><b id="pedidoEnvioVista">${fmt(envio)}</b></div><div class="row final"><span>Total pedido</span><b id="pedidoTotalVista">${fmt(total)}</b></div><div class="row"><span>Este pedido da</span><b>⭐ +1 timbre</b></div></div></div>
   <div class="card"><h2>Medios de pago</h2><label>Medio productos</label><div class="chips">${MEDIOS.map(m=>`<button ${chip(D.medio===m)} onclick="D.medio='${m}';render()">${m}</button>`).join("")}</div><label>Medio delivery</label><div class="chips">${MEDIOS.filter(m=>!APPS.includes(m)).map(m=>`<button ${chip(D.medioEnvio===m)} onclick="D.medioEnvio='${m}';render()">${m}</button>`).join("")}</div><label class="check"><input type="checkbox" ${D.pagado?"checked":""} onchange="D.pagado=this.checked;render()"> <b>Pagado</b></label></div><button class="big" onclick="ndGuardar()">${D.editando?`💾 Guardar cambios #${D.editando}`:`✅ Guardar pedido +1 timbre`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición</button>`:""}`;
 }
 
-function editarPedido(id){const p=S.pedidos.find(x=>x.id===id); if(!p)return; D={texto:p.textoOriginal||"",fecha:p.fechaISO||ahora(),cliente:p.cliente||"",telefono:p.telefono||"",modalidad:p.modalidad||"Retiro",envio:p.envio||0,medio:p.medio||"Efectivo",medioEnvio:p.medioEnvio||"Efectivo",pagado:!!p.pagado,items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}]; ir("nuevo"); aviso(`Editando pedido #${id}`);}
+function editarPedido(id){const p=S.pedidos.find(x=>x.id===id); if(!p)return; D={texto:p.textoOriginal||"",fecha:p.fechaISO||ahora(),cliente:p.cliente||"",telefono:p.telefono||"",codigoCarta:p.codigoCarta||"",codigoCliente:p.codigoCliente||"",sucursalCarta:p.sucursalCarta||"",modalidad:p.modalidad||"Retiro",envio:p.envio||0,medio:p.medio||"Efectivo",medioEnvio:p.medioEnvio||"Efectivo",pagado:!!p.pagado,items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}]; ir("nuevo"); aviso(`Editando pedido #${id}`);}
 function reanalizar(){leerTextoD();}
 function copiarComanda(id){const p=S.pedidos.find(x=>x.id===id); if(!p) return; const txt=[`#${p.id} ${p.modalidad}`, ...(p.productos||[]).map(pr=>`${pr.cantidad}x ${pr.nombre}${pr.detalle?` (${pr.detalle})`:""}`), p.envio?`Delivery ${fmt(p.envio)}`:"", `Total ${fmt(p.total)}`].filter(Boolean).join("\n"); if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>aviso("Comanda copiada")).catch(()=>aviso(txt)); else aviso(txt);}
 function togglePagado(id){const p=S.pedidos.find(x=>x.id===id);if(p){p.pagado=!p.pagado;render();}}
@@ -531,24 +567,77 @@ function vCierre(){
   <div class="card"><h2>Cerrar el día</h2><label>Responsable</label><input id="resp" placeholder="Nombre" value="${esc(cierreDraft.resp)}" oninput="cierreDraft.resp=this.value"><label>Observaciones</label><textarea id="obs" rows="2" oninput="cierreDraft.obs=this.value">${esc(cierreDraft.obs)}</textarea>${S.confirmCierre?'<p class="aviso" style="background:#ffe1e1;color:#7a0010">Toca otra vez Confirmar cierre para guardar.</p>':""}<button class="big" onclick="cerrar()">${S.confirmCierre?"Confirmar cierre":"Cerrar día"}</button></div>
   <div class="card"><h2>📱 Compartir y Descargar</h2><button class="big" style="background:#25D366" onclick="compartirWhatsAppCierre()">📲 Compartir cierre por WhatsApp</button><button class="big" onclick="descargarPDF('cierre')">📄 Descargar cierre TXT</button><button class="big" style="background:#111" onclick="descargarExcel('cierre')">📊 Descargar Excel cierre</button></div>`;
 }
+// Fechas independientes: pedidos por fecha del pedido, incidencias por fecha del reporte.
+let filtroCodigoCarta="",filtroDiaPedidos="",filtroDiaIncidencias="",erroresAbiertos=false;
+function fechaLocalRegistro(fecha){
+  if(!fecha)return "";
+  const d=new Date(fecha);
+  if(Number.isNaN(d.getTime()))return String(fecha).slice(0,10);
+  d.setMinutes(d.getMinutes()-d.getTimezoneOffset());
+  return d.toISOString().slice(0,10);
+}
+function aplicarDiaIncidencias(){filtroDiaIncidencias=($("diaErrorFiltro")?.value||"").trim();erroresAbiertos=true;render();}
+function aplicarFiltrosPedidos(){
+  filtroCodigoCarta=($("codigoFiltro")?.value||"").trim();
+  filtroDiaPedidos=($("diaPedidoFiltro")?.value||"").trim();
+  render();
+}
+function limpiarFiltrosPedidos(){filtroCodigoCarta="";filtroDiaPedidos="";filtroDiaIncidencias="";erroresAbiertos=false;render();}
+function anotarIncidencia(pedidoId){
+  const p=S.pedidos.find(x=>x.id===pedidoId && x.suc===S.suc);if(!p)return;
+  const problema=($("incProblema"+pedidoId)?.value||"").trim();
+  const solucion=($("incSolucion"+pedidoId)?.value||"").trim();
+  if(!problema){aviso("Describe el error antes de guardarlo.");return;}
+  if(!Array.isArray(S.incidencias))S.incidencias=[];
+  if(!Number.isInteger(S.nextIncidenciaId))S.nextIncidenciaId=1;
+  S.incidencias.push({id:S.nextIncidenciaId++,suc:p.suc,pedidoId:p.id,codigoCarta:p.codigoCarta||"",fecha:new Date().toISOString(),problema,solucion,estado:solucion?"Resuelto":"Pendiente"});
+  pedidoExpandido=p.id;aviso("Incidencia asociada al pedido guardada.");render();
+}
+function resolverIncidencia(id,contexto="lista"){
+  const x=(S.incidencias||[]).find(v=>v.id===id && v.suc===S.suc);if(!x)return;
+  const solucion=($("incRespuesta"+contexto+id)?.value||"").trim();
+  if(!solucion){aviso("Escribe como se soluciono antes de marcar resuelto.");return;}
+  x.solucion=solucion;x.estado="Resuelto";x.resueltoEn=new Date().toISOString();
+  aviso("Incidencia resuelta.");render();
+}
+function renderIncidencia(x,contexto="lista"){
+  const encabezado=x.codigoCarta?"Carta #"+x.codigoCarta:"Interno #"+x.pedidoId;
+  return `<div class="card" style="padding:12px;margin:9px 0"><b>${esc(encabezado)} · ${esc(x.estado)}</b><p class="muted">Reportado ${esc(x.fecha.slice(0,10))} · ${esc(x.suc)}</p><p>${esc(x.problema)}</p>${x.solucion?`<p><b>Solucion:</b> ${esc(x.solucion)}</p>`:""}${x.estado==="Pendiente"?`<label>Solucion aplicada</label><textarea id="incRespuesta${contexto}${x.id}" rows="2" placeholder="Describe la solucion"></textarea><button class="sm ok" onclick="resolverIncidencia(${x.id},'${contexto}')">Marcar resuelto</button>`:""}</div>`;
+}
 function vPedidos(){
   if(!S.suc) return vInicio();
-  const todos=pedidosSuc().slice().reverse();
+  const todos=pedidosSuc().filter(p=>(!filtroCodigoCarta || String(p.codigoCarta||p.id).toLowerCase().includes(filtroCodigoCarta.toLowerCase())) && (!filtroDiaPedidos || String(p.fechaISO||"").slice(0,10)===filtroDiaPedidos)).slice().reverse();
+  const incidencias=(S.incidencias||[]).filter(x=>x.suc===S.suc && (!filtroCodigoCarta || String(x.codigoCarta||x.pedidoId).toLowerCase().includes(filtroCodigoCarta.toLowerCase())) && (!filtroDiaIncidencias || fechaLocalRegistro(x.fecha)===filtroDiaIncidencias)).slice().reverse();
+  const pendientes=(S.incidencias||[]).filter(x=>x.suc===S.suc && x.estado!=="Resuelto").length;
   const pagados=todos.filter(p=>p.pagado&&!p.esPremio&&p.estado!=="Cancelado").length;
   return `<div class="section-head"><h2>Pedidos</h2><p>${todos.length} registrados · ${pagados} pagados</p></div>
   <button class="big cta" onclick="ir('nuevo')">＋ Nuevo pedido</button>
+  <div class="card"><h2>Buscar pedidos y WhatsApp</h2><label>Codigo del pedido en la carta</label><input id="codigoFiltro" value="${esc(filtroCodigoCarta)}" placeholder="Ej: 953" inputmode="text"><label>Pedidos del dia</label><input id="diaPedidoFiltro" type="date" value="${esc(filtroDiaPedidos)}"><button class="sm ok" onclick="aplicarFiltrosPedidos()">Buscar pedidos</button><button class="sm" onclick="limpiarFiltrosPedidos()">Ver todos</button><p class="muted">Abre el pedido para ver el WhatsApp original. Puedes buscar un dia anterior.</p></div>
+  <details class="card" ${erroresAbiertos?'open':''}><summary onclick="erroresAbiertos=!erroresAbiertos"><b>⚠️ Errores e incidencias</b> · ${pendientes} pendientes</summary><label>Buscar errores por dia de reporte</label><input id="diaErrorFiltro" type="date" value="${esc(filtroDiaIncidencias)}"><button class="sm ok" onclick="aplicarDiaIncidencias()">Buscar errores</button><p class="muted">Los reportes se conservan aunque se cierre la caja del dia.</p>${incidencias.length?incidencias.map(x=>renderIncidencia(x,"lista")).join(""):"<p class='muted'>No hay errores para esta busqueda.</p>"}</details>
   ${todos.map(p=>`<details class="card order-card" ${p.id===pedidoExpandido?'open':''}>
-    <summary onclick="pedidoExpandido=${p.id}"><div class="order-head"><div><b>#${p.id} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small>${p.esPremio?'🎁 Premio':p.pagado?'Pagado':'Pendiente'}</small></div></div></summary>
+    <summary onclick="pedidoExpandido=${p.id}"><div class="order-head"><div><b>${p.codigoCarta?`Carta #${esc(p.codigoCarta)} · `:""}Interno #${p.id} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small>${p.esPremio?'🎁 Premio':p.pagado?'Pagado':'Pendiente'}</small></div></div></summary>
     <div class="order-body"><p class="muted">${esc(p.estado||'Entregado')} · ${esc(p.medio||'Efectivo')}${p.telefono?' · '+esc(p.telefono):''}</p>
     ${(p.productos||[]).map(pr=>`<div class="row"><span>${pr.cantidad}x ${esc(pr.nombre)}${pr.detalle?` · ${esc(pr.detalle)}`:''}</span><b>${fmt(pr.cantidad*pr.precioUnit)}</b></div>`).join('')}
     ${p.envio?row('Delivery',fmt(p.envio)):''}
+    ${p.codigoCliente?`<p class='muted'>Codigo cliente: ${esc(p.codigoCliente)}</p>`:''}
     ${p.textoOriginal&&!p.esPremio?`<details class="inner-details"><summary>Ver WhatsApp original</summary><p style="white-space:pre-wrap">${esc(p.textoOriginal)}</p></details>`:''}
+    <details class="inner-details"><summary>⚠️ Registrar error / ver soluciones</summary>
+    ${(S.incidencias||[]).filter(x=>x.suc===p.suc && x.pedidoId===p.id).map(x=>renderIncidencia(x,"orden")).join("")}
+    <label>Que ocurrio</label><textarea rows="2" id="incProblema${p.id}" placeholder="Ej: falto una salsa"></textarea>
+    <label>Solucion (opcional)</label><textarea rows="2" id="incSolucion${p.id}" placeholder="Ej: reposicion enviada"></textarea>
+    <button class="sm ok" onclick="anotarIncidencia(${p.id})">Guardar error</button></details>
     <div class="order-actions"><button class="sm ok" onclick="editarPedido(${p.id})">Editar</button><button class="sm" onclick="togglePagado(${p.id})">${p.pagado?'Quitar pagado':'Marcar pagado'}</button><button class="sm" onclick="copiarComanda(${p.id})">Copiar comanda</button>${p.telefono&&!p.esPremio?`<button class="sm" onclick="alert('Solo demostración: WhatsApp está desactivado')">WhatsApp (demo)</button>`:''}</div>
     </div></details>`).join('')||'<div class="card muted">Todavía no hay pedidos. Pulsa Nuevo pedido para comenzar.</div>'}`;
 }
 let pedidoExpandido=null;
 
 function ndGuardar(){
+  if(D.sucursalCarta && D.sucursalCarta.toLowerCase()!==S.suc.toLowerCase()){
+    aviso("Este mensaje corresponde a "+D.sucursalCarta+". Selecciona la sucursal correcta.");return;
+  }
+  if(D.codigoCarta && S.pedidos.some(p=>p.suc===S.suc && String(p.codigoCarta||"")===D.codigoCarta && p.id!==D.editando)){
+    aviso("Ya existe un pedido con ese codigo de carta en esta sucursal.");return;
+  }
   if(!D.items.filter(x=>x.nombre).length){aviso("Agrega producto");return;}
   let sub=D.items.filter(x=>x.nombre).reduce((a,i)=>a+i.cant*i.precio,0); 
   const envio=D.modalidad==="Delivery"?D.envio:0; 
@@ -565,7 +654,7 @@ function ndGuardar(){
           cliOld.gastado=Math.max(0,(cliOld.gastado||0)-(p.subtotal||0));
         }
       }
-      p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||""; p.modalidad=D.modalidad; p.envio=envio; p.medio=D.medio; p.medioEnvio=D.medioEnvio; p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})); p.total=total; p.subtotal=sub; p.textoOriginal=D.texto;
+      p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||"";p.codigoCarta=D.codigoCarta||"";p.codigoCliente=D.codigoCliente||"";p.sucursalCarta=D.sucursalCarta||""; p.modalidad=D.modalidad; p.envio=envio; p.medio=D.medio; p.medioEnvio=D.medioEnvio; p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})); p.total=total; p.subtotal=sub; p.textoOriginal=D.texto;
       if(!p.esPremio && D.cliente){
         const cli=asegurarCliente(D.cliente);
         cli.gastado+=sub;
@@ -575,11 +664,11 @@ function ndGuardar(){
       }
       aviso(`Pedido #${p.id} actualizado $${total} - ${!p.esPremio?'tarjeta actualizada':''}`);
     }
-    D={texto:"",fecha:"",cliente:"",telefono:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:true,items:[],editando:null};
+    D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:true,items:[],editando:null};
     S.vista="pedidos"; render(); return;
   }
   const idNuevo=S.nextId++;
-  const nuevoPedido={id:idNuevo,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),cliente:D.cliente,telefono:D.telefono||"",modalidad:D.modalidad,envio:envio,medio:D.medio,medioEnvio:D.medioEnvio,pagado:D.pagado,estado:"Entregado",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),total:total,subtotal:sub,textoOriginal:D.texto,esPremio:false};
+  const nuevoPedido={id:idNuevo,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),cliente:D.cliente,telefono:D.telefono||"",codigoCarta:D.codigoCarta||"",codigoCliente:D.codigoCliente||"",sucursalCarta:D.sucursalCarta||"",modalidad:D.modalidad,envio:envio,medio:D.medio,medioEnvio:D.medioEnvio,pagado:D.pagado,estado:"Entregado",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),total:total,subtotal:sub,textoOriginal:D.texto,esPremio:false};
   S.pedidos.push(nuevoPedido);
   if(D.cliente){
     const cli=asegurarCliente(D.cliente);
@@ -594,7 +683,7 @@ function ndGuardar(){
   } else {
     aviso(`Pedido #${idNuevo} guardado $${total}`);
   }
-  D={texto:"",fecha:"",cliente:"",telefono:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:true,items:[],editando:null}; 
+  D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:true,items:[],editando:null}; 
   S.vista="pedidos"; render();
 }
 function cerrar(){
