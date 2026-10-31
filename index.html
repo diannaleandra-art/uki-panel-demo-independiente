@@ -653,68 +653,9 @@ function vClientes(){
   <div class="card"><h2>Ranking clientes frecuentes</h2>${Object.values(S.clientes).sort((a,b)=>b.pedidos-a.pedidos).slice(0,10).map((c,i)=>`<div class="row"><span>${i+1}. ${esc(c.nombre)} - ${ventasValidas(c)}/10 timbres</span><b>${c.pedidos} pedidos</b></div>`).join("")||"<p class='muted'>Sin datos</p>"}</div>`;
 }
 function avisarTimbres(key){
-  alert("Solo demostración: no se enviarán mensajes de WhatsApp. Usa únicamente datos ficticios."); return;
-  const cli=S.clientes[key]; if(!cli) return;
-  const ventas=ventasValidas(cli);
-  const pedidosCliente=pedidosHist(cli.nombre,cli.codigoCliente,cli.telefono);
-  const ultimo=pedidosCliente[0];
-  const telefono=(ultimo?.telefono||"").replace(/[^0-9]/g,"");
-  let msg=`Hola ${cli.nombre}! 😊🍣\n\nTu tarjeta Uki Sushi: *${ventas}/10 timbres* 🎫\n`;
-  if(ventas>=10) msg+=`\n🎉 ¡Felicidades! Ya puedes reclamar *36 piezas + 2 korokes GRATIS* (10 ventas)!\n`;
-  else if(ventas>=6) msg+=`\n🎁 ¡Ya puedes reclamar *12 piezas GRATIS* (6 ventas)! Y si llegas a 10, ganas 36 + 2 korokes.\nTe faltan ${10-ventas} ventas para el premio mayor.\n`;
-  else msg+=`\nTe faltan ${6-ventas} ventas para ganar 12 piezas gratis, y ${10-ventas} para 36 + 2 korokes.\n`;
-  msg+=`\nHas hecho ${cli.pedidos} pedidos con nosotros.\n\n¡Te esperamos! Uki Sushi 🍣`;
-  
-  // Guardar mensaje para usar en botones
-  const encodedMsg=encodeURIComponent(msg);
-  const apiUrl=telefono?`https://api.whatsapp.com/send?phone=${telefono}&text=${encodedMsg}`:`https://api.whatsapp.com/send?text=${encodedMsg}`;
-  const waAppUrl=telefono?`whatsapp://send?phone=${telefono}&text=${encodedMsg}`:`whatsapp://send?text=${encodedMsg}`;
-  
-  // 1. Copiar siempre
-  if(navigator.clipboard){
-    navigator.clipboard.writeText(msg).catch(()=>{});
-  }
-  
-  // 2. Intentar abrir directo - crear link invisible y click (mejor para iPhone dentro de Meta AI)
-  try{
-    const a=document.createElement("a");
-    a.href=waAppUrl;
-    a.target="_blank";
-    a.rel="noopener";
-    a.style.display="none";
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(()=>{ try{document.body.removeChild(a);}catch(e){} },1000);
-  }catch(e){}
-  
-  // 3. Si tiene navigator.share (iPhone share sheet -> WhatsApp)
-  if(navigator.share){
-    setTimeout(()=>{
-      navigator.share({text:msg, title:"Uki Sushi"}).catch(()=>{
-        // Si cancela share, abrir api.whatsapp.com
-        window.open(apiUrl,"_blank");
-      });
-    },400);
-  } else {
-    // 4. Fallback abrir api.whatsapp.com en nueva pestaña
-    setTimeout(()=>{
-      const win=window.open(apiUrl,"_blank");
-      if(!win){
-        // Si bloquea popup, usar location
-        window.location.href=apiUrl;
-      }
-    },600);
-  }
-  
-  // 5. Aviso con botones para que elija
-  setTimeout(()=>{
-    const htmlMsg=`✅ Mensaje copiado\n\n${msg}\n\nSi no abrió WhatsApp automático, toca:`;
-    // Mostrar aviso con opciones
-    if(confirm(htmlMsg+"\n\n¿Abrir WhatsApp ahora? (Aceptar = abrir, Cancelar = solo copiado)")){
-      window.open(apiUrl,"_blank");
-    }
-  },1200);
+  alert("Solo demostración: los avisos a clientes por WhatsApp están desactivados.");
 }
+
 function canjear12(key){
   const cli=S.clientes[key]; if(!cli) return;
   if(ventasValidas(cli)<6){aviso("Necesita 6 ventas");return;}
