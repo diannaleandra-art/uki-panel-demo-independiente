@@ -111,7 +111,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid #dc7703;outline-off
 </style>
 </head>
 <body>
-<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.9 · DEMO (NO PUBLICADA)</h1></header>
+<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.10 · DEMO</h1></header>
 <nav id="nav" class="app-nav" aria-label="Navegación de Uki Sushi"></nav>
 <div class="aviso" style="margin:10px 12px 0;background:#fce8d7;border:1px solid #efb57c;font-weight:600">DEMO PÚBLICA · Solo datos ficticios · Sin WhatsApp real</div><main id="app"><div class="aviso">✅ v8 Timbres - 6 ventas = 12 piezas / 10 ventas = 36 + 2 korokes</div><div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Tarjeta de timbres: 6 ventas = 12 piezas gratis, 10 ventas = 36 piezas + 2 korokes</p><button class="big" onclick="pedirPin('Uki Regimiento Arica')">Uki Regimiento Arica</button><button class="big" onclick="pedirPin('Uki La Serena')">Uki La Serena</button></div><div class="card"><h2>💾 Respaldo para computador</h2><button class="big" onclick="descargarRespaldoCompleto()">💾 Descargar respaldo con tarjetas</button><label class="muted">Cargar respaldo</label><input type="file" accept=".json" onchange="cargarRespaldo(event)"></div></main>
 <script>
@@ -369,19 +369,73 @@ function ventasValidas(cli){
   });
   return count;
 }
+
+/* Historial por cliente; solo lee registros, no modifica calculos de timbres. */
+const nombreHist=n=>String(n||"").trim().toLocaleLowerCase("es-CL");
+function pedidosHist(nombre){return (S.pedidos||[]).filter(p=>nombreHist(p.cliente)===nombreHist(nombre)).slice().sort((a,b)=>String(b.fechaISO||"").localeCompare(String(a.fechaISO||"")));}
+function fichaHistorial(cli){
+  const pedidos=pedidosHist(cli.nombre), compras=pedidos.filter(p=>!p.esPremio&&p.estado!=="Cancelado");
+  const inc=(S.incidencias||[]).filter(x=>pedidos.some(p=>p.id===x.pedidoId&&p.suc===x.suc));
+  const grupos=new Map();
+  const fecha=x=>{const d=new Date(x||"");return Number.isNaN(d.getTime())?"Sin fecha":d.toLocaleDateString("es-CL");};
+  for(const p of pedidos){
+    const codigo=String(p.codigoCliente||"").trim(),telefono=String(p.telefono||"").replace(/[^0-9]/g,"");
+    const k=codigo?"c:"+codigo+"|"+telefono:telefono?"t:"+telefono:"sin-codigo";
+    if(!grupos.has(k))grupos.set(k,{codigo,telefono,items:[]});
+    grupos.get(k).items.push(p);
+  }
+  const codigos=new Set(pedidos.map(p=>String(p.codigoCliente||"").trim()).filter(Boolean));
+  const canjes=(cli.movimientos||[]).filter(x=>x.tipo==="canje6"||x.tipo==="canje10");
+  const muestra=p=>{
+    const reclamos=inc.filter(x=>x.pedidoId===p.id&&x.suc===p.suc);
+    return '<details class="inner-details" style="margin:8px 0"><summary>'+esc(p.esPremio?"Premio":"Pedido")
+      +' '+esc(p.codigoCarta?"#"+p.codigoCarta:"interno #"+p.id)+' · '+esc(fecha(p.fechaISO))
+      +' · '+fmt(p.total)+'</summary><div style="padding:8px"><p class="muted">'
+      +esc(p.suc||"Sucursal no indicada")+' · '+esc(p.modalidad||"")+' · '+esc(p.medio||"")+'</p>'
+      +(p.productos||[]).map(x=>'<div class="row"><span>'+esc(x.cantidad)+' × '+esc(x.nombre)
+        +(x.detalle?' · '+esc(x.detalle):'')+'</span><b>'+fmt((+x.cantidad||0)*(+x.precioUnit||0))+'</b></div>').join('')
+      +(p.envio?'<div class="row"><span>Delivery</span><b>'+fmt(p.envio)+'</b></div>':'')
+      +reclamos.map(x=>'<p><b>Reclamo '+esc(x.estado||"Pendiente")+':</b> '+esc(x.problema||"")
+        +(x.solucion?' · Solución: '+esc(x.solucion):'')+'</p>').join('')
+      +(p.textoOriginal&&!p.esPremio?'<details><summary>Ver WhatsApp original</summary><p style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(p.textoOriginal)+'</p></details>':'')
+      +'</div></details>';
+  };
+  const secciones=[...grupos.values()].map(g=>{
+    const etiqueta=g.codigo?'Código cliente: '+g.codigo:g.telefono?'Sin código de cliente':'Pedidos antiguos sin código';
+    const num=g.items.filter(p=>!p.esPremio&&p.estado!=="Cancelado").length;
+    return '<details class="inner-details" style="margin-top:10px"><summary>'+esc(etiqueta)+' · '+num+' compras</summary>'
+      +(g.telefono?'<p class="muted">Teléfono: '+esc(g.telefono)+'</p>':'')
+      +g.items.map(muestra).join('')+'</details>';
+  }).join('');
+  return '<details class="inner-details" style="margin-top:12px"><summary><b>📚 Ver historial del cliente</b> · '+compras.length+' compras</summary>'
+    +'<div style="padding:10px 0">'
+    +'<div class="row"><span>Compras registradas</span><b>'+compras.length+'</b></div>'
+    +'<div class="row"><span>Total productos</span><b>'+fmt(compras.reduce((n,p)=>n+(+p.subtotal||0),0))+'</b></div>'
+    +'<div class="row"><span>Reclamos</span><b>'+inc.length+'</b></div>'
+    +'<div class="row"><span>Premios canjeados</span><b>'+canjes.length+'</b></div>'
+    +'<p class="muted">Solo registros guardados en este navegador. Se identifican ambas sucursales si corresponde.</p>'
+    +(codigos.size>1?'<p style="color:#9b3e00"><b>Atención:</b> este nombre aparece con distintos códigos. El historial está separado, pero los timbres antiguos siguen agrupados por nombre.</p>':'')
+    +(secciones||'<p class="muted">No hay pedidos asociados en este dispositivo.</p>')
+    +(canjes.length?'<details class="inner-details"><summary>Ver canjes ('+canjes.length+')</summary>'
+      +canjes.slice().reverse().map(x=>'<p>'+esc(x.tipo==="canje6"?"12 piezas":"36 piezas + 2 korokes")+' · '+esc(fecha(x.fecha))+'</p>').join('')+'</details>':'')
+    +'</div></details>';
+}
+
 function vClientes(){
   if(!S.suc) return vInicio();
+  const buscar=nombreHist(S.filtroCliente);
   const lista=Object.values(S.clientes).filter(c=>{
-    if(!S.filtroCliente) return true;
-    return c.nombre.toLowerCase().includes(S.filtroCliente.toLowerCase());
+    if(!buscar)return true;
+    if(nombreHist(c.nombre).includes(buscar))return true;
+    return pedidosHist(c.nombre).some(p=>String(p.codigoCliente||"").toLowerCase().includes(buscar)||String(p.telefono||"").replace(/[^0-9]/g,"").includes(buscar));
   }).sort((a,b)=>ventasValidas(b)-ventasValidas(a));
-  return `<div class="card"><h2>⭐ Tarjetas de Timbres - 6=12 piezas / 10=36+2 korokes</h2><p class="muted">Cada venta = 1 timbre. Vence en 3 meses. 6 ventas = 12 piezas gratis. 10 ventas = 36 piezas + 2 korokes gratis.</p><label>Buscar cliente</label><input placeholder="Ej: Camila" value="${esc(S.filtroCliente||"")}" oninput="S.filtroCliente=this.value;render()"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px"><div class="card" style="margin:0"><h2 style="font-size:12px">Tarjetas</h2><b>${lista.length}</b></div><div class="card" style="margin:0"><h2 style="font-size:12px">Listos 6 ventas</h2><b>${lista.filter(c=>ventasValidas(c)>=6).length}</b></div><div class="card" style="margin:0"><h2 style="font-size:12px">Listos 10 ventas</h2><b>${lista.filter(c=>ventasValidas(c)>=10).length}</b></div></div></div>
+  return `<div class="card"><h2>⭐ Tarjetas de Timbres - 6=12 piezas / 10=36+2 korokes</h2><p class="muted">Cada venta = 1 timbre. Vence en 3 meses. 6 ventas = 12 piezas gratis. 10 ventas = 36 piezas + 2 korokes gratis.</p><label>Buscar cliente por nombre, código o teléfono</label><input placeholder="Ej: Camila o código 7362" value="${esc(S.filtroCliente||"")}" oninput="S.filtroCliente=this.value;render()"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px"><div class="card" style="margin:0"><h2 style="font-size:12px">Tarjetas</h2><b>${lista.length}</b></div><div class="card" style="margin:0"><h2 style="font-size:12px">Listos 6 ventas</h2><b>${lista.filter(c=>ventasValidas(c)>=6).length}</b></div><div class="card" style="margin:0"><h2 style="font-size:12px">Listos 10 ventas</h2><b>${lista.filter(c=>ventasValidas(c)>=10).length}</b></div></div></div>
   ${lista.length?lista.map(cli=>{
     const key=cli.nombre.toLowerCase();
     const ventas=ventasValidas(cli);
     const puede6=ventas>=6 && !cli.canje6;
     const puede10=ventas>=10;
-    return `<div class="card" style="${puede10?'border:2px solid #111':puede6?'border:2px solid var(--ok)':''}"><h2>${esc(cli.nombre)} <span class="tag">🎫 ${ventas}/10 timbres</span> ${puede6?'<span class="tag" style="background:var(--ok);color:#fff">🎁 12 piezas listo!</span>':''} ${puede10?'<span class="tag" style="background:#111;color:#fff">🎉 36+2 korokes listo!</span>':''}</h2><p class="muted">${cli.pedidos} pedidos · Gastado ${fmt(cli.gastado)} · Último ${esc(cli.ultimo||"")}</p><div class="tarjeta">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventas?'lleno':''} ${i===5?'premio':''} ${i===9?'premio':''}" title="${i===5?'6 ventas = 12 piezas':i===9?'10 ventas = 36+2 korokes':''}">${i<ventas?'✓':i+1}${i===5?'<br><small style="font-size:8px">12p</small>':''}${i===9?'<br><small style="font-size:7px">36+2k</small>':''}</div>`).join("")}</div><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"><button class="sm ok" onclick="avisarTimbres('${key}')">📲 Avisar por WhatsApp</button>${puede6?`<button class="sm ok" onclick="canjear12('${key}')">🎁 Canjear 12 piezas (6)</button>`:''}${puede10?`<button class="sm" style="background:#111;color:#fff" onclick="canjear36('${key}')">🎉 Canjear 36+2 korokes (10)</button>`:''}<button class="sm" onclick="D.cliente='${esc(cli.nombre).replace(/'/g,"\\'")}';ir('nuevo');">+ Pedido</button></div><details style="margin-top:8px"><summary class="muted">Ver historial timbres</summary>${(cli.movimientos||[]).slice(-15).reverse().map(m=>`<div class="row"><span>${m.tipo==='venta'?'🟢 Venta':m.tipo==='canje6'?'🔴 Canje 12 piezas':m.tipo==='canje10'?'🔴 Canje 36+2k':esc(m.tipo)} - ${new Date(m.fecha).toLocaleDateString('es-CL')} ${m.vence?'· Vence '+new Date(m.vence).toLocaleDateString('es-CL'):''}</span></div>`).join("")||"<p class='muted'>Sin movimientos</p>"}</details></div>`;
+    return `<div class="card" style="${puede10?'border:2px solid #111':puede6?'border:2px solid var(--ok)':''}"><h2>${esc(cli.nombre)} <span class="tag">🎫 ${ventas}/10 timbres</span> ${puede6?'<span class="tag" style="background:var(--ok);color:#fff">🎁 12 piezas listo!</span>':''} ${puede10?'<span class="tag" style="background:#111;color:#fff">🎉 36+2 korokes listo!</span>':''}</h2><p class="muted">${cli.pedidos} pedidos · Gastado ${fmt(cli.gastado)} · Último ${esc(cli.ultimo||"")}</p><div class="tarjeta">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventas?'lleno':''} ${i===5?'premio':''} ${i===9?'premio':''}" title="${i===5?'6 ventas = 12 piezas':i===9?'10 ventas = 36+2 korokes':''}">${i<ventas?'✓':i+1}${i===5?'<br><small style="font-size:8px">12p</small>':''}${i===9?'<br><small style="font-size:7px">36+2k</small>':''}</div>`).join("")}</div><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"><button class="sm ok" onclick="avisarTimbres('${key}')">📲 Avisar por WhatsApp</button>${puede6?`<button class="sm ok" onclick="canjear12('${key}')">🎁 Canjear 12 piezas (6)</button>`:''}${puede10?`<button class="sm" style="background:#111;color:#fff" onclick="canjear36('${key}')">🎉 Canjear 36+2 korokes (10)</button>`:''}<button class="sm" onclick="D.cliente='${esc(cli.nombre).replace(/'/g,"\\'")}';ir('nuevo');">+ Pedido</button></div><details style="margin-top:8px"><summary class="muted">Ver historial timbres</summary>${(cli.movimientos||[]).slice(-15).reverse().map(m=>`<div class="row"><span>${m.tipo==='venta'?'🟢 Venta':m.tipo==='canje6'?'🔴 Canje 12 piezas':m.tipo==='canje10'?'🔴 Canje 36+2k':esc(m.tipo)} - ${new Date(m.fecha).toLocaleDateString('es-CL')} ${m.vence?'· Vence '+new Date(m.vence).toLocaleDateString('es-CL'):''}</span></div>`).join("")||"<p class='muted'>Sin movimientos</p>"}</details>${fichaHistorial(cli)}</div>`;
   }).join(""):`<div class="card muted">Sin tarjetas aún. Se crean al guardar pedidos con nombre. Cada venta = 1 timbre.</div>`}
   <div class="card"><h2>Ranking clientes frecuentes</h2>${Object.values(S.clientes).sort((a,b)=>b.pedidos-a.pedidos).slice(0,10).map((c,i)=>`<div class="row"><span>${i+1}. ${esc(c.nombre)} - ${ventasValidas(c)}/10 timbres</span><b>${c.pedidos} pedidos</b></div>`).join("")||"<p class='muted'>Sin datos</p>"}</div>`;
 }
