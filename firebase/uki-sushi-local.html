@@ -1134,7 +1134,59 @@ function copiarResumen(){
   else aviso(txt.slice(0,1000));
 }
 function compartirWhatsAppCierre(){
-  alert("Solo demostración: no se abre WhatsApp ni se envían datos. Usa únicamente datos ficticios.");
+  // Compartir el último cierre del día evita mostrar ceros tras el corte de caja.
+  const hoy=hoyLocal();
+  const cierre=(S.cierres||[]).filter(c=>c.suc===S.suc&&String(c.fechaISO||"").slice(0,10)===hoy)
+    .sort((a,b)=>fechaCierreMs(b)-fechaCierreMs(a))[0]||null;
+  if(!cierre&&!confirm("Aún no se ha guardado un cierre de hoy. ¿Compartir un PRECIERRE provisional?")){
+    return;
+  }
+  const t=cierre?null:totales();
+  const caja=cierre?null:cajaDelDia();
+  const medios=cierre?(cierre.medios||{}):t.medios;
+  const tipo=cierre?"CIERRE DE CAJA":"PRECIERRE PROVISIONAL";
+  const fecha=cierre?cierre.fecha:new Date().toLocaleString("es-CL");
+  const venta=cierre?cierre.venta:t.totalMedios;
+  const envios=cierre?cierre.envios:t.envios;
+  const gastos=cierre?cierre.gastos:t.gastosTotal;
+  const pagadoDelivery=cierre?cierre.pagadoDelivery:t.pagoDelivery;
+  const totalFinal=cierre?cierre.final:t.final;
+  const efectivo=cierre?cierre.efectivo:t.efectivoCaja;
+  const propinas=cierre?cierre.propinas:t.propinas;
+  const responsable=cierre?cierre.resp:(document.getElementById("resp")?.value||"Pendiente");
+  const obs=cierre?cierre.obs:(document.getElementById("obs")?.value||"");
+  const lineas=[
+    "🍣 *UKI SUSHI · "+tipo+"*",
+    "*Sucursal:* "+S.suc,
+    "*Fecha:* "+fecha,
+    "*Responsable:* "+responsable,
+    "",
+    "*Pedidos:* "+(cierre?cierre.pedidos:t.n),
+    "*Venta total con delivery:* "+fmt(venta),
+    "*Venta sin delivery:* "+fmt(cierre?cierre.ventaSinDelivery:t.ventaSinDelivery),
+    "",
+    "*MEDIOS DE PAGO*",
+    ...MEDIOS.filter(m=>(Number(medios[m])||0)!==0).map(m=>"• "+m+": "+fmt(Number(medios[m])||0)),
+    "",
+    "*DELIVERY*",
+    "Delivery cobrado: "+fmt(envios),
+    "Base diaria: "+fmt(cierre?cierre.base:caja.base),
+    "Pago a repartidor: "+fmt(pagadoDelivery),
+    "",
+    "Gastos: "+fmt(gastos),
+    "*TOTAL FINAL:* "+fmt(totalFinal),
+    "Efectivo que queda: "+fmt(efectivo),
+    "Propinas (aparte): "+fmt(propinas),
+    ...(obs?["","Observaciones: "+obs]:[]),
+    "",
+    cierre?"Cierre guardado en Uki Sushi.":"Resumen provisional; aún no se ha confirmado el cierre."
+  ];
+  // Nunca envía: abre WhatsApp y deja al trabajador elegir destinatario.
+  const enlace="https://api.whatsapp.com/send?text="+encodeURIComponent(lineas.join("\n"));
+  const ventana=window.open(enlace,"_blank");
+  if(!ventana){
+    window.prompt("El navegador bloqueó WhatsApp. Copia este cierre y pégalo manualmente:",lineas.join("\n"));
+  }
 }
 
 function vHistorialCompacto(){
