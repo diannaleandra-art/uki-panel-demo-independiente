@@ -1122,10 +1122,16 @@ function cerrar(){
     setTimeout(()=>{ const b=document.querySelector('button.big'); if(b) b.scrollIntoView({behavior:'smooth'}); },200);
     return;
   }
+  const caja=cajaDelDia();
+  if(!window.ukiDetalleCierre){aviso("No se cargó el desglose detallado. Actualiza antes de cerrar.");return;}
+  let detalleGuardado;
+  try{detalleGuardado=window.ukiDetalleCierre.capturar(S,caja,delSucHoy);}
+  catch(e){aviso("No se pudo generar el detalle. La caja sigue abierta.");return;}
   S.confirmCierre=false; S.busy=true;
-  const fechaCierre=Date.now(), caja=cajaDelDia();
+  const fechaCierre=Date.now();
   const fechaTurnoCerrado=fechaOperativaActual();
   S.cierres.push({
+    detalle:detalleGuardado,
     suc:S.suc,fechaOperativa:fechaTurnoCerrado,
     fecha:new Date().toLocaleString("es-CL",{dateStyle:"short",timeStyle:"short"}),
     fechaISO:ahora(),fechaMs:fechaCierre,
@@ -1208,6 +1214,8 @@ function descargarPDF(tipo){
       txt+=`Gastos: $${x.gastos} - Delivery pagado: $${x.pagadoDelivery} (${x.pagoDeliveryMedio})\n`;
       txt+=`Total final: $${x.final} - Efectivo quedó: $${x.efectivo}\n`;
       if(x.obs) txt+=`Obs: ${x.obs}\n`;
+      txt+="\n--- DESGLOSE DEL CIERRE ---\n";
+      txt+=window.ukiDetalleCierre?window.ukiDetalleCierre.texto(x):"Detalle no disponible.\n";
       txt+=`\n`;
     });
     descargarTextoArchivo(`historial-${S.suc||"todas"}-${new Date().toISOString().slice(0,10)}.txt`, txt, "text/plain");
@@ -1235,6 +1243,14 @@ function csvSeguro(valor){
  return '"'+texto.replace(/"/g,'""')+'"';
 }
 
+function descargarDetalleCierreCSV(i){
+  const c=S.cierres[i];
+  if(!c||c.suc!==S.suc||!c.detalle){aviso("Este cierre no tiene un desglose guardado.");return;}
+  if(!window.ukiDetalleCierre){aviso("No se cargó el desglose.");return;}
+  const csv=window.ukiDetalleCierre.csv(c,csvSeguro);
+  descargarTextoArchivo("uki-detalle-"+(c.fechaOperativa||"sin-fecha")+"-"+i+".csv",csv,"text/csv;charset=utf-8");
+  aviso("📊 Desglose descargado");
+}
 function descargarExcel(tipo){
   if(tipo==="historial"){
     const cierres=delSuc(S.cierres).filter(x=>!S.filtro||x.fecha.includes(S.filtro));
@@ -1297,6 +1313,11 @@ function compartirWhatsAppCierre(){
   const propinas=cierre?cierre.propinas:t.propinas;
   const responsable=cierre?cierre.resp:(document.getElementById("resp")?.value||"Pendiente");
   const obs=cierre?cierre.obs:(document.getElementById("obs")?.value||"");
+  const resumenDetallado=cierre?.detalle||(caja&&window.ukiDetalleCierre?
+    window.ukiDetalleCierre.capturar(S,caja,delSucHoy):null);
+  const detalleGastos=(resumenDetallado?.gastos||[]).map(g=>"• "+g.concepto+" — "+fmt(g.monto)+" ("+g.medio+")");
+  const detalleRetiros=(resumenDetallado?.retiros||[]).map(g=>"• "+(g.motivo||"Retiro")+" — "+fmt(g.monto));
+  const detalleCajaChica=(resumenDetallado?.cajaChica?.gastos||[]).map(g=>"• "+(g.concepto||"Caja chica")+" — "+fmt(g.monto));
   const lineas=[
     "🍣 *UKI SUSHI · "+tipo+"*",
     "*Sucursal:* "+S.suc,
@@ -1317,6 +1338,9 @@ function compartirWhatsAppCierre(){
     "Pago a repartidor: "+fmt(pagadoDelivery),
     "",
     "Gastos: "+fmt(gastos),
+    ...(detalleGastos.length?["*DETALLE DE GASTOS*",...detalleGastos.slice(0,25),...(detalleGastos.length>25?["Ver historial para el resto"]:[])]:[]),
+    ...(detalleRetiros.length?["*RETIROS*",...detalleRetiros.slice(0,25),...(detalleRetiros.length>25?["Ver historial para el resto"]:[])]:[]),
+    ...(detalleCajaChica.length?["*CAJA CHICA (APARTE)*",...detalleCajaChica.slice(0,25),...(detalleCajaChica.length>25?["Ver historial para el resto"]:[])]:[]),
     "*TOTAL FINAL:* "+fmt(totalFinal),
     "Efectivo que queda: "+fmt(efectivo),
     "Propinas (aparte): "+fmt(propinas),
@@ -1366,7 +1390,8 @@ function vHistorial(){
     <p class="muted" style="margin:12px 0 2px"><b>💰 Efectivo</b></p>
     ${row("Efectivo cobrado",fmt(x.efectivoCobrado))}${row("− Gastos en efectivo",fmt(x.gastosEf))}${row("− Retiros",fmt(x.retiros))}${row(`− Pago a delivery (${x.pagoDeliveryMedio||"Efectivo"})`,fmt(x.pagadoDelivery))}${row("Efectivo que quedó",fmt(x.efectivo),"sub")}
     <p class="muted" style="margin:12px 0 2px"><b>📊 Resultado</b></p>
-    ${row("Gastos",fmt(x.gastos),"neg")}${row("Total final",fmt(x.final),"final")}${row("Propinas (aparte)",fmt(x.propinas))}${x.obs?`<p class="muted" style="background:var(--bg);padding:8px;border-radius:6px;margin-top:8px">📝 ${esc(x.obs)}</p>`:""}
+    ${row("Gastos",fmt(x.gastos),"neg")}${row("Total final",fmt(x.final),"final")}${row("Propinas (aparte)",fmt(x.propinas))}
+    ${window.ukiDetalleCierre?window.ukiDetalleCierre.render(x,fmt,esc,S.cierres.indexOf(x)):''}${x.obs?`<p class="muted" style="background:var(--bg);padding:8px;border-radius:6px;margin-top:8px">📝 ${esc(x.obs)}</p>`:""}
     </div>`;
   }).join("");
 }
@@ -1385,6 +1410,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 }
 </script>
 <script src="./uki-tarjeta-cliente.js" defer></script>
+<script src="./uki-cierre-detallado.js" defer></script>
 <script type="module">
 
 import {initializeApp} from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
