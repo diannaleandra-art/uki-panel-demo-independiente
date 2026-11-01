@@ -1,0 +1,1306 @@
+<html lang="es"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Uki Sushi · Panel de locales v8.15</title>
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Uki Locales">
+<style>
+:root{--bg:#fffaf5;--card:#ffffff;--ink:#2b2118;--muted:#8a6f5a;--accent:#f57c00;--accent-dark:#d96a00;--ok:#e65100;--line:#f1e3d6;color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink);padding-bottom:env(safe-area-inset-bottom,0px)}
+header{background:linear-gradient(135deg,#ff9800,#f57c00);color:#fff;box-shadow:0 2px 8px rgba(245,124,0,.25);padding:env(safe-area-inset-top,0px) 16px 12px;position:sticky;top:0;z-index:5}
+header h1{margin:10px 0 2px;font-size:18px}
+header small{opacity:.9;font-size:13px}
+nav{display:flex;overflow-x:auto;gap:8px;padding:10px 12px;background:var(--card);border-bottom:1px solid var(--line)}
+nav button{flex:0 0 auto;padding:9px 14px;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:15px}
+nav button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+main{padding:12px;max-width:560px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.card h2{font-size:16px;margin:0 0 8px}
+.muted{color:var(--muted);font-size:14px}
+.row{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:15px}
+.row:last-child{border-bottom:0}
+.row.sub{font-weight:700;border-top:2px solid var(--accent);border-bottom:0;margin-top:4px;padding-top:10px}
+.row.final{font-size:18px;font-weight:700;border-top:2px solid var(--accent);color:var(--accent-dark);border-bottom:0;margin-top:6px;padding-top:12px}
+.neg>span:first-child::before{content:"− "}
+label{display:block;font-size:14px;color:var(--muted);margin-top:8px}
+input,select,textarea{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:16px;margin:4px 0 6px}
+button.big{width:100%;padding:14px;border:0;border-radius:12px;background:var(--accent);color:#fff;box-shadow:0 2px 6px rgba(245,124,0,.25);font-size:17px;font-weight:600;margin-top:10px}
+button.sm{padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-size:14px;margin:4px 4px 0 0}
+button.sm.ok{background:var(--accent);border-color:var(--accent);color:#fff}
+.tag{display:inline-block;font-size:12px;padding:3px 8px;border-radius:999px;border:1px solid var(--line);margin:4px 4px 0 0}
+.aviso{background:#fff1e0;color:#8a4500;font-size:13px;padding:8px 10px;border-radius:8px;margin-bottom:12px;text-align:center}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 4px}
+.chips button{padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:15px}
+.chips button.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.check{display:flex;align-items:center;gap:8px;margin-top:10px;color:var(--ink)}
+.check input{width:auto;margin:0}
+.pegar{border:2px solid var(--accent)}
+.tarjeta{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:12px 0}
+.timbre{width:100%;aspect-ratio:1;border-radius:50%;border:2px dashed var(--line);display:flex;align-items:center;justify-content:center;font-size:18px;background:var(--bg)}
+.timbre.lleno{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.timbre.premio{border-style:solid;border-color:var(--ok);background:#fff1e0}
+</style>
+<style id="uki-operativo-seguridad">body.uki-operativo-bloqueado #app, body.uki-operativo-bloqueado #nav{pointer-events:none;opacity:.4;user-select:none}</style>
+
+<style id="uki-v88-layout">
+:root{--bg:#fcf9f5;--card:#fff;--ink:#30251f;--muted:#87776b;--accent:#ef820e;--accent-dark:#b65d00;--line:#eee5dc}
+body{padding-bottom:calc(104px + env(safe-area-inset-bottom,0px));font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{position:sticky;top:0;padding:calc(9px + env(safe-area-inset-top,0px)) 18px 12px;background:#fff;color:var(--ink);border-bottom:1px solid var(--line);box-shadow:none}
+header h1{margin:0 0 2px;font-size:19px;letter-spacing:-.5px}
+header small{display:flex;justify-content:space-between;align-items:center;margin-top:3px;color:var(--muted);font-size:12px;font-weight:550}
+header a.salir{color:#bb650f;text-decoration:none!important;padding:5px 9px;border-radius:9px;background:#fff2e6}
+main{max-width:600px;padding:18px 14px 22px}
+body>div.aviso{margin:8px 14px 0!important;border:0!important;background:#fff0e2!important;border-radius:9px;font-size:11px!important;padding:7px 9px!important}
+.app-nav{position:fixed;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:center;bottom:0;left:0;right:0;z-index:20;background:#fff;padding:10px 5px calc(8px + env(safe-area-inset-bottom,0px));gap:0;border-top:1px solid #ecded2;box-shadow:0 -8px 24px rgba(64,38,14,.055);overflow:visible}
+.app-nav button{border:0;border-radius:11px;background:transparent;min-width:0;font-size:11px;color:#9b897a;min-height:50px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:3px 1px}
+.app-nav button.on{background:#fff1e3;color:#af5700;border:0;font-weight:700}
+.app-nav .nav-icon{display:block;font-size:25px;font-weight:400;line-height:1.15}
+.card{border-radius:16px;border:1px solid #eee6df;padding:16px;box-shadow:0 2px 8px rgba(55,39,25,.024);margin-bottom:13px}
+.card h2{font-size:16px;letter-spacing:-.2px;margin:0 0 11px}
+.card p{line-height:1.5}
+.row{align-items:flex-start;gap:12px;line-height:1.38}
+.row>span:first-child{flex:1;min-width:0}
+.row b{text-align:right;white-space:nowrap}
+input,select,textarea{border-radius:11px;background:#fffcfa;border-color:#e9ded4;min-height:43px}
+label{font-size:13px;font-weight:500}
+button{cursor:pointer;touch-action:manipulation}
+button.big{background:#ed810e;border-radius:12px;box-shadow:none;font-size:15px;padding:13px 12px}
+button.sm{border-radius:9px;background:#fffaf5}
+button:focus-visible,summary:focus-visible{outline:3px solid #dc7703;outline-offset:2px}
+.aviso{border-radius:11px}
+.welcome{margin-bottom:16px}.welcome h2{font-size:23px;letter-spacing:-.7px;margin:4px 0 2px}.welcome h2 span{font-size:19px}.welcome p{margin:0}
+.eyebrow{color:#ae6b2b;font-size:11px;font-weight:800;letter-spacing:1px}
+.section-head{margin:0 2px 15px}.section-head h2{font-size:24px;letter-spacing:-.8px;margin:0 0 4px}.section-head p{margin:0;color:var(--muted);font-size:13px;line-height:1.4}
+.kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:15px;padding:16px 11px;min-height:91px;display:flex;flex-direction:column;gap:8px}
+.kpi span{color:var(--muted);font-size:12px;line-height:1.2}.kpi strong{font-size:20px;letter-spacing:-.55px;line-height:1.1;overflow-wrap:anywhere}
+.cta{margin:0 0 16px!important}
+.quick-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px}
+.quick{display:flex;gap:6px;align-items:center;text-align:left;border:1px solid var(--line);border-radius:13px;min-height:70px;padding:12px;background:#fff;color:var(--ink);font-size:13px;font-weight:600}
+.quick b{color:var(--accent-dark);font-size:24px;font-weight:normal}.quick span{color:var(--accent);margin-left:auto;font-size:23px}
+.mini-help{font-size:12px;line-height:1.5;background:#fff5eb;border-radius:11px;padding:11px 12px;color:#82572d;margin:6px 0 13px}
+.mode-switch{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px;border-radius:13px;background:#f3eae1;padding:5px}
+.mode-switch button{border:0;border-radius:10px;padding:12px 7px;background:transparent;color:#7f6a58;font-size:13px;font-weight:650}
+.mode-switch button.selected{background:#fff;color:#ab5b07;box-shadow:0 2px 8px #0000000c}
+.sub-tabs{display:flex;overflow-x:auto;gap:8px;scrollbar-width:none;margin-bottom:14px;padding:2px 0 6px}
+.sub-tabs button{flex:0 0 auto;border:1px solid #eadfd5;background:#fff;color:#796454;padding:11px 12px;border-radius:10px;font-weight:600;font-size:13px}
+.sub-tabs button.selected{background:#ed810e;color:white;border-color:#ed810e}
+.movement-tabs{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:2px 0 10px;margin-bottom:8px}
+.movement-tabs button{border:1px solid #e9ded2;white-space:nowrap;border-radius:25px;background:white;font-size:12px;padding:10px 12px;color:#715f51;font-weight:650}
+.movement-tabs button.selected{background:#352b23;color:white;border-color:#352b23}
+.order-card{padding:0;overflow:hidden}
+.order-card>summary{list-style:none;cursor:pointer;padding:16px 15px}.order-card>summary::-webkit-details-marker{display:none}
+.order-card>summary::after{content:'Ver detalle⌄';font-size:11px;color:#ae6724;display:block;margin-top:8px}
+.order-card[open]>summary::after{content:'Ocultar detalle⌃'}
+.order-head{display:flex;justify-content:space-between;gap:10px}
+.order-head b{font-size:15px}.order-head .muted{display:block;margin-top:5px;font-size:12px}
+.order-right{text-align:right;white-space:nowrap}.order-right strong{font-size:16px;display:block}.order-right small{font-size:11px;color:#b56718}
+.order-body{border-top:1px solid var(--line);padding:12px 15px 16px}
+.order-actions{display:flex;flex-wrap:wrap;gap:4px;margin-top:13px}
+.inner-details{font-size:13px;background:#faf6f2;padding:9px;border-radius:8px;margin:10px 0}
+.history-entry{padding:0;overflow:hidden}
+.history-entry>summary{font-weight:650;cursor:pointer;list-style:none;padding:16px;color:#30251f}
+.history-entry>summary::-webkit-details-marker{display:none}
+.history-entry>summary::after{content:'⌄';float:right;color:#a76e2d}
+.history-entry[open]>summary::after{content:'⌃'}
+.history-entry[open]{padding-bottom:15px}
+.history-entry[open]>.row,.history-entry[open]>p{margin-left:14px;margin-right:14px}
+@media(min-width:700px){.app-nav{max-width:600px;margin-left:auto;margin-right:auto;border-radius:16px 16px 0 0}.kpi strong{font-size:23px}}
+@media(max-width:360px){.kpi strong{font-size:18px}.sub-tabs button{padding:10px}.quick{font-size:12px}}
+</style>
+</head>
+<body>
+<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.15 · LOCALES</h1><small id="ukiEstadoOperativo" role="status">Nube: desactivada · Abre tu sucursal y carga Firebase</small></header>
+<nav id="nav" class="app-nav" aria-label="Navegación de Uki Sushi"></nav>
+<section style="margin:12px;padding:14px;background:#fff0dd;border:2px solid #b55e25;border-radius:14px">
+<b>PANEL INTERNO DE UKI SUSHI · DOS SUCURSALES</b>
+<p>Inicia sesión con Google, abre tu sucursal y pulsa «Cargar nube». Solo registra pedidos cuando aparezca «Nube: sincronizado». Si dice «pendiente», «error» o «conflicto», conserva el teléfono y comprueba el guardado antes de seguir.</p>
+<div id="ukiNubeEstado" role="status">Google sin iniciar.</div>
+<button id="ukiLoginQA" type="button">Entrar con Google</button>
+<label for="ukiCloudPass" style="display:block">Clave de nube de tu sucursal (12+ caracteres)</label>
+<input id="ukiCloudPass" type="password" autocomplete="off" placeholder="Clave de nube">
+<div><button id="ukiLoadQA" type="button">Cargar nube</button> <button id="ukiSaveQA" type="button">Guardar manualmente</button></div>
+<label style="display:block;margin-top:12px">
+ <input id="ukiAutoCheck" type="checkbox" disabled> Autoguardado obligatorio (se activa al cargar la nube)
+</label>
+<p id="ukiAutoEstado" role="status" style="font-size:14px">Autoguardado: desactivado.</p>
+<p>La nube debe estar sincronizada para trabajar. En caso de error o conflicto, conserva el registro local y no cierres esta sesión hasta solucionar la sincronización. Realiza un respaldo cifrado al final de cada turno.</p>
+</section>
+<div class="aviso" style="margin:10px 12px 0;background:#fce8d7;border:1px solid #efb57c;font-weight:600">USO INTERNO · SOLO PERSONAL AUTORIZADO · NO COMPARTIR CON CLIENTES</div><main id="app"><div class="aviso">✅ v8 Timbres - 6 ventas = 12 piezas / 10 ventas = 36 + 2 korokes</div><div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Tarjeta de timbres: 6 ventas = 12 piezas gratis, 10 ventas = 36 piezas + 2 korokes</p><button class="big" onclick="pedirPin('Uki Regimiento Arica')">Uki Regimiento Arica</button><button class="big" onclick="pedirPin('Uki La Serena')">Uki La Serena</button></div><div class="card"><h2>💾 Respaldo para computador</h2><button class="big" onclick="descargarRespaldoCompleto()">💾 Descargar respaldo con tarjetas</button><label class="muted">Cargar respaldo</label><input type="file" accept=".json" onchange="cargarRespaldo(event)"></div></main>
+<script>
+const SUCURSALES=["Uki Regimiento Arica","Uki La Serena"];
+const MEDIOS=["Efectivo","Transferencia","Débito","Edenred","Otros","Uber Eats","PedidosYa","Rappi"];
+const APPS=["Uber Eats","PedidosYa","Rappi"];
+let S={suc:null,pinSuc:null,codigos:{},vista:"inicio",base:18000,pedidos:[],gastos:[],retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",deliveriesManuales:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,filtro:"",filtroFecha:"",filtroCliente:""};
+let D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[],editando:null};
+const $=id=>document.getElementById(id);
+const fmt=n=>"$"+Math.round(n||0).toLocaleString("es-CL");
+const esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ahora=()=>{const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,16);};
+const fechaTxt=s=>new Date(s).toLocaleString("es-CL",{weekday:"short",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
+const delSuc=arr=>arr.filter(x=>x.suc===S.suc);
+const pedidosSuc=()=>delSuc(S.pedidos);
+// Caja del día separada para cada sucursal; sin modificar los registros antiguos.
+function hoyLocal(){return ahora().slice(0,10);}
+function cajaDelDia(){
+  S.cajasDiarias=S.cajasDiarias||{};
+  const key=S.suc+"|"+hoyLocal();
+  if(!S.cajasDiarias[key]) S.cajasDiarias[key]={
+    apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",base:18000,
+    cajaChica:{inicial:20000,gastos:[]},desdeMs:0
+  };
+  return S.cajasDiarias[key];
+}
+// Compatibilidad con cierres anteriores que guardaban fecha de presentación sin ISO.
+function fechaCierreMs(c){
+  if(Number.isFinite(c.fechaMs)) return c.fechaMs;
+  if(c.fechaISO){const t=new Date(c.fechaISO).getTime();if(Number.isFinite(t))return t;}
+  const m=String(c.fecha||"").match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4}),?\s+(\d{1,2}):(\d{2})/);
+  if(!m)return 0;
+  const y=Number(m[3])<100?2000+Number(m[3]):Number(m[3]);
+  return new Date(y,Number(m[2])-1,Number(m[1]),Number(m[4]),Number(m[5]),59,999).getTime();
+}
+function corteDelDiaMs(){
+  const d=cajaDelDia();
+  const fecha=hoyLocal();
+  const cierres=S.cierres.filter(c=>c.suc===S.suc&&(()=>{
+    const t=fechaCierreMs(c);if(!t)return false;const f=new Date(t);
+    return [f.getFullYear(),String(f.getMonth()+1).padStart(2,"0"),String(f.getDate()).padStart(2,"0")].join("-")===fecha;
+  })());
+  return Math.max(Number(d.desdeMs)||0,...cierres.map(fechaCierreMs),0);
+}
+function fechaRegistroMs(x){
+  if(Number.isFinite(x.registradoEn))return x.registradoEn;
+  if(Number.isFinite(x.id)&&x.id>1e12&&x.id<1e14)return x.id;
+  if(x.fechaISO){const n=new Date(x.fechaISO).getTime();return Number.isFinite(n)?n:0;}
+  return 0;
+}
+function esDelPeriodo(x){
+  const t=fechaRegistroMs(x);if(!t)return false;
+  const fechaDeOperacion=x.fechaISO?String(x.fechaISO).slice(0,10):(()=>{
+    const f=new Date(t);return [f.getFullYear(),String(f.getMonth()+1).padStart(2,"0"),String(f.getDate()).padStart(2,"0")].join("-");
+  })();
+  if(fechaDeOperacion!==hoyLocal())return false;
+  const corte=corteDelDiaMs();
+  return !corte||t>corte;
+}
+const delSucHoy=arr=>delSuc(arr).filter(esDelPeriodo);
+const row=(l,v,cls="")=>`<div class="row ${esc(cls)}"><span>${esc(l)}</span><b>${esc(v)}</b></div>`;
+const VISTAS=[["inicio","Inicio","⌂"],["pedidos","Pedidos","▤"],["nuevo","Nuevo","＋"],["clientes","Timbres","✧"],["caja","Caja","▣"]];
+let cajaTab="resumen";
+let movimientoTab="gastos";
+let modoNuevo="whatsapp";
+const CAJA_TABS=[["resumen","Resumen"],["movimientos","Movimientos"],["cierre","Cierre"],["historial","Historial"]];
+const MOV_TABS=[["gastos","Gastos"],["apps","Apps"],["delivery","Delivery manual"],["repartidor","Pago repartidor"],["propinas","Propinas"],["retiros","Retiros"],["chica","Caja chica"]];
+function cambiarCajaTab(t){cajaTab=t;S.confirmCierre=false;render();window.scrollTo({top:0,behavior:"instant"});}
+function cambiarMovimientoTab(t){movimientoTab=t;render();}
+function cambiarModoNuevo(t){modoNuevo=t;render();}
+
+
+function aviso(t){S.msg=t;render();window.scrollTo({top:0,behavior:"smooth"});}
+function ir(v){
+  S.confirmCierre=false;
+  if(["registros","cierre","historial"].includes(v)){
+    cajaTab=({registros:"movimientos",cierre:"cierre",historial:"historial"})[v];
+    v="caja";
+  }
+  if(!S.suc&&v!=="inicio")v="inicio";
+  S.vista=v;
+  render();
+  window.scrollTo({top:0,behavior:"instant"});
+}
+
+/* Cifrado local v8.13: nuevas claves, sin borrar o migrar almacenamientos antiguos. */
+const UKI_LOCAL_PREFIX="uki_operativo_v1_cifrado_";
+const UKI_LOCAL_FORMAT="uki-v813-browser";
+const claveLocal=s=>UKI_LOCAL_PREFIX+(SUCURSALES.indexOf(s)===0?"regimiento":SUCURSALES.indexOf(s)===1?"la-serena":"desconocida");
+let claveSesion=null,sucursalSesion=null,saltSesion=null,colaGuardado=Promise.resolve(),revisionGuardado=0;
+function estadoVacioSucursal(s){
+ return {suc:s,pinSuc:null,codigos:{},vista:s?"pedidos":"inicio",base:18000,pedidos:[],gastos:[],
+ retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",
+ deliveriesManuales:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},
+ incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,
+ filtro:"",filtroFecha:"",filtroCliente:""};
+}
+function validarEstadoSucursal(datos,suc){
+ if(!datos||typeof datos!=="object"||Array.isArray(datos)||datos.suc!==suc)return false;
+ for(const c of ["pedidos","gastos","retiros","propinas","cierres","deliveriesManuales","incidencias"]){
+  if(!Array.isArray(datos[c])||!datos[c].every(x=>x&&typeof x==="object"&&!Array.isArray(x)&&x.suc===suc))return false;
+ }
+ if(!datos.clientes||typeof datos.clientes!=="object"||Array.isArray(datos.clientes))return false;
+ if(!datos.cajasDiarias||typeof datos.cajasDiarias!=="object"||Array.isArray(datos.cajasDiarias))return false;
+ if(!Number.isInteger(datos.nextId)||datos.nextId<1||!Number.isInteger(datos.nextIncidenciaId)||datos.nextIncidenciaId<1)return false;
+ return true;
+}
+function datosSoloSucursal(){
+ const c=JSON.parse(JSON.stringify(S));
+ delete c.codigos;delete c.pinSuc;delete c.msg;delete c.busy;delete c.confirmCierre;
+ c.suc=S.suc;return c;
+}
+const aadLocal=s=>new TextEncoder().encode(UKI_LOCAL_FORMAT+"|1|"+s);
+async function cifrarLocal(datos,suc,key,salt){
+ if(!validarEstadoSucursal(datos,suc))throw Error("Sucursal invalida");
+ const iv=crypto.getRandomValues(new Uint8Array(12));
+ const value=await crypto.subtle.encrypt({name:"AES-GCM",iv,additionalData:aadLocal(suc)},
+   key,new TextEncoder().encode(JSON.stringify(datos)));
+ return {formato:UKI_LOCAL_FORMAT,version:1,sucursal:suc,salt:ukiB64(salt),iv:ukiB64(iv),cifrado:ukiB64(value)};
+}
+async function abrirLocal(raw,suc,password){
+ const p=JSON.parse(raw);
+ if(!p||p.formato!==UKI_LOCAL_FORMAT||p.version!==1||p.sucursal!==suc)throw Error("Archivo incorrecto");
+ const salt=ukiBytes(p.salt),iv=ukiBytes(p.iv),encrypted=ukiBytes(p.cifrado);
+ if(salt.length!==16||iv.length!==12||encrypted.length<16)throw Error("Archivo dañado");
+ const key=await ukiClaveBackup(password,salt);
+ const data=await crypto.subtle.decrypt({name:"AES-GCM",iv,additionalData:aadLocal(suc)},key,encrypted);
+ const estado=JSON.parse(new TextDecoder().decode(data));
+ if(!validarEstadoSucursal(estado,suc))throw Error("Datos incorrectos");
+ return {estado,key,salt};
+}
+function guardarEnLocalStorage(){
+ if(!S.suc||!claveSesion||sucursalSesion!==S.suc)return Promise.resolve(true);
+ const suc=S.suc,key=claveSesion,salt=saltSesion,datos=datosSoloSucursal(),revision=++revisionGuardado;
+ colaGuardado=colaGuardado.catch(()=>{}).then(async()=>{
+  if(revision!==revisionGuardado||claveSesion!==key||sucursalSesion!==suc)return true;
+  const paquete=await cifrarLocal(datos,suc,key,salt);
+  if(revision!==revisionGuardado||claveSesion!==key||sucursalSesion!==suc)return true;
+  localStorage.setItem(claveLocal(suc),JSON.stringify(paquete));
+  // Solo la copia NUBE QA escucha escrituras confirmadas en Safari.
+  if(typeof window.ukiQAOnLocalSaved==="function")window.ukiQAOnLocalSaved(suc);
+  return true;
+ });
+ return colaGuardado.catch(e=>{console.error("No se pudieron guardar datos cifrados",e);
+  alert("No se guardaron los ultimos cambios. Descarga un respaldo y revisa el espacio del telefono.");return false;});
+}
+function cargarDesdeLocalStorage(){
+ S=estadoVacioSucursal(null);
+ const desdeEnlace=new URLSearchParams(location.search).get("sucursal");
+ if(desdeEnlace==="regimiento")S.pinSuc="Uki Regimiento Arica";
+ else if(desdeEnlace==="la-serena")S.pinSuc="Uki La Serena";
+}
+async function entrarDatosSucursal(s,password){
+ if(!globalThis.crypto?.subtle||!globalThis.crypto?.getRandomValues)throw Error("Cifrado no disponible");
+ const raw=localStorage.getItem(claveLocal(s));let datos,key,salt;
+ if(raw){const existing=await abrirLocal(raw,s,password);
+  datos=existing.estado;key=existing.key;salt=existing.salt;}
+ else{if(password.length<12)throw Error("La clave debe tener al menos 12 caracteres");
+  datos=estadoVacioSucursal(s);salt=crypto.getRandomValues(new Uint8Array(16));key=await ukiClaveBackup(password,salt);}
+ claveSesion=key;sucursalSesion=s;saltSesion=salt;revisionGuardado++;
+ S={...estadoVacioSucursal(s),...datos,suc:s,codigos:{},pinSuc:null,vista:"pedidos",msg:null,busy:false,confirmCierre:false};
+ document.body.classList.add("uki-operativo-bloqueado");
+ return true;
+}
+function guardarArchivoJson(datos,nombre){
+ const blob=new Blob([JSON.stringify(datos,null,2)],{type:"application/json"});
+ const url=URL.createObjectURL(blob),a=document.createElement("a");
+ a.href=url;a.download=nombre;document.body.appendChild(a);a.click();
+ setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},2000);
+}
+
+// Los respaldos nuevos usan AES-256-GCM + PBKDF2. Las claves nunca se guardan.
+const UKI_BACKUP_FMT="uki-v812-cifrado";
+const UKI_BACKUP_ITER=300000;
+const ukiB64=arr=>{
+  let text="";const bytes=new Uint8Array(arr);
+  for(let i=0;i<bytes.length;i+=8192)text+=String.fromCharCode(...bytes.subarray(i,i+8192));
+  return btoa(text);
+};
+const ukiBytes=b64=>{
+  if(typeof b64!=="string"||b64.length>15000000||!/^[A-Za-z0-9+/]*={0,2}$/.test(b64))throw Error("Archivo cifrado invalido");
+  const str=atob(b64),arr=new Uint8Array(str.length);
+  for(let i=0;i<str.length;i++)arr[i]=str.charCodeAt(i);
+  return arr;
+};
+async function ukiClaveBackup(contrasena,salt){
+  const raw=await crypto.subtle.importKey("raw",new TextEncoder().encode(contrasena),"PBKDF2",false,["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:UKI_BACKUP_ITER,hash:"SHA-256"},
+    raw,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+}
+async function ukiCifrarRespaldo(datos,suc,pass){
+  if(!globalThis.crypto?.subtle||!globalThis.crypto?.getRandomValues)throw Error("Este navegador no admite cifrado seguro");
+  if(pass.length<12)throw Error("La clave debe tener al menos 12 caracteres");
+  if(!validarEstadoSucursal(datos,suc))throw Error("Datos de sucursal no validos");
+  const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
+  const key=await ukiClaveBackup(pass,salt);
+  const aad=new TextEncoder().encode(UKI_BACKUP_FMT+"|1|"+suc);
+  const plain=new TextEncoder().encode(JSON.stringify(datos));
+  const encrypted=await crypto.subtle.encrypt({name:"AES-GCM",iv,additionalData:aad},key,plain);
+  return {formato:UKI_BACKUP_FMT,version:1,sucursal:suc,fecha:new Date().toISOString(),
+    algoritmo:"AES-256-GCM/PBKDF2-SHA256",iteraciones:UKI_BACKUP_ITER,
+    salt:ukiB64(salt),iv:ukiB64(iv),cifrado:ukiB64(encrypted)};
+}
+async function ukiDescifrarRespaldo(p,suc,pass){
+  if(!globalThis.crypto?.subtle)throw Error("Cifrado no disponible");
+  if(!p||p.formato!==UKI_BACKUP_FMT||p.version!==1||p.sucursal!==suc||
+     p.iteraciones!==UKI_BACKUP_ITER||p.algoritmo!=="AES-256-GCM/PBKDF2-SHA256")
+    throw Error("Respaldo incompatible o de otra sucursal");
+  const salt=ukiBytes(p.salt),iv=ukiBytes(p.iv),encrypted=ukiBytes(p.cifrado);
+  if(salt.length!==16||iv.length!==12||encrypted.length<16)throw Error("Respaldo cifrado dañado");
+  const key=await ukiClaveBackup(pass,salt);
+  const aad=new TextEncoder().encode(UKI_BACKUP_FMT+"|1|"+suc);
+  const plain=await crypto.subtle.decrypt({name:"AES-GCM",iv,additionalData:aad},key,encrypted);
+  const data=JSON.parse(new TextDecoder().decode(plain));
+  if(!validarEstadoSucursal(data,suc))throw Error("Contenido del respaldo incorrecto");
+  return data;
+}
+async function descargarRespaldoCompleto(){
+  if(!S.suc){aviso("Ingresa primero a la sucursal.");return;}
+  const p1=$("ukiClaveBackup"),p2=$("ukiConfirmaBackup");
+  if(!p1||!p2){aviso("Abre Caja para descargar tu respaldo cifrado.");return;}
+  const pass=p1.value||"",confirmacion=p2.value||"";
+  if(pass.length<12){aviso("Escribe una clave de respaldo de al menos 12 caracteres.");return;}
+  if(pass!==confirmacion){aviso("Las dos claves no coinciden.");return;}
+  p1.value="";p2.value="";
+  const suc=S.suc;
+  try{
+    const paquete=await ukiCifrarRespaldo(datosSoloSucursal(),suc,pass);
+    if(S.suc!==suc){aviso("Cambio de sucursal durante el respaldo. Vuelve a intentarlo.");return;}
+    guardarArchivoJson(paquete,"uki-cifrado-"+(SUCURSALES.indexOf(suc)===0?"regimiento":"la-serena")+"-"+hoyLocal()+".json");
+    aviso("Respaldo cifrado descargado. Guarda la clave en un lugar seguro.");
+  }catch(e){console.error("No fue posible cifrar el respaldo",e);aviso("Error al proteger el respaldo. No se descargó el archivo.");}
+}
+async function cargarRespaldo(event){
+  if(!S.suc){aviso("Ingresa primero a la sucursal.");return;}
+  const file=event?.target?.files?.[0];
+  if(!file)return;
+  const suc=S.suc,claveEl=$("ukiClaveRestaurar");
+  const pass=claveEl?.value||"";
+  if(claveEl)claveEl.value="";
+  try{
+    if(file.size>10000000)throw Error("El archivo es demasiado grande (maximo 10 MB)");
+    const paquete=JSON.parse(await file.text());
+    if(paquete?.sucursal!==suc)throw Error("El respaldo pertenece a otra sucursal");
+    let datos;
+    if(paquete?.formato===UKI_BACKUP_FMT){
+      if(!pass)throw Error("Escribe la clave de este respaldo antes de elegir el archivo");
+      try{datos=await ukiDescifrarRespaldo(paquete,suc,pass);}
+      catch(e){throw Error("Clave incorrecta o respaldo cifrado dañado. No hubo cambios");}
+    }else if(paquete?.formato==="uki-v811-sucursal"&&paquete?.version===1){
+      datos=paquete.datos;
+    }else throw Error("Formato no compatible");
+    if(!validarEstadoSucursal(datos,suc))throw Error("Respaldo incorrecto o de otra sucursal");
+    if(S.suc!==suc)throw Error("Se cambió de sucursal durante la lectura");
+    if(!confirm("Vas a REEMPLAZAR los pedidos, caja y timbres actuales de "+suc+
+      ". Antes descarga un respaldo de lo que tienes ahora. ¿Continuar?"))return;
+    if(!confirm("Ultima confirmacion: reemplazar registros de "+suc+" con el archivo seleccionado. ¿Restaurar?"))return;
+    const reemplazo={...estadoVacioSucursal(suc),...datos,
+      suc,codigos:S.codigos,pinSuc:null,vista:"pedidos",msg:null,busy:false,confirmCierre:false};
+    // Primero escribir y solo después reemplazar el estado en memoria.
+    const previo=S;S=reemplazo;
+    const guardado=await guardarEnLocalStorage();
+    if(!guardado){S=previo;throw Error("No se guardo el respaldo cifrado");}
+    aviso("Respaldo restaurado correctamente: "+suc);
+  }catch(e){aviso("No se restauró ningún dato: "+String(e.message||"Archivo incompatible"));}
+  finally{if(event?.target)event.target.value="";}
+}
+
+function render(){
+  try{
+  $("suc").innerHTML=S.suc?`<span>${esc(S.suc)}</span><a href="#" onclick="salirSuc();return false;" class="salir">Salir</a>`:"Selecciona una sucursal para empezar";
+  $("nav").style.display=S.suc?"grid":"none";
+  $("nav").innerHTML=VISTAS.map(([k,l,icon])=>`<button type="button" class="${S.vista===k?"on":""}" onclick="ir('${k}')" aria-label="${l}" ${S.vista===k?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${l}</span></button>`).join("");
+  const f={inicio:vInicio,pedidos:vPedidos,nuevo:vNuevo,clientes:vClientes,caja:vCaja}[S.vista]||vInicio;
+  const msg=S.msg?`<div role="status" class="aviso" style="background:#ffece4;color:#7a2c08">${esc(S.msg)}</div>`:"";
+  S.msg=null;
+  $("app").innerHTML=msg+f();
+  guardarEnLocalStorage();
+  }catch(error){
+    console.error("Error en pantalla Uki",error);
+    const app=document.getElementById("app");
+    if(app) app.innerHTML='<div class="card"><h2>No se pudo mostrar esta pantalla</h2><p class="muted">Tus datos no se han borrado. Puedes intentar nuevamente o descargar un respaldo.</p><button class="big" onclick="ir(\'inicio\')">Volver al inicio</button><button class="big" onclick="descargarRespaldoCompleto()">Descargar respaldo</button></div>';
+  }
+}
+
+function pedirPin(s){S.pinSuc=s;render();}
+async function entrarSuc(){
+ const s=S.pinSuc,pass=$("ukiAccesoClave")?.value||"";
+ const nueva=localStorage.getItem(claveLocal(s))===null;
+ if(pass.length<12){aviso("Utiliza una clave de al menos 12 caracteres.");return;}
+ if(nueva&&pass!==($("ukiAccesoConfirmar")?.value||"")){aviso("Las claves no coinciden.");return;}
+ try{await entrarDatosSucursal(s,pass);S.vista="pedidos";render();}
+ catch(e){aviso("Clave incorrecta, datos dañados o cifrado no disponible.");}
+}
+async function salirSuc(){
+ if(S.suc){const ok=await guardarEnLocalStorage();if(!ok)return;await colaGuardado;}
+ revisionGuardado++;claveSesion=null;saltSesion=null;sucursalSesion=null;
+ cargarDesdeLocalStorage();nuevoDraft();
+ if(typeof window.ukiQASessionLeft==="function")window.ukiQASessionLeft();
+ document.body.classList.remove("uki-operativo-bloqueado");
+ render();
+}
+function vInicio(){
+  if(S.pinSuc){
+ const existe=!!localStorage.getItem(claveLocal(S.pinSuc));
+ return '<div class="card"><h2>'+esc(S.pinSuc)+'</h2>'+
+  '<p class="muted">'+(existe?"Escribe la contraseña para abrir tus registros cifrados.":"Crea una clave de al menos 12 caracteres para esta sucursal.")+'</p>'+
+  '<label>Contraseña de acceso</label><input id="ukiAccesoClave" type="password" autocomplete="off" placeholder="Mínimo 12 caracteres">'+
+  (existe?'':'<label>Repite la contraseña</label><input id="ukiAccesoConfirmar" type="password" autocomplete="off" placeholder="Confirmar contraseña">')+
+  '<button class="big" onclick="entrarSuc()">'+(existe?"Abrir sucursal":"Crear acceso")+'</button>'+
+  '<p class="muted">La clave no se guarda. Si la pierdes, necesitarás un respaldo. El PIN antiguo de 4 números no protege estos registros.</p></div>';
+ }
+  if(!S.suc){return `<div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Cada sucursal tendra sus pedidos y timbres independientes.</p>${SUCURSALES.map(s=>`<button class="big" onclick="pedirPin('${s}')">${s}</button>`).join("")}</div><div class="card"><p class="muted"><b>Información de acceso:</b> el enlace web es público, pero Firebase exige la cuenta Google autorizada de Uki Sushi y una clave para descifrar cada sucursal. No compartas las claves con clientes. Los datos permanecen separados entre sucursales.</p></div>`;}
+
+  const t=totales();return `<div class="welcome"><div class="eyebrow">RESUMEN DEL DÍA · ${hoyLocal()}</div><h2>Hola, Uki Sushi <span>🍣</span></h2><p class="muted">${esc(S.suc)}</p></div>
+  <section class="kpis" aria-label="Resumen de ventas">
+    <div class="kpi"><span>Venta de hoy</span><strong>${fmt(t.totalMedios)}</strong></div>
+    <div class="kpi"><span>Pedidos</span><strong>${t.n}</strong></div>
+    <div class="kpi"><span>Delivery cobrado</span><strong>${fmt(t.envios)}</strong></div>
+    <div class="kpi"><span>Efectivo en caja</span><strong>${fmt(t.efectivoCaja)}</strong></div>
+  </section>
+  <button class="big cta" onclick="ir('nuevo')">＋ Registrar nuevo pedido</button>
+  <div class="quick-grid"><button class="quick" onclick="ir('pedidos')"><b>▤</b> Revisar pedidos <span>›</span></button><button class="quick" onclick="ir('clientes')"><b>✧</b> Tarjetas (${Object.keys(S.clientes).length}) <span>›</span></button><button class="quick" onclick="ir('cierre')"><b>▣</b> Hacer cierre <span>›</span></button><button class="quick" onclick="ir('historial')"><b>◷</b> Ver historial <span>›</span></button></div>
+  <div class="mini-help">🎟️ Timbres: 6 compras = 12 piezas · 10 compras = 36 piezas + 2 korokes.</div>`;
+}
+// Datos temporales de cierre: no alteran el respaldo ni el formato guardado.
+let cierreDraft={resp:"",obs:""};
+function setModalidad(modalidad){
+  D.modalidad=modalidad;
+  if(modalidad!=="Delivery") D.envio=0;
+  render();
+}
+function setEnvioManual(valor){
+  D.envio=Math.max(0,Number.parseInt(valor,10)||0);
+  const monto=D.modalidad==="Delivery"?D.envio:0;
+  const sub=D.items.reduce((s,x)=>s+(Number(x.cant)||0)*(Number(x.precio)||0),0);
+  const dl=$("pedidoEnvioVista"); if(dl) dl.textContent=fmt(monto);
+  const total=$("pedidoTotalVista"); if(total) total.textContent=fmt(sub+monto);
+  const txt=$("pedidoEnvioAyuda");
+  if(txt) txt.textContent=D.modalidad==="Delivery"?"Delivery seleccionado - "+fmt(monto)+" se suma al total":"Toca Delivery arriba para sumar envío";
+}
+function nuevoDraft(){D={texto:"",fecha:ahora(),cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[{nombre:"",cant:1,precio:0,det:""}],editando:null};}
+function delItem(k){D.items.splice(k,1);if(!D.items.length)D.items=[{nombre:"",cant:1,precio:0,det:""}];render();}
+function addItem(){const n=$("pNom").value.trim(); const c=parseInt($("pCant").value)||1; const p=parseInt($("pPre").value)||0; const d=$("pDet").value.trim(); if(!n||!p){aviso("Pon nombre y precio");return;} D.items=D.items.filter(x=>x.nombre); D.items.push({nombre:n,cant:c,precio:p,det:d}); $("pNom").value=""; $("pCant").value=1; $("pPre").value=""; $("pDet").value=""; render();}
+// El codigo del pedido proviene del encabezado de la carta digital, NO del numero interno ni del codigo de cliente.
+function esMensajeCartaUki(t){return /^\s*\*?\s*UKI\s+SUSHI\s*[·•#:\-]/im.test(t);}
+function extraerMensajeCartaUki(t){
+  const buscar=(pat)=>{const m=t.match(pat);return m?m[1].trim():"";};
+  const monto=(pat)=>{const v=buscar(pat);return v?Number(v.replace(/[^\d]/g,"")):null;};
+  const codigoCarta=buscar(/^\s*\*?\s*UKI\s+SUSHI\s*[·•#:\-]\s*([A-Za-z0-9-]+)\s*\*?\s*$/im);
+  const codigoCliente=buscar(/^\s*C[oó]digo\s+del\s+cliente\s*:\s*([^\r\n]+)/im);
+  const sucursal=buscar(/^\s*Sucursal\s*:\s*([^\r\n]+)/im);
+  const cliente=buscar(/^\s*Cliente\s*:\s*([^\r\n]+)/im);
+  const telefono=buscar(/^\s*WhatsApp\s*:\s*([^\r\n]+)/im);
+  const pago=buscar(/^\s*Pago\s*:\s*([^\r\n]+)/im);
+  const productos=monto(/^\s*Total\s+productos\s*:\s*\$?\s*([\d.,]+)/im);
+  const delivery=monto(/^\s*Delivery\s*:\s*\$?\s*([\d.,]+)/im);
+  const total=monto(/^\s*(?:Total\s+con\s+delivery|Total\s+pedido|Total)\s*:\s*\$?\s*([\d.,]+)/im);
+  const mEntrega=t.match(/(?:^|\n)\s*\*?ENTREGA\*?\s*\n\s*(Delivery|Retiro|Consumo en local)/i);
+  const modalidad=mEntrega?mEntrega[1]:(delivery!==null&&delivery>0?"Delivery":"Retiro");
+  const cocina=t.match(/(?:^|\n)\s*\*?COCINA\*?\s*\n([\s\S]*?)(?=\n\s*\*?ENTREGA\*?\s*(?:\n|$)|$)/i);
+  const lineasCocina=cocina?cocina[1].split(/\r?\n/).map(v=>v.trim()).filter(Boolean):[];
+  const simple=lineasCocina.length===1?lineasCocina[0].replace(/^\d+\s*[×x]\s*/i,"").slice(0,90):"Productos de carta digital (ver detalle)";
+  const items=[{nombre:simple||"Pedido desde carta digital",cant:1,precio:productos||0,det:lineasCocina.length>1?lineasCocina.join(" · ").slice(0,1500):""}];
+  return {codigoCarta,codigoCliente,sucursal,cliente,telefono,pago,productos,delivery,total,modalidad,lineasCocina,items};
+}
+function leerTextoD(){
+  const t=(D.texto||"").trim(); if(!t)return;
+  if(esMensajeCartaUki(t)){
+    const x=extraerMensajeCartaUki(t);
+    if(!x.codigoCarta||x.productos===null||!x.lineasCocina.length){aviso("No se reconocio el codigo o los productos. Revisa el mensaje pegado.");return;}
+    if(x.total!==null && x.total!==x.productos+(x.delivery||0)){aviso("El total del mensaje no coincide con productos + delivery. Revisa los importes.");return;}
+    D.codigoCarta=x.codigoCarta; D.codigoCliente=x.codigoCliente; D.sucursalCarta=x.sucursal;
+    D.cliente=x.cliente.slice(0,60);D.telefono=x.telefono.slice(0,30);
+    D.modalidad=x.modalidad;D.envio=x.modalidad==="Delivery"?(x.delivery||0):0;
+    D.items=x.items;
+    const medio=MEDIOS.find(m=>m.toLowerCase()===x.pago.toLowerCase());
+    if(medio){D.medio=medio;D.medioEnvio=medio;}
+    render();return;
+  }
+  // El formato libre permanece para pedidos pegados que no provengan de la carta digital.
+  D.codigoCarta=""; D.codigoCliente=""; D.sucursalCarta="";
+  const ml=t.toLowerCase();
+  const medio=MEDIOS.find(x=>ml.includes(x.toLowerCase().split(" ")[0])); if(medio)D.medio=medio;
+  if(/delivery|domicilio|envío|envio/.test(ml)){D.modalidad="Delivery";D.medioEnvio=D.medio;} else if(/retiro/.test(ml)) D.modalidad="Retiro";
+  const cli=t.match(/(?:cliente|nombre)\s*[:\-]\s*([^\n,]+)/i); if(cli)D.cliente=cli[1].trim().slice(0,40);
+  const tel=t.match(/(?:whatsapp|fono|tel|cel)\s*[:\-\s]*([+\d\s\-]{8,15})/i) || t.match(/(\+?56\s*9\s*\d{4}\s*\d{4})|(9\s*\d{4}\s*\d{4})/);
+  if(tel){D.telefono=tel[0].replace(/[^0-9+]/g,"").slice(0,15);}
+  const dm=t.match(/(?:delivery|envío|envio)\s*\$?\s*([\d\.\,]+)/i);
+  if(dm){D.envio=parseInt(dm[1].replace(/[^0-9]/g,""))||0;} else {
+    const allNums=[...t.matchAll(/\$\s*([\d\.\,]+)/g)].map(x=>parseInt(x[1].replace(/[^0-9]/g,""),10)).filter(n=>n>=0&&n<=5000);
+    if(/delivery|domicilio|envío|envio/i.test(t) && allNums.length){D.envio=Math.min(...allNums);}
+  }
+  const lines=t.split(/\n/); const tieneValidos=D.items.some(x=>x.nombre.trim()&&x.precio>0); if(!tieneValidos) D.items=[];
+  lines.forEach(line=>{
+    let l=line.trim(); if(!l) return;
+    if(l.length<40 && /^(cliente|nombre|total|delivery|envio|transferencia|efectivo|debito|edenred|pago)/i.test(l) && !/\d{4,}/.test(l) && !/promo|roll|sushi|poke|combo|gyoza|tempura/i.test(l.toLowerCase())) return;
+    const prodMatch=l.match(/^(?:\d+\s*x\s*)?(.+?)\s*(?:x\s*\d+)?\s*\$?\s*([\d\.\,]{4,7})\s*$/i);
+    if(prodMatch){
+      let nombreRaw=prodMatch[1].trim(); let precio=parseInt(prodMatch[2].replace(/[^0-9]/g,""))||0;
+      if(/delivery|total|envío|envio/i.test(nombreRaw)) return;
+      if(precio<1000||precio>100000) return; if(nombreRaw.length<2) return;
+      nombreRaw=nombreRaw.replace(/^\d+\s*x\s*/i,"").trim().slice(0,50);
+      if(!D.items.some(x=>x.nombre.toLowerCase()===nombreRaw.toLowerCase())){D.items.push({nombre:nombreRaw,cant:1,precio:precio,det:""});}
+    }
+  });
+  if(D.items.length===0){
+    const allNums=[...t.matchAll(/\$\s*([\d\.\,]+)/g)].map(x=>parseInt(x[1].replace(/[^0-9]/g,""),10)).filter(n=>n>=100&&n<=200000);
+    if(allNums.length){const totalVal=Math.max(...allNums); if(totalVal>=1000){const precioProd=totalVal-(D.envio||0); if(precioProd>=1000){D.items=[{nombre:"Pedido WhatsApp (revisar detalle)",cant:1,precio:precioProd,det:"Auto desde total $"+totalVal}];}}}
+  }
+  if(D.envio>0){D.modalidad="Delivery";}
+  if(D.items.length===1&&D.items[0].nombre===""&&D.items[0].precio===0) D.items=[];
+  if(D.items.length===0) D.items=[{nombre:"",cant:1,precio:0,det:""}];
+  const tmpTexto=D.texto;
+  render();
+  setTimeout(()=>{const el=document.getElementById("pegaTxt"); if(el && tmpTexto){ el.value=tmpTexto; }},50);
+}
+function vNuevo(){
+  if(!S.suc) return vInicio(); if(!D.fecha) nuevoDraft();
+  const sub=D.items.reduce((a,i)=>a+(i.cant||0)*(i.precio||0),0);
+  const envio=D.modalidad==="Delivery"?D.envio:0; const total=sub+envio;
+  const chip=on=>`class="chip${on?" on":""}"`;
+  const cli=getCliente(D.cliente,D.codigoCliente,D.telefono);
+  const ventasCli=cli?ventasValidas(cli):0;
+  return `<div class="section-head"><h2>${D.editando?`Editar pedido #${D.editando}`:"Nuevo pedido"}</h2><p>Elige cómo ingresar el pedido. Puedes revisar los datos antes de guardarlo.</p></div>
+  <div class="mode-switch" role="group" aria-label="Modo de ingresar pedido"><button type="button" class="${modoNuevo==='whatsapp'?'selected':''}" onclick="cambiarModoNuevo('whatsapp')">📋 Pegar WhatsApp</button><button type="button" class="${modoNuevo==='manual'?'selected':''}" onclick="cambiarModoNuevo('manual')">✎ Manual</button></div>
+  ${modoNuevo==='whatsapp'?`<div class="card"><h2>Texto del pedido</h2><p class="muted">Pega el mensaje de la carta digital y toca Procesar.</p><textarea id="pegaTxt" rows="4" placeholder="Pega aquí el pedido de WhatsApp" oninput="D.texto=this.value" onpaste="setTimeout(()=>{const el=document.getElementById('pegaTxt');if(el){D.texto=el.value;leerTextoD();}},150)">${esc(D.texto)}</textarea><button class="big" onclick="leerTextoD()">Procesar pedido pegado</button><p class="muted">Revisa nombre, precio, delivery y productos antes de guardar.</p></div>`:`<div class="mini-help">Agrega los datos del pedido manualmente en el formulario siguiente.</div>`}
+  <div class="card"><h2>Datos del pedido</h2><label>Codigo del pedido en la carta digital</label><input value="${esc(D.codigoCarta||"")}" placeholder="Ej: 953" oninput="D.codigoCarta=this.value.trim()" inputmode="text"><label>Codigo del cliente (distinto del pedido)</label><input value="${esc(D.codigoCliente||"")}" placeholder="Ej: 7362" oninput="D.codigoCliente=this.value.trim()" inputmode="text"><label>Fecha y hora</label><input type="datetime-local" value="${D.fecha}" oninput="D.fecha=this.value"><label>Cliente (no se autocompleta con total)</label><input value="${esc(D.cliente)}" placeholder="Ej: Camila Rojas" oninput="D.cliente=this.value">${cli?`<div style="margin-top:8px;padding:8px;background:#fff1e0;border-radius:8px"><b>${esc(cli.nombre)}</b> tiene <b>${ventasCli}/10</b> timbres ${ventasCli>=6?'<span class="tag" style="background:var(--ok);color:#fff">Puede canjear 12 piezas!</span>':''} ${ventasCli>=10?'<span class="tag" style="background:#111;color:#fff">Puede canjear 36+2 korokes!</span>':''}<div class="tarjeta" style="margin-top:6px">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventasCli?'lleno':''} ${i===5||i===9?'premio':''}">${i<ventasCli?'✓':i+1}</div>`).join("")}</div></div>`:"<p class='muted'>Nuevo cliente - empezará con 1 timbre</p>"}<label>📱 WhatsApp / Teléfono</label><input value="${esc(D.telefono)}" placeholder="+56 9 1234 5678" oninput="D.telefono=this.value" inputmode="tel"><label>Tipo de entrega</label><div class="chips">${["Retiro","Delivery","Consumo en local"].map(m=>`<button ${chip(D.modalidad===m)} onclick="setModalidad('${m}')">${m}</button>`).join("")}</div><label>💰 Valor delivery ${D.modalidad==="Delivery"?"(se suma)":"(selecciona Delivery)"}</label><input type="number" inputmode="numeric" value="${D.envio||""}" placeholder="Ej: 2000" oninput="setEnvioManual(this.value)"><p class="muted" id="pedidoEnvioAyuda">${D.modalidad==="Delivery"?`Delivery seleccionado - $${D.envio||0} se suma al total`:`Toca Delivery arriba para sumar envío`}</p></div>
+  <div class="card"><h2>Productos y total</h2>${D.items.filter(x=>x.nombre).map((i,k)=>`<div class="row"><span>${i.cant} × ${esc(i.nombre)}${i.det?` <span class="muted">(${esc(i.det)})</span>`:""}</span><b>${fmt(i.cant*i.precio)} <button class="sm" onclick="delItem(${k})">✕</button></b></div>`).join("")||'<p class="muted">Aún no hay productos. Agrégalos abajo.</p>'}<div style="display:grid;grid-template-columns:80px 1fr;gap:8px;margin-top:10px"><div><label>Cant</label><input id="pCant" type="number" value="1" style="text-align:center;font-weight:700"></div><div><label>Precio</label><input id="pPre" type="number" inputmode="numeric" placeholder="14900"></div></div><label>Nombre producto</label><input id="pNom" placeholder="Promo 24 piezas"><label>Detalle</label><input id="pDet" placeholder="sin cebollín"><button class="sm ok" onclick="addItem()">+ Agregar producto</button><div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:10px;border-top:2px solid var(--accent)"><div class="row sub"><span>Subtotal productos</span><b>${fmt(sub)}</b></div><div class="row"><span>Delivery</span><b id="pedidoEnvioVista">${fmt(envio)}</b></div><div class="row final"><span>Total pedido</span><b id="pedidoTotalVista">${fmt(total)}</b></div><div class="row"><span>Este pedido da</span><b>⭐ +1 timbre</b></div></div></div>
+  <div class="card"><h2>Medios de pago</h2><label>Medio productos</label><div class="chips">${MEDIOS.map(m=>`<button ${chip(D.medio===m)} onclick="D.medio='${m}';render()">${m}</button>`).join("")}</div><label>Medio delivery</label><div class="chips">${MEDIOS.filter(m=>!APPS.includes(m)).map(m=>`<button ${chip(D.medioEnvio===m)} onclick="D.medioEnvio='${m}';render()">${m}</button>`).join("")}</div><label class="check"><input type="checkbox" ${D.pagado?"checked":""} onchange="D.pagado=this.checked;render()"> <b>Pagado</b></label></div><button class="big" onclick="ndGuardar()">${D.editando?`💾 Guardar cambios #${D.editando}`:`✅ Guardar pedido +1 timbre`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición</button>`:""}`;
+}
+
+function editarPedido(id){const p=S.pedidos.find(x=>x.id===id); if(!p)return; D={texto:p.textoOriginal||"",fecha:p.fechaISO||ahora(),cliente:p.cliente||"",telefono:p.telefono||"",codigoCarta:p.codigoCarta||"",codigoCliente:p.codigoCliente||"",sucursalCarta:p.sucursalCarta||"",modalidad:p.modalidad||"Retiro",envio:p.envio||0,medio:p.medio||"Efectivo",medioEnvio:p.medioEnvio||"Efectivo",pagado:!!p.pagado,items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}]; ir("nuevo"); aviso(`Editando pedido #${id}`);}
+function reanalizar(){leerTextoD();}
+function copiarComanda(id){const p=S.pedidos.find(x=>x.id===id); if(!p) return; const txt=[`#${p.id} ${p.modalidad}`, ...(p.productos||[]).map(pr=>`${pr.cantidad}x ${pr.nombre}${pr.detalle?` (${pr.detalle})`:""}`), p.envio?`Delivery ${fmt(p.envio)}`:"", `Total ${fmt(p.total)}`].filter(Boolean).join("\n"); if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>aviso("Comanda copiada")).catch(()=>aviso(txt)); else aviso(txt);}
+function togglePagado(id){
+ const p=S.pedidos.find(x=>x.id===id);if(!p||p.esPremio)return;
+ if(!p.pagado && !confirm("¿Confirmas que recibiste el pago de "+fmt(p.total)+" por el pedido #"+id+"?"))return;
+ if(p.cliente){
+   const cli=asegurarCliente(p.cliente,p.codigoCliente,p.telefono);
+   if(p.pagado){
+     cli.movimientos=cli.movimientos.filter(m=>m.pedidoId!==p.id);
+     cli.pedidos=Math.max(0,(cli.pedidos||0)-1);
+     cli.gastado=Math.max(0,(cli.gastado||0)-(p.subtotal||0));
+   }else{
+     if(!cli.movimientos.some(m=>m.tipo==="venta"&&m.pedidoId===p.id)){
+       cli.movimientos.push({tipo:"venta",fecha:new Date().toISOString(),vence:fechaVencimiento(new Date().toISOString()),pedidoId:p.id});
+       cli.pedidos=(cli.pedidos||0)+1;
+       cli.gastado=(cli.gastado||0)+(p.subtotal||0);
+       cli.ultimo=new Date().toLocaleDateString("es-CL");
+     }
+   }
+ }
+ p.pagado=!p.pagado;render();
+}
+function claveCliente(nombre,codigo="",telefono=""){
+  const c=String(codigo||"").trim(),t=String(telefono||"").replace(/[^\d]/g,"");
+  if(c)return "codigo:"+c+"|"+t;
+  if(t)return "telefono:"+t;
+  return "nombre:"+String(nombre||"").trim().toLocaleLowerCase("es-CL");
+}
+function getCliente(nombre,codigo="",telefono=""){
+  if(!nombre)return null;return S.clientes[claveCliente(nombre,codigo,telefono)]||null;
+}
+function asegurarCliente(nombre,codigo="",telefono=""){
+  if(!nombre)return null;
+  const key=claveCliente(nombre,codigo,telefono);
+  if(!Object.prototype.hasOwnProperty.call(S.clientes,key)){
+    S.clientes[key]={nombre:nombre.trim(),codigoCliente:String(codigo||"").trim(),
+      telefono:String(telefono||"").trim(),ventas:0,gastado:0,pedidos:0,
+      ultimo:"",movimientos:[],canje6:false,canje10:false};
+  }
+  if(!Array.isArray(S.clientes[key].movimientos))S.clientes[key].movimientos=[];
+  return S.clientes[key];
+}
+function fechaVencimiento(fechaISO){const d=new Date(fechaISO); d.setMonth(d.getMonth()+3); return d.toISOString();}
+function ventasValidas(cli){
+  if(!cli||!cli.movimientos) return cli?.ventas||0;
+  const hoy=new Date();
+  // Contar ventas no vencidas y no canjeadas por reseteo
+  let count=0;
+  // Si hubo reseteo (canje 10), solo contar después del último canje 10
+  const ultimoCanje10 = [...cli.movimientos].reverse().find(m=>m.tipo==='canje10');
+  const desde = ultimoCanje10? new Date(ultimoCanje10.fecha) : new Date(0);
+  cli.movimientos.forEach(m=>{
+    if(m.tipo==='venta'){
+      const f=new Date(m.fecha);
+      if(f>desde){
+        const vence=new Date(m.vence||m.fecha);
+        if(vence>hoy) count++;
+      }
+    }
+  });
+  return count;
+}
+
+/* Historial por cliente; solo lee registros, no modifica calculos de timbres. */
+const nombreHist=n=>String(n||"").trim().toLocaleLowerCase("es-CL");
+function pedidosHist(nombre,codigo="",telefono=""){
+  const id=claveCliente(nombre,codigo,telefono);
+  return (S.pedidos||[]).filter(p=>nombreHist(p.cliente)===nombreHist(nombre)
+    && claveCliente(p.cliente,p.codigoCliente,p.telefono)===id)
+    .slice().sort((a,b)=>String(b.fechaISO||"").localeCompare(String(a.fechaISO||"")));
+}
+function fichaHistorial(cli){
+  const pedidos=pedidosHist(cli.nombre,cli.codigoCliente,cli.telefono), compras=pedidos.filter(p=>!p.esPremio&&p.estado!=="Cancelado");
+  const inc=(S.incidencias||[]).filter(x=>pedidos.some(p=>p.id===x.pedidoId&&p.suc===x.suc));
+  const grupos=new Map();
+  const fecha=x=>{const d=new Date(x||"");return Number.isNaN(d.getTime())?"Sin fecha":d.toLocaleDateString("es-CL");};
+  for(const p of pedidos){
+    const codigo=String(p.codigoCliente||"").trim(),telefono=String(p.telefono||"").replace(/[^0-9]/g,"");
+    const k=codigo?"c:"+codigo+"|"+telefono:telefono?"t:"+telefono:"sin-codigo";
+    if(!grupos.has(k))grupos.set(k,{codigo,telefono,items:[]});
+    grupos.get(k).items.push(p);
+  }
+  const codigos=new Set(pedidos.map(p=>String(p.codigoCliente||"").trim()).filter(Boolean));
+  const canjes=(cli.movimientos||[]).filter(x=>x.tipo==="canje6"||x.tipo==="canje10");
+  const muestra=p=>{
+    const reclamos=inc.filter(x=>x.pedidoId===p.id&&x.suc===p.suc);
+    return '<details class="inner-details" style="margin:8px 0"><summary>'+esc(p.esPremio?"Premio":"Pedido")
+      +' '+esc(p.codigoCarta?"#"+p.codigoCarta:"interno #"+p.id)+' · '+esc(fecha(p.fechaISO))
+      +' · '+fmt(p.total)+'</summary><div style="padding:8px"><p class="muted">'
+      +esc(p.suc||"Sucursal no indicada")+' · '+esc(p.modalidad||"")+' · '+esc(p.medio||"")+'</p>'
+      +(p.productos||[]).map(x=>'<div class="row"><span>'+esc(x.cantidad)+' × '+esc(x.nombre)
+        +(x.detalle?' · '+esc(x.detalle):'')+'</span><b>'+fmt((+x.cantidad||0)*(+x.precioUnit||0))+'</b></div>').join('')
+      +(p.envio?'<div class="row"><span>Delivery</span><b>'+fmt(p.envio)+'</b></div>':'')
+      +reclamos.map(x=>'<p><b>Reclamo '+esc(x.estado||"Pendiente")+':</b> '+esc(x.problema||"")
+        +(x.solucion?' · Solución: '+esc(x.solucion):'')+'</p>').join('')
+      +(p.textoOriginal&&!p.esPremio?'<details><summary>Ver WhatsApp original</summary><p style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(p.textoOriginal)+'</p></details>':'')
+      +'</div></details>';
+  };
+  const secciones=[...grupos.values()].map(g=>{
+    const etiqueta=g.codigo?'Código cliente: '+g.codigo:g.telefono?'Sin código de cliente':'Pedidos antiguos sin código';
+    const num=g.items.filter(p=>!p.esPremio&&p.estado!=="Cancelado").length;
+    return '<details class="inner-details" style="margin-top:10px"><summary>'+esc(etiqueta)+' · '+num+' compras</summary>'
+      +(g.telefono?'<p class="muted">Teléfono: '+esc(g.telefono)+'</p>':'')
+      +g.items.map(muestra).join('')+'</details>';
+  }).join('');
+  return '<details class="inner-details" style="margin-top:12px"><summary><b>📚 Ver historial del cliente</b> · '+compras.length+' compras</summary>'
+    +'<div style="padding:10px 0">'
+    +'<div class="row"><span>Compras registradas</span><b>'+compras.length+'</b></div>'
+    +'<div class="row"><span>Total productos</span><b>'+fmt(compras.reduce((n,p)=>n+(+p.subtotal||0),0))+'</b></div>'
+    +'<div class="row"><span>Reclamos</span><b>'+inc.length+'</b></div>'
+    +'<div class="row"><span>Premios canjeados</span><b>'+canjes.length+'</b></div>'
+    +'<p class="muted">Solo registros guardados en este navegador. Historial exclusivo de esta sucursal.</p>'
+    +(codigos.size>1?'<p style="color:#9b3e00"><b>Atención:</b> este nombre aparece con distintos códigos. El historial está separado, pero los timbres antiguos siguen agrupados por nombre.</p>':'')
+    +(secciones||'<p class="muted">No hay pedidos asociados en este dispositivo.</p>')
+    +(canjes.length?'<details class="inner-details"><summary>Ver canjes ('+canjes.length+')</summary>'
+      +canjes.slice().reverse().map(x=>'<p>'+esc(x.tipo==="canje6"?"12 piezas":"36 piezas + 2 korokes")+' · '+esc(fecha(x.fecha))+'</p>').join('')+'</details>':'')
+    +'</div></details>';
+}
+
+function vClientes(){
+  if(!S.suc) return vInicio();
+  const buscar=nombreHist(S.filtroCliente);
+  const lista=Object.values(S.clientes).filter(c=>{
+    if(!buscar)return true;
+    if(nombreHist(c.nombre).includes(buscar))return true;
+    return pedidosHist(c.nombre,c.codigoCliente,c.telefono).some(p=>String(p.codigoCliente||"").toLowerCase().includes(buscar)||String(p.telefono||"").replace(/[^0-9]/g,"").includes(buscar));
+  }).sort((a,b)=>ventasValidas(b)-ventasValidas(a));
+  return `<div class="card"><h2>⭐ Tarjetas de Timbres - 6=12 piezas / 10=36+2 korokes</h2><p class="muted">Cada venta = 1 timbre. Vence en 3 meses. 6 ventas = 12 piezas gratis. 10 ventas = 36 piezas + 2 korokes gratis.</p><label>Buscar cliente por nombre, código o teléfono</label><input placeholder="Ej: Camila o código 7362" value="${esc(S.filtroCliente||"")}" oninput="S.filtroCliente=this.value;render()"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px"><div class="card" style="margin:0"><h2 style="font-size:12px">Tarjetas</h2><b>${lista.length}</b></div><div class="card" style="margin:0"><h2 style="font-size:12px">Listos 6 ventas</h2><b>${lista.filter(c=>ventasValidas(c)>=6).length}</b></div><div class="card" style="margin:0"><h2 style="font-size:12px">Listos 10 ventas</h2><b>${lista.filter(c=>ventasValidas(c)>=10).length}</b></div></div></div>
+  ${lista.length?lista.map(cli=>{
+    const key=claveCliente(cli.nombre,cli.codigoCliente,cli.telefono);
+    const keyArg=esc(JSON.stringify(key));
+    const ventas=ventasValidas(cli);
+    const puede6=ventas>=6 && !cli.canje6;
+    const puede10=ventas>=10;
+    return `<div class="card" style="${puede10?'border:2px solid #111':puede6?'border:2px solid var(--ok)':''}"><h2>${esc(cli.nombre)} <span class="tag">🎫 ${ventas}/10 timbres</span> ${puede6?'<span class="tag" style="background:var(--ok);color:#fff">🎁 12 piezas listo!</span>':''} ${puede10?'<span class="tag" style="background:#111;color:#fff">🎉 36+2 korokes listo!</span>':''}</h2><p class="muted">${cli.pedidos} pedidos · Gastado ${fmt(cli.gastado)} · Último ${esc(cli.ultimo||"")}</p><div class="tarjeta">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventas?'lleno':''} ${i===5?'premio':''} ${i===9?'premio':''}" title="${i===5?'6 ventas = 12 piezas':i===9?'10 ventas = 36+2 korokes':''}">${i<ventas?'✓':i+1}${i===5?'<br><small style="font-size:8px">12p</small>':''}${i===9?'<br><small style="font-size:7px">36+2k</small>':''}</div>`).join("")}</div><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"><button class="sm ok" onclick="avisarTimbres(${keyArg})">📲 Avisar por WhatsApp</button>${puede6?`<button class="sm ok" onclick="canjear12(${keyArg})">🎁 Canjear 12 piezas (6)</button>`:''}${puede10?`<button class="sm" style="background:#111;color:#fff" onclick="canjear36(${keyArg})">🎉 Canjear 36+2 korokes (10)</button>`:''}<button class="sm" onclick="D.cliente=${esc(JSON.stringify(cli.nombre))};D.codigoCliente=${esc(JSON.stringify(cli.codigoCliente||''))};D.telefono=${esc(JSON.stringify(cli.telefono||''))};ir('nuevo');">+ Pedido</button></div><details style="margin-top:8px"><summary class="muted">Ver historial timbres</summary>${(cli.movimientos||[]).slice(-15).reverse().map(m=>`<div class="row"><span>${m.tipo==='venta'?'🟢 Venta':m.tipo==='canje6'?'🔴 Canje 12 piezas':m.tipo==='canje10'?'🔴 Canje 36+2k':esc(m.tipo)} - ${new Date(m.fecha).toLocaleDateString('es-CL')} ${m.vence?'· Vence '+new Date(m.vence).toLocaleDateString('es-CL'):''}</span></div>`).join("")||"<p class='muted'>Sin movimientos</p>"}</details>${fichaHistorial(cli)}</div>`;
+  }).join(""):`<div class="card muted">Sin tarjetas aún. Se crean al guardar pedidos con nombre. Cada venta = 1 timbre.</div>`}
+  <div class="card"><h2>Ranking clientes frecuentes</h2>${Object.values(S.clientes).sort((a,b)=>b.pedidos-a.pedidos).slice(0,10).map((c,i)=>`<div class="row"><span>${i+1}. ${esc(c.nombre)} - ${ventasValidas(c)}/10 timbres</span><b>${c.pedidos} pedidos</b></div>`).join("")||"<p class='muted'>Sin datos</p>"}</div>`;
+}
+function avisarTimbres(key){
+  alert("Los avisos por WhatsApp no están conectados. La comanda se puede copiar y enviar manualmente.");
+}
+
+function canjear12(key){
+  const cli=S.clientes[key]; if(!cli) return;
+  if(ventasValidas(cli)<6){aviso("Necesita 6 ventas");return;}
+  if(!confirm(`¿Canjear 12 piezas gratis para ${cli.nombre}? Tiene ${ventasValidas(cli)}/10 timbres. Después de canjear 12, seguirá con ${ventasValidas(cli)} timbres hacia las 10.`)) return;
+  cli.movimientos.push({tipo:'canje6',fecha:new Date().toISOString(),vence:null});
+  cli.canje6=true;
+  aviso(`Canje 12 piezas para ${cli.nombre} registrado. Ahora puede seguir hacia 10 ventas para 36+2 korokes.`);
+  // Crear pedido gratis de 12 piezas para cocina
+  S.pedidos.push({id:S.nextId++,suc:S.suc,fechaISO:ahora(),cliente:cli.nombre,telefono:cli.telefono||"",codigoCliente:cli.codigoCliente||"",modalidad:"Retiro",envio:0,medio:"Canje 6 ventas",medioEnvio:"Efectivo",pagado:true,estado:"Entregado",productos:[{nombre:"PREMIO 12 piezas - Canje 6 ventas",cantidad:1,precioUnit:0,detalle:"Gratis por tarjeta 6 timbres"}],total:0,subtotal:0,textoOriginal:`Canje premio 6 ventas - ${cli.nombre}`,esPremio:true});
+  guardarEnLocalStorage(); render();
+}
+function canjear36(key){
+  const cli=S.clientes[key]; if(!cli) return;
+  if(ventasValidas(cli)<10){aviso("Necesita 10 ventas");return;}
+  if(!confirm(`¿Canjear 36 piezas + 2 korokes GRATIS para ${cli.nombre}? Tiene ${ventasValidas(cli)}/10. Después de canjear, su tarjeta se reinicia a 0.`)) return;
+  cli.movimientos.push({tipo:'canje10',fecha:new Date().toISOString(),vence:null});
+  cli.ventas=0;
+  cli.canje6=false;
+  cli.canje10=false;
+  // Marcar todas las ventas anteriores como canjeadas (reset)
+  aviso(`¡Canje 36+2 korokes para ${cli.nombre}! Tarjeta reiniciada a 0.`);
+  S.pedidos.push({id:S.nextId++,suc:S.suc,fechaISO:ahora(),cliente:cli.nombre,telefono:cli.telefono||"",codigoCliente:cli.codigoCliente||"",modalidad:"Retiro",envio:0,medio:"Canje 10 ventas",medioEnvio:"Efectivo",pagado:true,estado:"Entregado",productos:[{nombre:"PREMIO 36 piezas + 2 korokes - Canje 10 ventas",cantidad:1,precioUnit:0,detalle:"Gratis por tarjeta 10 timbres"}],total:0,subtotal:0,textoOriginal:`Canje premio 10 ventas - ${cli.nombre}`,esPremio:true});
+  guardarEnLocalStorage(); render();
+}
+
+function addGasto(){const c=$("gCon").value.trim(); const m=parseInt($("gMon").value)||0; const med=$("gMed").value; if(!c||!m){aviso("Concepto y monto");return;} S.gastos.push({suc:S.suc,id:Date.now(),fechaISO:ahora(),registradoEn:Date.now(),concepto:c,monto:m,medio:med}); $("gCon").value=""; $("gMon").value=""; render();}
+function quitarGasto(id){S.gastos=S.gastos.filter(x=>x.id!==id);render();}
+function addDM(){const monto=parseInt($("dmMon").value)||0; const cliente=$("dmCli").value.trim(); const nota=$("dmNota").value.trim(); const medio=$("dmMed").value; if(!monto){aviso("Monto delivery");return;} S.deliveriesManuales.push({suc:S.suc,id:Date.now(),fechaISO:ahora(),registradoEn:Date.now(),monto:monto,cliente:cliente,nota:nota,medio:medio}); $("dmMon").value=""; $("dmCli").value=""; $("dmNota").value=""; render();}
+function quitarDM(id){S.deliveriesManuales=S.deliveriesManuales.filter(x=>x.id!==id);render();}
+function savePD(){const m=parseInt($("pdMon").value)||0; const med=$("pdMed").value; if(!m){aviso("Monto pago delivery");return;} const caja=cajaDelDia(); caja.pagoDelivery=m; caja.pagoDeliveryMedio=med; aviso("Pago delivery guardado"); render();}
+function addPropina(){const m=parseInt($("prMon").value)||0; const med=$("prMed").value; if(!m){aviso("Monto propina");return;} S.propinas.push({suc:S.suc,id:Date.now(),fechaISO:ahora(),registradoEn:Date.now(),monto:m,medio:med}); $("prMon").value=""; render();}
+function quitarPropina(id){S.propinas=S.propinas.filter(x=>x.id!==id);render();}
+function addRetiro(){const m=parseInt($("reMon").value)||0; const mot=$("reMot").value.trim(); if(!m){aviso("Monto retiro");return;} S.retiros.push({suc:S.suc,id:Date.now(),fechaISO:ahora(),registradoEn:Date.now(),monto:m,motivo:mot}); $("reMon").value=""; $("reMot").value=""; render();}
+function quitarRetiro(id){S.retiros=S.retiros.filter(x=>x.id!==id);render();}
+function addCC(){const m=parseInt($("ccMon").value)||0; const con=$("ccCon").value.trim(); if(!m){aviso("Monto caja chica");return;} cajaDelDia().cajaChica.gastos.push({id:Date.now(),monto:m,concepto:con}); $("ccMon").value=""; $("ccCon").value=""; render();}
+function quitarCC(id){cajaDelDia().cajaChica.gastos=cajaDelDia().cajaChica.gastos.filter(x=>x.id!==id);render();}
+function setApp(k,v){cajaDelDia().apps[k]=Math.max(0,parseInt(v,10)||0);render();}
+function totales(){
+  const caja=cajaDelDia(),pedidos=delSucHoy(S.pedidos);
+  const pag=pedidos.filter(p=>p.pagado&&p.estado!=="Cancelado"&&!p.esPremio);
+  const medios={}; MEDIOS.forEach(m=>medios[m]=0);
+  pag.forEach(p=>{
+    const envio=p.modalidad==="Delivery"?Math.max(0,Number(p.envio)||0):0;
+    const productos=Math.max(0,Number(p.subtotal??((p.total||0)-envio))||0);
+    const mProducto=MEDIOS.includes(p.medio)?p.medio:"Otros";
+    const mEnvio=MEDIOS.includes(p.medioEnvio)?p.medioEnvio:mProducto;
+    medios[mProducto]+=productos;
+    medios[mEnvio]+=envio;
+  });
+  Object.keys(caja.apps||{}).forEach(k=>{if(APPS.includes(k)||k==="Otros")medios[k]=(medios[k]||0)+(Number(caja.apps[k])||0);});
+  const dms=delSucHoy(S.deliveriesManuales);
+  dms.forEach(d=>{const m=MEDIOS.includes(d.medio)?d.medio:"Otros";medios[m]+=Number(d.monto)||0;});
+  const totalMedios=Object.values(medios).reduce((a,b)=>a+b,0);
+  const dels=pag.filter(x=>x.modalidad==="Delivery");
+  const enviosPedidos=dels.reduce((a,x)=>a+(Number(x.envio)||0),0);
+  const enviosManuales=dms.reduce((a,d)=>a+(Number(d.monto)||0),0);
+  const envios=enviosPedidos+enviosManuales;
+  const nDeliv=dels.length+dms.length;
+  const gastos=delSucHoy(S.gastos),retiros=delSucHoy(S.retiros),propinas=delSucHoy(S.propinas);
+  const gastosTotal=gastos.reduce((a,x)=>a+(Number(x.monto)||0),0);
+  const gastosEf=gastos.filter(g=>g.medio==="Efectivo").reduce((a,x)=>a+(Number(x.monto)||0),0);
+  const retirosTotal=retiros.reduce((a,x)=>a+(Number(x.monto)||0),0);
+  const pagoDelivery=Number(caja.pagoDelivery)||0;
+  return {
+    medios,totalMedios,nDeliv,envios,enviosPedidos,enviosManuales,base:caja.base,pagoDelivery,
+    ventaSinDelivery:totalMedios-envios,gastosTotal,gastosEf,retirosTotal,
+    propinas:propinas.reduce((a,x)=>a+(Number(x.monto)||0),0),
+    efectivoCaja:(medios.Efectivo||0)-gastosEf-retirosTotal-(caja.pagoDeliveryMedio==="Efectivo"?pagoDelivery:0),
+    final:totalMedios-pagoDelivery-gastosTotal,
+    n:pedidos.filter(x=>x.estado!=="Cancelado"&&!x.esPremio).length,
+    dels,cancelados:pedidos.filter(x=>x.estado==="Cancelado").length,pagadosN:pag.length,
+    pendientesN:pedidos.filter(x=>x.estado!=="Cancelado"&&!x.pagado&&!x.esPremio).length,
+    delsConManuales:dels.map(x=>({id:x.id,cliente:x.cliente,envio:x.envio||0,medio:x.medioEnvio||x.medio}))
+       .concat(dms.map(d=>({id:"M"+d.id,cliente:d.cliente||"Manual",envio:d.monto,medio:d.medio})))
+  };
+}
+
+function vCaja(){
+  if(!S.suc)return vInicio();
+  const active=CAJA_TABS.find(x=>x[0]===cajaTab)||CAJA_TABS[0];
+  const content=({resumen:vCajaResumen,movimientos:vMovimientos,cierre:vCierre,historial:vHistorialCompacto})[active[0]]();
+  return `<div class="section-head"><h2>Caja</h2><p>Control diario · ${hoyLocal()}</p></div>
+  <div class="sub-tabs" role="group" aria-label="Secciones de caja">${CAJA_TABS.map(([k,l])=>`<button class="${cajaTab===k?'selected':''}" onclick="cambiarCajaTab('${k}')">${l}</button>`).join('')}</div>${content}<div class="card"><h2>💾 Respaldo protegido de esta sucursal</h2><p class="muted">Guarda un respaldo cifrado al terminar el turno. La clave no se guarda: si la olvidas, no podrás recuperar ese archivo.</p><label>Crear clave para este respaldo (minimo 12 caracteres)</label><input id="ukiClaveBackup" type="password" autocomplete="new-password" placeholder="Clave de respaldo"><label>Repite la clave</label><input id="ukiConfirmaBackup" type="password" autocomplete="new-password" placeholder="Confirmar clave"><button class="big" onclick="descargarRespaldoCompleto()">Descargar respaldo cifrado</button><hr><p class="muted">Restaurar reemplaza los registros actuales de esta sucursal. Antes guarda una copia. También se admiten los respaldos anteriores v8.11 sin cifrar.</p><label>Clave del respaldo (si está cifrado)</label><input id="ukiClaveRestaurar" type="password" autocomplete="off" placeholder="Clave del archivo"><label>Elegir archivo para restaurar</label><input type="file" accept=".json,application/json" onchange="cargarRespaldo(event)"></div>`;
+}
+function vCajaResumen(){
+  const t=totales(), caja=cajaDelDia();
+  return `<section class="kpis"><div class="kpi"><span>Venta total</span><strong>${fmt(t.totalMedios)}</strong></div><div class="kpi"><span>Sin delivery</span><strong>${fmt(t.ventaSinDelivery)}</strong></div><div class="kpi"><span>Gastos</span><strong>${fmt(t.gastosTotal)}</strong></div><div class="kpi"><span>Efectivo que queda</span><strong>${fmt(t.efectivoCaja)}</strong></div></section>
+    <div class="card"><h2>Resumen de hoy</h2>${row('Pedidos pagados',t.pagadosN)}${row('Delivery cobrado',fmt(t.envios))}${row('Pago a repartidor',fmt(t.pagoDelivery))}${row('Total final',fmt(t.final),'final')}</div>
+    <div class="quick-grid"><button class="quick" onclick="cambiarCajaTab('movimientos')">✎ Agregar movimiento <span>›</span></button><button class="quick" onclick="cambiarCajaTab('cierre')">▣ Cerrar el día <span>›</span></button><button class="quick" onclick="cambiarCajaTab('historial')">◷ Historial <span>›</span></button><button class="quick" onclick="descargarRespaldoCompleto()">⇩ Descargar respaldo <span>›</span></button></div>`;
+}
+function vMovimientos(){
+  // Reutiliza intactas las siete tarjetas de movimientos de vRegistros.
+  const tmp=document.createElement('div'); tmp.innerHTML=vRegistros();
+  const cards=Array.from(tmp.children);
+  const index={apps:1,delivery:2,gastos:3,repartidor:4,propinas:5,retiros:6,chica:7}[movimientoTab];
+  const selected=cards[index];
+  return `<div class="movement-tabs" role="group" aria-label="Tipos de movimiento">${MOV_TABS.map(([k,l])=>`<button class="${movimientoTab===k?'selected':''}" onclick="cambiarMovimientoTab('${k}')">${l}</button>`).join('')}</div>
+    ${selected?selected.outerHTML:'<div class="card">No se encontró esta sección. Regresa al resumen.</div>'}`;
+}
+
+function vRegistros(){
+  if(!S.suc) return vInicio(); const t=totales(); const caja=cajaDelDia(); const gastos=delSucHoy(S.gastos); const propinas=delSucHoy(S.propinas); const retiros=delSucHoy(S.retiros); const dms=delSucHoy(S.deliveriesManuales);
+  return `<div class="card"><h2>Precierre de hoy · ${hoyLocal()}</h2>${row("Pedidos",t.n)}${row("Pagados",t.pagadosN)}${row("Pendientes pago",t.pendientesN)}${row("Cancelados",t.cancelados)}${row("Efectivo",fmt(t.medios.Efectivo))}${row("Transferencia",fmt(t.medios.Transferencia))}${row("Débito",fmt(t.medios.Débito))}${row("Edenred",fmt(t.medios.Edenred))}${row("Otros",fmt(t.medios.Otros))}${row("Uber Eats",fmt(t.medios["Uber Eats"]))}${row("PedidosYa",fmt(t.medios.PedidosYa))}${row("Rappi",fmt(t.medios.Rappi))}${row("Venta total con delivery",fmt(t.totalMedios),"sub")}${row("Deliveries del día ("+t.nDeliv+")",fmt(t.envios))}${row("− Pago a delivery ("+caja.pagoDeliveryMedio+")",fmt(t.pagoDelivery),"neg")}${row("− Gastos",fmt(t.gastosTotal),"neg")}${row("Venta total - gastos",fmt(t.totalMedios-t.gastosTotal))}${row("Total final (venta - pago delivery - gastos)",fmt(t.final),"final")}</div>
+  <div class="card"><h2>💳 Ventas manuales por app - como v2 arriba</h2><p class="muted">Solo si no están como pedido. Se suman a la venta.</p>${APPS.concat("Otros").map(k=>`<label>${k}</label><input type="number" value="${caja.apps[k]||""}" inputmode="numeric" placeholder="0" onchange="setApp('${k}',this.value)">`).join("")}</div>
+  <div class="card"><h2>🛵 Deliverys manuales del día</h2><label>Monto cobrado</label><input id="dmMon" type="number" inputmode="numeric" placeholder="Ej: 2000"><label>Cliente (opcional)</label><input id="dmCli" placeholder="Ej: Juan"><label>Nota</label><input id="dmNota" placeholder="Casa azul"><label>Medio</label><select id="dmMed">${MEDIOS.map(m=>`<option>${m}</option>`).join("")}</select><button class="big" onclick="addDM()">+ Agregar delivery manual</button>${dms.length?dms.map(d=>`<div class="row"><span>${esc(d.cliente||"Manual")} - ${esc(d.nota||"")}</span><b>${fmt(d.monto)} <button class="sm" onclick="quitarDM(${d.id})">✕</button></b></div>`).join(""):"<p class='muted'>Sin deliverys manuales hoy</p>"}</div>
+  <div class="card"><h2>Gastos del día</h2><label>Concepto</label><input id="gCon" placeholder="Ej: Palta"><label>Monto</label><input id="gMon" type="number" inputmode="numeric"><label>Medio</label><select id="gMed">${MEDIOS.map(m=>`<option>${m}</option>`).join("")}</select><button class="big" onclick="addGasto()">+ Agregar gasto</button>${gastos.map(g=>`<div class="row"><span>${esc(g.concepto)} - ${esc(g.medio)}</span><b>${fmt(g.monto)} <button class="sm" onclick="quitarGasto(${g.id})">✕</button></b></div>`).join("")||"<p class='muted'>Sin gastos</p>"}${row("Total gastos",fmt(t.gastosTotal),"sub")}</div>
+  <div class="card"><h2>Pago a delivery</h2><label>Monto pagado desde caja</label><input id="pdMon" type="number" value="${caja.pagoDelivery||""}" inputmode="numeric"><label>Medio</label><select id="pdMed">${MEDIOS.map(m=>`<option ${m===caja.pagoDeliveryMedio?"selected":""}>${m}</option>`).join("")}</select><button class="big" onclick="savePD()">Guardar pago delivery</button>${row("Pagado hoy",fmt(caja.pagoDelivery))}</div>
+  <div class="card"><h2>Propinas (aparte)</h2><label>Monto</label><input id="prMon" type="number" inputmode="numeric"><label>Medio</label><select id="prMed">${MEDIOS.map(m=>`<option>${m}</option>`).join("")}</select><button class="big" onclick="addPropina()">+ Agregar propina</button>${propinas.map(p=>`<div class="row"><span>${esc(p.medio)}</span><b>${fmt(p.monto)} <button class="sm" onclick="quitarPropina(${p.id})">✕</button></b></div>`).join("")||"<p class='muted'>Sin propinas</p>"}</div>
+  <div class="card"><h2>Retiros de efectivo</h2><label>Monto</label><input id="reMon" type="number" inputmode="numeric"><label>Motivo</label><input id="reMot" placeholder="Ej: Compra"><button class="big" onclick="addRetiro()">+ Agregar retiro</button>${retiros.map(r=>`<div class="row"><span>${esc(r.motivo||"Retiro")}</span><b>${fmt(r.monto)} <button class="sm" onclick="quitarRetiro(${r.id})">✕</button></b></div>`).join("")||"<p class='muted'>Sin retiros</p>"}</div>
+  <div class="card"><h2>Caja chica</h2><label>Inicial</label><input type="number" value="${caja.cajaChica.inicial}" onchange="cajaDelDia().cajaChica.inicial=Math.max(0,parseInt(this.value)||0);render()" inputmode="numeric"><label>Concepto</label><input id="ccCon" placeholder="Detergente"><label>Monto</label><input id="ccMon" type="number" inputmode="numeric"><button class="big" onclick="addCC()">+ Agregar gasto caja chica</button>${caja.cajaChica.gastos.map(g=>`<div class="row"><span>${esc(g.concepto)}</span><b>${fmt(g.monto)} <button class="sm" onclick="quitarCC(${g.id})">✕</button></b></div>`).join("")||"<p class='muted'>Sin gastos</p>"}${row("Saldo caja chica",fmt(caja.cajaChica.inicial - caja.cajaChica.gastos.reduce((a,g)=>a+g.monto,0)),"sub")}</div>`;
+}
+function vCierre(){
+  if(!S.suc) return vInicio(); const t=totales(); const caja=cajaDelDia();
+  return `<div class="card"><h2>Venta del día</h2>${row("Pedidos del día",t.n)}${row("Pedidos pagados",t.pagadosN)}${row("Efectivo",fmt(t.medios.Efectivo))}${row("Transferencia",fmt(t.medios.Transferencia))}${row("Débito",fmt(t.medios.Débito))}${row("Edenred",fmt(t.medios.Edenred))}${row("Otros",fmt(t.medios.Otros))}${row("Uber Eats",fmt(t.medios["Uber Eats"]))}${row("PedidosYa",fmt(t.medios.PedidosYa))}${row("Rappi",fmt(t.medios.Rappi))}${row("Venta total con delivery",fmt(t.totalMedios),"sub")}${row("Venta sin delivery",fmt(t.ventaSinDelivery))}</div>
+  <div class="card" style="border:2px solid var(--accent)"><h2>🛵 Total de delivery</h2><label>Base diaria ($)</label><input type="number" value="${caja.base}" inputmode="numeric" onchange="cajaDelDia().base=Math.max(0,parseInt(this.value)||0);render()" style="font-weight:700">${row("Base diaria",fmt(caja.base))}${row("Deliveries pedidos ("+t.dels.length+")",fmt(t.enviosPedidos))}${row("Deliveries manuales ("+delSucHoy(S.deliveriesManuales).length+")",fmt(t.enviosManuales))}${row("Deliveries del día ("+t.nDeliv+")",fmt(t.envios))}${row("Total delivery (base + deliveries)",fmt(caja.base+t.envios),"final")}</div>
+  <div class="card"><h2>Resultado final</h2>${row("Venta total con delivery",fmt(t.totalMedios))}${row("− Pago a delivery ("+caja.pagoDeliveryMedio+")",fmt(t.pagoDelivery),"neg")}${row("Venta - pago delivery",fmt(t.totalMedios-t.pagoDelivery))}${row("− Gastos",fmt(t.gastosTotal),"neg")}${row("Venta total - gastos",fmt(t.totalMedios-t.gastosTotal),"sub")}${row("Total final (venta - pago delivery - gastos)",fmt(t.final),"final")}${row("Efectivo que queda en caja",fmt(t.efectivoCaja))}${row("Propinas (aparte)",fmt(t.propinas))}</div>
+  <div class="card"><h2>Cerrar el día</h2><label>Responsable</label><input id="resp" placeholder="Nombre" value="${esc(cierreDraft.resp)}" oninput="cierreDraft.resp=this.value"><label>Observaciones</label><textarea id="obs" rows="2" oninput="cierreDraft.obs=this.value">${esc(cierreDraft.obs)}</textarea>${S.confirmCierre?'<p class="aviso" style="background:#ffe1e1;color:#7a0010">Toca otra vez Confirmar cierre para guardar.</p>':""}<button class="big" onclick="cerrar()">${S.confirmCierre?"Confirmar cierre":"Cerrar día"}</button></div>
+  <div class="card"><h2>📱 Compartir y Descargar</h2><button class="big" style="background:#25D366" onclick="compartirWhatsAppCierre()">📲 Compartir cierre por WhatsApp</button><button class="big" onclick="descargarPDF('cierre')">📄 Descargar cierre TXT</button><button class="big" style="background:#111" onclick="descargarExcel('cierre')">📊 Descargar Excel cierre</button></div>`;
+}
+// Fechas independientes: pedidos por fecha del pedido, incidencias por fecha del reporte.
+let filtroCodigoCarta="",filtroDiaPedidos="",filtroDiaIncidencias="",erroresAbiertos=false;
+function fechaLocalRegistro(fecha){
+  if(!fecha)return "";
+  const d=new Date(fecha);
+  if(Number.isNaN(d.getTime()))return String(fecha).slice(0,10);
+  d.setMinutes(d.getMinutes()-d.getTimezoneOffset());
+  return d.toISOString().slice(0,10);
+}
+function aplicarDiaIncidencias(){filtroDiaIncidencias=($("diaErrorFiltro")?.value||"").trim();erroresAbiertos=true;render();}
+function aplicarFiltrosPedidos(){
+  filtroCodigoCarta=($("codigoFiltro")?.value||"").trim();
+  filtroDiaPedidos=($("diaPedidoFiltro")?.value||"").trim();
+  render();
+}
+function limpiarFiltrosPedidos(){filtroCodigoCarta="";filtroDiaPedidos="";filtroDiaIncidencias="";erroresAbiertos=false;render();}
+function anotarIncidencia(pedidoId){
+  const p=S.pedidos.find(x=>x.id===pedidoId && x.suc===S.suc);if(!p)return;
+  const problema=($("incProblema"+pedidoId)?.value||"").trim();
+  const solucion=($("incSolucion"+pedidoId)?.value||"").trim();
+  if(!problema){aviso("Describe el error antes de guardarlo.");return;}
+  if(!Array.isArray(S.incidencias))S.incidencias=[];
+  if(!Number.isInteger(S.nextIncidenciaId))S.nextIncidenciaId=1;
+  S.incidencias.push({id:S.nextIncidenciaId++,suc:p.suc,pedidoId:p.id,codigoCarta:p.codigoCarta||"",fecha:new Date().toISOString(),problema,solucion,estado:solucion?"Resuelto":"Pendiente"});
+  pedidoExpandido=p.id;aviso("Incidencia asociada al pedido guardada.");render();
+}
+function resolverIncidencia(id,contexto="lista"){
+  const x=(S.incidencias||[]).find(v=>v.id===id && v.suc===S.suc);if(!x)return;
+  const solucion=($("incRespuesta"+contexto+id)?.value||"").trim();
+  if(!solucion){aviso("Escribe como se soluciono antes de marcar resuelto.");return;}
+  x.solucion=solucion;x.estado="Resuelto";x.resueltoEn=new Date().toISOString();
+  aviso("Incidencia resuelta.");render();
+}
+function renderIncidencia(x,contexto="lista"){
+  const encabezado=x.codigoCarta?"Carta #"+x.codigoCarta:"Interno #"+x.pedidoId;
+  return `<div class="card" style="padding:12px;margin:9px 0"><b>${esc(encabezado)} · ${esc(x.estado)}</b><p class="muted">Reportado ${esc(x.fecha.slice(0,10))} · ${esc(x.suc)}</p><p>${esc(x.problema)}</p>${x.solucion?`<p><b>Solucion:</b> ${esc(x.solucion)}</p>`:""}${x.estado==="Pendiente"?`<label>Solucion aplicada</label><textarea id="incRespuesta${contexto}${x.id}" rows="2" placeholder="Describe la solucion"></textarea><button class="sm ok" onclick="resolverIncidencia(${x.id},'${contexto}')">Marcar resuelto</button>`:""}</div>`;
+}
+function vPedidos(){
+  if(!S.suc) return vInicio();
+  const todos=pedidosSuc().filter(p=>(!filtroCodigoCarta || String(p.codigoCarta||p.id).toLowerCase().includes(filtroCodigoCarta.toLowerCase())) && (!filtroDiaPedidos || String(p.fechaISO||"").slice(0,10)===filtroDiaPedidos)).slice().reverse();
+  const incidencias=(S.incidencias||[]).filter(x=>x.suc===S.suc && (!filtroCodigoCarta || String(x.codigoCarta||x.pedidoId).toLowerCase().includes(filtroCodigoCarta.toLowerCase())) && (!filtroDiaIncidencias || fechaLocalRegistro(x.fecha)===filtroDiaIncidencias)).slice().reverse();
+  const pendientes=(S.incidencias||[]).filter(x=>x.suc===S.suc && x.estado!=="Resuelto").length;
+  const pagados=todos.filter(p=>p.pagado&&!p.esPremio&&p.estado!=="Cancelado").length;
+  return `<div class="section-head"><h2>Pedidos</h2><p>${todos.length} registrados · ${pagados} pagados</p></div>
+  <button class="big cta" onclick="ir('nuevo')">＋ Nuevo pedido</button>
+  <div class="card"><h2>Buscar pedidos y WhatsApp</h2><label>Codigo del pedido en la carta</label><input id="codigoFiltro" value="${esc(filtroCodigoCarta)}" placeholder="Ej: 953" inputmode="text"><label>Pedidos del dia</label><input id="diaPedidoFiltro" type="date" value="${esc(filtroDiaPedidos)}"><button class="sm ok" onclick="aplicarFiltrosPedidos()">Buscar pedidos</button><button class="sm" onclick="limpiarFiltrosPedidos()">Ver todos</button><p class="muted">Abre el pedido para ver el WhatsApp original. Puedes buscar un dia anterior.</p></div>
+  <details class="card" ${erroresAbiertos?'open':''}><summary onclick="erroresAbiertos=!erroresAbiertos"><b>⚠️ Errores e incidencias</b> · ${pendientes} pendientes</summary><label>Buscar errores por dia de reporte</label><input id="diaErrorFiltro" type="date" value="${esc(filtroDiaIncidencias)}"><button class="sm ok" onclick="aplicarDiaIncidencias()">Buscar errores</button><p class="muted">Los reportes se conservan aunque se cierre la caja del dia.</p>${incidencias.length?incidencias.map(x=>renderIncidencia(x,"lista")).join(""):"<p class='muted'>No hay errores para esta busqueda.</p>"}</details>
+  ${todos.map(p=>`<details class="card order-card" ${p.id===pedidoExpandido?'open':''}>
+    <summary onclick="pedidoExpandido=${p.id}"><div class="order-head"><div><b>${p.codigoCarta?`Carta #${esc(p.codigoCarta)} · `:""}Interno #${p.id} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small>${p.esPremio?'🎁 Premio':p.pagado?'Pagado':'Pendiente'}</small></div></div></summary>
+    <div class="order-body"><p class="muted">${esc(p.estado||'Entregado')} · ${esc(p.medio||'Efectivo')}${p.telefono?' · '+esc(p.telefono):''}</p>
+    ${(p.productos||[]).map(pr=>`<div class="row"><span>${pr.cantidad}x ${esc(pr.nombre)}${pr.detalle?` · ${esc(pr.detalle)}`:''}</span><b>${fmt(pr.cantidad*pr.precioUnit)}</b></div>`).join('')}
+    ${p.envio?row('Delivery',fmt(p.envio)):''}
+    ${p.codigoCliente?`<p class='muted'>Codigo cliente: ${esc(p.codigoCliente)}</p>`:''}
+    ${p.textoOriginal&&!p.esPremio?`<details class="inner-details"><summary>Ver WhatsApp original</summary><p style="white-space:pre-wrap">${esc(p.textoOriginal)}</p></details>`:''}
+    <details class="inner-details"><summary>⚠️ Registrar error / ver soluciones</summary>
+    ${(S.incidencias||[]).filter(x=>x.suc===p.suc && x.pedidoId===p.id).map(x=>renderIncidencia(x,"orden")).join("")}
+    <label>Que ocurrio</label><textarea rows="2" id="incProblema${p.id}" placeholder="Ej: falto una salsa"></textarea>
+    <label>Solucion (opcional)</label><textarea rows="2" id="incSolucion${p.id}" placeholder="Ej: reposicion enviada"></textarea>
+    <button class="sm ok" onclick="anotarIncidencia(${p.id})">Guardar error</button></details>
+    <div class="order-actions"><button class="sm ok" onclick="editarPedido(${p.id})">Editar</button><button class="sm" onclick="togglePagado(${p.id})">${p.pagado?'Quitar pagado':'Marcar pagado'}</button><button class="sm" onclick="copiarComanda(${p.id})">Copiar comanda</button></div>
+    </div></details>`).join('')||'<div class="card muted">Todavía no hay pedidos. Pulsa Nuevo pedido para comenzar.</div>'}`;
+}
+let pedidoExpandido=null;
+
+function ndGuardar(){
+  if(D.sucursalCarta && D.sucursalCarta.toLowerCase()!==S.suc.toLowerCase()){
+    aviso("Este mensaje corresponde a "+D.sucursalCarta+". Selecciona la sucursal correcta.");return;
+  }
+  if(D.codigoCarta && S.pedidos.some(p=>p.suc===S.suc && String(p.codigoCarta||"")===D.codigoCarta && p.id!==D.editando)){
+    aviso("Ya existe un pedido con ese codigo de carta en esta sucursal.");return;
+  }
+  if(!D.items.filter(x=>x.nombre).length){aviso("Agrega producto");return;}
+  let sub=D.items.filter(x=>x.nombre).reduce((a,i)=>a+i.cant*i.precio,0); 
+  const envio=D.modalidad==="Delivery"?D.envio:0; 
+  let total=sub+envio;
+  if(D.editando){
+    const p=S.pedidos.find(x=>x.id===D.editando);
+    if(p){
+      // Si era premio, no afecta tarjeta
+      if(!p.esPremio && p.cliente && p.pagado){
+        const cliOld=getCliente(p.cliente,p.codigoCliente,p.telefono);
+        if(cliOld && cliOld.movimientos){
+          cliOld.movimientos = cliOld.movimientos.filter(m=>m.pedidoId!==p.id);
+          cliOld.pedidos=Math.max(0,(cliOld.pedidos||1)-1);
+          cliOld.gastado=Math.max(0,(cliOld.gastado||0)-(p.subtotal||0));
+        }
+      }
+      p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||"";p.codigoCarta=D.codigoCarta||"";p.codigoCliente=D.codigoCliente||"";p.sucursalCarta=D.sucursalCarta||""; p.modalidad=D.modalidad; p.envio=envio; p.medio=D.medio; p.medioEnvio=D.medioEnvio; p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})); p.total=total; p.subtotal=sub; p.textoOriginal=D.texto;
+      if(!p.esPremio && D.cliente && D.pagado){
+        const cli=asegurarCliente(D.cliente,D.codigoCliente,D.telefono);
+        cli.gastado+=sub;
+        cli.pedidos+=1;
+        cli.ultimo=new Date().toLocaleDateString("es-CL");
+        cli.movimientos.push({tipo:'venta',fecha:new Date().toISOString(),vence:fechaVencimiento(new Date().toISOString()),pedidoId:p.id});
+      }
+      aviso(`Pedido #${p.id} actualizado $${total} - ${!p.esPremio?'tarjeta actualizada':''}`);
+    }
+    D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[],editando:null};
+    S.vista="pedidos"; render(); return;
+  }
+  const idNuevo=S.nextId++;
+  const nuevoPedido={id:idNuevo,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),cliente:D.cliente,telefono:D.telefono||"",codigoCarta:D.codigoCarta||"",codigoCliente:D.codigoCliente||"",sucursalCarta:D.sucursalCarta||"",modalidad:D.modalidad,envio:envio,medio:D.medio,medioEnvio:D.medioEnvio,pagado:D.pagado,estado:"Pendiente",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),total:total,subtotal:sub,textoOriginal:D.texto,esPremio:false};
+  S.pedidos.push(nuevoPedido);
+  if(D.cliente && D.pagado){
+    const cli=asegurarCliente(D.cliente,D.codigoCliente,D.telefono);
+    cli.gastado+=sub;
+    cli.pedidos+=1;
+    cli.ultimo=new Date().toLocaleDateString("es-CL");
+    cli.movimientos.push({tipo:'venta',fecha:new Date().toISOString(),vence:fechaVencimiento(new Date().toISOString()),pedidoId:idNuevo});
+    const ventas=ventasValidas(cli);
+    if(ventas===6) aviso(`¡${cli.nombre} llegó a 6 ventas! Puede reclamar 12 piezas gratis 🎁`);
+    else if(ventas===10) aviso(`¡${cli.nombre} llegó a 10 ventas! Puede reclamar 36 piezas + 2 korokes gratis 🎉`);
+    else aviso(`Pedido #${idNuevo} guardado $${total} - ${cli.nombre} lleva ${ventas}/10 timbres`);
+  } else {
+    aviso(`Pedido #${idNuevo} guardado ${total}${D.pagado?"":" · Pendiente de pago"}`);
+  }
+  D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[],editando:null}; 
+  S.vista="pedidos"; render();
+}
+function cerrar(){
+  if(S.busy)return;
+  const respEl=$("resp");
+  const resp=respEl?respEl.value.trim():cierreDraft.resp.trim();
+  if(!resp){aviso("⚠️ Escribe quién cierra (ej: Dianna) en Responsable"); if(respEl) respEl.focus(); return;}
+  const t=totales();
+  if(!S.confirmCierre){
+    cierreDraft={resp,obs:$("obs")?$("obs").value.trim():cierreDraft.obs};
+    S.confirmCierre=true;
+    S.msg=`✅ Ahora toca de nuevo Confirmar cierre para guardar. Total final: ${fmt(t.final)}.`;
+    render();
+    setTimeout(()=>{ const b=document.querySelector('button.big'); if(b) b.scrollIntoView({behavior:'smooth'}); },200);
+    return;
+  }
+  S.confirmCierre=false; S.busy=true;
+  const fechaCierre=Date.now(), caja=cajaDelDia();
+  S.cierres.push({
+    suc:S.suc,
+    fecha:new Date().toLocaleString("es-CL",{dateStyle:"short",timeStyle:"short"}),
+    fechaISO:ahora(),fechaMs:fechaCierre,
+    resp,
+    venta:t.totalMedios,
+    ventaSinDelivery:t.ventaSinDelivery,
+    gastos:t.gastosTotal,
+    delivery:t.pagoDelivery,
+    final:t.final,
+    efectivo:t.efectivoCaja,
+    propinas:t.propinas,
+    obs:($("obs")?$("obs").value.trim():cierreDraft.obs),
+    pedidos:t.n,
+    efectivoCobrado:t.medios.Efectivo,
+    gastosEf:t.gastosEf,
+    retiros:t.retirosTotal,
+    pagadoDelivery:t.pagoDelivery,
+    pagoDeliveryMedio:caja.pagoDeliveryMedio,
+    dels:t.delsConManuales,
+    medios:t.medios,
+    base:caja.base,
+    envios:t.envios,
+    enviosPedidos:t.enviosPedidos,
+    enviosManuales:t.enviosManuales
+  });
+  // Empezar un nuevo periodo sin eliminar pedidos, gastos ni cierres antiguos.
+  caja.desdeMs=fechaCierre;
+  caja.apps={}; caja.pagoDelivery=0; caja.pagoDeliveryMedio="Efectivo";
+  caja.cajaChica={inicial:caja.cajaChica.inicial,gastos:[]};
+  guardarEnLocalStorage();
+  S.busy=false;
+  cierreDraft={resp:"",obs:""};
+  aviso("✅ Día cerrado y guardado en Historial");
+  S.vista="caja";cajaTab="historial";
+  render();
+}
+function descargarTextoArchivo(nombre, contenido, mime){
+  try{
+    const blob=new Blob([contenido],{type:mime});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download=nombre;
+    a.style.display="none";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(url); try{a.remove();}catch(e){} },1500);
+    // Fallback iPhone: si no descarga, abrir en nueva pestaña y copiar
+    setTimeout(()=>{
+      if(navigator.clipboard && mime.includes("csv")){
+        // no hacer nada extra
+      }
+    },800);
+    return true;
+  }catch(e){
+    // Fallback: mostrar texto para copiar
+    if(navigator.clipboard){
+      navigator.clipboard.writeText(contenido).then(()=>aviso("✅ Contenido copiado - pégalo en Notas/Excel")).catch(()=>{});
+    }
+    aviso(contenido.slice(0,500));
+    return false;
+  }
+}
+function descargarPDF(tipo){
+  if(tipo==="historial"){
+    const cierres=delSuc(S.cierres).filter(x=>!S.filtro||x.fecha.includes(S.filtro));
+    if(!cierres.length){aviso("No hay cierres para descargar");return;}
+    let txt=`Uki Sushi - ${S.suc} - HISTORIAL COMPLETO - ${new Date().toLocaleString("es-CL")}\n`;
+    txt+=`Total cierres: ${cierres.length}\n\n`;
+    cierres.forEach((x,i)=>{
+      txt+=`=== CIERRE ${i+1} - ${x.fecha} - ${x.resp} ===\n`;
+      txt+=`Pedidos: ${x.pedidos}\n`;
+      if(x.medios){
+        Object.keys(x.medios).forEach(k=>{ txt+=`${k}: $${x.medios[k]}\n`; });
+      }
+      txt+=`Venta con delivery: $${x.venta}\nVenta sin delivery: $${x.ventaSinDelivery}\n`;
+      txt+=`Base: $${x.base||0} - Deliveries: $${x.envios||0} (${x.enviosPedidos||0}+${x.enviosManuales||0})\n`;
+      txt+=`Gastos: $${x.gastos} - Delivery pagado: $${x.pagadoDelivery} (${x.pagoDeliveryMedio})\n`;
+      txt+=`Total final: $${x.final} - Efectivo quedó: $${x.efectivo}\n`;
+      if(x.obs) txt+=`Obs: ${x.obs}\n`;
+      txt+=`\n`;
+    });
+    descargarTextoArchivo(`historial-${S.suc||"todas"}-${new Date().toISOString().slice(0,10)}.txt`, txt, "text/plain");
+    aviso("📄 Historial TXT descargado (abre en Archivos)");
+  } else {
+    const t=totales(), caja=cajaDelDia();
+    let txt=`Uki Sushi - ${S.suc} - CIERRE DEL DÍA - ${new Date().toLocaleString("es-CL")}\n\n`;
+    txt+=`=== PAGOS DESGLOSADOS ===\n`;
+    Object.keys(t.medios).forEach(k=>{ txt+=`${k}: ${fmt(t.medios[k])}\n`; });
+    txt+=`\nPedidos: ${t.n} - Pagados: ${t.pagadosN} - Pendientes: ${t.pendientesN}\n`;
+    txt+=`Venta con delivery: ${fmt(t.totalMedios)}\nVenta sin delivery: ${fmt(t.ventaSinDelivery)}\n`;
+    txt+=`Deliveries: ${fmt(t.envios)} (${t.enviosPedidos} pedidos + ${t.enviosManuales} manuales)\n`;
+    txt+=`Base diaria: ${fmt(caja.base)}\nTotal delivery (base+envios): ${fmt(caja.base+t.envios)}\n`;
+    txt+=`Pago a delivery (${caja.pagoDeliveryMedio}): ${fmt(t.pagoDelivery)}\n`;
+    txt+=`Gastos: ${fmt(t.gastosTotal)}\nVenta - gastos: ${fmt(t.totalMedios-t.gastosTotal)}\n`;
+    txt+=`Total final: ${fmt(t.final)}\nEfectivo queda: ${fmt(t.efectivoCaja)}\nPropinas: ${fmt(t.propinas)}\n`;
+    descargarTextoArchivo(`cierre-${S.suc}-${new Date().toISOString().slice(0,10)}.txt`, txt, "text/plain");
+    aviso("📄 Cierre TXT descargado");
+  }
+}
+// Protege celdas de texto de Excel contra formulas y saltos de columna.
+function csvSeguro(valor){
+ let texto=String(valor??"").replace(/[\r\n\x00-\x1F]+/g," ");
+ if(/^\s*[=+\-@]/.test(texto))texto="'"+texto;
+ return '"'+texto.replace(/"/g,'""')+'"';
+}
+
+function descargarExcel(tipo){
+  if(tipo==="historial"){
+    const cierres=delSuc(S.cierres).filter(x=>!S.filtro||x.fecha.includes(S.filtro));
+    if(!cierres.length){aviso("No hay cierres");return;}
+    let csv="Fecha;Responsable;Pedidos;Efectivo;Transferencia;Debito;Edenred;Otros;Uber Eats;PedidosYa;Rappi;Venta con delivery;Venta sin delivery;Base;Deliveries;Gastos;Pago Delivery;Total final;Efectivo quedo;Obs\n";
+    cierres.forEach(x=>{
+      const m=x.medios||{};
+      csv+=`${csvSeguro(x.fecha)};${csvSeguro(x.resp)};${x.pedidos};${m.Efectivo||0};${m.Transferencia||0};${m.Débito||0};${m.Edenred||0};${m.Otros||0};${m["Uber Eats"]||0};${m.PedidosYa||0};${m.Rappi||0};${x.venta};${x.ventaSinDelivery||0};${x.base||0};${x.envios||0};${x.gastos};${x.pagadoDelivery};${x.final};${x.efectivo};${csvSeguro(x.obs||"")}\n`;
+    });
+    descargarTextoArchivo(`historial-${S.suc}-${new Date().toISOString().slice(0,10)}.csv`, csv, "text/csv;charset=utf-8");
+    aviso("📊 Excel historial descargado");
+  } else {
+    const t=totales(), caja=cajaDelDia();
+    let csv="Concepto;Monto;Detalle\n";
+    Object.keys(t.medios).forEach(k=>{ csv+=`${csvSeguro(k)};${t.medios[k]};Pago\n`; });
+    csv+=`Pedidos;${t.n};\nPagados;${t.pagadosN};\nPendientes;${t.pendientesN};\n`;
+    csv+=`Venta con delivery;${t.totalMedios};\nVenta sin delivery;${t.ventaSinDelivery};\n`;
+    csv+=`Base diaria;${caja.base};\nDeliveries pedidos;${t.enviosPedidos};\nDeliveries manuales;${t.enviosManuales};\nTotal deliveries;${t.envios};\nTotal delivery (base+envios);${caja.base+t.envios};\n`;
+    csv+=`Pago a delivery (${csvSeguro(caja.pagoDeliveryMedio)});${t.pagoDelivery};\n`;
+    csv+=`Gastos total;${t.gastosTotal};\nVenta - gastos;${t.totalMedios-t.gastosTotal};\n`;
+    csv+=`Total final;${t.final};\nEfectivo queda;${t.efectivoCaja};\nPropinas;${t.propinas};\n`;
+    descargarTextoArchivo(`cierre-${S.suc}-${new Date().toISOString().slice(0,10)}.csv`, csv, "text/csv;charset=utf-8");
+    aviso("📊 Excel cierre descargado con todos los pagos");
+  }
+}
+function copiarResumen(){
+  const c=delSuc(S.cierres).filter(x=>!S.filtro||x.fecha.includes(S.filtro));
+  if(!c.length){aviso("No hay cierres");return;}
+  const txt=["Fecha;Responsable;Pedidos;Efectivo;Transferencia;Debito;Venta con delivery;Deliveries;Efectivo que queda;Total final",...c.map(x=>{
+    const m=x.medios||{};
+    return [x.fecha,x.resp,x.pedidos,m.Efectivo||0,m.Transferencia||0,m.Débito||0,x.venta,(x.dels||[]).reduce((a,d)=>a+(d.envio||0),0),x.efectivo,x.final].join(";");
+  })].join("\n");
+  if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>aviso("✅ Resumen copiado - pega en Excel")).catch(()=>aviso(txt.slice(0,1000)));
+  else aviso(txt.slice(0,1000));
+}
+function compartirWhatsAppCierre(){
+  alert("Solo demostración: no se abre WhatsApp ni se envían datos. Usa únicamente datos ficticios.");
+}
+
+function vHistorialCompacto(){
+  const tmp=document.createElement('div');tmp.innerHTML=vHistorial();
+  Array.from(tmp.children).forEach((card,i)=>{
+    if(i===0||!card.classList?.contains('card'))return;
+    const heading=card.querySelector('h2');if(!heading)return;
+    const d=document.createElement('details');d.className='card history-entry';
+    const summary=document.createElement('summary');summary.textContent=heading.textContent||'Cierre';
+    d.appendChild(summary);heading.remove();
+    while(card.firstChild)d.appendChild(card.firstChild);
+    card.replaceWith(d);
+  });
+  return tmp.innerHTML;
+}
+
+function vHistorial(){
+  if(!S.suc) return vInicio(); const todos=delSuc(S.cierres); let c=todos;
+  if(S.filtro) c=c.filter(x=>x.fecha.includes(S.filtro));
+  if(S.filtroFecha){const f=S.filtroFecha; c=c.filter(x=>x.fecha.includes(f.split("-").reverse().join("-").slice(0,5)));}
+  c=c.slice().reverse();
+  const buscador=`<div class="card"><h2>Buscar por día</h2><label>Texto (ej: 29-10)</label><input placeholder="Ej: 29-10" value="${esc(S.filtro||"")}" oninput="S.filtro=this.value;render()"><label>Calendario</label><input type="date" value="${S.filtroFecha||""}" onchange="S.filtroFecha=this.value;render()"><p class="muted">Cada cierre queda guardado aquí.</p>${c.length?row("Días mostrados",c.length)+row("Deliveries en total",fmt(c.reduce((a,x)=>a+(x.dels||[]).reduce((b,d)=>b+(d.envio||0),0),0)))+row("Efectivo que quedó en total",fmt(c.reduce((a,x)=>a+x.efectivo,0))):""}<button class="sm" onclick="S.filtro='';S.filtroFecha='';render()">Limpiar</button><button class="sm" onclick="copiarResumen()">Copiar resumen</button><button class="sm" onclick="descargarPDF('historial')">Historial TXT</button><button class="sm" onclick="descargarExcel('historial')">Excel historial</button><button class="sm ok" onclick="descargarRespaldoCompleto()">💾 Respaldo PC</button></div>`;
+  if(!c.length) return buscador+'<div class="card muted">Sin cierres para mostrar - Haz un cierre en Cierre del día con Responsable</div>';
+  return buscador+c.map(x=>{
+    const m=x.medios||{};
+    const mediosRows=Object.keys(m).length?Object.keys(m).map(k=>m[k]>0?row(k,fmt(m[k])):"").join(""):"";
+    return `<div class="card" style="border-left:4px solid var(--accent)"><h2>${esc(x.fecha)} · ${esc(x.resp)}</h2>
+    <p class="muted" style="margin:8px 0 4px"><b>💳 Desglose pagos</b></p>
+    ${mediosRows||'<p class="muted">Sin desglose (cierre antiguo)</p>'}
+    ${row("Pedidos",x.pedidos)}${row("Venta total con delivery",fmt(x.venta),"sub")}${row("Venta sin delivery",fmt(x.ventaSinDelivery||x.venta-(x.envios||0)))}
+    <p class="muted" style="margin:12px 0 2px"><b>🛵 Deliveries (${(x.dels||[]).length}) - Base $${esc(x.base||0)}</b></p>
+    ${(x.dels||[]).map(d=>row(`#${d.id} · ${d.cliente||"sin nombre"}`,fmt(d.envio))).join("")||'<p class="muted">Sin deliveries</p>'}
+    ${row("Deliveries pedidos",fmt(x.enviosPedidos||0))}${row("Deliveries manuales",fmt(x.enviosManuales||0))}${row("Total deliveries",fmt((x.dels||[]).reduce((a,d)=>a+(d.envio||0),0)+(x.base||0)),"sub")}
+    <p class="muted" style="margin:12px 0 2px"><b>💰 Efectivo</b></p>
+    ${row("Efectivo cobrado",fmt(x.efectivoCobrado))}${row("− Gastos en efectivo",fmt(x.gastosEf))}${row("− Retiros",fmt(x.retiros))}${row(`− Pago a delivery (${x.pagoDeliveryMedio||"Efectivo"})`,fmt(x.pagadoDelivery))}${row("Efectivo que quedó",fmt(x.efectivo),"sub")}
+    <p class="muted" style="margin:12px 0 2px"><b>📊 Resultado</b></p>
+    ${row("Gastos",fmt(x.gastos),"neg")}${row("Total final",fmt(x.final),"final")}${row("Propinas (aparte)",fmt(x.propinas))}${x.obs?`<p class="muted" style="background:var(--bg);padding:8px;border-radius:6px;margin-top:8px">📝 ${esc(x.obs)}</p>`:""}
+    </div>`;
+  }).join("");
+}
+
+window.ukiQAGet=()=>S.suc?{suc:S.suc,estado:datosSoloSucursal()}:null;
+window.ukiQASet=async(data)=>{
+ if(!S.suc||!validarEstadoSucursal(data,S.suc))throw Error("Estado inválido para esta sucursal");
+ const prev=S;S={...estadoVacioSucursal(S.suc),...data,suc:S.suc,vista:"pedidos",
+   pinSuc:null,codigos:{},busy:false,msg:null,confirmCierre:false};
+ const saved=await guardarEnLocalStorage();
+ if(!saved){S=prev;throw Error("No se guardó localmente");}
+ render();
+};
+try { cargarDesdeLocalStorage(); render(); } catch(e) {
+  document.getElementById('app').innerHTML = '<div class="card"><h2>No se puede abrir el panel en este navegador</h2><p>Abre el enlace directamente en Safari. Esta copia no ha borrado tus datos.</p><button class="big" onclick="location.reload()">Reintentar</button></div>';
+}
+</script>
+<script type="module">
+
+import {initializeApp} from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
+import {getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
+import {getFirestore,doc,getDocFromServer,writeBatch,runTransaction,onSnapshot} from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
+import {dividirEstado,reunirEstado} from "./uki-particion-local.js";
+import {nuevaSal,nuevaGeneracion,derivarClave,cifrarBloque,descifrarBloque} from "./uki-cifrado-bloques.js";
+import {crearSnapshotsUki} from "./uki-sushi-nube.js";
+import {crearAutoGuardadoOperativo} from "./uki-sushi-autoguardado.js";
+const config={
+ apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",
+ authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",
+ storageBucket:"uki-panel-f4909.firebasestorage.app",
+ messagingSenderId:"1070481165758",
+ appId:"1:1070481165758:web:b8f0f9ff40caf5b8ac7def"
+};
+// Uso interno habilitado después de verificar lectura/escritura de las dos sucursales.
+const UKI_OPERACION_HABILITADA=true;
+const auth=getAuth(initializeApp(config)),db=getFirestore(auth.app);
+const cloud=crearSnapshotsUki({db,auth,api:{doc,getDocFromServer,writeBatch,runTransaction},
+ blocks:{dividirEstado,reunirEstado},
+ codec:{nuevaSal,nuevaGeneracion,derivarClave,cifrarBloque,descifrarBloque}});
+const el=id=>document.getElementById(id);
+let revision=null,sucursalCargada=null,ocupado=false,desuscribir=null;
+const auto=crearAutoGuardadoOperativo({
+ delay:3500,
+ getEstado:()=>window.ukiQAGet?.()?.estado||null,
+ guardar:({sucursal,revisionEsperada,estado})=>cloud.guardar({
+   sucursal,revisionEsperada,estado,password:claveNube()
+ }),
+ avisar:({estado,detalle,revision:rev})=>{
+   const status=el("ukiAutoEstado");
+   if(status)status.textContent="Nube local: "+estado+
+     (rev===null?"":" · revisión "+rev)+(detalle?" · "+detalle:"");
+   const encabezado=el("ukiEstadoOperativo");
+   if(encabezado)encabezado.textContent="Nube: "+estado+(rev===null?"":" · revisión "+rev);
+   el("ukiSaveQA").disabled=auto.resumen().activo;
+   actualizarBloqueo();
+ }
+});
+function claveNube(){
+ const s=el("ukiCloudPass").value;
+ if(s.length<12)throw Error("La clave de nube debe tener al menos 12 caracteres");
+ return s;
+}
+function dejarDeVigilar(){
+ if(desuscribir){desuscribir();desuscribir=null;}
+}
+function vigilarRevisiones(sucursal){
+ dejarDeVigilar();
+ const mapa={"Uki Regimiento Arica":"regimiento","Uki La Serena":"la-serena"};
+ if(!mapa[sucursal])throw Error("Sucursal desconocida");
+ desuscribir=onSnapshot(doc(db,"uki_operacion_v1",mapa[sucursal]),
+    {includeMetadataChanges:true},snap=>{
+      if(snap.metadata.fromCache||snap.metadata.hasPendingWrites)return;
+      const n=snap.exists()?snap.data()?.rev:0;
+      auto.revisionRemota(n);
+    },e=>{
+      const estado=auto.resumen();
+      if(estado.activo)auto.revisionRemota(estado.revision+1);
+      msg("Atención: no se pudo vigilar Firebase. Se requiere cargar la nube de nuevo: "+
+        String(e?.message||e));
+    });
+}
+window.ukiQAOnLocalSaved=s=>{
+ if(auto.resumen().activo&&auto.resumen().sucursal===s)auto.cambioLocal();
+};
+window.ukiQASessionLeft=()=>{
+ dejarDeVigilar();auto.desactivar();revision=null;sucursalCargada=null;
+ el("ukiAutoCheck").checked=false;
+};
+const msg=s=>{el("ukiNubeEstado").textContent=s};
+function actualizarBloqueo(){
+ const estado=auto.resumen();
+ const permitir=UKI_OPERACION_HABILITADA&&estado.activo&&!estado.bloqueado;
+ const haySucursal=!!window.ukiQAGet?.()?.suc;
+ document.body.classList.toggle("uki-operativo-bloqueado",haySucursal&&!permitir);
+}
+window.ukiOperativoActualizar=actualizarBloqueo;
+function contexto(){
+ if(!UKI_OPERACION_HABILITADA)throw Error("Versión sin activar: falta aprobar reglas, pruebas y lanzamiento.");
+ const x=window.ukiQAGet?.();
+ if(!x)throw Error("Abre primero la sucursal correspondiente");
+ if(!auth.currentUser)throw Error("Inicia sesión con Google");
+ const clave=el("ukiCloudPass").value;
+ if(clave.length<12)throw Error("La clave de nube debe tener al menos 12 caracteres");
+ return {...x,clave};
+}
+async function accion(action){
+ if(ocupado)return;
+ ocupado=true;el("ukiLoadQA").disabled=true;el("ukiSaveQA").disabled=true;
+ try{await action()}catch(e){msg("Error de Firebase: "+String(e?.code||"")+": "+String(e?.message||e))}
+ finally{ocupado=false;el("ukiLoadQA").disabled=false;el("ukiSaveQA").disabled=auto.resumen().activo}
+}
+onAuthStateChanged(auth,user=>{
+ revision=null;sucursalCargada=null;
+ auto.desactivar();dejarDeVigilar();
+ el("ukiAutoCheck").checked=false;
+ msg(user?"Google conectado. Abre la sucursal y carga su nube.":"Google sin iniciar. Ingresa con la cuenta exclusiva de Uki Sushi.");
+ actualizarBloqueo();
+},e=>msg("Error de Google: "+String(e?.code||e)));
+el("ukiLoginQA").addEventListener("click",()=>accion(async()=>{
+ await signInWithPopup(auth,new GoogleAuthProvider());
+ msg("Google conectado. Abre la sucursal y carga su nube.");
+}));
+el("ukiLoadQA").addEventListener("click",()=>accion(async()=>{
+ const x=contexto();
+ const data=await cloud.cargar(x.suc,x.clave);
+ auto.desactivar();dejarDeVigilar();
+ if(data.estado){
+  if(!confirm("Esto sustituye SOLO los registros locales de esta sucursal por el respaldo operativo de la nube. ¿Confirmar?")){
+    msg("Carga cancelada. No se modificaron registros.");return;
+  }
+  await window.ukiQASet(data.estado);
+ }
+ revision=data.revision;sucursalCargada=x.suc;
+ el("ukiAutoCheck").checked=true;
+ auto.activar({suc:x.suc,rev:revision,estadoBase:window.ukiQAGet().estado});
+ vigilarRevisiones(x.suc);
+ msg("Revisión operativa cargada: "+revision+". "+(data.estado?"Registros recuperados.":"Nube nueva sin registros."));
+}));
+el("ukiSaveQA").addEventListener("click",()=>accion(async()=>{
+ const x=contexto();
+ if(revision===null||sucursalCargada!==x.suc)
+  throw Error("Debes pulsar Cargar nube antes de guardar");
+ if(!confirm("¿Confirmas el guardado manual cifrado de "+x.suc+" en Firebase?"))return;
+ const result=await cloud.guardar({sucursal:x.suc,password:x.clave,
+   revisionEsperada:revision,estado:x.estado});
+ revision=result.revision;
+ if(el("ukiAutoCheck").checked){
+   auto.activar({suc:x.suc,rev:revision,estadoBase:window.ukiQAGet().estado});
+   vigilarRevisiones(x.suc);
+ }
+ msg("Guardado cifrado confirmado, revisión "+revision+", bloques "+result.bloques+".");
+}));
+
+el("ukiAutoCheck").addEventListener("change",()=>{
+ if(!el("ukiAutoCheck").checked){auto.desactivar();dejarDeVigilar();actualizarBloqueo();return;}
+ const contextoLocal=window.ukiQAGet?.();
+ if(revision===null||!contextoLocal||sucursalCargada!==contextoLocal.suc){
+   el("ukiAutoCheck").checked=false;
+   msg("Primero abre la sucursal y carga la nube para activar el guardado.");
+   return;
+ }
+ auto.activar({suc:contextoLocal.suc,rev:revision,estadoBase:contextoLocal.estado});
+ vigilarRevisiones(contextoLocal.suc);
+});
+</script>
+</body></html>
