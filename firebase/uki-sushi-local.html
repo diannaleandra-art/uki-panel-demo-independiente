@@ -708,6 +708,8 @@ function fichaHistorial(cli){
       +' '+esc(p.codigoCarta?"#"+p.codigoCarta:"interno #"+p.id)+' · '+esc(fecha(p.fechaISO))
       +' · '+fmt(p.total)+'</summary><div style="padding:8px"><p class="muted">'
       +esc(p.suc||"Sucursal no indicada")+' · '+esc(p.modalidad||"")+' · '+esc(p.medio||"")+'</p>'
+      +'<p class="muted">Estado: '+esc(p.estado||"Pendiente")
+      +(p.estado==="Cancelado"?' · '+esc(p.motivoCancelacion==="cliente"?"Cancelado por el cliente":p.motivoCancelacion==="local"?"Cancelado por el local":"Motivo no informado"):'')+'</p>'
       +(p.productos||[]).map(x=>'<div class="row"><span>'+esc(x.cantidad)+' × '+esc(x.nombre)
         +(x.detalle?' · '+esc(x.detalle):'')+'</span><b>'+fmt((+x.cantidad||0)*(+x.precioUnit||0))+'</b></div>').join('')
       +(p.envio?'<div class="row"><span>Delivery</span><b>'+fmt(p.envio)+'</b></div>':'')
