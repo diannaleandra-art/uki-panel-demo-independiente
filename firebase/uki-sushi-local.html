@@ -596,11 +596,11 @@ function vNuevo(){
   <div class="card"><h2>Medios de pago</h2><label>Medio productos</label><div class="chips">${MEDIOS.map(m=>`<button ${chip(D.medio===m)} onclick="D.medio='${m}';render()">${m}</button>`).join("")}</div><label>Medio delivery</label><div class="chips">${MEDIOS.filter(m=>!APPS.includes(m)).map(m=>`<button ${chip(D.medioEnvio===m)} onclick="D.medioEnvio='${m}';render()">${m}</button>`).join("")}</div><label class="check"><input type="checkbox" ${D.pagado?"checked":""} onchange="D.pagado=this.checked;render()"> <b>Pagado</b></label></div><button class="big" onclick="ndGuardar()">${D.editando?`💾 Guardar cambios #${D.editando}`:`✅ Guardar pedido +1 timbre`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición</button>`:""}`;
 }
 
-function editarPedido(id){const p=S.pedidos.find(x=>x.id===id); if(!p)return; D={texto:p.textoOriginal||"",fecha:p.fechaISO||ahora(),cliente:p.cliente||"",telefono:p.telefono||"",codigoCarta:p.codigoCarta||"",codigoCliente:p.codigoCliente||"",sucursalCarta:p.sucursalCarta||"",modalidad:p.modalidad||"Retiro",envio:p.envio||0,medio:p.medio||"Efectivo",medioEnvio:p.medioEnvio||"Efectivo",pagado:!!p.pagado,items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}]; ir("nuevo"); aviso(`Editando pedido #${id}`);}
+function editarPedido(id){const p=S.pedidos.find(x=>x.id===id); if(!p)return; if(p.estado==="Cancelado"){aviso("El pedido cancelado permanece en el historial y no se puede editar.");return;} D={texto:p.textoOriginal||"",fecha:p.fechaISO||ahora(),cliente:p.cliente||"",telefono:p.telefono||"",codigoCarta:p.codigoCarta||"",codigoCliente:p.codigoCliente||"",sucursalCarta:p.sucursalCarta||"",modalidad:p.modalidad||"Retiro",envio:p.envio||0,medio:p.medio||"Efectivo",medioEnvio:p.medioEnvio||"Efectivo",pagado:!!p.pagado,items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}]; ir("nuevo"); aviso(`Editando pedido #${id}`);}
 function reanalizar(){leerTextoD();}
 function copiarComanda(id){const p=S.pedidos.find(x=>x.id===id); if(!p) return; const txt=[`#${p.id} ${p.modalidad}`, ...(p.productos||[]).map(pr=>`${pr.cantidad}x ${pr.nombre}${pr.detalle?` (${pr.detalle})`:""}`), p.envio?`Delivery ${fmt(p.envio)}`:"", `Total ${fmt(p.total)}`].filter(Boolean).join("\n"); if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>aviso("Comanda copiada")).catch(()=>aviso(txt)); else aviso(txt);}
 function togglePagado(id){
- const p=S.pedidos.find(x=>x.id===id);if(!p||p.esPremio)return;
+ const p=S.pedidos.find(x=>x.id===id);if(!p||p.esPremio||p.estado==="Cancelado")return;
  if(!p.pagado && !confirm("¿Confirmas que recibiste el pago de "+fmt(p.total)+" por el pedido #"+id+"?"))return;
  if(p.cliente){
    const cli=asegurarCliente(p.cliente,p.codigoCliente,p.telefono);
@@ -618,6 +618,27 @@ function togglePagado(id){
    }
  }
  p.pagado=!p.pagado;render();
+}
+// Cancelación operativa: conserva el registro y nunca altera caja, timbres ni cierres ya guardados.
+function puedeCancelarPedido(p){
+ return !!p&&p.suc===S.suc&&!p.esPremio&&!p.pagado&&p.estado==="Pendiente"&&esDelPeriodo(p)&&!S.busy;
+}
+function cancelarPedido(id){
+ const p=S.pedidos.find(x=>x.id===id&&x.suc===S.suc);
+ if(!p){aviso("Pedido no encontrado en esta sucursal.");return;}
+ if(!puedeCancelarPedido(p)){aviso("Solo puedes cancelar pedidos pendientes, sin pago y del turno abierto. Los pagados requieren devolución o ajuste por separado.");return;}
+ if(document.body.classList.contains("uki-operativo-bloqueado")){aviso("Espera a que la nube esté sincronizada antes de cancelar.");return;}
+ const motivo=String($("motivoCancelacion"+id)?.value||"").trim().toLowerCase();
+ if(!["cliente","local"].includes(motivo)){aviso("Selecciona si canceló el cliente o el local.");return;}
+ if(!confirm("¿Confirmas cancelar el pedido #"+p.id+" por decisión del "+(motivo==="cliente"?"cliente":"local")+"? Quedará registrado y no contará como venta. Esta acción no se puede deshacer desde el panel."))return;
+ if(!puedeCancelarPedido(p)||document.body.classList.contains("uki-operativo-bloqueado")){
+   aviso("El pedido o la sincronización cambió. No se realizó la cancelación.");return;
+ }
+ p.estado="Cancelado";
+ p.motivoCancelacion=motivo;
+ p.canceladoEn=new Date().toISOString();
+ pedidoExpandido=id;
+ aviso("Pedido #"+id+" cancelado por "+(motivo==="cliente"?"el cliente":"el local")+". Conservado en historial; no suma ventas.");
 }
 function claveCliente(nombre,codigo="",telefono=""){
   const c=String(codigo||"").trim(),t=String(telefono||"").replace(/[^\d]/g,"");
@@ -1096,8 +1117,8 @@ function vPedidos(){
   </details>
   <details class="card" ${erroresAbiertos?'open':''}><summary onclick="erroresAbiertos=!erroresAbiertos"><b>⚠️ Errores e incidencias</b> · ${pendientes} pendientes</summary><label>Buscar errores por dia de reporte</label><input id="diaErrorFiltro" type="date" value="${esc(filtroDiaIncidencias)}"><button class="sm ok" onclick="aplicarDiaIncidencias()">Buscar errores</button><p class="muted">Los reportes se conservan aunque se cierre la caja del dia.</p>${incidencias.length?incidencias.map(x=>renderIncidencia(x,"lista")).join(""):"<p class='muted'>No hay errores para esta busqueda.</p>"}</details>
   ${todos.map(p=>`<details class="card order-card" ${p.id===pedidoExpandido?'open':''}>
-    <summary onclick="pedidoExpandido=${p.id}"><div class="order-head"><div><b>${p.codigoCarta?`Carta #${esc(p.codigoCarta)} · `:""}Interno #${p.id} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small>${p.esPremio?'🎁 Premio':p.pagado?'Pagado':'Pendiente'}</small></div></div></summary>
-    <div class="order-body"><p class="muted">${esc(p.estado||'Entregado')} · ${esc(p.medio||'Efectivo')}${p.telefono?' · '+esc(p.telefono):''}</p>
+    <summary onclick="pedidoExpandido=${p.id}"><div class="order-head"><div><b>${p.codigoCarta?`Carta #${esc(p.codigoCarta)} · `:""}Interno #${p.id} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small>${p.esPremio?'🎁 Premio':p.estado==="Cancelado"?'Cancelado':p.pagado?'Pagado':'Pendiente'}</small></div></div></summary>
+    <div class="order-body"><p class="muted">${esc(p.estado||'Entregado')} · ${esc(p.medio||'Efectivo')}${p.telefono?' · '+esc(p.telefono):''}</p>${p.estado==="Cancelado"?`<p class="muted"><b>Motivo:</b> ${esc(p.motivoCancelacion==="cliente"?"Cancelado por el cliente":p.motivoCancelacion==="local"?"Cancelado por el local":"No informado")}${p.canceladoEn?" · "+esc(fechaTxt(p.canceladoEn)):""}</p>`:""}
     ${(p.productos||[]).map(pr=>`<div class="row"><span>${pr.cantidad}x ${esc(pr.nombre)}${pr.detalle?` · ${esc(pr.detalle)}`:''}</span><b>${fmt(pr.cantidad*pr.precioUnit)}</b></div>`).join('')}
     ${p.envio?row('Delivery',fmt(p.envio)):''}
     ${p.codigoCliente?`<p class='muted'>Codigo cliente: ${esc(p.codigoCliente)}</p>`:''}
@@ -1107,7 +1128,8 @@ function vPedidos(){
     <label>Que ocurrio</label><textarea rows="2" id="incProblema${p.id}" placeholder="Ej: falto una salsa"></textarea>
     <label>Solucion (opcional)</label><textarea rows="2" id="incSolucion${p.id}" placeholder="Ej: reposicion enviada"></textarea>
     <button class="sm ok" onclick="anotarIncidencia(${p.id})">Guardar error</button></details>
-    <div class="order-actions"><button class="sm ok" onclick="editarPedido(${p.id})">Editar</button><button class="sm" onclick="togglePagado(${p.id})">${p.pagado?'Quitar pagado':'Marcar pagado'}</button><button class="sm" onclick="copiarComanda(${p.id})">Copiar comanda</button></div>
+    <div class="order-actions">${p.estado!=="Cancelado"?`<button class="sm ok" onclick="editarPedido(${p.id})">Editar</button><button class="sm" onclick="togglePagado(${p.id})">${p.pagado?'Quitar pagado':'Marcar pagado'}</button>`:""}<button class="sm" onclick="copiarComanda(${p.id})">Copiar comanda</button></div>
+    ${puedeCancelarPedido(p)?`<div class="inner-details" style="padding:12px;margin-top:12px;border:1px solid #e7c8b3;border-radius:12px"><label for="motivoCancelacion${p.id}">Cancelar pedido · Motivo obligatorio</label><select id="motivoCancelacion${p.id}"><option value="">Selecciona un motivo</option><option value="cliente">Lo canceló el cliente</option><option value="local">Lo canceló el local</option></select><button class="sm" type="button" onclick="cancelarPedido(${p.id})" style="color:#9b3328;border-color:#dcb4a5">Cancelar pedido</button><p class="muted">Solo pedidos pendientes sin pago del turno abierto. Queda en el historial.</p></div>`:""}
     </div></details>`).join('')||'<div class="card muted">Todavía no hay pedidos. Pulsa Nuevo pedido para comenzar.</div>'}`;
 }
 let pedidoExpandido=null;
@@ -1125,6 +1147,7 @@ function ndGuardar(){
   let total=sub+envio;
   if(D.editando){
     const p=S.pedidos.find(x=>x.id===D.editando);
+    if(p?.estado==="Cancelado"){aviso("El pedido cancelado no se puede modificar.");return;}
     if(p){
       // Si era premio, no afecta tarjeta
       if(!p.esPremio && p.cliente && p.pagado){
