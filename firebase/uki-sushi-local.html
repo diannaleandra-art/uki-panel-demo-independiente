@@ -1084,7 +1084,7 @@ function cerrar(){
   guardarEnLocalStorage();
   S.busy=false;
   cierreDraft={resp:"",obs:""};
-  aviso("✅ Día cerrado y guardado en Historial");
+  aviso("✅ Turno "+fechaTurnoCerrado+" cerrado y guardado en Historial");
   S.vista="caja";cajaTab="historial";
   render();
 }
@@ -1197,9 +1197,13 @@ function copiarResumen(){
 function compartirWhatsAppCierre(){
   // Compartir el último cierre del día evita mostrar ceros tras el corte de caja.
   const ahoraMs=Date.now();
-  const cierre=(S.cierres||[]).filter(c=>c.suc===S.suc&&
+  const actividad=totales();
+  const hayMovimiento=actividad.n>0||actividad.gastosTotal>0||actividad.pagoDelivery>0||
+    actividad.totalMedios>0||actividad.propinas>0||actividad.retirosTotal>0;
+  const cierreReciente=(S.cierres||[]).filter(c=>c.suc===S.suc&&
     fechaCierreMs(c)<=ahoraMs&&ahoraMs-fechaCierreMs(c)<=8*60*60*1000)
     .sort((a,b)=>fechaCierreMs(b)-fechaCierreMs(a))[0]||null;
+  const cierre=hayMovimiento?null:cierreReciente;
   if(!cierre&&!confirm("Aún no se ha guardado un cierre de hoy. ¿Compartir un PRECIERRE provisional?")){
     return;
   }
@@ -1220,7 +1224,8 @@ function compartirWhatsAppCierre(){
   const lineas=[
     "🍣 *UKI SUSHI · "+tipo+"*",
     "*Sucursal:* "+S.suc,
-    "*Fecha:* "+fecha,
+    "*Turno:* "+(cierre?cierre.fechaOperativa||"Ver fecha del cierre":fechaOperativaActual()),
+    "*Fecha del cierre:* "+fecha,
     "*Responsable:* "+responsable,
     "",
     "*Pedidos:* "+(cierre?cierre.pedidos:t.n),
@@ -1275,7 +1280,7 @@ function vHistorial(){
   return buscador+c.map(x=>{
     const m=x.medios||{};
     const mediosRows=Object.keys(m).length?Object.keys(m).map(k=>m[k]>0?row(k,fmt(m[k])):"").join(""):"";
-    return `<div class="card" style="border-left:4px solid var(--accent)"><h2>${esc(x.fecha)} · ${esc(x.resp)}</h2>
+    return `<div class="card" style="border-left:4px solid var(--accent)"><h2>${esc(x.fecha)} · ${esc(x.resp)}</h2>${x.fechaOperativa?'<p class="muted">Turno: '+esc(x.fechaOperativa)+'</p>':''}
     <p class="muted" style="margin:8px 0 4px"><b>💳 Desglose pagos</b></p>
     ${mediosRows||'<p class="muted">Sin desglose (cierre antiguo)</p>'}
     ${row("Pedidos",x.pedidos)}${row("Venta total con delivery",fmt(x.venta),"sub")}${row("Venta sin delivery",fmt(x.ventaSinDelivery||x.venta-(x.envios||0)))}
