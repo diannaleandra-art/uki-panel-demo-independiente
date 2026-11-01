@@ -184,9 +184,14 @@ function cajaDelDia(){
  const key=S.suc+"|"+fechaOperativaActual();
  if(!S.cajasDiarias[key])S.cajasDiarias[key]={
   apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",base:18000,
-  cajaChica:{inicial:20000,gastos:[]},desdeMs:0
+  cajaChica:{inicial:20000,gastos:[]},desdeMs:0,inicioMs:Date.now()
  };
- return S.cajasDiarias[key];
+ const actual=S.cajasDiarias[key];
+ // Un segundo turno del mismo día empieza al volver a abrirlo tras su cierre.
+ if(Number(actual.desdeMs)>0&&(!Number(actual.inicioMs)||Number(actual.inicioMs)<=Number(actual.desdeMs))){
+   actual.inicioMs=Date.now();
+ }
+ return actual;
 }
 // Compatibilidad con cierres anteriores que guardaban fecha de presentación sin ISO.
 function fechaCierreMs(c){
@@ -219,7 +224,7 @@ const VISTAS=[["inicio","Inicio","⌂"],["pedidos","Pedidos","▤"],["nuevo","Nu
 let cajaTab="resumen";
 let movimientoTab="gastos";
 let modoNuevo="whatsapp";
-const CAJA_TABS=[["resumen","Resumen"],["movimientos","Movimientos"],["cierre","Cierre"],["historial","Historial"]];
+const CAJA_TABS=[["resumen","Resumen"],["movimientos","Movimientos"],["cierre","Cierre"],["historial","Historial"],["semana","Semana"]];
 const MOV_TABS=[["gastos","Gastos"],["apps","Apps"],["delivery","Delivery manual"],["repartidor","Pago repartidor"],["propinas","Propinas"],["retiros","Retiros"],["chica","Caja chica"]];
 function cambiarCajaTab(t){cajaTab=t;S.confirmCierre=false;render();window.scrollTo({top:0,behavior:"instant"});}
 function cambiarMovimientoTab(t){movimientoTab=t;render();}
@@ -468,7 +473,12 @@ function vInicio(){
  }
   if(!S.suc){return `<div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Cada sucursal tendra sus pedidos y timbres independientes.</p>${SUCURSALES.map(s=>`<button class="big" onclick="pedirPin('${s}')">${s}</button>`).join("")}</div><div class="card"><p class="muted"><b>Información de acceso:</b> el enlace web es público, pero Firebase exige la cuenta Google autorizada de Uki Sushi y una clave para descifrar cada sucursal. No compartas las claves con clientes. Los datos permanecen separados entre sucursales.</p></div>`;}
 
-  const t=totales();return `<div class="welcome"><div class="eyebrow">RESUMEN DEL TURNO · ${fechaOperativaActual()}</div><h2>Hola, Uki Sushi <span>🍣</span></h2><p class="muted">${esc(S.suc)}</p></div>
+  const t=totales(),caja=cajaDelDia();
+  const turno=fechaOperativaActual();
+  const diaOperativo=new Date(turno+"T12:00:00").toLocaleDateString("es-CL",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
+  const inicio=window.ukiControlTurnos?.fechaHoraLegible(caja.inicioMs)||"No registrado antes de esta actualización";
+  return `<div class="welcome"><div class="eyebrow">RESUMEN DEL TURNO · ${esc(turno)}</div><h2>Hola, Uki Sushi <span>🍣</span></h2><p class="muted">${esc(S.suc)}</p></div>
+  <div class="card" style="padding:14px"><h2 style="margin:0 0 6px">🕒 Inicio del turno</h2><p style="margin:4px 0"><b>${esc(diaOperativo)}</b></p><p class="muted" style="margin:4px 0">Fecha y hora registradas: ${esc(inicio)}</p></div>
   <section class="kpis" aria-label="Resumen de ventas">
     <div class="kpi"><span>Venta de hoy</span><strong>${fmt(t.totalMedios)}</strong></div>
     <div class="kpi"><span>Pedidos</span><strong>${t.n}</strong></div>
@@ -480,7 +490,7 @@ function vInicio(){
   <div class="mini-help">🎟️ Timbres: 6 compras = 12 piezas · 10 compras = 36 piezas + 2 korokes.</div>`;
 }
 // Datos temporales de cierre: no alteran el respaldo ni el formato guardado.
-let cierreDraft={resp:"",obs:""};
+let cierreDraft={resp:"",obs:"",contado:""};
 function setModalidad(modalidad){
   D.modalidad=modalidad;
   if(modalidad!=="Delivery") D.envio=0;
@@ -904,9 +914,32 @@ function totales(){
 function vCaja(){
   if(!S.suc)return vInicio();
   const active=CAJA_TABS.find(x=>x[0]===cajaTab)||CAJA_TABS[0];
-  const content=({resumen:vCajaResumen,movimientos:vMovimientos,cierre:vCierre,historial:vHistorialCompacto})[active[0]]();
+  const content=({resumen:vCajaResumen,movimientos:vMovimientos,cierre:vCierre,historial:vHistorialCompacto,semana:vResumenSemanal})[active[0]]();
   return `<div class="section-head"><h2>Caja</h2><p>Turno abierto · ${fechaOperativaActual()}</p></div>
   <div class="sub-tabs" role="group" aria-label="Secciones de caja">${CAJA_TABS.map(([k,l])=>`<button class="${cajaTab===k?'selected':''}" onclick="cambiarCajaTab('${k}')">${l}</button>`).join('')}</div>${content}<div class="card"><h2>💾 Respaldo protegido de esta sucursal</h2><p class="muted">Guarda un respaldo cifrado al terminar el turno. La clave no se guarda: si la olvidas, no podrás recuperar ese archivo.</p><label>Crear clave para este respaldo (minimo 12 caracteres)</label><input id="ukiClaveBackup" type="password" autocomplete="new-password" placeholder="Clave de respaldo"><label>Repite la clave</label><input id="ukiConfirmaBackup" type="password" autocomplete="new-password" placeholder="Confirmar clave"><button class="big" onclick="descargarRespaldoCompleto()">Descargar respaldo cifrado</button><hr><p class="muted">Restaurar reemplaza los registros actuales de esta sucursal. Antes guarda una copia. También se admiten los respaldos anteriores v8.11 sin cifrar.</p><label>Clave del respaldo (si está cifrado)</label><input id="ukiClaveRestaurar" type="password" autocomplete="off" placeholder="Clave del archivo"><label>Elegir archivo para restaurar</label><input type="file" accept=".json,application/json" onchange="cargarRespaldo(event)"></div>`;
+}
+let semanaConsulta="";
+function actualizarSemana(fecha){semanaConsulta=fecha||"";render();}
+function vResumenSemanal(){
+  const fecha=semanaConsulta||hoyLocal();
+  const r=window.ukiControlTurnos?.resumenSemana(S.cierres,S.suc,fecha);
+  if(!r)return '<div class="card"><p class="muted">No se pudo consultar esta semana. Actualiza la página.</p></div>';
+  const medios=Object.entries(r.medios).filter(([,m])=>m).map(([medio,monto])=>row(medio,fmt(monto))).join("");
+  return `<div class="card"><h2>📊 Resumen semanal</h2>
+    <p class="muted">De lunes a domingo, según el día operativo de cada cierre. Solo incluye cierres confirmados de ${esc(S.suc)}.</p>
+    <label>Elegir una fecha dentro de la semana</label><input type="date" value="${esc(fecha)}" onchange="actualizarSemana(this.value)">
+    <h3 style="margin:12px 0 4px">Semana ${esc(r.desde)} al ${esc(r.hasta)}</h3>
+    ${row("Turnos cerrados",r.cierres)}
+    ${row("Pedidos",r.pedidos)}
+    ${row("Venta total",fmt(r.ventas))}
+    ${row("Venta sin delivery",fmt(r.ventasSinDelivery))}
+    ${row("Delivery cobrado",fmt(r.deliveryCobrado))}
+    ${row("Gastos",fmt(r.gastos))}
+    ${row("Pago a repartidor",fmt(r.repartidor))}
+    ${row("Resultado total",fmt(r.resultado),"final")}
+    <details style="margin-top:12px"><summary style="cursor:pointer">Ver medios de pago</summary>${medios||'<p class="muted">Sin movimientos de pago en esta semana.</p>'}</details>
+    <p class="muted">El turno que todavía está abierto no se incluye hasta confirmar el cierre. Este resultado es la suma de los totales guardados, no el saldo físico de caja.</p>
+  </div>`;
 }
 function vCajaResumen(){
   const t=totales(), caja=cajaDelDia();
@@ -935,11 +968,35 @@ function vRegistros(){
   <div class="card"><h2>Retiros de efectivo</h2><label>Monto</label><input id="reMon" type="number" inputmode="numeric"><label>Motivo</label><input id="reMot" placeholder="Ej: Compra"><button class="big" onclick="addRetiro()">+ Agregar retiro</button>${retiros.map(r=>`<div class="row"><span>${esc(r.motivo||"Retiro")}</span><b>${fmt(r.monto)} <button class="sm" onclick="quitarRetiro(${r.id})">✕</button></b></div>`).join("")||"<p class='muted'>Sin retiros</p>"}</div>
   <div class="card"><h2>Caja chica</h2><label>Inicial</label><input type="number" value="${caja.cajaChica.inicial}" onchange="cajaDelDia().cajaChica.inicial=Math.max(0,parseInt(this.value)||0);render()" inputmode="numeric"><label>Concepto</label><input id="ccCon" placeholder="Detergente"><label>Monto</label><input id="ccMon" type="number" inputmode="numeric"><button class="big" onclick="addCC()">+ Agregar gasto caja chica</button>${caja.cajaChica.gastos.map(g=>`<div class="row"><span>${esc(g.concepto)}</span><b>${fmt(g.monto)} <button class="sm" onclick="quitarCC(${g.id})">✕</button></b></div>`).join("")||"<p class='muted'>Sin gastos</p>"}${row("Saldo caja chica",fmt(caja.cajaChica.inicial - caja.cajaChica.gastos.reduce((a,g)=>a+g.monto,0)),"sub")}</div>`;
 }
+function actualizarConteoEfectivo(valor){
+  cierreDraft.contado=valor;
+  S.confirmCierre=false;
+  const d=window.ukiControlTurnos?.diferencia(totales().efectivoCaja,valor);
+  const el=$("ukiDiferenciaEfectivo");
+  if(el)el.textContent=valor.trim()===""?"Sin conteo físico registrado":
+    d===null?"Ingresa un monto válido, sin decimales":d===0?"✅ Caja exacta":
+    d>0?"Sobrante: "+fmt(d):"Faltante: "+fmt(-d);
+}
 function vCierre(){
   if(!S.suc) return vInicio(); const t=totales(); const caja=cajaDelDia();
+  const pendientes=window.ukiControlTurnos?.pedidosSinPago(S.pedidos,S.suc,esDelPeriodo)||[];
+  const dif=window.ukiControlTurnos?.diferencia(t.efectivoCaja,cierreDraft.contado);
+  const conteoTexto=cierreDraft.contado.trim()===""?"Sin conteo físico registrado":
+    dif===null?"Ingresa un monto válido, sin decimales":dif===0?"✅ Caja exacta":
+    dif>0?"Sobrante: "+fmt(dif):"Faltante: "+fmt(-dif);
+  const pendientesText=pendientes.map(p=>"#"+esc(p.codigoCarta||p.id)+" · "+esc(p.cliente||"Sin nombre")+" · "+fmt(p.total)).join("; ");
   return `<div class="card"><h2>Venta del día</h2>${row("Pedidos del día",t.n)}${row("Pedidos pagados",t.pagadosN)}${row("Efectivo",fmt(t.medios.Efectivo))}${row("Transferencia",fmt(t.medios.Transferencia))}${row("Débito",fmt(t.medios.Débito))}${row("Edenred",fmt(t.medios.Edenred))}${row("Otros",fmt(t.medios.Otros))}${row("Uber Eats",fmt(t.medios["Uber Eats"]))}${row("PedidosYa",fmt(t.medios.PedidosYa))}${row("Rappi",fmt(t.medios.Rappi))}${row("Venta total con delivery",fmt(t.totalMedios),"sub")}${row("Venta sin delivery",fmt(t.ventaSinDelivery))}</div>
   <div class="card" style="border:2px solid var(--accent)"><h2>🛵 Total de delivery</h2><label>Base diaria ($)</label><input type="number" value="${caja.base}" inputmode="numeric" onchange="cajaDelDia().base=Math.max(0,parseInt(this.value)||0);render()" style="font-weight:700">${row("Base diaria",fmt(caja.base))}${row("Deliveries pedidos ("+t.dels.length+")",fmt(t.enviosPedidos))}${row("Deliveries manuales ("+delSucHoy(S.deliveriesManuales).length+")",fmt(t.enviosManuales))}${row("Deliveries del día ("+t.nDeliv+")",fmt(t.envios))}${row("Total delivery (base + deliveries)",fmt(caja.base+t.envios),"final")}</div>
   <div class="card"><h2>Resultado final</h2>${row("Venta total con delivery",fmt(t.totalMedios))}${row("− Pago a delivery ("+caja.pagoDeliveryMedio+")",fmt(t.pagoDelivery),"neg")}${row("Venta - pago delivery",fmt(t.totalMedios-t.pagoDelivery))}${row("− Gastos",fmt(t.gastosTotal),"neg")}${row("Venta total - gastos",fmt(t.totalMedios-t.gastosTotal),"sub")}${row("Total final (venta - pago delivery - gastos)",fmt(t.final),"final")}${row("Efectivo que queda en caja",fmt(t.efectivoCaja))}${row("Propinas (aparte)",fmt(t.propinas))}</div>
+  ${pendientes.length?`<div class="card" style="border:2px solid #bd4d1b"><h2>⚠️ Pedidos pendientes de pago · ${pendientes.length}</h2><p class="muted">Revisa estos pedidos antes de cerrar. Si decides cerrar, seguirán registrados como pendientes.</p><p>${pendientesText}</p></div>`:
+     '<div class="card"><p style="margin:4px 0">✅ No hay pedidos pendientes de pago en este turno.</p></div>'}
+  <div class="card"><h2>💵 Cuadre de efectivo</h2>
+    ${row("Efectivo esperado",fmt(t.efectivoCaja))}
+    <label>Dinero contado físicamente ($)</label><input type="number" min="0" step="1" inputmode="numeric" placeholder="Ej: 83000"
+      value="${esc(cierreDraft.contado)}" oninput="actualizarConteoEfectivo(this.value)">
+    <p id="ukiDiferenciaEfectivo" style="font-weight:650">${esc(conteoTexto)}</p>
+    <p class="muted">El conteo es opcional. Si lo ingresas, la diferencia queda guardada junto al cierre.</p>
+  </div>
   <div class="card"><h2>Cerrar el día</h2><label>Responsable</label><input id="resp" placeholder="Nombre" value="${esc(cierreDraft.resp)}" oninput="cierreDraft.resp=this.value"><label>Observaciones</label><textarea id="obs" rows="2" oninput="cierreDraft.obs=this.value">${esc(cierreDraft.obs)}</textarea>${S.confirmCierre?'<p class="aviso" style="background:#ffe1e1;color:#7a0010">Toca otra vez Confirmar cierre para guardar.</p>':""}<button class="big" onclick="cerrar()">${S.confirmCierre?"Confirmar cierre":"Cerrar día"}</button></div>
   <div class="card"><h2>📱 Compartir y Descargar</h2><button class="big" style="background:#25D366" onclick="compartirWhatsAppCierre()">📲 Compartir cierre por WhatsApp</button><button class="big" onclick="descargarPDF('cierre')">📄 Descargar cierre TXT</button><button class="big" style="background:#111" onclick="descargarExcel('cierre')">📊 Descargar Excel cierre</button></div>`;
 }
@@ -1114,10 +1171,14 @@ function cerrar(){
   const resp=respEl?respEl.value.trim():cierreDraft.resp.trim();
   if(!resp){aviso("⚠️ Escribe quién cierra (ej: Dianna) en Responsable"); if(respEl) respEl.focus(); return;}
   const t=totales();
+  const contadoStr=String(cierreDraft.contado||"").trim();
+  const diferencia=window.ukiControlTurnos?.diferencia(t.efectivoCaja,contadoStr);
+  if(contadoStr!==""&&diferencia===null){aviso("⚠️ El efectivo contado debe ser un número entero positivo o cero.");return;}
+  const pendientes=window.ukiControlTurnos?.pedidosSinPago(S.pedidos,S.suc,esDelPeriodo)||[];
   if(!S.confirmCierre){
-    cierreDraft={resp,obs:$("obs")?$("obs").value.trim():cierreDraft.obs};
+    cierreDraft={resp,obs:$("obs")?$("obs").value.trim():cierreDraft.obs,contado:contadoStr};
     S.confirmCierre=true;
-    S.msg=`✅ Ahora toca de nuevo Confirmar cierre para guardar. Total final: ${fmt(t.final)}.`;
+    S.msg=`Revisa antes de confirmar. Total final: ${fmt(t.final)}. ${pendientes.length?"⚠️ "+pendientes.length+" pedido(s) pendiente(s) de pago. ":""}${contadoStr===""?"Sin conteo físico.":diferencia===0?"Caja exacta.":diferencia>0?"Sobrante de "+fmt(diferencia)+".":"Faltante de "+fmt(-diferencia)+"."} Pulsa Confirmar cierre para guardar.`;
     render();
     setTimeout(()=>{ const b=document.querySelector('button.big'); if(b) b.scrollIntoView({behavior:'smooth'}); },200);
     return;
@@ -1132,6 +1193,10 @@ function cerrar(){
   const fechaTurnoCerrado=fechaOperativaActual();
   S.cierres.push({
     detalle:detalleGuardado,
+    inicioTurnoMs:Number(caja.inicioMs)||null,
+    efectivoContado:contadoStr===""?null:Number(contadoStr),
+    diferenciaEfectivo:diferencia,
+    pendientesAlCerrar:pendientes.length,
     suc:S.suc,fechaOperativa:fechaTurnoCerrado,
     fecha:new Date().toLocaleString("es-CL",{dateStyle:"short",timeStyle:"short"}),
     fechaISO:ahora(),fechaMs:fechaCierre,
@@ -1161,10 +1226,11 @@ function cerrar(){
   caja.desdeMs=fechaCierre;
   caja.apps={}; caja.pagoDelivery=0; caja.pagoDeliveryMedio="Efectivo";
   caja.cajaChica={inicial:caja.cajaChica.inicial,gastos:[]};
+  delete caja.inicioMs;
   S.fechaOperativa=hoyLocal(); // Nuevo período luego del cierre, no a medianoche.
   guardarEnLocalStorage();
   S.busy=false;
-  cierreDraft={resp:"",obs:""};
+  cierreDraft={resp:"",obs:"",contado:""};
   aviso("✅ Turno "+fechaTurnoCerrado+" cerrado y guardado en Historial");
   S.vista="caja";cajaTab="historial";
   render();
@@ -1205,6 +1271,9 @@ function descargarPDF(tipo){
     cierres.forEach((x,i)=>{
       txt+=`=== CIERRE ${i+1} - ${x.fecha} - ${x.resp} ===\n`;
       if(x.fechaOperativa)txt+=`Turno operativo: ${x.fechaOperativa}\n`;
+      if(x.inicioTurnoMs)txt+=`Inicio de turno: ${window.ukiControlTurnos?.fechaHoraLegible(x.inicioTurnoMs)||""}\n`;
+      if(Object.prototype.hasOwnProperty.call(x,"efectivoContado"))txt+=
+        `Efectivo contado: ${x.efectivoContado===null?"Sin conteo físico":fmt(x.efectivoContado)}\nDiferencia: ${x.diferenciaEfectivo===null?"Sin conteo":fmt(x.diferenciaEfectivo)}\n`;
       txt+=`Pedidos: ${x.pedidos}\n`;
       if(x.medios){
         Object.keys(x.medios).forEach(k=>{ txt+=`${k}: $${x.medios[k]}\n`; });
@@ -1391,6 +1460,13 @@ function vHistorial(){
     ${row("Efectivo cobrado",fmt(x.efectivoCobrado))}${row("− Gastos en efectivo",fmt(x.gastosEf))}${row("− Retiros",fmt(x.retiros))}${row(`− Pago a delivery (${x.pagoDeliveryMedio||"Efectivo"})`,fmt(x.pagadoDelivery))}${row("Efectivo que quedó",fmt(x.efectivo),"sub")}
     <p class="muted" style="margin:12px 0 2px"><b>📊 Resultado</b></p>
     ${row("Gastos",fmt(x.gastos),"neg")}${row("Total final",fmt(x.final),"final")}${row("Propinas (aparte)",fmt(x.propinas))}
+    ${x.inicioTurnoMs?row("Inicio del turno",window.ukiControlTurnos?.fechaHoraLegible(x.inicioTurnoMs)||""):""}
+    ${Object.prototype.hasOwnProperty.call(x,"efectivoContado")?
+      row("Efectivo contado",x.efectivoContado===null?"Sin conteo físico":fmt(x.efectivoContado))+
+      (x.diferenciaEfectivo!==null&&Number.isFinite(x.diferenciaEfectivo)?
+        row("Diferencia de caja",x.diferenciaEfectivo===0?"Caja exacta":
+          (x.diferenciaEfectivo>0?"Sobrante ":"Faltante ")+fmt(Math.abs(x.diferenciaEfectivo))):""):""}
+    ${Number(x.pendientesAlCerrar)>0?row("Pedidos pendientes al cerrar",x.pendientesAlCerrar):""}
     ${window.ukiDetalleCierre?window.ukiDetalleCierre.render(x,fmt,esc,S.cierres.indexOf(x),S):''}${x.obs?`<p class="muted" style="background:var(--bg);padding:8px;border-radius:6px;margin-top:8px">📝 ${esc(x.obs)}</p>`:""}
     </div>`;
   }).join("");
@@ -1411,6 +1487,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 </script>
 <script src="./uki-tarjeta-cliente.js" defer></script>
 <script src="./uki-cierre-detallado.js" defer></script>
+<script src="./uki-control-turnos.js" defer></script>
 <script type="module">
 
 import {initializeApp} from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
