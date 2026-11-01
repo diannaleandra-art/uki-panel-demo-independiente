@@ -486,7 +486,7 @@ function vInicio(){
     <div class="kpi"><span>Efectivo en caja</span><strong>${fmt(t.efectivoCaja)}</strong></div>
   </section>
   <button class="big cta" onclick="ir('nuevo')">＋ Registrar nuevo pedido</button>
-  <div class="quick-grid"><button class="quick" onclick="ir('pedidos')"><b>▤</b> Revisar pedidos <span>›</span></button><button class="quick" onclick="ir('clientes')"><b>✧</b> Tarjetas (${Object.keys(S.clientes).length}) <span>›</span></button><button class="quick" onclick="ir('cierre')"><b>▣</b> Hacer cierre <span>›</span></button><button class="quick" onclick="ir('historial')"><b>◷</b> Ver historial <span>›</span></button></div>
+  <div class="quick-grid"><button class="quick" onclick="ir('pedidos')"><b>▤</b> Revisar pedidos <span>›</span></button><button class="quick" onclick="ir('clientes')"><b>✧</b> Tarjetas (${Object.keys(S.clientes).length}) <span>›</span></button><button class="quick" onclick="ir('cierre')"><b>▣</b> Hacer cierre <span>›</span></button><button class="quick" onclick="ir('historial')"><b>◷</b> Ver historial <span>›</span></button><button class="quick" onclick="cajaTab='semana';ir('caja')"><b>▥</b> Resumen semanal <span>›</span></button></div>
   <div class="mini-help">🎟️ Timbres: 6 compras = 12 piezas · 10 compras = 36 piezas + 2 korokes.</div>`;
 }
 // Datos temporales de cierre: no alteran el respaldo ni el formato guardado.
@@ -1324,10 +1324,10 @@ function descargarExcel(tipo){
   if(tipo==="historial"){
     const cierres=delSuc(S.cierres).filter(x=>!S.filtro||x.fecha.includes(S.filtro));
     if(!cierres.length){aviso("No hay cierres");return;}
-    let csv="Turno operativo;Fecha del cierre;Responsable;Pedidos;Efectivo;Transferencia;Debito;Edenred;Otros;Uber Eats;PedidosYa;Rappi;Venta con delivery;Venta sin delivery;Base;Deliveries;Gastos;Pago Delivery;Total final;Efectivo quedo;Obs\n";
+    let csv="Turno operativo;Fecha del cierre;Responsable;Pedidos;Efectivo;Transferencia;Debito;Edenred;Otros;Uber Eats;PedidosYa;Rappi;Venta con delivery;Venta sin delivery;Base;Deliveries;Gastos;Pago Delivery;Total final;Efectivo esperado;Efectivo contado;Diferencia efectivo;Pendientes al cerrar;Inicio de turno;Obs\n";
     cierres.forEach(x=>{
       const m=x.medios||{};
-      csv+=`${csvSeguro(x.fechaOperativa||"")};${csvSeguro(x.fecha)};${csvSeguro(x.resp)};${x.pedidos};${m.Efectivo||0};${m.Transferencia||0};${m.Débito||0};${m.Edenred||0};${m.Otros||0};${m["Uber Eats"]||0};${m.PedidosYa||0};${m.Rappi||0};${x.venta};${x.ventaSinDelivery||0};${x.base||0};${x.envios||0};${x.gastos};${x.pagadoDelivery};${x.final};${x.efectivo};${csvSeguro(x.obs||"")}\n`;
+      csv+=`${csvSeguro(x.fechaOperativa||"")};${csvSeguro(x.fecha)};${csvSeguro(x.resp)};${x.pedidos};${m.Efectivo||0};${m.Transferencia||0};${m.Débito||0};${m.Edenred||0};${m.Otros||0};${m["Uber Eats"]||0};${m.PedidosYa||0};${m.Rappi||0};${x.venta};${x.ventaSinDelivery||0};${x.base||0};${x.envios||0};${x.gastos};${x.pagadoDelivery};${x.final};${x.efectivo};${x.efectivoContado??""};${x.diferenciaEfectivo??""};${x.pendientesAlCerrar??""};${csvSeguro(x.inicioTurnoMs?window.ukiControlTurnos?.fechaHoraLegible(x.inicioTurnoMs)||"":"")};${csvSeguro(x.obs||"")}\n`;
     });
     descargarTextoArchivo(`historial-${S.suc}-${new Date().toISOString().slice(0,10)}.csv`, csv, "text/csv;charset=utf-8");
     aviso("📊 Excel historial descargado");
@@ -1380,6 +1380,10 @@ function compartirWhatsAppCierre(){
   const totalFinal=cierre?cierre.final:t.final;
   const efectivo=cierre?cierre.efectivo:t.efectivoCaja;
   const propinas=cierre?cierre.propinas:t.propinas;
+  const contado=cierre?cierre.efectivoContado:(
+    cierreDraft.contado.trim()===""?null:Number(cierreDraft.contado));
+  const diferenciaConteo=cierre?cierre.diferenciaEfectivo:
+    window.ukiControlTurnos?.diferencia(efectivo,cierreDraft.contado);
   const responsable=cierre?cierre.resp:(document.getElementById("resp")?.value||"Pendiente");
   const obs=cierre?cierre.obs:(document.getElementById("obs")?.value||"");
   const resumenDetallado=cierre?.detalle||(caja&&window.ukiDetalleCierre?
@@ -1411,7 +1415,13 @@ function compartirWhatsAppCierre(){
     ...(detalleRetiros.length?["*RETIROS*",...detalleRetiros.slice(0,25),...(detalleRetiros.length>25?["Ver historial para el resto"]:[])]:[]),
     ...(detalleCajaChica.length?["*CAJA CHICA (APARTE)*",...detalleCajaChica.slice(0,25),...(detalleCajaChica.length>25?["Ver historial para el resto"]:[])]:[]),
     "*TOTAL FINAL:* "+fmt(totalFinal),
-    "Efectivo que queda: "+fmt(efectivo),
+    "Efectivo esperado: "+fmt(efectivo),
+    "Efectivo contado: "+(contado===null||contado===undefined?"Sin conteo físico":fmt(contado)),
+    ...(diferenciaConteo!==null&&diferenciaConteo!==undefined&&Number.isFinite(diferenciaConteo)?
+      ["Diferencia: "+(diferenciaConteo===0?"Caja exacta":
+        (diferenciaConteo>0?"Sobrante ":"Faltante ")+fmt(Math.abs(diferenciaConteo)))]:[]),
+    ...(cierre?.pendientesAlCerrar?["Pedidos pendientes al cerrar: "+cierre.pendientesAlCerrar]:[]),
+    ...(cierre?.inicioTurnoMs?["Inicio del turno: "+(window.ukiControlTurnos?.fechaHoraLegible(cierre.inicioTurnoMs)||"")]:[]),
     "Propinas (aparte): "+fmt(propinas),
     ...(obs?["","Observaciones: "+obs]:[]),
     "",
