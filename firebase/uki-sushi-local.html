@@ -1123,6 +1123,7 @@ function descargarPDF(tipo){
     txt+=`Total cierres: ${cierres.length}\n\n`;
     cierres.forEach((x,i)=>{
       txt+=`=== CIERRE ${i+1} - ${x.fecha} - ${x.resp} ===\n`;
+      if(x.fechaOperativa)txt+=`Turno operativo: ${x.fechaOperativa}\n`;
       txt+=`Pedidos: ${x.pedidos}\n`;
       if(x.medios){
         Object.keys(x.medios).forEach(k=>{ txt+=`${k}: $${x.medios[k]}\n`; });
@@ -1163,10 +1164,10 @@ function descargarExcel(tipo){
   if(tipo==="historial"){
     const cierres=delSuc(S.cierres).filter(x=>!S.filtro||x.fecha.includes(S.filtro));
     if(!cierres.length){aviso("No hay cierres");return;}
-    let csv="Fecha;Responsable;Pedidos;Efectivo;Transferencia;Debito;Edenred;Otros;Uber Eats;PedidosYa;Rappi;Venta con delivery;Venta sin delivery;Base;Deliveries;Gastos;Pago Delivery;Total final;Efectivo quedo;Obs\n";
+    let csv="Turno operativo;Fecha del cierre;Responsable;Pedidos;Efectivo;Transferencia;Debito;Edenred;Otros;Uber Eats;PedidosYa;Rappi;Venta con delivery;Venta sin delivery;Base;Deliveries;Gastos;Pago Delivery;Total final;Efectivo quedo;Obs\n";
     cierres.forEach(x=>{
       const m=x.medios||{};
-      csv+=`${csvSeguro(x.fecha)};${csvSeguro(x.resp)};${x.pedidos};${m.Efectivo||0};${m.Transferencia||0};${m.Débito||0};${m.Edenred||0};${m.Otros||0};${m["Uber Eats"]||0};${m.PedidosYa||0};${m.Rappi||0};${x.venta};${x.ventaSinDelivery||0};${x.base||0};${x.envios||0};${x.gastos};${x.pagadoDelivery};${x.final};${x.efectivo};${csvSeguro(x.obs||"")}\n`;
+      csv+=`${csvSeguro(x.fechaOperativa||"")};${csvSeguro(x.fecha)};${csvSeguro(x.resp)};${x.pedidos};${m.Efectivo||0};${m.Transferencia||0};${m.Débito||0};${m.Edenred||0};${m.Otros||0};${m["Uber Eats"]||0};${m.PedidosYa||0};${m.Rappi||0};${x.venta};${x.ventaSinDelivery||0};${x.base||0};${x.envios||0};${x.gastos};${x.pagadoDelivery};${x.final};${x.efectivo};${csvSeguro(x.obs||"")}\n`;
     });
     descargarTextoArchivo(`historial-${S.suc}-${new Date().toISOString().slice(0,10)}.csv`, csv, "text/csv;charset=utf-8");
     aviso("📊 Excel historial descargado");
@@ -1272,8 +1273,8 @@ function vHistorialCompacto(){
 
 function vHistorial(){
   if(!S.suc) return vInicio(); const todos=delSuc(S.cierres); let c=todos;
-  if(S.filtro) c=c.filter(x=>x.fecha.includes(S.filtro));
-  if(S.filtroFecha){const f=S.filtroFecha; c=c.filter(x=>x.fecha.includes(f.split("-").reverse().join("-").slice(0,5)));}
+  if(S.filtro) c=c.filter(x=>x.fecha.includes(S.filtro)||String(x.fechaOperativa||"").includes(S.filtro));
+  if(S.filtroFecha){const f=S.filtroFecha; c=c.filter(x=>x.fechaOperativa===f||(!x.fechaOperativa&&x.fecha.includes(f.split("-").reverse().join("-").slice(0,5))));}
   c=c.slice().reverse();
   const buscador=`<div class="card"><h2>Buscar por día</h2><label>Texto (ej: 29-10)</label><input placeholder="Ej: 29-10" value="${esc(S.filtro||"")}" oninput="S.filtro=this.value;render()"><label>Calendario</label><input type="date" value="${S.filtroFecha||""}" onchange="S.filtroFecha=this.value;render()"><p class="muted">Cada cierre queda guardado aquí.</p>${c.length?row("Días mostrados",c.length)+row("Deliveries en total",fmt(c.reduce((a,x)=>a+(x.dels||[]).reduce((b,d)=>b+(d.envio||0),0),0)))+row("Efectivo que quedó en total",fmt(c.reduce((a,x)=>a+x.efectivo,0))):""}<button class="sm" onclick="S.filtro='';S.filtroFecha='';render()">Limpiar</button><button class="sm" onclick="copiarResumen()">Copiar resumen</button><button class="sm" onclick="descargarPDF('historial')">Historial TXT</button><button class="sm" onclick="descargarExcel('historial')">Excel historial</button><button class="sm ok" onclick="descargarRespaldoCompleto()">💾 Respaldo PC</button></div>`;
   if(!c.length) return buscador+'<div class="card muted">Sin cierres para mostrar - Haz un cierre en Cierre del día con Responsable</div>';
