@@ -52,7 +52,7 @@
     txt(c,timbres+"/10",700,451,46,"#FFF",800,"center");
 
     for(let k=0;k<10;k++){
-      const x=151+(k%5)*148,y=606+Math.floor(k/5)*147,marked=k<timbres;
+      const x=151+(k%5)*148,y=577+Math.floor(k/5)*139,marked=k<timbres;
       c.beginPath();c.arc(x,y,58,0,7);
       c.fillStyle=marked?"#FEE4C6":"#FFFCF7";c.fill();
       c.strokeStyle=marked?C.rojo:"#DDAE84";c.lineWidth=marked?5:3;
