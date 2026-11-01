@@ -1170,6 +1170,7 @@ function cerrar(){
   const respEl=$("resp");
   const resp=respEl?respEl.value.trim():cierreDraft.resp.trim();
   if(!resp){aviso("⚠️ Escribe quién cierra (ej: Dianna) en Responsable"); if(respEl) respEl.focus(); return;}
+  if(!window.ukiControlTurnos){aviso("No se cargó el control de caja. Actualiza el panel antes de cerrar.");return;}
   const t=totales();
   const contadoStr=String(cierreDraft.contado||"").trim();
   const diferencia=window.ukiControlTurnos?.diferencia(t.efectivoCaja,contadoStr);
