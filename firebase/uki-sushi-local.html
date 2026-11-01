@@ -708,22 +708,26 @@ function fichaHistorial(cli){
 
 // La fecha de búsqueda es solo un filtro visual; no altera registros ni timbres.
 let filtroFechaTimbres="";
+function verDiaTimbres(fecha){
+ filtroFechaTimbres=/^\d{4}-\d{2}-\d{2}$/.test(fecha)?fecha:"";
+ S.filtroCliente="";render();
+}
 function buscarTimbresPorFecha(){
   const f=filtroFechaTimbres;
   const diaValido=/^\d{4}-\d{2}-\d{2}$/.test(f);
   const pedidos=diaValido?(S.pedidos||[]).filter(p=>
-    p.suc===S.suc&&String(p.fechaISO||"").slice(0,10)===f&&!p.esPremio
+    p.suc===S.suc&&fechaTurnoRegistro(p)===f&&!p.esPremio
   ).slice().sort((a,b)=>String(b.fechaISO||"").localeCompare(String(a.fechaISO||""))):[];
   const movimientos=diaValido?Object.values(S.clientes||{}).flatMap(c=>
-    (c.movimientos||[]).filter(m=>fechaLocalRegistro(m.fecha)===f).map(m=>({cliente:c.nombre||"",...m}))
+    (c.movimientos||[]).filter(m=>fechaTurnoMovimiento(m)===f).map(m=>({cliente:c.nombre||"",...m}))
   ):[];
   const etiqueta=m=>m.tipo==="venta"?"Timbre ganado":m.tipo==="canje6"?"Canje de 12 piezas":m.tipo==="canje10"?"Canje de 36 piezas + 2 korokes":m.tipo;
   return '<details class="card" id="ukiTimbresCalendario" '+(diaValido?'open':'')+'>'+
     '<summary style="cursor:pointer;font-weight:650">📅 Buscar por fecha <span class="muted" style="font-weight:400">(desplegar calendario)</span></summary>'+
     '<div style="margin-top:12px"><label for="ukiTimbresDia">Elige el día</label>'+
     '<input id="ukiTimbresDia" type="date" value="'+esc(f)+'" '+
-      'onchange="filtroFechaTimbres=this.value;render()" style="width:100%">'+
-    (diaValido?'<button class="sm" onclick="filtroFechaTimbres=\'\';render()" style="margin-top:8px">Limpiar fecha</button>'+
+      'onchange="verDiaTimbres(this.value)" style="width:100%">'+
+    (diaValido?'<button class="sm" onclick="verDiaTimbres(&quot;&quot;)" style="margin-top:8px">Limpiar fecha</button>'+
       '<h3 style="font-size:14px;margin:14px 0 5px">Pedidos del día · '+pedidos.length+'</h3>'+
       (pedidos.map(p=>'<div class="row"><span>'+esc(p.cliente||"Cliente sin nombre")+
          ' · '+esc(p.codigoCarta?"#"+p.codigoCarta:"Pedido #"+p.id)+
@@ -740,13 +744,38 @@ function buscarTimbresPorFecha(){
 function vClientes(){
   if(!S.suc) return vInicio();
   const buscar=nombreHist(S.filtroCliente);
-  const lista=Object.values(S.clientes).filter(c=>{
-    if(!buscar)return true;
-    if(nombreHist(c.nombre).includes(buscar))return true;
-    return pedidosHist(c.nombre,c.codigoCliente,c.telefono).some(p=>String(p.codigoCliente||"").toLowerCase().includes(buscar)||String(p.telefono||"").replace(/[^0-9]/g,"").includes(buscar));
+  const fecha=filtroFechaTimbres||fechaOperativaActual();
+  const clientes=Object.values(S.clientes||{});
+  const lista=clientes.filter(c=>{
+    if(buscar)return nombreHist(c.nombre).includes(buscar)||
+      pedidosHist(c.nombre,c.codigoCliente,c.telefono).some(p=>
+        String(p.codigoCliente||"").toLowerCase().includes(buscar)||
+        String(p.telefono||"").replace(/[^0-9]/g,"").includes(buscar));
+    return (c.movimientos||[]).some(m=>fechaTurnoMovimiento(m)===fecha);
   }).sort((a,b)=>ventasValidas(b)-ventasValidas(a));
-  return `<div class="card"><h2>⭐ Tarjetas de Timbres - 6=12 piezas / 10=36+2 korokes</h2><p class="muted">Cada venta = 1 timbre. Vence en 3 meses. 6 ventas = 12 piezas gratis. 10 ventas = 36 piezas + 2 korokes gratis.</p><label>Buscar cliente por nombre, código o teléfono</label><input placeholder="Ej: Camila o código 7362" value="${esc(S.filtroCliente||"")}" oninput="S.filtroCliente=this.value;render()"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px"><div class="card" style="margin:0"><h2 style="font-size:12px">Tarjetas</h2><b>${lista.length}</b></div><div class="card" style="margin:0"><h2 style="font-size:12px">Listos 6 ventas</h2><b>${lista.filter(c=>ventasValidas(c)>=6).length}</b></div><div class="card" style="margin:0"><h2 style="font-size:12px">Listos 10 ventas</h2><b>${lista.filter(c=>ventasValidas(c)>=10).length}</b></div></div></div>
+  const fechas=new Map();
+  for(const c of clientes)for(const m of c.movimientos||[]){
+    const f=fechaTurnoMovimiento(m);
+    if(/^\d{4}-\d{2}-\d{2}$/.test(f)&&f!==fechaOperativaActual()){
+      if(!fechas.has(f))fechas.set(f,new Set());
+      fechas.get(f).add(claveCliente(c.nombre,c.codigoCliente,c.telefono));
+    }
+  }
+  const dias=[...fechas.entries()].sort((a,b)=>b[0].localeCompare(a[0]));
+  return `<div class="card"><h2>⭐ Tarjetas de Timbres</h2>
+    <p class="muted">Los timbres se acumulan por 3 meses. Premios: 6 ventas = 12 piezas; 10 ventas = 36 piezas + 2 korokes.</p>
+    <p><b>${buscar?'Resultados de búsqueda':filtroFechaTimbres?'Tarjetas del '+esc(fecha):'Tarjetas con actividad del turno · '+esc(fecha)}</b></p>
+    <label>Buscar cliente por nombre, código o teléfono (de cualquier día)</label>
+    <input placeholder="Ej: Camila o código 7362" value="${esc(S.filtroCliente||"")}" oninput="S.filtroCliente=this.value;render()">
+    <button class="sm" onclick="verDiaTimbres(&quot;&quot;)">Ver turno actual</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px">
+    <div class="card" style="margin:0"><h2 style="font-size:12px">Tarjetas visibles</h2><b>${lista.length}</b></div>
+    <div class="card" style="margin:0"><h2 style="font-size:12px">Premios 6</h2><b>${lista.filter(c=>ventasValidas(c)>=6).length}</b></div>
+    <div class="card" style="margin:0"><h2 style="font-size:12px">Premios 10</h2><b>${lista.filter(c=>ventasValidas(c)>=10).length}</b></div></div></div>
   ${buscarTimbresPorFecha()}
+  <details class="card"><summary style="cursor:pointer"><b>📚 Timbres de días anteriores</b> · ${dias.length} días</summary>
+    <div style="padding-top:10px">${dias.length?dias.slice(0,30).map(([f,conjunto])=>`<button class="sm" style="display:block;width:100%;margin:6px 0;text-align:left" onclick="verDiaTimbres('${esc(f)}')">📅 ${esc(f)} · ${conjunto.size} cliente${conjunto.size===1?'':'s'}</button>`).join(''):'<p class="muted">Aún no hay movimientos de días anteriores.</p>'}
+    ${dias.length>30?'<p class="muted">Para fechas más antiguas utiliza el calendario.</p>':''}</div></details>
   ${lista.length?lista.map(cli=>{
     const key=claveCliente(cli.nombre,cli.codigoCliente,cli.telefono);
     const keyArg=esc(JSON.stringify(key));
@@ -754,8 +783,8 @@ function vClientes(){
     const puede6=ventas>=6 && !cli.canje6;
     const puede10=ventas>=10;
     return `<div class="card" style="${puede10?'border:2px solid #111':puede6?'border:2px solid var(--ok)':''}"><h2>${esc(cli.nombre)} <span class="tag">🎫 ${ventas}/10 timbres</span> ${puede6?'<span class="tag" style="background:var(--ok);color:#fff">🎁 12 piezas listo!</span>':''} ${puede10?'<span class="tag" style="background:#111;color:#fff">🎉 36+2 korokes listo!</span>':''}</h2><p class="muted">${cli.pedidos} pedidos · Gastado ${fmt(cli.gastado)} · Último ${esc(cli.ultimo||"")}</p><div class="tarjeta">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventas?'lleno':''} ${i===5?'premio':''} ${i===9?'premio':''}" title="${i===5?'6 ventas = 12 piezas':i===9?'10 ventas = 36+2 korokes':''}">${i<ventas?'✓':i+1}${i===5?'<br><small style="font-size:8px">12p</small>':''}${i===9?'<br><small style="font-size:7px">36+2k</small>':''}</div>`).join("")}</div><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"><button class="sm ok" onclick="avisarTimbres(${keyArg})">📲 Avisar por WhatsApp</button><button class="sm ok" onclick="compartirImagenTimbres(${keyArg})">🖼️ Compartir tarjeta</button>${puede6?`<button class="sm ok" onclick="canjear12(${keyArg})">🎁 Canjear 12 piezas (6)</button>`:''}${puede10?`<button class="sm" style="background:#111;color:#fff" onclick="canjear36(${keyArg})">🎉 Canjear 36+2 korokes (10)</button>`:''}<button class="sm" onclick="D.cliente=${esc(JSON.stringify(cli.nombre))};D.codigoCliente=${esc(JSON.stringify(cli.codigoCliente||''))};D.telefono=${esc(JSON.stringify(cli.telefono||''))};ir('nuevo');">+ Pedido</button></div><details style="margin-top:8px"><summary class="muted">Ver historial timbres</summary>${(cli.movimientos||[]).slice(-15).reverse().map(m=>`<div class="row"><span>${m.tipo==='venta'?'🟢 Venta':m.tipo==='canje6'?'🔴 Canje 12 piezas':m.tipo==='canje10'?'🔴 Canje 36+2k':esc(m.tipo)} - ${new Date(m.fecha).toLocaleDateString('es-CL')} ${m.vence?'· Vence '+new Date(m.vence).toLocaleDateString('es-CL'):''}</span></div>`).join("")||"<p class='muted'>Sin movimientos</p>"}</details>${fichaHistorial(cli)}</div>`;
-  }).join(""):`<div class="card muted">Sin tarjetas aún. Se crean al guardar pedidos con nombre. Cada venta = 1 timbre.</div>`}
-  <div class="card"><h2>Ranking clientes frecuentes</h2>${Object.values(S.clientes).sort((a,b)=>b.pedidos-a.pedidos).slice(0,10).map((c,i)=>`<div class="row"><span>${i+1}. ${esc(c.nombre)} - ${ventasValidas(c)}/10 timbres</span><b>${c.pedidos} pedidos</b></div>`).join("")||"<p class='muted'>Sin datos</p>"}</div>`;
+  }).join(""):`<div class="card muted">${buscar?'No se encontraron clientes.':'No hay tarjetas con movimientos en este turno o fecha. Busca por nombre para consultar cualquier tarjeta acumulada.'}</div>`}
+  <details class="card"><summary style="cursor:pointer"><b>🏅 Ranking clientes frecuentes</b></summary>${Object.values(S.clientes).sort((a,b)=>b.pedidos-a.pedidos).slice(0,10).map((c,i)=>`<div class="row"><span>${i+1}. ${esc(c.nombre)} - ${ventasValidas(c)}/10 timbres</span><b>${c.pedidos} pedidos</b></div>`).join("")||"<p class='muted'>Sin datos</p>"}</details>`;
 }
 function compartirImagenTimbres(key){
  const cli=S.clientes[key];
