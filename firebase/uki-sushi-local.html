@@ -978,7 +978,9 @@ function actualizarConteoEfectivo(valor){
     d>0?"Sobrante: "+fmt(d):"Faltante: "+fmt(-d);
 }
 function vCierre(){
-  if(!S.suc) return vInicio(); const t=totales(); const caja=cajaDelDia();
+  if(!S.suc) return vInicio();
+  if(!window.ukiControlTurnos)return '<div class="card"><h2>No se cargó el control de caja</h2><p class="muted">Actualiza la página para revisar los pagos pendientes y el cuadre antes de cerrar. La caja sigue intacta.</p></div>';
+  const t=totales(); const caja=cajaDelDia();
   const pendientes=window.ukiControlTurnos?.pedidosSinPago(S.pedidos,S.suc,esDelPeriodo)||[];
   const dif=window.ukiControlTurnos?.diferencia(t.efectivoCaja,cierreDraft.contado);
   const conteoTexto=cierreDraft.contado.trim()===""?"Sin conteo físico registrado":
