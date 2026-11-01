@@ -3,7 +3,7 @@
   "use strict";
   const W=900,H=1120;
   const C={crema:"#FFF8EE",papel:"#FFFFFF",tinta:"#4C281B",rojo:"#EC2015",naranja:"#F4770A",borde:"#F2D8BD",gris:"#897368"};
-  const logo="./uki-logo-original.jpg";
+  const logo="./uki-logo-original.svg";
   const rect=(c,x,y,w,h,r,fill,stroke,sw=1)=>{
     c.beginPath();c.roundRect(x,y,w,h,r);
     if(fill){c.fillStyle=fill;c.fill();}
