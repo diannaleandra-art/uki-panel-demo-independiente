@@ -30,3 +30,13 @@ La mejora corresponde a la pantalla fotografiada: «Uki Sushi · Panel v8.15 · 
 - Revisar integración con auto-guardado de Firebase y cómo se maneja un error/conflicto durante cancelación.
 - Confirmar que cierre, timbres y totales quedan coherentes con datos ficticios y después autorizar explícitamente el despliegue del panel operativo.
 - No fusionar la rama ni cambiar GitHub Pages/producción sin autorización.
+
+## Revisión adicional de código y sincronización
+
+- Simulación de la interfaz `vPedidos()`: botón y selector solo para pendientes elegibles; estado y motivo de cancelación visibles; botones editar/pago bloqueados en pedidos cancelados.
+- Simulación de `totales()`: tras cancelar un segundo pedido sin pagar, ventas cobradas y delivery permanecen iguales, desciende la cantidad de pendientes, y aumenta el conteo de cancelados; sin repercutir en caja.
+- Se fortaleció `cancelarPedido` para esperar el guardado cifrado local y revertir la modificación si Safari informa un fallo, sin declarar éxito prematuramente. La interfaz pide comprobar «Nube: sincronizado» antes de abandonar el panel.
+- 13 escenarios de lógica de cancelación y error de guardado ejecutados con datos ficticios, todos aprobados.
+- Se ensayó el módulo real de autoguardado `uki-sushi-autoguardado.js` con Firebase **simulado**: una confirmación remota eleva la revisión y devuelve «sincronizado», mientras que un conflicto detiene nuevos guardados y marca «conflicto». No se utilizó la base Firebase real.
+- Aún **NO** se probó la versión publicada desde iPhone, ni se ha demostrado un guardado real en Firebase con esta función. Tampoco se modificaron datos de clientes, cierres, pagos ni timbres reales.
+- El archivo HTML de la rama mantiene la conexión Firebase existente, por lo que **no debe publicarse como vista previa que se conecte a datos reales** sin neutralizar la escritura de pruebas y revisar controles de acceso.
