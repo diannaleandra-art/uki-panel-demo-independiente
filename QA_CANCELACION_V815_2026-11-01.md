@@ -40,3 +40,12 @@ La mejora corresponde a la pantalla fotografiada: «Uki Sushi · Panel v8.15 · 
 - Se ensayó el módulo real de autoguardado `uki-sushi-autoguardado.js` con Firebase **simulado**: una confirmación remota eleva la revisión y devuelve «sincronizado», mientras que un conflicto detiene nuevos guardados y marca «conflicto». No se utilizó la base Firebase real.
 - Aún **NO** se probó la versión publicada desde iPhone, ni se ha demostrado un guardado real en Firebase con esta función. Tampoco se modificaron datos de clientes, cierres, pagos ni timbres reales.
 - El archivo HTML de la rama mantiene la conexión Firebase existente, por lo que **no debe publicarse como vista previa que se conecte a datos reales** sin neutralizar la escritura de pruebas y revisar controles de acceso.
+
+## Prueba adicional del protocolo de Firestore con simulador — 2026-11-01
+
+- Se ejecutó `crearSnapshotsUki` del código existente, junto con los módulos reales `dividirEstado`, `reunirEstado` y `crearAutoGuardadoOperativo`, reemplazando las llamadas a Firestore por un almacén simulado en memoria y el cifrado por un *codec* ficticio. **No se probó el cifrado AES ni se accedió a Firebase real.**
+- Se guardó un pedido ficticio pendiente de Regimiento Arica con revisión 1; posteriormente se simuló su cancelación por `cliente`, la sincronización automática generó revisión 2 y al volver a cargar se recuperó el estado `Cancelado`, el motivo y la fecha.
+- Se guardó una segunda sucursal ficticia y se comprobó que permaneció `Pendiente`, sin recibir la cancelación de Arica.
+- Se intentó escribir una revisión vieja (1) sobre la revisión 2: la función devolvió `CONFLICTO` y la cancelación permaneció guardada sin sobrescritura.
+- La comprobación fue **100 % simulada, sin red ni producción**, y se completó satisfactoriamente.
+- El backend real y el acceso multiusuario sobre Firebase están pendientes de una prueba aislada y expresamente autorizada. **No habilitar la función operativa ni fusionar la rama antes de comprobar esta parte.**
