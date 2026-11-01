@@ -699,7 +699,35 @@ function vClientes(){
   <div class="card"><h2>Ranking clientes frecuentes</h2>${Object.values(S.clientes).sort((a,b)=>b.pedidos-a.pedidos).slice(0,10).map((c,i)=>`<div class="row"><span>${i+1}. ${esc(c.nombre)} - ${ventasValidas(c)}/10 timbres</span><b>${c.pedidos} pedidos</b></div>`).join("")||"<p class='muted'>Sin datos</p>"}</div>`;
 }
 function avisarTimbres(key){
-  alert("Los avisos por WhatsApp no están conectados. La comanda se puede copiar y enviar manualmente.");
+  const cli=S.clientes[key];
+  if(!cli){aviso("No se encontró la tarjeta del cliente.");return;}
+  const timbres=ventasValidas(cli);
+  const premio=timbres>=10
+    ?"🎉 ¡Ya puedes canjear 36 piezas + 2 korokes gratis!"
+    :(timbres>=6&&!cli.canje6?"🎁 ¡Ya puedes canjear 12 piezas gratis!":"");
+  const mensaje=[
+    "🍣 *UKI SUSHI · TARJETA DE TIMBRES*",
+    "Hola, "+(cli.nombre||"cliente")+" 👋",
+    "Tienes *"+timbres+"/10 timbres* acumulados.",
+    "🎁 6 compras = 12 piezas gratis.",
+    "🎁 10 compras = 36 piezas + 2 korokes gratis.",
+    premio,
+    "Los timbres son válidos durante 3 meses desde cada compra.",
+    "Sucursal: "+S.suc,
+    "¡Gracias por preferir Uki Sushi!"
+  ].filter(Boolean).join("\n");
+  const raw=String(cli.telefono||"").trim();
+  let numero=raw.replace(/\D/g,"");
+  const internacional=/^\s*(\+|00)/.test(raw);
+  if(numero.startsWith("00")) numero=numero.slice(2);
+  if(/^09\d{8}$/.test(numero)) numero="56"+numero.slice(1);
+  else if(/^9\d{8}$/.test(numero)) numero="56"+numero;
+  if(!(/^569\d{8}$/.test(numero)||(internacional&&/^[1-9]\d{9,14}$/.test(numero)))){
+    window.prompt("Falta un número de WhatsApp válido para este cliente. Copia el mensaje y envíalo manualmente; puedes actualizar su teléfono en el pedido.",mensaje);
+    return;
+  }
+  // Solo abre un borrador. WhatsApp NO envía el mensaje automáticamente.
+  window.open("https://wa.me/"+numero+"?text="+encodeURIComponent(mensaje),"_blank","noopener,noreferrer");
 }
 
 function canjear12(key){
