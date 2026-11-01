@@ -923,13 +923,34 @@ function fechaLocalRegistro(fecha){
   d.setMinutes(d.getMinutes()-d.getTimezoneOffset());
   return d.toISOString().slice(0,10);
 }
+// Vista histórica por turno; no escribe ni borra registros.
+let pedidosArchivoDia="";
+function fechaTurnoRegistro(p){
+ const t=fechaRegistroMs(p);
+ if(t>0){
+   const cierre=(S.cierres||[]).filter(c=>c.suc===S.suc&&fechaCierreMs(c)>=t)
+     .sort((a,b)=>fechaCierreMs(a)-fechaCierreMs(b))[0];
+   if(cierre)return cierre.fechaOperativa||fechaLocalRegistro(cierre.fechaISO)||String(p.fechaISO||"").slice(0,10);
+   if(esDelPeriodo(p))return fechaOperativaActual();
+ }
+ return String(p.fechaISO||"").slice(0,10)||fechaLocalRegistro(new Date(t).toISOString());
+}
+function fechaTurnoMovimiento(m){
+ const p=m.pedidoId?(S.pedidos||[]).find(p=>p.suc===S.suc&&p.id===m.pedidoId):null;
+ return p?fechaTurnoRegistro(p):fechaLocalRegistro(m.fecha);
+}
+function verArchivoPedidos(fecha){
+ pedidosArchivoDia=/^\d{4}-\d{2}-\d{2}$/.test(fecha)?fecha:"";
+ filtroCodigoCarta="";filtroDiaPedidos="";render();
+}
 function aplicarDiaIncidencias(){filtroDiaIncidencias=($("diaErrorFiltro")?.value||"").trim();erroresAbiertos=true;render();}
 function aplicarFiltrosPedidos(){
   filtroCodigoCarta=($("codigoFiltro")?.value||"").trim();
   filtroDiaPedidos=($("diaPedidoFiltro")?.value||"").trim();
+  pedidosArchivoDia="";
   render();
 }
-function limpiarFiltrosPedidos(){filtroCodigoCarta="";filtroDiaPedidos="";filtroDiaIncidencias="";erroresAbiertos=false;render();}
+function limpiarFiltrosPedidos(){filtroCodigoCarta="";filtroDiaPedidos="";filtroDiaIncidencias="";pedidosArchivoDia="";erroresAbiertos=false;render();}
 function anotarIncidencia(pedidoId){
   const p=S.pedidos.find(x=>x.id===pedidoId && x.suc===S.suc);if(!p)return;
   const problema=($("incProblema"+pedidoId)?.value||"").trim();
@@ -953,13 +974,38 @@ function renderIncidencia(x,contexto="lista"){
 }
 function vPedidos(){
   if(!S.suc) return vInicio();
-  const todos=pedidosSuc().filter(p=>(!filtroCodigoCarta || String(p.codigoCarta||p.id).toLowerCase().includes(filtroCodigoCarta.toLowerCase())) && (!filtroDiaPedidos || String(p.fechaISO||"").slice(0,10)===filtroDiaPedidos)).slice().reverse();
+  const fechaTurno=fechaOperativaActual();
+  const pedidos=pedidosSuc();
+  const buscando=!!(filtroCodigoCarta||filtroDiaPedidos);
+  const todos=pedidos.filter(p=>{
+    if(buscando)return (!filtroCodigoCarta||String(p.codigoCarta||p.id).toLowerCase().includes(filtroCodigoCarta.toLowerCase())||String(p.cliente||"").toLowerCase().includes(filtroCodigoCarta.toLowerCase()))&&
+      (!filtroDiaPedidos||fechaTurnoRegistro(p)===filtroDiaPedidos||String(p.fechaISO||"").slice(0,10)===filtroDiaPedidos);
+    return pedidosArchivoDia?fechaTurnoRegistro(p)===pedidosArchivoDia:esDelPeriodo(p);
+  }).slice().reverse();
+  const grupos=new Map();
+  for(const p of pedidos){
+    const f=fechaTurnoRegistro(p);
+    if(f!==fechaTurno)grupos.set(f,(grupos.get(f)||0)+1);
+  }
+  const dias=[...grupos.entries()].sort((a,b)=>b[0].localeCompare(a[0]));
   const incidencias=(S.incidencias||[]).filter(x=>x.suc===S.suc && (!filtroCodigoCarta || String(x.codigoCarta||x.pedidoId).toLowerCase().includes(filtroCodigoCarta.toLowerCase())) && (!filtroDiaIncidencias || fechaLocalRegistro(x.fecha)===filtroDiaIncidencias)).slice().reverse();
   const pendientes=(S.incidencias||[]).filter(x=>x.suc===S.suc && x.estado!=="Resuelto").length;
   const pagados=todos.filter(p=>p.pagado&&!p.esPremio&&p.estado!=="Cancelado").length;
-  return `<div class="section-head"><h2>Pedidos</h2><p>${todos.length} registrados · ${pagados} pagados</p></div>
+  const titulo=buscando?"Resultados de búsqueda":pedidosArchivoDia?"Pedidos del turno "+pedidosArchivoDia:"Pedidos del turno abierto · "+fechaTurno;
+  return `<div class="section-head"><h2>Pedidos</h2><p>${esc(titulo)} · ${todos.length} registrados · ${pagados} pagados</p></div>
   <button class="big cta" onclick="ir('nuevo')">＋ Nuevo pedido</button>
-  <div class="card"><h2>Buscar pedidos y WhatsApp</h2><label>Codigo del pedido en la carta</label><input id="codigoFiltro" value="${esc(filtroCodigoCarta)}" placeholder="Ej: 953" inputmode="text"><label>Pedidos del dia</label><input id="diaPedidoFiltro" type="date" value="${esc(filtroDiaPedidos)}"><button class="sm ok" onclick="aplicarFiltrosPedidos()">Buscar pedidos</button><button class="sm" onclick="limpiarFiltrosPedidos()">Ver todos</button><p class="muted">Abre el pedido para ver el WhatsApp original. Puedes buscar un dia anterior.</p></div>
+  ${pedidosArchivoDia||buscando?'<button class="sm" onclick="limpiarFiltrosPedidos()">← Volver al turno abierto</button>':''}
+  <details class="card" ${buscando?'open':''}><summary style="cursor:pointer"><b>🔎 Buscar pedidos por código, cliente o fecha</b></summary>
+    <div style="margin-top:12px"><label>Código del pedido o cliente</label><input id="codigoFiltro" value="${esc(filtroCodigoCarta)}" placeholder="Ej: 953 o Dianna" inputmode="text">
+    <label>Fecha del pedido o turno</label><input id="diaPedidoFiltro" type="date" value="${esc(filtroDiaPedidos)}">
+    <button class="sm ok" onclick="aplicarFiltrosPedidos()">Buscar pedidos</button>
+    <button class="sm" onclick="limpiarFiltrosPedidos()">Ver turno abierto</button>
+    <p class="muted">Los pedidos de jornadas anteriores se conservan en el historial por turno.</p></div>
+  </details>
+  <details class="card"><summary style="cursor:pointer"><b>📚 Pedidos anteriores por día</b> · ${dias.length} turnos</summary>
+    <div style="padding-top:10px">${dias.length?dias.slice(0,30).map(([f,n])=>`<button class="sm" style="display:block;width:100%;margin:6px 0;text-align:left" onclick="verArchivoPedidos('${esc(f)}')">📅 ${esc(f)} · ${n} pedido${n===1?'':'s'}</button>`).join(''):'<p class="muted">Todavía no hay turnos anteriores.</p>'}
+    ${dias.length>30?'<p class="muted">Para fechas más antiguas utiliza el calendario de búsqueda.</p>':''}</div>
+  </details>
   <details class="card" ${erroresAbiertos?'open':''}><summary onclick="erroresAbiertos=!erroresAbiertos"><b>⚠️ Errores e incidencias</b> · ${pendientes} pendientes</summary><label>Buscar errores por dia de reporte</label><input id="diaErrorFiltro" type="date" value="${esc(filtroDiaIncidencias)}"><button class="sm ok" onclick="aplicarDiaIncidencias()">Buscar errores</button><p class="muted">Los reportes se conservan aunque se cierre la caja del dia.</p>${incidencias.length?incidencias.map(x=>renderIncidencia(x,"lista")).join(""):"<p class='muted'>No hay errores para esta busqueda.</p>"}</details>
   ${todos.map(p=>`<details class="card order-card" ${p.id===pedidoExpandido?'open':''}>
     <summary onclick="pedidoExpandido=${p.id}"><div class="order-head"><div><b>${p.codigoCarta?`Carta #${esc(p.codigoCarta)} · `:""}Interno #${p.id} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small>${p.esPremio?'🎁 Premio':p.pagado?'Pagado':'Pendiente'}</small></div></div></summary>
