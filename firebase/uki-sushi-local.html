@@ -623,7 +623,7 @@ function togglePagado(id){
 function puedeCancelarPedido(p){
  return !!p&&p.suc===S.suc&&!p.esPremio&&!p.pagado&&p.estado==="Pendiente"&&esDelPeriodo(p)&&!S.busy;
 }
-function cancelarPedido(id){
+async function cancelarPedido(id){
  const p=S.pedidos.find(x=>x.id===id&&x.suc===S.suc);
  if(!p){aviso("Pedido no encontrado en esta sucursal.");return;}
  if(!puedeCancelarPedido(p)){aviso("Solo puedes cancelar pedidos pendientes, sin pago y del turno abierto. Los pagados requieren devolución o ajuste por separado.");return;}
@@ -634,11 +634,21 @@ function cancelarPedido(id){
  if(!puedeCancelarPedido(p)||document.body.classList.contains("uki-operativo-bloqueado")){
    aviso("El pedido o la sincronización cambió. No se realizó la cancelación.");return;
  }
+ const anterior={estado:p.estado,motivo:p.motivoCancelacion,fecha:p.canceladoEn};
  p.estado="Cancelado";
  p.motivoCancelacion=motivo;
  p.canceladoEn=new Date().toISOString();
+ // Nunca afirmar que se guardó si Safari no pudo escribir el respaldo local cifrado.
+ const guardado=await guardarEnLocalStorage();
+ if(!guardado){
+   p.estado=anterior.estado;
+   if(anterior.motivo===undefined)delete p.motivoCancelacion;else p.motivoCancelacion=anterior.motivo;
+   if(anterior.fecha===undefined)delete p.canceladoEn;else p.canceladoEn=anterior.fecha;
+   aviso("No se guardó la cancelación. El pedido sigue pendiente. Revisa el espacio del iPhone.");
+   return;
+ }
  pedidoExpandido=id;
- aviso("Pedido #"+id+" cancelado por "+(motivo==="cliente"?"el cliente":"el local")+". Conservado en historial; no suma ventas.");
+ aviso("Cancelación guardada en este dispositivo por "+(motivo==="cliente"?"el cliente":"el local")+". Verifica que aparezca «Nube: sincronizado» antes de salir.");
 }
 function claveCliente(nombre,codigo="",telefono=""){
   const c=String(codigo||"").trim(),t=String(telefono||"").replace(/[^\d]/g,"");
