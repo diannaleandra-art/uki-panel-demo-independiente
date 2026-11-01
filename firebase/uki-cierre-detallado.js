@@ -46,9 +46,54 @@ function filas(c){
  if(d.repartidor?.monto)r.push(["Pago repartidor","","","Repartidor",d.repartidor.monto,d.repartidor.medio,""]);
  return r;
 }
-function render(c,fmt,esc,index){
+// Los movimientos individuales anteriores al historial detallado aún pueden existir
+// en el estado cifrado de la sucursal. Esta es una consulta de solo lectura:
+// NO altera cierres ni pretende que esos conceptos hayan sido congelados al cerrar.
+function recuperarGastosAnteriores(c,estado){
+ if(!c||c.detalle?.version===1||!estado||c.suc!==estado.suc)return null;
+ const ms=x=>{
+  if(Number.isFinite(x?.fechaMs))return x.fechaMs;
+  if(Number.isFinite(x?.registradoEn))return x.registradoEn;
+  if(Number.isFinite(x?.id)&&x.id>1e12&&x.id<1e14)return x.id;
+  const d=new Date(x?.fechaISO||"");return Number.isFinite(d.getTime())?d.getTime():0;
+ };
+ const fin=ms(c);
+ if(!fin)return null;
+ const fecha=/^\d{4}-\d{2}-\d{2}$/.test(c.fechaOperativa||"")?c.fechaOperativa:null;
+ // No atribuir a un turno antiguo una fecha que no consta en el cierre.
+ if(!fecha)return null;
+ const inicio=new Date(fecha+"T00:00:00").getTime();
+ if(!Number.isFinite(inicio)||inicio>fin)return null;
+ const anteriores=(estado.cierres||[]).filter(x=>x!==c&&x.suc===c.suc&&ms(x)>0&&ms(x)<fin);
+ const corte=Math.max(inicio-1,...anteriores.map(ms));
+ const gastos=(estado.gastos||[]).filter(x=>{
+  if(x.suc!==c.suc)return false;
+  const t=ms(x);
+  return t>corte&&t<=fin&&Number.isFinite(Number(x.monto))&&Number(x.monto)>0;
+ }).sort((a,b)=>ms(a)-ms(b));
+ const sum=gastos.reduce((n,x)=>n+Number(x.monto),0);
+ const esperado=Number(c.gastos);
+ if(!Number.isFinite(esperado)||esperado<0)return null;
+ // Coincidencia contable necesaria, pero no reemplaza la instantánea histórica.
+ return {gastos,cuadra:Math.abs(sum-esperado)<0.001,esperado,encontrado:sum};
+}
+function renderGastosAnteriores(c,estado,fmt,esc){
+ const r=recuperarGastosAnteriores(c,estado);
+ if(!r)return '<p class="muted">Cierre anterior al desglose. Se conservaron los totales, pero no hay una copia inmutable de los conceptos individuales.</p>';
+ if(!r.cuadra)return '<p class="muted">Cierre anterior al desglose. Se conservó el gasto total de '+fmt(r.esperado)+
+  ', pero los movimientos originales actualmente disponibles suman '+fmt(r.encontrado)+
+  '. No se muestran conceptos como comprobados porque no coinciden con el cierre.</p>';
+ if(!r.gastos.length)return '<p class="muted">Cierre anterior al desglose: sin gastos individualizados que recuperar. Total guardado: '+fmt(r.esperado)+'.</p>';
+ return '<div style="padding:12px;background:var(--bg);border-radius:10px;margin-top:12px">'+
+  '<h3 style="margin:0 0 7px">🧾 Gastos originales asociados a este cierre</h3>'+
+  '<p class="muted">Recuperados de los movimientos de la sucursal: fechas e importes coinciden con el total. No son una copia congelada al cerrar; podrían haber sido modificados después.</p>'+
+  r.gastos.map(x=>'<div class="row"><span>'+esc(String(x.concepto||"Sin concepto")+
+    ' · '+String(x.medio||"Sin medio"))+'</span><b>'+fmt(Number(x.monto))+'</b></div>').join("")+
+  '<div class="row"><b>Total de gastos</b><b>'+fmt(r.esperado)+'</b></div></div>';
+}
+function render(c,fmt,esc,index,estado){
  const d=c.detalle;
- if(!d||d.version!==1)return '<p class="muted">Cierre anterior a la mejora: los totales están guardados, pero no se registró una copia detallada de sus conceptos. No se pueden reconstruir con certeza.</p>';
+ if(!d||d.version!==1)return renderGastosAnteriores(c,estado,fmt,esc);
  const row=(a,b)=>'<div class="row"><span>'+esc(a)+'</span><b>'+fmt(b)+'</b></div>';
  const section=(title,rows)=>'<details style="margin:8px 0"><summary style="cursor:pointer"><b>'+esc(title)+'</b> · '+rows.length+'</summary>'+
   (rows.length?rows.join(""):'<p class="muted">Sin movimientos</p>')+'</details>';
@@ -83,5 +128,5 @@ function csv(c,seguro){
  const cab=["Tipo","Fecha","Referencia","Concepto","Monto","Medio","Detalle"];
  return [cab,...filas(c)].map(row=>row.map(seguro).join(";")).join("\n");
 }
-window.ukiDetalleCierre={capturar,render,texto,csv,filas};
+window.ukiDetalleCierre={capturar,render,texto,csv,filas,recuperarGastosAnteriores};
 })();
