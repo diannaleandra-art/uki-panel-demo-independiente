@@ -644,10 +644,10 @@ function vPrecierreTrabajadores(){
  const dia=fechaOperativaActual();
  const registros=(caja.precierres||[]).filter(p=>p?.suc===S.suc&&p.fechaOperativa===dia).slice().reverse();
  const inicio=new Date(abierto.inicioMs).toLocaleString("es-CL",{dateStyle:"short",timeStyle:"short"});
- const propinasEfectivoTurno=Math.max(0,(Number(totales().propinasEfectivo)||0)-(Number(abierto.base?.propinasEfectivo)||0));
+ const propinasEfectivoTurno=Number.isSafeInteger(abierto.base?.propinasEfectivo)?Math.max(0,(Number(totales().propinasEfectivo)||0)-abierto.base.propinasEfectivo):null;
  return '<div class="card"><h2>🕒 Precierre por trabajador</h2>'+
    '<p><b>'+esc(abierto.nombre)+'</b></p><p class="muted">Inicio: '+esc(inicio)+'</p>'+
-   (propinasEfectivoTurno?'<p class="muted"><b>Propinas en efectivo de este turno: '+fmt(propinasEfectivoTurno)+'.</b> Si siguen en el cajón, sepáralas antes de contar. Se registran aparte de las ventas.</p>':'')+
+   (propinasEfectivoTurno===null?'<p class="muted">Este turno comenzó antes de actualizar el panel. Las propinas en efectivo se registran aparte, pero no se puede calcular aquí el importe atribuible solo a este turno.</p>':propinasEfectivoTurno?'<p class="muted"><b>Propinas en efectivo de este turno: '+fmt(propinasEfectivoTurno)+'.</b> Si siguen en el cajón, sepáralas antes de contar. Se registran aparte de las ventas.</p>':'')+
    '<label>Efectivo contado, sin incluir propinas (opcional)</label><input id="ukiEfectivoPrecierre" type="number" min="0" step="1" inputmode="numeric" placeholder="Monto contado">'+
    '<label>Observaciones (opcional)</label><textarea id="ukiObsPrecierre" maxlength="300" rows="2"></textarea>'+
    '<button class="big" onclick="ukiGuardarPrecierre()">Guardar precierre · no cerrar día</button>'+
