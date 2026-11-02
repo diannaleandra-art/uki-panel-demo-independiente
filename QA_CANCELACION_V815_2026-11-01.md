@@ -49,3 +49,12 @@ La mejora corresponde a la pantalla fotografiada: «Uki Sushi · Panel v8.15 · 
 - Se intentó escribir una revisión vieja (1) sobre la revisión 2: la función devolvió `CONFLICTO` y la cancelación permaneció guardada sin sobrescritura.
 - La comprobación fue **100 % simulada, sin red ni producción**, y se completó satisfactoriamente.
 - El backend real y el acceso multiusuario sobre Firebase están pendientes de una prueba aislada y expresamente autorizada. **No habilitar la función operativa ni fusionar la rama antes de comprobar esta parte.**
+
+## Última revisión de seguridad (2026-11-01)
+
+- Se detectó que el bloqueo genérico de la interfaz solo exigía sesión activa y ausencia de conflicto, pero permitía actuaciones mientras la nube decía **pendiente** o **guardando**. Se añadió una condición **exclusiva para cancelaciones** que exige exactamente `Nube: sincronizado`, sin guardado en curso y con la misma sucursal.
+- El requisito se comprueba tanto antes como después de la confirmación del usuario; si cambia el estado, no se cancela.
+- Se verificaron con mocks las transiciones `sincronizado`, `pendiente`, `guardando`, `conflicto` y `error`; solamente la primera autoriza la acción.
+- Pruebas de controlador verificaron éxito con estado sincronizado, denegación con nube pendiente y reversión si falla el guardado cifrado local.
+- El repositorio ahora contiene `firebase/tests/cancelaciones-locales-v815.test.mjs` con pruebas de regresión reproducibles mediante `node --test firebase/tests/cancelaciones-locales-v815.test.mjs`. **No se han ejecutado en Node ni en CI** desde esta conexión, aunque los casos equivalentes se verificaron mediante ejecuciones aisladas de JavaScript.
+- Los ensayos de protocolo Firestore anteriores fueron con backend y criptografía **simulados**. Queda pendiente el ensayo con cifrado real y una base Firebase exclusivamente de pruebas. No fusionar ni desplegar en el panel operativo hasta completarlo y recibir autorización.
