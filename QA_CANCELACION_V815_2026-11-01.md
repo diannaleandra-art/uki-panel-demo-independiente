@@ -58,3 +58,13 @@ La mejora corresponde a la pantalla fotografiada: «Uki Sushi · Panel v8.15 · 
 - Pruebas de controlador verificaron éxito con estado sincronizado, denegación con nube pendiente y reversión si falla el guardado cifrado local.
 - El repositorio ahora contiene `firebase/tests/cancelaciones-locales-v815.test.mjs` con pruebas de regresión reproducibles mediante `node --test firebase/tests/cancelaciones-locales-v815.test.mjs`. **No se han ejecutado en Node ni en CI** desde esta conexión, aunque los casos equivalentes se verificaron mediante ejecuciones aisladas de JavaScript.
 - Los ensayos de protocolo Firestore anteriores fueron con backend y criptografía **simulados**. Queda pendiente el ensayo con cifrado real y una base Firebase exclusivamente de pruebas. No fusionar ni desplegar en el panel operativo hasta completarlo y recibir autorización.
+
+## Resultado de ejecución automática real — 2026-11-01 (hora local Chile; logs UTC 2026-11-02)
+
+- GitHub Actions, en **repositorio público y runner estándar**: flujo `Uki cancelaciones v8.15 - QA aislada` **exitoso**, [ejecución #41365519782](https://github.com/diannaleandra-art/uki-panel-demo-independiente/actions/runs/41365519782).
+- Test Node de cancelaciones y AES-256-GCM real: **18 pruebas aprobadas, cero fallidas**. Se usaron módulos reales del repositorio, un Firestore en memoria y datos ficticios. Incluye guardado cifrado, lectura, aislamiento Arica/Serena, rechazo de versión antigua, cancelación con motivo, protección de caja y denegación con nube no sincronizada.
+- Test de integración con **Firebase Firestore Local Emulator Suite y Firebase JavaScript SDK real**: **1 prueba aprobada, cero fallidas**. Proyecto efímero `demo-uki-cancelaciones-qa-2026` sin recursos externos, sin claves de cuentas ni conexión a Firestore de producción. Guardar, recuperar, cancelar con motivo local, comprobar sucursales separadas y rechazar revisión antigua: aprobados.
+- Cifrado AES-GCM del propio código aplicado durante ambas pruebas. La configuración de reglas permisivas se creó exclusivamente en carpeta temporal del runner para **el emulador**, no se desplegó ni se incluyó en producción.
+- Total confirmado: **19 pruebas aprobadas; 0 fallos**.
+- Esto valida el código y la integración con el emulador. **NO** prueba la configuración de reglas ni autenticación del proyecto Firebase real `uki-panel-f4909`; no se efectuó conexión a esa base.
+- No se hicieron pedidos ni cancelaciones reales, no se cambiaron cajas, cierres, timbres ni la carta pública. PR #7 permanece en borrador sin fusionar. La publicación del panel operativo requiere autorización separada.
