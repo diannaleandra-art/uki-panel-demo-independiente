@@ -620,8 +620,10 @@ function togglePagado(id){
  p.pagado=!p.pagado;render();
 }
 // Cancelación operativa: conserva el registro y nunca altera caja, timbres ni cierres ya guardados.
+// Exclusión de doble pulsación mientras se cifra y guarda una cancelación.
+let cancelacionGuardando=false;
 function puedeCancelarPedido(p){
- return !!p&&p.suc===S.suc&&!p.esPremio&&!p.pagado&&p.estado==="Pendiente"&&esDelPeriodo(p)&&!S.busy;
+ return !!p&&p.suc===S.suc&&!p.esPremio&&!p.pagado&&p.estado==="Pendiente"&&esDelPeriodo(p)&&!S.busy&&!cancelacionGuardando;
 }
 async function cancelarPedido(id){
  const p=S.pedidos.find(x=>x.id===id&&x.suc===S.suc);
@@ -634,7 +636,9 @@ async function cancelarPedido(id){
  if(!puedeCancelarPedido(p)||document.body.classList.contains("uki-operativo-bloqueado")||typeof window.ukiCancelacionNubeLista!=="function"||!window.ukiCancelacionNubeLista()){
    aviso("El pedido o la sincronización cambió. No se realizó la cancelación.");return;
  }
+ cancelacionGuardando=true;
  const anterior={estado:p.estado,motivo:p.motivoCancelacion,fecha:p.canceladoEn};
+ try{
  p.estado="Cancelado";
  p.motivoCancelacion=motivo;
  p.canceladoEn=new Date().toISOString();
@@ -649,6 +653,7 @@ async function cancelarPedido(id){
  }
  pedidoExpandido=id;
  aviso("Cancelación guardada en este dispositivo por "+(motivo==="cliente"?"el cliente":"el local")+". Verifica que aparezca «Nube: sincronizado» antes de salir.");
+ }finally{cancelacionGuardando=false;}
 }
 function claveCliente(nombre,codigo="",telefono=""){
   const c=String(codigo||"").trim(),t=String(telefono||"").replace(/[^\d]/g,"");
