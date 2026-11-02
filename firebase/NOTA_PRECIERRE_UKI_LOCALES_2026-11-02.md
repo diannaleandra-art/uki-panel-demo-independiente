@@ -9,7 +9,7 @@
 - No se cambiaron las sucursales, los pedidos, cierres históricos, timbres, ni las credenciales/código de Firebase.
 - Solo se añadió a **Caja → Cierre** el inicio de turno por trabajador y el precierre, con hora de entrada y salida, efectivo contado, notas, reparto de ventas confirmado por diferencia de totales, y un informe Excel/CSV desde **Caja → Historial**.
 - Los registros usan `cajasDiarias[sucursal|díaOperativo].precierres`, dentro del respaldo cifrado y el guardado de nube ya existente. No se creó otro sistema ni base de datos.
-- El cierre diario original permanece; se bloquea solo mientras un turno de trabajador esté abierto.
+- El cierre diario original se mantiene **idéntico a `main`**, sin bloquearlo ni cambiar su comportamiento. Para conservar también el precierre de cada trabajador, se recomienda guardarlo antes del cierre diario.
 - El flujo exige `Nube: sincronizado` antes de guardar cada turno; si otro teléfono guardó, debe recargarse la nube para evitar conflictos. **No promete colaboración simultánea** ni actualización automática del contenido en otro teléfono.
 - La fecha operativa y los cierres después de medianoche mantienen **exactamente la lógica de Uki v8.15 original**, sin condiciones nuevas: un cierre que el panel considera del día anterior continúa siendo de ese día.
 - **Pruebas:** `tests/precierre-locales.test.cjs`; 8 escenarios simulados aprobados. Sin lecturas/escrituras en Firebase real, sin tocar ventas auténticas.
