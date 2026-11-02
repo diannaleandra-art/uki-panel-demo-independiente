@@ -11,7 +11,7 @@ function sourceBetween(first,last){
  assert.ok(a>=0&&b>a,"Secciones esperadas de la versión v8.15");
  return html.slice(a,b);
 }
-const cancelSource=sourceBetween("function puedeCancelarPedido(p){",'function claveCliente(nombre');
+const cancelSource=sourceBetween("let cancelacionGuardando=false;",'function claveCliente(nombre');
 const readinessSource=sourceBetween("window.ukiCancelacionNubeLista=()=>","window.ukiOperativoActualizar=actualizarBloqueo;");
 const totalsSource=sourceBetween("function totales(){","function vCaja(){");
 
