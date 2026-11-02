@@ -507,7 +507,7 @@ function ukiPrecierresGuardados(){
 }
 function ukiFotoPrecierre(){
  const t=totales();
- return {venta:t.totalMedios,pagados:t.pagadosN,delivery:t.envios,
+ return {venta:t.totalMedios,pagados:t.pagadosN,delivery:t.envios,propinas:t.propinas,
    gastos:t.gastosTotal,pagoRepartidor:t.pagoDelivery,
    retiros:t.retirosTotal,efectivoCaja:t.efectivoCaja,
    medios:Object.fromEntries(MEDIOS.map(m=>[m,Number(t.medios[m])||0]))};
@@ -521,6 +521,13 @@ function ukiDiferenciaPrecierre(base,fin){
      throw Error("Los importes del turno no son válidos.");
    salida[k]=fin[k]-base[k];
  }
+ // Turnos iniciados antes de esta versión no tenían base de propinas:
+ // no atribuirles propinas anteriores que no pueden determinarse.
+ const propinaInicio=Number.isSafeInteger(base.propinas)?base.propinas:fin.propinas;
+ const propinaFin=Number.isSafeInteger(fin.propinas)?fin.propinas:0;
+ if(!Number.isSafeInteger(propinaInicio)||propinaFin<propinaInicio)
+   throw Error("Las propinas fueron corregidas. Revisa la caja antes del precierre.");
+ salida.propinas=propinaFin-propinaInicio;
  for(const m of MEDIOS){
    const a=base.medios[m],b=fin.medios[m];
    if(!Number.isSafeInteger(a)||!Number.isSafeInteger(b))
@@ -591,6 +598,7 @@ function ukiFilaPrecierre(p){
    row("Edenred",fmt(medios.Edenred))+
    row("Otros y aplicaciones",fmt((medios.Otros||0)+(medios["Uber Eats"]||0)+(medios.PedidosYa||0)+(medios.Rappi||0)))+
    row("Delivery cobrado",fmt(t.delivery))+
+   row("Propinas del turno (aparte)",fmt(t.propinas||0))+
    (p.efectivoContado===null?'<p class="muted">Sin conteo físico</p>':
      row("Efectivo contado",fmt(p.efectivoContado))+
      row("Diferencia de caja",fmt(p.diferenciaEfectivo)))+
@@ -648,7 +656,7 @@ function ukiExportarPrecierres(){
  if(!registros.length){aviso("Todavía no hay precierres guardados.");return;}
  const cab=["Sucursal","Día operativo","Trabajador","Inicio","Fin","Pedidos pagados",
    ...MEDIOS,"Venta total","Delivery cobrado","Gastos","Pago repartidor","Retiros",
-   "Efectivo neto esperado","Efectivo contado","Diferencia","Observaciones"];
+   "Efectivo neto esperado","Efectivo contado","Diferencia","Observaciones","Propinas (aparte)"];
  const fecha=ms=>new Date(ms).toLocaleString("es-CL",{dateStyle:"short",timeStyle:"short"});
  const lineas=[cab,...registros.map(p=>{
    const t=p.totales||{},m=t.medios||{};
@@ -656,7 +664,7 @@ function ukiExportarPrecierres(){
      t.pagados,...MEDIOS.map(x=>m[x]||0),t.venta,t.delivery,t.gastos,
      t.pagoRepartidor,t.retiros,t.efectivoCaja,
      p.efectivoContado===null?"":p.efectivoContado,
-     p.diferenciaEfectivo===null?"":p.diferenciaEfectivo,p.observaciones||""];
+     p.diferenciaEfectivo===null?"":p.diferenciaEfectivo,p.observaciones||"",Number(t.propinas)||0];
  })];
  const csv="\uFEFF"+lineas.map(line=>line.map(csvSeguro).join(";")).join("\n");
  descargarTextoArchivo("uki-precierres-"+(S.suc===SUCURSALES[0]?"regimiento":"serena")+
