@@ -319,7 +319,7 @@ async function entrarDatosSucursal(s,password){
  else{if(password.length<12)throw Error("La clave debe tener al menos 12 caracteres");
   datos=estadoVacioSucursal(s);salt=crypto.getRandomValues(new Uint8Array(16));key=await ukiClaveBackup(password,salt);}
  claveSesion=key;sucursalSesion=s;saltSesion=salt;revisionGuardado++;
- S={...estadoVacioSucursal(s),...datos,suc:s,codigos:{},pinSuc:null,vista:"pedidos",msg:null,busy:false,confirmCierre:false};
+ S={...estadoVacioSucursal(s),...datos,suc:s,codigos:{},pinSuc:null,vista:"inicio",msg:null,busy:false,confirmCierre:false};
  document.body.classList.add("uki-operativo-bloqueado");
  return true;
 }
@@ -450,7 +450,7 @@ async function entrarSuc(){
  const nueva=localStorage.getItem(claveLocal(s))===null;
  if(pass.length<12){aviso("Utiliza una clave de al menos 12 caracteres.");return;}
  if(nueva&&pass!==($("ukiAccesoConfirmar")?.value||"")){aviso("Las claves no coinciden.");return;}
- try{await entrarDatosSucursal(s,pass);S.vista="pedidos";render();}
+ try{await entrarDatosSucursal(s,pass);S.vista="inicio";render();}
  catch(e){aviso("Clave incorrecta, datos dañados o cifrado no disponible.");}
 }
 async function salirSuc(){
@@ -478,6 +478,7 @@ function vInicio(){
   const diaOperativo=new Date(turno+"T12:00:00").toLocaleDateString("es-CL",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
   const inicio=window.ukiControlTurnos?.fechaHoraLegible(caja.inicioMs)||"No registrado antes de esta actualización";
   return `<div class="welcome"><div class="eyebrow">RESUMEN DEL TURNO · ${esc(turno)}</div><h2>Hola, Uki Sushi <span>🍣</span></h2><p class="muted">${esc(S.suc)}</p></div>
+  ${vInicioTrabajador()}
   <div class="card" style="padding:14px"><h2 style="margin:0 0 6px">🕒 Inicio del turno</h2><p style="margin:4px 0"><b>${esc(diaOperativo)}</b></p><p class="muted" style="margin:4px 0">Fecha y hora registradas: ${esc(inicio)}</p></div>
   <section class="kpis" aria-label="Resumen de ventas">
     <div class="kpi"><span>Venta de hoy</span><strong>${fmt(t.totalMedios)}</strong></div>
@@ -595,27 +596,36 @@ function ukiFilaPrecierre(p){
      row("Diferencia de caja",fmt(p.diferenciaEfectivo)))+
    (p.observaciones?'<p class="muted">'+esc(p.observaciones)+'</p>':"")+'</div>';
 }
+function vInicioTrabajador(){
+ const abierto=cajaDelDia().turnoPrecierreAbierto;
+ if(abierto){
+   const fechaInicio=new Date(abierto.inicioMs).toLocaleString("es-CL",{dateStyle:"short",timeStyle:"short"});
+   return '<div class="card" style="border:2px solid var(--accent)"><h2>🕒 Turno iniciado</h2>'+
+     '<p><b>'+esc(abierto.nombre)+'</b></p><p class="muted">Comenzó: '+esc(fechaInicio)+'</p>'+
+     '<button class="big" onclick="ir(\'cierre\')">Ir al precierre del trabajador</button></div>';
+ }
+ return '<div class="card" style="border:2px solid var(--accent)"><h2>🕒 Iniciar turno de trabajador</h2>'+
+   '<p class="muted">Al comenzar, registra el nombre. El precierre se hace después desde Caja.</p>'+
+   '<label>Nombre del trabajador</label><input id="ukiTrabajador" maxlength="60" placeholder="Nombre del trabajador">'+
+   '<button class="big" onclick="ukiIniciarPrecierre()">Iniciar turno</button></div>';
+}
 function vPrecierreTrabajadores(){
  const caja=cajaDelDia(),abierto=caja.turnoPrecierreAbierto;
+ if(!abierto){
+   return '<div class="card"><h2>🕒 Precierre por trabajador</h2>'+
+     '<p class="muted">Para registrar el precierre, primero inicia el turno desde Inicio.</p>'+
+     '<button class="sm" onclick="ir(\'inicio\')">Ir a Inicio</button></div>';
+ }
  const dia=fechaOperativaActual();
  const registros=(caja.precierres||[]).filter(p=>p?.suc===S.suc&&p.fechaOperativa===dia).slice().reverse();
- let formulario;
- if(abierto){
-   formulario='<p><b>Turno de '+esc(abierto.nombre)+'</b></p>'+
-     '<p class="muted">Inicio: '+esc(new Date(abierto.inicioMs).toLocaleString("es-CL",{dateStyle:"short",timeStyle:"short"}))+'</p>'+
-     '<label>Efectivo contado (opcional)</label><input id="ukiEfectivoPrecierre" type="number" min="0" step="1" inputmode="numeric" placeholder="Monto contado">'+
-     '<label>Observaciones (opcional)</label><textarea id="ukiObsPrecierre" maxlength="300" rows="2"></textarea>'+
-     '<button class="big" onclick="ukiGuardarPrecierre()">Guardar precierre · no cerrar día</button>';
- }else{
-   formulario='<label>Trabajador que inicia</label><input id="ukiTrabajador" maxlength="60" placeholder="Nombre del trabajador">'+
-     '<button class="big" onclick="ukiIniciarPrecierre()">Iniciar turno</button>';
- }
+ const inicio=new Date(abierto.inicioMs).toLocaleString("es-CL",{dateStyle:"short",timeStyle:"short"});
  return '<div class="card"><h2>🕒 Precierre por trabajador</h2>'+
-   '<p class="muted">Registra las horas y ventas de cada trabajador. No cierra el día ni borra los pedidos. Espera a que la nube esté sincronizada entre turnos.</p>'+
-   formulario+
+   '<p><b>'+esc(abierto.nombre)+'</b></p><p class="muted">Inicio: '+esc(inicio)+'</p>'+
+   '<label>Efectivo contado (opcional)</label><input id="ukiEfectivoPrecierre" type="number" min="0" step="1" inputmode="numeric" placeholder="Monto contado">'+
+   '<label>Observaciones (opcional)</label><textarea id="ukiObsPrecierre" maxlength="300" rows="2"></textarea>'+
+   '<button class="big" onclick="ukiGuardarPrecierre()">Guardar precierre · no cerrar día</button>'+
    (registros.length?'<details style="margin-top:14px"><summary><b>Precierres del día · '+registros.length+
-     '</b></summary>'+registros.map(ukiFilaPrecierre).join("")+'</details>':"")+
-   '</div>';
+     '</b></summary>'+registros.map(ukiFilaPrecierre).join("")+'</details>':"")+'</div>';
 }
 function ukiPrecierresFiltrados(){
  return ukiPrecierresGuardados().filter(p=>
@@ -1691,7 +1701,7 @@ function vHistorial(){
 window.ukiQAGet=()=>S.suc?{suc:S.suc,estado:datosSoloSucursal()}:null;
 window.ukiQASet=async(data)=>{
  if(!S.suc||!validarEstadoSucursal(data,S.suc))throw Error("Estado inválido para esta sucursal");
- const prev=S;S={...estadoVacioSucursal(S.suc),...data,suc:S.suc,vista:"pedidos",
+ const prev=S;S={...estadoVacioSucursal(S.suc),...data,suc:S.suc,vista:"inicio",
    pinSuc:null,codigos:{},busy:false,msg:null,confirmCierre:false};
  const saved=await guardarEnLocalStorage();
  if(!saved){S=prev;throw Error("No se guardó localmente");}
