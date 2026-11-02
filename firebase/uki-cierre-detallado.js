@@ -9,12 +9,14 @@ function cobroLocalPedido(p){
  const sub=Math.max(0,Number(p.subtotal)||0);
  const suma=(items,base)=>Array.isArray(items)&&items.length?
    items.reduce((n,x)=>n+(Number(x.monto)||0),0):base;
- return (p.productosPagadosOtroLocal?0:suma(p.pagosProductos,sub))+suma(p.pagosEnvio,env);
+ const fuera=p.productosPagadosOtroLocal?
+   (p.montoProductosOtroLocal===undefined||p.montoProductosOtroLocal===null||p.montoProductosOtroLocal===""?sub:Number(p.montoProductosOtroLocal)):0;
+ return suma(p.pagosProductos,Math.max(0,sub-fuera))+suma(p.pagosEnvio,env);
 }
 function notaPagoPedido(p){
  const cobrado=Object.prototype.hasOwnProperty.call(p,"cobradoLocal")?Number(p.cobradoLocal):(!p.pagado||p.estado==="Cancelado"||p.esPremio?0:Number(p.total)||0);
  const notas=["Cobrado en esta sucursal: $"+cobrado];
- if(p.productosPagadosOtroLocal)notas.push("Productos $"+(Number(p.subtotal)||0)+" pagados en "+String(p.localPagoExterno||"otro local"));
+ if(p.productosPagadosOtroLocal)notas.push("Productos $"+(p.montoProductosOtroLocal===undefined?Number(p.subtotal)||0:Number(p.montoProductosOtroLocal)||0)+" pagados en "+String(p.localPagoExterno||"otro local"));
  for(const [titulo,lista] of [["Productos",p.pagosProductos],["Delivery",p.pagosEnvio]]){
   if(Array.isArray(lista)&&lista.length>1)notas.push(titulo+": "+lista.map(x=>String(x.medio)+" $"+Number(x.monto)).join(" + "));
  }
@@ -30,7 +32,11 @@ function capturar(S,caja,delSucHoy){
   esPremio:!!p.esPremio,medio:p.medio||"",medioEnvio:p.medioEnvio||"",
   modalidad:p.modalidad||"",subtotal:Number(p.subtotal)||0,envio:Number(p.envio)||0,
   total:Number(p.total)||0,cobradoLocal:cobroLocalPedido(p),
-  productosPagadosOtroLocal:!!p.productosPagadosOtroLocal,localPagoExterno:p.localPagoExterno||"",
+  productosPagadosOtroLocal:!!p.productosPagadosOtroLocal,
+  montoProductosOtroLocal:p.productosPagadosOtroLocal?
+    (p.montoProductosOtroLocal===undefined||p.montoProductosOtroLocal===null||p.montoProductosOtroLocal===""?
+     Number(p.subtotal)||0:Number(p.montoProductosOtroLocal)||0):0,
+  localPagoExterno:p.localPagoExterno||"",
   pagosProductos:(p.pagosProductos||[]).map(x=>({medio:x.medio,monto:Number(x.monto)||0})),
   pagosEnvio:(p.pagosEnvio||[]).map(x=>({medio:x.medio,monto:Number(x.monto)||0})),
   productos:(p.productos||[]).map(z=>({
