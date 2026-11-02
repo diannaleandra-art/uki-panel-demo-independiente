@@ -117,7 +117,7 @@ test('Cierre definitivo bloqueado si existe precierre abierto',()=>{
 });
 test('Integración: la partición cifrada conserva caja, precierres y pedidos',async()=>{
  const partition=readFileSync(join(root,'uki-particion-local.js'),'utf8');
- const mod=new Function(partition.replace(/\\bexport\\s+function\\b/g,'function')+
+ const mod=new Function(partition.replace(/\bexport\s+function\b/g,'function')+
   '\nreturn {dividirEstado,reunirEstado}')();
  const suc=branches[0],x=testContext();
  x.f.ukiIniciarPrecierre();
