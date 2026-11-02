@@ -151,7 +151,7 @@ const SUCURSALES=["Uki Regimiento Arica","Uki La Serena"];
 const MEDIOS=["Efectivo","Transferencia","Débito","Edenred","Otros","Uber Eats","PedidosYa","Rappi"];
 const APPS=["Uber Eats","PedidosYa","Rappi"];
 let S={suc:null,pinSuc:null,codigos:{},vista:"inicio",base:18000,pedidos:[],gastos:[],retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",deliveriesManuales:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,filtro:"",filtroFecha:"",filtroCliente:""};
-let D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",mesaReferencia:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:"",localPagoExterno:"",propinaModo:"ninguna",propinaPersonalizada:"",medioPropina:"Efectivo",editando:null};
+let D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",mesaReferencia:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:"",envioPagadoOtroLocal:false,localPagoExterno:"",propinaModo:"ninguna",propinaPersonalizada:"",medioPropina:"Efectivo",editando:null};
 const $=id=>document.getElementById(id);
 const fmt=n=>"$"+Math.round(n||0).toLocaleString("es-CL");
 const esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -704,7 +704,7 @@ function setEnvioManual(valor){
   const txt=$("pedidoEnvioAyuda");
   if(txt) txt.textContent=D.modalidad==="Delivery"?"Delivery seleccionado - "+fmt(monto)+" se suma al total":"Toca Delivery arriba para sumar envío";
 }
-function nuevoDraft(){D={texto:"",fecha:ahora(),cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",mesaReferencia:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[{nombre:"",cant:1,precio:0,det:""}],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:"",localPagoExterno:"",propinaModo:"ninguna",propinaPersonalizada:"",medioPropina:"Efectivo",editando:null};}
+function nuevoDraft(){D={texto:"",fecha:ahora(),cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",mesaReferencia:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[{nombre:"",cant:1,precio:0,det:""}],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:"",envioPagadoOtroLocal:false,localPagoExterno:"",propinaModo:"ninguna",propinaPersonalizada:"",medioPropina:"Efectivo",editando:null};}
 function delItem(k){D.items.splice(k,1);if(!D.items.length)D.items=[{nombre:"",cant:1,precio:0,det:""}];render();}
 function addItem(){const n=$("pNom").value.trim(); const c=parseInt($("pCant").value)||1; const p=parseInt($("pPre").value)||0; const d=$("pDet").value.trim(); if(!n||!p){aviso("Pon nombre y precio");return;} D.items=D.items.filter(x=>x.nombre); D.items.push({nombre:n,cant:c,precio:p,det:d}); $("pNom").value=""; $("pCant").value=1; $("pPre").value=""; $("pDet").value=""; render();}
 // El codigo del pedido proviene del encabezado de la carta digital, NO del numero interno ni del codigo de cliente.
@@ -815,7 +815,10 @@ mixtoProductos:Array.isArray(p.pagosProductos)&&p.pagosProductos.length>0,
 mixtoEnvio:Array.isArray(p.pagosEnvio)&&p.pagosEnvio.length>0,
 pagosProductos:(p.pagosProductos||[]).map(x=>({...x})),
 pagosEnvio:(p.pagosEnvio||[]).map(x=>({...x})),
-productosPagadosOtroLocal:!!p.productosPagadosOtroLocal,montoProductosOtroLocal:p.montoProductosOtroLocal??"",localPagoExterno:p.localPagoExterno||"",propinaModo:p.propinaModo||((Number(p.propina)||0)>0?"otro":"ninguna"),propinaPersonalizada:p.propinaModo==="otro"||!p.propinaModo?p.propina||"": "",medioPropina:p.medioPropina||"Efectivo",
+productosPagadosOtroLocal:!!p.productosPagadosOtroLocal,
+montoProductosOtroLocal:p.productosPagadosOtroLocal?Math.min(Number(p.subtotal)||0,ukiMontoProductosOtroLocal(p,Math.max(0,Number(p.subtotal)||0))):"",
+envioPagadoOtroLocal:ukiMontoEnvioOtroLocal(p,Number(p.envio)||0,Number(p.subtotal)||0)>0,
+localPagoExterno:p.localPagoExterno||"",propinaModo:p.propinaModo||((Number(p.propina)||0)>0?"otro":"ninguna"),propinaPersonalizada:p.propinaModo==="otro"||!p.propinaModo?p.propina||"": "",medioPropina:p.medioPropina||"Efectivo",
 items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}]; ir("nuevo"); aviso(`Editando pedido #${id}`);}
 function reanalizar(){leerTextoD();}
 
@@ -1293,15 +1296,26 @@ function setApp(k,v){cajaDelDia().apps[k]=Math.max(0,parseInt(v,10)||0);render()
 function ukiMontoProductosOtroLocal(p,sub){
  if(!p.productosPagadosOtroLocal)return 0;
  const raw=p.montoProductosOtroLocal;
- // Pedidos anteriores: el indicador significaba el subtotal completo.
  if(raw===undefined||raw===null||raw==="")return sub;
- return Number(raw);
+ // Un pedido antiguo pudo registrar productos + delivery en el campo de productos.
+ // No mutamos su registro; nunca mostramos un importe negativo de productos en Uki.
+ return Math.max(0,Math.min(sub,Number(raw)||0));
+}
+function ukiMontoEnvioOtroLocal(p,envio,sub){
+ if(p.modalidad!=="Delivery"||envio<=0)return 0;
+ if(p.envioPagadoOtroLocal===true)return envio;
+ // Compatibilidad con registros antiguos que incluyeron el envío en "productos pagados afuera".
+ // Solo reconocer excesos que caben íntegramente en la tarifa del envío.
+ const raw=Number(p.montoProductosOtroLocal);
+ if(p.envioPagadoOtroLocal===undefined&&p.productosPagadosOtroLocal&&
+    Number.isFinite(raw)&&raw>sub&&raw<=sub+envio)return raw-sub;
+ return 0;
 }
 function ukiMontoProductosLocal(p,sub){
  return sub-ukiMontoProductosOtroLocal(p,sub);
 }
 function ukiLineasPago(p,tipo,monto){
- const cobro=tipo==="productos"?ukiMontoProductosLocal(p,monto):monto;
+ const cobro=tipo==="productos"?ukiMontoProductosLocal(p,monto):Math.max(0,monto-ukiMontoEnvioOtroLocal(p,monto,Number(p.subtotal)||0));
  const key=tipo==="productos"?"pagosProductos":"pagosEnvio";
  const medio=tipo==="productos"?"medio":"medioEnvio";
  if(cobro<=0)return [];
@@ -1311,6 +1325,16 @@ function ukiLineasPago(p,tipo,monto){
 }
 function ukiErrorDistribucionPago(p,sub,envio){
  const externo=ukiMontoProductosOtroLocal(p,sub);
+ const envioFuera=ukiMontoEnvioOtroLocal(p,envio,sub);
+ const bruto=Number(p.montoProductosOtroLocal);
+ if(p.productosPagadosOtroLocal&&bruto>sub&&
+    !(p.envioPagadoOtroLocal===undefined&&bruto<=sub+envio))
+   return "El monto pagado fuera de Uki supera el valor de los productos. Marca por separado el delivery cobrado en otro local.";
+ if(p.envioPagadoOtroLocal&&envio===0)return "No se puede cobrar un delivery externo si el pedido no tiene delivery.";
+ if(p.productosPagadosOtroLocal||envioFuera>0){
+   if(!String(p.localPagoExterno||"").trim()||String(p.localPagoExterno).length>80)
+     return "Indica qué local recibió el pago de productos o delivery.";
+ }
  if(p.productosPagadosOtroLocal){
    if(!String(p.localPagoExterno||"").trim()||String(p.localPagoExterno).length>80)
      return "Indica qué local recibió parte o todo el pago de los productos.";
@@ -1318,7 +1342,7 @@ function ukiErrorDistribucionPago(p,sub,envio){
      return "El monto cobrado en otro local debe ser mayor a cero y no superar "+fmt(sub)+".";
  }
  for(const [tipo,monto] of [["productos",sub],["envio",envio]]){
-   const requerido=tipo==="productos"?monto-externo:monto;
+   const requerido=tipo==="productos"?monto-externo:monto-envioFuera;
    const metodos=tipo==="productos"?MEDIOS:MEDIOS.filter(m=>!APPS.includes(m));
    const lineas=ukiLineasPago(p,tipo,monto);
    if(!lineas.length&&requerido===0)continue;
@@ -1333,7 +1357,8 @@ function ukiErrorDistribucionPago(p,sub,envio){
 function ukiDatosPago(d,sub){
  const externo=ukiMontoProductosOtroLocal(d,sub);
  return {pagosProductos:d.mixtoProductos&&sub>externo?(d.pagosProductos||[]).map(x=>({medio:x.medio,monto:Number(x.monto)})):[],
-   pagosEnvio:d.mixtoEnvio?(d.pagosEnvio||[]).map(x=>({medio:x.medio,monto:Number(x.monto)})):[],
+   pagosEnvio:(!d.envioPagadoOtroLocal&&d.mixtoEnvio)?(d.pagosEnvio||[]).map(x=>({medio:x.medio,monto:Number(x.monto)})):[],
+   envioPagadoOtroLocal:!!(d.modalidad==="Delivery"&&d.envioPagadoOtroLocal),
    productosPagadosOtroLocal:!!d.productosPagadosOtroLocal,
    montoProductosOtroLocal:d.productosPagadosOtroLocal?externo:0,
    localPagoExterno:d.productosPagadosOtroLocal?String(d.localPagoExterno||"").trim():""};
@@ -1371,8 +1396,11 @@ function ukiPagoUI(tipo,total){
 function ukiDetallePago(p,tipo){
  const monto=tipo==="productos"?Number(p.subtotal)||0:p.modalidad==="Delivery"?Number(p.envio)||0:0;
  const externo=tipo==="productos"?ukiMontoProductosOtroLocal(p,monto):0;
+ const fueraEnvio=tipo==="envio"?ukiMontoEnvioOtroLocal(p,monto,Number(p.subtotal)||0):0;
  const nota=externo>0?'<p class="muted"><b>Productos cobrados en otro local:</b> '+esc(p.localPagoExterno||"")+
-   ' · '+fmt(externo)+' (NO entra a esta caja). <b>Productos cobrados en Uki:</b> '+fmt(monto-externo)+'</p>':"";
+   ' · '+fmt(externo)+' (NO entra a esta caja). <b>Productos cobrados en Uki:</b> '+fmt(monto-externo)+'</p>':fueraEnvio>0?
+   '<p class="muted"><b>Delivery registrado para repartidor, cobrado en otro local:</b> '+esc(p.localPagoExterno||"")+
+   ' · '+fmt(fueraEnvio)+' (NO entra a esta caja).</p>':"";
  const lines=ukiLineasPago(p,tipo,monto);
  return nota+(lines.length>1?'<p class="muted"><b>Pago mixto '+(tipo==="productos"?"productos":"delivery")+':</b> '+
    lines.map(x=>esc(x.medio)+" "+fmt(x.monto)).join(" + ")+'</p>':"");
