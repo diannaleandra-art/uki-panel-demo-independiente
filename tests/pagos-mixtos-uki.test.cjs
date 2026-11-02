@@ -118,3 +118,86 @@ test('Pedido pagado en otro local no genera segundo timbre en la cocina',()=>{
  assert.match(html,/if\(!p\.esPremio && D\.cliente && D\.pagado && !D\.productosPagadosOtroLocal\)/);
  assert.match(html,/if\(p\.cliente && !p\.productosPagadosOtroLocal\)/);
 });
+
+
+test('Un tercio de la comida cobrado en otro local y resto en Uki más delivery',()=>{
+ const x=mock();
+ x.state.pedidos=[x.order({
+  productosPagadosOtroLocal:true,montoProductosOtroLocal:8000,localPagoExterno:'Local vecino',
+  medio:'Transferencia',medioEnvio:'Efectivo'
+ })];
+ const t=x.funcs.totales();
+ assert.equal(t.productosPagadosOtroLocal,8000);
+ assert.equal(t.medios.Transferencia,12000);
+ assert.equal(t.medios.Efectivo,3000);
+ assert.equal(t.totalMedios,15000);
+ assert.equal(x.funcs.ukiErrorDistribucionPago(x.state.pedidos[0],20000,3000),'');
+ assert.match(x.funcs.ukiDetallePago(x.state.pedidos[0],'productos'),/Local vecino/);
+});
+test('Pago parcial del otro local con el saldo Uki distribuido en efectivo y débito',()=>{
+ const x=mock(),p=x.order({
+  productosPagadosOtroLocal:true,montoProductosOtroLocal:15000,localPagoExterno:'Otro local',
+  pagosProductos:[{medio:'Efectivo',monto:2000},{medio:'Débito',monto:3000}]
+ });
+ x.state.pedidos=[p];
+ const t=x.funcs.totales();
+ assert.equal(x.funcs.ukiErrorDistribucionPago(p,20000,3000),'');
+ assert.equal(t.totalMedios,8000);
+ assert.equal(t.medios.Efectivo,5000);
+ assert.equal(t.medios.Débito,3000);
+ assert.equal(t.medios.Transferencia,0);
+ assert.equal(t.productosPagadosOtroLocal,15000);
+});
+test('Rechaza pago externo por más del subtotal y sumas incorrectas del saldo local',()=>{
+ const x=mock();
+ const p=x.order({productosPagadosOtroLocal:true,montoProductosOtroLocal:21000,localPagoExterno:'Otro'});
+ assert.match(x.funcs.ukiErrorDistribucionPago(p,20000,3000),/no superar/);
+ p.montoProductosOtroLocal=0;
+ assert.match(x.funcs.ukiErrorDistribucionPago(p,20000,3000),/mayor a cero/);
+ p.montoProductosOtroLocal=12000;
+ p.pagosProductos=[{medio:'Efectivo',monto:3000},{medio:'Débito',monto:3000}];
+ assert.match(x.funcs.ukiErrorDistribucionPago(p,20000,3000),/sumar/);
+});
+test('El cierre histórico conserva monto parcial ajeno y local realmente cobrado',()=>{
+ const pth=path.join(__dirname,'..','firebase','uki-cierre-detallado.js');
+ const code=fs.readFileSync(pth,'utf8'),w={};
+ new Function('window',code)(w);
+ const suc='Uki Regimiento Arica';
+ const orders=[{id:8,suc,pagado:true,estado:'Entregado',modalidad:'Delivery',subtotal:20000,envio:3000,total:23000,
+    medio:'Débito',medioEnvio:'Efectivo',productosPagadosOtroLocal:true,
+    montoProductosOtroLocal:15000,localPagoExterno:'Otra sucursal',productos:[]}];
+ const state={suc,pedidos:orders,gastos:[],retiros:[],propinas:[],deliveriesManuales:[]};
+ const caja={base:18000,apps:{},pagoDelivery:0,pagoDeliveryMedio:'Efectivo',cajaChica:{inicial:0,gastos:[]}};
+ const snapshot=w.ukiDetalleCierre.capturar(state,caja,a=>a);
+ assert.equal(snapshot.pedidos[0].cobradoLocal,8000);
+ assert.equal(snapshot.pedidos[0].montoProductosOtroLocal,15000);
+ assert.match(w.ukiDetalleCierre.csv({detalle:snapshot},String),/Productos \$15000 pagados en Otra sucursal/);
+});
+test('Categorías visibles: pagados, por cobrar, cancelados, pendientes, entregados, errores',()=>{
+ const first=html.indexOf('// Categorías visuales:');
+ const last=html.indexOf('function vPedidos(){',first);
+ assert.ok(first>=0&&last>first);
+ const w=new Function('render',html.slice(first,last)+'\nreturn {ukiCoincideCategoriaPedido,UKI_CATEGORIAS_PEDIDOS}')( ()=>{} );
+ const cats=w.UKI_CATEGORIAS_PEDIDOS.map(x=>x[0]);
+ assert.deepEqual(cats,['todos','sin-pago','pagados','pendientes','entregados','cancelados','errores']);
+ const err=new Set([3]);
+ const orders=[
+  {id:1,estado:'Pendiente',pagado:false},
+  {id:2,estado:'Entregado',pagado:true},
+  {id:3,estado:'Pendiente',pagado:true},
+  {id:4,estado:'Cancelado',pagado:false}
+ ];
+ const matched=cat=>orders.filter(p=>w.ukiCoincideCategoriaPedido(p,cat,err)).map(x=>x.id);
+ assert.deepEqual(matched('pagados'),[2,3]);
+ assert.deepEqual(matched('sin-pago'),[1]);
+ assert.deepEqual(matched('cancelados'),[4]);
+ assert.deepEqual(matched('pendientes'),[1,3]);
+ assert.deepEqual(matched('entregados'),[2]);
+ assert.deepEqual(matched('errores'),[3]);
+ assert.match(html,/const visibles=todos\.filter/);
+});
+test('Pagos ajenos no generan un segundo timbre y no alteran cierre diario original',()=>{
+ assert.match(html,/D\.cliente && D\.pagado && !D\.productosPagadosOtroLocal/);
+ assert.match(html,/function ukiMontoProductosOtroLocal/);
+ assert.match(html,/function ukiCambiarCategoriaPedidos/);
+});
