@@ -140,7 +140,7 @@ const SUCURSALES=["Uki Regimiento Arica","Uki La Serena"];
 const MEDIOS=["Efectivo","Transferencia","Débito","Edenred","Otros","Uber Eats","PedidosYa","Rappi"];
 const APPS=["Uber Eats","PedidosYa","Rappi"];
 let S={suc:null,pinSuc:null,codigos:{},vista:"inicio",base:18000,pedidos:[],gastos:[],retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",deliveriesManuales:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,filtro:"",filtroFecha:"",filtroCliente:""};
-let D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,localPagoExterno:"",editando:null};
+let D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:"",localPagoExterno:"",editando:null};
 const $=id=>document.getElementById(id);
 const fmt=n=>"$"+Math.round(n||0).toLocaleString("es-CL");
 const esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -677,7 +677,7 @@ function setEnvioManual(valor){
   const txt=$("pedidoEnvioAyuda");
   if(txt) txt.textContent=D.modalidad==="Delivery"?"Delivery seleccionado - "+fmt(monto)+" se suma al total":"Toca Delivery arriba para sumar envío";
 }
-function nuevoDraft(){D={texto:"",fecha:ahora(),cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[{nombre:"",cant:1,precio:0,det:""}],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,localPagoExterno:"",editando:null};}
+function nuevoDraft(){D={texto:"",fecha:ahora(),cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[{nombre:"",cant:1,precio:0,det:""}],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:"",localPagoExterno:"",editando:null};}
 function delItem(k){D.items.splice(k,1);if(!D.items.length)D.items=[{nombre:"",cant:1,precio:0,det:""}];render();}
 function addItem(){const n=$("pNom").value.trim(); const c=parseInt($("pCant").value)||1; const p=parseInt($("pPre").value)||0; const d=$("pDet").value.trim(); if(!n||!p){aviso("Pon nombre y precio");return;} D.items=D.items.filter(x=>x.nombre); D.items.push({nombre:n,cant:c,precio:p,det:d}); $("pNom").value=""; $("pCant").value=1; $("pPre").value=""; $("pDet").value=""; render();}
 // El codigo del pedido proviene del encabezado de la carta digital, NO del numero interno ni del codigo de cliente.
@@ -783,7 +783,7 @@ mixtoProductos:Array.isArray(p.pagosProductos)&&p.pagosProductos.length>0,
 mixtoEnvio:Array.isArray(p.pagosEnvio)&&p.pagosEnvio.length>0,
 pagosProductos:(p.pagosProductos||[]).map(x=>({...x})),
 pagosEnvio:(p.pagosEnvio||[]).map(x=>({...x})),
-productosPagadosOtroLocal:!!p.productosPagadosOtroLocal,localPagoExterno:p.localPagoExterno||"",
+productosPagadosOtroLocal:!!p.productosPagadosOtroLocal,montoProductosOtroLocal:p.montoProductosOtroLocal??"",localPagoExterno:p.localPagoExterno||"",
 items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}]; ir("nuevo"); aviso(`Editando pedido #${id}`);}
 function reanalizar(){leerTextoD();}
 function copiarComanda(id){const p=S.pedidos.find(x=>x.id===id); if(!p) return; const txt=[`#${p.id} ${p.modalidad}`, ...(p.productos||[]).map(pr=>`${pr.cantidad}x ${pr.nombre}${pr.detalle?` (${pr.detalle})`:""}`), p.envio?`Delivery ${fmt(p.envio)}`:"", `Total ${fmt(p.total)}`].filter(Boolean).join("\n"); if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>aviso("Comanda copiada")).catch(()=>aviso(txt)); else aviso(txt);}
@@ -1104,32 +1104,52 @@ function setApp(k,v){cajaDelDia().apps[k]=Math.max(0,parseInt(v,10)||0);render()
 
 // Pago mixto por componente (productos/delivery) y pago de productos en otra caja.
 // La sucursal que prepara conserva el pedido; solo suma sus propios cobros.
+function ukiMontoProductosOtroLocal(p,sub){
+ if(!p.productosPagadosOtroLocal)return 0;
+ const raw=p.montoProductosOtroLocal;
+ // Pedidos anteriores: el indicador significaba el subtotal completo.
+ if(raw===undefined||raw===null||raw==="")return sub;
+ return Number(raw);
+}
+function ukiMontoProductosLocal(p,sub){
+ return sub-ukiMontoProductosOtroLocal(p,sub);
+}
 function ukiLineasPago(p,tipo,monto){
- if(tipo==="productos"&&p.productosPagadosOtroLocal)return [];
+ const cobro=tipo==="productos"?ukiMontoProductosLocal(p,monto):monto;
  const key=tipo==="productos"?"pagosProductos":"pagosEnvio";
  const medio=tipo==="productos"?"medio":"medioEnvio";
- if(Array.isArray(p[key])&&p[key].length)return p[key].map(x=>({medio:x.medio,monto:Number(x.monto)}));
- return monto>0?[{medio:p[medio]||"Efectivo",monto}]:[];
+ if(cobro<=0)return [];
+ if(Array.isArray(p[key])&&p[key].length)
+   return p[key].map(x=>({medio:x.medio,monto:Number(x.monto)}));
+ return [{medio:p[medio]||"Efectivo",monto:cobro}];
 }
 function ukiErrorDistribucionPago(p,sub,envio){
- if(p.productosPagadosOtroLocal&&(!String(p.localPagoExterno||"").trim()||String(p.localPagoExterno).length>80))
-   return "Indica qué local recibió el pago de los productos.";
+ const externo=ukiMontoProductosOtroLocal(p,sub);
+ if(p.productosPagadosOtroLocal){
+   if(!String(p.localPagoExterno||"").trim()||String(p.localPagoExterno).length>80)
+     return "Indica qué local recibió parte o todo el pago de los productos.";
+   if(!Number.isSafeInteger(externo)||externo<=0||externo>sub)
+     return "El monto cobrado en otro local debe ser mayor a cero y no superar "+fmt(sub)+".";
+ }
  for(const [tipo,monto] of [["productos",sub],["envio",envio]]){
-   if(tipo==="productos"&&p.productosPagadosOtroLocal)continue;
+   const requerido=tipo==="productos"?monto-externo:monto;
    const metodos=tipo==="productos"?MEDIOS:MEDIOS.filter(m=>!APPS.includes(m));
    const lineas=ukiLineasPago(p,tipo,monto);
-   if(!lineas.length&&monto===0)continue;
-   if(lineas.length>6||lineas.some(x=>!metodos.includes(x.medio)||!Number.isSafeInteger(x.monto)||x.monto<=0))
+   if(!lineas.length&&requerido===0)continue;
+   if(lineas.length<1||lineas.length>6||
+      lineas.some(x=>!metodos.includes(x.medio)||!Number.isSafeInteger(x.monto)||x.monto<=0))
      return "Revisa los medios y montos de "+(tipo==="productos"?"productos":"delivery")+".";
-   if(lineas.reduce((s,x)=>s+x.monto,0)!==monto)
-     return "Los medios de "+(tipo==="productos"?"productos":"delivery")+" deben sumar "+fmt(monto)+".";
+   if(lineas.reduce((t,x)=>t+x.monto,0)!==requerido)
+     return "Los medios de "+(tipo==="productos"?"productos":"delivery")+" cobrados en Uki deben sumar "+fmt(requerido)+".";
  }
  return "";
 }
-function ukiDatosPago(d){
- return {pagosProductos:d.mixtoProductos&&!d.productosPagadosOtroLocal?d.pagosProductos.map(x=>({medio:x.medio,monto:Number(x.monto)})):[],
-   pagosEnvio:d.mixtoEnvio?d.pagosEnvio.map(x=>({medio:x.medio,monto:Number(x.monto)})):[],
+function ukiDatosPago(d,sub){
+ const externo=ukiMontoProductosOtroLocal(d,sub);
+ return {pagosProductos:d.mixtoProductos&&sub>externo?(d.pagosProductos||[]).map(x=>({medio:x.medio,monto:Number(x.monto)})):[],
+   pagosEnvio:d.mixtoEnvio?(d.pagosEnvio||[]).map(x=>({medio:x.medio,monto:Number(x.monto)})):[],
    productosPagadosOtroLocal:!!d.productosPagadosOtroLocal,
+   montoProductosOtroLocal:d.productosPagadosOtroLocal?externo:0,
    localPagoExterno:d.productosPagadosOtroLocal?String(d.localPagoExterno||"").trim():""};
 }
 function ukiToggleMixto(tipo,activo){
@@ -1163,11 +1183,13 @@ function ukiPagoUI(tipo,total){
    (lines.length<6?'<button class="sm" onclick="ukiAgregarPago(\''+tipo+'\')">+ Otro medio</button>':"");
 }
 function ukiDetallePago(p,tipo){
- if(tipo==="productos"&&p.productosPagadosOtroLocal)
-   return '<p class="muted"><b>Productos cobrados en otro local:</b> '+esc(p.localPagoExterno||"")+' · '+fmt(p.subtotal||0)+' (NO ingresa a esta caja)</p>';
  const monto=tipo==="productos"?Number(p.subtotal)||0:p.modalidad==="Delivery"?Number(p.envio)||0:0;
+ const externo=tipo==="productos"?ukiMontoProductosOtroLocal(p,monto):0;
+ const nota=externo>0?'<p class="muted"><b>Productos cobrados en otro local:</b> '+esc(p.localPagoExterno||"")+
+   ' · '+fmt(externo)+' (NO entra a esta caja). <b>Productos cobrados en Uki:</b> '+fmt(monto-externo)+'</p>':"";
  const lines=ukiLineasPago(p,tipo,monto);
- return lines.length>1?'<p class="muted"><b>Pago mixto '+(tipo==="productos"?"productos":"delivery")+':</b> '+lines.map(x=>esc(x.medio)+" "+fmt(x.monto)).join(" + ")+'</p>':"";
+ return nota+(lines.length>1?'<p class="muted"><b>Pago mixto '+(tipo==="productos"?"productos":"delivery")+':</b> '+
+   lines.map(x=>esc(x.medio)+" "+fmt(x.monto)).join(" + ")+'</p>':"");
 }
 function totales(){
   const caja=cajaDelDia(),pedidos=delSucHoy(S.pedidos);
@@ -1183,7 +1205,7 @@ function totales(){
   const dms=delSucHoy(S.deliveriesManuales);
   dms.forEach(d=>{const m=MEDIOS.includes(d.medio)?d.medio:"Otros";medios[m]+=Number(d.monto)||0;});
   const totalMedios=Object.values(medios).reduce((a,b)=>a+b,0);
-  const productosPagadosOtroLocal=pag.filter(p=>p.productosPagadosOtroLocal).reduce((n,p)=>n+Math.max(0,Number(p.subtotal)||0),0);
+  const productosPagadosOtroLocal=pag.reduce((n,p)=>n+ukiMontoProductosOtroLocal(p,Math.max(0,Number(p.subtotal)||0)),0);
   const dels=pag.filter(x=>x.modalidad==="Delivery");
   const enviosPedidos=dels.reduce((a,x)=>a+(Number(x.envio)||0),0);
   const enviosManuales=dms.reduce((a,d)=>a+(Number(d.monto)||0),0);
@@ -1423,7 +1445,7 @@ function ndGuardar(){
   let sub=D.items.filter(x=>x.nombre).reduce((a,i)=>a+i.cant*i.precio,0); 
   const envio=D.modalidad==="Delivery"?D.envio:0; 
   let total=sub+envio;
-  const datosPago=ukiDatosPago(D);
+  const datosPago=ukiDatosPago(D,sub);
   if(D.productosPagadosOtroLocal&&!String(D.localPagoExterno||"").trim()){
     aviso("Indica qué local recibió el pago de la comida.");return;
   }
