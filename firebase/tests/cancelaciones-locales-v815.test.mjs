@@ -85,3 +85,30 @@ test("Caja excluye cancelados y conserva pagos",()=>{
  assert.equal(despues.cancelados,1);
  assert.equal(despues.efectivoCaja,12000);
 });
+
+// Dos pulsaciones seguidas mientras la escritura cifrada todavía está pendiente.
+test("Cancelar: no duplica un guardado mientras el primero está en curso",async()=>{
+ const p={id:123,suc:"Uki Regimiento Arica",estado:"Pendiente",
+   pagado:false,esPremio:false,registradoEn:Date.now()};
+ const S={suc:p.suc,busy:false,pedidos:[p]};
+ let liberar;const pendiente=new Promise(resolve=>liberar=resolve);
+ let guardados=0,confirmaciones=0;
+ const ctx={
+  S,esDelPeriodo:()=>true,
+  document:{body:{classList:{contains:()=>false}}},
+  window:{ukiCancelacionNubeLista:()=>true},
+  $:()=>({value:"cliente"}),aviso:()=>{},
+  confirm:()=>{confirmaciones++;return true},
+  guardarEnLocalStorage:()=>{guardados++;return pendiente}
+ };
+ const {cancelarPedido}=runInNewContext("let pedidoExpandido=null;"+cancelSource+";({cancelarPedido})",ctx);
+ const primera=cancelarPedido(123);
+ await Promise.resolve();
+ await cancelarPedido(123);
+ assert.equal(guardados,1);
+ assert.equal(confirmaciones,1);
+ liberar(true);
+ await primera;
+ assert.equal(p.estado,"Cancelado");
+ assert.equal(p.motivoCancelacion,"cliente");
+});
