@@ -140,7 +140,7 @@ const SUCURSALES=["Uki Regimiento Arica","Uki La Serena"];
 const MEDIOS=["Efectivo","Transferencia","Débito","Edenred","Otros","Uber Eats","PedidosYa","Rappi"];
 const APPS=["Uber Eats","PedidosYa","Rappi"];
 let S={suc:null,pinSuc:null,codigos:{},vista:"inicio",base:18000,pedidos:[],gastos:[],retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",deliveriesManuales:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,filtro:"",filtroFecha:"",filtroCliente:""};
-let D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[],editando:null};
+let D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:"",localPagoExterno:"",editando:null};
 const $=id=>document.getElementById(id);
 const fmt=n=>"$"+Math.round(n||0).toLocaleString("es-CL");
 const esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -677,7 +677,7 @@ function setEnvioManual(valor){
   const txt=$("pedidoEnvioAyuda");
   if(txt) txt.textContent=D.modalidad==="Delivery"?"Delivery seleccionado - "+fmt(monto)+" se suma al total":"Toca Delivery arriba para sumar envío";
 }
-function nuevoDraft(){D={texto:"",fecha:ahora(),cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[{nombre:"",cant:1,precio:0,det:""}],editando:null};}
+function nuevoDraft(){D={texto:"",fecha:ahora(),cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[{nombre:"",cant:1,precio:0,det:""}],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:"",localPagoExterno:"",editando:null};}
 function delItem(k){D.items.splice(k,1);if(!D.items.length)D.items=[{nombre:"",cant:1,precio:0,det:""}];render();}
 function addItem(){const n=$("pNom").value.trim(); const c=parseInt($("pCant").value)||1; const p=parseInt($("pPre").value)||0; const d=$("pDet").value.trim(); if(!n||!p){aviso("Pon nombre y precio");return;} D.items=D.items.filter(x=>x.nombre); D.items.push({nombre:n,cant:c,precio:p,det:d}); $("pNom").value=""; $("pCant").value=1; $("pPre").value=""; $("pDet").value=""; render();}
 // El codigo del pedido proviene del encabezado de la carta digital, NO del numero interno ni del codigo de cliente.
@@ -764,17 +764,41 @@ function vNuevo(){
   <div class="mode-switch" role="group" aria-label="Modo de ingresar pedido"><button type="button" class="${modoNuevo==='whatsapp'?'selected':''}" onclick="cambiarModoNuevo('whatsapp')">📋 Pegar WhatsApp</button><button type="button" class="${modoNuevo==='manual'?'selected':''}" onclick="cambiarModoNuevo('manual')">✎ Manual</button></div>
   ${modoNuevo==='whatsapp'?`<div class="card"><h2>Texto del pedido</h2><p class="muted">Pega el mensaje de la carta digital y toca Procesar.</p><textarea id="pegaTxt" rows="4" placeholder="Pega aquí el pedido de WhatsApp" oninput="D.texto=this.value" onpaste="setTimeout(()=>{const el=document.getElementById('pegaTxt');if(el){D.texto=el.value;leerTextoD();}},150)">${esc(D.texto)}</textarea><button class="big" onclick="leerTextoD()">Procesar pedido pegado</button><p class="muted">Revisa nombre, precio, delivery y productos antes de guardar.</p></div>`:`<div class="mini-help">Agrega los datos del pedido manualmente en el formulario siguiente.</div>`}
   <div class="card"><h2>Datos del pedido</h2><label>Codigo del pedido en la carta digital</label><input value="${esc(D.codigoCarta||"")}" placeholder="Ej: 953" oninput="D.codigoCarta=this.value.trim()" inputmode="text"><label>Codigo del cliente (distinto del pedido)</label><input value="${esc(D.codigoCliente||"")}" placeholder="Ej: 7362" oninput="D.codigoCliente=this.value.trim()" inputmode="text"><label>Fecha y hora</label><input type="datetime-local" value="${D.fecha}" oninput="D.fecha=this.value"><label>Cliente (no se autocompleta con total)</label><input value="${esc(D.cliente)}" placeholder="Ej: Camila Rojas" oninput="D.cliente=this.value">${cli?`<div style="margin-top:8px;padding:8px;background:#fff1e0;border-radius:8px"><b>${esc(cli.nombre)}</b> tiene <b>${ventasCli}/10</b> timbres ${ventasCli>=6?'<span class="tag" style="background:var(--ok);color:#fff">Puede canjear 12 piezas!</span>':''} ${ventasCli>=10?'<span class="tag" style="background:#111;color:#fff">Puede canjear 36+2 korokes!</span>':''}<div class="tarjeta" style="margin-top:6px">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventasCli?'lleno':''} ${i===5||i===9?'premio':''}">${i<ventasCli?'✓':i+1}</div>`).join("")}</div></div>`:"<p class='muted'>Nuevo cliente - empezará con 1 timbre</p>"}<label>📱 WhatsApp / Teléfono</label><input value="${esc(D.telefono)}" placeholder="+56 9 1234 5678" oninput="D.telefono=this.value" inputmode="tel"><label>Tipo de entrega</label><div class="chips">${["Retiro","Delivery","Consumo en local"].map(m=>`<button ${chip(D.modalidad===m)} onclick="setModalidad('${m}')">${m}</button>`).join("")}</div><label>💰 Valor delivery ${D.modalidad==="Delivery"?"(se suma)":"(selecciona Delivery)"}</label><input type="number" inputmode="numeric" value="${D.envio||""}" placeholder="Ej: 2000" oninput="setEnvioManual(this.value)"><p class="muted" id="pedidoEnvioAyuda">${D.modalidad==="Delivery"?`Delivery seleccionado - $${D.envio||0} se suma al total`:`Toca Delivery arriba para sumar envío`}</p></div>
-  <div class="card"><h2>Productos y total</h2>${D.items.filter(x=>x.nombre).map((i,k)=>`<div class="row"><span>${i.cant} × ${esc(i.nombre)}${i.det?` <span class="muted">(${esc(i.det)})</span>`:""}</span><b>${fmt(i.cant*i.precio)} <button class="sm" onclick="delItem(${k})">✕</button></b></div>`).join("")||'<p class="muted">Aún no hay productos. Agrégalos abajo.</p>'}<div style="display:grid;grid-template-columns:80px 1fr;gap:8px;margin-top:10px"><div><label>Cant</label><input id="pCant" type="number" value="1" style="text-align:center;font-weight:700"></div><div><label>Precio</label><input id="pPre" type="number" inputmode="numeric" placeholder="14900"></div></div><label>Nombre producto</label><input id="pNom" placeholder="Promo 24 piezas"><label>Detalle</label><input id="pDet" placeholder="sin cebollín"><button class="sm ok" onclick="addItem()">+ Agregar producto</button><div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:10px;border-top:2px solid var(--accent)"><div class="row sub"><span>Subtotal productos</span><b>${fmt(sub)}</b></div><div class="row"><span>Delivery</span><b id="pedidoEnvioVista">${fmt(envio)}</b></div><div class="row final"><span>Total pedido</span><b id="pedidoTotalVista">${fmt(total)}</b></div><div class="row"><span>Este pedido da</span><b>⭐ +1 timbre</b></div></div></div>
-  <div class="card"><h2>Medios de pago</h2><label>Medio productos</label><div class="chips">${MEDIOS.map(m=>`<button ${chip(D.medio===m)} onclick="D.medio='${m}';render()">${m}</button>`).join("")}</div><label>Medio delivery</label><div class="chips">${MEDIOS.filter(m=>!APPS.includes(m)).map(m=>`<button ${chip(D.medioEnvio===m)} onclick="D.medioEnvio='${m}';render()">${m}</button>`).join("")}</div><label class="check"><input type="checkbox" ${D.pagado?"checked":""} onchange="D.pagado=this.checked;render()"> <b>Pagado</b></label></div><button class="big" onclick="ndGuardar()">${D.editando?`💾 Guardar cambios #${D.editando}`:`✅ Guardar pedido +1 timbre`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición</button>`:""}`;
+  <div class="card"><h2>Productos y total</h2>${D.items.filter(x=>x.nombre).map((i,k)=>`<div class="row"><span>${i.cant} × ${esc(i.nombre)}${i.det?` <span class="muted">(${esc(i.det)})</span>`:""}</span><b>${fmt(i.cant*i.precio)} <button class="sm" onclick="delItem(${k})">✕</button></b></div>`).join("")||'<p class="muted">Aún no hay productos. Agrégalos abajo.</p>'}<div style="display:grid;grid-template-columns:80px 1fr;gap:8px;margin-top:10px"><div><label>Cant</label><input id="pCant" type="number" value="1" style="text-align:center;font-weight:700"></div><div><label>Precio</label><input id="pPre" type="number" inputmode="numeric" placeholder="14900"></div></div><label>Nombre producto</label><input id="pNom" placeholder="Promo 24 piezas"><label>Detalle</label><input id="pDet" placeholder="sin cebollín"><button class="sm ok" onclick="addItem()">+ Agregar producto</button><div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:10px;border-top:2px solid var(--accent)"><div class="row sub"><span>Subtotal productos</span><b>${fmt(sub)}</b></div><div class="row"><span>Delivery</span><b id="pedidoEnvioVista">${fmt(envio)}</b></div><div class="row final"><span>Total pedido</span><b id="pedidoTotalVista">${fmt(total)}</b></div><div class="row"><span>Este pedido da</span><b>${D.productosPagadosOtroLocal?"Pago registrado en otro local":"⭐ +1 timbre"}</b></div></div></div>
+  <div class="card"><h2>Medios de pago</h2>
+    <label class="check"><input type="checkbox" ${D.productosPagadosOtroLocal?"checked":""}
+    onchange="D.productosPagadosOtroLocal=this.checked;D.montoProductosOtroLocal='';D.mixtoProductos=false;D.pagosProductos=[];render()">
+      <b>Parte o toda la comida fue pagada en otro local</b></label>
+    ${D.productosPagadosOtroLocal?
+       `<label>Local donde pagaron la comida</label><input maxlength="80" value="${esc(D.localPagoExterno||"")}" oninput="D.localPagoExterno=this.value" placeholder="Nombre del local que recibió el pago">
+       <label>Monto pagado allá, de los productos</label>
+       <input type="number" min="1" max="${sub}" step="1" inputmode="numeric" placeholder="Vacío = pagaron toda la comida" value="${esc(D.montoProductosOtroLocal??"")}"
+         onchange="D.montoProductosOtroLocal=this.value;render()">
+       <p class="muted">Productos ${fmt(sub)} · pagado allá ${fmt(ukiMontoProductosOtroLocal(D,sub))} · por cobrar en Uki ${fmt(ukiMontoProductosLocal(D,sub))}.</p>
+       ${ukiMontoProductosLocal(D,sub)>0?`<label>Pago de productos recibido en Uki · ${fmt(ukiMontoProductosLocal(D,sub))}</label>${ukiPagoUI("productos",ukiMontoProductosLocal(D,sub))}`:""}`:
+       `<label>Pago de los productos · ${fmt(sub)}</label>${ukiPagoUI("productos",sub)}`}
+    ${D.modalidad==="Delivery"?`<label>Pago del delivery recibido en Uki · ${fmt(envio)}</label>${ukiPagoUI("envio",envio)}`:""}
+    <label class="check"><input type="checkbox" ${D.pagado?"checked":""} onchange="D.pagado=this.checked;render()"> <b>Pago completo confirmado</b></label>
+    <p class="muted">Solo se consideran ventas los pagos completos confirmados. Los montos mixtos deben sumar exactamente lo que corresponde.</p></div><button class="big" onclick="ndGuardar()">${D.editando?`💾 Guardar cambios #${D.editando}`:D.productosPagadosOtroLocal?`✅ Guardar pedido con pago compartido`:`✅ Guardar pedido +1 timbre`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición</button>`:""}`;
 }
 
-function editarPedido(id){const p=S.pedidos.find(x=>x.id===id); if(!p)return; if(p.estado==="Cancelado"){aviso("El pedido cancelado permanece en el historial y no se puede editar.");return;} D={texto:p.textoOriginal||"",fecha:p.fechaISO||ahora(),cliente:p.cliente||"",telefono:p.telefono||"",codigoCarta:p.codigoCarta||"",codigoCliente:p.codigoCliente||"",sucursalCarta:p.sucursalCarta||"",modalidad:p.modalidad||"Retiro",envio:p.envio||0,medio:p.medio||"Efectivo",medioEnvio:p.medioEnvio||"Efectivo",pagado:!!p.pagado,items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}]; ir("nuevo"); aviso(`Editando pedido #${id}`);}
+function editarPedido(id){const p=S.pedidos.find(x=>x.id===id); if(!p)return; if(p.estado==="Cancelado"){aviso("El pedido cancelado permanece en el historial y no se puede editar.");return;} D={texto:p.textoOriginal||"",fecha:p.fechaISO||ahora(),cliente:p.cliente||"",telefono:p.telefono||"",codigoCarta:p.codigoCarta||"",codigoCliente:p.codigoCliente||"",sucursalCarta:p.sucursalCarta||"",modalidad:p.modalidad||"Retiro",envio:p.envio||0,medio:p.medio||"Efectivo",medioEnvio:p.medioEnvio||"Efectivo",pagado:!!p.pagado,
+mixtoProductos:Array.isArray(p.pagosProductos)&&p.pagosProductos.length>0,
+mixtoEnvio:Array.isArray(p.pagosEnvio)&&p.pagosEnvio.length>0,
+pagosProductos:(p.pagosProductos||[]).map(x=>({...x})),
+pagosEnvio:(p.pagosEnvio||[]).map(x=>({...x})),
+productosPagadosOtroLocal:!!p.productosPagadosOtroLocal,montoProductosOtroLocal:p.montoProductosOtroLocal??"",localPagoExterno:p.localPagoExterno||"",
+items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}]; ir("nuevo"); aviso(`Editando pedido #${id}`);}
 function reanalizar(){leerTextoD();}
 function copiarComanda(id){const p=S.pedidos.find(x=>x.id===id); if(!p) return; const txt=[`#${p.id} ${p.modalidad}`, ...(p.productos||[]).map(pr=>`${pr.cantidad}x ${pr.nombre}${pr.detalle?` (${pr.detalle})`:""}`), p.envio?`Delivery ${fmt(p.envio)}`:"", `Total ${fmt(p.total)}`].filter(Boolean).join("\n"); if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>aviso("Comanda copiada")).catch(()=>aviso(txt)); else aviso(txt);}
 function togglePagado(id){
  const p=S.pedidos.find(x=>x.id===id);if(!p||p.esPremio||p.estado==="Cancelado")return;
- if(!p.pagado && !confirm("¿Confirmas que recibiste el pago de "+fmt(p.total)+" por el pedido #"+id+"?"))return;
- if(p.cliente){
+ if(!p.pagado){
+   const err=ukiErrorDistribucionPago(p,Number(p.subtotal)||0,p.modalidad==="Delivery"?(Number(p.envio)||0):0);
+   if(err){aviso(err+" Edita el pedido antes de marcarlo pagado.");return;}
+   if(!confirm("¿Confirmas el pago completo del pedido #"+id+"? Solo se sumará el dinero cobrado en este local."))return;
+ }
+ if(p.cliente && !p.productosPagadosOtroLocal){
    const cli=asegurarCliente(p.cliente,p.codigoCliente,p.telefono);
    if(p.pagado){
      cli.movimientos=cli.movimientos.filter(m=>m.pedidoId!==p.id);
@@ -1081,6 +1105,96 @@ function quitarRetiro(id){S.retiros=S.retiros.filter(x=>x.id!==id);render();}
 function addCC(){const m=parseInt($("ccMon").value)||0; const con=$("ccCon").value.trim(); if(!m){aviso("Monto caja chica");return;} cajaDelDia().cajaChica.gastos.push({id:Date.now(),monto:m,concepto:con}); $("ccMon").value=""; $("ccCon").value=""; render();}
 function quitarCC(id){cajaDelDia().cajaChica.gastos=cajaDelDia().cajaChica.gastos.filter(x=>x.id!==id);render();}
 function setApp(k,v){cajaDelDia().apps[k]=Math.max(0,parseInt(v,10)||0);render();}
+
+// Pago mixto por componente (productos/delivery) y pago de productos en otra caja.
+// La sucursal que prepara conserva el pedido; solo suma sus propios cobros.
+function ukiMontoProductosOtroLocal(p,sub){
+ if(!p.productosPagadosOtroLocal)return 0;
+ const raw=p.montoProductosOtroLocal;
+ // Pedidos anteriores: el indicador significaba el subtotal completo.
+ if(raw===undefined||raw===null||raw==="")return sub;
+ return Number(raw);
+}
+function ukiMontoProductosLocal(p,sub){
+ return sub-ukiMontoProductosOtroLocal(p,sub);
+}
+function ukiLineasPago(p,tipo,monto){
+ const cobro=tipo==="productos"?ukiMontoProductosLocal(p,monto):monto;
+ const key=tipo==="productos"?"pagosProductos":"pagosEnvio";
+ const medio=tipo==="productos"?"medio":"medioEnvio";
+ if(cobro<=0)return [];
+ if(Array.isArray(p[key])&&p[key].length)
+   return p[key].map(x=>({medio:x.medio,monto:Number(x.monto)}));
+ return [{medio:p[medio]||"Efectivo",monto:cobro}];
+}
+function ukiErrorDistribucionPago(p,sub,envio){
+ const externo=ukiMontoProductosOtroLocal(p,sub);
+ if(p.productosPagadosOtroLocal){
+   if(!String(p.localPagoExterno||"").trim()||String(p.localPagoExterno).length>80)
+     return "Indica qué local recibió parte o todo el pago de los productos.";
+   if(!Number.isSafeInteger(externo)||externo<=0||externo>sub)
+     return "El monto cobrado en otro local debe ser mayor a cero y no superar "+fmt(sub)+".";
+ }
+ for(const [tipo,monto] of [["productos",sub],["envio",envio]]){
+   const requerido=tipo==="productos"?monto-externo:monto;
+   const metodos=tipo==="productos"?MEDIOS:MEDIOS.filter(m=>!APPS.includes(m));
+   const lineas=ukiLineasPago(p,tipo,monto);
+   if(!lineas.length&&requerido===0)continue;
+   if(lineas.length<1||lineas.length>6||
+      lineas.some(x=>!metodos.includes(x.medio)||!Number.isSafeInteger(x.monto)||x.monto<=0))
+     return "Revisa los medios y montos de "+(tipo==="productos"?"productos":"delivery")+".";
+   if(lineas.reduce((t,x)=>t+x.monto,0)!==requerido)
+     return "Los medios de "+(tipo==="productos"?"productos":"delivery")+" cobrados en Uki deben sumar "+fmt(requerido)+".";
+ }
+ return "";
+}
+function ukiDatosPago(d,sub){
+ const externo=ukiMontoProductosOtroLocal(d,sub);
+ return {pagosProductos:d.mixtoProductos&&sub>externo?(d.pagosProductos||[]).map(x=>({medio:x.medio,monto:Number(x.monto)})):[],
+   pagosEnvio:d.mixtoEnvio?(d.pagosEnvio||[]).map(x=>({medio:x.medio,monto:Number(x.monto)})):[],
+   productosPagadosOtroLocal:!!d.productosPagadosOtroLocal,
+   montoProductosOtroLocal:d.productosPagadosOtroLocal?externo:0,
+   localPagoExterno:d.productosPagadosOtroLocal?String(d.localPagoExterno||"").trim():""};
+}
+function ukiToggleMixto(tipo,activo){
+ const key=tipo==="productos"?"pagosProductos":"pagosEnvio";
+ const flag=tipo==="productos"?"mixtoProductos":"mixtoEnvio";
+ D[flag]=!!activo;
+ D[key]=activo?[{medio:tipo==="productos"?D.medio:D.medioEnvio,monto:""},{medio:"Transferencia",monto:""}]:[];
+ render();
+}
+function ukiAgregarPago(tipo){
+ const key=tipo==="productos"?"pagosProductos":"pagosEnvio";
+ if(D[key]?.length>=6)return;
+ D[key].push({medio:"Efectivo",monto:""});render();
+}
+function ukiQuitarPago(tipo,i){
+ const key=tipo==="productos"?"pagosProductos":"pagosEnvio";
+ if(D[key]?.length<=2)return;
+ D[key].splice(i,1);render();
+}
+function ukiPagoUI(tipo,total){
+ const prod=tipo==="productos",flag=prod?"mixtoProductos":"mixtoEnvio",key=prod?"pagosProductos":"pagosEnvio",single=prod?"medio":"medioEnvio";
+ const choices=prod?MEDIOS:MEDIOS.filter(m=>!APPS.includes(m));
+ const toggle='<label class="check"><input type="checkbox" '+(D[flag]?'checked':'')+' onchange="ukiToggleMixto(\''+tipo+'\',this.checked)"> Dividir entre varios medios</label>';
+ if(!D[flag])return toggle+'<div class="chips">'+choices.map(m=>'<button class="chip'+(D[single]===m?' on':'')+'" onclick="D.'+single+'=this.textContent;render()">'+esc(m)+'</button>').join("")+'</div>';
+ const lines=D[key]||[];
+ return toggle+'<p class="muted">Los montos deben sumar '+fmt(total)+'.</p>'+
+   lines.map((x,i)=>'<div style="display:grid;grid-template-columns:1fr 110px auto;gap:6px;align-items:end;margin:8px 0"><select onchange="D.'+key+'['+i+'].medio=this.value" aria-label="Medio '+(i+1)+'">'+
+     choices.map(m=>'<option '+(x.medio===m?'selected ':'')+'value="'+esc(m)+'">'+esc(m)+'</option>').join("")+
+     '</select><input type="number" inputmode="numeric" min="1" step="1" placeholder="Monto" aria-label="Monto '+(i+1)+'" value="'+esc(x.monto||"")+'" oninput="D.'+key+'['+i+'].monto=this.value">'+
+     (lines.length>2?'<button class="sm" onclick="ukiQuitarPago(\''+tipo+'\','+i+')">✕</button>':'<span></span>')+'</div>').join("")+
+   (lines.length<6?'<button class="sm" onclick="ukiAgregarPago(\''+tipo+'\')">+ Otro medio</button>':"");
+}
+function ukiDetallePago(p,tipo){
+ const monto=tipo==="productos"?Number(p.subtotal)||0:p.modalidad==="Delivery"?Number(p.envio)||0:0;
+ const externo=tipo==="productos"?ukiMontoProductosOtroLocal(p,monto):0;
+ const nota=externo>0?'<p class="muted"><b>Productos cobrados en otro local:</b> '+esc(p.localPagoExterno||"")+
+   ' · '+fmt(externo)+' (NO entra a esta caja). <b>Productos cobrados en Uki:</b> '+fmt(monto-externo)+'</p>':"";
+ const lines=ukiLineasPago(p,tipo,monto);
+ return nota+(lines.length>1?'<p class="muted"><b>Pago mixto '+(tipo==="productos"?"productos":"delivery")+':</b> '+
+   lines.map(x=>esc(x.medio)+" "+fmt(x.monto)).join(" + ")+'</p>':"");
+}
 function totales(){
   const caja=cajaDelDia(),pedidos=delSucHoy(S.pedidos);
   const pag=pedidos.filter(p=>p.pagado&&p.estado!=="Cancelado"&&!p.esPremio);
@@ -1088,15 +1202,14 @@ function totales(){
   pag.forEach(p=>{
     const envio=p.modalidad==="Delivery"?Math.max(0,Number(p.envio)||0):0;
     const productos=Math.max(0,Number(p.subtotal??((p.total||0)-envio))||0);
-    const mProducto=MEDIOS.includes(p.medio)?p.medio:"Otros";
-    const mEnvio=MEDIOS.includes(p.medioEnvio)?p.medioEnvio:mProducto;
-    medios[mProducto]+=productos;
-    medios[mEnvio]+=envio;
+    for(const x of ukiLineasPago(p,"productos",productos))medios[MEDIOS.includes(x.medio)?x.medio:"Otros"]+=x.monto;
+    for(const x of ukiLineasPago(p,"envio",envio))medios[MEDIOS.includes(x.medio)?x.medio:"Otros"]+=x.monto;
   });
   Object.keys(caja.apps||{}).forEach(k=>{if(APPS.includes(k)||k==="Otros")medios[k]=(medios[k]||0)+(Number(caja.apps[k])||0);});
   const dms=delSucHoy(S.deliveriesManuales);
   dms.forEach(d=>{const m=MEDIOS.includes(d.medio)?d.medio:"Otros";medios[m]+=Number(d.monto)||0;});
   const totalMedios=Object.values(medios).reduce((a,b)=>a+b,0);
+  const productosPagadosOtroLocal=pag.reduce((n,p)=>n+ukiMontoProductosOtroLocal(p,Math.max(0,Number(p.subtotal)||0)),0);
   const dels=pag.filter(x=>x.modalidad==="Delivery");
   const enviosPedidos=dels.reduce((a,x)=>a+(Number(x.envio)||0),0);
   const enviosManuales=dms.reduce((a,d)=>a+(Number(d.monto)||0),0);
@@ -1108,7 +1221,7 @@ function totales(){
   const retirosTotal=retiros.reduce((a,x)=>a+(Number(x.monto)||0),0);
   const pagoDelivery=Number(caja.pagoDelivery)||0;
   return {
-    medios,totalMedios,nDeliv,envios,enviosPedidos,enviosManuales,base:caja.base,pagoDelivery,
+    medios,totalMedios,productosPagadosOtroLocal,nDeliv,envios,enviosPedidos,enviosManuales,base:caja.base,pagoDelivery,
     ventaSinDelivery:totalMedios-envios,gastosTotal,gastosEf,retirosTotal,
     propinas:propinas.reduce((a,x)=>a+(Number(x.monto)||0),0),
     efectivoCaja:(medios.Efectivo||0)-gastosEf-retirosTotal-(caja.pagoDeliveryMedio==="Efectivo"?pagoDelivery:0),
@@ -1154,7 +1267,7 @@ function vResumenSemanal(){
 function vCajaResumen(){
   const t=totales(), caja=cajaDelDia();
   return `<section class="kpis"><div class="kpi"><span>Venta total</span><strong>${fmt(t.totalMedios)}</strong></div><div class="kpi"><span>Sin delivery</span><strong>${fmt(t.ventaSinDelivery)}</strong></div><div class="kpi"><span>Gastos</span><strong>${fmt(t.gastosTotal)}</strong></div><div class="kpi"><span>Efectivo que queda</span><strong>${fmt(t.efectivoCaja)}</strong></div></section>
-    <div class="card"><h2>Resumen de hoy</h2>${row('Pedidos pagados',t.pagadosN)}${row('Delivery cobrado',fmt(t.envios))}${row('Pago a repartidor',fmt(t.pagoDelivery))}${row('Total final',fmt(t.final),'final')}</div>
+    <div class="card"><h2>Resumen de hoy</h2>${row('Pedidos pagados',t.pagadosN)}${t.productosPagadosOtroLocal?row('Productos pagados en otro local (informativo)',fmt(t.productosPagadosOtroLocal)):""}${row('Delivery cobrado',fmt(t.envios))}${row('Pago a repartidor',fmt(t.pagoDelivery))}${row('Total final',fmt(t.final),'final')}</div>
     <div class="quick-grid"><button class="quick" onclick="cambiarCajaTab('movimientos')">✎ Agregar movimiento <span>›</span></button><button class="quick" onclick="cambiarCajaTab('cierre')">▣ Cerrar el día <span>›</span></button><button class="quick" onclick="cambiarCajaTab('historial')">◷ Historial <span>›</span></button><button class="quick" onclick="descargarRespaldoCompleto()">⇩ Descargar respaldo <span>›</span></button></div>`;
 }
 function vMovimientos(){
@@ -1197,7 +1310,7 @@ function vCierre(){
     dif===null?"Ingresa un monto válido, sin decimales":dif===0?"✅ Caja exacta":
     dif>0?"Sobrante: "+fmt(dif):"Faltante: "+fmt(-dif);
   const pendientesText=pendientes.map(p=>"#"+esc(p.codigoCarta||p.id)+" · "+esc(p.cliente||"Sin nombre")+" · "+fmt(p.total)).join("; ");
-  return `<div class="card"><h2>Venta del día</h2>${row("Pedidos del día",t.n)}${row("Pedidos pagados",t.pagadosN)}${row("Efectivo",fmt(t.medios.Efectivo))}${row("Transferencia",fmt(t.medios.Transferencia))}${row("Débito",fmt(t.medios.Débito))}${row("Edenred",fmt(t.medios.Edenred))}${row("Otros",fmt(t.medios.Otros))}${row("Uber Eats",fmt(t.medios["Uber Eats"]))}${row("PedidosYa",fmt(t.medios.PedidosYa))}${row("Rappi",fmt(t.medios.Rappi))}${row("Venta total con delivery",fmt(t.totalMedios),"sub")}${row("Venta sin delivery",fmt(t.ventaSinDelivery))}</div>
+  return `<div class="card"><h2>Venta del día</h2>${row("Pedidos del día",t.n)}${row("Pedidos pagados",t.pagadosN)}${t.productosPagadosOtroLocal?row("Productos pagados en otro local (no ingresan a esta caja)",fmt(t.productosPagadosOtroLocal)):""}${row("Efectivo",fmt(t.medios.Efectivo))}${row("Transferencia",fmt(t.medios.Transferencia))}${row("Débito",fmt(t.medios.Débito))}${row("Edenred",fmt(t.medios.Edenred))}${row("Otros",fmt(t.medios.Otros))}${row("Uber Eats",fmt(t.medios["Uber Eats"]))}${row("PedidosYa",fmt(t.medios.PedidosYa))}${row("Rappi",fmt(t.medios.Rappi))}${row("Venta total con delivery",fmt(t.totalMedios),"sub")}${row("Venta sin delivery",fmt(t.ventaSinDelivery))}</div>
   <div class="card" style="border:2px solid var(--accent)"><h2>🛵 Total de delivery</h2><label>Base diaria ($)</label><input type="number" value="${caja.base}" inputmode="numeric" onchange="cajaDelDia().base=Math.max(0,parseInt(this.value)||0);render()" style="font-weight:700">${row("Base diaria",fmt(caja.base))}${row("Deliveries pedidos ("+t.dels.length+")",fmt(t.enviosPedidos))}${row("Deliveries manuales ("+delSucHoy(S.deliveriesManuales).length+")",fmt(t.enviosManuales))}${row("Deliveries del día ("+t.nDeliv+")",fmt(t.envios))}${row("Total delivery (base + deliveries)",fmt(caja.base+t.envios),"final")}</div>
   <div class="card"><h2>Resultado final</h2>${row("Venta total con delivery",fmt(t.totalMedios))}${row("− Pago a delivery ("+caja.pagoDeliveryMedio+")",fmt(t.pagoDelivery),"neg")}${row("Venta - pago delivery",fmt(t.totalMedios-t.pagoDelivery))}${row("− Gastos",fmt(t.gastosTotal),"neg")}${row("Venta total - gastos",fmt(t.totalMedios-t.gastosTotal),"sub")}${row("Total final (venta - pago delivery - gastos)",fmt(t.final),"final")}${row("Efectivo que queda en caja",fmt(t.efectivoCaja))}${row("Propinas (aparte)",fmt(t.propinas))}</div>
   ${pendientes.length?`<div class="card" style="border:2px solid #bd4d1b"><h2>⚠️ Pedidos pendientes de pago · ${pendientes.length}</h2><p class="muted">Revisa estos pedidos antes de cerrar. Si decides cerrar, seguirán registrados como pendientes.</p><p>${pendientesText}</p></div>`:
@@ -1271,6 +1384,26 @@ function renderIncidencia(x,contexto="lista"){
   const encabezado=x.codigoCarta?"Carta #"+x.codigoCarta:"Interno #"+x.pedidoId;
   return `<div class="card" style="padding:12px;margin:9px 0"><b>${esc(encabezado)} · ${esc(x.estado)}</b><p class="muted">Reportado ${esc(x.fecha.slice(0,10))} · ${esc(x.suc)}</p><p>${esc(x.problema)}</p>${x.solucion?`<p><b>Solucion:</b> ${esc(x.solucion)}</p>`:""}${x.estado==="Pendiente"?`<label>Solucion aplicada</label><textarea id="incRespuesta${contexto}${x.id}" rows="2" placeholder="Describe la solucion"></textarea><button class="sm ok" onclick="resolverIncidencia(${x.id},'${contexto}')">Marcar resuelto</button>`:""}</div>`;
 }
+// Categorías visuales: no cambian ni el estado del pedido ni su caja.
+let filtroCategoriaPedidos="todos";
+const UKI_CATEGORIAS_PEDIDOS=[
+ ["todos","Todos"],["sin-pago","Por cobrar"],["pagados","Pagados"],
+ ["pendientes","Pendientes"],["entregados","Entregados"],
+ ["cancelados","Cancelados"],["errores","Con error"]
+];
+function ukiCoincideCategoriaPedido(p,categoria,errores){
+ if(categoria==="sin-pago")return !p.pagado&&p.estado!=="Cancelado"&&!p.esPremio;
+ if(categoria==="pagados")return !!p.pagado&&p.estado!=="Cancelado"&&!p.esPremio;
+ if(categoria==="pendientes")return p.estado==="Pendiente";
+ if(categoria==="entregados")return p.estado==="Entregado";
+ if(categoria==="cancelados")return p.estado==="Cancelado";
+ if(categoria==="errores")return errores.has(p.id);
+ return true;
+}
+function ukiCambiarCategoriaPedidos(categoria){
+ if(!UKI_CATEGORIAS_PEDIDOS.some(x=>x[0]===categoria))return;
+ filtroCategoriaPedidos=categoria;render();
+}
 function vPedidos(){
   if(!S.suc) return vInicio();
   const fechaTurno=fechaOperativaActual();
@@ -1290,9 +1423,19 @@ function vPedidos(){
   const incidencias=(S.incidencias||[]).filter(x=>x.suc===S.suc && (!filtroCodigoCarta || String(x.codigoCarta||x.pedidoId).toLowerCase().includes(filtroCodigoCarta.toLowerCase())) && (!filtroDiaIncidencias || fechaLocalRegistro(x.fecha)===filtroDiaIncidencias)).slice().reverse();
   const pendientes=(S.incidencias||[]).filter(x=>x.suc===S.suc && x.estado!=="Resuelto").length;
   const pagados=todos.filter(p=>p.pagado&&!p.esPremio&&p.estado!=="Cancelado").length;
+  const erroresPedidos=new Set((S.incidencias||[]).filter(x=>x.suc===S.suc).map(x=>x.pedidoId));
+  const visibles=todos.filter(p=>ukiCoincideCategoriaPedido(p,filtroCategoriaPedidos,erroresPedidos));
+  const categorias=UKI_CATEGORIAS_PEDIDOS.map(([id,nombre])=>
+    '<button type="button" class="chip'+(filtroCategoriaPedidos===id?' on':'')+
+    '" onclick="ukiCambiarCategoriaPedidos(\''+id+'\')">'+esc(nombre)+
+    ' ('+todos.filter(p=>ukiCoincideCategoriaPedido(p,id,erroresPedidos)).length+')</button>'
+  ).join("");
   const titulo=buscando?"Resultados de búsqueda":pedidosArchivoDia?"Pedidos del turno "+pedidosArchivoDia:"Pedidos del turno abierto · "+fechaTurno;
   return `<div class="section-head"><h2>Pedidos</h2><p>${esc(titulo)} · ${todos.length} registrados · ${pagados} pagados</p></div>
   <button class="big cta" onclick="ir('nuevo')">＋ Nuevo pedido</button>
+  <div class="card"><h2 style="margin:0 0 8px">Clasificar pedidos</h2>
+    <div class="chips" role="group" aria-label="Filtrar pedidos por estado y pago">${categorias}</div>
+    <p class="muted">${visibles.length} pedido(s) en «${esc((UKI_CATEGORIAS_PEDIDOS.find(x=>x[0]===filtroCategoriaPedidos)||[])[1]||"Todos")}». Un pedido pagado también puede estar pendiente de entrega o tener un error reportado.</p></div>
   ${pedidosArchivoDia||buscando?'<button class="sm" onclick="limpiarFiltrosPedidos()">← Volver al turno abierto</button>':''}
   <details class="card" ${buscando?'open':''}><summary style="cursor:pointer"><b>🔎 Buscar pedidos por código, cliente o fecha</b></summary>
     <div style="margin-top:12px"><label>Código del pedido o cliente</label><input id="codigoFiltro" value="${esc(filtroCodigoCarta)}" placeholder="Ej: 953 o Dianna" inputmode="text">
@@ -1306,11 +1449,12 @@ function vPedidos(){
     ${dias.length>30?'<p class="muted">Para fechas más antiguas utiliza el calendario de búsqueda.</p>':''}</div>
   </details>
   <details class="card" ${erroresAbiertos?'open':''}><summary onclick="erroresAbiertos=!erroresAbiertos"><b>⚠️ Errores e incidencias</b> · ${pendientes} pendientes</summary><label>Buscar errores por dia de reporte</label><input id="diaErrorFiltro" type="date" value="${esc(filtroDiaIncidencias)}"><button class="sm ok" onclick="aplicarDiaIncidencias()">Buscar errores</button><p class="muted">Los reportes se conservan aunque se cierre la caja del dia.</p>${incidencias.length?incidencias.map(x=>renderIncidencia(x,"lista")).join(""):"<p class='muted'>No hay errores para esta busqueda.</p>"}</details>
-  ${todos.map(p=>`<details class="card order-card" ${p.id===pedidoExpandido?'open':''}>
-    <summary onclick="pedidoExpandido=${p.id}"><div class="order-head"><div><b>${p.codigoCarta?`Carta #${esc(p.codigoCarta)} · `:""}Interno #${p.id} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small>${p.esPremio?'🎁 Premio':p.estado==="Cancelado"?'Cancelado':p.pagado?'Pagado':'Pendiente'}</small></div></div></summary>
+  ${visibles.map(p=>`<details class="card order-card" ${p.id===pedidoExpandido?'open':''}>
+    <summary onclick="pedidoExpandido=${p.id}"><div class="order-head"><div><b>${p.codigoCarta?`Carta #${esc(p.codigoCarta)} · `:""}Interno #${p.id} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small>${p.esPremio?'🎁 Premio':p.estado==="Cancelado"?'Cancelado':p.pagado?'Pagado':'Sin pago'}${erroresPedidos.has(p.id)?' · ⚠️ Con error':''}</small></div></div></summary>
     <div class="order-body"><p class="muted">${esc(p.estado||'Entregado')} · ${esc(p.medio||'Efectivo')}${p.telefono?' · '+esc(p.telefono):''}</p>${p.estado==="Cancelado"?`<p class="muted"><b>Motivo:</b> ${esc(p.motivoCancelacion==="cliente"?"Cancelado por el cliente":p.motivoCancelacion==="local"?"Cancelado por el local":"No informado")}${p.canceladoEn?" · "+esc(fechaTxt(p.canceladoEn)):""}</p>`:""}
     ${(p.productos||[]).map(pr=>`<div class="row"><span>${pr.cantidad}x ${esc(pr.nombre)}${pr.detalle?` · ${esc(pr.detalle)}`:''}</span><b>${fmt(pr.cantidad*pr.precioUnit)}</b></div>`).join('')}
     ${p.envio?row('Delivery',fmt(p.envio)):''}
+    ${ukiDetallePago(p,"productos")}${ukiDetallePago(p,"envio")}
     ${p.codigoCliente?`<p class='muted'>Codigo cliente: ${esc(p.codigoCliente)}</p>`:''}
     ${p.textoOriginal&&!p.esPremio?`<details class="inner-details"><summary>Ver WhatsApp original</summary><p style="white-space:pre-wrap">${esc(p.textoOriginal)}</p></details>`:''}
     <details class="inner-details"><summary>⚠️ Registrar error / ver soluciones</summary>
@@ -1320,13 +1464,13 @@ function vPedidos(){
     <button class="sm ok" onclick="anotarIncidencia(${p.id})">Guardar error</button></details>
     <div class="order-actions">${p.estado!=="Cancelado"?`<button class="sm ok" onclick="editarPedido(${p.id})">Editar</button><button class="sm" onclick="togglePagado(${p.id})">${p.pagado?'Quitar pagado':'Marcar pagado'}</button>`:""}<button class="sm" onclick="copiarComanda(${p.id})">Copiar comanda</button></div>
     ${puedeCancelarPedido(p)?`<div class="inner-details" style="padding:12px;margin-top:12px;border:1px solid #e7c8b3;border-radius:12px"><label for="motivoCancelacion${p.id}">Cancelar pedido · Motivo obligatorio</label><select id="motivoCancelacion${p.id}"><option value="">Selecciona un motivo</option><option value="cliente">Lo canceló el cliente</option><option value="local">Lo canceló el local</option></select><button class="sm" type="button" onclick="cancelarPedido(${p.id})" style="color:#9b3328;border-color:#dcb4a5">Cancelar pedido</button><p class="muted">Solo pedidos pendientes sin pago del turno abierto. Queda en el historial.</p></div>`:""}
-    </div></details>`).join('')||'<div class="card muted">Todavía no hay pedidos. Pulsa Nuevo pedido para comenzar.</div>'}`;
+    </div></details>`).join('')||'<div class="card muted">'+(todos.length?'No hay pedidos en esta categoría. Selecciona «Todos» para verlos.':'Todavía no hay pedidos. Pulsa Nuevo pedido para comenzar.')+'</div>'}`;
 }
 let pedidoExpandido=null;
 
 function ndGuardar(){
-  if(D.sucursalCarta && D.sucursalCarta.toLowerCase()!==S.suc.toLowerCase()){
-    aviso("Este mensaje corresponde a "+D.sucursalCarta+". Selecciona la sucursal correcta.");return;
+  if(D.sucursalCarta && D.sucursalCarta.toLowerCase()!==S.suc.toLowerCase()&&!D.productosPagadosOtroLocal){
+    aviso("El mensaje corresponde a "+D.sucursalCarta+". Si preparas aquí y cobraron allá, marca «Productos pagados en otro local».");return;
   }
   if(D.codigoCarta && S.pedidos.some(p=>p.suc===S.suc && String(p.codigoCarta||"")===D.codigoCarta && p.id!==D.editando)){
     aviso("Ya existe un pedido con ese codigo de carta en esta sucursal.");return;
@@ -1335,12 +1479,20 @@ function ndGuardar(){
   let sub=D.items.filter(x=>x.nombre).reduce((a,i)=>a+i.cant*i.precio,0); 
   const envio=D.modalidad==="Delivery"?D.envio:0; 
   let total=sub+envio;
+  const datosPago=ukiDatosPago(D,sub);
+  if(D.productosPagadosOtroLocal&&!String(D.localPagoExterno||"").trim()){
+    aviso("Indica qué local recibió el pago de la comida.");return;
+  }
+  if(D.pagado){
+    const err=ukiErrorDistribucionPago({...D,...datosPago},sub,envio);
+    if(err){aviso(err);return;}
+  }
   if(D.editando){
     const p=S.pedidos.find(x=>x.id===D.editando);
     if(p?.estado==="Cancelado"){aviso("El pedido cancelado no se puede modificar.");return;}
     if(p){
       // Si era premio, no afecta tarjeta
-      if(!p.esPremio && p.cliente && p.pagado){
+      if(!p.esPremio && p.cliente && p.pagado && !p.productosPagadosOtroLocal){
         const cliOld=getCliente(p.cliente,p.codigoCliente,p.telefono);
         if(cliOld && cliOld.movimientos){
           cliOld.movimientos = cliOld.movimientos.filter(m=>m.pedidoId!==p.id);
@@ -1348,8 +1500,8 @@ function ndGuardar(){
           cliOld.gastado=Math.max(0,(cliOld.gastado||0)-(p.subtotal||0));
         }
       }
-      p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||"";p.codigoCarta=D.codigoCarta||"";p.codigoCliente=D.codigoCliente||"";p.sucursalCarta=D.sucursalCarta||""; p.modalidad=D.modalidad; p.envio=envio; p.medio=D.medio; p.medioEnvio=D.medioEnvio; p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})); p.total=total; p.subtotal=sub; p.textoOriginal=D.texto;
-      if(!p.esPremio && D.cliente && D.pagado){
+      p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||"";p.codigoCarta=D.codigoCarta||"";p.codigoCliente=D.codigoCliente||"";p.sucursalCarta=D.sucursalCarta||""; p.modalidad=D.modalidad; p.envio=envio; p.medio=D.medio; p.medioEnvio=D.medioEnvio; Object.assign(p,datosPago); p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})); p.total=total; p.subtotal=sub; p.textoOriginal=D.texto;
+      if(!p.esPremio && D.cliente && D.pagado && !D.productosPagadosOtroLocal){
         const cli=asegurarCliente(D.cliente,D.codigoCliente,D.telefono);
         cli.gastado+=sub;
         cli.pedidos+=1;
@@ -1358,13 +1510,13 @@ function ndGuardar(){
       }
       aviso(`Pedido #${p.id} actualizado $${total} - ${!p.esPremio?'tarjeta actualizada':''}`);
     }
-    D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[],editando:null};
+    nuevoDraft();
     S.vista="pedidos"; render(); return;
   }
   const idNuevo=S.nextId++;
-  const nuevoPedido={id:idNuevo,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),cliente:D.cliente,telefono:D.telefono||"",codigoCarta:D.codigoCarta||"",codigoCliente:D.codigoCliente||"",sucursalCarta:D.sucursalCarta||"",modalidad:D.modalidad,envio:envio,medio:D.medio,medioEnvio:D.medioEnvio,pagado:D.pagado,estado:"Pendiente",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),total:total,subtotal:sub,textoOriginal:D.texto,esPremio:false};
+  const nuevoPedido={id:idNuevo,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),cliente:D.cliente,telefono:D.telefono||"",codigoCarta:D.codigoCarta||"",codigoCliente:D.codigoCliente||"",sucursalCarta:D.sucursalCarta||"",modalidad:D.modalidad,envio:envio,medio:D.medio,medioEnvio:D.medioEnvio,...datosPago,pagado:D.pagado,estado:"Pendiente",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),total:total,subtotal:sub,textoOriginal:D.texto,esPremio:false};
   S.pedidos.push(nuevoPedido);
-  if(D.cliente && D.pagado){
+  if(D.cliente && D.pagado && !D.productosPagadosOtroLocal){
     const cli=asegurarCliente(D.cliente,D.codigoCliente,D.telefono);
     cli.gastado+=sub;
     cli.pedidos+=1;
@@ -1377,7 +1529,7 @@ function ndGuardar(){
   } else {
     aviso(`Pedido #${idNuevo} guardado ${total}${D.pagado?"":" · Pendiente de pago"}`);
   }
-  D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[],editando:null}; 
+  nuevoDraft(); 
   S.vista="pedidos"; render();
 }
 function cerrar(){
