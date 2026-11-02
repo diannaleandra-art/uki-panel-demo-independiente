@@ -140,7 +140,7 @@ const SUCURSALES=["Uki Regimiento Arica","Uki La Serena"];
 const MEDIOS=["Efectivo","Transferencia","Débito","Edenred","Otros","Uber Eats","PedidosYa","Rappi"];
 const APPS=["Uber Eats","PedidosYa","Rappi"];
 let S={suc:null,pinSuc:null,codigos:{},vista:"inicio",base:18000,pedidos:[],gastos:[],retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",deliveriesManuales:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,filtro:"",filtroFecha:"",filtroCliente:""};
-let D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:"",localPagoExterno:"",editando:null};
+let D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",mesaReferencia:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:"",localPagoExterno:"",propinaModo:"ninguna",propinaPersonalizada:"",medioPropina:"Efectivo",editando:null};
 const $=id=>document.getElementById(id);
 const fmt=n=>"$"+Math.round(n||0).toLocaleString("es-CL");
 const esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -507,7 +507,7 @@ function ukiPrecierresGuardados(){
 }
 function ukiFotoPrecierre(){
  const t=totales();
- return {venta:t.totalMedios,pagados:t.pagadosN,delivery:t.envios,
+ return {venta:t.totalMedios,pagados:t.pagadosN,delivery:t.envios,propinas:t.propinas,
    gastos:t.gastosTotal,pagoRepartidor:t.pagoDelivery,
    retiros:t.retirosTotal,efectivoCaja:t.efectivoCaja,
    medios:Object.fromEntries(MEDIOS.map(m=>[m,Number(t.medios[m])||0]))};
@@ -521,6 +521,13 @@ function ukiDiferenciaPrecierre(base,fin){
      throw Error("Los importes del turno no son válidos.");
    salida[k]=fin[k]-base[k];
  }
+ // Turnos iniciados antes de esta versión no tenían base de propinas:
+ // no atribuirles propinas anteriores que no pueden determinarse.
+ const propinaInicio=Number.isSafeInteger(base.propinas)?base.propinas:fin.propinas;
+ const propinaFin=Number.isSafeInteger(fin.propinas)?fin.propinas:0;
+ if(!Number.isSafeInteger(propinaInicio)||propinaFin<propinaInicio)
+   throw Error("Las propinas fueron corregidas. Revisa la caja antes del precierre.");
+ salida.propinas=propinaFin-propinaInicio;
  for(const m of MEDIOS){
    const a=base.medios[m],b=fin.medios[m];
    if(!Number.isSafeInteger(a)||!Number.isSafeInteger(b))
@@ -591,6 +598,7 @@ function ukiFilaPrecierre(p){
    row("Edenred",fmt(medios.Edenred))+
    row("Otros y aplicaciones",fmt((medios.Otros||0)+(medios["Uber Eats"]||0)+(medios.PedidosYa||0)+(medios.Rappi||0)))+
    row("Delivery cobrado",fmt(t.delivery))+
+   row("Propinas del turno (aparte)",fmt(t.propinas||0))+
    (p.efectivoContado===null?'<p class="muted">Sin conteo físico</p>':
      row("Efectivo contado",fmt(p.efectivoContado))+
      row("Diferencia de caja",fmt(p.diferenciaEfectivo)))+
@@ -648,7 +656,7 @@ function ukiExportarPrecierres(){
  if(!registros.length){aviso("Todavía no hay precierres guardados.");return;}
  const cab=["Sucursal","Día operativo","Trabajador","Inicio","Fin","Pedidos pagados",
    ...MEDIOS,"Venta total","Delivery cobrado","Gastos","Pago repartidor","Retiros",
-   "Efectivo neto esperado","Efectivo contado","Diferencia","Observaciones"];
+   "Efectivo neto esperado","Efectivo contado","Diferencia","Observaciones","Propinas (aparte)"];
  const fecha=ms=>new Date(ms).toLocaleString("es-CL",{dateStyle:"short",timeStyle:"short"});
  const lineas=[cab,...registros.map(p=>{
    const t=p.totales||{},m=t.medios||{};
@@ -656,7 +664,7 @@ function ukiExportarPrecierres(){
      t.pagados,...MEDIOS.map(x=>m[x]||0),t.venta,t.delivery,t.gastos,
      t.pagoRepartidor,t.retiros,t.efectivoCaja,
      p.efectivoContado===null?"":p.efectivoContado,
-     p.diferenciaEfectivo===null?"":p.diferenciaEfectivo,p.observaciones||""];
+     p.diferenciaEfectivo===null?"":p.diferenciaEfectivo,p.observaciones||"",Number(t.propinas)||0];
  })];
  const csv="\uFEFF"+lineas.map(line=>line.map(csvSeguro).join(";")).join("\n");
  descargarTextoArchivo("uki-precierres-"+(S.suc===SUCURSALES[0]?"regimiento":"serena")+
@@ -673,11 +681,11 @@ function setEnvioManual(valor){
   const monto=D.modalidad==="Delivery"?D.envio:0;
   const sub=D.items.reduce((s,x)=>s+(Number(x.cant)||0)*(Number(x.precio)||0),0);
   const dl=$("pedidoEnvioVista"); if(dl) dl.textContent=fmt(monto);
-  const total=$("pedidoTotalVista"); if(total) total.textContent=fmt(sub+monto);
+  const total=$("pedidoTotalVista"); if(total) total.textContent=fmt(sub+monto+ukiMontoPropina(D,sub));
   const txt=$("pedidoEnvioAyuda");
   if(txt) txt.textContent=D.modalidad==="Delivery"?"Delivery seleccionado - "+fmt(monto)+" se suma al total":"Toca Delivery arriba para sumar envío";
 }
-function nuevoDraft(){D={texto:"",fecha:ahora(),cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[{nombre:"",cant:1,precio:0,det:""}],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:"",localPagoExterno:"",editando:null};}
+function nuevoDraft(){D={texto:"",fecha:ahora(),cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",mesaReferencia:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[{nombre:"",cant:1,precio:0,det:""}],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:"",localPagoExterno:"",propinaModo:"ninguna",propinaPersonalizada:"",medioPropina:"Efectivo",editando:null};}
 function delItem(k){D.items.splice(k,1);if(!D.items.length)D.items=[{nombre:"",cant:1,precio:0,det:""}];render();}
 function addItem(){const n=$("pNom").value.trim(); const c=parseInt($("pCant").value)||1; const p=parseInt($("pPre").value)||0; const d=$("pDet").value.trim(); if(!n||!p){aviso("Pon nombre y precio");return;} D.items=D.items.filter(x=>x.nombre); D.items.push({nombre:n,cant:c,precio:p,det:d}); $("pNom").value=""; $("pCant").value=1; $("pPre").value=""; $("pDet").value=""; render();}
 // El codigo del pedido proviene del encabezado de la carta digital, NO del numero interno ni del codigo de cliente.
@@ -756,15 +764,16 @@ function leerTextoD(){
 function vNuevo(){
   if(!S.suc) return vInicio(); if(!D.fecha) nuevoDraft();
   const sub=D.items.reduce((a,i)=>a+(i.cant||0)*(i.precio||0),0);
-  const envio=D.modalidad==="Delivery"?D.envio:0; const total=sub+envio;
+  const envio=D.modalidad==="Delivery"?D.envio:0; const propina=ukiMontoPropina(D,sub); const total=sub+envio+propina;
   const chip=on=>`class="chip${on?" on":""}"`;
   const cli=getCliente(D.cliente,D.codigoCliente,D.telefono);
   const ventasCli=cli?ventasValidas(cli):0;
   return `<div class="section-head"><h2>${D.editando?`Editar pedido #${D.editando}`:"Nuevo pedido"}</h2><p>Elige cómo ingresar el pedido. Puedes revisar los datos antes de guardarlo.</p></div>
   <div class="mode-switch" role="group" aria-label="Modo de ingresar pedido"><button type="button" class="${modoNuevo==='whatsapp'?'selected':''}" onclick="cambiarModoNuevo('whatsapp')">📋 Pegar WhatsApp</button><button type="button" class="${modoNuevo==='manual'?'selected':''}" onclick="cambiarModoNuevo('manual')">✎ Manual</button></div>
   ${modoNuevo==='whatsapp'?`<div class="card"><h2>Texto del pedido</h2><p class="muted">Pega el mensaje de la carta digital y toca Procesar.</p><textarea id="pegaTxt" rows="4" placeholder="Pega aquí el pedido de WhatsApp" oninput="D.texto=this.value" onpaste="setTimeout(()=>{const el=document.getElementById('pegaTxt');if(el){D.texto=el.value;leerTextoD();}},150)">${esc(D.texto)}</textarea><button class="big" onclick="leerTextoD()">Procesar pedido pegado</button><p class="muted">Revisa nombre, precio, delivery y productos antes de guardar.</p></div>`:`<div class="mini-help">Agrega los datos del pedido manualmente en el formulario siguiente.</div>`}
-  <div class="card"><h2>Datos del pedido</h2><label>Codigo del pedido en la carta digital</label><input value="${esc(D.codigoCarta||"")}" placeholder="Ej: 953" oninput="D.codigoCarta=this.value.trim()" inputmode="text"><label>Codigo del cliente (distinto del pedido)</label><input value="${esc(D.codigoCliente||"")}" placeholder="Ej: 7362" oninput="D.codigoCliente=this.value.trim()" inputmode="text"><label>Fecha y hora</label><input type="datetime-local" value="${D.fecha}" oninput="D.fecha=this.value"><label>Cliente (no se autocompleta con total)</label><input value="${esc(D.cliente)}" placeholder="Ej: Camila Rojas" oninput="D.cliente=this.value">${cli?`<div style="margin-top:8px;padding:8px;background:#fff1e0;border-radius:8px"><b>${esc(cli.nombre)}</b> tiene <b>${ventasCli}/10</b> timbres ${ventasCli>=6?'<span class="tag" style="background:var(--ok);color:#fff">Puede canjear 12 piezas!</span>':''} ${ventasCli>=10?'<span class="tag" style="background:#111;color:#fff">Puede canjear 36+2 korokes!</span>':''}<div class="tarjeta" style="margin-top:6px">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventasCli?'lleno':''} ${i===5||i===9?'premio':''}">${i<ventasCli?'✓':i+1}</div>`).join("")}</div></div>`:"<p class='muted'>Nuevo cliente - empezará con 1 timbre</p>"}<label>📱 WhatsApp / Teléfono</label><input value="${esc(D.telefono)}" placeholder="+56 9 1234 5678" oninput="D.telefono=this.value" inputmode="tel"><label>Tipo de entrega</label><div class="chips">${["Retiro","Delivery","Consumo en local"].map(m=>`<button ${chip(D.modalidad===m)} onclick="setModalidad('${m}')">${m}</button>`).join("")}</div><label>💰 Valor delivery ${D.modalidad==="Delivery"?"(se suma)":"(selecciona Delivery)"}</label><input type="number" inputmode="numeric" value="${D.envio||""}" placeholder="Ej: 2000" oninput="setEnvioManual(this.value)"><p class="muted" id="pedidoEnvioAyuda">${D.modalidad==="Delivery"?`Delivery seleccionado - $${D.envio||0} se suma al total`:`Toca Delivery arriba para sumar envío`}</p></div>
-  <div class="card"><h2>Productos y total</h2>${D.items.filter(x=>x.nombre).map((i,k)=>`<div class="row"><span>${i.cant} × ${esc(i.nombre)}${i.det?` <span class="muted">(${esc(i.det)})</span>`:""}</span><b>${fmt(i.cant*i.precio)} <button class="sm" onclick="delItem(${k})">✕</button></b></div>`).join("")||'<p class="muted">Aún no hay productos. Agrégalos abajo.</p>'}<div style="display:grid;grid-template-columns:80px 1fr;gap:8px;margin-top:10px"><div><label>Cant</label><input id="pCant" type="number" value="1" style="text-align:center;font-weight:700"></div><div><label>Precio</label><input id="pPre" type="number" inputmode="numeric" placeholder="14900"></div></div><label>Nombre producto</label><input id="pNom" placeholder="Promo 24 piezas"><label>Detalle</label><input id="pDet" placeholder="sin cebollín"><button class="sm ok" onclick="addItem()">+ Agregar producto</button><div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:10px;border-top:2px solid var(--accent)"><div class="row sub"><span>Subtotal productos</span><b>${fmt(sub)}</b></div><div class="row"><span>Delivery</span><b id="pedidoEnvioVista">${fmt(envio)}</b></div><div class="row final"><span>Total pedido</span><b id="pedidoTotalVista">${fmt(total)}</b></div><div class="row"><span>Este pedido da</span><b>${D.productosPagadosOtroLocal?"Pago registrado en otro local":"⭐ +1 timbre"}</b></div></div></div>
+  <div class="card"><h2>Datos del pedido</h2><label>Codigo del pedido en la carta digital</label><input value="${esc(D.codigoCarta||"")}" placeholder="Ej: 953" oninput="D.codigoCarta=this.value.trim()" inputmode="text"><label>Codigo del cliente (distinto del pedido)</label><input value="${esc(D.codigoCliente||"")}" placeholder="Ej: 7362" oninput="D.codigoCliente=this.value.trim()" inputmode="text"><label>Fecha y hora</label><input type="datetime-local" value="${D.fecha}" oninput="D.fecha=this.value"><label>Cliente (no se autocompleta con total)</label><input value="${esc(D.cliente)}" placeholder="Ej: Camila Rojas" oninput="D.cliente=this.value">${cli?`<div style="margin-top:8px;padding:8px;background:#fff1e0;border-radius:8px"><b>${esc(cli.nombre)}</b> tiene <b>${ventasCli}/10</b> timbres ${ventasCli>=6?'<span class="tag" style="background:var(--ok);color:#fff">Puede canjear 12 piezas!</span>':''} ${ventasCli>=10?'<span class="tag" style="background:#111;color:#fff">Puede canjear 36+2 korokes!</span>':''}<div class="tarjeta" style="margin-top:6px">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventasCli?'lleno':''} ${i===5||i===9?'premio':''}">${i<ventasCli?'✓':i+1}</div>`).join("")}</div></div>`:"<p class='muted'>Nuevo cliente - empezará con 1 timbre</p>"}<label>📱 WhatsApp / Teléfono</label><input value="${esc(D.telefono)}" placeholder="+56 9 1234 5678" oninput="D.telefono=this.value" inputmode="tel"><label>Tipo de entrega</label><div class="chips">${["Retiro","Delivery","Consumo en local"].map(m=>`<button ${chip(D.modalidad===m)} onclick="setModalidad('${m}')">${m}</button>`).join("")}</div>${D.modalidad==="Consumo en local"?`<label>Mesa o referencia (opcional)</label><input maxlength="50" value="${esc(D.mesaReferencia||"")}" placeholder="Ej: Mesa 2" oninput="D.mesaReferencia=this.value">`:""}<label>💰 Valor delivery ${D.modalidad==="Delivery"?"(se suma)":"(selecciona Delivery)"}</label><input type="number" inputmode="numeric" value="${D.envio||""}" placeholder="Ej: 2000" oninput="setEnvioManual(this.value)"><p class="muted" id="pedidoEnvioAyuda">${D.modalidad==="Delivery"?`Delivery seleccionado - $${D.envio||0} se suma al total`:`Toca Delivery arriba para sumar envío`}</p></div>
+  <div class="card"><h2>Productos y total</h2>${D.items.filter(x=>x.nombre).map((i,k)=>`<div class="row"><span>${i.cant} × ${esc(i.nombre)}${i.det?` <span class="muted">(${esc(i.det)})</span>`:""}</span><b>${fmt(i.cant*i.precio)} <button class="sm" onclick="delItem(${k})">✕</button></b></div>`).join("")||'<p class="muted">Aún no hay productos. Agrégalos abajo.</p>'}<div style="display:grid;grid-template-columns:80px 1fr;gap:8px;margin-top:10px"><div><label>Cant</label><input id="pCant" type="number" value="1" style="text-align:center;font-weight:700"></div><div><label>Precio</label><input id="pPre" type="number" inputmode="numeric" placeholder="14900"></div></div><label>Nombre producto</label><input id="pNom" placeholder="Promo 24 piezas"><label>Detalle</label><input id="pDet" placeholder="sin cebollín"><button class="sm ok" onclick="addItem()">+ Agregar producto</button><div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:10px;border-top:2px solid var(--accent)"><div class="row sub"><span>Subtotal productos</span><b>${fmt(sub)}</b></div><div class="row"><span>Delivery</span><b id="pedidoEnvioVista">${fmt(envio)}</b></div><div class="row"><span>Propina voluntaria</span><b>${fmt(propina)}</b></div><div class="row final"><span>Total a pagar</span><b id="pedidoTotalVista">${fmt(total)}</b></div><div class="row"><span>Este pedido da</span><b>${D.productosPagadosOtroLocal?"Pago registrado en otro local":"⭐ +1 timbre"}</b></div></div></div>
+  ${ukiPropinaUI(sub)}
   <div class="card"><h2>Medios de pago</h2>
     <label class="check"><input type="checkbox" ${D.productosPagadosOtroLocal?"checked":""}
     onchange="D.productosPagadosOtroLocal=this.checked;D.montoProductosOtroLocal='';D.mixtoProductos=false;D.pagosProductos=[];render()">
@@ -782,14 +791,132 @@ function vNuevo(){
     <p class="muted">Solo se consideran ventas los pagos completos confirmados. Los montos mixtos deben sumar exactamente lo que corresponde.</p></div><button class="big" onclick="ndGuardar()">${D.editando?`💾 Guardar cambios #${D.editando}`:D.productosPagadosOtroLocal?`✅ Guardar pedido con pago compartido`:`✅ Guardar pedido +1 timbre`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición</button>`:""}`;
 }
 
-function editarPedido(id){const p=S.pedidos.find(x=>x.id===id); if(!p)return; if(p.estado==="Cancelado"){aviso("El pedido cancelado permanece en el historial y no se puede editar.");return;} D={texto:p.textoOriginal||"",fecha:p.fechaISO||ahora(),cliente:p.cliente||"",telefono:p.telefono||"",codigoCarta:p.codigoCarta||"",codigoCliente:p.codigoCliente||"",sucursalCarta:p.sucursalCarta||"",modalidad:p.modalidad||"Retiro",envio:p.envio||0,medio:p.medio||"Efectivo",medioEnvio:p.medioEnvio||"Efectivo",pagado:!!p.pagado,
+function editarPedido(id){const p=S.pedidos.find(x=>x.id===id); if(!p)return; if(p.estado==="Cancelado"){aviso("El pedido cancelado permanece en el historial y no se puede editar.");return;} D={texto:p.textoOriginal||"",fecha:p.fechaISO||ahora(),cliente:p.cliente||"",telefono:p.telefono||"",codigoCarta:p.codigoCarta||"",codigoCliente:p.codigoCliente||"",sucursalCarta:p.sucursalCarta||"",mesaReferencia:p.mesaReferencia||"",modalidad:p.modalidad||"Retiro",envio:p.envio||0,medio:p.medio||"Efectivo",medioEnvio:p.medioEnvio||"Efectivo",pagado:!!p.pagado,
 mixtoProductos:Array.isArray(p.pagosProductos)&&p.pagosProductos.length>0,
 mixtoEnvio:Array.isArray(p.pagosEnvio)&&p.pagosEnvio.length>0,
 pagosProductos:(p.pagosProductos||[]).map(x=>({...x})),
 pagosEnvio:(p.pagosEnvio||[]).map(x=>({...x})),
-productosPagadosOtroLocal:!!p.productosPagadosOtroLocal,montoProductosOtroLocal:p.montoProductosOtroLocal??"",localPagoExterno:p.localPagoExterno||"",
+productosPagadosOtroLocal:!!p.productosPagadosOtroLocal,montoProductosOtroLocal:p.montoProductosOtroLocal??"",localPagoExterno:p.localPagoExterno||"",propinaModo:p.propinaModo||((Number(p.propina)||0)>0?"otro":"ninguna"),propinaPersonalizada:p.propinaModo==="otro"||!p.propinaModo?p.propina||"": "",medioPropina:p.medioPropina||"Efectivo",
 items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}]; ir("nuevo"); aviso(`Editando pedido #${id}`);}
 function reanalizar(){leerTextoD();}
+
+// La propina es opcional (sugerencia 10% de productos), fuera de la venta.
+// Se registra en S.propinas una sola vez cuando el pedido se marca pagado.
+function ukiMontoPropina(p,subtotal){
+ const modo=p.propinaModo||"ninguna";
+ if(modo==="diez")return Math.round(subtotal*0.10);
+ if(modo==="otro")return Number(p.propinaPersonalizada??0);
+ return 0;
+}
+function ukiPropinaConfigurada(p,subtotal){
+ const m=ukiMontoPropina(p,subtotal);
+ return Number.isSafeInteger(m)&&m>=0&&m<=100000000;
+}
+function ukiSincronizarPropinaPedido(p){
+ if(!Array.isArray(S.propinas))S.propinas=[];
+ const anteriores=S.propinas.filter(x=>x.suc===p.suc&&x.pedidoId===p.id);
+ // Mantener un solo movimiento por pedido y no tocar propinas manuales.
+ S.propinas=S.propinas.filter(x=>!(x.suc===p.suc&&x.pedidoId===p.id));
+ if(!p.pagado||p.estado==="Cancelado"||p.esPremio||!(Number(p.propina)>0))return;
+ const stamp=anteriores[0];
+ const ahoraMs=Date.now();
+ S.propinas.push({suc:p.suc,id:stamp?.id||ahoraMs+Number(p.id||0),pedidoId:p.id,
+   fechaISO:stamp?.fechaISO||ahora(),registradoEn:stamp?.registradoEn||ahoraMs,
+   monto:Number(p.propina),medio:p.medioPropina||"Efectivo"});
+}
+function ukiPropinaUI(sub){
+ const tip=ukiMontoPropina(D,sub),diez=Math.round(sub*0.10);
+ return '<div class="card"><h2>💝 Propina opcional</h2>'+
+  '<p class="muted">Sugerida: 10% de los productos ('+fmt(diez)+'). El cliente puede no dejar propina o indicar otro monto. No incluye delivery.</p>'+
+  '<div class="chips">'+
+  [["ninguna","Sin propina"],["diez","10% · "+fmt(diez)],["otro","Otro monto"]]
+   .map(([key,txt])=>'<button class="chip'+(D.propinaModo===key?' on':'')+
+     '" onclick="D.propinaModo=\''+key+'\';render()">'+esc(txt)+'</button>').join("")+'</div>'+
+  (D.propinaModo==="otro"?'<label>Monto voluntario ($)</label><input type="number" min="0" step="1" inputmode="numeric" value="'+esc(D.propinaPersonalizada??"")+
+    '" placeholder="Ej: 1000" onchange="D.propinaPersonalizada=this.value;render()">':"")+
+  (Number.isFinite(tip)&&tip>0?'<label>¿Cómo se pagará la propina?</label><select onchange="D.medioPropina=this.value;render()">'+
+    MEDIOS.filter(m=>!APPS.includes(m)).map(m=>'<option value="'+esc(m)+'"'+(m===D.medioPropina?' selected':'')+'>'+esc(m)+'</option>').join("")+'</select>':"")+
+  '<p class="muted">Propina '+fmt(tip)+' · Se registra aparte de las ventas al confirmar el pago.</p></div>';
+}
+
+function ukiCuentaLocal(p){
+ return !!p&&["Consumo en local","Retiro"].includes(p.modalidad);
+}
+function ukiCuentaAbierta(p){
+ return ukiCuentaLocal(p)&&!p.pagado&&p.estado!=="Cancelado"&&!p.esPremio;
+}
+function ukiAgregarACuenta(id){
+ const p=(S.pedidos||[]).find(x=>x.id===id&&x.suc===S.suc);
+ if(!ukiCuentaAbierta(p)||!esDelPeriodo(p)||S.busy){
+   aviso("Solo puedes agregar consumos a cuentas del local abiertas y sin pagar del período actual.");return;
+ }
+ modoNuevo="manual";
+ editarPedido(id);
+}
+function ukiDetalleCuentaTexto(p){
+ if(!p||p.suc!==S.suc)return "";
+ const sub=(p.productos||[]).reduce((n,x)=>n+(Number(x.cantidad)||0)*(Number(x.precioUnit)||0),0);
+ const delivery=p.modalidad==="Delivery"?Math.max(0,Number(p.envio)||0):0;
+ const tip=Number(p.propina)||0;
+ const total=sub+delivery+tip;
+ const externo=p.productosPagadosOtroLocal?ukiMontoProductosOtroLocal(p,sub):0;
+ const fecha=String(p.fechaISO||"").replace("T"," ");
+ const id=p.codigoCarta?"#"+p.codigoCarta:"N.º "+p.id;
+ const rows=["UKI SUSHI · DETALLE DE CUENTA",p.suc,"Pedido "+id,fecha,
+   p.cliente?"Cliente: "+p.cliente:"",p.mesaReferencia?"Mesa/referencia: "+p.mesaReferencia:"",
+   "--------------------------"];
+ for(const x of p.productos||[]){
+   const cant=Number(x.cantidad)||0,unit=Number(x.precioUnit)||0;
+   rows.push(cant+" x "+x.nombre+" · "+fmt(cant*unit)+" ("+fmt(unit)+" c/u)");
+   if(x.detalle)rows.push("  "+x.detalle);
+ }
+ rows.push("--------------------------","Subtotal: "+fmt(sub));
+ if(delivery)rows.push("Delivery: "+fmt(delivery));
+ rows.push("Propina opcional: "+fmt(tip)+(tip>0?" · "+String(p.medioPropina||"Efectivo"):""));
+ rows.push("TOTAL: "+fmt(total));
+ if(externo)rows.push("Pagado en "+(p.localPagoExterno||"otro local")+": "+fmt(externo));
+ rows.push(p.pagado?"ESTADO: Pagado":"SALDO POR PAGAR EN UKI: "+fmt(Math.max(0,total-externo)));
+ rows.push("Detalle informativo: no es boleta ni factura tributaria.");
+ return rows.filter(x=>x!==undefined&&x!==null&&x!=="").join("\n");
+}
+function ukiDetalleCuentaVista(p){
+ const sub=(p.productos||[]).reduce((n,x)=>n+(Number(x.cantidad)||0)*(Number(x.precioUnit)||0),0);
+ const envio=p.modalidad==="Delivery"?Number(p.envio)||0:0;
+ const tip=Number(p.propina)||0;
+ const externo=p.productosPagadosOtroLocal?ukiMontoProductosOtroLocal(p,sub):0;
+ return '<details class="inner-details"><summary>🧾 Ver cuenta del cliente</summary>'+
+   (p.mesaReferencia?'<p class="muted">Referencia: '+esc(p.mesaReferencia)+'</p>':"")+
+   (p.productos||[]).map(x=>row((Number(x.cantidad)||0)+' × '+String(x.nombre||"")+
+      (x.detalle?' · '+x.detalle:'')+' ('+fmt(x.precioUnit)+' c/u)',fmt((Number(x.cantidad)||0)*(Number(x.precioUnit)||0)))).join("")+
+   row("Subtotal",fmt(sub))+
+   (envio?row("Envío",fmt(envio)):"")+
+   row("Propina opcional"+(tip>0?" · "+String(p.medioPropina||"Efectivo"):""),fmt(tip))+
+   row("Total a pagar",fmt(sub+envio+tip),"final")+
+   (externo?row("Ya pagado en otro local",fmt(externo)):"")+
+   row(p.pagado?"Estado":"Saldo por pagar en Uki",p.pagado?"Pagado":fmt(Math.max(0,sub+envio+tip-externo)))+
+   '<p class="muted">Detalle informativo, no sustituye una boleta tributaria.</p>'+
+   '<button class="sm ok" onclick="ukiCompartirCuenta('+Number(p.id)+')">Compartir detalle</button> '+
+   '<button class="sm" onclick="ukiCopiarCuenta('+Number(p.id)+')">Copiar detalle</button></details>';
+}
+function ukiCopiarCuenta(id){
+ const p=(S.pedidos||[]).find(x=>x.id===id&&x.suc===S.suc);
+ if(!p)return;
+ const texto=ukiDetalleCuentaTexto(p);
+ if(navigator.clipboard?.writeText)
+   navigator.clipboard.writeText(texto).then(()=>aviso("Detalle de cuenta copiado. Puedes enviarlo al cliente."))
+     .catch(()=>window.prompt("Copia el detalle de cuenta:",texto));
+ else window.prompt("Copia el detalle de cuenta:",texto);
+}
+function ukiCompartirCuenta(id){
+ const p=(S.pedidos||[]).find(x=>x.id===id&&x.suc===S.suc);
+ if(!p)return;
+ const texto=ukiDetalleCuentaTexto(p);
+ if(navigator.share){
+   navigator.share({title:"Detalle de cuenta · Uki Sushi",text:texto})
+     .catch(e=>{if(e?.name!=="AbortError")window.prompt("Copia el detalle de cuenta:",texto);});
+ }else ukiCopiarCuenta(id);
+}
+
 function copiarComanda(id){const p=S.pedidos.find(x=>x.id===id); if(!p) return; const txt=[`#${p.id} ${p.modalidad}`, ...(p.productos||[]).map(pr=>`${pr.cantidad}x ${pr.nombre}${pr.detalle?` (${pr.detalle})`:""}`), p.envio?`Delivery ${fmt(p.envio)}`:"", `Total ${fmt(p.total)}`].filter(Boolean).join("\n"); if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>aviso("Comanda copiada")).catch(()=>aviso(txt)); else aviso(txt);}
 function togglePagado(id){
  const p=S.pedidos.find(x=>x.id===id);if(!p||p.esPremio||p.estado==="Cancelado")return;
@@ -813,7 +940,8 @@ function togglePagado(id){
      }
    }
  }
- p.pagado=!p.pagado;render();
+ p.pagado=!p.pagado;
+ ukiSincronizarPropinaPedido(p);render();
 }
 // Cancelación operativa: conserva el registro y nunca altera caja, timbres ni cierres ya guardados.
 // Exclusión de doble pulsación mientras se cifra y guarda una cancelación.
@@ -1099,7 +1227,7 @@ function addDM(){const monto=parseInt($("dmMon").value)||0; const cliente=$("dmC
 function quitarDM(id){S.deliveriesManuales=S.deliveriesManuales.filter(x=>x.id!==id);render();}
 function savePD(){const m=parseInt($("pdMon").value)||0; const med=$("pdMed").value; if(!m){aviso("Monto pago delivery");return;} const caja=cajaDelDia(); caja.pagoDelivery=m; caja.pagoDeliveryMedio=med; aviso("Pago delivery guardado"); render();}
 function addPropina(){const m=parseInt($("prMon").value)||0; const med=$("prMed").value; if(!m){aviso("Monto propina");return;} S.propinas.push({suc:S.suc,id:Date.now(),fechaISO:ahora(),registradoEn:Date.now(),monto:m,medio:med}); $("prMon").value=""; render();}
-function quitarPropina(id){S.propinas=S.propinas.filter(x=>x.id!==id);render();}
+function quitarPropina(id){const x=S.propinas.find(x=>x.id===id&&x.suc===S.suc);if(x?.pedidoId){aviso("Esta propina pertenece a un pedido. Corrige el pedido para evitar descuadres.");return;}S.propinas=S.propinas.filter(x=>x.id!==id);render();}
 function addRetiro(){const m=parseInt($("reMon").value)||0; const mot=$("reMot").value.trim(); if(!m){aviso("Monto retiro");return;} S.retiros.push({suc:S.suc,id:Date.now(),fechaISO:ahora(),registradoEn:Date.now(),monto:m,motivo:mot}); $("reMon").value=""; $("reMot").value=""; render();}
 function quitarRetiro(id){S.retiros=S.retiros.filter(x=>x.id!==id);render();}
 function addCC(){const m=parseInt($("ccMon").value)||0; const con=$("ccCon").value.trim(); if(!m){aviso("Monto caja chica");return;} cajaDelDia().cajaChica.gastos.push({id:Date.now(),monto:m,concepto:con}); $("ccMon").value=""; $("ccCon").value=""; render();}
@@ -1387,11 +1515,12 @@ function renderIncidencia(x,contexto="lista"){
 // Categorías visuales: no cambian ni el estado del pedido ni su caja.
 let filtroCategoriaPedidos="todos";
 const UKI_CATEGORIAS_PEDIDOS=[
- ["todos","Todos"],["sin-pago","Por cobrar"],["pagados","Pagados"],
+ ["todos","Todos"],["cuentas","Cuentas abiertas"],["sin-pago","Por cobrar"],["pagados","Pagados"],
  ["pendientes","Pendientes"],["entregados","Entregados"],
  ["cancelados","Cancelados"],["errores","Con error"]
 ];
 function ukiCoincideCategoriaPedido(p,categoria,errores){
+ if(categoria==="cuentas")return ukiCuentaAbierta(p);
  if(categoria==="sin-pago")return !p.pagado&&p.estado!=="Cancelado"&&!p.esPremio;
  if(categoria==="pagados")return !!p.pagado&&p.estado!=="Cancelado"&&!p.esPremio;
  if(categoria==="pendientes")return p.estado==="Pendiente";
@@ -1454,6 +1583,8 @@ function vPedidos(){
     <div class="order-body"><p class="muted">${esc(p.estado||'Entregado')} · ${esc(p.medio||'Efectivo')}${p.telefono?' · '+esc(p.telefono):''}</p>${p.estado==="Cancelado"?`<p class="muted"><b>Motivo:</b> ${esc(p.motivoCancelacion==="cliente"?"Cancelado por el cliente":p.motivoCancelacion==="local"?"Cancelado por el local":"No informado")}${p.canceladoEn?" · "+esc(fechaTxt(p.canceladoEn)):""}</p>`:""}
     ${(p.productos||[]).map(pr=>`<div class="row"><span>${pr.cantidad}x ${esc(pr.nombre)}${pr.detalle?` · ${esc(pr.detalle)}`:''}</span><b>${fmt(pr.cantidad*pr.precioUnit)}</b></div>`).join('')}
     ${p.envio?row('Delivery',fmt(p.envio)):''}
+    ${p.mesaReferencia?`<p class="muted">Mesa: ${esc(p.mesaReferencia)}</p>`:""}
+    ${!p.esPremio?ukiDetalleCuentaVista(p):""}
     ${ukiDetallePago(p,"productos")}${ukiDetallePago(p,"envio")}
     ${p.codigoCliente?`<p class='muted'>Codigo cliente: ${esc(p.codigoCliente)}</p>`:''}
     ${p.textoOriginal&&!p.esPremio?`<details class="inner-details"><summary>Ver WhatsApp original</summary><p style="white-space:pre-wrap">${esc(p.textoOriginal)}</p></details>`:''}
@@ -1462,7 +1593,7 @@ function vPedidos(){
     <label>Que ocurrio</label><textarea rows="2" id="incProblema${p.id}" placeholder="Ej: falto una salsa"></textarea>
     <label>Solucion (opcional)</label><textarea rows="2" id="incSolucion${p.id}" placeholder="Ej: reposicion enviada"></textarea>
     <button class="sm ok" onclick="anotarIncidencia(${p.id})">Guardar error</button></details>
-    <div class="order-actions">${p.estado!=="Cancelado"?`<button class="sm ok" onclick="editarPedido(${p.id})">Editar</button><button class="sm" onclick="togglePagado(${p.id})">${p.pagado?'Quitar pagado':'Marcar pagado'}</button>`:""}<button class="sm" onclick="copiarComanda(${p.id})">Copiar comanda</button></div>
+    <div class="order-actions">${ukiCuentaAbierta(p)&&esDelPeriodo(p)?`<button class="sm ok" onclick="ukiAgregarACuenta(${p.id})">+ Agregar a cuenta</button>`:""}${p.estado!=="Cancelado"?`<button class="sm ok" onclick="editarPedido(${p.id})">Editar</button><button class="sm" onclick="togglePagado(${p.id})">${p.pagado?'Quitar pagado':'Marcar pagado'}</button>`:""}<button class="sm" onclick="copiarComanda(${p.id})">Copiar comanda</button></div>
     ${puedeCancelarPedido(p)?`<div class="inner-details" style="padding:12px;margin-top:12px;border:1px solid #e7c8b3;border-radius:12px"><label for="motivoCancelacion${p.id}">Cancelar pedido · Motivo obligatorio</label><select id="motivoCancelacion${p.id}"><option value="">Selecciona un motivo</option><option value="cliente">Lo canceló el cliente</option><option value="local">Lo canceló el local</option></select><button class="sm" type="button" onclick="cancelarPedido(${p.id})" style="color:#9b3328;border-color:#dcb4a5">Cancelar pedido</button><p class="muted">Solo pedidos pendientes sin pago del turno abierto. Queda en el historial.</p></div>`:""}
     </div></details>`).join('')||'<div class="card muted">'+(todos.length?'No hay pedidos en esta categoría. Selecciona «Todos» para verlos.':'Todavía no hay pedidos. Pulsa Nuevo pedido para comenzar.')+'</div>'}`;
 }
@@ -1478,7 +1609,10 @@ function ndGuardar(){
   if(!D.items.filter(x=>x.nombre).length){aviso("Agrega producto");return;}
   let sub=D.items.filter(x=>x.nombre).reduce((a,i)=>a+i.cant*i.precio,0); 
   const envio=D.modalidad==="Delivery"?D.envio:0; 
-  let total=sub+envio;
+  const propina=ukiMontoPropina(D,sub);
+  if(!ukiPropinaConfigurada(D,sub)){aviso("La propina debe ser un monto válido (o selecciona Sin propina).");return;}
+  if(propina>0&&!MEDIOS.filter(m=>!APPS.includes(m)).includes(D.medioPropina)){aviso("Selecciona un medio válido para la propina.");return;}
+  let total=sub+envio+propina;
   const datosPago=ukiDatosPago(D,sub);
   if(D.productosPagadosOtroLocal&&!String(D.localPagoExterno||"").trim()){
     aviso("Indica qué local recibió el pago de la comida.");return;
@@ -1500,7 +1634,8 @@ function ndGuardar(){
           cliOld.gastado=Math.max(0,(cliOld.gastado||0)-(p.subtotal||0));
         }
       }
-      p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||"";p.codigoCarta=D.codigoCarta||"";p.codigoCliente=D.codigoCliente||"";p.sucursalCarta=D.sucursalCarta||""; p.modalidad=D.modalidad; p.envio=envio; p.medio=D.medio; p.medioEnvio=D.medioEnvio; Object.assign(p,datosPago); p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})); p.total=total; p.subtotal=sub; p.textoOriginal=D.texto;
+      p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||"";p.codigoCarta=D.codigoCarta||"";p.codigoCliente=D.codigoCliente||"";p.sucursalCarta=D.sucursalCarta||""; p.mesaReferencia=D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():""; p.modalidad=D.modalidad; p.envio=envio; p.medio=D.medio; p.medioEnvio=D.medioEnvio; Object.assign(p,datosPago); p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})); p.total=total; p.subtotal=sub; p.propina=propina;p.propinaModo=D.propinaModo;p.medioPropina=D.medioPropina;p.textoOriginal=D.texto;
+      ukiSincronizarPropinaPedido(p);
       if(!p.esPremio && D.cliente && D.pagado && !D.productosPagadosOtroLocal){
         const cli=asegurarCliente(D.cliente,D.codigoCliente,D.telefono);
         cli.gastado+=sub;
@@ -1508,14 +1643,15 @@ function ndGuardar(){
         cli.ultimo=new Date().toLocaleDateString("es-CL");
         cli.movimientos.push({tipo:'venta',fecha:new Date().toISOString(),vence:fechaVencimiento(new Date().toISOString()),pedidoId:p.id});
       }
-      aviso(`Pedido #${p.id} actualizado $${total} - ${!p.esPremio?'tarjeta actualizada':''}`);
+      aviso(`Pedido #${p.id} actualizado por ${fmt(total)}${ukiCuentaAbierta(p)?" · Cuenta abierta, pendiente de pago":""}`);
     }
     nuevoDraft();
     S.vista="pedidos"; render(); return;
   }
   const idNuevo=S.nextId++;
-  const nuevoPedido={id:idNuevo,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),cliente:D.cliente,telefono:D.telefono||"",codigoCarta:D.codigoCarta||"",codigoCliente:D.codigoCliente||"",sucursalCarta:D.sucursalCarta||"",modalidad:D.modalidad,envio:envio,medio:D.medio,medioEnvio:D.medioEnvio,...datosPago,pagado:D.pagado,estado:"Pendiente",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),total:total,subtotal:sub,textoOriginal:D.texto,esPremio:false};
+  const nuevoPedido={id:idNuevo,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),cliente:D.cliente,telefono:D.telefono||"",codigoCarta:D.codigoCarta||"",codigoCliente:D.codigoCliente||"",sucursalCarta:D.sucursalCarta||"",mesaReferencia:D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():"",modalidad:D.modalidad,envio:envio,medio:D.medio,medioEnvio:D.medioEnvio,...datosPago,pagado:D.pagado,estado:"Pendiente",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),total:total,subtotal:sub,propina:propina,propinaModo:D.propinaModo,medioPropina:D.medioPropina,textoOriginal:D.texto,esPremio:false};
   S.pedidos.push(nuevoPedido);
+  ukiSincronizarPropinaPedido(nuevoPedido);
   if(D.cliente && D.pagado && !D.productosPagadosOtroLocal){
     const cli=asegurarCliente(D.cliente,D.codigoCliente,D.telefono);
     cli.gastado+=sub;
