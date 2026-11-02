@@ -12,7 +12,7 @@ function cobroLocalPedido(p){
  return (p.productosPagadosOtroLocal?0:suma(p.pagosProductos,sub))+suma(p.pagosEnvio,env);
 }
 function notaPagoPedido(p){
- const cobrado=Object.prototype.hasOwnProperty.call(p,"cobradoLocal")?Number(p.cobradoLocal):Number(p.total)||0;
+ const cobrado=Object.prototype.hasOwnProperty.call(p,"cobradoLocal")?Number(p.cobradoLocal):(!p.pagado||p.estado==="Cancelado"||p.esPremio?0:Number(p.total)||0);
  const notas=["Cobrado en esta sucursal: $"+cobrado];
  if(p.productosPagadosOtroLocal)notas.push("Productos $"+(Number(p.subtotal)||0)+" pagados en "+String(p.localPagoExterno||"otro local"));
  for(const [titulo,lista] of [["Productos",p.pagosProductos],["Delivery",p.pagosEnvio]]){
