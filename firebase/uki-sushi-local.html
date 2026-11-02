@@ -1372,7 +1372,6 @@ function ndGuardar(){
 }
 function cerrar(){
   if(S.busy)return;
-  if(cajaDelDia().turnoPrecierreAbierto){aviso("Guarda el precierre del trabajador antes de cerrar el día.");return;}
   const respEl=$("resp");
   const resp=respEl?respEl.value.trim():cierreDraft.resp.trim();
   if(!resp){aviso("⚠️ Escribe quién cierra (ej: Dianna) en Responsable"); if(respEl) respEl.focus(); return;}
