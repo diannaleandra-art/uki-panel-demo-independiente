@@ -68,3 +68,11 @@ La mejora corresponde a la pantalla fotografiada: «Uki Sushi · Panel v8.15 · 
 - Total confirmado: **19 pruebas aprobadas; 0 fallos**.
 - Esto valida el código y la integración con el emulador. **NO** prueba la configuración de reglas ni autenticación del proyecto Firebase real `uki-panel-f4909`; no se efectuó conexión a esa base.
 - No se hicieron pedidos ni cancelaciones reales, no se cambiaron cajas, cierres, timbres ni la carta pública. PR #7 permanece en borrador sin fusionar. La publicación del panel operativo requiere autorización separada.
+
+## Últimas pruebas automáticas — 2026-11-01 (Chile)
+- Ejecución CI: https://github.com/diannaleandra-art/uki-panel-demo-independiente/actions/runs/41366000975
+- **19 pruebas de lógica y AES-256-GCM real**, **1 prueba de Firestore SDK real + emulador**, **1 prueba de reglas Firestore restrictivas + emulador**: **21 aprobadas, 0 fallos**.
+- Se añadió exclusión mutua `cancelacionGuardando` para evitar dos cancelaciones durante el mismo guardado cifrado; validada por prueba asíncrona.
+- Las reglas de ejemplo en `firebase/tests/qa-firestore.rules` solo usan identidades ficticias `qa-duena`, `qa-arica`, `qa-serena`. Las pruebas confirman que anónimos, extraños, otras sucursales y otras colecciones no tienen acceso con estas reglas de ejemplo.
+- **Aclaración:** estas **no son** las reglas publicadas del proyecto real. No hay `firestore.rules` ni `firebase.json` ni `.firebaserc` en el repositorio. La revisión de reglas y permisos reales del Firebase operativo **sigue pendiente**.
+- No se conectó al proyecto real `uki-panel-f4909`, no se modificaron sus reglas, ni se hicieron pedidos reales, ni se publicó el panel.
