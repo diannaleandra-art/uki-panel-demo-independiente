@@ -627,11 +627,11 @@ async function cancelarPedido(id){
  const p=S.pedidos.find(x=>x.id===id&&x.suc===S.suc);
  if(!p){aviso("Pedido no encontrado en esta sucursal.");return;}
  if(!puedeCancelarPedido(p)){aviso("Solo puedes cancelar pedidos pendientes, sin pago y del turno abierto. Los pagados requieren devolución o ajuste por separado.");return;}
- if(document.body.classList.contains("uki-operativo-bloqueado")){aviso("Espera a que la nube esté sincronizada antes de cancelar.");return;}
+ if(document.body.classList.contains("uki-operativo-bloqueado")||typeof window.ukiCancelacionNubeLista!=="function"||!window.ukiCancelacionNubeLista()){aviso("Espera a que Firebase confirme «Nube: sincronizado» antes de cancelar.");return;}
  const motivo=String($("motivoCancelacion"+id)?.value||"").trim().toLowerCase();
  if(!["cliente","local"].includes(motivo)){aviso("Selecciona si canceló el cliente o el local.");return;}
  if(!confirm("¿Confirmas cancelar el pedido #"+p.id+" por decisión del "+(motivo==="cliente"?"cliente":"local")+"? Quedará registrado y no contará como venta. Esta acción no se puede deshacer desde el panel."))return;
- if(!puedeCancelarPedido(p)||document.body.classList.contains("uki-operativo-bloqueado")){
+ if(!puedeCancelarPedido(p)||document.body.classList.contains("uki-operativo-bloqueado")||typeof window.ukiCancelacionNubeLista!=="function"||!window.ukiCancelacionNubeLista()){
    aviso("El pedido o la sincronización cambió. No se realizó la cancelación.");return;
  }
  const anterior={estado:p.estado,motivo:p.motivoCancelacion,fecha:p.canceladoEn};
@@ -1634,6 +1634,12 @@ function actualizarBloqueo(){
  document.body.classList.toggle("uki-operativo-bloqueado",haySucursal&&!permitir);
  actualizarPresentacionNube();
 }
+// Cancelación solo al estar completamente sincronizado: ni pendiente ni guardando.
+window.ukiCancelacionNubeLista=()=>{
+ const estado=auto.resumen(),contextoLocal=window.ukiQAGet?.();
+ return !!(UKI_OPERACION_HABILITADA&&contextoLocal&&estado.activo&&!estado.bloqueado&&
+   !estado.ocupado&&estado.estado==="sincronizado"&&estado.sucursal===contextoLocal.suc);
+};
 window.ukiOperativoActualizar=actualizarBloqueo;
 function contexto(){
  if(!UKI_OPERACION_HABILITADA)throw Error("Versión sin activar: falta aprobar reglas, pruebas y lanzamiento.");
