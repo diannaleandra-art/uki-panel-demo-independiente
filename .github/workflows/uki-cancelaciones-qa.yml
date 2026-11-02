@@ -37,7 +37,7 @@ jobs:
         run: |
           node --test firebase/tests/cancelaciones-locales-v815.test.mjs firebase/tests/cancelaciones-cifrado-e2e.test.mjs
       - name: Instalar herramientas SOLO dentro del runner temporal
-        run: npm install --no-save --no-audit --no-fund firebase@latest firebase-tools@latest
+        run: npm install --no-save --no-audit --no-fund firebase@latest firebase-tools@latest @firebase/rules-unit-testing@latest
       - name: Crear reglas abiertas SOLO para emulador demo efímero
         run: |
           cat > "$RUNNER_TEMP/firestore-qa.rules" <<'RULES'
@@ -64,3 +64,8 @@ jobs:
           FIRESTORE_EMULATOR_HOST: "127.0.0.1:8080"
         run: |
           npx firebase emulators:exec --project demo-uki-cancelaciones-qa-2026 --config "$RUNNER_TEMP/firebase-qa.json" --only firestore 'node --test firebase/tests/cancelaciones-firestore-emulator.test.mjs'
+      - name: Reglas Firebase de prueba - permisos y aislamiento por sucursal
+        env:
+          FIRESTORE_EMULATOR_HOST: "127.0.0.1:8080"
+        run: |
+          npx firebase emulators:exec --project demo-uki-cancelaciones-qa-2026 --config "$RUNNER_TEMP/firebase-qa.json" --only firestore 'node --test firebase/tests/cancelaciones-reglas-emulator.test.mjs'
