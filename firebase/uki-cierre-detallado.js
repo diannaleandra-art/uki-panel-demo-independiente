@@ -1,6 +1,25 @@
 /* Uki Sushi: detalle histórico inmutable por cierre. No escribe en la nube. */
 (function(){
 "use strict";
+// Los pedidos antiguos conservan su importe original. Los nuevos pueden registrar
+// pago mixto o productos cobrados por otro local (sin sumar ese ingreso a Uki).
+function cobroLocalPedido(p){
+ if(!p.pagado||p.estado==="Cancelado"||p.esPremio)return 0;
+ const env=p.modalidad==="Delivery"?Math.max(0,Number(p.envio)||0):0;
+ const sub=Math.max(0,Number(p.subtotal)||0);
+ const suma=(items,base)=>Array.isArray(items)&&items.length?
+   items.reduce((n,x)=>n+(Number(x.monto)||0),0):base;
+ return (p.productosPagadosOtroLocal?0:suma(p.pagosProductos,sub))+suma(p.pagosEnvio,env);
+}
+function notaPagoPedido(p){
+ const cobrado=Object.prototype.hasOwnProperty.call(p,"cobradoLocal")?Number(p.cobradoLocal):Number(p.total)||0;
+ const notas=["Cobrado en esta sucursal: $"+cobrado];
+ if(p.productosPagadosOtroLocal)notas.push("Productos $"+(Number(p.subtotal)||0)+" pagados en "+String(p.localPagoExterno||"otro local"));
+ for(const [titulo,lista] of [["Productos",p.pagosProductos],["Delivery",p.pagosEnvio]]){
+  if(Array.isArray(lista)&&lista.length>1)notas.push(titulo+": "+lista.map(x=>String(x.medio)+" $"+Number(x.monto)).join(" + "));
+ }
+ return notas.join("; ");
+}
 function capturar(S,caja,delSucHoy){
  const copia=(arr,campos)=>delSucHoy(arr||[]).map(x=>{
   const o={};for(const k of campos)o[k]=x[k]??"";return o;
@@ -10,7 +29,10 @@ function capturar(S,caja,delSucHoy){
   fechaISO:p.fechaISO||"",pagado:!!p.pagado,estado:p.estado||"",
   esPremio:!!p.esPremio,medio:p.medio||"",medioEnvio:p.medioEnvio||"",
   modalidad:p.modalidad||"",subtotal:Number(p.subtotal)||0,envio:Number(p.envio)||0,
-  total:Number(p.total)||0,
+  total:Number(p.total)||0,cobradoLocal:cobroLocalPedido(p),
+  productosPagadosOtroLocal:!!p.productosPagadosOtroLocal,localPagoExterno:p.localPagoExterno||"",
+  pagosProductos:(p.pagosProductos||[]).map(x=>({medio:x.medio,monto:Number(x.monto)||0})),
+  pagosEnvio:(p.pagosEnvio||[]).map(x=>({medio:x.medio,monto:Number(x.monto)||0})),
   productos:(p.productos||[]).map(z=>({
     nombre:z.nombre||"",cantidad:Number(z.cantidad)||0,
     precioUnit:Number(z.precioUnit)||0,detalle:z.detalle||""
@@ -34,8 +56,9 @@ function filas(c){
  const r=[];
  for(const p of d.pedidos||[]){
   const it=(p.productos||[]).map(z=>z.cantidad+"x "+z.nombre+(z.detalle?" ("+z.detalle+")":"")).join(", ");
-  r.push(["Pedido",p.fechaISO,p.codigoCarta||p.id,p.cliente,p.total,p.medio,
-   (p.pagado?"Pagado":"Sin pago")+"; "+p.modalidad+"; envío "+p.envio+"; "+it]);
+  r.push(["Pedido",p.fechaISO,p.codigoCarta||p.id,p.cliente,p.total,
+   p.productosPagadosOtroLocal?"Pagado en otro local":((p.pagosProductos||[]).length>1?"Mixto":p.medio),
+   (p.pagado?"Pagado":"Sin pago")+"; "+p.modalidad+"; envío "+p.envio+"; "+notaPagoPedido(p)+"; "+it]);
  }
  for(const x of d.gastos||[])r.push(["Gasto",x.fechaISO,x.id,x.concepto,x.monto,x.medio,""]);
  for(const x of d.retiros||[])r.push(["Retiro",x.fechaISO,x.id,x.motivo,x.monto,"Efectivo",""]);
@@ -97,7 +120,8 @@ function render(c,fmt,esc,index,estado){
  const row=(a,b)=>'<div class="row"><span>'+esc(a)+'</span><b>'+fmt(b)+'</b></div>';
  const section=(title,rows)=>'<details style="margin:8px 0"><summary style="cursor:pointer"><b>'+esc(title)+'</b> · '+rows.length+'</summary>'+
   (rows.length?rows.join(""):'<p class="muted">Sin movimientos</p>')+'</details>';
- const orders=(d.pedidos||[]).map(p=>row('#'+(p.codigoCarta||p.id)+' · '+p.cliente+' · '+(p.pagado?'Pagado':'Sin pago')+' · '+p.medio,p.total)+
+ const orders=(d.pedidos||[]).map(p=>row('#'+(p.codigoCarta||p.id)+' · '+p.cliente+' · '+(p.pagado?'Pagado':'Sin pago')+' · '+(p.productosPagadosOtroLocal?'Cobro externo':p.medio),p.total)+
+  '<p class="muted" style="margin:2px 0 5px 8px">'+esc(notaPagoPedido(p))+'</p>'+
   ((p.productos||[]).length?'<p class="muted" style="margin:0 0 8px 8px">'+esc(p.productos.map(x=>x.cantidad+'x '+x.nombre+(x.detalle?' · '+x.detalle:'')).join('; '))+'</p>':''));
  const expenses=(d.gastos||[]).map(x=>row(x.concepto+' · '+x.medio,x.monto));
  const withdrawals=(d.retiros||[]).map(x=>row(x.motivo||'Retiro',x.monto));
