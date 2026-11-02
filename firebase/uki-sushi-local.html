@@ -1586,7 +1586,7 @@ function ndGuardar(){
         cli.ultimo=new Date().toLocaleDateString("es-CL");
         cli.movimientos.push({tipo:'venta',fecha:new Date().toISOString(),vence:fechaVencimiento(new Date().toISOString()),pedidoId:p.id});
       }
-      aviso(`Pedido #${p.id} actualizado $${total} - ${!p.esPremio?'tarjeta actualizada':''}`);
+      aviso(`Pedido #${p.id} actualizado por ${fmt(total)}${ukiCuentaAbierta(p)?" · Cuenta abierta, pendiente de pago":""}`);
     }
     nuevoDraft();
     S.vista="pedidos"; render(); return;
