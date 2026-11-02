@@ -797,15 +797,20 @@ function vNuevo(){
     <label class="check"><input type="checkbox" ${D.productosPagadosOtroLocal?"checked":""}
     onchange="D.productosPagadosOtroLocal=this.checked;D.montoProductosOtroLocal='';D.mixtoProductos=false;D.pagosProductos=[];render()">
       <b>Parte o toda la comida fue pagada en otro local</b></label>
-    ${D.productosPagadosOtroLocal?
-       `<label>Local donde pagaron la comida</label><input maxlength="80" value="${esc(D.localPagoExterno||"")}" oninput="D.localPagoExterno=this.value" placeholder="Nombre del local que recibió el pago">
-       <label>Monto pagado allá, de los productos</label>
+    ${D.modalidad==="Delivery"?`<label class="check"><input type="checkbox" ${D.envioPagadoOtroLocal?"checked":""}
+      onchange="D.envioPagadoOtroLocal=this.checked;D.mixtoEnvio=false;D.pagosEnvio=[];render()">
+      <b>El delivery también fue pagado en otro local</b></label>`:""}
+    ${D.productosPagadosOtroLocal||D.envioPagadoOtroLocal?
+       `<label>Local donde pagaron productos o delivery</label><input maxlength="80" value="${esc(D.localPagoExterno||"")}" oninput="D.localPagoExterno=this.value" placeholder="Nombre del local que recibió el pago">
+       ${D.productosPagadosOtroLocal?`<label>Monto pagado allá, solo de los productos</label>
        <input type="number" min="1" max="${sub}" step="1" inputmode="numeric" placeholder="Vacío = pagaron toda la comida" value="${esc(D.montoProductosOtroLocal??"")}"
          onchange="D.montoProductosOtroLocal=this.value;render()">
-       <p class="muted">Productos ${fmt(sub)} · pagado allá ${fmt(ukiMontoProductosOtroLocal(D,sub))} · por cobrar en Uki ${fmt(ukiMontoProductosLocal(D,sub))}.</p>
-       ${ukiMontoProductosLocal(D,sub)>0?`<label>Pago de productos recibido en Uki · ${fmt(ukiMontoProductosLocal(D,sub))}</label>${ukiPagoUI("productos",ukiMontoProductosLocal(D,sub))}`:""}`:
+       <p class="muted">Productos ${fmt(sub)} · pagado allá ${fmt(ukiMontoProductosOtroLocal(D,sub))} · por cobrar en Uki ${fmt(ukiMontoProductosLocal(D,sub))}.</p>`:""}
+       ${D.productosPagadosOtroLocal&&ukiMontoProductosLocal(D,sub)>0?`<label>Pago de productos recibido en Uki · ${fmt(ukiMontoProductosLocal(D,sub))}</label>${ukiPagoUI("productos",ukiMontoProductosLocal(D,sub))}`:""}`:
        `<label>Pago de los productos · ${fmt(sub)}</label>${ukiPagoUI("productos",sub)}`}
-    ${D.modalidad==="Delivery"?`<label>Pago del delivery recibido en Uki · ${fmt(envio)}</label>${ukiPagoUI("envio",envio)}`:""}
+    ${D.modalidad==="Delivery"?(D.envioPagadoOtroLocal?
+      `<p class="muted"><b>Delivery ${fmt(envio)}:</b> se incluirá en los deliverys de Uki para el repartidor, pero NO como ingreso de la caja porque lo cobraron en otro local.</p>`:
+      `<label>Pago del delivery recibido en Uki · ${fmt(envio)}</label>${ukiPagoUI("envio",envio)}`):""}
     <label class="check"><input type="checkbox" ${D.pagado?"checked":""} onchange="D.pagado=this.checked;render()"> <b>Pago completo confirmado</b></label>
     <p class="muted">Solo se consideran ventas los pagos completos confirmados. Los montos mixtos deben sumar exactamente lo que corresponde.</p></div><button class="big" onclick="ndGuardar()">${D.editando?`💾 Guardar cambios #${D.editando}`:D.productosPagadosOtroLocal?`✅ Guardar pedido con pago compartido`:`✅ Guardar pedido +1 timbre`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición</button>`:""}`;
 }
@@ -1698,8 +1703,8 @@ function ndGuardar(){
   if(propina>0&&!MEDIOS.filter(m=>!APPS.includes(m)).includes(D.medioPropina)){aviso("Selecciona un medio válido para la propina.");return;}
   let total=sub+envio+propina;
   const datosPago=ukiDatosPago(D,sub);
-  if(D.productosPagadosOtroLocal&&!String(D.localPagoExterno||"").trim()){
-    aviso("Indica qué local recibió el pago de la comida.");return;
+  if((D.productosPagadosOtroLocal||D.envioPagadoOtroLocal)&&!String(D.localPagoExterno||"").trim()){
+    aviso("Indica qué local recibió el pago de los productos o el delivery.");return;
   }
   if(D.pagado){
     const err=ukiErrorDistribucionPago({...D,...datosPago},sub,envio);
