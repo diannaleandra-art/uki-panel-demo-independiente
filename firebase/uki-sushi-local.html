@@ -887,6 +887,7 @@ function ukiDetalleCuentaTexto(p){
  const tip=Number(p.propina)||0;
  const total=sub+delivery+tip;
  const externo=p.productosPagadosOtroLocal?ukiMontoProductosOtroLocal(p,sub):0;
+ const envioFuera=ukiMontoEnvioOtroLocal(p,delivery,sub);
  const fecha=String(p.fechaISO||"").replace("T"," ");
  const id=p.codigoCarta?"#"+p.codigoCarta:"N.º "+p.id;
  const rows=["UKI SUSHI · DETALLE DE CUENTA",p.suc,"Pedido "+id,fecha,
@@ -901,8 +902,11 @@ function ukiDetalleCuentaTexto(p){
  if(delivery)rows.push("Delivery: "+fmt(delivery));
  rows.push("Propina opcional: "+fmt(tip)+(tip>0?" · "+String(p.medioPropina||"Efectivo"):""));
  rows.push("TOTAL: "+fmt(total));
- if(externo)rows.push("Pagado en "+(p.localPagoExterno||"otro local")+": "+fmt(externo));
- rows.push(p.pagado?"ESTADO: Pagado":"SALDO POR PAGAR EN UKI: "+fmt(Math.max(0,total-externo)));
+ if(externo)rows.push("Productos cobrados en "+(p.localPagoExterno||"otro local")+": "+fmt(externo));
+ if(envioFuera)rows.push("Delivery cobrado en "+(p.localPagoExterno||"otro local")+": "+fmt(envioFuera)+" (delivery de Uki)");
+ rows.push(p.pagado?"ESTADO: Pagado":"SALDO POR PAGAR EN UKI: "+fmt(Math.max(0,total-externo-envioFuera)));
+ if(!p.pagado&&externo+envioFuera>=total&&total>0)
+   rows.push("Pago informado fuera de Uki: pendiente de confirmar en el panel.");
  rows.push("Detalle informativo: no es boleta ni factura tributaria.");
  return rows.filter(x=>x!==undefined&&x!==null&&x!=="").join("\n");
 }
@@ -911,6 +915,7 @@ function ukiDetalleCuentaVista(p){
  const envio=p.modalidad==="Delivery"?Number(p.envio)||0:0;
  const tip=Number(p.propina)||0;
  const externo=p.productosPagadosOtroLocal?ukiMontoProductosOtroLocal(p,sub):0;
+ const envioFuera=ukiMontoEnvioOtroLocal(p,envio,sub);
  return '<details class="inner-details"><summary>🧾 Ver cuenta del cliente</summary>'+
    (p.mesaReferencia?'<p class="muted">Referencia: '+esc(p.mesaReferencia)+'</p>':"")+
    (p.productos||[]).map(x=>row((Number(x.cantidad)||0)+' × '+String(x.nombre||"")+
@@ -919,8 +924,10 @@ function ukiDetalleCuentaVista(p){
    (envio?row("Envío",fmt(envio)):"")+
    row("Propina opcional"+(tip>0?" · "+String(p.medioPropina||"Efectivo"):""),fmt(tip))+
    row("Total a pagar",fmt(sub+envio+tip),"final")+
-   (externo?row("Ya pagado en otro local",fmt(externo)):"")+
-   row(p.pagado?"Estado":"Saldo por pagar en Uki",p.pagado?"Pagado":fmt(Math.max(0,sub+envio+tip-externo)))+
+   (externo?row("Productos cobrados en otro local",fmt(externo)):"")+
+   (envioFuera?row("Delivery cobrado en otro local (lo realiza Uki)",fmt(envioFuera)):"")+
+   row(p.pagado?"Estado":"Saldo por pagar en Uki",p.pagado?"Pagado":fmt(Math.max(0,sub+envio+tip-externo-envioFuera)))+
+   (!p.pagado&&sub+envio+tip<=externo+envioFuera?'<p class="muted">Pago recibido fuera de Uki: falta confirmar el pago en este pedido.</p>':"")+
    '<p class="muted">Detalle informativo, no sustituye una boleta tributaria.</p>'+
    '<button class="sm ok" onclick="ukiWhatsAppCuenta('+Number(p.id)+')">💬 Enviar por WhatsApp</button> '+
    '<button class="sm" onclick="ukiImprimirCuenta('+Number(p.id)+')">🖨️ Imprimir cuenta</button> '+
@@ -1695,7 +1702,7 @@ function vPedidos(){
 let pedidoExpandido=null;
 
 function ndGuardar(){
-  if(D.sucursalCarta && D.sucursalCarta.toLowerCase()!==S.suc.toLowerCase()&&!D.productosPagadosOtroLocal){
+  if(D.sucursalCarta && D.sucursalCarta.toLowerCase()!==S.suc.toLowerCase()&&!D.productosPagadosOtroLocal&&!D.envioPagadoOtroLocal){
     aviso("El mensaje corresponde a "+D.sucursalCarta+". Si preparas aquí y cobraron allá, marca «Productos pagados en otro local».");return;
   }
   if(D.codigoCarta && S.pedidos.some(p=>p.suc===S.suc && String(p.codigoCarta||"")===D.codigoCarta && p.id!==D.editando)){
