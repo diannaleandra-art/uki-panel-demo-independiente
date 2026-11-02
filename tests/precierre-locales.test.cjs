@@ -112,24 +112,30 @@ test('Excel respeta filtros del historial y escapa entradas peligrosas',()=>{
  assert.match(x.reports[0].text,/'=IMPORT/);
  assert.match(x.reports[0].name,/regimiento/);
 });
-test('Turno nocturno conserva el día operativo antes del precierre',()=>{
+test('La fecha operativa nocturna sigue el comportamiento original del panel',()=>{
  const start=html.indexOf('function fechaOperativaActual(){');
  const end=html.indexOf('\nfunction cajaDelDia(){',start);
  assert.ok(start>=0&&end>start);
+ const source=html.slice(start,end);
+ // Ninguna regla nueva de precierre interviene en el cálculo de la fecha.
+ assert.ok(!source.includes('turnoPrecierreAbierto'));
  const create=new Function('S','hoyLocal','fechaCierreMs','fechaRegistroMs',
-  html.slice(start,end)+'\nreturn fechaOperativaActual');
+  source+'\nreturn fechaOperativaActual');
  const suc=branches[0];
  const old={suc,fechaOperativa:'2026-11-02',pedidos:[],gastos:[],
-  retiros:[],propinas:[],deliveriesManuales:[],cierres:[
-    {suc,fechaMs:Date.parse('2026-11-02T23:30:00-03:00')}
-  ],cajasDiarias:{
-   [suc+'|2026-11-02']:{apps:{},pagoDelivery:0,
-    turnoPrecierreAbierto:{nombre:'María',inicioMs:Date.parse('2026-11-02T22:00:00-03:00')}}
+  retiros:[],propinas:[],deliveriesManuales:[],cierres:[],
+  cajasDiarias:{
+   [suc+'|2026-11-02']:{apps:{},pagoDelivery:0,turnoPrecierreAbierto:{
+    nombre:'María',inicioMs:Date.parse('2026-11-02T22:00:00-03:00')
+   }}
   }};
  const current=create(old,()=>'2026-11-03',c=>c.fechaMs,()=>0);
+ // Cuando el día no se ha cerrado, el 03 de madrugada sigue siendo el día 02.
  assert.equal(current(),'2026-11-02');
  assert.equal(old.fechaOperativa,'2026-11-02');
- old.cajasDiarias[suc+'|2026-11-02'].turnoPrecierreAbierto=null;
+ // Con un cierre previo y sin movimientos nuevos, conserva también la regla
+ // original que pasa al día siguiente: el precierre no cambia esa condición.
+ old.cierres=[{suc,fechaMs:Date.parse('2026-11-02T23:30:00-03:00')}];
  assert.equal(current(),'2026-11-03');
 });
 test('Cierre definitivo bloqueado si existe precierre abierto',()=>{
