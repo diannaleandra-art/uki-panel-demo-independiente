@@ -1,6 +1,6 @@
 <html lang="es"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Uki Sushi · Panel DEMO v8.15</title>
+<title>Uki Sushi · Panel DEMO v8.16</title>
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -111,14 +111,14 @@ button:focus-visible,summary:focus-visible{outline:3px solid #dc7703;outline-off
 </style>
 </head>
 <body>
-<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.15 · DEMO</h1></header>
+<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.16 · DEMO</h1></header>
 <nav id="nav" class="app-nav" aria-label="Navegación de Uki Sushi"></nav>
 <div class="aviso" style="margin:10px 12px 0;background:#fce8d7;border:1px solid #efb57c;font-weight:600">DEMO PÚBLICA · Solo datos ficticios · Sin WhatsApp real</div><main id="app"><div class="aviso">✅ v8 Timbres - 6 ventas = 12 piezas / 10 ventas = 36 + 2 korokes</div><div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Tarjeta de timbres: 6 ventas = 12 piezas gratis, 10 ventas = 36 piezas + 2 korokes</p><button class="big" onclick="pedirPin('Uki Regimiento Arica')">Uki Regimiento Arica</button><button class="big" onclick="pedirPin('Uki La Serena')">Uki La Serena</button></div><div class="card"><h2>💾 Respaldo para computador</h2><button class="big" onclick="descargarRespaldoCompleto()">💾 Descargar respaldo con tarjetas</button><label class="muted">Cargar respaldo</label><input type="file" accept=".json" onchange="cargarRespaldo(event)"></div></main>
 <script>
 const SUCURSALES=["Uki Regimiento Arica","Uki La Serena"];
 const MEDIOS=["Efectivo","Transferencia","Débito","Edenred","Otros","Uber Eats","PedidosYa","Rappi"];
 const APPS=["Uber Eats","PedidosYa","Rappi"];
-let S={suc:null,pinSuc:null,codigos:{},vista:"inicio",base:18000,pedidos:[],gastos:[],retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",deliveriesManuales:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,filtro:"",filtroFecha:"",filtroCliente:""};
+let S={suc:null,pinSuc:null,codigos:{},vista:"inicio",base:18000,pedidos:[],gastos:[],retiros:[],propinas:[],cierres:[],turnos:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",deliveriesManuales:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,filtro:"",filtroFecha:"",filtroCliente:""};
 let D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:true,items:[],editando:null};
 const $=id=>document.getElementById(id);
 const fmt=n=>"$"+Math.round(n||0).toLocaleString("es-CL");
@@ -177,7 +177,7 @@ const VISTAS=[["inicio","Inicio","⌂"],["pedidos","Pedidos","▤"],["nuevo","Nu
 let cajaTab="resumen";
 let movimientoTab="gastos";
 let modoNuevo="whatsapp";
-const CAJA_TABS=[["resumen","Resumen"],["movimientos","Movimientos"],["cierre","Cierre"],["historial","Historial"]];
+const CAJA_TABS=[["resumen","Resumen"],["movimientos","Movimientos"],["turnos","Turnos"],["cierre","Cierre"],["historial","Historial"]];
 const MOV_TABS=[["gastos","Gastos"],["apps","Apps"],["delivery","Delivery manual"],["repartidor","Pago repartidor"],["propinas","Propinas"],["retiros","Retiros"],["chica","Caja chica"]];
 function cambiarCajaTab(t){cajaTab=t;S.confirmCierre=false;render();window.scrollTo({top:0,behavior:"instant"});}
 function cambiarMovimientoTab(t){movimientoTab=t;render();}
@@ -204,7 +204,7 @@ const claveLocal=s=>UKI_LOCAL_PREFIX+(SUCURSALES.indexOf(s)===0?"regimiento":SUC
 let claveSesion=null,sucursalSesion=null,saltSesion=null,colaGuardado=Promise.resolve(),revisionGuardado=0;
 function estadoVacioSucursal(s){
  return {suc:s,pinSuc:null,codigos:{},vista:s?"pedidos":"inicio",base:18000,pedidos:[],gastos:[],
- retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",
+ retiros:[],propinas:[],cierres:[],turnos:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",
  deliveriesManuales:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},
  incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,
  filtro:"",filtroFecha:"",filtroCliente:""};
@@ -214,6 +214,7 @@ function validarEstadoSucursal(datos,suc){
  for(const c of ["pedidos","gastos","retiros","propinas","cierres","deliveriesManuales","incidencias"]){
   if(!Array.isArray(datos[c])||!datos[c].every(x=>x&&typeof x==="object"&&!Array.isArray(x)&&x.suc===suc))return false;
  }
+ if(datos.turnos!==undefined && (!Array.isArray(datos.turnos)||!datos.turnos.every(t=>t&&t.suc===suc)))return false;
  if(!datos.clientes||typeof datos.clientes!=="object"||Array.isArray(datos.clientes))return false;
  if(!datos.cajasDiarias||typeof datos.cajasDiarias!=="object"||Array.isArray(datos.cajasDiarias))return false;
  if(!Number.isInteger(datos.nextId)||datos.nextId<1||!Number.isInteger(datos.nextIncidenciaId)||datos.nextIncidenciaId<1)return false;
@@ -733,10 +734,81 @@ function totales(){
   };
 }
 
+
+let fechaInformeTurnos=hoyLocal();
+function turnoActivo(){return(S.turnos||[]).find(t=>t.suc===S.suc&&t.estado==="abierto")||null;}
+function resumenTurno(t){
+ const pedidos=(S.pedidos||[]).filter(p=>p.suc===t.suc&&p.turnoId===t.id&&!p.esPremio&&p.estado!=="Cancelado");
+ const pagados=pedidos.filter(p=>p.pagado),medios={};MEDIOS.forEach(m=>medios[m]=0);
+ pagados.forEach(p=>{
+  const envio=p.modalidad==="Delivery"?Math.max(0,Number(p.envio)||0):0;
+  const medio=MEDIOS.includes(p.medio)?p.medio:"Otros";
+  medios[medio]+=Math.max(0,Number(p.subtotal??((p.total||0)-envio))||0);
+  medios[MEDIOS.includes(p.medioEnvio)?p.medioEnvio:medio]+=envio;
+ });
+ return {n:pedidos.length,pagados:pagados.length,medios,total:Object.values(medios).reduce((a,b)=>a+b,0),efectivo:medios.Efectivo||0};
+}
+function abrirTurno(){
+ if(turnoActivo()){aviso("Primero guarda el precierre del turno anterior.");return;}
+ const nombre=($("trabajadorTurno")?.value||"").trim();
+ if(nombre.length<2||nombre.length>60){aviso("Escribe el nombre del trabajador.");return;}
+ S.turnos=S.turnos||[];S.turnos.push({id:crypto.randomUUID(),suc:S.suc,nombre,fecha:hoyLocal(),desde:Date.now(),hasta:null,estado:"abierto",resumen:null,contado:null,obs:""});
+ aviso("Turno abierto para "+nombre+". Los pedidos nuevos quedarán asociados.");
+}
+function cerrarTurno(){
+ const t=turnoActivo();if(!t){aviso("No hay turno activo.");return;}
+ const valor=($("contadoTurno")?.value||"").trim(),contado=valor===""?null:Number(valor);
+ if(contado!==null&&(!Number.isSafeInteger(contado)||contado<0)){aviso("Monto contado inválido.");return;}
+ const obs=($("notaTurno")?.value||"").trim().slice(0,300);
+ if(!confirm("¿Guardar precierre de "+t.nombre+"? No cierra el día."))return;
+ t.resumen=resumenTurno(t);t.hasta=Date.now();t.estado="precerrado";t.contado=contado;t.obs=obs;
+ aviso("Precierre registrado. Ahora puedes iniciar otro turno.");
+}
+function filtrarTurnos(){return(S.turnos||[]).filter(t=>t.suc===S.suc&&(!fechaInformeTurnos||t.fecha===fechaInformeTurnos)).slice().reverse();}
+function exportarReporteTurnos(){
+ const a=filtrarTurnos().filter(t=>t.resumen);
+ if(!a.length){aviso("No hay precierres para el informe.");return;}
+ const columnas=["Sucursal","Fecha","Trabajador","Inicio","Fin","Pedidos","Pagados",...MEDIOS,"Total","Efectivo registrado","Contado","Diferencia","Observaciones"];
+ let csv="\uFEFF"+columnas.map(csvSeguro).join(";")+"\n";
+ a.reverse().forEach(t=>{
+  const x=t.resumen;
+  csv+=[t.suc,t.fecha,t.nombre,new Date(t.desde).toLocaleString("es-CL"),new Date(t.hasta).toLocaleString("es-CL"),x.n,x.pagados,
+   ...MEDIOS.map(m=>x.medios[m]||0),x.total,x.efectivo,t.contado??"",t.contado===null?"":t.contado-x.efectivo,t.obs||""].map(csvSeguro).join(";")+"\n";
+ });
+ descargarTextoArchivo("uki-turnos-"+hoyLocal()+".csv",csv,"text/csv;charset=utf-8");aviso("Reporte CSV preparado.");
+}
+function vTurnos(){
+ const a=turnoActivo(),turnos=filtrarTurnos(),cerrados=turnos.filter(t=>t.resumen);
+ let html='<div class="card"><h2>Turnos y precierres</h2><p class="muted">Un trabajador por turno. Guardar un precierre no reinicia la caja diaria.</p>';
+ if(a){
+  const x=resumenTurno(a);
+  html+='<p><b>'+esc(a.nombre)+'</b> · Inicio '+esc(new Date(a.desde).toLocaleString("es-CL"))+'</p>'
+  +row("Pedidos pagados",x.pagados)+row("Ventas del turno",fmt(x.total),"sub")
+  +'<label>Efectivo contado (opcional)</label><input id="contadoTurno" type="number" min="0" step="1" inputmode="numeric">'
+  +'<label>Observaciones / entrega</label><textarea id="notaTurno" rows="2" maxlength="300"></textarea>'
+  +'<button class="big" onclick="cerrarTurno()">Guardar precierre y finalizar turno</button>';
+ }else html+='<label>Trabajador que inicia</label><input id="trabajadorTurno" maxlength="60" placeholder="Ej: María"><button class="big" onclick="abrirTurno()">Abrir turno</button>';
+ html+='</div><div class="card"><h2>Reportes de turnos</h2><label>Fecha</label><input type="date" value="'+esc(fechaInformeTurnos)+'" onchange="fechaInformeTurnos=this.value;render()">'
+  +'<button class="sm" onclick="fechaInformeTurnos=\'\';render()">Todas las fechas</button><button class="sm" onclick="fechaInformeTurnos=hoyLocal();render()">Hoy</button>'
+  +row("Precierres guardados",cerrados.length)+row("Ventas de turnos cerrados",fmt(cerrados.reduce((v,t)=>v+t.resumen.total,0)),"sub")
+  +'<p class="muted">Incluye solo pedidos asociados a turnos. Apps manuales, gastos y retiros se consultan en Caja general. Los precierres no se recalculan después de guardarse.</p>'
+  +'<button class="sm ok" onclick="exportarReporteTurnos()">Descargar reporte Excel (CSV)</button></div>';
+ html+=turnos.map(t=>{
+  const x=t.resumen||resumenTurno(t),d=t.contado===null?null:t.contado-x.efectivo;
+  return '<details class="card history-entry"><summary>'+esc(t.nombre)+' · '+esc(t.fecha)+' · '+esc(t.estado)+'</summary>'
+   +'<p class="muted">Desde '+esc(new Date(t.desde).toLocaleString("es-CL"))+(t.hasta?' hasta '+esc(new Date(t.hasta).toLocaleString("es-CL")):' · En curso')+'</p>'
+   +row("Pagados",x.pagados)+MEDIOS.filter(m=>x.medios[m]>0).map(m=>row(m,fmt(x.medios[m]))).join("")
+   +row("Total",fmt(x.total),"sub")+row("Efectivo según pedidos",fmt(x.efectivo))
+   +(t.resumen?row("Efectivo contado",t.contado===null?"No declarado":fmt(t.contado)):"")
+   +(d===null?"":row("Diferencia antes de gastos/retiros",fmt(d)))+(t.obs?'<p class="muted">'+esc(t.obs)+'</p>':'')+'</details>';
+ }).join("");
+ return html+(turnos.length?"":'<div class="card muted">No hay turnos para la fecha seleccionada.</div>');
+}
+
 function vCaja(){
   if(!S.suc)return vInicio();
   const active=CAJA_TABS.find(x=>x[0]===cajaTab)||CAJA_TABS[0];
-  const content=({resumen:vCajaResumen,movimientos:vMovimientos,cierre:vCierre,historial:vHistorialCompacto})[active[0]]();
+  const content=({resumen:vCajaResumen,movimientos:vMovimientos,turnos:vTurnos,cierre:vCierre,historial:vHistorialCompacto})[active[0]]();
   return `<div class="section-head"><h2>Caja</h2><p>Control diario · ${hoyLocal()}</p></div>
   <div class="sub-tabs" role="group" aria-label="Secciones de caja">${CAJA_TABS.map(([k,l])=>`<button class="${cajaTab===k?'selected':''}" onclick="cambiarCajaTab('${k}')">${l}</button>`).join('')}</div>${content}<div class="card"><h2>💾 Respaldo protegido de esta sucursal</h2><p class="muted">Solo pruebas con datos ficticios. La clave no se guarda: si la olvidas, no podras recuperar el archivo. Guarda una copia cada dia.</p><label>Crear clave para este respaldo (minimo 12 caracteres)</label><input id="ukiClaveBackup" type="password" autocomplete="new-password" placeholder="Clave de respaldo"><label>Repite la clave</label><input id="ukiConfirmaBackup" type="password" autocomplete="new-password" placeholder="Confirmar clave"><button class="big" onclick="descargarRespaldoCompleto()">Descargar respaldo cifrado</button><hr><p class="muted">Restaurar reemplaza los registros actuales de esta sucursal. Antes guarda una copia. También se admiten los respaldos anteriores v8.11 sin cifrar.</p><label>Clave del respaldo (si está cifrado)</label><input id="ukiClaveRestaurar" type="password" autocomplete="off" placeholder="Clave del archivo"><label>Elegir archivo para restaurar</label><input type="file" accept=".json,application/json" onchange="cargarRespaldo(event)"></div>`;
 }
@@ -876,7 +948,7 @@ function ndGuardar(){
     S.vista="pedidos"; render(); return;
   }
   const idNuevo=S.nextId++;
-  const nuevoPedido={id:idNuevo,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),cliente:D.cliente,telefono:D.telefono||"",codigoCarta:D.codigoCarta||"",codigoCliente:D.codigoCliente||"",sucursalCarta:D.sucursalCarta||"",modalidad:D.modalidad,envio:envio,medio:D.medio,medioEnvio:D.medioEnvio,pagado:D.pagado,estado:"Entregado",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),total:total,subtotal:sub,textoOriginal:D.texto,esPremio:false};
+  const nuevoPedido={id:idNuevo,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),turnoId:turnoActivo()?.id||null,cliente:D.cliente,telefono:D.telefono||"",codigoCarta:D.codigoCarta||"",codigoCliente:D.codigoCliente||"",sucursalCarta:D.sucursalCarta||"",modalidad:D.modalidad,envio:envio,medio:D.medio,medioEnvio:D.medioEnvio,pagado:D.pagado,estado:"Entregado",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),total:total,subtotal:sub,textoOriginal:D.texto,esPremio:false};
   S.pedidos.push(nuevoPedido);
   if(D.cliente){
     const cli=asegurarCliente(D.cliente,D.codigoCliente,D.telefono);
