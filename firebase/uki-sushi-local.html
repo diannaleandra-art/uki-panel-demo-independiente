@@ -806,7 +806,7 @@ function vNuevo(){
        <input type="number" min="1" max="${sub}" step="1" inputmode="numeric" placeholder="Vacío = pagaron toda la comida" value="${esc(D.montoProductosOtroLocal??"")}"
          onchange="D.montoProductosOtroLocal=this.value;render()">
        <p class="muted">Productos ${fmt(sub)} · pagado allá ${fmt(ukiMontoProductosOtroLocal(D,sub))} · por cobrar en Uki ${fmt(ukiMontoProductosLocal(D,sub))}.</p>`:""}
-       ${D.productosPagadosOtroLocal&&ukiMontoProductosLocal(D,sub)>0?`<label>Pago de productos recibido en Uki · ${fmt(ukiMontoProductosLocal(D,sub))}</label>${ukiPagoUI("productos",ukiMontoProductosLocal(D,sub))}`:""}`:
+       ${D.productosPagadosOtroLocal?(ukiMontoProductosLocal(D,sub)>0?`<label>Pago de productos recibido en Uki · ${fmt(ukiMontoProductosLocal(D,sub))}</label>${ukiPagoUI("productos",ukiMontoProductosLocal(D,sub))}`:""):`<label>Pago de los productos · ${fmt(sub)}</label>${ukiPagoUI("productos",sub)}`}`:
        `<label>Pago de los productos · ${fmt(sub)}</label>${ukiPagoUI("productos",sub)}`}
     ${D.modalidad==="Delivery"?(D.envioPagadoOtroLocal?
       `<p class="muted"><b>Delivery ${fmt(envio)}:</b> se incluirá en los deliverys de Uki para el repartidor, pero NO como ingreso de la caja porque lo cobraron en otro local.</p>`:
@@ -1425,7 +1425,13 @@ function totales(){
   dms.forEach(d=>{const m=MEDIOS.includes(d.medio)?d.medio:"Otros";medios[m]+=Number(d.monto)||0;});
   const totalMedios=Object.values(medios).reduce((a,b)=>a+b,0);
   const productosPagadosOtroLocal=pag.reduce((n,p)=>n+ukiMontoProductosOtroLocal(p,Math.max(0,Number(p.subtotal)||0)),0);
-  const dels=pag.filter(x=>x.modalidad==="Delivery");
+  // Deliverys para el repartidor: no dependen de quién cobró el pedido.
+  // No incluir pedidos cancelados ni premios, aunque no se hayan marcado pagados.
+  const dels=pedidos.filter(x=>x.modalidad==="Delivery"&&x.estado!=="Cancelado"&&!x.esPremio);
+  const enviosCobradosUki=pag.reduce((a,x)=>x.modalidad!=="Delivery"?a:
+     a+Math.max(0,(Number(x.envio)||0)-ukiMontoEnvioOtroLocal(x,Number(x.envio)||0,Number(x.subtotal)||0)),0);
+  const enviosCobradosOtroLocal=pag.reduce((a,x)=>x.modalidad!=="Delivery"?a:
+     a+ukiMontoEnvioOtroLocal(x,Number(x.envio)||0,Number(x.subtotal)||0),0);
   const enviosPedidos=dels.reduce((a,x)=>a+(Number(x.envio)||0),0);
   const enviosManuales=dms.reduce((a,d)=>a+(Number(d.monto)||0),0);
   const envios=enviosPedidos+enviosManuales;
@@ -1437,8 +1443,8 @@ function totales(){
   const retirosTotal=retiros.reduce((a,x)=>a+(Number(x.monto)||0),0);
   const pagoDelivery=Number(caja.pagoDelivery)||0;
   return {
-    medios,totalMedios,productosPagadosOtroLocal,nDeliv,envios,enviosPedidos,enviosManuales,base:caja.base,pagoDelivery,
-    ventaSinDelivery:totalMedios-envios,gastosTotal,gastosEf,retirosTotal,
+    medios,totalMedios,productosPagadosOtroLocal,nDeliv,envios,enviosPedidos,enviosManuales,enviosCobradosUki,enviosCobradosOtroLocal,base:caja.base,pagoDelivery,
+    ventaSinDelivery:totalMedios-enviosCobradosUki,gastosTotal,gastosEf,retirosTotal,
     propinas:propinas.reduce((a,x)=>a+(Number(x.monto)||0),0),propinasEfectivo,
     efectivoCaja:(medios.Efectivo||0)-gastosEf-retirosTotal-(caja.pagoDeliveryMedio==="Efectivo"?pagoDelivery:0),
     final:totalMedios-pagoDelivery-gastosTotal,
@@ -1483,7 +1489,7 @@ function vResumenSemanal(){
 function vCajaResumen(){
   const t=totales(), caja=cajaDelDia();
   return `<section class="kpis"><div class="kpi"><span>Venta total</span><strong>${fmt(t.totalMedios)}</strong></div><div class="kpi"><span>Sin delivery</span><strong>${fmt(t.ventaSinDelivery)}</strong></div><div class="kpi"><span>Gastos</span><strong>${fmt(t.gastosTotal)}</strong></div><div class="kpi"><span>Efectivo que queda</span><strong>${fmt(t.efectivoCaja)}</strong></div></section>
-    <div class="card"><h2>Resumen de hoy</h2>${row('Pedidos pagados',t.pagadosN)}${t.productosPagadosOtroLocal?row('Productos pagados en otro local (informativo)',fmt(t.productosPagadosOtroLocal)):""}${row('Delivery cobrado',fmt(t.envios))}${t.propinasEfectivo?row('Propinas en efectivo (aparte)',fmt(t.propinasEfectivo)):''}${row('Pago a repartidor',fmt(t.pagoDelivery))}${row('Total final',fmt(t.final),'final')}</div>
+    <div class="card"><h2>Resumen de hoy</h2>${row('Pedidos pagados',t.pagadosN)}${t.productosPagadosOtroLocal?row('Productos pagados en otro local (informativo)',fmt(t.productosPagadosOtroLocal)):""}${row('Deliverys registrados para el repartidor',fmt(t.envios))}${row('Delivery cobrado en Uki',fmt(t.enviosCobradosUki))}${t.enviosCobradosOtroLocal?row('Delivery cobrado en otro local',fmt(t.enviosCobradosOtroLocal)):''}${t.propinasEfectivo?row('Propinas en efectivo (aparte)',fmt(t.propinasEfectivo)):''}${row('Pago a repartidor',fmt(t.pagoDelivery))}${row('Total final',fmt(t.final),'final')}</div>
     <div class="quick-grid"><button class="quick" onclick="cambiarCajaTab('movimientos')">✎ Agregar movimiento <span>›</span></button><button class="quick" onclick="cambiarCajaTab('cierre')">▣ Cerrar el día <span>›</span></button><button class="quick" onclick="cambiarCajaTab('historial')">◷ Historial <span>›</span></button><button class="quick" onclick="descargarRespaldoCompleto()">⇩ Descargar respaldo <span>›</span></button></div>`;
 }
 function vMovimientos(){
@@ -1527,7 +1533,7 @@ function vCierre(){
     dif>0?"Sobrante: "+fmt(dif):"Faltante: "+fmt(-dif);
   const pendientesText=pendientes.map(p=>"#"+esc(p.codigoCarta||p.id)+" · "+esc(p.cliente||"Sin nombre")+" · "+fmt(p.total)).join("; ");
   return `<div class="card"><h2>Venta del día</h2>${row("Pedidos del día",t.n)}${row("Pedidos pagados",t.pagadosN)}${t.productosPagadosOtroLocal?row("Productos pagados en otro local (no ingresan a esta caja)",fmt(t.productosPagadosOtroLocal)):""}${row("Efectivo",fmt(t.medios.Efectivo))}${row("Transferencia",fmt(t.medios.Transferencia))}${row("Débito",fmt(t.medios.Débito))}${row("Edenred",fmt(t.medios.Edenred))}${row("Otros",fmt(t.medios.Otros))}${row("Uber Eats",fmt(t.medios["Uber Eats"]))}${row("PedidosYa",fmt(t.medios.PedidosYa))}${row("Rappi",fmt(t.medios.Rappi))}${row("Venta total con delivery",fmt(t.totalMedios),"sub")}${row("Venta sin delivery",fmt(t.ventaSinDelivery))}</div>
-  <div class="card" style="border:2px solid var(--accent)"><h2>🛵 Total de delivery</h2><label>Base diaria ($)</label><input type="number" value="${caja.base}" inputmode="numeric" onchange="cajaDelDia().base=Math.max(0,parseInt(this.value)||0);render()" style="font-weight:700">${row("Base diaria",fmt(caja.base))}${row("Deliveries pedidos ("+t.dels.length+")",fmt(t.enviosPedidos))}${row("Deliveries manuales ("+delSucHoy(S.deliveriesManuales).length+")",fmt(t.enviosManuales))}${row("Deliveries del día ("+t.nDeliv+")",fmt(t.envios))}${row("Total delivery (base + deliveries)",fmt(caja.base+t.envios),"final")}</div>
+  <div class="card" style="border:2px solid var(--accent)"><h2>🛵 Total de delivery</h2><label>Base diaria ($)</label><input type="number" value="${caja.base}" inputmode="numeric" onchange="cajaDelDia().base=Math.max(0,parseInt(this.value)||0);render()" style="font-weight:700">${row("Base diaria",fmt(caja.base))}${row("Deliveries pedidos ("+t.dels.length+")",fmt(t.enviosPedidos))}${row("Deliveries manuales ("+delSucHoy(S.deliveriesManuales).length+")",fmt(t.enviosManuales))}${row("Deliveries registrados para repartidor ("+t.nDeliv+")",fmt(t.envios))}${row("De ellos, cobrados en Uki",fmt(t.enviosCobradosUki))}${t.enviosCobradosOtroLocal?row("De ellos, cobrados en otro local",fmt(t.enviosCobradosOtroLocal)):""}${row("Total para repartidor (base + deliveries)",fmt(caja.base+t.envios),"final")}</div>
   <div class="card"><h2>Resultado final</h2>${row("Venta total con delivery",fmt(t.totalMedios))}${row("− Pago a delivery ("+caja.pagoDeliveryMedio+")",fmt(t.pagoDelivery),"neg")}${row("Venta - pago delivery",fmt(t.totalMedios-t.pagoDelivery))}${row("− Gastos",fmt(t.gastosTotal),"neg")}${row("Venta total - gastos",fmt(t.totalMedios-t.gastosTotal),"sub")}${row("Total final (venta - pago delivery - gastos)",fmt(t.final),"final")}${row("Efectivo que queda en caja, sin propinas",fmt(t.efectivoCaja))}${row("Propinas (aparte)",fmt(t.propinas))}${t.propinasEfectivo?row("De ellas, en efectivo",fmt(t.propinasEfectivo)):""}</div>
   ${pendientes.length?`<div class="card" style="border:2px solid #bd4d1b"><h2>⚠️ Pedidos pendientes de pago · ${pendientes.length}</h2><p class="muted">Revisa estos pedidos antes de cerrar. Si decides cerrar, seguirán registrados como pendientes.</p><p>${pendientesText}</p></div>`:
      '<div class="card"><p style="margin:4px 0">✅ No hay pedidos pendientes de pago en este turno.</p></div>'}
