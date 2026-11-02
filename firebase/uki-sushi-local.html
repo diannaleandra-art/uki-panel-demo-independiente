@@ -767,15 +767,19 @@ function vNuevo(){
   <div class="card"><h2>Productos y total</h2>${D.items.filter(x=>x.nombre).map((i,k)=>`<div class="row"><span>${i.cant} × ${esc(i.nombre)}${i.det?` <span class="muted">(${esc(i.det)})</span>`:""}</span><b>${fmt(i.cant*i.precio)} <button class="sm" onclick="delItem(${k})">✕</button></b></div>`).join("")||'<p class="muted">Aún no hay productos. Agrégalos abajo.</p>'}<div style="display:grid;grid-template-columns:80px 1fr;gap:8px;margin-top:10px"><div><label>Cant</label><input id="pCant" type="number" value="1" style="text-align:center;font-weight:700"></div><div><label>Precio</label><input id="pPre" type="number" inputmode="numeric" placeholder="14900"></div></div><label>Nombre producto</label><input id="pNom" placeholder="Promo 24 piezas"><label>Detalle</label><input id="pDet" placeholder="sin cebollín"><button class="sm ok" onclick="addItem()">+ Agregar producto</button><div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:10px;border-top:2px solid var(--accent)"><div class="row sub"><span>Subtotal productos</span><b>${fmt(sub)}</b></div><div class="row"><span>Delivery</span><b id="pedidoEnvioVista">${fmt(envio)}</b></div><div class="row final"><span>Total pedido</span><b id="pedidoTotalVista">${fmt(total)}</b></div><div class="row"><span>Este pedido da</span><b>${D.productosPagadosOtroLocal?"Pago registrado en otro local":"⭐ +1 timbre"}</b></div></div></div>
   <div class="card"><h2>Medios de pago</h2>
     <label class="check"><input type="checkbox" ${D.productosPagadosOtroLocal?"checked":""}
-    onchange="D.productosPagadosOtroLocal=this.checked;D.mixtoProductos=false;D.pagosProductos=[];render()">
-      <b>Productos pagados en otro local</b></label>
+    onchange="D.productosPagadosOtroLocal=this.checked;D.montoProductosOtroLocal='';D.mixtoProductos=false;D.pagosProductos=[];render()">
+      <b>Parte o toda la comida fue pagada en otro local</b></label>
     ${D.productosPagadosOtroLocal?
        `<label>Local donde pagaron la comida</label><input maxlength="80" value="${esc(D.localPagoExterno||"")}" oninput="D.localPagoExterno=this.value" placeholder="Nombre del local que recibió el pago">
-       <p class="muted">Preparado en Uki; esos productos no se suman al dinero cobrado aquí.</p>`:
+       <label>Monto pagado allá, de los productos</label>
+       <input type="number" min="1" max="${sub}" step="1" inputmode="numeric" placeholder="Vacío = pagaron toda la comida" value="${esc(D.montoProductosOtroLocal??"")}"
+         onchange="D.montoProductosOtroLocal=this.value;render()">
+       <p class="muted">Productos ${fmt(sub)} · pagado allá ${fmt(ukiMontoProductosOtroLocal(D,sub))} · por cobrar en Uki ${fmt(ukiMontoProductosLocal(D,sub))}.</p>
+       ${ukiMontoProductosLocal(D,sub)>0?`<label>Pago de productos recibido en Uki · ${fmt(ukiMontoProductosLocal(D,sub))}</label>${ukiPagoUI("productos",ukiMontoProductosLocal(D,sub))}`:""}`:
        `<label>Pago de los productos · ${fmt(sub)}</label>${ukiPagoUI("productos",sub)}`}
-    ${D.modalidad==="Delivery"?`<label>Pago del delivery · ${fmt(envio)}</label>${ukiPagoUI("envio",envio)}`:""}
+    ${D.modalidad==="Delivery"?`<label>Pago del delivery recibido en Uki · ${fmt(envio)}</label>${ukiPagoUI("envio",envio)}`:""}
     <label class="check"><input type="checkbox" ${D.pagado?"checked":""} onchange="D.pagado=this.checked;render()"> <b>Pago completo confirmado</b></label>
-    <p class="muted">Solo se consideran ventas los pagos completos confirmados. Los montos mixtos deben sumar exactamente lo que corresponde.</p></div><button class="big" onclick="ndGuardar()">${D.editando?`💾 Guardar cambios #${D.editando}`:`✅ Guardar pedido +1 timbre`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición</button>`:""}`;
+    <p class="muted">Solo se consideran ventas los pagos completos confirmados. Los montos mixtos deben sumar exactamente lo que corresponde.</p></div><button class="big" onclick="ndGuardar()">${D.editando?`💾 Guardar cambios #${D.editando}`:D.productosPagadosOtroLocal?`✅ Guardar pedido con pago compartido`:`✅ Guardar pedido +1 timbre`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición</button>`:""}`;
 }
 
 function editarPedido(id){const p=S.pedidos.find(x=>x.id===id); if(!p)return; if(p.estado==="Cancelado"){aviso("El pedido cancelado permanece en el historial y no se puede editar.");return;} D={texto:p.textoOriginal||"",fecha:p.fechaISO||ahora(),cliente:p.cliente||"",telefono:p.telefono||"",codigoCarta:p.codigoCarta||"",codigoCliente:p.codigoCliente||"",sucursalCarta:p.sucursalCarta||"",modalidad:p.modalidad||"Retiro",envio:p.envio||0,medio:p.medio||"Efectivo",medioEnvio:p.medioEnvio||"Efectivo",pagado:!!p.pagado,
