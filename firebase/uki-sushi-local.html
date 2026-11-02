@@ -491,6 +491,165 @@ function vInicio(){
 }
 // Datos temporales de cierre: no alteran el respaldo ni el formato guardado.
 let cierreDraft={resp:"",obs:"",contado:""};
+
+// Precierre por trabajador dentro de la misma caja cifrada y sincronizada.
+// No crea otra caja, no mueve el corte diario ni altera pedidos y cierres existentes.
+function ukiPrecierresGuardados(){
+ const prefix=S.suc+"|",resultados=[];
+ for(const [key,caja] of Object.entries(S.cajasDiarias||{})){
+   if(!key.startsWith(prefix)||!Array.isArray(caja?.precierres))continue;
+   for(const item of caja.precierres){
+     if(item?.suc===S.suc && typeof item?.nombre==="string")resultados.push(item);
+   }
+ }
+ return resultados.sort((a,b)=>Number(b.finMs||0)-Number(a.finMs||0));
+}
+function ukiFotoPrecierre(){
+ const t=totales();
+ return {venta:t.totalMedios,pagados:t.pagadosN,delivery:t.envios,
+   gastos:t.gastosTotal,pagoRepartidor:t.pagoDelivery,
+   retiros:t.retirosTotal,efectivoCaja:t.efectivoCaja,
+   medios:Object.fromEntries(MEDIOS.map(m=>[m,Number(t.medios[m])||0]))};
+}
+function ukiDiferenciaPrecierre(base,fin){
+ const claves=["venta","pagados","delivery","gastos","pagoRepartidor","retiros","efectivoCaja"];
+ if(!base||!fin||!base.medios||!fin.medios)throw Error("No hay un inicio de turno válido.");
+ const salida={medios:{}};
+ for(const k of claves){
+   if(!Number.isSafeInteger(base[k])||!Number.isSafeInteger(fin[k]))
+     throw Error("Los importes del turno no son válidos.");
+   salida[k]=fin[k]-base[k];
+ }
+ for(const m of MEDIOS){
+   const a=base.medios[m],b=fin.medios[m];
+   if(!Number.isSafeInteger(a)||!Number.isSafeInteger(b))
+     throw Error("Revisa los medios de pago antes de guardar.");
+   salida.medios[m]=b-a;
+   if(salida.medios[m]<0)throw Error("Los pagos del día fueron corregidos. Revisa la caja antes de guardar el precierre.");
+ }
+ if(salida.venta<0||salida.pagados<0||salida.delivery<0)
+   throw Error("Los totales disminuyeron desde el inicio del turno. Revisa los pedidos.");
+ return salida;
+}
+function ukiNubeListaPrecierre(){
+ if(typeof window.ukiCancelacionNubeLista!=="function"||!window.ukiCancelacionNubeLista()){
+   aviso("Primero verifica que diga «Nube: sincronizado». No se guardó ningún precierre.");
+   return false;
+ }
+ return true;
+}
+function ukiIniciarPrecierre(){
+ if(!S.suc||S.busy||!ukiNubeListaPrecierre())return;
+ const nombre=String($("ukiTrabajador")?.value||"").trim().replace(/\s+/g," ");
+ if(nombre.length<2||nombre.length>60){aviso("Escribe el nombre del trabajador.");return;}
+ const caja=cajaDelDia();
+ if(caja.turnoPrecierreAbierto){aviso("Primero guarda el precierre del trabajador anterior.");return;}
+ const inicioMs=Date.now(),base=ukiFotoPrecierre();
+ caja.turnoPrecierreAbierto={nombre,inicioMs,fechaOperativa:fechaOperativaActual(),base};
+ guardarEnLocalStorage();
+ aviso("Turno iniciado para "+nombre+". Comprueba que la nube vuelva a indicar «sincronizado».");
+}
+function ukiGuardarPrecierre(){
+ if(!S.suc||S.busy||!ukiNubeListaPrecierre())return;
+ const caja=cajaDelDia(),abierto=caja.turnoPrecierreAbierto;
+ if(!abierto){aviso("No hay un turno abierto.");return;}
+ const contadoTexto=String($("ukiEfectivoPrecierre")?.value||"").trim();
+ const contado=contadoTexto===""?null:Number(contadoTexto);
+ if(contado!==null&&(!Number.isSafeInteger(contado)||contado<0||contado>100000000)){
+   aviso("El efectivo contado debe ser un monto entero válido.");return;
+ }
+ const obs=String($("ukiObsPrecierre")?.value||"").trim();
+ if(obs.length>300){aviso("Las observaciones deben tener máximo 300 caracteres.");return;}
+ let total;
+ try{total=ukiDiferenciaPrecierre(abierto.base,ukiFotoPrecierre());}
+ catch(e){aviso(e.message||"No se pudo calcular el precierre.");return;}
+ if(!confirm("¿Guardar el precierre de "+abierto.nombre+" sin cerrar el día?"))return;
+ const finMs=Date.now();
+ if(!Array.isArray(caja.precierres))caja.precierres=[];
+ caja.precierres.push({suc:S.suc,fechaOperativa:abierto.fechaOperativa,
+   nombre:abierto.nombre,inicioMs:abierto.inicioMs,finMs,
+   totales:total,efectivoContado:contado,
+   diferenciaEfectivo:contado===null?null:contado-total.efectivoCaja,
+   observaciones:obs});
+ caja.turnoPrecierreAbierto=null;
+ guardarEnLocalStorage();
+ aviso("Precierre registrado para "+abierto.nombre+". El día sigue abierto; comprueba «Nube: sincronizado».");
+}
+function ukiFilaPrecierre(p){
+ const fecha=ms=>Number.isFinite(Number(ms))?
+   new Date(Number(ms)).toLocaleString("es-CL",{dateStyle:"short",timeStyle:"short"}):"Sin hora";
+ const t=p.totales||{},medios=t.medios||{};
+ return '<div class="card" style="padding:12px"><b>'+esc(p.nombre)+
+   '</b><p class="muted" style="margin:5px 0">'+esc(p.fechaOperativa||"")+
+   ' · '+esc(fecha(p.inicioMs))+' a '+esc(fecha(p.finMs))+'</p>'+
+   row("Ventas del turno",fmt(t.venta))+
+   row("Pedidos pagados",Number(t.pagados)||0)+
+   row("Efectivo",fmt(medios.Efectivo))+
+   row("Transferencia",fmt(medios.Transferencia))+
+   row("Débito",fmt(medios.Débito))+
+   row("Edenred",fmt(medios.Edenred))+
+   row("Otros y aplicaciones",fmt((medios.Otros||0)+(medios["Uber Eats"]||0)+(medios.PedidosYa||0)+(medios.Rappi||0)))+
+   row("Delivery cobrado",fmt(t.delivery))+
+   (p.efectivoContado===null?'<p class="muted">Sin conteo físico</p>':
+     row("Efectivo contado",fmt(p.efectivoContado))+
+     row("Diferencia de caja",fmt(p.diferenciaEfectivo)))+
+   (p.observaciones?'<p class="muted">'+esc(p.observaciones)+'</p>':"")+'</div>';
+}
+function vPrecierreTrabajadores(){
+ const caja=cajaDelDia(),abierto=caja.turnoPrecierreAbierto;
+ const dia=fechaOperativaActual();
+ const registros=(caja.precierres||[]).filter(p=>p?.suc===S.suc&&p.fechaOperativa===dia).slice().reverse();
+ let formulario;
+ if(abierto){
+   formulario='<p><b>Turno de '+esc(abierto.nombre)+'</b></p>'+
+     '<p class="muted">Inicio: '+esc(new Date(abierto.inicioMs).toLocaleString("es-CL",{dateStyle:"short",timeStyle:"short"}))+'</p>'+
+     '<label>Efectivo contado (opcional)</label><input id="ukiEfectivoPrecierre" type="number" min="0" step="1" inputmode="numeric" placeholder="Monto contado">'+
+     '<label>Observaciones (opcional)</label><textarea id="ukiObsPrecierre" maxlength="300" rows="2"></textarea>'+
+     '<button class="big" onclick="ukiGuardarPrecierre()">Guardar precierre · no cerrar día</button>';
+ }else{
+   formulario='<label>Trabajador que inicia</label><input id="ukiTrabajador" maxlength="60" placeholder="Nombre del trabajador">'+
+     '<button class="big" onclick="ukiIniciarPrecierre()">Iniciar turno</button>';
+ }
+ return '<div class="card"><h2>🕒 Precierre por trabajador</h2>'+
+   '<p class="muted">Registra las horas y ventas de cada trabajador. No cierra el día ni borra los pedidos. Espera a que la nube esté sincronizada entre turnos.</p>'+
+   formulario+
+   (registros.length?'<details style="margin-top:14px"><summary><b>Precierres del día · '+registros.length+
+     '</b></summary>'+registros.map(ukiFilaPrecierre).join("")+'</details>':"")+
+   '</div>';
+}
+function vHistorialPrecierres(){
+ const registros=ukiPrecierresGuardados().filter(p=>
+   (!S.filtroFecha||p.fechaOperativa===S.filtroFecha)&&
+   (!S.filtro||p.nombre.toLowerCase().includes(S.filtro.toLowerCase())||
+     String(p.fechaOperativa||"").includes(S.filtro)));
+ return '<div class="card"><h2>Precierres por trabajador</h2>'+
+   '<p class="muted">Registros de esta sucursal; separados del cierre definitivo.</p>'+
+   '<button class="sm ok" onclick="ukiExportarPrecierres()">📊 Descargar Excel precierres</button>'+
+   (registros.length?'<details style="margin-top:12px"><summary><b>Ver '+registros.length+
+     ' precierre(s)</b></summary>'+registros.map(ukiFilaPrecierre).join("")+'</details>':
+     '<p class="muted">Sin precierres para estos filtros.</p>')+'</div>';
+}
+function ukiExportarPrecierres(){
+ if(!S.suc){aviso("Abre una sucursal.");return;}
+ const registros=ukiPrecierresGuardados();
+ if(!registros.length){aviso("Todavía no hay precierres guardados.");return;}
+ const cab=["Sucursal","Día operativo","Trabajador","Inicio","Fin","Pedidos pagados",
+   ...MEDIOS,"Venta total","Delivery cobrado","Gastos","Pago repartidor","Retiros",
+   "Efectivo neto esperado","Efectivo contado","Diferencia","Observaciones"];
+ const fecha=ms=>new Date(ms).toLocaleString("es-CL",{dateStyle:"short",timeStyle:"short"});
+ const lineas=[cab,...registros.map(p=>{
+   const t=p.totales||{},m=t.medios||{};
+   return [p.suc,p.fechaOperativa,p.nombre,fecha(p.inicioMs),fecha(p.finMs),
+     t.pagados,...MEDIOS.map(x=>m[x]||0),t.venta,t.delivery,t.gastos,
+     t.pagoRepartidor,t.retiros,t.efectivoCaja,
+     p.efectivoContado===null?"":p.efectivoContado,
+     p.diferenciaEfectivo===null?"":p.diferenciaEfectivo,p.observaciones||""];
+ })];
+ const csv="\uFEFF"+lineas.map(line=>line.map(csvSeguro).join(";")).join("\n");
+ descargarTextoArchivo("uki-precierres-"+(S.suc===SUCURSALES[0]?"regimiento":"serena")+
+   "-"+hoyLocal()+".csv",csv,"text/csv;charset=utf-8");
+}
+
 function setModalidad(modalidad){
   D.modalidad=modalidad;
   if(modalidad!=="Delivery") D.envio=0;
@@ -1037,6 +1196,7 @@ function vCierre(){
     <p id="ukiDiferenciaEfectivo" style="font-weight:650">${esc(conteoTexto)}</p>
     <p class="muted">El conteo es opcional. Si lo ingresas, la diferencia queda guardada junto al cierre.</p>
   </div>
+  ${vPrecierreTrabajadores()}
   <div class="card"><h2>Cerrar el día</h2><label>Responsable</label><input id="resp" placeholder="Nombre" value="${esc(cierreDraft.resp)}" oninput="cierreDraft.resp=this.value"><label>Observaciones</label><textarea id="obs" rows="2" oninput="cierreDraft.obs=this.value">${esc(cierreDraft.obs)}</textarea>${S.confirmCierre?'<p class="aviso" style="background:#ffe1e1;color:#7a0010">Toca otra vez Confirmar cierre para guardar.</p>':""}<button class="big" onclick="cerrar()">${S.confirmCierre?"Confirmar cierre":"Cerrar día"}</button></div>
   <div class="card"><h2>📱 Compartir y Descargar</h2><button class="big" style="background:#25D366" onclick="compartirWhatsAppCierre()">📲 Compartir cierre por WhatsApp</button><button class="big" onclick="descargarPDF('cierre')">📄 Descargar cierre TXT</button><button class="big" style="background:#111" onclick="descargarExcel('cierre')">📊 Descargar Excel cierre</button></div>`;
 }
@@ -1209,6 +1369,7 @@ function ndGuardar(){
 }
 function cerrar(){
   if(S.busy)return;
+  if(cajaDelDia().turnoPrecierreAbierto){aviso("Guarda el precierre del trabajador antes de cerrar el día.");return;}
   const respEl=$("resp");
   const resp=respEl?respEl.value.trim():cierreDraft.resp.trim();
   if(!resp){aviso("⚠️ Escribe quién cierra (ej: Dianna) en Responsable"); if(respEl) respEl.focus(); return;}
@@ -1489,7 +1650,7 @@ function vHistorialCompacto(){
     while(card.firstChild)d.appendChild(card.firstChild);
     card.replaceWith(d);
   });
-  return tmp.innerHTML;
+  return vHistorialPrecierres()+tmp.innerHTML;
 }
 
 function vHistorial(){
