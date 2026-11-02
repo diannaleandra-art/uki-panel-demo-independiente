@@ -115,6 +115,17 @@ button:focus-visible,summary:focus-visible{outline:3px solid #dc7703;outline-off
 #ukiMostrarConfig{display:block;margin:10px 14px 5px auto;padding:8px 12px;border:1px solid #eadfd3;border-radius:10px;background:#fff;color:#6e5441;font-size:12px;font-weight:600;min-height:36px}
 body.uki-nube-alerta #ukiEstadoOperativo{color:#b44713;font-weight:700}
 </style>
+<style id="uki-cuenta-impresion">
+#ukiReciboImpresion{display:none}
+@media print{
+ body{margin:0!important;padding:0!important;background:#fff!important;color:#000!important}
+ body>:not(#ukiReciboImpresion){display:none!important}
+ #ukiReciboImpresion{display:block!important;position:static!important;max-width:80mm;width:100%;padding:4mm 2mm;margin:0!important;background:#fff!important;color:#000!important;
+  font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace!important;
+  white-space:pre-wrap;overflow-wrap:anywhere}
+ @page{margin:5mm}
+}
+</style>
 </head>
 <body>
 <header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.15 · LOCALES</h1><small id="ukiEstadoOperativo" role="status">Nube: desactivada · Abre tu sucursal y carga Firebase</small></header>
@@ -895,9 +906,44 @@ function ukiDetalleCuentaVista(p){
    (externo?row("Ya pagado en otro local",fmt(externo)):"")+
    row(p.pagado?"Estado":"Saldo por pagar en Uki",p.pagado?"Pagado":fmt(Math.max(0,sub+envio+tip-externo)))+
    '<p class="muted">Detalle informativo, no sustituye una boleta tributaria.</p>'+
-   '<button class="sm ok" onclick="ukiCompartirCuenta('+Number(p.id)+')">Compartir detalle</button> '+
+   '<button class="sm ok" onclick="ukiWhatsAppCuenta('+Number(p.id)+')">💬 Enviar por WhatsApp</button> '+
+   '<button class="sm" onclick="ukiImprimirCuenta('+Number(p.id)+')">🖨️ Imprimir cuenta</button> '+
+   '<button class="sm" onclick="ukiCompartirCuenta('+Number(p.id)+')">Compartir detalle</button> '+
    '<button class="sm" onclick="ukiCopiarCuenta('+Number(p.id)+')">Copiar detalle</button></details>';
 }
+
+function ukiWhatsAppCuenta(id){
+ const p=(S.pedidos||[]).find(x=>x.id===id&&x.suc===S.suc);
+ if(!p){aviso("No se encontró la cuenta en esta sucursal.");return;}
+ const texto=ukiDetalleCuentaTexto(p);
+ if(!texto)return;
+ // Abre WhatsApp con el texto listo: el trabajador elige destinatario y confirma el envío.
+ // NO envía mensajes automáticamente ni altera el pedido.
+ const a=document.createElement("a");
+ a.href="https://wa.me/?text="+encodeURIComponent(texto);
+ a.target="_blank";
+ a.rel="noopener noreferrer";
+ document.body.appendChild(a);
+ a.click();
+ a.remove();
+}
+function ukiImprimirCuenta(id){
+ const p=(S.pedidos||[]).find(x=>x.id===id&&x.suc===S.suc);
+ if(!p){aviso("No se encontró la cuenta en esta sucursal.");return;}
+ const texto=ukiDetalleCuentaTexto(p);
+ if(!texto)return;
+ let recibo=document.getElementById("ukiReciboImpresion");
+ if(!recibo){
+   recibo=document.createElement("div");
+   recibo.id="ukiReciboImpresion";
+   recibo.setAttribute("aria-hidden","true");
+   document.body.appendChild(recibo);
+ }
+ // textContent evita interpretar productos o nombres del cliente como HTML.
+ recibo.textContent=texto;
+ window.print();
+}
+
 function ukiCopiarCuenta(id){
  const p=(S.pedidos||[]).find(x=>x.id===id&&x.suc===S.suc);
  if(!p)return;
