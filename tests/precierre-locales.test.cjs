@@ -138,8 +138,14 @@ test('La fecha operativa nocturna sigue el comportamiento original del panel',()
  old.cierres=[{suc,fechaMs:Date.parse('2026-11-02T23:30:00-03:00')}];
  assert.equal(current(),'2026-11-03');
 });
-test('Cierre definitivo bloqueado si existe precierre abierto',()=>{
- assert.match(html,/function cerrar\(\)\{\s*if\(S\.busy\)return;\s*if\(cajaDelDia\(\)\.turnoPrecierreAbierto\)/);
+test('El cierre diario original no tiene restricciones nuevas de precierre',()=>{
+ const start=html.indexOf('function cerrar(){');
+ const end=html.indexOf('\nfunction descargarTextoArchivo(',start);
+ assert.ok(start>=0&&end>start);
+ const cierre=html.slice(start,end);
+ assert.ok(!cierre.includes('turnoPrecierreAbierto'));
+ assert.match(cierre,/const fechaTurnoCerrado=fechaOperativaActual\(\)/);
+ assert.match(cierre,/S\.fechaOperativa=hoyLocal\(\)/);
 });
 test('Integración: la partición cifrada conserva caja, precierres y pedidos',async()=>{
  const partition=readFileSync(join(root,'uki-particion-local.js'),'utf8');
