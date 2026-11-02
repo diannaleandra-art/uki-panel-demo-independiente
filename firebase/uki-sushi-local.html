@@ -849,7 +849,8 @@ function ukiDetalleCuentaTexto(p){
  if(!p||p.suc!==S.suc)return "";
  const sub=(p.productos||[]).reduce((n,x)=>n+(Number(x.cantidad)||0)*(Number(x.precioUnit)||0),0);
  const delivery=p.modalidad==="Delivery"?Math.max(0,Number(p.envio)||0):0;
- const total=sub+delivery;
+ const tip=Number(p.propina)||0;
+ const total=sub+delivery+tip;
  const externo=p.productosPagadosOtroLocal?ukiMontoProductosOtroLocal(p,sub):0;
  const fecha=String(p.fechaISO||"").replace("T"," ");
  const id=p.codigoCarta?"#"+p.codigoCarta:"N.º "+p.id;
@@ -863,6 +864,7 @@ function ukiDetalleCuentaTexto(p){
  }
  rows.push("--------------------------","Subtotal: "+fmt(sub));
  if(delivery)rows.push("Delivery: "+fmt(delivery));
+ rows.push("Propina opcional: "+fmt(tip)+(tip>0?" · "+String(p.medioPropina||"Efectivo"):""));
  rows.push("TOTAL: "+fmt(total));
  if(externo)rows.push("Pagado en "+(p.localPagoExterno||"otro local")+": "+fmt(externo));
  rows.push(p.pagado?"ESTADO: Pagado":"SALDO POR PAGAR EN UKI: "+fmt(Math.max(0,total-externo)));
@@ -872,6 +874,7 @@ function ukiDetalleCuentaTexto(p){
 function ukiDetalleCuentaVista(p){
  const sub=(p.productos||[]).reduce((n,x)=>n+(Number(x.cantidad)||0)*(Number(x.precioUnit)||0),0);
  const envio=p.modalidad==="Delivery"?Number(p.envio)||0:0;
+ const tip=Number(p.propina)||0;
  const externo=p.productosPagadosOtroLocal?ukiMontoProductosOtroLocal(p,sub):0;
  return '<details class="inner-details"><summary>🧾 Ver cuenta del cliente</summary>'+
    (p.mesaReferencia?'<p class="muted">Referencia: '+esc(p.mesaReferencia)+'</p>':"")+
@@ -879,9 +882,10 @@ function ukiDetalleCuentaVista(p){
       (x.detalle?' · '+x.detalle:'')+' ('+fmt(x.precioUnit)+' c/u)',fmt((Number(x.cantidad)||0)*(Number(x.precioUnit)||0)))).join("")+
    row("Subtotal",fmt(sub))+
    (envio?row("Envío",fmt(envio)):"")+
-   row("Total",fmt(sub+envio),"final")+
+   row("Propina opcional"+(tip>0?" · "+String(p.medioPropina||"Efectivo"):""),fmt(tip))+
+   row("Total a pagar",fmt(sub+envio+tip),"final")+
    (externo?row("Ya pagado en otro local",fmt(externo)):"")+
-   row(p.pagado?"Estado":"Saldo por pagar en Uki",p.pagado?"Pagado":fmt(Math.max(0,sub+envio-externo)))+
+   row(p.pagado?"Estado":"Saldo por pagar en Uki",p.pagado?"Pagado":fmt(Math.max(0,sub+envio+tip-externo)))+
    '<p class="muted">Detalle informativo, no sustituye una boleta tributaria.</p>'+
    '<button class="sm ok" onclick="ukiCompartirCuenta('+Number(p.id)+')">Compartir detalle</button> '+
    '<button class="sm" onclick="ukiCopiarCuenta('+Number(p.id)+')">Copiar detalle</button></details>';
@@ -1572,7 +1576,7 @@ function vPedidos(){
     ${(p.productos||[]).map(pr=>`<div class="row"><span>${pr.cantidad}x ${esc(pr.nombre)}${pr.detalle?` · ${esc(pr.detalle)}`:''}</span><b>${fmt(pr.cantidad*pr.precioUnit)}</b></div>`).join('')}
     ${p.envio?row('Delivery',fmt(p.envio)):''}
     ${p.mesaReferencia?`<p class="muted">Mesa: ${esc(p.mesaReferencia)}</p>`:""}
-    ${ukiCuentaLocal(p)?ukiDetalleCuentaVista(p):""}
+    ${!p.esPremio?ukiDetalleCuentaVista(p):""}
     ${ukiDetallePago(p,"productos")}${ukiDetallePago(p,"envio")}
     ${p.codigoCliente?`<p class='muted'>Codigo cliente: ${esc(p.codigoCliente)}</p>`:''}
     ${p.textoOriginal&&!p.esPremio?`<details class="inner-details"><summary>Ver WhatsApp original</summary><p style="white-space:pre-wrap">${esc(p.textoOriginal)}</p></details>`:''}
