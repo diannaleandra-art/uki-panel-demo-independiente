@@ -15,7 +15,8 @@ function cobroLocalPedido(p){
 }
 function notaPagoPedido(p){
  const cobrado=Object.prototype.hasOwnProperty.call(p,"cobradoLocal")?Number(p.cobradoLocal):(!p.pagado||p.estado==="Cancelado"||p.esPremio?0:Number(p.total)||0);
- const notas=["Cobrado en esta sucursal: $"+cobrado];
+ const notas=["Cobrado en esta sucursal (productos y delivery): $"+cobrado];
+ if((Number(p.propina)||0)>0)notas.push("Propina voluntaria aparte: $"+Number(p.propina)+" · "+String(p.medioPropina||"Efectivo"));
  if(p.productosPagadosOtroLocal)notas.push("Productos $"+(p.montoProductosOtroLocal===undefined?Number(p.subtotal)||0:Number(p.montoProductosOtroLocal)||0)+" pagados en "+String(p.localPagoExterno||"otro local"));
  for(const [titulo,lista] of [["Productos",p.pagosProductos],["Delivery",p.pagosEnvio]]){
   if(Array.isArray(lista)&&lista.length>1)notas.push(titulo+": "+lista.map(x=>String(x.medio)+" $"+Number(x.monto)).join(" + "));
@@ -31,7 +32,7 @@ function capturar(S,caja,delSucHoy){
   fechaISO:p.fechaISO||"",pagado:!!p.pagado,estado:p.estado||"",
   esPremio:!!p.esPremio,medio:p.medio||"",medioEnvio:p.medioEnvio||"",
   modalidad:p.modalidad||"",subtotal:Number(p.subtotal)||0,envio:Number(p.envio)||0,
-  total:Number(p.total)||0,cobradoLocal:cobroLocalPedido(p),
+  total:Number(p.total)||0,cobradoLocal:cobroLocalPedido(p),propina:Number(p.propina)||0,medioPropina:p.medioPropina||"",
   productosPagadosOtroLocal:!!p.productosPagadosOtroLocal,
   montoProductosOtroLocal:p.productosPagadosOtroLocal?
     (p.montoProductosOtroLocal===undefined||p.montoProductosOtroLocal===null||p.montoProductosOtroLocal===""?
@@ -48,7 +49,7 @@ function capturar(S,caja,delSucHoy){
   version:1,pedidos,
   gastos:copia(S.gastos,["id","fechaISO","concepto","monto","medio"]),
   retiros:copia(S.retiros,["id","fechaISO","motivo","monto"]),
-  propinas:copia(S.propinas,["id","fechaISO","monto","medio"]),
+  propinas:copia(S.propinas,["id","pedidoId","fechaISO","monto","medio"]),
   deliveriesManuales:copia(S.deliveriesManuales,["id","fechaISO","cliente","nota","monto","medio"]),
   cajaChica:{inicial:Number(caja.cajaChica?.inicial)||0,
    gastos:(caja.cajaChica?.gastos||[]).map(x=>({concepto:x.concepto||"",monto:Number(x.monto)||0}))},
@@ -68,7 +69,7 @@ function filas(c){
  }
  for(const x of d.gastos||[])r.push(["Gasto",x.fechaISO,x.id,x.concepto,x.monto,x.medio,""]);
  for(const x of d.retiros||[])r.push(["Retiro",x.fechaISO,x.id,x.motivo,x.monto,"Efectivo",""]);
- for(const x of d.propinas||[])r.push(["Propina",x.fechaISO,x.id,"Propina",x.monto,x.medio,"Aparte"]);
+ for(const x of d.propinas||[])r.push(["Propina",x.fechaISO,x.pedidoId?"Pedido "+x.pedidoId:x.id,"Propina",x.monto,x.medio,"Aparte de ventas"]);
  for(const x of d.deliveriesManuales||[])r.push(["Delivery manual",x.fechaISO,x.id,x.cliente,x.monto,x.medio,x.nota]);
  for(const x of d.cajaChica?.gastos||[])r.push(["Caja chica","","",x.concepto,x.monto,"Caja chica","No suma al total general de gastos"]);
  for(const [nombre,monto] of Object.entries(d.apps||{}))if(monto)r.push(["Venta app manual","","",nombre,monto,nombre,""]);
@@ -131,7 +132,7 @@ function render(c,fmt,esc,index,estado){
   ((p.productos||[]).length?'<p class="muted" style="margin:0 0 8px 8px">'+esc(p.productos.map(x=>x.cantidad+'x '+x.nombre+(x.detalle?' · '+x.detalle:'')).join('; '))+'</p>':''));
  const expenses=(d.gastos||[]).map(x=>row(x.concepto+' · '+x.medio,x.monto));
  const withdrawals=(d.retiros||[]).map(x=>row(x.motivo||'Retiro',x.monto));
- const tips=(d.propinas||[]).map(x=>row('Propina · '+x.medio,x.monto));
+ const tips=(d.propinas||[]).map(x=>row('Propina · '+x.medio+(x.pedidoId?' · pedido #'+x.pedidoId:''),x.monto));
  const deliveries=(d.deliveriesManuales||[]).map(x=>row((x.cliente||'Manual')+(x.nota?' · '+x.nota:'')+' · '+x.medio,x.monto));
  const petty=(d.cajaChica?.gastos||[]).map(x=>row(x.concepto||'Caja chica',x.monto));
  const apps=Object.entries(d.apps||{}).filter(([,v])=>v).map(([name,v])=>row(name,v));
