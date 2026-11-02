@@ -156,6 +156,10 @@ function fechaOperativaActual(){
    ...(S.propinas||[]),...(S.deliveriesManuales||[])].filter(x=>x.suc===S.suc);
  const ult=Math.max(0,...(S.cierres||[]).filter(x=>x.suc===S.suc).map(fechaCierreMs));
  if(/^\d{4}-\d{2}-\d{2}$/.test(S.fechaOperativa||"")){
+   // Un turno de trabajador abierto conserva su fecha operativa incluso pasada la medianoche.
+   // Evita que el panel cambie de caja antes de poder guardar el precierre.
+   if(S.cajasDiarias?.[S.suc+"|"+S.fechaOperativa]?.turnoPrecierreAbierto)
+     return S.fechaOperativa;
    if(S.fechaOperativa<hoy && ult>=new Date(S.fechaOperativa+"T00:00:00").getTime()){
      const hayPosteriores=movimientos().some(x=>fechaRegistroMs(x)>ult);
      const caja=(S.cajasDiarias||{})[S.suc+"|"+S.fechaOperativa];
@@ -553,6 +557,9 @@ function ukiGuardarPrecierre(){
  if(!S.suc||S.busy||!ukiNubeListaPrecierre())return;
  const caja=cajaDelDia(),abierto=caja.turnoPrecierreAbierto;
  if(!abierto){aviso("No hay un turno abierto.");return;}
+ if(abierto.fechaOperativa!==fechaOperativaActual()){
+   aviso("El turno corresponde a otro día operativo. Revisa la caja antes de guardarlo.");return;
+ }
  const contadoTexto=String($("ukiEfectivoPrecierre")?.value||"").trim();
  const contado=contadoTexto===""?null:Number(contadoTexto);
  if(contado!==null&&(!Number.isSafeInteger(contado)||contado<0||contado>100000000)){
