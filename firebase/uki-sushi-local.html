@@ -617,11 +617,14 @@ function vPrecierreTrabajadores(){
      '</b></summary>'+registros.map(ukiFilaPrecierre).join("")+'</details>':"")+
    '</div>';
 }
-function vHistorialPrecierres(){
- const registros=ukiPrecierresGuardados().filter(p=>
+function ukiPrecierresFiltrados(){
+ return ukiPrecierresGuardados().filter(p=>
    (!S.filtroFecha||p.fechaOperativa===S.filtroFecha)&&
    (!S.filtro||p.nombre.toLowerCase().includes(S.filtro.toLowerCase())||
      String(p.fechaOperativa||"").includes(S.filtro)));
+}
+function vHistorialPrecierres(){
+ const registros=ukiPrecierresFiltrados();
  return '<div class="card"><h2>Precierres por trabajador</h2>'+
    '<p class="muted">Registros de esta sucursal; separados del cierre definitivo.</p>'+
    '<button class="sm ok" onclick="ukiExportarPrecierres()">📊 Descargar Excel precierres</button>'+
@@ -631,7 +634,7 @@ function vHistorialPrecierres(){
 }
 function ukiExportarPrecierres(){
  if(!S.suc){aviso("Abre una sucursal.");return;}
- const registros=ukiPrecierresGuardados();
+ const registros=ukiPrecierresFiltrados();
  if(!registros.length){aviso("Todavía no hay precierres guardados.");return;}
  const cab=["Sucursal","Día operativo","Trabajador","Inicio","Fin","Pedidos pagados",
    ...MEDIOS,"Venta total","Delivery cobrado","Gastos","Pago repartidor","Retiros",
