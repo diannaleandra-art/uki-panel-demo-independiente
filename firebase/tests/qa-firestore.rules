@@ -1,0 +1,21 @@
+// SOLO para pruebas aisladas del emulador local.
+// Identidades ficticias: NUNCA desplegar en el proyecto Firebase real.
+// Ajustar las reglas reales exige conocer los UID autorizados de los locales.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function autorizado(sucursal) {
+      return request.auth != null && (
+        (sucursal == "regimiento" && request.auth.uid in ["qa-duena", "qa-arica"]) ||
+        (sucursal == "la-serena" && request.auth.uid in ["qa-duena", "qa-serena"])
+      );
+    }
+    match /uki_operacion_v1/{sucursal} {
+      allow read, write: if autorizado(sucursal);
+      match /bloques/{bloque} {
+        allow read, write: if autorizado(sucursal);
+      }
+    }
+    // Todas las demás colecciones se niegan por defecto.
+  }
+}
