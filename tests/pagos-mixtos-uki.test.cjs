@@ -87,3 +87,34 @@ test('El cierre original mantiene sin cambios fecha operativa y corte',()=>{
  const sourceClose=html.slice(html.indexOf('function cerrar(){'),html.indexOf('\nfunction descargarTextoArchivo('));
  assert.ok(!sourceClose.includes('productosPagadosOtroLocal'));
 });
+
+
+test('El historial detallado conserva valor total y efectivo real, sin duplicar cobro externo',()=>{
+ const pathCierre=path.join(__dirname,'..','firebase','uki-cierre-detallado.js');
+ const code=fs.readFileSync(pathCierre,'utf8');
+ const w={};
+ new Function('window',code)(w);
+ const suc='Uki Regimiento Arica';
+ const pedidos=[{
+  id:1,suc,pagado:true,estado:'Entregado',modalidad:'Delivery',subtotal:20000,
+  envio:3000,total:23000,medio:'Transferencia',medioEnvio:'Efectivo',
+  productosPagadosOtroLocal:true,localPagoExterno:'Uki La Serena',productos:[]
+ },{
+  id:2,suc,pagado:true,estado:'Entregado',modalidad:'Delivery',subtotal:20000,
+  envio:3000,total:23000,medio:'Transferencia',medioEnvio:'Efectivo',
+  pagosProductos:[{medio:'Transferencia',monto:10000},{medio:'Débito',monto:10000}],
+  pagosEnvio:[{medio:'Efectivo',monto:1000},{medio:'Débito',monto:2000}],productos:[]
+ }];
+ const state={suc,pedidos,gastos:[],retiros:[],propinas:[],deliveriesManuales:[]};
+ const caja={cajaChica:{inicial:20000,gastos:[]},apps:{},base:18000,pagoDelivery:0,pagoDeliveryMedio:'Efectivo'};
+ const snapshot=w.ukiDetalleCierre.capturar(state,caja,a=>a);
+ assert.deepEqual(snapshot.pedidos.map(x=>x.cobradoLocal),[3000,23000]);
+ const csv=w.ukiDetalleCierre.csv({detalle:snapshot},x=>String(x));
+ assert.match(csv,/Productos \$20000 pagados en Uki La Serena/);
+ assert.match(csv,/Delivery: Efectivo \$1000 \+ Débito \$2000/);
+});
+test('Pedido pagado en otro local no genera segundo timbre en la cocina',()=>{
+ assert.match(html,/if\(D\.cliente && D\.pagado && !D\.productosPagadosOtroLocal\)/);
+ assert.match(html,/if\(!p\.esPremio && D\.cliente && D\.pagado && !D\.productosPagadosOtroLocal\)/);
+ assert.match(html,/if\(p\.cliente && !p\.productosPagadosOtroLocal\)/);
+});
