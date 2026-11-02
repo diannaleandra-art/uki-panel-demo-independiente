@@ -112,6 +112,26 @@ test('Excel respeta filtros del historial y escapa entradas peligrosas',()=>{
  assert.match(x.reports[0].text,/'=IMPORT/);
  assert.match(x.reports[0].name,/regimiento/);
 });
+test('Turno nocturno conserva el día operativo antes del precierre',()=>{
+ const start=html.indexOf('function fechaOperativaActual(){');
+ const end=html.indexOf('\nfunction cajaDelDia(){',start);
+ assert.ok(start>=0&&end>start);
+ const create=new Function('S','hoyLocal','fechaCierreMs','fechaRegistroMs',
+  html.slice(start,end)+'\nreturn fechaOperativaActual');
+ const suc=branches[0];
+ const old={suc,fechaOperativa:'2026-11-02',pedidos:[],gastos:[],
+  retiros:[],propinas:[],deliveriesManuales:[],cierres:[
+    {suc,fechaMs:Date.parse('2026-11-02T23:30:00-03:00')}
+  ],cajasDiarias:{
+   [suc+'|2026-11-02']:{apps:{},pagoDelivery:0,
+    turnoPrecierreAbierto:{nombre:'María',inicioMs:Date.parse('2026-11-02T22:00:00-03:00')}}
+  }};
+ const current=create(old,()=>'2026-11-03',c=>c.fechaMs,()=>0);
+ assert.equal(current(),'2026-11-02');
+ assert.equal(old.fechaOperativa,'2026-11-02');
+ old.cajasDiarias[suc+'|2026-11-02'].turnoPrecierreAbierto=null;
+ assert.equal(current(),'2026-11-03');
+});
 test('Cierre definitivo bloqueado si existe precierre abierto',()=>{
  assert.match(html,/function cerrar\(\)\{\s*if\(S\.busy\)return;\s*if\(cajaDelDia\(\)\.turnoPrecierreAbierto\)/);
 });
