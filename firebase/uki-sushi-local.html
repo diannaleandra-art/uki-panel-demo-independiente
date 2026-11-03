@@ -1872,7 +1872,7 @@ function ukiPedidoCoincideBusqueda(p,texto){
 }
 
 /* Bandeja QR QA: los envíos del cliente NO son ventas pagadas. */
-const UKI_MESAS_ENDPOINT='https://uki-sushi-pedidos.vercel.app/api/mesa-pedidos';
+const UKI_MESAS_ENDPOINT='https://uki-sushi-pedidos-git-preparacion-uki-27ff36-diannaleandra-7046.vercel.app/api/mesa-pedidos';
 let ukiMesas={rows:[],branch:'',status:'Pulsa Actualizar para consultar pedidos de mesas.',busy:false,used:false};
 const ukiMesaBranch=()=>S.suc===SUCURSALES[0]?'arica':S.suc===SUCURSALES[1]?'serena':'';
 const ukiMesaCode=id=>'MESA-'+String(id||'').toUpperCase();
