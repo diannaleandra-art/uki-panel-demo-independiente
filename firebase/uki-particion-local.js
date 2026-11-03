@@ -2,7 +2,7 @@
  * Prototipo local, NO hace llamadas de red y NO se conecta a la v8.15.
  * El llamador debe cifrar cada bloque AES-GCM antes de usar Firestore.
  */
-const SERIES=["pedidos","gastos","retiros","propinas","cierres","deliveriesManuales","incidencias"];
+const SERIES=["pedidos","gastos","retiros","propinas","cierres","deliveriesManuales","incidencias","ajustesHistoricos"];
 const MAX=180000;
 const nbytes=s=>(encodeURIComponent(s).match(/%[0-9A-Fa-f]{2}|./g)||[]).length;
 const mes=x=>(String(x.fechaISO||x.fecha||"").match(/^\d{4}-\d{2}/)||[])[0]||"historico";
@@ -24,7 +24,7 @@ export function dividirEstado(state,suc){
   if(state?.suc!==suc)error("SUCURSAL","Sucursal inválida");
   const out=[];
   for(const tipo of SERIES){
-    const src=state[tipo];
+    const src=tipo==="ajustesHistoricos"?(state[tipo]||[]):state[tipo];
     if(!Array.isArray(src)||src.some(x=>!x||x.suc!==suc))error("SUCURSAL","Registros mezclados");
     const grupos=new Map();
     src.forEach((v,orden)=>{
