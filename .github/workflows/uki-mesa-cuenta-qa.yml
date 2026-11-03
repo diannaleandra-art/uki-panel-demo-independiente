@@ -12,6 +12,9 @@ on:
       - 'firebase/uki-sushi-nube.js'
       - 'firebase/uki-particion-local.js'
       - 'firebase/uki-sushi-autoguardado.js'
+      - 'tests/uki-qr-firestore-emulator.qa.mjs'
+      - 'tests/uki-firestore-emulator.rules'
+      - 'firebase-qa-emulator.json'
   workflow_dispatch:
 permissions:
   contents: read
@@ -38,3 +41,23 @@ jobs:
         run: node tests/uki-qr-cuenta-browser.qa.cjs
       - name: Probar sincronización cifrada y autoguardado en nube simulada aislada
         run: node tests/uki-qr-sync.qa.mjs
+
+  firestore-emulador-aislado:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Código privado de pruebas
+        uses: actions/checkout@v4
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Java para Firebase Firestore Emulator
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Dependencias exclusivas de la prueba aislada
+        run: npm install --no-save --no-package-lock firebase-tools@14.22.0 @firebase/rules-unit-testing@4.0.1 firebase@11.10.0
+      - name: Comprobar escritura, recuperación y permisos con Firestore local
+        run: npx firebase emulators:exec --only firestore --project demo-uki-mesas-qa-aislado --config firebase-qa-emulator.json "node tests/uki-qr-firestore-emulator.qa.mjs"
