@@ -256,6 +256,8 @@ function ir(v){
   if(!S.suc&&v!=="inicio")v="inicio";
   S.vista=v;
   render();
+  if(v==="pedidos"&&!ukiMesas.used&&typeof window.ukiMesasQAToken==="function")
+    setTimeout(()=>{if(S.vista==="pedidos"&&S.suc)ukiMesaActualizar();},0);
   window.scrollTo({top:0,behavior:"instant"});
 }
 
