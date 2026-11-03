@@ -22,11 +22,18 @@ const ctx1=env.authenticatedContext('qa-uki-administrador');
 const ctx2=env.authenticatedContext('qa-uki-administrador');
 const db=ctx1.firestore(),db2=ctx2.firestore();
 const ui={uid:'qa-uki-administrador'};
+const adaptarSnapshot=snapshot=>({
+ exists:()=>snapshot.exists,
+ data:()=>snapshot.data()
+});
 const api={
  doc:(firestore,...paths)=>firestore.doc(paths.join('/')),
- getDocFromServer:ref=>ref.get({source:'server'}),
+ getDocFromServer:async ref=>adaptarSnapshot(await ref.get({source:'server'})),
  writeBatch:firestore=>firestore.batch(),
- runTransaction:(firestore,fn)=>firestore.runTransaction(fn)
+ runTransaction:(firestore,fn)=>firestore.runTransaction(tx=>fn({
+  get:async ref=>adaptarSnapshot(await tx.get(ref)),
+  set:(ref,data)=>tx.set(ref,data)
+ }))
 };
 const makeCloud=firestore=>crearSnapshotsUki({
  db:firestore,auth:{currentUser:ui},api,
