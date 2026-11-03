@@ -1,0 +1,33 @@
+name: Uki QR - aceptación aislada sin caja
+on:
+  push:
+    branches:
+      - preparacion/uki-panel-original-acceso-google-qa-2026-11-03
+    paths:
+      - 'tests/uki-qr-cuenta-browser.qa.cjs'
+      - '.github/workflows/uki-mesa-cuenta-qa.yml'
+      - 'firebase/uki-sushi-local.html'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mesa-cuenta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Código de prueba
+        uses: actions/checkout@v4
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar navegador aislado
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Servir SOLO archivos de esta rama, en localhost
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/uki-qa-http.log 2>&1 &
+          echo $! > /tmp/uki-qa-http.pid
+      - name: Probar botones reales del panel y guardar cuenta en sesión temporal
+        run: node tests/uki-qr-cuenta-browser.qa.cjs
