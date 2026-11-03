@@ -89,3 +89,11 @@ Estado al 3 nov 2026: **solo análisis/diseño; no hay recepción automática ac
 - **Prueba pendiente de verdad:** inicio de sesión Google en un origen autorizado, POST de un pedido ficticio a QA, lectura GET en la bandeja de la sucursal y confirmación PATCH, con persistencia segura y sin tocar caja real. Las 9 + 11 pruebas simuladas previas siguen válidas y **no deben repetirse** sin cambio de código.
 - **Autorización:** no modificar producción, dominio, permisos de Firebase, carta de clientes ni contabilidad sin aprobación concreta; no crear versiones nuevas del panel o ampliar funciones.
 - **Permiso CORS entre vistas de prueba (verificado):** se permitió exclusivamente el origen de GitHub Pages y el dominio fijo del panel privado de Vercel, dentro de la rama QR del repositorio de la carta. Cuatro comprobaciones aisladas superadas: panel original 204, panel QA 204, origen ajeno 403, recepción QA apagada 503. No se cambió producción ni se activó la recepción.
+
+## Validación aislada de cuenta por mesa — 3 noviembre 2026
+
+- Lectura de QA: el pedido enviado desde la carta está en Neon QA con `branch=arica`, `mesa=2`, nombre Dianna, total CLP 2.500 y estado `pendiente`. **No se tocó la fila**.
+- Se ejecutaron **las funciones originales del panel** `ukiMesaAbrir` y `ndGuardar` en un entorno JavaScript aislado, con estados y pagos simulados; no se invocó nube operativa ni se modificó el navegador real.
+- **5 comprobaciones superadas**: (1) primera ronda crea una cuenta pendiente de $2.500; (2) segunda ronda de $9.000 se agrega a la misma cuenta y suma $11.500; (3) los identificadores QR se guardan y repetir uno no duplica; (4) solicitudes de otra sucursal no ingresan en la cuenta; (5) una cuenta pagada no se reutiliza para otra ronda.
+- **Pendiente de verificar**: hacer un registro/confirmación extremo a extremo en un panel aislado de persistencia de QA. La vista privada actual tiene `UKI_OPERACION_HABILITADA=false` y consulta de bandeja **solo lectura**, por lo que los cinco controles anteriores son pruebas de integración lógica, **no** una aceptación real en el navegador.
+- **Producción y caja**: carta pública y panel operativo sin cambios; no se modificaron pagos, ventas, propinas ni cierres. El pedido QA de $2.500 conserva el estado `pendiente`. No activar para clientes sin autorización.
