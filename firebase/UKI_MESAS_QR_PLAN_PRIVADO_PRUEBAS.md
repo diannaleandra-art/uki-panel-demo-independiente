@@ -138,3 +138,13 @@ La administradora compartió capturas del editor de reglas **activo** de Firebas
 - **Límite de auditoría:** las capturas compartidas no contienen íntegra cada línea del archivo (incluido el cierre posterior a línea 139); esta es una revisión de las condiciones visibles, **no** una validación textual completa de reglas productivas ni una prueba de escritura en vivo.
 - **Limitación operativa importante:** las reglas visibles de `uki_operacion_v1` solo conceden permisos al **administrador**. No confieren a los trabajadores de cada sucursal permisos directos para escribir el respaldo de caja. La nueva autorización por sucursal para consultar y cambiar estado de pedidos QR pertenece a la API QA de Neon, **no cambia** permisos de Firebase. No compartir credenciales de administración ni ampliar `admin()` indiscriminadamente.
 - **Siguiente decisión técnica:** mantener separación entre trabajadores (bandeja QR) y cuenta administradora (respaldo/caja), establecer el mecanismo autorizado de guardado del panel para cada empleado y probar una aceptación desde el panel privado antes de activar clientes. No publicar ni alterar Firestore operativo sin prueba completa y autorización concreta.
+
+## Aclaración de acceso del personal — código compartido (3 noviembre 2026)
+
+La propietaria confirmó que **todos los trabajadores de Uki utilizan el mismo código del panel**. Esta condición ya existente debe mantenerse; **no solicitar correos personales, altas de Firebase individuales ni un inicio de sesión de Google por trabajador**.
+
+La pantalla QR y el registro manual deben seguir integrados en el panel original, con el acceso por código existente y selección de la sucursal como hasta ahora. El personal debe poder revisar solicitudes, registrar una cuenta pendiente y cobrar al finalizar sin cambiar su rutina.
+
+**Seguridad por resolver antes de producción:** el PIN/código compartido controla la entrada a la interfaz, pero **no** reemplaza la autenticación y autorización del servidor o las reglas de Firestore. Las reglas reales observadas conceden escritura del respaldo operativo solo a la cuenta administrativa. No ampliar `admin()` para dejar escribir con un PIN desde un navegador ni compartir credenciales administrativas. Preparar una ruta segura en servidor, autenticada y limitada por sucursal, o mecanismo compatible con la sesión segura existente, para persistir los pedidos de empleados; probar guardado y sincronización extremos antes de publicar.
+
+El diseño opcional de correos por trabajador en la API QR QA no será requisito para operar el panel. No activar altas ni configurar listas individuales de empleados sin autorización. Sin cambios de reglas, caja, carta o producción.
