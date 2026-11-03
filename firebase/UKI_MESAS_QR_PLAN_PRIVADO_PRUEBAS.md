@@ -92,3 +92,11 @@ Estado al 3 nov 2026: **solo análisis/diseño; no hay recepción automática ac
 - Se ejecutaron dos pruebas aisladas: navegador real del panel v8.15 con botones «Revisar y registrar» y guardado local cifrado; y protocolos originales de cifrado, particionado, guardado/revisión y autoguardado con emulador **en memoria**, sin conexión a Firebase productivo.
 - 8 controles de sincronización superados: cuenta pendiente y borrador, lectura completa, segunda ronda, conflicto de revisión, clave incorrecta, sucursales separadas, autoguardado de tercera ronda, sin pagos/propinas/cierre. El cliente QA real de Regimiento con pedido por $2.500 no fue cobrado ni aceptado.
 - **No equivale a una prueba con Firestore real**: todavía requiere verificar permisos y recuperación en Firebase con sesión autorizada y almacenamiento aislado antes del lanzamiento. No activar QR público ni escrituras en producción sin autorización.
+
+## Diagnóstico de permisos Firestore real (solo lectura) — 3 noviembre 2026
+
+- La vista privada del panel Uki v8.15 añadió un chequeo automático de **solo lectura** mediante Firebase Web SDK `getDocFromServer(doc(db, "uki_operacion_v1", branch))`, una consulta de manifiesto para Regimiento Arica y otra para La Serena.
+- Usa sesión Google existente; no descarga bloques cifrados, no pide clave y no llama a `cloud.guardar`, `writeBatch` ni `runTransaction`.
+- Los posibles resultados son lectura autorizada con/sin manifiesto, `permission-denied` y `unavailable`. No se anuncia éxito de permisos hasta ver el resultado de la cuenta autenticada en el navegador.
+- Vista privada desplegada READY en Vercel (commit `27c844bfd008249003e718ee577ac7dfe78f0976`); GitHub Actions pasó en ejecución 41689280664. Vercel SSO continúa activado, root/build temporal restituido. `UKI_OPERACION_HABILITADA=false`, sin escrituras operativas.
+- **Pendiente**: la usuaria debe abrir desde Safari la URL estable de la vista de panel QA, ingresar con Google si hace falta y compartir el texto de «Comprobación de lectura de Firebase»; solo entonces sabremos si las reglas de lectura de Firestore real permiten el acceso. Una lectura exitosa no valida las reglas de escritura; para ello hará falta ambiente Firebase separado o emulador y una prueba autorizada antes de activar para clientes.
