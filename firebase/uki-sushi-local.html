@@ -135,6 +135,12 @@ body.uki-nube-alerta #ukiEstadoOperativo{color:#b44713;font-weight:700}
 <p><strong>Único paso:</strong> pulsa «Entrar con Google» y elige el correo administrativo de Uki. Esta es una vista privada para comprobar el inicio de sesión: no carga la nube ni guarda ventas.</p>
 <div id="ukiNubeEstado" role="status">Google sin iniciar.</div>
 <button id="ukiLoginQA" type="button">Entrar con Google</button>
+<div id="ukiFirebaseLecturaQA" hidden style="margin-top:12px;padding:12px;border:1px solid #dfbd9b;border-radius:12px;background:#fffbf6">
+ <strong>🔒 Comprobación de lectura de Firebase</strong>
+ <p style="font-size:13px">Solo revisa si la cuenta de Google puede leer el estado de sincronización de cada sucursal. No abre registros, no pide claves y no guarda nada.</p>
+ <button type="button" id="ukiFirebaseLecturaActualizarQA">Comprobar lectura</button>
+ <p id="ukiFirebaseLecturaEstadoQA" role="status">Pendiente de consulta.</p>
+</div>
 <div id="ukiMesasConsultaQA" hidden style="margin-top:16px;padding:14px;background:#fff;border:1px solid #eab77a;border-radius:12px">
   <strong>🍽 Pedidos de mesas · lectura de prueba</strong>
   <p style="font-size:13px">Aquí solo se ven pedidos QR. No se registran ventas, cobros ni movimientos de caja.</p>
@@ -3011,6 +3017,32 @@ async function accion(action){
  finally{ocupado=false;el("ukiLoadQA").disabled=false;el("ukiSaveQA").disabled=auto.resumen().activo}
 }
 window.ukiMesasQAToken=async()=>auth.currentUser?auth.currentUser.getIdToken():null;
+// Diagnóstico no destructivo: lee solo el manifiesto, nunca bloques ni datos personales.
+let ukiFirebaseLecturaOcupadaQA=false;
+async function ukiFirebaseLecturaComprobarQA(){
+ const status=el("ukiFirebaseLecturaEstadoQA");
+ if(!status||ukiFirebaseLecturaOcupadaQA)return;
+ if(!auth.currentUser){status.textContent="Inicia sesión con Google para comprobar los permisos.";return;}
+ ukiFirebaseLecturaOcupadaQA=true;
+ status.textContent="Consultando permisos de lectura de las dos sucursales…";
+ try{
+  const sucursales=[["regimiento","Regimiento Arica"],["la-serena","La Serena"]];
+  const resultados=await Promise.all(sucursales.map(async([id,nombre])=>{
+   try{
+    const snapshot=await getDocFromServer(doc(db,"uki_operacion_v1",id));
+    return nombre+": lectura autorizada"+(snapshot.exists()?" (hay respaldo cifrado)":" (sin respaldo en esta ruta)");
+   }catch(e){
+    const codigo=String(e?.code||"");
+    return nombre+": "+(codigo==="permission-denied"
+      ?"permiso de lectura denegado"
+      :codigo==="unavailable"?"Firestore no disponible"
+      :"no se pudo leer ("+codigo.replace(/[^a-z0-9/-]/ig,"").slice(0,40)+")");
+   }
+  }));
+  status.textContent=resultados.join(" · ")+". No se escribió ni modificó ningún registro.";
+ }finally{ukiFirebaseLecturaOcupadaQA=false;}
+}
+el("ukiFirebaseLecturaActualizarQA")?.addEventListener("click",ukiFirebaseLecturaComprobarQA);
 // Bandeja de verificación: SOLO LECTURA, sin guardar ni confirmar solicitudes.
 let ukiMesasConsultaOcupadaQA=false;
 async function ukiMesasConsultaLeerQA(){
@@ -3069,7 +3101,9 @@ onAuthStateChanged(auth,user=>{
  msg(user?"Google conectado: "+(user.email||"cuenta Google")+". Pedidos QR disponibles solo para consulta. No hay ventas habilitadas.":"Google sin iniciar. Pulsa «Entrar con Google» y elige la cuenta administrativa de Uki.");
  const bandejaQA=el("ukiMesasConsultaQA");
  if(bandejaQA)bandejaQA.hidden=!user;
- if(user)ukiMesasConsultaLeerQA();
+ const permisoQA=el("ukiFirebaseLecturaQA");
+ if(permisoQA)permisoQA.hidden=!user;
+ if(user){ukiMesasConsultaLeerQA();ukiFirebaseLecturaComprobarQA();}
  actualizarBloqueo();
 },e=>msg("Error de Google: "+String(e?.code||e)));
 el("ukiLoginQA").addEventListener("click",()=>accion(async()=>{
