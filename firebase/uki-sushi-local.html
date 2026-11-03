@@ -148,6 +148,22 @@ body.uki-nube-alerta #ukiEstadoOperativo{color:#b44713;font-weight:700}
   <p id="ukiMesasConsultaEstadoQA" role="status">Consultando…</p>
   <div id="ukiMesasConsultaListaQA"></div>
 </div>
+<div id="ukiEquipoQRQA" style="margin-top:14px;padding:14px;border:1px solid #dcaa79;border-radius:12px;background:#fffaf5">
+ <strong>📱 Acceso al QR desde un equipo autorizado · solo pruebas</strong>
+ <p style="font-size:13px">El personal conserva el código del panel. Esta autorización separada no permite registrar ventas, cobrar ni abrir datos de caja. La administradora vincula el equipo una sola vez.</p>
+ <label for="ukiEquipoSucursalQA">Sucursal del equipo</label>
+ <select id="ukiEquipoSucursalQA" style="width:100%;max-width:100%;padding:10px;border-radius:8px">
+  <option value="arica">Uki Regimiento Arica</option>
+  <option value="serena">Uki La Serena</option>
+ </select>
+ <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px">
+  <button type="button" id="ukiEquipoEmparejarQA">Autorizar este equipo (administración)</button>
+  <button type="button" id="ukiEquipoVerQA">Consultar pedidos QR</button>
+  <button type="button" id="ukiEquipoRevocarQA">Revocar este equipo</button>
+ </div>
+ <p id="ukiEquipoEstadoQA" role="status">Servicio de dispositivos preparado; pendiente de activación exclusiva en pruebas.</p>
+ <div id="ukiEquipoListadoQA"></div>
+</div>
 <div hidden aria-hidden="true"><label for="ukiCloudPass">Clave de nube desactivada en esta prueba</label><input id="ukiCloudPass" type="password" disabled><button id="ukiLoadQA" type="button" disabled>Cargar nube</button><button id="ukiSaveQA" type="button" disabled>Guardar</button><input id="ukiAutoCheck" type="checkbox" disabled><p id="ukiAutoEstado">Desactivado</p></div>
 <p style="font-size:13px">No introduzcas claves ni registres ventas. La activación de pedidos por QR se comprobará por separado.</p>
 </section>
@@ -2903,6 +2919,7 @@ import {dividirEstado,reunirEstado} from "./uki-particion-local.js";
 import {nuevaSal,nuevaGeneracion,derivarClave,cifrarBloque,descifrarBloque} from "./uki-cifrado-bloques.js";
 import {crearSnapshotsUki} from "./uki-sushi-nube.js";
 import {crearAutoGuardadoOperativo} from "./uki-sushi-autoguardado.js";
+import {estadoEquipoQR,autorizarEquipoQR,obtenerSesionQR,revocarEquipoQR} from "./uki-mesas-dispositivo-qa.js";
 const config={
  apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",
  authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",
@@ -3017,6 +3034,82 @@ async function accion(action){
  finally{ocupado=false;el("ukiLoadQA").disabled=false;el("ukiSaveQA").disabled=auto.resumen().activo}
 }
 window.ukiMesasQAToken=async()=>auth.currentUser?auth.currentUser.getIdToken():null;
+// Equipo QA: solo consulta de bandeja. La clave compartida nunca se lee ni viaja a la API.
+let ukiEquipoBusy=false;
+const ukiEquipoBranch=()=>String(el("ukiEquipoSucursalQA")?.value||"arica");
+const ukiEquipoMsg=mensaje=>{const node=el("ukiEquipoEstadoQA");if(node)node.textContent=mensaje;};
+const ukiEquipoBusySet=v=>{
+ ukiEquipoBusy=v;
+ for(const id of ["ukiEquipoEmparejarQA","ukiEquipoVerQA","ukiEquipoRevocarQA"]){
+  const button=el(id);if(button)button.disabled=v;
+ }
+};
+async function ukiEquipoEstadoLeerQA(){
+ try{
+  const status=await estadoEquipoQR(ukiEquipoBranch());
+  ukiEquipoMsg(status.autorizado
+   ?"Este navegador tiene un equipo QR vinculado en la sucursal seleccionada. Consulta disponible solo si el servidor QA está habilitado."
+   :"No hay un equipo autorizado para esta sucursal en este navegador.");
+ }catch(e){ukiEquipoMsg("No se pudo comprobar el equipo: "+String(e?.message||e));}
+}
+el("ukiEquipoSucursalQA")?.addEventListener("change",()=>{
+ el("ukiEquipoListadoQA")?.replaceChildren();
+ ukiEquipoEstadoLeerQA();
+});
+el("ukiEquipoEmparejarQA")?.addEventListener("click",async()=>{
+ if(ukiEquipoBusy)return;
+ ukiEquipoBusySet(true);
+ try{
+  if(UKI_OPERACION_HABILITADA)throw Error("Esta función solo puede probarse en el panel privado.");
+  if(!auth.currentUser)throw Error("Para autorizar este equipo, inicia sesión como administradora Google.");
+  const token=await auth.currentUser.getIdToken();
+  const branch=ukiEquipoBranch();
+  await autorizarEquipoQR(branch,token,"Equipo privado Uki "+branch);
+  ukiEquipoMsg("Equipo vinculado para "+(branch==="arica"?"Regimiento Arica":"La Serena")+". No se han modificado ventas.");
+ }catch(e){ukiEquipoMsg("No se autorizó el equipo: "+String(e?.message||e));}
+ finally{ukiEquipoBusySet(false);}
+});
+el("ukiEquipoVerQA")?.addEventListener("click",async()=>{
+ if(ukiEquipoBusy)return;
+ ukiEquipoBusySet(true);
+ const host=el("ukiEquipoListadoQA");if(host)host.replaceChildren();
+ try{
+  if(UKI_OPERACION_HABILITADA)throw Error("Esta función solo puede probarse en el panel privado.");
+  const branch=ukiEquipoBranch();
+  const token=await obtenerSesionQR(branch);
+  const response=await fetch(UKI_MESAS_ENDPOINT+"?branch="+branch,{
+   headers:{Authorization:"Bearer "+token},cache:"no-store",credentials:"omit",
+   signal:AbortSignal.timeout(15000)});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok||!data.ok)throw Error(String(data.error||"Bandeja no disponible"));
+  const orders=Array.isArray(data.orders)?data.orders:[];
+  ukiEquipoMsg("Consulta QR de "+(branch==="arica"?"Regimiento Arica":"La Serena")+
+   ": "+orders.length+" pedido(s) pendiente(s). Solo lectura; no se guardó ninguna venta.");
+  for(const pedido of orders){
+   const p=document.createElement("p");
+   p.style.cssText="padding:10px;border:1px solid #ead7c5;border-radius:8px;background:#fff";
+   const amount=Number(pedido.total||0).toLocaleString("es-CL");
+   p.textContent="Mesa "+Number(pedido.mesa||0)+" · "+String(pedido.nombre||"Cliente")+
+    " · $"+amount+" · Pendiente\n"+
+    (Array.isArray(pedido.items)?pedido.items.map(i=>String(i.qty||1)+" × "+String(i.mesaLabel||"Producto")).join("\n"):"");
+   p.style.whiteSpace="pre-wrap";
+   host?.append(p);
+  }
+ }catch(e){ukiEquipoMsg("No se pudo consultar la bandeja del equipo: "+String(e?.message||e));}
+ finally{ukiEquipoBusySet(false);}
+});
+el("ukiEquipoRevocarQA")?.addEventListener("click",async()=>{
+ if(ukiEquipoBusy)return;
+ ukiEquipoBusySet(true);
+ try{
+  if(!auth.currentUser)throw Error("Solo administración Google puede revocar equipos.");
+  await revocarEquipoQR(ukiEquipoBranch(),await auth.currentUser.getIdToken());
+  el("ukiEquipoListadoQA")?.replaceChildren();
+  ukiEquipoMsg("Equipo revocado. Su sesión deja de funcionar al consultar el servidor.");
+ }catch(e){ukiEquipoMsg("No se pudo revocar el equipo: "+String(e?.message||e));}
+ finally{ukiEquipoBusySet(false);}
+});
+ukiEquipoEstadoLeerQA();
 // Diagnóstico no destructivo: lee solo el manifiesto, nunca bloques ni datos personales.
 let ukiFirebaseLecturaOcupadaQA=false;
 async function ukiFirebaseLecturaComprobarQA(){
