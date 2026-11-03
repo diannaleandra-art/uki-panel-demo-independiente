@@ -2384,6 +2384,35 @@ function ukiMediosCierreHistorico(c){
 function ukiEfectivoContadoHistorial(c){
  return c.efectivoContado===null||c.efectivoContado===undefined?"Sin conteo físico":fmt(c.efectivoContado);
 }
+
+function ukiGastosCierreHistorico(c){
+ // La fuente es la fotografía del cierre, no los movimientos actuales.
+ const total=Number(c.gastos)||0;
+ const d=c.detalle;
+ const disponible=d?.version===1&&Array.isArray(d.gastos);
+ if(!disponible)return {disponible:false,gastos:[],total,coincide:false};
+ const gastos=d.gastos.map(x=>({
+  concepto:String(x.concepto||"Gasto sin concepto").replace(/[\r\n*_\t]+/g," ").trim().slice(0,100),
+  medio:String(x.medio||"Sin medio indicado").replace(/[\r\n*_\t]+/g," ").trim().slice(0,35),
+  monto:Number(x.monto)||0
+ }));
+ const suma=gastos.reduce((a,g)=>a+g.monto,0);
+ return {disponible:true,gastos,total,suma,coincide:suma===total};
+}
+function ukiLineasGastosCierreHistorico(c){
+ const d=ukiGastosCierreHistorico(c);
+ if(!d.disponible)return [
+  "Desglose: no disponible en este cierre antiguo; se conserva el total original."
+ ];
+ if(!d.gastos.length)return [d.total?"No hay gastos individualizados en este cierre.":"No se registraron gastos."];
+ const out=["*DESGLOSE DE GASTOS*"];
+ d.gastos.forEach((g,i)=>out.push(
+  (i+1)+". "+g.concepto+" — "+fmt(g.monto)+" ("+g.medio+")"
+ ));
+ if(!d.coincide)out.push("ATENCIÓN: el detalle suma "+fmt(d.suma)+", distinto del total guardado "+fmt(d.total)+". Revisar.");
+ return out;
+}
+
 function ukiMensajeCierreHistorico(c){
  const lineas=[
   "🍣 *UKI SUSHI · CIERRE GUARDADO*",
@@ -2408,6 +2437,7 @@ function ukiMensajeCierreHistorico(c){
   "",
   "*CIERRE DE CAJA*",
   "Gastos: "+fmt(c.gastos||0),
+  ...ukiLineasGastosCierreHistorico(c),
   "*TOTAL FINAL: "+fmt(c.final||0)+"*",
   "Efectivo esperado: "+fmt(c.efectivo||0),
   "Efectivo contado: "+ukiEfectivoContadoHistorial(c),
@@ -2500,6 +2530,20 @@ function ukiCrearPdfResumenHistorico(c){
  fila("Pago realizado ("+(c.pagoDeliveryMedio||"Efectivo")+")",fmt(c.pagadoDelivery??c.delivery??0));
  seccion("Caja y resultado");
  fila("Gastos",fmt(c.gastos||0));
+ const gastosCierre=ukiGastosCierreHistorico(c);
+ if(gastosCierre.disponible&&gastosCierre.gastos.length){
+  seccion("Desglose de gastos");
+  gastosCierre.gastos.forEach((g,i)=>{
+   const nombre=(i+1)+". "+g.concepto.slice(0,29)+(g.concepto.length>29?"…":"");
+   fila(nombre+" · "+g.medio.slice(0,9),fmt(g.monto));
+  });
+  if(!gastosCierre.coincide)lineaNota("Revisar gastos: el detalle suma "+fmt(gastosCierre.suma)+" y el total guardado es "+fmt(gastosCierre.total)+".");
+ }else if(!gastosCierre.disponible&&gastosCierre.total){
+  salto(20);lineaNota("Este cierre antiguo no conserva el desglose individual de gastos.");
+ }else if(gastosCierre.total&&!gastosCierre.gastos.length){
+  salto(20);lineaNota("Este cierre no conserva gastos individualizados.");
+ }
+ seccion("Resultado final");
  fila("Total final",fmt(c.final||0),true);
  fila("Efectivo esperado",fmt(c.efectivo||0));
  fila("Efectivo contado",ukiEfectivoContadoHistorial(c));
