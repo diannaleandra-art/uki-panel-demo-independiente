@@ -151,7 +151,7 @@ const SUCURSALES=["Uki Regimiento Arica","Uki La Serena"];
 const MEDIOS=["Efectivo","Transferencia","Débito","Edenred","Otros","Uber Eats","PedidosYa","Rappi"];
 const APPS=["Uber Eats","PedidosYa","Rappi"];
 let S={suc:null,pinSuc:null,codigos:{},vista:"inicio",base:18000,pedidos:[],gastos:[],retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",deliveriesManuales:[],ajustesHistoricos:[],borradores:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,filtro:"",filtroFecha:"",filtroCliente:""};
-let D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",mesaReferencia:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:"",envioPagadoOtroLocal:false,localPagoExterno:"",propinaModo:"ninguna",propinaPersonalizada:"",medioPropina:"Efectivo",editando:null};
+let D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",qrSolicitudes:[],sucursalCarta:"",mesaReferencia:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:"",envioPagadoOtroLocal:false,localPagoExterno:"",propinaModo:"ninguna",propinaPersonalizada:"",medioPropina:"Efectivo",editando:null};
 const $=id=>document.getElementById(id);
 const fmt=n=>"$"+Math.round(n||0).toLocaleString("es-CL");
 const esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -781,7 +781,7 @@ function ukiVistaBorradores(){
  '<p class="muted">Varios celulares simultáneos requieren otra integración; esta función no elimina conflictos de nube.</p></div>';
 }
 
-function nuevoDraft(){D={texto:"",fecha:ahora(),cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",mesaReferencia:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[{nombre:"",cant:1,precio:0,det:""}],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:"",envioPagadoOtroLocal:false,montoEnvioOtroLocal:"",localPagoExterno:"",propinaModo:"ninguna",propinaPersonalizada:"",medioPropina:"Efectivo",editando:null};}
+function nuevoDraft(){D={texto:"",fecha:ahora(),cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",qrSolicitudes:[],sucursalCarta:"",mesaReferencia:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[{nombre:"",cant:1,precio:0,det:""}],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:"",envioPagadoOtroLocal:false,montoEnvioOtroLocal:"",localPagoExterno:"",propinaModo:"ninguna",propinaPersonalizada:"",medioPropina:"Efectivo",editando:null};}
 function delItem(k){D.items.splice(k,1);if(!D.items.length)D.items=[{nombre:"",cant:1,precio:0,det:""}];render();}
 function addItem(){const n=$("pNom").value.trim(); const c=parseInt($("pCant").value)||1; const p=parseInt($("pPre").value)||0; const d=$("pDet").value.trim(); if(!n||!p){aviso("Pon nombre y precio");return;} D.items=D.items.filter(x=>x.nombre); D.items.push({nombre:n,cant:c,precio:p,det:d}); $("pNom").value=""; $("pCant").value=1; $("pPre").value=""; $("pDet").value=""; render();}
 // El codigo del pedido proviene del encabezado de la carta digital, NO del numero interno ni del codigo de cliente.
@@ -907,7 +907,7 @@ function vNuevo(){
     <p class="muted">Solo se consideran ventas los pagos completos confirmados. Los montos mixtos deben sumar exactamente lo que corresponde.</p></div><button class="big" onclick="ndGuardar()">${D.editando?`💾 Guardar cambios #${D.editando}`:D.productosPagadosOtroLocal?`✅ Guardar pedido con pago compartido`:`✅ Guardar pedido +1 timbre`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición</button>`:""}`;
 }
 
-function editarPedido(id){const p=S.pedidos.find(x=>x.id===id); if(!p)return; if(p.estado==="Cancelado"){aviso("El pedido cancelado permanece en el historial y no se puede editar.");return;} D={texto:p.textoOriginal||"",fecha:p.fechaISO||ahora(),cliente:p.cliente||"",telefono:p.telefono||"",codigoCarta:p.codigoCarta||"",codigoCliente:p.codigoCliente||"",sucursalCarta:p.sucursalCarta||"",mesaReferencia:p.mesaReferencia||"",modalidad:p.modalidad||"Retiro",envio:p.envio||0,medio:p.medio||"Efectivo",medioEnvio:p.medioEnvio||"Efectivo",pagado:!!p.pagado,
+function editarPedido(id){const p=S.pedidos.find(x=>x.id===id); if(!p)return; if(p.estado==="Cancelado"){aviso("El pedido cancelado permanece en el historial y no se puede editar.");return;} D={texto:p.textoOriginal||"",fecha:p.fechaISO||ahora(),cliente:p.cliente||"",telefono:p.telefono||"",codigoCarta:p.codigoCarta||"",codigoCliente:p.codigoCliente||"",qrSolicitudes:Array.isArray(p.qrSolicitudes)?p.qrSolicitudes.slice():[],sucursalCarta:p.sucursalCarta||"",mesaReferencia:p.mesaReferencia||"",modalidad:p.modalidad||"Retiro",envio:p.envio||0,medio:p.medio||"Efectivo",medioEnvio:p.medioEnvio||"Efectivo",pagado:!!p.pagado,
 mixtoProductos:Array.isArray(p.pagosProductos)&&p.pagosProductos.length>0,
 mixtoEnvio:Array.isArray(p.pagosEnvio)&&p.pagosEnvio.length>0,
 pagosProductos:(p.pagosProductos||[]).map(x=>({...x})),
@@ -1876,17 +1876,32 @@ const UKI_MESAS_ENDPOINT='https://uki-sushi-pedidos-git-preparacion-uki-27ff36-d
 let ukiMesas={rows:[],branch:'',status:'Pulsa Actualizar para consultar pedidos de mesas.',busy:false,used:false};
 const ukiMesaBranch=()=>S.suc===SUCURSALES[0]?'arica':S.suc===SUCURSALES[1]?'serena':'';
 const ukiMesaCode=id=>'MESA-'+String(id||'').toUpperCase();
+function ukiPedidoTieneQR(p,code){
+ return String(p?.codigoCarta||'')===code||
+  (Array.isArray(p?.qrSolicitudes)&&p.qrSolicitudes.includes(code));
+}
+function ukiMesaNumeroReferencia(value){
+ const m=String(value||'').trim().match(/^(?:mesa\s*)?(\d{1,2})$/i);
+ const n=m?Number(m[1]):null;
+ return n>=1&&n<=50?n:null;
+}
+function ukiCuentasAbiertasMesa(numero){
+ return (S.pedidos||[]).filter(p=>p.suc===S.suc&&p.modalidad==='Consumo en local'&&
+  ukiCuentaAbierta(p)&&esDelPeriodo(p)&&ukiMesaNumeroReferencia(p.mesaReferencia)===Number(numero));
+}
 function ukiMesasUI(){
  const branch=ukiMesaBranch(),arr=ukiMesas.branch===branch?ukiMesas.rows:[];
  const list=arr.map(x=>{
-  const code=ukiMesaCode(x.id),guardado=(S.pedidos||[]).some(p=>p.suc===S.suc&&p.codigoCarta===code);
+  const code=ukiMesaCode(x.id),guardado=(S.pedidos||[]).some(p=>p.suc===S.suc&&ukiPedidoTieneQR(p,code));
+  const cuentas=ukiCuentasAbiertasMesa(x.mesa);
   const buttons=guardado?'<p class="muted">Esta solicitud ya está guardada en el panel.</p>':
    '<button class="sm ok" type="button" onclick="ukiMesaAbrir('+esc(JSON.stringify(x.id))+')">Revisar y registrar</button>';
   const detalle=(x.items||[]).map(p=>
    '<div style="margin:7px 0"><b>'+esc((Number(p.qty)||1)+' × '+String(p.mesaLabel||'Producto'))+'</b>'+
    (p.mesaDetalle?'<p class="muted">'+esc(p.mesaDetalle)+'</p>':'')+'</div>').join('');
   return '<div style="padding:12px;border:1px solid var(--line);border-radius:12px;margin:10px 0">'+
-   '<b>🍽 Mesa '+esc(x.mesa)+' · '+esc(x.nombre||'Cliente')+'</b>'+detalle+
+   '<b>🍽 Mesa '+esc(x.mesa)+' · '+esc(x.nombre||'Cliente')+'</b>'+
+   (cuentas.length===1?'<p class="muted">Se agregará a la cuenta abierta #'+esc(cuentas[0].id)+' de esta mesa.</p>':cuentas.length>1?'<p class="muted">⚠️ Hay varias cuentas abiertas para esta mesa. Revisar antes de guardar.</p>':'')+detalle+
    row('Total sin propina',fmt(x.total||0))+buttons+
    '<button class="sm" type="button" onclick="ukiMesaEstado('+esc(JSON.stringify(x.id))+',&quot;registrado&quot;)">Ya está registrado</button>'+
    '<button class="sm" type="button" onclick="ukiMesaEstado('+esc(JSON.stringify(x.id))+',&quot;rechazado&quot;)">Rechazar</button></div>';
@@ -1918,7 +1933,7 @@ function ukiMesaAbrir(id){
  const x=ukiMesas.rows.find(a=>a.id===id&&a.branch===ukiMesaBranch());
  if(!x||S.busy)return;
  const code=ukiMesaCode(id);
- if((S.pedidos||[]).some(p=>p.suc===S.suc&&p.codigoCarta===code)){
+ if((S.pedidos||[]).some(p=>p.suc===S.suc&&ukiPedidoTieneQR(p,code))){
   aviso('Este pedido ya fue registrado; no lo dupliques.');return;
  }
  const lines=(x.items||[]).map(p=>({nombre:String(p.mesaLabel||'Producto').slice(0,100),
@@ -1942,7 +1957,7 @@ function ukiMesaAbrir(id){
 async function ukiMesaEstado(id,estado){
  const x=ukiMesas.rows.find(a=>a.id===id&&a.branch===ukiMesaBranch());if(!x)return;
  if(estado==='registrado'){
-  if(!(S.pedidos||[]).some(p=>p.suc===S.suc&&p.codigoCarta===ukiMesaCode(id))){
+  if(!(S.pedidos||[]).some(p=>p.suc===S.suc&&ukiPedidoTieneQR(p,ukiMesaCode(id)))){
    aviso('Primero registra este pedido en el panel.');return;
   }
   if(!window.ukiCancelacionNubeLista?.()){
@@ -2051,6 +2066,10 @@ function ndGuardar(){
       aviso("El número original de la carta no se puede reemplazar durante la edición. Los datos del pedido siguen intactos.");return;
     }
   }
+  if(Array.isArray(D.qrSolicitudes)&&D.qrSolicitudes.some(qr=>S.pedidos.some(
+    p=>p.suc===S.suc&&p.id!==D.editando&&ukiPedidoTieneQR(p,qr)))){
+    aviso("Uno de los pedidos QR ya pertenece a otra cuenta. No se guardó dos veces.");return;
+  }
   if(D.codigoCarta && S.pedidos.some(p=>p.suc===S.suc && String(p.codigoCarta||"")===D.codigoCarta && p.id!==D.editando)){
     aviso("Ya existe un pedido con ese codigo de carta en esta sucursal.");return;
   }
@@ -2082,7 +2101,7 @@ function ndGuardar(){
           cliOld.gastado=Math.max(0,(cliOld.gastado||0)-(p.subtotal||0));
         }
       }
-      p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||"";p.codigoCarta=D.codigoCarta||"";p.codigoCliente=D.codigoCliente||"";p.sucursalCarta=D.sucursalCarta||""; p.mesaReferencia=D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():""; p.modalidad=D.modalidad; p.envio=envio; p.medio=D.medio; p.medioEnvio=D.medioEnvio; Object.assign(p,datosPago); p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})); p.total=total; p.subtotal=sub; p.propina=propina;p.propinaModo=D.propinaModo;p.medioPropina=D.medioPropina;p.textoOriginal=D.texto;
+      p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||"";p.codigoCarta=D.codigoCarta||"";p.codigoCliente=D.codigoCliente||"";p.qrSolicitudes=Array.isArray(D.qrSolicitudes)?[...new Set(D.qrSolicitudes)]:[];p.sucursalCarta=D.sucursalCarta||""; p.mesaReferencia=D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():""; p.modalidad=D.modalidad; p.envio=envio; p.medio=D.medio; p.medioEnvio=D.medioEnvio; Object.assign(p,datosPago); p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})); p.total=total; p.subtotal=sub; p.propina=propina;p.propinaModo=D.propinaModo;p.medioPropina=D.medioPropina;p.textoOriginal=D.texto;
       ukiSincronizarPropinaPedido(p);
       if(!p.esPremio && D.cliente && D.pagado && !D.productosPagadosOtroLocal){
         const cli=asegurarCliente(D.cliente,D.codigoCliente,D.telefono);
@@ -2097,7 +2116,7 @@ function ndGuardar(){
     S.vista="pedidos"; render(); return;
   }
   const idNuevo=S.nextId++;
-  const nuevoPedido={id:idNuevo,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),cliente:D.cliente,telefono:D.telefono||"",codigoCarta:D.codigoCarta||"",codigoCliente:D.codigoCliente||"",sucursalCarta:D.sucursalCarta||"",mesaReferencia:D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():"",modalidad:D.modalidad,envio:envio,medio:D.medio,medioEnvio:D.medioEnvio,...datosPago,pagado:D.pagado,estado:"Pendiente",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),total:total,subtotal:sub,propina:propina,propinaModo:D.propinaModo,medioPropina:D.medioPropina,textoOriginal:D.texto,esPremio:false};
+  const nuevoPedido={id:idNuevo,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),cliente:D.cliente,telefono:D.telefono||"",codigoCarta:D.codigoCarta||"",codigoCliente:D.codigoCliente||"",qrSolicitudes:Array.isArray(D.qrSolicitudes)?[...new Set(D.qrSolicitudes)]:[],sucursalCarta:D.sucursalCarta||"",mesaReferencia:D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():"",modalidad:D.modalidad,envio:envio,medio:D.medio,medioEnvio:D.medioEnvio,...datosPago,pagado:D.pagado,estado:"Pendiente",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),total:total,subtotal:sub,propina:propina,propinaModo:D.propinaModo,medioPropina:D.medioPropina,textoOriginal:D.texto,esPremio:false};
   S.pedidos.push(nuevoPedido);
   ukiSincronizarPropinaPedido(nuevoPedido);
   if(D.cliente && D.pagado && !D.productosPagadosOtroLocal){
