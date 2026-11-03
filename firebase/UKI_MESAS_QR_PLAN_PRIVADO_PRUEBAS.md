@@ -84,3 +84,11 @@ Estado al 3 nov 2026: **solo análisis/diseño; no hay recepción automática ac
 - Recorrido UI completado: entrar a sucursal Regimiento Arica, pulsar Pedidos → Revisar y registrar, guardar cuenta pendiente de $2.500, refrescar bandeja y añadir segunda ronda de $9.000, guardar misma cuenta de $11.500, comprobar no duplicación, cifra local AES y total caja $0. API real sin POST/PATCH.
 - El pedido **real de QA** enviado por cliente desde carta ($2.500, Mesa 2, Regimiento Arica) fue verificado en Neon como **pendiente después de la prueba**. La prueba no lo registró ni marcó como pagado y no modificó producción.
 - Diferencia pendiente de lanzamiento: validar autorización y guardado/sincronización real dentro del panel operativo antes de activar QR para público. La vista privada consultiva permanece en solo lectura y `UKI_OPERACION_HABILITADA=false`. No repetir esta comprobación de navegador salvo cambio del flujo.
+
+## Sincronización cifrada de cuentas QR — control aislado
+
+- Se detectó y corrigió la discrepancia entre el particionador (que incluye `borradores` y `ajustesHistoricos`) y los tipos admitidos por el cifrado; ambos se cifran ahora correctamente en las ramas de prueba.
+- Ejecución verificada en GitHub Actions, 3 noviembre 2026: https://github.com/diannaleandra-art/uki-panel-demo-independiente/actions/runs/41688525080 — **éxito**.
+- Se ejecutaron dos pruebas aisladas: navegador real del panel v8.15 con botones «Revisar y registrar» y guardado local cifrado; y protocolos originales de cifrado, particionado, guardado/revisión y autoguardado con emulador **en memoria**, sin conexión a Firebase productivo.
+- 8 controles de sincronización superados: cuenta pendiente y borrador, lectura completa, segunda ronda, conflicto de revisión, clave incorrecta, sucursales separadas, autoguardado de tercera ronda, sin pagos/propinas/cierre. El cliente QA real de Regimiento con pedido por $2.500 no fue cobrado ni aceptado.
+- **No equivale a una prueba con Firestore real**: todavía requiere verificar permisos y recuperación en Firebase con sesión autorizada y almacenamiento aislado antes del lanzamiento. No activar QR público ni escrituras en producción sin autorización.
