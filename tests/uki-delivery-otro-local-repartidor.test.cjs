@@ -68,7 +68,7 @@ test('Pedido pagado 100% en otro local no entra a la caja de Uki',()=>{
  assert.equal(t.totalMedios,12000); // solo $10.000 productos y $2.000 delivery local
  assert.equal(t.ventaSinDelivery,10000);
  assert.equal(t.enviosCobradosUki,2000);
- assert.equal(t.enviosCobradosOtroLocal,3000);
+ assert.equal(t.enviosCobradosOtroLocal,5500); // Incluye los $2.500 informados en el pedido #50 aunque aún figure sin pago
  assert.equal(t.medios.Débito,10000);
  assert.equal(t.medios.Efectivo,2000);
 });
