@@ -1942,16 +1942,36 @@ function ukiMesaAbrir(id){
    lines.reduce((n,i)=>n+i.cant*i.precio,0)!==Number(x.total)){
   aviso('La solicitud no coincide con los precios de los productos. No se registró.');return;
  }
- // No sobrescribir un pedido que el trabajador ya estaba preparando.
+ // Si ya se preparó esta solicitud, recuperar el borrador y no duplicar la ronda.
+ const enEspera=ukiBorradoresSucursal().find(b=>b.datos?.codigoCarta===code||
+  (Array.isArray(b.datos?.qrSolicitudes)&&b.datos.qrSolicitudes.includes(code)));
+ if(enEspera){ukiRetomarBorrador(enEspera.id);return;}
+ const cuentas=ukiCuentasAbiertasMesa(x.mesa);
+ if(cuentas.length>1){
+  aviso('Hay más de una cuenta abierta en Mesa '+x.mesa+'. Revisa y unifica antes de aceptar el QR.');return;
+ }
+ // Nunca sustituir el contenido de un pedido que el trabajador está preparando.
  if(D.editando){
   aviso('Termina o cancela primero la edición de un pedido registrado.');return;
  }
  if(ukiBorradorTieneContenido()&&!ukiGuardarBorradorSinVista())return;
  nuevoDraft();ukiBorradorActivo=null;
- D.codigoCarta=code;D.fecha=ahora();D.modalidad='Consumo en local';D.envio=0;
- D.cliente=String(x.nombre||'Mesa '+x.mesa).slice(0,80);D.mesaReferencia='Mesa '+x.mesa;
- D.items=lines;D.pagado=false;modoNuevo='manual';
- S.vista='nuevo';S.msg='Pedido de Mesa '+x.mesa+' cargado. Revisa y guarda con pago PENDIENTE hasta cobrar.';
+ if(cuentas.length===1){
+  editarPedido(cuentas[0].id);
+  D.items=D.items.filter(p=>p.nombre).concat(lines);
+  D.qrSolicitudes=[...new Set([...(D.qrSolicitudes||[]),code])];
+  D.mesaReferencia='Mesa '+x.mesa;
+  D.pagado=false;
+ }else{
+  D.codigoCarta=code;D.fecha=ahora();D.modalidad='Consumo en local';D.envio=0;
+  D.cliente=String(x.nombre||'Mesa '+x.mesa).slice(0,80);
+  D.mesaReferencia='Mesa '+x.mesa;
+  D.items=lines;D.qrSolicitudes=[code];D.pagado=false;
+ }
+ modoNuevo='manual';S.vista='nuevo';
+ S.msg=cuentas.length===1
+  ?'Ronda añadida a la cuenta abierta #'+cuentas[0].id+' de Mesa '+x.mesa+'. Revisa y guarda sin marcar como pagado.'
+  :'Pedido de Mesa '+x.mesa+' cargado. Revisa y guarda como cuenta pendiente de pago.';
  render();
 }
 async function ukiMesaEstado(id,estado){
