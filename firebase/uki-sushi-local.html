@@ -1000,7 +1000,7 @@ function ukiCompartirCuenta(id){
  }else ukiCopiarCuenta(id);
 }
 
-function copiarComanda(id){const p=S.pedidos.find(x=>x.id===id); if(!p) return; const txt=[`#${p.id} ${p.modalidad}`, ...(p.productos||[]).map(pr=>`${pr.cantidad}x ${pr.nombre}${pr.detalle?` (${pr.detalle})`:""}`), p.envio?`Delivery ${fmt(p.envio)}`:"", `Total ${fmt(p.total)}`].filter(Boolean).join("\n"); if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>aviso("Comanda copiada")).catch(()=>aviso(txt)); else aviso(txt);}
+function copiarComanda(id){const p=S.pedidos.find(x=>x.id===id); if(!p) return; const txt=[`${p.codigoCarta?"Carta #"+p.codigoCarta+" · ":""}Interno #${p.id} · ${p.modalidad}`, ...(p.productos||[]).map(pr=>`${pr.cantidad}x ${pr.nombre}${pr.detalle?` (${pr.detalle})`:""}`), p.envio?`Delivery ${fmt(p.envio)}`:"", `Total ${fmt(p.total)}`].filter(Boolean).join("\n"); if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>aviso("Comanda copiada")).catch(()=>aviso(txt)); else aviso(txt);}
 function togglePagado(id){
  const p=S.pedidos.find(x=>x.id===id);if(!p||p.esPremio||p.estado==="Cancelado")return;
  if(!p.pagado){
