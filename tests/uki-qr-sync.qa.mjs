@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict';
-import {webcrypto} from 'node:crypto';
 import {crearSnapshotsUki} from '../firebase/uki-sushi-nube.js';
 import {dividirEstado,reunirEstado} from '../firebase/uki-particion-local.js';
 import {derivarClave,nuevaSal,nuevaGeneracion,cifrarBloque,descifrarBloque} from '../firebase/uki-cifrado-bloques.js';
 import {crearAutoGuardadoOperativo} from '../firebase/uki-sushi-autoguardado.js';
 
-globalThis.crypto=webcrypto;
+assert.ok(globalThis.crypto?.subtle,'WebCrypto del entorno de pruebas disponible');
 const SUC_A='Uki Regimiento Arica', SUC_B='Uki La Serena';
 const pass='clave-ficticia-QA-sin-datos-reales-2026';
 const memory=new Map();
