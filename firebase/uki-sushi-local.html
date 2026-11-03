@@ -1586,7 +1586,12 @@ function ukiDesgloseDeliverysTurno(t){
  const pedidosTotal=pedidos.reduce((n,p)=>n+(Number(p.envio)||0),0);
  const manualesTotal=manuales.reduce((n,d)=>n+(Number(d.monto)||0),0);
  const descuadre=pedidos.length+manuales.length!==t.nDeliv||pedidosTotal+manualesTotal!==t.envios;
- const filasPedidos=pedidos.map(p=>row("Pedido #"+(p.codigoCarta||p.id)+" · "+(p.cliente||"Sin nombre")+" · "+(p.estado||"Sin estado"),fmt(Number(p.envio)||0))).join("");
+ const filasPedidos=pedidos.map(p=>{
+  const externo=ukiMontoEnvioOtroLocal(p,Number(p.envio)||0,Number(p.subtotal)||0);
+  const referencia="Interno #"+p.id+(p.codigoCarta?" · Carta #"+p.codigoCarta:"");
+  const cobro=externo>0?" · delivery cobrado en "+(p.localPagoExterno||"otro local")+" "+fmt(externo):"";
+  return row(referencia+" · "+(p.cliente||"Sin nombre")+" · "+(p.estado||"Sin estado")+cobro,fmt(Number(p.envio)||0));
+ }).join("");
  const filasManuales=manuales.map(d=>row("Manual · "+(d.cliente||"Sin nombre")+(d.nota?" · "+d.nota:""),fmt(Number(d.monto)||0))).join("");
  return '<details class="card" style="border:1px solid var(--accent)"><summary style="cursor:pointer;font-weight:700">🛵 Ver los '+t.nDeliv+' deliverys uno por uno</summary>'+
   '<p class="muted">Estos son los mismos registros que se suman arriba. Comprueba que un delivery manual no esté registrado también dentro de un pedido.</p>'+
@@ -1757,6 +1762,10 @@ function vPedidos(){
     <div class="order-body"><p class="muted">${esc(p.estado||'Entregado')} · ${esc(p.medio||'Efectivo')}${p.telefono?' · '+esc(p.telefono):''}</p>${p.estado==="Cancelado"?`<p class="muted"><b>Motivo:</b> ${esc(p.motivoCancelacion==="cliente"?"Cancelado por el cliente":p.motivoCancelacion==="local"?"Cancelado por el local":"No informado")}${p.canceladoEn?" · "+esc(fechaTxt(p.canceladoEn)):""}</p>`:""}
     ${(p.productos||[]).map(pr=>`<div class="row"><span>${pr.cantidad}x ${esc(pr.nombre)}${pr.detalle?` · ${esc(pr.detalle)}`:''}</span><b>${fmt(pr.cantidad*pr.precioUnit)}</b></div>`).join('')}
     ${p.envio?row('Delivery',fmt(p.envio)):''}
+    ${p.modalidad==="Delivery"&&p.estado!=="Cancelado"&&!p.esPremio?
+      `<p class="muted"><b>🛵 Repartidor:</b> ${esDelPeriodo(p)?"Este delivery está incluido en el cierre del turno actual · "+fmt(p.envio||0):"Este delivery pertenece a otro turno y no figura en el cierre actual."}</p>`:
+      p.modalidad==="Retiro"&&!p.esPremio?
+      '<p class="muted"><b>Retiro:</b> este pedido no cuenta como delivery para el repartidor.</p>':""}
     ${p.mesaReferencia?`<p class="muted">Mesa: ${esc(p.mesaReferencia)}</p>`:""}
     ${!p.esPremio?ukiDetalleCuentaVista(p):""}
     ${ukiDetallePago(p,"productos")}${ukiDetallePago(p,"envio")}
