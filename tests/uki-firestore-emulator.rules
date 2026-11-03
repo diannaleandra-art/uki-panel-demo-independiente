@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Reglas SOLO del emulador GitHub QA. No son reglas de producción.
+    function qaAdmin() {
+      return request.auth != null &&
+        request.auth.uid == 'qa-uki-administrador';
+    }
+    function qaBranch(branch) {
+      return branch in ['regimiento', 'la-serena'];
+    }
+    match /uki_operacion_v1/{branch} {
+      allow read, write: if qaAdmin() && qaBranch(branch);
+      match /bloques/{bloque} {
+        allow read, write: if qaAdmin() && qaBranch(branch);
+      }
+    }
+  }
+}
