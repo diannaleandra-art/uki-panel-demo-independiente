@@ -150,7 +150,7 @@ body.uki-nube-alerta #ukiEstadoOperativo{color:#b44713;font-weight:700}
 const SUCURSALES=["Uki Regimiento Arica","Uki La Serena"];
 const MEDIOS=["Efectivo","Transferencia","Débito","Edenred","Otros","Uber Eats","PedidosYa","Rappi"];
 const APPS=["Uber Eats","PedidosYa","Rappi"];
-let S={suc:null,pinSuc:null,codigos:{},vista:"inicio",base:18000,pedidos:[],gastos:[],retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",deliveriesManuales:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,filtro:"",filtroFecha:"",filtroCliente:""};
+let S={suc:null,pinSuc:null,codigos:{},vista:"inicio",base:18000,pedidos:[],gastos:[],retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",deliveriesManuales:[],ajustesHistoricos:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,filtro:"",filtroFecha:"",filtroCliente:""};
 let D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",mesaReferencia:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:"",envioPagadoOtroLocal:false,localPagoExterno:"",propinaModo:"ninguna",propinaPersonalizada:"",medioPropina:"Efectivo",editando:null};
 const $=id=>document.getElementById(id);
 const fmt=n=>"$"+Math.round(n||0).toLocaleString("es-CL");
@@ -263,7 +263,7 @@ let claveSesion=null,sucursalSesion=null,saltSesion=null,colaGuardado=Promise.re
 function estadoVacioSucursal(s){
  return {suc:s,pinSuc:null,codigos:{},vista:s?"pedidos":"inicio",base:18000,pedidos:[],gastos:[],
  retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",
- deliveriesManuales:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},
+ deliveriesManuales:[],ajustesHistoricos:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},
  incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,
  filtro:"",filtroFecha:"",filtroCliente:""};
 }
@@ -272,6 +272,7 @@ function validarEstadoSucursal(datos,suc){
  for(const c of ["pedidos","gastos","retiros","propinas","cierres","deliveriesManuales","incidencias"]){
   if(!Array.isArray(datos[c])||!datos[c].every(x=>x&&typeof x==="object"&&!Array.isArray(x)&&x.suc===suc))return false;
  }
+ if(datos.ajustesHistoricos!==undefined&&(!Array.isArray(datos.ajustesHistoricos)||datos.ajustesHistoricos.some(x=>!x||typeof x!=="object"||x.suc!==suc)))return false;
  if(!datos.clientes||typeof datos.clientes!=="object"||Array.isArray(datos.clientes))return false;
  if(!datos.cajasDiarias||typeof datos.cajasDiarias!=="object"||Array.isArray(datos.cajasDiarias))return false;
  if(!Number.isInteger(datos.nextId)||datos.nextId<1||!Number.isInteger(datos.nextIncidenciaId)||datos.nextIncidenciaId<1)return false;
