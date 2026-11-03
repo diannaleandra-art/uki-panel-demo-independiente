@@ -1435,12 +1435,12 @@ function totales(){
   // Deliverys para el repartidor: no dependen de quién cobró el pedido.
   // No incluir pedidos cancelados ni premios, aunque no se hayan marcado pagados.
   const dels=pedidos.filter(x=>x.modalidad==="Delivery"&&x.estado!=="Cancelado"&&!x.esPremio);
+  const enviosManuales=dms.reduce((a,d)=>a+(Number(d.monto)||0),0);
   const enviosCobradosUki=enviosManuales+pag.reduce((a,x)=>x.modalidad!=="Delivery"?a:
      a+Math.max(0,(Number(x.envio)||0)-ukiMontoEnvioOtroLocal(x,Number(x.envio)||0,Number(x.subtotal)||0)),0);
   const enviosCobradosOtroLocal=pag.reduce((a,x)=>x.modalidad!=="Delivery"?a:
      a+ukiMontoEnvioOtroLocal(x,Number(x.envio)||0,Number(x.subtotal)||0),0);
   const enviosPedidos=dels.reduce((a,x)=>a+(Number(x.envio)||0),0);
-  const enviosManuales=dms.reduce((a,d)=>a+(Number(d.monto)||0),0);
   const envios=enviosPedidos+enviosManuales;
   const nDeliv=dels.length+dms.length;
   const gastos=delSucHoy(S.gastos),retiros=delSucHoy(S.retiros),propinas=delSucHoy(S.propinas);
