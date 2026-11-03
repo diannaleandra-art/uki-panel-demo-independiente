@@ -1373,7 +1373,7 @@ function ukiDatosPago(d,sub){
    envioPagadoOtroLocal:!!(d.modalidad==="Delivery"&&d.envioPagadoOtroLocal),
    productosPagadosOtroLocal:!!d.productosPagadosOtroLocal,
    montoProductosOtroLocal:d.productosPagadosOtroLocal?externo:0,
-   localPagoExterno:d.productosPagadosOtroLocal?String(d.localPagoExterno||"").trim():""};
+   localPagoExterno:(d.productosPagadosOtroLocal||d.envioPagadoOtroLocal)?String(d.localPagoExterno||"").trim():""};
 }
 function ukiToggleMixto(tipo,activo){
  const key=tipo==="productos"?"pagosProductos":"pagosEnvio";
