@@ -97,3 +97,11 @@ Estado al 3 nov 2026: **solo análisis/diseño; no hay recepción automática ac
 - **5 comprobaciones superadas**: (1) primera ronda crea una cuenta pendiente de $2.500; (2) segunda ronda de $9.000 se agrega a la misma cuenta y suma $11.500; (3) los identificadores QR se guardan y repetir uno no duplica; (4) solicitudes de otra sucursal no ingresan en la cuenta; (5) una cuenta pagada no se reutiliza para otra ronda.
 - **Pendiente de verificar**: hacer un registro/confirmación extremo a extremo en un panel aislado de persistencia de QA. La vista privada actual tiene `UKI_OPERACION_HABILITADA=false` y consulta de bandeja **solo lectura**, por lo que los cinco controles anteriores son pruebas de integración lógica, **no** una aceptación real en el navegador.
 - **Producción y caja**: carta pública y panel operativo sin cambios; no se modificaron pagos, ventas, propinas ni cierres. El pedido QA de $2.500 conserva el estado `pendiente`. No activar para clientes sin autorización.
+
+## Sincronización cifrada de cuentas QR — control aislado
+
+- Se detectó y corrigió la discrepancia entre el particionador (que incluye `borradores` y `ajustesHistoricos`) y los tipos admitidos por el cifrado; ambos se cifran ahora correctamente en las ramas de prueba.
+- Ejecución verificada en GitHub Actions, 3 noviembre 2026: https://github.com/diannaleandra-art/uki-panel-demo-independiente/actions/runs/41688525080 — **éxito**.
+- Se ejecutaron dos pruebas aisladas: navegador real del panel v8.15 con botones «Revisar y registrar» y guardado local cifrado; y protocolos originales de cifrado, particionado, guardado/revisión y autoguardado con emulador **en memoria**, sin conexión a Firebase productivo.
+- 8 controles de sincronización superados: cuenta pendiente y borrador, lectura completa, segunda ronda, conflicto de revisión, clave incorrecta, sucursales separadas, autoguardado de tercera ronda, sin pagos/propinas/cierre. El cliente QA real de Regimiento con pedido por $2.500 no fue cobrado ni aceptado.
+- **No equivale a una prueba con Firestore real**: todavía requiere verificar permisos y recuperación en Firebase con sesión autorizada y almacenamiento aislado antes del lanzamiento. No activar QR público ni escrituras en producción sin autorización.
