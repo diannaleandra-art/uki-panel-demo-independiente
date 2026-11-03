@@ -7,6 +7,8 @@ on:
       - 'tests/uki-qr-cuenta-browser.qa.cjs'
       - '.github/workflows/uki-mesa-cuenta-qa.yml'
       - 'firebase/uki-sushi-local.html'
+      - 'firebase/uki-mesas-dispositivo-qa.js'
+      - 'tests/uki-device-qr-browser.qa.cjs'
       - 'tests/uki-qr-sync.qa.mjs'
       - 'firebase/uki-cifrado-bloques.js'
       - 'firebase/uki-sushi-nube.js'
@@ -39,8 +41,12 @@ jobs:
         run: |
           python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/uki-qa-http.log 2>&1 &
           echo $! > /tmp/uki-qa-http.pid
+      - name: Validar JavaScript del equipo QR privado
+        run: node --check firebase/uki-mesas-dispositivo-qa.js
       - name: Probar botones reales del panel y guardar cuenta en sesión temporal
         run: node tests/uki-qr-cuenta-browser.qa.cjs
+      - name: Probar firma y vínculo del equipo QR en Chromium sin red de producción
+        run: node --test tests/uki-device-qr-browser.qa.cjs
       - name: Probar sincronización cifrada y autoguardado en nube simulada aislada
         run: node tests/uki-qr-sync.qa.mjs
       - name: Verificar lectura anónima prohibida en Firebase real (solo GET)
