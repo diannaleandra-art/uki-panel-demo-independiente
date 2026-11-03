@@ -1579,6 +1579,27 @@ function actualizarConteoEfectivo(valor){
     d===null?"Ingresa un monto válido, sin decimales":d===0?"✅ Caja exacta":
     d>0?"Sobrante: "+fmt(d):"Faltante: "+fmt(-d);
 }
+// Detalle del turno: usa exactamente las mismas fuentes que el resumen, sin tocar registros ni montos.
+function ukiDesgloseDeliverysTurno(t){
+ const pedidos=t.dels||[];
+ const manuales=delSucHoy(S.deliveriesManuales);
+ const pedidosTotal=pedidos.reduce((n,p)=>n+(Number(p.envio)||0),0);
+ const manualesTotal=manuales.reduce((n,d)=>n+(Number(d.monto)||0),0);
+ const descuadre=pedidos.length+manuales.length!==t.nDeliv||pedidosTotal+manualesTotal!==t.envios;
+ const filasPedidos=pedidos.map(p=>row("Pedido #"+(p.codigoCarta||p.id)+" · "+(p.cliente||"Sin nombre")+" · "+(p.estado||"Sin estado"),fmt(Number(p.envio)||0))).join("");
+ const filasManuales=manuales.map(d=>row("Manual · "+(d.cliente||"Sin nombre")+(d.nota?" · "+d.nota:""),fmt(Number(d.monto)||0))).join("");
+ return '<details class="card" style="border:1px solid var(--accent)"><summary style="cursor:pointer;font-weight:700">🛵 Ver los '+t.nDeliv+' deliverys uno por uno</summary>'+
+  '<p class="muted">Estos son los mismos registros que se suman arriba. Comprueba que un delivery manual no esté registrado también dentro de un pedido.</p>'+
+  '<h3>Deliverys de pedidos · '+pedidos.length+'</h3>'+
+  (filasPedidos||'<p class="muted">Sin deliverys de pedidos</p>')+
+  row("Subtotal pedidos",fmt(pedidosTotal),"sub")+
+  '<h3>Deliverys ingresados manualmente · '+manuales.length+'</h3>'+
+  (filasManuales||'<p class="muted">Sin deliverys manuales</p>')+
+  row("Subtotal manuales",fmt(manualesTotal),"sub")+
+  row("Total deliverys · "+(pedidos.length+manuales.length),fmt(pedidosTotal+manualesTotal),"final")+
+  (descuadre?'<p style="color:#b11b1b"><b>Revisar: el detalle no coincide con el total.</b></p>':'<p class="muted">La cantidad y el monto del detalle coinciden con el resumen. Esto no confirma que no haya duplicados.</p>')+
+  '<p class="muted">Incluye pedidos no cancelados aunque estén pendientes. Antes del pago, verifica que cada entrega se haya realizado.</p></details>';
+}
 function vCierre(){
   if(!S.suc) return vInicio();
   if(!window.ukiControlTurnos)return '<div class="card"><h2>No se cargó el control de caja</h2><p class="muted">Actualiza la página para revisar los pagos pendientes y el cuadre antes de cerrar. La caja sigue intacta.</p></div>';
@@ -1591,6 +1612,7 @@ function vCierre(){
   const pendientesText=pendientes.map(p=>"#"+esc(p.codigoCarta||p.id)+" · "+esc(p.cliente||"Sin nombre")+" · "+fmt(p.total)).join("; ");
   return `<div class="card"><h2>Venta del día</h2>${row("Pedidos del día",t.n)}${row("Pedidos pagados",t.pagadosN)}${t.productosPagadosOtroLocal?row("Productos pagados en otro local (no ingresan a esta caja)",fmt(t.productosPagadosOtroLocal)):""}${t.enviosCobradosOtroLocal?row("Delivery cobrado en otro local (no ingresa a esta caja)",fmt(t.enviosCobradosOtroLocal)):""}${row("Efectivo",fmt(t.medios.Efectivo))}${row("Transferencia",fmt(t.medios.Transferencia))}${row("Débito",fmt(t.medios.Débito))}${row("Edenred",fmt(t.medios.Edenred))}${row("Otros",fmt(t.medios.Otros))}${row("Uber Eats",fmt(t.medios["Uber Eats"]))}${row("PedidosYa",fmt(t.medios.PedidosYa))}${row("Rappi",fmt(t.medios.Rappi))}${row("Venta total con delivery",fmt(t.totalMedios),"sub")}${row("Venta sin delivery",fmt(t.ventaSinDelivery))}</div>
   <div class="card" style="border:2px solid var(--accent)"><h2>🛵 Deliverys registrados para repartidor</h2><p class="muted">Se incluyen los pedidos de delivery no cancelados, incluso si pagaron en otro local o aún figuran sin pago. Verifica cuáles fueron entregados antes de pagar al repartidor.</p><label>Base diaria ($)</label><input type="number" value="${caja.base}" inputmode="numeric" onchange="cajaDelDia().base=Math.max(0,parseInt(this.value)||0);render()" style="font-weight:700">${row("Base diaria",fmt(caja.base))}${row("Deliveries pedidos ("+t.dels.length+")",fmt(t.enviosPedidos))}${row("Deliveries manuales ("+delSucHoy(S.deliveriesManuales).length+")",fmt(t.enviosManuales))}${row("Deliveries registrados para repartidor ("+t.nDeliv+")",fmt(t.envios))}${row("De ellos, cobrados en Uki",fmt(t.enviosCobradosUki))}${t.enviosCobradosOtroLocal?row("De ellos, cobrados en otro local",fmt(t.enviosCobradosOtroLocal)):""}${row("Total para repartidor (base + deliveries)",fmt(caja.base+t.envios),"final")}<p class="muted">Incluye los pedidos de delivery no cancelados, aunque se hayan cobrado en otro local o aún figuren pendientes. Comprueba cuáles se realizaron antes de liquidar al repartidor.</p></div>
+  ${ukiDesgloseDeliverysTurno(t)}
   <div class="card"><h2>Resultado final</h2>${row("Venta total con delivery",fmt(t.totalMedios))}${row("− Pago a delivery ("+caja.pagoDeliveryMedio+")",fmt(t.pagoDelivery),"neg")}${row("Venta - pago delivery",fmt(t.totalMedios-t.pagoDelivery))}${row("− Gastos",fmt(t.gastosTotal),"neg")}${row("Venta total - gastos",fmt(t.totalMedios-t.gastosTotal),"sub")}${row("Total final (venta - pago delivery - gastos)",fmt(t.final),"final")}${row("Efectivo que queda en caja, sin propinas",fmt(t.efectivoCaja))}${row("Propinas (aparte)",fmt(t.propinas))}${t.propinasEfectivo?row("De ellas, en efectivo",fmt(t.propinasEfectivo)):""}</div>
   ${pendientes.length?`<div class="card" style="border:2px solid #bd4d1b"><h2>⚠️ Pedidos pendientes de pago · ${pendientes.length}</h2><p class="muted">Revisa estos pedidos antes de cerrar. Si decides cerrar, seguirán registrados como pendientes.</p><p>${pendientesText}</p></div>`:
      '<div class="card"><p style="margin:4px 0">✅ No hay pedidos pendientes de pago en este turno.</p></div>'}
