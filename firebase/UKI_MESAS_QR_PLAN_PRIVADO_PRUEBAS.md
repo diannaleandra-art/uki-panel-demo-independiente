@@ -43,4 +43,6 @@ Estado al 3 nov 2026: **solo análisis/diseño; no hay recepción automática ac
 ## Entrega actual
 - En rama de prueba del panel se ha preparado **pausar/retomar varios borradores en un dispositivo** (sin registrar ventas).
 - **No** está resuelta todavía la sincronización multi-dispositivo.
-- **No** está creada todavía la API de solicitudes de mesa ni el enlace QR funcional a esa API.
+- API `/api/mesa-pedidos` y carta con `?sucursal=arica&mesa=2` preparadas en la rama privada de prueba del repositorio de carta `preparacion/uki-mesas-carta-bandeja-sin-publicar-2026-11-03`. El panel también tiene bandeja QR en esta rama.
+- La API está **desactivada** hasta configurar y comprobar una base QA, la lista de trabajadores autorizados y límites gratuitos. No se aceptan todavía pedidos reales, ni hay QR publicados.
+- No se ha probado de extremo a extremo contra base QA ni se ha desplegado a clientes; antes de publicar se debe hacer esa prueba.
