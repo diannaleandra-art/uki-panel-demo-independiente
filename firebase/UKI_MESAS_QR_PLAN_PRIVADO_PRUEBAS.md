@@ -40,9 +40,16 @@ Estado al 3 nov 2026: **solo análisis/diseño; no hay recepción automática ac
 - Sucursales aisladas, clientes sin acceso a datos privados.
 - Borrar pruebas no afecta registros reales; costo y límites comprobados; publicar solo con autorización.
 
-## Entrega actual
-- En rama de prueba del panel se ha preparado **pausar/retomar varios borradores en un dispositivo** (sin registrar ventas).
-- **No** está resuelta todavía la sincronización multi-dispositivo.
-- API `/api/mesa-pedidos` y carta con `?sucursal=arica&mesa=2` preparadas en la rama privada de prueba del repositorio de carta `preparacion/uki-mesas-carta-bandeja-sin-publicar-2026-11-03`. El panel también tiene bandeja QR en esta rama.
-- La API está **desactivada** hasta configurar y comprobar una base QA, la lista de trabajadores autorizados y límites gratuitos. No se aceptan todavía pedidos reales, ni hay QR publicados.
-- No se ha probado de extremo a extremo contra base QA ni se ha desplegado a clientes; antes de publicar se debe hacer esa prueba.
+## Estado verificado al 03-11-2026 (sin publicación)
+- Rama privada de trabajo del panel: `preparacion/mesas-borradores-qr-sin-produccion-2026-11-03`. Rama de trabajo de la carta: `preparacion/uki-mesas-carta-bandeja-sin-publicar-2026-11-03`.
+- Panel: formulario para pausar y recuperar pedidos, bandeja de mesas y enlace a `https://uki-sushi-pedidos.vercel.app/api/mesa-pedidos` preparados; cambios exclusivos de rama de pruebas.
+- Carta: modo QR mediante `?sucursal=arica&mesa=2`, envío por POST y confirmación de recepción del servidor; sin afectar carrito ni WhatsApp convencional.
+- API: no admite solicitudes hasta que `UKI_MESAS_QA_ENABLED`, conexión aislada y UIDs autorizados estén debidamente configurados. Recalcula precio según el catálogo, bloquea duplicados por clave de reintento y no registra pagos.
+- Neon, proyecto `uki-sushi-integracion-pruebas`: se creó rama aislada `uki-mesas-qa-2026-11-03` con tabla `uki_mesa_solicitudes_qa`. Se insertaron dos pedidos ficticios en Mesa 2 (Regimiento); un reintento duplicado no se insertó, y una segunda transición a "registrado" no modificó nada. La Serena permaneció sin solicitudes. Se dejó la tabla **sin pendientes**.
+- La rama de base de datos de QA quedó **suspendida** para reducir cómputo del plan gratuito. No se ha habilitado conexión a la carta publicada ni a caja real.
+- Se probó el contrato de API mediante servidor simulado: aceptación, rechazo de sucursal inválida, lectura sin autorización, recálculo de precio, deduplicación y rechazo de URL de base ajena.
+- El guardado de varios pedidos abiertos conserva los borradores en bloques cifrados con compatibilidad de copias anteriores.
+- **No está probado** el flujo extremo a extremo desde navegador real hasta el panel; tampoco se han validado simultáneamente dos trabajadores en la misma sucursal.
+- **No se ha publicado** ninguna de las dos ramas; Vercel sigue sirviendo la rama de lanzamiento aprobada.
+- Pendientes antes de poner QR en mesas: entorno preview de Vercel con **solo** la base QA, trabajador autorizado en Firebase, tests de navegador/seguridad, validación de precios y costos del proveedor, número definitivo de mesas y autorización expresa de producción.
+- Importante: Vercel Hobby indica uso **solo personal/no comercial** en sus términos. Verificar el plan aplicable antes de usar recepción de pedidos para un restaurante; no asumir que será siempre gratuito ni contratar/actualizar sin autorización.
