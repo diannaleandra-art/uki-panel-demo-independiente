@@ -7,6 +7,11 @@ on:
       - 'tests/uki-qr-cuenta-browser.qa.cjs'
       - '.github/workflows/uki-mesa-cuenta-qa.yml'
       - 'firebase/uki-sushi-local.html'
+      - 'tests/uki-qr-sync.qa.mjs'
+      - 'firebase/uki-cifrado-bloques.js'
+      - 'firebase/uki-sushi-nube.js'
+      - 'firebase/uki-particion-local.js'
+      - 'firebase/uki-sushi-autoguardado.js'
   workflow_dispatch:
 permissions:
   contents: read
@@ -31,3 +36,5 @@ jobs:
           echo $! > /tmp/uki-qa-http.pid
       - name: Probar botones reales del panel y guardar cuenta en sesión temporal
         run: node tests/uki-qr-cuenta-browser.qa.cjs
+      - name: Probar sincronización cifrada y autoguardado en nube simulada aislada
+        run: node tests/uki-qr-sync.qa.mjs
