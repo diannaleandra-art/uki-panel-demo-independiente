@@ -1531,6 +1531,10 @@ function vResumenSemanal(){
   const r=window.ukiControlTurnos?.resumenSemana(S.cierres,S.suc,fecha);
   if(!r)return '<div class="card"><p class="muted">No se pudo consultar esta semana. Actualiza la página.</p></div>';
   const medios=Object.entries(r.medios).filter(([,m])=>m).map(([medio,monto])=>row(medio,fmt(monto))).join("");
+  const ajustes=(S.ajustesHistoricos||[]).filter(x=>x.suc===S.suc&&x.tipo==="pedido_olvidado"&&x.fechaOperativa>=r.desde&&x.fechaOperativa<=r.hasta);
+  const ajusteUki=ajustes.reduce((n,x)=>n+(Number(x.recibidoUki)||0),0);
+  const ajusteExterno=ajustes.reduce((n,x)=>n+(Number(x.recibidoOtroLocal)||0),0);
+  const ajusteDelivery=ajustes.reduce((n,x)=>n+(x.repartoRealizado?(Number(x.envio)||0):0),0);
   return `<div class="card"><h2>📊 Resumen semanal</h2>
     <p class="muted">De lunes a domingo, según el día operativo de cada cierre. Solo incluye cierres confirmados de ${esc(S.suc)}.</p>
     <label>Elegir una fecha dentro de la semana</label><input type="date" value="${esc(fecha)}" onchange="actualizarSemana(this.value)">
@@ -1543,6 +1547,13 @@ function vResumenSemanal(){
     ${row("Gastos",fmt(r.gastos))}
     ${row("Pago a repartidor",fmt(r.repartidor))}
     ${row("Resultado total",fmt(r.resultado),"final")}
+    ${ajustes.length?`<div style="border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:12px">
+      <b>📝 Ajustes después del cierre · ${ajustes.length} pedido(s)</b>
+      ${row("Cobros de Uki agregados",fmt(ajusteUki))}
+      ${row("Cobros en otro local agregados",fmt(ajusteExterno))}
+      ${row("Venta de Uki con ajustes (informativa)",fmt(r.ventas+ajusteUki),"sub")}
+      ${row("Delivery adicional por conciliar",fmt(ajusteDelivery))}
+      <p class="muted">No modifica los cierres originales ni los pagos que ya se realizaron.</p></div>`:""}
     <details style="margin-top:12px"><summary style="cursor:pointer">Ver medios de pago</summary>${medios||'<p class="muted">Sin movimientos de pago en esta semana.</p>'}</details>
     <p class="muted">El turno que todavía está abierto no se incluye hasta confirmar el cierre. Este resultado es la suma de los totales guardados, no el saldo físico de caja.</p>
   </div>`;
@@ -2218,6 +2229,9 @@ function ukiOlvidoCambiarModalidad(){
 }
 function ukiAjustePedidoOlvidado(){
  if(S.busy){aviso("Espera a que termine la operación actual.");return;}
+ if(typeof document!=="undefined"&&document.body?.classList?.contains("uki-operativo-bloqueado")){
+  aviso("La sincronización está bloqueada. Recarga de forma segura antes de registrar una corrección histórica.");return;
+ }
  const val=id=>String($(id)?.value??"").trim();
  const n=(id,obligatorio=true)=>{
   const raw=val(id),numero=Number(raw);
