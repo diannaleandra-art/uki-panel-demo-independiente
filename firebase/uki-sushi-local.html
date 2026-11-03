@@ -128,21 +128,15 @@ body.uki-nube-alerta #ukiEstadoOperativo{color:#b44713;font-weight:700}
 </style>
 </head>
 <body><div role="status" style="background:#fff0d9;padding:12px;text-align:center;font-size:13px;line-height:1.4;color:#733b13;border-bottom:2px solid #e5a45e"><b>PANEL ORIGINAL DE UKI · VALIDACIÓN DE GOOGLE</b><div>Versión privada de solo comprobación. Edición de ventas, cobros y guardados operativos bloqueados. No usar con clientes.</div></div>
-<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.15 · LOCALES</h1><small id="ukiEstadoOperativo" role="status">Nube: desactivada · Abre tu sucursal y carga Firebase</small></header>
+<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.15 · LOCALES</h1><small id="ukiEstadoOperativo" role="status">Acceso Google: pendiente · Solo lectura</small></header>
 <nav id="nav" class="app-nav" aria-label="Navegación de Uki Sushi"></nav>
 <section id="ukiNubeSeccion" style="margin:12px;padding:14px;background:#fff0dd;border:2px solid #b55e25;border-radius:14px">
-<b>PANEL INTERNO DE UKI SUSHI · DOS SUCURSALES</b>
-<p>Inicia sesión con Google, abre tu sucursal y pulsa «Cargar nube». Solo registra pedidos cuando aparezca «Nube: sincronizado». Si dice «pendiente», «error» o «conflicto», conserva el teléfono y comprueba el guardado antes de seguir.</p>
+<b>ACCESO DEL PANEL ORIGINAL DE UKI</b>
+<p><strong>Único paso:</strong> pulsa «Entrar con Google» y elige el correo administrativo de Uki. Esta es una vista privada para comprobar el inicio de sesión: no carga la nube ni guarda ventas.</p>
 <div id="ukiNubeEstado" role="status">Google sin iniciar.</div>
 <button id="ukiLoginQA" type="button">Entrar con Google</button>
-<label for="ukiCloudPass" style="display:block">Clave de nube de tu sucursal (12+ caracteres)</label>
-<input id="ukiCloudPass" type="password" autocomplete="off" placeholder="Clave de nube">
-<div><button id="ukiLoadQA" type="button">Cargar nube</button> <button id="ukiSaveQA" type="button">Guardar manualmente</button></div>
-<label style="display:block;margin-top:12px">
- <input id="ukiAutoCheck" type="checkbox" disabled> Autoguardado obligatorio (se activa al cargar la nube)
-</label>
-<p id="ukiAutoEstado" role="status" style="font-size:14px">Autoguardado: desactivado.</p>
-<p>La nube debe estar sincronizada para trabajar. En caso de error o conflicto, conserva el registro local y no cierres esta sesión hasta solucionar la sincronización. Realiza un respaldo cifrado al final de cada turno.</p>
+<div hidden aria-hidden="true"><label for="ukiCloudPass">Clave de nube desactivada en esta prueba</label><input id="ukiCloudPass" type="password" disabled><button id="ukiLoadQA" type="button" disabled>Cargar nube</button><button id="ukiSaveQA" type="button" disabled>Guardar</button><input id="ukiAutoCheck" type="checkbox" disabled><p id="ukiAutoEstado">Desactivado</p></div>
+<p style="font-size:13px">No introduzcas claves ni registres ventas. La activación de pedidos por QR se comprobará por separado.</p>
 </section>
 <button id="ukiMostrarConfig" type="button" hidden aria-expanded="false" aria-controls="ukiNubeSeccion">⚙️ Configuración de nube</button>
 <div id="ukiAvisoInterno" class="aviso" style="margin:10px 12px 0;background:#fce8d7;border:1px solid #efb57c;font-weight:600">USO INTERNO · SOLO PERSONAL AUTORIZADO · NO COMPARTIR CON CLIENTES</div><main id="app"><div class="aviso">✅ v8 Timbres - 6 ventas = 12 piezas / 10 ventas = 36 + 2 korokes</div><div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Tarjeta de timbres: 6 ventas = 12 piezas gratis, 10 ventas = 36 piezas + 2 korokes</p><button class="big" onclick="pedirPin('Uki Regimiento Arica')">Uki Regimiento Arica</button><button class="big" onclick="pedirPin('Uki La Serena')">Uki La Serena</button></div><div class="card"><h2>💾 Respaldo para computador</h2><button class="big" onclick="descargarRespaldoCompleto()">💾 Descargar respaldo con tarjetas</button><label class="muted">Cargar respaldo</label><input type="file" accept=".json" onchange="cargarRespaldo(event)"></div></main>
@@ -2980,6 +2974,8 @@ el("ukiMostrarConfig").addEventListener("click",()=>{
 const msg=s=>{el("ukiNubeEstado").textContent=s;actualizarPresentacionNube()};
 function actualizarBloqueo(){
  const estado=auto.resumen();
+ const indicador=el("ukiEstadoOperativo");
+ if(indicador)indicador.textContent=auth.currentUser?"Google conectado · Ventas desactivadas":"Acceso Google pendiente · Ventas desactivadas";
  const permitir=UKI_OPERACION_HABILITADA&&estado.activo&&!estado.bloqueado;
  const haySucursal=!!window.ukiQAGet?.()?.suc;
  document.body.classList.toggle("uki-operativo-bloqueado",haySucursal&&!permitir);
@@ -3023,12 +3019,12 @@ onAuthStateChanged(auth,user=>{
  revision=null;sucursalCargada=null;
  auto.desactivar();dejarDeVigilar();
  el("ukiAutoCheck").checked=false;
- msg(user?"Google conectado. Abre la sucursal y carga su nube.":"Google sin iniciar. Ingresa con la cuenta exclusiva de Uki Sushi.");
+ msg(user?"Google conectado: "+(user.email||"cuenta Google")+". Pendiente de comprobar permisos de pedidos QR. No hay ventas habilitadas.":"Google sin iniciar. Pulsa «Entrar con Google» y elige la cuenta administrativa de Uki.");
  actualizarBloqueo();
 },e=>msg("Error de Google: "+String(e?.code||e)));
 el("ukiLoginQA").addEventListener("click",()=>accion(async()=>{
  await signInWithPopup(auth,new GoogleAuthProvider());
- msg("Google conectado. Abre la sucursal y carga su nube.");
+ msg("Google conectado: "+(auth.currentUser?.email||"cuenta Google")+". No se habilitaron ventas ni la nube.");
 }));
 el("ukiLoadQA").addEventListener("click",()=>accion(async()=>{
  const x=contexto();
