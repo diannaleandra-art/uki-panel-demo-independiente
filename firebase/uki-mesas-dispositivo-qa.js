@@ -72,7 +72,10 @@ export async function autorizarEquipoQR(branch,adminToken,label='Equipo Uki'){
  const pair=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},
   false,['sign','verify']); // privateKey no exportable
  if(pair.privateKey.extractable)throw Error('La llave privada debe ser no exportable.');
- const publicKey=await crypto.subtle.exportKey('jwk',pair.publicKey);
+ const exported=await crypto.subtle.exportKey('jwk',pair.publicKey);
+ // Safari incluye key_ops/ext en su JWK exportado. La API solo acepta los
+ // cuatro datos públicos de P-256 y rechaza metadatos adicionales, por seguridad.
+ const publicKey={kty:exported.kty,crv:exported.crv,x:exported.x,y:exported.y};
  const response=await call({action:'pair',branch,publicKey,label},adminToken);
  await recordPut(branch,{deviceId:response.deviceId,privateKey:pair.privateKey,branch});
  return {autorizado:true,id:response.deviceId};
