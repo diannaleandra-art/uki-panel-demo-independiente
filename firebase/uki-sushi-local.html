@@ -1409,9 +1409,11 @@ function ukiDetallePago(p,tipo){
  const monto=tipo==="productos"?Number(p.subtotal)||0:p.modalidad==="Delivery"?Number(p.envio)||0:0;
  const externo=tipo==="productos"?ukiMontoProductosOtroLocal(p,monto):0;
  const fueraEnvio=tipo==="envio"?ukiMontoEnvioOtroLocal(p,monto,Number(p.subtotal)||0):0;
- const nota=externo>0?'<p class="muted"><b>Productos cobrados en otro local:</b> '+esc(p.localPagoExterno||"")+
-   ' · '+fmt(externo)+' (NO entra a esta caja). <b>Productos cobrados en Uki:</b> '+fmt(monto-externo)+'</p>':fueraEnvio>0?
-   '<p class="muted"><b>Delivery registrado para repartidor, cobrado en otro local:</b> '+esc(p.localPagoExterno||"")+
+ const nota=tipo==="productos"&&externo>0?
+   '<p class="muted"><b>Productos cobrados en otro local:</b> '+esc(p.localPagoExterno||"")+
+   ' · '+fmt(externo)+' (NO entra a esta caja). <b>Productos cobrados en Uki:</b> '+fmt(monto-externo)+'</p>':
+   tipo==="envio"&&fueraEnvio>0?
+   '<p class="muted"><b>Delivery registrado para repartidor; cobrado en otro local:</b> '+esc(p.localPagoExterno||"")+
    ' · '+fmt(fueraEnvio)+' (NO entra a esta caja).</p>':"";
  const lines=ukiLineasPago(p,tipo,monto);
  return nota+(lines.length>1?'<p class="muted"><b>Pago mixto '+(tipo==="productos"?"productos":"delivery")+':</b> '+
@@ -1438,8 +1440,8 @@ function totales(){
   const enviosManuales=dms.reduce((a,d)=>a+(Number(d.monto)||0),0);
   const enviosCobradosUki=enviosManuales+pag.reduce((a,x)=>x.modalidad!=="Delivery"?a:
      a+Math.max(0,(Number(x.envio)||0)-ukiMontoEnvioOtroLocal(x,Number(x.envio)||0,Number(x.subtotal)||0)),0);
-  const enviosCobradosOtroLocal=pag.reduce((a,x)=>x.modalidad!=="Delivery"?a:
-     a+ukiMontoEnvioOtroLocal(x,Number(x.envio)||0,Number(x.subtotal)||0),0);
+  const enviosCobradosOtroLocal=dels.reduce((a,x)=>a+
+     ukiMontoEnvioOtroLocal(x,Number(x.envio)||0,Number(x.subtotal)||0),0);
   const enviosPedidos=dels.reduce((a,x)=>a+(Number(x.envio)||0),0);
   const envios=enviosPedidos+enviosManuales;
   const nDeliv=dels.length+dms.length;
@@ -2070,10 +2072,10 @@ function vHistorial(){
     return `<div class="card" style="border-left:4px solid var(--accent)"><h2>${esc(x.fecha)} · ${esc(x.resp)}</h2>${x.fechaOperativa?'<p class="muted">Turno: '+esc(x.fechaOperativa)+'</p>':''}
     <p class="muted" style="margin:8px 0 4px"><b>💳 Desglose pagos</b></p>
     ${mediosRows||'<p class="muted">Sin desglose (cierre antiguo)</p>'}
-    ${row("Pedidos",x.pedidos)}${row("Venta total con delivery",fmt(x.venta),"sub")}${row("Venta sin delivery",fmt(x.ventaSinDelivery||x.venta-(x.envios||0)))}
+    ${row("Pedidos",x.pedidos)}${row("Venta total con delivery",fmt(x.venta),"sub")}${row("Venta sin delivery",fmt(x.ventaSinDelivery ?? (x.venta-(x.envios||0))))}
     <p class="muted" style="margin:12px 0 2px"><b>🛵 Deliveries (${(x.dels||[]).length}) - Base $${esc(x.base||0)}</b></p>
     ${(x.dels||[]).map(d=>row(`#${d.id} · ${d.cliente||"sin nombre"}`,fmt(d.envio))).join("")||'<p class="muted">Sin deliveries</p>'}
-    ${row("Deliveries pedidos",fmt(x.enviosPedidos||0))}${row("Deliveries manuales",fmt(x.enviosManuales||0))}${row("Total deliveries",fmt((x.dels||[]).reduce((a,d)=>a+(d.envio||0),0)+(x.base||0)),"sub")}
+    ${row("Deliveries pedidos",fmt(x.enviosPedidos||0))}${row("Deliveries manuales",fmt(x.enviosManuales||0))}${row("Total para repartidor",fmt((x.dels||[]).reduce((a,d)=>a+(d.envio||0),0)+(x.base||0)),"sub")}${x.enviosCobradosUki!==undefined?row("Delivery cobrado en Uki",fmt(x.enviosCobradosUki)):""}${x.enviosCobradosOtroLocal?row("Delivery cobrado en otro local",fmt(x.enviosCobradosOtroLocal)):""}
     <p class="muted" style="margin:12px 0 2px"><b>💰 Efectivo</b></p>
     ${row("Efectivo cobrado",fmt(x.efectivoCobrado))}${row("− Gastos en efectivo",fmt(x.gastosEf))}${row("− Retiros",fmt(x.retiros))}${row(`− Pago a delivery (${x.pagoDeliveryMedio||"Efectivo"})`,fmt(x.pagadoDelivery))}${row("Efectivo que quedó",fmt(x.efectivo),"sub")}
     <p class="muted" style="margin:12px 0 2px"><b>📊 Resultado</b></p>
