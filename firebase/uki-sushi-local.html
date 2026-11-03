@@ -2359,6 +2359,207 @@ function ukiVHistorialCorreccionesCierre(c){
   '<p class="muted">El efectivo físico contado y los totales históricos originales NO se cambian.</p>'+items+'</details>';
 }
 
+
+/* Reenvío de un cierre archivado: SIEMPRE emplear cifras originales de S.cierres. */
+function ukiCierreHistoricoPorIndice(i){
+ const n=Number(i);
+ if(!Number.isSafeInteger(n)||n<0)return null;
+ const c=(S.cierres||[])[n];
+ return c&&c.suc===S.suc?c:null;
+}
+function ukiMediosCierreHistorico(c){
+ return MEDIOS.filter(m=>Number(c.medios?.[m])!==0&&Number.isFinite(Number(c.medios?.[m])))
+   .map(m=>({nombre:m,importe:Number(c.medios[m])}));
+}
+function ukiEfectivoContadoHistorial(c){
+ return c.efectivoContado===null||c.efectivoContado===undefined?"Sin conteo físico":fmt(c.efectivoContado);
+}
+function ukiMensajeCierreHistorico(c){
+ const lineas=[
+  "🍣 *UKI SUSHI · CIERRE GUARDADO*",
+  "*Sucursal:* "+c.suc,
+  "*Turno:* "+(c.fechaOperativa||String(c.fechaISO||"").slice(0,10)),
+  "*Fecha del cierre:* "+(c.fecha||c.fechaISO||""),
+  "*Responsable:* "+(c.resp||"No indicado"),
+  "",
+  "*RESUMEN DE VENTAS*",
+  "Pedidos: "+(Number(c.pedidos)||0),
+  "Venta total con delivery: "+fmt(c.venta||0),
+  "Venta sin delivery: "+fmt(c.ventaSinDelivery??((Number(c.venta)||0)-(Number(c.envios)||0))),
+  "",
+  "*MEDIOS DE PAGO*",
+  ...ukiMediosCierreHistorico(c).map(m=>m.nombre+": "+fmt(m.importe)),
+  "",
+  "*REPARTIDOR*",
+  "Deliverys registrados: "+(Array.isArray(c.dels)?c.dels.length:0),
+  "Importe deliverys: "+fmt(c.envios||0),
+  "Base diaria: "+fmt(c.base||0),
+  "Pago al repartidor ("+(c.pagoDeliveryMedio||"Efectivo")+"): "+fmt(c.pagadoDelivery??c.delivery??0),
+  "",
+  "*CIERRE DE CAJA*",
+  "Gastos: "+fmt(c.gastos||0),
+  "*TOTAL FINAL: "+fmt(c.final||0)+"*",
+  "Efectivo esperado: "+fmt(c.efectivo||0),
+  "Efectivo contado: "+ukiEfectivoContadoHistorial(c),
+  "Propinas (aparte): "+fmt(c.propinas||0)
+ ];
+ if(Number.isFinite(c.diferenciaEfectivo))lineas.push("Diferencia de efectivo: "+(c.diferenciaEfectivo===0?"Caja exacta":(c.diferenciaEfectivo>0?"Sobrante ":"Faltante ")+fmt(Math.abs(c.diferenciaEfectivo))));
+ if(c.obs)lineas.push("Observaciones: "+String(c.obs).slice(0,250)+(String(c.obs).length>250?"…":""));
+ lineas.push("","Cifras originales del cierre guardado. Sin desglose de productos.");
+ return lineas.join("\n");
+}
+function ukiCompartirCierreHistorial(i){
+ const c=ukiCierreHistoricoPorIndice(i);
+ if(!c){aviso("No se encontró este cierre de la sucursal.");return;}
+ const mensaje=ukiMensajeCierreHistorico(c);
+ const destino="https://api.whatsapp.com/send?text="+encodeURIComponent(mensaje);
+ const ventana=window.open(destino,"_blank");
+ if(!ventana)window.prompt("Copia el resumen y envíalo por WhatsApp:",mensaje);
+}
+/* PDF real, generado en el iPhone sin servidores externos ni bibliotecas de pago. */
+function ukiPdfWinAnsi(texto){
+ const mapa={"€":128,"‚":130,"ƒ":131,"„":132,"…":133,"†":134,"‡":135,"ˆ":136,"‰":137,"Š":138,"‹":139,"Œ":140,"Ž":142,"‘":145,"’":146,"“":147,"”":148,"•":149,"–":150,"—":151,"˜":152,"™":153,"š":154,"›":155,"œ":156,"ž":158,"Ÿ":159};
+ let out="";
+ for(const ch of String(texto??"")){
+  const cp=ch.codePointAt(0);
+  const b=cp<=255?cp:(mapa[ch]??63);
+  if(b===40||b===41||b===92)out+="\\"+String.fromCharCode(b);
+  else if(b<32||b>126)out+="\\"+b.toString(8).padStart(3,"0");
+  else out+=String.fromCharCode(b);
+ }
+ return out;
+}
+function ukiCrearPdfResumenHistorico(c){
+ const W=595,H=842;
+ let paginas=[],actual=[],y=0;
+ const txt=(texto,x,yy,sz=10,negrita=false,color="0.17 0.14 0.12")=>{
+  actual.push(color+" rg BT /"+(negrita?"F2":"F1")+" "+sz+" Tf 1 0 0 1 "+x+" "+yy+" Tm ("+ukiPdfWinAnsi(texto)+") Tj ET");
+ };
+ const pagina=()=>{
+  actual=[];paginas.push(actual);y=785;
+  actual.push("0.80 0.38 0.07 rg 0 822 "+W+" 20 re f");
+  txt("UKI SUSHI",42,790,21,true);
+  txt("CIERRE DE CAJA · RESUMEN ARCHIVADO",42,772,10,false,"0.51 0.39 0.30");
+  y=744;
+ };
+ const salto=(alto=20)=>{if(y-alto<65)pagina();};
+ const seccion=t=>{
+  salto(50);
+  actual.push("0.97 0.95 0.92 rg 40 "+(y-7)+" 515 25 re f");
+  txt(t.toUpperCase(),48,y,11,true,"0.49 0.26 0.11");
+  y-=31;
+ };
+ const fila=(etiqueta,valor,importante=false)=>{
+  salto(24);
+  const label=String(etiqueta||"").slice(0,49);
+  const dato=String(valor??"").slice(0,35);
+  txt(label,49,y,10,importante);
+  const x=Math.max(335,544-dato.length*5.3);
+  txt(dato,x,y,10,importante,importante?"0.65 0.29 0.06":"0.17 0.14 0.12");
+  actual.push("0.91 0.88 0.84 RG 0.5 w 47 "+(y-7)+" m 547 "+(y-7)+" l S");
+  y-=23;
+ };
+ const lineaNota=(texto)=>{
+  const palabras=String(texto||"").split(/\s+/).filter(Boolean);
+  let linea="";
+  for(const palabra of palabras){
+   if((linea+" "+palabra).length>92&&linea){
+    salto(17);txt(linea,49,y,9);y-=17;linea=palabra;
+   }else linea+=(linea?" ":"")+palabra;
+  }
+  if(linea){salto(17);txt(linea,49,y,9);y-=17;}
+ };
+ pagina();
+ seccion("Identificación");
+ fila("Sucursal",c.suc||S.suc);
+ fila("Turno operativo",c.fechaOperativa||String(c.fechaISO||"").slice(0,10));
+ fila("Cierre registrado",c.fecha||c.fechaISO||"");
+ fila("Responsable",c.resp||"No indicado");
+ seccion("Ventas");
+ fila("Pedidos",Number(c.pedidos)||0);
+ fila("Venta con delivery",fmt(c.venta||0));
+ fila("Venta sin delivery",fmt(c.ventaSinDelivery??((Number(c.venta)||0)-(Number(c.envios)||0))));
+ seccion("Medios de pago");
+ const medios=ukiMediosCierreHistorico(c);
+ if(medios.length)medios.forEach(m=>fila(m.nombre,fmt(m.importe)));
+ else fila("Medios registrados","Sin desglose");
+ seccion("Repartidor");
+ fila("Deliverys registrados",Array.isArray(c.dels)?c.dels.length:0);
+ fila("Monto de los deliverys",fmt(c.envios||0));
+ fila("Base diaria",fmt(c.base||0));
+ fila("Pago realizado ("+(c.pagoDeliveryMedio||"Efectivo")+")",fmt(c.pagadoDelivery??c.delivery??0));
+ seccion("Caja y resultado");
+ fila("Gastos",fmt(c.gastos||0));
+ fila("Total final",fmt(c.final||0),true);
+ fila("Efectivo esperado",fmt(c.efectivo||0));
+ fila("Efectivo contado",ukiEfectivoContadoHistorial(c));
+ if(Number.isFinite(c.diferenciaEfectivo))fila("Diferencia de efectivo",c.diferenciaEfectivo===0?"Caja exacta":(c.diferenciaEfectivo>0?"Sobrante ":"Faltante ")+fmt(Math.abs(c.diferenciaEfectivo)));
+ fila("Propinas (aparte)",fmt(c.propinas||0));
+ if(c.obs){seccion("Observaciones");lineaNota(String(c.obs).slice(0,400));}
+ for(let i=0;i<paginas.length;i++){
+  const pg=paginas[i];
+  pg.push("0.58 0.51 0.45 rg BT /F1 8 Tf 1 0 0 1 42 39 Tm (Cifras originales del cierre. Sin detalle de productos.) Tj ET");
+  pg.push("0.58 0.51 0.45 rg BT /F1 8 Tf 1 0 0 1 500 39 Tm (Pag. "+(i+1)+"/"+paginas.length+") Tj ET");
+ }
+ const objs=[null];
+ const add=v=>{objs.push(v);return objs.length-1;};
+ const catalog=add(""),pagesRoot=add("");
+ const f1=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+ const f2=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+ const referencias=[];
+ for(const pg of paginas){
+  const contenido=pg.join("\n")+"\n";
+  const contenidoId=add("<< /Length "+contenido.length+" >>\nstream\n"+contenido+"endstream");
+  const hojaId=add("<< /Type /Page /Parent "+pagesRoot+" 0 R /MediaBox [0 0 "+W+" "+H+"] /Resources << /Font << /F1 "+f1+" 0 R /F2 "+f2+" 0 R >> >> /Contents "+contenidoId+" 0 R >>");
+  referencias.push(hojaId+" 0 R");
+ }
+ objs[catalog]="<< /Type /Catalog /Pages "+pagesRoot+" 0 R >>";
+ objs[pagesRoot]="<< /Type /Pages /Kids ["+referencias.join(" ")+"] /Count "+referencias.length+" >>";
+ let pdf="%PDF-1.4\n%\xE2\xE3\xCF\xD3\n";
+ const offsets=[0];
+ for(let i=1;i<objs.length;i++){
+  offsets[i]=pdf.length;
+  pdf+=i+" 0 obj\n"+objs[i]+"\nendobj\n";
+ }
+ const xref=pdf.length;
+ pdf+="xref\n0 "+objs.length+"\n0000000000 65535 f \n";
+ for(let i=1;i<objs.length;i++)pdf+=String(offsets[i]).padStart(10,"0")+" 00000 n \n";
+ pdf+="trailer\n<< /Size "+objs.length+" /Root "+catalog+" 0 R >>\nstartxref\n"+xref+"\n%%EOF";
+ const bytes=new Uint8Array(pdf.length);
+ for(let i=0;i<pdf.length;i++)bytes[i]=pdf.charCodeAt(i)&255;
+ return new Blob([bytes],{type:"application/pdf"});
+}
+async function ukiPDFCierreHistorial(i){
+ const c=ukiCierreHistoricoPorIndice(i);
+ if(!c){aviso("No se encontró este cierre de la sucursal.");return;}
+ try{
+  const archivo=ukiCrearPdfResumenHistorico(c);
+  const dia=/^\d{4}-\d{2}-\d{2}$/.test(c.fechaOperativa||"")?c.fechaOperativa:"historico";
+  const local=String(c.suc||"uki").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+  const nombre="uki-cierre-"+local+"-"+dia+".pdf";
+  if(navigator.share&&navigator.canShare&&typeof File!=="undefined"){
+   const file=new File([archivo],nombre,{type:"application/pdf"});
+   if(navigator.canShare({files:[file]})){
+    try{await navigator.share({files:[file],title:"Uki Sushi · Cierre "+dia});return;}
+    catch(e){if(e?.name==="AbortError")return;}
+   }
+  }
+  const url=URL.createObjectURL(archivo);
+  const a=document.createElement("a");a.href=url;a.download=nombre;a.style.display="none";
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},15000);
+ }catch(e){aviso("No se pudo generar el PDF: "+String(e?.message||e));}
+}
+function ukiAccionesHistorial(c){
+ const i=S.cierres.indexOf(c);
+ if(i<0)return "";
+ return '<div class="order-actions" style="padding:10px 0 12px;gap:8px">'+
+  '<button type="button" class="sm ok" style="background:#25D366;color:#fff" onclick="ukiCompartirCierreHistorial('+i+')">Compartir cierre por WhatsApp</button>'+
+  '<button type="button" class="sm" onclick="ukiPDFCierreHistorial('+i+')">PDF · Guardar o compartir</button>'+
+  '</div>';
+}
+
 function vHistorialCompacto(){
   const tmp=document.createElement('div');tmp.innerHTML=vHistorial();
   Array.from(tmp.children).forEach((card,i)=>{
@@ -2378,12 +2579,12 @@ function vHistorial(){
   if(S.filtro) c=c.filter(x=>x.fecha.includes(S.filtro)||String(x.fechaOperativa||"").includes(S.filtro));
   if(S.filtroFecha){const f=S.filtroFecha; c=c.filter(x=>x.fechaOperativa===f||(!x.fechaOperativa&&x.fecha.includes(f.split("-").reverse().join("-").slice(0,5))));}
   c=c.slice().reverse();
-  const buscador=`<div class="card"><h2>Buscar por día</h2><label>Texto (ej: 29-10)</label><input placeholder="Ej: 29-10" value="${esc(S.filtro||"")}" oninput="S.filtro=this.value;render()"><label>Calendario</label><input type="date" value="${S.filtroFecha||""}" onchange="S.filtroFecha=this.value;render()"><p class="muted">Cada cierre queda guardado aquí.</p>${c.length?row("Días mostrados",c.length)+row("Deliveries en total",fmt(c.reduce((a,x)=>a+(x.dels||[]).reduce((b,d)=>b+(d.envio||0),0),0)))+row("Efectivo que quedó en total",fmt(c.reduce((a,x)=>a+x.efectivo,0))):""}<button class="sm" onclick="S.filtro='';S.filtroFecha='';render()">Limpiar</button><button class="sm" onclick="copiarResumen()">Copiar resumen</button><button class="sm" onclick="descargarPDF('historial')">Historial TXT</button><button class="sm" onclick="descargarExcel('historial')">Excel historial</button><button class="sm ok" onclick="descargarRespaldoCompleto()">💾 Respaldo PC</button></div>`;
+  const buscador=`<div class="card"><h2>Buscar por día</h2><label>Texto (ej: 29-10)</label><input placeholder="Ej: 29-10" value="${esc(S.filtro||"")}" oninput="S.filtro=this.value;render()"><label>Calendario</label><input type="date" value="${S.filtroFecha||""}" onchange="S.filtroFecha=this.value;render()"><p class="muted">Cada cierre queda guardado aquí. Abre el cierre deseado para reenviarlo por WhatsApp o guardarlo en PDF.</p>${c.length===1&&(S.filtro||S.filtroFecha)?'<p class="muted"><b>Cierre encontrado:</b> '+esc(c[0].fechaOperativa||c[0].fecha)+'</p>'+ukiAccionesHistorial(c[0]):""}${c.length?row("Días mostrados",c.length)+row("Deliveries en total",fmt(c.reduce((a,x)=>a+(x.dels||[]).reduce((b,d)=>b+(d.envio||0),0),0)))+row("Efectivo que quedó en total",fmt(c.reduce((a,x)=>a+x.efectivo,0))):""}<button class="sm" onclick="S.filtro='';S.filtroFecha='';render()">Limpiar</button><button class="sm" onclick="copiarResumen()">Copiar resumen</button><details style="margin:10px 0"><summary style="cursor:pointer">Descargas completas (avanzado)</summary><button class="sm" onclick="descargarPDF('historial')">TXT con todos los detalles</button></details><button class="sm" onclick="descargarExcel('historial')">Excel historial</button><button class="sm ok" onclick="descargarRespaldoCompleto()">💾 Respaldo PC</button></div>`;
   if(!c.length) return buscador+'<div class="card muted">Sin cierres para mostrar - Haz un cierre en Cierre del día con Responsable</div>';
   return buscador+c.map(x=>{
     const m=x.medios||{};
     const mediosRows=Object.keys(m).length?Object.keys(m).map(k=>m[k]>0?row(k,fmt(m[k])):"").join(""):"";
-    return `<div class="card" style="border-left:4px solid var(--accent)"><h2>${esc(x.fecha)} · ${esc(x.resp)}</h2>${x.fechaOperativa?'<p class="muted">Turno: '+esc(x.fechaOperativa)+'</p>':''}
+    return `<div class="card" style="border-left:4px solid var(--accent)"><h2>${esc(x.fecha)} · ${esc(x.resp)}</h2>${ukiAccionesHistorial(x)}${x.fechaOperativa?'<p class="muted">Turno: '+esc(x.fechaOperativa)+'</p>':''}
     <p class="muted" style="margin:8px 0 4px"><b>💳 Desglose pagos</b></p>
     ${mediosRows||'<p class="muted">Sin desglose (cierre antiguo)</p>'}
     ${row("Pedidos",x.pedidos)}${row("Venta total con delivery",fmt(x.venta),"sub")}${row("Venta sin delivery",fmt(x.ventaSinDelivery ?? (x.venta-(x.envios||0))))}
