@@ -13,6 +13,8 @@ on:
       - 'firebase/uki-particion-local.js'
       - 'firebase/uki-sushi-autoguardado.js'
       - 'tests/uki-qr-firestore-emulator.qa.mjs'
+      - 'tests/uki-firestore-guest-read.qa.cjs'
+      - 'tests/uki-firebase-guest-probe.qa.html'
       - 'tests/uki-firestore-emulator.rules'
       - 'firebase-qa-emulator.json'
   workflow_dispatch:
@@ -41,6 +43,8 @@ jobs:
         run: node tests/uki-qr-cuenta-browser.qa.cjs
       - name: Probar sincronización cifrada y autoguardado en nube simulada aislada
         run: node tests/uki-qr-sync.qa.mjs
+      - name: Verificar lectura anónima prohibida en Firebase real (solo GET)
+        run: node tests/uki-firestore-guest-read.qa.cjs
 
   firestore-emulador-aislado:
     runs-on: ubuntu-latest
