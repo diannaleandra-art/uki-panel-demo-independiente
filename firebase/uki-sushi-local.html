@@ -135,6 +135,13 @@ body.uki-nube-alerta #ukiEstadoOperativo{color:#b44713;font-weight:700}
 <p><strong>Único paso:</strong> pulsa «Entrar con Google» y elige el correo administrativo de Uki. Esta es una vista privada para comprobar el inicio de sesión: no carga la nube ni guarda ventas.</p>
 <div id="ukiNubeEstado" role="status">Google sin iniciar.</div>
 <button id="ukiLoginQA" type="button">Entrar con Google</button>
+<div id="ukiMesasConsultaQA" hidden style="margin-top:16px;padding:14px;background:#fff;border:1px solid #eab77a;border-radius:12px">
+  <strong>🍽 Pedidos de mesas · lectura de prueba</strong>
+  <p style="font-size:13px">Aquí solo se ven pedidos QR. No se registran ventas, cobros ni movimientos de caja.</p>
+  <button type="button" id="ukiMesasConsultaActualizarQA">Actualizar pedidos</button>
+  <p id="ukiMesasConsultaEstadoQA" role="status">Consultando…</p>
+  <div id="ukiMesasConsultaListaQA"></div>
+</div>
 <div hidden aria-hidden="true"><label for="ukiCloudPass">Clave de nube desactivada en esta prueba</label><input id="ukiCloudPass" type="password" disabled><button id="ukiLoadQA" type="button" disabled>Cargar nube</button><button id="ukiSaveQA" type="button" disabled>Guardar</button><input id="ukiAutoCheck" type="checkbox" disabled><p id="ukiAutoEstado">Desactivado</p></div>
 <p style="font-size:13px">No introduzcas claves ni registres ventas. La activación de pedidos por QR se comprobará por separado.</p>
 </section>
@@ -3004,6 +3011,46 @@ async function accion(action){
  finally{ocupado=false;el("ukiLoadQA").disabled=false;el("ukiSaveQA").disabled=auto.resumen().activo}
 }
 window.ukiMesasQAToken=async()=>auth.currentUser?auth.currentUser.getIdToken():null;
+// Bandeja de verificación: SOLO LECTURA, sin guardar ni confirmar solicitudes.
+let ukiMesasConsultaOcupadaQA=false;
+async function ukiMesasConsultaLeerQA(){
+ const state=el("ukiMesasConsultaEstadoQA"),host=el("ukiMesasConsultaListaQA");
+ if(!state||!host||ukiMesasConsultaOcupadaQA)return;
+ if(!auth.currentUser){state.textContent="Inicia sesión con Google";return;}
+ ukiMesasConsultaOcupadaQA=true;
+ state.textContent="Consultando solicitudes QR de Regimiento Arica y La Serena…";
+ host.replaceChildren();
+ try{
+  const token=await window.ukiMesasQAToken();
+  if(!token)throw Error("No se pudo comprobar el acceso Google");
+  const resultados=await Promise.all([["arica","Uki Regimiento Arica"],["serena","Uki La Serena"]].map(async([branch,label])=>{
+   const response=await fetch(UKI_MESAS_ENDPOINT+"?branch="+branch,{
+    headers:{Authorization:"Bearer "+token},cache:"no-store",signal:AbortSignal.timeout(15000)
+   });
+   const data=await response.json().catch(()=>({}));
+   if(!response.ok||!data.ok)throw Error(String(data.error||"La bandeja no respondió")+" ("+label+")");
+   return {label,orders:Array.isArray(data.orders)?data.orders:[]};
+  }));
+  for(const resultado of resultados){
+   const section=document.createElement("section");
+   section.style.cssText="border-top:1px solid #ead7c5;padding:10px 0";
+   const h=document.createElement("b");
+   h.textContent=resultado.label+" · "+resultado.orders.length+" pendiente(s)";
+   section.append(h);
+   for(const pedido of resultado.orders){
+    const p=document.createElement("p");
+    p.style.cssText="padding:10px;border:1px solid #ead7c5;border-radius:9px;background:#fff9ee;font-size:14px";
+    p.textContent="Mesa "+pedido.mesa+" · "+String(pedido.nombre||"Cliente")+" · $"+Number(pedido.total||0).toLocaleString("es-CL")+" · Pendiente\n"+(Array.isArray(pedido.items)?pedido.items.map(item=>String(item.qty||1)+" × "+String(item.mesaLabel||"Producto")+(item.mesaDetalle?" · "+String(item.mesaDetalle):"")).join("\n"):"");
+    p.style.whiteSpace="pre-wrap";
+    section.append(p);
+   }
+   host.append(section);
+  }
+  state.textContent="Bandeja actualizada. Consulta únicamente: caja y pagos no modificados.";
+ }catch(e){state.textContent="No se pudo consultar la bandeja: "+String(e?.message||e);}
+ finally{ukiMesasConsultaOcupadaQA=false;}
+}
+el("ukiMesasConsultaActualizarQA")?.addEventListener("click",ukiMesasConsultaLeerQA);
 window.ukiMesaCopiarIDTrabajador=async()=>{
  const uid=auth.currentUser?.uid;
  if(!uid){msg("Primero ingresa con Google en el panel Uki.");return;}
@@ -3019,7 +3066,10 @@ onAuthStateChanged(auth,user=>{
  revision=null;sucursalCargada=null;
  auto.desactivar();dejarDeVigilar();
  el("ukiAutoCheck").checked=false;
- msg(user?"Google conectado: "+(user.email||"cuenta Google")+". Pendiente de comprobar permisos de pedidos QR. No hay ventas habilitadas.":"Google sin iniciar. Pulsa «Entrar con Google» y elige la cuenta administrativa de Uki.");
+ msg(user?"Google conectado: "+(user.email||"cuenta Google")+". Pedidos QR disponibles solo para consulta. No hay ventas habilitadas.":"Google sin iniciar. Pulsa «Entrar con Google» y elige la cuenta administrativa de Uki.");
+ const bandejaQA=el("ukiMesasConsultaQA");
+ if(bandejaQA)bandejaQA.hidden=!user;
+ if(user)ukiMesasConsultaLeerQA();
  actualizarBloqueo();
 },e=>msg("Error de Google: "+String(e?.code||e)));
 el("ukiLoginQA").addEventListener("click",()=>accion(async()=>{
