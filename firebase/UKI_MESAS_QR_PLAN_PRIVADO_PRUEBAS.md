@@ -55,6 +55,15 @@ Estado al 3 nov 2026: **solo análisis/diseño; no hay recepción automática ac
 - Importante: Vercel Hobby indica uso **solo personal/no comercial** en sus términos. Verificar el plan aplicable antes de usar recepción de pedidos para un restaurante; no asumir que será siempre gratuito ni contratar/actualizar sin autorización.
 
 
+## Control de acceso preparado (3 noviembre 2026)
+- Cuenta de Google autorizada por configuración cifrada de **Preview** en Vercel; la dirección real no queda publicada en los archivos de prueba.
+- La API de lectura exige un token de Firebase válido firmado por Google, proyecto correcto y coincidencia con el correo Google verificado en lista de acceso.
+- Prueba de aplicación con JWT y SQL **simulados**: acceso de cuenta autorizada, rechazo de correo ajeno, rechazo de correo sin verificar, rechazo de otro proveedor, rechazo de token inválido y separación por sucursal. Además, marcar una solicitud dos veces devuelve conflicto y ninguna solicitud se marca pagada.
+- Pruebas incorporadas al código de carta en `tests/mesa-acceso-bandeja.test.cjs`; Vercel Preview construyó el commit con las pruebas, pero `READY` **no demuestra por sí solo** que se haya ejecutado cada caso.
+- `UKI_MESAS_QA_ENABLED` permanece en **false**. Ningún QR real puede enviar solicitudes todavía. No se han solicitado contraseñas ni se ha usado una sesión personal en los tests.
+- **Bloqueador para la prueba real**: el panel QA aún no tiene URL de Preview operativa (los proyectos anteriores de Vercel apuntan a rutas legadas) y el origen de esa futura URL debe ser autorizado por la autenticación de Firebase y por CORS. No alterar la configuración de producción sin revisar.
+- No anunciar conexión completa ni activar producción hasta probar inicio de sesión real del trabajador y un POST→GET→confirmación con almacenamiento QA, validación de cloud sync y costes.
+
 ## Prueba adicional 3 nov 2026 — carta → API → bandeja simulada
 
 - Se verificó por código ejecutable el recorrido de **dos pedidos ficticios** desde la carta QR de Mesa 2, sucursal Regimiento Arica: pizza Pepperoni (2 x $9.000) y pizza Margarita (1 x $9.000); catálogo/precios obtenidos del `model.mjs` real del repositorio, sin alterar precios reales.
