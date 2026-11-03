@@ -105,7 +105,7 @@ test('Detalle para WhatsApp e impresión separa comida, delivery y pago externo'
  assert.match(bill,/SALDO POR PAGAR EN UKI: \$0/);
 });
 test('La pantalla distingue el monto registrado para repartidor del recibido en caja',()=>{
- assert.match(html,/El delivery también fue pagado en otro local/);
+ assert.match(html,/El delivery fue pagado en otro local/);
  assert.match(html,/Deliverys registrados para repartidor/);
  assert.match(html,/Verifica cuáles fueron entregados antes de pagar al repartidor/);
  assert.match(html,/Delivery cobrado en Uki/);
