@@ -36,7 +36,7 @@ function identidad(branch,generacion,bloque){
  if(!["regimiento","la-serena"].includes(branch))throw new Error("Sucursal no autorizada");
  if(typeof generacion!=="string"||!/^[a-f0-9]{32}$/.test(generacion))throw new Error("Identificador inválido");
  if(!bloque||typeof bloque.tipo!=="string"||!["pedidos","gastos","retiros","propinas","cierres",
-     "deliveriesManuales","incidencias","clientes","cajasDiarias","meta"].includes(bloque.tipo)||
+     "deliveriesManuales","incidencias","ajustesHistoricos","borradores","clientes","cajasDiarias","meta"].includes(bloque.tipo)||
    typeof bloque.grupo!=="string"||bloque.grupo.length>40||
    !Number.isSafeInteger(bloque.numero)||bloque.numero<0)
    throw new Error("Bloque inválido");
