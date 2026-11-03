@@ -19,7 +19,7 @@ test('Equipo QR en navegador real: clave no exportable, persistencia, acceso y r
   if(body.action==='pair'){
    adminCalls++;
    if(req.headers().authorization!=='Bearer qa_admin_ficticio')return fail(403,'Sin cuenta autorizada');
-   if(!body.publicKey||body.publicKey.d)return fail(422,'Clave no válida');
+   if(!body.publicKey||Object.keys(body.publicKey).sort().join(',')!=='crv,kty,x,y')return fail(400,'Clave pública inválida');
    const deviceId=crypto.randomUUID();
    devices.set(deviceId,{branch:body.branch,key:body.publicKey,active:true});
    return send({deviceId,branch:body.branch});
