@@ -150,7 +150,7 @@ body.uki-nube-alerta #ukiEstadoOperativo{color:#b44713;font-weight:700}
 const SUCURSALES=["Uki Regimiento Arica","Uki La Serena"];
 const MEDIOS=["Efectivo","Transferencia","Débito","Edenred","Otros","Uber Eats","PedidosYa","Rappi"];
 const APPS=["Uber Eats","PedidosYa","Rappi"];
-let S={suc:null,pinSuc:null,codigos:{},vista:"inicio",base:18000,pedidos:[],gastos:[],retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",deliveriesManuales:[],ajustesHistoricos:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,filtro:"",filtroFecha:"",filtroCliente:""};
+let S={suc:null,pinSuc:null,codigos:{},vista:"inicio",base:18000,pedidos:[],gastos:[],retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",deliveriesManuales:[],ajustesHistoricos:[],borradores:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,filtro:"",filtroFecha:"",filtroCliente:""};
 let D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",mesaReferencia:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:"",envioPagadoOtroLocal:false,localPagoExterno:"",propinaModo:"ninguna",propinaPersonalizada:"",medioPropina:"Efectivo",editando:null};
 const $=id=>document.getElementById(id);
 const fmt=n=>"$"+Math.round(n||0).toLocaleString("es-CL");
@@ -244,6 +244,10 @@ function cambiarModoNuevo(t){modoNuevo=t;render();}
 
 function aviso(t){S.msg=t;render();window.scrollTo({top:0,behavior:"smooth"});}
 function ir(v){
+  if(S.vista==="nuevo"&&v!=="nuevo"&&S.suc&&!D.editando&&ukiBorradorTieneContenido()){
+   if(ukiGuardarBorradorSinVista()){nuevoDraft();ukiBorradorActivo=null;}
+   else return;
+  }
   S.confirmCierre=false;
   if(["registros","cierre","historial"].includes(v)){
     cajaTab=({registros:"movimientos",cierre:"cierre",historial:"historial"})[v];
@@ -263,7 +267,7 @@ let claveSesion=null,sucursalSesion=null,saltSesion=null,colaGuardado=Promise.re
 function estadoVacioSucursal(s){
  return {suc:s,pinSuc:null,codigos:{},vista:s?"pedidos":"inicio",base:18000,pedidos:[],gastos:[],
  retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",
- deliveriesManuales:[],ajustesHistoricos:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},
+ deliveriesManuales:[],ajustesHistoricos:[],borradores:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},
  incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,
  filtro:"",filtroFecha:"",filtroCliente:""};
 }
@@ -273,6 +277,7 @@ function validarEstadoSucursal(datos,suc){
   if(!Array.isArray(datos[c])||!datos[c].every(x=>x&&typeof x==="object"&&!Array.isArray(x)&&x.suc===suc))return false;
  }
  if(datos.ajustesHistoricos!==undefined&&(!Array.isArray(datos.ajustesHistoricos)||datos.ajustesHistoricos.some(x=>!x||typeof x!=="object"||x.suc!==suc)))return false;
+ if(datos.borradores!==undefined&&(!Array.isArray(datos.borradores)||datos.borradores.some(x=>!x||typeof x!=="object"||x.suc!==suc||typeof x.id!=="string"||!x.datos||typeof x.datos!=="object")))return false;
  if(!datos.clientes||typeof datos.clientes!=="object"||Array.isArray(datos.clientes))return false;
  if(!datos.cajasDiarias||typeof datos.cajasDiarias!=="object"||Array.isArray(datos.cajasDiarias))return false;
  if(!Number.isInteger(datos.nextId)||datos.nextId<1||!Number.isInteger(datos.nextIncidenciaId)||datos.nextIncidenciaId<1)return false;
@@ -705,6 +710,75 @@ function setEnvioManual(valor){
   const txt=$("pedidoEnvioAyuda");
   if(txt) txt.textContent=D.modalidad==="Delivery"?"Delivery seleccionado - "+fmt(monto)+" se suma al total":"Toca Delivery arriba para sumar envío";
 }
+
+/* Borradores de pedidos en este dispositivo: no son ventas ni cuentas confirmadas. */
+let ukiBorradorActivo=null;
+const ukiCopia=x=>JSON.parse(JSON.stringify(x));
+function ukiBorradoresSucursal(){return (S.borradores||[]).filter(x=>x.suc===S.suc).slice().sort((a,b)=>b.actualizadoEn-a.actualizadoEn);}
+function ukiCamposEnProceso(){return Object.fromEntries(["pCant","pPre","pNom","pDet"].map(id=>[id,String($(id)?.value??"")]));}
+function ukiBorradorTieneContenido(){
+ return !!(D&&!D.editando&&(String(D.cliente||D.telefono||D.texto||D.mesaReferencia||D.codigoCliente||D.codigoCarta||"").trim()||
+ (D.items||[]).some(x=>String(x.nombre||"").trim())||D.modalidad!=="Retiro"||D.pagado||String($("pNom")?.value||"").trim()||String($("pPre")?.value||"").trim()));
+}
+function ukiGuardarBorradorSinVista(){
+ if(!S.suc||D.editando||!ukiBorradorTieneContenido())return false;
+ S.borradores=Array.isArray(S.borradores)?S.borradores:[];
+ let b=ukiBorradorActivo?S.borradores.find(x=>x.id===ukiBorradorActivo&&x.suc===S.suc):null;
+ if(!b){
+  if(ukiBorradoresSucursal().length>=12){aviso("Máximo 12 pedidos en espera. Termina uno antes de continuar.");return false;}
+  b={id:"b-"+Date.now()+"-"+Math.floor(Math.random()*1e9),suc:S.suc,creadoEn:Date.now()};
+  S.borradores.push(b);
+ }
+ b.actualizadoEn=Date.now();b.modo=modoNuevo;
+ b.datos=ukiCopia(D);b.compositor=ukiCamposEnProceso();ukiBorradorActivo=b.id;
+ return true;
+}
+function ukiPausarPedido(){
+ if(S.busy||D.editando){aviso("Termina primero la edición del pedido registrado.");return;}
+ if(!ukiBorradorTieneContenido()){aviso("Escribe un producto, cliente o tipo de entrega para guardar un pedido en espera.");return;}
+ if(!ukiGuardarBorradorSinVista())return;
+ nuevoDraft();ukiBorradorActivo=null;modoNuevo="manual";
+ S.msg="Pedido en espera guardado. Puedes registrar otra venta; no se agregó a caja ni se asignó número de pedido.";
+ render();
+}
+function ukiRetomarBorrador(id){
+ if(S.busy||D.editando){aviso("Termina primero la edición actual.");return;}
+ const b=ukiBorradoresSucursal().find(x=>x.id===id);
+ if(!b){aviso("El borrador ya no está disponible.");return;}
+ if(ukiBorradorActivo!==id&&ukiBorradorTieneContenido()&&!ukiGuardarBorradorSinVista())return;
+ D=ukiCopia(b.datos);D.editando=null;
+ if(!Array.isArray(D.items)||!D.items.length)D.items=[{nombre:"",cant:1,precio:0,det:""}];
+ modoNuevo=b.modo==="manual"?"manual":"whatsapp";
+ ukiBorradorActivo=b.id;S.vista="nuevo";render();
+ Object.entries(b.compositor||{}).forEach(([k,v])=>{if($(k))$(k).value=v;});
+}
+function ukiEliminarBorrador(id){
+ if(!ukiBorradoresSucursal().some(x=>x.id===id)||!window.confirm("¿Eliminar este pedido en espera? No cambia ventas ni cierres."))return;
+ S.borradores=(S.borradores||[]).filter(x=>x.suc!==S.suc||x.id!==id);
+ if(ukiBorradorActivo===id){nuevoDraft();ukiBorradorActivo=null;}
+ render();
+}
+function ukiQuitarBorradorActivo(){
+ if(ukiBorradorActivo)S.borradores=(S.borradores||[]).filter(x=>x.suc!==S.suc||x.id!==ukiBorradorActivo);
+ ukiBorradorActivo=null;
+}
+function ukiVistaBorradores(){
+ const list=ukiBorradoresSucursal();
+ const items=list.map(b=>{
+  const d=b.datos||{},ref=String(d.mesaReferencia||d.cliente||"").trim();
+  const titulo=d.modalidad==="Consumo en local"?"Mesa "+(ref||"sin número"):d.modalidad==="Delivery"?"Delivery "+(ref||"sin cliente"):"Retiro "+(ref||"sin cliente");
+  return '<div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:8px"><b>'+esc(titulo)+'</b>'+
+   '<p class="muted">'+(d.items||[]).filter(x=>x.nombre).length+' producto(s) · En espera, sin venta'+(b.id===ukiBorradorActivo?" · Editando":"")+'</p>'+
+   '<button class="sm ok" type="button" onclick="ukiRetomarBorrador('+JSON.stringify(b.id)+')">Continuar</button> '+
+   '<button class="sm" type="button" onclick="ukiEliminarBorrador('+JSON.stringify(b.id)+')">Eliminar</button></div>';
+ }).join("");
+ return '<div class="card"><h2>⏸ Pedidos en preparación · '+list.length+'</h2>'+
+ '<p class="muted">Deja una mesa en espera y atiende otra venta desde el mismo dispositivo. Los borradores NO suman ventas ni deliverys.</p>'+
+ (items||'<p class="muted">Todavía no hay pedidos en espera.</p>')+
+ (!D.editando?'<button class="sm ok" type="button" onclick="ukiPausarPedido()">Guardar en espera y abrir otro</button>':'')+
+ '<p class="muted">Varios celulares simultáneos requieren otra integración; esta función no elimina conflictos de nube.</p></div>';
+}
+
 function nuevoDraft(){D={texto:"",fecha:ahora(),cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",sucursalCarta:"",mesaReferencia:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[{nombre:"",cant:1,precio:0,det:""}],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:"",envioPagadoOtroLocal:false,montoEnvioOtroLocal:"",localPagoExterno:"",propinaModo:"ninguna",propinaPersonalizada:"",medioPropina:"Efectivo",editando:null};}
 function delItem(k){D.items.splice(k,1);if(!D.items.length)D.items=[{nombre:"",cant:1,precio:0,det:""}];render();}
 function addItem(){const n=$("pNom").value.trim(); const c=parseInt($("pCant").value)||1; const p=parseInt($("pPre").value)||0; const d=$("pDet").value.trim(); if(!n||!p){aviso("Pon nombre y precio");return;} D.items=D.items.filter(x=>x.nombre); D.items.push({nombre:n,cant:c,precio:p,det:d}); $("pNom").value=""; $("pCant").value=1; $("pPre").value=""; $("pDet").value=""; render();}
@@ -790,7 +864,8 @@ function vNuevo(){
   const ventasCli=cli?ventasValidas(cli):0;
    const entregaUI=`<label>Tipo de entrega</label><div class="chips">${["Retiro","Delivery","Consumo en local"].map(m=>`<button ${chip(D.modalidad===m)} onclick="setModalidad('${m}')">${m}</button>`).join("")}</div>${D.modalidad==="Consumo en local"?`<label>Mesa o referencia (opcional)</label><input maxlength="50" value="${esc(D.mesaReferencia||"")}" placeholder="Ej: Mesa 2" oninput="D.mesaReferencia=this.value">`:""}${D.modalidad==="Delivery"?`<label>💰 Valor delivery (se suma)</label><input type="number" inputmode="numeric" value="${D.envio||""}" placeholder="Ej: 2000" oninput="setEnvioManual(this.value)"><p class="muted" id="pedidoEnvioAyuda">Delivery seleccionado - ${D.envio||0} se suma al total</p>`:""}`;
   return `<div class="section-head"><h2>${D.editando?`Editar pedido #${D.editando}`:"Nuevo pedido"}</h2><p>Elige cómo ingresar el pedido. Puedes revisar los datos antes de guardarlo.</p></div>
-  <div class="mode-switch" role="group" aria-label="Modo de ingresar pedido"><button type="button" class="${modoNuevo==='whatsapp'?'selected':''}" onclick="cambiarModoNuevo('whatsapp')">📋 Pegar WhatsApp</button><button type="button" class="${modoNuevo==='manual'?'selected':''}" onclick="cambiarModoNuevo('manual')">✎ Manual</button></div>
+  ${ukiVistaBorradores()}
+   <div class="mode-switch" role="group" aria-label="Modo de ingresar pedido"><button type="button" class="${modoNuevo==='whatsapp'?'selected':''}" onclick="cambiarModoNuevo('whatsapp')">📋 Pegar WhatsApp</button><button type="button" class="${modoNuevo==='manual'?'selected':''}" onclick="cambiarModoNuevo('manual')">✎ Manual</button></div>
    ${modoNuevo==="manual"?`<div class="card" style="border:1px solid var(--accent);"><h2>¿Cómo se entregará este pedido?</h2>${entregaUI}</div>`:""}
   ${modoNuevo==='whatsapp'?`<div class="card"><h2>Texto del pedido</h2><p class="muted">Pega el mensaje de la carta digital y toca Procesar.</p><textarea id="pegaTxt" rows="4" placeholder="Pega aquí el pedido de WhatsApp" oninput="D.texto=this.value" onpaste="setTimeout(()=>{const el=document.getElementById('pegaTxt');if(el){D.texto=el.value;leerTextoD();}},150)">${esc(D.texto)}</textarea><button class="big" onclick="leerTextoD()">Procesar pedido pegado</button><p class="muted">Revisa nombre, precio, delivery y productos antes de guardar.</p></div>`:`<div class="mini-help">Agrega los datos del pedido manualmente en el formulario siguiente.</div>`}
   <div class="card"><h2>Datos del pedido</h2>${modoNuevo==="manual"?`<div class="mini-help"><b>🔢 Número de pedido automático: Interno #${D.editando||S.nextId}</b><p class="muted" style="margin:6px 0 0">${D.editando?"Este número ya pertenece al pedido y no cambiará.":"El sistema asignará el número correlativo definitivo al guardar. No tienes que escribir un código."}</p></div>`:`<div class="mini-help"><b>Interno #${D.editando||S.nextId}</b> · Identificador automático del panel.</div>`}${D.codigoCarta&&esMensajeCartaUki(D.texto||"")?`<div style="padding:10px;background:var(--bg);border-radius:10px"><b>📋 Carta #${esc(D.codigoCarta)}</b><p class="muted" style="margin:5px 0 0">Código original detectado automáticamente desde el pedido de la carta. No se escribe ni se modifica aquí.</p></div>`:modoNuevo!=="manual"?`<label>Código de la carta (solo si existe)</label><input value="${esc(D.codigoCarta||"")}" placeholder="Se detecta al procesar WhatsApp" oninput="D.codigoCarta=this.value.trim()" inputmode="text"><p class="muted">Si el pedido llegó desde la carta digital, pega su mensaje completo para detectar el código automáticamente.</p>`:""}<label>Codigo del cliente (distinto del pedido)</label><input value="${esc(D.codigoCliente||"")}" placeholder="Ej: 7362" oninput="D.codigoCliente=this.value.trim()" inputmode="text"><label>Fecha y hora</label><input type="datetime-local" value="${D.fecha}" oninput="D.fecha=this.value"><label>Cliente (no se autocompleta con total)</label><input value="${esc(D.cliente)}" placeholder="Ej: Camila Rojas" oninput="D.cliente=this.value">${cli?`<div style="margin-top:8px;padding:8px;background:#fff1e0;border-radius:8px"><b>${esc(cli.nombre)}</b> tiene <b>${ventasCli}/10</b> timbres ${ventasCli>=6?'<span class="tag" style="background:var(--ok);color:#fff">Puede canjear 12 piezas!</span>':''} ${ventasCli>=10?'<span class="tag" style="background:#111;color:#fff">Puede canjear 36+2 korokes!</span>':''}<div class="tarjeta" style="margin-top:6px">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventasCli?'lleno':''} ${i===5||i===9?'premio':''}">${i<ventasCli?'✓':i+1}</div>`).join("")}</div></div>`:"<p class='muted'>Nuevo cliente - empezará con 1 timbre</p>"}<label>📱 WhatsApp / Teléfono</label><input value="${esc(D.telefono)}" placeholder="+56 9 1234 5678" oninput="D.telefono=this.value" inputmode="tel">${modoNuevo!=="manual"?entregaUI:""}</div>
@@ -1923,7 +1998,7 @@ function ndGuardar(){
       }
       aviso(`Pedido #${p.id} actualizado por ${fmt(total)}${ukiCuentaAbierta(p)?" · Cuenta abierta, pendiente de pago":""}`);
     }
-    nuevoDraft();
+    ukiQuitarBorradorActivo();nuevoDraft();
     S.vista="pedidos"; render(); return;
   }
   const idNuevo=S.nextId++;
@@ -1943,7 +2018,7 @@ function ndGuardar(){
   } else {
     aviso(`Pedido #${idNuevo} guardado ${total}${D.pagado?"":" · Pendiente de pago"}`);
   }
-  nuevoDraft(); 
+  ukiQuitarBorradorActivo();nuevoDraft(); 
   S.vista="pedidos"; render();
 }
 function cerrar(){
