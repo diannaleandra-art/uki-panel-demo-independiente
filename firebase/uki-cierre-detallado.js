@@ -3,21 +3,33 @@
 "use strict";
 // Los pedidos antiguos conservan su importe original. Los nuevos pueden registrar
 // pago mixto o productos cobrados por otro local (sin sumar ese ingreso a Uki).
+function pagoExternoDetalle(p,sub,env){
+ const raw=p.productosPagadosOtroLocal?Number(p.montoProductosOtroLocal):0;
+ const productos=p.productosPagadosOtroLocal?
+   (p.montoProductosOtroLocal===undefined||p.montoProductosOtroLocal===null||p.montoProductosOtroLocal===""?sub:Math.max(0,Math.min(sub,raw||0))):0;
+ const declarado=Number(p.montoEnvioOtroLocal);
+ const delivery=p.modalidad!=="Delivery"?0:Number.isFinite(declarado)&&p.montoEnvioOtroLocal!==undefined?
+   Math.min(env,Math.max(0,declarado)):p.envioPagadoOtroLocal===true?env:
+   p.envioPagadoOtroLocal===undefined&&p.productosPagadosOtroLocal&&Number.isFinite(raw)&&raw>sub&&raw<=sub+env?raw-sub:0;
+ return {productos,delivery};
+}
 function cobroLocalPedido(p){
  if(!p.pagado||p.estado==="Cancelado"||p.esPremio)return 0;
  const env=p.modalidad==="Delivery"?Math.max(0,Number(p.envio)||0):0;
  const sub=Math.max(0,Number(p.subtotal)||0);
+ const fuera=pagoExternoDetalle(p,sub,env);
  const suma=(items,base)=>Array.isArray(items)&&items.length?
    items.reduce((n,x)=>n+(Number(x.monto)||0),0):base;
- const fuera=p.productosPagadosOtroLocal?
-   (p.montoProductosOtroLocal===undefined||p.montoProductosOtroLocal===null||p.montoProductosOtroLocal===""?sub:Number(p.montoProductosOtroLocal)):0;
- return suma(p.pagosProductos,Math.max(0,sub-fuera))+suma(p.pagosEnvio,env);
+ return suma(p.pagosProductos,Math.max(0,sub-fuera.productos))+
+   suma(p.pagosEnvio,Math.max(0,env-fuera.delivery));
 }
 function notaPagoPedido(p){
  const cobrado=Object.prototype.hasOwnProperty.call(p,"cobradoLocal")?Number(p.cobradoLocal):(!p.pagado||p.estado==="Cancelado"||p.esPremio?0:Number(p.total)||0);
  const notas=["Cobrado en esta sucursal (productos y delivery): $"+cobrado];
  if((Number(p.propina)||0)>0)notas.push("Propina voluntaria aparte: $"+Number(p.propina)+" · "+String(p.medioPropina||"Efectivo"));
- if(p.productosPagadosOtroLocal)notas.push("Productos $"+(p.montoProductosOtroLocal===undefined?Number(p.subtotal)||0:Number(p.montoProductosOtroLocal)||0)+" pagados en "+String(p.localPagoExterno||"otro local"));
+ const fuera=pagoExternoDetalle(p,Number(p.subtotal)||0,Number(p.envio)||0);
+ if(fuera.productos)notas.push("Productos $"+fuera.productos+" pagados en "+String(p.localPagoExterno||"otro local"));
+ if(fuera.delivery)notas.push("Delivery de Uki $"+fuera.delivery+" cobrado en "+String(p.localPagoExterno||"otro local")+"; se contabiliza para repartidor");
  for(const [titulo,lista] of [["Productos",p.pagosProductos],["Delivery",p.pagosEnvio]]){
   if(Array.isArray(lista)&&lista.length>1)notas.push(titulo+": "+lista.map(x=>String(x.medio)+" $"+Number(x.monto)).join(" + "));
  }
@@ -34,9 +46,9 @@ function capturar(S,caja,delSucHoy){
   modalidad:p.modalidad||"",subtotal:Number(p.subtotal)||0,envio:Number(p.envio)||0,
   total:Number(p.total)||0,cobradoLocal:cobroLocalPedido(p),propina:Number(p.propina)||0,medioPropina:p.medioPropina||"",
   productosPagadosOtroLocal:!!p.productosPagadosOtroLocal,
-  montoProductosOtroLocal:p.productosPagadosOtroLocal?
-    (p.montoProductosOtroLocal===undefined||p.montoProductosOtroLocal===null||p.montoProductosOtroLocal===""?
-     Number(p.subtotal)||0:Number(p.montoProductosOtroLocal)||0):0,
+  montoProductosOtroLocal:pagoExternoDetalle(p,Math.max(0,Number(p.subtotal)||0),Math.max(0,Number(p.envio)||0)).productos,
+  envioPagadoOtroLocal:pagoExternoDetalle(p,Math.max(0,Number(p.subtotal)||0),Math.max(0,Number(p.envio)||0)).delivery>0,
+  montoEnvioOtroLocal:pagoExternoDetalle(p,Math.max(0,Number(p.subtotal)||0),Math.max(0,Number(p.envio)||0)).delivery,
   localPagoExterno:p.localPagoExterno||"",
   pagosProductos:(p.pagosProductos||[]).map(x=>({medio:x.medio,monto:Number(x.monto)||0})),
   pagosEnvio:(p.pagosEnvio||[]).map(x=>({medio:x.medio,monto:Number(x.monto)||0})),
