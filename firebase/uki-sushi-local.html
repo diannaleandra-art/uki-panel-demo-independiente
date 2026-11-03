@@ -127,7 +127,7 @@ body.uki-nube-alerta #ukiEstadoOperativo{color:#b44713;font-weight:700}
 }
 </style>
 </head>
-<body>
+<body><div role="status" style="background:#fff0d9;padding:12px;text-align:center;font-size:13px;line-height:1.4;color:#733b13;border-bottom:2px solid #e5a45e"><b>PANEL ORIGINAL DE UKI · VALIDACIÓN DE GOOGLE</b><div>Versión privada de solo comprobación. Edición de ventas, cobros y guardados operativos bloqueados. No usar con clientes.</div></div>
 <header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.15 · LOCALES</h1><small id="ukiEstadoOperativo" role="status">Nube: desactivada · Abre tu sucursal y carga Firebase</small></header>
 <nav id="nav" class="app-nav" aria-label="Navegación de Uki Sushi"></nav>
 <section id="ukiNubeSeccion" style="margin:12px;padding:14px;background:#fff0dd;border:2px solid #b55e25;border-radius:14px">
@@ -2904,7 +2904,7 @@ const config={
  appId:"1:1070481165758:web:b8f0f9ff40caf5b8ac7def"
 };
 // Uso interno habilitado después de verificar lectura/escritura de las dos sucursales.
-const UKI_OPERACION_HABILITADA=true;
+const UKI_OPERACION_HABILITADA=false; // Solo Preview: prohíbe guardar en nube operativa o generar ventas.
 const auth=getAuth(initializeApp(config)),db=getFirestore(auth.app);
 const cloud=crearSnapshotsUki({db,auth,api:{doc,getDocFromServer,writeBatch,runTransaction},
  blocks:{dividirEstado,reunirEstado},
