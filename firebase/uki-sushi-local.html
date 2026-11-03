@@ -2200,6 +2200,143 @@ function compartirWhatsAppCierre(){
   }
 }
 
+
+// AJUSTES POSTERIORES AL CIERRE: no se añaden a S.pedidos ni reescriben S.cierres.
+function ukiOlvidosCierre(c){
+ const key=fechaCierreMs(c);
+ return (S.ajustesHistoricos||[]).filter(x=>x.suc===S.suc&&x.tipo==="pedido_olvidado"&&x.cierreMs===key);
+}
+function ukiOlvidoCambiarTurno(){
+ const value=Number($("ukiOlvidoCierre")?.value);
+ const c=(S.cierres||[]).find(x=>x.suc===S.suc&&fechaCierreMs(x)===value);
+ const fecha=c?.fechaOperativa||String(c?.fechaISO||"").slice(0,10);
+ if(/^\d{4}-\d{2}-\d{2}$/.test(fecha)&&$("ukiOlvidoFecha"))$("ukiOlvidoFecha").value=fecha+"T12:00";
+}
+function ukiOlvidoCambiarModalidad(){
+ const wrap=$("ukiOlvidoEnvioBloque");
+ if(wrap)wrap.style.display=$("ukiOlvidoModalidad")?.value==="Delivery"?"block":"none";
+}
+function ukiAjustePedidoOlvidado(){
+ if(S.busy){aviso("Espera a que termine la operación actual.");return;}
+ const val=id=>String($(id)?.value??"").trim();
+ const n=(id,obligatorio=true)=>{
+  const raw=val(id),numero=Number(raw);
+  if((obligatorio&&raw==="")||!Number.isSafeInteger(numero)||numero<0||numero>100000000)
+   throw Error("Revisa el valor de "+id.replace("ukiOlvido","")+". Debe ser un monto válido.");
+  return numero;
+ };
+ try{
+  const cierreMs=Number(val("ukiOlvidoCierre"));
+  const c=(S.cierres||[]).find(x=>x.suc===S.suc&&fechaCierreMs(x)===cierreMs);
+  if(!c||!Number.isFinite(cierreMs)||cierreMs<=0)throw Error("Selecciona un cierre histórico existente.");
+  const fechaPedido=val("ukiOlvidoFecha");
+  if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(fechaPedido)||!Number.isFinite(new Date(fechaPedido).getTime()))
+   throw Error("Indica la fecha y hora del pedido original.");
+  const fechaTurno=c.fechaOperativa||String(c.fechaISO||"").slice(0,10);
+  const fechaDia=fechaPedido.slice(0,10);
+  const manana=new Date(fechaTurno+"T12:00:00");manana.setDate(manana.getDate()+1);
+  const diaSiguiente=[manana.getFullYear(),String(manana.getMonth()+1).padStart(2,"0"),String(manana.getDate()).padStart(2,"0")].join("-");
+  if(fechaDia!==fechaTurno&&fechaDia!==diaSiguiente)
+   throw Error("La fecha del pedido no corresponde al turno elegido. Corrige la fecha o selecciona el cierre correcto.");
+  const cliente=val("ukiOlvidoCliente").slice(0,80);
+  const detalle=val("ukiOlvidoDetalle").slice(0,200);
+  const codigoCarta=val("ukiOlvidoCarta").slice(0,35);
+  const modalidad=val("ukiOlvidoModalidad");
+  if(!["Delivery","Retiro","Consumo en local"].includes(modalidad))throw Error("Selecciona el tipo de entrega.");
+  if(!detalle)throw Error("Describe qué productos se olvidaron.");
+  const subtotal=n("ukiOlvidoProductos");
+  if(subtotal<=0)throw Error("Los productos deben tener un valor mayor a cero.");
+  const envio=modalidad==="Delivery"?n("ukiOlvidoEnvio"):0;
+  if(modalidad==="Delivery"&&envio<=0)throw Error("Indica el importe del delivery.");
+  const total=subtotal+envio;
+  const recibidoUki=n("ukiOlvidoUki");
+  if(recibidoUki>total)throw Error("Lo recibido en Uki no puede superar el total del pedido.");
+  const recibidoOtroLocal=total-recibidoUki;
+  const localExterno=val("ukiOlvidoExterno").slice(0,80);
+  if(recibidoOtroLocal>0&&!localExterno)throw Error("Indica el local que cobró el resto del pedido.");
+  if(!$("ukiOlvidoPagado")?.checked)throw Error("Esta función solo registra pedidos con pago completo confirmado. Verifica el cobro antes de guardar.");
+  const repartoRealizado=modalidad==="Delivery"&&!!$("ukiOlvidoRepartido")?.checked;
+  const responsable=val("ukiOlvidoResponsable").slice(0,80);
+  const motivo=val("ukiOlvidoMotivo").slice(0,300);
+  if(!responsable||!motivo)throw Error("Indica quién realiza la corrección y por qué se omitió el pedido.");
+  if(codigoCarta){
+    const duplicado=(S.pedidos||[]).some(p=>p.suc===S.suc&&String(p.codigoCarta||"").trim()===codigoCarta)||
+     (S.ajustesHistoricos||[]).some(p=>p.suc===S.suc&&String(p.codigoCarta||"").trim()===codigoCarta);
+    if(duplicado)throw Error("El código de carta #"+codigoCarta+" ya figura en esta sucursal. No agregues el mismo pedido dos veces.");
+  }
+  if(!confirm("Registrar este pedido olvidado en el turno cerrado "+fechaTurno+"?\nTotal: "+fmt(total)+
+    "\nCobrado en Uki: "+fmt(recibidoUki)+"\nCobrado en otro local: "+fmt(recibidoOtroLocal)+
+    "\nDelivery adicional para conciliar: "+fmt(repartoRealizado?envio:0)+
+    "\nEl cierre original NO se modificará."))return;
+  if(!Array.isArray(S.ajustesHistoricos))S.ajustesHistoricos=[];
+  const item={id:S.nextId++,suc:S.suc,tipo:"pedido_olvidado",cierreMs,fechaOperativa:fechaTurno,
+    fechaPedido,fechaISO:new Date().toISOString(),registradoEn:Date.now(),cliente,detalle,codigoCarta,
+    modalidad,subtotal,envio,total,pagado:true,recibidoUki,recibidoOtroLocal,
+    medioUki:val("ukiOlvidoMedio"),localExterno,repartoRealizado,responsable,motivo};
+  S.ajustesHistoricos.push(item);
+  S.filtroFecha=fechaTurno;S.filtro="";
+  render();
+  aviso("Corrección interna #"+item.id+" registrada. Comprueba que la nube muestre «sincronizado». El cierre original permanece intacto.");
+ }catch(e){aviso(String(e?.message||e));}
+}
+function ukiVAgregarPedidoOlvidado(){
+ const cierres=delSuc(S.cierres).filter(c=>fechaCierreMs(c)>0).slice().reverse();
+ if(!cierres.length)return "";
+ const inicial=cierres[0],fecha=inicial.fechaOperativa||String(inicial.fechaISO||"").slice(0,10);
+ const input=(id,label,type="text",placeholder="")=>
+  '<label for="'+id+'">'+label+'</label><input id="'+id+'" type="'+type+'" '+
+  (placeholder?'placeholder="'+esc(placeholder)+'" ':'')+'inputmode="'+(type==="number"?"numeric":"text")+'">';
+ const medios=MEDIOS.filter(x=>!APPS.includes(x));
+ const opc=cierres.map(c=>'<option value="'+fechaCierreMs(c)+'">'+esc(c.fechaOperativa||c.fechaISO||c.fecha)+
+  ' · '+esc(c.resp||"Cierre")+'</option>').join("");
+ return '<details class="card"><summary style="cursor:pointer;font-weight:700">➕ Agregar pedido olvidado de un turno cerrado</summary>'+
+  '<p class="muted">Usa esta opción únicamente para pedidos que faltaron al cerrar. Se agrega una corrección al historial, sin reabrir la caja ni sumar al turno actual.</p>'+
+  '<label>Turno cerrado al que corresponde</label><select id="ukiOlvidoCierre" onchange="ukiOlvidoCambiarTurno()">'+opc+'</select>'+
+  '<label>Fecha y hora original</label><input type="datetime-local" id="ukiOlvidoFecha" value="'+esc(fecha)+'T12:00">'+
+  input("ukiOlvidoCarta","Código de carta, si lo tiene (opcional)","text","Ej: 011")+
+  input("ukiOlvidoCliente","Nombre del cliente (opcional)","text","Cliente")+
+  input("ukiOlvidoDetalle","Productos del pedido","text","Ej: 2 handrolls")+
+  '<label>Entrega</label><select id="ukiOlvidoModalidad" onchange="ukiOlvidoCambiarModalidad()"><option>Retiro</option><option>Delivery</option><option>Consumo en local</option></select>'+
+  input("ukiOlvidoProductos","Total productos ($)","number","7000")+
+  '<div id="ukiOlvidoEnvioBloque" style="display:none">'+input("ukiOlvidoEnvio","Valor delivery ($)","number","2000")+
+  '<label class="check"><input type="checkbox" id="ukiOlvidoRepartido"> Delivery realmente realizado por repartidor Uki</label></div>'+
+  input("ukiOlvidoUki","Monto cobrado en Uki ($)","number","0 si todo se pagó en otro local")+
+  '<label>Medio recibido en Uki (si cobró)</label><select id="ukiOlvidoMedio">'+medios.map(m=>'<option>'+esc(m)+'</option>').join("")+'</select>'+
+  input("ukiOlvidoExterno","Local que cobró el resto (si corresponde)","text","Ej: Romo")+
+  '<label class="check"><input type="checkbox" id="ukiOlvidoPagado"> Pago completo confirmado</label>'+
+  input("ukiOlvidoResponsable","Responsable de la corrección","text","Nombre de quien registra")+
+  input("ukiOlvidoMotivo","Motivo obligatorio","text","Ej: pedido omitido en el registro al cerrar")+
+  '<p class="muted">Se conservarán el cierre y el efectivo contado originales. Si hubo delivery, quedará como importe adicional por conciliar, no como pago automático.</p>'+
+  '<button class="big" type="button" onclick="ukiAjustePedidoOlvidado()">Registrar corrección histórica</button>'+
+  '</details>';
+}
+function ukiVHistorialCorreccionesCierre(c){
+ const ajustes=ukiOlvidosCierre(c);
+ if(!ajustes.length)return "";
+ const total=ajustes.reduce((a,x)=>a+(Number(x.total)||0),0);
+ const local=ajustes.reduce((a,x)=>a+(Number(x.recibidoUki)||0),0);
+ const externo=ajustes.reduce((a,x)=>a+(Number(x.recibidoOtroLocal)||0),0);
+ const reparto=ajustes.reduce((a,x)=>a+(x.repartoRealizado?(Number(x.envio)||0):0),0);
+ const items=ajustes.map(x=>'<div style="padding:10px 0;border-bottom:1px solid var(--line)">'+
+  '<b>Corrección #'+x.id+(x.codigoCarta?' · Carta #'+esc(x.codigoCarta):'')+'</b> · '+esc(x.cliente||"Sin nombre")+
+  '<p class="muted">'+esc(x.fechaPedido)+' · '+esc(x.detalle)+' · '+esc(x.modalidad)+'</p>'+
+  row("Total del pedido",fmt(x.total))+
+  row("Cobrado en Uki",fmt(x.recibidoUki))+
+  row("Cobrado en "+(x.localExterno||"otro local"),fmt(x.recibidoOtroLocal))+
+  (x.modalidad==="Delivery"?row("Delivery para conciliar con repartidor",fmt(x.repartoRealizado?x.envio:0)):"")+
+  '<p class="muted">Registrado por '+esc(x.responsable)+' · Motivo: '+esc(x.motivo)+'</p></div>').join("");
+ return '<details style="margin-top:14px;border:1px solid var(--line);border-radius:12px;padding:12px">'+
+  '<summary style="cursor:pointer;font-weight:700">📝 Ajustes posteriores al cierre · '+ajustes.length+'</summary>'+
+  '<p class="muted">El cierre original se conserva. Estos importes se registraron después y NO están incluidos en la venta original ni en el pago ya efectuado al repartidor.</p>'+
+  row("Pedidos agregados",ajustes.length)+row("Valor de los pedidos omitidos",fmt(total))+
+  row("Cobros registrados en Uki (ajuste)",fmt(local))+
+  row("Cobros registrados en otros locales",fmt(externo))+
+  row("Delivery adicional por conciliar",fmt(reparto))+
+  row("Venta del cierre original en Uki",fmt(c.venta||0))+
+  row("Venta en Uki + ajustes posteriores (informativo)",fmt((Number(c.venta)||0)+local),"final")+
+  '<p class="muted">El efectivo físico contado y los totales históricos originales NO se cambian.</p>'+items+'</details>';
+}
+
 function vHistorialCompacto(){
   const tmp=document.createElement('div');tmp.innerHTML=vHistorial();
   Array.from(tmp.children).forEach((card,i)=>{
@@ -2211,7 +2348,7 @@ function vHistorialCompacto(){
     while(card.firstChild)d.appendChild(card.firstChild);
     card.replaceWith(d);
   });
-  return vHistorialPrecierres()+tmp.innerHTML;
+  return vHistorialPrecierres()+ukiVAgregarPedidoOlvidado()+tmp.innerHTML;
 }
 
 function vHistorial(){
@@ -2242,7 +2379,7 @@ function vHistorial(){
         row("Diferencia de caja",x.diferenciaEfectivo===0?"Caja exacta":
           (x.diferenciaEfectivo>0?"Sobrante ":"Faltante ")+fmt(Math.abs(x.diferenciaEfectivo))):""):""}
     ${Number(x.pendientesAlCerrar)>0?row("Pedidos pendientes al cerrar",x.pendientesAlCerrar):""}
-    ${window.ukiDetalleCierre?window.ukiDetalleCierre.render(x,fmt,esc,S.cierres.indexOf(x),S):''}${x.obs?`<p class="muted" style="background:var(--bg);padding:8px;border-radius:6px;margin-top:8px">📝 ${esc(x.obs)}</p>`:""}
+    ${window.ukiDetalleCierre?window.ukiDetalleCierre.render(x,fmt,esc,S.cierres.indexOf(x),S):''}${ukiVHistorialCorreccionesCierre(x)}${x.obs?`<p class="muted" style="background:var(--bg);padding:8px;border-radius:6px;margin-top:8px">📝 ${esc(x.obs)}</p>`:""}
     </div>`;
   }).join("");
 }
