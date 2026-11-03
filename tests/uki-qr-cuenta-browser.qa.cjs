@@ -1,0 +1,71 @@
+'use strict';
+const assert=require('node:assert/strict');
+const { chromium }=require('playwright');
+
+(async()=>{
+ const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
+ const context=await browser.newContext({viewport:{width:390,height:844}});
+ const page=await context.newPage();
+ const first={id:'11111111-1111-4111-8111-111111111111',branch:'arica',mesa:2,
+  nombre:'Cliente QA',total:2500,items:[{qty:1,mesaLabel:'4 korokes',mesaPrecio:2500,mesaDetalle:'Vegetales: sin cebollín'}]};
+ const second={id:'22222222-2222-4222-8222-222222222222',branch:'arica',mesa:2,
+  nombre:'Cliente QA',total:9000,items:[{qty:1,mesaLabel:'Pizza Margarita',mesaPrecio:9000,mesaDetalle:'Sin cebolla'}]};
+ let requests=[first],queries=0,realPosts=0;
+ await page.route('https://www.gstatic.com/**',route=>route.abort());
+ await page.route('**/api/mesa-pedidos**',async route=>{
+  const req=route.request(),url=new URL(req.url());
+  const headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Authorization,Content-Type','Access-Control-Allow-Methods':'GET,OPTIONS','Content-Type':'application/json'};
+  if(req.method()==='OPTIONS')return route.fulfill({status:204,headers});
+  if(req.method()!=='GET'){realPosts++;return route.fulfill({status:403,headers,body:JSON.stringify({ok:false,error:'Solo lectura QA'})});}
+  queries++;
+  const rows=url.searchParams.get('branch')==='arica'?requests:[];
+  return route.fulfill({status:200,headers,body:JSON.stringify({ok:true,orders:rows})});
+ });
+ page.on('dialog',dialog=>dialog.accept());
+ await page.goto('http://127.0.0.1:8765/firebase/uki-sushi-local.html',{waitUntil:'domcontentloaded'});
+ await page.addStyleTag({content:'body.uki-operativo-bloqueado #app,body.uki-operativo-bloqueado #nav{pointer-events:auto!important;opacity:1!important;user-select:auto!important}'});
+ await page.locator('#app button[onclick*="pedirPin"]').first().click();
+ await page.locator('#ukiAccesoClave').fill('qa-temporal-segura-2026');
+ await page.locator('#ukiAccesoConfirmar').fill('qa-temporal-segura-2026');
+ await page.locator('button[onclick="entrarSuc()"]').click();
+ await page.waitForFunction(()=>window.ukiQAGet?.()?.suc==='Uki Regimiento Arica',{timeout:20000});
+ await page.evaluate(()=>{window.ukiMesasQAToken=async()=> 'TOKEN-SIMULADO-SOLO-EN-CHROME-QA';});
+ await page.locator('#nav button[onclick="ir(\'pedidos\')"]').click();
+ await page.waitForFunction(()=>document.querySelector('#app')?.textContent?.includes('Pedidos de mesas · 1'),null,{timeout:15000});
+ await page.getByRole('button',{name:'Revisar y registrar'}).click();
+ const d=await page.evaluate(()=>({mesa:eval('D.mesaReferencia'),pagado:eval('D.pagado'),codigo:eval('D.codigoCarta'),items:eval('D.items.filter(x=>x.nombre)').map(x=>({nombre:x.nombre,cant:x.cant,precio:x.precio}))}));
+ assert.equal(d.mesa,'Mesa 2');
+ assert.equal(d.pagado,false);
+ assert.equal(d.items.length,1);
+ assert.equal(d.items[0].precio,2500);
+ await page.locator('button[onclick="ndGuardar()"]').click();
+ let state=await page.evaluate(()=>window.ukiQAGet().estado);
+ assert.equal(state.pedidos.length,1,'Debe crearse solo una cuenta');
+ assert.equal(state.pedidos[0].pagado,false,'Pendiente de pago');
+ assert.equal(state.pedidos[0].subtotal,2500,'Monto primera ronda');
+ assert.equal(state.pedidos[0].mesaReferencia,'Mesa 2');
+ let caja=await page.evaluate(()=>totales().totalMedios);
+ assert.equal(caja,0,'La cuenta sin pagar NO ingresa a caja');
+ requests=[first,second];
+ await page.evaluate(()=>ukiMesaActualizar());
+ await page.waitForFunction(()=>document.querySelector('#app')?.textContent?.includes('Pedidos de mesas · 2'),null,{timeout:15000});
+ await page.getByRole('button',{name:'Revisar y registrar'}).click();
+ const prepared=await page.evaluate(()=>({editando:eval('D.editando'),items:eval('D.items').filter(x=>x.nombre),pagado:eval('D.pagado')}));
+ assert.equal(prepared.editando,1,'La segunda ronda edita la cuenta original');
+ assert.equal(prepared.items.length,2);
+ assert.equal(prepared.pagado,false);
+ await page.locator('button[onclick="ndGuardar()"]').click();
+ state=await page.evaluate(()=>window.ukiQAGet().estado);
+ assert.equal(state.pedidos.length,1,'No duplicar cuenta abierta');
+ assert.equal(state.pedidos[0].subtotal,11500,'Sumar $2.500 + $9.000');
+ assert.equal(state.pedidos[0].qrSolicitudes.length,2,'Conservar ambas rondas');
+ assert.equal(state.pedidos[0].pagado,false);
+ caja=await page.evaluate(()=>totales().totalMedios);
+ assert.equal(caja,0,'La caja permanece en cero');
+ await page.evaluate(id=>ukiMesaAbrir(id),first.id);
+ assert.equal((await page.evaluate(()=>window.ukiQAGet().estado)).pedidos.length,1,'Un QR repetido no se duplica');
+ await page.waitForFunction(()=>Object.keys(localStorage).some(k=>k.startsWith('uki_operativo_v1_cifrado_regimiento')),null,{timeout:20000});
+ assert.equal(realPosts,0,'Ningún PATCH/POST a servidor real');
+ console.log(JSON.stringify({ok:true,pruebas:['Primera ronda en cuenta pendiente','Segunda ronda acumula en una sola cuenta','Sin pago no suma a caja','QR repetido no duplica','Datos cifrados en almacenamiento aislado','No se escribió en API ni nube'],mesa:2,sucursal:'Regimiento Arica',totalAcumulado:11500,solicitudes:2,consultasDePrueba:queries,caja:0},null,2));
+ await browser.close();
+})().catch(e=>{console.error('FALLO QA UKI QR',e);process.exitCode=1;});
