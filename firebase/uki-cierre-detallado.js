@@ -75,7 +75,7 @@ function filas(c){
  const r=[];
  for(const p of d.pedidos||[]){
   const it=(p.productos||[]).map(z=>z.cantidad+"x "+z.nombre+(z.detalle?" ("+z.detalle+")":"")).join(", ");
-  r.push(["Pedido",p.fechaISO,p.codigoCarta||p.id,p.cliente,p.total,
+  r.push(["Pedido",p.fechaISO,p.codigoCarta?"Carta #"+p.codigoCarta+" · Interno #"+p.id:"Interno #"+p.id,p.cliente,p.total,
    p.productosPagadosOtroLocal?"Pagado en otro local":((p.pagosProductos||[]).length>1?"Mixto":p.medio),
    (p.pagado?"Pagado":"Sin pago")+"; "+p.modalidad+"; envío "+p.envio+"; "+notaPagoPedido(p)+"; "+it]);
  }
@@ -139,7 +139,7 @@ function render(c,fmt,esc,index,estado){
  const row=(a,b)=>'<div class="row"><span>'+esc(a)+'</span><b>'+fmt(b)+'</b></div>';
  const section=(title,rows)=>'<details style="margin:8px 0"><summary style="cursor:pointer"><b>'+esc(title)+'</b> · '+rows.length+'</summary>'+
   (rows.length?rows.join(""):'<p class="muted">Sin movimientos</p>')+'</details>';
- const orders=(d.pedidos||[]).map(p=>row('#'+(p.codigoCarta||p.id)+' · '+p.cliente+' · '+(p.pagado?'Pagado':'Sin pago')+' · '+(p.productosPagadosOtroLocal?'Cobro externo':p.medio),p.total)+
+ const orders=(d.pedidos||[]).map(p=>row((p.codigoCarta?'Carta #'+p.codigoCarta+' · Interno #'+p.id:'Interno #'+p.id)+' · '+p.cliente+' · '+(p.pagado?'Pagado':'Sin pago')+' · '+(p.productosPagadosOtroLocal?'Cobro externo':p.medio),p.total)+
   '<p class="muted" style="margin:2px 0 5px 8px">'+esc(notaPagoPedido(p))+'</p>'+
   ((p.productos||[]).length?'<p class="muted" style="margin:0 0 8px 8px">'+esc(p.productos.map(x=>x.cantidad+'x '+x.nombre+(x.detalle?' · '+x.detalle:'')).join('; '))+'</p>':''));
  const expenses=(d.gastos||[]).map(x=>row(x.concepto+' · '+x.medio,x.monto));
