@@ -53,3 +53,17 @@ Estado al 3 nov 2026: **solo análisis/diseño; no hay recepción automática ac
 - **No se ha publicado** ninguna de las dos ramas; Vercel sigue sirviendo la rama de lanzamiento aprobada.
 - Pendientes antes de poner QR en mesas: entorno preview de Vercel con **solo** la base QA, trabajador autorizado en Firebase, tests de navegador/seguridad, validación de precios y costos del proveedor, número definitivo de mesas y autorización expresa de producción.
 - Importante: Vercel Hobby indica uso **solo personal/no comercial** en sus términos. Verificar el plan aplicable antes de usar recepción de pedidos para un restaurante; no asumir que será siempre gratuito ni contratar/actualizar sin autorización.
+
+
+## Prueba adicional 3 nov 2026 — carta → API → bandeja simulada
+
+- Se verificó por código ejecutable el recorrido de **dos pedidos ficticios** desde la carta QR de Mesa 2, sucursal Regimiento Arica: pizza Pepperoni (2 x $9.000) y pizza Margarita (1 x $9.000); catálogo/precios obtenidos del `model.mjs` real del repositorio, sin alterar precios reales.
+- API procesada en memoria contra un repositorio SQL **simulado**, no contra base real: 2 solicitudes únicas, montos $18.000 y $9.000, total ficticio $27.000, detalles de cocina y observación conservados, estados "pendiente".
+- Reenvío del mismo pedido: misma respuesta, **sin tercera solicitud**; después de recibir confirmación, la carta vacía el carrito y permite otra ronda.
+- En otra prueba simulada del panel se comprobó que dos rondas de Mesa 2 aparecen en una cuenta, que una cuenta pagada abre una cuenta nueva, que no se duplica un QR y que Mesa 3 queda aparte. No se registraron ventas reales.
+- Mejoras posteriores: comanda con proteínas/vegetales, toppings (nombres reales), salsas y observaciones; se añadieron pruebas `node:test` al repositorio de la carta y `postinstall` para ejecutarlas durante el build del Preview.
+- Vercel carta Preview quedó `READY` en el commit `2c08ba765c3dbc18ab0805ae1d025cf80fbbf5f8`, que incorpora estas mejoras. Estar `READY` no prueba por sí solo que hubo una llamada HTTP real.
+- La cuenta del personal no está todavía autorizada (`UKI_MESAS_QA_ALLOWED_EMAILS/UIDS` sin configurar) y `UKI_MESAS_QA_ENABLED=false`. **No se habilitó POST público real ni la bandeja auténtica**, y no se probaron GET/PATCH con un token Firebase de trabajador.
+- Se intentó publicar la rama de panel solo como Preview en proyectos Vercel preexistentes, pero falló debido a `rootDirectory` legado inexistente; **no se cambiaron las opciones de esos proyectos** ni el panel GitHub Pages. Evitar asumir que hay URL de panel Preview utilizable.
+- Vercel no permitió abrir por el conector las vistas previas protegidas desde herramientas; por ello el test real navegador a backend y autenticar Google queda pendiente.
+- Antes de habilitar: confirmar el Google del trabajador autorizado, resolver entorno aislado de vista previa que acepte Firebase Auth y CORS, probar POST real en Neon QA y GET/PATCH desde panel QA, comprobar sincronización cifrada sin conflictos; apagar flag y eliminar datos ficticios al terminar. No usar claves de usuarios reales en la prueba.
