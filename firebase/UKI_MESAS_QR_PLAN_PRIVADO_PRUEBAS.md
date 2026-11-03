@@ -76,3 +76,15 @@ Estado al 3 nov 2026: **solo análisis/diseño; no hay recepción automática ac
 - Se intentó publicar la rama de panel solo como Preview en proyectos Vercel preexistentes, pero falló debido a `rootDirectory` legado inexistente; **no se cambiaron las opciones de esos proyectos** ni el panel GitHub Pages. Evitar asumir que hay URL de panel Preview utilizable.
 - Vercel no permitió abrir por el conector las vistas previas protegidas desde herramientas; por ello el test real navegador a backend y autenticar Google queda pendiente.
 - Antes de habilitar: confirmar el Google del trabajador autorizado, resolver entorno aislado de vista previa que acepte Firebase Auth y CORS, probar POST real en Neon QA y GET/PATCH desde panel QA, comprobar sincronización cifrada sin conflictos; apagar flag y eliminar datos ficticios al terminar. No usar claves de usuarios reales en la prueba.
+
+
+## Continuidad verificada — 3 noviembre 2026 (sin publicar)
+
+- **Versión que funciona:** caja/panel Uki v8.15 en la rama principal de GitHub Pages. Conservar tal cual, sin sustituir por simuladores ni desplegar encima.
+- **QR para mesas:** únicamente en las ramas de preparación del panel y de la carta. El código añade las solicitudes a la bandeja, acumula rondas en una cuenta sin marcarla pagada y conserva detalle de cocina.
+- **Correo del personal:** la lista cifrada de acceso de Vercel Preview contiene una cuenta autorizada; esto **no** autoriza automáticamente una dirección web en Firebase Authentication.
+- **Problema reproducido con captura:** la vista de prueba de Vercel recibe `auth/unauthorized-domain` al pulsar Google. Firebase debe autorizar el dominio exacto de la vista previa, o debe probarse desde un origen autorizado. No volver a crear simuladores o enlaces para evitar este requisito.
+- **API de recepción QA:** permanece desactivada mediante `UKI_MESAS_QA_ENABLED`; su CORS permite el origen de GitHub Pages. No activar ni cambiarlo en la carta pública.
+- **Base de datos:** la rama independiente de Neon `uki-mesas-qa-2026-11-03` existe y se verificó con consulta de solo lectura: exactamente un pedido `registrado` y uno `rechazado` en Arica, ninguno pendiente; no se consultó ni modificó producción.
+- **Prueba pendiente de verdad:** inicio de sesión Google en un origen autorizado, POST de un pedido ficticio a QA, lectura GET en la bandeja de la sucursal y confirmación PATCH, con persistencia segura y sin tocar caja real. Las 9 + 11 pruebas simuladas previas siguen válidas y **no deben repetirse** sin cambio de código.
+- **Autorización:** no modificar producción, dominio, permisos de Firebase, carta de clientes ni contabilidad sin aprobación concreta; no crear versiones nuevas del panel o ampliar funciones.
