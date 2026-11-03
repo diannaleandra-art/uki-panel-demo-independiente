@@ -76,3 +76,11 @@ Estado al 3 nov 2026: **solo análisis/diseño; no hay recepción automática ac
 - Se intentó publicar la rama de panel solo como Preview en proyectos Vercel preexistentes, pero falló debido a `rootDirectory` legado inexistente; **no se cambiaron las opciones de esos proyectos** ni el panel GitHub Pages. Evitar asumir que hay URL de panel Preview utilizable.
 - Vercel no permitió abrir por el conector las vistas previas protegidas desde herramientas; por ello el test real navegador a backend y autenticar Google queda pendiente.
 - Antes de habilitar: confirmar el Google del trabajador autorizado, resolver entorno aislado de vista previa que acepte Firebase Auth y CORS, probar POST real en Neon QA y GET/PATCH desde panel QA, comprobar sincronización cifrada sin conflictos; apagar flag y eliminar datos ficticios al terminar. No usar claves de usuarios reales en la prueba.
+
+## Aceptación de cuenta en navegador aislado — comprobación completada
+
+- GitHub Actions: `https://github.com/diannaleandra-art/uki-panel-demo-independiente/actions/runs/41687589605` — **éxito** el 3 de noviembre de 2026.
+- Se usó Chromium real en GitHub Actions y la página original v8.15 de esta misma rama, servida desde `localhost`, con almacenamiento temporal y clave inventada. El ensayo fue **sin autenticación real ni red de caja**, interceptando la consulta QR con dos solicitudes ficticias equivalentes en mesa/sucursal/importes. No se ingresaron contraseñas reales ni se emitieron pagos.
+- Recorrido UI completado: entrar a sucursal Regimiento Arica, pulsar Pedidos → Revisar y registrar, guardar cuenta pendiente de $2.500, refrescar bandeja y añadir segunda ronda de $9.000, guardar misma cuenta de $11.500, comprobar no duplicación, cifra local AES y total caja $0. API real sin POST/PATCH.
+- El pedido **real de QA** enviado por cliente desde carta ($2.500, Mesa 2, Regimiento Arica) fue verificado en Neon como **pendiente después de la prueba**. La prueba no lo registró ni marcó como pagado y no modificó producción.
+- Diferencia pendiente de lanzamiento: validar autorización y guardado/sincronización real dentro del panel operativo antes de activar QR para público. La vista privada consultiva permanece en solo lectura y `UKI_OPERACION_HABILITADA=false`. No repetir esta comprobación de navegador salvo cambio del flujo.
