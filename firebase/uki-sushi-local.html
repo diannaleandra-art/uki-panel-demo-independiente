@@ -1868,6 +1868,92 @@ function ukiPedidoCoincideBusqueda(p,texto){
  return [p.codigoCliente,p.codigoCarta,p.id,p.cliente]
   .some(v=>String(v??"").toLocaleLowerCase("es-CL").includes(q));
 }
+
+/* Bandeja QR QA: los envíos del cliente NO son ventas pagadas. */
+const UKI_MESAS_ENDPOINT='https://uki-sushi-pedidos-diannaleandra-7046.vercel.app/api/mesa-pedidos';
+let ukiMesas={rows:[],branch:'',status:'Pulsa Actualizar para consultar pedidos de mesas.',busy:false,used:false};
+const ukiMesaBranch=()=>S.suc===SUCURSALES[0]?'arica':S.suc===SUCURSALES[1]?'serena':'';
+const ukiMesaCode=id=>'MESA-'+String(id||'').toUpperCase();
+function ukiMesasUI(){
+ const branch=ukiMesaBranch(),arr=ukiMesas.branch===branch?ukiMesas.rows:[];
+ const list=arr.map(x=>{
+  const code=ukiMesaCode(x.id),guardado=(S.pedidos||[]).some(p=>p.suc===S.suc&&p.codigoCarta===code);
+  const buttons=guardado?'<p class="muted">Esta solicitud ya está guardada en el panel.</p>':
+   '<button class="sm ok" type="button" onclick="ukiMesaAbrir('+esc(JSON.stringify(x.id))+')">Revisar y registrar</button>';
+  const detalle=(x.items||[]).map(p=>
+   '<div style="margin:7px 0"><b>'+esc((Number(p.qty)||1)+' × '+String(p.mesaLabel||'Producto'))+'</b>'+
+   (p.mesaDetalle?'<p class="muted">'+esc(p.mesaDetalle)+'</p>':'')+'</div>').join('');
+  return '<div style="padding:12px;border:1px solid var(--line);border-radius:12px;margin:10px 0">'+
+   '<b>🍽 Mesa '+esc(x.mesa)+' · '+esc(x.nombre||'Cliente')+'</b>'+detalle+
+   row('Total sin propina',fmt(x.total||0))+buttons+
+   '<button class="sm" type="button" onclick="ukiMesaEstado('+esc(JSON.stringify(x.id))+',&quot;registrado&quot;)">Ya está registrado</button>'+
+   '<button class="sm" type="button" onclick="ukiMesaEstado('+esc(JSON.stringify(x.id))+',&quot;rechazado&quot;)">Rechazar</button></div>';
+ }).join('');
+ return '<div class="card" style="border:1px solid var(--accent)"><h2>🍽 Pedidos de mesas · '+arr.length+'</h2>'+
+  '<p class="muted">Pedidos recibidos desde los QR. Deben ser confirmados por el personal; no se suman a caja automáticamente.</p>'+
+  '<button class="sm ok" type="button" onclick="ukiMesaActualizar()">Actualizar pedidos</button>'+
+  '<p class="muted">'+esc(ukiMesas.status)+'</p>'+
+  (list||'<p class="muted">Sin solicitudes cargadas.</p>')+'</div>';
+}
+async function ukiMesaActualizar(){
+ const branch=ukiMesaBranch();if(!branch||ukiMesas.busy)return;
+ ukiMesas.busy=true;ukiMesas.used=true;ukiMesas.status='Consultando bandeja…';render();
+ try{
+  const token=await window.ukiMesasQAToken?.();if(!token)throw Error('Inicia sesión con la cuenta Google del panel');
+  const r=await fetch(UKI_MESAS_ENDPOINT+'?branch='+branch,{
+   headers:{Authorization:'Bearer '+token},cache:'no-store',signal:AbortSignal.timeout(15000)});
+  const result=await r.json().catch(()=>({}));
+  if(!r.ok||!result.ok)throw Error(String(result.error||'Servicio no disponible'));
+  if(branch===ukiMesaBranch()){
+   ukiMesas.rows=(result.orders||[]).filter(x=>x.branch===branch);
+   ukiMesas.branch=branch;ukiMesas.status=ukiMesas.rows.length+' solicitud(es) por revisar.';
+  }
+ }catch(e){ukiMesas.status='Recepción todavía no habilitada: '+String(e?.message||e);}
+ finally{ukiMesas.busy=false;if(S.vista==='pedidos')render();}
+}
+function ukiMesaAbrir(id){
+ const x=ukiMesas.rows.find(a=>a.id===id&&a.branch===ukiMesaBranch());
+ if(!x||S.busy)return;
+ const code=ukiMesaCode(id);
+ if((S.pedidos||[]).some(p=>p.suc===S.suc&&p.codigoCarta===code)){
+  aviso('Este pedido ya fue registrado; no lo dupliques.');return;
+ }
+ const lines=(x.items||[]).map(p=>({nombre:String(p.mesaLabel||'Producto').slice(0,100),
+  cant:Number(p.qty)||1,precio:Number(p.mesaPrecio)||0,det:String(p.mesaDetalle||'').slice(0,1000)}));
+ if(!lines.length||lines.some(i=>!Number.isSafeInteger(i.cant)||!Number.isSafeInteger(i.precio)||i.precio<=0)||
+   lines.reduce((n,i)=>n+i.cant*i.precio,0)!==Number(x.total)){
+  aviso('La solicitud no coincide con los precios de los productos. No se registró.');return;
+ }
+ nuevoDraft();ukiBorradorActivo=null;
+ D.codigoCarta=code;D.fecha=ahora();D.modalidad='Consumo en local';D.envio=0;
+ D.cliente=String(x.nombre||'Mesa '+x.mesa).slice(0,80);D.mesaReferencia='Mesa '+x.mesa;
+ D.items=lines;D.pagado=false;modoNuevo='manual';
+ S.vista='nuevo';S.msg='Pedido de Mesa '+x.mesa+' cargado. Revisa y guarda con pago PENDIENTE hasta cobrar.';
+ render();
+}
+async function ukiMesaEstado(id,estado){
+ const x=ukiMesas.rows.find(a=>a.id===id&&a.branch===ukiMesaBranch());if(!x)return;
+ if(estado==='registrado'){
+  if(!(S.pedidos||[]).some(p=>p.suc===S.suc&&p.codigoCarta===ukiMesaCode(id))){
+   aviso('Primero registra este pedido en el panel.');return;
+  }
+  if(!window.ukiCancelacionNubeLista?.()){
+   aviso('Espera a ver Nube: sincronizado antes de quitar el pedido de la bandeja.');return;
+  }
+ }else if(estado==='rechazado'&&!confirm('¿Rechazar esta solicitud de Mesa '+x.mesa+'?'))return;
+ try{
+  const token=await window.ukiMesasQAToken?.();if(!token)throw Error('Google sin iniciar');
+  const r=await fetch(UKI_MESAS_ENDPOINT,{method:'PATCH',
+   headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+   body:JSON.stringify({branch:x.branch,id,estado}),signal:AbortSignal.timeout(15000)});
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok||!data.ok)throw Error(data.error||'No se confirmó el cambio');
+  ukiMesas.rows=ukiMesas.rows.filter(a=>a.id!==id);
+  ukiMesas.status='Solicitud de Mesa '+x.mesa+' marcada como '+estado+'.';render();
+ }catch(e){aviso('Error al actualizar la bandeja: '+String(e?.message||e));}
+}
+setInterval(()=>{if(ukiMesas.used&&!ukiMesas.busy&&S.suc&&S.vista==='pedidos')ukiMesaActualizar();},45000);
+
 function vPedidos(){
   if(!S.suc) return vInicio();
   const fechaTurno=fechaOperativaActual();
@@ -1897,6 +1983,7 @@ function vPedidos(){
   const titulo=buscando?"Resultados de búsqueda":pedidosArchivoDia?"Pedidos del turno "+pedidosArchivoDia:"Pedidos del turno abierto · "+fechaTurno;
   return `<div class="section-head"><h2>Pedidos</h2><p>${esc(titulo)} · ${todos.length} registrados · ${pagados} pagados</p></div>
   <button class="big cta" onclick="ir('nuevo')">＋ Nuevo pedido</button>
+  ${ukiMesasUI()}
   <div class="card"><h2 style="margin:0 0 8px">Clasificar pedidos</h2>
     <div class="chips" role="group" aria-label="Filtrar pedidos por estado y pago">${categorias}</div>
     <p class="muted">${visibles.length} pedido(s) en «${esc((UKI_CATEGORIAS_PEDIDOS.find(x=>x[0]===filtroCategoriaPedidos)||[])[1]||"Todos")}». Un pedido pagado también puede estar pendiente de entrega o tener un error reportado.</p></div>
@@ -2873,6 +2960,7 @@ async function accion(action){
  try{await action()}catch(e){msg("Error de Firebase: "+String(e?.code||"")+": "+String(e?.message||e))}
  finally{ocupado=false;el("ukiLoadQA").disabled=false;el("ukiSaveQA").disabled=auto.resumen().activo}
 }
+window.ukiMesasQAToken=async()=>auth.currentUser?auth.currentUser.getIdToken():null;
 onAuthStateChanged(auth,user=>{
  revision=null;sucursalCargada=null;
  auto.desactivar();dejarDeVigilar();
