@@ -7,7 +7,9 @@ function pagoExternoDetalle(p,sub,env){
  const raw=p.productosPagadosOtroLocal?Number(p.montoProductosOtroLocal):0;
  const productos=p.productosPagadosOtroLocal?
    (p.montoProductosOtroLocal===undefined||p.montoProductosOtroLocal===null||p.montoProductosOtroLocal===""?sub:Math.max(0,Math.min(sub,raw||0))):0;
- const delivery=p.modalidad!=="Delivery"?0:p.envioPagadoOtroLocal===true?env:
+ const declarado=Number(p.montoEnvioOtroLocal);
+ const delivery=p.modalidad!=="Delivery"?0:Number.isFinite(declarado)&&p.montoEnvioOtroLocal!==undefined?
+   Math.min(env,Math.max(0,declarado)):p.envioPagadoOtroLocal===true?env:
    p.envioPagadoOtroLocal===undefined&&p.productosPagadosOtroLocal&&Number.isFinite(raw)&&raw>sub&&raw<=sub+env?raw-sub:0;
  return {productos,delivery};
 }
