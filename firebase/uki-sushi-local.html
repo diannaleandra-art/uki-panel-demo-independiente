@@ -150,7 +150,7 @@ body.uki-nube-alerta #ukiEstadoOperativo{color:#b44713;font-weight:700}
 </div>
 <div id="ukiEquipoQRQA" style="margin-top:14px;padding:14px;border:1px solid #dcaa79;border-radius:12px;background:#fffaf5">
  <strong>📱 Acceso al QR desde un equipo autorizado · solo pruebas</strong>
- <p style="font-size:13px">El personal conserva el código del panel. Esta autorización separada no permite registrar ventas, cobrar ni abrir datos de caja. La administradora vincula el equipo una sola vez.</p>
+ <p style="font-size:13px">El personal conserva el código del panel. Esta autorización no permite registrar ventas ni abrir la caja. La administradora vincula el equipo una sola vez y su sesión Google se cierra automáticamente.</p>
  <label for="ukiEquipoSucursalQA">Sucursal del equipo</label>
  <select id="ukiEquipoSucursalQA" style="width:100%;max-width:100%;padding:10px;border-radius:8px">
   <option value="arica">Uki Regimiento Arica</option>
@@ -2913,7 +2913,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 <script type="module">
 
 import {initializeApp} from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
-import {getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
+import {getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut} from "https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
 import {getFirestore,doc,getDocFromServer,writeBatch,runTransaction,onSnapshot} from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 import {dividirEstado,reunirEstado} from "./uki-particion-local.js";
 import {nuevaSal,nuevaGeneracion,derivarClave,cifrarBloque,descifrarBloque} from "./uki-cifrado-bloques.js";
@@ -3065,7 +3065,11 @@ el("ukiEquipoEmparejarQA")?.addEventListener("click",async()=>{
   const token=await auth.currentUser.getIdToken();
   const branch=ukiEquipoBranch();
   await autorizarEquipoQR(branch,token,"Equipo privado Uki "+branch);
-  ukiEquipoMsg("Equipo vinculado para "+(branch==="arica"?"Regimiento Arica":"La Serena")+". No se han modificado ventas.");
+  let cerrada=false;
+  try{await signOut(auth);cerrada=true;}catch{}
+  ukiEquipoMsg("Equipo vinculado para "+(branch==="arica"?"Regimiento Arica":"La Serena")+
+   (cerrada?". Sesión Google administrativa cerrada; solo está autorizado el acceso QR.":". ATENCIÓN: no se pudo cerrar Google. No entregues el equipo hasta cerrar la sesión administrativa.")+
+   " No se han modificado ventas.");
  }catch(e){ukiEquipoMsg("No se autorizó el equipo: "+String(e?.message||e));}
  finally{ukiEquipoBusySet(false);}
 });
