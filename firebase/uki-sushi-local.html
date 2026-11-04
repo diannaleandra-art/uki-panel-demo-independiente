@@ -3017,7 +3017,8 @@ function actualizarBloqueo(){
 window.ukiCancelacionNubeLista=()=>{
  const estado=auto.resumen(),contextoLocal=window.ukiQAGet?.();
  return !!(UKI_OPERACION_HABILITADA&&contextoLocal&&estado.activo&&!estado.bloqueado&&
-   !estado.ocupado&&estado.estado==="sincronizado"&&estado.sucursal===contextoLocal.suc);
+   !estado.ocupado&&estado.actualRespaldado===true&&estado.estado==="sincronizado"&&
+   estado.sucursal===contextoLocal.suc);
 };
 window.ukiOperativoActualizar=actualizarBloqueo;
 function contexto(){
