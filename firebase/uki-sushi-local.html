@@ -2014,22 +2014,28 @@ function ukiMesaAbrir(id){
   :'Pedido de Mesa '+x.mesa+' cargado. Revisa y guarda como cuenta pendiente de pago.';
  render();
 }
-async function ukiMesaRespaldoLocalContiene(id){
- const suc=S.suc,code=ukiMesaCode(id);
- if(!suc||!claveSesion||sucursalSesion!==suc)return false;
+async function ukiMesaEstadoLocalGuardado(){
+ const suc=S.suc;
+ if(!suc||!claveSesion||sucursalSesion!==suc)return null;
  try{
   await colaGuardado;
   const raw=localStorage.getItem(claveLocal(suc));
-  if(!raw)return false;
+  if(!raw)return null;
   const p=JSON.parse(raw);
-  if(p.formato!==UKI_LOCAL_FORMAT||p.sucursal!==suc||p.version!==1)return false;
+  if(p.formato!==UKI_LOCAL_FORMAT||p.sucursal!==suc||p.version!==1)return null;
   const bytes=await crypto.subtle.decrypt(
     {name:'AES-GCM',iv:ukiBytes(p.iv),additionalData:aadLocal(suc)},
     claveSesion,ukiBytes(p.cifrado));
   const saved=JSON.parse(new TextDecoder().decode(bytes));
-  return Array.isArray(saved.pedidos)&&saved.pedidos.some(p=>
-   p.suc===suc&&ukiPedidoTieneQR(p,code));
- }catch{return false;}
+  return validarEstadoSucursal(saved,suc)?saved:null;
+ }catch{return null;}
+}
+async function ukiMesaRespaldoLocalContiene(id){
+ const saved=await ukiMesaEstadoLocalGuardado(),code=ukiMesaCode(id);
+ // No registrar como cuenta nueva una venta que ya fue cobrada o cancelada.
+ return !!saved?.pedidos?.some(p=>
+  p.suc===S.suc&&p.modalidad==='Consumo en local'&&!p.pagado&&
+  p.estado!=='Cancelado'&&ukiPedidoTieneQR(p,code));
 }
 async function ukiMesaRegistrarRondaCentral(id,automatico=false){
  if(UKI_MESAS_ENDPOINT!==UKI_MESAS_LIVE_URL)return false;
