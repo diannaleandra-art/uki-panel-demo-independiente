@@ -1909,7 +1909,7 @@ function ukiMesasUI(){
  return '<div class="card" style="border:1px solid var(--accent)"><h2>🍽 Pedidos de mesas · '+arr.length+'</h2>'+
   '<p class="muted">Pedidos recibidos desde los QR. Deben ser confirmados por el personal; no se suman a caja automáticamente.</p>'+
   '<button class="sm ok" type="button" onclick="ukiMesaActualizar()">Actualizar pedidos</button>'+
-  '<details class="inner-details"><summary>Acceso del personal (configuración opcional)</summary><p class="muted">El administrador puede autorizar una cuenta Google verificada o copiar el ID del trabajador.</p><button class="sm" type="button" onclick="ukiMesaCopiarIDTrabajador()">Copiar ID de trabajador</button></details>'+
+  '<p class="muted">Usa el acceso habitual al panel y comprueba «Nube: sincronizado» antes de confirmar una mesa.</p>'+
   '<p class="muted">'+esc(ukiMesas.status)+'</p>'+
   (list||'<p class="muted">Sin solicitudes cargadas.</p>')+'</div>';
 }
