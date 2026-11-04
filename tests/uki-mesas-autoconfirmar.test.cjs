@@ -67,7 +67,7 @@ test('Si cambia la sucursal durante el envío no confirma la siguiente solicitud
   await x.fn();assert.deepEqual(accepted,['a1']);
 });
 test('La interfaz no solicita otra cuenta individual para el personal',()=>{
-  assert.ok(html.includes('El personal conserva su código habitual'));
+  assert.ok(html.includes('Se conserva el acceso habitual.'));
   assert.ok(!html.includes('Acceso del personal (configuración opcional)'));
 });
 
