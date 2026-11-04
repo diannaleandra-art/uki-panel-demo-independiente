@@ -1311,7 +1311,8 @@ function claveCliente(nombre,codigo="",telefono=""){
 // coinciden nombre y número COMPLETO de WhatsApp, aunque antes se digitara otro código.
 function ukiClaveClienteExistente(nombre,codigo="",telefono=""){
  const exacta=claveCliente(nombre,codigo,telefono);
- if(Object.prototype.hasOwnProperty.call(S.clientes||{},exacta))return exacta;
+ if(Object.prototype.hasOwnProperty.call(S.clientes||{},exacta)&&
+  ukiTextoBusqueda(S.clientes[exacta].nombre)===ukiTextoBusqueda(nombre))return exacta;
  const numero=ukiTelefonoNormalizado(telefono);
  if(numero.length<8)return null;
  const iguales=Object.entries(S.clientes||{}).filter(([,c])=>
@@ -1325,7 +1326,10 @@ function getCliente(nombre,codigo="",telefono=""){
 }
 function asegurarCliente(nombre,codigo="",telefono=""){
  if(!nombre)return null;
- const key=ukiClaveClienteExistente(nombre,codigo,telefono)||claveCliente(nombre,codigo,telefono);
+ const existente=ukiClaveClienteExistente(nombre,codigo,telefono);
+ const base=claveCliente(nombre,codigo,telefono);
+ const key=existente||(Object.prototype.hasOwnProperty.call(S.clientes,base)?
+  base+"|nombre:"+ukiTextoBusqueda(nombre):base);
  if(!Object.prototype.hasOwnProperty.call(S.clientes,key)){
   S.clientes[key]={nombre:nombre.trim(),codigoCliente:ukiCodigoWhatsApp(telefono)||String(codigo||"").trim(),
    telefono:String(telefono||"").trim(),ventas:0,gastado:0,pedidos:0,
@@ -1484,7 +1488,8 @@ function vClientes(){
     <div style="padding-top:10px">${dias.length?dias.slice(0,30).map(([f,conjunto])=>`<button class="sm" style="display:block;width:100%;margin:6px 0;text-align:left" onclick="verDiaTimbres('${esc(f)}')">📅 ${esc(f)} · ${conjunto.size} cliente${conjunto.size===1?'':'s'}</button>`).join(''):'<p class="muted">Aún no hay movimientos de días anteriores.</p>'}
     ${dias.length>30?'<p class="muted">Para fechas más antiguas utiliza el calendario.</p>':''}</div></details>
   ${lista.length?lista.map(cli=>{
-    const key=claveCliente(cli.nombre,cli.codigoCliente,cli.telefono);
+    const key=ukiClaveClienteExistente(cli.nombre,cli.codigoCliente,cli.telefono)||
+      claveCliente(cli.nombre,cli.codigoCliente,cli.telefono);
     const keyArg=esc(JSON.stringify(key));
     const ventas=ventasValidas(cli);
     const puede6=ventas>=6 && !cli.canje6;
