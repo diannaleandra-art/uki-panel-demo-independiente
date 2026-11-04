@@ -10,6 +10,7 @@ on:
       - 'firebase/uki-mesas-dispositivo-qa.js'
       - 'firebase/uki-mesas-cuenta-simulada.qa.mjs'
       - 'tests/uki-mesa-cuenta-simulada.qa.test.mjs'
+      - 'tests/uki-qa-inline-js-check.cjs'
       - 'tests/uki-device-qr-browser.qa.cjs'
       - 'tests/uki-qr-sync.qa.mjs'
       - 'firebase/uki-cifrado-bloques.js'
@@ -47,6 +48,8 @@ jobs:
         run: node --check firebase/uki-mesas-dispositivo-qa.js
       - name: Probar cuenta y rondas de mesa en memoria, sin caja
         run: node --test tests/uki-mesa-cuenta-simulada.qa.test.mjs
+      - name: Comprobar sintaxis del módulo integrado en el HTML QA
+        run: node tests/uki-qa-inline-js-check.cjs
       - name: Probar botones reales del panel y guardar cuenta en sesión temporal
         run: node tests/uki-qr-cuenta-browser.qa.cjs
       - name: Probar firma y vínculo del equipo QR en Chromium sin red de producción
