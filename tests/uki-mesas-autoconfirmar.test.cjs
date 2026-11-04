@@ -71,3 +71,16 @@ test('La interfaz no solicita otra cuenta individual para el personal',()=>{
 test('Las vistas Preview no pueden habilitar escritura operativa real',()=>{
   assert.ok(html.includes("const UKI_OPERACION_HABILITADA=location.hostname==='diannaleandra-art.github.io'"));
 });
+
+test('El panel de producción no conecta la caja con Neon QA',()=>{
+  const begin=html.indexOf('const UKI_MESAS_ENDPOINT=');
+  const end=html.indexOf('\nlet ukiMesas=',begin);
+  assert.ok(begin>0&&end>begin,'Debe existir una selección aislada del endpoint QR');
+  const assignment=html.slice(begin,end);
+  const value=hostname=>vm.runInNewContext(assignment+'\nUKI_MESAS_ENDPOINT',{location:{hostname}});
+  assert.equal(value('diannaleandra-art.github.io'),null);
+  assert.equal(value('uki-sushi-panel.vercel.app'),null);
+  assert.equal(value('otro-sitio.vercel.app'),null);
+  assert.match(value('uki-sushi-panel-git-preparacion-uki-p-bae8e8-diannaleandra-7046.vercel.app'),/api\/mesa-pedidos$/);
+  assert.match(html,/if\(!UKI_MESAS_ENDPOINT\)return ''; \/\/ No presentar QA al personal en producción\./);
+});
