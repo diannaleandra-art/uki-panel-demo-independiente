@@ -1,6 +1,6 @@
 <html lang="es"><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'none'; form-action 'none'; frame-src 'none'; base-uri 'none';"><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Uki Sushi · DEMO aislada sin nube</title>
+<title>Uki Sushi · Panel de locales v8.15</title>
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -126,7 +126,7 @@ body.uki-nube-alerta #ukiEstadoOperativo{color:#b44713;font-weight:700}
  @page{margin:5mm}
 }
 </style>
-<style>#ukiNubeSeccion,#ukiMostrarConfig{display:none!important} body header{position:relative}</style></head>
+<style>#ukiNubeSeccion,#ukiMostrarConfig{display:none!important}body header{position:relative}</style></head>
 <body>
 <header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.15 · LOCALES</h1><small id="ukiEstadoOperativo" role="status">Nube: desactivada · Abre tu sucursal y carga Firebase</small></header>
 <nav id="nav" class="app-nav" aria-label="Navegación de Uki Sushi"></nav>
@@ -809,11 +809,16 @@ function nuevoDraft(){D={texto:"",fecha:ahora(),cliente:"",telefono:"",codigoCar
 function delItem(k){D.items.splice(k,1);if(!D.items.length)D.items=[{nombre:"",cant:1,precio:0,det:""}];render();}
 function addItem(){const n=$("pNom").value.trim(); const c=parseInt($("pCant").value)||1; const p=parseInt($("pPre").value)||0; const d=$("pDet").value.trim(); if(!n||!p){aviso("Pon nombre y precio");return;} D.items=D.items.filter(x=>x.nombre); D.items.push({nombre:n,cant:c,precio:p,det:d}); $("pNom").value=""; $("pCant").value=1; $("pPre").value=""; $("pDet").value=""; render();}
 // El codigo del pedido proviene del encabezado de la carta digital, NO del numero interno ni del codigo de cliente.
-function esMensajeCartaUki(t){return /^\s*\*?\s*UKI\s+SUSHI\s*[·•#:\-]/im.test(t);}
+function esMensajeCartaUki(t){
+ return /^\s*\*?\s*UKI\s+SUSHI\s*[·•#:\-]/im.test(t) ||
+  (/^\s*\*?\s*UKI\s+SUSHI\s*\*?\s*$/im.test(t) &&
+   /^\s*(?:N[.°ºo\s]*|N[uú]mero)\s+de\s+pedido\s*:/im.test(t));
+}
 function extraerMensajeCartaUki(t){
   const buscar=(pat)=>{const m=t.match(pat);return m?m[1].trim():"";};
   const monto=(pat)=>{const v=buscar(pat);return v?Number(v.replace(/[^\d]/g,"")):null;};
-  const codigoCarta=buscar(/^\s*\*?\s*UKI\s+SUSHI\s*[·•#:\-]\s*([A-Za-z0-9-]+)\s*\*?\s*$/im);
+  const codigoCarta=buscar(/^\s*(?:N[.°ºo\s]*|N[uú]mero)\s+de\s+pedido\s*:\s*([A-Za-z0-9-]+)/im) ||
+    buscar(/^\s*\*?\s*UKI\s+SUSHI\s*[·•#:\-]\s*([A-Za-z0-9-]+)\s*\*?\s*$/im);
   const codigoCliente=buscar(/^\s*C[oó]digo\s+del\s+cliente\s*:\s*([^\r\n]+)/im);
   const sucursal=buscar(/^\s*Sucursal\s*:\s*([^\r\n]+)/im);
   const cliente=buscar(/^\s*Cliente\s*:\s*([^\r\n]+)/im);
@@ -1053,6 +1058,7 @@ function ukiDetalleCuentaTexto(p){
  const fecha=String(p.fechaISO||"").replace("T"," ");
  const id=ukiReferenciaConCarta(p);
  const rows=["UKI SUSHI · DETALLE DE CUENTA",p.suc,"Pedido "+id,fecha,
+   p.codigoCliente?"Código del cliente: "+p.codigoCliente:"",
    p.cliente?"Cliente: "+p.cliente:"",p.mesaReferencia?"Mesa/referencia: "+p.mesaReferencia:"",
    "--------------------------"];
  for(const x of p.productos||[]){
@@ -1080,6 +1086,7 @@ function ukiDetalleCuentaVista(p){
  const envioFuera=ukiMontoEnvioOtroLocal(p,envio,sub);
  return '<details class="inner-details"><summary>🧾 Ver cuenta del cliente</summary>'+
     '<p class="muted"><b>'+esc(ukiReferenciaConCarta(p))+'</b></p>'+
+   (p.codigoCliente?'<p class="muted">Código del cliente: '+esc(p.codigoCliente)+'</p>':"")+
    (p.mesaReferencia?'<p class="muted">Referencia: '+esc(p.mesaReferencia)+'</p>':"")+
    (p.productos||[]).map(x=>row((Number(x.cantidad)||0)+' × '+String(x.nombre||"")+
       (x.detalle?' · '+x.detalle:'')+' ('+fmt(x.precioUnit)+' c/u)',fmt((Number(x.cantidad)||0)*(Number(x.precioUnit)||0)))).join("")+
@@ -1850,7 +1857,7 @@ function ukiCobrosExternosTurno(t){
  const contenido=[...grupos.values()].sort((a,b)=>(b.productos+b.delivery)-(a.productos+a.delivery)).map(g=>{
   const subtotal=g.productos+g.delivery;
   const filas=g.pedidos.map(({p,productos,delivery})=>{
-   const referencia=ukiReferenciaConCarta(p);
+   const referencia="Interno #"+p.id+(p.codigoCarta?" · Carta #"+p.codigoCarta:"");
    return '<div style="padding:10px 0;border-bottom:1px solid var(--line)">'+
     '<p style="margin:0 0 6px"><b>'+esc(referencia)+'</b> · '+esc(p.cliente||"Sin nombre")+'</p>'+
     (productos?row("Productos cobrados allí",fmt(productos)):"")+
@@ -1885,7 +1892,7 @@ function ukiDesgloseDeliverysTurno(t){
  const descuadre=pedidos.length+manuales.length!==t.nDeliv||pedidosTotal+manualesTotal!==t.envios;
  const filasPedidos=pedidos.map(p=>{
   const externo=ukiMontoEnvioOtroLocal(p,Number(p.envio)||0,Number(p.subtotal)||0);
-  const referencia=ukiReferenciaConCarta(p);
+  const referencia="Interno #"+p.id+(p.codigoCarta?" · Carta #"+p.codigoCarta:"");
   const cobro=externo>0?" · delivery cobrado en "+(p.localPagoExterno||"otro local")+" "+fmt(externo):"";
   return row(referencia+" · "+(p.cliente||"Sin nombre")+" · "+(p.estado||"Sin estado")+cobro,fmt(Number(p.envio)||0));
  }).join("");
@@ -2532,7 +2539,7 @@ async function ndGuardar(){
           nota:nota.trim().slice(0,400),antes:ukiFotoCorreccionPedido(p)};
       }
       // Si era premio, no afecta tarjeta
-      if(!p.esPremio && p.cliente && p.pagado && !p.productosPagadosOtroLocal){
+      if(!cierreHistorico && !p.esPremio && p.cliente && p.pagado && !p.productosPagadosOtroLocal){
         const cliOld=getCliente(p.cliente,p.codigoCliente,p.telefono);
         if(cliOld && cliOld.movimientos){
           cliOld.movimientos = cliOld.movimientos.filter(m=>m.pedidoId!==p.id);
@@ -2541,8 +2548,9 @@ async function ndGuardar(){
         }
       }
       p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||"";p.codigoCarta=D.codigoCarta||"";p.codigoCliente=D.codigoCliente||"";p.qrSolicitudes=Array.isArray(D.qrSolicitudes)?[...new Set(D.qrSolicitudes)]:[];p.sucursalCarta=D.sucursalCarta||""; p.mesaReferencia=D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():""; p.modalidad=D.modalidad; p.envio=envio; p.medio=D.medio; p.medioEnvio=D.medioEnvio; Object.assign(p,datosPago); p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})); p.total=total; p.subtotal=sub; p.propina=propina;p.propinaModo=D.propinaModo;p.medioPropina=D.medioPropina;p.textoOriginal=D.texto;
-      ukiSincronizarPropinaPedido(p);
-      if(!p.esPremio && D.cliente && D.pagado && !D.productosPagadosOtroLocal){
+      // Un cierre confirmado mantiene intactos sus movimientos de propina y fidelidad.
+      if(!cierreHistorico)ukiSincronizarPropinaPedido(p);
+      if(!cierreHistorico && !p.esPremio && D.cliente && D.pagado && !D.productosPagadosOtroLocal){
         const cli=asegurarCliente(D.cliente,D.codigoCliente,D.telefono);
         cli.gastado+=sub;
         cli.pedidos+=1;
@@ -3310,14 +3318,13 @@ window.ukiQASet=async(data)=>{
  if(!saved){S=prev;throw Error("No se guardó localmente");}
  render();
 };
-try { cargarDesdeLocalStorage(); render(); } catch(e) {
+try { guardarEnLocalStorage=()=>Promise.resolve(true); S=estadoVacioSucursal(null); render(); } catch(e) {
   document.getElementById('app').innerHTML = '<div class="card"><h2>No se puede abrir el panel en este navegador</h2><p>Abre el enlace directamente en Safari. Esta copia no ha borrado tus datos.</p><button class="big" onclick="location.reload()">Reintentar</button></div>';
 }
 </script>
 <script src="./uki-tarjeta-cliente.js" defer></script>
 <script src="./uki-cierre-detallado.js" defer></script>
 <script src="./uki-control-turnos.js" defer></script>
-
 <script>
 // UKI QA VISUAL 2026-11-04: ÚNICAMENTE datos sintéticos en memoria.
 // Las llamadas remotas están bloqueadas por la CSP; se eliminó por completo el módulo Firebase.
@@ -3335,7 +3342,7 @@ window.EventSource=class {constructor(){throw Error("Sin red: QA aislado")}};
 window.open=()=>{alert("Esta demostración no abre servicios externos.");return null;};
 window.addEventListener("DOMContentLoaded",()=>{
   try{
-    // Nada de Firebase, ni escrituras de nube, ni persistencia local.
+    // Nada de Firebase, ni escrituras de nube, ni persistencia local. Se carga estado en memoria al iniciar.
     guardarEnLocalStorage=()=>Promise.resolve(true);
     const hoy=hoyLocal(),d=new Date(hoy+"T12:00:00");
     d.setDate(d.getDate()-1);
@@ -3370,6 +3377,7 @@ window.addEventListener("DOMContentLoaded",()=>{
     });
     const p1=pedido(31,1,"Cliente ficticio A","Retiro",7000,0,true,"Efectivo");
     const p2=pedido(32,2,"Cliente ficticio B","Delivery",10000,2000,true,"Transferencia");
+    p2.codigoCarta="842";p2.codigoCliente="7318";
     // Pedido de prueba habitual, sin cobro externo.
     const p3=pedido(33,3,"Cliente ficticio C","Consumo en local",5000,0,false,"Débito");
     p3.mesaReferencia="Mesa 2 (prueba)";
@@ -3416,6 +3424,9 @@ window.addEventListener("DOMContentLoaded",()=>{
     const cierreValor=S.cierres[0].venta;
     test("Pedidos aparecen con folio corto",()=>{
       const out=vPedidos();return out.includes("Turno #01")&&out.includes("Cliente ficticio A")&&out.includes("Cliente ficticio B");
+    });
+    test("Pedido de carta muestra número de carta y código cliente",()=>{
+      const out=vPedidos();return out.includes("Carta #842")&&out.includes("Código cliente: 7318");
     });
     test("Total de gastos del turno coincide con el concepto",()=>{
       const t=totales();
