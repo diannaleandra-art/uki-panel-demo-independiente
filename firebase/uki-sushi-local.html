@@ -1872,12 +1872,15 @@ function ukiPedidoCoincideBusqueda(p,texto){
 }
 
 /* Bandeja QR QA: los envíos del cliente NO son ventas pagadas. */
-// La integración aún usa el servidor QA: jamás consultar ni registrar pedidos QA
-// desde la caja operativa de GitHub Pages ni desde dominios públicos.
+// Una sola bandeja según dominio: la operación jamás consulta Neon QA.
+// El servidor operativo permanece bloqueado hasta activación por sucursal.
+const UKI_MESAS_LIVE_URL='https://uki-sushi-pedidos-diannaleandra-7046.vercel.app/api/mesa-pedidos-live';
 const UKI_MESAS_ENDPOINT=
-  location.hostname.startsWith('uki-sushi-panel-')&&location.hostname.endsWith('.vercel.app')
-  ?'https://uki-sushi-pedidos-git-preparacion-uki-27ff36-diannaleandra-7046.vercel.app/api/mesa-pedidos'
-  :null;
+  location.hostname==='diannaleandra-art.github.io'
+  ? UKI_MESAS_LIVE_URL
+  : location.hostname.startsWith('uki-sushi-panel-')&&location.hostname.endsWith('.vercel.app')
+   ? 'https://uki-sushi-pedidos-git-preparacion-uki-27ff36-diannaleandra-7046.vercel.app/api/mesa-pedidos'
+   : null;
 let ukiMesas={rows:[],branch:'',status:'Pulsa Actualizar para consultar pedidos de mesas.',busy:false,used:false};
 const ukiMesaBranch=()=>S.suc===SUCURSALES[0]?'arica':S.suc===SUCURSALES[1]?'serena':'';
 const ukiMesaCode=id=>'MESA-'+String(id||'').toUpperCase();
@@ -1915,6 +1918,11 @@ function ukiMesasUI(){
  return '<div class="card" style="border:1px solid var(--accent)"><h2>🍽 Pedidos de mesas · '+arr.length+'</h2>'+
   '<p class="muted">Pedidos recibidos desde los QR. Deben ser confirmados por el personal; no se suman a caja automáticamente.</p>'+
   '<button class="sm ok" type="button" onclick="ukiMesaActualizar()">Actualizar pedidos</button>'+
+  (UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL?
+   '<details class="inner-details"><summary>Autorizar equipo para QR (administración, una sola vez)</summary>'+
+    '<p class="muted">La administradora autoriza este navegador una vez; el personal mantiene el acceso habitual al panel.</p>'+
+    '<button class="sm" type="button" onclick="window.ukiQRAutorizarEquipo?.()">Autorizar este equipo</button></details>'
+  :'')+
   '<p class="muted">Usa el acceso habitual al panel y comprueba «Nube: sincronizado» antes de confirmar una mesa.</p>'+
   '<p class="muted">'+esc(ukiMesas.status)+'</p>'+
   (list||'<p class="muted">Sin solicitudes cargadas.</p>')+'</div>';
@@ -2932,6 +2940,7 @@ import {dividirEstado,reunirEstado} from "./uki-particion-local.js";
 import {nuevaSal,nuevaGeneracion,derivarClave,cifrarBloque,descifrarBloque} from "./uki-cifrado-bloques.js";
 import {crearSnapshotsUki} from "./uki-sushi-nube.js";
 import {crearAutoGuardadoOperativo} from "./uki-sushi-autoguardado.js";
+import {autorizarEquipoQR,obtenerSesionQR,estadoEquipoQR} from "./uki-mesas-dispositivo-live.js";
 const config={
  apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",
  authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",
@@ -3045,7 +3054,30 @@ async function accion(action){
  try{await action()}catch(e){msg("Error de Firebase: "+String(e?.code||"")+": "+String(e?.message||e))}
  finally{ocupado=false;el("ukiLoadQA").disabled=false;el("ukiSaveQA").disabled=auto.resumen().activo}
 }
-window.ukiMesasQAToken=async()=>auth.currentUser?auth.currentUser.getIdToken():null;
+// En producción, el QR puede consultarse desde un equipo autorizado sin
+// cambiar el código compartido de acceso al panel ni solicitar correos al personal.
+window.ukiMesasQAToken=async()=>{
+ if(UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL){
+  try{return await obtenerSesionQR(ukiMesaBranch());}
+  catch(e){
+   if(auth.currentUser)return auth.currentUser.getIdToken();
+   throw e;
+  }
+ }
+ return auth.currentUser?auth.currentUser.getIdToken():null;
+};
+window.ukiQRAutorizarEquipo=async()=>{
+ if(!UKI_OPERACION_HABILITADA||UKI_MESAS_ENDPOINT!==UKI_MESAS_LIVE_URL)
+  return aviso('Solo disponible en el panel operativo.');
+ const branch=ukiMesaBranch();
+ if(!branch||!auth.currentUser)return aviso('Abre la sucursal e inicia sesión como administración Google.');
+ try{
+  const current=await estadoEquipoQR(branch);
+  if(current.autorizado)return aviso('Este navegador ya está vinculado para esta sucursal.');
+  await autorizarEquipoQR(branch,await auth.currentUser.getIdToken(),'Equipo Uki '+branch);
+  aviso('Equipo QR vinculado para esta sucursal. Conserva el código de acceso habitual.');
+ }catch(e){aviso('No se pudo autorizar el equipo: '+String(e?.message||e));}
+};
 window.ukiMesaCopiarIDTrabajador=async()=>{
  const uid=auth.currentUser?.uid;
  if(!uid){msg("Primero ingresa con Google en el panel Uki.");return;}
