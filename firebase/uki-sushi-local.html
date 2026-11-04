@@ -1934,7 +1934,9 @@ function ukiMesasUI(){
     '<p class="muted">La administradora autoriza este navegador una vez; el personal mantiene el acceso habitual al panel.</p>'+
     '<button class="sm" type="button" onclick="window.ukiQRAutorizarEquipo?.()">Autorizar este equipo</button></details>'
   :'')+
-  '<p class="muted">Usa el acceso habitual al panel y comprueba «Nube: sincronizado» antes de confirmar una mesa.</p>'+
+  (UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL
+   ?'<p class="muted">El personal conserva su código habitual. Las rondas se respaldan en la cuenta central al guardar el pedido; los cobros se registran solo en la caja.</p>'
+   :'<p class="muted">Comprueba «Nube: sincronizado» antes de confirmar una mesa.</p>')+
   '<p class="muted">'+esc(ukiMesas.status)+'</p>'+
   (list||'<p class="muted">Sin solicitudes cargadas.</p>')+cuentasHTML+'</div>';
 }
@@ -1943,7 +1945,7 @@ async function ukiMesaActualizar(){
  const branch=ukiMesaBranch();if(!branch||ukiMesas.busy)return;
  ukiMesas.busy=true;ukiMesas.used=true;ukiMesas.status='Consultando bandeja…';render();
  try{
-  const token=await window.ukiMesasQAToken?.();if(!token)throw Error('Inicia sesión con la cuenta Google del panel');
+  const token=await window.ukiMesasQAToken?.();if(!token)throw Error('Autoriza este equipo una sola vez para consultar los QR.');
   const r=await fetch(UKI_MESAS_ENDPOINT+'?branch='+branch,{
    headers:{Authorization:'Bearer '+token},cache:'no-store',signal:AbortSignal.timeout(15000)});
   const result=await r.json().catch(()=>({}));
