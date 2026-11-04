@@ -1957,8 +1957,13 @@ async function ukiMesaActualizar(){
    ukiMesas.branch=branch;ukiMesas.status=ukiMesas.rows.length+' solicitud(es) por revisar.';
    if(UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL){
     try{
+     // La bandeja admite el Google administrativo como respaldo de lectura,
+     // pero las cuentas QR SOLO admiten el token firmado del dispositivo.
+     // No reutilizar aquí el token Google ni ocultar fallos de sesión QR.
+     const tokenCuenta=await window.ukiMesasTokenEquipo?.();
+     if(!tokenCuenta)throw Error('La sesión QR del equipo no está disponible');
      const v=await fetch(UKI_MESAS_CUENTAS_LIVE_URL+'?branch='+branch,{
-       headers:{Authorization:'Bearer '+token},cache:'no-store',signal:AbortSignal.timeout(15000)});
+       headers:{Authorization:'Bearer '+tokenCuenta},cache:'no-store',signal:AbortSignal.timeout(15000)});
      const d=await v.json().catch(()=>({}));
      if(!v.ok||!d.ok)throw Error(d.error||'Cuentas QR no disponibles');
      if(branch===ukiMesaBranch())ukiMesas.cuentas=(d.cuentas||[]).filter(c=>c.branch===branch);
