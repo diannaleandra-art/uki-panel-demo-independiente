@@ -1804,7 +1804,7 @@ function ukiCobrosExternosTurno(t){
  const contenido=[...grupos.values()].sort((a,b)=>(b.productos+b.delivery)-(a.productos+a.delivery)).map(g=>{
   const subtotal=g.productos+g.delivery;
   const filas=g.pedidos.map(({p,productos,delivery})=>{
-   const referencia="ukiReferenciaConCarta(p);
+   const referencia=ukiReferenciaConCarta(p);
    return '<div style="padding:10px 0;border-bottom:1px solid var(--line)">'+
     '<p style="margin:0 0 6px"><b>'+esc(referencia)+'</b> · '+esc(p.cliente||"Sin nombre")+'</p>'+
     (productos?row("Productos cobrados allí",fmt(productos)):"")+
@@ -1839,7 +1839,7 @@ function ukiDesgloseDeliverysTurno(t){
  const descuadre=pedidos.length+manuales.length!==t.nDeliv||pedidosTotal+manualesTotal!==t.envios;
  const filasPedidos=pedidos.map(p=>{
   const externo=ukiMontoEnvioOtroLocal(p,Number(p.envio)||0,Number(p.subtotal)||0);
-  const referencia="ukiReferenciaConCarta(p);
+  const referencia=ukiReferenciaConCarta(p);
   const cobro=externo>0?" · delivery cobrado en "+(p.localPagoExterno||"otro local")+" "+fmt(externo):"";
   return row(referencia+" · "+(p.cliente||"Sin nombre")+" · "+(p.estado||"Sin estado")+cobro,fmt(Number(p.envio)||0));
  }).join("");
