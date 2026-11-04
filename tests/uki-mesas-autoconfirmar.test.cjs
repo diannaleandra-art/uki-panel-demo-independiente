@@ -67,3 +67,7 @@ test('La interfaz no solicita otra cuenta individual para el personal',()=>{
   assert.ok(html.includes('Usa el acceso habitual al panel'));
   assert.ok(!html.includes('Acceso del personal (configuración opcional)'));
 });
+
+test('Las vistas Preview no pueden habilitar escritura operativa real',()=>{
+  assert.ok(html.includes("const UKI_OPERACION_HABILITADA=location.hostname==='diannaleandra-art.github.io'"));
+});
