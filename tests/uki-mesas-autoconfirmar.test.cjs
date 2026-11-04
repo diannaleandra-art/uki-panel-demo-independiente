@@ -22,6 +22,7 @@ function scenario(opts={}) {
   const state={
     S:{suc:'Uki Regimiento Arica',pedidos:opts.orders || [{suc:'Uki Regimiento Arica',qrSolicitudes:['MESA-A1']}]},
     ukiMesas:{rows:opts.rows || [qr('a1')],branch:'arica',busy:opts.busy || false},
+    UKI_MESAS_PANEL_ACTIVADO:true,
     UKI_MESAS_ENDPOINT:opts.live?'live':'qa',
     UKI_MESAS_LIVE_URL:'live',
     ukiMesaRegistrarRondaCentral:opts.central || (async id=>{accepted.push(id);return true;}),
@@ -85,7 +86,7 @@ test('El panel operativo nunca consulta Neon QA, y Preview nunca consulta Neon L
   assert.equal(value('uki-sushi-panel.vercel.app'),null);
   assert.equal(value('otro-sitio.vercel.app'),null);
   assert.match(value('uki-sushi-panel-git-preparacion-uki-p-bae8e8-diannaleandra-7046.vercel.app'),/api\/mesa-pedidos$/);
-  assert.match(html,/if\(!UKI_MESAS_ENDPOINT\)return ''; \/\/ No presentar QA al personal en producción\./);
+  assert.match(html,/if\(!UKI_MESAS_PANEL_ACTIVADO\|\|!UKI_MESAS_ENDPOINT\)return ''; \/\/ No presentar QA al personal en producción\./);
   assert.match(html,/import \{autorizarEquipoQR,obtenerSesionQR,estadoEquipoQR\}/);
   assert.match(html,/UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL/);
 });
