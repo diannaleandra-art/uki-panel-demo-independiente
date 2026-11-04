@@ -174,7 +174,17 @@ function ukiTurnoFolioActual(){
 }
 function ukiReferenciaCorta(p){
  const n=Number(p?.numeroTurno);
- return Number.isSafeInteger(n)&&n>0?"Turno #"+String(n).padStart(2,"0"):"Interno #"+String(p?.id||"");
+ if(Number.isSafeInteger(n)&&n>0)return "Turno #"+String(n).padStart(2,"0");
+ // Pedidos existentes sin número corto: numeración visual del turno abierto.
+ // No cambia el ID permanente ni los cierres confirmados.
+ if(p?.suc===S.suc&&esDelPeriodo(p)){
+  const turno=ukiTurnoFolioActual(),inicio=Number(turno.clave.split("@")[1])||0;
+  const actuales=pedidosSuc().filter(x=>fechaRegistroMs(x)>=inicio&&esDelPeriodo(x))
+   .sort((a,b)=>fechaRegistroMs(a)-fechaRegistroMs(b)||(Number(a.id)||0)-(Number(b.id)||0));
+  const indice=actuales.findIndex(x=>x.id===p.id);
+  if(indice>=0)return "Turno #"+String(indice+1).padStart(2,"0");
+ }
+ return "Interno #"+String(p?.id||"");
 }
 function ukiReferenciaConCarta(p){
  return (p.codigoCarta?"Carta #"+p.codigoCarta+" · ":"")+ukiReferenciaCorta(p);
@@ -1156,7 +1166,7 @@ function ukiCompartirCuenta(id){
  }else ukiCopiarCuenta(id);
 }
 
-function copiarComanda(id){const p=S.pedidos.find(x=>x.id===id); if(!p) return; const txt=[`${p.codigoCarta?"Carta #"+p.codigoCarta+" · ":""}Interno #${p.id} · ${p.modalidad}`, ...(p.productos||[]).map(pr=>`${pr.cantidad}x ${pr.nombre}${pr.detalle?` (${pr.detalle})`:""}`), p.envio?`Delivery ${fmt(p.envio)}`:"", `Total ${fmt(p.total)}`].filter(Boolean).join("\n"); if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>aviso("Comanda copiada")).catch(()=>aviso(txt)); else aviso(txt);}
+function copiarComanda(id){const p=S.pedidos.find(x=>x.id===id); if(!p) return; const txt=[`${ukiReferenciaConCarta(p)} · ${p.modalidad}`, ...(p.productos||[]).map(pr=>`${pr.cantidad}x ${pr.nombre}${pr.detalle?` (${pr.detalle})`:""}`), p.envio?`Delivery ${fmt(p.envio)}`:"", `Total ${fmt(p.total)}`].filter(Boolean).join("\n"); if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>aviso("Comanda copiada")).catch(()=>aviso(txt)); else aviso(txt);}
 function togglePagado(id){
  const p=S.pedidos.find(x=>x.id===id);if(!p||p.esPremio||p.estado==="Cancelado")return;
  if(ukiCierreConfirmadoPedido(p)){aviso("Este pedido ya pertenece a un cierre confirmado. Usa Editar para dejar una corrección identificada sin modificar el cierre.");return;}
