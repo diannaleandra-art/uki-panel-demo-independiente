@@ -86,3 +86,10 @@ test('El panel operativo nunca consulta Neon QA, y Preview nunca consulta Neon L
   assert.match(html,/import \{autorizarEquipoQR,obtenerSesionQR,estadoEquipoQR\}/);
   assert.match(html,/UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL/);
 });
+
+test('Un equipo QR no confirma registrado sin sesión Google y nube respaldada',()=>{
+ assert.match(html,/const token=estado==='registrado'[\s\S]*?window\.ukiMesasTokenConfirmar/);
+ assert.match(html,/window\.ukiMesasTokenConfirmar=async\(\)=>auth\.currentUser/);
+ assert.match(html,/if\(!window\.ukiCancelacionNubeLista\?\.\(\)\)/);
+ assert.match(html,/estado\.actualRespaldado===true/);
+});
