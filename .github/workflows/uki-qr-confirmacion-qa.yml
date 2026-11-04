@@ -13,7 +13,7 @@ jobs:
         with:
           node-version: '22'
       - name: Verificar que no confirma ni duplica antes de guardar
-        run: node --test tests/uki-mesas-autoconfirmar.test.cjs tests/uki-qr-huella-nube.test.cjs
+        run: node --test tests/uki-mesas-autoconfirmar.test.cjs tests/uki-qr-huella-nube.test.cjs tests/uki-qr-cobro-integrado.test.cjs
       - name: Validar sintaxis de la interfaz QR sin publicar
         run: |
           node - <<'NODE'
