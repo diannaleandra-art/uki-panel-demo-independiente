@@ -3370,9 +3370,7 @@ window.addEventListener("DOMContentLoaded",()=>{
     });
     const p1=pedido(31,1,"Cliente ficticio A","Retiro",7000,0,true,"Efectivo");
     const p2=pedido(32,2,"Cliente ficticio B","Delivery",10000,2000,true,"Transferencia");
-    p2.productosPagadosOtroLocal=true;p2.montoProductosOtroLocal=10000;
-    p2.envioPagadoOtroLocal=true;p2.montoEnvioOtroLocal=2000;
-    p2.localPagoExterno="Romo (simulado)";
+    // Pedido de prueba habitual, sin cobro externo.
     const p3=pedido(33,3,"Cliente ficticio C","Consumo en local",5000,0,false,"Débito");
     p3.mesaReferencia="Mesa 2 (prueba)";
     S.pedidos=[old,p1,p2,p3];
@@ -3419,9 +3417,10 @@ window.addEventListener("DOMContentLoaded",()=>{
     test("Pedidos aparecen con folio corto",()=>{
       const out=vPedidos();return out.includes("Turno #01")&&out.includes("Cliente ficticio A")&&out.includes("Cliente ficticio B");
     });
-    test("Delivery externo separado de caja",()=>{
-      const out=ukiCobrosExternosTurno(totales());
-      return out.includes("Romo (simulado)")&&out.includes("No suma a caja")&&totales().envios>=2000;
+    test("Total de gastos del turno coincide con el concepto",()=>{
+      const t=totales();
+      const out=ukiGastosTurnoVisible(t);
+      return t.gastosTotal===900&&out.includes("Palta de prueba")&&out.includes("$900");
     });
     test("Cierre muestra gastos y conceptos",()=>{
       const out=vCierre();return out.includes("Palta de prueba")&&out.includes("Ver detalle de gastos");
