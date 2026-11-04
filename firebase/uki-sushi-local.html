@@ -1872,7 +1872,12 @@ function ukiPedidoCoincideBusqueda(p,texto){
 }
 
 /* Bandeja QR QA: los envíos del cliente NO son ventas pagadas. */
-const UKI_MESAS_ENDPOINT='https://uki-sushi-pedidos-git-preparacion-uki-27ff36-diannaleandra-7046.vercel.app/api/mesa-pedidos';
+// La integración aún usa el servidor QA: jamás consultar ni registrar pedidos QA
+// desde la caja operativa de GitHub Pages ni desde dominios públicos.
+const UKI_MESAS_ENDPOINT=
+  location.hostname.startsWith('uki-sushi-panel-')&&location.hostname.endsWith('.vercel.app')
+  ?'https://uki-sushi-pedidos-git-preparacion-uki-27ff36-diannaleandra-7046.vercel.app/api/mesa-pedidos'
+  :null;
 let ukiMesas={rows:[],branch:'',status:'Pulsa Actualizar para consultar pedidos de mesas.',busy:false,used:false};
 const ukiMesaBranch=()=>S.suc===SUCURSALES[0]?'arica':S.suc===SUCURSALES[1]?'serena':'';
 const ukiMesaCode=id=>'MESA-'+String(id||'').toUpperCase();
@@ -1890,6 +1895,7 @@ function ukiCuentasAbiertasMesa(numero){
   ukiCuentaAbierta(p)&&esDelPeriodo(p)&&ukiMesaNumeroReferencia(p.mesaReferencia)===Number(numero));
 }
 function ukiMesasUI(){
+ if(!UKI_MESAS_ENDPOINT)return ''; // No presentar QA al personal en producción.
  const branch=ukiMesaBranch(),arr=ukiMesas.branch===branch?ukiMesas.rows:[];
  const list=arr.map(x=>{
   const code=ukiMesaCode(x.id),guardado=(S.pedidos||[]).some(p=>p.suc===S.suc&&ukiPedidoTieneQR(p,code));
@@ -1914,6 +1920,7 @@ function ukiMesasUI(){
   (list||'<p class="muted">Sin solicitudes cargadas.</p>')+'</div>';
 }
 async function ukiMesaActualizar(){
+ if(!UKI_MESAS_ENDPOINT)return;
  const branch=ukiMesaBranch();if(!branch||ukiMesas.busy)return;
  ukiMesas.busy=true;ukiMesas.used=true;ukiMesas.status='Consultando bandeja…';render();
  try{
@@ -1932,6 +1939,7 @@ async function ukiMesaActualizar(){
  void ukiMesaConfirmarGuardadosSeguro();
 }
 function ukiMesaAbrir(id){
+ if(!UKI_MESAS_ENDPOINT)return;
  const x=ukiMesas.rows.find(a=>a.id===id&&a.branch===ukiMesaBranch());
  if(!x||S.busy)return;
  const code=ukiMesaCode(id);
@@ -1977,6 +1985,7 @@ function ukiMesaAbrir(id){
  render();
 }
 async function ukiMesaEstado(id,estado,automatico=false){
+ if(!UKI_MESAS_ENDPOINT)return false;
  const x=ukiMesas.rows.find(a=>a.id===id&&a.branch===ukiMesaBranch());if(!x)return;
  if(estado==='registrado'){
   if(!(S.pedidos||[]).some(p=>p.suc===S.suc&&ukiPedidoTieneQR(p,ukiMesaCode(id)))){
