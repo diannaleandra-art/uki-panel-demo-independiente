@@ -3117,6 +3117,12 @@ el("ukiEquipoVerQA")?.addEventListener("click",async()=>{
     (Array.isArray(pedido.items)?pedido.items.map(i=>String(i.qty||1)+" × "+String(i.mesaLabel||"Producto")).join("\n"):"");
    p.style.whiteSpace="pre-wrap";
    host?.append(p);
+   const registrar=document.createElement("button");
+   registrar.type="button";
+   registrar.textContent="Agregar a cuenta QA · SOLO PRUEBA";
+   registrar.style.cssText="margin:6px 0 14px;background:#fff4dd";
+   registrar.addEventListener("click",()=>ukiCuentasQAAgregar(pedido,registrar));
+   host?.append(registrar);
   }
  }catch(e){ukiEquipoMsg("No se pudo consultar la bandeja del equipo: "+String(e?.message||e));}
  finally{ukiEquipoBusySet(false);}
@@ -3131,6 +3137,89 @@ el("ukiEquipoRevocarQA")?.addEventListener("click",async()=>{
   ukiEquipoMsg("Equipo revocado. Su sesión deja de funcionar al consultar el servidor.");
  }catch(e){ukiEquipoMsg("No se pudo revocar el equipo: "+String(e?.message||e));}
  finally{ukiEquipoBusySet(false);}
+});
+
+
+/* Cuentas de prueba persistidas en Neon QA. NO son cuentas de caja operativa. */
+const UKI_CUENTAS_QA_ENDPOINT="https://uki-sushi-pedidos-git-preparacion-uki-27ff36-diannaleandra-7046.vercel.app/api/mesa-cuentas-qa";
+let ukiCuentasQAProcesando=false;
+const ukiCuentasQAEstado=mensaje=>{
+ const p=el("ukiCuentasEstadoQA");if(p)p.textContent=mensaje;
+};
+const ukiCuentasQAPesos=n=>Number(n||0).toLocaleString("es-CL");
+async function ukiCuentasQAActualizar(){
+ if(ukiCuentasQAProcesando)return;
+ ukiCuentasQAProcesando=true;
+ const button=el("ukiCuentasVerQA");if(button)button.disabled=true;
+ const host=el("ukiCuentasListadoQA");if(host)host.replaceChildren();
+ try{
+  if(UKI_OPERACION_HABILITADA)throw Error("Solo para el panel de pruebas.");
+  const branch=ukiEquipoBranch();
+  const token=await obtenerSesionQR(branch);
+  const response=await fetch(UKI_CUENTAS_QA_ENDPOINT+"?branch="+branch,{
+   headers:{Authorization:"Bearer "+token},cache:"no-store",
+   credentials:"omit",signal:AbortSignal.timeout(15000)});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok||!data.ok)throw Error(String(data.error||"Cuentas QA no disponibles"));
+  if(branch!==ukiEquipoBranch())throw Error("Cambió la sucursal durante la consulta.");
+  const cuentas=Array.isArray(data.cuentas)?data.cuentas:[];
+  ukiCuentasQAEstado(cuentas.length+" cuenta(s) ABIERTAS de prueba en "+
+   (branch==="arica"?"Regimiento Arica":"La Serena")+". No hay cobros ni registros reales.");
+  for(const c of cuentas){
+   if(c.branch!==branch)throw Error("Cuenta de sucursal diferente.");
+   const box=document.createElement("div");
+   box.style.cssText="padding:12px;margin-top:8px;border:1px solid #e3c9a2;border-radius:10px;background:white";
+   const title=document.createElement("p");
+   title.textContent="Mesa "+Number(c.mesa)+" · Cuenta ABIERTA QA · $"+
+    ukiCuentasQAPesos(c.total)+" · "+Number(c.rondas)+" ronda(s)";
+   title.style.fontWeight="700";
+   box.append(title);
+   for(const r of (Array.isArray(c.detalle)?c.detalle:[])){
+    const row=document.createElement("p");
+    row.textContent="Ronda $"+ukiCuentasQAPesos(r.subtotal)+": "+
+     (Array.isArray(r.items)?r.items.map(i=>String(i.qty||1)+" × "+String(i.mesaLabel||"Producto")).join(", "):"");
+    box.append(row);
+   }
+   host?.append(box);
+  }
+ }catch(e){
+  ukiCuentasQAEstado("No se pudieron ver las cuentas QA: "+String(e?.message||e));
+ }finally{
+  ukiCuentasQAProcesando=false;
+  if(button)button.disabled=false;
+ }
+}
+async function ukiCuentasQAAgregar(pedido,boton){
+ const branch=ukiEquipoBranch();
+ if(UKI_OPERACION_HABILITADA||!pedido?.id||pedido.branch!==branch){
+  ukiCuentasQAEstado("Pedido incorrecto o fuera de la sucursal. No se guardó.");
+  return;
+ }
+ if(!window.confirm("SOLO PRUEBAS: ¿Guardar este pedido QR de Mesa "+Number(pedido.mesa)+
+  " en Neon QA y marcarlo REGISTRADO en la bandeja de pruebas? "+
+  "No crea una venta real, no cobra y no modifica Firebase ni los cierres."))return;
+ if(boton)boton.disabled=true;
+ try{
+  const token=await obtenerSesionQR(branch);
+  const response=await fetch(UKI_CUENTAS_QA_ENDPOINT,{
+   method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+token},
+   body:JSON.stringify({branch,id:pedido.id}),cache:"no-store",
+   credentials:"omit",signal:AbortSignal.timeout(15000)});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok||!data.ok)throw Error(String(data.error||"No se pudo guardar la ronda"));
+  if(branch!==ukiEquipoBranch())throw Error("Se cambió la sucursal. Revisa la cuenta QA.");
+  ukiCuentasQAEstado("Mesa "+Number(data.cuenta?.mesa)+" · Cuenta QA guardada: $"+
+   ukiCuentasQAPesos(data.cuenta?.total)+". Sin cobro ni modificación de caja.");
+  await ukiCuentasQAActualizar();
+  el("ukiEquipoVerQA")?.click();
+ }catch(e){
+  ukiCuentasQAEstado("No se confirmó la ronda QA: "+String(e?.message||e));
+ }finally{if(boton)boton.disabled=false;}
+}
+el("ukiCuentasVerQA")?.addEventListener("click",ukiCuentasQAActualizar);
+el("ukiEquipoSucursalQA")?.addEventListener("change",()=>{
+ el("ukiCuentasListadoQA")?.replaceChildren();
+ ukiCuentasQAEstado("Sucursal cambiada. Pulsa Ver cuentas de prueba.");
 });
 
 /* Cuenta por mesa QA. Únicamente datos temporales de pantalla, sin POST/PATCH. */
