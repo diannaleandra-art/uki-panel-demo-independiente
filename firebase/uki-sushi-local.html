@@ -1232,7 +1232,9 @@ function togglePagado(id){
    }
  }
  p.pagado=!p.pagado;
- ukiSincronizarPropinaPedido(p);render();
+ ukiSincronizarPropinaPedido(p);
+ if(ukiPedidoDaTimbre(p)&&!p.timbreEnviadoEn)aviso("✅ Pago confirmado. 📲 Recuerda enviar el timbre al cliente y marcarlo como enviado.");
+ else render();
 }
 // Cancelación operativa: conserva el registro y nunca altera caja, timbres ni cierres ya guardados.
 // Exclusión de doble pulsación mientras se cifra y guarda una cancelación.
