@@ -71,3 +71,10 @@ test('El cobro existente del panel se conserva y se valida antes de guardar',()=
  assert.match(html,/ukiErrorDistribucionPago/);
  assert.match(html,/ukiSincronizarPropinaPedido/);
 });
+
+test('No registra en caja QR si el borrador cambia mientras validamos',()=>{
+ assert.match(html,/const firma=JSON\.stringify\(\{sucursal:S\.suc,datos:D\}\)/);
+ assert.match(html,/if\(firma!==JSON\.stringify\(\{sucursal:S\.suc,datos:D\}\)\)/);
+ assert.match(html,/Cambió el estado de la nube mientras comprobábamos el pago/);
+ assert.match(html,/La nube del panel debe estar sincronizada antes de registrar un pedido QR/);
+});
