@@ -83,6 +83,16 @@ export function crearAutoGuardadoOperativo({guardar,getEstado,avisar,delay=1500,
   bloqueado=true;pararTimer();
   informar("conflicto","Otro equipo guardó una revisión más reciente. Recarga la nube antes de seguir.");
  }
- function resumen(){return Object.freeze({estado,revision,sucursal,activo,bloqueado,ocupado,guardados});}
+ // Un indicador visual "sincronizado" no alcanza: el registro recién editado
+ // debe coincidir también con la huella exacta del último guardado remoto.
+ function estadoActualRespaldado(){
+  if(!activo||bloqueado||ocupado||estado!=="sincronizado"||huellaGuardada===null)return false;
+  try{
+   const actual=getEstado();
+   return !!actual&&actual.suc===sucursal&&huellaOperativa(actual)===huellaGuardada;
+  }catch{return false;}
+ }
+ function resumen(){return Object.freeze({estado,revision,sucursal,activo,bloqueado,ocupado,guardados,
+  actualRespaldado:estadoActualRespaldado()});}
  return Object.freeze({activar,desactivar,cambioLocal,revisionRemota,enviar,resumen});
 }
