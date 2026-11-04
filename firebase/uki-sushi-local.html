@@ -1935,7 +1935,7 @@ function ukiMesasUI(){
     '<button class="sm" type="button" onclick="window.ukiQRAutorizarEquipo?.()">Autorizar este equipo</button></details>'
   :'')+
   (UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL
-   ?'<p class="muted">El personal conserva su código habitual. Las rondas se respaldan en la cuenta central al guardar el pedido; los cobros se registran solo en la caja.</p>'
+   ?'<p class="muted">Se conserva el acceso habitual. Para registrar una ronda o cobrar, primero debe indicar «Nube: sincronizado». El QR solo se añade a la caja una vez y nunca cobra automáticamente.</p>'
    :'<p class="muted">Comprueba «Nube: sincronizado» antes de confirmar una mesa.</p>')+
   '<p class="muted">'+esc(ukiMesas.status)+'</p>'+
   (list||'<p class="muted">Sin solicitudes cargadas.</p>')+cuentasHTML+'</div>';
@@ -1970,6 +1970,10 @@ async function ukiMesaActualizar(){
 }
 function ukiMesaAbrir(id){
  if(!UKI_MESAS_ENDPOINT)return;
+ if(UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL&&!window.ukiCancelacionNubeLista?.()){
+  aviso('La nube del panel debe estar sincronizada antes de registrar un pedido QR. No se modificó la cuenta.');
+  return;
+ }
  const x=ukiMesas.rows.find(a=>a.id===id&&a.branch===ukiMesaBranch());
  if(!x||S.busy)return;
  const code=ukiMesaCode(id);
