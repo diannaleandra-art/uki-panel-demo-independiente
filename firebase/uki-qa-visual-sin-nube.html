@@ -2054,6 +2054,9 @@ const UKI_MESAS_ENDPOINT=
    ? 'https://uki-sushi-pedidos-git-preparacion-uki-27ff36-diannaleandra-7046.vercel.app/api/mesa-pedidos'
    : null;
 let ukiMesas={rows:[],cuentas:[],branch:'',status:'Pulsa Actualizar para consultar pedidos de mesas.',busy:false,used:false};
+// Evitar que la bandeja QR vacía ocupe toda la pantalla de Pedidos.
+// null: se abre automáticamente solo si llegan solicitudes; luego respeta la elección manual.
+let ukiMesasSeccionAbierta=null;
 const ukiMesaBranch=()=>S.suc===SUCURSALES[0]?'arica':S.suc===SUCURSALES[1]?'serena':'';
 const ukiMesaCode=id=>'MESA-'+String(id||'').toUpperCase();
 function ukiPedidoTieneQR(p,code){
@@ -2097,7 +2100,9 @@ function ukiMesasUI(){
   '">Reintentar registro</button>':'')+
    '<button class="sm" type="button" onclick="ukiMesaEstado('+esc(JSON.stringify(x.id))+',&quot;rechazado&quot;)">Rechazar</button></div>';
  }).join('');
- return '<div class="card" style="border:1px solid var(--accent)"><h2>🍽 Pedidos de mesas · '+arr.length+'</h2>'+
+ return '<details class="card" style="border:1px solid var(--accent);padding:12px 16px"'+
+  ((ukiMesasSeccionAbierta===null?arr.length>0:ukiMesasSeccionAbierta)?' open':'')+'>'+ 
+  '<summary style="cursor:pointer;font-weight:700;font-size:17px;padding:3px 0;line-height:1.5" onclick="ukiMesasSeccionAbierta=!this.parentElement.open">🍽 Pedidos de mesas · '+arr.length+(arr.length?' · por revisar':'')+'</summary>'+ 
   '<p class="muted">Pedidos recibidos desde los QR. Deben ser confirmados por el personal; no se suman a caja automáticamente.</p>'+
   '<button class="sm ok" type="button" onclick="ukiMesaActualizar()">Actualizar pedidos</button>'+
   (UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL?
@@ -2109,7 +2114,7 @@ function ukiMesasUI(){
    ?'<p class="muted">Se conserva el acceso habitual. Para registrar una ronda o cobrar, primero debe indicar «Nube: sincronizado». El QR solo se añade a la caja una vez y nunca cobra automáticamente.</p>'
    :'<p class="muted">Comprueba «Nube: sincronizado» antes de confirmar una mesa.</p>')+
   '<p class="muted">'+esc(ukiMesas.status)+'</p>'+
-  (list||'<p class="muted">Sin solicitudes cargadas.</p>')+cuentasHTML+'</div>';
+  (list||'<p class="muted">Sin solicitudes cargadas.</p>')+cuentasHTML+'</details>';
 }
 async function ukiMesaActualizar(){
  if(!UKI_MESAS_PANEL_ACTIVADO||!UKI_MESAS_ENDPOINT)return;
