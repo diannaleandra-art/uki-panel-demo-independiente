@@ -2283,6 +2283,7 @@ async function ukiQRPermitirCobroDefinitivo(d){
   if(!p.ok||!pendientes.ok)throw Error(pendientes.error||'No se pudieron verificar pedidos pendientes.');
   if((pendientes.orders||[]).some(x=>x.branch===branch&&Number(x.mesa)===mesa))
    throw Error('La mesa aún tiene pedidos QR sin registrar. Primero revisa la bandeja.');
+  if(!window.ukiCancelacionNubeLista?.())throw Error('Cambió el estado de la nube mientras comprobábamos el pago.');
   return true;
  }catch(e){
   aviso('No se confirmó el cobro QR: '+String(e?.message||e)+' No se modificó la caja.');
@@ -2294,9 +2295,14 @@ async function ndGuardar(){
   if(D.pagado&&Array.isArray(D.qrSolicitudes)&&D.qrSolicitudes.length&&
      UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL){
    ukiQRComprobandoCobro=true;
+   const firma=JSON.stringify({sucursal:S.suc,datos:D});
    let permitir=false;
    try{permitir=await ukiQRPermitirCobroDefinitivo(D);}finally{ukiQRComprobandoCobro=false;}
    if(!permitir)return;
+   if(firma!==JSON.stringify({sucursal:S.suc,datos:D})){
+    aviso('El pedido cambió mientras comprobábamos el pago. Revísalo y vuelve a guardar.');
+    return;
+   }
   }
   if(D.sucursalCarta && D.sucursalCarta.toLowerCase()!==S.suc.toLowerCase()&&!D.productosPagadosOtroLocal&&!D.envioPagadoOtroLocal){
     aviso("El mensaje corresponde a "+D.sucursalCarta+". Si preparas aquí y cobraron allá, marca «Productos pagados en otro local».");return;
