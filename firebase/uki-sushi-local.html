@@ -1621,7 +1621,7 @@ function totales(){
 function vCaja(){
   if(!S.suc)return vInicio();
   const active=CAJA_TABS.find(x=>x[0]===cajaTab)||CAJA_TABS[0];
-  const content=({resumen:vCajaResumen,movimientos:vMovimientos,cierre:vCierre,historial:vHistorialCompacto,semana:vResumenSemanal})[active[0]]();
+  const content=({resumen:vCajaResumen,movimientos:vMovimientos,cierre:vCierre,historial:vHistorialCompacto,semana:vReportes})[active[0]]();
   return `<div class="section-head"><h2>Caja</h2><p>Turno abierto · ${fechaOperativaActual()}</p></div>
   <div class="sub-tabs" role="group" aria-label="Secciones de caja">${CAJA_TABS.map(([k,l])=>`<button class="${cajaTab===k?'selected':''}" onclick="cambiarCajaTab('${k}')">${l}</button>`).join('')}</div>${content}<div class="card"><h2>💾 Respaldo protegido de esta sucursal</h2><p class="muted">Guarda un respaldo cifrado al terminar el turno. La clave no se guarda: si la olvidas, no podrás recuperar ese archivo.</p><label>Crear clave para este respaldo (minimo 12 caracteres)</label><input id="ukiClaveBackup" type="password" autocomplete="new-password" placeholder="Clave de respaldo"><label>Repite la clave</label><input id="ukiConfirmaBackup" type="password" autocomplete="new-password" placeholder="Confirmar clave"><button class="big" onclick="descargarRespaldoCompleto()">Descargar respaldo cifrado</button><hr><p class="muted">Restaurar reemplaza los registros actuales de esta sucursal. Antes guarda una copia. También se admiten los respaldos anteriores v8.11 sin cifrar.</p><label>Clave del respaldo (si está cifrado)</label><input id="ukiClaveRestaurar" type="password" autocomplete="off" placeholder="Clave del archivo"><label>Elegir archivo para restaurar</label><input type="file" accept=".json,application/json" onchange="cargarRespaldo(event)"></div>`;
 }
@@ -1658,6 +1658,84 @@ function vResumenSemanal(){
     <details style="margin-top:12px"><summary style="cursor:pointer">Ver medios de pago</summary>${medios||'<p class="muted">Sin movimientos de pago en esta semana.</p>'}</details>
     <p class="muted">El turno que todavía está abierto no se incluye hasta confirmar el cierre. Este resultado es la suma de los totales guardados, no el saldo físico de caja.</p>
   </div>`;
+}
+let reportesPeriodo="semana";
+function cambiarReportesPeriodo(p){if(["dia","semana","mes"].includes(p)){reportesPeriodo=p;render();}}
+function ukiDiaReporte(c){return /^\d{4}-\d{2}-\d{2}$/.test(c.fechaOperativa||"")?c.fechaOperativa:String(c.fechaISO||"").slice(0,10);}
+function vReportes(){
+ if(!S.suc)return vInicio();
+ const fecha=semanaConsulta||hoyLocal(),seleccion=new Date(fecha+"T12:00:00");
+ if(!Number.isFinite(seleccion.getTime()))return '<div class="card">Selecciona una fecha válida.</div>';
+ const key=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
+ let desde=fecha,hasta=fecha;
+ if(reportesPeriodo==="semana"){
+   const lunes=new Date(seleccion);lunes.setDate(lunes.getDate()-((lunes.getDay()+6)%7));
+   const domingo=new Date(lunes);domingo.setDate(lunes.getDate()+6);
+   desde=key(lunes);hasta=key(domingo);
+ }else if(reportesPeriodo==="mes"){
+   desde=key(new Date(seleccion.getFullYear(),seleccion.getMonth(),1));
+   hasta=key(new Date(seleccion.getFullYear(),seleccion.getMonth()+1,0));
+ }
+ const cierres=delSuc(S.cierres).filter(c=>{
+   const dia=ukiDiaReporte(c);return dia>=desde&&dia<=hasta;
+ }).slice().sort((a,b)=>fechaCierreMs(b)-fechaCierreMs(a));
+ const total=nombre=>cierres.reduce((n,c)=>n+(Number(c[nombre])||0),0);
+ const venta=total("venta"),gastos=total("gastos"),pedidos=total("pedidos");
+ const pagos=MEDIOS.map(m=>({medio:m,total:cierres.reduce((n,c)=>n+(Number(c.medios?.[m])||0),0)})).filter(x=>x.total);
+ const porDia=new Map();
+ cierres.forEach(c=>porDia.set(ukiDiaReporte(c),(porDia.get(ukiDiaReporte(c))||0)+(Number(c.venta)||0)));
+ const diaMayor=[...porDia].sort((a,b)=>b[1]-a[1])[0];
+ const ajustes=(S.ajustesHistoricos||[]).filter(a=>a.suc===S.suc&&a.tipo==="pedido_olvidado"&&a.fechaOperativa>=desde&&a.fechaOperativa<=hasta);
+ const ajusteTotal=ajustes.reduce((n,a)=>n+(Number(a.recibidoUki)||0),0);
+ const fechas='<div class="card"><h2>📊 Reportes de '+esc(S.suc)+'</h2>'+
+   '<p class="muted">Consulta cierres guardados por día, semana o mes. No altera la caja ni incluye ventas del turno todavía abierto.</p>'+
+   '<div class="chips">'+[["dia","Día"],["semana","Semana"],["mes","Mes"]].map(([k,l])=>
+     '<button class="chip'+(reportesPeriodo===k?' on':'')+'" type="button" onclick="cambiarReportesPeriodo(\''+k+'\')">'+l+'</button>').join("")+'</div>'+
+   '<label>Elegir fecha de referencia</label><input type="date" value="'+esc(fecha)+'" onchange="actualizarSemana(this.value)">'+
+   '<p class="muted">Período: <b>'+esc(desde)+' al '+esc(hasta)+'</b></p></div>';
+ if(!cierres.length)return fechas+'<div class="card"><p>No hay cierres confirmados para este período. El turno abierto no se suma aquí.</p></div>';
+ const resumen='<div class="card"><h2>Resumen del período</h2>'+
+   row("Cierres guardados",cierres.length)+row("Días con cierre",porDia.size)+
+   row("Pedidos",pedidos)+row("Ventas con delivery",fmt(venta),"sub")+
+   row("Ventas sin delivery",fmt(total("ventaSinDelivery")))+
+   row("Venta media por pedido",pedidos?fmt(venta/pedidos):"Sin pedidos")+
+   row("Gastos",fmt(gastos),"neg")+row("Pago a repartidores",fmt(total("pagadoDelivery")))+
+   row("Resultado final sumado",fmt(total("final")),"final")+
+   row("Propinas aparte",fmt(total("propinas")))+
+   (diaMayor?row("Día con mayor venta",diaMayor[0]+" · "+fmt(diaMayor[1])):"")+
+   (ajustes.length?row("Ventas olvidadas registradas después ("+ajustes.length+")",fmt(ajusteTotal))+
+    '<p class="muted">Este ajuste es informativo y no está incluido en los cierres originales.</p>':"")+
+   '</div>';
+ const medios='<details class="card"><summary style="cursor:pointer;font-weight:700">💳 Ver medios de pago · '+pagos.length+'</summary>'+
+   (pagos.map(p=>row(p.medio,fmt(p.total))).join("")||'<p class="muted">Sin medios registrados.</p>')+
+   row("Total registrado en medios",fmt(pagos.reduce((n,p)=>n+p.total,0)),"sub")+'</details>';
+ const dias='<details class="card" open><summary style="cursor:pointer;font-weight:700">📅 Ver ventas por día · '+porDia.size+'</summary>'+
+   [...porDia].sort((a,b)=>a[0].localeCompare(b[0])).map(([d,v])=>row(d,fmt(v))).join("")+
+   '</details>';
+ const detalles='<h3>Detalle de cada cierre · '+cierres.length+'</h3>'+cierres.map(c=>{
+   const g=ukiGastosCierreHistorico(c);
+   const gastosDetalle=g.disponible?(g.gastos.map(x=>row(x.concepto+" · "+x.medio,fmt(x.monto))).join("")||
+     '<p class="muted">Sin gastos individualizados.</p>'):
+     '<p class="muted">Este cierre antiguo no conserva el detalle individual de gastos.</p>';
+   return '<details class="card" style="border-left:4px solid var(--accent)">'+
+     '<summary style="cursor:pointer;font-weight:700">'+esc(ukiDiaReporte(c))+' · '+esc(c.resp||"Sin responsable")+
+     ' · '+fmt(c.venta||0)+'</summary>'+
+     '<p class="muted">Cierre realizado: '+esc(c.fecha||c.fechaISO||"Sin fecha")+'</p>'+
+     row("Pedidos",Number(c.pedidos)||0)+row("Ventas",fmt(c.venta||0))+
+     row("Venta sin delivery",fmt(c.ventaSinDelivery||0))+
+     '<p><b>Pagos</b></p>'+
+     (MEDIOS.filter(m=>Number(c.medios?.[m])>0).map(m=>row(m,fmt(c.medios[m]))).join("")||
+       '<p class="muted">Sin desglose de medios en este cierre.</p>')+
+     '<p><b>Gastos y concepto</b></p>'+gastosDetalle+row("Gastos totales",fmt(c.gastos||0),"sub")+
+     (!g.coincide&&g.disponible?'<p style="color:#a42b19">Atención: el desglose de gastos no coincide con el cierre original.</p>':"")+
+     '<p><b>Delivery y resultado</b></p>'+
+     row("Deliverys",fmt(c.envios||0))+row("Pago a repartidor",fmt(c.pagadoDelivery??c.delivery??0))+
+     row("Resultado final",fmt(c.final||0),"final")+
+     row("Propinas (aparte)",fmt(c.propinas||0))+
+     ukiAccionesHistorial(c)+ukiVHistorialCorreccionesCierre(c)+
+     '</details>';
+ }).join("");
+ return fechas+resumen+medios+dias+detalles;
 }
 function vCajaResumen(){
   const t=totales(), caja=cajaDelDia();
