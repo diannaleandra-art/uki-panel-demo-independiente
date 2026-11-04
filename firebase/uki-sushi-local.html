@@ -1272,25 +1272,65 @@ async function cancelarPedido(id){
  aviso("Cancelación guardada en este dispositivo por "+(motivo==="cliente"?"el cliente":"el local")+". Verifica que aparezca «Nube: sincronizado» antes de salir.");
  }finally{cancelacionGuardando=false;}
 }
+// El código visible sale siempre de los 4 últimos dígitos del WhatsApp real.
+// El número completo y el nombre diferencian clientes que compartan esos 4 dígitos.
+function ukiTelefonoNormalizado(valor){
+ const n=String(valor||"").replace(/\D/g,"");
+ if(/^09\d{8}$/.test(n))return "56"+n.slice(1);
+ if(/^9\d{8}$/.test(n))return "56"+n;
+ return n;
+}
+function ukiCodigoWhatsApp(telefono){
+ const n=ukiTelefonoNormalizado(telefono);
+ return n.length>=8?n.slice(-4):"";
+}
+function ukiCodigoClienteVisible(cliente){
+ return ukiCodigoWhatsApp(cliente?.telefono)||String(cliente?.codigoCliente||"").trim();
+}
+function ukiTextoBusqueda(valor){
+ return String(valor??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("es-CL").trim();
+}
+function ukiBusquedaPorDatos(texto,valores){
+ const entrada=String(texto||"").trim(),q=ukiTextoBusqueda(entrada);
+ if(!q)return true;
+ const campos=valores.filter(x=>x!==null&&x!==undefined).map(x=>ukiTextoBusqueda(x));
+ const soloNumeros=entrada.replace(/\D/g,"");
+ if(/^[\d+\s().-]+$/.test(entrada)&&soloNumeros.length>=4&&
+  campos.some(c=>c.replace(/\D/g,"").includes(soloNumeros)))return true;
+ return q.split(/\s+/).every(p=>campos.some(v=>v.includes(p)));
+}
 function claveCliente(nombre,codigo="",telefono=""){
-  const c=String(codigo||"").trim(),t=String(telefono||"").replace(/[^\d]/g,"");
-  if(c)return "codigo:"+c+"|"+t;
-  if(t)return "telefono:"+t;
-  return "nombre:"+String(nombre||"").trim().toLocaleLowerCase("es-CL");
+ const c=String(codigo||"").trim(),t=String(telefono||"").replace(/[^\d]/g,"");
+ if(c)return "codigo:"+c+"|"+t;
+ if(t)return "telefono:"+t;
+ return "nombre:"+String(nombre||"").trim().toLocaleLowerCase("es-CL");
+}
+// No migrar ni eliminar tarjetas anteriores. Reutilizar su clave antigua si
+// coinciden nombre y número COMPLETO de WhatsApp, aunque antes se digitara otro código.
+function ukiClaveClienteExistente(nombre,codigo="",telefono=""){
+ const exacta=claveCliente(nombre,codigo,telefono);
+ if(Object.prototype.hasOwnProperty.call(S.clientes||{},exacta))return exacta;
+ const numero=ukiTelefonoNormalizado(telefono);
+ if(numero.length<8)return null;
+ const iguales=Object.entries(S.clientes||{}).filter(([,c])=>
+  ukiTelefonoNormalizado(c.telefono)===numero&&ukiTextoBusqueda(c.nombre)===ukiTextoBusqueda(nombre));
+ return iguales.length===1?iguales[0][0]:null;
 }
 function getCliente(nombre,codigo="",telefono=""){
-  if(!nombre)return null;return S.clientes[claveCliente(nombre,codigo,telefono)]||null;
+ if(!nombre)return null;
+ const key=ukiClaveClienteExistente(nombre,codigo,telefono);
+ return key?S.clientes[key]:null;
 }
 function asegurarCliente(nombre,codigo="",telefono=""){
-  if(!nombre)return null;
-  const key=claveCliente(nombre,codigo,telefono);
-  if(!Object.prototype.hasOwnProperty.call(S.clientes,key)){
-    S.clientes[key]={nombre:nombre.trim(),codigoCliente:String(codigo||"").trim(),
-      telefono:String(telefono||"").trim(),ventas:0,gastado:0,pedidos:0,
-      ultimo:"",movimientos:[],canje6:false,canje10:false};
-  }
-  if(!Array.isArray(S.clientes[key].movimientos))S.clientes[key].movimientos=[];
-  return S.clientes[key];
+ if(!nombre)return null;
+ const key=ukiClaveClienteExistente(nombre,codigo,telefono)||claveCliente(nombre,codigo,telefono);
+ if(!Object.prototype.hasOwnProperty.call(S.clientes,key)){
+  S.clientes[key]={nombre:nombre.trim(),codigoCliente:ukiCodigoWhatsApp(telefono)||String(codigo||"").trim(),
+   telefono:String(telefono||"").trim(),ventas:0,gastado:0,pedidos:0,
+   ultimo:"",movimientos:[],canje6:false,canje10:false};
+ }
+ if(!Array.isArray(S.clientes[key].movimientos))S.clientes[key].movimientos=[];
+ return S.clientes[key];
 }
 function fechaVencimiento(fechaISO){const d=new Date(fechaISO); d.setMonth(d.getMonth()+3); return d.toISOString();}
 function ventasValidas(cli){
