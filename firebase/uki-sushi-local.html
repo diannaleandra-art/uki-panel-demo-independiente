@@ -2013,8 +2013,11 @@ async function ukiMesaConfirmarGuardadosSeguro(){
  if(!lista.length)return;
  ukiMesasConfirmando=true;
  try{
+  const yaConfirmados=new Set();
   for(const x of lista){
    if(branch!==ukiMesaBranch()||!window.ukiCancelacionNubeLista?.())break;
+   if(yaConfirmados.has(x.id))continue;
+   yaConfirmados.add(x.id);
    await ukiMesaEstado(x.id,'registrado',true);
   }
  }finally{ukiMesasConfirmando=false;}
