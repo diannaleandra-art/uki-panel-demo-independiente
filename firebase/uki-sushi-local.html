@@ -809,11 +809,16 @@ function nuevoDraft(){D={texto:"",fecha:ahora(),cliente:"",telefono:"",codigoCar
 function delItem(k){D.items.splice(k,1);if(!D.items.length)D.items=[{nombre:"",cant:1,precio:0,det:""}];render();}
 function addItem(){const n=$("pNom").value.trim(); const c=parseInt($("pCant").value)||1; const p=parseInt($("pPre").value)||0; const d=$("pDet").value.trim(); if(!n||!p){aviso("Pon nombre y precio");return;} D.items=D.items.filter(x=>x.nombre); D.items.push({nombre:n,cant:c,precio:p,det:d}); $("pNom").value=""; $("pCant").value=1; $("pPre").value=""; $("pDet").value=""; render();}
 // El codigo del pedido proviene del encabezado de la carta digital, NO del numero interno ni del codigo de cliente.
-function esMensajeCartaUki(t){return /^\s*\*?\s*UKI\s+SUSHI\s*[·•#:\-]/im.test(t);}
+function esMensajeCartaUki(t){
+ return /^\s*\*?\s*UKI\s+SUSHI\s*[·•#:\-]/im.test(t) ||
+  (/^\s*\*?\s*UKI\s+SUSHI\s*\*?\s*$/im.test(t) &&
+   /^\s*(?:N[.°ºo\s]*|N[uú]mero)\s+de\s+pedido\s*:/im.test(t));
+}
 function extraerMensajeCartaUki(t){
   const buscar=(pat)=>{const m=t.match(pat);return m?m[1].trim():"";};
   const monto=(pat)=>{const v=buscar(pat);return v?Number(v.replace(/[^\d]/g,"")):null;};
-  const codigoCarta=buscar(/^\s*\*?\s*UKI\s+SUSHI\s*[·•#:\-]\s*([A-Za-z0-9-]+)\s*\*?\s*$/im);
+  const codigoCarta=buscar(/^\s*(?:N[.°ºo\s]*|N[uú]mero)\s+de\s+pedido\s*:\s*([A-Za-z0-9-]+)/im) ||
+    buscar(/^\s*\*?\s*UKI\s+SUSHI\s*[·•#:\-]\s*([A-Za-z0-9-]+)\s*\*?\s*$/im);
   const codigoCliente=buscar(/^\s*C[oó]digo\s+del\s+cliente\s*:\s*([^\r\n]+)/im);
   const sucursal=buscar(/^\s*Sucursal\s*:\s*([^\r\n]+)/im);
   const cliente=buscar(/^\s*Cliente\s*:\s*([^\r\n]+)/im);
@@ -1053,6 +1058,7 @@ function ukiDetalleCuentaTexto(p){
  const fecha=String(p.fechaISO||"").replace("T"," ");
  const id=ukiReferenciaConCarta(p);
  const rows=["UKI SUSHI · DETALLE DE CUENTA",p.suc,"Pedido "+id,fecha,
+   p.codigoCliente?"Código del cliente: "+p.codigoCliente:"",
    p.cliente?"Cliente: "+p.cliente:"",p.mesaReferencia?"Mesa/referencia: "+p.mesaReferencia:"",
    "--------------------------"];
  for(const x of p.productos||[]){
@@ -1080,6 +1086,7 @@ function ukiDetalleCuentaVista(p){
  const envioFuera=ukiMontoEnvioOtroLocal(p,envio,sub);
  return '<details class="inner-details"><summary>🧾 Ver cuenta del cliente</summary>'+
     '<p class="muted"><b>'+esc(ukiReferenciaConCarta(p))+'</b></p>'+
+   (p.codigoCliente?'<p class="muted">Código del cliente: '+esc(p.codigoCliente)+'</p>':"")+
    (p.mesaReferencia?'<p class="muted">Referencia: '+esc(p.mesaReferencia)+'</p>':"")+
    (p.productos||[]).map(x=>row((Number(x.cantidad)||0)+' × '+String(x.nombre||"")+
       (x.detalle?' · '+x.detalle:'')+' ('+fmt(x.precioUnit)+' c/u)',fmt((Number(x.cantidad)||0)*(Number(x.precioUnit)||0)))).join("")+
