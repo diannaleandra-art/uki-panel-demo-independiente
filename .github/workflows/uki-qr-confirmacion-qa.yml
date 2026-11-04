@@ -1,0 +1,16 @@
+name: Uki QR - confirmación segura (QA)
+on:
+  push:
+    branches:
+      - preparacion/mesas-borradores-qr-sin-produccion-2026-11-03
+  workflow_dispatch:
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verificar que no confirma ni duplica antes de guardar
+        run: node --test tests/uki-mesas-autoconfirmar.test.cjs
