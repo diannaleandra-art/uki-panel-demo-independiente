@@ -3405,6 +3405,45 @@ window.addEventListener("DOMContentLoaded",()=>{
     document.getElementById("demoCierre").onclick=()=>{ir("caja");cambiarCajaTab("cierre")};
     document.getElementById("demoReportes").onclick=()=>{ir("caja");cambiarCajaTab("semana");actualizarSemana(ayer)};
     document.getElementById("demoHistorial").onclick=()=>{ir("caja");cambiarCajaTab("historial")};
+    // Comprobación real de generación de vistas sobre este navegador, solo datos simulados.
+    const probe=document.createElement("div");
+    probe.id="ukiQaChecks";
+    probe.style.cssText="background:#fff6ec;border:1px solid #f2ce9b;margin:8px 12px;padding:10px;border-radius:10px;font-size:12px;color:#563e2e";
+    actions.after(probe);
+    const results=[];
+    const test=(name,fn)=>{
+      try{const ok=!!fn();results.push({name,ok});}
+      catch(e){console.error("Fallo de comprobación visual:",name,e);results.push({name,ok:false});}
+    };
+    const cierreValor=S.cierres[0].venta;
+    test("Pedidos aparecen con folio corto",()=>{
+      const out=vPedidos();return out.includes("Turno #01")&&out.includes("Cliente ficticio A")&&out.includes("Cliente ficticio B");
+    });
+    test("Delivery externo separado de caja",()=>{
+      const out=ukiCobrosExternosTurno(totales());
+      return out.includes("Romo (simulado)")&&out.includes("No suma a caja")&&totales().envios>=2000;
+    });
+    test("Cierre muestra gastos y conceptos",()=>{
+      const out=vCierre();return out.includes("Palta de prueba")&&out.includes("Ver detalle de gastos");
+    });
+    test("Reporte histórico tiene cierre y monto",()=>{
+      semanaConsulta=ayer;reportesPeriodo="mes";
+      const out=vReportes();return out.includes("Arroz ficticio")&&out.includes("$9.000");
+    });
+    test("Historial muestra cierre sin modificación",()=>{
+      const out=vHistorial();return out.includes("Trabajador ficticio")&&out.includes("Arroz ficticio");
+    });
+    test("Auditoría muestra corrección del pedido",()=>{
+      const out=ukiVCorreccionesPedidoCierre(S.cierres[0]);return out.includes("Ejemplo de ajuste después del cierre");
+    });
+    test("Cierre original conserva sus cifras",()=>S.cierres[0].venta===cierreValor&&S.cierres[0].gastos===800);
+    const passed=results.filter(x=>x.ok).length;
+    probe.innerHTML="<b>"+(passed===results.length?"✅":"⚠️")+" Verificación automática en este navegador: "+passed+"/"+results.length+"</b>"+
+      '<div style="margin-top:5px">'+results.map(x=>(x.ok?"✓ ":"✗ ")+x.name).join("<br>")+"</div>"+
+      '<p style="margin:6px 0 0">Prueba con información ficticia; no confirma el funcionamiento de la nube ni autoriza publicar.</p>';
+    semanaConsulta="";reportesPeriodo="semana";
+    S.vista="inicio";render();
+
   }catch(e){
     console.error("Error en demo aislada",e);
     banner.textContent="No se pudo iniciar la demostración aislada. No se han escrito registros.";
