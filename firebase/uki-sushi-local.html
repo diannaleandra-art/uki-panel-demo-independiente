@@ -1202,8 +1202,10 @@ function ukiTimbrePedidoUI(p){
 }
 function ukiUltimoPedidoConTimbre(cli){
  if(!cli)return null;
- const key=claveCliente(cli.nombre,cli.codigoCliente,cli.telefono);
- return pedidosSuc().filter(p=>ukiPedidoDaTimbre(p)&&claveCliente(p.cliente,p.codigoCliente,p.telefono)===key)
+ const clave=claveCliente(cli.nombre,cli.codigoCliente,cli.telefono);
+ const numero=ukiTelefonoNormalizado(cli.telefono);
+ return pedidosSuc().filter(p=>ukiPedidoDaTimbre(p)&&ukiTextoBusqueda(p.cliente)===ukiTextoBusqueda(cli.nombre)&&
+  (numero.length>=8?ukiTelefonoNormalizado(p.telefono)===numero:claveCliente(p.cliente,p.codigoCliente,p.telefono)===clave))
   .sort((a,b)=>fechaRegistroMs(b)-fechaRegistroMs(a)||(Number(b.id)||0)-(Number(a.id)||0))[0]||null;
 }
 
@@ -1356,10 +1358,11 @@ function ventasValidas(cli){
 /* Historial por cliente; solo lee registros, no modifica calculos de timbres. */
 const nombreHist=n=>String(n||"").trim().toLocaleLowerCase("es-CL");
 function pedidosHist(nombre,codigo="",telefono=""){
-  const id=claveCliente(nombre,codigo,telefono);
-  return (S.pedidos||[]).filter(p=>nombreHist(p.cliente)===nombreHist(nombre)
-    && claveCliente(p.cliente,p.codigoCliente,p.telefono)===id)
-    .slice().sort((a,b)=>String(b.fechaISO||"").localeCompare(String(a.fechaISO||"")));
+ const numero=ukiTelefonoNormalizado(telefono),id=claveCliente(nombre,codigo,telefono);
+ return (S.pedidos||[]).filter(p=>ukiTextoBusqueda(p.cliente)===ukiTextoBusqueda(nombre)&&
+  (numero.length>=8?ukiTelefonoNormalizado(p.telefono)===numero:
+    claveCliente(p.cliente,p.codigoCliente,p.telefono)===id))
+  .slice().sort((a,b)=>String(b.fechaISO||"").localeCompare(String(a.fechaISO||"")));
 }
 function fichaHistorial(cli){
   const pedidos=pedidosHist(cli.nombre,cli.codigoCliente,cli.telefono), compras=pedidos.filter(p=>!p.esPremio&&p.estado!=="Cancelado");
@@ -1367,12 +1370,12 @@ function fichaHistorial(cli){
   const grupos=new Map();
   const fecha=x=>{const d=new Date(x||"");return Number.isNaN(d.getTime())?"Sin fecha":d.toLocaleDateString("es-CL");};
   for(const p of pedidos){
-    const codigo=String(p.codigoCliente||"").trim(),telefono=String(p.telefono||"").replace(/[^0-9]/g,"");
+    const codigo=ukiCodigoClienteVisible(p),telefono=ukiTelefonoNormalizado(p.telefono);
     const k=codigo?"c:"+codigo+"|"+telefono:telefono?"t:"+telefono:"sin-codigo";
     if(!grupos.has(k))grupos.set(k,{codigo,telefono,items:[]});
     grupos.get(k).items.push(p);
   }
-  const codigos=new Set(pedidos.map(p=>String(p.codigoCliente||"").trim()).filter(Boolean));
+  const codigos=new Set(pedidos.map(ukiCodigoClienteVisible).filter(Boolean));
   const canjes=(cli.movimientos||[]).filter(x=>x.tipo==="canje6"||x.tipo==="canje10");
   const muestra=p=>{
     const reclamos=inc.filter(x=>x.pedidoId===p.id&&x.suc===p.suc);
@@ -1448,14 +1451,13 @@ function buscarTimbresPorFecha(){
 }
 function vClientes(){
   if(!S.suc) return vInicio();
-  const buscar=nombreHist(S.filtroCliente);
+  const buscar=String(S.filtroCliente||"").trim();
   const fecha=filtroFechaTimbres||fechaOperativaActual();
   const clientes=Object.values(S.clientes||{});
   const lista=clientes.filter(c=>{
-    if(buscar)return nombreHist(c.nombre).includes(buscar)||
+    if(buscar)return ukiBusquedaPorDatos(buscar,[c.nombre,ukiCodigoClienteVisible(c),c.codigoCliente,c.telefono,ukiTelefonoNormalizado(c.telefono)])||
       pedidosHist(c.nombre,c.codigoCliente,c.telefono).some(p=>
-        String(p.codigoCliente||"").toLowerCase().includes(buscar)||
-        String(p.telefono||"").replace(/[^0-9]/g,"").includes(buscar));
+        ukiBusquedaPorDatos(buscar,[p.cliente,ukiCodigoClienteVisible(p),p.codigoCliente,p.telefono,ukiTelefonoNormalizado(p.telefono)]));
     return (c.movimientos||[]).some(m=>fechaTurnoMovimiento(m)===fecha);
   }).sort((a,b)=>ventasValidas(b)-ventasValidas(a));
   const fechas=new Map();
@@ -1470,8 +1472,8 @@ function vClientes(){
   return `<div class="card"><h2>⭐ Tarjetas de Timbres</h2>
     <p class="muted">Los timbres se acumulan por 3 meses. Premios: 6 ventas = 12 piezas; 10 ventas = 36 piezas + 2 korokes.</p>
     <p><b>${buscar?'Resultados de búsqueda':filtroFechaTimbres?'Tarjetas del '+esc(fecha):'Tarjetas con actividad del turno · '+esc(fecha)}</b></p>
-    <label>Buscar cliente por nombre, código o teléfono (de cualquier día)</label>
-    <input placeholder="Ej: Camila o código 7362" value="${esc(S.filtroCliente||"")}" oninput="S.filtroCliente=this.value;render()">
+    <label>Buscar por nombre, últimos 4 del WhatsApp o celular completo (cualquier día)</label>
+    <input placeholder="Ej: Camila, 5678 o +56 9..." value="${esc(S.filtroCliente||"")}" oninput="S.filtroCliente=this.value;render()">
     <button class="sm" onclick="verDiaTimbres(&quot;&quot;)">Ver turno actual</button>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px">
     <div class="card" style="margin:0"><h2 style="font-size:12px">Tarjetas visibles</h2><b>${lista.length}</b></div>
@@ -1488,7 +1490,7 @@ function vClientes(){
     const puede6=ventas>=6 && !cli.canje6;
     const puede10=ventas>=10;
     const ultimoTimbre=ukiUltimoPedidoConTimbre(cli);
-    return `<div class="card" style="${puede10?'border:2px solid #111':puede6?'border:2px solid var(--ok)':''}"><h2>${esc(cli.nombre)} <span class="tag">🎫 ${ventas}/10 timbres</span> ${puede6?'<span class="tag" style="background:var(--ok);color:#fff">🎁 12 piezas listo!</span>':''} ${puede10?'<span class="tag" style="background:#111;color:#fff">🎉 36+2 korokes listo!</span>':''}</h2><p class="muted">${cli.pedidos} pedidos · Gastado ${fmt(cli.gastado)} · Último ${esc(cli.ultimo||"")}</p><div class="tarjeta">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventas?'lleno':''} ${i===5?'premio':''} ${i===9?'premio':''}" title="${i===5?'6 ventas = 12 piezas':i===9?'10 ventas = 36+2 korokes':''}">${i<ventas?'✓':i+1}${i===5?'<br><small style="font-size:8px">12p</small>':''}${i===9?'<br><small style="font-size:7px">36+2k</small>':''}</div>`).join("")}</div><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"><button class="sm ok" onclick="avisarTimbres(${keyArg})">📲 Avisar por WhatsApp</button><button class="sm ok" onclick="compartirImagenTimbres(${keyArg})">🖼️ Compartir tarjeta</button>${ultimoTimbre?`<button class="sm" onclick="ukiMarcarTimbreEnviado(${ultimoTimbre.id})">${ultimoTimbre.timbreEnviadoEn?'✅ Timbre enviado':'☐ Marcar timbre enviado'}</button>`:""}${puede6?`<button class="sm ok" onclick="canjear12(${keyArg})">🎁 Canjear 12 piezas (6)</button>`:''}${puede10?`<button class="sm" style="background:#111;color:#fff" onclick="canjear36(${keyArg})">🎉 Canjear 36+2 korokes (10)</button>`:''}<button class="sm" onclick="D.cliente=${esc(JSON.stringify(cli.nombre))};D.codigoCliente=${esc(JSON.stringify(cli.codigoCliente||''))};D.telefono=${esc(JSON.stringify(cli.telefono||''))};ir('nuevo');">+ Pedido</button></div><details style="margin-top:8px"><summary class="muted">Ver historial timbres</summary>${(cli.movimientos||[]).slice(-15).reverse().map(m=>`<div class="row"><span>${m.tipo==='venta'?'🟢 Venta':m.tipo==='canje6'?'🔴 Canje 12 piezas':m.tipo==='canje10'?'🔴 Canje 36+2k':esc(m.tipo)} - ${new Date(m.fecha).toLocaleDateString('es-CL')} ${m.vence?'· Vence '+new Date(m.vence).toLocaleDateString('es-CL'):''}</span></div>`).join("")||"<p class='muted'>Sin movimientos</p>"}</details>${fichaHistorial(cli)}</div>`;
+    return `<div class="card" style="${puede10?'border:2px solid #111':puede6?'border:2px solid var(--ok)':''}"><h2>${esc(cli.nombre)} ${ukiCodigoClienteVisible(cli)?`<span class="tag">Código ${esc(ukiCodigoClienteVisible(cli))}</span>`:""} <span class="tag">🎫 ${ventas}/10 timbres</span> ${puede6?'<span class="tag" style="background:var(--ok);color:#fff">🎁 12 piezas listo!</span>':''} ${puede10?'<span class="tag" style="background:#111;color:#fff">🎉 36+2 korokes listo!</span>':''}</h2><p class="muted">${cli.pedidos} pedidos · Gastado ${fmt(cli.gastado)} · Último ${esc(cli.ultimo||"")}</p><div class="tarjeta">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventas?'lleno':''} ${i===5?'premio':''} ${i===9?'premio':''}" title="${i===5?'6 ventas = 12 piezas':i===9?'10 ventas = 36+2 korokes':''}">${i<ventas?'✓':i+1}${i===5?'<br><small style="font-size:8px">12p</small>':''}${i===9?'<br><small style="font-size:7px">36+2k</small>':''}</div>`).join("")}</div><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"><button class="sm ok" onclick="avisarTimbres(${keyArg})">📲 Avisar por WhatsApp</button><button class="sm ok" onclick="compartirImagenTimbres(${keyArg})">🖼️ Compartir tarjeta</button>${ultimoTimbre?`<button class="sm" onclick="ukiMarcarTimbreEnviado(${ultimoTimbre.id})">${ultimoTimbre.timbreEnviadoEn?'✅ Timbre enviado':'☐ Marcar timbre enviado'}</button>`:""}${puede6?`<button class="sm ok" onclick="canjear12(${keyArg})">🎁 Canjear 12 piezas (6)</button>`:''}${puede10?`<button class="sm" style="background:#111;color:#fff" onclick="canjear36(${keyArg})">🎉 Canjear 36+2 korokes (10)</button>`:''}<button class="sm" onclick="D.cliente=${esc(JSON.stringify(cli.nombre))};D.codigoCliente=${esc(JSON.stringify(cli.codigoCliente||''))};D.telefono=${esc(JSON.stringify(cli.telefono||''))};ir('nuevo');">+ Pedido</button></div><details style="margin-top:8px"><summary class="muted">Ver historial timbres</summary>${(cli.movimientos||[]).slice(-15).reverse().map(m=>`<div class="row"><span>${m.tipo==='venta'?'🟢 Venta':m.tipo==='canje6'?'🔴 Canje 12 piezas':m.tipo==='canje10'?'🔴 Canje 36+2k':esc(m.tipo)} - ${new Date(m.fecha).toLocaleDateString('es-CL')} ${m.vence?'· Vence '+new Date(m.vence).toLocaleDateString('es-CL'):''}</span></div>`).join("")||"<p class='muted'>Sin movimientos</p>"}</details>${fichaHistorial(cli)}</div>`;
   }).join(""):`<div class="card muted">${buscar?'No se encontraron clientes.':'No hay tarjetas con movimientos en este turno o fecha. Busca por nombre para consultar cualquier tarjeta acumulada.'}</div>`}
   <details class="card"><summary style="cursor:pointer"><b>🏅 Ranking clientes frecuentes</b></summary>${Object.values(S.clientes).sort((a,b)=>b.pedidos-a.pedidos).slice(0,10).map((c,i)=>`<div class="row"><span>${i+1}. ${esc(c.nombre)} - ${ventasValidas(c)}/10 timbres</span><b>${c.pedidos} pedidos</b></div>`).join("")||"<p class='muted'>Sin datos</p>"}</details>`;
 }
@@ -2128,10 +2130,8 @@ function ukiCambiarCategoriaPedidos(categoria){
 // Busca indistintamente código del cliente, código de la carta, número interno o nombre.
 // Se buscan los registros de la sucursal, incluidos los días anteriores.
 function ukiPedidoCoincideBusqueda(p,texto){
- const q=String(texto||"").trim().toLocaleLowerCase("es-CL");
- if(!q)return true;
- return [p.codigoCliente,p.codigoCarta,p.id,p.numeroTurno,p.cliente]
-  .some(v=>String(v??"").toLocaleLowerCase("es-CL").includes(q));
+ return ukiBusquedaPorDatos(texto,[p.cliente,ukiCodigoClienteVisible(p),p.codigoCliente,
+  p.telefono,ukiTelefonoNormalizado(p.telefono),p.codigoCarta,p.id,p.numeroTurno]);
 }
 
 /* Bandeja QR QA: los envíos del cliente NO son ventas pagadas. */
@@ -2487,8 +2487,8 @@ function vPedidos(){
     <div class="chips" role="group" aria-label="Filtrar pedidos por estado y pago">${categorias}</div>
     <p class="muted">${visibles.length} pedido(s) en «${esc((UKI_CATEGORIAS_PEDIDOS.find(x=>x[0]===filtroCategoriaPedidos)||[])[1]||"Todos")}». Un pedido pagado también puede estar pendiente de entrega o tener un error reportado.</p></div>
   ${pedidosArchivoDia||buscando?'<button class="sm" onclick="limpiarFiltrosPedidos()">← Volver al turno abierto</button>':''}
-  <details class="card" ${buscando?'open':''}><summary style="cursor:pointer"><b>🔎 Buscar por código de cliente, pedido, nombre o fecha</b></summary>
-    <div style="margin-top:12px"><label>Código de cliente, código de carta, número interno o nombre</label><input id="codigoFiltro" value="${esc(filtroCodigoCarta)}" placeholder="Ej: 7362, 011 o Camila" inputmode="text">
+  <details class="card" ${buscando?'open':''}><summary style="cursor:pointer"><b>🔎 Buscar por nombre, WhatsApp, código del cliente, pedido o fecha</b></summary>
+    <div style="margin-top:12px"><label>Nombre, últimos 4 del WhatsApp, celular completo o número del pedido</label><input id="codigoFiltro" value="${esc(filtroCodigoCarta)}" placeholder="Ej: Camila, 5678 o 56912345678" inputmode="text">
     <label>Fecha del pedido o turno</label><input id="diaPedidoFiltro" type="date" value="${esc(filtroDiaPedidos)}">
     <button class="sm ok" onclick="aplicarFiltrosPedidos()">Buscar pedidos</button>
     <button class="sm" onclick="limpiarFiltrosPedidos()">Ver turno abierto</button>
