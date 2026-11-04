@@ -1903,7 +1903,7 @@ function ukiMesasUI(){
    '<b>🍽 Mesa '+esc(x.mesa)+' · '+esc(x.nombre||'Cliente')+'</b>'+
    (cuentas.length===1?'<p class="muted">Se agregará a la cuenta abierta #'+esc(cuentas[0].id)+' de esta mesa.</p>':cuentas.length>1?'<p class="muted">⚠️ Hay varias cuentas abiertas para esta mesa. Revisar antes de guardar.</p>':'')+detalle+
    row('Total sin propina',fmt(x.total||0))+buttons+
-   '<button class="sm" type="button" onclick="ukiMesaEstado('+esc(JSON.stringify(x.id))+',&quot;registrado&quot;)">Ya está registrado</button>'+
+   (guardado?'<button class="sm" type="button" onclick="ukiMesaEstado('+esc(JSON.stringify(x.id))+',&quot;registrado&quot;)">Reintentar confirmación</button>':'')+
    '<button class="sm" type="button" onclick="ukiMesaEstado('+esc(JSON.stringify(x.id))+',&quot;rechazado&quot;)">Rechazar</button></div>';
  }).join('');
  return '<div class="card" style="border:1px solid var(--accent)"><h2>🍽 Pedidos de mesas · '+arr.length+'</h2>'+
@@ -1928,6 +1928,8 @@ async function ukiMesaActualizar(){
   }
  }catch(e){ukiMesas.status='Recepción todavía no habilitada: '+String(e?.message||e);}
  finally{ukiMesas.busy=false;if(S.vista==='pedidos')render();}
+ // Si la ronda ya está guardada en la nube, confirmar el QR sin un segundo paso.
+ void ukiMesaConfirmarGuardadosSeguro();
 }
 function ukiMesaAbrir(id){
  const x=ukiMesas.rows.find(a=>a.id===id&&a.branch===ukiMesaBranch());
@@ -1974,7 +1976,7 @@ function ukiMesaAbrir(id){
   :'Pedido de Mesa '+x.mesa+' cargado. Revisa y guarda como cuenta pendiente de pago.';
  render();
 }
-async function ukiMesaEstado(id,estado){
+async function ukiMesaEstado(id,estado,automatico=false){
  const x=ukiMesas.rows.find(a=>a.id===id&&a.branch===ukiMesaBranch());if(!x)return;
  if(estado==='registrado'){
   if(!(S.pedidos||[]).some(p=>p.suc===S.suc&&ukiPedidoTieneQR(p,ukiMesaCode(id)))){
@@ -1993,7 +1995,29 @@ async function ukiMesaEstado(id,estado){
   if(!r.ok||!data.ok)throw Error(data.error||'No se confirmó el cambio');
   ukiMesas.rows=ukiMesas.rows.filter(a=>a.id!==id);
   ukiMesas.status='Solicitud de Mesa '+x.mesa+' marcada como '+estado+'.';render();
- }catch(e){aviso('Error al actualizar la bandeja: '+String(e?.message||e));}
+  return true;
+ }catch(e){
+  if(automatico){
+   ukiMesas.status='No se pudo confirmar automáticamente Mesa '+x.mesa+'. El pedido sigue en la bandeja.';
+   if(S.vista==='pedidos')render();
+  }else aviso('Error al actualizar la bandeja: '+String(e?.message||e));
+  return false;
+ }
+}
+let ukiMesasConfirmando=false;
+async function ukiMesaConfirmarGuardadosSeguro(){
+ if(ukiMesasConfirmando||ukiMesas.busy||!S.suc||!window.ukiCancelacionNubeLista?.())return;
+ const branch=ukiMesaBranch();
+ const lista=ukiMesas.branch===branch?ukiMesas.rows.filter(x=>x.branch===branch&&
+   (S.pedidos||[]).some(p=>p.suc===S.suc&&ukiPedidoTieneQR(p,ukiMesaCode(x.id)))):[];
+ if(!lista.length)return;
+ ukiMesasConfirmando=true;
+ try{
+  for(const x of lista){
+   if(branch!==ukiMesaBranch()||!window.ukiCancelacionNubeLista?.())break;
+   await ukiMesaEstado(x.id,'registrado',true);
+  }
+ }finally{ukiMesasConfirmando=false;}
 }
 setInterval(()=>{if(ukiMesas.used&&!ukiMesas.busy&&S.suc&&S.vista==='pedidos')ukiMesaActualizar();},45000);
 
@@ -2926,6 +2950,7 @@ const auto=crearAutoGuardadoOperativo({
    if(encabezado)encabezado.textContent="Nube: "+estado+(rev===null?"":" · revisión "+rev);
    el("ukiSaveQA").disabled=auto.resumen().activo;
    actualizarBloqueo();
+   if(estado==='sincronizado')Promise.resolve().then(()=>ukiMesaConfirmarGuardadosSeguro());
  }
 });
 function claveNube(){
