@@ -1778,6 +1778,19 @@ function ukiDesgloseDeliverysTurno(t){
   (descuadre?'<p style="color:#b11b1b"><b>Revisar: el detalle no coincide con el total.</b></p>':'<p class="muted">La cantidad y el monto del detalle coinciden con el resumen. Esto no confirma que no haya duplicados.</p>')+
   '<p class="muted">Incluye pedidos no cancelados aunque estén pendientes. Antes del pago, verifica que cada entrega se haya realizado.</p></details>';
 }
+// Ver gastos individualizados antes de cerrar sin duplicarlos en caja chica.
+function ukiGastosTurnoVisible(t){
+ const gastos=delSucHoy(S.gastos);
+ const suma=gastos.reduce((n,g)=>n+(Number(g.monto)||0),0);
+ return '<details class="card" style="border-left:4px solid var(--accent)">'+
+   '<summary style="cursor:pointer;font-weight:700">🧾 Ver detalle de gastos · '+gastos.length+' · '+fmt(t.gastosTotal)+'</summary>'+
+   '<p class="muted">Conceptos, montos y medios del turno actual. La caja chica es independiente y no se descuenta dos veces.</p>'+
+   (gastos.map(g=>row((g.concepto||"Sin concepto")+" · "+(g.medio||"Sin medio"),fmt(g.monto))).join("")||
+    '<p class="muted">No hay gastos registrados en este turno.</p>')+
+   row("Total de gastos",fmt(suma),"final")+
+   (suma!==t.gastosTotal?'<p style="color:#a42b19"><b>Advertencia: los gastos no coinciden con el total de caja. Revisa antes de cerrar.</b></p>':"")+
+   '</details>';
+}
 function vCierre(){
   if(!S.suc) return vInicio();
   if(!window.ukiControlTurnos)return '<div class="card"><h2>No se cargó el control de caja</h2><p class="muted">Actualiza la página para revisar los pagos pendientes y el cuadre antes de cerrar. La caja sigue intacta.</p></div>';
@@ -1792,6 +1805,7 @@ function vCierre(){
   ${ukiCobrosExternosTurno(t)}
   <div class="card" style="border:2px solid var(--accent)"><h2>🛵 Pago al repartidor de Uki</h2><p class="muted">Se consideran los deliverys registrados, sin importar en qué local pagó el cliente.</p><label>Base diaria ($)</label><input type="number" value="${caja.base}" inputmode="numeric" onchange="cajaDelDia().base=Math.max(0,parseInt(this.value)||0);render()" style="font-weight:700">${row("Deliverys de pedidos ("+t.dels.length+")",fmt(t.enviosPedidos))}${row("Deliverys manuales ("+delSucHoy(S.deliveriesManuales).length+")",fmt(t.enviosManuales))}${row("Total de "+t.nDeliv+" deliverys",fmt(t.envios),"sub")}${row("Base diaria",fmt(caja.base))}${row("Total calculado para repartidor",fmt(caja.base+t.envios),"final")}<p class="muted">Antes de pagar, revisa que estos repartos se hayan realizado y no estén duplicados.</p></div>
   ${ukiDesgloseDeliverysTurno(t)}
+  ${ukiGastosTurnoVisible(t)}
   <div class="card"><h2>Resultado final</h2>${row("Venta total con delivery",fmt(t.totalMedios))}${row("− Pago a delivery ("+caja.pagoDeliveryMedio+")",fmt(t.pagoDelivery),"neg")}${row("Venta - pago delivery",fmt(t.totalMedios-t.pagoDelivery))}${row("− Gastos",fmt(t.gastosTotal),"neg")}${row("Venta total - gastos",fmt(t.totalMedios-t.gastosTotal),"sub")}${row("Total final (venta - pago delivery - gastos)",fmt(t.final),"final")}${row("Efectivo que queda en caja, sin propinas",fmt(t.efectivoCaja))}${row("Propinas (aparte)",fmt(t.propinas))}${t.propinasEfectivo?row("De ellas, en efectivo",fmt(t.propinasEfectivo)):""}</div>
   ${pendientes.length?`<div class="card" style="border:2px solid #bd4d1b"><h2>⚠️ Pedidos pendientes de pago · ${pendientes.length}</h2><p class="muted">Revisa estos pedidos antes de cerrar. Si decides cerrar, seguirán registrados como pendientes.</p><p>${pendientesText}</p></div>`:
      '<div class="card"><p style="margin:4px 0">✅ No hay pedidos pendientes de pago en este turno.</p></div>'}
