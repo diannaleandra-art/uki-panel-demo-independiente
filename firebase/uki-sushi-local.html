@@ -2539,7 +2539,7 @@ async function ndGuardar(){
           nota:nota.trim().slice(0,400),antes:ukiFotoCorreccionPedido(p)};
       }
       // Si era premio, no afecta tarjeta
-      if(!p.esPremio && p.cliente && p.pagado && !p.productosPagadosOtroLocal){
+      if(!cierreHistorico && !p.esPremio && p.cliente && p.pagado && !p.productosPagadosOtroLocal){
         const cliOld=getCliente(p.cliente,p.codigoCliente,p.telefono);
         if(cliOld && cliOld.movimientos){
           cliOld.movimientos = cliOld.movimientos.filter(m=>m.pedidoId!==p.id);
@@ -2548,8 +2548,9 @@ async function ndGuardar(){
         }
       }
       p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||"";p.codigoCarta=D.codigoCarta||"";p.codigoCliente=D.codigoCliente||"";p.qrSolicitudes=Array.isArray(D.qrSolicitudes)?[...new Set(D.qrSolicitudes)]:[];p.sucursalCarta=D.sucursalCarta||""; p.mesaReferencia=D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():""; p.modalidad=D.modalidad; p.envio=envio; p.medio=D.medio; p.medioEnvio=D.medioEnvio; Object.assign(p,datosPago); p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})); p.total=total; p.subtotal=sub; p.propina=propina;p.propinaModo=D.propinaModo;p.medioPropina=D.medioPropina;p.textoOriginal=D.texto;
-      ukiSincronizarPropinaPedido(p);
-      if(!p.esPremio && D.cliente && D.pagado && !D.productosPagadosOtroLocal){
+      // Un cierre confirmado mantiene intactos sus movimientos de propina y fidelidad.
+      if(!cierreHistorico)ukiSincronizarPropinaPedido(p);
+      if(!cierreHistorico && !p.esPremio && D.cliente && D.pagado && !D.productosPagadosOtroLocal){
         const cli=asegurarCliente(D.cliente,D.codigoCliente,D.telefono);
         cli.gastado+=sub;
         cli.pedidos+=1;
