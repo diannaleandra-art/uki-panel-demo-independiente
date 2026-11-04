@@ -2095,7 +2095,9 @@ async function ukiMesaEstado(id,estado,automatico=false){
 }
 let ukiMesasConfirmando=false;
 async function ukiMesaConfirmarGuardadosSeguro(){
- if(ukiMesasConfirmando||ukiMesas.busy||!S.suc||!window.ukiCancelacionNubeLista?.())return;
+ const central=UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL;
+ if(ukiMesasConfirmando||ukiMesas.busy||!S.suc||
+  (!central&&!window.ukiCancelacionNubeLista?.()))return;
  const branch=ukiMesaBranch();
  const lista=ukiMesas.branch===branch?ukiMesas.rows.filter(x=>x.branch===branch&&
    (S.pedidos||[]).some(p=>p.suc===S.suc&&ukiPedidoTieneQR(p,ukiMesaCode(x.id)))):[];
@@ -2104,10 +2106,11 @@ async function ukiMesaConfirmarGuardadosSeguro(){
  try{
   const yaConfirmados=new Set();
   for(const x of lista){
-   if(branch!==ukiMesaBranch()||!window.ukiCancelacionNubeLista?.())break;
+   if(branch!==ukiMesaBranch()||(!central&&!window.ukiCancelacionNubeLista?.()))break;
    if(yaConfirmados.has(x.id))continue;
    yaConfirmados.add(x.id);
-   await ukiMesaEstado(x.id,'registrado',true);
+   if(central)await ukiMesaRegistrarRondaCentral(x.id,true);
+   else await ukiMesaEstado(x.id,'registrado',true);
   }
  }finally{ukiMesasConfirmando=false;}
 }
@@ -3072,6 +3075,10 @@ function vigilarRevisiones(sucursal){
 }
 window.ukiQAOnLocalSaved=s=>{
  if(auto.resumen().activo&&auto.resumen().sucursal===s)auto.cambioLocal();
+ // Con el archivo local cifrado ya escrito, puede respaldarse la ronda en Neon.
+ // No modifica pagos, propinas, gastos ni cierres.
+ if(UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL&&S.suc===s)
+  void ukiMesaConfirmarGuardadosSeguro();
 };
 window.ukiQASessionLeft=()=>{
  dejarDeVigilar();auto.desactivar();revision=null;sucursalCargada=null;
@@ -3130,6 +3137,7 @@ async function accion(action){
 // cambiar el código compartido de acceso al panel ni solicitar correos al personal.
 // La confirmación de ronda requiere la misma sesión Google utilizada para
 // sincronizar Firebase, y solo después de la huella remota verificada.
+window.ukiMesasTokenEquipo=async()=>obtenerSesionQR(ukiMesaBranch());
 window.ukiMesasTokenConfirmar=async()=>auth.currentUser?auth.currentUser.getIdToken():null;
 window.ukiMesasQAToken=async()=>{
  if(UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL){
