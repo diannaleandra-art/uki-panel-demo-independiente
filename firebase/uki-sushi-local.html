@@ -2931,7 +2931,7 @@ const config={
  appId:"1:1070481165758:web:b8f0f9ff40caf5b8ac7def"
 };
 // Uso interno habilitado después de verificar lectura/escritura de las dos sucursales.
-const UKI_OPERACION_HABILITADA=true;
+const UKI_OPERACION_HABILITADA=location.hostname==='diannaleandra-art.github.io'; // Solo dominio del panel vigente: Preview no escribe caja real.
 const auth=getAuth(initializeApp(config)),db=getFirestore(auth.app);
 const cloud=crearSnapshotsUki({db,auth,api:{doc,getDocFromServer,writeBatch,runTransaction},
  blocks:{dividirEstado,reunirEstado},
