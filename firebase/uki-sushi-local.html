@@ -175,6 +175,13 @@ body.uki-nube-alerta #ukiEstadoOperativo{color:#b44713;font-weight:700}
  <p id="ukiSimularEstadoQA" role="status">Primero autoriza el equipo y consulta los pedidos QR de la sucursal.</p>
  <div id="ukiSimularListaQA"></div>
 </div>
+<div id="ukiCuentasGuardadasQA" style="margin-top:14px;padding:14px;border:1px solid #c0ab83;border-radius:12px;background:#fdfcf8">
+ <strong>🍽 Cuentas abiertas · guardado SOLO de prueba</strong>
+ <p style="font-size:13px">Consulta cuentas guardadas en Neon QA. No son ventas reales ni afectan caja o cierres. Para agregar una solicitud QR se pide confirmación expresa antes de modificar el pedido de prueba.</p>
+ <button type="button" id="ukiCuentasVerQA">Ver cuentas de prueba</button>
+ <p id="ukiCuentasEstadoQA" role="status">Las cuentas reales del local no se muestran aquí.</p>
+ <div id="ukiCuentasListadoQA"></div>
+</div>
 <div hidden aria-hidden="true"><label for="ukiCloudPass">Clave de nube desactivada en esta prueba</label><input id="ukiCloudPass" type="password" disabled><button id="ukiLoadQA" type="button" disabled>Cargar nube</button><button id="ukiSaveQA" type="button" disabled>Guardar</button><input id="ukiAutoCheck" type="checkbox" disabled><p id="ukiAutoEstado">Desactivado</p></div>
 <p style="font-size:13px">No introduzcas claves ni registres ventas. La activación de pedidos por QR se comprobará por separado.</p>
 </section>
