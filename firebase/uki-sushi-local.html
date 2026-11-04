@@ -3125,6 +3125,97 @@ el("ukiEquipoRevocarQA")?.addEventListener("click",async()=>{
  }catch(e){ukiEquipoMsg("No se pudo revocar el equipo: "+String(e?.message||e));}
  finally{ukiEquipoBusySet(false);}
 });
+
+/* Cuenta por mesa QA. Únicamente datos temporales de pantalla, sin POST/PATCH. */
+let ukiCuentaSimQA=crearEstadoMesaQA();
+const ukiCuentaSimEstado=mensaje=>{
+ const p=el("ukiSimularEstadoQA");if(p)p.textContent=mensaje;
+};
+const ukiCuentaPesos=n=>Number(n||0).toLocaleString("es-CL");
+function ukiCuentaSimDibujar(){
+ const host=el("ukiSimularListaQA");
+ if(!host)return;
+ host.replaceChildren();
+ const cuentas=cuentasSucursalMesaQA(ukiCuentaSimQA,ukiEquipoBranch());
+ const otro=el("ukiSimularRondaQA");
+ if(otro)otro.disabled=!cuentas.length;
+ for(const cuenta of cuentas){
+  const box=document.createElement("div");
+  box.style.cssText="border:1px solid #d8cceb;border-radius:10px;padding:12px;margin-top:10px;background:white";
+  const titulo=document.createElement("p");
+  titulo.style.fontWeight="700";
+  titulo.textContent="Mesa "+cuenta.mesa+" · Consumo en local · PENDIENTE DE PAGO (SIMULACIÓN)";
+  box.append(titulo);
+  for(const item of cuenta.items){
+   const linea=document.createElement("p");
+   linea.textContent=item.qty+" × "+item.nombre+" — $"+ukiCuentaPesos(item.importe);
+   box.append(linea);
+  }
+  const total=document.createElement("p");
+  total.style.fontWeight="700";
+  total.textContent="Subtotal simulado: $"+ukiCuentaPesos(cuenta.total)+
+   " · "+cuenta.rondas.length+" ronda(s) · Sin cobro, sin propina";
+  box.append(total);host.append(box);
+ }
+}
+function ukiCuentaSimReset(mensaje="Simulación limpia. No se guardó ninguna venta."){
+ ukiCuentaSimQA=crearEstadoMesaQA();
+ ukiCuentaSimDibujar();ukiCuentaSimEstado(mensaje);
+}
+el("ukiEquipoSucursalQA")?.addEventListener("change",()=>{
+ ukiCuentaSimReset("Al cambiar de sucursal se limpió la simulación de cuentas.");
+});
+el("ukiSimularCuentaQA")?.addEventListener("click",async()=>{
+ const boton=el("ukiSimularCuentaQA");
+ if(boton?.disabled)return;
+ boton.disabled=true;
+ ukiCuentaSimEstado("Consultando solicitudes QR para simular cuentas, sin guardarlas…");
+ try{
+  if(UKI_OPERACION_HABILITADA)throw Error("Simulación solo disponible en el panel de pruebas.");
+  const branch=ukiEquipoBranch();
+  const token=await obtenerSesionQR(branch);
+  const response=await fetch(UKI_MESAS_ENDPOINT+"?branch="+branch,{
+   headers:{Authorization:"Bearer "+token},cache:"no-store",credentials:"omit",
+   signal:AbortSignal.timeout(15000)});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok||!data.ok)throw Error(String(data.error||"Bandeja QR no disponible."));
+  if(branch!==ukiEquipoBranch())throw Error("Cambió la sucursal durante la consulta.");
+  const rows=Array.isArray(data.orders)?data.orders:[];
+  let simulado=crearEstadoMesaQA();
+  for(const order of rows){
+   if(order.branch!==branch)throw Error("El servidor entregó un pedido de otra sucursal.");
+   simulado=incorporarRondaMesaQA(simulado,order).estado;
+  }
+  ukiCuentaSimQA=simulado;
+  ukiCuentaSimDibujar();
+  ukiCuentaSimEstado(rows.length+
+   " solicitud(es) QR simulada(s). No se guardó, cobró ni confirmó ningún pedido.");
+ }catch(e){
+  ukiCuentaSimEstado("No se pudo simular: "+String(e?.message||e)+". No se modificó ninguna venta.");
+ }finally{boton.disabled=false;}
+});
+el("ukiSimularRondaQA")?.addEventListener("click",()=>{
+ try{
+  if(UKI_OPERACION_HABILITADA)throw Error("Simulación no permitida.");
+  const branch=ukiEquipoBranch();
+  const cuenta=cuentasSucursalMesaQA(ukiCuentaSimQA,branch)[0];
+  if(!cuenta)throw Error("Primero simula un pedido QR real pendiente.");
+  const ronda={
+   id:"SIMULADA_"+branch+"_MESA_"+cuenta.mesa+"_R2",
+   branch,mesa:cuenta.mesa,nombre:cuenta.cliente,
+   total:9000,items:[{mesaLabel:"Segunda ronda FICTICIA (no es pedido real)",qty:1,mesaPrecio:9000}]
+  };
+  const resultado=incorporarRondaMesaQA(ukiCuentaSimQA,ronda);
+  ukiCuentaSimQA=resultado.estado;
+  ukiCuentaSimDibujar();
+  ukiCuentaSimEstado(resultado.duplicada
+   ?"La ronda ficticia ya está incluida: no se sumó dos veces."
+   :"Segunda ronda ficticia añadida a la misma mesa. No se guardó ninguna venta.");
+ }catch(e){ukiCuentaSimEstado("No se añadió la ronda: "+String(e?.message||e));}
+});
+el("ukiSimularReiniciarQA")?.addEventListener("click",()=>ukiCuentaSimReset());
+ukiCuentaSimDibujar();
+
 ukiEquipoEstadoLeerQA();
 // Diagnóstico no destructivo: lee solo el manifiesto, nunca bloques ni datos personales.
 let ukiFirebaseLecturaOcupadaQA=false;
