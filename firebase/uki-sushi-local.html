@@ -1875,13 +1875,14 @@ function ukiPedidoCoincideBusqueda(p,texto){
 // Una sola bandeja según dominio: la operación jamás consulta Neon QA.
 // El servidor operativo permanece bloqueado hasta activación por sucursal.
 const UKI_MESAS_LIVE_URL='https://uki-sushi-pedidos-diannaleandra-7046.vercel.app/api/mesa-pedidos-live';
+const UKI_MESAS_CUENTAS_LIVE_URL='https://uki-sushi-pedidos-diannaleandra-7046.vercel.app/api/mesa-cuentas-live';
 const UKI_MESAS_ENDPOINT=
   location.hostname==='diannaleandra-art.github.io'
   ? UKI_MESAS_LIVE_URL
   : location.hostname.startsWith('uki-sushi-panel-')&&location.hostname.endsWith('.vercel.app')
    ? 'https://uki-sushi-pedidos-git-preparacion-uki-27ff36-diannaleandra-7046.vercel.app/api/mesa-pedidos'
    : null;
-let ukiMesas={rows:[],branch:'',status:'Pulsa Actualizar para consultar pedidos de mesas.',busy:false,used:false};
+let ukiMesas={rows:[],cuentas:[],branch:'',status:'Pulsa Actualizar para consultar pedidos de mesas.',busy:false,used:false};
 const ukiMesaBranch=()=>S.suc===SUCURSALES[0]?'arica':S.suc===SUCURSALES[1]?'serena':'';
 const ukiMesaCode=id=>'MESA-'+String(id||'').toUpperCase();
 function ukiPedidoTieneQR(p,code){
@@ -1900,6 +1901,12 @@ function ukiCuentasAbiertasMesa(numero){
 function ukiMesasUI(){
  if(!UKI_MESAS_ENDPOINT)return ''; // No presentar QA al personal en producción.
  const branch=ukiMesaBranch(),arr=ukiMesas.branch===branch?ukiMesas.rows:[];
+ const cuentas=ukiMesas.branch===branch?ukiMesas.cuentas:[];
+ const cuentasHTML=UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL
+  ?'<details class="inner-details"><summary>Cuentas QR abiertas · '+cuentas.length+'</summary>'+
+   '<p class="muted">Rondas respaldadas en la cuenta central de mesas. El cobro y las propinas se registran como siempre en el panel; aquí no se cobra dos veces.</p>'+
+   (cuentas.map(c=>'<p><b>Mesa '+esc(c.mesa)+'</b> · '+esc(c.rondas)+' ronda(s) · '+fmt(c.total)+' · pendiente de cobro</p>').join('')||'<p class="muted">Todavía no hay cuentas QR abiertas.</p>')+
+   '</details>':'';
  const list=arr.map(x=>{
   const code=ukiMesaCode(x.id),guardado=(S.pedidos||[]).some(p=>p.suc===S.suc&&ukiPedidoTieneQR(p,code));
   const cuentas=ukiCuentasAbiertasMesa(x.mesa);
@@ -1912,7 +1919,11 @@ function ukiMesasUI(){
    '<b>🍽 Mesa '+esc(x.mesa)+' · '+esc(x.nombre||'Cliente')+'</b>'+
    (cuentas.length===1?'<p class="muted">Se agregará a la cuenta abierta #'+esc(cuentas[0].id)+' de esta mesa.</p>':cuentas.length>1?'<p class="muted">⚠️ Hay varias cuentas abiertas para esta mesa. Revisar antes de guardar.</p>':'')+detalle+
    row('Total sin propina',fmt(x.total||0))+buttons+
-   (guardado?'<button class="sm" type="button" onclick="ukiMesaEstado('+esc(JSON.stringify(x.id))+',&quot;registrado&quot;)">Reintentar confirmación</button>':'')+
+   (guardado?'<button class="sm" type="button" onclick="'+
+  (UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL?'ukiMesaRegistrarRondaCentral(':'ukiMesaEstado(')+
+  esc(JSON.stringify(x.id))+
+  (UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL?')':',&quot;registrado&quot;)')+
+  '">Reintentar registro</button>':'')+
    '<button class="sm" type="button" onclick="ukiMesaEstado('+esc(JSON.stringify(x.id))+',&quot;rechazado&quot;)">Rechazar</button></div>';
  }).join('');
  return '<div class="card" style="border:1px solid var(--accent)"><h2>🍽 Pedidos de mesas · '+arr.length+'</h2>'+
@@ -1925,7 +1936,7 @@ function ukiMesasUI(){
   :'')+
   '<p class="muted">Usa el acceso habitual al panel y comprueba «Nube: sincronizado» antes de confirmar una mesa.</p>'+
   '<p class="muted">'+esc(ukiMesas.status)+'</p>'+
-  (list||'<p class="muted">Sin solicitudes cargadas.</p>')+'</div>';
+  (list||'<p class="muted">Sin solicitudes cargadas.</p>')+cuentasHTML+'</div>';
 }
 async function ukiMesaActualizar(){
  if(!UKI_MESAS_ENDPOINT)return;
