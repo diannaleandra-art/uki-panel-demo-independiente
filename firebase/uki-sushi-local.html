@@ -2067,6 +2067,50 @@ async function ukiMesaRegistrarRondaCentral(id,automatico=false){
   return false;
  }
 }
+let ukiMesasCerrando=false;
+async function ukiMesaCerrarPagadasCentralSeguro(){
+ if(UKI_MESAS_ENDPOINT!==UKI_MESAS_LIVE_URL||ukiMesasCerrando||ukiMesas.busy)return;
+ const branch=ukiMesaBranch();
+ if(!branch||ukiMesas.branch!==branch||!ukiMesas.cuentas.length)return;
+ const saved=await ukiMesaEstadoLocalGuardado();
+ if(!saved?.pedidos?.length)return;
+ const cerrables=ukiMesas.cuentas.filter(c=>{
+  if(c.branch!==branch||c.estado!=='abierta'||!Number.isInteger(Number(c.rondas))||Number(c.rondas)<1)return false;
+  const detalle=Array.isArray(c.detalle)?c.detalle:[];
+  if(detalle.length!==Number(c.rondas))return false;
+  // Solo liberar cuando el pedido CIFRADO ya está pagado y contiene
+  // todas las rondas QR de esa cuenta, sin otras cuentas mezcladas.
+  return saved.pedidos.some(p=>
+   p.suc===S.suc&&p.modalidad==='Consumo en local'&&p.pagado===true&&
+   p.estado!=='Cancelado'&&ukiMesaNumeroReferencia(p.mesaReferencia)===Number(c.mesa)&&
+   Number(p.subtotal)>=Number(c.total)&&
+   detalle.every(r=>ukiPedidoTieneQR(p,ukiMesaCode(r.id))));
+ });
+ if(!cerrables.length)return;
+ ukiMesasCerrando=true;
+ try{
+  const token=await window.ukiMesasTokenEquipo?.();
+  if(!token)return;
+  for(const c of cerrables){
+   if(branch!==ukiMesaBranch())break;
+   const r=await fetch(UKI_MESAS_CUENTAS_LIVE_URL,{
+    method:'PATCH',
+    headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+    body:JSON.stringify({branch,id:c.id}),cache:'no-store',
+    signal:AbortSignal.timeout(15000)});
+   const data=await r.json().catch(()=>({}));
+   if(!r.ok||!data.ok){
+    ukiMesas.status='Mesa '+c.mesa+': cuenta QR aún abierta: '+String(data.error||'No se confirmó el cierre.');
+    if(S.vista==='pedidos')render();
+    continue;
+   }
+   ukiMesas.cuentas=ukiMesas.cuentas.filter(a=>a.id!==c.id);
+   ukiMesas.status='Mesa '+c.mesa+': cuenta QR liberada después del pago guardado, sin duplicar la caja.';
+  }
+  if(S.vista==='pedidos')render();
+ }catch(e){ukiMesas.status='No se pudo comprobar la liberación de mesa QR: '+String(e?.message||e);}
+ finally{ukiMesasCerrando=false;}
+}
 async function ukiMesaEstado(id,estado,automatico=false){
  if(!UKI_MESAS_ENDPOINT)return false;
  const x=ukiMesas.rows.find(a=>a.id===id&&a.branch===ukiMesaBranch());if(!x)return;
@@ -3086,7 +3130,10 @@ window.ukiQAOnLocalSaved=s=>{
  // Con el archivo local cifrado ya escrito, puede respaldarse la ronda en Neon.
  // No modifica pagos, propinas, gastos ni cierres.
  if(UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL&&S.suc===s)
-  void ukiMesaConfirmarGuardadosSeguro();
+  void (async()=>{
+   await ukiMesaConfirmarGuardadosSeguro();
+   await ukiMesaCerrarPagadasCentralSeguro();
+  })();
 };
 window.ukiQASessionLeft=()=>{
  dejarDeVigilar();auto.desactivar();revision=null;sucursalCargada=null;
