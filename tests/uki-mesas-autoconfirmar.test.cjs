@@ -22,6 +22,9 @@ function scenario(opts={}) {
   const state={
     S:{suc:'Uki Regimiento Arica',pedidos:opts.orders || [{suc:'Uki Regimiento Arica',qrSolicitudes:['MESA-A1']}]},
     ukiMesas:{rows:opts.rows || [qr('a1')],branch:'arica',busy:opts.busy || false},
+    UKI_MESAS_ENDPOINT:opts.live?'live':'qa',
+    UKI_MESAS_LIVE_URL:'live',
+    ukiMesaRegistrarRondaCentral:opts.central || (async id=>{accepted.push(id);return true;}),
     window:{ukiCancelacionNubeLista:()=>synced},
     ukiMesaBranch:()=>branch,
     ukiMesaCode:id=>'MESA-'+String(id).toUpperCase(),
@@ -64,7 +67,7 @@ test('Si cambia la sucursal durante el envío no confirma la siguiente solicitud
   await x.fn();assert.deepEqual(accepted,['a1']);
 });
 test('La interfaz no solicita otra cuenta individual para el personal',()=>{
-  assert.ok(html.includes('Usa el acceso habitual al panel'));
+  assert.ok(html.includes('El personal conserva su código habitual'));
   assert.ok(!html.includes('Acceso del personal (configuración opcional)'));
 });
 
@@ -92,4 +95,17 @@ test('Un equipo QR no confirma registrado sin sesión Google y nube respaldada',
  assert.match(html,/window\.ukiMesasTokenConfirmar=async\(\)=>auth\.currentUser/);
  assert.match(html,/if\(!window\.ukiCancelacionNubeLista\?\.\(\)\)/);
  assert.match(html,/estado\.actualRespaldado===true/);
+});
+
+test('En modo operativo la cuenta QR usa confirmación atómica sin exigir correo individual',async()=>{
+ const x=scenario({live:true,synced:false});
+ await x.fn();
+ assert.deepEqual(x.accepted,['a1']);
+});
+test('El panel QR no libera una mesa sin pago guardado y todas sus rondas',()=>{
+ assert.match(html,/p\.pagado===true/);
+ assert.match(html,/detalle\.every\(r=>ukiPedidoTieneQR\(p,ukiMesaCode\(r\.id\)\)\)/);
+ assert.match(html,/await ukiMesaEstadoLocalGuardado\(\)/);
+ assert.match(html,/method:'PATCH'/);
+ assert.match(html,/api\/mesa-cuentas-live/);
 });
