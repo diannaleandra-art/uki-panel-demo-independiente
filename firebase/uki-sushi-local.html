@@ -2039,6 +2039,10 @@ async function ukiMesaRespaldoLocalContiene(id){
 }
 async function ukiMesaRegistrarRondaCentral(id,automatico=false){
  if(UKI_MESAS_ENDPOINT!==UKI_MESAS_LIVE_URL)return false;
+ if(!window.ukiCancelacionNubeLista?.()){
+  if(!automatico)aviso('La cuenta debe estar sincronizada en la nube antes de confirmar esta ronda QR.');
+  return false;
+ }
  const x=ukiMesas.rows.find(p=>p.id===id&&p.branch===ukiMesaBranch());
  if(!x)return false;
  if(!(await ukiMesaRespaldoLocalContiene(id))){
@@ -2069,7 +2073,8 @@ async function ukiMesaRegistrarRondaCentral(id,automatico=false){
 }
 let ukiMesasCerrando=false;
 async function ukiMesaCerrarPagadasCentralSeguro(){
- if(UKI_MESAS_ENDPOINT!==UKI_MESAS_LIVE_URL||ukiMesasCerrando||ukiMesas.busy)return;
+ if(UKI_MESAS_ENDPOINT!==UKI_MESAS_LIVE_URL||ukiMesasCerrando||ukiMesas.busy||
+    !window.ukiCancelacionNubeLista?.())return;
  const branch=ukiMesaBranch();
  if(!branch||ukiMesas.branch!==branch||!ukiMesas.cuentas.length)return;
  const saved=await ukiMesaEstadoLocalGuardado();
@@ -2149,7 +2154,7 @@ let ukiMesasConfirmando=false;
 async function ukiMesaConfirmarGuardadosSeguro(){
  const central=UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL;
  if(ukiMesasConfirmando||ukiMesas.busy||!S.suc||
-  (!central&&!window.ukiCancelacionNubeLista?.()))return;
+    !window.ukiCancelacionNubeLista?.())return;
  const branch=ukiMesaBranch();
  const lista=ukiMesas.branch===branch?ukiMesas.rows.filter(x=>x.branch===branch&&
    (S.pedidos||[]).some(p=>p.suc===S.suc&&ukiPedidoTieneQR(p,ukiMesaCode(x.id)))):[];
@@ -2158,7 +2163,7 @@ async function ukiMesaConfirmarGuardadosSeguro(){
  try{
   const yaConfirmados=new Set();
   for(const x of lista){
-   if(branch!==ukiMesaBranch()||(!central&&!window.ukiCancelacionNubeLista?.()))break;
+   if(branch!==ukiMesaBranch()||!window.ukiCancelacionNubeLista?.())break;
    if(yaConfirmados.has(x.id))continue;
    yaConfirmados.add(x.id);
    if(central)await ukiMesaRegistrarRondaCentral(x.id,true);
@@ -3098,7 +3103,11 @@ const auto=crearAutoGuardadoOperativo({
    if(encabezado)encabezado.textContent="Nube: "+estado+(rev===null?"":" · revisión "+rev);
    el("ukiSaveQA").disabled=auto.resumen().activo;
    actualizarBloqueo();
-   if(estado==='sincronizado')Promise.resolve().then(()=>ukiMesaConfirmarGuardadosSeguro());
+   if(estado==='sincronizado')Promise.resolve().then(async()=>{
+    await ukiMesaConfirmarGuardadosSeguro();
+    if(UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL)
+     await ukiMesaCerrarPagadasCentralSeguro();
+   });
  }
 });
 function claveNube(){
@@ -3126,14 +3135,9 @@ function vigilarRevisiones(sucursal){
     });
 }
 window.ukiQAOnLocalSaved=s=>{
+ // Nunca confirmar QR ni liberar mesa solo porque se guardó en este teléfono.
+ // Esperar primero al respaldo remoto verificado por Firebase.
  if(auto.resumen().activo&&auto.resumen().sucursal===s)auto.cambioLocal();
- // Con el archivo local cifrado ya escrito, puede respaldarse la ronda en Neon.
- // No modifica pagos, propinas, gastos ni cierres.
- if(UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL&&S.suc===s)
-  void (async()=>{
-   await ukiMesaConfirmarGuardadosSeguro();
-   await ukiMesaCerrarPagadasCentralSeguro();
-  })();
 };
 window.ukiQASessionLeft=()=>{
  dejarDeVigilar();auto.desactivar();revision=null;sucursalCargada=null;
