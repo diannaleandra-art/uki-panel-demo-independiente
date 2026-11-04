@@ -931,6 +931,51 @@ function vNuevo(){
     <p class="muted">Solo se consideran ventas los pagos completos confirmados. Los montos mixtos deben sumar exactamente lo que corresponde.</p></div><button class="big" onclick="ndGuardar()">${D.editando?`💾 Guardar cambios #${D.editando}`:D.productosPagadosOtroLocal?`✅ Guardar pedido con pago compartido`:`✅ Guardar pedido +1 timbre`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición</button>`:""}`;
 }
 
+// Corrección histórica: el pedido muestra los datos corregidos, pero el cierre ya emitido nunca cambia.
+function ukiCierreConfirmadoPedido(p){
+ const tiempo=fechaRegistroMs(p);
+ if(!p||!Number.isFinite(tiempo)||tiempo<=0)return null;
+ return (S.cierres||[]).filter(c=>c.suc===p.suc&&fechaCierreMs(c)>0&&fechaCierreMs(c)>=tiempo&&
+   (!Number(c.inicioTurnoMs)||Number(c.inicioTurnoMs)<=tiempo))
+  .sort((a,b)=>fechaCierreMs(a)-fechaCierreMs(b))[0]||null;
+}
+function ukiFotoCorreccionPedido(p){
+ const campos=["fechaISO","cliente","telefono","codigoCarta","codigoCliente","modalidad",
+  "mesaReferencia","envio","medio","medioEnvio","pagado","pagosProductos","pagosEnvio",
+  "productosPagadosOtroLocal","montoProductosOtroLocal","envioPagadoOtroLocal",
+  "montoEnvioOtroLocal","localPagoExterno","productos","total","subtotal","propina",
+  "propinaModo","medioPropina","textoOriginal"];
+ const foto={};
+ for(const k of campos)foto[k]=p[k]===undefined?null:JSON.parse(JSON.stringify(p[k]));
+ return foto;
+}
+function ukiVCorreccionesPedido(p){
+ const ajustes=(S.ajustesHistoricos||[]).filter(a=>a.suc===S.suc&&a.tipo==="pedido_corregido"&&a.pedidoId===p.id);
+ if(!ajustes.length)return "";
+ const items=ajustes.map(a=>
+  '<div style="padding:10px 0;border-bottom:1px solid var(--line)">'+
+  '<b>Corrección #'+esc(a.id)+'</b> · '+esc(a.fechaISO||"")+
+  '<p class="muted">'+esc(a.nota||"Sin motivo")+'</p>'+
+  row("Total antes",fmt(a.antes?.total))+row("Total corregido",fmt(a.despues?.total))+
+  row("Pago antes",a.antes?.pagado?"Pagado":"Sin pago")+
+  row("Pago corregido",a.despues?.pagado?"Pagado":"Sin pago")+
+  '<p class="muted">El cierre confirmado no fue recalculado.</p></div>').join("");
+ return '<details class="inner-details"><summary>📝 Correcciones posteriores al cierre · '+
+   ajustes.length+'</summary>'+items+'</details>';
+}
+function ukiVCorreccionesPedidoCierre(c){
+ const ajustes=(S.ajustesHistoricos||[]).filter(a=>a.suc===S.suc&&a.tipo==="pedido_corregido"&&
+   a.cierreMs===fechaCierreMs(c));
+ if(!ajustes.length)return "";
+ return '<details style="margin-top:12px;border:1px solid var(--line);border-radius:12px;padding:12px">'+
+  '<summary style="cursor:pointer;font-weight:700">📝 Pedidos corregidos después de este cierre · '+
+  ajustes.length+'</summary><p class="muted">Los valores del cierre original, su PDF y la caja siguen intactos.</p>'+
+  ajustes.map(a=>'<div style="padding:10px 0;border-bottom:1px solid var(--line)">'+
+  '<b>Pedido interno #'+esc(a.pedidoId)+'</b> · '+esc(a.fechaISO||"")+
+  '<p class="muted">'+esc(a.nota||"Sin motivo")+'</p>'+
+  row("Antes",fmt(a.antes?.total))+row("Después",fmt(a.despues?.total))+
+  '</div>').join("")+'</details>';
+}
 function editarPedido(id){const p=S.pedidos.find(x=>x.id===id); if(!p)return; if(p.estado==="Cancelado"){aviso("El pedido cancelado permanece en el historial y no se puede editar.");return;} D={texto:p.textoOriginal||"",fecha:p.fechaISO||ahora(),cliente:p.cliente||"",telefono:p.telefono||"",codigoCarta:p.codigoCarta||"",codigoCliente:p.codigoCliente||"",qrSolicitudes:Array.isArray(p.qrSolicitudes)?p.qrSolicitudes.slice():[],sucursalCarta:p.sucursalCarta||"",mesaReferencia:p.mesaReferencia||"",modalidad:p.modalidad||"Retiro",envio:p.envio||0,medio:p.medio||"Efectivo",medioEnvio:p.medioEnvio||"Efectivo",pagado:!!p.pagado,
 mixtoProductos:Array.isArray(p.pagosProductos)&&p.pagosProductos.length>0,
 mixtoEnvio:Array.isArray(p.pagosEnvio)&&p.pagosEnvio.length>0,
@@ -1107,6 +1152,7 @@ function ukiCompartirCuenta(id){
 function copiarComanda(id){const p=S.pedidos.find(x=>x.id===id); if(!p) return; const txt=[`${p.codigoCarta?"Carta #"+p.codigoCarta+" · ":""}Interno #${p.id} · ${p.modalidad}`, ...(p.productos||[]).map(pr=>`${pr.cantidad}x ${pr.nombre}${pr.detalle?` (${pr.detalle})`:""}`), p.envio?`Delivery ${fmt(p.envio)}`:"", `Total ${fmt(p.total)}`].filter(Boolean).join("\n"); if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>aviso("Comanda copiada")).catch(()=>aviso(txt)); else aviso(txt);}
 function togglePagado(id){
  const p=S.pedidos.find(x=>x.id===id);if(!p||p.esPremio||p.estado==="Cancelado")return;
+ if(ukiCierreConfirmadoPedido(p)){aviso("Este pedido ya pertenece a un cierre confirmado. Usa Editar para dejar una corrección identificada sin modificar el cierre.");return;}
  if(!p.pagado){
    const err=ukiErrorDistribucionPago(p,Number(p.subtotal)||0,p.modalidad==="Delivery"?(Number(p.envio)||0):0);
    if(err){aviso(err+" Edita el pedido antes de marcarlo pagado.");return;}
@@ -1732,7 +1778,7 @@ function vReportes(){
      row("Deliverys",fmt(c.envios||0))+row("Pago a repartidor",fmt(c.pagadoDelivery??c.delivery??0))+
      row("Resultado final",fmt(c.final||0),"final")+
      row("Propinas (aparte)",fmt(c.propinas||0))+
-     ukiAccionesHistorial(c)+ukiVHistorialCorreccionesCierre(c)+
+     ukiAccionesHistorial(c)+ukiVHistorialCorreccionesCierre(c)+ukiVCorreccionesPedidoCierre(c)+
      '</details>';
  }).join("");
  return fechas+resumen+medios+dias+detalles;
@@ -2361,6 +2407,7 @@ function vPedidos(){
     ${ukiDetallePago(p,"productos")}${ukiDetallePago(p,"envio")}
     ${p.codigoCliente?`<p class='muted'>Codigo cliente: ${esc(p.codigoCliente)}</p>`:''}
     ${p.textoOriginal&&!p.esPremio?`<details class="inner-details"><summary>Ver WhatsApp original</summary><p style="white-space:pre-wrap">${esc(p.textoOriginal)}</p></details>`:''}
+    ${ukiVCorreccionesPedido(p)}
     <details class="inner-details"><summary>⚠️ Registrar error / ver soluciones</summary>
     ${(S.incidencias||[]).filter(x=>x.suc===p.suc && x.pedidoId===p.id).map(x=>renderIncidencia(x,"orden")).join("")}
     <label>Que ocurrio</label><textarea rows="2" id="incProblema${p.id}" placeholder="Ej: falto una salsa"></textarea>
@@ -2471,6 +2518,19 @@ async function ndGuardar(){
     const p=S.pedidos.find(x=>x.id===D.editando);
     if(p?.estado==="Cancelado"){aviso("El pedido cancelado no se puede modificar.");return;}
     if(p){
+      const cierreHistorico=ukiCierreConfirmadoPedido(p);
+      let correccionHistorica=null;
+      if(cierreHistorico){
+        if(Array.isArray(p.qrSolicitudes)&&p.qrSolicitudes.length){
+          aviso("Los cobros QR de cierres anteriores no se cambian desde el formulario. Registra la incidencia para revisión.");return;
+        }
+        const nota=window.prompt("Este pedido ya pertenece a un cierre confirmado. Escribe tu nombre y el motivo de la corrección (obligatorio):","");
+        if(!nota||!nota.trim()){aviso("No se guardó: la corrección histórica requiere responsable y motivo.");return;}
+        if(!window.confirm("Se corregirá el detalle de este pedido, pero los importes, el PDF y los pagos del cierre original NO se modificarán. ¿Continuar?"))return;
+        correccionHistorica={cierreMs:fechaCierreMs(cierreHistorico),
+          fechaOperativa:cierreHistorico.fechaOperativa||fechaTurnoRegistro(p),
+          nota:nota.trim().slice(0,400),antes:ukiFotoCorreccionPedido(p)};
+      }
       // Si era premio, no afecta tarjeta
       if(!p.esPremio && p.cliente && p.pagado && !p.productosPagadosOtroLocal){
         const cliOld=getCliente(p.cliente,p.codigoCliente,p.telefono);
@@ -2488,6 +2548,16 @@ async function ndGuardar(){
         cli.pedidos+=1;
         cli.ultimo=new Date().toLocaleDateString("es-CL");
         cli.movimientos.push({tipo:'venta',fecha:new Date().toISOString(),vence:fechaVencimiento(new Date().toISOString()),pedidoId:p.id});
+      }
+      if(correccionHistorica){
+        const despues=ukiFotoCorreccionPedido(p);
+        if(JSON.stringify(correccionHistorica.antes)!==JSON.stringify(despues)){
+          if(!Array.isArray(S.ajustesHistoricos))S.ajustesHistoricos=[];
+          S.ajustesHistoricos.push({id:S.nextId++,suc:S.suc,tipo:"pedido_corregido",
+            cierreMs:correccionHistorica.cierreMs,fechaOperativa:correccionHistorica.fechaOperativa,
+            pedidoId:p.id,fechaISO:new Date().toISOString(),registradoEn:Date.now(),
+            nota:correccionHistorica.nota,antes:correccionHistorica.antes,despues});
+        }
       }
       aviso(`Pedido #${p.id} actualizado por ${fmt(total)}${ukiCuentaAbierta(p)?" · Cuenta abierta, pendiente de pago":""}`);
     }
@@ -3226,7 +3296,7 @@ function vHistorial(){
         row("Diferencia de caja",x.diferenciaEfectivo===0?"Caja exacta":
           (x.diferenciaEfectivo>0?"Sobrante ":"Faltante ")+fmt(Math.abs(x.diferenciaEfectivo))):""):""}
     ${Number(x.pendientesAlCerrar)>0?row("Pedidos pendientes al cerrar",x.pendientesAlCerrar):""}
-    ${window.ukiDetalleCierre?window.ukiDetalleCierre.render(x,fmt,esc,S.cierres.indexOf(x),S):''}${ukiVHistorialCorreccionesCierre(x)}${x.obs?`<p class="muted" style="background:var(--bg);padding:8px;border-radius:6px;margin-top:8px">📝 ${esc(x.obs)}</p>`:""}
+    ${window.ukiDetalleCierre?window.ukiDetalleCierre.render(x,fmt,esc,S.cierres.indexOf(x),S):''}${ukiVHistorialCorreccionesCierre(x)}${ukiVCorreccionesPedidoCierre(x)}${x.obs?`<p class="muted" style="background:var(--bg);padding:8px;border-radius:6px;margin-top:8px">📝 ${esc(x.obs)}</p>`:""}
     </div>`;
   }).join("");
 }
