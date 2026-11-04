@@ -1830,7 +1830,7 @@ function vReportes(){
      row("Deliverys",fmt(c.envios||0))+row("Pago a repartidor",fmt(c.pagadoDelivery??c.delivery??0))+
      row("Resultado final",fmt(c.final||0),"final")+
      row("Propinas (aparte)",fmt(c.propinas||0))+
-     ukiAccionesHistorial(c)+ukiVHistorialCorreccionesCierre(c)+ukiVCorreccionesPedidoCierre(c)+
+     ukiAccionesHistorial(c)+ukiVHistorialCorreccionesCierre(c)+ukiVCorreccionesPedidoCierre(c)+ukiVRectificarCierre(c)+
      '</details>';
  }).join("");
  return fechas+resumen+medios+dias+detalles;
@@ -3144,7 +3144,12 @@ function ukiMensajeCierreHistorico(c){
  ];
  if(Number.isFinite(c.diferenciaEfectivo))lineas.push("Diferencia de efectivo: "+(c.diferenciaEfectivo===0?"Caja exacta":(c.diferenciaEfectivo>0?"Sobrante ":"Faltante ")+fmt(Math.abs(c.diferenciaEfectivo))));
  if(c.obs)lineas.push("Observaciones: "+String(c.obs).slice(0,250)+(String(c.obs).length>250?"…":""));
- lineas.push("","Cifras originales del cierre guardado. Sin desglose de productos.");
+ const correcciones=ukiCorreccionesRegistradasCierre(c);
+ if(correcciones.length){
+  lineas.push("","*ACLARACIONES POSTERIORES AL CIERRE*");
+  correcciones.forEach(x=>lineas.push(x.dato+" → "+x.correcto+" · "+x.responsable+" · Motivo: "+x.motivo));
+ }
+ lineas.push("","Cifras originales del cierre guardado. Las aclaraciones no cambian la caja ni los pagos.");
  return lineas.join("\n");
 }
 function ukiCompartirCierreHistorial(i){
@@ -3253,6 +3258,15 @@ function ukiCrearPdfResumenHistorico(c){
  if(Number.isFinite(c.diferenciaEfectivo))fila("Diferencia de efectivo",c.diferenciaEfectivo===0?"Caja exacta":(c.diferenciaEfectivo>0?"Sobrante ":"Faltante ")+fmt(Math.abs(c.diferenciaEfectivo)));
  fila("Propinas (aparte)",fmt(c.propinas||0));
  if(c.obs){seccion("Observaciones");lineaNota(String(c.obs).slice(0,400));}
+ const rectificaciones=ukiCorreccionesRegistradasCierre(c);
+ if(rectificaciones.length){
+  seccion("Aclaraciones posteriores al cierre");
+  lineaNota("Son anotaciones informativas. Los totales y el efectivo de caja no cambian.");
+  rectificaciones.forEach(x=>{
+   lineaNota(x.dato+" -> "+x.correcto);
+   lineaNota("Responsable: "+x.responsable+" | Motivo: "+x.motivo);
+  });
+ }
  for(let i=0;i<paginas.length;i++){
   const pg=paginas[i];
   pg.push("0.58 0.51 0.45 rg BT /F1 8 Tf 1 0 0 1 42 39 Tm (Cifras originales del cierre. Sin detalle de productos.) Tj ET");
@@ -3308,6 +3322,42 @@ async function ukiPDFCierreHistorial(i){
   setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},15000);
  }catch(e){aviso("No se pudo generar el PDF: "+String(e?.message||e));}
 }
+// Rectificaciones anexas al cierre: no se reescriben los importes originales.
+function ukiCorreccionesRegistradasCierre(c){
+ const ms=fechaCierreMs(c);
+ return (S.ajustesHistoricos||[]).filter(a=>a.suc===S.suc&&a.tipo==="cierre_aclarado"&&a.cierreMs===ms);
+}
+function ukiRegistrarCorreccionCierre(i){
+ const c=ukiCierreHistoricoPorIndice(i);
+ if(!c){aviso("No se encontró el cierre de esta sucursal.");return;}
+ const pref="ukiCorCierre"+i;
+ const dato=String($(pref+"Dato")?.value||"").trim().slice(0,100);
+ const correcto=String($(pref+"Correcto")?.value||"").trim().slice(0,200);
+ const responsable=String($(pref+"Responsable")?.value||"").trim().slice(0,100);
+ const motivo=String($(pref+"Motivo")?.value||"").trim().slice(0,300);
+ if(!dato||!correcto||!responsable||!motivo){aviso("Completa el dato, el valor correcto, el responsable y el motivo.");return;}
+ if(!window.confirm("Se agregará esta aclaración al historial y al cierre al reenviarlo. El total y el efectivo originales NO cambiarán. ¿Confirmas?"))return;
+ if(!Array.isArray(S.ajustesHistoricos))S.ajustesHistoricos=[];
+ S.ajustesHistoricos.push({id:S.nextId++,suc:S.suc,tipo:"cierre_aclarado",
+  cierreMs:fechaCierreMs(c),fechaOperativa:c.fechaOperativa||String(c.fechaISO||"").slice(0,10),
+  fechaISO:new Date().toISOString(),registradoEn:Date.now(),dato,correcto,responsable,motivo});
+ aviso("✅ Aclaración guardada. El cierre original y sus totales se conservaron.");
+}
+function ukiVRectificarCierre(c){
+ const i=S.cierres.indexOf(c);if(i<0)return "";
+ const correcciones=ukiCorreccionesRegistradasCierre(c),pref="ukiCorCierre"+i;
+ return '<details class="inner-details" style="margin-top:10px">'+
+  '<summary style="cursor:pointer;font-weight:700">✏️ Corregir datos del cierre · '+correcciones.length+' aclaración(es)</summary>'+
+  '<p class="muted">Aclarar cualquier dato (gasto, pago, efectivo u observación). La caja y los importes originales permanecen intactos. Las aclaraciones se agregan al WhatsApp y PDF del cierre.</p>'+
+  (correcciones.map(x=>'<div style="padding:8px 0;border-bottom:1px solid var(--line)">'+
+    '<b>'+esc(x.dato)+' → '+esc(x.correcto)+'</b>'+
+    '<p class="muted">'+esc(x.responsable)+' · '+esc(x.fechaISO)+' · '+esc(x.motivo)+'</p></div>').join(""))+
+  '<label>¿Qué dato necesitas corregir?</label><input id="'+pref+'Dato" maxlength="100" placeholder="Ej: Gasto de mercadería">'+
+  '<label>¿Cuál es el dato correcto?</label><input id="'+pref+'Correcto" maxlength="200" placeholder="Ej: $3.500, pagado en efectivo">'+
+  '<label>Responsable</label><input id="'+pref+'Responsable" maxlength="100" placeholder="Nombre de quien corrige">'+
+  '<label>Motivo</label><input id="'+pref+'Motivo" maxlength="300" placeholder="Por qué fue necesario corregir">'+
+  '<button type="button" class="sm ok" onclick="ukiRegistrarCorreccionCierre('+i+')">Guardar aclaración del cierre</button></details>';
+}
 function ukiAccionesHistorial(c){
  const i=S.cierres.indexOf(c);
  if(i<0)return "";
@@ -3356,7 +3406,7 @@ function vHistorial(){
         row("Diferencia de caja",x.diferenciaEfectivo===0?"Caja exacta":
           (x.diferenciaEfectivo>0?"Sobrante ":"Faltante ")+fmt(Math.abs(x.diferenciaEfectivo))):""):""}
     ${Number(x.pendientesAlCerrar)>0?row("Pedidos pendientes al cerrar",x.pendientesAlCerrar):""}
-    ${window.ukiDetalleCierre?window.ukiDetalleCierre.render(x,fmt,esc,S.cierres.indexOf(x),S):''}${ukiVHistorialCorreccionesCierre(x)}${ukiVCorreccionesPedidoCierre(x)}${x.obs?`<p class="muted" style="background:var(--bg);padding:8px;border-radius:6px;margin-top:8px">📝 ${esc(x.obs)}</p>`:""}
+    ${window.ukiDetalleCierre?window.ukiDetalleCierre.render(x,fmt,esc,S.cierres.indexOf(x),S):''}${ukiVHistorialCorreccionesCierre(x)}${ukiVCorreccionesPedidoCierre(x)}${ukiVRectificarCierre(x)}${x.obs?`<p class="muted" style="background:var(--bg);padding:8px;border-radius:6px;margin-top:8px">📝 ${esc(x.obs)}</p>`:""}
     </div>`;
   }).join("");
 }
