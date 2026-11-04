@@ -2244,7 +2244,56 @@ function vPedidos(){
 }
 let pedidoExpandido=null;
 
-function ndGuardar(){
+let ukiQRComprobandoCobro=false;
+async function ukiQRPermitirCobroDefinitivo(d){
+ if(!d.pagado||UKI_MESAS_ENDPOINT!==UKI_MESAS_LIVE_URL||
+    !Array.isArray(d.qrSolicitudes)||!d.qrSolicitudes.length)return true;
+ const branch=ukiMesaBranch(),mesa=ukiMesaNumeroReferencia(d.mesaReferencia);
+ if(!branch||!mesa||d.modalidad!=='Consumo en local'){
+  aviso('Los pedidos QR deben cobrarse en su sucursal y mesa originales.');return false;
+ }
+ if(!window.ukiCancelacionNubeLista?.()){
+  aviso('Antes de cobrar, sincroniza el pedido QR en la nube. La cuenta sigue abierta y sin pago.');return false;
+ }
+ try{
+  const token=await window.ukiMesasTokenEquipo?.();
+  if(!token)throw Error('Este equipo debe estar autorizado para consultar cuentas QR.');
+  const headers={Authorization:'Bearer '+token},signal=AbortSignal.timeout(15000);
+  const r=await fetch(UKI_MESAS_CUENTAS_LIVE_URL+'?branch='+branch,{headers,cache:'no-store',signal});
+  const datos=await r.json().catch(()=>({}));
+  if(!r.ok||!datos.ok)throw Error(datos.error||'No se pudieron verificar las cuentas.');
+  const abiertas=(datos.cuentas||[]).filter(c=>c.branch===branch&&c.estado==='abierta'&&Number(c.mesa)===mesa);
+  if(abiertas.length!==1)throw Error('No hay exactamente una cuenta QR abierta para esta mesa.');
+  const remotas=Array.isArray(abiertas[0].detalle)?abiertas[0].detalle:[];
+  const ids=new Set(d.qrSolicitudes.map(c=>String(c).replace(/^MESA-/i,'').toLowerCase()));
+  const recibidos=new Set(remotas.map(x=>String(x.id||'').toLowerCase()));
+  if(!ids.size||ids.size!==remotas.length||[...ids].some(x=>!recibidos.has(x)))
+   throw Error('Hay una ronda QR pendiente de registrar o una diferencia entre cuentas.');
+  const suma=remotas.reduce((total,x)=>total+Number(x.subtotal||0),0);
+  const totalEnPanel=d.items.filter(x=>x.nombre).reduce((total,x)=>total+Number(x.cant||0)*Number(x.precio||0),0);
+  if(!Number.isSafeInteger(suma)||suma<=0||!Number.isSafeInteger(totalEnPanel)||
+      suma>totalEnPanel||suma!==Number(abiertas[0].total))
+   throw Error('El detalle de la mesa no coincide con la cuenta QR central.');
+  const p=await fetch(UKI_MESAS_ENDPOINT+'?branch='+branch,{headers,cache:'no-store',signal:AbortSignal.timeout(15000)});
+  const pendientes=await p.json().catch(()=>({}));
+  if(!p.ok||!pendientes.ok)throw Error(pendientes.error||'No se pudieron verificar pedidos pendientes.');
+  if((pendientes.orders||[]).some(x=>x.branch===branch&&Number(x.mesa)===mesa))
+   throw Error('La mesa aún tiene pedidos QR sin registrar. Primero revisa la bandeja.');
+  return true;
+ }catch(e){
+  aviso('No se confirmó el cobro QR: '+String(e?.message||e)+' No se modificó la caja.');
+  return false;
+ }
+}
+async function ndGuardar(){
+  if(ukiQRComprobandoCobro)return;
+  if(D.pagado&&Array.isArray(D.qrSolicitudes)&&D.qrSolicitudes.length&&
+     UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL){
+   ukiQRComprobandoCobro=true;
+   let permitir=false;
+   try{permitir=await ukiQRPermitirCobroDefinitivo(D);}finally{ukiQRComprobandoCobro=false;}
+   if(!permitir)return;
+  }
   if(D.sucursalCarta && D.sucursalCarta.toLowerCase()!==S.suc.toLowerCase()&&!D.productosPagadosOtroLocal&&!D.envioPagadoOtroLocal){
     aviso("El mensaje corresponde a "+D.sucursalCarta+". Si preparas aquí y cobraron allá, marca «Productos pagados en otro local».");return;
   }
