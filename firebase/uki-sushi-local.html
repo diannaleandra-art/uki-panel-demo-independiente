@@ -1951,6 +1951,15 @@ async function ukiMesaActualizar(){
   if(branch===ukiMesaBranch()){
    ukiMesas.rows=(result.orders||[]).filter(x=>x.branch===branch);
    ukiMesas.branch=branch;ukiMesas.status=ukiMesas.rows.length+' solicitud(es) por revisar.';
+   if(UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL){
+    try{
+     const v=await fetch(UKI_MESAS_CUENTAS_LIVE_URL+'?branch='+branch,{
+       headers:{Authorization:'Bearer '+token},cache:'no-store',signal:AbortSignal.timeout(15000)});
+     const d=await v.json().catch(()=>({}));
+     if(!v.ok||!d.ok)throw Error(d.error||'Cuentas QR no disponibles');
+     if(branch===ukiMesaBranch())ukiMesas.cuentas=(d.cuentas||[]).filter(c=>c.branch===branch);
+    }catch(e){ukiMesas.status+=' · Cuentas QR: '+String(e?.message||e);}
+   }
   }
  }catch(e){ukiMesas.status='Recepción todavía no habilitada: '+String(e?.message||e);}
  finally{ukiMesas.busy=false;if(S.vista==='pedidos')render();}
