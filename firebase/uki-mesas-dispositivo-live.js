@@ -2,7 +2,7 @@
  * No solicita ni transmite la clave compartida que descifra la caja.
  * La llave privada se genera no exportable y queda únicamente en IndexedDB de este equipo.
  */
-const ENDPOINT='https://uki-sushi-pedidos-diannaleandra-7046.vercel.app/api/mesa-dispositivo-live';
+const ENDPOINT='https://uki-sushi-pedidos.vercel.app/api/mesa-dispositivo-live';
 const DBNAME='uki-mesas-dispositivos-live-v1';
 const BRANCHES=new Set(['arica','serena']);
 const cached=new Map();
