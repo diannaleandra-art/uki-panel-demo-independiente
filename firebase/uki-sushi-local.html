@@ -165,9 +165,14 @@ function ukiTurnoFolioActual(){
  const inicios=[Number(caja.desdeMs)||0,Number(caja.inicioMs)||0,Number(caja.turnoPrecierreAbierto?.inicioMs)||0];
  for(const p of caja.precierres||[])if(p?.fechaOperativa===dia)inicios.push(Number(p.finMs)||0);
  const inicio=Math.max(...inicios),clave=dia+"@"+inicio;
+ // Pedidos antiguos sin turnoClave pueden haberse registrado antes de abrir la caja.
+ // Inclúyelos sin tocar su ID, pero nunca mezcles períodos ya cerrados ni precierres.
+ const desdeHistorico=Math.max(Number(caja.desdeMs)||0,
+  ...(caja.precierres||[]).filter(x=>x?.fechaOperativa===dia).map(x=>Number(x.finMs)||0));
  const actuales=pedidosSuc().filter(p=>{
    const registrado=fechaRegistroMs(p);
-   return registrado>=inicio&&(p.turnoClave===clave||!p.turnoClave);
+   return p.turnoClave===clave ? registrado>=inicio :
+     !p.turnoClave&&registrado>=desdeHistorico&&esDelPeriodo(p);
  });
  const maxNumero=Math.max(0,...actuales.map(p=>Number(p.numeroTurno)||0));
  return {numero:Math.max(actuales.length,maxNumero)+1,clave};
@@ -178,7 +183,9 @@ function ukiReferenciaCorta(p){
  // Pedidos existentes sin número corto: numeración visual del turno abierto.
  // No cambia el ID permanente ni los cierres confirmados.
  if(p?.suc===S.suc&&esDelPeriodo(p)){
-  const turno=ukiTurnoFolioActual(),inicio=Number(turno.clave.split("@")[1])||0;
+  const caja=cajaDelDia(),dia=fechaOperativaActual();
+  const inicio=Math.max(Number(caja.desdeMs)||0,
+   ...(caja.precierres||[]).filter(x=>x?.fechaOperativa===dia).map(x=>Number(x.finMs)||0));
   const actuales=pedidosSuc().filter(x=>fechaRegistroMs(x)>=inicio&&esDelPeriodo(x))
    .sort((a,b)=>fechaRegistroMs(a)-fechaRegistroMs(b)||(Number(a.id)||0)-(Number(b.id)||0));
   const indice=actuales.findIndex(x=>x.id===p.id);
