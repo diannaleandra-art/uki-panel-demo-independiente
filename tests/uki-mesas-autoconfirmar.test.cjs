@@ -97,8 +97,11 @@ test('Un equipo QR no confirma registrado sin sesión Google y nube respaldada',
  assert.match(html,/estado\.actualRespaldado===true/);
 });
 
-test('En modo operativo la cuenta QR usa confirmación atómica sin exigir correo individual',async()=>{
+test('En modo operativo el equipo QR exige respaldo remoto antes de confirmar y no pide correo individual',async()=>{
  const x=scenario({live:true,synced:false});
+ await x.fn();
+ assert.deepEqual(x.accepted,[]);
+ x.setSynced(true);
  await x.fn();
  assert.deepEqual(x.accepted,['a1']);
 });
@@ -108,4 +111,17 @@ test('El panel QR no libera una mesa sin pago guardado y todas sus rondas',()=>{
  assert.match(html,/await ukiMesaEstadoLocalGuardado\(\)/);
  assert.match(html,/method:'PATCH'/);
  assert.match(html,/api\/mesa-cuentas-live/);
+});
+
+test('No publica rondas ni libera mesas desde un guardado solo local',()=>{
+ const start=html.indexOf('window.ukiQAOnLocalSaved=s=>');
+ const end=html.indexOf('window.ukiQASessionLeft=',start);
+ assert.ok(start>0&&end>start);
+ const localCallback=html.slice(start,end);
+ assert.doesNotMatch(localCallback,/ukiMesaConfirmarGuardadosSeguro\(/);
+ assert.doesNotMatch(localCallback,/ukiMesaCerrarPagadasCentralSeguro\(/);
+ const trigger=html.indexOf("if(estado==='sincronizado')");
+ assert.ok(trigger>0);
+ assert.match(html.slice(trigger,trigger+350),/await ukiMesaConfirmarGuardadosSeguro\(\)/);
+ assert.match(html,/!window\.ukiCancelacionNubeLista\?\.\(\)/);
 });
