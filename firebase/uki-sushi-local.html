@@ -2004,7 +2004,12 @@ async function ukiMesaEstado(id,estado,automatico=false){
   }
  }else if(estado==='rechazado'&&!confirm('¿Rechazar esta solicitud de Mesa '+x.mesa+'?'))return;
  try{
-  const token=await window.ukiMesasQAToken?.();if(!token)throw Error('Google sin iniciar');
+  // Para dar por registrado se usa la sesión que también verifica la nube;
+  // los equipos autorizados solo consultan hasta que el guardado esté respaldado.
+  const token=estado==='registrado'
+    ? await window.ukiMesasTokenConfirmar?.()
+    : await window.ukiMesasQAToken?.();
+  if(!token)throw Error('Para confirmar esta mesa debes tener la sesión de nube conectada');
   const r=await fetch(UKI_MESAS_ENDPOINT,{method:'PATCH',
    headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
    body:JSON.stringify({branch:x.branch,id,estado}),signal:AbortSignal.timeout(15000)});
@@ -3056,6 +3061,9 @@ async function accion(action){
 }
 // En producción, el QR puede consultarse desde un equipo autorizado sin
 // cambiar el código compartido de acceso al panel ni solicitar correos al personal.
+// La confirmación de ronda requiere la misma sesión Google utilizada para
+// sincronizar Firebase, y solo después de la huella remota verificada.
+window.ukiMesasTokenConfirmar=async()=>auth.currentUser?auth.currentUser.getIdToken():null;
 window.ukiMesasQAToken=async()=>{
  if(UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL){
   try{return await obtenerSesionQR(ukiMesaBranch());}
