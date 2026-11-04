@@ -65,6 +65,35 @@ const { chromium }=require('playwright');
  await page.evaluate(id=>ukiMesaAbrir(id),first.id);
  assert.equal((await page.evaluate(()=>window.ukiQAGet().estado)).pedidos.length,1,'Un QR repetido no se duplica');
  await page.waitForFunction(()=>Object.keys(localStorage).some(k=>k.startsWith('uki_operativo_v1_cifrado_regimiento')),null,{timeout:20000});
+
+ // Cobro al final: los $11.500 de dos rondas entran UNA sola vez a caja.
+ await page.evaluate(()=>{
+   editarPedido(1);
+   eval('D').pagado=true;
+   eval('D').mixtoProductos=true;
+   eval('D').pagosProductos=[{medio:'Efectivo',monto:3500},{medio:'Débito',monto:8000}];
+   eval('D').propinaModo='diez';
+   eval('D').medioPropina='Efectivo';
+   ndGuardar();
+ });
+ const final=await page.evaluate(()=>({
+   estado:window.ukiQAGet().estado,
+   caja:totales().totalMedios,
+   suc:window.ukiQAGet().estado.suc,
+   cuentasAbiertas:ukiCuentasAbiertasMesa(2).length
+ }));
+ assert.equal(final.estado.pedidos.length,1,'Cobrar NO genera una segunda venta');
+ assert.equal(final.estado.pedidos[0].pagado,true,'Cuenta pagada al final');
+ assert.equal(final.estado.pedidos[0].subtotal,11500,'Monto de ambas rondas sin duplicar');
+ assert.equal(final.estado.pedidos[0].total,12650,'Total incluye propina 10%');
+ assert.deepEqual(final.estado.pedidos[0].pagosProductos,[
+   {medio:'Efectivo',monto:3500},{medio:'Débito',monto:8000}
+ ],'Se conservan los dos medios de pago');
+ assert.equal(final.caja,11500,'Los productos cobrados entran a caja una sola vez');
+ assert.equal(final.estado.propinas.length,1,'Propina separada de caja de productos');
+ assert.equal(final.estado.propinas[0].monto,1150,'Propina exactamente del 10%');
+ assert.equal(final.cuentasAbiertas,0,'La mesa queda liberada tras el cobro');
+
  assert.equal(realPosts,0,'Ningún PATCH/POST a servidor real');
  console.log(JSON.stringify({ok:true,pruebas:['Primera ronda en cuenta pendiente','Segunda ronda acumula en una sola cuenta','Sin pago no suma a caja','QR repetido no duplica','Datos cifrados en almacenamiento aislado','No se escribió en API ni nube'],mesa:2,sucursal:'Regimiento Arica',totalAcumulado:11500,solicitudes:2,consultasDePrueba:queries,caja:0},null,2));
  await browser.close();
