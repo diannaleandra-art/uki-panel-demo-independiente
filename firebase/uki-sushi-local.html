@@ -164,6 +164,17 @@ body.uki-nube-alerta #ukiEstadoOperativo{color:#b44713;font-weight:700}
  <p id="ukiEquipoEstadoQA" role="status">Servicio de dispositivos preparado; pendiente de activación exclusiva en pruebas.</p>
  <div id="ukiEquipoListadoQA"></div>
 </div>
+<div id="ukiCuentaSimuladaQA" style="margin-top:14px;padding:14px;border:1px solid #dcaa79;border-radius:12px;background:#f9f8ff">
+ <strong>🍽 Cuenta de mesa · simulación privada</strong>
+ <p style="font-size:13px">Comprueba que las rondas QR se suman a la misma cuenta pendiente de pago. <b>No guarda ventas ni cambia pedidos.</b> Todo se borra al recargar.</p>
+ <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px">
+  <button type="button" id="ukiSimularCuentaQA">Simular cuenta con pedidos QR</button>
+  <button type="button" id="ukiSimularRondaQA" disabled>Agregar otra ronda ficticia ($9.000)</button>
+  <button type="button" id="ukiSimularReiniciarQA">Limpiar simulación</button>
+ </div>
+ <p id="ukiSimularEstadoQA" role="status">Primero autoriza el equipo y consulta los pedidos QR de la sucursal.</p>
+ <div id="ukiSimularListaQA"></div>
+</div>
 <div hidden aria-hidden="true"><label for="ukiCloudPass">Clave de nube desactivada en esta prueba</label><input id="ukiCloudPass" type="password" disabled><button id="ukiLoadQA" type="button" disabled>Cargar nube</button><button id="ukiSaveQA" type="button" disabled>Guardar</button><input id="ukiAutoCheck" type="checkbox" disabled><p id="ukiAutoEstado">Desactivado</p></div>
 <p style="font-size:13px">No introduzcas claves ni registres ventas. La activación de pedidos por QR se comprobará por separado.</p>
 </section>
@@ -2920,6 +2931,7 @@ import {nuevaSal,nuevaGeneracion,derivarClave,cifrarBloque,descifrarBloque} from
 import {crearSnapshotsUki} from "./uki-sushi-nube.js";
 import {crearAutoGuardadoOperativo} from "./uki-sushi-autoguardado.js";
 import {estadoEquipoQR,autorizarEquipoQR,obtenerSesionQR,revocarEquipoQR} from "./uki-mesas-dispositivo-qa.js";
+import {crearEstadoMesaQA,incorporarRondaMesaQA,cuentasSucursalMesaQA} from "./uki-mesas-cuenta-simulada.qa.mjs";
 const config={
  apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",
  authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",
