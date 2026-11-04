@@ -2012,6 +2012,53 @@ function ukiMesaAbrir(id){
   :'Pedido de Mesa '+x.mesa+' cargado. Revisa y guarda como cuenta pendiente de pago.';
  render();
 }
+async function ukiMesaRespaldoLocalContiene(id){
+ const suc=S.suc,code=ukiMesaCode(id);
+ if(!suc||!claveSesion||sucursalSesion!==suc)return false;
+ try{
+  await colaGuardado;
+  const raw=localStorage.getItem(claveLocal(suc));
+  if(!raw)return false;
+  const p=JSON.parse(raw);
+  if(p.formato!==UKI_LOCAL_FORMAT||p.sucursal!==suc||p.version!==1)return false;
+  const bytes=await crypto.subtle.decrypt(
+    {name:'AES-GCM',iv:ukiBytes(p.iv),additionalData:aadLocal(suc)},
+    claveSesion,ukiBytes(p.cifrado));
+  const saved=JSON.parse(new TextDecoder().decode(bytes));
+  return Array.isArray(saved.pedidos)&&saved.pedidos.some(p=>
+   p.suc===suc&&ukiPedidoTieneQR(p,code));
+ }catch{return false;}
+}
+async function ukiMesaRegistrarRondaCentral(id,automatico=false){
+ if(UKI_MESAS_ENDPOINT!==UKI_MESAS_LIVE_URL)return false;
+ const x=ukiMesas.rows.find(p=>p.id===id&&p.branch===ukiMesaBranch());
+ if(!x)return false;
+ if(!(await ukiMesaRespaldoLocalContiene(id))){
+  if(!automatico)aviso('Primero guarda el pedido dentro de la cuenta del panel.');
+  return false;
+ }
+ try{
+  const token=await window.ukiMesasTokenEquipo?.();
+  if(!token)throw Error('Autoriza el equipo QR una sola vez desde administración.');
+  const r=await fetch(UKI_MESAS_CUENTAS_LIVE_URL,{
+   method:'POST',
+   headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+   body:JSON.stringify({branch:x.branch,id}),cache:'no-store',
+   signal:AbortSignal.timeout(15000)});
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok||!data.ok)throw Error(data.error||'No se pudo respaldar la ronda central.');
+  ukiMesas.rows=ukiMesas.rows.filter(p=>p.id!==id);
+  ukiMesas.status='Mesa '+x.mesa+': ronda confirmada en cuenta QR central, sin cobrar.';
+  if(S.vista==='pedidos')render();
+  void ukiMesaActualizar();
+  return true;
+ }catch(e){
+  ukiMesas.status='No se confirmó la cuenta QR central. El pedido sigue pendiente: '+String(e?.message||e);
+  if(automatico){if(S.vista==='pedidos')render();}
+  else aviso(ukiMesas.status);
+  return false;
+ }
+}
 async function ukiMesaEstado(id,estado,automatico=false){
  if(!UKI_MESAS_ENDPOINT)return false;
  const x=ukiMesas.rows.find(a=>a.id===id&&a.branch===ukiMesaBranch());if(!x)return;
