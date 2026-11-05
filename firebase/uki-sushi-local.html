@@ -309,7 +309,7 @@ const row=(l,v,cls="")=>`<div class="row ${esc(cls)}"><span>${esc(l)}</span><b>$
  */
 const UKI_CATALOGO_ENDPOINT='https://uki-sushi-pedidos.vercel.app/api/catalogo-live';
 let ukiInv={branch:'',items:[],loading:false,error:'',message:'',search:'',filter:'productos',editing:'',nuevo:false,
- role:'trabajador',adminMode:false,history:[],historyOpen:false};
+ role:'trabajador',adminMode:false,history:[],historyOpen:false,operatorName:''};
 function ukiInvBranch(){return S.suc===SUCURSALES[0]?'arica':S.suc===SUCURSALES[1]?'serena':'';}
 async function ukiInvRequest(method,data){
  const branch=ukiInvBranch();
@@ -362,7 +362,7 @@ function ukiInvNombreActual(){
  if(ukiInv.role==='admin')return 'Administración Uki';
  const turno=String(cajaDelDia()?.turnoPrecierreAbierto?.nombre||'').trim();
  if(turno)return turno;
- return String($('ukiInvNombreOperador')?.value||'').trim().replace(/\s+/g,' ');
+ return String(ukiInv.operatorName||$('ukiInvNombreOperador')?.value||'').trim().replace(/\s+/g,' ');
 }
 async function ukiInvVerHistorial(){
  if(ukiInv.role!=='admin'||ukiInv.loading)return;
@@ -444,16 +444,20 @@ async function ukiInvCrear(){
  finally{ukiInv.loading=false;if(S.vista==='inventario')render();}
 }
 function ukiInvForm(item){
- const esIngrediente=item.kind==='ingredient';
+ const admin=ukiInv.role==='admin',esIngrediente=item.kind==='ingredient';
  const units=['un','kg','g','l','ml','porciones'];
  return '<div class="uki-inv-editor">'+
-  (!esIngrediente?'<label>Nombre</label><input id="ukiInvNombre" maxlength="100" value="'+esc(item.name)+'">'+
+  (admin&&!esIngrediente?'<label>Nombre</label><input id="ukiInvNombre" maxlength="100" value="'+esc(item.name)+'">'+
    '<label>Precio ($)</label><input id="ukiInvPrecio" type="number" inputmode="numeric" min="0" step="1" value="'+esc(item.price??'')+'">'+
    '<label>Descripción</label><textarea id="ukiInvDesc" maxlength="500" rows="2">'+esc(item.description||'')+'</textarea>':'')+
-  '<label>Cantidad de inventario</label><input id="ukiInvStock" type="number" min="0" step="0.01" inputmode="decimal" value="'+esc(item.stock_qty)+'">'+
+  '<label>Cantidad contada</label><input id="ukiInvStock" type="number" min="0" step="0.01" inputmode="decimal" value="'+esc(item.stock_qty)+'">'+
   '<label>Unidad</label><select id="ukiInvUnidad">'+units.map(u=>'<option value="'+u+'"'+(item.stock_unit===u?' selected':'')+'>'+u+'</option>').join('')+'</select>'+
-  '<p class="muted">El inventario NO cambia automáticamente el estado Disponible / Agotado.</p>'+
-  '<button type="button" class="sm ok" onclick="ukiInvFormGuardar(\''+esc(item.sku)+'\')">Guardar cambios</button>'+
+  '<button type="button" class="sm ok" onclick="ukiInvFormGuardar(\''+esc(item.sku)+'\')">'+(admin?'Guardar cambios':'Guardar conteo')+'</button>'+
+  '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">'+
+  '<label>Mercadería recibida · cantidad a SUMAR</label>'+
+  '<input id="ukiInvEntradaCantidad" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Ej.: 2.5">'+
+  '<button type="button" class="sm ok" onclick="ukiInvEntrada(\''+esc(item.sku)+'\')">＋ Registrar entrada de mercadería</button></div>'+
+  '<p class="muted">El inventario no cambia el botón Agotado / Disponible.</p>'+
   '<button type="button" class="sm" onclick="ukiInvEditar(\''+esc(item.sku)+'\')">Cancelar</button></div>';
 }
 function vInventario(){
@@ -472,14 +476,29 @@ function vInventario(){
     '<span class="uki-inv-status '+(disponible?'uki-inv-on':'uki-inv-off')+'">'+estado+'</span></div>'+
     '<p class="muted" style="margin:3px 0 8px">Stock: '+esc(p.stock_qty)+' '+esc(p.stock_unit)+' · independiente del estado</p>'+
     '<button type="button" class="sm" '+(ukiInv.loading?'disabled ':'')+'onclick="ukiInvEstado(\''+sku+'\','+(!disponible)+')">'+(disponible?'Marcar agotado':'Marcar disponible')+'</button>'+
-    '<button type="button" class="sm" onclick="ukiInvEditar(\''+sku+'\')">'+(editando?'Cerrar edición':'Editar')+'</button>'+
+    '<button type="button" class="sm" onclick="ukiInvEditar(\''+sku+'\')">'+(editando?'Cerrar':'Contar / recibir'+(ukiInv.role==='admin'?' / editar':''))+'</button>'+
     (editando?ukiInvForm(p):'')+'</div>';
  }).join('');
+ const admin=ukiInv.role==='admin';
+ const nombreTurno=String(cajaDelDia()?.turnoPrecierreAbierto?.nombre||'').trim();
  return '<div class="section-head"><h2>Inventario y carta</h2><p>'+esc(S.suc)+' · disponibilidad manual</p></div>'+
   '<div class="card"><p style="margin:0">El inventario y la carta funcionan por separado: <b>0 existencias NO marca agotado</b>. Solo el botón manual cambia la disponibilidad.</p>'+
-  '<p class="muted">Esta herramienta requiere la conexión privada del catálogo. Los cambios de inventario no afectan ventas anteriores.</p>'+
+  '<p class="muted">Acceso actual: <b>'+(admin?'Administración · precios y productos':'Trabajador · conteos y agotados')+'</b>. Cada cambio queda en el historial.</p>'+
   '<button type="button" class="sm" onclick="ir(\'inicio\')">← Volver al inicio</button>'+
-  '<button type="button" class="sm" onclick="ukiInvCargar(true)">Actualizar catálogo</button></div>'+
+  '<button type="button" class="sm" onclick="ukiInvCargar(true)">Actualizar catálogo</button>'+
+  (ukiInv.adminMode?
+   '<button type="button" class="sm" onclick="ukiInvCambiarAcceso(false)">Volver a acceso de trabajador</button>':
+   '<button type="button" class="sm" onclick="ukiInvCambiarAcceso(true)">Acceso administración (Google)</button>')+'</div>'+
+  (!admin&&!nombreTurno?'<div class="card"><label>Tu nombre para registrar movimientos</label>'+
+   '<input id="ukiInvNombreOperador" maxlength="60" value="'+esc(ukiInv.operatorName)+'" placeholder="Nombre de quien cuenta o recibe" oninput="ukiInv.operatorName=this.value">'+
+   '<p class="muted">Si inicias un turno con tu nombre, se utilizará automáticamente el nombre del turno. El código compartido no identifica por sí solo a la persona.</p></div>':
+   (!admin?'<div class="card"><p class="muted">Registrando movimientos como: <b>'+esc(nombreTurno)+'</b></p></div>':''))+
+  (admin?'<div class="card"><button class="sm" onclick="ukiInvVerHistorial()">'+(ukiInv.historyOpen?'Ocultar':'Ver')+' historial de movimientos</button>'+
+   (ukiInv.historyOpen?(ukiInv.history.length?
+    ukiInv.history.slice(0,60).map(h=>'<div class="row"><span><b>'+esc(h.realizado_por||'')+'</b> · '+esc(h.accion||'')+
+     '<small style="display:block">'+esc(h.sku)+' · '+esc(new Date(h.creado_en).toLocaleString('es-CL'))+'</small></span>'+
+    '<b>'+esc(h.cantidad_anterior??'')+' → '+esc(h.cantidad_nueva??'')+'</b></div>').join(''):
+    '<p class="muted">Todavía no hay movimientos.</p>'):'')+'</div>':'')+
   (ukiInv.error?'<div class="aviso" role="alert">'+esc(ukiInv.error)+'</div>':'')+
   (ukiInv.message?'<div class="card" style="border-color:#b6cda4">'+esc(ukiInv.message)+'</div>':'')+
   (ukiInv.loading?'<p class="muted">Consultando catálogo seguro…</p>':'')+
@@ -487,7 +506,7 @@ function vInventario(){
    '<div class="chips">'+[['productos','Productos'],['ingredientes','Ingredientes'],['todos','Todos']].map(([k,t])=>
     '<button type="button" class="chip'+(ukiInv.filter===k?' on':'')+'" onclick="ukiInvFiltrar(\''+k+'\')">'+t+'</button>').join('')+'</div>'+
    '<p class="muted">'+items.length+' resultados · '+ukiInv.items.length+' en esta sucursal</p></div>':'')+
-  (ukiInv.items.length&&ukiInv.filter!=='ingredientes'?'<details class="card"><summary><b>＋ Agregar producto sencillo</b></summary>'+
+  (admin&&ukiInv.items.length&&ukiInv.filter!=='ingredientes'?'<details class="card"><summary><b>＋ Agregar producto sencillo</b></summary>'+
     '<p class="muted">Primero disponible para entradas sin armado personalizado. Promociones y sushi a tu gusto conservan sus reglas.</p>'+
     '<label>Nombre</label><input id="ukiInvNuevoNombre" maxlength="100" placeholder="Ej.: Bebida individual">'+
     '<label>Precio ($)</label><input type="number" id="ukiInvNuevoPrecio" min="1" step="1" placeholder="2500">'+
