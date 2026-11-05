@@ -456,6 +456,14 @@ function ukiInvFormGuardar(sku){
  const stock=stockEl?.value.trim()??'';
  if(stock===''||!Number.isFinite(Number(stock))){ukiInv.error='Ingresa una cantidad de inventario válida.';render();return;}
  const patch={stock_qty:Number(stock),stock_unit:unitEl?.value||'un'};
+ if(ukiInv.role==='admin'){
+  const input=$('ukiInvMinimo')?.value.trim()??'';
+  const minimo=Number(input);
+  if(input===''||!Number.isFinite(minimo)||minimo<0||minimo>10000000||Math.abs(Math.round(minimo*100)-minimo*100)>1e-7){
+   ukiInv.error='Indica un mínimo válido para reposición.';render();return;
+  }
+  patch.min_stock_qty=minimo;
+ }
  if(ukiInv.role==='admin'&&item.kind!=='ingredient'){
   patch.name=String($('ukiInvNombre')?.value||'').trim();
   patch.description=String($('ukiInvDesc')?.value||'').trim();
@@ -489,7 +497,8 @@ function ukiInvForm(item){
   (admin&&!esIngrediente?'<label>Nombre</label><input id="ukiInvNombre" maxlength="100" value="'+esc(item.name)+'">'+
    '<label>Precio ($)</label><input id="ukiInvPrecio" type="number" inputmode="numeric" min="0" step="1" value="'+esc(item.price??'')+'">'+
    '<label>Descripción</label><textarea id="ukiInvDesc" maxlength="500" rows="2">'+esc(item.description||'')+'</textarea>':'')+
-  '<label>Cantidad contada</label><input id="ukiInvStock" type="number" min="0" step="0.01" inputmode="decimal" value="'+esc(item.stock_qty)+'">'+
+  (admin?'<label>Mínimo para preparar reposición</label><input id="ukiInvMinimo" type="number" min="0" max="10000000" step="0.01" value="'+esc(item.min_stock_qty??0)+'">':'')+
+   '<label>Cantidad contada</label><input id="ukiInvStock" type="number" min="0" step="0.01" inputmode="decimal" value="'+esc(item.stock_qty)+'">'+
   '<label>Unidad</label><select id="ukiInvUnidad">'+units.map(u=>'<option value="'+u+'"'+(item.stock_unit===u?' selected':'')+'>'+u+'</option>').join('')+'</select>'+
   '<button type="button" class="sm ok" onclick="ukiInvFormGuardar(\''+esc(item.sku)+'\')">'+(admin?'Guardar cambios':'Guardar conteo')+'</button>'+
   '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">'+
@@ -513,7 +522,7 @@ function vInventario(){
   return '<div class="card uki-inv-item"><div class="uki-inv-head"><div><b>'+esc(p.name)+'</b>'+
     '<p class="muted" style="margin:4px 0">'+esc(p.group_key)+' · '+esc(precio)+'</p></div>'+
     '<span class="uki-inv-status '+(disponible?'uki-inv-on':'uki-inv-off')+'">'+estado+'</span></div>'+
-    '<p class="muted" style="margin:3px 0 8px">Stock: '+esc(p.stock_qty)+' '+esc(p.stock_unit)+' · independiente del estado</p>'+
+    '<p class="muted" style="margin:3px 0 8px">Stock: '+esc(p.stock_qty)+' '+esc(p.stock_unit)+' · mínimo para reponer: '+esc(p.min_stock_qty??0)+' · independiente del estado</p>'+
     '<button type="button" class="sm" '+(ukiInv.loading?'disabled ':'')+'onclick="ukiInvEstado(\''+sku+'\','+(!disponible)+')">'+(disponible?'Marcar agotado':'Marcar disponible')+'</button>'+
     '<button type="button" class="sm" onclick="ukiInvEditar(\''+sku+'\')">'+(editando?'Cerrar':'Contar / recibir'+(ukiInv.role==='admin'?' / editar':''))+'</button>'+
     (editando?ukiInvForm(p):'')+'</div>';
