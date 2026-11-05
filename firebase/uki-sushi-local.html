@@ -1893,11 +1893,98 @@ function vReportes(){
  }).join("");
  return fechas+resumen+medios+dias+detalles;
 }
+// Auditoría de caja: lectura por comprobante, separada del cálculo de totales.
+// No modifica pedidos, pagos, timbres, cierres ni el efectivo de la sucursal.
+function ukiDesglosePagosPorMedio(){
+ const grupos=new Map(MEDIOS.map(m=>[m,[]]));
+ const agregar=(medio,monto,etiqueta)=>{
+  const elegido=MEDIOS.includes(medio)?medio:"Otros";
+  const valor=Number(monto);
+  if(Number.isSafeInteger(valor)&&valor>0)grupos.get(elegido).push({monto:valor,etiqueta});
+ };
+ for(const p of delSucHoy(S.pedidos)){
+  if(!p.pagado||p.estado==="Cancelado"||p.esPremio)continue;
+  const ref=ukiReferenciaConCarta(p);
+  const cliente=String(p.cliente||"Sin cliente");
+  const subtotal=Math.max(0,Number(p.subtotal??(Number(p.total||0)-Number(p.envio||0)))||0);
+  const envio=p.modalidad==="Delivery"?Math.max(0,Number(p.envio)||0):0;
+  for(const x of ukiLineasPago(p,"productos",subtotal))
+   agregar(x.medio,x.monto,ref+" · "+cliente+" · Productos");
+  for(const x of ukiLineasPago(p,"envio",envio))
+   agregar(x.medio,x.monto,ref+" · "+cliente+" · Delivery");
+ }
+ const caja=cajaDelDia();
+ for(const [medio,monto] of Object.entries(caja.apps||{}))
+  if((APPS.includes(medio)||medio==="Otros")&&Number(monto)>0)
+   agregar(medio,monto,"Venta manual de aplicación · sin pedido individual");
+ for(const x of delSucHoy(S.deliveriesManuales))
+  agregar(x.medio,x.monto,"Delivery manual · "+String(x.cliente||"Sin cliente"));
+ return grupos;
+}
+function ukiAuditoriaPagosUI(){
+ const grupos=ukiDesglosePagosPorMedio(),esperado=totales().medios;
+ const suma=Array.from(grupos.values()).flat().reduce((n,x)=>n+x.monto,0);
+ const montoEsperado=Object.values(esperado).reduce((n,v)=>n+(Number(v)||0),0);
+ const coincide=MEDIOS.every(m=>(grupos.get(m)||[]).reduce((n,x)=>n+x.monto,0)===(Number(esperado[m])||0));
+ const cuerpo=MEDIOS.map(m=>{
+  const items=grupos.get(m)||[];
+  const monto=items.reduce((n,x)=>n+x.monto,0);
+  if(!items.length&&!monto)return "";
+  return '<details style="padding:8px 0;border-bottom:1px solid var(--line)"><summary><b>'+
+   esc(m)+'</b> · '+items.length+' movimiento(s) · '+fmt(monto)+'</summary>'+
+   (items.map(x=>row(x.etiqueta,fmt(x.monto))).join("")||'<p class="muted">Sin movimientos</p>')+
+   '</details>';
+ }).join("");
+ return '<details class="card" id="ukiDesgloseMediosTurno">'+
+   '<summary style="cursor:pointer;font-weight:700">💳 Pedidos cobrados por medio de pago · '+fmt(suma)+'</summary>'+
+   '<p class="muted">Cada pedido aparece donde ingresó su dinero: efectivo, transferencia, débito y demás medios. Los pagos mixtos se separan por importe; los cobros de otro local NO se suman aquí. Las ventas de apps o delivery ingresadas sin pedido se indican por separado.</p>'+
+   (coincide&&suma===montoEsperado?
+    '<p class="muted">✅ El desglose coincide con los totales registrados en el panel.</p>':
+    '<p style="color:#a42b19"><b>⚠️ Desglose diferente del total registrado. Revisar pagos antes de cerrar.</b></p>')+
+   (cuerpo||'<p class="muted">Todavía no hay ventas cobradas en este turno.</p>')+
+   row("Total de cobros registrados en Uki",fmt(suma),"final")+
+   '</details>';
+}
+function ukiTimbresTurnoAuditoria(){
+ const registros=delSucHoy(S.pedidos).filter(ukiPedidoDaTimbre);
+ return {registros,marcados:registros.filter(p=>!!p.timbreEnviadoEn),
+  abiertos:registros.filter(p=>!!p.timbreWhatsAppAbiertoEn&&!p.timbreEnviadoEn),
+  pendientes:registros.filter(p=>!p.timbreEnviadoEn)};
+}
+function ukiAuditoriaTimbresUI(){
+ const d=ukiTimbresTurnoAuditoria();
+ const filas=d.registros.slice().sort((a,b)=>fechaRegistroMs(b)-fechaRegistroMs(a)).map(p=>{
+  const abierto=!!p.timbreWhatsAppAbiertoEn,confirmado=!!p.timbreEnviadoEn;
+  const estado=confirmado?'✅ Marcado enviado':
+     abierto?'🟠 WhatsApp abierto, envío sin confirmar':'⚪ Pendiente de envío';
+  const codigo=ukiCodigoClienteVisible(p);
+  const hora=confirmado?new Date(p.timbreEnviadoEn).toLocaleString("es-CL"):
+    abierto?new Date(p.timbreWhatsAppAbiertoEn).toLocaleString("es-CL"):"";
+  const trabajador=confirmado?String(p.timbreEnviadoPor||"Sin responsable indicado"):
+    abierto?String(p.timbreWhatsAppAbiertoPor||"Sin responsable indicado"):"";
+  return '<div style="border-top:1px solid var(--line);padding:8px 0">'+
+   '<b>'+esc(ukiReferenciaConCarta(p))+'</b> · '+esc(String(p.cliente||"Sin cliente"))+
+   (codigo?' · Código '+esc(codigo):'')+
+   '<p class="muted" style="margin:5px 0">'+esc(estado)+
+   (hora?' · '+esc(hora):'')+(trabajador?' · '+esc(trabajador):'')+'</p></div>';
+ }).join("");
+ return '<details class="card" id="ukiAuditoriaTimbresTurno">'+
+  '<summary style="cursor:pointer;font-weight:700">🎫 Auditoría de timbres del turno · '+d.registros.length+' generados</summary>'+
+  row("Compras que generan timbre",d.registros.length)+
+  row("Marcados como enviados por el personal",d.marcados.length)+
+  row("WhatsApp abierto pero sin envío confirmado",d.abiertos.length)+
+  row("Sin confirmación de envío",d.pendientes.length)+
+  '<p class="muted">Abrir WhatsApp o compartir una tarjeta NO verifica que se envió el mensaje. El estado «Marcado enviado» es una declaración manual del trabajador, no un comprobante de entrega de WhatsApp.</p>'+
+  (filas||'<p class="muted">No hay timbres de compras pagadas en este turno.</p>')+
+  '</details>';
+}
 function vCajaResumen(){
   const t=totales(), caja=cajaDelDia();
   return `<section class="kpis"><div class="kpi"><span>Venta total</span><strong>${fmt(t.totalMedios)}</strong></div><div class="kpi"><span>Sin delivery</span><strong>${fmt(t.ventaSinDelivery)}</strong></div><div class="kpi"><span>Gastos</span><strong>${fmt(t.gastosTotal)}</strong></div><div class="kpi"><span>Efectivo que queda</span><strong>${fmt(t.efectivoCaja)}</strong></div></section>
     <div class="card"><h2>Resumen de hoy</h2>${row('Pedidos pagados',t.pagadosN)}${row('Deliverys registrados para el repartidor',fmt(t.envios))}${row('Delivery cobrado en Uki',fmt(t.enviosCobradosUki))}${t.propinasEfectivo?row('Propinas en efectivo (aparte)',fmt(t.propinasEfectivo)):''}${row('Pago a repartidor',fmt(t.pagoDelivery))}${row('Total final',fmt(t.final),'final')}</div>
      ${ukiCobrosExternosTurno(t)}
+     ${ukiAuditoriaPagosUI()}
+     ${ukiAuditoriaTimbresUI()}
     <div class="quick-grid"><button class="quick" onclick="cambiarCajaTab('movimientos')">✎ Agregar movimiento <span>›</span></button><button class="quick" onclick="cambiarCajaTab('cierre')">▣ Cerrar el día <span>›</span></button><button class="quick" onclick="cambiarCajaTab('historial')">◷ Historial <span>›</span></button><button class="quick" onclick="descargarRespaldoCompleto()">⇩ Descargar respaldo <span>›</span></button></div>`;
 }
 function vMovimientos(){
@@ -2037,6 +2124,8 @@ function vCierre(){
   const pendientesText=pendientes.map(p=>"#"+esc(p.codigoCarta||p.id)+" · "+esc(p.cliente||"Sin nombre")+" · "+fmt(p.total)).join("; ");
   return `<div class="card"><h2>Venta del día</h2>${row("Pedidos del día",t.n)}${row("Pedidos pagados",t.pagadosN)}${row("Efectivo",fmt(t.medios.Efectivo))}${row("Transferencia",fmt(t.medios.Transferencia))}${row("Débito",fmt(t.medios.Débito))}${row("Edenred",fmt(t.medios.Edenred))}${row("Otros",fmt(t.medios.Otros))}${row("Uber Eats",fmt(t.medios["Uber Eats"]))}${row("PedidosYa",fmt(t.medios.PedidosYa))}${row("Rappi",fmt(t.medios.Rappi))}${row("Venta total con delivery",fmt(t.totalMedios),"sub")}${row("Venta sin delivery",fmt(t.ventaSinDelivery))}</div>
   ${ukiCobrosExternosTurno(t)}
+  ${ukiAuditoriaPagosUI()}
+  ${ukiAuditoriaTimbresUI()}
   <div class="card" style="border:2px solid var(--accent)"><h2>🛵 Pago al repartidor de Uki</h2><p class="muted">Se consideran los deliverys registrados, sin importar en qué local pagó el cliente.</p><label>Base diaria ($)</label><input type="number" value="${caja.base}" inputmode="numeric" onchange="cajaDelDia().base=Math.max(0,parseInt(this.value)||0);render()" style="font-weight:700">${row("Deliverys de pedidos ("+t.dels.length+")",fmt(t.enviosPedidos))}${row("Deliverys manuales ("+delSucHoy(S.deliveriesManuales).length+")",fmt(t.enviosManuales))}${row("Total de "+t.nDeliv+" deliverys",fmt(t.envios),"sub")}${row("Base diaria",fmt(caja.base))}${row("Total calculado para repartidor",fmt(caja.base+t.envios),"final")}<p class="muted">Antes de pagar, revisa que estos repartos se hayan realizado y no estén duplicados.</p></div>
   ${ukiDesgloseDeliverysTurno(t)}
   ${ukiGastosTurnoVisible(t)}
