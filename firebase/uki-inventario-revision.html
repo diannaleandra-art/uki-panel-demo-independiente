@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<meta name="theme-color" content="#f57c00">
+<title>Uki Sushi · Revisión de inventario</title>
+<style>
+:root{font-family:system-ui,-apple-system,sans-serif;color:#292018;background:#fff9f2}
+*{box-sizing:border-box}
+body{margin:0;padding-bottom:30px}header{background:#f57c00;color:white;padding:20px 16px 18px}
+main{max-width:700px;margin:auto;padding:16px}.card{background:white;padding:15px;border-radius:14px;border:1px solid #efdfd1;margin-bottom:12px}
+h1{font-size:21px;margin:0 0 4px}h2{font-size:18px;margin:2px 0 12px}p{line-height:1.5}small,.muted{color:#775f4c}
+label{display:block;font-weight:600;font-size:13px;margin:10px 0 5px}
+input,select{width:100%;font:inherit;border:1px solid #d7c9bb;border-radius:9px;padding:12px;background:#fff;color:#231910}
+button{font:600 14px system-ui;border:0;border-radius:10px;padding:12px;background:#f57c00;color:white;cursor:pointer}
+button:disabled{opacity:.55;cursor:wait}button.secondary{background:#fff1e3;color:#a14a03;border:1px solid #e8c4a0}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row>*{flex:1}
+.stock{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+.stock strong{font-size:15px}.stock p{font-size:13px;margin:3px 0;color:#795e4c}
+.stock input{width:112px}.stock button{min-width:105px}
+.pill{display:inline-block;border-radius:99px;padding:4px 8px;background:#e4f5e6;color:#245c2b;font-weight:700;font-size:12px}
+.pill.warn{background:#fff0d8;color:#985100}
+.status{min-height:20px;padding:8px 0;font-size:14px}
+[hidden]{display:none!important}
+footer{text-align:center;font-size:12px;color:#8b7869;margin-top:16px}
+</style></head>
+<body>
+<header><h1>🍣 Uki Sushi · Inventario</h1><div>Revisión del turno · sin caja, ventas ni cierres</div></header>
+<main>
+<section class="card">
+ <h2>1. Elige la sucursal</h2>
+ <label for="branch">Local</label>
+ <select id="branch"><option value="">Seleccionar</option>
+  <option value="arica">Regimiento Arica</option>
+  <option value="serena">La Serena</option></select>
+ <label for="operador">Nombre de quien revisa</label>
+ <input id="operador" maxlength="60" placeholder="Nombre del trabajador" autocomplete="name">
+ <p class="muted">Solo funciona desde un dispositivo autorizado para esta sucursal.</p>
+ <button id="abrir">Abrir inventario</button>
+ <div id="estado" role="status" class="status"></div>
+</section>
+<div id="inventario" hidden>
+<section class="card">
+ <h2>2. Cuenta lo que queda</h2>
+ <p class="muted">Guarda las cantidades reales. El mínimo lo configura administración. La disponibilidad de la carta se modifica aparte.</p>
+ <div class="row">
+  <select id="tipo" aria-label="Tipo de artículo">
+   <option value="ingredientes">Ingredientes</option>
+   <option value="productos">Productos</option>
+   <option value="todos">Todos</option>
+  </select>
+  <input id="buscar" placeholder="Buscar producto o ingrediente" aria-label="Buscar artículo">
+ </div>
+</section>
+<div id="lista"></div>
+<section class="card">
+ <h2>3. Prepara lo que falta llevar</h2>
+ <p id="resumen" class="muted"></p>
+ <button id="compartir">Preparar lista y compartir por WhatsApp</button>
+ <p class="muted">No cierra la caja ni modifica los productos de la carta automáticamente.</p>
+</section>
+</div>
+<footer>Uki Sushi · Revisión separada de la caja</footer>
+</main>
+<script type="module">
+import {obtenerSesionQR} from './uki-mesas-dispositivo-live.js';
+import {obtenerSesionQA} from './uki-mesas-dispositivo-qa.js';
+import {faltantesInventario,textoListaReposicion} from './uki-inventario-reposicion.mjs';
+const $=id=>document.getElementById(id);
+const isProd=location.hostname==='diannaleandra-art.github.io';
+const isQA=/^uki-sushi-panel-[a-z0-9]+-diannaleandra-7046\.vercel\.app$/.test(location.hostname);
+const base=isProd?'https://uki-sushi-pedidos.vercel.app':
+ isQA?'https://uki-sushi-pedidos-mgfrky8ij-diannaleandra-7046.vercel.app':'';
+let rows=[],branchActual='',busy=false;
+const setStatus=(s)=>{$('estado').textContent=s;};
+const errorTexto=e=>String(e?.message||e||'Error en inventario');
+async function tokenEquipo(branch){
+ if(isProd)return obtenerSesionQR(branch);
+ if(isQA)return obtenerSesionQA(branch,base+'/api/mesa-dispositivo-qa');
+ throw Error('Abre este acceso desde el sitio autorizado de Uki Sushi.');
+}
+async function request(method,branch,data){
+ if(!base)throw Error('El inventario solo está disponible desde el acceso autorizado.');
+ const token=await tokenEquipo(branch);
+ const qs=method==='GET'?'?branch='+encodeURIComponent(branch)+'&manage=1':'';
+ const response=await fetch(base+'/api/catalogo-live'+qs,{
+  method,headers:{Authorization:'Bearer '+token,...(method==='GET'?{}:{'Content-Type':'application/json'})},
+  ...(method==='GET'?{}:{body:JSON.stringify({branch,...data})}),
+  cache:'no-store',credentials:'omit',mode:'cors',signal:AbortSignal.timeout(16000)
+ });
+ const body=await response.json().catch(()=>({}));
+ if(!response.ok||!body.ok)throw Error(body.error||'No se pudo consultar el inventario.');
+ return body;
+}
+function operador(){
+ const name=$('operador').value.trim().replace(/\s+/g,' ');
+ if(name.length<2||name.length>60)throw Error('Escribe el nombre del trabajador.');
+ return name;
+}
+function nombreSucursal(){return branchActual==='arica'?'Regimiento Arica':'La Serena';}
+function resumen(){
+ const r=faltantesInventario(rows);
+ $('resumen').textContent=r.configurados?
+  r.pendientes.length+' artículos por reponer · '+r.configurados+' mínimos configurados'+
+  (r.sinMinimo?' · '+r.sinMinimo+' pendientes de configurar':''):
+  'Falta configurar los mínimos desde administración; aún no se calculan cantidades para llevar.';
+}
+const add=(tag,txt,cls)=>{const e=document.createElement(tag);if(txt!==undefined)e.textContent=txt;if(cls)e.className=cls;return e;};
+async function guardar(item,patch,operation){
+ if(busy||branchActual!==$('branch').value)return;
+ busy=true;setStatus('Guardando inventario…');pintar();
+ try{
+  const result=await request('PATCH',branchActual,{
+   sku:item.sku,patch,operation,expected_version:Number(item.version),worker_name:operador()
+  });
+  rows=rows.map(x=>x.sku===item.sku?{...x,...result.item}:x);
+  setStatus('Guardado en '+nombreSucursal()+'.');
+ }catch(e){setStatus('No se guardó: '+errorTexto(e)+'. Actualiza el inventario antes de reintentar.');}
+ finally{busy=false;pintar();}
+}
+function pintar(){
+ const box=$('lista');box.replaceChildren();
+ const text=$('buscar').value.trim().toLocaleLowerCase('es-CL');
+ const tipo=$('tipo').value;
+ const visibles=rows.filter(x=>{
+  if(tipo==='ingredientes'&&x.kind!=='ingredient')return false;
+  if(tipo==='productos'&&x.kind==='ingredient')return false;
+  return !text||[x.name,x.sku,x.group_key].some(t=>String(t||'').toLocaleLowerCase('es-CL').includes(text));
+ });
+ for(const item of visibles){
+  const card=add('div',undefined,'card'),top=add('div',undefined,'stock');
+  const left=add('div'),name=add('strong',item.name);
+  left.append(name);
+  const min=Number(item.min_stock_qty)||0,qty=Number(item.stock_qty)||0;
+  const detail=add('p','Hay: '+qty+' '+(item.stock_unit||'un')+
+   ' · Mínimo: '+(min>0?min+' '+(item.stock_unit||'un'):'sin configurar'));
+  left.append(detail);
+  if(min>qty)left.append(add('span','Faltan '+Math.round((min-qty)*100)/100+' '+(item.stock_unit||'un'),'pill warn'));
+  else if(min>0)left.append(add('span','Suficiente','pill'));
+  const input=add('input');input.type='number';input.min='0';input.max='10000000';input.step='0.01';
+  input.value=String(qty);input.setAttribute('aria-label','Cantidad contada de '+item.name);
+  const countButton=add('button','Guardar conteo');
+  countButton.disabled=busy;
+  countButton.onclick=()=>{
+   const n=Number(input.value);
+   if(input.value.trim()===''||!Number.isFinite(n)||n<0||n>10000000||Math.abs(Math.round(n*100)-n*100)>1e-7){
+    setStatus('Cantidad inválida: '+item.name);return;
+   }
+   void guardar(item,{stock_qty:n},'conteo');
+  };
+  top.append(left,input);
+  const actions=add('div',undefined,'row');
+  const availability=add('button',item.available?'Marcar agotado':'Marcar disponible','secondary');
+  availability.disabled=busy;
+  availability.onclick=()=>{
+   const next=!item.available;
+   if(confirm('¿Marcar '+item.name+' como '+(next?'DISPONIBLE':'AGOTADO')+' en la carta de '+nombreSucursal()+'?'))
+    void guardar(item,{available:next},'disponibilidad');
+  };
+  const state=add('span',item.available?'Disponible en carta':'Agotado en carta','pill'+(item.available?'':' warn'));
+  actions.append(countButton,availability);
+  card.append(top,actions,state);box.append(card);
+ }
+ if(!visibles.length)box.append(add('p','No hay artículos con este filtro.','muted'));
+ resumen();
+}
+async function cargar(){
+ if(busy)return;
+ const branch=$('branch').value;
+ if(!['arica','serena'].includes(branch)){setStatus('Selecciona Regimiento Arica o La Serena.');return;}
+ try{operador()}catch(e){setStatus(errorTexto(e));return;}
+ busy=true;setStatus('Consultando inventario autorizado…');$('abrir').disabled=true;
+ try{
+  const result=await request('GET',branch);
+  if(result.enabled!==true||!['trabajador','admin'].includes(result.role))throw Error('No está habilitado el acceso de inventario.');
+  rows=Array.isArray(result.items)?result.items:[];branchActual=branch;
+  $('inventario').hidden=false;setStatus('Inventario de '+nombreSucursal()+' listo.');
+  pintar();
+ }catch(e){setStatus(errorTexto(e));$('inventario').hidden=true;}
+ finally{busy=false;$('abrir').disabled=false;}
+}
+$('abrir').onclick=()=>{void cargar();};
+$('branch').onchange=()=>{rows=[];branchActual='';$('inventario').hidden=true;setStatus('');};
+$('tipo').onchange=pintar;
+$('buscar').oninput=pintar;
+$('compartir').onclick=async()=>{
+ if(busy)return;
+ try{
+  operador();
+  await cargar(); // Última lectura: no compartir cantidades obsoletas.
+  if(branchActual!==$('branch').value)return;
+  const message=textoListaReposicion({branch:branchActual,items:rows,nombre:operador()});
+  if(navigator.share){
+   try{await navigator.share({title:'Uki Sushi · Lista para reponer',text:message});return;}
+   catch(e){if(e?.name==='AbortError')return;}
+  }
+  window.open('https://wa.me/?text='+encodeURIComponent(message),'_blank','noopener');
+ }catch(e){setStatus(errorTexto(e));}
+};
+</script></body></html>
