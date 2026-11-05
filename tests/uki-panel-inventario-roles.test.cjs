@@ -32,6 +32,9 @@ test('trabajador puede contar y sumar entrada pero NO ve edición de precio ni p
  assert.match(form,/Registrar entrada de mercadería/);
  assert.doesNotMatch(form,/ukiInvPrecio|ukiInvNombre"|ukiInvDesc/);
  const {env}=html('trabajador');
+ vm.runInNewContext(`ukiInv.branch='arica';ukiInv.items=[{sku:'dish:korokes-4',
+  kind:'dish',name:'Korokes',price:2500,stock_qty:0,stock_unit:'un',group_key:'entradas',
+  available:true,version:0}];`,env);
  const f=vm.runInNewContext('vInventario()',env);
  assert.match(f,/Trabajador · conteos y agotados/);
  assert.doesNotMatch(f,/ukiInvNuevoPrecio|ukiInvCrear\(\)/);
