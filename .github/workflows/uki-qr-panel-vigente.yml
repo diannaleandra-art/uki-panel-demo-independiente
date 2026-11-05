@@ -1,0 +1,20 @@
+name: Uki QR - comprobar panel vigente sin datos reales
+on:
+  push:
+    branches:
+      - preparacion/uki-qr-verificacion-panel-actual-2026-11-04
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pruebas-qr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Probar nube, cobro y rondas QR en memoria
+        run: node --test tests/uki-qr-huella-nube.test.cjs tests/uki-qr-cobro-integrado.test.cjs tests/uki-mesas-autoconfirmar.test.cjs tests/uki-qr-cancelacion-mesa.test.cjs

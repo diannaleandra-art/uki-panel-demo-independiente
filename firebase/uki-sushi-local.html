@@ -809,7 +809,9 @@ function ukiVistaBorradores(){
  const list=ukiBorradoresSucursal();
  const items=list.map(b=>{
   const d=b.datos||{},ref=String(d.mesaReferencia||d.cliente||"").trim();
-  const titulo=d.modalidad==="Consumo en local"?"Mesa "+(ref||"sin número"):d.modalidad==="Delivery"?"Delivery "+(ref||"sin cliente"):"Retiro "+(ref||"sin cliente");
+  const titulo=d.modalidad==="Consumo en local"
+   ?(/^(?:mesa\s*)?\d{1,2}$/i.test(ref)?'Mesa '+String(ukiMesaNumeroReferencia(ref)):('Mesa '+(ref||'sin número')))
+   :d.modalidad==="Delivery"?"Delivery "+(ref||"sin cliente"):"Retiro "+(ref||"sin cliente");
   return '<div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:8px"><b>'+esc(titulo)+'</b>'+
    '<p class="muted">'+(d.items||[]).filter(x=>x.nombre).length+' producto(s) · En espera, sin venta'+(b.id===ukiBorradorActivo?" · Editando":"")+'</p>'+
    '<button class="sm ok" type="button" onclick="ukiRetomarBorrador('+esc(JSON.stringify(b.id))+')">Continuar</button> '+
@@ -2171,6 +2173,35 @@ function ukiCuentasAbiertasMesa(numero){
  return (S.pedidos||[]).filter(p=>p.suc===S.suc&&p.modalidad==='Consumo en local'&&
   ukiCuentaAbierta(p)&&esDelPeriodo(p)&&ukiMesaNumeroReferencia(p.mesaReferencia)===Number(numero));
 }
+// Liberación excepcional de cuentas QR: conserva las rondas y la cancelación
+// para auditoría. Nunca puede cerrar una mesa por simple ausencia de cobro.
+function ukiMesaCuentaCanceladaCandidata(c,estado,branch,pendientes=[]){
+ if(!c||c.branch!==branch||c.estado!=='abierta'||!Number.isSafeInteger(Number(c.mesa))||
+    !Number.isSafeInteger(Number(c.rondas))||Number(c.rondas)<1||
+    !Array.isArray(c.detalle)||c.detalle.length!==Number(c.rondas)||
+    !Array.isArray(estado?.pedidos)||!Array.isArray(pendientes))return null;
+ if(pendientes.some(x=>x.branch===branch&&Number(x.mesa)===Number(c.mesa)))return null;
+ const suma=c.detalle.reduce((total,r)=>total+Number(r.subtotal),0);
+ if(!Number.isSafeInteger(suma)||suma!==Number(c.total))return null;
+ const candidatos=estado.pedidos.filter(p=>p.suc===S.suc&&
+  p.modalidad==='Consumo en local'&&p.estado==='Cancelado'&&p.pagado===false&&
+  ['cliente','local'].includes(p.motivoCancelacion)&&!!p.canceladoEn&&
+  ukiMesaNumeroReferencia(p.mesaReferencia)===Number(c.mesa)&&
+  c.detalle.every(r=>ukiPedidoTieneQR(p,ukiMesaCode(r.id)))&&
+  Array.isArray(p.qrSolicitudes)&&p.qrSolicitudes.length===c.detalle.length&&
+  Number(p.subtotal)===Number(c.total)&&
+  ukiMesaDetalleCubreRondas(p.productos,c.detalle)&&
+  p.productos.reduce((t,i)=>t+Number(i.cantidad)*Number(i.precioUnit),0)===Number(c.total));
+ if(candidatos.length!==1)return null;
+ const anulado=candidatos[0];
+ // No liberar una mesa si otra cuenta local permanece abierta o si una
+ // ronda pertenece a otro pedido, aunque todos estén en el mismo local.
+ if(estado.pedidos.some(p=>p!==anulado&&p.suc===S.suc&&
+    ((ukiCuentaAbierta(p)&&p.modalidad==='Consumo en local'&&
+      ukiMesaNumeroReferencia(p.mesaReferencia)===Number(c.mesa))||
+     c.detalle.some(r=>ukiPedidoTieneQR(p,ukiMesaCode(r.id))))))return null;
+ return anulado;
+}
 function ukiMesasUI(){
  if(!UKI_MESAS_PANEL_ACTIVADO||!UKI_MESAS_ENDPOINT)return ''; // No presentar QA al personal en producción.
  const branch=ukiMesaBranch(),arr=ukiMesas.branch===branch?ukiMesas.rows:[];
@@ -2178,7 +2209,15 @@ function ukiMesasUI(){
  const cuentasHTML=UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL
   ?'<details class="inner-details"><summary>Cuentas QR abiertas · '+cuentas.length+'</summary>'+
    '<p class="muted">Rondas respaldadas en la cuenta central de mesas. El cobro y las propinas se registran como siempre en el panel; aquí no se cobra dos veces.</p>'+
-   (cuentas.map(c=>'<p><b>Mesa '+esc(c.mesa)+'</b> · '+esc(c.rondas)+' ronda(s) · '+fmt(c.total)+' · pendiente de cobro</p>').join('')||'<p class="muted">Todavía no hay cuentas QR abiertas.</p>')+
+   (cuentas.map(c=>{
+    const cancelado=ukiMesaCuentaCanceladaCandidata(c,S,branch,arr);
+    const hayPendiente=arr.some(x=>x.branch===branch&&Number(x.mesa)===Number(c.mesa));
+    return '<p><b>Mesa '+esc(c.mesa)+'</b> · '+esc(c.rondas)+' ronda(s) · '+fmt(c.total)+
+      (cancelado?' · Pedido cancelado en el panel':' · cuenta QR abierta')+'</p>'+
+      (cancelado?'<button class="sm" type="button" onclick="ukiMesaLiberarCuentaCancelada('+
+       esc(JSON.stringify(c.id))+')">Liberar cuenta QR cancelada (sin cobrar)</button>':
+       hayPendiente?'<p class="muted">Hay otra ronda QR por revisar; no se puede liberar esta mesa todavía.</p>':'');
+   }).join('')||'<p class="muted">Todavía no hay cuentas QR abiertas.</p>')+
    '</details>':'';
  const list=arr.map(x=>{
   const code=ukiMesaCode(x.id),guardado=(S.pedidos||[]).some(p=>p.suc===S.suc&&ukiPedidoTieneQR(p,code));
@@ -2214,6 +2253,52 @@ function ukiMesasUI(){
    :'<p class="muted">Comprueba «Nube: sincronizado» antes de confirmar una mesa.</p>')+
   '<p class="muted">'+esc(ukiMesas.status)+'</p>'+
   (list||'<p class="muted">Sin solicitudes cargadas.</p>')+cuentasHTML+'</details>';
+}
+let ukiMesasLiberandoCancelacion=false;
+async function ukiMesaLiberarCuentaCancelada(id){
+ if(ukiMesasLiberandoCancelacion||!UKI_MESAS_PANEL_ACTIVADO||
+    UKI_MESAS_ENDPOINT!==UKI_MESAS_LIVE_URL||ukiMesas.busy||S.busy)return;
+ if(!window.ukiCancelacionNubeLista?.()){
+  aviso('La nube debe estar sincronizada para liberar una mesa cancelada.');return;
+ }
+ const branch=ukiMesaBranch();
+ const saved=await ukiMesaEstadoLocalGuardado();
+ const actual=ukiMesas.cuentas.find(c=>c.id===id&&c.branch===branch);
+ const p=ukiMesaCuentaCanceladaCandidata(actual,saved,branch,ukiMesas.rows);
+ if(!p||!window.ukiCancelacionNubeLista?.()||branch!==ukiMesaBranch()){
+  aviso('La cuenta todavía tiene rondas pendientes o la cancelación no está respaldada. No se liberó la mesa.');
+  return;
+ }
+ if(!confirm('¿Liberar la Mesa '+actual.mesa+' del pedido cancelado #'+p.id+
+   '? Se conserva el historial y NO se cobrará. Esta liberación no se puede deshacer.'))return;
+ ukiMesasLiberandoCancelacion=true;
+ try{
+  const token=await window.ukiMesasTokenEquipo?.();
+  if(!token)throw Error('Este equipo no está autorizado para cuentas QR.');
+  const options={headers:{Authorization:'Bearer '+token},cache:'no-store',signal:AbortSignal.timeout(15000)};
+  // Consultar la cuenta central otra vez: jamás confiar solo en la tarjeta.
+  const r=await fetch(UKI_MESAS_CUENTAS_LIVE_URL+'?branch='+branch,options);
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok||!d.ok)throw Error(d.error||'No se pudo verificar la cuenta QR.');
+  const reciente=(d.cuentas||[]).find(c=>c.id===id&&c.branch===branch);
+  const respaldo=await ukiMesaEstadoLocalGuardado();
+  const confirmado=ukiMesaCuentaCanceladaCandidata(reciente,respaldo,branch,ukiMesas.rows);
+  if(!confirmado||confirmado.id!==p.id||!window.ukiCancelacionNubeLista?.()||
+     branch!==ukiMesaBranch())throw Error('La cuenta o la nube cambiaron; no se liberó la mesa.');
+  const x=await fetch(UKI_MESAS_CUENTAS_LIVE_URL,{
+   method:'PATCH',
+   headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+   body:JSON.stringify({branch,id}),cache:'no-store',
+   signal:AbortSignal.timeout(15000)});
+  const result=await x.json().catch(()=>({}));
+  if(!x.ok||!result.ok||!result.cerrada)throw Error(result.error||'No se pudo liberar la cuenta.');
+  ukiMesas.cuentas=ukiMesas.cuentas.filter(c=>c.id!==id);
+  ukiMesas.status='Mesa '+actual.mesa+': QR liberado tras cancelación; sin cobrar ni modificar cierres.';
+  if(S.vista==='pedidos')render();
+  void ukiMesaActualizar();
+ }catch(e){
+  aviso('La mesa QR sigue sin liberar: '+String(e?.message||e));
+ }finally{ukiMesasLiberandoCancelacion=false;}
 }
 async function ukiMesaActualizar(){
  if(!UKI_MESAS_PANEL_ACTIVADO||!UKI_MESAS_ENDPOINT)return;
@@ -2314,12 +2399,53 @@ async function ukiMesaEstadoLocalGuardado(){
   return validarEstadoSucursal(saved,suc)?saved:null;
  }catch{return null;}
 }
+// Comparar productos y cantidades, no sólo códigos e importes. Se permiten
+// consumos manuales añadidos, nunca sustituir ni reducir artículos pedidos por QR.
+function ukiMesaDetalleCubreRondas(productos,rondas){
+ if(!Array.isArray(productos)||!Array.isArray(rondas)||!rondas.length)return false;
+ const firma=(nombre,cantidad,precio,detalle)=>{
+  const n=String(nombre||'').slice(0,100),d=String(detalle||'').slice(0,1000);
+  const qty=Number(cantidad),unit=Number(precio);
+  if(!n.trim()||!Number.isSafeInteger(qty)||qty<1||
+     !Number.isSafeInteger(unit)||unit<=0)return null;
+  return {key:JSON.stringify([n,unit,d]),qty,unit};
+ };
+ const disponibles=new Map();
+ for(const p of productos){
+  const f=firma(p?.nombre,p?.cantidad??p?.cant,p?.precioUnit??p?.precio,p?.detalle??p?.det);
+  if(!f)return false;
+  disponibles.set(f.key,(disponibles.get(f.key)||0)+f.qty);
+ }
+ for(const ronda of rondas){
+  if(!Array.isArray(ronda?.items)||!ronda.items.length)return false;
+  let subtotal=0;
+  for(const item of ronda.items){
+   const f=firma(item?.mesaLabel,item?.qty,item?.mesaPrecio,item?.mesaDetalle);
+   if(!f)return false;
+   const next=(disponibles.get(f.key)||0)-f.qty;
+   if(next<0)return false;
+   disponibles.set(f.key,next);
+   subtotal+=f.qty*f.unit;
+   if(!Number.isSafeInteger(subtotal))return false;
+  }
+  if(subtotal!==Number(ronda.subtotal))return false;
+ }
+ return true;
+}
 async function ukiMesaRespaldoLocalContiene(id){
  const saved=await ukiMesaEstadoLocalGuardado(),code=ukiMesaCode(id);
- // No registrar como cuenta nueva una venta que ya fue cobrada o cancelada.
- return !!saved?.pedidos?.some(p=>
-  p.suc===S.suc&&p.modalidad==='Consumo en local'&&!p.pagado&&
-  p.estado!=='Cancelado'&&ukiPedidoTieneQR(p,code));
+ const x=ukiMesas.rows.find(r=>r.id===id&&r.branch===ukiMesaBranch());
+ if(!x||!saved?.pedidos)return false;
+ const cuenta=ukiMesas.cuentas.find(c=>c.branch===x.branch&&
+  Number(c.mesa)===Number(x.mesa)&&c.estado==='abierta');
+ const rondas=[...(Array.isArray(cuenta?.detalle)?cuenta.detalle:[]),
+  {items:x.items,subtotal:x.total}];
+ // No confirmar QR si cambió la nube o la mesa mientras leíamos la copia cifrada.
+ if(!window.ukiCancelacionNubeLista?.()||x.branch!==ukiMesaBranch())return false;
+ const candidatas=saved.pedidos.filter(p=>p.suc===S.suc&&
+  p.modalidad==='Consumo en local'&&!p.pagado&&p.estado!=='Cancelado'&&
+  ukiMesaNumeroReferencia(p.mesaReferencia)===Number(x.mesa)&&ukiPedidoTieneQR(p,code));
+ return candidatas.length===1&&ukiMesaDetalleCubreRondas(candidatas[0].productos,rondas);
 }
 async function ukiMesaRegistrarRondaCentral(id,automatico=false){
  if(!UKI_MESAS_PANEL_ACTIVADO||UKI_MESAS_ENDPOINT!==UKI_MESAS_LIVE_URL)return false;
@@ -2373,7 +2499,8 @@ async function ukiMesaCerrarPagadasCentralSeguro(){
    p.suc===S.suc&&p.modalidad==='Consumo en local'&&p.pagado===true&&
    p.estado!=='Cancelado'&&ukiMesaNumeroReferencia(p.mesaReferencia)===Number(c.mesa)&&
    Number(p.subtotal)>=Number(c.total)&&
-   detalle.every(r=>ukiPedidoTieneQR(p,ukiMesaCode(r.id))));
+   detalle.every(r=>ukiPedidoTieneQR(p,ukiMesaCode(r.id)))&&
+   ukiMesaDetalleCubreRondas(p.productos,detalle));
  });
  if(!cerrables.length)return;
  ukiMesasCerrando=true;
@@ -2410,7 +2537,27 @@ async function ukiMesaEstado(id,estado,automatico=false){
   if(!window.ukiCancelacionNubeLista?.()){
    aviso('Espera a ver Nube: sincronizado antes de quitar el pedido de la bandeja.');return;
   }
- }else if(estado==='rechazado'&&!confirm('¿Rechazar esta solicitud de Mesa '+x.mesa+'?'))return;
+ }else if(estado==='rechazado'){
+  // No rechazar un QR que otro empleado ya registró o que todavía se
+  // encuentra en el borrador de una cuenta. En caso de duda, conservarlo.
+  if(!window.ukiCancelacionNubeLista?.()){
+   aviso('Espera a que la nube esté sincronizada antes de rechazar un QR.');return false;
+  }
+  const code=ukiMesaCode(id);
+  const respaldo=await ukiMesaEstadoLocalGuardado();
+  if(!respaldo||!window.ukiCancelacionNubeLista?.()||x.branch!==ukiMesaBranch()){
+   aviso('No se pudo confirmar el respaldo de la nube. La ronda sigue pendiente.');return false;
+  }
+  const enCuenta=(respaldo.pedidos||[]).some(p=>p.suc===S.suc&&p.estado!=='Cancelado'&&ukiPedidoTieneQR(p,code));
+  const enBorrador=(respaldo.borradores||[]).some(b=>b.suc===S.suc&&
+   (b.datos?.codigoCarta===code||(b.datos?.qrSolicitudes||[]).includes(code)));
+  const enEdicion=(D?.codigoCarta===code||(D?.qrSolicitudes||[]).includes(code));
+  if(enCuenta||enBorrador||enEdicion){
+   aviso('Esta ronda QR ya figura en una cuenta o borrador. No la rechaces ni dupliques.');return false;
+  }
+  if(!confirm('¿Rechazar la ronda QR de Mesa '+x.mesa+
+    '? Solo si NO fue preparada ni cobrada. La solicitud quedará en el historial.'))return false;
+ }
  try{
   // Para dar por registrado se usa la sesión que también verifica la nube;
   // los equipos autorizados solo consultan hasta que el guardado esté respaldado.
@@ -2556,6 +2703,8 @@ async function ukiQRPermitirCobroDefinitivo(d){
   const recibidos=new Set(remotas.map(x=>String(x.id||'').toLowerCase()));
   if(!ids.size||ids.size!==remotas.length||[...ids].some(x=>!recibidos.has(x)))
    throw Error('Hay una ronda QR pendiente de registrar o una diferencia entre cuentas.');
+  if(!ukiMesaDetalleCubreRondas(d.items,remotas))
+   throw Error('Los productos de la cuenta no coinciden con el detalle original del QR.');
   const suma=remotas.reduce((total,x)=>total+Number(x.subtotal||0),0);
   const totalEnPanel=d.items.filter(x=>x.nombre).reduce((total,x)=>total+Number(x.cant||0)*Number(x.precio||0),0);
   if(!Number.isSafeInteger(suma)||suma<=0||!Number.isSafeInteger(totalEnPanel)||
