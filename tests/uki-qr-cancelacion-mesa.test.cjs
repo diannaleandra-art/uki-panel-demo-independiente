@@ -19,7 +19,7 @@ const c=()=>({id:'090ec1ca-5659-4034-bf7d-bd6a5adb6023',branch:'arica',mesa:50,
   {mesaLabel:'4 korokes',qty:1,mesaPrecio:2500,mesaDetalle:''}]}]});
 const p=()=>({id:113,suc:'Uki Regimiento Arica',modalidad:'Consumo en local',
  estado:'Cancelado',pagado:false,motivoCancelacion:'local',canceladoEn:'2026-11-05T01:26:00Z',
- mesaReferencia:'Mesa 50',qrSolicitudes:['MESA-'+id.toUpperCase()],
+ mesaReferencia:'Mesa 50',subtotal:2500,qrSolicitudes:['MESA-'+id.toUpperCase()],
  productos:[{nombre:'4 korokes',cantidad:1,precioUnit:2500,detalle:''}]});
 function evaluator(){
  const state={
