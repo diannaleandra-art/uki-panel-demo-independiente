@@ -70,7 +70,7 @@ const $=id=>document.getElementById(id);
 const isProd=location.hostname==='diannaleandra-art.github.io';
 const isQA=/^uki-sushi-panel-[a-z0-9]+-diannaleandra-7046\.vercel\.app$/.test(location.hostname);
 const base=isProd?'https://uki-sushi-pedidos.vercel.app':
- isQA?'https://uki-sushi-pedidos-mgfrky8ij-diannaleandra-7046.vercel.app':'';
+ isQA?'https://uki-sushi-pedidos-foy0k9em4-diannaleandra-7046.vercel.app':'';
 let rows=[],branchActual='',busy=false;
 const setStatus=(s)=>{$('estado').textContent=s;};
 const errorTexto=e=>String(e?.message||e||'Error en inventario');
