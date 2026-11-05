@@ -40,7 +40,7 @@ test('la pantalla de trabajadores no carga ni descifra caja o cierres',()=>{
  assert.equal(syntax.status,0,syntax.stderr);
  assert.match(html,/obtenerSesionQR/);
  assert.match(html,/expected_version/);
- assert.match(html,/Compartir por WhatsApp/);
+ assert.match(html,/compartir por WhatsApp/i);
  assert.doesNotMatch(script,/uki-sushi-nube|cajaDelDia|vCierre\(|uki_operacion_v1|descifrarBloque|claveNube/);
  assert.doesNotMatch(script,/api\/mesa-cuentas-live|api\/mesa-pedidos-live/);
 });
