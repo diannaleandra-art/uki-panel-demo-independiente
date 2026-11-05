@@ -14,7 +14,8 @@ function html(role){
   esc:x=>String(x),fmt:n=>'$'+n,
   confirm:()=>true,
   window:{},console,
-  AbortSignal:{timeout:()=>undefined}
+  AbortSignal:{timeout:()=>undefined},
+  location:{hostname:'diannaleandra-art.github.io'}
  };
  vm.runInNewContext(code+
   `ukiInv.role='${role}'; ukiInv.adminMode=${role==='admin'};\n`,env);
@@ -63,4 +64,27 @@ test('el registro exige nombre y el cambio de disponibilidad sigue siendo manual
  assert.match(code,/operation:'disponibilidad'/);
  assert.match(code,/operation:'entrada',quantity:cantidad/);
  assert.doesNotMatch(code,/stock_qty\s*===?\s*0\s*\?\s*false/);
+});
+
+test('el panel Preview nunca apunta a API de inventario de producción',()=>{
+ const make=hostname=>{
+  const env={
+   location:{hostname},
+   S:{suc:'Uki Regimiento Arica'},
+   SUCURSALES:['Uki Regimiento Arica','Uki La Serena'],
+   cajaDelDia:()=>({turnoPrecierreAbierto:{nombre:'Sara'}}),
+   window:{},AbortSignal:{timeout:()=>undefined},console
+  };
+  vm.runInNewContext(code,env);
+  return vm.runInNewContext('({endpoint:UKI_CATALOGO_ENDPOINT,preview:UKI_CATALOGO_PREVIEW})',env);
+ };
+ const qa=make('uki-sushi-panel-abcd-diannaleandra-7046.vercel.app');
+ assert.equal(qa.preview,true);
+ assert.match(qa.endpoint,/uki-sushi-pedidos-fi1wn6tja-diannaleandra-7046/);
+ assert.doesNotMatch(qa.endpoint,/^https:\/\/uki-sushi-pedidos\.vercel\.app/);
+ const prod=make('diannaleandra-art.github.io');
+ assert.equal(prod.preview,false);
+ assert.match(prod.endpoint,/^https:\/\/uki-sushi-pedidos\.vercel\.app/);
+ const other=make('otro-portal.example.com');
+ assert.equal(other.endpoint,'');
 });
