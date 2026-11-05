@@ -130,3 +130,15 @@ test('El desglose del turno asigna cada parte del pago mixto a su medio y no agr
  assert.match(html,/Pedido #33/);
  assert.doesNotMatch(html,/Pedido #34/);
 });
+
+test('PDF de cierre congela pedidos por cada medio, timbres y distingue apertura de envío',()=>{
+ const i=panel.indexOf('function ukiCrearPdfResumenHistorico(');
+ const j=panel.indexOf('async function ukiPDFCierreHistorial(',i);
+ assert.ok(i>0&&j>i);
+ const pdf=panel.slice(i,j);
+ assert.match(pdf,/ukiDetalleCierre\.agruparPagosHistoricos\(c\)/);
+ assert.match(pdf,/Pedidos por medio de pago/);
+ assert.match(pdf,/Control de timbres/);
+ assert.match(pdf,/timbreEnviadoEn/);
+ assert.match(pdf,/Abrir WhatsApp no comprueba/);
+});
