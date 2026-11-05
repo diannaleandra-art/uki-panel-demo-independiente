@@ -307,13 +307,27 @@ const row=(l,v,cls="")=>`<div class="row ${esc(cls)}"><span>${esc(l)}</span><b>$
  * Disponible / Agotado se cambia EXCLUSIVAMENTE con una acción manual:
  * ningún valor del inventario toca el campo available.
  */
-const UKI_CATALOGO_ENDPOINT='https://uki-sushi-pedidos.vercel.app/api/catalogo-live';
+// GitHub Pages es el panel operativo; los Preview Vercel NUNCA escriben en su API.
+const UKI_CATALOGO_PREVIEW=
+ location.hostname.startsWith('uki-sushi-panel-')&&
+ location.hostname.endsWith('-diannaleandra-7046.vercel.app');
+const UKI_CATALOGO_ENDPOINT=
+ location.hostname==='diannaleandra-art.github.io'
+  ?'https://uki-sushi-pedidos.vercel.app/api/catalogo-live'
+  :UKI_CATALOGO_PREVIEW
+   ?'https://uki-sushi-pedidos-fi1wn6tja-diannaleandra-7046.vercel.app/api/catalogo-live'
+   :'';
 let ukiInv={branch:'',items:[],loading:false,error:'',message:'',search:'',filter:'productos',editing:'',nuevo:false,
  role:'trabajador',adminMode:false,history:[],historyOpen:false,operatorName:''};
 function ukiInvBranch(){return S.suc===SUCURSALES[0]?'arica':S.suc===SUCURSALES[1]?'serena':'';}
 async function ukiInvRequest(method,data){
  const branch=ukiInvBranch();
  if(!branch)throw Error('Abre la sucursal antes de administrar el inventario.');
+ if(!UKI_CATALOGO_ENDPOINT)throw Error('Inventario disponible solo en el panel Uki autorizado.');
+ // En Preview, el lector del dispositivo QR operativo podría apuntar a producción.
+ // Prohibido autenticar un equipo QA contra producción; solo probar como admin.
+ if(UKI_CATALOGO_PREVIEW&&!ukiInv.adminMode)
+  throw Error('Para probar inventario en Preview usa Acceso administración (Google). La prueba del dispositivo de trabajadores requiere autorización QR aislada.');
  // Por defecto, el dispositivo autorizado QR concede acceso de trabajador.
  // Solo la elección explícita «Administración» utiliza la sesión Google.
  const token=ukiInv.adminMode?await window.ukiMesasTokenConfirmar?.():
