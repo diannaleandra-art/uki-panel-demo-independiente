@@ -131,6 +131,16 @@ details.card>summary{line-height:1.45}
  border-left:3px solid #97a184;border-radius:9px;padding:10px 12px;margin:12px 0 2px}
 @media (max-width:360px){.uki-turno-frase{font-size:11.5px}}
 </style>
+<style id="uki-inventario-preview">
+.uki-inv-item{padding:13px 15px}
+.uki-inv-head{display:flex;justify-content:space-between;align-items:flex-start;gap:9px}
+.uki-inv-head>div{min-width:0;flex:1}
+.uki-inv-status{font-size:11px;font-weight:700;padding:4px 8px;border-radius:100px;white-space:nowrap}
+.uki-inv-on{background:#eef4eb;color:#3e6b40}
+.uki-inv-off{background:#fff0e9;color:#9b441f}
+.uki-inv-editor{border-top:1px solid var(--line);padding-top:10px;margin-top:12px}
+.uki-inv-editor input,.uki-inv-editor textarea{background:#fff}
+</style>
 <style id="uki-nube-compacta">
 #ukiNubeSeccion[hidden],#ukiMostrarConfig[hidden],#ukiAvisoInterno[hidden]{display:none!important}
 #ukiMostrarConfig{display:block;margin:10px 14px 5px auto;padding:8px 12px;border:1px solid #eadfd3;border-radius:10px;background:#fff;color:#6e5441;font-size:12px;font-weight:600;min-height:36px}
@@ -293,6 +303,156 @@ function esDelPeriodo(x){
 }
 const delSucHoy=arr=>delSuc(arr).filter(esDelPeriodo);
 const row=(l,v,cls="")=>`<div class="row ${esc(cls)}"><span>${esc(l)}</span><b>${esc(v)}</b></div>`;
+/* Uki Inventario y Carta · módulo QA independiente de la caja cifrada.
+ * Disponible / Agotado se cambia EXCLUSIVAMENTE con una acción manual:
+ * ningún valor del inventario toca el campo available.
+ */
+const UKI_CATALOGO_ENDPOINT='https://uki-sushi-pedidos.vercel.app/api/catalogo-live';
+let ukiInv={branch:'',items:[],loading:false,error:'',message:'',search:'',filter:'productos',editing:'',nuevo:false};
+function ukiInvBranch(){return S.suc===SUCURSALES[0]?'arica':S.suc===SUCURSALES[1]?'serena':'';}
+async function ukiInvRequest(method,data){
+ const branch=ukiInvBranch();
+ if(!branch)throw Error('Abre la sucursal antes de administrar el inventario.');
+ const token=await window.ukiMesasTokenConfirmar?.();
+ if(!token)throw Error('Para administrar la carta inicia sesión con el Google autorizado de Uki.');
+ const url=UKI_CATALOGO_ENDPOINT+(method==='GET'?'?branch='+branch+'&manage=1':'');
+ const response=await fetch(url,{
+  method,headers:{Authorization:'Bearer '+token,...(method==='GET'?{}:{'Content-Type':'application/json'})},
+  ...(method==='GET'?{}:{body:JSON.stringify({branch,...data})}),
+  cache:'no-store',credentials:'omit',mode:'cors',
+  signal:AbortSignal.timeout(16000)
+ });
+ const result=await response.json().catch(()=>({}));
+ if(!response.ok||!result.ok)throw Error(String(result.error||'No se pudo cargar el catálogo'));
+ return result;
+}
+async function ukiInvCargar(forzar=false){
+ const branch=ukiInvBranch();
+ if(!branch||ukiInv.loading||(!forzar&&ukiInv.branch===branch))return;
+ ukiInv={...ukiInv,loading:true,branch,error:'',message:'',items:[],editing:''};
+ if(S.vista==='inventario')render();
+ try{
+  const result=await ukiInvRequest('GET');
+  if(branch!==ukiInvBranch())return;
+  ukiInv.items=Array.isArray(result.items)?result.items:[];
+  ukiInv.error='';
+ }catch(e){
+  if(branch!==ukiInvBranch())return;
+  ukiInv.error=String(e.message||e);
+ }finally{
+  ukiInv.loading=false;
+  if(S.vista==='inventario')render();
+ }
+}
+function ukiInvEditar(sku){ukiInv.editing=ukiInv.editing===sku?'':sku;ukiInv.message='';render();}
+function ukiInvBuscar(value){ukiInv.search=String(value||'').slice(0,80);render();}
+function ukiInvFiltrar(value){ukiInv.filter=['productos','ingredientes','todos'].includes(value)?value:'productos';render();}
+async function ukiInvGuardar(sku,patch,version){
+ if(ukiInv.loading)return;
+ ukiInv.loading=true;ukiInv.error='';ukiInv.message='';render();
+ try{
+  const result=await ukiInvRequest('PATCH',{sku,patch,expected_version:version});
+  const idx=ukiInv.items.findIndex(p=>p.sku===sku);
+  if(idx<0)throw Error('Actualiza la lista antes de guardar');
+  ukiInv.items[idx]={...ukiInv.items[idx],...result.item};
+  ukiInv.message='Cambios guardados solo para '+(ukiInvBranch()==='arica'?'Regimiento Arica':'La Serena')+'.';
+  ukiInv.editing='';
+ }catch(e){ukiInv.error=String(e.message||e);}
+ finally{ukiInv.loading=false;if(S.vista==='inventario')render();}
+}
+function ukiInvEstado(sku,available){
+ const item=ukiInv.items.find(p=>p.sku===sku);
+ if(!item||ukiInv.loading)return;
+ const texto=available?'¿Marcar '+item.name+' como DISPONIBLE en la carta de esta sucursal?':'¿Marcar '+item.name+' como AGOTADO en la carta de esta sucursal?';
+ if(!confirm(texto))return;
+ void ukiInvGuardar(sku,{available},Number(item.version)||0);
+}
+function ukiInvFormGuardar(sku){
+ const item=ukiInv.items.find(p=>p.sku===sku);
+ if(!item||ukiInv.loading)return;
+ const stockEl=$('ukiInvStock'),unitEl=$('ukiInvUnidad');
+ const stock=stockEl?.value.trim()??'';
+ if(stock===''||!Number.isFinite(Number(stock))){ukiInv.error='Ingresa una cantidad de inventario válida.';render();return;}
+ const patch={stock_qty:Number(stock),stock_unit:unitEl?.value||'un'};
+ if(item.kind!=='ingredient'){
+  patch.name=String($('ukiInvNombre')?.value||'').trim();
+  patch.description=String($('ukiInvDesc')?.value||'').trim();
+  const price=$('ukiInvPrecio')?.value.trim();
+  if(price===''||!Number.isSafeInteger(Number(price))){ukiInv.error='Ingresa un precio entero válido.';render();return;}
+  patch.price=Number(price);
+ }
+ void ukiInvGuardar(sku,patch,Number(item.version)||0);
+}
+async function ukiInvCrear(){
+ if(ukiInv.loading)return;
+ const nombre=String($('ukiInvNuevoNombre')?.value||'').trim();
+ const descripcion=String($('ukiInvNuevoDesc')?.value||'').trim();
+ const precio=Number($('ukiInvNuevoPrecio')?.value||'');
+ if(nombre.length<2||!Number.isSafeInteger(precio)||precio<1){
+  ukiInv.error='Indica nombre y precio válido.';render();return;
+ }
+ ukiInv.loading=true;ukiInv.error='';render();
+ try{
+  const item={name:nombre,description:descripcion,price:precio,stock_qty:0,stock_unit:'un',available:true};
+  const result=await ukiInvRequest('POST',{item});
+  ukiInv.items.push(result.item);ukiInv.nuevo=false;ukiInv.filter='productos';ukiInv.search='';
+  ukiInv.message='Producto agregado a esta sucursal. Para aparecer en la carta pública requiere activar la integración de catálogo.';
+ }catch(e){ukiInv.error=String(e.message||e);}
+ finally{ukiInv.loading=false;if(S.vista==='inventario')render();}
+}
+function ukiInvForm(item){
+ const esIngrediente=item.kind==='ingredient';
+ const units=['un','kg','g','l','ml','porciones'];
+ return '<div class="uki-inv-editor">'+
+  (!esIngrediente?'<label>Nombre</label><input id="ukiInvNombre" maxlength="100" value="'+esc(item.name)+'">'+
+   '<label>Precio ($)</label><input id="ukiInvPrecio" type="number" inputmode="numeric" min="0" step="1" value="'+esc(item.price??'')+'">'+
+   '<label>Descripción</label><textarea id="ukiInvDesc" maxlength="500" rows="2">'+esc(item.description||'')+'</textarea>':'')+
+  '<label>Cantidad de inventario</label><input id="ukiInvStock" type="number" min="0" step="0.01" inputmode="decimal" value="'+esc(item.stock_qty)+'">'+
+  '<label>Unidad</label><select id="ukiInvUnidad">'+units.map(u=>'<option value="'+u+'"'+(item.stock_unit===u?' selected':'')+'>'+u+'</option>').join('')+'</select>'+
+  '<p class="muted">El inventario NO cambia automáticamente el estado Disponible / Agotado.</p>'+
+  '<button type="button" class="sm ok" onclick="ukiInvFormGuardar(\''+esc(item.sku)+'\')">Guardar cambios</button>'+
+  '<button type="button" class="sm" onclick="ukiInvEditar(\''+esc(item.sku)+'\')">Cancelar</button></div>';
+}
+function vInventario(){
+ if(!S.suc)return vInicio();
+ const branch=ukiInvBranch(),mismo=ukiInv.branch===branch;
+ const items=(mismo?ukiInv.items:[]).filter(p=>
+  (ukiInv.filter==='todos'||(ukiInv.filter==='ingredientes'?(p.kind==='ingredient'):(p.kind!=='ingredient')))&&
+  (!ukiInv.search||[p.name,p.sku,p.group_key].some(s=>String(s||'').toLocaleLowerCase('es-CL').includes(ukiInv.search.toLocaleLowerCase('es-CL'))))
+ );
+ const lista=items.slice(0,120).map(p=>{
+  const sku=esc(p.sku),editando=ukiInv.editing===p.sku,disponible=p.available===true;
+  const precio=p.kind==='ingredient'?'':(p.price===null?'Sin precio':fmt(p.price));
+  const estado=disponible?'Disponible':'Agotado';
+  return '<div class="card uki-inv-item"><div class="uki-inv-head"><div><b>'+esc(p.name)+'</b>'+
+    '<p class="muted" style="margin:4px 0">'+esc(p.group_key)+' · '+esc(precio)+'</p></div>'+
+    '<span class="uki-inv-status '+(disponible?'uki-inv-on':'uki-inv-off')+'">'+estado+'</span></div>'+
+    '<p class="muted" style="margin:3px 0 8px">Stock: '+esc(p.stock_qty)+' '+esc(p.stock_unit)+' · independiente del estado</p>'+
+    '<button type="button" class="sm" '+(ukiInv.loading?'disabled ':'')+'onclick="ukiInvEstado(\''+sku+'\','+(!disponible)+')">'+(disponible?'Marcar agotado':'Marcar disponible')+'</button>'+
+    '<button type="button" class="sm" onclick="ukiInvEditar(\''+sku+'\')">'+(editando?'Cerrar edición':'Editar')+'</button>'+
+    (editando?ukiInvForm(p):'')+'</div>';
+ }).join('');
+ return '<div class="section-head"><h2>Inventario y carta</h2><p>'+esc(S.suc)+' · disponibilidad manual</p></div>'+
+  '<div class="card"><p style="margin:0">El inventario y la carta funcionan por separado: <b>0 existencias NO marca agotado</b>. Solo el botón manual cambia la disponibilidad.</p>'+
+  '<p class="muted">Esta herramienta requiere la conexión privada del catálogo. Los cambios de inventario no afectan ventas anteriores.</p>'+
+  '<button type="button" class="sm" onclick="ir(\'inicio\')">← Volver al inicio</button>'+
+  '<button type="button" class="sm" onclick="ukiInvCargar(true)">Actualizar catálogo</button></div>'+
+  (ukiInv.error?'<div class="aviso" role="alert">'+esc(ukiInv.error)+'</div>':'')+
+  (ukiInv.message?'<div class="card" style="border-color:#b6cda4">'+esc(ukiInv.message)+'</div>':'')+
+  (ukiInv.loading?'<p class="muted">Consultando catálogo seguro…</p>':'')+
+  (mismo?'<div class="card"><label>Buscar producto o ingrediente</label><input value="'+esc(ukiInv.search)+'" placeholder="Ej.: camarón, gohan, palta" oninput="ukiInvBuscar(this.value)">'+
+   '<div class="chips">'+[['productos','Productos'],['ingredientes','Ingredientes'],['todos','Todos']].map(([k,t])=>
+    '<button type="button" class="chip'+(ukiInv.filter===k?' on':'')+'" onclick="ukiInvFiltrar(\''+k+'\')">'+t+'</button>').join('')+'</div>'+
+   '<p class="muted">'+items.length+' resultados · '+ukiInv.items.length+' en esta sucursal</p></div>':'')+
+  (ukiInv.items.length&&ukiInv.filter!=='ingredientes'?'<details class="card"><summary><b>＋ Agregar producto sencillo</b></summary>'+
+    '<p class="muted">Primero disponible para entradas sin armado personalizado. Promociones y sushi a tu gusto conservan sus reglas.</p>'+
+    '<label>Nombre</label><input id="ukiInvNuevoNombre" maxlength="100" placeholder="Ej.: Bebida individual">'+
+    '<label>Precio ($)</label><input type="number" id="ukiInvNuevoPrecio" min="1" step="1" placeholder="2500">'+
+    '<label>Descripción</label><textarea id="ukiInvNuevoDesc" maxlength="500" rows="2"></textarea>'+
+    '<button type="button" class="sm ok" onclick="ukiInvCrear()">Agregar a esta sucursal</button></details>':'')+
+  lista+
+  (mismo&&!ukiInv.loading&&ukiInv.items.length===0&&!ukiInv.error?'<div class="card"><p class="muted">No se encontraron productos en el catálogo.</p></div>':'');
+}
 const VISTAS=[["inicio","Inicio","⌂"],["pedidos","Pedidos","▤"],["nuevo","Nuevo","＋"],["clientes","Timbres","✧"],["caja","Caja","▣"]];
 let cajaTab="resumen";
 let movimientoTab="gastos";
@@ -318,6 +478,7 @@ function ir(v){
   if(!S.suc&&v!=="inicio")v="inicio";
   S.vista=v;
   render();
+  if(v==="inventario")setTimeout(()=>ukiInvCargar(),0);
   if(v==="pedidos"&&!ukiMesas.used&&typeof window.ukiMesasQAToken==="function")
     setTimeout(()=>{if(S.vista==="pedidos"&&S.suc)ukiMesaActualizar();},0);
   window.scrollTo({top:0,behavior:"instant"});
@@ -513,7 +674,7 @@ function render(){
   $("suc").innerHTML=S.suc?`<span>${esc(S.suc)}</span><a href="#" onclick="salirSuc();return false;" class="salir">Salir</a>`:"Selecciona una sucursal para empezar";
   $("nav").style.display=S.suc?"grid":"none";
   $("nav").innerHTML=VISTAS.map(([k,l,icon])=>`<button type="button" class="${S.vista===k?"on":""}" onclick="ir('${k}')" aria-label="${l}" ${S.vista===k?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${l}</span></button>`).join("");
-  const f={inicio:vInicio,pedidos:vPedidos,nuevo:vNuevo,clientes:vClientes,caja:vCaja}[S.vista]||vInicio;
+  const f={inicio:vInicio,pedidos:vPedidos,nuevo:vNuevo,clientes:vClientes,caja:vCaja,inventario:vInventario}[S.vista]||vInicio;
   const msg=S.msg?`<div role="status" class="aviso" style="background:#ffece4;color:#7a2c08">${esc(S.msg)}</div>`:"";
   S.msg=null;
   $("app").innerHTML=msg+f();
@@ -568,6 +729,7 @@ function vInicio(){
     <div class="kpi"><span>Efectivo en caja</span><strong>${fmt(t.efectivoCaja)}</strong></div>
   </section>
   <button class="big cta" onclick="ir('nuevo')">＋ Registrar nuevo pedido</button>
+  <button class="quick" style="width:100%;min-height:57px;margin:0 0 16px" onclick="ir('inventario')"><b>▦</b> Inventario y carta <span>›</span></button>
   <div class="quick-grid"><button class="quick" onclick="ir('pedidos')"><b>▤</b> Revisar pedidos <span>›</span></button><button class="quick" onclick="ir('clientes')"><b>✧</b> Tarjetas (${Object.keys(S.clientes).length}) <span>›</span></button><button class="quick" onclick="ir('cierre')"><b>▣</b> Hacer cierre <span>›</span></button><button class="quick" onclick="ir('historial')"><b>◷</b> Ver historial <span>›</span></button><button class="quick" onclick="cajaTab='semana';ir('caja')"><b>▥</b> Resumen semanal <span>›</span></button></div>
   <div class="mini-help">🎟️ Timbres: 6 compras = 12 piezas · 10 compras = 36 piezas + 2 korokes.</div>`;
 }
