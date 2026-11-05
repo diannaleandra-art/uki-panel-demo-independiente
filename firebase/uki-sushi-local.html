@@ -2533,7 +2533,27 @@ async function ukiMesaEstado(id,estado,automatico=false){
   if(!window.ukiCancelacionNubeLista?.()){
    aviso('Espera a ver Nube: sincronizado antes de quitar el pedido de la bandeja.');return;
   }
- }else if(estado==='rechazado'&&!confirm('¿Rechazar esta solicitud de Mesa '+x.mesa+'?'))return;
+ }else if(estado==='rechazado'){
+  // No rechazar un QR que otro empleado ya registró o que todavía se
+  // encuentra en el borrador de una cuenta. En caso de duda, conservarlo.
+  if(!window.ukiCancelacionNubeLista?.()){
+   aviso('Espera a que la nube esté sincronizada antes de rechazar un QR.');return false;
+  }
+  const code=ukiMesaCode(id);
+  const respaldo=await ukiMesaEstadoLocalGuardado();
+  if(!respaldo||!window.ukiCancelacionNubeLista?.()||x.branch!==ukiMesaBranch()){
+   aviso('No se pudo confirmar el respaldo de la nube. La ronda sigue pendiente.');return false;
+  }
+  const enCuenta=(respaldo.pedidos||[]).some(p=>p.suc===S.suc&&p.estado!=='Cancelado'&&ukiPedidoTieneQR(p,code));
+  const enBorrador=(respaldo.borradores||[]).some(b=>b.suc===S.suc&&
+   (b.datos?.codigoCarta===code||(b.datos?.qrSolicitudes||[]).includes(code)));
+  const enEdicion=(D?.codigoCarta===code||(D?.qrSolicitudes||[]).includes(code));
+  if(enCuenta||enBorrador||enEdicion){
+   aviso('Esta ronda QR ya figura en una cuenta o borrador. No la rechaces ni dupliques.');return false;
+  }
+  if(!confirm('¿Rechazar la ronda QR de Mesa '+x.mesa+
+    '? Solo si NO fue preparada ni cobrada. La solicitud quedará en el historial.'))return false;
+ }
  try{
   // Para dar por registrado se usa la sesión que también verifica la nube;
   // los equipos autorizados solo consultan hasta que el guardado esté respaldado.
