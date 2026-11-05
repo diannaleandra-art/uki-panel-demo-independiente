@@ -80,11 +80,20 @@ test('el panel Preview nunca apunta a API de inventario de producción',()=>{
  };
  const qa=make('uki-sushi-panel-abcd-diannaleandra-7046.vercel.app');
  assert.equal(qa.preview,true);
- assert.match(qa.endpoint,/uki-sushi-pedidos-7scwxauuw-diannaleandra-7046/);
+ assert.match(qa.endpoint,/^https:\/\/uki-sushi-pedidos-[a-z0-9]+-diannaleandra-7046\.vercel\.app\/api\/catalogo-live$/);
  assert.doesNotMatch(qa.endpoint,/^https:\/\/uki-sushi-pedidos\.vercel\.app/);
  const prod=make('diannaleandra-art.github.io');
  assert.equal(prod.preview,false);
  assert.match(prod.endpoint,/^https:\/\/uki-sushi-pedidos\.vercel\.app/);
  const other=make('otro-portal.example.com');
  assert.equal(other.endpoint,'');
+});
+
+test('el modo trabajador QA usa su propio token, nunca el QR productivo',()=>{
+ assert.match(code,/UKI_CATALOGO_PREVIEW\?await window\.ukiInvQAToken/);
+ assert.match(code,/window\.ukiInvQAEndpoint=/);
+ assert.match(code,/ukiInvProbarTrabajadorQA/);
+ assert.match(code,/previewWorker:false/);
+ assert.match(panel,/uki-mesas-dispositivo-qa\.js/);
+ assert.match(panel,/const UKI_OPERACION_HABILITADA=location\.hostname==='diannaleandra-art\.github\.io'/);
 });
