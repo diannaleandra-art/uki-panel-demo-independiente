@@ -65,3 +65,33 @@ por tanto, ocultar botones por JavaScript NO es una separación segura.
 **ESTADO: BLOQUEANTE, NO IMPLEMENTADO.**
 La preparación del inventario en GitHub y las tablas vacías en Neon
 no equivalen a una separación de cierres ya efectiva.
+
+## Revisión de fin de turno preparada en QA (2026-11-05)
+
+**Acceso de trabajador:** `firebase/uki-inventario-revision.html`.
+Es una pantalla independiente, sin interfaz de Caja ni lectura de datos de cierres.
+Utiliza la autorización firmada del dispositivo de esa sucursal, no el PIN compartido.
+
+Flujo: seleccionar sucursal, escribir nombre, registrar lo que queda y generar
+una lista para llevar calculada con `MAX(mínimo configurado - stock contado,0)`.
+El mínimo se introduce solamente desde Administración en el panel de inventario.
+La lista se comparte manualmente por WhatsApp; nunca abre un cierre de caja ni
+cambia automáticamente `available`. Se necesitan mínimos previamente configurados.
+
+El motor está en `firebase/uki-inventario-reposicion.mjs`.
+Las pruebas automáticas de la rama de preparación pasan, incluyendo la exclusión
+de importaciones a la nube operativa y de la caja. Neon QA ya tiene la columna
+`min_stock_qty`; Neon producción aún NO la tiene. La migración pendiente
+para mínimos está en
+`migraciones/uki_reposicion_minimos_pendiente_aprobacion.sql`.
+
+**IMPORTANTE — Seguridad del PIN existente:** compartir el enlace exclusivo de
+inventario no revoca el PIN/clave de acceso a la aplicación operativa. Si un
+trabajador todavía conoce la clave compartida del panel completo, puede
+acceder a las pantallas de caja actuales. Esto sigue como condición
+bloqueante de privacidad de cierres; NO afirmar que el rol queda aislado
+completamente antes de resolver la gestión y almacenamiento por perfiles.
+
+**Despliegue:** no publicado, producción inalterada. La plataforma negó permiso
+para crear automáticamente el Preview de carta actualizado, HTTP 403.
+No apuntar el panel a esa versión hasta completar su Preview QA.
