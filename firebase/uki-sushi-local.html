@@ -809,7 +809,9 @@ function ukiVistaBorradores(){
  const list=ukiBorradoresSucursal();
  const items=list.map(b=>{
   const d=b.datos||{},ref=String(d.mesaReferencia||d.cliente||"").trim();
-  const titulo=d.modalidad==="Consumo en local"?"Mesa "+(ref||"sin número"):d.modalidad==="Delivery"?"Delivery "+(ref||"sin cliente"):"Retiro "+(ref||"sin cliente");
+  const titulo=d.modalidad==="Consumo en local"
+   ?(/^(?:mesa\s*)?\d{1,2}$/i.test(ref)?'Mesa '+String(ukiMesaNumeroReferencia(ref)):('Mesa '+(ref||'sin número')))
+   :d.modalidad==="Delivery"?"Delivery "+(ref||"sin cliente"):"Retiro "+(ref||"sin cliente");
   return '<div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:8px"><b>'+esc(titulo)+'</b>'+
    '<p class="muted">'+(d.items||[]).filter(x=>x.nombre).length+' producto(s) · En espera, sin venta'+(b.id===ukiBorradorActivo?" · Editando":"")+'</p>'+
    '<button class="sm ok" type="button" onclick="ukiRetomarBorrador('+esc(JSON.stringify(b.id))+')">Continuar</button> '+
