@@ -2187,7 +2187,9 @@ function ukiMesaCuentaCanceladaCandidata(c,estado,branch,pendientes=[]){
   ukiMesaNumeroReferencia(p.mesaReferencia)===Number(c.mesa)&&
   c.detalle.every(r=>ukiPedidoTieneQR(p,ukiMesaCode(r.id)))&&
   Array.isArray(p.qrSolicitudes)&&p.qrSolicitudes.length===c.detalle.length&&
-  ukiMesaDetalleCubreRondas(p.productos,c.detalle));
+  Number(p.subtotal)===Number(c.total)&&
+  ukiMesaDetalleCubreRondas(p.productos,c.detalle)&&
+  p.productos.reduce((t,i)=>t+Number(i.cantidad)*Number(i.precioUnit),0)===Number(c.total));
  if(candidatos.length!==1)return null;
  const anulado=candidatos[0];
  // No liberar una mesa si otra cuenta local permanece abierta o si una
