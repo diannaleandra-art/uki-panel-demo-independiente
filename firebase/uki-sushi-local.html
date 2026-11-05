@@ -3545,6 +3545,31 @@ function ukiCrearPdfResumenHistorico(c){
  const medios=ukiMediosCierreHistorico(c);
  if(medios.length)medios.forEach(m=>fila(m.nombre,fmt(m.importe)));
  else fila("Medios registrados","Sin desglose");
+ if(c.detalle?.version===1&&window.ukiDetalleCierre?.agruparPagosHistoricos){
+  const porMedio=window.ukiDetalleCierre.agruparPagosHistoricos(c);
+  if(porMedio.size){
+   seccion("Pedidos por medio de pago");
+   for(const [medio,items] of porMedio){
+    fila(medio,fmt(items.reduce((n,x)=>n+x.monto,0)),true);
+    for(const item of items)lineaNota(item.concepto+" - "+fmt(item.monto));
+   }
+  }
+  const timbres=(c.detalle.pedidos||[]).filter(p=>p.pagado&&p.estado!=="Cancelado"&&
+   !p.esPremio&&!p.productosPagadosOtroLocal&&String(p.cliente||"").trim());
+  if(timbres.length){
+   seccion("Control de timbres");
+   fila("Generados",timbres.length);
+   fila("Marcados como enviados",timbres.filter(p=>!!p.timbreEnviadoEn).length);
+   fila("Sin confirmacion",timbres.filter(p=>!p.timbreEnviadoEn).length);
+   for(const p of timbres){
+    const ref="Interno #"+p.id+(p.codigoCarta?" Carta #"+p.codigoCarta:"");
+    const estado=p.timbreEnviadoEn?"Declarado enviado por "+(p.timbreEnviadoPor||"Sin turno"):
+      p.timbreWhatsAppAbiertoEn?"WhatsApp abierto, no confirmado":"Pendiente";
+    lineaNota(ref+" "+p.cliente+" - "+estado);
+   }
+   lineaNota("Abrir WhatsApp no comprueba que el mensaje fue enviado o recibido.");
+  }
+ }
  seccion("Repartidor");
  fila("Deliverys registrados",Array.isArray(c.dels)?c.dels.length:0);
  fila("Monto de los deliverys",fmt(c.envios||0));
@@ -3587,7 +3612,7 @@ function ukiCrearPdfResumenHistorico(c){
  }
  for(let i=0;i<paginas.length;i++){
   const pg=paginas[i];
-  pg.push("0.58 0.51 0.45 rg BT /F1 8 Tf 1 0 0 1 42 39 Tm (Cifras originales del cierre. Sin detalle de productos.) Tj ET");
+  pg.push("0.58 0.51 0.45 rg BT /F1 8 Tf 1 0 0 1 42 39 Tm (Cifras originales del cierre. Pagos y timbres archivados.) Tj ET");
   pg.push("0.58 0.51 0.45 rg BT /F1 8 Tf 1 0 0 1 500 39 Tm (Pag. "+(i+1)+"/"+paginas.length+") Tj ET");
  }
  const objs=[null];
