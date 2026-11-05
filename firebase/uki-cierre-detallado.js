@@ -82,9 +82,12 @@ function filas(c){
  const r=[];
  for(const p of d.pedidos||[]){
   const it=(p.productos||[]).map(z=>z.cantidad+"x "+z.nombre+(z.detalle?" ("+z.detalle+")":"")).join(", ");
+  const timbre=p.pagado&&p.estado!=="Cancelado"&&!p.esPremio&&!p.productosPagadosOtroLocal&&String(p.cliente||"").trim()?
+   ("; Timbre: "+(p.timbreEnviadoEn?"envío declarado por personal "+(p.timbreEnviadoPor||"Sin turno"):
+     p.timbreWhatsAppAbiertoEn?"WhatsApp abierto, sin confirmación de envío":"pendiente de enviar")):"";
   r.push(["Pedido",p.fechaISO,p.codigoCarta?"Carta #"+p.codigoCarta+" · Interno #"+p.id:"Interno #"+p.id,p.cliente,p.total,
    p.productosPagadosOtroLocal?"Pagado en otro local":((p.pagosProductos||[]).length>1?"Mixto":p.medio),
-   (p.pagado?"Pagado":"Sin pago")+"; "+p.modalidad+"; envío "+p.envio+"; "+notaPagoPedido(p)+"; "+it]);
+   (p.pagado?"Pagado":"Sin pago")+"; "+p.modalidad+"; envío "+p.envio+"; "+notaPagoPedido(p)+"; "+it+timbre]);
  }
  for(const x of d.gastos||[])r.push(["Gasto",x.fechaISO,x.id,x.concepto,x.monto,x.medio,""]);
  for(const x of d.retiros||[])r.push(["Retiro",x.fechaISO,x.id,x.motivo,x.monto,"Efectivo",""]);
