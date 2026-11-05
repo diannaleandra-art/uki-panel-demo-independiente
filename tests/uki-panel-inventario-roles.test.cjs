@@ -80,7 +80,7 @@ test('el panel Preview nunca apunta a API de inventario de producción',()=>{
  };
  const qa=make('uki-sushi-panel-abcd-diannaleandra-7046.vercel.app');
  assert.equal(qa.preview,true);
- assert.match(qa.endpoint,/uki-sushi-pedidos-hqpmzjeje-diannaleandra-7046/);
+ assert.match(qa.endpoint,/uki-sushi-pedidos-7scwxauuw-diannaleandra-7046/);
  assert.doesNotMatch(qa.endpoint,/^https:\/\/uki-sushi-pedidos\.vercel\.app/);
  const prod=make('diannaleandra-art.github.io');
  assert.equal(prod.preview,false);
