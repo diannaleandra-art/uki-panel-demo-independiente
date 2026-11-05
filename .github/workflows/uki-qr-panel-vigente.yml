@@ -17,4 +17,4 @@ jobs:
         with:
           persist-credentials: false
       - name: Probar nube, cobro y rondas QR en memoria
-        run: node --test tests/uki-qr-huella-nube.test.cjs tests/uki-qr-cobro-integrado.test.cjs tests/uki-mesas-autoconfirmar.test.cjs
+        run: node --test tests/uki-qr-huella-nube.test.cjs tests/uki-qr-cobro-integrado.test.cjs tests/uki-mesas-autoconfirmar.test.cjs tests/uki-qr-cancelacion-mesa.test.cjs
