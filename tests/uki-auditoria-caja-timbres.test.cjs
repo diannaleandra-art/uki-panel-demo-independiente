@@ -98,3 +98,35 @@ test('Caja y cierre incluyen desglose por medio y timbres sin alterar los totale
  assert.match(func,/ukiLineasPago\(p,"envio",envio\)/);
  assert.match(func,/coincide&&suma===montoEsperado/);
 });
+
+test('El desglose del turno asigna cada parte del pago mixto a su medio y no agrega cobros externos',()=>{
+ const funcs=panel.slice(panel.indexOf('function ukiDesglosePagosPorMedio(){'),panel.indexOf('function vCajaResumen(){'));
+ const p=pedido({id:33,subtotal:10000,envio:0,pagosProductos:[
+  {medio:'Efectivo',monto:4000},{medio:'Transferencia',monto:6000}]});
+ const externo=pedido({id:34,subtotal:2500,total:2500,productosPagadosOtroLocal:true,
+  montoProductosOtroLocal:2500,pagosProductos:[],localPagoExterno:'Otro local'});
+ const vars={
+  MEDIOS:['Efectivo','Transferencia','Uber Eats','Otros'],APPS:['Uber Eats'],
+  S:{suc:'Uki Regimiento Arica',pedidos:[p,externo],deliveriesManuales:[{cliente:'Ale',medio:'Efectivo',monto:2000}]},
+  delSucHoy:items=>items,
+  cajaDelDia:()=>({apps:{'Uber Eats':1500}}),
+  ukiReferenciaConCarta:x=>'Pedido #'+x.id,
+  ukiLineasPago:(x,t,monto)=>{
+   if(t==='envio'||x.productosPagadosOtroLocal)return [];
+   return x.pagosProductos?.length?x.pagosProductos:[{medio:x.medio,monto}];
+  },
+  ukiPedidoDaTimbre:x=>x.pagado&&!x.productosPagadosOtroLocal,
+  ukiCodigoClienteVisible:()=>'',fechaRegistroMs:()=>0,
+  esc:x=>String(x),fmt:n=>'$'+n,row:(l,n)=>l+':'+n,
+  totales:()=>({medios:{Efectivo:6000,Transferencia:6000,'Uber Eats':1500,Otros:0}})
+ };
+ const g=vm.runInNewContext(funcs+'\nukiDesglosePagosPorMedio();',vars,{timeout:1000});
+ assert.equal(sum(g.get('Efectivo')),6000);
+ assert.equal(sum(g.get('Transferencia')),6000);
+ assert.equal(sum(g.get('Uber Eats')),1500);
+ assert.equal(sum(g.get('Otros')),0);
+ const html=vm.runInNewContext(funcs+'\nukiAuditoriaPagosUI();',vars,{timeout:1000});
+ assert.match(html,/El desglose coincide/);
+ assert.match(html,/Pedido #33/);
+ assert.doesNotMatch(html,/Pedido #34/);
+});
