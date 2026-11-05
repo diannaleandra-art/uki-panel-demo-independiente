@@ -126,6 +126,7 @@ input,select,textarea{background:#fffefa;border-color:#e2ddd6}
 input:focus,select:focus,textarea:focus{outline:2px solid #d9a166;outline-offset:1px}
 .sub-tabs button:not(.selected),.movement-tabs button:not(.selected){background:var(--card)}
 details.card>summary{line-height:1.45}
+.uki-turno-card{border-color:#e1e7d7;background:#fffefa;box-shadow:0 2px 8px rgba(55,65,43,.035)}
 .uki-turno-frase{font-size:12px;line-height:1.55;color:#656a55;background:#f6f7f0;
  border-left:3px solid #97a184;border-radius:9px;padding:10px 12px;margin:12px 0 2px}
 @media (max-width:360px){.uki-turno-frase{font-size:11.5px}}
@@ -694,12 +695,12 @@ function vInicioTrabajador(){
  const abierto=cajaDelDia().turnoPrecierreAbierto;
  if(abierto){
    const fechaInicio=new Date(abierto.inicioMs).toLocaleString("es-CL",{dateStyle:"short",timeStyle:"short"});
-   return '<div class="card" style="border:2px solid var(--accent)"><h2>🕒 Turno iniciado</h2>'+
+   return '<div class="card uki-turno-card"><h2>🕒 Turno iniciado</h2>'+
      '<p><b>'+esc(abierto.nombre)+'</b></p><p class="muted">Comenzó: '+esc(fechaInicio)+'</p>'+
      '<p class="uki-turno-frase">✨ Cada detalle cuenta. ¡Hagamos un gran turno en equipo!</p>'+
      '<button class="big" onclick="ir(\'cierre\')">Ir al precierre del trabajador</button></div>';
  }
- return '<div class="card" style="border:2px solid var(--accent)"><h2>🕒 Iniciar turno de trabajador</h2>'+
+ return '<div class="card uki-turno-card"><h2>🕒 Iniciar turno de trabajador</h2>'+
    '<p class="muted">Al comenzar, registra el nombre. El precierre se hace después desde Caja.</p>'+
    '<label>Nombre del trabajador</label><input id="ukiTrabajador" maxlength="60" placeholder="Nombre del trabajador">'+
    '<button class="big" onclick="ukiIniciarPrecierre()">Iniciar turno</button>'+
