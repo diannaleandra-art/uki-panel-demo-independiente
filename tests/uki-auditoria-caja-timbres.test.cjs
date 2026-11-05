@@ -142,3 +142,14 @@ test('PDF de cierre congela pedidos por cada medio, timbres y distingue apertura
  assert.match(pdf,/timbreEnviadoEn/);
  assert.match(pdf,/Abrir WhatsApp no comprueba/);
 });
+
+test('Frases cortas al inicio y después de registrar turno; solo se modifica presentación',()=>{
+ const f=panel.slice(panel.indexOf('function vInicioTrabajador(){'),panel.indexOf('function vPrecierreTrabajadores(){'));
+ assert.match(f,/Un turno organizado comienza con una buena actitud/);
+ assert.match(f,/Cada detalle cuenta\. ¡Hagamos un gran turno en equipo!/);
+ assert.match(panel,/<style id="uki-panel-organico-limpio">/);
+ assert.match(panel,/\.uki-turno-frase\{/);
+ assert.match(f,/function vInicioTrabajador\(\)/);
+ assert.match(f,/onclick="ukiIniciarPrecierre\(\)"/);
+ assert.match(f,/onclick="ir\(\\'cierre\\'\)"/);
+});
