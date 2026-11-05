@@ -5,6 +5,7 @@ on:
       - preparacion/uki-qr-verificacion-panel-actual-2026-11-04
       - mejoras/uki-auditoria-caja-timbres-2026-11-05
       - feature/uki-panel-inventario-carta-qa-20261105
+      - preparacion/uki-inventario-integracion-final-2026-11-05
   workflow_dispatch:
 
 permissions:
