@@ -322,19 +322,20 @@ const UKI_CATALOGO_ENDPOINT=
    ?'https://uki-sushi-pedidos-kdegpeufu-diannaleandra-7046.vercel.app/api/catalogo-live'
    :'';
 let ukiInv={branch:'',items:[],loading:false,error:'',message:'',search:'',filter:'productos',editing:'',nuevo:false,
- role:'trabajador',adminMode:false,history:[],historyOpen:false,operatorName:''};
+ role:'trabajador',adminMode:false,previewWorker:false,history:[],historyOpen:false,operatorName:''};
+window.ukiInvQABranch=()=>ukiInvBranch();
+window.ukiInvQAEndpoint=UKI_CATALOGO_PREVIEW?
+ UKI_CATALOGO_ENDPOINT.replace('/api/catalogo-live','/api/mesa-dispositivo-qa'):null;
 function ukiInvBranch(){return S.suc===SUCURSALES[0]?'arica':S.suc===SUCURSALES[1]?'serena':'';}
 async function ukiInvRequest(method,data){
  const branch=ukiInvBranch();
  if(!branch)throw Error('Abre la sucursal antes de administrar el inventario.');
  if(!UKI_CATALOGO_ENDPOINT)throw Error('Inventario disponible solo en el panel Uki autorizado.');
- // En Preview, el lector del dispositivo QR operativo podría apuntar a producción.
- // Prohibido autenticar un equipo QA contra producción; solo probar como admin.
- if(UKI_CATALOGO_PREVIEW&&!ukiInv.adminMode)
-  throw Error('Para probar inventario en Preview usa Acceso administración (Google). La prueba del dispositivo de trabajadores requiere autorización QR aislada.');
- // Por defecto, el dispositivo autorizado QR concede acceso de trabajador.
- // Solo la elección explícita «Administración» utiliza la sesión Google.
+ // En Preview NUNCA usar la sesión QR productiva: únicamente token QA aislado.
+ if(UKI_CATALOGO_PREVIEW&&!ukiInv.adminMode&&!ukiInv.previewWorker)
+  throw Error('Este dispositivo de prueba aún no está autorizado.');
  const token=ukiInv.adminMode?await window.ukiMesasTokenConfirmar?.():
+  UKI_CATALOGO_PREVIEW?await window.ukiInvQAToken?.():
   await window.ukiMesasTokenEquipo?.();
  if(!token)throw Error(ukiInv.adminMode?
   'Para editar la carta debes iniciar sesión con el Google administrador autorizado.':
@@ -373,8 +374,28 @@ async function ukiInvCargar(forzar=false){
 function ukiInvCambiarAcceso(admin){
  if(ukiInv.loading)return;
  ukiInv.adminMode=!!admin;
+ ukiInv.previewWorker=false;
  ukiInv.branch='';ukiInv.items=[];ukiInv.history=[];ukiInv.editing='';
  void ukiInvCargar(true);
+}
+// Solo en el panel Preview: autorizar una llave QA en este iPhone y probar
+// los permisos de trabajador. No hay acceso a caja, pedidos ni QR reales.
+async function ukiInvProbarTrabajadorQA(){
+ if(!UKI_CATALOGO_PREVIEW||!ukiInvBranch()||ukiInv.loading)return;
+ ukiInv.error='';ukiInv.message='';render();
+ try{
+  if(!window.ukiInvQAAutorizarEquipo)throw Error('Acceso QA no disponible.');
+  await window.ukiInvQAAutorizarEquipo(ukiInvBranch());
+  ukiInv.adminMode=false;
+  ukiInv.previewWorker=true;
+  ukiInv.role='trabajador';
+  ukiInv.branch='';ukiInv.items=[];ukiInv.history=[];ukiInv.editing='';
+  await ukiInvCargar(true);
+ }catch(e){ukiInv.error=String(e?.message||e);render();}
+}
+function ukiInvQARegresarAdmin(){
+ if(!UKI_CATALOGO_PREVIEW||ukiInv.loading)return;
+ ukiInvCambiarAcceso(true);
 }
 function ukiInvNombreActual(){
  if(ukiInv.role==='admin')return 'Administración Uki';
@@ -505,7 +526,11 @@ function vInventario(){
   '<button type="button" class="sm" onclick="ir(\'inicio\')">← Volver al inicio</button>'+
   '<button type="button" class="sm" onclick="ukiInvCargar(true)">Actualizar catálogo</button>'+
   (UKI_CATALOGO_PREVIEW?
-   '<p class="muted">Preview: solo administración Google. Para probar trabajadores se requiere un dispositivo QA aislado.</p>':
+   (ukiInv.previewWorker?
+    '<p class="muted">Trabajador de prueba: solo existencias y disponibilidad manual. Sin acceso a precios, caja ni pedidos.</p>'+
+    '<button type="button" class="sm" onclick="ukiInvQARegresarAdmin()">Volver a administración QA</button>':
+    '<p class="muted">Acceso QA aislado. Para probar el rol trabajador, se autoriza una llave de prueba en este iPhone, sin afectar los locales.</p>'+
+    '<button type="button" class="sm" onclick="ukiInvProbarTrabajadorQA()">Probar como trabajador (QA)</button>'):
    ukiInv.adminMode?
    '<button type="button" class="sm" onclick="ukiInvCambiarAcceso(false)">Volver a acceso de trabajador</button>':
    '<button type="button" class="sm" onclick="ukiInvCambiarAcceso(true)">Acceso administración (Google)</button>')+'</div>'+
@@ -757,7 +782,7 @@ function ukiInvPreviewSucursal(branch){
  S=estadoVacioSucursal(null); // Solo estado temporal QA; no abre datos cifrados de los locales.
  S.suc=branch==='arica'?SUCURSALES[0]:SUCURSALES[1];
  S.vista='inventario';
- ukiInv={...ukiInv,branch:'',items:[],history:[],editing:'',error:'',message:'',adminMode:true};
+ ukiInv={...ukiInv,branch:'',items:[],history:[],editing:'',error:'',message:'',adminMode:true,previewWorker:false};
  render();
  void ukiInvCargar(true);
 }
@@ -4071,6 +4096,7 @@ import {nuevaSal,nuevaGeneracion,derivarClave,cifrarBloque,descifrarBloque} from
 import {crearSnapshotsUki} from "./uki-sushi-nube.js";
 import {crearAutoGuardadoOperativo} from "./uki-sushi-autoguardado.js";
 import {autorizarEquipoQR,obtenerSesionQR,estadoEquipoQR} from "./uki-mesas-dispositivo-live.js";
+import {estadoEquipoQA,autorizarEquipoQA,obtenerSesionQA} from "./uki-mesas-dispositivo-qa.js";
 const config={
  apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",
  authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",
@@ -4194,6 +4220,18 @@ async function accion(action){
 // cambiar el código compartido de acceso al panel ni solicitar correos al personal.
 // La confirmación de ronda requiere la misma sesión Google utilizada para
 // sincronizar Firebase, y solo después de la huella remota verificada.
+// La llave QA vive en IndexedDB independiente y solo contacta API Preview.
+window.ukiInvQAToken=async()=>obtenerSesionQA(window.ukiInvQABranch?.(),window.ukiInvQAEndpoint);
+window.ukiInvQAAutorizarEquipo=async(branch)=>{
+ if(!location.hostname.startsWith('uki-sushi-panel-')||
+    !location.hostname.endsWith('-diannaleandra-7046.vercel.app'))
+  throw Error('Este acceso solo está disponible en Preview.');
+ const equipo=await estadoEquipoQA(branch);
+ if(equipo.autorizado)return true;
+ if(!auth.currentUser)throw Error('Para autorizar pruebas, entra primero con Google administrador.');
+ await autorizarEquipoQA(branch,await auth.currentUser.getIdToken(),window.ukiInvQAEndpoint);
+ return true;
+};
 window.ukiMesasTokenEquipo=async()=>obtenerSesionQR(ukiMesaBranch());
 window.ukiMesasTokenConfirmar=async()=>auth.currentUser?auth.currentUser.getIdToken():null;
 window.ukiMesasQAToken=async()=>{
