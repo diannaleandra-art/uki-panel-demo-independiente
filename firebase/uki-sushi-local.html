@@ -1180,25 +1180,42 @@ function ukiPedidoDaTimbre(p){
  return !!p&&p.suc===S.suc&&p.pagado&&p.estado!=="Cancelado"&&!p.esPremio&&
   !p.productosPagadosOtroLocal&&!!String(p.cliente||"").trim();
 }
+function ukiTimbreResponsableActual(){
+ // El PIN común no identifica a la persona. Solo atribuimos el evento
+ // al trabajador cuando hay un turno iniciado expresamente con su nombre.
+ const caja=S.cajasDiarias?.[S.suc+"|"+fechaOperativaActual()];
+ return String(caja?.turnoPrecierreAbierto?.nombre||"Sin turno identificado");
+}
+function ukiAnotarEventoTimbre(p,tipo){
+ const fecha=new Date().toISOString(),responsable=ukiTimbreResponsableActual();
+ if(!Array.isArray(p.timbreEventos))p.timbreEventos=[];
+ p.timbreEventos.push({tipo,fecha,responsable});
+ if(p.timbreEventos.length>60)p.timbreEventos=p.timbreEventos.slice(-60);
+ return {fecha,responsable};
+}
 function ukiMarcarTimbreEnviado(id){
  const p=(S.pedidos||[]).find(p=>p.suc===S.suc&&p.id===Number(id));
  if(!ukiPedidoDaTimbre(p)){aviso("Solo se confirma el timbre de una compra pagada que suma timbres.");return;}
  if(p.timbreEnviadoEn){
-  if(!window.confirm("¿Quitar la confirmación de envío de este timbre?"))return;
-  p.timbreEnviadoEn=null;
-  aviso("El timbre del "+ukiReferenciaConCarta(p)+" vuelve a quedar pendiente de envío.");
+  if(!window.confirm("¿Quitar la confirmación manual de envío de este timbre? Quedará un registro del cambio."))return;
+  ukiAnotarEventoTimbre(p,"confirmacion_retirada");
+  p.timbreEnviadoEn=null;p.timbreEnviadoPor=null;
+  aviso("El timbre del "+ukiReferenciaConCarta(p)+" vuelve a quedar pendiente; se conservó el historial del cambio.");
   return;
  }
- p.timbreEnviadoEn=new Date().toISOString();
- aviso("✅ Timbre marcado como enviado al cliente · "+ukiReferenciaConCarta(p)+".");
+ const confirmado=ukiAnotarEventoTimbre(p,"declarado_enviado");
+ p.timbreEnviadoEn=confirmado.fecha;p.timbreEnviadoPor=confirmado.responsable;
+ aviso("✅ Envío DECLARADO por personal (no verificado por WhatsApp) · "+ukiReferenciaConCarta(p)+".");
 }
 function ukiTimbrePedidoUI(p){
  if(!ukiPedidoDaTimbre(p))return "";
  const enviado=!!p.timbreEnviadoEn;
  return '<div style="padding:10px;border:1px solid var(--line);border-radius:10px;margin:10px 0">'+
   '<b>'+(enviado?'✅ Timbre enviado':'🎫 Recuerda enviar el timbre al cliente')+'</b>'+
-  (enviado?'<p class="muted">Confirmado: '+esc(new Date(p.timbreEnviadoEn).toLocaleString('es-CL'))+'</p>':
-   '<p class="muted">Después de enviarlo por WhatsApp, toca el botón. El panel no lo envía automáticamente.</p>')+
+  (enviado?'<p class="muted">Declarado por personal: '+esc(new Date(p.timbreEnviadoEn).toLocaleString('es-CL'))+
+   ' · '+esc(p.timbreEnviadoPor||"Sin turno identificado")+' (no verificado por WhatsApp)</p>':
+   '<p class="muted">'+(p.timbreWhatsAppAbiertoEn?'WhatsApp abierto: '+esc(new Date(p.timbreWhatsAppAbiertoEn).toLocaleString('es-CL'))+'. ':'')+
+   'Después de pulsar Enviar en WhatsApp, confirma manualmente. Abrir WhatsApp no prueba el envío.</p>')+
   '<button type="button" class="sm'+(enviado?'':' ok')+'" onclick="ukiMarcarTimbreEnviado('+Number(p.id)+')">'+
   (enviado?'Desmarcar envío':'✓ Marcar timbre enviado')+'</button></div>';
 }
@@ -1535,7 +1552,15 @@ function avisarTimbres(key){
     window.prompt("Falta un número de WhatsApp válido para este cliente. Copia el mensaje y envíalo manualmente; puedes actualizar su teléfono en el pedido.",mensaje);
     return;
   }
-  // Solo abre un borrador. WhatsApp NO envía el mensaje automáticamente.
+  // Registrar automáticamente el intento de abrir el mensaje, nunca como
+  // "enviado": wa.me NO informa si el personal pulsó Enviar en WhatsApp.
+  const pedido=ukiUltimoPedidoConTimbre(cli);
+  if(pedido){
+   const abierto=ukiAnotarEventoTimbre(pedido,"whatsapp_abierto");
+   pedido.timbreWhatsAppAbiertoEn=abierto.fecha;
+   pedido.timbreWhatsAppAbiertoPor=abierto.responsable;
+   void guardarEnLocalStorage();
+  }
   window.open("https://wa.me/"+numero+"?text="+encodeURIComponent(mensaje),"_blank","noopener,noreferrer");
 }
 
