@@ -308,14 +308,21 @@ const row=(l,v,cls="")=>`<div class="row ${esc(cls)}"><span>${esc(l)}</span><b>$
  * ningún valor del inventario toca el campo available.
  */
 const UKI_CATALOGO_ENDPOINT='https://uki-sushi-pedidos.vercel.app/api/catalogo-live';
-let ukiInv={branch:'',items:[],loading:false,error:'',message:'',search:'',filter:'productos',editing:'',nuevo:false};
+let ukiInv={branch:'',items:[],loading:false,error:'',message:'',search:'',filter:'productos',editing:'',nuevo:false,
+ role:'trabajador',adminMode:false,history:[],historyOpen:false};
 function ukiInvBranch(){return S.suc===SUCURSALES[0]?'arica':S.suc===SUCURSALES[1]?'serena':'';}
 async function ukiInvRequest(method,data){
  const branch=ukiInvBranch();
  if(!branch)throw Error('Abre la sucursal antes de administrar el inventario.');
- const token=await window.ukiMesasTokenConfirmar?.();
- if(!token)throw Error('Para administrar la carta inicia sesión con el Google autorizado de Uki.');
- const url=UKI_CATALOGO_ENDPOINT+(method==='GET'?'?branch='+branch+'&manage=1':'');
+ // Por defecto, el dispositivo autorizado QR concede acceso de trabajador.
+ // Solo la elección explícita «Administración» utiliza la sesión Google.
+ const token=ukiInv.adminMode?await window.ukiMesasTokenConfirmar?.():
+  await window.ukiMesasTokenEquipo?.();
+ if(!token)throw Error(ukiInv.adminMode?
+  'Para editar la carta debes iniciar sesión con el Google administrador autorizado.':
+  'Este equipo todavía no está vinculado para operaciones del local. Solicita su autorización a administración.');
+ const url=UKI_CATALOGO_ENDPOINT+(method==='GET'?
+  '?branch='+branch+'&manage=1'+(data?.history?'&history=1':''):'');
  const response=await fetch(url,{
   method,headers:{Authorization:'Bearer '+token,...(method==='GET'?{}:{'Content-Type':'application/json'})},
   ...(method==='GET'?{}:{body:JSON.stringify({branch,...data})}),
@@ -335,6 +342,7 @@ async function ukiInvCargar(forzar=false){
   const result=await ukiInvRequest('GET');
   if(branch!==ukiInvBranch())return;
   ukiInv.items=Array.isArray(result.items)?result.items:[];
+  ukiInv.role=result.role==='admin'?'admin':'trabajador';
   ukiInv.error='';
  }catch(e){
   if(branch!==ukiInvBranch())return;
@@ -344,14 +352,49 @@ async function ukiInvCargar(forzar=false){
   if(S.vista==='inventario')render();
  }
 }
+function ukiInvCambiarAcceso(admin){
+ if(ukiInv.loading)return;
+ ukiInv.adminMode=!!admin;
+ ukiInv.branch='';ukiInv.items=[];ukiInv.history=[];ukiInv.editing='';
+ void ukiInvCargar(true);
+}
+function ukiInvNombreActual(){
+ if(ukiInv.role==='admin')return 'Administración Uki';
+ const turno=String(cajaDelDia()?.turnoPrecierreAbierto?.nombre||'').trim();
+ if(turno)return turno;
+ return String($('ukiInvNombreOperador')?.value||'').trim().replace(/\s+/g,' ');
+}
+async function ukiInvVerHistorial(){
+ if(ukiInv.role!=='admin'||ukiInv.loading)return;
+ ukiInv.historyOpen=!ukiInv.historyOpen;
+ if(!ukiInv.historyOpen){render();return;}
+ try{
+  const r=await ukiInvRequest('GET',{history:true});
+  ukiInv.history=Array.isArray(r.history)?r.history:[];
+  ukiInv.message='';
+ }catch(e){ukiInv.error=String(e.message||e);}
+ render();
+}
+function ukiInvEntrada(sku){
+ const item=ukiInv.items.find(x=>x.sku===sku);
+ if(!item||ukiInv.loading)return;
+ const value=String($('ukiInvEntradaCantidad')?.value||'').trim();
+ const cantidad=Number(value);
+ if(!value||!Number.isFinite(cantidad)||cantidad<=0){ukiInv.error='Ingresa la cantidad recibida.';render();return;}
+ void ukiInvGuardar(sku,{},Number(item.version)||0,{operation:'entrada',quantity:cantidad});
+}
 function ukiInvEditar(sku){ukiInv.editing=ukiInv.editing===sku?'':sku;ukiInv.message='';render();}
 function ukiInvBuscar(value){ukiInv.search=String(value||'').slice(0,80);render();}
 function ukiInvFiltrar(value){ukiInv.filter=['productos','ingredientes','todos'].includes(value)?value:'productos';render();}
-async function ukiInvGuardar(sku,patch,version){
+async function ukiInvGuardar(sku,patch,version,extras={}){
  if(ukiInv.loading)return;
+ const worker_name=ukiInvNombreActual();
+ if(worker_name.length<2||worker_name.length>60){
+  ukiInv.error='Identifica tu nombre antes de guardar inventario.';render();return;
+ }
  ukiInv.loading=true;ukiInv.error='';ukiInv.message='';render();
  try{
-  const result=await ukiInvRequest('PATCH',{sku,patch,expected_version:version});
+  const result=await ukiInvRequest('PATCH',{sku,patch,expected_version:version,worker_name,...extras});
   const idx=ukiInv.items.findIndex(p=>p.sku===sku);
   if(idx<0)throw Error('Actualiza la lista antes de guardar');
   ukiInv.items[idx]={...ukiInv.items[idx],...result.item};
@@ -365,7 +408,7 @@ function ukiInvEstado(sku,available){
  if(!item||ukiInv.loading)return;
  const texto=available?'¿Marcar '+item.name+' como DISPONIBLE en la carta de esta sucursal?':'¿Marcar '+item.name+' como AGOTADO en la carta de esta sucursal?';
  if(!confirm(texto))return;
- void ukiInvGuardar(sku,{available},Number(item.version)||0);
+ void ukiInvGuardar(sku,{available},Number(item.version)||0,{operation:'disponibilidad'});
 }
 function ukiInvFormGuardar(sku){
  const item=ukiInv.items.find(p=>p.sku===sku);
@@ -374,17 +417,17 @@ function ukiInvFormGuardar(sku){
  const stock=stockEl?.value.trim()??'';
  if(stock===''||!Number.isFinite(Number(stock))){ukiInv.error='Ingresa una cantidad de inventario válida.';render();return;}
  const patch={stock_qty:Number(stock),stock_unit:unitEl?.value||'un'};
- if(item.kind!=='ingredient'){
+ if(ukiInv.role==='admin'&&item.kind!=='ingredient'){
   patch.name=String($('ukiInvNombre')?.value||'').trim();
   patch.description=String($('ukiInvDesc')?.value||'').trim();
   const price=$('ukiInvPrecio')?.value.trim();
   if(price===''||!Number.isSafeInteger(Number(price))){ukiInv.error='Ingresa un precio entero válido.';render();return;}
   patch.price=Number(price);
  }
- void ukiInvGuardar(sku,patch,Number(item.version)||0);
+ void ukiInvGuardar(sku,patch,Number(item.version)||0,{operation:ukiInv.role==='admin'?'edicion':'conteo'});
 }
 async function ukiInvCrear(){
- if(ukiInv.loading)return;
+ if(ukiInv.loading||ukiInv.role!=='admin')return;
  const nombre=String($('ukiInvNuevoNombre')?.value||'').trim();
  const descripcion=String($('ukiInvNuevoDesc')?.value||'').trim();
  const precio=Number($('ukiInvNuevoPrecio')?.value||'');
@@ -394,7 +437,7 @@ async function ukiInvCrear(){
  ukiInv.loading=true;ukiInv.error='';render();
  try{
   const item={name:nombre,description:descripcion,price:precio,stock_qty:0,stock_unit:'un',available:true};
-  const result=await ukiInvRequest('POST',{item});
+  const result=await ukiInvRequest('POST',{item,worker_name:'Administración Uki'});
   ukiInv.items.push(result.item);ukiInv.nuevo=false;ukiInv.filter='productos';ukiInv.search='';
   ukiInv.message='Producto agregado a esta sucursal. Para aparecer en la carta pública requiere activar la integración de catálogo.';
  }catch(e){ukiInv.error=String(e.message||e);}
