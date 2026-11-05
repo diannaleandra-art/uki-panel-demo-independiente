@@ -8,9 +8,14 @@ const html=fs.readFileSync(path.join(__dirname,'../firebase/uki-sushi-local.html
 const start=html.indexOf('let ukiQRComprobandoCobro=false;');
 const end=html.indexOf('async function ndGuardar(){',start);
 assert.ok(start>0&&end>start,'No se encontró la validación previa al cobro QR');
-const js=html.slice(start,end)+'\nukiQRPermitirCobroDefinitivo;';
+const helperStart=html.indexOf('function ukiMesaDetalleCubreRondas(');
+const helperEnd=html.indexOf('\nasync function ukiMesaRespaldoLocalContiene(',helperStart);
+assert.ok(helperStart>0&&helperEnd>helperStart,'No existe verificación de productos QR');
+const helper=html.slice(helperStart,helperEnd);
+const js=helper+'\n'+html.slice(start,end)+'\nukiQRPermitirCobroDefinitivo;';
 const ID='123e4567-e89b-42d3-a456-426614174000';
-const mesa={branch:'serena',mesa:2,estado:'abierta',total:2500,detalle:[{id:ID,subtotal:2500}]};
+const item={mesaLabel:'4 korokes',qty:1,mesaPrecio:2500,mesaDetalle:''};
+const mesa={branch:'serena',mesa:2,estado:'abierta',total:2500,detalle:[{id:ID,subtotal:2500,items:[item]}]};
 const draft=()=>({pagado:true,modalidad:'Consumo en local',mesaReferencia:'Mesa 2',
  qrSolicitudes:['MESA-'+ID.toUpperCase()],items:[{nombre:'4 korokes',cant:1,precio:2500}]});
 function scenario(opts={}){
@@ -77,4 +82,26 @@ test('No registra en caja QR si el borrador cambia mientras validamos',()=>{
  assert.match(html,/if\(firma!==JSON\.stringify\(\{sucursal:S\.suc,datos:D\}\)\)/);
  assert.match(html,/Cambió el estado de la nube mientras comprobábamos el pago/);
  assert.match(html,/La nube del panel debe estar sincronizada antes de registrar un pedido QR/);
+});
+
+test('La cuenta QR rechaza un producto cambiado aunque conserve el mismo total',async()=>{
+ const q=scenario({cuentas:[{...mesa,detalle:[{id:ID,subtotal:2500,
+  items:[{mesaLabel:'Gyozas de pollo',qty:1,mesaPrecio:2500,mesaDetalle:''}]}]}]});
+ assert.equal(await q.fn(draft()),false);
+ assert.match(q.notices.join(' '),/productos de la cuenta no coinciden/i);
+});
+test('Dos rondas idénticas exigen dos unidades en la caja, sin duplicarlas',async()=>{
+ const second='223e4567-e89b-42d3-a456-426614174000';
+ const cuenta={...mesa,total:5000,detalle:[
+  {id:ID,subtotal:2500,items:[item]},
+  {id:second,subtotal:2500,items:[item]}
+ ]};
+ const q=scenario({cuentas:[cuenta]});
+ const d=draft();
+ d.qrSolicitudes.push('MESA-'+second.toUpperCase());
+ assert.equal(await q.fn(d),false);
+ assert.match(q.notices.join(' '),/productos de la cuenta no coinciden/i);
+ d.items[0].cant=2;
+ const ok=scenario({cuentas:[cuenta]});
+ assert.equal(await ok.fn(d),true);
 });
