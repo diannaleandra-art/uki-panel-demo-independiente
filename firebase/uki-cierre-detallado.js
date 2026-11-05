@@ -41,6 +41,13 @@ function capturar(S,caja,delSucHoy){
  });
  const pedidos=delSucHoy(S.pedidos||[]).map(p=>({
   id:p.id,codigoCarta:p.codigoCarta||"",cliente:p.cliente||"Sin nombre",
+  codigoClienteUltimos4:String(p.codigoCliente||p.telefono||"").replace(/\D/g,"").slice(-4),
+  timbreEnviadoEn:String(p.timbreEnviadoEn||""),
+  timbreEnviadoPor:String(p.timbreEnviadoPor||""),
+  timbreWhatsAppAbiertoEn:String(p.timbreWhatsAppAbiertoEn||""),
+  timbreWhatsAppAbiertoPor:String(p.timbreWhatsAppAbiertoPor||""),
+  timbreEventos:(Array.isArray(p.timbreEventos)?p.timbreEventos.slice(-12):[])
+   .map(e=>({tipo:String(e.tipo||""),fecha:String(e.fecha||""),responsable:String(e.responsable||"")})),
   fechaISO:p.fechaISO||"",pagado:!!p.pagado,estado:p.estado||"",
   esPremio:!!p.esPremio,medio:p.medio||"",medioEnvio:p.medioEnvio||"",
   modalidad:p.modalidad||"",subtotal:Number(p.subtotal)||0,envio:Number(p.envio)||0,
@@ -133,6 +140,79 @@ function renderGastosAnteriores(c,estado,fmt,esc){
     ' · '+String(x.medio||"Sin medio"))+'</span><b>'+fmt(Number(x.monto))+'</b></div>').join("")+
   '<div class="row"><b>Total de gastos</b><b>'+fmt(r.esperado)+'</b></div></div>';
 }
+// Auditoría histórica de cobros: muestra cada importe tal como se congeló
+// en el cierre. No recalcula ni modifica el total contable del cierre.
+function agruparPagosHistoricos(c){
+ const grupos=new Map();
+ const agregar=(medio,monto,concepto)=>{
+  const n=Number(monto);
+  if(!Number.isSafeInteger(n)||n<=0)return;
+  const m=String(medio||"Otros");
+  if(!grupos.has(m))grupos.set(m,[]);
+  grupos.get(m).push({concepto,monto:n});
+ };
+ const d=c?.detalle;
+ if(!d||d.version!==1)return grupos;
+ for(const p of d.pedidos||[]){
+  if(!p.pagado||p.estado==="Cancelado"||p.esPremio)continue;
+  const sub=Math.max(0,Number(p.subtotal)||0),env=p.modalidad==="Delivery"?Math.max(0,Number(p.envio)||0):0;
+  const externo=pagoExternoDetalle(p,sub,env);
+  const base=(p.codigoCarta?"Carta #"+p.codigoCarta+" · ":"")+"Interno #"+p.id+" · "+p.cliente;
+  for(const [items,esperado,medio,tipo] of [
+   [p.pagosProductos,sub-externo.productos,p.medio,"Productos"],
+   [p.pagosEnvio,env-externo.delivery,p.medioEnvio||p.medio,"Delivery"]]){
+   if(esperado<=0)continue;
+   if(Array.isArray(items)&&items.length){
+    for(const item of items)agregar(item.medio,item.monto,base+" · "+tipo);
+   }else agregar(medio,esperado,base+" · "+tipo);
+  }
+ }
+ for(const [medio,monto]of Object.entries(d.apps||{}))
+  agregar(medio,monto,"Aplicación manual · sin pedido individual");
+ for(const x of d.deliveriesManuales||[])
+  agregar(x.medio,x.monto,"Delivery manual · "+String(x.cliente||"Sin cliente"));
+ return grupos;
+}
+function renderAuditoriaPagos(c,fmt,esc){
+ const d=c?.detalle;
+ if(!d||d.version!==1)return "";
+ const grupos=agruparPagosHistoricos(c);
+ const valores=[...grupos.values()].flat(),total=valores.reduce((n,x)=>n+x.monto,0);
+ const esperado=Object.values(c.medios||{}).reduce((n,x)=>n+(Number(x)||0),0);
+ const coincide=total===esperado&&[...grupos].every(([medio,items])=>
+  items.reduce((n,x)=>n+x.monto,0)===(Number(c.medios?.[medio])||0));
+ return '<details style="margin:8px 0"><summary><b>💳 Pedidos por medio de pago</b> · '+fmt(total)+'</summary>'+
+  '<p class="muted">Desglose congelado al cerrar. Las ventas manuales se distinguen de los pedidos. Los cobros de otro local no entran aquí.</p>'+
+  (coincide?'<p class="muted">✅ Coincide con los totales guardados.</p>':
+   '<p style="color:#a42b19">⚠️ El desglose no coincide exactamente con los medios guardados. Revisar.</p>')+
+  ([...grupos].map(([medio,items])=>{
+   const monto=items.reduce((n,x)=>n+x.monto,0);
+   return '<details><summary>'+esc(medio)+' · '+items.length+' · '+fmt(monto)+'</summary>'+
+    items.map(x=>'<div class="row"><span>'+esc(x.concepto)+'</span><b>'+fmt(x.monto)+'</b></div>').join("")+
+    '</details>';
+  }).join("")||'<p class="muted">Sin cobros registrados.</p>')+'</details>';
+}
+function renderAuditoriaTimbres(c,fmt,esc){
+ const d=c?.detalle;
+ if(!d||d.version!==1)return "";
+ const elegibles=(d.pedidos||[]).filter(p=>p.pagado&&p.estado!=="Cancelado"&&
+  !p.esPremio&&!p.productosPagadosOtroLocal&&String(p.cliente||"").trim());
+ const enviados=elegibles.filter(p=>!!p.timbreEnviadoEn).length;
+ const intentos=elegibles.filter(p=>!p.timbreEnviadoEn&&!!p.timbreWhatsAppAbiertoEn).length;
+ return '<details style="margin:8px 0"><summary><b>🎫 Control de timbres del cierre</b> · '+
+  elegibles.length+' generados · '+enviados+' marcados enviados</summary>'+
+  '<p class="muted">Los eventos y estados fueron guardados al cerrar. Abrir WhatsApp NO es prueba de envío; «enviado» es confirmación declarada por el trabajador.</p>'+
+  '<div class="row"><span>WhatsApp abierto, pendiente de confirmar</span><b>'+intentos+'</b></div>'+
+  '<div class="row"><span>Timbres sin confirmación de envío</span><b>'+ (elegibles.length-enviados) +'</b></div>'+
+  (elegibles.map(p=>{
+   const ref=(p.codigoCarta?"Carta #"+p.codigoCarta+" · ":"")+"Interno #"+p.id;
+   const estado=p.timbreEnviadoEn?'Marcado enviado por '+(p.timbreEnviadoPor||"Sin turno"):
+    p.timbreWhatsAppAbiertoEn?'WhatsApp abierto, sin envío confirmado':'Sin enviar / sin confirmar';
+   return '<div style="border-top:1px solid #eee;padding:7px 0"><b>'+esc(ref)+'</b> · '+
+    esc(p.cliente)+(p.codigoClienteUltimos4?' · Código '+esc(p.codigoClienteUltimos4):'')+
+    '<p class="muted">'+esc(estado)+'</p></div>';
+  }).join("")||'<p class="muted">Sin timbres.</p>')+'</details>';
+}
 function render(c,fmt,esc,index,estado){
  const d=c.detalle;
  if(!d||d.version!==1)return renderGastosAnteriores(c,estado,fmt,esc);
@@ -152,6 +232,8 @@ function render(c,fmt,esc,index,estado){
   '<h3 style="margin:0 0 7px">📋 Movimientos detallados guardados</h3>'+
   '<p class="muted">Información capturada cuando se confirmó este cierre.</p>'+
   section('Pedidos individualizados',orders)+
+  renderAuditoriaPagos(c,fmt,esc)+
+  renderAuditoriaTimbres(c,fmt,esc)+
   section('Gastos por concepto',expenses)+
   section('Retiros',withdrawals)+
   section('Propinas',tips)+
@@ -171,5 +253,5 @@ function csv(c,seguro){
  const cab=["Tipo","Fecha","Referencia","Concepto","Monto","Medio","Detalle"];
  return [cab,...filas(c)].map(row=>row.map(seguro).join(";")).join("\n");
 }
-window.ukiDetalleCierre={capturar,render,texto,csv,filas,recuperarGastosAnteriores};
+window.ukiDetalleCierre={capturar,render,texto,csv,filas,recuperarGastosAnteriores,agruparPagosHistoricos,renderAuditoriaPagos,renderAuditoriaTimbres};
 })();
