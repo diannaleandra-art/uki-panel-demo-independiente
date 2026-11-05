@@ -165,10 +165,10 @@ function pintar(){
  resumen();
 }
 async function cargar(){
- if(busy)return;
+ if(busy)return false;
  const branch=$('branch').value;
- if(!['arica','serena'].includes(branch)){setStatus('Selecciona Regimiento Arica o La Serena.');return;}
- try{operador()}catch(e){setStatus(errorTexto(e));return;}
+ if(!['arica','serena'].includes(branch)){setStatus('Selecciona Regimiento Arica o La Serena.');return false;}
+ try{operador()}catch(e){setStatus(errorTexto(e));return false;}
  busy=true;setStatus('Consultando inventario autorizado…');$('abrir').disabled=true;
  try{
   const result=await request('GET',branch);
@@ -176,7 +176,8 @@ async function cargar(){
   rows=Array.isArray(result.items)?result.items:[];branchActual=branch;
   $('inventario').hidden=false;setStatus('Inventario de '+nombreSucursal()+' listo.');
   pintar();
- }catch(e){setStatus(errorTexto(e));$('inventario').hidden=true;}
+  return true;
+ }catch(e){rows=[];branchActual='';setStatus(errorTexto(e));$('inventario').hidden=true;return false;}
  finally{busy=false;$('abrir').disabled=false;}
 }
 $('abrir').onclick=()=>{void cargar();};
@@ -187,8 +188,8 @@ $('compartir').onclick=async()=>{
  if(busy)return;
  try{
   operador();
-  await cargar(); // Última lectura: no compartir cantidades obsoletas.
-  if(branchActual!==$('branch').value)return;
+  const actualizado=await cargar(); // No compartir datos anteriores ante error de lectura.
+  if(!actualizado||branchActual!==$('branch').value)return;
   const message=textoListaReposicion({branch:branchActual,items:rows,nombre:operador()});
   if(navigator.share){
    try{await navigator.share({title:'Uki Sushi · Lista para reponer',text:message});return;}
