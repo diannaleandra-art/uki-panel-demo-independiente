@@ -43,6 +43,10 @@ button.sm.ok{background:var(--accent);border-color:var(--accent);color:#fff}
 .timbre.premio{border-style:solid;border-color:var(--ok);background:#fff1e0}
 </style>
 <style id="uki-operativo-seguridad">body.uki-operativo-bloqueado #app, body.uki-operativo-bloqueado #nav{pointer-events:none;opacity:.4;user-select:none}</style>
+<style id="uki-inventario-preview-solamente">
+body.uki-catalogo-qa #app{pointer-events:auto!important;opacity:1!important;user-select:auto!important}
+body.uki-catalogo-qa #nav,body.uki-catalogo-qa #ukiNubeSeccion,body.uki-catalogo-qa #ukiMostrarConfig{display:none!important}
+</style>
 
 <style id="uki-v88-layout">
 :root{--bg:#fcf9f5;--card:#fff;--ink:#30251f;--muted:#87776b;--accent:#ef820e;--accent-dark:#b65d00;--line:#eee5dc}
@@ -130,6 +134,16 @@ details.card>summary{line-height:1.45}
 .uki-turno-frase{font-size:12px;line-height:1.55;color:#656a55;background:#f6f7f0;
  border-left:3px solid #97a184;border-radius:9px;padding:10px 12px;margin:12px 0 2px}
 @media (max-width:360px){.uki-turno-frase{font-size:11.5px}}
+</style>
+<style id="uki-inventario-preview">
+.uki-inv-item{padding:13px 15px}
+.uki-inv-head{display:flex;justify-content:space-between;align-items:flex-start;gap:9px}
+.uki-inv-head>div{min-width:0;flex:1}
+.uki-inv-status{font-size:11px;font-weight:700;padding:4px 8px;border-radius:100px;white-space:nowrap}
+.uki-inv-on{background:#eef4eb;color:#3e6b40}
+.uki-inv-off{background:#fff0e9;color:#9b441f}
+.uki-inv-editor{border-top:1px solid var(--line);padding-top:10px;margin-top:12px}
+.uki-inv-editor input,.uki-inv-editor textarea{background:#fff}
 </style>
 <style id="uki-nube-compacta">
 #ukiNubeSeccion[hidden],#ukiMostrarConfig[hidden],#ukiAvisoInterno[hidden]{display:none!important}
@@ -293,6 +307,259 @@ function esDelPeriodo(x){
 }
 const delSucHoy=arr=>delSuc(arr).filter(esDelPeriodo);
 const row=(l,v,cls="")=>`<div class="row ${esc(cls)}"><span>${esc(l)}</span><b>${esc(v)}</b></div>`;
+/* Uki Inventario y Carta · módulo QA independiente de la caja cifrada.
+ * Disponible / Agotado se cambia EXCLUSIVAMENTE con una acción manual:
+ * ningún valor del inventario toca el campo available.
+ */
+// GitHub Pages es el panel operativo; los Preview Vercel NUNCA escriben en su API.
+const UKI_CATALOGO_PREVIEW=
+ location.hostname.startsWith('uki-sushi-panel-')&&
+ location.hostname.endsWith('-diannaleandra-7046.vercel.app');
+const UKI_CATALOGO_ENDPOINT=
+ location.hostname==='diannaleandra-art.github.io'
+  ?'https://uki-sushi-pedidos.vercel.app/api/catalogo-live'
+  :UKI_CATALOGO_PREVIEW
+   ?'https://uki-sushi-pedidos-mgfrky8ij-diannaleandra-7046.vercel.app/api/catalogo-live'
+   :'';
+let ukiInv={branch:'',items:[],loading:false,error:'',message:'',search:'',filter:'productos',editing:'',nuevo:false,
+ role:'trabajador',adminMode:false,previewWorker:false,history:[],historyOpen:false,operatorName:''};
+window.ukiInvQABranch=()=>ukiInvBranch();
+window.ukiInvQAEndpoint=UKI_CATALOGO_PREVIEW?
+ UKI_CATALOGO_ENDPOINT.replace('/api/catalogo-live','/api/mesa-dispositivo-qa'):null;
+function ukiInvBranch(){return S.suc===SUCURSALES[0]?'arica':S.suc===SUCURSALES[1]?'serena':'';}
+async function ukiInvRequest(method,data){
+ const branch=ukiInvBranch();
+ if(!branch)throw Error('Abre la sucursal antes de administrar el inventario.');
+ if(!UKI_CATALOGO_ENDPOINT)throw Error('Inventario disponible solo en el panel Uki autorizado.');
+ // En Preview NUNCA usar la sesión QR productiva: únicamente token QA aislado.
+ if(UKI_CATALOGO_PREVIEW&&!ukiInv.adminMode&&!ukiInv.previewWorker)
+  throw Error('Este dispositivo de prueba aún no está autorizado.');
+ const token=ukiInv.adminMode?await window.ukiMesasTokenConfirmar?.():
+  UKI_CATALOGO_PREVIEW?await window.ukiInvQAToken?.():
+  await window.ukiMesasTokenEquipo?.();
+ if(!token)throw Error(ukiInv.adminMode?
+  'Para editar la carta debes iniciar sesión con el Google administrador autorizado.':
+  'Este equipo todavía no está vinculado para operaciones del local. Solicita su autorización a administración.');
+ const url=UKI_CATALOGO_ENDPOINT+(method==='GET'?
+  '?branch='+branch+'&manage=1'+(data?.history?'&history=1':''):'');
+ const response=await fetch(url,{
+  method,headers:{Authorization:'Bearer '+token,...(method==='GET'?{}:{'Content-Type':'application/json'})},
+  ...(method==='GET'?{}:{body:JSON.stringify({branch,...data})}),
+  cache:'no-store',credentials:'omit',mode:'cors',
+  signal:AbortSignal.timeout(16000)
+ });
+ const result=await response.json().catch(()=>({}));
+ if(!response.ok||!result.ok)throw Error(String(result.error||'No se pudo cargar el catálogo'));
+ return result;
+}
+async function ukiInvCargar(forzar=false){
+ const branch=ukiInvBranch();
+ if(!branch||ukiInv.loading||(!forzar&&ukiInv.branch===branch))return;
+ ukiInv={...ukiInv,loading:true,branch,error:'',message:'',items:[],editing:''};
+ if(S.vista==='inventario')render();
+ try{
+  const result=await ukiInvRequest('GET');
+  if(branch!==ukiInvBranch())return;
+  ukiInv.items=Array.isArray(result.items)?result.items:[];
+  ukiInv.role=result.role==='admin'?'admin':'trabajador';
+  ukiInv.error='';
+ }catch(e){
+  if(branch!==ukiInvBranch())return;
+  ukiInv.error=String(e.message||e);
+ }finally{
+  ukiInv.loading=false;
+  if(S.vista==='inventario')render();
+ }
+}
+function ukiInvCambiarAcceso(admin){
+ if(ukiInv.loading)return;
+ ukiInv.adminMode=!!admin;
+ ukiInv.previewWorker=false;
+ ukiInv.branch='';ukiInv.items=[];ukiInv.history=[];ukiInv.editing='';
+ void ukiInvCargar(true);
+}
+// Solo en el panel Preview: autorizar una llave QA en este iPhone y probar
+// los permisos de trabajador. No hay acceso a caja, pedidos ni QR reales.
+async function ukiInvProbarTrabajadorQA(){
+ if(!UKI_CATALOGO_PREVIEW||!ukiInvBranch()||ukiInv.loading)return;
+ ukiInv.error='';ukiInv.message='';render();
+ try{
+  if(!window.ukiInvQAAutorizarEquipo)throw Error('Acceso QA no disponible.');
+  await window.ukiInvQAAutorizarEquipo(ukiInvBranch());
+  ukiInv.adminMode=false;
+  ukiInv.previewWorker=true;
+  ukiInv.role='trabajador';
+  ukiInv.branch='';ukiInv.items=[];ukiInv.history=[];ukiInv.editing='';
+  await ukiInvCargar(true);
+ }catch(e){ukiInv.error=String(e?.message||e);render();}
+}
+function ukiInvQARegresarAdmin(){
+ if(!UKI_CATALOGO_PREVIEW||ukiInv.loading)return;
+ ukiInvCambiarAcceso(true);
+}
+function ukiInvNombreActual(){
+ if(ukiInv.role==='admin')return 'Administración Uki';
+ const turno=String(cajaDelDia()?.turnoPrecierreAbierto?.nombre||'').trim();
+ if(turno)return turno;
+ return String(ukiInv.operatorName||$('ukiInvNombreOperador')?.value||'').trim().replace(/\s+/g,' ');
+}
+async function ukiInvVerHistorial(){
+ if(ukiInv.role!=='admin'||ukiInv.loading)return;
+ ukiInv.historyOpen=!ukiInv.historyOpen;
+ if(!ukiInv.historyOpen){render();return;}
+ try{
+  const r=await ukiInvRequest('GET',{history:true});
+  ukiInv.history=Array.isArray(r.history)?r.history:[];
+  ukiInv.message='';
+ }catch(e){ukiInv.error=String(e.message||e);}
+ render();
+}
+function ukiInvEntrada(sku){
+ const item=ukiInv.items.find(x=>x.sku===sku);
+ if(!item||ukiInv.loading)return;
+ const value=String($('ukiInvEntradaCantidad')?.value||'').trim();
+ const cantidad=Number(value);
+ if(!value||!Number.isFinite(cantidad)||cantidad<=0){ukiInv.error='Ingresa la cantidad recibida.';render();return;}
+ void ukiInvGuardar(sku,{},Number(item.version)||0,{operation:'entrada',quantity:cantidad});
+}
+function ukiInvEditar(sku){ukiInv.editing=ukiInv.editing===sku?'':sku;ukiInv.message='';render();}
+function ukiInvBuscar(value){ukiInv.search=String(value||'').slice(0,80);render();}
+function ukiInvFiltrar(value){ukiInv.filter=['productos','ingredientes','todos'].includes(value)?value:'productos';render();}
+async function ukiInvGuardar(sku,patch,version,extras={}){
+ if(ukiInv.loading)return;
+ const worker_name=ukiInvNombreActual();
+ if(worker_name.length<2||worker_name.length>60){
+  ukiInv.error='Identifica tu nombre antes de guardar inventario.';render();return;
+ }
+ ukiInv.loading=true;ukiInv.error='';ukiInv.message='';render();
+ try{
+  const result=await ukiInvRequest('PATCH',{sku,patch,expected_version:version,worker_name,...extras});
+  const idx=ukiInv.items.findIndex(p=>p.sku===sku);
+  if(idx<0)throw Error('Actualiza la lista antes de guardar');
+  ukiInv.items[idx]={...ukiInv.items[idx],...result.item};
+  ukiInv.message='Cambios guardados solo para '+(ukiInvBranch()==='arica'?'Regimiento Arica':'La Serena')+'.';
+  ukiInv.editing='';
+ }catch(e){ukiInv.error=String(e.message||e);}
+ finally{ukiInv.loading=false;if(S.vista==='inventario')render();}
+}
+function ukiInvEstado(sku,available){
+ const item=ukiInv.items.find(p=>p.sku===sku);
+ if(!item||ukiInv.loading)return;
+ const texto=available?'¿Marcar '+item.name+' como DISPONIBLE en la carta de esta sucursal?':'¿Marcar '+item.name+' como AGOTADO en la carta de esta sucursal?';
+ if(!confirm(texto))return;
+ void ukiInvGuardar(sku,{available},Number(item.version)||0,{operation:'disponibilidad'});
+}
+function ukiInvFormGuardar(sku){
+ const item=ukiInv.items.find(p=>p.sku===sku);
+ if(!item||ukiInv.loading)return;
+ const stockEl=$('ukiInvStock'),unitEl=$('ukiInvUnidad');
+ const stock=stockEl?.value.trim()??'';
+ if(stock===''||!Number.isFinite(Number(stock))){ukiInv.error='Ingresa una cantidad de inventario válida.';render();return;}
+ const patch={stock_qty:Number(stock),stock_unit:unitEl?.value||'un'};
+ if(ukiInv.role==='admin'&&item.kind!=='ingredient'){
+  patch.name=String($('ukiInvNombre')?.value||'').trim();
+  patch.description=String($('ukiInvDesc')?.value||'').trim();
+  const price=$('ukiInvPrecio')?.value.trim();
+  if(price===''||!Number.isSafeInteger(Number(price))){ukiInv.error='Ingresa un precio entero válido.';render();return;}
+  patch.price=Number(price);
+ }
+ void ukiInvGuardar(sku,patch,Number(item.version)||0,{operation:ukiInv.role==='admin'?'edicion':'conteo'});
+}
+async function ukiInvCrear(){
+ if(ukiInv.loading||ukiInv.role!=='admin')return;
+ const nombre=String($('ukiInvNuevoNombre')?.value||'').trim();
+ const descripcion=String($('ukiInvNuevoDesc')?.value||'').trim();
+ const precio=Number($('ukiInvNuevoPrecio')?.value||'');
+ if(nombre.length<2||!Number.isSafeInteger(precio)||precio<1){
+  ukiInv.error='Indica nombre y precio válido.';render();return;
+ }
+ ukiInv.loading=true;ukiInv.error='';render();
+ try{
+  const item={name:nombre,description:descripcion,price:precio,stock_qty:0,stock_unit:'un',available:true};
+  const result=await ukiInvRequest('POST',{item,worker_name:'Administración Uki'});
+  ukiInv.items.push(result.item);ukiInv.nuevo=false;ukiInv.filter='productos';ukiInv.search='';
+  ukiInv.message='Producto agregado a esta sucursal. Para aparecer en la carta pública requiere activar la integración de catálogo.';
+ }catch(e){ukiInv.error=String(e.message||e);}
+ finally{ukiInv.loading=false;if(S.vista==='inventario')render();}
+}
+function ukiInvForm(item){
+ const admin=ukiInv.role==='admin',esIngrediente=item.kind==='ingredient';
+ const units=['un','kg','g','l','ml','porciones'];
+ return '<div class="uki-inv-editor">'+
+  (admin&&!esIngrediente?'<label>Nombre</label><input id="ukiInvNombre" maxlength="100" value="'+esc(item.name)+'">'+
+   '<label>Precio ($)</label><input id="ukiInvPrecio" type="number" inputmode="numeric" min="0" step="1" value="'+esc(item.price??'')+'">'+
+   '<label>Descripción</label><textarea id="ukiInvDesc" maxlength="500" rows="2">'+esc(item.description||'')+'</textarea>':'')+
+  '<label>Cantidad contada</label><input id="ukiInvStock" type="number" min="0" step="0.01" inputmode="decimal" value="'+esc(item.stock_qty)+'">'+
+  '<label>Unidad</label><select id="ukiInvUnidad">'+units.map(u=>'<option value="'+u+'"'+(item.stock_unit===u?' selected':'')+'>'+u+'</option>').join('')+'</select>'+
+  '<button type="button" class="sm ok" onclick="ukiInvFormGuardar(\''+esc(item.sku)+'\')">'+(admin?'Guardar cambios':'Guardar conteo')+'</button>'+
+  '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">'+
+  '<label>Mercadería recibida · cantidad a SUMAR</label>'+
+  '<input id="ukiInvEntradaCantidad" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Ej.: 2.5">'+
+  '<button type="button" class="sm ok" onclick="ukiInvEntrada(\''+esc(item.sku)+'\')">＋ Registrar entrada de mercadería</button></div>'+
+  '<p class="muted">El inventario no cambia el botón Agotado / Disponible.</p>'+
+  '<button type="button" class="sm" onclick="ukiInvEditar(\''+esc(item.sku)+'\')">Cancelar</button></div>';
+}
+function vInventario(){
+ if(!S.suc)return vInicio();
+ const branch=ukiInvBranch(),mismo=ukiInv.branch===branch;
+ const items=(mismo?ukiInv.items:[]).filter(p=>
+  (ukiInv.filter==='todos'||(ukiInv.filter==='ingredientes'?(p.kind==='ingredient'):(p.kind!=='ingredient')))&&
+  (!ukiInv.search||[p.name,p.sku,p.group_key].some(s=>String(s||'').toLocaleLowerCase('es-CL').includes(ukiInv.search.toLocaleLowerCase('es-CL'))))
+ );
+ const lista=items.slice(0,120).map(p=>{
+  const sku=esc(p.sku),editando=ukiInv.editing===p.sku,disponible=p.available===true;
+  const precio=p.kind==='ingredient'?'':(p.price===null?'Sin precio':fmt(p.price));
+  const estado=disponible?'Disponible':'Agotado';
+  return '<div class="card uki-inv-item"><div class="uki-inv-head"><div><b>'+esc(p.name)+'</b>'+
+    '<p class="muted" style="margin:4px 0">'+esc(p.group_key)+' · '+esc(precio)+'</p></div>'+
+    '<span class="uki-inv-status '+(disponible?'uki-inv-on':'uki-inv-off')+'">'+estado+'</span></div>'+
+    '<p class="muted" style="margin:3px 0 8px">Stock: '+esc(p.stock_qty)+' '+esc(p.stock_unit)+' · independiente del estado</p>'+
+    '<button type="button" class="sm" '+(ukiInv.loading?'disabled ':'')+'onclick="ukiInvEstado(\''+sku+'\','+(!disponible)+')">'+(disponible?'Marcar agotado':'Marcar disponible')+'</button>'+
+    '<button type="button" class="sm" onclick="ukiInvEditar(\''+sku+'\')">'+(editando?'Cerrar':'Contar / recibir'+(ukiInv.role==='admin'?' / editar':''))+'</button>'+
+    (editando?ukiInvForm(p):'')+'</div>';
+ }).join('');
+ const admin=ukiInv.role==='admin';
+ const nombreTurno=String(cajaDelDia()?.turnoPrecierreAbierto?.nombre||'').trim();
+ return '<div class="section-head"><h2>Inventario y carta</h2><p>'+esc(S.suc)+' · disponibilidad manual</p></div>'+
+  '<div class="card"><p style="margin:0">El inventario y la carta funcionan por separado: <b>0 existencias NO marca agotado</b>. Solo el botón manual cambia la disponibilidad.</p>'+
+  '<p class="muted">Acceso actual: <b>'+(admin?'Administración · precios y productos':'Trabajador · conteos y agotados')+'</b>. Cada cambio queda en el historial.</p>'+
+  '<button type="button" class="sm" onclick="ir(\'inicio\')">← Volver al inicio</button>'+
+  '<button type="button" class="sm" onclick="ukiInvCargar(true)">Actualizar catálogo</button>'+
+  (UKI_CATALOGO_PREVIEW?
+   (ukiInv.previewWorker?
+    '<p class="muted">Trabajador de prueba: solo existencias y disponibilidad manual. Sin acceso a precios, caja ni pedidos.</p>'+
+    '<button type="button" class="sm" onclick="ukiInvQARegresarAdmin()">Volver a administración QA</button>':
+    '<p class="muted">Acceso QA aislado. Para probar el rol trabajador, se autoriza una llave de prueba en este iPhone, sin afectar los locales.</p>'+
+    '<button type="button" class="sm" onclick="ukiInvProbarTrabajadorQA()">Probar como trabajador (QA)</button>'):
+   ukiInv.adminMode?
+   '<button type="button" class="sm" onclick="ukiInvCambiarAcceso(false)">Volver a acceso de trabajador</button>':
+   '<button type="button" class="sm" onclick="ukiInvCambiarAcceso(true)">Acceso administración (Google)</button>')+'</div>'+
+  (!admin&&!nombreTurno?'<div class="card"><label>Tu nombre para registrar movimientos</label>'+
+   '<input id="ukiInvNombreOperador" maxlength="60" value="'+esc(ukiInv.operatorName)+'" placeholder="Nombre de quien cuenta o recibe" oninput="ukiInv.operatorName=this.value">'+
+   '<p class="muted">Si inicias un turno con tu nombre, se utilizará automáticamente el nombre del turno. El código compartido no identifica por sí solo a la persona.</p></div>':
+   (!admin?'<div class="card"><p class="muted">Registrando movimientos como: <b>'+esc(nombreTurno)+'</b></p></div>':''))+
+  (admin?'<div class="card"><button class="sm" onclick="ukiInvVerHistorial()">'+(ukiInv.historyOpen?'Ocultar':'Ver')+' historial de movimientos</button>'+
+   (ukiInv.historyOpen?(ukiInv.history.length?
+    ukiInv.history.slice(0,60).map(h=>'<div class="row"><span><b>'+esc(h.realizado_por||'')+'</b> · '+esc(h.accion||'')+
+     '<small style="display:block">'+esc(h.sku)+' · '+esc(new Date(h.creado_en).toLocaleString('es-CL'))+'</small></span>'+
+    '<b>'+esc(h.cantidad_anterior??'')+' → '+esc(h.cantidad_nueva??'')+'</b></div>').join(''):
+    '<p class="muted">Todavía no hay movimientos.</p>'):'')+'</div>':'')+
+  (ukiInv.error?'<div class="aviso" role="alert">'+esc(ukiInv.error)+'</div>':'')+
+  (ukiInv.message?'<div class="card" style="border-color:#b6cda4">'+esc(ukiInv.message)+'</div>':'')+
+  (ukiInv.loading?'<p class="muted">Consultando catálogo seguro…</p>':'')+
+  (mismo?'<div class="card"><label>Buscar producto o ingrediente</label><input value="'+esc(ukiInv.search)+'" placeholder="Ej.: camarón, gohan, palta" oninput="ukiInvBuscar(this.value)">'+
+   '<div class="chips">'+[['productos','Productos'],['ingredientes','Ingredientes'],['todos','Todos']].map(([k,t])=>
+    '<button type="button" class="chip'+(ukiInv.filter===k?' on':'')+'" onclick="ukiInvFiltrar(\''+k+'\')">'+t+'</button>').join('')+'</div>'+
+   '<p class="muted">'+items.length+' resultados · '+ukiInv.items.length+' en esta sucursal</p></div>':'')+
+  (admin&&ukiInv.items.length&&ukiInv.filter!=='ingredientes'?'<details class="card"><summary><b>＋ Agregar producto sencillo</b></summary>'+
+    '<p class="muted">Primero disponible para entradas sin armado personalizado. Promociones y sushi a tu gusto conservan sus reglas.</p>'+
+    '<label>Nombre</label><input id="ukiInvNuevoNombre" maxlength="100" placeholder="Ej.: Bebida individual">'+
+    '<label>Precio ($)</label><input type="number" id="ukiInvNuevoPrecio" min="1" step="1" placeholder="2500">'+
+    '<label>Descripción</label><textarea id="ukiInvNuevoDesc" maxlength="500" rows="2"></textarea>'+
+    '<button type="button" class="sm ok" onclick="ukiInvCrear()">Agregar a esta sucursal</button></details>':'')+
+  lista+
+  (mismo&&!ukiInv.loading&&ukiInv.items.length===0&&!ukiInv.error?'<div class="card"><p class="muted">No se encontraron productos en el catálogo.</p></div>':'');
+}
 const VISTAS=[["inicio","Inicio","⌂"],["pedidos","Pedidos","▤"],["nuevo","Nuevo","＋"],["clientes","Timbres","✧"],["caja","Caja","▣"]];
 let cajaTab="resumen";
 let movimientoTab="gastos";
@@ -318,6 +585,7 @@ function ir(v){
   if(!S.suc&&v!=="inicio")v="inicio";
   S.vista=v;
   render();
+  if(v==="inventario")setTimeout(()=>ukiInvCargar(),0);
   if(v==="pedidos"&&!ukiMesas.used&&typeof window.ukiMesasQAToken==="function")
     setTimeout(()=>{if(S.vista==="pedidos"&&S.suc)ukiMesaActualizar();},0);
   window.scrollTo({top:0,behavior:"instant"});
@@ -508,12 +776,36 @@ async function cargarRespaldo(event){
   finally{if(event?.target)event.target.value="";}
 }
 
+// Preview: acceso exclusivo al inventario; los pedidos, caja y nube siguen bloqueados.
+function ukiInvPreviewSucursal(branch){
+ if(!UKI_CATALOGO_PREVIEW||!['arica','serena'].includes(branch))return;
+ S=estadoVacioSucursal(null); // Solo estado temporal QA; no abre datos cifrados de los locales.
+ S.suc=branch==='arica'?SUCURSALES[0]:SUCURSALES[1];
+ S.vista='inventario';
+ ukiInv={...ukiInv,branch:'',items:[],history:[],editing:'',error:'',message:'',adminMode:true,previewWorker:false};
+ render();
+ void ukiInvCargar(true);
+}
 function render(){
   try{
+  if(UKI_CATALOGO_PREVIEW){
+   document.body.classList.add('uki-catalogo-qa');
+   $('suc').textContent=S.suc||'Elige una sucursal de pruebas';
+   $('ukiEstadoOperativo').textContent='Inventario QA · pedidos y caja bloqueados';
+   $('nav').style.display='none';
+   const acceso='<div class="card"><h2>Inventario y carta · prueba segura</h2>'+
+    '<p class="muted">Solo inventario de prueba. No registra pedidos, cierres ni ventas.</p>'+
+    '<button type="button" class="sm" onclick="document.getElementById(\'ukiLoginQA\').click()">Entrar con Google</button>'+
+    '<p class="muted">Google: '+(window.ukiQAAdminConectada?'conectado':'sin conectar')+'</p>'+
+    '<button type="button" class="sm" onclick="ukiInvPreviewSucursal(\'arica\')">Regimiento Arica</button>'+
+    '<button type="button" class="sm" onclick="ukiInvPreviewSucursal(\'serena\')">La Serena</button></div>';
+   $('app').innerHTML=acceso+(S.suc&&S.vista==='inventario'?vInventario():'');
+   return; // Nunca cargar ni guardar los registros cifrados de caja en Preview.
+  }
   $("suc").innerHTML=S.suc?`<span>${esc(S.suc)}</span><a href="#" onclick="salirSuc();return false;" class="salir">Salir</a>`:"Selecciona una sucursal para empezar";
   $("nav").style.display=S.suc?"grid":"none";
   $("nav").innerHTML=VISTAS.map(([k,l,icon])=>`<button type="button" class="${S.vista===k?"on":""}" onclick="ir('${k}')" aria-label="${l}" ${S.vista===k?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${l}</span></button>`).join("");
-  const f={inicio:vInicio,pedidos:vPedidos,nuevo:vNuevo,clientes:vClientes,caja:vCaja}[S.vista]||vInicio;
+  const f={inicio:vInicio,pedidos:vPedidos,nuevo:vNuevo,clientes:vClientes,caja:vCaja,inventario:vInventario}[S.vista]||vInicio;
   const msg=S.msg?`<div role="status" class="aviso" style="background:#ffece4;color:#7a2c08">${esc(S.msg)}</div>`:"";
   S.msg=null;
   $("app").innerHTML=msg+f();
@@ -568,6 +860,7 @@ function vInicio(){
     <div class="kpi"><span>Efectivo en caja</span><strong>${fmt(t.efectivoCaja)}</strong></div>
   </section>
   <button class="big cta" onclick="ir('nuevo')">＋ Registrar nuevo pedido</button>
+  <button class="quick" style="width:100%;min-height:57px;margin:0 0 16px" onclick="ir('inventario')"><b>▦</b> Inventario y carta <span>›</span></button>
   <div class="quick-grid"><button class="quick" onclick="ir('pedidos')"><b>▤</b> Revisar pedidos <span>›</span></button><button class="quick" onclick="ir('clientes')"><b>✧</b> Tarjetas (${Object.keys(S.clientes).length}) <span>›</span></button><button class="quick" onclick="ir('cierre')"><b>▣</b> Hacer cierre <span>›</span></button><button class="quick" onclick="ir('historial')"><b>◷</b> Ver historial <span>›</span></button><button class="quick" onclick="cajaTab='semana';ir('caja')"><b>▥</b> Resumen semanal <span>›</span></button></div>
   <div class="mini-help">🎟️ Timbres: 6 compras = 12 piezas · 10 compras = 36 piezas + 2 korokes.</div>`;
 }
@@ -3803,6 +4096,7 @@ import {nuevaSal,nuevaGeneracion,derivarClave,cifrarBloque,descifrarBloque} from
 import {crearSnapshotsUki} from "./uki-sushi-nube.js";
 import {crearAutoGuardadoOperativo} from "./uki-sushi-autoguardado.js";
 import {autorizarEquipoQR,obtenerSesionQR,estadoEquipoQR} from "./uki-mesas-dispositivo-live.js";
+import {estadoEquipoQA,autorizarEquipoQA,obtenerSesionQA} from "./uki-mesas-dispositivo-qa.js";
 const config={
  apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",
  authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",
@@ -3926,6 +4220,18 @@ async function accion(action){
 // cambiar el código compartido de acceso al panel ni solicitar correos al personal.
 // La confirmación de ronda requiere la misma sesión Google utilizada para
 // sincronizar Firebase, y solo después de la huella remota verificada.
+// La llave QA vive en IndexedDB independiente y solo contacta API Preview.
+window.ukiInvQAToken=async()=>obtenerSesionQA(window.ukiInvQABranch?.(),window.ukiInvQAEndpoint);
+window.ukiInvQAAutorizarEquipo=async(branch)=>{
+ if(!location.hostname.startsWith('uki-sushi-panel-')||
+    !location.hostname.endsWith('-diannaleandra-7046.vercel.app'))
+  throw Error('Este acceso solo está disponible en Preview.');
+ const equipo=await estadoEquipoQA(branch);
+ if(equipo.autorizado)return true;
+ if(!auth.currentUser)throw Error('Para autorizar pruebas, entra primero con Google administrador.');
+ await autorizarEquipoQA(branch,await auth.currentUser.getIdToken(),window.ukiInvQAEndpoint);
+ return true;
+};
 window.ukiMesasTokenEquipo=async()=>obtenerSesionQR(ukiMesaBranch());
 window.ukiMesasTokenConfirmar=async()=>auth.currentUser?auth.currentUser.getIdToken():null;
 window.ukiMesasQAToken=async()=>{
@@ -3966,6 +4272,11 @@ onAuthStateChanged(auth,user=>{
  auto.desactivar();dejarDeVigilar();
  el("ukiAutoCheck").checked=false;
  msg(user?"Google conectado. Abre la sucursal y carga su nube.":"Google sin iniciar. Ingresa con la cuenta exclusiva de Uki Sushi.");
+ if(UKI_CATALOGO_PREVIEW){
+  window.ukiQAAdminConectada=!!user;
+  render();
+  if(user&&S.suc&&S.vista==='inventario')void ukiInvCargar(true);
+ }
  actualizarBloqueo();
 },e=>msg("Error de Google: "+String(e?.code||e)));
 el("ukiLoginQA").addEventListener("click",()=>accion(async()=>{
