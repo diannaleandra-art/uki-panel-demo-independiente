@@ -1,6 +1,6 @@
 <html lang="es"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Uki Sushi · Panel de locales v8.15</title>
+<title>Uki Sushi · Panel de locales v8.16</title>
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -110,6 +110,27 @@ button:focus-visible,summary:focus-visible{outline:3px solid #dc7703;outline-off
 @media(min-width:700px){.app-nav{max-width:600px;margin-left:auto;margin-right:auto;border-radius:16px 16px 0 0}.kpi strong{font-size:23px}}
 @media(max-width:360px){.kpi strong{font-size:18px}.sub-tabs button{padding:10px}.quick{font-size:12px}}
 </style>
+<style id="uki-panel-organico-limpio">
+/* Solo estética: se mantienen las pantallas, los datos y los controles. */
+:root{--bg:#faf8f4;--card:#fffefc;--ink:#342b25;--muted:#756c62;--line:#eae4dd}
+body{background:var(--bg);color:var(--ink)}
+main{padding-top:19px}
+.card{background:var(--card);border-color:var(--line);border-radius:17px;box-shadow:0 2px 9px rgba(50,41,31,.025)}
+.card h2{line-height:1.3}
+.section-head{margin-bottom:17px}
+.section-head h2{font-weight:730}
+.section-head p{line-height:1.5}
+.kpi{background:var(--card);border-color:var(--line);border-radius:16px}
+.quick{background:var(--card);border-color:var(--line)}
+input,select,textarea{background:#fffefa;border-color:#e2ddd6}
+input:focus,select:focus,textarea:focus{outline:2px solid #d9a166;outline-offset:1px}
+.sub-tabs button:not(.selected),.movement-tabs button:not(.selected){background:var(--card)}
+details.card>summary{line-height:1.45}
+.uki-turno-card{border-color:#e1e7d7;background:#fffefa;box-shadow:0 2px 8px rgba(55,65,43,.035)}
+.uki-turno-frase{font-size:12px;line-height:1.55;color:#656a55;background:#f6f7f0;
+ border-left:3px solid #97a184;border-radius:9px;padding:10px 12px;margin:12px 0 2px}
+@media (max-width:360px){.uki-turno-frase{font-size:11.5px}}
+</style>
 <style id="uki-nube-compacta">
 #ukiNubeSeccion[hidden],#ukiMostrarConfig[hidden],#ukiAvisoInterno[hidden]{display:none!important}
 #ukiMostrarConfig{display:block;margin:10px 14px 5px auto;padding:8px 12px;border:1px solid #eadfd3;border-radius:10px;background:#fff;color:#6e5441;font-size:12px;font-weight:600;min-height:36px}
@@ -128,7 +149,7 @@ body.uki-nube-alerta #ukiEstadoOperativo{color:#b44713;font-weight:700}
 </style>
 </head>
 <body>
-<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.15 · LOCALES</h1><small id="ukiEstadoOperativo" role="status">Nube: desactivada · Abre tu sucursal y carga Firebase</small></header>
+<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.16 · LOCALES</h1><small id="ukiEstadoOperativo" role="status">Nube: desactivada · Abre tu sucursal y carga Firebase</small></header>
 <nav id="nav" class="app-nav" aria-label="Navegación de Uki Sushi"></nav>
 <section id="ukiNubeSeccion" style="margin:12px;padding:14px;background:#fff0dd;border:2px solid #b55e25;border-radius:14px">
 <b>PANEL INTERNO DE UKI SUSHI · DOS SUCURSALES</b>
@@ -674,14 +695,16 @@ function vInicioTrabajador(){
  const abierto=cajaDelDia().turnoPrecierreAbierto;
  if(abierto){
    const fechaInicio=new Date(abierto.inicioMs).toLocaleString("es-CL",{dateStyle:"short",timeStyle:"short"});
-   return '<div class="card" style="border:2px solid var(--accent)"><h2>🕒 Turno iniciado</h2>'+
+   return '<div class="card uki-turno-card"><h2>🕒 Turno iniciado</h2>'+
      '<p><b>'+esc(abierto.nombre)+'</b></p><p class="muted">Comenzó: '+esc(fechaInicio)+'</p>'+
+     '<p class="uki-turno-frase">✨ Cada detalle cuenta. ¡Hagamos un gran turno en equipo!</p>'+
      '<button class="big" onclick="ir(\'cierre\')">Ir al precierre del trabajador</button></div>';
  }
- return '<div class="card" style="border:2px solid var(--accent)"><h2>🕒 Iniciar turno de trabajador</h2>'+
+ return '<div class="card uki-turno-card"><h2>🕒 Iniciar turno de trabajador</h2>'+
    '<p class="muted">Al comenzar, registra el nombre. El precierre se hace después desde Caja.</p>'+
    '<label>Nombre del trabajador</label><input id="ukiTrabajador" maxlength="60" placeholder="Nombre del trabajador">'+
-   '<button class="big" onclick="ukiIniciarPrecierre()">Iniciar turno</button></div>';
+   '<button class="big" onclick="ukiIniciarPrecierre()">Iniciar turno</button>'+
+   '<p class="uki-turno-frase">Un turno organizado comienza con una buena actitud. 🍣</p></div>';
 }
 function vPrecierreTrabajadores(){
  const caja=cajaDelDia(),abierto=caja.turnoPrecierreAbierto;
@@ -1180,25 +1203,42 @@ function ukiPedidoDaTimbre(p){
  return !!p&&p.suc===S.suc&&p.pagado&&p.estado!=="Cancelado"&&!p.esPremio&&
   !p.productosPagadosOtroLocal&&!!String(p.cliente||"").trim();
 }
+function ukiTimbreResponsableActual(){
+ // El PIN común no identifica a la persona. Solo atribuimos el evento
+ // al trabajador cuando hay un turno iniciado expresamente con su nombre.
+ const caja=S.cajasDiarias?.[S.suc+"|"+fechaOperativaActual()];
+ return String(caja?.turnoPrecierreAbierto?.nombre||"Sin turno identificado");
+}
+function ukiAnotarEventoTimbre(p,tipo){
+ const fecha=new Date().toISOString(),responsable=ukiTimbreResponsableActual();
+ if(!Array.isArray(p.timbreEventos))p.timbreEventos=[];
+ p.timbreEventos.push({tipo,fecha,responsable});
+ if(p.timbreEventos.length>60)p.timbreEventos=p.timbreEventos.slice(-60);
+ return {fecha,responsable};
+}
 function ukiMarcarTimbreEnviado(id){
  const p=(S.pedidos||[]).find(p=>p.suc===S.suc&&p.id===Number(id));
  if(!ukiPedidoDaTimbre(p)){aviso("Solo se confirma el timbre de una compra pagada que suma timbres.");return;}
  if(p.timbreEnviadoEn){
-  if(!window.confirm("¿Quitar la confirmación de envío de este timbre?"))return;
-  p.timbreEnviadoEn=null;
-  aviso("El timbre del "+ukiReferenciaConCarta(p)+" vuelve a quedar pendiente de envío.");
+  if(!window.confirm("¿Quitar la confirmación manual de envío de este timbre? Quedará un registro del cambio."))return;
+  ukiAnotarEventoTimbre(p,"confirmacion_retirada");
+  p.timbreEnviadoEn=null;p.timbreEnviadoPor=null;
+  aviso("El timbre del "+ukiReferenciaConCarta(p)+" vuelve a quedar pendiente; se conservó el historial del cambio.");
   return;
  }
- p.timbreEnviadoEn=new Date().toISOString();
- aviso("✅ Timbre marcado como enviado al cliente · "+ukiReferenciaConCarta(p)+".");
+ const confirmado=ukiAnotarEventoTimbre(p,"declarado_enviado");
+ p.timbreEnviadoEn=confirmado.fecha;p.timbreEnviadoPor=confirmado.responsable;
+ aviso("✅ Envío DECLARADO por personal (no verificado por WhatsApp) · "+ukiReferenciaConCarta(p)+".");
 }
 function ukiTimbrePedidoUI(p){
  if(!ukiPedidoDaTimbre(p))return "";
  const enviado=!!p.timbreEnviadoEn;
  return '<div style="padding:10px;border:1px solid var(--line);border-radius:10px;margin:10px 0">'+
   '<b>'+(enviado?'✅ Timbre enviado':'🎫 Recuerda enviar el timbre al cliente')+'</b>'+
-  (enviado?'<p class="muted">Confirmado: '+esc(new Date(p.timbreEnviadoEn).toLocaleString('es-CL'))+'</p>':
-   '<p class="muted">Después de enviarlo por WhatsApp, toca el botón. El panel no lo envía automáticamente.</p>')+
+  (enviado?'<p class="muted">Declarado por personal: '+esc(new Date(p.timbreEnviadoEn).toLocaleString('es-CL'))+
+   ' · '+esc(p.timbreEnviadoPor||"Sin turno identificado")+' (no verificado por WhatsApp)</p>':
+   '<p class="muted">'+(p.timbreWhatsAppAbiertoEn?'WhatsApp abierto: '+esc(new Date(p.timbreWhatsAppAbiertoEn).toLocaleString('es-CL'))+'. ':'')+
+   'Después de pulsar Enviar en WhatsApp, confirma manualmente. Abrir WhatsApp no prueba el envío.</p>')+
   '<button type="button" class="sm'+(enviado?'':' ok')+'" onclick="ukiMarcarTimbreEnviado('+Number(p.id)+')">'+
   (enviado?'Desmarcar envío':'✓ Marcar timbre enviado')+'</button></div>';
 }
@@ -1535,7 +1575,15 @@ function avisarTimbres(key){
     window.prompt("Falta un número de WhatsApp válido para este cliente. Copia el mensaje y envíalo manualmente; puedes actualizar su teléfono en el pedido.",mensaje);
     return;
   }
-  // Solo abre un borrador. WhatsApp NO envía el mensaje automáticamente.
+  // Registrar automáticamente el intento de abrir el mensaje, nunca como
+  // "enviado": wa.me NO informa si el personal pulsó Enviar en WhatsApp.
+  const pedido=ukiUltimoPedidoConTimbre(cli);
+  if(pedido){
+   const abierto=ukiAnotarEventoTimbre(pedido,"whatsapp_abierto");
+   pedido.timbreWhatsAppAbiertoEn=abierto.fecha;
+   pedido.timbreWhatsAppAbiertoPor=abierto.responsable;
+   void guardarEnLocalStorage();
+  }
   window.open("https://wa.me/"+numero+"?text="+encodeURIComponent(mensaje),"_blank","noopener,noreferrer");
 }
 
@@ -1893,11 +1941,98 @@ function vReportes(){
  }).join("");
  return fechas+resumen+medios+dias+detalles;
 }
+// Auditoría de caja: lectura por comprobante, separada del cálculo de totales.
+// No modifica pedidos, pagos, timbres, cierres ni el efectivo de la sucursal.
+function ukiDesglosePagosPorMedio(){
+ const grupos=new Map(MEDIOS.map(m=>[m,[]]));
+ const agregar=(medio,monto,etiqueta)=>{
+  const elegido=MEDIOS.includes(medio)?medio:"Otros";
+  const valor=Number(monto);
+  if(Number.isSafeInteger(valor)&&valor>0)grupos.get(elegido).push({monto:valor,etiqueta});
+ };
+ for(const p of delSucHoy(S.pedidos)){
+  if(!p.pagado||p.estado==="Cancelado"||p.esPremio)continue;
+  const ref=ukiReferenciaConCarta(p);
+  const cliente=String(p.cliente||"Sin cliente");
+  const subtotal=Math.max(0,Number(p.subtotal??(Number(p.total||0)-Number(p.envio||0)))||0);
+  const envio=p.modalidad==="Delivery"?Math.max(0,Number(p.envio)||0):0;
+  for(const x of ukiLineasPago(p,"productos",subtotal))
+   agregar(x.medio,x.monto,ref+" · "+cliente+" · Productos");
+  for(const x of ukiLineasPago(p,"envio",envio))
+   agregar(x.medio,x.monto,ref+" · "+cliente+" · Delivery");
+ }
+ const caja=cajaDelDia();
+ for(const [medio,monto] of Object.entries(caja.apps||{}))
+  if((APPS.includes(medio)||medio==="Otros")&&Number(monto)>0)
+   agregar(medio,monto,"Venta manual de aplicación · sin pedido individual");
+ for(const x of delSucHoy(S.deliveriesManuales))
+  agregar(x.medio,x.monto,"Delivery manual · "+String(x.cliente||"Sin cliente"));
+ return grupos;
+}
+function ukiAuditoriaPagosUI(){
+ const grupos=ukiDesglosePagosPorMedio(),esperado=totales().medios;
+ const suma=Array.from(grupos.values()).flat().reduce((n,x)=>n+x.monto,0);
+ const montoEsperado=Object.values(esperado).reduce((n,v)=>n+(Number(v)||0),0);
+ const coincide=MEDIOS.every(m=>(grupos.get(m)||[]).reduce((n,x)=>n+x.monto,0)===(Number(esperado[m])||0));
+ const cuerpo=MEDIOS.map(m=>{
+  const items=grupos.get(m)||[];
+  const monto=items.reduce((n,x)=>n+x.monto,0);
+  if(!items.length&&!monto)return "";
+  return '<details style="padding:8px 0;border-bottom:1px solid var(--line)"><summary><b>'+
+   esc(m)+'</b> · '+items.length+' movimiento(s) · '+fmt(monto)+'</summary>'+
+   (items.map(x=>row(x.etiqueta,fmt(x.monto))).join("")||'<p class="muted">Sin movimientos</p>')+
+   '</details>';
+ }).join("");
+ return '<details class="card" id="ukiDesgloseMediosTurno">'+
+   '<summary style="cursor:pointer;font-weight:700">💳 Pedidos cobrados por medio de pago · '+fmt(suma)+'</summary>'+
+   '<p class="muted">Cada pedido aparece donde ingresó su dinero: efectivo, transferencia, débito y demás medios. Los pagos mixtos se separan por importe; los cobros de otro local NO se suman aquí. Las ventas de apps o delivery ingresadas sin pedido se indican por separado.</p>'+
+   (coincide&&suma===montoEsperado?
+    '<p class="muted">✅ El desglose coincide con los totales registrados en el panel.</p>':
+    '<p style="color:#a42b19"><b>⚠️ Desglose diferente del total registrado. Revisar pagos antes de cerrar.</b></p>')+
+   (cuerpo||'<p class="muted">Todavía no hay ventas cobradas en este turno.</p>')+
+   row("Total de cobros registrados en Uki",fmt(suma),"final")+
+   '</details>';
+}
+function ukiTimbresTurnoAuditoria(){
+ const registros=delSucHoy(S.pedidos).filter(ukiPedidoDaTimbre);
+ return {registros,marcados:registros.filter(p=>!!p.timbreEnviadoEn),
+  abiertos:registros.filter(p=>!!p.timbreWhatsAppAbiertoEn&&!p.timbreEnviadoEn),
+  pendientes:registros.filter(p=>!p.timbreEnviadoEn)};
+}
+function ukiAuditoriaTimbresUI(){
+ const d=ukiTimbresTurnoAuditoria();
+ const filas=d.registros.slice().sort((a,b)=>fechaRegistroMs(b)-fechaRegistroMs(a)).map(p=>{
+  const abierto=!!p.timbreWhatsAppAbiertoEn,confirmado=!!p.timbreEnviadoEn;
+  const estado=confirmado?'✅ Marcado enviado':
+     abierto?'🟠 WhatsApp abierto, envío sin confirmar':'⚪ Pendiente de envío';
+  const codigo=ukiCodigoClienteVisible(p);
+  const hora=confirmado?new Date(p.timbreEnviadoEn).toLocaleString("es-CL"):
+    abierto?new Date(p.timbreWhatsAppAbiertoEn).toLocaleString("es-CL"):"";
+  const trabajador=confirmado?String(p.timbreEnviadoPor||"Sin responsable indicado"):
+    abierto?String(p.timbreWhatsAppAbiertoPor||"Sin responsable indicado"):"";
+  return '<div style="border-top:1px solid var(--line);padding:8px 0">'+
+   '<b>'+esc(ukiReferenciaConCarta(p))+'</b> · '+esc(String(p.cliente||"Sin cliente"))+
+   (codigo?' · Código '+esc(codigo):'')+
+   '<p class="muted" style="margin:5px 0">'+esc(estado)+
+   (hora?' · '+esc(hora):'')+(trabajador?' · '+esc(trabajador):'')+'</p></div>';
+ }).join("");
+ return '<details class="card" id="ukiAuditoriaTimbresTurno">'+
+  '<summary style="cursor:pointer;font-weight:700">🎫 Auditoría de timbres del turno · '+d.registros.length+' generados</summary>'+
+  row("Compras que generan timbre",d.registros.length)+
+  row("Marcados como enviados por el personal",d.marcados.length)+
+  row("WhatsApp abierto pero sin envío confirmado",d.abiertos.length)+
+  row("Sin confirmación de envío",d.pendientes.length)+
+  '<p class="muted">Abrir WhatsApp o compartir una tarjeta NO verifica que se envió el mensaje. El estado «Marcado enviado» es una declaración manual del trabajador, no un comprobante de entrega de WhatsApp.</p>'+
+  (filas||'<p class="muted">No hay timbres de compras pagadas en este turno.</p>')+
+  '</details>';
+}
 function vCajaResumen(){
   const t=totales(), caja=cajaDelDia();
   return `<section class="kpis"><div class="kpi"><span>Venta total</span><strong>${fmt(t.totalMedios)}</strong></div><div class="kpi"><span>Sin delivery</span><strong>${fmt(t.ventaSinDelivery)}</strong></div><div class="kpi"><span>Gastos</span><strong>${fmt(t.gastosTotal)}</strong></div><div class="kpi"><span>Efectivo que queda</span><strong>${fmt(t.efectivoCaja)}</strong></div></section>
     <div class="card"><h2>Resumen de hoy</h2>${row('Pedidos pagados',t.pagadosN)}${row('Deliverys registrados para el repartidor',fmt(t.envios))}${row('Delivery cobrado en Uki',fmt(t.enviosCobradosUki))}${t.propinasEfectivo?row('Propinas en efectivo (aparte)',fmt(t.propinasEfectivo)):''}${row('Pago a repartidor',fmt(t.pagoDelivery))}${row('Total final',fmt(t.final),'final')}</div>
      ${ukiCobrosExternosTurno(t)}
+     ${ukiAuditoriaPagosUI()}
+     ${ukiAuditoriaTimbresUI()}
     <div class="quick-grid"><button class="quick" onclick="cambiarCajaTab('movimientos')">✎ Agregar movimiento <span>›</span></button><button class="quick" onclick="cambiarCajaTab('cierre')">▣ Cerrar el día <span>›</span></button><button class="quick" onclick="cambiarCajaTab('historial')">◷ Historial <span>›</span></button><button class="quick" onclick="descargarRespaldoCompleto()">⇩ Descargar respaldo <span>›</span></button></div>`;
 }
 function vMovimientos(){
@@ -2037,6 +2172,8 @@ function vCierre(){
   const pendientesText=pendientes.map(p=>"#"+esc(p.codigoCarta||p.id)+" · "+esc(p.cliente||"Sin nombre")+" · "+fmt(p.total)).join("; ");
   return `<div class="card"><h2>Venta del día</h2>${row("Pedidos del día",t.n)}${row("Pedidos pagados",t.pagadosN)}${row("Efectivo",fmt(t.medios.Efectivo))}${row("Transferencia",fmt(t.medios.Transferencia))}${row("Débito",fmt(t.medios.Débito))}${row("Edenred",fmt(t.medios.Edenred))}${row("Otros",fmt(t.medios.Otros))}${row("Uber Eats",fmt(t.medios["Uber Eats"]))}${row("PedidosYa",fmt(t.medios.PedidosYa))}${row("Rappi",fmt(t.medios.Rappi))}${row("Venta total con delivery",fmt(t.totalMedios),"sub")}${row("Venta sin delivery",fmt(t.ventaSinDelivery))}</div>
   ${ukiCobrosExternosTurno(t)}
+  ${ukiAuditoriaPagosUI()}
+  ${ukiAuditoriaTimbresUI()}
   <div class="card" style="border:2px solid var(--accent)"><h2>🛵 Pago al repartidor de Uki</h2><p class="muted">Se consideran los deliverys registrados, sin importar en qué local pagó el cliente.</p><label>Base diaria ($)</label><input type="number" value="${caja.base}" inputmode="numeric" onchange="cajaDelDia().base=Math.max(0,parseInt(this.value)||0);render()" style="font-weight:700">${row("Deliverys de pedidos ("+t.dels.length+")",fmt(t.enviosPedidos))}${row("Deliverys manuales ("+delSucHoy(S.deliveriesManuales).length+")",fmt(t.enviosManuales))}${row("Total de "+t.nDeliv+" deliverys",fmt(t.envios),"sub")}${row("Base diaria",fmt(caja.base))}${row("Total calculado para repartidor",fmt(caja.base+t.envios),"final")}<p class="muted">Antes de pagar, revisa que estos repartos se hayan realizado y no estén duplicados.</p></div>
   ${ukiDesgloseDeliverysTurno(t)}
   ${ukiGastosTurnoVisible(t)}
@@ -3431,6 +3568,31 @@ function ukiCrearPdfResumenHistorico(c){
  const medios=ukiMediosCierreHistorico(c);
  if(medios.length)medios.forEach(m=>fila(m.nombre,fmt(m.importe)));
  else fila("Medios registrados","Sin desglose");
+ if(c.detalle?.version===1&&window.ukiDetalleCierre?.agruparPagosHistoricos){
+  const porMedio=window.ukiDetalleCierre.agruparPagosHistoricos(c);
+  if(porMedio.size){
+   seccion("Pedidos por medio de pago");
+   for(const [medio,items] of porMedio){
+    fila(medio,fmt(items.reduce((n,x)=>n+x.monto,0)),true);
+    for(const item of items)lineaNota(item.concepto+" - "+fmt(item.monto));
+   }
+  }
+  const timbres=(c.detalle.pedidos||[]).filter(p=>p.pagado&&p.estado!=="Cancelado"&&
+   !p.esPremio&&!p.productosPagadosOtroLocal&&String(p.cliente||"").trim());
+  if(timbres.length){
+   seccion("Control de timbres");
+   fila("Generados",timbres.length);
+   fila("Marcados como enviados",timbres.filter(p=>!!p.timbreEnviadoEn).length);
+   fila("Sin confirmacion",timbres.filter(p=>!p.timbreEnviadoEn).length);
+   for(const p of timbres){
+    const ref="Interno #"+p.id+(p.codigoCarta?" Carta #"+p.codigoCarta:"");
+    const estado=p.timbreEnviadoEn?"Declarado enviado por "+(p.timbreEnviadoPor||"Sin turno"):
+      p.timbreWhatsAppAbiertoEn?"WhatsApp abierto, no confirmado":"Pendiente";
+    lineaNota(ref+" "+p.cliente+" - "+estado);
+   }
+   lineaNota("Abrir WhatsApp no comprueba que el mensaje fue enviado o recibido.");
+  }
+ }
  seccion("Repartidor");
  fila("Deliverys registrados",Array.isArray(c.dels)?c.dels.length:0);
  fila("Monto de los deliverys",fmt(c.envios||0));
@@ -3473,7 +3635,7 @@ function ukiCrearPdfResumenHistorico(c){
  }
  for(let i=0;i<paginas.length;i++){
   const pg=paginas[i];
-  pg.push("0.58 0.51 0.45 rg BT /F1 8 Tf 1 0 0 1 42 39 Tm (Cifras originales del cierre. Sin detalle de productos.) Tj ET");
+  pg.push("0.58 0.51 0.45 rg BT /F1 8 Tf 1 0 0 1 42 39 Tm (Cifras originales del cierre. Pagos y timbres archivados.) Tj ET");
   pg.push("0.58 0.51 0.45 rg BT /F1 8 Tf 1 0 0 1 500 39 Tm (Pag. "+(i+1)+"/"+paginas.length+") Tj ET");
  }
  const objs=[null];
