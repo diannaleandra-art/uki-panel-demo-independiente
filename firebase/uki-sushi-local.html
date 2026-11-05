@@ -43,6 +43,10 @@ button.sm.ok{background:var(--accent);border-color:var(--accent);color:#fff}
 .timbre.premio{border-style:solid;border-color:var(--ok);background:#fff1e0}
 </style>
 <style id="uki-operativo-seguridad">body.uki-operativo-bloqueado #app, body.uki-operativo-bloqueado #nav{pointer-events:none;opacity:.4;user-select:none}</style>
+<style id="uki-inventario-preview-solamente">
+body.uki-catalogo-qa #app{pointer-events:auto!important;opacity:1!important;user-select:auto!important}
+body.uki-catalogo-qa #nav,body.uki-catalogo-qa #ukiNubeSeccion,body.uki-catalogo-qa #ukiMostrarConfig{display:none!important}
+</style>
 
 <style id="uki-v88-layout">
 :root{--bg:#fcf9f5;--card:#fff;--ink:#30251f;--muted:#87776b;--accent:#ef820e;--accent-dark:#b65d00;--line:#eee5dc}
@@ -500,7 +504,9 @@ function vInventario(){
   '<p class="muted">Acceso actual: <b>'+(admin?'Administración · precios y productos':'Trabajador · conteos y agotados')+'</b>. Cada cambio queda en el historial.</p>'+
   '<button type="button" class="sm" onclick="ir(\'inicio\')">← Volver al inicio</button>'+
   '<button type="button" class="sm" onclick="ukiInvCargar(true)">Actualizar catálogo</button>'+
-  (ukiInv.adminMode?
+  (UKI_CATALOGO_PREVIEW?
+   '<p class="muted">Preview: solo administración Google. Para probar trabajadores se requiere un dispositivo QA aislado.</p>':
+   ukiInv.adminMode?
    '<button type="button" class="sm" onclick="ukiInvCambiarAcceso(false)">Volver a acceso de trabajador</button>':
    '<button type="button" class="sm" onclick="ukiInvCambiarAcceso(true)">Acceso administración (Google)</button>')+'</div>'+
   (!admin&&!nombreTurno?'<div class="card"><label>Tu nombre para registrar movimientos</label>'+
@@ -745,8 +751,32 @@ async function cargarRespaldo(event){
   finally{if(event?.target)event.target.value="";}
 }
 
+// Preview: acceso exclusivo al inventario; los pedidos, caja y nube siguen bloqueados.
+function ukiInvPreviewSucursal(branch){
+ if(!UKI_CATALOGO_PREVIEW||!['arica','serena'].includes(branch))return;
+ S=estadoVacioSucursal(null); // Solo estado temporal QA; no abre datos cifrados de los locales.
+ S.suc=branch==='arica'?SUCURSALES[0]:SUCURSALES[1];
+ S.vista='inventario';
+ ukiInv={...ukiInv,branch:'',items:[],history:[],editing:'',error:'',message:'',adminMode:true};
+ render();
+ void ukiInvCargar(true);
+}
 function render(){
   try{
+  if(UKI_CATALOGO_PREVIEW){
+   document.body.classList.add('uki-catalogo-qa');
+   $('suc').textContent=S.suc||'Elige una sucursal de pruebas';
+   $('ukiEstadoOperativo').textContent='Inventario QA · pedidos y caja bloqueados';
+   $('nav').style.display='none';
+   const acceso='<div class="card"><h2>Inventario y carta · prueba segura</h2>'+
+    '<p class="muted">Solo inventario de prueba. No registra pedidos, cierres ni ventas.</p>'+
+    '<button type="button" class="sm" onclick="document.getElementById(\'ukiLoginQA\').click()">Entrar con Google</button>'+
+    '<p class="muted">Google: '+(window.ukiQAAdminConectada?'conectado':'sin conectar')+'</p>'+
+    '<button type="button" class="sm" onclick="ukiInvPreviewSucursal(\'arica\')">Regimiento Arica</button>'+
+    '<button type="button" class="sm" onclick="ukiInvPreviewSucursal(\'serena\')">La Serena</button></div>';
+   $('app').innerHTML=acceso+(S.suc&&S.vista==='inventario'?vInventario():'');
+   return; // Nunca cargar ni guardar los registros cifrados de caja en Preview.
+  }
   $("suc").innerHTML=S.suc?`<span>${esc(S.suc)}</span><a href="#" onclick="salirSuc();return false;" class="salir">Salir</a>`:"Selecciona una sucursal para empezar";
   $("nav").style.display=S.suc?"grid":"none";
   $("nav").innerHTML=VISTAS.map(([k,l,icon])=>`<button type="button" class="${S.vista===k?"on":""}" onclick="ir('${k}')" aria-label="${l}" ${S.vista===k?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${l}</span></button>`).join("");
@@ -4204,6 +4234,11 @@ onAuthStateChanged(auth,user=>{
  auto.desactivar();dejarDeVigilar();
  el("ukiAutoCheck").checked=false;
  msg(user?"Google conectado. Abre la sucursal y carga su nube.":"Google sin iniciar. Ingresa con la cuenta exclusiva de Uki Sushi.");
+ if(UKI_CATALOGO_PREVIEW){
+  window.ukiQAAdminConectada=!!user;
+  render();
+  if(user&&S.suc&&S.vista==='inventario')void ukiInvCargar(true);
+ }
  actualizarBloqueo();
 },e=>msg("Error de Google: "+String(e?.code||e)));
 el("ukiLoginQA").addEventListener("click",()=>accion(async()=>{
