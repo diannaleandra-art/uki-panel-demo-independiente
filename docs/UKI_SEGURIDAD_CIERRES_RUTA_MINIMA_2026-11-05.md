@@ -64,3 +64,24 @@ Las pantallas de inventario QA y la lista de reposición están verificadas.
 La separación del panel operativo y los cierres NO está implementada.
 Faltan autenticación y almacenamiento financiero separados; no promocionar
 `uki-separacion-cierres-v1.mjs` sin esa implementación.
+
+## Avance QA: doble cifrado por sucursal (2026-11-05, segunda etapa)
+
+Implementados SIN conectar al almacenamiento vigente:
+- `firebase/uki-bovedas-separadas-qa.mjs` crea **dos sobres AES-256-GCM**
+  con sales, IV, claves PBKDF2 y contexto criptográfico separados:
+  `operacion` (pedidos) y `administracion` (finanzas).
+- Las claves deben ser diferentes; la de operación no puede abrir finanzas.
+- El paquete y la validación están vinculados a la sucursal y al rol;
+  se rechaza un sobre manipulado, intercambiado o de otra sucursal.
+- `tests/uki-bovedas-separadas-qa.test.cjs` comprueba con datos
+  ficticios que el trabajador no ve cierres ni gastos, que
+  administración recompone todo sin pérdida de pedidos, y que
+  el módulo NO modifica el cifrado de producción.
+- Todas estas pruebas de la rama de preparación terminaron aprobadas.
+
+**Pendiente antes de liberar:** permisos de servidor que impidan a un
+trabajador incluso descargar el sobre financiero, migración atómica
+con backups verificables, y prueba real de convivencia con la nube
+actual. El cifrado QA por sí solo **NO** hace privados los cierres que
+siguen en el snapshot compartido de producción.
