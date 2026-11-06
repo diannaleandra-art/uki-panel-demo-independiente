@@ -89,13 +89,16 @@ test('trabajador encuentra también los insumos exclusivos sin entrar a la carta
 
 test('iPhone: cantidades de inventario aceptan coma y punto sin alterar precios ni caja',()=>{
  for(const id of ['nuevoStock','nuevoMinimo','editarStock','editarMinimo']){
-  assert.match(admin,new RegExp('<input id="'+id+'" type="text" inputmode="decimal"'));
+  assert.match(admin,new RegExp('<input id="'+id+'" type="text" inputmode="text"'));
  }
  assert.match(admin,/raw\.replace\(',','\.'\)/);
  assert.match(admin,/\\d\{1,6\}/);
- assert.match(worker,/value\.type='text';value\.inputMode='decimal'/);
- assert.match(worker,/received\.type='text';received\.inputMode='decimal'/);
+ assert.match(worker,/countValue\.type='text';countValue\.inputMode='text'/);
+ assert.match(worker,/received\.type='text';received\.inputMode='text'/);
  assert.match(worker,/function decimal\(value\)/);
+ assert.match(admin,/Buscar artículo por nombre/);
+ assert.match(admin,/confirmacionArticulo/);
+ assert.match(worker,/OPCIONES/);
  assert.match(worker,/text\.replace\(',','\.'\)/);
  assert.match(panel,/id="ukiInvExtraStock" type="text" inputmode="decimal"/);
  assert.match(panel,/id="ukiInvExtraMinimo" type="text" inputmode="decimal"/);
