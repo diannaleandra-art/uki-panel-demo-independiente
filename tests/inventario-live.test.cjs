@@ -66,3 +66,21 @@ test('admin puede configurar gramos, litros o kilos sin cambiar disponible/agota
 });
 
 test('public inventory pages served from public root',()=>{ const a=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8'); const b=fs.readFileSync(path.join(__dirname,'../public/administracion.html'),'utf8'); assert.match(a,/uki-sushi-inventario\.vercel\.app/);assert.match(b,/uki-sushi-inventario\.vercel\.app/);assert.match(a,/iniciarFacturaLive/);assert.match(b,/GoogleAuthProvider/);assert.match(b,/href="\/"/);});
+
+test('catálogo de inventario funciona en servidor sin importar archivos estáticos públicos',async()=>{
+ const cat=require('../lib/uki-catalogo-v1.cjs');
+ const data=require('../lib/uki-inventario-base-data.cjs');
+ const catSource=fs.readFileSync(path.join(__dirname,'../lib/uki-catalogo-v1.cjs'),'utf8');
+ assert.doesNotMatch(catSource,/import\(['"]\.\.\/public\/candidata\//);
+ assert.match(catSource,/require\('\.\/uki-inventario-base-data\.cjs'\)/);
+ assert.equal(data.proteins.length,8);
+ assert.equal(data.monthlyExtraProteins.length,5);
+ for(const branch of ['arica','serena']){
+  const a=await cat.baseItems(branch);
+  const ingredients=a.filter(x=>x.kind==='ingredient');
+  assert.ok(ingredients.length>=40);
+  assert.equal(ingredients.filter(x=>x.name==='Pollo').length,1);
+  assert.equal(ingredients.filter(x=>x.name==='Nori').length,1);
+  assert.equal(new Set(ingredients.map(x=>x.sku)).size,ingredients.length);
+ }
+});
