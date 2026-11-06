@@ -76,7 +76,7 @@ test('factura chilena con empaque 12 KG: sugiere 12 kilos, pero exige confirmaci
  assert.equal(rows[0].sku,'');
  assert.match(rows[0].nota,/Verifica cuánta mercadería llegó/);
  assert.equal(rows[0].sugerencia,'Pollo');
- assert.match(rows[0].nota,/presentación indicada de 12 kg/);
+ assert.match(rows[0].nota,/Sugerencia por presentación: 1 Un × 12 KG = 12 kg/);
 });
 test('una foto de la vista del PDF no puede crear entradas por accidente',async()=>{
  const {leerTextoFactura}=await import(helper);
