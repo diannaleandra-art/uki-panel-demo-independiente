@@ -43,7 +43,7 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 import {iniciarFacturaQA} from './uki-factura-interfaz-qa.mjs';
 const $=id=>document.getElementById(id);
 const isQA=/^uki-sushi-panel-[a-z0-9]+-diannaleandra-7046\.vercel\.app$/.test(location.hostname);
-const API='https://uki-sushi-pedidos-c623sz1w2-diannaleandra-7046.vercel.app/api/inventario-turno-qa';
+const API='https://uki-sushi-pedidos-51bkqc3sx-diannaleandra-7046.vercel.app/api/inventario-turno-qa';
 let branch='',items=[],busy=false,requestId=null,lastSaved=null;
 const status=s=>{$('estado').textContent=s;};
 const elt=(type,text,cls)=>{const e=document.createElement(type);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
