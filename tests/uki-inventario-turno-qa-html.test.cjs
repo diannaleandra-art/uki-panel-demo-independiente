@@ -64,3 +64,25 @@ test('guardar conteo y registrar entrada vuelven a habilitarse al abrir el inven
  assert.match(worker,/count\.disabled=busy/);
  assert.match(worker,/receive\.disabled=busy/);
 });
+
+test('administración puede crear insumos con cantidades y kilos, gramos, litros o mililitros',()=>{
+ assert.match(admin,/Agregar artículos al inventario/);
+ assert.match(admin,/request\('crear-articulo'/);
+ assert.match(admin,/request\('articulos'\)/);
+ assert.match(admin,/item\.inventory_only\?'editar-articulo':'configurar-unidad'/);
+ for(const unit of ['kg','g','l','ml','un','porciones'])
+  assert.match(admin,new RegExp('value="'+unit+'"'));
+ for(const field of ['nuevoNombre','nuevoUnidad','nuevoStock','nuevoMinimo','editarUnidad','editarStock','editarMinimo'])
+  assert.match(admin,new RegExp('id="'+field+'"'));
+ assert.match(admin,/Cambiar la unidad no convierte la cifra automáticamente/);
+ assert.match(admin,/No se pudo consultar el inventario/);
+ assert.doesNotMatch(worker,/crear-articulo|editar-articulo|configurar-unidad|Agregar artículos al inventario/);
+});
+test('trabajador encuentra también los insumos exclusivos sin entrar a la carta',()=>{
+ assert.match(worker,/Ingredientes e insumos/);
+ assert.match(worker,/\['ingredient','inventory'\]\.includes\(i\.kind\)/);
+ assert.match(worker,/stock_unit/);
+ assert.match(worker,/stock_qty/);
+ assert.match(worker,/min_stock_qty/);
+ assert.doesNotMatch(worker,/precio|price|cajaDelDia/);
+});
