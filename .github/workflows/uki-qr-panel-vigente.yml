@@ -20,4 +20,4 @@ jobs:
         with:
           persist-credentials: false
       - name: Probar nube, cobro y rondas QR en memoria
-        run: node --test tests/uki-qr-huella-nube.test.cjs tests/uki-qr-cobro-integrado.test.cjs tests/uki-mesas-autoconfirmar.test.cjs tests/uki-qr-cancelacion-mesa.test.cjs tests/uki-auditoria-caja-timbres.test.cjs tests/uki-panel-inventario-carta.test.cjs tests/uki-panel-inventario-roles.test.cjs tests/uki-inventario-reposicion.test.cjs tests/uki-separacion-cierres.test.cjs
+        run: node --test tests/uki-qr-huella-nube.test.cjs tests/uki-qr-cobro-integrado.test.cjs tests/uki-mesas-autoconfirmar.test.cjs tests/uki-qr-cancelacion-mesa.test.cjs tests/uki-auditoria-caja-timbres.test.cjs tests/uki-panel-inventario-carta.test.cjs tests/uki-panel-inventario-roles.test.cjs tests/uki-inventario-reposicion.test.cjs tests/uki-separacion-cierres.test.cjs tests/uki-bovedas-separadas-qa.test.cjs
