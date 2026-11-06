@@ -46,8 +46,8 @@ test('los módulos JS de ambas pantallas pueden compilarse sin errores',()=>{
  }
 });
 
-test('ambas pantallas QA usan el mismo enlace estable del servidor, sin tocar producción',()=>{
- const expected='https://uki-sushi-inventario-qa2026-diannaleandra-7046.vercel.app/api/inventario-turno-qa';
+test('ambas pantallas QA usan el backend Preview probado y no producción',()=>{
+ const expected='https://uki-sushi-pedidos-c623sz1w2-diannaleandra-7046.vercel.app/api/inventario-turno-qa';
  assert.ok(worker.includes(expected));
  assert.ok(admin.includes(expected));
  assert.ok(!worker.includes('uki-sushi-pedidos.vercel.app/api'));
