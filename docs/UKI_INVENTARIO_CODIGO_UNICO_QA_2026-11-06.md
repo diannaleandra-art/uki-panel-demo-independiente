@@ -116,3 +116,50 @@ nuevo despliegue.
 usuaria que cambie el código existente, vuelva a registrar productos
 o repita pruebas previas. Solo solicitar abrir el inventario una vez
 cuando los dos despliegues estén listos. Producción intacta.
+
+## Cantidades y artículos exclusivos agregados a la preparación
+
+Se añadieron **sin publicar** las unidades `un`, `kg`, `g`, `l`,
+`ml` y `porciones`. Administración Google autorizada puede asignar
+unidad y mínimo a ingredientes existentes y añadir artículos exclusivos
+de inventario (ingredientes nuevos, envases y otros insumos), con cantidad
+inicial y mínimo por sucursal. No son productos de la carta, no requieren
+precio y no alteran Disponible/Agotado.
+
+El encargado con el PIN exclusivo de inventario puede ver, contar y
+registrar entradas para estos artículos nuevos, pero no crearlos ni
+cambiarles unidades. Los artículos nuevos también aparecen en las listas
+de reposición y revisiones guardadas. Todas las cantidades admiten dos
+decimales, p. ej. 1,5 kg, 750 g y 2,25 l. La unidad es fija por artículo;
+cambiarla exige volver a ingresar la cantidad correcta (sin conversión
+automática silenciosa).
+
+Backend QA: `lib/uki-inventario-extras-qa.cjs` y acciones de
+`api/inventario-turno-qa.js` `articulos`, `crear-articulo`,
+`editar-articulo` y `configurar-unidad`, con JWT administrativo
+autorizado para toda creación/edición. QA Neon, sin datos reales:
+`uki_inventario_extras_qa` y `uki_inventario_extras_movimientos_qa`.
+Migración SQL documentada en
+`migrations/2026-11-06-uki-inventario-extras-qa.sql`.
+El registro de movimientos y la modificación del stock son atómicos
+para los artículos exclusivos.
+
+Vista de administración QA:
+`firebase/uki-inventario-administracion-qa.html`, con formulario
+«Agregar al inventario» y editor de cantidades/unidades.
+Vista de trabajador QA:
+`firebase/uki-inventario-turno-qa.html`, que muestra insumos y envases
+junto con ingredientes.
+
+**Pendiente de integrar antes de una liberación real:** confirmar desde
+el acceso existente del agendador (sin exigir un nuevo Google) la
+capacidad de crear/editar artículos de inventario sin otorgar esa
+capacidad al PIN exclusivo del inventarista. Ahora la nueva ruta de
+creación/edición en QA exige Google de administración; no afirmar que
+el agendador ya puede usarla con su código habitual.
+
+La propietaria pidió **agrupar los cambios**. No publicar estas
+modificaciones de forma aislada. Primero revisar el paquete completo,
+probar conteo/entradas, envío WhatsApp, informe en panel, dos sucursales,
+QR y edición manual; después un despliegue coordinado en Preview.
+Producción continúa intacta.
