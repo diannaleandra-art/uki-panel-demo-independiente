@@ -130,3 +130,34 @@ Antes de un corte productivo: respaldo verificable de ambas sucursales,
 aislar lectura/escritura de finanzas en servidor, reconstrucción histórica,
 comprobación de accesos sin Google y rollback sin pérdida de pedidos.
 No cambiar producción sin autorización expresa.
+
+## Acceso sencillo por un solo código administrativo — preparado, NO desplegado
+
+En la rama de preparación QA se añadió `firebase/uki-cierres-admin-qa.html`
+con un único campo `Código de administración (8 números)`. Google permanece
+conectado desde la sesión autorizada del iPhone. El primer acceso ofrece
+`Crear código de administración`; ese código se crea una vez y se comparte
+**solo entre los administradores autorizados**, no con trabajadores. No se
+almacena en el navegador ni se solicita al usuario que lo envíe al chat.
+
+En la API `api/uki-finanzas-qa.js`, el código es **obligatorio para GET y PUT**
+de los cierres, además del token Google administrador. `POST estado/crear`
+permite comprobar si existe el código o configurarlo por primera vez.
+`lib/uki-finanzas-admin-pin-qa.cjs` guarda exclusivamente hash PBKDF2 con sal
+en Neon QA, nunca el texto del PIN; tiene máximo 5 intentos por identidad
+Google y bloqueo de 15 minutos con reserva SQL atómica. Los trabajadores
+con PIN o dispositivo compartido no acceden al endpoint financiero.
+
+Neon QA tiene las tablas `uki_finanzas_admin_pin_qa` y
+`uki_finanzas_pin_intentos_qa` vacías. La migración SQL reproducible está
+en `migrations/2026-11-05-uki-finanzas-pin-qa.sql`. Las pruebas
+automáticas del backend y de la página fueron aprobadas.
+
+**Bloqueo de publicación (2026-11-05):** Vercel rechazó crear la nueva
+Preview por cuota `402 api-deployments-free-per-day`. No existe todavía
+un despliegue nuevo con el código administrativo. La página QA previamente
+publicada sigue mostrando Google sin el campo de código. No ofrecerla como
+si ya incluyera la función. Tampoco se activó protección nueva en el panel
+real. Las ventas y cierres reales continúan intactos. Aun después de
+publicar QA, falta la migración separada del snapshot legado antes de
+habilitar privacidad efectiva de cierres en producción.
