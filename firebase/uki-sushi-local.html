@@ -319,7 +319,7 @@ const UKI_CATALOGO_ENDPOINT=
  location.hostname==='diannaleandra-art.github.io'
   ?'https://uki-sushi-pedidos.vercel.app/api/catalogo-live'
   :UKI_CATALOGO_PREVIEW
-   ?'https://uki-sushi-pedidos-foy0k9em4-diannaleandra-7046.vercel.app/api/catalogo-live'
+   ?'https://uki-sushi-inventario-qa2026-diannaleandra-7046.vercel.app/api/catalogo-live'
    :'';
 let ukiInv={branch:'',items:[],loading:false,error:'',message:'',search:'',filter:'productos',editing:'',nuevo:false,
  role:'trabajador',adminMode:false,previewWorker:false,history:[],historyOpen:false,operatorName:''};
@@ -473,6 +473,33 @@ function ukiInvFormGuardar(sku){
  }
  void ukiInvGuardar(sku,patch,Number(item.version)||0,{operation:ukiInv.role==='admin'?'edicion':'conteo'});
 }
+async function ukiInvCrearExtra(){
+ if(!UKI_CATALOGO_PREVIEW||ukiInv.loading)return;
+ const worker_name=ukiInvNombreActual();
+ const name=String($('ukiInvExtraNombre')?.value||'').trim(),
+  category=$('ukiInvExtraCategoria')?.value||'ingrediente',
+  stock_unit=$('ukiInvExtraUnidad')?.value||'un';
+ const parseQty=id=>{
+  const raw=String($(id)?.value||'').trim().replace(',','.'),n=Number(raw);
+  if(!raw||!Number.isFinite(n)||n<0||n>100000||Math.abs(n*100-Math.round(n*100))>1e-7)
+   throw Error('Revisa las cantidades (máximo dos decimales).');
+  return n;
+ };
+ let item;
+ try{
+  if(worker_name.length<2||worker_name.length>60)throw Error('Ingresa tu nombre antes de agregar un insumo.');
+  if(name.length<2||name.length>100)throw Error('Escribe un nombre de 2 a 100 caracteres.');
+  item={name,category,stock_unit,stock_qty:parseQty('ukiInvExtraStock'),
+   min_stock_qty:parseQty('ukiInvExtraMinimo')};
+ }catch(e){ukiInv.error=String(e.message);render();return;}
+ ukiInv.loading=true;ukiInv.error='';ukiInv.message='';render();
+ try{
+  await ukiInvRequest('POST',{inventory_only:true,item,worker_name});
+  ukiInv.message='Insumo agregado al inventario de '+(ukiInvBranch()==='arica'?'Regimiento Arica':'La Serena')+
+   '. Quedará visible en el QR del encargado; no se agrega a la carta de clientes.';
+ }catch(e){ukiInv.error=String(e.message||e);}
+ finally{ukiInv.loading=false;if(S.vista==='inventario')render();}
+}
 async function ukiInvCrear(){
  if(ukiInv.loading||ukiInv.role!=='admin')return;
  const nombre=String($('ukiInvNuevoNombre')?.value||'').trim();
@@ -548,6 +575,18 @@ function vInventario(){
    '<input id="ukiInvNombreOperador" maxlength="60" value="'+esc(ukiInv.operatorName)+'" placeholder="Nombre de quien cuenta o recibe" oninput="ukiInv.operatorName=this.value">'+
    '<p class="muted">Si inicias un turno con tu nombre, se utilizará automáticamente el nombre del turno. El código compartido no identifica por sí solo a la persona.</p></div>':
    (!admin?'<div class="card"><p class="muted">Registrando movimientos como: <b>'+esc(nombreTurno)+'</b></p></div>':''))+
+  (UKI_CATALOGO_PREVIEW?'<details class="card"><summary><b>＋ Agregar insumo al inventario (QA)</b></summary>'+
+    '<p class="muted">Ingredientes, envases y suministros que no son productos de la carta. No modifica Disponible/Agotado.</p>'+
+    '<label>Nombre del insumo</label><input id="ukiInvExtraNombre" maxlength="100" placeholder="Ej.: Arroz, envases, aceite">'+
+    '<label>Categoría</label><select id="ukiInvExtraCategoria">'+
+     '<option value="ingrediente">Ingrediente</option><option value="envase">Envase / embalaje</option><option value="otro">Otro insumo</option></select>'+
+    '<label>Unidad</label><select id="ukiInvExtraUnidad">'+
+     [['un','Unidades'],['kg','Kilos (kg)'],['g','Gramos (g)'],['l','Litros (l)'],['ml','Mililitros (ml)'],['porciones','Porciones']]
+      .map(([v,n])=>'<option value="'+v+'">'+n+'</option>').join('')+'</select>'+
+    '<label>Cantidad inicial</label><input id="ukiInvExtraStock" type="number" step="0.01" min="0" value="0">'+
+    '<label>Mínimo para reponer</label><input id="ukiInvExtraMinimo" type="number" step="0.01" min="0" value="0">'+
+    '<p class="muted">1,5 kilos; 750 gramos; 2,25 litros. No convierte cantidades automáticamente.</p>'+
+    '<button type="button" class="sm ok" onclick="ukiInvCrearExtra()">Agregar solo al inventario</button></details>':'')+
   (admin?'<div class="card"><button class="sm" onclick="ukiInvVerHistorial()">'+(ukiInv.historyOpen?'Ocultar':'Ver')+' historial de movimientos</button>'+
    (ukiInv.historyOpen?(ukiInv.history.length?
     ukiInv.history.slice(0,60).map(h=>'<div class="row"><span><b>'+esc(h.realizado_por||'')+'</b> · '+esc(h.accion||'')+
