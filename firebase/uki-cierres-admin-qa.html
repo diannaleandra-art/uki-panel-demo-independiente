@@ -8,19 +8,24 @@
 main{max-width:620px;padding:16px;margin:auto}.card{background:white;border:1px solid #eaded3;border-radius:16px;padding:20px;margin-bottom:14px}
 h1{font-size:22px;margin:0 0 5px}h2{font-size:18px;margin:0 0 12px}
 p{line-height:1.45}.muted{color:#69594c;font-size:14px}
-button,select{padding:12px;border-radius:9px;font:inherit}
+button,select,input{padding:12px;border-radius:9px;font:inherit}
 button{background:#e9832b;color:white;border:0;font-weight:600;cursor:pointer}
 button:disabled{opacity:.5}.row{display:flex;gap:10px;flex-wrap:wrap}
 select{flex:1;min-width:180px;background:white;border:1px solid #d0c2b5}
+label{display:block;margin:12px 0 6px;font-weight:600}input{width:100%;background:white;border:1px solid #d0c2b5}button[hidden]{display:none}
 #resultado{white-space:pre-wrap}#estado{font-size:14px;min-height:20px}
 </style></head><body>
 <header><h1>Uki Sushi · Cierres privados</h1><div>Acceso de administración · entorno de pruebas</div></header>
 <main>
 <section class="card">
 <h2>Administración</h2>
-<p class="muted">Esta pantalla no abre la caja real ni registra ventas. Solo consulta los cierres de prueba mediante Google autorizado.</p>
+<p class="muted">Esta pantalla es solo para pruebas; no modifica la caja real. Si Google ya está conectado, basta con escribir el código privado de administración.</p>
 <button id="entrar">Entrar con Google</button>
 <p id="cuenta" class="muted">Sin iniciar sesión</p>
+<label for="pin">Código único de administración (8 números)</label>
+<input id="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" placeholder="••••••••" aria-describedby="pinAyuda">
+<p id="pinAyuda" class="muted">Se configura una sola vez. Nunca uses aquí el código de los trabajadores.</p>
+<button id="crear" hidden>Crear código de administración</button>
 <label for="sucursal">Sucursal</label>
 <div class="row">
 <select id="sucursal"><option value="arica">Regimiento Arica</option><option value="serena">La Serena</option></select>
