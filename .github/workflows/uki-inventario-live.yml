@@ -1,0 +1,16 @@
+name: Uki inventario LIVE - pruebas aisladas
+on:
+  push:
+    branches:
+      - integracion/inventario-live-aislado-2026-11-06
+  workflow_dispatch:
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm test
