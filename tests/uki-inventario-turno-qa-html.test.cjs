@@ -53,3 +53,14 @@ test('ambas pantallas QA usan el mismo enlace estable del servidor, sin tocar pr
  assert.ok(!worker.includes('uki-sushi-pedidos.vercel.app/api'));
  assert.ok(!admin.includes('uki-sushi-pedidos.vercel.app/api'));
 });
+
+test('guardar conteo y registrar entrada vuelven a habilitarse al abrir el inventario',()=>{
+ const block=worker.split('const setBusy=value=>{')[1]?.split('};')[0];
+ assert.ok(block,'Falta controlador de botones');
+ assert.match(block,/querySelectorAll\('button'\)/);
+ assert.match(block,/b\.disabled=value/);
+ assert.match(worker,/render\(\);status\('Inventario del turno listo\.'\)/);
+ assert.match(worker,/finally\{setBusy\(false\);\}/);
+ assert.match(worker,/count\.disabled=busy/);
+ assert.match(worker,/receive\.disabled=busy/);
+});
