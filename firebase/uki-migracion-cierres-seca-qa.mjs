@@ -57,3 +57,29 @@ export function reconstruirMigracionSinGuardarQA(paquete){
  return {...copy(paquete.adicionales),...copy(paquete.finanzas),...copy(paquete.operacion)};
 }
 export const CAMPOS_FINANZAS_QA=FINANZAS;
+
+/*
+ * Compatibilidad con la API QA financiera.
+ * Los metadatos que no son pedidos se guardan en el mismo sobre privado;
+ * sin esto, filtros, ajustes futuros y campos de otras versiones se perderían.
+ * Estas funciones NO envían el sobre al servidor.
+ */
+export function crearPaquetePrivadoSinGuardarQA(paquete){
+ if(!paquete||!paquete.finanzas||!paquete.adicionales||
+    typeof paquete.finanzas!=='object'||typeof paquete.adicionales!=='object'||
+    Array.isArray(paquete.adicionales))throw Error('Falta respaldo administrativo.');
+ const keys=Object.keys(paquete.finanzas);
+ if(keys.length!==FINANZAS.length||keys.some(k=>!FINANZAS.includes(k)))
+  throw Error('El respaldo financiero tiene campos inesperados.');
+ for(const key of Object.keys(paquete.adicionales))
+  if(key==='suc'||FINANZAS.includes(key)||Object.hasOwn(paquete.operacion||{},key))
+   throw Error('Campo administrativo duplicado: '+key);
+ return {...copy(paquete.finanzas),adicionales:copy(paquete.adicionales)};
+}
+export function reconstruirDesdePaquetePrivadoQA({branch,operacion,privado}){
+ if(!privado||!Object.hasOwn(privado,'adicionales')||
+    typeof privado.adicionales!=='object'||Array.isArray(privado.adicionales))
+  throw Error('Falta respaldo de metadatos privados.');
+ const {adicionales,...finanzas}=privado;
+ return reconstruirMigracionSinGuardarQA({branch,operacion,finanzas,adicionales});
+}
