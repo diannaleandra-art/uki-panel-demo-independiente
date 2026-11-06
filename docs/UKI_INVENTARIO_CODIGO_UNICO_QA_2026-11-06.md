@@ -151,12 +151,16 @@ Vista de trabajador QA:
 `firebase/uki-inventario-turno-qa.html`, que muestra insumos y envases
 junto con ingredientes.
 
-**Pendiente de integrar antes de una liberación real:** confirmar desde
-el acceso existente del agendador (sin exigir un nuevo Google) la
-capacidad de crear/editar artículos de inventario sin otorgar esa
-capacidad al PIN exclusivo del inventarista. Ahora la nueva ruta de
-creación/edición en QA exige Google de administración; no afirmar que
-el agendador ya puede usarla con su código habitual.
+**Integración QA adicional preparada, no publicada:** el agendador,
+usando el acceso operativo ya autorizado del panel, podrá crear insumos
+exclusivos desde la sección de inventario del panel mediante
+`api/catalogo-live.js` en Preview. Esta ruta está cerrada en producción,
+no admite el PIN de seis dígitos del inventarista y no crea productos en
+la carta. Administración Google también mantiene el formulario completo
+de creación y edición de unidades. La nueva función debe comprobarse
+desde los dispositivos del agendador antes de cualquier activación real.
+La creación y edición completa de productos vendibles de la carta sigue
+en las funciones existentes; no se ha rehecho.
 
 La propietaria pidió **agrupar los cambios**. No publicar estas
 modificaciones de forma aislada. Primero revisar el paquete completo,
