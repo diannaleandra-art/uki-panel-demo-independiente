@@ -19,8 +19,8 @@ test('aislamiento absoluto: inventario de producción nunca usa Neon QA ni previ
  assert.equal(pin.habilitado({VERCEL_ENV:'production',UKI_INVENTARIO_LIVE_ENABLED:'true'}),true);
 });
 test('API sólo acepta el sitio real; no permite QR, pruebas ni orígenes terceros',()=>{
- assert.equal(api._testing.permitido('https://uki-sushi-panel.vercel.app'),true);
- assert.equal(api._testing.permitido('https://uki-sushi-panel-qa2026-diannaleandra-7046.vercel.app'),false);
+ assert.equal(api._testing.permitido('https://uki-sushi-inventario.vercel.app'),true);
+ assert.equal(api._testing.permitido('https://uki-sushi-panel.vercel.app'),false);
  assert.equal(api._testing.permitido('https://evil.example'),false);
 });
 test('el panel sólo suma enlaces al inventario y conserva sus secciones existentes',()=>{
@@ -64,3 +64,5 @@ test('admin puede configurar gramos, litros o kilos sin cambiar disponible/agota
  const x=await core.configurar(sql,'arica','ingredient:proteina-pollo',{stock_unit:'kg',stock_qty:10,min_stock_qty:2},0,'admin');
  assert.equal(x.stock_qty,10);assert.equal(x.min_stock_qty,2);assert.equal(x.stock_unit,'kg');
 });
+
+test('public inventory pages served from public root',()=>{ const a=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8'); const b=fs.readFileSync(path.join(__dirname,'../public/administracion.html'),'utf8'); assert.match(a,/uki-sushi-inventario\.vercel\.app/);assert.match(b,/uki-sushi-inventario\.vercel\.app/);assert.match(a,/iniciarFacturaLive/);assert.match(b,/GoogleAuthProvider/);assert.match(b,/href="\/"/);});

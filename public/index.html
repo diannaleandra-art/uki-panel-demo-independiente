@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive"><title>Uki Sushi · Inventario del turno</title>
+<style>
+:root{font-family:system-ui,-apple-system,sans-serif;background:#fff9f3;color:#30251c}*{box-sizing:border-box}
+body{margin:0;padding-bottom:28px}header{background:#e9822d;color:#fff;padding:24px 17px}header h1{font-size:22px;margin:0 0 5px}
+main{max-width:680px;margin:auto;padding:16px}.card{background:white;border:1px solid #e9dacd;border-radius:16px;padding:18px;margin-bottom:13px}
+h2{font-size:19px;margin:0 0 12px}p{line-height:1.45}.muted{color:#766252;font-size:14px}
+label{display:block;font-weight:600;margin:11px 0 6px}input,select{font:inherit;border:1px solid #d5c4b6;border-radius:9px;padding:12px;width:100%;background:white}
+button{font:600 15px system-ui;background:#e9822d;color:white;border:0;border-radius:10px;padding:12px;cursor:pointer}
+button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;border:1px solid #eed2bd}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.line{display:flex;gap:10px;align-items:center;justify-content:space-between}
+.stock{max-width:130px}.unit-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:9px 0}.unit-row input{max-width:130px}.unit-row select{max-width:185px}.small{font-size:13px}.pill{font-weight:600;color:#355f3b}.warn{color:#97530c}.confirmacion-item{background:#eff9ef;color:#245e2c;padding:9px;border-radius:8px;font-weight:600}.error-item{background:#fff2e8;color:#8a350a;padding:9px;border-radius:8px}
+#estado{min-height:20px}details{margin-top:10px}summary{cursor:pointer;color:#915a2b}footer{text-align:center;color:#826b58;font-size:12px}
+[hidden]{display:none!important}
+</style></head>
+<body><header><h1>🍣 Uki Sushi · Inventario</h1><div>Conteo del turno · sin caja, ventas ni cierres</div></header>
+<main>
+<section class="card">
+<h2>1. Abrir inventario</h2>
+<label for="branch">Sucursal</label><select id="branch"><option value="arica">Regimiento Arica</option><option value="serena">La Serena</option></select>
+<label for="nombre">Nombre del trabajador</label><input id="nombre" maxlength="60" placeholder="Nombre de quien cuenta">
+<label for="codigo">Código exclusivo de inventario (6 números)</label>
+<input id="codigo" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="••••••">
+<p class="muted">Este código solo permite contar, registrar mercadería y enviar la revisión. No abre el panel de pedidos.</p>
+<button id="abrir">Abrir inventario</button><p id="estado" role="status" class="muted"></p>
+</section>
+<div id="activo" hidden>
+<section class="card"><h2>2. Contar lo que queda</h2>
+<div class="grid"><select id="tipo" aria-label="Tipo de artículo">
+<option value="ingredientes">Ingredientes e insumos</option><option value="productos">Productos de la carta</option><option value="todos">Todos</option></select>
+<input id="buscar" placeholder="Buscar pollo, palta…"></div>
+<p class="muted">El stock nunca cambia automáticamente Disponible / Agotado. Eso lo controla el agendador.</p></section>
+<div id="items"></div>
+<section class="card"><h2>3. Terminar y enviar revisión</h2><p id="resumen" class="muted"></p>
+<button id="enviar">Guardar en el panel y compartir por WhatsApp</button>
+<p class="muted">Primero confirma el guardado en el panel. Después podrás compartir el mismo reporte por WhatsApp.</p>
+<p id="confirmacion" role="status"></p></section>
+</div>
+<footer>Uki Sushi · Revisión independiente de caja y cierres</footer>
+</main>
+<script type="module">
+import {iniciarFacturaLive} from './uki-factura-interfaz-live.mjs';
+const $=id=>document.getElementById(id);
+const isLive=['uki-sushi-inventario.vercel.app','uki-sushi-inventario-diannaleandra-7046.vercel.app'].includes(location.hostname);
+const API='/api/inventario-turno-live';
+let branch='',items=[],busy=false,requestId=null,lastSaved=null;
+const status=s=>{$('estado').textContent=s;};
+const elt=(type,text,cls)=>{const e=document.createElement(type);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
+function nombre(){const n=$('nombre').value.trim().replace(/\s+/g,' ');if(n.length<2||n.length>60)throw Error('Escribe el nombre de quien cuenta.');return n;}
+function codigo(){const n=$('codigo').value;if(!/^[0-9]{6}$/.test(n))throw Error('Escribe el código de inventario de 6 números.');return n;}
+async function api(action,extra={}){
+ if(!isLive)throw Error('Esta página está disponible únicamente en producción.');
+ const response=await fetch(API,{method:'POST',cache:'no-store',credentials:'omit',mode:'cors',
+  headers:{'Content-Type':'application/json'},body:JSON.stringify({
+   branch:branch||$('branch').value,action,codigo:codigo(),worker_name:nombre(),...extra
+  }),signal:AbortSignal.timeout(20000)});
+ const body=await response.json().catch(()=>({}));
+ if(!response.ok||!body.ok)throw Error(body.error||'No se pudo guardar. No reintentes sin revisar el estado.');
+ return body;
+}
+function decimal(value){
+ const text=String(value??'').trim();
+ if(!/^\d{1,6}(?:[.,]\d{1,3})?$/.test(text))return NaN;
+ const n=Number(text.replace(',','.'));
+ return Number.isFinite(n)&&n>=0&&n<=100000?n:NaN;
+}
+const UNIDADES={kg:'Kilos (kg)',g:'Gramos (g)',l:'Litros (l)',ml:'Mililitros (ml)',un:'Unidades (un)',porciones:'Porciones'};
+const OPCIONES={kg:['kg','g'],g:['g','kg'],l:['l','ml'],ml:['ml','l'],un:['un'],porciones:['porciones']};
+const FACTOR={kg:1000,g:1,l:1000,ml:1,un:1,porciones:1};
+const GRUPO={kg:'peso',g:'peso',l:'volumen',ml:'volumen',un:'unidad',porciones:'porcion'};
+function convertirVista(numero,origen,destino){
+ if(!Number.isFinite(numero)||!OPCIONES[destino]?.includes(origen)||GRUPO[origen]!==GRUPO[destino])return NaN;
+ if((origen==='un'||origen==='porciones')&&!Number.isInteger(numero))return NaN;
+ const resultado=numero*FACTOR[origen]/FACTOR[destino];
+ if(resultado>100000||Math.abs(resultado*1000-Math.round(resultado*1000))>1e-7)return NaN;
+ return Math.round(resultado*1000)/1000;
+}
+const formato=(cantidad,unidad)=>Number(cantidad).toLocaleString('es-CL',{maximumFractionDigits:3})+' '+unidad;
+function selectorUnidad(item){
+ const sel=elt('select');
+ sel.setAttribute('aria-label','Unidad para '+item.name);
+ for(const unidad of OPCIONES[item.stock_unit]||[item.stock_unit])
+  sel.add(new Option(UNIDADES[unidad]||unidad,unidad));
+ sel.value=item.stock_unit;
+ return sel;
+}
+const factura=iniciarFacturaLive({getBranch:()=>branch,getItems:()=>items,
+ post:(action,params)=>api(action,params),
+ onSaved:response=>{items=items.map(x=>x.sku===response.item.sku?{...x,...response.item}:x);
+ requestId=null;$('confirmacion').textContent='';render();},
+ onItemsCreated:created=>{const union=new Map(items.map(i=>[i.sku,i]));
+ for(const item of created)union.set(item.sku,item);
+ items=[...union.values()];render();}
+});
+const setBusy=value=>{
+ busy=value;$('abrir').disabled=value;$('enviar').disabled=value;
+ // Al terminar la carga, reactivar los botones creados durante render().
+ $('items').querySelectorAll('button').forEach(b=>{b.disabled=value;});
+};
+function resumen(){
+ const configured=items.filter(x=>Number(x.min_stock_qty)>0);
+ const missing=configured.filter(x=>Number(x.stock_qty)<=Number(x.min_stock_qty));
+ $('resumen').textContent=missing.length+' artículos por reponer · '+configured.length+
+  ' mínimos configurados · '+(items.length-configured.length)+' sin mínimo.';
+}
+function render(){
+ const box=$('items');box.replaceChildren();
+ const kind=$('tipo').value,term=$('buscar').value.trim().toLocaleLowerCase('es-CL');
+ const visible=items.filter(i=>(kind==='todos'||(kind==='ingredientes'?['ingredient','inventory'].includes(i.kind):!['ingredient','inventory'].includes(i.kind)))&&
+  (!term||String(i.name).toLocaleLowerCase('es-CL').includes(term)));
+ for(const item of visible){
+  const card=elt('section',undefined,'card');
+  const description=elt('div'),name=elt('strong',item.name);
+  const min=Number(item.min_stock_qty)||0,qty=Number(item.stock_qty)||0;
+  description.append(name,elt('p','Hay: '+formato(qty,item.stock_unit||'un')+
+   ' · mínimo: '+(min>0?formato(min,item.stock_unit||'un'):'sin configurar'),'muted small'));
+  if(min>0&&qty<=min)description.append(elt('p',min===qty?'Comprar: mínimo alcanzado. ' : 'Faltan '+formato(Math.round((min-qty)*1000)/1000,item.stock_unit||'un'),'warn small'));
+  card.append(description);
+  const countRow=elt('div',undefined,'unit-row'),countValue=elt('input'),countUnit=selectorUnidad(item);
+  countValue.type='text';countValue.inputMode='text';countValue.autocomplete='off';countValue.maxLength=12;
+  countValue.value=String(qty);countValue.setAttribute('aria-label','Cantidad contada de '+item.name);
+  countRow.append(countValue,countUnit);
+  const countHint=elt('p',undefined,'muted small');
+  const limpiarConfirmacion=()=>{
+   if(lastSaved?.sku===item.sku){lastSaved=null;card.querySelector('.confirmacion-item,.error-item')?.remove();}
+  };
+  const previewCount=()=>{
+   const n=decimal(countValue.value),converted=convertirVista(n,countUnit.value,item.stock_unit);
+   countHint.textContent=Number.isFinite(converted)?
+    'Conteo: '+formato(n,countUnit.value)+' → '+formato(converted,item.stock_unit)+'.':
+    'Escribe una cantidad válida, sin pérdida de precisión (hasta 3 decimales).';
+  };
+  countValue.oninput=()=>{limpiarConfirmacion();previewCount();};
+  countUnit.onchange=()=>{
+   limpiarConfirmacion();
+   countValue.value='';
+   countValue.placeholder='Cantidad en '+countUnit.value;
+   previewCount();
+  };
+  previewCount();
+  const count=elt('button','Guardar conteo');count.disabled=busy;
+  count.onclick=async()=>{
+   const n=decimal(countValue.value);
+   if(!Number.isFinite(convertirVista(n,countUnit.value,item.stock_unit))){
+    countHint.textContent='Cantidad o unidad inválida; no se guardó.';return;
+   }
+   await save(item,'contar',n,countUnit.value);
+  };
+  const details=elt('details'),summary=elt('summary','Recibimos mercadería de '+item.name);
+  const recRow=elt('div',undefined,'unit-row'),received=elt('input'),recUnit=selectorUnidad(item);
+  received.type='text';received.inputMode='text';received.autocomplete='off';received.maxLength=12;
+  received.placeholder='Cantidad recibida';received.setAttribute('aria-label','Mercadería recibida de '+item.name);
+  recRow.append(received,recUnit);
+  const recHint=elt('p',undefined,'muted small');
+  const previewReceive=()=>{
+   const n=decimal(received.value),converted=convertirVista(n,recUnit.value,item.stock_unit);
+   recHint.textContent=Number.isFinite(converted)&&converted>0?
+    'Recibir '+formato(n,recUnit.value)+' = '+formato(converted,item.stock_unit)+
+    '. Nuevo saldo: '+formato(Math.round((qty+converted)*1000)/1000,item.stock_unit)+'.':
+    'Indica cuánto recibimos y elige la unidad (g/kg o ml/l).';
+  };
+  received.oninput=()=>{limpiarConfirmacion();previewReceive();};
+  recUnit.onchange=()=>{limpiarConfirmacion();previewReceive();};
+  previewReceive();
+  const receive=elt('button','Registrar entrada','secondary');receive.disabled=busy;
+  receive.onclick=async()=>{
+   const n=decimal(received.value);
+   if(!Number.isFinite(convertirVista(n,recUnit.value,item.stock_unit))||n<=0){
+    recHint.textContent='Cantidad o unidad inválida; no se guardó.';return;
+   }
+   await save(item,'recibir',n,recUnit.value);
+  };
+  details.append(summary,recRow,recHint,receive);
+  card.append(countRow,countHint,count,details);
+  if(lastSaved?.sku===item.sku){
+   const note=elt('p',lastSaved.message,lastSaved.ok?'confirmacion-item':'error-item');
+   note.setAttribute('role','status');card.append(note);
+  }
+  box.append(card);
+ }
+ if(!visible.length)box.append(elt('p','No hay productos con este filtro.','muted'));
+ resumen();
+}
+async function save(item,action,cantidad,unidad){
+ if(busy)return;setBusy(true);status('Guardando '+item.name+'…');
+ try{
+  const response=await api(action,{sku:item.sku,cantidad,unidad,expected_version:Number(item.version)});
+  items=items.map(x=>x.sku===item.sku?{...x,...response.item}:x);
+  requestId=null;$('confirmacion').textContent='';
+  const registro=response.registro||{base:cantidad,unidadBase:item.stock_unit};
+  lastSaved={sku:item.sku,ok:true,message:'✓ '+(action==='contar'?'Conteo':'Entrada')+
+   ' guardada: '+formato(cantidad,unidad)+' = '+formato(registro.base,registro.unidadBase)+
+   '. Ahora hay '+formato(response.item.stock_qty,response.item.stock_unit)+'.'};
+  status('Guardado para '+($('branch').value==='arica'?'Regimiento Arica':'La Serena')+'.');
+ }catch(e){
+  lastSaved={sku:item.sku,ok:false,message:'No se confirmó el guardado: '+String(e.message)+'. Actualiza el inventario antes de volver a intentar.'};
+  status(lastSaved.message);
+ }
+ finally{setBusy(false);render();}
+}
+async function abrir(){
+ if(busy)return;
+ try{nombre();codigo();}catch(e){status(e.message);return;}
+ setBusy(true);status('Cargando inventario…');
+ try{
+  const result=await api('listar');
+  branch=$('branch').value;items=result.items||[];requestId=null;lastSaved=null;factura.reset();
+  $('activo').hidden=false;$('confirmacion').textContent='';
+  render();status('Inventario del turno listo.');
+ }catch(e){branch='';items=[];$('activo').hidden=true;status(String(e.message));}
+ finally{setBusy(false);}
+}
+$('abrir').onclick=abrir;
+$('branch').onchange=()=>{branch='';items=[];lastSaved=null;factura.reset();$('activo').hidden=true;status('');};
+$('codigo').oninput=()=>{if(branch){branch='';items=[];factura.reset();$('activo').hidden=true;}};
+$('tipo').onchange=render;$('buscar').oninput=render;
+$('enviar').onclick=async()=>{
+ if(busy||!branch||branch!==$('branch').value)return;
+ setBusy(true);$('confirmacion').textContent='Guardando revisión en el panel…';
+ try{
+  if(!requestId)requestId=crypto.randomUUID();
+  const result=await api('finalizar',{request_id:requestId});
+  if(result.guardado!==true)throw Error('No se confirmó el guardado.');
+  $('confirmacion').textContent='✓ Revisión guardada en el panel. Puedes compartirla.';
+  if(navigator.share){
+   try{await navigator.share({title:'Uki Sushi · Reposición',text:result.mensaje});return;}
+   catch(e){if(e?.name==='AbortError')return;}
+  }
+  window.open('https://wa.me/?text='+encodeURIComponent(result.mensaje),'_blank','noopener');
+ }catch(e){$('confirmacion').textContent='No se confirmó el envío al panel: '+String(e.message);}
+ finally{setBusy(false);}
+};
+if(!isLive)status('Acceso disponible en el panel oficial de Uki Sushi.');
+</script></body></html>
