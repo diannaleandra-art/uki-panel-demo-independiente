@@ -7,7 +7,7 @@ body{margin:0;padding-bottom:28px}header{background:#e9822d;color:#fff;padding:2
 header h1{font-size:22px;margin:0 0 5px}main{max-width:680px;margin:auto;padding:16px}
 .card{background:#fff;border:1px solid #eadccf;border-radius:15px;margin-bottom:12px;padding:18px}
 button,select,input{font:inherit;border-radius:9px;padding:12px}button{border:0;background:#e9822d;color:#fff;font-weight:600}
-button:disabled{opacity:.5}select,input{background:white;border:1px solid #d9c9bb;width:100%}label{font-weight:600;display:block;margin:12px 0 6px}
+button:disabled{opacity:.5}.button-line{display:flex;flex-wrap:wrap;gap:8px}.button-line button{flex:1}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.form-grid label{margin-bottom:4px}.form-grid > div{min-width:0}.section-detail{border-top:1px solid #eadccf;margin-top:16px;padding-top:14px}select,input{background:white;border:1px solid #d9c9bb;width:100%}label{font-weight:600;display:block;margin:12px 0 6px}
 p{line-height:1.4}.muted{color:#796657;font-size:14px}h2{font-size:19px;margin:0 0 12px}h3{font-size:17px}
 [hidden]{display:none!important}
 </style></head><body>
@@ -24,6 +24,33 @@ p{line-height:1.4}.muted{color:#796657;font-size:14px}h2{font-size:19px;margin:0
 <select id="sucursal"><option value="arica">Regimiento Arica</option><option value="serena">La Serena</option></select>
 <button id="ver" disabled>Ver revisiones del inventario</button>
 <p id="estado" role="status" class="muted"></p>
+</section>
+<section class="card" id="editor" hidden>
+<h2>Agregar artículos al inventario</h2>
+<p class="muted">Crea ingredientes, envases o insumos para contar. Estos artículos NO se agregan a la carta de clientes ni cambian Disponible/Agotado.</p>
+<label for="nuevoNombre">Nombre del artículo</label><input id="nuevoNombre" maxlength="100" placeholder="Ej.: Arroz, bolsas delivery, aceite">
+<div class="form-grid">
+<div><label for="nuevoCategoria">Categoría</label><select id="nuevoCategoria"><option value="ingrediente">Ingrediente</option><option value="envase">Envases y embalajes</option><option value="otro">Otro insumo</option></select></div>
+<div><label for="nuevoUnidad">Unidad</label><select id="nuevoUnidad"><option value="un">Unidades</option><option value="kg">Kilos (kg)</option><option value="g">Gramos (g)</option><option value="l">Litros (l)</option><option value="ml">Mililitros (ml)</option><option value="porciones">Porciones</option></select></div>
+<div><label for="nuevoStock">Cantidad inicial</label><input id="nuevoStock" type="number" inputmode="decimal" min="0" max="100000" step=".01" value="0"></div>
+<div><label for="nuevoMinimo">Mínimo para reponer</label><input id="nuevoMinimo" type="number" inputmode="decimal" min="0" max="100000" step=".01" value="0"></div>
+</div>
+<p class="muted">Ejemplos: 1,5 kg; 750 g; 2,25 litros. Se permiten hasta dos decimales.</p>
+<div class="button-line"><button id="agregarArticulo">Agregar al inventario</button><button id="actualizarArticulos" type="button">Actualizar lista</button></div>
+<p id="estadoArticulos" role="status" class="muted"></p>
+<div class="section-detail">
+<h2>Editar unidad o cantidad</h2>
+<p class="muted">Sirve también para ingredientes existentes, como pollo o palta. Cambiar la unidad no convierte la cifra automáticamente: escribe la cantidad correcta para la nueva unidad.</p>
+<label for="articuloExistente">Artículo existente</label><select id="articuloExistente"><option value="">Cargar artículos…</option></select>
+<div id="edicionArticulo" hidden>
+<div class="form-grid">
+<div><label for="editarUnidad">Unidad</label><select id="editarUnidad"><option value="un">Unidades</option><option value="kg">Kilos (kg)</option><option value="g">Gramos (g)</option><option value="l">Litros (l)</option><option value="ml">Mililitros (ml)</option><option value="porciones">Porciones</option></select></div>
+<div><label for="editarStock">Cantidad actual</label><input id="editarStock" type="number" inputmode="decimal" min="0" max="100000" step=".01"></div>
+<div><label for="editarMinimo">Mínimo de reposición</label><input id="editarMinimo" type="number" inputmode="decimal" min="0" max="100000" step=".01"></div>
+</div>
+<button id="guardarArticulo">Guardar unidad y cantidades</button>
+</div>
+</div>
 </section>
 <section class="card"><h2>QR / enlace para el trabajador</h2>
 <p class="muted">Se abre en el celular del encargado de inventario. Solo necesita su nombre, sucursal y el código de inventario.</p>
@@ -42,7 +69,7 @@ const config={apiKey:'AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA',
  storageBucket:'uki-panel-f4909.firebasestorage.app',messagingSenderId:'1070481165758',
  appId:'1:1070481165758:web:b8f0f9ff40caf5b8ac7def'};
 const auth=getAuth(initializeApp(config));
-let configured=null,busy=false;
+let configured=null,busy=false,articulos=[];
 function estado(s){$('estado').textContent=s;}
 function controls(){
  const yes=validHost&&!!auth.currentUser;
@@ -50,6 +77,10 @@ function controls(){
  $('crear').hidden=!yes||configured!==false;
  $('crear').disabled=busy||!/^[0-9]{6}$/.test($('codigo').value);
  $('ver').disabled=!yes||busy;
+ $('editor').hidden=!yes;
+ $('agregarArticulo').disabled=!yes||busy;
+ $('actualizarArticulos').disabled=!yes||busy;
+ $('guardarArticulo').disabled=!yes||busy;
 }
 async function request(action,extra={}){
  if(!auth.currentUser||!validHost)throw Error('Se requiere Google autorizado.');
@@ -76,7 +107,9 @@ async function iniciar(){
 }
 onAuthStateChanged(auth,user=>{
  $('cuenta').textContent=user?'Google conectado':'Sin iniciar sesión';
- configured=null;$('codigo').value='';$('resultados').hidden=true;controls();
+ configured=null;$('codigo').value='';$('resultados').hidden=true;
+ articulos=[];$('articuloExistente').replaceChildren(new Option('Cargar artículos…',''));
+ $('edicionArticulo').hidden=true;controls();
  if(user)void iniciar();
 });
 $('google').onclick=async()=>{
@@ -94,7 +127,9 @@ $('crear').onclick=async()=>{
  }catch(e){estado(String(e.message));}
  finally{busy=false;controls();}
 };
-$('sucursal').onchange=()=>{$('resultados').hidden=true;};
+$('sucursal').onchange=()=>{$('resultados').hidden=true;articulos=[];
+ $('edicionArticulo').hidden=true;$('articuloExistente').replaceChildren(new Option('Cargar artículos…',''));
+ $('estadoArticulos').textContent='';};
 const make=(tag,text)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e;};
 $('ver').onclick=async()=>{
  if(busy||!auth.currentUser)return;
@@ -117,6 +152,89 @@ $('ver').onclick=async()=>{
   }
   $('resultados').hidden=false;estado('Revisiones consultadas.');
  }catch(e){estado(String(e.message));}
+ finally{busy=false;controls();}
+};
+
+const UNIDADES=new Set(['un','kg','g','l','ml','porciones']);
+function numero(id){
+ const raw=$(id).value.trim().replace(',','.');
+ const n=Number(raw);
+ if(!raw||!Number.isFinite(n)||n<0||n>100000||Math.abs(n*100-Math.round(n*100))>1e-7)
+  throw Error('Revisa las cantidades. Se permiten hasta dos decimales.');
+ return Math.round(n*100)/100;
+}
+function entradaDatos(){
+ return {name:$('nuevoNombre').value.trim(),category:$('nuevoCategoria').value,
+  stock_unit:$('nuevoUnidad').value,stock_qty:numero('nuevoStock'),
+  min_stock_qty:numero('nuevoMinimo')};
+}
+function editarDatos(item){
+ const stock_unit=$('editarUnidad').value;
+ if(!UNIDADES.has(stock_unit))throw Error('Unidad no permitida.');
+ return {name:item.name,category:item.category||'ingrediente',
+  stock_unit,stock_qty:numero('editarStock'),min_stock_qty:numero('editarMinimo')};
+}
+function selArticulo(){
+ return articulos.find(x=>x.sku===$('articuloExistente').value);
+}
+function seleccion(){
+ const item=selArticulo();
+ $('edicionArticulo').hidden=!item;
+ if(!item)return;
+ $('editarUnidad').value=item.stock_unit;
+ $('editarStock').value=String(item.stock_qty);
+ $('editarMinimo').value=String(item.min_stock_qty);
+}
+function mostrarArticulos(){
+ const sel=$('articuloExistente'),before=sel.value;
+ sel.replaceChildren(new Option('Elige un artículo…',''));
+ for(const item of articulos){
+  const label=item.name+' · '+(item.inventory_only?'Inventario':'Ingrediente')+' ('+item.stock_unit+')';
+  sel.add(new Option(label,item.sku));
+ }
+ if(articulos.some(x=>x.sku===before))sel.value=before;
+ seleccion();
+}
+async function cargarArticulos(){
+ const suc=$('sucursal').value;
+ const body=await request('articulos');
+ if(suc!==$('sucursal').value)return;
+ articulos=body.items||[];
+ mostrarArticulos();
+ $('estadoArticulos').textContent=articulos.length+' artículos disponibles para editar.';
+}
+$('articuloExistente').onchange=seleccion;
+$('actualizarArticulos').onclick=async()=>{
+ if(busy)return;busy=true;controls();$('estadoArticulos').textContent='Cargando artículos…';
+ try{await cargarArticulos();}catch(e){$('estadoArticulos').textContent=String(e.message);}
+ finally{busy=false;controls();}
+};
+$('agregarArticulo').onclick=async()=>{
+ if(busy)return;
+ let item;
+ try{item=entradaDatos();if(item.name.length<2||item.name.length>100)throw Error('Escribe un nombre de 2 a 100 caracteres.');}
+ catch(e){$('estadoArticulos').textContent=String(e.message);return;}
+ busy=true;controls();$('estadoArticulos').textContent='Guardando artículo…';
+ try{
+  await request('crear-articulo',{item});
+  $('nuevoNombre').value='';$('nuevoStock').value='0';$('nuevoMinimo').value='0';
+  await cargarArticulos();$('estadoArticulos').textContent='Artículo agregado solo al inventario de esta sucursal.';
+ }catch(e){$('estadoArticulos').textContent=String(e.message);}
+ finally{busy=false;controls();}
+};
+$('guardarArticulo').onclick=async()=>{
+ if(busy)return;
+ const item=selArticulo();
+ if(!item){$('estadoArticulos').textContent='Selecciona un artículo.';return;}
+ let data;try{data=editarDatos(item);}catch(e){$('estadoArticulos').textContent=String(e.message);return;}
+ busy=true;controls();$('estadoArticulos').textContent='Guardando cambios…';
+ try{
+  await request(item.inventory_only?'editar-articulo':'configurar-unidad',{
+   sku:item.sku,expected_version:Number(item.version),
+   ...(item.inventory_only?{item:data}:{stock_unit:data.stock_unit,stock_qty:data.stock_qty,min_stock_qty:data.min_stock_qty})
+  });
+  await cargarArticulos();$('estadoArticulos').textContent='Unidad y cantidades actualizadas para esta sucursal.';
+ }catch(e){$('estadoArticulos').textContent=String(e.message);}
  finally{busy=false;controls();}
 };
 if(!validHost)estado('Esta vista solo está disponible en pruebas.');
