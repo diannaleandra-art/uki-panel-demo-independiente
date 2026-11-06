@@ -60,6 +60,8 @@ async function api(action,extra={}){
 }
 const setBusy=value=>{
  busy=value;$('abrir').disabled=value;$('enviar').disabled=value;
+ // Al terminar la carga, reactivar los botones creados durante render().
+ $('items').querySelectorAll('button').forEach(b=>{b.disabled=value;});
 };
 function resumen(){
  const configured=items.filter(x=>Number(x.min_stock_qty)>0);
