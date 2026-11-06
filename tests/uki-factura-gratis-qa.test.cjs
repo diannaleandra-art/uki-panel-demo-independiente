@@ -137,7 +137,7 @@ test('interfaz exige selección de líneas, presenta importes como informativos 
 test('revision de factura sin advertencias duplicadas, con busqueda por nombre y seleccion explicita',()=>{
  assert.equal((visual.match(/if\(f\.nota\)make\(/g)||[]).length,1);
  assert.match(visual,/Buscar por nombre/);
- assert.match(visual,/administración debe agregarlo al inventario/);
+ assert.match(visual,/puedes prepararlo desde la misma factura arriba/);
  assert.match(visual,/buscar\.oninput=\(\)=>\{opciones\(\);preview\(\);\}/);
  assert.match(visual,/★ Sugerido:/);
  assert.match(visual,/opcionesRecepcionFactura\(getItems\(\),buscar\.value,f\.sugerencia\)/);
