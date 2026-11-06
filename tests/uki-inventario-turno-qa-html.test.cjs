@@ -39,9 +39,9 @@ test('tanto administrador como trabajador están limitados a QA',()=>{
 
 test('los módulos JS de ambas pantallas pueden compilarse sin errores',()=>{
  for(const html of [worker,admin]){
-  const js=html.match(/<script type="module">([\\s\\S]*?)<\\/script>/)?.[1];
+  const js=html.split('<script type="module">')[1]?.split('</script>')[0];
   assert.ok(js&&js.length>500);
-  const withoutImports=js.replace(/^import .*;\\s*$/gm,'');
+  const withoutImports=js.split('\n').filter(line=>!line.trim().startsWith('import ')).join('\n');
   assert.doesNotThrow(()=>new Function(withoutImports));
  }
 });
