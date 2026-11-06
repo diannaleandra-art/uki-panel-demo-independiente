@@ -80,7 +80,7 @@ test('el panel Preview nunca apunta a API de inventario de producción',()=>{
  };
  const qa=make('uki-sushi-panel-abcd-diannaleandra-7046.vercel.app');
  assert.equal(qa.preview,true);
- assert.match(qa.endpoint,/^https:\/\/uki-sushi-pedidos-[a-z0-9]+-diannaleandra-7046\.vercel\.app\/api\/catalogo-live$/);
+ assert.match(qa.endpoint,/^https:\/\/uki-sushi-(?:pedidos-[a-z0-9]+|inventario-qa2026)-diannaleandra-7046\.vercel\.app\/api\/catalogo-live$/);
  assert.doesNotMatch(qa.endpoint,/^https:\/\/uki-sushi-pedidos\.vercel\.app/);
  const prod=make('diannaleandra-art.github.io');
  assert.equal(prod.preview,false);
@@ -96,4 +96,13 @@ test('el modo trabajador QA usa su propio token, nunca el QR productivo',()=>{
  assert.match(code,/previewWorker:false/);
  assert.match(panel,/uki-mesas-dispositivo-qa\.js/);
  assert.match(panel,/const UKI_OPERACION_HABILITADA=location\.hostname==='diannaleandra-art\.github\.io'/);
+});
+
+test('el agendador puede agregar insumos con el acceso del panel, sin otorgar permisos al PIN exclusivo',()=>{
+ assert.match(code,/function ukiInvCrearExtra\(\)/);
+ assert.match(code,/ukiInvRequest\('POST',\{inventory_only:true,item,worker_name\}\)/);
+ assert.match(code,/UKI_CATALOGO_PREVIEW\?'<details class="card">/);
+ for(const unit of ['kg','g','l','ml'])assert.match(code,new RegExp("'"+unit+"'"));
+ assert.match(code,/Quedará visible en el QR del encargado/);
+ assert.doesNotMatch(code,/uki_inventario_pin_qa/);
 });
