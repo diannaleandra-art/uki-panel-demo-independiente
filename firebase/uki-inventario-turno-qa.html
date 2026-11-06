@@ -10,7 +10,7 @@ label{display:block;font-weight:600;margin:11px 0 6px}input,select{font:inherit;
 button{font:600 15px system-ui;background:#e9822d;color:white;border:0;border-radius:10px;padding:12px;cursor:pointer}
 button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;border:1px solid #eed2bd}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.line{display:flex;gap:10px;align-items:center;justify-content:space-between}
-.stock{max-width:105px}.small{font-size:13px}.pill{font-weight:600;color:#355f3b}.warn{color:#97530c}
+.stock{max-width:130px}.unit-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:9px 0}.unit-row input{max-width:130px}.unit-row select{max-width:185px}.small{font-size:13px}.pill{font-weight:600;color:#355f3b}.warn{color:#97530c}.confirmacion-item{background:#eff9ef;color:#245e2c;padding:9px;border-radius:8px;font-weight:600}.error-item{background:#fff2e8;color:#8a350a;padding:9px;border-radius:8px}
 #estado{min-height:20px}details{margin-top:10px}summary{cursor:pointer;color:#915a2b}footer{text-align:center;color:#826b58;font-size:12px}
 [hidden]{display:none!important}
 </style></head>
@@ -43,7 +43,7 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 const $=id=>document.getElementById(id);
 const isQA=/^uki-sushi-panel-[a-z0-9]+-diannaleandra-7046\.vercel\.app$/.test(location.hostname);
 const API='https://uki-sushi-inventario-qa2026-diannaleandra-7046.vercel.app/api/inventario-turno-qa';
-let branch='',items=[],busy=false,requestId=null;
+let branch='',items=[],busy=false,requestId=null,lastSaved=null;
 const status=s=>{$('estado').textContent=s;};
 const elt=(type,text,cls)=>{const e=document.createElement(type);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
 function nombre(){const n=$('nombre').value.trim().replace(/\s+/g,' ');if(n.length<2||n.length>60)throw Error('Escribe el nombre de quien cuenta.');return n;}
@@ -60,9 +60,29 @@ async function api(action,extra={}){
 }
 function decimal(value){
  const text=String(value??'').trim();
- if(!/^\d{1,6}(?:[.,]\d{1,2})?$/.test(text))return NaN;
+ if(!/^\d{1,6}(?:[.,]\d{1,3})?$/.test(text))return NaN;
  const n=Number(text.replace(',','.'));
  return Number.isFinite(n)&&n>=0&&n<=100000?n:NaN;
+}
+const UNIDADES={kg:'Kilos (kg)',g:'Gramos (g)',l:'Litros (l)',ml:'Mililitros (ml)',un:'Unidades (un)',porciones:'Porciones'};
+const OPCIONES={kg:['kg','g'],g:['g','kg'],l:['l','ml'],ml:['ml','l'],un:['un'],porciones:['porciones']};
+const FACTOR={kg:1000,g:1,l:1000,ml:1,un:1,porciones:1};
+const GRUPO={kg:'peso',g:'peso',l:'volumen',ml:'volumen',un:'unidad',porciones:'porcion'};
+function convertirVista(numero,origen,destino){
+ if(!Number.isFinite(numero)||!OPCIONES[destino]?.includes(origen)||GRUPO[origen]!==GRUPO[destino])return NaN;
+ if((origen==='un'||origen==='porciones')&&!Number.isInteger(numero))return NaN;
+ const resultado=numero*FACTOR[origen]/FACTOR[destino];
+ if(resultado>100000||Math.abs(resultado*1000-Math.round(resultado*1000))>1e-7)return NaN;
+ return Math.round(resultado*1000)/1000;
+}
+const formato=(cantidad,unidad)=>Number(cantidad).toLocaleString('es-CL',{maximumFractionDigits:3})+' '+unidad;
+function selectorUnidad(item){
+ const sel=elt('select');
+ sel.setAttribute('aria-label','Unidad para '+item.name);
+ for(const unidad of OPCIONES[item.stock_unit]||[item.stock_unit])
+  sel.add(new Option(UNIDADES[unidad]||unidad,unidad));
+ sel.value=item.stock_unit;
+ return sel;
 }
 const setBusy=value=>{
  busy=value;$('abrir').disabled=value;$('enviar').disabled=value;
@@ -82,47 +102,80 @@ function render(){
   (!term||String(i.name).toLocaleLowerCase('es-CL').includes(term)));
  for(const item of visible){
   const card=elt('section',undefined,'card');
-  const header=elt('div',undefined,'line'),description=elt('div');
-  const name=elt('strong',item.name),min=Number(item.min_stock_qty)||0,qty=Number(item.stock_qty)||0;
-  description.append(name,elt('p','Hay: '+qty+' '+(item.stock_unit||'un')+
-   ' · mínimo: '+(min>0?min:'sin configurar'),'muted small'));
-  if(min>qty)description.append(elt('p','Faltan '+Math.round((min-qty)*100)/100+' '+(item.stock_unit||'un'),'warn small'));
-  const value=elt('input');value.type='text';value.inputMode='decimal';value.autocomplete='off';value.maxLength=12;
-  value.value=String(qty);value.className='stock';value.setAttribute('aria-label','Conteo de '+item.name);
-  header.append(description,value);
-  const count=elt('button','Guardar conteo');
-  count.disabled=busy;
+  const description=elt('div'),name=elt('strong',item.name);
+  const min=Number(item.min_stock_qty)||0,qty=Number(item.stock_qty)||0;
+  description.append(name,elt('p','Hay: '+formato(qty,item.stock_unit||'un')+
+   ' · mínimo: '+(min>0?formato(min,item.stock_unit||'un'):'sin configurar'),'muted small'));
+  if(min>qty)description.append(elt('p','Faltan '+formato(Math.round((min-qty)*1000)/1000,item.stock_unit||'un'),'warn small'));
+  card.append(description);
+  const countRow=elt('div',undefined,'unit-row'),countValue=elt('input'),countUnit=selectorUnidad(item);
+  countValue.type='text';countValue.inputMode='text';countValue.autocomplete='off';countValue.maxLength=12;
+  countValue.value=String(qty);countValue.setAttribute('aria-label','Cantidad contada de '+item.name);
+  countRow.append(countValue,countUnit);
+  const countHint=elt('p',undefined,'muted small');
+  const previewCount=()=>{
+   const n=decimal(countValue.value),converted=convertirVista(n,countUnit.value,item.stock_unit);
+   countHint.textContent=Number.isFinite(converted)?
+    'Conteo: '+formato(n,countUnit.value)+' → '+formato(converted,item.stock_unit)+'.':
+    'Escribe una cantidad válida, sin pérdida de precisión (hasta 3 decimales).';
+  };
+  countValue.oninput=previewCount;countUnit.onchange=previewCount;previewCount();
+  const count=elt('button','Guardar conteo');count.disabled=busy;
   count.onclick=async()=>{
-   const n=decimal(value.value);
-   if(!Number.isFinite(n)){
-    status('Cantidad inválida para '+item.name);return;}
-   await save(item,'contar',n);
+   const n=decimal(countValue.value);
+   if(!Number.isFinite(convertirVista(n,countUnit.value,item.stock_unit))){
+    countHint.textContent='Cantidad o unidad inválida; no se guardó.';return;
+   }
+   await save(item,'contar',n,countUnit.value);
   };
   const details=elt('details'),summary=elt('summary','Recibimos mercadería de '+item.name);
-  const received=elt('input');received.type='text';received.inputMode='decimal';received.autocomplete='off';received.maxLength=12;received.placeholder='Cantidad recibida (ej. 1,5)';
-  received.setAttribute('aria-label','Mercadería recibida de '+item.name);
-  const receive=elt('button','Registrar entrada','secondary');
-  receive.disabled=busy;
+  const recRow=elt('div',undefined,'unit-row'),received=elt('input'),recUnit=selectorUnidad(item);
+  received.type='text';received.inputMode='text';received.autocomplete='off';received.maxLength=12;
+  received.placeholder='Cantidad recibida';received.setAttribute('aria-label','Mercadería recibida de '+item.name);
+  recRow.append(received,recUnit);
+  const recHint=elt('p',undefined,'muted small');
+  const previewReceive=()=>{
+   const n=decimal(received.value),converted=convertirVista(n,recUnit.value,item.stock_unit);
+   recHint.textContent=Number.isFinite(converted)&&converted>0?
+    'Recibir '+formato(n,recUnit.value)+' = '+formato(converted,item.stock_unit)+
+    '. Nuevo saldo: '+formato(Math.round((qty+converted)*1000)/1000,item.stock_unit)+'.':
+    'Indica cuánto recibimos y elige la unidad (g/kg o ml/l).';
+  };
+  received.oninput=previewReceive;recUnit.onchange=previewReceive;previewReceive();
+  const receive=elt('button','Registrar entrada','secondary');receive.disabled=busy;
   receive.onclick=async()=>{
    const n=decimal(received.value);
-   if(!Number.isFinite(n)||n===0){
-    status('Ingresa una cantidad recibida válida.');return;}
-   await save(item,'recibir',n);
+   if(!Number.isFinite(convertirVista(n,recUnit.value,item.stock_unit))||n<=0){
+    recHint.textContent='Cantidad o unidad inválida; no se guardó.';return;
+   }
+   await save(item,'recibir',n,recUnit.value);
   };
-  details.append(summary,received,receive);
-  card.append(header,count,details);box.append(card);
+  details.append(summary,recRow,recHint,receive);
+  card.append(countRow,countHint,count,details);
+  if(lastSaved?.sku===item.sku){
+   const note=elt('p',lastSaved.message,lastSaved.ok?'confirmacion-item':'error-item');
+   note.setAttribute('role','status');card.append(note);
+  }
+  box.append(card);
  }
  if(!visible.length)box.append(elt('p','No hay productos con este filtro.','muted'));
  resumen();
 }
-async function save(item,action,cantidad){
+async function save(item,action,cantidad,unidad){
  if(busy)return;setBusy(true);status('Guardando '+item.name+'…');
  try{
-  const response=await api(action,{sku:item.sku,cantidad,expected_version:Number(item.version)});
+  const response=await api(action,{sku:item.sku,cantidad,unidad,expected_version:Number(item.version)});
   items=items.map(x=>x.sku===item.sku?{...x,...response.item}:x);
   requestId=null;$('confirmacion').textContent='';
+  const registro=response.registro||{base:cantidad,unidadBase:item.stock_unit};
+  lastSaved={sku:item.sku,ok:true,message:'✓ '+(action==='contar'?'Conteo':'Entrada')+
+   ' guardada: '+formato(cantidad,unidad)+' = '+formato(registro.base,registro.unidadBase)+
+   '. Ahora hay '+formato(response.item.stock_qty,response.item.stock_unit)+'.'};
   status('Guardado para '+($('branch').value==='arica'?'Regimiento Arica':'La Serena')+'.');
- }catch(e){status(String(e.message));}
+ }catch(e){
+  lastSaved={sku:item.sku,ok:false,message:'No se confirmó el guardado: '+String(e.message)+'. Actualiza el inventario antes de volver a intentar.'};
+  status(lastSaved.message);
+ }
  finally{setBusy(false);render();}
 }
 async function abrir(){
@@ -131,14 +184,14 @@ async function abrir(){
  setBusy(true);status('Cargando inventario…');
  try{
   const result=await api('listar');
-  branch=$('branch').value;items=result.items||[];requestId=null;
+  branch=$('branch').value;items=result.items||[];requestId=null;lastSaved=null;
   $('activo').hidden=false;$('confirmacion').textContent='';
   render();status('Inventario del turno listo.');
  }catch(e){branch='';items=[];$('activo').hidden=true;status(String(e.message));}
  finally{setBusy(false);}
 }
 $('abrir').onclick=abrir;
-$('branch').onchange=()=>{branch='';items=[];$('activo').hidden=true;status('');};
+$('branch').onchange=()=>{branch='';items=[];lastSaved=null;$('activo').hidden=true;status('');};
 $('codigo').oninput=()=>{if(branch){branch='';items=[];$('activo').hidden=true;}};
 $('tipo').onchange=render;$('buscar').oninput=render;
 $('enviar').onclick=async()=>{
