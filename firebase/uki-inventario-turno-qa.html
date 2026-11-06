@@ -113,13 +113,23 @@ function render(){
   countValue.value=String(qty);countValue.setAttribute('aria-label','Cantidad contada de '+item.name);
   countRow.append(countValue,countUnit);
   const countHint=elt('p',undefined,'muted small');
+  const limpiarConfirmacion=()=>{
+   if(lastSaved?.sku===item.sku){lastSaved=null;card.querySelector('.confirmacion-item,.error-item')?.remove();}
+  };
   const previewCount=()=>{
    const n=decimal(countValue.value),converted=convertirVista(n,countUnit.value,item.stock_unit);
    countHint.textContent=Number.isFinite(converted)?
     'Conteo: '+formato(n,countUnit.value)+' → '+formato(converted,item.stock_unit)+'.':
     'Escribe una cantidad válida, sin pérdida de precisión (hasta 3 decimales).';
   };
-  countValue.oninput=previewCount;countUnit.onchange=previewCount;previewCount();
+  countValue.oninput=()=>{limpiarConfirmacion();previewCount();};
+  countUnit.onchange=()=>{
+   limpiarConfirmacion();
+   countValue.value='';
+   countValue.placeholder='Cantidad en '+countUnit.value;
+   previewCount();
+  };
+  previewCount();
   const count=elt('button','Guardar conteo');count.disabled=busy;
   count.onclick=async()=>{
    const n=decimal(countValue.value);
@@ -141,7 +151,9 @@ function render(){
     '. Nuevo saldo: '+formato(Math.round((qty+converted)*1000)/1000,item.stock_unit)+'.':
     'Indica cuánto recibimos y elige la unidad (g/kg o ml/l).';
   };
-  received.oninput=previewReceive;recUnit.onchange=previewReceive;previewReceive();
+  received.oninput=()=>{limpiarConfirmacion();previewReceive();};
+  recUnit.onchange=()=>{limpiarConfirmacion();previewReceive();};
+  previewReceive();
   const receive=elt('button','Registrar entrada','secondary');receive.disabled=busy;
   receive.onclick=async()=>{
    const n=decimal(received.value);
