@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive"><title>Uki Sushi · Cierres privados QA</title>
+<style>
+:root{font-family:system-ui,-apple-system,sans-serif;background:#fff9f4;color:#302720}
+*{box-sizing:border-box}body{margin:0}header{background:#e9832b;color:white;padding:22px 18px}
+main{max-width:620px;padding:16px;margin:auto}.card{background:white;border:1px solid #eaded3;border-radius:16px;padding:20px;margin-bottom:14px}
+h1{font-size:22px;margin:0 0 5px}h2{font-size:18px;margin:0 0 12px}
+p{line-height:1.45}.muted{color:#69594c;font-size:14px}
+button,select{padding:12px;border-radius:9px;font:inherit}
+button{background:#e9832b;color:white;border:0;font-weight:600;cursor:pointer}
+button:disabled{opacity:.5}.row{display:flex;gap:10px;flex-wrap:wrap}
+select{flex:1;min-width:180px;background:white;border:1px solid #d0c2b5}
+#resultado{white-space:pre-wrap}#estado{font-size:14px;min-height:20px}
+</style></head><body>
+<header><h1>Uki Sushi · Cierres privados</h1><div>Acceso de administración · entorno de pruebas</div></header>
+<main>
+<section class="card">
+<h2>Administración</h2>
+<p class="muted">Esta pantalla no abre la caja real ni registra ventas. Solo consulta los cierres de prueba mediante Google autorizado.</p>
+<button id="entrar">Entrar con Google</button>
+<p id="cuenta" class="muted">Sin iniciar sesión</p>
+<label for="sucursal">Sucursal</label>
+<div class="row">
+<select id="sucursal"><option value="arica">Regimiento Arica</option><option value="serena">La Serena</option></select>
+<button id="consultar" disabled>Consultar cierres de prueba</button>
+</div>
+<p id="estado" role="status"></p>
+</section>
+<section class="card" id="datos" hidden><h2 id="titulo">Cierres de prueba</h2><div id="resultado"></div></section>
+</main>
+<script type="module">
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js';
+import {getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,getIdToken} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js';
+const config={
+ apiKey:'AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA',
+ authDomain:'uki-panel-f4909.firebaseapp.com',projectId:'uki-panel-f4909',
+ storageBucket:'uki-panel-f4909.firebasestorage.app',messagingSenderId:'1070481165758',
+ appId:'1:1070481165758:web:b8f0f9ff40caf5b8ac7def'
+};
+const $=x=>document.getElementById(x);
+const hostOK=/^uki-sushi-panel-[a-z0-9]+-diannaleandra-7046\.vercel\.app$/.test(location.hostname);
+const QA_API='https://uki-sushi-pedidos-foy0k9em4-diannaleandra-7046.vercel.app/api/uki-finanzas-qa';
+const auth=getAuth(initializeApp(config));
+let busy=false;
+const aviso=s=>{$('estado').textContent=s;};
+function bloqueo(){
+ $('consultar').disabled=busy||!auth.currentUser||!hostOK;
+ $('entrar').disabled=busy||!hostOK;
+}
+onAuthStateChanged(auth,user=>{
+ $('cuenta').textContent=user?'Google conectado':'Sin iniciar sesión';
+ $('datos').hidden=true;
+ bloqueo();
+});
+$('entrar').onclick=async()=>{
+ if(!hostOK)return aviso('Solo disponible en la vista privada QA.');
+ try{await signInWithPopup(auth,new GoogleAuthProvider());aviso('Identificación completada.');}
+ catch{aviso('No se pudo acceder con Google. Comprueba tu cuenta autorizada.');}
+};
+$('sucursal').onchange=()=>{$('datos').hidden=true;aviso('');};
+$('consultar').onclick=async()=>{
+ if(!hostOK||!auth.currentUser||busy)return;
+ busy=true;bloqueo();$('datos').hidden=true;
+ aviso('Consultando únicamente la base de pruebas…');
+ try{
+  const branch=$('sucursal').value;
+  const token=await getIdToken(auth.currentUser,true);
+  const r=await fetch(QA_API+'?branch='+encodeURIComponent(branch),{
+   method:'GET',cache:'no-store',credentials:'omit',mode:'cors',
+   headers:{Authorization:'Bearer '+token},signal:AbortSignal.timeout(16000)
+  });
+  const json=await r.json().catch(()=>({}));
+  if(!r.ok||!json.ok)throw Error(json.error||'No se pudo consultar los cierres.');
+  if(branch!==$('sucursal').value)return;
+  const d=json.data||{};
+  $('titulo').textContent='Cierres de prueba · '+(branch==='arica'?'Regimiento Arica':'La Serena');
+  const rows=[
+   ['Cierres guardados',Array.isArray(d.cierres)?d.cierres.length:0],
+   ['Gastos registrados',Array.isArray(d.gastos)?d.gastos.length:0],
+   ['Días con caja',d.cajasDiarias?Object.keys(d.cajasDiarias).length:0]
+  ];
+  $('resultado').textContent=rows.map(row=>row[0]+': '+row[1]).join('\n')+
+   '\n\nNo contiene ventas ni cierres reales.';
+  $('datos').hidden=false;aviso('Consulta administrativa QA realizada.');
+ }catch(e){aviso(String(e?.message||'No disponible.'));}
+ finally{busy=false;bloqueo();}
+};
+if(!hostOK)aviso('Vista disponible solo en el panel de prueba autorizado.');
+bloqueo();
+</script></body></html>
