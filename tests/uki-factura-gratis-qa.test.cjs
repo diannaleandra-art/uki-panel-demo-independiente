@@ -133,3 +133,12 @@ test('interfaz exige selección de líneas, presenta importes como informativos 
  assert.match(visual,/Sugerido para inventario/);
  assert.match(visual,/meta\.sucursalSugerida!==getBranch\(\)/);
 });
+
+test('revision de factura sin advertencias duplicadas, con busqueda por nombre y seleccion explicita',()=>{
+ assert.equal((visual.match(/if\(f\.nota\)make\(/g)||[]).length,1);
+ assert.match(visual,/Buscar por nombre/);
+ assert.match(visual,/administración debe agregarlo al inventario/);
+ assert.match(visual,/buscar\.oninput=\(\)=>\{opciones\(\);preview\(\);\}/);
+ assert.match(visual,/else \{select\.value='';f\.sku='';\}/);
+ assert.match(visual,/checked:false,saved:false/);
+});

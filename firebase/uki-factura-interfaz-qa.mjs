@@ -36,17 +36,26 @@ export function iniciarFacturaQA({getBranch,getItems,post,onSaved}){
      '. Sugerido para inventario: '+(f.cantidad||'pendiente')+' '+(f.unidad||''):
      'Texto reconocido: '+(f.cantidad||'cantidad desconocida')+' '+(f.unidad||'sin unidad'),'muted small');
    if(f.nota)make('p',card,f.nota,'fact-mensaje');
-   if(f.nota)make('p',card,f.nota,'fact-mensaje');
    const grid=make('div',card,undefined,'fact-columnas');
    const box1=make('div',grid);make('label',box1,'Artículo del inventario');
+   const buscar=make('input',box1);buscar.type='search';buscar.autocomplete='off';
+   buscar.placeholder='Buscar por nombre…';buscar.setAttribute('aria-label','Buscar artículo línea '+(i+1));
    const select=make('select',box1);select.setAttribute('aria-label','Artículo de línea '+(i+1));
-   select.add(new Option('Selecciona el artículo…',''));
-   if(f.sugerencia){
-    const candidate=catalog.find(x=>x.name===f.sugerencia);
-    if(candidate)select.add(new Option('Sugerido: '+candidate.name,candidate.sku));
-   }
-   for(const item of catalog)if(item.name!==f.sugerencia)select.add(new Option(item.name,item.sku));
-   select.value=f.sku||'';
+   const sinCoincidencia=make('p',box1,'Si no encuentras este ingrediente, administración debe agregarlo al inventario. No se agregará automáticamente a la carta.','muted small');
+   const opciones=()=>{
+    const norm=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    const busca=norm(buscar.value.trim());
+    const visibles=catalog.filter(x=>!busca||norm(x.name).includes(busca));
+    select.replaceChildren(new Option('Selecciona el artículo…',''));
+    for(const item of visibles)select.add(new Option(item.name,item.sku));
+    if(f.sku&&visibles.some(x=>x.sku===f.sku))select.value=f.sku;
+    else {select.value='';f.sku='';}
+    sinCoincidencia.textContent=!visibles.length?
+     'No hay artículos con ese nombre. Pide a administración agregarlo antes de registrar.':
+     'Comprueba que seleccionaste el artículo correcto antes de recibirlo.';
+   };
+   opciones();buscar.oninput=()=>{opciones();preview();};
+   if(f.sugerencia&&!f.sku)buscar.placeholder='Sugerido: '+f.sugerencia;
    const box2=make('div',grid);make('label',box2,'Cantidad recibida');
    const input=make('input',box2);input.type='text';input.inputMode='text';input.maxLength=12;
    input.placeholder='Ej.: 750';input.value=f.cantidad||'';
