@@ -40,6 +40,7 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 <footer>Uki Sushi · Revisión independiente de caja y cierres · QA</footer>
 </main>
 <script type="module">
+import {iniciarFacturaQA} from './uki-factura-interfaz-qa.mjs';
 const $=id=>document.getElementById(id);
 const isQA=/^uki-sushi-panel-[a-z0-9]+-diannaleandra-7046\.vercel\.app$/.test(location.hostname);
 const API='https://uki-sushi-pedidos-c623sz1w2-diannaleandra-7046.vercel.app/api/inventario-turno-qa';
@@ -84,6 +85,11 @@ function selectorUnidad(item){
  sel.value=item.stock_unit;
  return sel;
 }
+const factura=iniciarFacturaQA({getBranch:()=>branch,getItems:()=>items,
+ post:(action,params)=>api(action,params),
+ onSaved:response=>{items=items.map(x=>x.sku===response.item.sku?{...x,...response.item}:x);
+ requestId=null;$('confirmacion').textContent='';render();}
+});
 const setBusy=value=>{
  busy=value;$('abrir').disabled=value;$('enviar').disabled=value;
  // Al terminar la carga, reactivar los botones creados durante render().
@@ -196,15 +202,15 @@ async function abrir(){
  setBusy(true);status('Cargando inventario…');
  try{
   const result=await api('listar');
-  branch=$('branch').value;items=result.items||[];requestId=null;lastSaved=null;
+  branch=$('branch').value;items=result.items||[];requestId=null;lastSaved=null;factura.reset();
   $('activo').hidden=false;$('confirmacion').textContent='';
   render();status('Inventario del turno listo.');
  }catch(e){branch='';items=[];$('activo').hidden=true;status(String(e.message));}
  finally{setBusy(false);}
 }
 $('abrir').onclick=abrir;
-$('branch').onchange=()=>{branch='';items=[];lastSaved=null;$('activo').hidden=true;status('');};
-$('codigo').oninput=()=>{if(branch){branch='';items=[];$('activo').hidden=true;}};
+$('branch').onchange=()=>{branch='';items=[];lastSaved=null;factura.reset();$('activo').hidden=true;status('');};
+$('codigo').oninput=()=>{if(branch){branch='';items=[];factura.reset();$('activo').hidden=true;}};
 $('tipo').onchange=render;$('buscar').oninput=render;
 $('enviar').onclick=async()=>{
  if(busy||!branch||branch!==$('branch').value)return;
