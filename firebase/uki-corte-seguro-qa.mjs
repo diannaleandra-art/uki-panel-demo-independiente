@@ -4,8 +4,8 @@
  * No habilita producción. Solo prueba que una COPIA sintética conserva
  * información y enumera condiciones para una migración posterior.
  */
-import {prepararMigracionSinGuardarQA,reconstruirMigracionSinGuardarQA}
- from './uki-migracion-cierres-seca-qa.mjs';
+import {prepararMigracionSinGuardarQA,reconstruirMigracionSinGuardarQA,
+ crearPaquetePrivadoSinGuardarQA} from './uki-migracion-cierres-seca-qa.mjs';
 
 const EVIDENCIAS=Object.freeze([
  ['respaldoAricaRestaurado','Respaldo cifrado de Regimiento Arica restaurado y comparado'],
@@ -42,6 +42,12 @@ export async function comprobarMigracionEnSecoQA(estado,{cryptoImpl}={}) {
  // Los 3 paquetes son copias independientes; simula su serialización y
  // posterior recuperación, sin escribir ninguno a la nube.
  const transferidos=rep(paquetes);
+ const privado=crearPaquetePrivadoSinGuardarQA(transferidos);
+ // El servidor de QA acepta 240 KB de contenido claro. Detectar el límite
+ // ANTES de cualquier traslado: nunca truncar un historial de varios años.
+ const bytesPrivados=new TextEncoder().encode(JSON.stringify(privado)).length;
+ if(bytesPrivados>240000)
+  throw Error('El historial financiero supera el límite del servidor de pruebas; se requiere almacenamiento por partes.');
  const reconstruido=reconstruirMigracionSinGuardarQA(transferidos);
  const final=await firma(reconstruido,cryptoImpl);
  if(origin!==final||texto(comienzo)!==texto(reconstruido))
@@ -56,6 +62,7 @@ export async function comprobarMigracionEnSecoQA(estado,{cryptoImpl}={}) {
   pedidos:transferidos.operacion.pedidos.length,
   cierres:transferidos.finanzas.cierres.length,
   gastos:transferidos.finanzas.gastos.length,
+  tamanoFinanzasBytes:bytesPrivados,
   mismoContenido:true,firmaSHA256:origin,
   puedeActivarseEnProduccion:false // Incluso una prueba perfecta NO autoriza el corte.
  });
