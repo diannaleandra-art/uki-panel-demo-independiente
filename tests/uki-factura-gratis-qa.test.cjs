@@ -66,14 +66,15 @@ test('XML DTE sin cantidades inventadas',async()=>{
 });
 
 
-test('factura chilena con empaque 12 KG, 1 Un y precio: no autocompleta 12 kilos',async()=>{
+test('factura chilena con empaque 12 KG: sugiere 12 kilos, pero exige confirmación',async()=>{
  const {leerTextoFactura}=await import(helper);
  const rows=leerTextoFactura('PECHUGA DE POLLO S/HUESO S/PIEL 12 KG 1 Un 45.983 — 45.983',
  [{name:'Pollo',sku:'ingredient:pollo',stock_unit:'kg'}]);
  assert.equal(rows.length,1);
- assert.equal(rows[0].cantidad,'');
- assert.equal(rows[0].unidad,'');
+ assert.equal(rows[0].cantidad,'12');
+ assert.equal(rows[0].unidad,'kg');
  assert.equal(rows[0].sku,'');
+ assert.match(rows[0].nota,/Verifica cuánta mercadería llegó/);
  assert.equal(rows[0].sugerencia,'Pollo');
  assert.match(rows[0].nota,/presentación indicada de 12 kg/);
 });
@@ -83,4 +84,52 @@ test('una foto de la vista del PDF no puede crear entradas por accidente',async(
  {name:'Pollo',sku:'ingredient:pollo'}]);
  assert.equal(rows.length,0);
  assert.match(visual,/Subir archivo/);
+});
+
+
+test('PDF de proveedor con 11 artículos, dos páginas duplicadas, cantidades distintas de precios',async()=>{
+ const {leerTextoFactura}=await import(helper);
+ const lines=[
+  'QUESO GAUDA MOLFINO BARRA X KG 3.44 Un 5.546 19.079',
+  'TENEDOR PLASTICO 1000 UND (CJ) 0.1 Un 9.580 958',
+  'PECHUGA DE POLLO S/HUESO S/PIEL 12 KG 1 Un 45.983 45.983',
+  'CHAMPIÑONES LAM. PREMIUM 2840 GR EL BUHO (UND) 1 Un 4.034 4.034',
+  'SALSA DE SOYA BIDON 5LT MAXIFOODS 1 Un 4.454 4.454',
+  'PALILLOS DE SUSHI REDONDOS 100 UND 2 Un 1.092 2.185',
+  'PANKO AMARILLO X 1 KG (UND) 5 Un 2.269 11.345',
+  'ARROZ TUCAPEL FOOD SERVICE NACIONAL G2 (5X2 KG) 2 Un 12.597 25.193',
+  'NORI GOLD YAKI 100 HOJAS 1 Un 8.395 8.395',
+  'POCILLO C/TAPA 1.5 OZ (100 unds) 3 Un 1.748 5.244',
+  'QUESO CREMA TOSHIKO BARRAS DE 1,36KG 3 Un 7.479 22.437'
+ ];
+ const rows=leerTextoFactura(lines.concat(lines).join('\n'),[]);
+ assert.equal(rows.length,11,'la segunda página cedible no debe duplicar las entradas');
+ const buscar=(texto)=>rows.find(x=>x.nombre.includes(texto));
+ assert.equal(buscar('GAUDA').cantidad,'3.44');
+ assert.equal(buscar('GAUDA').unidad,'kg');
+ assert.equal(buscar('TENEDOR').cantidad,'100');
+ assert.equal(buscar('POLLO').cantidad,'12');
+ assert.equal(buscar('SOYA').cantidad,'5');
+ assert.equal(buscar('PANKO').cantidad,'5');
+ assert.equal(buscar('ARROZ').cantidad,'20');
+ assert.equal(buscar('POCILLO').cantidad,'300');
+ assert.equal(buscar('QUESO CREMA').cantidad,'4.08');
+ assert.equal(buscar('POLLO').cantidadFactura,'1');
+ assert.equal(buscar('POLLO').unidadFacturada,'un');
+ assert.equal(buscar('POLLO').precioTotal,'45.983');
+ assert.ok(rows.every(x=>x.requiereConfirmacion));
+});
+test('PDF: encabezado folio, proveedor, sucursal observada y RUT con puntos',async()=>{
+ const {leerCabeceraFacturaPDF}=await import(helper);
+ const h=leerCabeceraFacturaPDF(
+  'COMERCIALIZADORA EJEMPLO SPA\nR.U.T: 77.111.222-3\nN° 12345\nOBSERVACIÓN: REGIMIENTO');
+ assert.equal(h.proveedor,'COMERCIALIZADORA EJEMPLO SPA');
+ assert.equal(h.folio,'12345');
+ assert.equal(h.rut,'77.111.222-3');
+ assert.equal(h.sucursalSugerida,'arica');
+});
+test('interfaz exige selección de líneas, presenta importes como informativos y bloquea sucursal contradictoria',()=>{
+ assert.match(visual,/filas=data.map\(f=>\(\{\.\.\.f,checked:false,saved:false\}\)\)/);
+ assert.match(visual,/Sugerido para inventario/);
+ assert.match(visual,/meta\.sucursalSugerida!==getBranch\(\)/);
 });
