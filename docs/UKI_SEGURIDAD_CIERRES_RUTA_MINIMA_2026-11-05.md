@@ -112,3 +112,21 @@ siguen en el snapshot compartido de producción.
   para mover las bóvedas reales sin detener pedidos. El PIN actual sigue
   pudiendo abrir la caja del panel vigente: NO se considera resuelto.
   NO ejecutar migraciones de datos reales sin aprobación expresa.
+
+## Validación manual de administración en iPhone — 2026-11-05
+
+La administradora comprobó en Safari la página QA de cierres privados:
+`Google conectado`, `Consulta administrativa QA realizada`,
+y en Regimiento Arica: cero cierres, cero gastos, cero días con caja.
+La base Neon QA `public.uki_finanzas_privadas_qa` fue verificada
+posteriormente y permanece sin registros. El despliegue de producción
+de la carta sigue en `9b3debd5af8afcdf5d644078e02c0db21c2f09c3`
+(`READY`), y las pruebas automáticas en GitHub finalizaron correctamente.
+
+**Resultado:** consulta Google→API privada→Neon QA validada desde iPhone.
+Esto **NO** confirma aún la migración de los cierres reales ni protege
+por sí mismo los cierres actualmente accesibles con la clave antigua.
+Antes de un corte productivo: respaldo verificable de ambas sucursales,
+aislar lectura/escritura de finanzas en servidor, reconstrucción histórica,
+comprobación de accesos sin Google y rollback sin pérdida de pedidos.
+No cambiar producción sin autorización expresa.
