@@ -28,7 +28,7 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 <div id="activo" hidden>
 <section class="card"><h2>2. Contar lo que queda</h2>
 <div class="grid"><select id="tipo" aria-label="Tipo de artículo">
-<option value="ingredientes">Ingredientes</option><option value="productos">Productos</option><option value="todos">Todos</option></select>
+<option value="ingredientes">Ingredientes e insumos</option><option value="productos">Productos de la carta</option><option value="todos">Todos</option></select>
 <input id="buscar" placeholder="Buscar pollo, palta…"></div>
 <p class="muted">El stock nunca cambia automáticamente Disponible / Agotado. Eso lo controla el agendador.</p></section>
 <div id="items"></div>
@@ -72,7 +72,7 @@ function resumen(){
 function render(){
  const box=$('items');box.replaceChildren();
  const kind=$('tipo').value,term=$('buscar').value.trim().toLocaleLowerCase('es-CL');
- const visible=items.filter(i=>(kind==='todos'||(kind==='ingredientes'?i.kind==='ingredient':i.kind!=='ingredient'))&&
+ const visible=items.filter(i=>(kind==='todos'||(kind==='ingredientes'?['ingredient','inventory'].includes(i.kind):!['ingredient','inventory'].includes(i.kind)))&&
   (!term||String(i.name).toLocaleLowerCase('es-CL').includes(term)));
  for(const item of visible){
   const card=elt('section',undefined,'card');
