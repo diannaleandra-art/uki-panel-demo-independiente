@@ -534,6 +534,7 @@ function vInventario(){
   '<p class="muted">Acceso actual: <b>'+(admin?'Administración · precios y productos':'Trabajador · conteos y agotados')+'</b>. Cada cambio queda en el historial.</p>'+
   '<button type="button" class="sm" onclick="ir(\'inicio\')">← Volver al inicio</button>'+
   '<button type="button" class="sm" onclick="ukiInvCargar(true)">Actualizar catálogo</button>'+
+  (UKI_CATALOGO_PREVIEW&&admin?'<p><a href="./uki-inventario-administracion-qa.html" target="_blank" rel="noopener">📦 Ver revisiones del turno y configurar código exclusivo</a></p>':'')+
   (UKI_CATALOGO_PREVIEW?
    (ukiInv.previewWorker?
     '<p class="muted">Trabajador de prueba: solo existencias y disponibilidad manual. Sin acceso a precios, caja ni pedidos.</p>'+
