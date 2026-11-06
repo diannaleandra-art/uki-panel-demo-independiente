@@ -252,3 +252,13 @@ test('dos pasos separados evitan listas duplicadas y conservan la factura',()=>{
  assert.match(visual,/f\.nuevaCategoria=cSel\.value/);
  assert.match(visual,/Ninguna mercadería se ha sumado/);
 });
+
+test('al terminar de subir un PDF o foto se habilita el segundo paso en iPhone',()=>{
+ assert.match(visual,/busy=true;el\('factGuardar'\)\.disabled=true;estado\('Leyendo el documento/);
+ assert.match(visual,/mostrarModo\('preparar'\)/);
+ assert.match(visual,/el\('factModoRecibir'\)\.disabled=busy/);
+ assert.match(visual,/finally\{busy=false;el\('factGuardar'\)\.disabled=false;mostrarModo\(modo\);\}/,
+ 'al terminar de leer la factura, la vista de registrar debe volver a quedar habilitada');
+ assert.match(visual,/el\('factModoRecibir'\)\.onclick=\(\)=>mostrarModo\('recibir'\)/);
+ assert.match(visual,/recibidor\.hidden=modo!=='recibir'/);
+});

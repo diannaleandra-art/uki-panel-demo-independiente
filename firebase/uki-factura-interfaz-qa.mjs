@@ -383,7 +383,7 @@ export function iniciarFacturaQA({getBranch,getItems,post,onSaved,onItemsCreated
     if(!texto.trim())estado('No se pudo leer texto; prueba otra foto o agrega productos manualmente.');
    }
   }catch(e){estado('No se pudo leer: '+e.message+'. Puedes ingresar manualmente.');el('factAcciones').hidden=false;}
-  finally{busy=false;el('factGuardar').disabled=false;}
+  finally{busy=false;el('factGuardar').disabled=false;mostrarModo(modo);}
  }
  el('factFoto').onchange=e=>importar(e.target.files?.[0]);
  el('factArchivo').onchange=e=>importar(e.target.files?.[0]);
