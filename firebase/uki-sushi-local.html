@@ -583,8 +583,8 @@ function vInventario(){
     '<label>Unidad</label><select id="ukiInvExtraUnidad">'+
      [['un','Unidades'],['kg','Kilos (kg)'],['g','Gramos (g)'],['l','Litros (l)'],['ml','Mililitros (ml)'],['porciones','Porciones']]
       .map(([v,n])=>'<option value="'+v+'">'+n+'</option>').join('')+'</select>'+
-    '<label>Cantidad inicial</label><input id="ukiInvExtraStock" type="number" step="0.01" min="0" value="0">'+
-    '<label>Mínimo para reponer</label><input id="ukiInvExtraMinimo" type="number" step="0.01" min="0" value="0">'+
+    '<label>Cantidad inicial</label><input id="ukiInvExtraStock" type="text" inputmode="decimal" maxlength="12" value="0">'+
+    '<label>Mínimo para reponer</label><input id="ukiInvExtraMinimo" type="text" inputmode="decimal" maxlength="12" value="0">'+
     '<p class="muted">1,5 kilos; 750 gramos; 2,25 litros. No convierte cantidades automáticamente.</p>'+
     '<button type="button" class="sm ok" onclick="ukiInvCrearExtra()">Agregar solo al inventario</button></details>':'')+
   (admin?'<div class="card"><button class="sm" onclick="ukiInvVerHistorial()">'+(ukiInv.historyOpen?'Ocultar':'Ver')+' historial de movimientos</button>'+
