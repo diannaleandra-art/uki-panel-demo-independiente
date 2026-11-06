@@ -60,15 +60,18 @@ p{line-height:1.4}.muted{color:#796657;font-size:14px}h2{font-size:19px;margin:0
 </main>
 <script type="module">
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js';
-import {getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,getIdToken} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js';
+import {getAuth,GoogleAuthProvider,signInWithRedirect,getRedirectResult,onAuthStateChanged,getIdToken} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js';
 const $=id=>document.getElementById(id);
 const validHost=['uki-sushi-inventario.vercel.app','uki-sushi-inventario-diannaleandra-7046.vercel.app'].includes(location.hostname);
 const API='/api/inventario-turno-live';
 const config={apiKey:'AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA',
- authDomain:'uki-panel-f4909.firebaseapp.com',projectId:'uki-panel-f4909',
+ authDomain:'uki-sushi-inventario.vercel.app',projectId:'uki-panel-f4909',
  storageBucket:'uki-panel-f4909.firebasestorage.app',messagingSenderId:'1070481165758',
  appId:'1:1070481165758:web:b8f0f9ff40caf5b8ac7def'};
 const auth=getAuth(initializeApp(config));
+const marcadorGoogle='uki_inventario_google_regreso';
+const intentoAnterior=(()=>{try{return sessionStorage.getItem(marcadorGoogle)==='1';}catch{return false;}})();
+function limpiarIntento(){try{sessionStorage.removeItem(marcadorGoogle);}catch{}}
 let configured=null,busy=false,articulos=[];
 function estado(s){$('estado').textContent=s;}
 function controls(){
@@ -107,6 +110,7 @@ async function iniciar(){
 }
 onAuthStateChanged(auth,user=>{
  $('cuenta').textContent=user?'Google conectado':'Sin iniciar sesión';
+ if(user){limpiarIntento();estado('Google conectado. Consultando acceso administrativo…');}
  configured=null;$('codigo').value='';$('resultados').hidden=true;
  articulos=[];$('buscarArticulo').value='';$('confirmacionArticulo').hidden=true;$('articuloExistente').replaceChildren(new Option('Cargar artículos…',''));
  $('edicionArticulo').hidden=true;controls();
@@ -117,26 +121,42 @@ function describirErrorGoogle(e){
  const dominio=location.hostname;
  if(code==='auth/unauthorized-domain')
   return 'Dominio no autorizado por Firebase: '+dominio+'. En Firebase → Authentication → Settings → Authorized domains, debe autorizarse este dominio autorizado.';
- if(code==='auth/popup-blocked')
-  return 'Safari bloqueó la ventana de Google. Comprueba Ajustes de Safari → Bloquear ventanas emergentes y vuelve a intentarlo.';
- if(code==='auth/popup-closed-by-user')
-  return 'Google cerró la ventana sin completar el acceso. Si no la cerraste, revisa la autorización del dominio.';
+ if(code==='auth/invalid-continue-uri'||code==='auth/unauthorized-continue-uri')
+  return 'La dirección de regreso de Google no está autorizada. Revisa la configuración OAuth.';
+ if(code==='auth/invalid-oauth-client-id')
+  return 'Google no reconoce la configuración OAuth del dominio.';
  if(code==='auth/operation-not-allowed')
   return 'Google no está habilitado como proveedor en Firebase Authentication.';
  if(code==='auth/network-request-failed')
   return 'No se pudo contactar con Firebase. Verifica la conexión y vuelve a intentarlo.';
- if(code==='auth/cancelled-popup-request')
-  return 'Se canceló una solicitud anterior. Intenta iniciar sesión solo una vez.';
+ if(code==='auth/redirect-cancelled-by-user')
+  return 'El inicio de sesión se canceló antes de terminar. Puedes intentarlo nuevamente.';
  return 'No se completó el acceso Google ('+code+'). Revisa la configuración Firebase de este panel.';
 }
+// Sin ventana emergente: el helper Firebase se sirve en este mismo dominio.
 $('google').onclick=async()=>{
- if(!validHost)return;
- $('google').disabled=true;
- estado('Abriendo inicio de sesión Google…');
- try{await signInWithPopup(auth,new GoogleAuthProvider());}
- catch(e){estado(describirErrorGoogle(e));}
- finally{controls();}
+ if(!validHost||busy)return;
+ busy=true;controls();
+ estado('Abriendo Google y regresando a esta misma página…');
+ try{
+  try{sessionStorage.setItem(marcadorGoogle,'1');}catch{}
+  await signInWithRedirect(auth,new GoogleAuthProvider());
+ }catch(e){
+  limpiarIntento();estado(describirErrorGoogle(e));
+  busy=false;controls();
+ }
 };
+// Recuperar la sesión después del regreso desde Google.
+void getRedirectResult(auth).then(result=>{
+ if(result?.user){
+  limpiarIntento();
+  $('cuenta').textContent='Google conectado';
+  estado('Acceso Google recibido. Comprobando permisos…');
+ }else if(intentoAnterior&&!auth.currentUser){
+  limpiarIntento();
+  estado('Google regresó sin completar la sesión. Comprueba la URI OAuth de redirección autorizada.');
+ }
+}).catch(e=>{limpiarIntento();estado(describirErrorGoogle(e));});
 $('codigo').oninput=controls;
 $('crear').onclick=async()=>{
  if(busy||configured!==false||!/^[0-9]{6}$/.test($('codigo').value))return;

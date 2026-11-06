@@ -84,3 +84,18 @@ test('catálogo de inventario funciona en servidor sin importar archivos estáti
   assert.equal(new Set(ingredients.map(x=>x.sku)).size,ingredients.length);
  }
 });
+
+test('acceso Google iPhone por redirección con helper en el mismo dominio',()=>{
+ const admin=fs.readFileSync(path.join(__dirname,'../public/administracion.html'),'utf8');
+ const routing=JSON.parse(fs.readFileSync(path.join(__dirname,'../vercel.json'),'utf8'));
+ assert.match(admin,/authDomain:'uki-sushi-inventario\.vercel\.app'/);
+ assert.match(admin,/signInWithRedirect\(auth,new GoogleAuthProvider\(\)\)/);
+ assert.match(admin,/getRedirectResult\(auth\)/);
+ assert.match(admin,/onAuthStateChanged\(auth,user/);
+ assert.doesNotMatch(admin,/signInWithPopup\(auth/);
+ assert.deepEqual(routing.rewrites.find(x=>x.source==='/__/auth/:path*'),{
+   source:'/__/auth/:path*',
+   destination:'https://uki-panel-f4909.firebaseapp.com/__/auth/:path*'
+ });
+ assert.ok(routing.rewrites.every(x=>x.destination.startsWith('https://uki-panel-f4909.firebaseapp.com/__/')));
+});
