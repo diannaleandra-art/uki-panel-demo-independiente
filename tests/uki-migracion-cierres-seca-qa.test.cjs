@@ -53,3 +53,33 @@ test('no permite filtrar datos administrativos nuevos en el paquete de pedidos',
  assert.equal(Object.hasOwn(p.operacion,'nuevoReporteReservado'),false);
  assert.equal(Object.hasOwn(p.finanzas,'nuevoReporteReservado'),false);
 });
+
+test('paquete financiero para Neon QA conserva los campos auxiliares sin exponer pedidos',async()=>{
+ const {prepararMigracionSinGuardarQA,crearPaquetePrivadoSinGuardarQA,
+  reconstruirDesdePaquetePrivadoQA}=await cargar();
+ for(const suc of ['Uki Regimiento Arica','Uki La Serena']){
+  const estado=fixture(suc),partes=prepararMigracionSinGuardarQA(estado);
+  const privado=crearPaquetePrivadoSinGuardarQA(partes);
+  assert.equal(Object.keys(privado).length,12);
+  assert.equal(Object.hasOwn(privado,'pedidos'),false);
+  assert.deepEqual(privado.adicionales.nuevoReporteReservado,{soloParaAdmin:true});
+  const recovered=reconstruirDesdePaquetePrivadoQA({
+   branch:partes.branch,operacion:partes.operacion,
+   privado:JSON.parse(JSON.stringify(privado))
+  });
+  assert.deepEqual(recovered,estado);
+ }
+});
+test('no permite meter pedidos ni sobres financieros incompletos entre metadatos',async()=>{
+ const {prepararMigracionSinGuardarQA,crearPaquetePrivadoSinGuardarQA,
+  reconstruirDesdePaquetePrivadoQA}=await cargar();
+ const p=prepararMigracionSinGuardarQA(fixture('Uki Regimiento Arica'));
+ p.adicionales.pedidos=[];
+ assert.throws(()=>crearPaquetePrivadoSinGuardarQA(p),/duplicado/);
+ delete p.adicionales.pedidos;
+ const completo=crearPaquetePrivadoSinGuardarQA(p);
+ delete completo.adicionales;
+ assert.throws(()=>reconstruirDesdePaquetePrivadoQA({
+  branch:p.branch,operacion:p.operacion,privado:completo
+ }),/metadatos privados/);
+});
