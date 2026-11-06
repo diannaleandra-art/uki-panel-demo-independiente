@@ -32,8 +32,8 @@ p{line-height:1.4}.muted{color:#796657;font-size:14px}h2{font-size:19px;margin:0
 <div class="form-grid">
 <div><label for="nuevoCategoria">Categoría</label><select id="nuevoCategoria"><option value="ingrediente">Ingrediente</option><option value="envase">Envases y embalajes</option><option value="otro">Otro insumo</option></select></div>
 <div><label for="nuevoUnidad">Unidad</label><select id="nuevoUnidad"><option value="un">Unidades</option><option value="kg">Kilos (kg)</option><option value="g">Gramos (g)</option><option value="l">Litros (l)</option><option value="ml">Mililitros (ml)</option><option value="porciones">Porciones</option></select></div>
-<div><label for="nuevoStock">Cantidad inicial</label><input id="nuevoStock" type="number" inputmode="decimal" min="0" max="100000" step=".01" value="0"></div>
-<div><label for="nuevoMinimo">Mínimo para reponer</label><input id="nuevoMinimo" type="number" inputmode="decimal" min="0" max="100000" step=".01" value="0"></div>
+<div><label for="nuevoStock">Cantidad inicial</label><input id="nuevoStock" type="text" inputmode="decimal" autocomplete="off" maxlength="12" value="0"></div>
+<div><label for="nuevoMinimo">Mínimo para reponer</label><input id="nuevoMinimo" type="text" inputmode="decimal" autocomplete="off" maxlength="12" value="0"></div>
 </div>
 <p class="muted">Ejemplos: 1,5 kg; 750 g; 2,25 litros. Se permiten hasta dos decimales.</p>
 <div class="button-line"><button id="agregarArticulo">Agregar al inventario</button><button id="actualizarArticulos" type="button">Actualizar lista</button></div>
@@ -45,8 +45,8 @@ p{line-height:1.4}.muted{color:#796657;font-size:14px}h2{font-size:19px;margin:0
 <div id="edicionArticulo" hidden>
 <div class="form-grid">
 <div><label for="editarUnidad">Unidad</label><select id="editarUnidad"><option value="un">Unidades</option><option value="kg">Kilos (kg)</option><option value="g">Gramos (g)</option><option value="l">Litros (l)</option><option value="ml">Mililitros (ml)</option><option value="porciones">Porciones</option></select></div>
-<div><label for="editarStock">Cantidad actual</label><input id="editarStock" type="number" inputmode="decimal" min="0" max="100000" step=".01"></div>
-<div><label for="editarMinimo">Mínimo de reposición</label><input id="editarMinimo" type="number" inputmode="decimal" min="0" max="100000" step=".01"></div>
+<div><label for="editarStock">Cantidad actual</label><input id="editarStock" type="text" inputmode="decimal" autocomplete="off" maxlength="12"></div>
+<div><label for="editarMinimo">Mínimo de reposición</label><input id="editarMinimo" type="text" inputmode="decimal" autocomplete="off" maxlength="12"></div>
 </div>
 <button id="guardarArticulo">Guardar unidad y cantidades</button>
 </div>
@@ -157,9 +157,9 @@ $('ver').onclick=async()=>{
 
 const UNIDADES=new Set(['un','kg','g','l','ml','porciones']);
 function numero(id){
- const raw=$(id).value.trim().replace(',','.');
- const n=Number(raw);
- if(!raw||!Number.isFinite(n)||n<0||n>100000||Math.abs(n*100-Math.round(n*100))>1e-7)
+ const raw=$(id).value.trim();
+ const n=Number(raw.replace(',','.'));
+ if(!/^\d{1,6}(?:[.,]\d{1,2})?$/.test(raw)||!Number.isFinite(n)||n<0||n>100000)
   throw Error('Revisa las cantidades. Se permiten hasta dos decimales.');
  return Math.round(n*100)/100;
 }
