@@ -85,3 +85,30 @@ trabajador incluso descargar el sobre financiero, migración atómica
 con backups verificables, y prueba real de convivencia con la nube
 actual. El cifrado QA por sí solo **NO** hace privados los cierres que
 siguen en el snapshot compartido de producción.
+
+## Avance adicional en QA (2026-11-05)
+
+- **API independiente de administración:** `api/uki-finanzas-qa.js` del repositorio de carta usa
+  autenticación Firebase Google con lista administrativa ya autorizada.
+  Rechaza PIN, token de equipo y solicitudes sin sesión.
+- **Cifrado exclusivo de QA:** `lib/uki-finanzas-qa-v1.cjs` conserva las once
+  categorías financieras del estado actual (incluidas base, pagos de
+  delivery y caja chica). Comprueba sucursal y usa una clave separada.
+- **Neon QA:** existe `public.uki_finanzas_privadas_qa` sin registros,
+  creado solo en `br-wild-sky-b5bruake`; NO hay cierres reales copiados.
+- **Vercel:** API de carta en Preview
+  `uki-sushi-pedidos-bh49s8v7s-diannaleandra-7046.vercel.app`;
+  pantalla administrativa de consulta únicamente en QA
+  `uki-sushi-panel-qa2026-diannaleandra-7046.vercel.app/firebase/uki-cierres-admin-qa.html`.
+  Ambas despliegues llegaron a READY. No publicar el módulo en producción.
+- **Configuración:** banderas y llave financiera establecidas exclusivamente
+  en variables Preview de la rama de preparación. No tocar Production.
+- **Ensayo sin escritura:** `firebase/uki-migracion-cierres-seca-qa.mjs`
+  separa operación, once categorías financieras y campos adicionales
+  sin descartarlos. Pruebas en GitHub confirman ambas sucursales,
+  pagos mixtos, fechas operativas, integridad, no contaminación de sucursal.
+- **Pendiente:** falta prueba manual positiva con Google administrador sobre
+  la API desplegada y, más importante, aún falta un corte de datos seguro
+  para mover las bóvedas reales sin detener pedidos. El PIN actual sigue
+  pudiendo abrir la caja del panel vigente: NO se considera resuelto.
+  NO ejecutar migraciones de datos reales sin aprobación expresa.
