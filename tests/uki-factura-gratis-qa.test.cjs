@@ -186,3 +186,26 @@ test('entrada parcial y duplicados: no se suma sin validación y la caja nunca s
  assert.match(visual,/No se pudo consultar si la factura ya está registrada/);
  assert.doesNotMatch(visual,/\/api\/pagos|\/api\/caja/);
 });
+
+test('se proponen nombres cortos editables, sin asignar inventario automáticamente',async()=>{
+ const {nombrePropuestoFactura}=await import(helper);
+ assert.equal(nombrePropuestoFactura('QUESO GAUDA MOLFINO BARRA X KG'),'Queso gauda');
+ assert.equal(nombrePropuestoFactura('PECHUGA DE POLLO S/HUESO S/PIEL 12 KG'),'Pollo');
+ assert.equal(nombrePropuestoFactura('PANKO AMARILLO X 1 KG'),'Panko amarillo');
+ assert.equal(nombrePropuestoFactura('ARROZ TUCAPEL 5X2 KG'),'Arroz');
+});
+test('preparación de varios artículos: aprobación explícita sin cantidades ni carta',()=>{
+ assert.match(visual,/Preparar artículos nuevos de la factura/);
+ assert.match(visual,/factAltasGuardar'\)\.onclick=async/);
+ assert.match(visual,/post\('factura-preparar-articulos'/);
+ assert.match(visual,/nuevaUnidad:f\.unidad\|\|''/);
+ assert.match(visual,/prepararNuevo:false/);
+ assert.match(visual,/stock 0 y mínimo 0/);
+ assert.match(visual,/onItemsCreated\(disponibles\)/);
+ assert.match(visual,/Ninguna mercadería se ha sumado/);
+ assert.match(worker,/onItemsCreated:created=>/);
+});
+test('punto de compra al alcanzar el mínimo, no con mínimo no configurado',()=>{
+ assert.match(worker,/Number\(x\.stock_qty\)<=Number\(x\.min_stock_qty\)/);
+ assert.match(worker,/if\(min>0&&qty<=min\)/);
+});

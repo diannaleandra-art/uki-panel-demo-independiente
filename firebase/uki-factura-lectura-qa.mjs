@@ -18,6 +18,28 @@ export function numeroFactura(texto){
 }
 // Opciones de recepción: únicamente insumos/ingredientes, nunca platos de la carta.
 // Se muestra primero la sugerencia, pero no se considera una confirmación.
+// Nombre corto EDITABLE para preparar insumos desde una factura (no se agrega solo).
+export function nombrePropuestoFactura(descripcion=''){
+ const text=normalizar(descripcion);
+ if(!text)return '';
+ const opciones=[
+  [/queso gauda/,'Queso gauda'],
+  [/queso crema/,'Queso crema'],
+  [/pechuga de pollo/,'Pollo'],
+  [/tenedor plastico/,'Tenedores plásticos'],
+  [/champi/,'Champiñones'],
+  [/salsa de soya/,'Salsa de soya'],
+  [/palillos? de sushi/,'Palillos de sushi'],
+  [/panko/,'Panko amarillo'],
+  [/arroz/,'Arroz'],
+  [/nori/,'Nori'],
+  [/pocillo/,'Pocillos con tapa']
+ ];
+ const named=opciones.find(([pattern])=>pattern.test(text));
+ if(named)return named[1];
+ return String(descripcion||'').trim().replace(/\s+/g,' ').slice(0,100);
+}
+
 export function opcionesRecepcionFactura(items=[],busqueda='',sugerencia=''){
  const disponibles=Array.from(items||[]).filter(item=>
    item&&item.sku&&item.name&&(!item.kind||['ingredient','inventory'].includes(item.kind))

@@ -88,7 +88,10 @@ function selectorUnidad(item){
 const factura=iniciarFacturaQA({getBranch:()=>branch,getItems:()=>items,
  post:(action,params)=>api(action,params),
  onSaved:response=>{items=items.map(x=>x.sku===response.item.sku?{...x,...response.item}:x);
- requestId=null;$('confirmacion').textContent='';render();}
+ requestId=null;$('confirmacion').textContent='';render();},
+ onItemsCreated:created=>{const union=new Map(items.map(i=>[i.sku,i]));
+ for(const item of created)union.set(item.sku,item);
+ items=[...union.values()];render();}
 });
 const setBusy=value=>{
  busy=value;$('abrir').disabled=value;$('enviar').disabled=value;
@@ -97,7 +100,7 @@ const setBusy=value=>{
 };
 function resumen(){
  const configured=items.filter(x=>Number(x.min_stock_qty)>0);
- const missing=configured.filter(x=>Number(x.min_stock_qty)>Number(x.stock_qty));
+ const missing=configured.filter(x=>Number(x.stock_qty)<=Number(x.min_stock_qty));
  $('resumen').textContent=missing.length+' artículos por reponer · '+configured.length+
   ' mínimos configurados · '+(items.length-configured.length)+' sin mínimo.';
 }
@@ -112,7 +115,7 @@ function render(){
   const min=Number(item.min_stock_qty)||0,qty=Number(item.stock_qty)||0;
   description.append(name,elt('p','Hay: '+formato(qty,item.stock_unit||'un')+
    ' · mínimo: '+(min>0?formato(min,item.stock_unit||'un'):'sin configurar'),'muted small'));
-  if(min>qty)description.append(elt('p','Faltan '+formato(Math.round((min-qty)*1000)/1000,item.stock_unit||'un'),'warn small'));
+  if(min>0&&qty<=min)description.append(elt('p',min===qty?'Comprar: mínimo alcanzado. ' : 'Faltan '+formato(Math.round((min-qty)*1000)/1000,item.stock_unit||'un'),'warn small'));
   card.append(description);
   const countRow=elt('div',undefined,'unit-row'),countValue=elt('input'),countUnit=selectorUnidad(item);
   countValue.type='text';countValue.inputMode='text';countValue.autocomplete='off';countValue.maxLength=12;
