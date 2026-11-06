@@ -73,3 +73,46 @@ después de publicarlo. No entregar estos enlaces como funcionales aún.
 El inventario con acceso por QR/dispositivo aprobado anteriormente no se ha
 borrado ni reemplazado. Esta rama sirve de prueba y preparación de la
 simplificación solicitada.
+
+## Incidencia y corrección preparada, 2026-11-06
+
+La propietaria creó con éxito el código privado de 6 cifras en QA y
+abrió la pantalla del trabajador (Regimiento Arica, con nombre). Al tocar
+«Abrir inventario» apareció «No se pudo guardar el inventario de
+pruebas; no envíes datos sin comprobar». No se realizó un conteo real.
+
+Verificaciones: Neon QA conserva 1 código, 0 revisiones, registros de
+catálogo presentes y no hay bloqueos de PIN persistentes; la consulta
+SQL del catálogo responde en Neon. El problema se ubica en la carga del
+listado tras la autorización, aunque **la causa exacta de la excepción
+no pudo leerse**: la consulta de logs de Vercel devuelve 403.
+
+En el repositorio de carta, rama de preparación y NO producción, se
+preparó `lib/uki-inventario-lectura-qa.cjs` para leer el catálogo con
+un módulo independiente, sin llamar una API desde otra API. El endpoint
+`api/inventario-turno-qa.js` lo utiliza para `listar` y
+`finalizar` y devuelve identificadores de etapa `INV-PIN`,
+`INV-CAT`, `INV-API` si reaparece un 503, sin exponer el PIN.
+Pruebas de carga real del catálogo y de lectura QA aprobadas en GitHub.
+Último commit backend aprobado:
+`df7fa1ccb808d32dd1cd92dc8731167da1fd7270`.
+
+Se preparó un enlace constante de API
+`https://uki-sushi-inventario-qa2026-diannaleandra-7046.vercel.app/api/inventario-turno-qa`
+en los dos HTML del panel. **Todavía NO está asignado a un despliegue**.
+El panel actualizado en GitHub pasó CI, pero **no está publicado**.
+
+La nueva publicación de backend QA fue RECHAZADA por Vercel con HTTP
+402 `api-deployments-free-per-day`; la herramienta CLI alternativa
+no está instalada ni tiene autenticación en el entorno. No intentar
+actualizar alias o publicar panel hasta que el backend corregido tenga
+un despliegue READY. Tras publicarlo, asignar el alias estable
+`uki-sushi-inventario-qa2026-diannaleandra-7046.vercel.app`;
+luego publicar el commit más reciente del panel QA y reasignar
+`uki-sushi-panel-qa2026-diannaleandra-7046.vercel.app` a ese
+nuevo despliegue.
+
+**No está comprobada aún la solución desde Safari.** No pedirle a la
+usuaria que cambie el código existente, vuelva a registrar productos
+o repita pruebas previas. Solo solicitar abrir el inventario una vez
+cuando los dos despliegues estén listos. Producción intacta.
