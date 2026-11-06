@@ -13,7 +13,8 @@ test('cierres QA no se conectan al estado local ni al PIN compartido',()=>{
 });
 test('pantalla es de consulta: no edita ni transporta registros a producción',()=>{
  assert.match(html,/method:'GET'/);
- assert.doesNotMatch(html,/method:'(?:PUT|POST|PATCH|DELETE)'/);
+ assert.match(html,/method:'POST'/); // Solo consultar o configurar el código; nunca guardar caja
+ assert.doesNotMatch(html,/method:'(?:PUT|PATCH|DELETE)'/);
  assert.doesNotMatch(html,/uki-sushi-pedidos\.vercel\.app\/api/);
  assert.match(html,/const hostOK=/);
  assert.match(html,/No contiene ventas ni cierres reales/);
@@ -21,4 +22,14 @@ test('pantalla es de consulta: no edita ni transporta registros a producción',(
 test('no se inyecta contenido de los cierres como HTML',()=>{
  assert.match(html,/\$\('resultado'\)\.textContent=/);
  assert.doesNotMatch(html,/innerHTML\s*=/);
+});
+
+test('solo un código administrativo, sin almacenar la clave en el teléfono',()=>{
+ assert.match(html,/Código único de administración/);
+ assert.match(html,/maxLength|maxlength="8"/);
+ assert.match(html,/X-Uki-Admin-Pin/);
+ assert.match(html,/solicitudAdmin\('estado'\)/);
+ assert.match(html,/solicitudAdmin\('crear'/);
+ assert.match(html,/configurado!==true\|\|!valido\(\)/);
+ assert.doesNotMatch(html,/localStorage|sessionStorage|document\.cookie|setItem\(/);
 });
