@@ -65,3 +65,16 @@ test('simulación no introduce red, modifica el estado real ni desactiva protecc
  assert.doesNotMatch(panel,/uki-corte-seguro-qa\.mjs/);
  assert.match(panel,/Nunca cargar ni guardar los registros cifrados de caja en Preview/);
 });
+
+test('no corta ni trunca si el historial antiguo no cabe en un único paquete financiero',async()=>{
+ const {comprobarMigracionEnSecoQA}=await cargar();
+ const history=sample('Uki Regimiento Arica');
+ history.cierres.push({
+  suc:'Uki Regimiento Arica',fechaISO:'2022-01-01',
+  observaciones:'A'.repeat(240100)
+ });
+ await assert.rejects(()=>comprobarMigracionEnSecoQA(history,{cryptoImpl:webcrypto}),
+  /almacenamiento por partes/);
+ assert.equal(history.cierres.length,2);
+ assert.equal(history.cierres[1].observaciones.length,240100);
+});
