@@ -161,3 +161,39 @@ si ya incluyera la función. Tampoco se activó protección nueva en el panel
 real. Las ventas y cierres reales continúan intactos. Aun después de
 publicar QA, falta la migración separada del snapshot legado antes de
 habilitar privacidad efectiva de cierres en producción.
+
+## Control de corte y preservación integral — misma etapa de QA
+
+Se incorporó `firebase/uki-corte-seguro-qa.mjs` con comprobación SHA-256
+de ida y vuelta de una COPIA sintética; no se conecta a red ni datos reales.
+`tests/uki-corte-seguro-qa.test.cjs` comprueba las dos sucursales,
+pagos mixtos, cierres del día anterior y que no se habilite producción
+mientras no se pruebe la recuperación de respaldos, el bloqueo de lectura
+del snapshot antiguo, la operación nueva y la autorización expresa.
+
+**Hallazgo que impide una liberación precipitada:** en el almacenamiento
+actual los trabajadores con la clave vieja podrían descifrar datos de
+caja si todavía conservan acceso al snapshot o al respaldo local. Crear
+un código nuevo para Administración NO revoca esas copias antiguas.
+El paso real deberá retirar lectura a `uki_operacion_v1`, manejar
+los equipos antiguos con intervención de sus titulares, rotar claves
+operativas y preservar el histórico en el área privada.
+
+Se ajustó el contrato de la bóveda financiera QA para guardar también
+`adicionales` (12.º campo), que contiene otros metadatos del estado
+que NO deben perderse. Se añadió conversión compatible en
+`firebase/uki-migracion-cierres-seca-qa.mjs` y validación de ida y
+vuelta con pruebas aprobadas en GitHub para ambos repositorios.
+
+**Capacidad de datos:** la API QA actual admite como máximo 240 KB de
+contenido financiero. La simulación falla explícitamente si el historial
+supera ese tamaño, sin recortarlo. Antes de mover cierres reales se debe
+medir su tamaño y, si hace falta, implementar bóvedas cifradas por partes
+y recuperación verificada. No se ha medido ni transferido el historial
+real, que requiere acceso del propietario al respaldo descifrado.
+
+**Estado verificado:** código, pruebas y simuladores completados solo
+en las ramas de preparación. El servidor QA actualmente publicado todavía
+usa el contrato anterior; no se debe presentar como una migración ya
+activa. No hay autorización ni ejecución de corte real. La carta pública
+y el panel operativo actual continúan intactos.
