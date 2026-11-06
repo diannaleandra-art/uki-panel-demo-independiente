@@ -103,3 +103,12 @@ test('iPhone: cantidades de inventario aceptan coma y punto sin alterar precios 
  assert.match(panel,/id="ukiInvExtraStock" type="text" inputmode="decimal"/);
  assert.match(panel,/id="ukiInvExtraMinimo" type="text" inputmode="decimal"/);
 });
+
+test('login Google QA muestra causa real y dominio necesario sin revelar claves',()=>{
+ assert.match(admin,/auth\/unauthorized-domain/);
+ assert.match(admin,/auth\/popup-blocked/);
+ assert.match(admin,/auth\/operation-not-allowed/);
+ assert.match(admin,/Authentication → Settings → Authorized domains/);
+ assert.match(admin,/estado\(describirErrorGoogle\(e\)\)/);
+ assert.doesNotMatch(admin,/catch\{estado\('No se completó el acceso Google autorizado/);
+});

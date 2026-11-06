@@ -112,9 +112,30 @@ onAuthStateChanged(auth,user=>{
  $('edicionArticulo').hidden=true;controls();
  if(user)void iniciar();
 });
+function describirErrorGoogle(e){
+ const code=String(e?.code||'auth/unknown');
+ const dominio=location.hostname;
+ if(code==='auth/unauthorized-domain')
+  return 'Dominio no autorizado por Firebase: '+dominio+'. En Firebase → Authentication → Settings → Authorized domains, debe autorizarse este dominio de pruebas.';
+ if(code==='auth/popup-blocked')
+  return 'Safari bloqueó la ventana de Google. Comprueba Ajustes de Safari → Bloquear ventanas emergentes y vuelve a intentarlo.';
+ if(code==='auth/popup-closed-by-user')
+  return 'Google cerró la ventana sin completar el acceso. Si no la cerraste, revisa la autorización del dominio.';
+ if(code==='auth/operation-not-allowed')
+  return 'Google no está habilitado como proveedor en Firebase Authentication.';
+ if(code==='auth/network-request-failed')
+  return 'No se pudo contactar con Firebase. Verifica la conexión y vuelve a intentarlo.';
+ if(code==='auth/cancelled-popup-request')
+  return 'Se canceló una solicitud anterior. Intenta iniciar sesión solo una vez.';
+ return 'No se completó el acceso Google ('+code+'). Revisa la configuración Firebase de este panel.';
+}
 $('google').onclick=async()=>{
  if(!validHost)return;
- try{await signInWithPopup(auth,new GoogleAuthProvider());}catch{estado('No se completó el acceso Google autorizado.');}
+ $('google').disabled=true;
+ estado('Abriendo inicio de sesión Google…');
+ try{await signInWithPopup(auth,new GoogleAuthProvider());}
+ catch(e){estado(describirErrorGoogle(e));}
+ finally{controls();}
 };
 $('codigo').oninput=controls;
 $('crear').onclick=async()=>{
