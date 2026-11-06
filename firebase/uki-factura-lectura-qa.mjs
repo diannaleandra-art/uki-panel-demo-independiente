@@ -16,6 +16,29 @@ export function numeroFactura(texto){
  if(!/^\d{1,6}(?:[.,]\d{1,3})?$/.test(s))return NaN;
  const n=Number(s.replace(',','.'));return Number.isFinite(n)&&n>0&&n<=100000?n:NaN;
 }
+// Opciones de recepción: únicamente insumos/ingredientes, nunca platos de la carta.
+// Se muestra primero la sugerencia, pero no se considera una confirmación.
+export function opcionesRecepcionFactura(items=[],busqueda='',sugerencia=''){
+ const disponibles=Array.from(items||[]).filter(item=>
+   item&&item.sku&&item.name&&(!item.kind||['ingredient','inventory'].includes(item.kind))
+ );
+ const vistos=new Set();
+ const unicos=disponibles.filter(item=>{
+  if(vistos.has(item.sku))return false;
+  vistos.add(item.sku);return true;
+ }).sort((a,b)=>a.name.localeCompare(b.name,'es'));
+ const sugerido=unicos.find(x=>normalizar(x.name)===normalizar(sugerencia))||null;
+ const opciones=[];
+ if(sugerido)opciones.push({sku:sugerido.sku,name:sugerido.name,sugerido:true});
+ const q=normalizar(busqueda);
+ for(const item of unicos){
+  if(sugerido&&item.sku===sugerido.sku)continue;
+  if(q&&!normalizar(item.name).includes(q))continue;
+  opciones.push({sku:item.sku,name:item.name,sugerido:false});
+ }
+ return opciones;
+}
+
 export function coincidencia(nombre,items=[]){
  const n=normalizar(nombre);
  if(!n)return {sku:'',sugerencia:''};

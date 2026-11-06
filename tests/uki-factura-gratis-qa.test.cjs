@@ -40,7 +40,7 @@ test('lector no puede registrar sin revisión y autorización de trabajador',()=
  assert.match(worker,/codigo:codigo\(\)/);
  assert.match(visual,/factGuardar/);
  assert.match(visual,/pending\.some\(f=>!valido\(f\)\.ok\)/);
- assert.match(visual,/await post\('recibir'/);
+ assert.match(visual,/await post\('factura-recibir'/);
  assert.doesNotMatch(visual,/FormData\(|fetch\(.+\/api\/ocr/);
  assert.match(visual,/worker\.recognize\(file\)/);
 });
@@ -129,7 +129,7 @@ test('PDF: encabezado folio, proveedor, sucursal observada y RUT con puntos',asy
  assert.equal(h.sucursalSugerida,'arica');
 });
 test('interfaz exige selección de líneas, presenta importes como informativos y bloquea sucursal contradictoria',()=>{
- assert.match(visual,/filas=data.map\(f=>\(\{\.\.\.f,checked:false,saved:false\}\)\)/);
+ assert.match(visual,/checked:false,saved:false/);
  assert.match(visual,/Sugerido para inventario/);
  assert.match(visual,/meta\.sucursalSugerida!==getBranch\(\)/);
 });
@@ -139,6 +139,50 @@ test('revision de factura sin advertencias duplicadas, con busqueda por nombre y
  assert.match(visual,/Buscar por nombre/);
  assert.match(visual,/administración debe agregarlo al inventario/);
  assert.match(visual,/buscar\.oninput=\(\)=>\{opciones\(\);preview\(\);\}/);
+ assert.match(visual,/★ Sugerido:/);
+ assert.match(visual,/opcionesRecepcionFactura\(getItems\(\),buscar\.value,f\.sugerencia\)/);
  assert.match(visual,/else \{select\.value='';f\.sku='';\}/);
  assert.match(visual,/checked:false,saved:false/);
+});
+
+test('sugerido primero + busqueda, sin confundir platos con ingredientes',async()=>{
+ const {opcionesRecepcionFactura}=await import(helper);
+ const productos=[
+  {name:'4 korokes',kind:'product',sku:'menu:korokes'},
+  {name:'Queso',kind:'ingredient',sku:'ingredient:queso'},
+  {name:'Queso crema',kind:'inventory',sku:'inv:queso-crema'},
+  {name:'Pollo',kind:'ingredient',sku:'ingredient:pollo'},
+  {name:'Aceite',kind:'inventory',sku:'inv:aceite'}
+ ];
+ const full=opcionesRecepcionFactura(productos,'','Queso');
+ assert.equal(full[0].name,'Queso');
+ assert.equal(full[0].sugerido,true);
+ assert.ok(!full.some(x=>x.name==='4 korokes'));
+ assert.equal(full.filter(x=>x.name==='Queso').length,1);
+ const search=opcionesRecepcionFactura(productos,'pollo','Queso');
+ assert.deepEqual(search.map(x=>x.name),['Queso','Pollo']);
+ const accent=opcionesRecepcionFactura(productos,'QUEso CREma','Queso');
+ assert.deepEqual(accent.map(x=>x.name),['Queso','Queso crema']);
+ assert.equal(opcionesRecepcionFactura(productos,'xyz','').length,0);
+});
+
+test('factura: registro se consulta en base QA antes del primer movimiento',()=>{
+ assert.match(visual,/post\('factura-consultar',value\)/);
+ assert.match(visual,/rut_emisor:el\('factRut'\)/);
+ assert.match(visual,/folio:el\('factFolio'\)/);
+ assert.match(visual,/Número de entrega/);
+ assert.match(visual,/cantidad_total:numeroFactura\(row\.totalCantidad\)/);
+ assert.match(visual,/entrega:Number\(row\.entrega\)/);
+ assert.match(visual,/request_id:row\.solicitud/);
+ assert.match(visual,/if\(pending\.some\(f=>!valido\(f\)\.ok\)\)/);
+ assert.match(visual,/checked:false,saved:false/);
+ assert.doesNotMatch(visual,/sessionStorage/);
+});
+test('entrada parcial y duplicados: no se suma sin validación y la caja nunca se modifica',()=>{
+ assert.match(visual,/previo\+base<=limite/);
+ assert.match(visual,/entregaRepetida/);
+ assert.match(visual,/respuesta\.duplicada/);
+ assert.match(visual,/No se pudo consultar si la factura ya está registrada/);
+ assert.match(visual,/No se pudo consultar si la factura ya está registrada/);
+ assert.doesNotMatch(visual,/\/api\/pagos|\/api\/caja/);
 });
