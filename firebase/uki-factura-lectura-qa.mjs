@@ -40,6 +40,26 @@ export function nombrePropuestoFactura(descripcion=''){
  return String(descripcion||'').trim().replace(/\s+/g,' ').slice(0,100);
 }
 
+// La propuesta es editable: si una descripción no es inequívoca,
+// deja la categoría sin elegir para revisión humana.
+export function categoriaPropuestaFactura(nombre=''){
+ const n=normalizar(nombre);
+ if(/\b(pocillos?|potes?|envases?|tapas?|bolsas?|bandejas?|contenedores?|vasos?|cajas? para delivery)\b/.test(n))
+  return 'envase';
+ if(/\b(tenedor(?:es)?|cucharas?|cuchillos?|palillos?|servilletas?|bombillas?|guantes?|papel aluminio|film|toalla de papel|detergente|jabon|limpiador)\b/.test(n))
+  return 'otro';
+ if(/\b(queso|pollo|champi[^\s]*|soya|salsa|panko|arroz|nori|atun|salmon|camaron|carne|palta|pepino|cebollin|aceite|vinagre|azucar|sal|harina|huevo|mayo|wasabi|jengibre)\b/.test(n))
+  return 'ingrediente';
+ return '';
+}
+// No infiere que "Queso gauda" sea el ingrediente genérico "Queso".
+export function articuloExistenteFactura(nombre,items=[]){
+ const key=normalizar(nombre);
+ if(!key)return null;
+ return items.find(x=>x&&x.name&&x.sku&&
+  ['ingredient','inventory'].includes(x.kind)&&normalizar(x.name)===key)||null;
+}
+
 export function opcionesRecepcionFactura(items=[],busqueda='',sugerencia=''){
  const disponibles=Array.from(items||[]).filter(item=>
    item&&item.sku&&item.name&&(!item.kind||['ingredient','inventory'].includes(item.kind))

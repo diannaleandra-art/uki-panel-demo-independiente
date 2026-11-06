@@ -1,7 +1,7 @@
-import {leerDTE,filasDTE,leerTextoFactura,leerCabeceraFacturaPDF,numeroFactura,opcionesRecepcionFactura,nombrePropuestoFactura} from './uki-factura-lectura-qa.mjs';
+import {leerDTE,filasDTE,leerTextoFactura,leerCabeceraFacturaPDF,numeroFactura,opcionesRecepcionFactura,nombrePropuestoFactura,categoriaPropuestaFactura,articuloExistenteFactura} from './uki-factura-lectura-qa.mjs';
 export function iniciarFacturaQA({getBranch,getItems,post,onSaved,onItemsCreated}){
  const section=document.createElement('section');section.id='facturaQA';section.className='card';
- section.innerHTML="<h2>📷 Recibir mercadería con factura</h2>\n<p class=\"muted\">Gratis: toma una foto o sube una factura. Revisa las cantidades antes de guardar. La foto se procesa en tu teléfono y no se envía al servidor.</p>\n<div class=\"fact-botones\"><label for=\"factFoto\">📷 Tomar foto</label><input id=\"factFoto\" type=\"file\" accept=\"image/*\" capture=\"environment\">\n<label for=\"factArchivo\">Subir archivo</label><input id=\"factArchivo\" type=\"file\" accept=\"image/*,.xml,application/xml,.pdf,application/pdf\"></div>\n<p id=\"factEstado\" role=\"status\" class=\"muted\">Fotos, XML y PDF con texto. El ingreso manual sigue disponible.</p>\n<div id=\"factTextoBox\" hidden><label for=\"factTexto\">Texto leído (corrígelo si hay errores)</label>\n<textarea id=\"factTexto\" rows=\"4\" maxlength=\"20000\" style=\"width:100%;font:inherit;border:1px solid #d5c4b6;border-radius:9px\"></textarea>\n<button type=\"button\" class=\"secondary\" id=\"factReleer\">Volver a detectar productos</button></div>\n<div id=\"factLineas\"></div>\n<div id=\"factAcciones\" hidden><button type=\"button\" class=\"secondary\" id=\"factAnadir\">Añadir línea manual</button>\n<button type=\"button\" id=\"factGuardar\">Confirmar mercadería recibida</button>\n<p id=\"factResultado\" role=\"status\"></p><p class=\"muted small\">Las entradas marcadas se guardan individualmente. Si hay un error, revisa el saldo antes de intentar otra vez.</p></div>\n<style>#facturaQA .fact-botones{display:flex;gap:8px;flex-wrap:wrap}\n#facturaQA .fact-botones input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}\n#facturaQA .fact-botones label{display:inline-block;background:#e9822d;color:white;border-radius:9px;padding:12px;cursor:pointer}\n#facturaQA .fact-fila{border:1px solid #eadbcc;border-radius:10px;padding:12px;margin:9px 0}\n#facturaQA .fact-fila select,#facturaQA .fact-fila input[type=text]{width:100%}\n#facturaQA .fact-columnas{display:grid;grid-template-columns:1fr 1fr;gap:8px}\n#facturaQA .fact-mensaje{background:#fff6e9;border-radius:8px;padding:8px}\n#facturaQA .fact-guardada{background:#f0f9ef;border-radius:8px;padding:8px;color:#25612c}\n#facturaQA button{margin:8px 6px 0 0}\n@media(max-width:470px){#facturaQA .fact-columnas{grid-template-columns:1fr}}</style>";
+ section.innerHTML="<h2>📷 Recibir mercadería con factura</h2>\n<p class=\"muted\">Gratis: toma una foto o sube una factura. Revisa las cantidades antes de guardar. La foto se procesa en tu teléfono y no se envía al servidor.</p>\n<div class=\"fact-botones\"><label for=\"factFoto\">📷 Tomar foto</label><input id=\"factFoto\" type=\"file\" accept=\"image/*\" capture=\"environment\">\n<label for=\"factArchivo\">Subir archivo</label><input id=\"factArchivo\" type=\"file\" accept=\"image/*,.xml,application/xml,.pdf,application/pdf\"></div>\n<p id=\"factEstado\" role=\"status\" class=\"muted\">Fotos, XML y PDF con texto. El ingreso manual sigue disponible.</p>\n<div id=\"factTextoBox\" hidden><label for=\"factTexto\">Texto leído (corrígelo si hay errores)</label>\n<textarea id=\"factTexto\" rows=\"4\" maxlength=\"20000\" style=\"width:100%;font:inherit;border:1px solid #d5c4b6;border-radius:9px\"></textarea>\n<button type=\"button\" class=\"secondary\" id=\"factReleer\">Volver a detectar productos</button></div>\n<div id=\"factLineas\"></div>\n<div id=\"factAcciones\" hidden><button type=\"button\" class=\"secondary\" id=\"factAnadir\">Añadir línea manual</button>\n<button type=\"button\" id=\"factGuardar\">Confirmar mercadería recibida</button>\n<p id=\"factResultado\" role=\"status\"></p><p class=\"muted small\">Las entradas marcadas se guardan individualmente. Si hay un error, revisa el saldo antes de intentar otra vez.</p></div>\n<style>#facturaQA .fact-botones{display:flex;gap:8px;flex-wrap:wrap}\n#facturaQA .fact-botones input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}\n#facturaQA .fact-botones label{display:inline-block;background:#e9822d;color:white;border-radius:9px;padding:12px;cursor:pointer}\n#facturaQA .fact-fila{border:1px solid #eadbcc;border-radius:10px;padding:12px;margin:9px 0}\n#facturaQA .fact-fila select,#facturaQA .fact-fila input[type=text]{width:100%}\n#facturaQA .fact-columnas{display:grid;grid-template-columns:1fr 1fr;gap:8px}\n#facturaQA .fact-mensaje{background:#fff6e9;border-radius:8px;padding:8px}\n#facturaQA .fact-guardada{background:#f0f9ef;border-radius:8px;padding:8px;color:#25612c}\n#facturaQA button{margin:8px 6px 0 0}\n#facturaQA #factAltas[hidden],#facturaQA #factRecibirVista[hidden]{display:none!important}\n#facturaQA #factEtapas button[aria-pressed=true]{background:#ae5414;color:#fff}\n#facturaQA #factEtapas button[aria-pressed=false]{background:#f6e3d2;color:#663a20}\n@media(max-width:470px){#facturaQA .fact-columnas{grid-template-columns:1fr}}</style>";
  const metaBox=document.createElement('div');
  metaBox.id='factDocumentQA';
  metaBox.innerHTML='<h3>Datos para evitar duplicados</h3>'+
@@ -19,6 +19,14 @@ export function iniciarFacturaQA({getBranch,getItems,post,onSaved,onItemsCreated
   '<button type="button" id="factAltasGuardar">Agregar artículos seleccionados al inventario</button>'+
   '<p id="factAltasEstado" role="status" class="muted"></p></details>';
  section.insertBefore(altas,section.querySelector('#factLineas'));
+ // Dos vistas del mismo documento: se conserva el estado al alternar.
+ const recibidor=document.createElement('section');recibidor.id='factRecibirVista';
+ section.insertBefore(recibidor,section.querySelector('#factLineas'));
+ recibidor.append(section.querySelector('#factLineas'),section.querySelector('#factAcciones'));
+ const nav=document.createElement('div');nav.id='factEtapas';nav.className='fact-botones';
+ nav.innerHTML='<button type="button" id="factModoPreparar">1. Preparar artículos</button>'+
+  '<button type="button" id="factModoRecibir">2. Registrar mercadería</button>';
+ section.insertBefore(nav,altas);
  const itemsContainer=document.getElementById('items');
  itemsContainer.parentNode.insertBefore(section,itemsContainer);
  const el=id=>section.querySelector('#'+id), estado=t=>{el('factEstado').textContent=t;};
@@ -28,7 +36,19 @@ export function iniciarFacturaQA({getBranch,getItems,post,onSaved,onItemsCreated
  };
  const units=['','kg','g','l','ml','un','porciones'],factors={kg:1000,g:1,l:1000,ml:1,un:1,porciones:1};
  const groups={kg:'peso',g:'peso',l:'volumen',ml:'volumen',un:'unidad',porciones:'porcion'};
- let filas=[],meta={},busy=false;
+ let filas=[],meta={},busy=false,modo='preparar';
+ function mostrarModo(value){
+  modo=value==='recibir'?'recibir':'preparar';
+  altas.hidden=modo!=='preparar';recibidor.hidden=modo!=='recibir';
+  el('factModoPreparar').setAttribute('aria-pressed',String(modo==='preparar'));
+  el('factModoRecibir').setAttribute('aria-pressed',String(modo==='recibir'));
+  el('factModoPreparar').disabled=busy;
+  el('factModoRecibir').disabled=busy;
+  el('factAltasDetalles').open=true;
+ }
+ el('factModoPreparar').onclick=()=>mostrarModo('preparar');
+ el('factModoRecibir').onclick=()=>mostrarModo('recibir');
+ mostrarModo('preparar');
  const doc=()=>({rut_emisor:el('factRut').value.trim(),folio:el('factFolio').value.trim(),
   tipo_doc:el('factTipo').value});
  const documentoValido=()=>/^\d{7,8}-[\dK]$/.test(doc().rut_emisor.replace(/[.\s]/g,'').toUpperCase())&&
@@ -75,7 +95,17 @@ export function iniciarFacturaQA({getBranch,getItems,post,onSaved,onItemsCreated
  // La factura prepara la LISTA de artículos nuevos, no modifica cantidades.
  function renderAltas(){
   const parent=el('factAltasFilas');parent.replaceChildren();
-  const candidatos=filas.filter(f=>!f.sku&&!f.saved);
+  const items=getItems();
+  const yaExistentes=filas.filter(f=>!f.sku&&!f.saved&&
+   articuloExistenteFactura(f.nuevoNombre,items));
+  const candidatos=filas.filter(f=>!f.sku&&!f.saved&&
+   !articuloExistenteFactura(f.nuevoNombre,items));
+  make('p',parent,candidatos.length+' artículo(s) por preparar · '+
+   yaExistentes.length+' ya existe(n) en el inventario.','muted small');
+  if(yaExistentes.length){
+   make('p',parent,'Ya registrados: '+yaExistentes.map(f=>f.nuevoNombre).join(', ')+
+    '. Selecciónalos en «2. Registrar mercadería». No se crearán duplicados.','muted small');
+  }
   if(!filas.length){
    make('p',parent,'Primero sube una factura para preparar nuevos artículos.','muted small');
    return;
@@ -84,7 +114,7 @@ export function iniciarFacturaQA({getBranch,getItems,post,onSaved,onItemsCreated
    make('p',parent,'Todos los artículos están vinculados al inventario o ya se registraron.','muted small');
    return;
   }
-  const existentes=getItems();
+  const existentes=items;
   const norm=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
    .toLocaleLowerCase('es-CL').trim().replace(/\s+/g,' ');
   for(const f of candidatos){
@@ -105,9 +135,10 @@ export function iniciarFacturaQA({getBranch,getItems,post,onSaved,onItemsCreated
    if(!f.nuevaUnidad)uSel.add(new Option('Elegir unidad…',''),0);
    const catBox=make('div',grid);make('label',catBox,'Tipo');
    const cSel=make('select',catBox);
+   cSel.add(new Option('Elegir tipo…',''));
    for(const [key,label] of [['ingrediente','Ingrediente'],['envase','Envase'],['otro','Otro insumo']])
     cSel.add(new Option(label,key));
-   cSel.value=f.nuevaCategoria||'ingrediente';
+   cSel.value=f.nuevaCategoria||'';
    const selBox=make('div',grid);
    const markLabel=make('label',selBox);
    const checkbox=make('input',markLabel);checkbox.type='checkbox';
@@ -149,18 +180,20 @@ export function iniciarFacturaQA({getBranch,getItems,post,onSaved,onItemsCreated
   for(const f of elegidos){
    const name=String(f.nuevoNombre||'').trim().replace(/\s+/g,' ');
    const key=name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('es-CL');
-   if(name.length<2||name.length>100||!units.slice(1).includes(f.nuevaUnidad)||nombres.has(key)){
+   if(name.length<2||name.length>100||!units.slice(1).includes(f.nuevaUnidad)||
+      !['ingrediente','envase','otro'].includes(f.nuevaCategoria)||nombres.has(key)||
+      articuloExistenteFactura(name,getItems())){
     el('factAltasEstado').textContent='Revisa los nombres, unidades y artículos repetidos antes de guardar.';
     return;
    }
    nombres.add(key);
   }
-  busy=true;el('factAltasGuardar').disabled=true;el('factGuardar').disabled=true;
+  busy=true;mostrarModo(modo);el('factAltasGuardar').disabled=true;el('factGuardar').disabled=true;
   el('factAltasEstado').textContent='Preparando artículos exclusivamente en inventario QA…';
   try{
    const respuesta=await post('factura-preparar-articulos',{
     ...doc(),articulos:elegidos.map(f=>({linea:f.linea,name:f.nuevoNombre.trim(),
-     category:f.nuevaCategoria||'ingrediente',stock_unit:f.nuevaUnidad}))
+     category:f.nuevaCategoria,stock_unit:f.nuevaUnidad}))
    });
    const disponibles=[];
    let conflictos=0;
@@ -174,13 +207,15 @@ export function iniciarFacturaQA({getBranch,getItems,post,onSaved,onItemsCreated
    }
    if(disponibles.length)onItemsCreated(disponibles);
    render();
+   if(disponibles.length)mostrarModo('recibir');
+   el('factResultado').textContent=disponibles.length+' artículo(s) preparados con stock 0. Ahora revisa y selecciona las entradas que realmente llegaron.';
    el('factAltasEstado').textContent=disponibles.length+' artículo(s) preparados en esta sucursal, con stock 0. '+
     (conflictos?conflictos+' requieren revisar su unidad o nombre. ':'')+
     'Ninguna mercadería se ha sumado.';
   }catch(e){
    el('factAltasEstado').textContent='No se completó la preparación: '+e.message+
     '. Revisa la lista antes de intentar nuevamente.';
-  }finally{busy=false;el('factAltasGuardar').disabled=false;el('factGuardar').disabled=false;}
+  }finally{busy=false;el('factAltasGuardar').disabled=false;el('factGuardar').disabled=false;mostrarModo(modo);}
  };
 
  function render(){
@@ -274,8 +309,10 @@ export function iniciarFacturaQA({getBranch,getItems,post,onSaved,onItemsCreated
  function preparar(data,details={}){
   filas=data.map((f,i)=>({...f,linea:i+1,totalCantidad:f.cantidad||'',totalUnidad:f.unidad||'',
    entrega:1,solicitud:crypto.randomUUID(),prev:null,entregas:[],checked:false,saved:false,
-   nuevoNombre:nombrePropuestoFactura(f.nombre),nuevaUnidad:f.unidad||'',nuevaCategoria:'ingrediente',prepararNuevo:false}));
+   nuevoNombre:nombrePropuestoFactura(f.nombre),nuevaUnidad:f.unidad||'',
+   nuevaCategoria:categoriaPropuestaFactura(f.nombre),prepararNuevo:false}));
   meta=details;el('factAcciones').hidden=false;el('factResultado').textContent='';
+  mostrarModo('preparar');
   el('factRut').value=details.rut||details.rut_emisor||'';
   el('factFolio').value=details.folio||'';
   el('factTipo').value=['33','34','52'].includes(String(details.tipo))?String(details.tipo):'33';
@@ -352,7 +389,7 @@ export function iniciarFacturaQA({getBranch,getItems,post,onSaved,onItemsCreated
  el('factArchivo').onchange=e=>importar(e.target.files?.[0]);
  el('factReleer').onclick=()=>preparar(leerTextoFactura(el('factTexto').value,getItems()),leerCabeceraFacturaPDF(el('factTexto').value));
  el('factAnadir').onclick=()=>{
-  filas.push({nombre:'Producto manual',linea:filas.length+1,cantidad:'',unidad:'',totalCantidad:'',totalUnidad:'',entrega:1,solicitud:crypto.randomUUID(),sku:'',checked:false,saved:false,prev:null,entregas:[],nuevoNombre:'',nuevaUnidad:'',nuevaCategoria:'ingrediente',prepararNuevo:false});render();
+  filas.push({nombre:'Producto manual',linea:filas.length+1,cantidad:'',unidad:'',totalCantidad:'',totalUnidad:'',entrega:1,solicitud:crypto.randomUUID(),sku:'',checked:false,saved:false,prev:null,entregas:[],nuevoNombre:'',nuevaUnidad:'',nuevaCategoria:'',prepararNuevo:false});render();
  };
  for(const id of ['factRut','factFolio','factTipo']){
   el(id).addEventListener('input',()=>{

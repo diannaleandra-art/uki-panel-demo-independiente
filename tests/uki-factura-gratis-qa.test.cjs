@@ -209,3 +209,46 @@ test('punto de compra al alcanzar el mínimo, no con mínimo no configurado',()=
  assert.match(worker,/Number\(x\.stock_qty\)<=Number\(x\.min_stock_qty\)/);
  assert.match(worker,/if\(min>0&&qty<=min\)/);
 });
+
+test('clasificación automática editable: once productos de factura 78969',async()=>{
+ const {categoriaPropuestaFactura,articuloExistenteFactura}=await import(helper);
+ const rows=[
+ ['QUESO GAUDA MOLFINO BARRA X KG','ingrediente'],
+ ['TENEDOR PLASTICO 1000 UND (CJ)','otro'],
+ ['PECHUGA DE POLLO S/HUESO S/PIEL 12 KG','ingrediente'],
+ ['CHAMPIÑONES LAM. PREMIUN 2840 GR','ingrediente'],
+ ['SALSA DE SOYA BIDON 5LT','ingrediente'],
+ ['PALILLOS DE SUSHI REDONDOS 100 UND','otro'],
+ ['PANKO AMARILLO X 1 KG','ingrediente'],
+ ['ARROZ TUCAPEL FOOD SERVICE 5X2 KG','ingrediente'],
+ ['NORI GOLD YAKI 100 HOJAS','ingrediente'],
+ ['POCILLO C/TAPA 1.5 OZ','envase'],
+ ['QUESO CREMA TOSHIKO BARRAS','ingrediente']
+ ];
+ assert.deepEqual(rows.map(([name])=>categoriaPropuestaFactura(name)),rows.map(([,type])=>type));
+ assert.equal(categoriaPropuestaFactura('ARTICULO INDETERMINADO'),'');
+ const items=[{sku:'ingredient:pollo',name:'Pollo',kind:'ingredient'},
+  {sku:'ingredient:queso',name:'Queso',kind:'ingredient'},
+  {sku:'inv:queso-crema',name:'Queso crema',kind:'inventory'},
+  {sku:'menu:combo',name:'Combo',kind:'product'}];
+ assert.equal(articuloExistenteFactura('pÓllo',items)?.sku,'ingredient:pollo');
+ assert.equal(articuloExistenteFactura('QUESO crema',items)?.sku,'inv:queso-crema');
+ assert.equal(articuloExistenteFactura('Queso gauda',items),null,
+  'Queso gauda no debe tratarse como Queso genérico');
+ assert.equal(articuloExistenteFactura('Combo',items),null,'platos no son insumos');
+});
+test('dos pasos separados evitan listas duplicadas y conservan la factura',()=>{
+ assert.match(visual,/1\. Preparar artículos/);
+ assert.match(visual,/2\. Registrar mercadería/);
+ assert.match(visual,/mostrarModo\('preparar'\)/);
+ assert.match(visual,/mostrarModo\('recibir'\)/);
+ assert.match(visual,/recibidor\.append\(section\.querySelector\('#factLineas'\),section\.querySelector\('#factAcciones'\)\)/);
+ assert.match(visual,/altas\.hidden=modo!=='preparar'/);
+ assert.match(visual,/recibidor\.hidden=modo!=='recibir'/);
+ assert.match(visual,/factAltas\[hidden\].*factRecibirVista\[hidden\].*display:none!important/);
+ assert.match(visual,/categoriaPropuestaFactura\(f\.nombre\)/);
+ assert.match(visual,/articuloExistenteFactura\(f\.nuevoNombre,items\)/);
+ assert.match(visual,/Ya registrados:/);
+ assert.match(visual,/f\.nuevaCategoria=cSel\.value/);
+ assert.match(visual,/Ninguna mercadería se ha sumado/);
+});
