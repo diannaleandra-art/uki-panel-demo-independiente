@@ -83,7 +83,7 @@ export function leerTextoFactura(texto,items=[]){
   // PDF chileno con columnas: descripción | cantidad | unidad | precio | total.
   // Separar desde la derecha: los números en la descripción son presentaciones,
   // mientras que los dos números de la derecha son montos en pesos.
-  const tabla=linea.match(/^(.{3,180}?)\s+(\d{1,6}(?:[.,]\d{1,3})?)\s+(Un|Und|Uds|Kg|Kgs|G|Gr|Grs|Lt|Lts|L|Ml|Porciones?)\s+(\d{1,3}(?:\.\d{3})*|\d+)\s+(\d{1,3}(?:\.\d{3})*|\d+)$/i);
+  const tabla=linea.match(/^(.{3,180}?)\s+(\d{1,6}(?:[.,]\d{1,3})?)\s+(Un|Und|Uds|Kg|Kgs|G|Gr|Grs|Lt|Lts|L|Ml|Porciones?)\s+(\d{1,3}(?:\.\d{3})*|\d+)\s+(?:[-–—]\s*)?(\d{1,3}(?:\.\d{3})*|\d+)$/i);
   if(tabla){
    const nombreTabla=tabla[1],qFactura=tabla[2],uFactura=unidadFactura(tabla[3]);
    const proposed=propuestaPresentacion(nombreTabla,qFactura,uFactura);
