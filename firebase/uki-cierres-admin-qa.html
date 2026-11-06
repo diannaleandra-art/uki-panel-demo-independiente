@@ -48,25 +48,67 @@ const $=x=>document.getElementById(x);
 const hostOK=/^uki-sushi-panel-[a-z0-9]+-diannaleandra-7046\.vercel\.app$/.test(location.hostname);
 const QA_API='https://uki-sushi-pedidos-bh49s8v7s-diannaleandra-7046.vercel.app/api/uki-finanzas-qa';
 const auth=getAuth(initializeApp(config));
-let busy=false;
+let busy=false,configurado=null;
 const aviso=s=>{$('estado').textContent=s;};
+const valido=()=>/^[0-9]{8}$/.test($('pin').value);
 function bloqueo(){
- $('consultar').disabled=busy||!auth.currentUser||!hostOK;
+ const autorizado=!!auth.currentUser&&hostOK;
+ $('consultar').disabled=busy||!autorizado||configurado!==true||!valido();
+ $('crear').hidden=configurado!==false||!autorizado;
+ $('crear').disabled=busy||!valido();
  $('entrar').disabled=busy||!hostOK;
+}
+async function solicitudAdmin(action,extra={}){
+ if(!auth.currentUser||!hostOK)throw Error('Se requiere Google autorizado.');
+ const token=await getIdToken(auth.currentUser,true);
+ const response=await fetch(QA_API,{
+  method:'POST',cache:'no-store',credentials:'omit',mode:'cors',
+  headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+  body:JSON.stringify({action,...extra}),signal:AbortSignal.timeout(16000)
+ });
+ const body=await response.json().catch(()=>({}));
+ if(!response.ok||!body.ok)throw Error(body.error||'No se pudo verificar la administración.');
+ return body;
+}
+async function estadoCodigo(){
+ if(!auth.currentUser||!hostOK)return;
+ busy=true;bloqueo();
+ try{
+  const r=await solicitudAdmin('estado');
+  configurado=!!r.configurado;
+  $('pinAyuda').textContent=configurado?
+   'Escribe el código privado que configuraste. No se guarda en este iPhone.':
+   'Crea una sola vez un código privado de 8 números. Luego lo usarán las personas autorizadas.';
+  aviso(configurado?'Ingresa tu código para consultar los cierres.':'Configura el código privado para continuar.');
+ }catch(e){configurado=null;aviso(String(e?.message||'No disponible.'));}
+ finally{busy=false;bloqueo();}
 }
 onAuthStateChanged(auth,user=>{
  $('cuenta').textContent=user?'Google conectado':'Sin iniciar sesión';
- $('datos').hidden=true;
+ $('datos').hidden=true;configurado=null;$('pin').value='';
  bloqueo();
+ if(user)void estadoCodigo();
 });
 $('entrar').onclick=async()=>{
  if(!hostOK)return aviso('Solo disponible en la vista privada QA.');
  try{await signInWithPopup(auth,new GoogleAuthProvider());aviso('Identificación completada.');}
  catch{aviso('No se pudo acceder con Google. Comprueba tu cuenta autorizada.');}
 };
+$('pin').oninput=()=>{$('datos').hidden=true;bloqueo();};
+$('crear').onclick=async()=>{
+ if(busy||!auth.currentUser||configurado!==false||!valido())return;
+ busy=true;bloqueo();aviso('Guardando código privado de pruebas…');
+ try{
+  await solicitudAdmin('crear',{pin:$('pin').value});
+  configurado=true;
+  $('pinAyuda').textContent='Código creado. Ya puedes consultar los cierres de prueba.';
+  aviso('Código privado configurado correctamente.');
+ }catch(e){aviso(String(e?.message||'No se pudo crear el código.'));}
+ finally{busy=false;bloqueo();}
+};
 $('sucursal').onchange=()=>{$('datos').hidden=true;aviso('');};
 $('consultar').onclick=async()=>{
- if(!hostOK||!auth.currentUser||busy)return;
+ if(!hostOK||!auth.currentUser||busy||configurado!==true||!valido())return;
  busy=true;bloqueo();$('datos').hidden=true;
  aviso('Consultando únicamente la base de pruebas…');
  try{
@@ -74,7 +116,7 @@ $('consultar').onclick=async()=>{
   const token=await getIdToken(auth.currentUser,true);
   const r=await fetch(QA_API+'?branch='+encodeURIComponent(branch),{
    method:'GET',cache:'no-store',credentials:'omit',mode:'cors',
-   headers:{Authorization:'Bearer '+token},signal:AbortSignal.timeout(16000)
+   headers:{Authorization:'Bearer '+token,'X-Uki-Admin-Pin':$('pin').value},signal:AbortSignal.timeout(16000)
   });
   const json=await r.json().catch(()=>({}));
   if(!r.ok||!json.ok)throw Error(json.error||'No se pudo consultar los cierres.');
