@@ -45,3 +45,11 @@ test('los módulos JS de ambas pantallas pueden compilarse sin errores',()=>{
   assert.doesNotThrow(()=>new Function(withoutImports));
  }
 });
+
+test('ambas pantallas QA usan el mismo enlace estable del servidor, sin tocar producción',()=>{
+ const expected='https://uki-sushi-inventario-qa2026-diannaleandra-7046.vercel.app/api/inventario-turno-qa';
+ assert.ok(worker.includes(expected));
+ assert.ok(admin.includes(expected));
+ assert.ok(!worker.includes('uki-sushi-pedidos.vercel.app/api'));
+ assert.ok(!admin.includes('uki-sushi-pedidos.vercel.app/api'));
+});
