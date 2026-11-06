@@ -15,7 +15,7 @@ test('pantalla es de consulta: no edita ni transporta registros a producción',(
  assert.match(html,/method:'GET'/);
  assert.doesNotMatch(html,/method:'(?:PUT|POST|PATCH|DELETE)'/);
  assert.doesNotMatch(html,/uki-sushi-pedidos\.vercel\.app\/api/);
- assert.match(html,/qa2026/);
+ assert.match(html,/const hostOK=/);
  assert.match(html,/No contiene ventas ni cierres reales/);
 });
 test('no se inyecta contenido de los cierres como HTML',()=>{
