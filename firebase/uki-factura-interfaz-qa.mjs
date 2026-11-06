@@ -32,6 +32,7 @@ export function iniciarFacturaQA({getBranch,getItems,post,onSaved}){
    const card=make('div',parent,undefined,'fact-fila');
    make('strong',card,f.nombre||'Producto sin identificar');
    make('p',card,'En factura: '+(f.cantidad||'cantidad desconocida')+' '+(f.unidad||'sin unidad'),'muted small');
+   if(f.nota)make('p',card,f.nota,'fact-mensaje');
    const grid=make('div',card,undefined,'fact-columnas');
    const box1=make('div',grid);make('label',box1,'Artículo del inventario');
    const select=make('select',box1);select.setAttribute('aria-label','Artículo de línea '+(i+1));
@@ -125,6 +126,9 @@ export function iniciarFacturaQA({getBranch,getItems,post,onSaved}){
     const texto=ext==='pdf'?await pdfTexto(file):await foto(file);
     el('factTextoBox').hidden=false;el('factTexto').value=texto.slice(0,20000);
     preparar(leerTextoFactura(texto,getItems()));
+    if(/\.pdf\b/i.test(texto)&&/\d+\.pdf/i.test(texto)&&
+       leerTextoFactura(texto,getItems()).length<=1)
+     estado('Parece una foto de la pantalla de un PDF. Para leer la factura completa, pulsa «Subir archivo» y elige el PDF original desde Archivos. No guardes hasta verificar cantidades.');
     if(!texto.trim())estado('No se pudo leer texto; prueba otra foto o agrega productos manualmente.');
    }
   }catch(e){estado('No se pudo leer: '+e.message+'. Puedes ingresar manualmente.');el('factAcciones').hidden=false;}

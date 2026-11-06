@@ -64,3 +64,23 @@ test('XML DTE sin cantidades inventadas',async()=>{
  const rows=filasDTE(d,[{name:'Aceite',sku:'item:aceite'}]);
  assert.equal(rows[0].sku,'item:aceite');assert.equal(rows[0].cantidad,'750');
 });
+
+
+test('factura chilena con empaque 12 KG, 1 Un y precio: no autocompleta 12 kilos',async()=>{
+ const {leerTextoFactura}=await import(helper);
+ const rows=leerTextoFactura('PECHUGA DE POLLO S/HUESO S/PIEL 12 KG 1 Un 45.983 — 45.983',
+ [{name:'Pollo',sku:'ingredient:pollo',stock_unit:'kg'}]);
+ assert.equal(rows.length,1);
+ assert.equal(rows[0].cantidad,'');
+ assert.equal(rows[0].unidad,'');
+ assert.equal(rows[0].sku,'');
+ assert.equal(rows[0].sugerencia,'Pollo');
+ assert.match(rows[0].nota,/presentación indicada de 12 kg/);
+});
+test('una foto de la vista del PDF no puede crear entradas por accidente',async()=>{
+ const {leerTextoFactura}=await import(helper);
+ const rows=leerTextoFactura('12:37 N\n78885.pdf - X\nCerrar',[
+ {name:'Pollo',sku:'ingredient:pollo'}]);
+ assert.equal(rows.length,0);
+ assert.match(visual,/Subir archivo/);
+});

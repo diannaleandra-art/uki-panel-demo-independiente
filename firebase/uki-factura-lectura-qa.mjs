@@ -31,7 +31,21 @@ export function leerTextoFactura(texto,items=[]){
  for(const lineaCruda of String(texto||'').split(/\r?\n/).slice(0,180)){
   const linea=lineaCruda.replace(/\s+/g,' ').trim();
   if(linea.length<3||/^(?:total|subtotal|iva|neto|descuento|rut|fecha|folio|factura|boleta|sucursal|proveedor|cantidad\s|precio\s|monto\s)/i.test(normalizar(linea)))continue;
-  let nombre='',cantidad='',unidad='',confianza='revisar';
+  let nombre='',cantidad='',unidad='',confianza='revisar',nota='';
+  // Una factura puede vender 1 paquete de 12 kg; 1 un NO equivale siempre
+  // a 12 kg recibidos. Detectar la presentación sin inventar una entrada.
+  const empaque=linea.match(/^(.{3,110}?)\s+(\d{1,4}(?:[.,]\d{1,3})?)\s*(kg|kgs|g|gr|grs|l|lt|lts|ml|cc)\s+(\d{1,5})\s*(un|und|uds|unidad(?:es)?)\b(?:\s+\$?[\d.,]+(?:\s*[-–—]\s*\$?[\d.,]+)?)?$/i);
+  if(empaque){
+   const match=coincidencia(empaque[1],items);
+   if(!match.exacto&&!match.sugerencia)continue;
+   const key=normalizar(linea);
+   if(vistas.has(key))continue;vistas.add(key);
+   salida.push({nombre:linea,cantidad:'',unidad:'',sku:'',sugerencia:match.sugerencia,
+    origen:'foto',confianza:'revisar',
+    nota:'Documento: '+empaque[4]+' '+empaque[5]+' de una presentación indicada de '+empaque[2]+' '+unidadFactura(empaque[3])+'. Verifica peso recibido; no se convierte automáticamente.'});
+   if(salida.length>=55)break;
+   continue;
+  }
   const alFinal=linea.match(/^(.{3,75}?)\s+(\d{1,6}(?:[.,]\d{1,3})?)\s*(kg|kgs|kilo|kilos|gr|grs|g|lt|lts|l|ml|cc|un|und|uds|unidad(?:es)?|porciones?)\b(?:\s+\$?[\d.,]+)?$/i);
   const alInicio=linea.match(/^(\d{1,6}(?:[.,]\d{1,3})?)\s*(kg|kgs|kilo|kilos|gr|grs|g|lt|lts|l|ml|cc|un|und|uds|unidad(?:es)?|porciones?)\b\s+(.{3,75})$/i);
   if(alFinal){nombre=alFinal[1];cantidad=alFinal[2];unidad=unidadFactura(alFinal[3]);}
@@ -46,7 +60,7 @@ export function leerTextoFactura(texto,items=[]){
   const key=normalizar(linea);
   if(vistas.has(key))continue;vistas.add(key);
   salida.push({nombre,cantidad,unidad,sku:match.exacto?match.sku:'',sugerencia:match.sugerencia,
-   origen:'foto',confianza});
+   origen:'foto',confianza,nota});
   if(salida.length>=55)break;
  }
  return salida;
