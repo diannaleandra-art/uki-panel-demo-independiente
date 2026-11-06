@@ -36,3 +36,12 @@ test('tanto administrador como trabajador están limitados a QA',()=>{
  assert.match(admin,/api\/inventario-turno-qa/);
  assert.doesNotMatch(panel,/window\.ukiInvQALIVE/);
 });
+
+test('los módulos JS de ambas pantallas pueden compilarse sin errores',()=>{
+ for(const html of [worker,admin]){
+  const js=html.match(/<script type="module">([\\s\\S]*?)<\\/script>/)?.[1];
+  assert.ok(js&&js.length>500);
+  const withoutImports=js.replace(/^import .*;\\s*$/gm,'');
+  assert.doesNotThrow(()=>new Function(withoutImports));
+ }
+});
