@@ -105,6 +105,14 @@ jobs:
             assert.ok(workerHtml.includes(feature),'La vista del trabajador debe incluir '+feature);
           }
           console.log('QA trabajador: interfaz móvil, lista compacta y fecha de Chile HTTP 200');
+          const visual=await fetch('https://uki-sushi-inventario-lzri8hcev-diannaleandra-7046.vercel.app/vista-previa-inventario.html',
+           {signal:AbortSignal.timeout(12000)});
+          assert.equal(visual.status,200,'La demostración visual debe abrir en Vercel QA');
+          const visualHTML=await visual.text();
+          for(const feature of ['Demostración visual','Historial de inventarios','Regimiento Arica','La Serena','Excel']){
+           assert.ok(visualHTML.includes(feature),'Falta '+feature+' en el demo');
+          }
+          console.log('QA diseño inventario: vista visual accesible HTTP 200');
           for(const file of ['/firebase/uki-sushi-local.html','/firebase/uki-inventario-exportar.js',
             '/firebase/uki-inventario-historial-admin.js']){
             const response=await fetch(preview+file,{signal:AbortSignal.timeout(12000)});
