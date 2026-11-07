@@ -27,7 +27,9 @@ function html(){
  '<div class="kpi" style="margin:12px 0"><span>Saldo acumulado · <b id="ukiAcumSucursal"></b></span><strong id="ukiAcumBalance">—</strong></div>'+
  '<p id="ukiAcumStatus" role="status" class="mini-help">Comprobando autorización administrativa…</p>'+
  '<button type="button" id="ukiAcumRefresh" class="sm">Actualizar saldo</button>'+
- '<div id="ukiAcumMain" hidden>'+
+ '<div id="ukiAcumMain" hidden>'+ 
+  '<label for="ukiAcumResponsable">Responsable del movimiento (agendador o administración)</label>'+
+  '<input id="ukiAcumResponsable" maxlength="80" placeholder="Ej.: nombre de quien registra">'+
   '<div id="ukiAcumInit">'+
    '<p class="muted">Solo la administradora puede iniciar con un saldo físicamente contado.</p>'+
    '<label for="ukiAcumInitial">Saldo inicial contado</label><input id="ukiAcumInitial" type="number" min="0" max="100000000" step="1" inputmode="numeric">'+
@@ -87,7 +89,7 @@ function draw(){
   const row=document.createElement('div');row.className='row';
   const left=document.createElement('div'),title=document.createElement('b'),info=document.createElement('small'),sum=document.createElement('b');
   title.textContent=TYPES[x.tipo]||String(x.tipo);
-  info.style.display='block';info.textContent=x.concepto+' · '+date(x.creado_en);
+  info.style.display='block';info.textContent=x.concepto+' · '+String(x.responsable||'Responsable no registrado')+' · '+date(x.creado_en);
   sum.textContent=(Number(x.monto)>0?'+':'')+money(x.monto);
   left.append(title,info);row.append(left,sum);root.append(row);
  }
@@ -119,11 +121,13 @@ function readConcept(id){
 }
 async function save(first=false){
  if(state.busy||!state.ready)return;
- let action,monto,concepto,destino;
+ let action,monto,concepto,destino,responsable;
  try{
   action=first?'inicializar':$('ukiAcumType').value;
   monto=readAmount(first?'ukiAcumInitial':'ukiAcumAmount',first);
   concepto=readConcept(first?'ukiAcumInitialConcept':'ukiAcumConcept');
+  responsable=String($('ukiAcumResponsable')?.value||'').trim();
+  if(responsable.length<2||responsable.length>80)throw Error('Escribe el nombre del responsable (agendador o administración).');
   destino=action==='traspaso'?$('ukiAcumDestination').value:undefined;
   if(destino===state.branch)throw Error('Selecciona una sucursal distinta.');
   if(!confirm('¿Registrar '+money(monto)+' en '+BRANCHES[state.branch]+'? Solo datos de QA, nunca la caja real.'))return;
@@ -132,7 +136,7 @@ async function save(first=false){
  if(!state.nonce)state.nonce=crypto.randomUUID();
  state.busy=true;draw();status('Registrando movimiento de prueba…');
  try{
-  const r=await request(action,{monto,concepto,destino,op_key:state.nonce},branch);
+  const r=await request(action,{monto,concepto,destino,responsable,op_key:state.nonce},branch);
   state.nonce=null;
   if(branch!==state.branch)return;
   if(first){$('ukiAcumInitial').value='';$('ukiAcumInitialConcept').value='';}
