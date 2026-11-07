@@ -805,6 +805,23 @@ function setEnvioManual(valor){
   if(txt) txt.textContent=D.modalidad==="Delivery"?"Delivery seleccionado - "+fmt(monto)+" se suma al total":"Toca Delivery arriba para sumar envío";
 }
 
+// Identificación del turno: un suplente no modifica el repartidor habitual ni la caja.
+function ukiNombreRepartidorTurno(caja=cajaDelDia()){
+ const elegido=caja.repartidorNombre;
+ return String(elegido===undefined?S.repartidorHabitual||"":elegido).trim().slice(0,80);
+}
+function ukiCambiarRepartidorHabitual(valor){
+ const previo=String(S.repartidorHabitual||"").trim();
+ S.repartidorHabitual=String(valor||"").trim().slice(0,80);
+ const caja=cajaDelDia();
+ if(caja.repartidorNombre===undefined||caja.repartidorNombre===previo)
+   caja.repartidorNombre=S.repartidorHabitual;
+ void guardarEnLocalStorage();render();
+}
+function ukiCambiarRepartidorTurno(valor){
+ cajaDelDia().repartidorNombre=String(valor||"").trim().slice(0,80);
+ void guardarEnLocalStorage();render();
+}
 /* Borradores de pedidos en este dispositivo: no son ventas ni cuentas confirmadas. */
 let ukiBorradorActivo=null;
 const ukiCopia=x=>JSON.parse(JSON.stringify(x));
@@ -2399,7 +2416,7 @@ function vCierre(){
   ${ukiCobrosExternosTurno(t)}
   ${ukiAuditoriaPagosUI()}
   ${ukiAuditoriaTimbresUI()}
-  <div class="card" style="border:2px solid var(--accent)"><h2>🛵 Pago al repartidor de Uki</h2><p class="muted">Se consideran los deliverys registrados, sin importar en qué local pagó el cliente.</p><label>Base diaria ($)</label><input type="number" value="${caja.base}" inputmode="numeric" onchange="cajaDelDia().base=Math.max(0,parseInt(this.value)||0);render()" style="font-weight:700">${row("Deliverys de pedidos ("+t.dels.length+")",fmt(t.enviosPedidos))}${row("Deliverys manuales ("+delSucHoy(S.deliveriesManuales).length+")",fmt(t.enviosManuales))}${row("Total de "+t.nDeliv+" deliverys",fmt(t.envios),"sub")}${row("Base diaria",fmt(caja.base))}${row("Total calculado para repartidor",fmt(caja.base+t.envios),"final")}<p class="muted">Antes de pagar, revisa que estos repartos se hayan realizado y no estén duplicados.</p></div>
+  <div class="card" style="border:2px solid var(--accent)"><h2>🛵 Pago al repartidor de Uki</h2><p class="muted">Se consideran los deliverys registrados, sin importar en qué local pagó el cliente.</p><label>Repartidor habitual (se guarda para próximos turnos)</label><input type="text" maxlength="80" value="${esc(S.repartidorHabitual||"")}" placeholder="Nombre del repartidor fijo" onchange="ukiCambiarRepartidorHabitual(this.value)"><label>Repartidor de este turno</label><input type="text" maxlength="80" value="${esc(ukiNombreRepartidorTurno(caja))}" placeholder="Nombre del habitual o reemplazante" onchange="ukiCambiarRepartidorTurno(this.value)"><p class="muted">Si vino un reemplazo, cambia solo el nombre de este turno. No modifica el habitual ni el pago.</p><label>Base diaria ($)</label><input type="number" value="${caja.base}" inputmode="numeric" onchange="cajaDelDia().base=Math.max(0,parseInt(this.value)||0);render()" style="font-weight:700">${row("Deliverys de pedidos ("+t.dels.length+")",fmt(t.enviosPedidos))}${row("Deliverys manuales ("+delSucHoy(S.deliveriesManuales).length+")",fmt(t.enviosManuales))}${row("Total de "+t.nDeliv+" deliverys",fmt(t.envios),"sub")}${row("Base diaria",fmt(caja.base))}${row("Total calculado para repartidor",fmt(caja.base+t.envios),"final")}<p class="muted">Antes de pagar, revisa que estos repartos se hayan realizado y no estén duplicados.</p></div>
   ${ukiDesgloseDeliverysTurno(t)}
   ${ukiGastosTurnoVisible(t)}
   <div class="card"><h2>Resultado final</h2>${row("Venta total con delivery",fmt(t.totalMedios))}${row("− Pago a delivery ("+caja.pagoDeliveryMedio+")",fmt(t.pagoDelivery),"neg")}${row("Venta - pago delivery",fmt(t.totalMedios-t.pagoDelivery))}${row("− Gastos",fmt(t.gastosTotal),"neg")}${row("Venta total - gastos",fmt(t.totalMedios-t.gastosTotal),"sub")}${row("Total final (venta - pago delivery - gastos)",fmt(t.final),"final")}${row("Efectivo que queda en caja, sin propinas",fmt(t.efectivoCaja))}${row("Propinas (aparte)",fmt(t.propinas))}${t.propinasEfectivo?row("De ellas, en efectivo",fmt(t.propinasEfectivo)):""}</div>
@@ -3275,6 +3292,7 @@ function cerrar(){
     suc:S.suc,fechaOperativa:fechaTurnoCerrado,
     fecha:new Date().toLocaleString("es-CL",{dateStyle:"short",timeStyle:"short"}),
     fechaISO:ahora(),fechaMs:fechaCierre,
+    repartidorNombre:ukiNombreRepartidorTurno(caja),
     resp,
     venta:t.totalMedios,
     ventaSinDelivery:t.ventaSinDelivery,
@@ -3304,6 +3322,7 @@ function cerrar(){
   caja.apps={}; caja.pagoDelivery=0; caja.pagoDeliveryMedio="Efectivo";
   caja.cajaChica={inicial:caja.cajaChica.inicial,gastos:[]};
   delete caja.inicioMs;
+  delete caja.repartidorNombre; // nuevo turno: volver al habitual
   S.fechaOperativa=hoyLocal(); // Nuevo período luego del cierre, no a medianoche.
   guardarEnLocalStorage();
   // Caja acumulada: sincroniza solo el cierre confirmado, sin detener caja si no hay conexión.
@@ -3378,7 +3397,7 @@ function descargarPDF(tipo){
     txt+=`\nPedidos: ${t.n} - Pagados: ${t.pagadosN} - Pendientes: ${t.pendientesN}\n`;
     txt+=`Venta con delivery: ${fmt(t.totalMedios)}\nVenta sin delivery: ${fmt(t.ventaSinDelivery)}\n`;
     txt+=`Deliveries para repartidor: ${fmt(t.envios)} (${t.enviosPedidos} pedidos + ${t.enviosManuales} manuales)\nCobrado por delivery en Uki: ${fmt(t.enviosCobradosUki)}\nCobrado por delivery fuera de Uki: ${fmt(t.enviosCobradosOtroLocal)}\n`;
-    txt+=`Base diaria: ${fmt(caja.base)}\nTotal delivery (base+envios): ${fmt(caja.base+t.envios)}\n`;
+    txt+=`Repartidor: ${ukiNombreRepartidorTurno(caja)||"Sin indicar"}\nBase diaria: ${fmt(caja.base)}\nTotal delivery (base+envios): ${fmt(caja.base+t.envios)}\n`;
     txt+=`Pago a delivery (${caja.pagoDeliveryMedio}): ${fmt(t.pagoDelivery)}\n`;
     txt+=`Gastos: ${fmt(t.gastosTotal)}\nVenta - gastos: ${fmt(t.totalMedios-t.gastosTotal)}\n`;
     txt+=`Total final: ${fmt(t.final)}\nEfectivo queda: ${fmt(t.efectivoCaja)}\nPropinas: ${fmt(t.propinas)}\n`;
@@ -3487,6 +3506,7 @@ function compartirWhatsAppCierre(){
     ...MEDIOS.filter(m=>(Number(medios[m])||0)!==0).map(m=>"• "+m+": "+fmt(Number(medios[m])||0)),
     "",
     "*DELIVERY*",
+    "Repartidor: "+(cierre?cierre.repartidorNombre||"Sin indicar":ukiNombreRepartidorTurno(caja)||"Sin indicar"),
     "Delivery cobrado: "+fmt(envios),
     "Base diaria: "+fmt(cierre?cierre.base:caja.base),
     "Pago a repartidor: "+fmt(pagadoDelivery),
@@ -3851,6 +3871,7 @@ function ukiCrearPdfResumenHistorico(c){
   }
  }
  seccion("Repartidor");
+ fila("Nombre",c.repartidorNombre||"Sin indicar");
  fila("Deliverys registrados",Array.isArray(c.dels)?c.dels.length:0);
  fila("Monto de los deliverys",fmt(c.envios||0));
  fila("Base diaria",fmt(c.base||0));
@@ -4015,7 +4036,7 @@ function vHistorial(){
     <p class="muted" style="margin:8px 0 4px"><b>💳 Desglose pagos</b></p>
     ${mediosRows||'<p class="muted">Sin desglose (cierre antiguo)</p>'}
     ${row("Pedidos",x.pedidos)}${row("Venta total con delivery",fmt(x.venta),"sub")}${row("Venta sin delivery",fmt(x.ventaSinDelivery ?? (x.venta-(x.envios||0))))}
-    <p class="muted" style="margin:12px 0 2px"><b>🛵 Deliveries (${(x.dels||[]).length}) - Base $${esc(x.base||0)}</b></p>
+    <p class="muted" style="margin:12px 0 2px"><b>🛵 Deliveries (${(x.dels||[]).length}) - Base ${esc(x.base||0)}</b></p>${row("Repartidor del turno",x.repartidorNombre||"Sin indicar")}
     ${(x.dels||[]).map(d=>row(`#${d.id} · ${d.cliente||"sin nombre"}`,fmt(d.envio))).join("")||'<p class="muted">Sin deliveries</p>'}
     ${row("Deliveries pedidos",fmt(x.enviosPedidos||0))}${row("Deliveries manuales",fmt(x.enviosManuales||0))}${row("Total para repartidor",fmt((x.dels||[]).reduce((a,d)=>a+(d.envio||0),0)+(x.base||0)),"sub")}${x.enviosCobradosUki!==undefined?row("Delivery cobrado en Uki",fmt(x.enviosCobradosUki)):""}${x.enviosCobradosOtroLocal?row("Delivery cobrado en otro local",fmt(x.enviosCobradosOtroLocal)):""}
     <p class="muted" style="margin:12px 0 2px"><b>💰 Efectivo</b></p>
