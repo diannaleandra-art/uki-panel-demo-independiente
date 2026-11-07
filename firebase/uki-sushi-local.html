@@ -47,8 +47,9 @@ button.sm.ok{background:var(--accent);border-color:var(--accent);color:#fff}
 .uki-urgentes-carta{padding:13px 13px 2px;border:2px solid #e98a14;background:#fff9f1;border-radius:17px;margin:10px 0 16px}
 .uki-urgentes-carta .uki-urgentes-titulo{display:flex;align-items:center;gap:8px;color:#8c4708;font-size:17px;font-weight:750;margin:0 0 6px}
 .uki-urgentes-carta .uki-urgentes-subtitulo{font-size:13px;color:#725b48;line-height:1.4;margin:0 0 11px}
-.uki-urgentes-carta .uki-carta-solicitud-urgente{border:1px solid #ebbd86;background:#fff;margin:9px 0 12px;box-shadow:none}
-.uki-urgentes-carta .uki-carta-solicitud-urgente button.sm.ok{background:#e57d08;border-color:#e57d08}
+.uki-urgentes-carta .card{border:1px solid #ebbd86;background:#fff;margin:9px 0 12px;box-shadow:none}
+.uki-urgentes-carta .card button.sm.ok{background:#e57d08;border-color:#e57d08}
+.chips button.chip.uki-alerta-filtro{border-color:#e98a14;color:#9c4f06;background:#fff5e9;font-weight:700}
 .uki-pedidos-archivo-acceso{border:1.5px solid #ec850b!important;padding:12px 16px!important;margin-top:18px}
 .uki-pedidos-archivo-acceso>summary{cursor:pointer;font-size:16px;font-weight:700;line-height:1.5;padding:4px 0}
 .uki-pedidos-archivo-acceso>summary::marker{color:#bc6509}
@@ -3032,7 +3033,7 @@ function vPedidos(){
   const mostrarFichasPrioritarias=filtroCategoriaPedidos==='todos'||filtroCategoriaPedidos==='pendientes';
   const visibles=todos.filter(p=>ukiCoincideCategoriaPedido(p,filtroCategoriaPedidos,erroresPedidos));
   const categorias=UKI_CATEGORIAS_PEDIDOS.map(([id,nombre])=>
-    '<button type="button" class="chip'+(filtroCategoriaPedidos===id?' on':'')+
+    '<button type="button" class="chip'+(filtroCategoriaPedidos===id?' on':'')+(id==='pendientes'&&mostrarPrioridad?' uki-alerta-filtro':'')+
     '" onclick="ukiCambiarCategoriaPedidos(\''+id+'\')">'+esc(nombre)+
     ' ('+(todos.filter(p=>ukiCoincideCategoriaPedido(p,id,erroresPedidos)).length+solicitudes.filter(s=>solicitudEnCategoria(s,id)).length+remotas.filter(r=>solicitudRemotaEnCategoria(r,id)).length)+')</button>'
   ).join("");
