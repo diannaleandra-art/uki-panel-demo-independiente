@@ -12,6 +12,9 @@ body{margin:0}header{background:#fff;border-bottom:1px solid #eaded3;padding:16p
 header .shell{display:flex;gap:12px;align-items:center;justify-content:space-between}
 .brand{font-size:18px;font-weight:800;letter-spacing:-.35px}
 header small{color:#786c62;display:block;font-size:12px}
+.clock-demo{background:#fff1e0;border:1px solid #efd5b5;padding:13px;border-radius:12px;margin:12px 0}
+.clock-demo small{display:block;color:#855d33;margin-bottom:5px;font-size:12px}
+.clock-demo strong{font-size:18px;color:#6c3c12;font-variant-numeric:tabular-nums;line-height:1.45}
 .test{background:#fff1df;color:#79450e;border:1px solid #f3d2a6;border-radius:20px;padding:6px 10px;font-size:11px;font-weight:800}
 main{padding:16px}
 .notice{background:#fff7e9;border:1px solid #edd8bb;border-radius:12px;padding:12px 15px;color:#765431;font-size:13px;line-height:1.45}
@@ -64,6 +67,8 @@ footer{text-align:center;color:#8b786a;font-size:12px;padding:30px 15px}
 </div></div>
 <section class="section active" id="now">
 <div class="card"><h2>Existencias · Lista rápida</h2>
+<div class="clock-demo"><small>Inventario en curso · Día, fecha y hora de Chile</small>
+<strong id="hora-actual">Consultando hora…</strong></div>
 <div class="fields">
 <div><label for="search">Buscar por nombre</label><input id="search" placeholder="Ej.: pollo, palta..." type="search"></div>
 <div><label for="filter">Mostrar</label><select id="filter">
@@ -221,6 +226,15 @@ for(const [id,kind,report] of [
  ['csv-now','csv',reportNow],['pdf-now','pdf',reportNow],['wa-now','wa',reportNow],
  ['csv-history','csv',()=>selected],['pdf-history','pdf',()=>selected],['wa-history','wa',()=>selected]
 ])bindExport(id,kind,report);
+function mostrarHoraActual(){
+ $('hora-actual').textContent=new Intl.DateTimeFormat('es-CL',{
+  timeZone:'America/Santiago',weekday:'long',day:'2-digit',month:'long',year:'numeric',
+  hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'
+ }).format(new Date())+' (Chile)';
+}
+mostrarHoraActual();
+setInterval(mostrarHoraActual,1000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)mostrarHoraActual();});
 current();hist();
 </script>
 </body></html>
