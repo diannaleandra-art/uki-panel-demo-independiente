@@ -12,7 +12,7 @@ test('la consulta de agotados no consulta ni cambia inventario, pedidos o caja',
  const s=fs.readFileSync(path.join(__dirname,'../api/uki-disponibilidad-live.js'),'utf8');
  assert.match(s,/SELECT sku FROM public\.uki_carta_items_v1 WHERE branch=\$1 AND available=FALSE/);
  assert.match(s,/jwtVerify/);assert.match(s,/UKI_INVENTARIO_LIVE_ALLOWED_EMAILS/);
- assert.match(s,/if\(origin!=='https:\/\/diannaleandra-art\.github\.io'\)/);
+ assert.match(s,/if\(origin!=='https:\/\/diannaleandra-art\.github\.io'&&!\(qaBranch\(\)&&origin===QA_PANEL_ORIGIN\)\)/);
  assert.doesNotMatch(s,/UPDATE\s+public\.uki_inventario|UPDATE\s+public\.uki_mesas/);
  const q=api._testing.updateStatement();
  assert.match(q,/available IS DISTINCT FROM EXCLUDED\.available/);
