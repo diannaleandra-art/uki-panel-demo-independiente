@@ -245,7 +245,7 @@ label{color:#66574c}
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
 import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
-import {crearControlCompras} from "./mi-administracion-compras.js?v=bombo78969-v2";
+import {crearControlCompras} from "./mi-administracion-compras.js?v=razones-v1";
 const app=initializeApp({apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",appId:"1:1070481165758:web:b8f0f9ff40caf5b8ac7def"});
 const auth=getAuth(app),$=id=>document.getElementById(id);
 let session="",businesses=[],branches=[],transactions=[],docs=[],tab='resumen';
@@ -286,6 +286,7 @@ function options(){
 async function loadBusinesses(){
  const r=await api('negocios');businesses=r.negocios||[];branches=r.sucursales||[];
  const prev=currentBiz();options();if(businesses.some(x=>x.id===prev))$('scopeBusiness').value=prev;
+ await controlCompras.cargarRazones();
  $('scopeBusiness').onchange();
 }
 const payFields=$('paymentFields');
@@ -510,7 +511,8 @@ $('saveDoc').onclick=()=>safe('saveDoc',async()=>{
  }
 });
 const controlCompras=crearControlCompras({
- api,$,esc,fmt:pesos,dateNow:today,businessName,branchName,currentBiz,currentBranch,upload,safe
+ api,$,esc,fmt:pesos,dateNow:today,businessName,branchName,currentBiz,currentBranch,upload,safe,
+ branchesFor,negocios:()=>businesses
 });
 $('newBiz').onclick=()=>safe('newBiz',async()=>{await api('nuevo_negocio',{nombre:value('newBizName'),razon_social:value('newBizReason')});$('newBizName').value='';await loadBusinesses()});
 $('newBranch').onclick=()=>safe('newBranch',async()=>{await api('nueva_sucursal',{negocio_id:value('newBranchBiz'),nombre:value('newBranchName')});$('newBranchName').value='';await loadBusinesses()});
