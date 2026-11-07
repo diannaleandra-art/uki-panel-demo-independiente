@@ -2,8 +2,11 @@
 // No modifica inventario ni el estado de disponibilidad de la carta.
 import {interpretarFacturaChile} from './mi-administracion-factura-parser.js?v=bombo78969-v2';
 import {leerPDFLocal} from './mi-administracion-pdf-ocr.js?v=bombo78969-v2';
-export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, branchName, currentBiz, currentBranch, upload, safe}){
+import {crearHistorialCompras} from './mi-administracion-historial.js?v=razones-v1';
+export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, branchName, currentBiz, currentBranch, upload, safe,branchesFor,negocios}){
  let productos=[],leyendo=false,datosFactura={receptor:'',observacion:''};
+ const history=crearHistorialCompras({api,$,esc,fmt,businessName,branchName,branchesFor,negocios});
+ let expandIndex=-1;
  const n=x=>Number(x||0),money=x=>Number.isSafeInteger(Number(x))&&Number(x)>=0&&Number(x)<=1000000000;
  const dia=x=>typeof x==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(x);
  const normal=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
@@ -22,29 +25,41 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
  const todayCL=()=>dateNow();
  const itemTemplate=()=>({nombre:'',cantidad:'1',unidad:'un',precio_unitario:'0',total:'0'});
  function renderItems(){
-  const container=$('invoiceItems');
-  container.replaceChildren();
+  const container=$('invoiceItems');container.replaceChildren();
   productos.forEach((p,i)=>{
    const row=document.createElement('div');row.className='invoice-product';
-   row.innerHTML='<div class="row"><b>Producto '+(i+1)+'</b><button class="soft" type="button" data-remove="'+i+'">Quitar</button></div>'+
-    '<label>Nombre del artículo</label><input data-item="'+i+'" data-k="nombre" placeholder="Ej.: Pollo, arroz, envases">'+
-    '<div class="grid2"><div><label>Cantidad</label><input data-item="'+i+'" data-k="cantidad" type="text" inputmode="decimal" placeholder="1,5"></div>'+
-    '<div><label>Unidad</label><select data-item="'+i+'" data-k="unidad"><option>un</option><option>kg</option><option>g</option><option>l</option><option>ml</option><option>caja</option><option>paq</option></select></div></div>'+
-    '<div class="grid2"><div><label>Precio unitario ($)</label><input data-item="'+i+'" data-k="precio_unitario" type="number" min="0" inputmode="numeric"></div>'+
-    '<div><label>Total del producto ($)</label><input data-item="'+i+'" data-k="total" type="number" min="0" inputmode="numeric"></div></div>';
+   row.innerHTML='<details'+(expandIndex===i?' open':'')+'><summary>'+
+     '<span aria-hidden="true">'+(i+1)+'</span><span><span class="item-label">'+esc(p.nombre||'Producto por completar')+
+     '</span><span class="item-meta">'+esc(String(p.cantidad).replace('.',','))+' '+esc(p.unidad||'un')+
+     ' · Precio un. '+fmt(p.precio_unitario)+'</span></span><b class="finance-price">'+fmt(p.total)+'</b></summary>'+
+     '<div class="item-edit"><label>Producto</label><input data-item="'+i+'" data-k="nombre" placeholder="Nombre del artículo">'+
+     '<div class="grid2"><div><label>Cantidad</label><input data-item="'+i+'" data-k="cantidad" type="text" inputmode="decimal"></div>'+
+     '<div><label>Unidad</label><select data-item="'+i+'" data-k="unidad"><option>un</option><option>kg</option><option>g</option><option>l</option><option>ml</option><option>caja</option><option>paq</option></select></div></div>'+
+     '<div class="grid2"><div><label>Precio unitario ($)</label><input data-item="'+i+'" data-k="precio_unitario" type="number" inputmode="numeric" min="0"></div>'+
+     '<div><label>Total del producto ($)</label><input data-item="'+i+'" data-k="total" type="number" inputmode="numeric" min="0"></div></div>'+
+     '<button class="soft" type="button" data-remove="'+i+'">Quitar producto</button></div></details>';
    container.append(row);
-   for(const k of ['nombre','cantidad','precio_unitario','total','unidad']){
-    const el=row.querySelector('[data-k="'+k+'"]');
-    el.value=p[k];
-    if(k==='unidad'&&!Array.from(el.options).some(o=>o.value===p[k])){el.add(new Option(p[k],p[k]));el.value=p[k]}
+   for(const key of ['nombre','cantidad','unidad','precio_unitario','total']){
+    const field=row.querySelector('[data-k="'+key+'"]');
+    if(key==='unidad'&&!Array.from(field.options).some(x=>x.value===p[key]))field.add(new Option(p[key],p[key]));
+    field.value=p[key];
    }
   });
   calcSum();
  }
+ function updateItemSummary(el,i){
+  const row=el.closest('.invoice-product'),p=productos[i];if(!row||!p)return;
+  row.querySelector('.item-label').textContent=p.nombre||'Producto por completar';
+  row.querySelector('.item-meta').textContent=String(p.cantidad).replace('.',',')+' '+p.unidad+' · Precio un. '+fmt(p.precio_unitario);
+  row.querySelector('summary .finance-price').textContent=fmt(p.total);
+ }
  function calcSum(){
-  let total=0;
-  for(const x of productos)total+=Number(x.total)||0;
-  $('invoiceItemsSum').textContent='Productos detallados: '+fmt(total)+' · '+productos.length+' producto(s)';
+  const sum=productos.reduce((acc,item)=>acc+(Number(item.total)||0),0),neto=Number($('docNet')?.value);
+  let msg='Artículos detallados: '+fmt(sum)+' · '+productos.length+' productos';
+  if($('docNet').value&&Number.isFinite(neto)&&sum!==neto)
+   msg+=' · Diferencia con neto de factura: '+fmt(Math.abs(sum-neto))+
+     ' (verificar redondeos, no se ajusta automáticamente)';
+  $('invoiceItemsSum').textContent=msg;
  }
  $('invoiceItems').addEventListener('input',e=>{
   const el=e.target.closest('[data-item]');if(!el)return;
@@ -55,23 +70,23 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
    const qty=Number(String(productos[idx].cantidad).replace(',','.')),v=Number(productos[idx].precio_unitario);
    if(qty>0&&qty<=100000&&money(v)){productos[idx].total=String(Math.round(qty*v));const output=el.closest('.invoice-product').querySelector('[data-k="total"]');if(output)output.value=productos[idx].total;}
   }
-  calcSum();
+  updateItemSummary(el,idx);calcSum();
  });
  $('invoiceItems').addEventListener('change',e=>{
   if(!e.target.matches('select[data-item]'))return;
-  const p=productos[Number(e.target.dataset.item)];if(p)p.unidad=e.target.value;
+  const i=Number(e.target.dataset.item),p=productos[i];if(p){p.unidad=e.target.value;updateItemSummary(e.target,i)}
  });
  $('invoiceItems').addEventListener('click',e=>{
   const b=e.target.closest('[data-remove]');if(!b)return;
-  productos.splice(Number(b.dataset.remove),1);renderItems();
+  productos.splice(Number(b.dataset.remove),1);expandIndex=-1;renderItems();
  });
- $('invoiceAddItem').onclick=()=>{productos.push(itemTemplate());renderItems();};
+ $('invoiceAddItem').onclick=()=>{productos.push(itemTemplate());expandIndex=productos.length-1;renderItems();};
  const interpretar=interpretarFacturaChile;
  function aplicarTexto(raw,extra='',filename=''){
   const p=interpretar(raw||extra);
   if(extra&&raw.trim()){
    const p2=interpretar(extra);
-   for(const key of ['fecha','proveedor','referencia','total','neto','iva','otros','descuento']){
+   for(const key of ['fecha','proveedor','referencia','total','neto','iva','otros','descuento','receptor','observacion']){
     if(p[key]===null||p[key]===undefined||p[key]==='')p[key]=p2[key];
    }
    if(!p.productos.length&&p2.productos.length)p.productos=p2.productos;
@@ -82,6 +97,7 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
     folioArchivo=true;
   }
   datosFactura={receptor:p.receptor||'',observacion:p.observacion||''};
+  if(p.receptor)history.sugerirRazon(p.receptor);
   let count=0;
   if(p.proveedor){$('docVendor').value=p.proveedor;count++}
   if(p.fecha){$('docDate').value=p.fecha;count++}
@@ -89,7 +105,7 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
   for(const [id,key] of [['docTotal','total'],['docNet','neto'],['docTax','iva'],['docOther','otros'],['docDiscount','descuento']]){
    if(p[key]!==null&&p[key]!==undefined){field(id,p[key]);count++}
   }
-  if(p.productos.length){productos=p.productos.slice(0,60);renderItems();count+=p.productos.length}
+  if(p.productos.length){productos=p.productos.slice(0,60);expandIndex=-1;renderItems();count+=p.productos.length}
   const faltan=[];
   if(!p.referencia)faltan.push('número de factura');
   if(p.total===null)faltan.push('total');
@@ -171,6 +187,8 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
   const proveedor=$('docVendor').value.trim(),referencia=$('docNumber').value.trim(),total=n($('docTotal').value);
   const neto=n($('docNet').value),iva=n($('docTax').value),otros=n($('docOther').value),descuento=n($('docDiscount').value);
   if(!negocio)throw Error('Selecciona el negocio de esta compra.');
+  const razon_social_id=$('docRazon').value;
+  if(!razon_social_id)throw Error('Selecciona la razón social que aparece como compradora en la factura.');
   if(proveedor.length<2)throw Error('Escribe a quién le compraste (proveedor).');
   if(!dia(fecha)||!money(total)||total<=0)throw Error('Escribe fecha y total de la compra.');
   if(![neto,iva,otros,descuento].every(money)||neto+iva+otros-descuento!==total)
@@ -178,13 +196,15 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
   const articulos=collectItems();
   if(!referencia&&$('docFile').files?.length===0)
    throw Error('Escribe el número de factura o adjunta su fotografía para evitar duplicados.');
-  const detail='Negocio seleccionado: '+businessName(negocio)+'\nComprador en factura: '+(datosFactura.receptor||'No reconocido')+'\nSucursal indicada: '+(datosFactura.observacion||'No reconocida')+'\nProveedor: '+proveedor+'\nTotal compra: '+fmt(total)+'\nProductos detallados: '+articulos.length+
+  const legal=history.getReasons(negocio).find(x=>x.id===razon_social_id);
+  const detail='Razón social elegida: '+(legal?.nombre||'No seleccionada')+'\nNegocio seleccionado: '+businessName(negocio)+'\nComprador en factura: '+(datosFactura.receptor||'No reconocido')+'\nSucursal indicada: '+(datosFactura.observacion||'No reconocida')+'\nProveedor: '+proveedor+'\nTotal compra: '+fmt(total)+'\nProductos detallados: '+articulos.length+
    '\nEstado: '+($('docPayment').value==='pendiente'?'Pendiente de pago':'Pagada')+
    '\n\n¿Confirmas que todos los datos son correctos y deseas sumar esta compra al historial?';
   if(!confirm(detail))return false;
   const saved=await api('guardar_compra_factura',{negocio_id:negocio,sucursal_id:sucursal,fecha,
-   proveedor,referencia,total,neto,iva,otros,descuento,pendiente:$('docPayment').value==='pendiente',
-   articulos,confirmado:true});
+   proveedor,referencia,total,neto,iva,otros,descuento,razon_social_id,
+   comprador_factura:datosFactura.receptor,observacion_factura:datosFactura.observacion,
+   pendiente:$('docPayment').value==='pendiente',articulos,confirmado:true});
   let warning='';
   try{if($('docFile').files?.length)await upload($('docFile').files[0],negocio,sucursal,
    $('docType').value,fecha,saved.id,proveedor)}
@@ -192,53 +212,32 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
   $('docNumber').value='';$('docTotal').value='';$('docNet').value='';$('docTax').value='';
   $('docOther').value='';$('docDiscount').value='';$('docRawText').value='';
   if(!warning)$('docFile').value='';
-  productos=[];datosFactura={receptor:'',observacion:''};renderItems();
+  productos=[];datosFactura={receptor:'',observacion:''};expandIndex=-1;renderItems();
   // Mostrar de inmediato compras antiguas aunque el filtro estuviera en el mes actual.
-  if(fecha<$('from').value||fecha>$('to').value){
+  if(fecha<$('histFrom').value||fecha>$('histTo').value){
    const yr=Number(fecha.slice(0,4)),month=Number(fecha.slice(5,7));
-   $('from').value=fecha.slice(0,7)+'-01';
-   $('to').value=new Date(Date.UTC(yr,month,0)).toISOString().slice(0,10);
+   $('histFrom').value=fecha.slice(0,7)+'-01';
+   $('histTo').value=new Date(Date.UTC(yr,month,0)).toISOString().slice(0,10);
   }
+  $('histRazon').value=razon_social_id;
+  $('histBiz').value=negocio;
   try{await cargar();}
   catch(e){warning=(warning?warning+' ':'')+'La compra quedó registrada, pero el historial no se pudo actualizar: '+e.message;}
   return warning;
  }
  const show=(id)=>$(id);
  async function cargar(){
-  // El filtro de historial sigue el negocio elegido en esta misma pantalla.
-  const negocio=$('docBiz').value||currentBiz()||null;
-  const sucursal=$('docBranch').value||null;
-  const params={negocio_id:negocio,sucursal_id:sucursal,desde:$('from').value,hasta:$('to').value};
+  await history.cargar();
+  const negocio=$('histBiz').value||null;
   try{
-   const [purchase,stored]=await Promise.all([api('resumen_compras',params),
-    api('documentos',{negocio_id:negocio})]);
-   const summary=purchase.resumen||{};
-   show('purchasesTotal').textContent=fmt(summary.compras);
-   show('purchasesDue').textContent=fmt(summary.pendiente);
-   show('purchasesCount').textContent=String(summary.facturas||0);
-   show('purchasesSuppliers').textContent=String((purchase.proveedores||[]).length);
-   show('invoiceVendors').innerHTML=(purchase.proveedores||[]).map(p=>
-    '<div class="line"><div class="row"><b>'+esc(p.proveedor||'Sin proveedor')+'</b><b>'+fmt(p.total)+'</b></div><small>'+esc(p.facturas)+' compra(s) · Pendiente: '+fmt(p.pendiente)+'</small></div>').join('')||'<p class="muted">Todavía no hay compras registradas para este período.</p>';
-   show('invoiceProducts').innerHTML=(purchase.productos||[]).map(p=>
-    '<div class="line"><div class="row"><b>'+esc(p.producto)+'</b><b>'+fmt(p.importe)+'</b></div><small>'+esc(p.cantidad)+' '+esc(p.unidad)+' · '+esc(p.veces)+' vez/veces</small></div>').join('')||'<p class="muted">Aún no hay productos desglosados.</p>';
-   show('invoicePurchaseList').innerHTML=(purchase.facturas||[]).map(p=>
-    '<div class="line"><div class="row"><div><b>'+esc(p.proveedor)+'</b><p class="hint">'+esc(String(p.fecha).slice(0,10))+' · '+esc(p.referencia||'Sin folio')+' · '+esc(businessName(p.negocio_id))+' · '+esc(branchName(p.sucursal_id))+'</p></div><b>'+fmt(p.monto)+'</b></div><div class="row"><span class="pill">'+esc(p.estado)+'</span><button type="button" data-purchase="'+esc(p.id)+'">Ver productos</button></div><div class="purchase-details" hidden></div></div>').join('')||'<p class="muted">No hay facturas confirmadas todavía.</p>';
-   show('invoicePurchaseList').querySelectorAll('[data-purchase]').forEach(button=>button.onclick=async()=>{
-    const target=button.closest('.line').querySelector('.purchase-details');
-    if(!target.hidden){target.hidden=true;return}
-    try{
-     const details=await api('detalle_compra',{id:button.dataset.purchase});
-     const c=details.compra;
-     target.innerHTML='<div class="steps"><b>Compra: '+fmt(c.monto)+'</b><p>Neto: '+fmt(c.datos?.neto||0)+' · IVA: '+fmt(c.datos?.iva||0)+'</p>'+
-      (details.articulos||[]).map(p=>'<div class="row"><span>'+esc(p.descripcion)+' ('+esc(p.cantidad)+' '+esc(p.unidad)+')</span><b>'+fmt(p.total_linea)+'</b></div>').join('')+
-      (!(details.articulos||[]).length?'<p>Esta compra no tiene desglose de productos.</p>':'')+'</div>';
-     target.hidden=false;
-    }catch(e){target.textContent=e.message;target.hidden=false}
-   });
-   show('docList').innerHTML=(stored.documentos||[]).map(x=>
-    '<div class="line"><div class="row"><b>'+esc(x.nombre)+'</b><button type="button" data-doc="'+esc(x.id)+'">Descargar</button></div><small>'+esc(businessName(x.negocio_id))+' · '+esc(x.tipo)+' · '+esc(x.fecha_documento||'')+'</small></div>').join('')||'<p class="muted">No hay fotografías adjuntas.</p>';
-   show('docList').querySelectorAll('[data-doc]').forEach(b=>b.onclick=()=>void abrirArchivo(b.dataset.doc));
-  }catch(e){show('invoiceVendors').textContent='No se pudo cargar el historial: '+e.message;throw e}
+   const stored=await api('documentos',{negocio_id:negocio});
+   $('docList').innerHTML=(stored.documentos||[]).map(x=>
+    '<div class="finance-total-row"><strong>'+esc(x.nombre)+'</strong>'+
+    '<button class="soft" type="button" data-doc="'+esc(x.id)+'">Descargar</button>'+
+    '<small>'+esc(businessName(x.negocio_id))+' · '+esc(x.tipo)+' · '+esc(x.fecha_documento||'')+'</small></div>'
+   ).join('')||'<p class="hint">No hay archivos adjuntos.</p>';
+   $('docList').querySelectorAll('[data-doc]').forEach(b=>b.onclick=()=>void abrirArchivo(b.dataset.doc));
+  }catch(e){$('docList').textContent='No se pudo listar archivos: '+e.message;}
  }
  async function abrirArchivo(id){
   try{
@@ -249,8 +248,6 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
    setTimeout(()=>URL.revokeObjectURL(url),60000);
   }catch(e){alert('No se pudo descargar el archivo: '+e.message)}
  }
- $('docBiz').addEventListener('change',()=>void cargar());
- $('docBranch').addEventListener('change',()=>void cargar());
  renderItems();
- return {guardar,cargar,aplicarTexto,interpretar};
+ return {guardar,cargar,cargarRazones:history.cargarRazones,aplicarTexto,interpretar};
 }
