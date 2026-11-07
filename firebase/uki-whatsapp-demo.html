@@ -96,7 +96,16 @@ function htmlOrder(o,pending){
   '<p class="compact"><b>Código cliente:</b> '+esc(four(o.phone))+'</p>'+
   '<p class="compact muted">'+esc(o.mode)+' · '+esc(o.products||"Productos por revisar")+'</p>'+
   (!pending?'<p class="pill">'+esc(o.estado==="rechazada"?"Rechazada · "+o.reason:o.estado==="aceptada"?"Aceptada, pendiente de pago":"Pagada (simulación)")+'</p>':"")+
-  '<details><summary>Ver mensaje original</summary><pre>'+esc(o.original)+'</pre></details>'+btn+
+  '<details><summary>'+(o.estado==="rechazada"?"Ver detalle del rechazo":"Ver mensaje original")+'</summary>'+
+  (o.estado==="rechazada"?
+   '<div class="notice"><strong>✕ RECHAZADO · NO REALIZADO</strong>'+
+   '<p><b>Motivo:</b> '+esc(o.reason||"No informado")+'</p>'+
+   '<p><b>Pedido:</b> '+esc(o.code||"Sin código de carta")+
+   ' · <b>WhatsApp:</b> '+esc(o.phone||"Por completar")+'</p>'+
+   '<p><b>Productos:</b> '+esc(o.products||"Sin detalle")+
+   ' · <b>Total solicitado:</b> '+fmt((o.subtotal||0)+(o.mode==="Delivery"?(o.delivery||0):0))+'</p>'+
+   '<p>Sin venta, cobro, caja ni timbre.</p></div>':"")+
+  '<b>Mensaje original</b><pre>'+esc(o.original)+'</pre></details>'+btn+
   '</article>';
 }
 function render(){
