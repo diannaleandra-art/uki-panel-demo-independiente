@@ -3,16 +3,17 @@
  * Se incrusta dentro de la pestaña ya existente Carta y precios. */
 (function(){
 'use strict';
-const API='https://uki-sushi-inventario.vercel.app/api/uki-ingredientes-armado-live';
+const QA_HOST=/^uki-sushi-inventario-[a-z0-9-]+-diannaleandra-7046\.vercel\.app$/;
+const API=(QA_HOST.test(location.hostname)?location.origin:'https://uki-sushi-inventario.vercel.app')+'/api/uki-ingredientes-armado-live';
 const categories=[['vegetal','Vegetal'],['proteina','Proteína'],['envoltura','Envoltura']];
 const surfaces=[['classic','Sushi clásico'],['premium','Sushi premium'],['monthly','Promos del mes'],['handroll','Handrolls'],['burger','Sushi Burger'],['gohan','Gohan']];
-const state={branch:'',items:[],busy:false};
+const state={branch:'',items:[],busy:false,availability:null,check:0};
 const get=id=>document.getElementById(id);
 const branch=()=>get('invBranch')?.value||(typeof S!=='undefined'&&S?.suc==='Uki La Serena'?'serena':'arica');
 function status(message){if(get('ukiIngEstado'))get('ukiIngEstado').textContent=message}
 function pesos(value){return '$'+Number(value).toLocaleString('es-CL')}
 const html=[
- '<details class="card" id="ukiArmadoIngredientes" style="margin-top:15px;border:1.5px solid #e5a560">',
+ '<details class="card" id="ukiArmadoIngredientes" hidden style="margin-top:15px;border:1.5px solid #e5a560">',
  '<summary style="font-size:16px;font-weight:700;cursor:pointer">🥑 Administrar ingredientes del armado</summary>',
  '<p class="muted">Agrega vegetales, proteínas o envolturas para elegir dentro de cada roll, handroll o preparación. No es un producto independiente ni modifica inventario.</p>',
  '<p class="muted">Cada sucursal tiene sus opciones. «Incluida» significa $0 adicional; «Con recargo» exige indicar el precio exacto.</p>',
@@ -85,7 +86,7 @@ async function request(action,fields,chosen=branch()){
  return data;
 }
 async function load(){
- if(state.busy||!get('ukiIngLista'))return;
+ if(state.busy||!get('ukiIngLista')||get('ukiArmadoIngredientes')?.hidden)return;
  const selected=branch();state.branch=selected;state.busy=true;
  status('Consultando ingredientes de '+(selected==='arica'?'Regimiento Arica':'La Serena')+'…');
  try{
@@ -140,6 +141,27 @@ function render(){
   mode.onchange=()=>syncMode(form);category.onchange=()=>syncCategory(form);syncMode(form);syncCategory(form);wrapper.append(form);target.append(wrapper);
  }
 }
+async function checkAvailability(chosen){
+ const seq=++state.check;
+ const box=get('ukiArmadoIngredientes');
+ if(!box)return;
+ box.hidden=true;
+ try{
+  const response=await fetch(API+'?branch='+encodeURIComponent(chosen),{
+   method:'GET',credentials:'omit',cache:'no-store',mode:'cors',
+   signal:AbortSignal.timeout(10000)
+  });
+  if(seq!==state.check||chosen!==branch())return;
+  // No mostrar un editor inservible si todavía no se publicó y habilitó la API.
+  if(!response.ok){state.availability=false;box.hidden=true;return;}
+  const data=await response.json().catch(()=>({}));
+  if(seq!==state.check||chosen!==branch())return;
+  const ready=data.ok===true&&data.branch===chosen&&Array.isArray(data.items);
+  state.availability=ready;box.hidden=!ready;
+ }catch{
+  if(seq===state.check){state.availability=false;box.hidden=true;}
+ }
+}
 function mount(){
  const host=get('ukiPreciosPanel');if(!host)return;
  if(!get('ukiArmadoIngredientes')){
@@ -151,9 +173,10 @@ function mount(){
  }
  const selected=branch();const statusText=get('ukiIngSucursal');
  if(statusText)statusText.textContent='Sucursal: '+(selected==='arica'?'Uki Regimiento Arica':'Uki La Serena');
+ void checkAvailability(selected);
  const tab=document.querySelector('[data-uki-tab="precios"]');
  if(tab&&!tab.dataset.ukiIngredientesListener){
-  tab.dataset.ukiIngredientesListener='1';tab.addEventListener('click',()=>void load());
+  tab.dataset.ukiIngredientesListener='1';tab.addEventListener('click',()=>{if(get('ukiArmadoIngredientes')&&!get('ukiArmadoIngredientes').hidden)void load();});
  }
 }
 const prevMount=window.ukiInventarioMontar;
