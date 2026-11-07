@@ -105,8 +105,8 @@ test('trabajador ve día fecha y reloj de Chile EN VIVO mientras hace el inventa
   assert.match(source,/id="turnoFechaChile"/);
   assert.match(source,/id="turnoUltimoRegistro"/);
   assert.match(source,/timeZone:'America\/Santiago'/);
-  assert.match(source,/second:'2-digit'/);
-  assert.match(source,/setInterval\(actualizarReloj,1000\)/);
+  assert.doesNotMatch(source,/second:'2-digit'/);
+  assert.match(source,/setInterval\(actualizarReloj,60000\)/);
   assert.match(source,/iniciarReloj\(\)/);
   assert.match(source,/detenerReloj\(\)/);
   assert.match(source,/document\.addEventListener\('visibilitychange'/);
@@ -116,6 +116,7 @@ test('trabajador ve día fecha y reloj de Chile EN VIVO mientras hace el inventa
  }
  const demo=read('public/vista-previa-inventario.html');
  assert.match(demo,/id="hora-actual"/);
- assert.match(demo,/setInterval\(mostrarHoraActual,1000\)/);
+ assert.match(demo,/setInterval\(mostrarHoraActual,60000\)/);
  assert.match(demo,/timeZone:'America\/Santiago'/);
+ assert.doesNotMatch(demo,/second:'2-digit'/);
 });
