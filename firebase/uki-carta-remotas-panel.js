@@ -25,10 +25,8 @@ async function ukiCartaApiCambio(id,estado,motivo=''){
  return data;
 }
 function ukiCartaPedidoAceptadoEnCaja(r){
- const code=String(r.codigo_pedido||'').trim(),tel=ukiTelefonoNormalizado(r.telefono||'');
- if(!code)return false;
- return S.pedidos.some(p=>p.suc===S.suc&&p.estado!=='Cancelado'&&String(p.codigoCarta||'').trim()===code&&
-  (tel?ukiTelefonoNormalizado(p.telefono||'')===tel:true));
+ if(!r?.id)return false;
+ return S.pedidos.some(p=>p.suc===S.suc&&p.estado!=='Cancelado'&&String(p.cartaSolicitudRemotaId||'')===String(r.id));
 }
 let ukiCartaConfirmando=false;
 async function ukiCartaConfirmarRespaldados(){
@@ -96,6 +94,7 @@ function ukiCartaRemotaAbrir(id){
  D.codigoCarta=String(r.codigo_pedido||D.codigoCarta||'');
  D.cliente=String(r.cliente||D.cliente||'');D.telefono=String(r.telefono||D.telefono||'');
  D.codigoCliente=ukiCodigoWhatsApp(D.telefono)||D.codigoCliente||'';
+ D.cartaSolicitudRemotaId=id; // vínculo exacto, evita confundir pedidos con el mismo código de 3 dígitos
  D.pagado=false;D.editando=null;
  ukiCartaRemotaActiva=id;ukiSolicitudWhatsAppActiva=null;ukiBorradorActivo=null;modoNuevo='whatsapp';
  S.vista='nuevo';S.msg='Verifica el WhatsApp, ajusta pedido y pagos en el formulario habitual; se aceptará al guardar.';
