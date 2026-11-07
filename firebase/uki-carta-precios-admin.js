@@ -54,12 +54,14 @@ const pricesPanel=[
 window.ukiInventarioPanelHTML=()=>nav+prevPanel()+pricesPanel;
 function branch(){return $('invBranch')?.value||'arica';}
 function info(id,message){const el=$(id);if(el)el.textContent=message;}
-async function request(api,action,fields={}){
+async function request(api,action,fields={},atBranch=state.branch){
+ // Capturar la sucursal ANTES de esperar el token Google: nunca cruzar precios entre locales.
+ if(!['arica','serena'].includes(atBranch))throw Error('Selecciona una sucursal válida.');
  const token=await window.ukiInventarioToken?.();
  if(!token)throw Error('Inicia sesión con Google como administradora de Uki Sushi.');
  const response=await fetch(api,{method:'POST',cache:'no-store',mode:'cors',
   credentials:'omit',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
-  body:JSON.stringify({branch:state.branch,action,...fields})});
+  body:JSON.stringify({branch:atBranch,action,...fields})});
  const data=await response.json().catch(()=>({}));
  if(!response.ok||!data.ok)throw Error(data.error||'No se pudo consultar o guardar');
  return data;
@@ -101,7 +103,7 @@ function line(price){
   const selectedBranch=state.branch;
   state.busy=true;save.disabled=true;info('ukiPriceMessage','Guardando '+price.name+'…');
   try{
-   await request(API,'editar-precio',{sku:price.sku,expected_version:price.version,price:amount});
+   await request(API,'editar-precio',{sku:price.sku,expected_version:price.version,price:amount},selectedBranch);
    if(selectedBranch!==branch())return;
    state.busy=false;await loadPrices(true);
    info('ukiPriceMessage','✓ Precio de '+price.name+' actualizado a '+peso(amount)+' en '+(selectedBranch==='arica'?'Regimiento Arica':'La Serena')+'.');
@@ -125,7 +127,7 @@ function line(price){
    if(state.busy)return;state.busy=true;button.disabled=true;
    try{
     await request(API,'editar-producto',{sku:price.sku,expected_version:price.version,
-     name:next,description:description.value.trim(),price:amount});
+     name:next,description:description.value.trim(),price:amount},state.branch);
     state.busy=false;await loadPrices(true);
     info('ukiPriceMessage','✓ Producto actualizado.');
    }catch(e){info('ukiPriceMessage','No se guardó: '+String(e.message));}
@@ -150,7 +152,7 @@ async function loadPrices(force=false){
  state.branch=branch();const selected=state.branch;
  info('ukiPriceMessage','Cargando carta de '+(selected==='arica'?'Regimiento Arica':'La Serena')+'…');
  try{
-  const data=await request(API,'listar');
+  const data=await request(API,'listar',{},selected);
   if(selected!==branch())return;
   state.items=Array.isArray(data.items)?data.items:[];state.ready=true;renderPrices();
   info('ukiPriceMessage','✓ '+state.items.length+' productos y precios de esta sucursal.');
@@ -161,6 +163,7 @@ async function loadPrices(force=false){
   if(selected!=='arica'&&pizza.value==='pizza')pizza.value='dish';}
 }
 async function create(){
+ const selectedBranch=branch();
  const kind=$('ukiPriceNewKind').value;
  const name=$('ukiPriceNewName').value.trim(),description=$('ukiPriceNewDesc').value.trim(),price=Number($('ukiPriceNewAmount').value);
  if(name.length<2||!Number.isSafeInteger(price)||price<1||price>1000000){
@@ -169,10 +172,10 @@ async function create(){
  if(state.busy)return;
  state.busy=true;$('ukiPriceCreate').disabled=true;info('ukiPriceMessage','Agregando producto…');
  try{
-  const result=await request(API,'crear-producto',{item:{kind,group:kind==='pizza'?'pizzas':'entradas',name,description,price}});
+  const result=await request(API,'crear-producto',{item:{kind,group:kind==='pizza'?'pizzas':'entradas',name,description,price}},selectedBranch);
   $('ukiPriceNewName').value='';$('ukiPriceNewDesc').value='';$('ukiPriceNewAmount').value='';
   state.busy=false;await loadPrices(true);
-  info('ukiPriceMessage','✓ «'+name+'» agregado a la carta de '+(state.branch==='arica'?'Regimiento Arica':'La Serena')+'.');
+  if(selectedBranch===branch())info('ukiPriceMessage','✓ «'+name+'» agregado a la carta de '+(selectedBranch==='arica'?'Regimiento Arica':'La Serena')+'.');
   $('ukiPriceAddBox').open=false;
  }catch(e){info('ukiPriceMessage','No se agregó: '+String(e.message));}
  finally{state.busy=false;$('ukiPriceCreate').disabled=false;}
@@ -181,7 +184,7 @@ async function loadReponer(){
  const selected=branch();state.branch=selected;
  info('ukiReponerEstado','Consultando faltantes…');
  try{
-  const data=await request(STOCK_API,'articulos');
+  const data=await request(STOCK_API,'articulos',{},selected);
   if(selected!==branch())return;
   const all=data.items||[],configured=all.filter(i=>Number(i.min_stock_qty)>0);
   const short=configured.filter(i=>Number(i.stock_qty)<=Number(i.min_stock_qty))
