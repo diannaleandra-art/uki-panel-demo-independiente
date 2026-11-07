@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - integracion/inventario-live-aislado-2026-11-06
+      - integracion/inventario-admin-en-panel-operativo-2026-11-06
   workflow_dispatch:
 jobs:
   inventory:
@@ -13,4 +14,6 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: node --check firebase/uki-inventario-admin-embebido.js
       - run: npm test
+      - run: node --test tests/inventario-admin-integrado.test.cjs

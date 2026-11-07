@@ -14,7 +14,12 @@ const PROJECT='uki-panel-f4909';
 const BRANCHES=new Set(['arica','serena']);
 const BRANCH_NAME={arica:'Regimiento Arica',serena:'La Serena'};
 const fail=(res,status,error)=>res.status(status).json({ok:false,error});
-const permitido=origin=>new Set(['https://uki-sushi-inventario.vercel.app','https://uki-sushi-inventario-diannaleandra-7046.vercel.app']).has(String(origin||''));
+// Orígenes exactos. Administración se valida además con token Google autorizado.
+const permitido=origin=>new Set([
+ 'https://uki-sushi-inventario.vercel.app',
+ 'https://uki-sushi-inventario-diannaleandra-7046.vercel.app',
+ 'https://diannaleandra-art.github.io'
+]).has(String(origin||''));
 const nombre=n=>{
  const v=String(n||'').trim().replace(/\s+/g,' ');
  if(v.length<2||v.length>60)throw Object.assign(Error('Indica el nombre de quien revisa'),{status:400});
