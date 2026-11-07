@@ -52,6 +52,13 @@ export function interpretarFacturaChile(input){
     if(labeled&&!/\b(?:receptor|cliente)\b/i.test(raw))out.proveedor=labeled[1].trim().slice(0,120);
     const iso=raw.match(/\b(20\d{2})[\/-]([01]?\d)[\/-]([0-3]?\d)\b/);
     const dmy=raw.match(/\b([0-3]?\d)[\/\-.]([01]?\d)[\/\-.](20\d{2})\b/);
+    // Facturas facturapy.me: «Coquimbo, 06 de Noviembre de 2026».
+    const longDate=norm(raw).match(/\b([0-3]?\d)\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\s+de\s+(20\d{2})\b/);
+    if(longDate){
+      const months={enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,setiembre:9,octubre:10,noviembre:11,diciembre:12};
+      const d=validDate(longDate[3],months[longDate[2]],longDate[1]);
+      if(d)out.fecha=d;
+    }
     if(/fecha|emisi[oó]n|documento|factura/i.test(raw)&&(iso||dmy)){
       const d=iso?validDate(iso[1],iso[2],iso[3]):validDate(dmy[3],dmy[2],dmy[1]);
       if(d)out.fecha=d;
@@ -67,6 +74,18 @@ export function interpretarFacturaChile(input){
     if(direct)out.referencia=direct[1];
     else if(short&&docHeaderAt>=0&&i<=docHeaderAt+8&&!out.referencia)out.referencia=short[1];
     if(!out.referencia&&docHeaderAt>=0&&i>=docHeaderAt&&i<=docHeaderAt+3&&/^\d{3,12}$/.test(line))out.referencia=line;
+    // Facturas facturapy.me: encabezado de tres columnas y los tres importes debajo.
+    if(/^neto\s+iva(?:\s*19\s*%)?\s+total$/.test(line)){
+      const next=(lines[i+1]||'').replace(/\s+/g,' ').trim()
+        .match(/^(\d[\d.,]*)\s+(\d[\d.,]*)\s+(\d[\d.,]*)$/);
+      if(next){
+        const vals=next.slice(1).map(amount);
+        if(vals.every(v=>v!==null)){
+          out.neto=vals[0];out.iva=vals[1];out.total=vals[2];
+          i++;continue;
+        }
+      }
+    }
     // Algunos PDF juntan «NETO 10.000 IVA 1.900 TOTAL 11.900» en una sola fila.
     const inlineNeto=line.match(/(?:^|\s)(?:monto\s+)?neto\s*[:$]?\s*(\d[\d.,]*)\b/);
     const inlineIva=line.match(/(?:^|\s)(?:i\.v\.a\.?|iva)(?:\s*19\s*%)?\s*[:$]?\s*(\d[\d.,]*)\b/);
@@ -101,6 +120,8 @@ export function interpretarFacturaChile(input){
       let pre=tail[1].trim(),m,qty=null,unit='un',name='';
       const first=pre.match(/^(\d+(?:[.,]\d{1,3})?)\s+(?:(UN|UND|UNID|KG|GR|G|LT|L|ML|CAJA|PAQ|PACK)\s+)?(.{3,150})$/i);
       const last=pre.match(/^(.{3,150}?)\s+(\d+(?:[.,]\d{1,3})?)\s*(UN|UND|UNID|KG|GR|G|LT|L|ML|CAJA|PAQ|PACK)?$/i);
+      // Facturas Bombo: «QUESO GAUDA MOLFINO ... 3.44 Un 5.546 19.079».
+      // La cantidad puede ser decimal y los artículos comienzan con su descripción.
       if(first){qty=Number(first[1].replace(',','.'));unit=first[2]?.toLowerCase()||'un';name=first[3].trim();}
       else if(last){qty=Number(last[2].replace(',','.'));unit=last[3]?.toLowerCase()||'un';name=last[1].trim();}
       if(qty>0&&qty<=100000&&a!==null&&b!==null&&name.length>=3
