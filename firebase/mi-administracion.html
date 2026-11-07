@@ -118,7 +118,7 @@ label{color:#66574c}
 <div class="quick-grid" id="homeActions">
 <button type="button" class="quick-action" data-go="ventas"><span class="emoji">🧾</span><strong>Agregar venta o cierre</strong><small>Manual, foto o PDF del cierre</small></button>
 <button type="button" class="quick-action" data-go="gastos"><span class="emoji">💸</span><strong>Registrar gasto</strong><small>Compras, sueldos y proveedores</small></button>
-<button type="button" class="quick-action" data-go="facturas"><span class="emoji">📷</span><strong>Guardar factura</strong><small>Fotos, boletas y comprobantes</small></button>
+<button type="button" class="quick-action" data-go="facturas"><span class="emoji">📷</span><strong>Compras y facturas</strong><small>Por razón social y proveedor</small></button>
 <button type="button" class="quick-action" data-go="negocios"><span class="emoji">🏪</span><strong>Mis negocios</strong><small>Agregar locales y costos</small></button>
 </div>
 <div class="card"><h2>📊 ¿Cómo va el negocio?</h2>
@@ -247,7 +247,7 @@ label{color:#66574c}
 <div id="costList"></div></div></section>
 </section>
 <footer>Entorno de pruebas · No modifica los cierres, inventario ni ventas existentes de Uki</footer>
-</main><nav id="tabs" hidden><button data-tab="resumen" class="active"><i>⌂</i>Inicio</button><button data-tab="ventas"><i>＄</i>Ventas</button><button data-tab="gastos"><i>▣</i>Gastos</button><button data-tab="facturas"><i>▥</i>Facturas</button><button data-tab="negocios"><i>◫</i>Negocios</button></nav>
+</main><nav id="tabs" hidden><button data-tab="resumen" class="active"><i>⌂</i>Inicio</button><button data-tab="ventas"><i>＄</i>Ventas</button><button data-tab="gastos"><i>▣</i>Gastos</button><button data-tab="facturas"><i>▥</i>Compras</button><button data-tab="negocios"><i>◫</i>Negocios</button></nav>
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
 import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
@@ -292,6 +292,14 @@ function scopeReasons(){
 function branchName(id){return branches.find(s=>s.id===id)?.nombre||'General';}
 function currentBiz(){return value('scopeBusiness');}
 function currentBranch(){return value('scopeBranch');}
+function renderBusinessList(){
+ $('businessList').innerHTML=businesses.map(b=>{
+  const assoc=razones.filter(r=>vinculos.some(v=>v.negocio_id===b.id&&v.razon_social_id===r.id));
+  return '<div class="line"><b>'+esc(b.nombre)+'</b>'+
+   '<p class="hint">Razones sociales: '+esc(assoc.map(r=>r.nombre).join(', ')||'sin vincular')+'</p>'+
+   '<p class="hint">Sucursales: '+esc(branchesFor(b.id).map(x=>x.nombre).join(', ')||'sin definir')+'</p></div>';
+ }).join('')||'<p class="muted">Agrega tu primer negocio.</p>';
+}
 function options(){
  selected('scopeBusiness','Todos los negocios',businesses);
  for(const id of ['saleBiz','expenseBiz','docBiz','newBranchBiz','costBiz'])selected(id,'Selecciona negocio',businesses);
@@ -309,14 +317,14 @@ function options(){
  for(const id of ['saleBiz','expenseBiz','docBiz']){if(businesses.length){$(id).value=businesses[0].id;$(id).onchange();}}
  if(businesses.length){$('costBiz').value=businesses[0].id;$('newBranchBiz').value=businesses[0].id;}
  chooseBranch('scopeBranch','','Todas las sucursales');
- $('businessList').innerHTML=businesses.map(x=>'<div class="line"><b>'+esc(x.nombre)+'</b><p class="hint">'+esc(x.razon_social||'Sin razón social')+' · '+branchesFor(x.id).map(s=>esc(s.nombre)).join(', ')+'</p></div>').join('')||'<p class="muted">Agrega tu primer negocio.</p>';
+ renderBusinessList();
 }
 async function loadBusinesses(){
  const r=await api('negocios');businesses=r.negocios||[];branches=r.sucursales||[];
  const prev=currentBiz();options();if(businesses.some(x=>x.id===prev))$('scopeBusiness').value=prev;
  const legal=await controlCompras.cargarRazones();
  razones=legal.razones||[];vinculos=legal.vinculos||[];
- scopeReasons();
+ renderBusinessList();scopeReasons();
  optionsForReason('saleRazon',value('saleBiz'));
  optionsForReason('expenseRazon',value('expenseBiz'));
  $('scopeBusiness').onchange();
