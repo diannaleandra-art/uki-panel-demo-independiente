@@ -187,7 +187,7 @@ const notify=(msg,type='')=>{$('notice').textContent=msg;$('notice').className=t
 async function api(action,fields={}){
  if(!auth.currentUser)throw Error('Primero inicia Google.');
  const bearer=await auth.currentUser.getIdToken();
- const response=await fetch('https://uki-sushi-inventario-6xwnffgjh-diannaleandra-7046.vercel.app/api/mi-administracion-qa',{method:'POST',cache:'no-store',credentials:'omit',
+ const response=await fetch('https://uki-sushi-inventario-b5iw3rli9-diannaleandra-7046.vercel.app/api/mi-administracion-qa',{method:'POST',cache:'no-store',credentials:'omit',
   headers:{Authorization:'Bearer '+bearer,'Content-Type':'application/json','X-Fin-Session':session},
   body:JSON.stringify({action,...fields})});
  const data=await response.json().catch(()=>({error:'Respuesta inválida del servidor.'}));
