@@ -2496,6 +2496,7 @@ function ukiCoincideCategoriaPedido(p,categoria,errores){
  if(categoria==="pendientes")return p.estado==="Pendiente";
  if(categoria==="entregados")return p.estado==="Entregado";
  if(categoria==="cancelados")return p.estado==="Cancelado";
+ if(categoria==="rechazados")return false; // solicitudes rechazadas, no ventas
  if(categoria==="errores")return errores.has(p.id);
  return true;
 }
