@@ -43,7 +43,10 @@ export function interpretarFacturaChile(input){
   }
   const noName=/\b(?:factura|electronica|boleta|rut|fecha|giro|direccion|sii|servicio de impuestos|telefono|telefonos|www\.|correo|monto|neto|total|subtotal|emision|comuna|vendedor)\b/;
   const initial=lines.slice(0,18).find(s=>/[a-zA-Záéíóúñ]{4,}/.test(s)&&!noName.test(norm(s))&&s.length>=5);
-  if(initial)out.proveedor=initial.slice(0,120);
+  if(initial){
+    // El proveedor puede compartir la misma línea del PDF con el cuadro «N° 78969».
+    out.proveedor=initial.split(/\s{2,}/)[0].replace(/\s+N[°ºo.]\s*\d{2,12}\s*$/i,'').trim().slice(0,120);
+  }
   let docHeaderAt=-1;
   for(let i=0;i<lines.length;i++){
     const raw=lines[i],line=norm(raw).replace(/\s+/g,' ');
