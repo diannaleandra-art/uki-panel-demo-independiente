@@ -47,6 +47,10 @@ function html(){
  '</div>'+
  '<details class="card" open><summary><b>📖 Historial de Caja acumulada en efectivo</b></summary>'+
  '<button type="button" id="ukiAcumHistoryRefresh" class="sm">Actualizar historial</button>'+
+ '<div class="quick-grid" style="margin-top:10px">'+
+ '<button type="button" id="ukiAcumExcel" class="sm">Excel (.csv)</button>'+
+ '<button type="button" id="ukiAcumPDF" class="sm">PDF</button>'+
+ '<button type="button" id="ukiAcumWhatsApp" class="sm">Compartir WhatsApp</button></div>'+
  '<div id="ukiAcumHistory"></div></details>'+
  '<p class="muted">Los cierres antiguos no se acumulan sin reconciliar el dinero real. Las correcciones aportan solo la diferencia.</p>';
 }
@@ -71,7 +75,7 @@ function draw(){
  $('ukiAcumOperations').hidden=!state.initialized;
  $('ukiAcumDestination').value=state.branch==='arica'?'serena':'arica';
  $('ukiAcumDestinationRow').hidden=$('ukiAcumType').value!=='traspaso';
- for(const id of ['ukiAcumRefresh','ukiAcumStart','ukiAcumSave','ukiAcumHistoryRefresh'])
+ for(const id of ['ukiAcumRefresh','ukiAcumStart','ukiAcumSave','ukiAcumHistoryRefresh','ukiAcumExcel','ukiAcumPDF','ukiAcumWhatsApp'])
    $(id).disabled=state.busy||!state.ready&&id!=='ukiAcumRefresh';
  const root=$('ukiAcumHistory');root.replaceChildren();
  if(!state.history.length){
@@ -137,6 +141,18 @@ async function save(first=false){
  }catch(e){status(String(e.message||e),'error');}
  finally{state.busy=false;await load();}
 }
+function exportReport(kind){
+ if(!state.ready)return status('Primero comprueba tu acceso y carga el historial de pruebas.','error');
+ const exporter=window.ukiCajaAcumExportar;
+ if(!exporter)return status('No está cargado el generador de informes.','error');
+ const report={branch:state.branch,balance:state.balance,history:state.history,generated_at:new Date().toISOString()};
+ try{
+  if(kind==='excel')exporter.excel(report);
+  else if(kind==='pdf')exporter.savePDF(report);
+  else return exporter.whatsapp(report).then(v=>status(v==='cancelado'?'Se canceló compartir.':'✓ Documento de prueba preparado para compartir.','success')).catch(e=>status(String(e.message||e),'error'));
+  status('✓ Archivo generado para guardar desde tu iPhone.','success');
+ }catch(e){status(String(e.message||e),'error');}
+}
 function mount(){
  if(!$('ukiAcumRoot'))return;
  state.branch=branchFromPanel();state.ready=false;state.nonce=null;
@@ -146,6 +162,9 @@ function mount(){
  $('ukiAcumHistoryRefresh').onclick=()=>void load();
  $('ukiAcumStart').onclick=()=>void save(true);
  $('ukiAcumSave').onclick=()=>void save(false);
+ $('ukiAcumExcel').onclick=()=>void exportReport('excel');
+ $('ukiAcumPDF').onclick=()=>void exportReport('pdf');
+ $('ukiAcumWhatsApp').onclick=()=>void exportReport('whatsapp');
  draw();void load();
 }
 window.ukiCajaAcumuladaVista=html;window.ukiCajaAcumuladaMontar=mount;
