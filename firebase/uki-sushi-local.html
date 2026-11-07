@@ -299,7 +299,7 @@ let movimientoTab="gastos";
 let modoNuevo="whatsapp";
 const CAJA_TABS=[["resumen","Resumen"],["movimientos","Movimientos"],["cierre","Cierre"],["historial","Historial"],["semana","Reportes"],["acumulada","Caja acumulada en efectivo"]];
 const MOV_TABS=[["gastos","Gastos"],["apps","Apps"],["delivery","Delivery manual"],["repartidor","Pago repartidor"],["propinas","Propinas"],["retiros","Retiros"],["chica","Caja chica"]];
-function cambiarCajaTab(t){cajaTab=t;S.confirmCierre=false;render();if(t==="acumulada")setTimeout(()=>window.ukiCajaAcumuladaMontar?.(),0);window.scrollTo({top:0,behavior:"instant");}
+function cambiarCajaTab(t){cajaTab=t;S.confirmCierre=false;render();if(t==="acumulada")setTimeout(()=>window.ukiCajaAcumuladaMontar?.(),0);window.scrollTo({top:0,behavior:"instant"});}
 function cambiarMovimientoTab(t){movimientoTab=t;render();}
 function cambiarModoNuevo(t){modoNuevo=t;render();}
 
