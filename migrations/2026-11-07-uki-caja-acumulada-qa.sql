@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS public.uki_caja_acum_movimientos_qa (
   saldo_resultante bigint NOT NULL CHECK (saldo_resultante >= 0),
   concepto text NOT NULL CHECK (length(btrim(concepto)) BETWEEN 3 AND 240),
   actor_uid text NOT NULL CHECK (length(actor_uid) BETWEEN 1 AND 150),
+  responsable text NOT NULL CHECK (length(btrim(responsable)) BETWEEN 2 AND 80),
   fecha_operativa text,
   cierre_clave text,
   sucursal_destino text CHECK (sucursal_destino IS NULL OR sucursal_destino IN ('arica','serena')),
@@ -40,7 +41,8 @@ CREATE TABLE IF NOT EXISTS public.uki_caja_acum_cierres_qa (
 CREATE OR REPLACE FUNCTION public.uki_caja_acum_aplicar_qa(
   p_branch text, p_action text, p_amount bigint, p_op_key uuid,
   p_actor_uid text, p_concept text, p_day text DEFAULT NULL,
-  p_close_key text DEFAULT NULL, p_dest text DEFAULT NULL
+  p_close_key text DEFAULT NULL, p_dest text DEFAULT NULL,
+  p_responsable text DEFAULT NULL
 ) RETURNS jsonb LANGUAGE plpgsql
 SET search_path=public,pg_temp AS $$
 DECLARE
@@ -55,6 +57,7 @@ BEGIN
   IF p_branch NOT IN ('arica','serena') OR p_action NOT IN
     ('inicializar','cierre','ajustar_cierre','entrada','gasto','retiro','traspaso') OR
     p_op_key IS NULL OR coalesce(length(p_actor_uid),0) NOT BETWEEN 1 AND 150 OR
+    coalesce(length(btrim(p_responsable)),0) NOT BETWEEN 2 AND 80 OR
     coalesce(length(btrim(p_concept)),0) NOT BETWEEN 3 AND 240 OR
     p_amount IS NULL OR p_amount < 0 OR p_amount > 100000000 THEN
     RAISE EXCEPTION 'Solicitud de efectivo inválida';
@@ -133,9 +136,9 @@ BEGIN
   END IF;
   newbalance=a.balance+delta;
   INSERT INTO public.uki_caja_acum_movimientos_qa
-    (branch,op_key,tipo,monto,saldo_resultante,concepto,actor_uid,fecha_operativa,cierre_clave,sucursal_destino)
+    (branch,op_key,tipo,monto,saldo_resultante,concepto,actor_uid,responsable,fecha_operativa,cierre_clave,sucursal_destino)
   VALUES
-    (p_branch,p_op_key,chosen_type,delta,newbalance,btrim(p_concept),p_actor_uid,p_day,p_close_key,p_dest)
+    (p_branch,p_op_key,chosen_type,delta,newbalance,btrim(p_concept),p_actor_uid,btrim(p_responsable),p_day,p_close_key,p_dest)
   RETURNING * INTO mov;
   IF p_action='cierre' THEN
     INSERT INTO public.uki_caja_acum_cierres_qa
@@ -149,9 +152,9 @@ BEGIN
     UPDATE public.uki_caja_acum_cuentas_qa
        SET balance=balance+p_amount,updated_at=now() WHERE branch=p_dest;
     INSERT INTO public.uki_caja_acum_movimientos_qa
-      (branch,op_key,tipo,monto,saldo_resultante,concepto,actor_uid,fecha_operativa,sucursal_destino)
+      (branch,op_key,tipo,monto,saldo_resultante,concepto,actor_uid,responsable,fecha_operativa,sucursal_destino)
     VALUES (p_dest,p_op_key,'traspaso_entrada',p_amount,b.balance+p_amount,
-            btrim(p_concept),p_actor_uid,p_day,p_branch);
+            btrim(p_concept),p_actor_uid,btrim(p_responsable),p_day,p_branch);
   END IF;
   RETURN jsonb_build_object('ok',true,'duplicate',false,'branch',p_branch,'saldo',newbalance,
     'movimiento',mov.id,'importe',delta,
