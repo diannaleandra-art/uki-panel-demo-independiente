@@ -427,7 +427,18 @@ $('saveExpense').onclick=()=>safe('saveExpense',async()=>{
  catch(e){warning='El gasto SÍ quedó guardado, pero el comprobante NO: '+e.message;}
  $('expenseAmount').value='';if(!warning)$('expensePhoto').value='';await refresh();return warning;
 });
-$('saveDoc').onclick=()=>safe('saveDoc',()=>controlCompras.guardar());
+$('saveDoc').onclick=()=>safe('saveDoc',async()=>{
+ try{
+  $('invoiceCheck').textContent='Comprobando los datos de la factura…';
+  const out=await controlCompras.guardar();
+  $('invoiceCheck').textContent=out===false?'Acción cancelada.':'Compra confirmada. Revisa el historial abajo.';
+  return out;
+ }catch(e){
+  $('invoiceCheck').textContent='⚠ '+e.message;
+  $('invoiceCheck').scrollIntoView({behavior:'smooth',block:'center'});
+  throw e;
+ }
+});
 const controlCompras=crearControlCompras({
  api,$,esc,fmt:pesos,dateNow:today,businessName,branchName,currentBiz,currentBranch,upload,safe
 });
