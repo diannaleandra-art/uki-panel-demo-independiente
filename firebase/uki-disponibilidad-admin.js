@@ -1,7 +1,10 @@
 /* Control manual de disponibilidad para la carta Uki. No depende de las existencias. */
 (function(){
  'use strict';
- const API='https://uki-sushi-inventario.vercel.app/api/uki-disponibilidad-live';
+ const QA_HOST='uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app';
+ const API=(location.hostname===QA_HOST
+  ?'https://'+QA_HOST
+  :'https://uki-sushi-inventario.vercel.app')+'/api/uki-disponibilidad-live';
  const state={branch:'',items:[],busy:false,search:'',filter:'all',loaded:false,reloadRequested:false};
  const get=id=>document.getElementById(id);
  const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
