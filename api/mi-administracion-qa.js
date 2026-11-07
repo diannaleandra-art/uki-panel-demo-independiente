@@ -78,14 +78,17 @@ module.exports=async(req,res)=>{
  res.setHeader('X-Content-Type-Options','nosniff');
  res.setHeader('Vary','Origin');
  const origin=String(req.headers.origin||''),self='https://'+String(req.headers.host||'');
- if(origin===self){
+ // El formulario está en GitHub Pages, dominio ya autorizado por Firebase.
+ // Solo este origen propio y el mismo deployment QA reciben autorización CORS.
+ const allowedOrigin=origin==='https://diannaleandra-art.github.io'||origin===self;
+ if(allowedOrigin){
   res.setHeader('Access-Control-Allow-Origin',origin);
   res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type,X-Fin-Session');
   res.setHeader('Access-Control-Allow-Methods','POST,OPTIONS');
  }
  if(!envOk())return fail(res,404,'Este módulo financiero todavía no está habilitado.');
- if(req.method==='OPTIONS')return res.status(origin===self?204:403).end();
- if(req.method!=='POST'||origin!==self)return fail(res,403,'Origen no permitido.');
+ if(req.method==='OPTIONS')return res.status(allowedOrigin?204:403).end();
+ if(req.method!=='POST'||!allowedOrigin)return fail(res,403,'Origen no permitido.');
  if(!String(req.headers['content-type']||'').startsWith('application/json'))return fail(res,415,'Solo JSON.');
  const body=req.body||{};
  if(!body||typeof body!=='object'||Array.isArray(body)||JSON.stringify(body).length>2600000)return fail(res,413,'Solicitud demasiado grande.');
