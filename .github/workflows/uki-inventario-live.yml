@@ -4,6 +4,7 @@ on:
     branches:
       - integracion/inventario-live-aislado-2026-11-06
       - integracion/inventario-admin-en-panel-operativo-2026-11-06
+      - feature/uki-disponibilidad-manual-live-2026-11-06
   workflow_dispatch:
 jobs:
   inventory:
@@ -16,4 +17,6 @@ jobs:
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: node --check firebase/uki-inventario-admin-embebido.js
       - run: npm test
+      - run: node --test tests/uki-disponibilidad-live.test.cjs
       - run: node --test tests/inventario-admin-integrado.test.cjs
+
