@@ -64,7 +64,7 @@ a{color:#70431c}b{overflow-wrap:anywhere}
 <label>Categoría</label><select id="expenseCategory"><option>Mercadería</option><option>Arriendo</option><option>Sueldos</option><option>Agua</option><option>Luz</option><option>Gas</option><option>Internet</option><option>Servicios</option><option>Delivery</option><option>Mantención</option><option>Otros</option></select>
 <label>Proveedor (opcional)</label><input id="expenseVendor"><label>Concepto</label><textarea id="expenseConcept"></textarea>
 <label style="display:flex;align-items:center;gap:10px"><input type="checkbox" id="expensePending" style="width:20px;min-height:20px;margin:0"> Aún está pendiente de pago</label>
-<label>Adjuntar factura o comprobante (opcional)</label><input id="expensePhoto" type="file" accept="image/*,application/pdf">
+<label>Vencimiento (si aún está pendiente)</label><input id="expenseDue" type="date"><label>Adjuntar factura o comprobante (opcional)</label><input id="expensePhoto" type="file" accept="image/*,application/pdf">
 <button class="primary" id="saveExpense">Guardar gasto o compra</button></div></section>
 <section class="view" id="v-facturas" hidden><div class="card"><h2>Documentos y facturas</h2><p class="hint">Se guardan en una tabla privada, separados de las fotos de inventario. El PIN es obligatorio para consultar archivos.</p>
 <label>Negocio</label><select id="docBiz"></select><label>Sucursal</label><select id="docBranch"></select><div class="grid2"><div><label>Tipo</label><select id="docType"><option value="factura">Factura</option><option value="boleta">Boleta</option><option value="cierre">Cierre</option><option value="comprobante">Comprobante</option><option value="otro">Otro</option></select></div><div><label>Fecha</label><input id="docDate" type="date"></div></div>
@@ -90,7 +90,7 @@ let session="",businesses=[],branches=[],transactions=[],docs=[],tab='resumen';
 const AM=['Efectivo','Transferencia','Débito','Crédito','Edenred','Junaeb','Uber','Rappi','PedidosYa','Otro'];
 const pesos=n=>'$'+Number(n||0).toLocaleString('es-CL',{maximumFractionDigits:0});
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+const today=()=>{const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));return parts.year+'-'+parts.month+'-'+parts.day;};
 const notify=(msg,type='')=>{$('notice').textContent=msg;$('notice').className=type;};
 async function api(action,fields={}){
  if(!auth.currentUser)throw Error('Primero inicia Google.');
@@ -231,9 +231,25 @@ function switchTab(name){
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
 function moneyRows(m){return Object.entries(m).filter(([k,v])=>Number(v)>0).map(([k,v])=>'<div class="line row"><span>'+esc(k)+'</span><b>'+pesos(v)+'</b></div>').join('')}
 function renderRows(){
- $('recent').innerHTML=transactions.slice(0,35).map(t=>'<div class="line"><div class="row"><b>'+esc(t.tipo)+' · '+pesos(t.monto)+'</b><span>'+esc(String(t.fecha).slice(0,10))+'</span></div><small>'+esc(businessName(t.negocio_id))+' · '+esc(branchName(t.sucursal_id))+' · '+esc(t.concepto||t.referencia||'Sin concepto')+'</small><div class="hint">'+esc(t.estado)+'</div></div>').join('')||'<p class="muted">Aún no hay registros financieros.</p>';
- const payments={};for(const t of transactions){if(t.tipo!=='venta'||t.estado==='anulado')continue;for(const[k,v]of Object.entries(t.medios||{}))payments[k]=(payments[k]||0)+Number(v||0);}
- $('mediosReport').innerHTML=moneyRows(payments)||'<p class="muted">No se ha registrado el desglose.</p>';
+ $('recent').innerHTML=transactions.slice(0,35).map(t=>'<div class="line"><div class="row"><b>'+esc(t.tipo)+' · '+pesos(t.monto)+'</b><span>'+esc(String(t.fecha).slice(0,10))+'</span></div><small>'+esc(businessName(t.negocio_id))+' · '+esc(branchName(t.sucursal_id))+' · '+esc(t.concepto||t.referencia||'Sin concepto')+'</small><div class="hint">'+esc(t.estado)+(t.datos?.vence?' · vence '+esc(String(t.datos.vence).slice(0,10)):'')+'</div>'+
+  '<details><summary class="hint">Opciones del registro</summary>'+
+  (t.estado==='pendiente'&&['gasto','compra','retiro'].includes(t.tipo)?'<button type="button" data-pagado="'+esc(t.id)+'">Marcar pagado</button> ':'')+
+  (t.estado!=='anulado'?'<button type="button" data-anular="'+esc(t.id)+'">Anular (con confirmación)</button>':'')+'</details></div>').join('')||'<p class="muted">Aún no hay registros financieros.</p>';
+ $('recent').querySelectorAll('[data-pagado]').forEach(b=>b.onclick=async()=>{
+  if(!confirm('¿Confirmas que esta cuenta fue PAGADA?'))return;
+  try{await api('marcar_pagado',{id:b.dataset.pagado,fecha_pago:today()});await refresh();notify('Pago registrado sin duplicar el gasto.','success');}
+  catch(e){notify(e.message,'error');}
+ });
+ $('recent').querySelectorAll('[data-anular]').forEach(b=>b.onclick=async()=>{
+  if(!confirm('¿Anular este registro? Se conservará en el historial como anulado y quedará evidencia.'))return;
+  try{await api('anular_movimiento',{id:b.dataset.anular});await refresh();notify('Registro anulado con auditoría.','success');}
+  catch(e){notify(e.message,'error');}
+ });
+}
+function renderPayments(rows){
+ const pagos={};
+ for(const p of rows||[])if(p.medio&&Number(p.total)>0)pagos[p.medio]=Number(p.total);
+ $('mediosReport').innerHTML=moneyRows(pagos)||'<p class="muted">No se ha registrado el desglose.</p>';
 }
 async function refresh(){
  if(!session)return;
@@ -250,7 +266,7 @@ async function refresh(){
   }
   $('m-ventas').textContent=pesos(ventas);$('m-gastos').textContent=pesos(gastos);
   $('m-resultado').textContent=pesos(ventas-gastos);$('m-pendientes').textContent=pesos(pendientes);
-  renderRows();notify('Información privada actualizada.','success');
+  renderRows();renderPayments(s.pagos);notify('Información privada actualizada.','success');
  }catch(e){notify(e.message,'error');if(/código privado|sesión|Introduce el código/.test(e.message))lock();}
 }
 async function loadDocs(){
@@ -279,7 +295,7 @@ async function loadCosts(){
 }
 async function safe(action,fn){
  const btn=$(action);btn.disabled=true;notify('Guardando…');
- try{const warning=await fn();notify(warning||'Guardado correctamente en el entorno de pruebas.',warning?'error':'success');}
+ try{const warning=await fn();if(warning===false){notify('Acción cancelada.');}else notify(warning||'Guardado correctamente en el entorno de pruebas.',warning?'error':'success');}
  catch(e){notify(e.message,'error')}
  finally{btn.disabled=false;}
 }
@@ -287,7 +303,7 @@ $('saveSale').onclick=()=>safe('saveSale',async()=>{
  const b=value('saleBiz'),s=value('saleBranch')||null,fecha=value('saleDate'),monto=amount('saleTotal'),medios=payments(),total=Object.values(medios).reduce((a,b)=>a+b,0);
  if(!b||!monto)throw Error('Selecciona negocio e ingresa la venta.');
  if(total&&total!==monto)throw Error('Los medios de pago no cuadran con el total del cierre.');
- if(!confirm('¿Guardar venta de '+pesos(monto)+' del '+fecha+' sin modificar la caja operativa?'))return;
+ if(!confirm('¿Guardar venta de '+pesos(monto)+' del '+fecha+' sin modificar la caja operativa?'))return false;
  const fuente=value('saleSource'),datos={
   pedidos:amount('saleOrders'),deliverys:amount('saleDelivery'),propinas:amount('saleTips'),
   efectivo_contado:amount('saleCash'),gastos_cierre:amount('saleCloseExpenses'),
@@ -306,7 +322,7 @@ $('saveExpense').onclick=()=>safe('saveExpense',async()=>{
  const b=value('expenseBiz'),s=value('expenseBranch')||null,fecha=value('expenseDate'),monto=amount('expenseAmount'),tipo=value('expenseType');
  if(!b||!monto)throw Error('Elige el negocio y el importe.');
  const r=await api('guardar_movimiento',{negocio_id:b,sucursal_id:s,fecha,monto,tipo,
-  categoria:value('expenseCategory'),proveedor:value('expenseVendor'),concepto:value('expenseConcept'),pendiente:$('expensePending').checked});
+  categoria:value('expenseCategory'),proveedor:value('expenseVendor'),concepto:value('expenseConcept'),pendiente:$('expensePending').checked,datos:{vence:value('expenseDue')||null}});
  let warning='';
  try{await upload($('expensePhoto').files[0],b,s,'factura',fecha,r.id,value('expenseVendor'));}
  catch(e){warning='El gasto SÍ quedó guardado, pero el comprobante NO: '+e.message;}
