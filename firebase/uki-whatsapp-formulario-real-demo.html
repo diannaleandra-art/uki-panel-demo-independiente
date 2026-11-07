@@ -2479,8 +2479,16 @@ let filtroCategoriaPedidos="todos";
 const UKI_CATEGORIAS_PEDIDOS=[
  ["todos","Todos"],["cuentas","Cuentas abiertas"],["sin-pago","Por cobrar"],["pagados","Pagados"],
  ["pendientes","Pendientes"],["entregados","Entregados"],
- ["cancelados","Cancelados"],["errores","Con error"]
+ ["cancelados","Cancelados"],["rechazados","Rechazados"],["errores","Con error"]
 ];
+// Una venta aceptada aparece una sola vez, con el origen identificado.
+function ukiOrigenPedido(p){
+ if(p.modalidad==="Consumo en local"||p.mesaReferencia||
+    (Array.isArray(p.qrSolicitudes)&&p.qrSolicitudes.length))return "Mesa";
+ if(p.codigoCarta&&String(p.codigoCarta).trim()&&!String(p.codigoCarta).startsWith("MESA-"))return "Carta digital";
+ if(String(p.textoOriginal||"").trim())return "WhatsApp";
+ return "Manual";
+}
 function ukiCoincideCategoriaPedido(p,categoria,errores){
  if(categoria==="cuentas")return ukiCuentaAbierta(p);
  if(categoria==="sin-pago")return !p.pagado&&p.estado!=="Cancelado"&&!p.esPremio;
@@ -2986,20 +2994,35 @@ function vPedidos(){
   const pendientes=(S.incidencias||[]).filter(x=>x.suc===S.suc && x.estado!=="Resuelto").length;
   const pagados=todos.filter(p=>p.pagado&&!p.esPremio&&p.estado!=="Cancelado").length;
   const erroresPedidos=new Set((S.incidencias||[]).filter(x=>x.suc===S.suc).map(x=>x.pedidoId));
+  // Solicitudes sin aceptar se clasifican sin convertirlas en ventas o timbres.
+  // Las aceptadas ya existen en S.pedidos: no mostrarlas ni sumarlas otra vez.
+  const solicitudes=ukiWhatsAppSolicitudesSucursal().filter(s=>{
+    if(s.estado==="aceptada")return false;
+    const ms=Number(s.creadoEn)||new Date(s.fechaISO||"").getTime()||0;
+    const registro={...s,registradoEn:ms};
+    if(buscando)return ukiBusquedaPorDatos(filtroCodigoCarta,
+      [s.cliente,s.codigoCliente,s.telefono,s.codigoCarta,s.id,s.datos?.texto])&&
+      (!filtroDiaPedidos||fechaTurnoRegistro(registro)===filtroDiaPedidos||
+        String(s.fechaISO||"").slice(0,10)===filtroDiaPedidos);
+    return pedidosArchivoDia?fechaTurnoRegistro(registro)===pedidosArchivoDia:esDelPeriodo(registro);
+  });
+  const solicitudEnCategoria=(s,id)=>id==="todos"||
+    (id==="pendientes"&&s.estado==="pendiente")||
+    (id==="rechazados"&&s.estado==="rechazada");
+  const visiblesSolicitudes=solicitudes.filter(s=>solicitudEnCategoria(s,filtroCategoriaPedidos));
   const visibles=todos.filter(p=>ukiCoincideCategoriaPedido(p,filtroCategoriaPedidos,erroresPedidos));
   const categorias=UKI_CATEGORIAS_PEDIDOS.map(([id,nombre])=>
     '<button type="button" class="chip'+(filtroCategoriaPedidos===id?' on':'')+
     '" onclick="ukiCambiarCategoriaPedidos(\''+id+'\')">'+esc(nombre)+
-    ' ('+todos.filter(p=>ukiCoincideCategoriaPedido(p,id,erroresPedidos)).length+')</button>'
+    ' ('+(todos.filter(p=>ukiCoincideCategoriaPedido(p,id,erroresPedidos)).length+solicitudes.filter(s=>solicitudEnCategoria(s,id)).length)+')</button>'
   ).join("");
   const titulo=buscando?"Resultados de búsqueda":pedidosArchivoDia?"Pedidos del turno "+pedidosArchivoDia:"Pedidos del turno abierto · "+fechaTurno;
-  return `<div class="section-head"><h2>Pedidos</h2><p>${esc(titulo)} · ${todos.length} registrados · ${pagados} pagados</p></div>
+  return `<div class="section-head"><h2>Pedidos</h2><p>${esc(titulo)} · ${todos.length} registrados · ${pagados} pagados · ${solicitudes.length} solicitudes pendientes o rechazadas</p></div>
   <button class="big cta" onclick="ir('nuevo')">＋ Nuevo pedido</button>
-  ${ukiWhatsAppSolicitudesUI()}
-  ${ukiMesasUI()}
   <div class="card"><h2 style="margin:0 0 8px">Clasificar pedidos</h2>
     <div class="chips" role="group" aria-label="Filtrar pedidos por estado y pago">${categorias}</div>
-    <p class="muted">${visibles.length} pedido(s) en «${esc((UKI_CATEGORIAS_PEDIDOS.find(x=>x[0]===filtroCategoriaPedidos)||[])[1]||"Todos")}». Un pedido pagado también puede estar pendiente de entrega o tener un error reportado.</p></div>
+    <p class="muted">${visibles.length+visiblesSolicitudes.length} registro(s) en «${esc((UKI_CATEGORIAS_PEDIDOS.find(x=>x[0]===filtroCategoriaPedidos)||[])[1]||"Todos")}». Los rechazados no suman a caja, ventas ni timbres.</p></div>
+  ${(filtroCategoriaPedidos==="todos"||filtroCategoriaPedidos==="pendientes")?ukiMesasUI():""}
   ${pedidosArchivoDia||buscando?'<button class="sm" onclick="limpiarFiltrosPedidos()">← Volver al turno abierto</button>':''}
   <details class="card" ${buscando?'open':''}><summary style="cursor:pointer"><b>🔎 Buscar por nombre, WhatsApp, código del cliente, pedido o fecha</b></summary>
     <div style="margin-top:12px"><label>Nombre, últimos 4 del WhatsApp, celular completo o número del pedido</label><input id="codigoFiltro" value="${esc(filtroCodigoCarta)}" placeholder="Ej: Camila, 5678 o 56912345678" inputmode="text">
@@ -3014,7 +3037,7 @@ function vPedidos(){
   </details>
   <details class="card" ${erroresAbiertos?'open':''}><summary onclick="erroresAbiertos=!erroresAbiertos"><b>⚠️ Errores e incidencias</b> · ${pendientes} pendientes</summary><label>Buscar errores por dia de reporte</label><input id="diaErrorFiltro" type="date" value="${esc(filtroDiaIncidencias)}"><button class="sm ok" onclick="aplicarDiaIncidencias()">Buscar errores</button><p class="muted">Los reportes se conservan aunque se cierre la caja del dia.</p>${incidencias.length?incidencias.map(x=>renderIncidencia(x,"lista")).join(""):"<p class='muted'>No hay errores para esta busqueda.</p>"}</details>
   ${visibles.map(p=>`<details class="card order-card" ${p.id===pedidoExpandido?'open':''}>
-    <summary onclick="pedidoExpandido=${p.id}"><div class="order-head"><div><b>${esc(ukiReferenciaConCarta(p))} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)}${ukiCodigoClienteVisible(p)?" · Código cliente: "+esc(ukiCodigoClienteVisible(p)):""}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small>${p.esPremio?'🎁 Premio':p.estado==="Cancelado"?'Cancelado':p.pagado?'Pagado':'Sin pago'}${erroresPedidos.has(p.id)?' · ⚠️ Con error':''}</small></div></div></summary>
+    <summary onclick="pedidoExpandido=${p.id}"><div class="order-head"><div><b>${esc(ukiReferenciaConCarta(p))} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)} · Origen: ${esc(ukiOrigenPedido(p))}${ukiCodigoClienteVisible(p)?" · Código cliente: "+esc(ukiCodigoClienteVisible(p)):""}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small>${p.esPremio?'🎁 Premio':p.estado==="Cancelado"?'Cancelado':p.pagado?'Pagado':'Sin pago'}${erroresPedidos.has(p.id)?' · ⚠️ Con error':''}</small></div></div></summary>
     <div class="order-body"><p class="muted">${esc(p.estado||'Entregado')} · ${esc(p.medio||'Efectivo')}${p.telefono?' · '+esc(p.telefono):''}</p>${p.estado==="Cancelado"?`<p class="muted"><b>Motivo:</b> ${esc(p.motivoCancelacion==="cliente"?"Cancelado por el cliente":p.motivoCancelacion==="local"?"Cancelado por el local":"No informado")}${p.canceladoEn?" · "+esc(fechaTxt(p.canceladoEn)):""}</p>`:""}
     ${(p.productos||[]).map(pr=>`<div class="row"><span>${pr.cantidad}x ${esc(pr.nombre)}${pr.detalle?` · ${esc(pr.detalle)}`:''}</span><b>${fmt(pr.cantidad*pr.precioUnit)}</b></div>`).join('')}
     ${p.envio?row('Delivery',fmt(p.envio)):''}
@@ -3036,7 +3059,9 @@ function vPedidos(){
     <button class="sm ok" onclick="anotarIncidencia(${p.id})">Guardar error</button></details>
     <div class="order-actions">${ukiCuentaAbierta(p)&&esDelPeriodo(p)?`<button class="sm ok" onclick="ukiAgregarACuenta(${p.id})">+ Agregar a cuenta</button>`:""}${p.estado!=="Cancelado"?`<button class="sm ok" onclick="editarPedido(${p.id})">Editar</button><button class="sm" onclick="togglePagado(${p.id})">${p.pagado?'Quitar pagado':'Marcar pagado'}</button>`:""}<button class="sm" onclick="copiarComanda(${p.id})">Copiar comanda</button></div>
     ${puedeCancelarPedido(p)?`<div class="inner-details" style="padding:12px;margin-top:12px;border:1px solid #e7c8b3;border-radius:12px"><label for="motivoCancelacion${p.id}">Cancelar pedido · Motivo obligatorio</label><select id="motivoCancelacion${p.id}"><option value="">Selecciona un motivo</option><option value="cliente">Lo canceló el cliente</option><option value="local">Lo canceló el local</option></select><button class="sm" type="button" onclick="cancelarPedido(${p.id})" style="color:#9b3328;border-color:#dcb4a5">Cancelar pedido</button><p class="muted">Solo pedidos pendientes sin pago del turno abierto. Queda en el historial.</p></div>`:""}
-    </div></details>`).join('')||'<div class="card muted">'+(todos.length?'No hay pedidos en esta categoría. Selecciona «Todos» para verlos.':'Todavía no hay pedidos. Pulsa Nuevo pedido para comenzar.')+'</div>'}`;
+    </div></details>`).join('')}
+  ${visiblesSolicitudes.map(s=>'<div class="card order-card"><p class="muted"><b>Origen: WhatsApp · '+(s.estado==="rechazada"?"RECHAZADO":"Pendiente de confirmación")+'</b></p>'+ukiWhatsAppFicha(s,s.estado==="pendiente")+'</div>').join('')}
+  ${!visibles.length&&!visiblesSolicitudes.length?'<div class="card muted">'+(todos.length||solicitudes.length?'No hay pedidos en esta categoría. Selecciona «Todos» para verlos.':'Todavía no hay pedidos. Pulsa Nuevo pedido para comenzar.')+'</div>':''}`;
 }
 let pedidoExpandido=null;
 
