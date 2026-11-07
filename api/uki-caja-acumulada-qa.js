@@ -70,7 +70,7 @@ module.exports=async function ukiCajaAcumuladaQA(req,res){
   if(!writeActions.has(action))return error(res,400,'Acción desconocida.');
   // La caja no copia silenciosamente movimientos desde los cierres de ventas.
   // Los cierres deberán llevar referencia única, importe y día operativo confirmados.
-  if(!amount(body.monto)||!validUUID(body.op_key)||!safeText(body.concepto)||!safeText(body.responsable,80)||body.responsable.trim().length<2)
+  if(!amount(body.monto)||!validUUID(body.op_key)||!safeText(body.concepto)||typeof body.responsable!=='string'||body.responsable.trim().length<2||body.responsable.trim().length>80)
    return error(res,400,'Monto, concepto o identificador incorrecto.');
   const fecha=body.fecha_operativa??null;
   if(fecha!==null&&!validDay(fecha))return error(res,400,'Fecha operativa incorrecta.');
