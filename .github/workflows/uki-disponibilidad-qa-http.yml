@@ -67,5 +67,17 @@ jobs:
             body:JSON.stringify({branch:'arica',action:'listar'}),signal:AbortSignal.timeout(12000)});
           assert.equal(unauthorized.status,403,'Un usuario sin Google no puede administrar en producción');
           console.log('Producción: administración sin autorización bloqueada HTTP 403');
+          const pageUrl='https://diannaleandra-art.github.io/uki-panel-demo-independiente/firebase/uki-sushi-local.html';
+          const page=await fetch(pageUrl,{signal:AbortSignal.timeout(12000)});
+          assert.equal(page.status,200,'El panel real debe cargar con HTTP 200');
+          const html=await page.text();
+          assert.match(html,/uki-inventario-admin-embebido\\.js/);
+          assert.match(html,/uki-disponibilidad-admin\\.js/);
+          const moduleResp=await fetch(new URL('./uki-disponibilidad-admin.js',pageUrl),{signal:AbortSignal.timeout(12000)});
+          assert.equal(moduleResp.status,200,'La nueva sección debe estar publicada');
+          const moduleText=await moduleResp.text();
+          assert.match(moduleText,/window\\.ukiInventarioMontar=montar/);
+          assert.match(moduleText,/window\\.ukiInventarioToken/);
+          console.log('Panel GitHub Pages: HTML y controles Disponible/Agotado accesibles HTTP 200');
 
           JS
