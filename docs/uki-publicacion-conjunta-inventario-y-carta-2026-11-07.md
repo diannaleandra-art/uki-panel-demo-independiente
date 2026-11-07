@@ -41,3 +41,11 @@ Fecha de preparación: 2026-11-07 · Proyecto: panel operativo y carta pública
 
 ## Comunicación a equipos
 No usar enlaces de demostración como si fueran el sistema real; no introducir productos de prueba en caja. La trabajadora registra conteo al final del turno; administradora consulta resultados y modifica agotado/disponible manualmente.
+
+## Verificación Google interactiva — pendiente de dominio Firebase (2026-11-07)
+- Pantalla de QA lista y comprobada HTTP 200: https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app/verificar-administracion.html
+- Nueva API de verificación es **solo lectura y solo QA**: `/api/uki-admin-verificacion-qa`. Sin token Google devuelve 403; en producción la API no está habilitada.
+- La pantalla permite al usuario iniciar Google, comprobar su autorización, crear y cambiar un producto de prueba SOLO EN QA, cambiar disponibilidad de ese producto, abrir revisión del historial QA, descargar CSV/PDF y compartir mediante WhatsApp.
+- **Bloqueo comprobado:** consulta pública del proyecto Firebase `uki-panel-f4909` confirma que el hostname de QA **NO** figura entre sus dominios autorizados (Firebase: dominio de pruebas Google autorizado=false). Google puede rechazar el inicio de sesión mientras siga así.
+- Requiere acción explícita del titular en Firebase Console → Authentication → Settings → Authorized domains → Add domain: `uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app`. No pedir credenciales ni modificar este control sin autorización. Conviene retirar el dominio temporal tras completar pruebas.
+- Ningún inicio Google real ni edición autenticada fue ejecutado desde esta sesión; solo se verificaron HTTPS y bloqueos de acceso. **No anunciar QA Google como aprobada hasta ver el resultado desde una sesión legítima.**
