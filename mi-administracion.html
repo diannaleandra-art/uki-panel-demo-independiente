@@ -55,7 +55,8 @@ a{color:#70431c}b{overflow-wrap:anywhere}
 <div class="grid2"><div><label>Pedidos</label><input id="saleOrders" type="number" min="0"></div><div><label>Deliverys</label><input id="saleDelivery" type="number" min="0"></div><div><label>Propinas ($)</label><input id="saleTips" type="number" min="0"></div><div><label>Efectivo contado ($)</label><input id="saleCash" type="number" min="0"></div><div><label>Gastos del cierre ($)</label><input id="saleCloseExpenses" type="number" min="0"></div><div><label>Retiros ($)</label><input id="saleWithdrawals" type="number" min="0"></div></div>
 <label>Observaciones / conceptos adicionales</label><textarea id="saleNotes" placeholder="Responsable, diferencia de caja, repartidores…"></textarea></details>
 <label>Fotografía o PDF del cierre (opcional)</label><input type="file" id="salePhoto" accept="image/*,application/pdf">
-<p class="hint">Se guarda la imagen original junto con el cierre. La lectura automática de texto aún no está activada: revisa e ingresa las cifras antes de confirmar.</p>
+<p class="hint">Si tu navegador permite reconocer texto en imágenes, se sugerirán las cifras al elegir una foto. En iPhone también puedes copiar el texto de la foto con Texto en Vivo y pegarlo aquí. Verifica todas las cantidades.</p>
+<details><summary>🧾 Pegar o revisar el texto de un cierre</summary><label>Texto del cierre</label><textarea id="saleRawText" placeholder="Efectivo $120.000&#10;Transferencia $85.000&#10;Débito $145.000&#10;Venta total $350.000"></textarea><button type="button" class="soft" id="interpretClose">Interpretar y completar cifras</button><p id="closeReadResult" class="hint"></p></details>
 <button class="primary" id="saveSale">Guardar venta y cierre</button></div></section>
 <section class="view" id="v-gastos" hidden><div class="card"><h2>Registrar gasto o compra</h2><label>Negocio</label><select id="expenseBiz"></select><label>Sucursal</label><select id="expenseBranch"></select>
 <div class="grid2"><div><label>Fecha</label><input type="date" id="expenseDate"></div><div><label>Monto ($)</label><input type="number" min="0" id="expenseAmount"></div></div>
@@ -136,6 +137,68 @@ function updateSum(){
  catch(e){$('paymentSum').textContent=e.message}
 }
 payFields.addEventListener('input',updateSum);$('saleTotal').addEventListener('input',updateSum);
+
+const norm=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const pesosNumero=x=>Number(String(x||'').replace(/[^0-9]/g,''));
+function interpretarTexto(raw){
+ const lines=String(raw||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+ const encontrado={medios:{},total:null,campos:{},fecha:null};
+ const rules=[
+  ['Efectivo',/\befectivo\b/],['Transferencia',/\btransferencia(s)?\b/],['Débito',/\bdebito\b/],
+  ['Crédito',/\bcredito\b/],['Edenred',/\bedenred\b/],['Junaeb',/\bjunaeb\b/],
+  ['Uber',/\buber\b/],['Rappi',/\brappi\b/],['PedidosYa',/\bpedidos\s*ya\b/]
+ ];
+ for(let i=0;i<lines.length;i++){
+  const line=norm(lines[i]);
+  const date=lines[i].match(/\b(\d{1,2})[\/-](\d{1,2})[\/-](20\d{2})\b/);
+  if(date){const f=date[3]+'-'+date[2].padStart(2,'0')+'-'+date[1].padStart(2,'0');
+   if(!Number.isNaN(Date.parse(f)))encontrado.fecha=f;}
+  const match=line.match(/(?:^|\s|\$)(\d[\d.,\s]{0,17})\s*$/);
+  const v=match?pesosNumero(match[1]):null;
+  if(v===null||!Number.isSafeInteger(v))continue;
+  if(/(?:venta total|total venta|total del dia|total del cierre|total general)\b/.test(line)){encontrado.total=v;continue}
+  if(/efectivo (?:contado|final|que quedo|en caja)/.test(line)){encontrado.campos.saleCash=v;continue}
+  if(/propina/.test(line)){encontrado.campos.saleTips=v;continue}
+  if(/retiro/.test(line)){encontrado.campos.saleWithdrawals=v;continue}
+  if(/gasto/.test(line)){encontrado.campos.saleCloseExpenses=v;continue}
+  if(/cantidad de pedido|total de pedido|pedidos? (?:realizados|del dia|totales)/.test(line)){encontrado.campos.saleOrders=v;continue}
+  if(/cantidad de delivery|deliverys? (?:realizados|del dia)/.test(line)){encontrado.campos.saleDelivery=v;continue}
+  const medio=rules.find(([,re])=>re.test(line));
+  if(medio)encontrado.medios[medio[0]]=v;
+ }
+ if(encontrado.total===null){
+  const sum=Object.values(encontrado.medios).reduce((a,b)=>a+b,0);
+  if(sum)encontrado.total=sum;
+ }
+ return encontrado;
+}
+function completarDesdeTexto(txt){
+ const d=interpretarTexto(txt);let count=0;
+ if(d.fecha){$('saleDate').value=d.fecha;count++}
+ if(d.total!==null){$('saleTotal').value=d.total;count++}
+ for(const [k,v]of Object.entries(d.medios)){const i=AM.indexOf(k);if(i>=0){$('pay'+i).value=v;count++}}
+ for(const [k,v]of Object.entries(d.campos)){if($(k)){$(k).value=v;count++}}
+ updateSum();
+ $('closeReadResult').textContent=count?count+' datos sugeridos. Revísalos antes de guardar.':'No se reconocieron conceptos. Ingresa las cifras manualmente.';
+ return count;
+}
+$('interpretClose').onclick=()=>completarDesdeTexto($('saleRawText').value);
+$('salePhoto').addEventListener('change',async()=>{
+ const file=$('salePhoto').files[0];
+ if(!file||!file.type.startsWith('image/'))return;
+ if(typeof window.TextDetector!=='function'){
+  $('closeReadResult').textContent='Este Safari no tiene reconocimiento de texto disponible para esta página. Puedes usar Texto en Vivo en Fotos y pegarlo arriba.';
+  return;
+ }
+ try{
+  $('closeReadResult').textContent='Reconociendo texto localmente…';
+  const image=await createImageBitmap(file),blocks=await new window.TextDetector().detect(image);
+  image.close?.();
+  $('saleRawText').value=blocks.map(x=>x.rawValue).join('\n');
+  completarDesdeTexto($('saleRawText').value);
+ }catch(e){$('closeReadResult').textContent='No se pudo leer la foto automáticamente. Puedes completar los campos manualmente.'}
+});
+
 async function fileData(file){
  if(!file)throw Error('Selecciona una foto o PDF.');
  if(!['image/jpeg','image/png','image/webp','application/pdf'].includes(file.type))throw Error('Solo fotos JPG, PNG, WEBP y PDF.');
