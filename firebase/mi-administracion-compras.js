@@ -1,7 +1,7 @@
 // Control de compras (QA). Solo sugiere OCR; confirmar siempre antes de registrar.
 // No modifica inventario ni el estado de disponibilidad de la carta.
-import {interpretarFacturaChile} from './mi-administracion-factura-parser.js?v=bombo78969-v1';
-import {leerPDFLocal} from './mi-administracion-pdf-ocr.js?v=bombo78969-v1';
+import {interpretarFacturaChile} from './mi-administracion-factura-parser.js?v=bombo78969-v2';
+import {leerPDFLocal} from './mi-administracion-pdf-ocr.js?v=bombo78969-v2';
 export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, branchName, currentBiz, currentBranch, upload, safe}){
  let productos=[],leyendo=false,datosFactura={receptor:'',observacion:''};
  const n=x=>Number(x||0),money=x=>Number.isSafeInteger(Number(x))&&Number(x)>=0&&Number(x)<=1000000000;
