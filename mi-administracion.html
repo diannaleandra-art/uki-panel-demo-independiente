@@ -364,6 +364,14 @@ $('exit').onclick=async()=>{
  if(session)try{await api('salir')}catch{}
  session='';await signOut(auth);show('login');notify('Acceso privado cerrado.','success');
 };
+// Si los dueños abren un enlace de instalación único, la clave se toma del fragmento,
+// que no se envía al servidor ni aparece en los logs HTTP. Se borra de la barra al instante.
+const setupLink=String(location.hash||'').match(/^#instalar=([0-9a-f]{64})$/i);
+if(setupLink){
+ $('setupkey').value=setupLink[1];
+ history.replaceState(null,'',location.pathname+location.search);
+ $('loginhelp').textContent='Enlace de instalación recibido. Configura tu PIN privado después de entrar con Google.';
+}
 ['saleDate','expenseDate','docDate','to'].forEach(id=>$(id).value=today());
 $('from').value=today().slice(0,7)+'-01';
 onAuthStateChanged(auth,()=>{if(!session)void checkState()});
