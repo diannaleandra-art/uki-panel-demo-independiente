@@ -5,12 +5,12 @@ const {url:dbUrl}=require('../lib/uki-inventario-db-live.cjs');
 const ORIGINS=new Set(['https://diannaleandra-art.github.io','https://uki-sushi-pedidos.vercel.app']);
 const BRANCHES=new Set(['arica','serena']),CATEGORIES=new Set(['vegetal','proteina','envoltura']);
 const SURFACES=new Set(['classic','premium','monthly','handroll','burger','gohan']);
-const QA_REF='feature/uki-disponibilidad-manual-live-2026-11-06';
-const QA_MENU='https://uki-sushi-pedidos-git-feature-uki-dis-eb0d72-diannaleandra-7046.vercel.app';
-const QA_PANEL='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app';
+const QA_REF='feature/uki-ingredientes-armado-integracion-completa-2026-11-07';
+const QA_MENU=/^https:\/\/uki-sushi-pedidos-[a-z0-9-]+-diannaleandra-7046\.vercel\.app$/;
+const QA_PANEL=/^https:\/\/uki-sushi-inventario-[a-z0-9-]+-diannaleandra-7046\.vercel\.app$/;
 const qa=e=>e.VERCEL_ENV==='preview'&&e.VERCEL_GIT_COMMIT_REF===QA_REF&&e.UKI_INVENTARIO_QA_ENABLED==='true';
 const enabled=e=>(e.VERCEL_ENV==='production'&&e.UKI_INGREDIENTES_ARMADO_ENABLED==='true')||qa(e);
-const allow=(origin,e)=>!origin||ORIGINS.has(origin)||(qa(e)&&(origin===QA_MENU||origin===QA_PANEL));
+const allow=(origin,e)=>!origin||ORIGINS.has(origin)||(qa(e)&&(QA_MENU.test(origin)||QA_PANEL.test(origin)));
 const error=(res,s,msg)=>res.status(s).json({ok:false,error:msg});
 const normalizeName=x=>String(x).normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
 function validateItem(v){
@@ -61,7 +61,7 @@ module.exports=async function(req,res){
  catch{return error(res,503,'No se pudo abrir base de datos')}
  try{
   if(req.method==='GET')return res.status(200).json({ok:true,branch,items:await listing(sql,branch)});
-  if(origin!=='https://diannaleandra-art.github.io'&&!(qa(e)&&origin===QA_PANEL))
+  if(origin!=='https://diannaleandra-art.github.io'&&!(qa(e)&&QA_PANEL.test(origin)))
    return error(res,403,'Solo administración');
   if(String(req.headers?.['content-type']||'').split(';')[0]!=='application/json')
    return error(res,415,'Se requiere JSON');
