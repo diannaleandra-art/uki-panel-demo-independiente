@@ -251,7 +251,7 @@ label{color:#66574c}
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
 import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
-import {crearControlCompras} from "./mi-administracion-compras.js?v=razones-v3";
+import {crearControlCompras} from "./mi-administracion-compras.js?v=razones-v4";
 const app=initializeApp({apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",appId:"1:1070481165758:web:b8f0f9ff40caf5b8ac7def"});
 const auth=getAuth(app),$=id=>document.getElementById(id);
 let session="",businesses=[],branches=[],razones=[],vinculos=[],transactions=[],docs=[],tab='resumen';
@@ -263,7 +263,7 @@ const notify=(msg,type='')=>{$('notice').textContent=msg;$('notice').className=t
 async function api(action,fields={}){
  if(!auth.currentUser)throw Error('Primero inicia Google.');
  const bearer=await auth.currentUser.getIdToken();
- const response=await fetch('https://uki-sushi-inventario-nv057h37v-diannaleandra-7046.vercel.app/api/mi-administracion-qa',{method:'POST',cache:'no-store',credentials:'omit',
+ const response=await fetch('https://uki-sushi-inventario-jzgkxlk0h-diannaleandra-7046.vercel.app/api/mi-administracion-qa',{method:'POST',cache:'no-store',credentials:'omit',
   headers:{Authorization:'Bearer '+bearer,'Content-Type':'application/json','X-Fin-Session':session},
   body:JSON.stringify({action,...fields})});
  const data=await response.json().catch(()=>({error:'Respuesta inválida del servidor.'}));
