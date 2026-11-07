@@ -1,5 +1,7 @@
 // Control de compras (QA). Solo sugiere OCR; confirmar siempre antes de registrar.
 // No modifica inventario ni el estado de disponibilidad de la carta.
+import {interpretarFacturaChile} from './mi-administracion-factura-parser.js';
+import {leerPDFLocal} from './mi-administracion-pdf-ocr.js';
 export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, branchName, currentBiz, currentBranch, upload, safe}){
  let productos=[],leyendo=false;
  const n=x=>Number(x||0),money=x=>Number.isSafeInteger(Number(x))&&Number(x)>=0&&Number(x)<=1000000000;
@@ -64,72 +66,44 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
   productos.splice(Number(b.dataset.remove),1);renderItems();
  });
  $('invoiceAddItem').onclick=()=>{productos.push(itemTemplate());renderItems();};
- function interpretar(texto){
-  const lines=String(texto||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
-  const found={fecha:null,proveedor:'',referencia:'',total:null,neto:null,iva:null,otros:null,descuento:null,productos:[]};
-  if(!lines.length)return found;
-  const meaningful=lines.slice(0,10).find(x=>/[a-záéíóúñ]{4,}/i.test(x)&&!/\b(?:factura|electronica|boleta|rut|fecha|giro|direccion|sii|servicio de impuestos|telefono|www\.|correo)\b/i.test(x));
-  if(meaningful)found.proveedor=meaningful.slice(0,120);
-  for(let i=0;i<lines.length;i++){
-   const raw=lines[i],line=normal(raw);
-   const labeled=line.match(/(?:razon social|proveedor|emisor)\s*[:\-]\s*(.{3,120})/);
-   if(labeled)found.proveedor=raw.slice(raw.indexOf(':')+1).trim().slice(0,120)||found.proveedor;
-   const date=raw.match(/\b([0-3]?\d)[\/\-.]([01]?\d)[\/\-.](20\d{2})\b/);
-   if(date){const f=date[3]+'-'+date[2].padStart(2,'0')+'-'+date[1].padStart(2,'0');if(!Number.isNaN(Date.parse(f)))found.fecha=f;}
-   const invoice=line.match(/\b(?:factura|boleta)\s*(?:electr[oó]nica)?\s*(?:nro\.?|numero|n[°ºo.]|#|folio)?\s*[:\-#n°ºo.]*\s*(\d{2,12})\b/);
-   if(invoice)found.referencia=invoice[1];
-   const total=findMoney(raw);
-   if(total!==null){
-    if(/\b(?:total a pagar|monto total|total factura|total compra|importe total|valor total)\b/.test(line)||/^total\s*[:$]/.test(line))found.total=total;
-    else if(/\b(?:monto neto|valor neto|total neto|afecto neto|subtotal)\b/.test(line))found.neto=total;
-    else if(/(?:^|\s)(?:iva|i\.v\.a\.)(?:\s*19\s*%)?\b/.test(line))found.iva=total;
-    else if(/\b(?:descuentos?)\b/.test(line))found.descuento=total;
-    else if(/\b(?:otros cargos|recargo|flete)\b/.test(line))found.otros=total;
+ const interpretar=interpretarFacturaChile;
+ function aplicarTexto(raw,extra='',filename=''){
+  const p=interpretar(raw||extra);
+  if(extra&&raw.trim()){
+   const p2=interpretar(extra);
+   for(const key of ['fecha','proveedor','referencia','total','neto','iva','otros','descuento']){
+    if(p[key]===null||p[key]===undefined||p[key]==='')p[key]=p2[key];
    }
-   // Patrón conservador: cantidad, descripción, precio unidad y total. Nunca completa artículos dudosos.
-   const item=raw.match(/^\s*(\d{1,5}(?:[.,]\d{1,3})?)\s+([A-Za-zÁÉÍÓÚÜÑáéíóúñ][\w\sÁÉÍÓÚÜÑáéíóúñ.,/%()\-]{3,90}?)\s+\$?\s*([\d.]{1,14})\s+\$?\s*([\d.]{1,14})\s*$/);
-   if(item){
-    const qty=Number(item[1].replace(',','.')),unit=parseCLP(item[3]),sum=parseCLP(item[4]),name=item[2].trim();
-    if(qty>0&&unit!==null&&sum!==null&&Math.abs(Math.round(qty*unit)-sum)<=2&&!/subtotal|total|iva|neto/i.test(name)){
-     found.productos.push({nombre:name,cantidad:String(qty),unidad:'un',precio_unitario:String(unit),total:String(sum)});
-    }
-   }
+   if(!p.productos.length&&p2.productos.length)p.productos=p2.productos;
   }
-  if(found.total===null&&found.neto!==null&&found.iva!==null)found.total=found.neto+found.iva+(found.otros||0)-(found.descuento||0);
-  if(found.total!==null&&found.neto===null)found.neto=found.total-(found.iva||0)-(found.otros||0)+(found.descuento||0);
-  return found;
- }
- function aplicarTexto(raw){
-  const p=interpretar(raw);let count=0;
+  let folioArchivo=false;
+  if(!p.referencia&&/^\d{3,12}\.pdf$/i.test(filename||'')){
+    p.referencia=filename.replace(/\.pdf$/i,'');
+    folioArchivo=true;
+  }
+  let count=0;
   if(p.proveedor){$('docVendor').value=p.proveedor;count++}
   if(p.fecha){$('docDate').value=p.fecha;count++}
   if(p.referencia){$('docNumber').value=p.referencia;count++}
   for(const [id,key] of [['docTotal','total'],['docNet','neto'],['docTax','iva'],['docOther','otros'],['docDiscount','descuento']]){
-   if(p[key]!==null){field(id,p[key]);count++}
+   if(p[key]!==null&&p[key]!==undefined){field(id,p[key]);count++}
   }
   if(p.productos.length){productos=p.productos.slice(0,60);renderItems();count+=p.productos.length}
-  $('invoiceOCRStatus').textContent=count?count+' datos sugeridos a partir de la lectura. Revisa proveedor, IVA, artículos y total antes de confirmar.':'No fue posible reconocer cifras confiables. Completa los datos manualmente.';
-  $('docRawText').value=raw;
+  const faltan=[];
+  if(!p.referencia)faltan.push('número de factura');
+  if(p.total===null)faltan.push('total');
+  if(!p.productos.length)faltan.push('productos');
+  if(p.iva===null||p.neto===null)faltan.push('desglose neto/IVA');
+  const parts=[count+' datos sugeridos.'];
+  if(p.productos.length)parts.push(p.productos.length+' productos reconocidos.');
+  if(folioArchivo)parts.push('Folio sugerido por el nombre del archivo: compruébalo en la factura.');
+  if(faltan.length)parts.push('Falta revisar: '+faltan.join(', ')+'.');
+  parts.push('Revisa todo antes de confirmar; nada se ha contabilizado.');
+  $('invoiceOCRStatus').textContent=parts.join(' ');
+  $('docRawText').value=extra?(raw+'\n\n----- SEGUNDA LECTURA DE IMAGEN -----\n'+extra):raw;
   return p;
  }
  $('parseInvoiceText').onclick=()=>aplicarTexto($('docRawText').value);
- async function extractPDF(file){
-  const pdfjs=await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.mjs');
-  pdfjs.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.mjs';
-  const doc=await pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
-  const output=[];
-  for(let i=1;i<=Math.min(doc.numPages,3);i++){
-   const page=await doc.getPage(i),content=await page.getTextContent();
-   const chunks=content.items.filter(x=>typeof x.str==='string').map(x=>({str:x.str,y:x.transform?.[5]??0}));
-   let y=null,line='';
-   for(const chunk of chunks){
-    if(y!==null&&Math.abs(chunk.y-y)>3){output.push(line);line=''}
-    line+=(line?' ':'')+chunk.str;y=chunk.y;
-   }
-   if(line)output.push(line);
-  }
-  return output.join('\n');
- }
  async function extractImage(file){
   if(typeof window.TextDetector==='function'){
    try{const image=await createImageBitmap(file),result=await new window.TextDetector().detect(image);image.close?.();const str=result.map(x=>x.rawValue).join('\n');if(str.trim())return str}catch{}
@@ -145,16 +119,22 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
   const file=$('docFile').files?.[0];
   if(!file){$('invoiceOCRStatus').textContent='Selecciona primero una foto o un PDF de factura.';return}
   leyendo=true;$('readInvoice').disabled=true;
-  $('invoiceOCRStatus').textContent='Leyendo factura en este dispositivo…';
+  $('invoiceOCRStatus').textContent='Analizando la factura en tu dispositivo…';
   try{
-   let txt='';
-   if(file.type==='application/pdf')txt=await extractPDF(file);
-   else if(file.type.startsWith('image/'))txt=await extractImage(file);
-   else throw Error('Solo JPG, PNG, WEBP o PDF.');
-   if(!txt.trim())throw Error('No se encontró texto. Si el PDF es escaneado, utiliza una foto o copia el texto con Texto en Vivo.');
-   aplicarTexto(txt);
-  }catch(e){$('invoiceOCRStatus').textContent='Lectura no disponible: '+String(e.message||e).slice(0,190)+' Puedes ingresar los datos manualmente.'}
-  finally{leyendo=false;$('readInvoice').disabled=false;}
+   let txt='',other='',note='';
+   if(file.type==='application/pdf'||/\.pdf$/i.test(file.name)){
+    const parsed=await leerPDFLocal(file,m=>{$('invoiceOCRStatus').textContent=m;});
+    txt=parsed.texto||'';other=parsed.alternativo||'';note=parsed.aviso||'';
+   }else if(file.type.startsWith('image/')){
+    $('invoiceOCRStatus').textContent='Reconociendo los datos de la foto…';
+    txt=await extractImage(file);
+   }else throw Error('Solo se admiten imágenes JPG, PNG, WEBP o PDF.');
+   if(!txt.trim()&&!other.trim())throw Error('No se encontró texto. Prueba una foto más nítida del documento.');
+   aplicarTexto(txt,other,file.name||'');
+   if(note)$('invoiceOCRStatus').textContent+=' '+note;
+  }catch(e){
+   $('invoiceOCRStatus').textContent='No se pudo leer automáticamente: '+String(e.message||e).slice(0,180)+'. Puedes copiar el texto desde Fotos y pegarlo aquí.';
+  }finally{leyendo=false;$('readInvoice').disabled=false;}
  }
  $('readInvoice').onclick=()=>void leer();
  $('docFile').addEventListener('change',()=>{if($('docFile').files?.length)void leer()});
