@@ -105,6 +105,7 @@ label{color:#66574c}
 <section id="app" hidden>
 <section id="filterCard" class="card">
 <div class="row"><strong>🏪 Elige tu negocio</strong><span class="pill">Solo dueños</span></div>
+<label for="scopeRazon">Razón social (empresa legal)</label><select id="scopeRazon"><option value="todos">Todas las razones sociales</option></select>
 <label for="scopeBusiness">¿Qué negocio quieres revisar?</label><select id="scopeBusiness" aria-label="Filtrar por negocio"><option value="">Todos mis negocios</option></select>
 <label for="scopeBranch">Sucursal</label><select id="scopeBranch"><option value="">Todas las sucursales</option></select>
 <details id="dateFilters"><summary>📅 Fechas del informe · Ver o cambiar</summary>
@@ -134,7 +135,9 @@ label{color:#66574c}
 <div class="eyebrow">VENTAS Y CIERRES</div><h2>🧾 Agregar venta o cierre de un local</h2>
 <p class="steps">1. Elige negocio y fecha. 2. Escribe cuánto se vendió y cómo pagaron. 3. Revisa y guarda.</p>
 <p class="hint">También puedes adjuntar la foto del cierre. No cambia la caja operativa de Uki.</p>
-<div class="fieldset-title">1 · ¿De qué negocio es la venta?</div><label>Negocio</label><select id="saleBiz"></select><label>Sucursal</label><select id="saleBranch"></select>
+<div class="fieldset-title">1 · ¿De qué negocio es la venta?</div><label>Negocio</label><select id="saleBiz"></select>
+<label>Razón social que realizó la venta</label><select id="saleRazon"><option value="">Selecciona razón social</option></select>
+<label>Sucursal</label><select id="saleBranch"></select>
 <div class="fieldset-title">2 · Fecha y total vendido</div><div class="grid2"><div><label>Fecha de venta</label><input type="date" id="saleDate"></div><div><label>Venta total ($)</label><input inputmode="numeric" type="number" min="0" id="saleTotal" placeholder="250000"></div></div>
 <label>Origen</label><select id="saleSource"><option value="manual">Venta manual</option><option value="cierre">Cierre de caja importado</option></select>
 <label>Referencia del cierre (si corresponde)</label><input id="saleRef" placeholder="Ej.: cierre 06-11 turno noche">
@@ -146,7 +149,10 @@ label{color:#66574c}
 <p class="hint">Si tu navegador permite reconocer texto en imágenes, se sugerirán las cifras al elegir una foto. En iPhone también puedes copiar el texto de la foto con Texto en Vivo y pegarlo aquí. Verifica todas las cantidades.</p>
 <details><summary>🧾 Pegar o revisar el texto de un cierre</summary><label>Texto del cierre</label><textarea id="saleRawText" placeholder="Efectivo $120.000&#10;Transferencia $85.000&#10;Débito $145.000&#10;Venta total $350.000"></textarea><button type="button" class="soft" id="interpretClose">Interpretar y completar cifras</button><p id="closeReadResult" class="hint"></p></details>
 <div class="fieldset-title">4 · Confirmar</div><p class="steps">Revisa negocio, fecha, total y medios de pago. No se modificarán los cierres existentes de Uki.</p><button class="primary" id="saveSale">✓ Guardar venta o cierre</button></div></section>
-<section class="view" id="v-gastos" hidden><div class="card"><div class="eyebrow">GASTOS Y COMPRAS</div><h2>💸 Registrar un gasto</h2><p class="steps">Elige el negocio, el monto y el motivo. Puedes adjuntar la factura aquí mismo.</p><label>Negocio</label><select id="expenseBiz"></select><label>Sucursal</label><select id="expenseBranch"></select>
+<section class="view" id="v-gastos" hidden><div class="card"><div class="eyebrow">GASTOS Y COMPRAS</div><h2>💸 Registrar un gasto</h2><p class="steps">Elige la razón social y el negocio que paga el gasto. Puedes adjuntar su factura aquí mismo.</p>
+<label>Negocio</label><select id="expenseBiz"></select>
+<label>Razón social que paga el gasto</label><select id="expenseRazon"><option value="">Selecciona razón social</option></select>
+<label>Sucursal</label><select id="expenseBranch"></select>
 <div class="grid2"><div><label>Fecha</label><input type="date" id="expenseDate"></div><div><label>Monto ($)</label><input type="number" min="0" id="expenseAmount"></div></div>
 <label>Tipo</label><select id="expenseType"><option value="gasto">Gasto operativo</option><option value="compra">Compra de mercadería</option><option value="retiro">Retiro del dueño</option><option value="ingreso_extra">Ingreso extraordinario</option></select>
 <label>Categoría</label><select id="expenseCategory"><option>Mercadería</option><option>Arriendo</option><option>Sueldos</option><option>Agua</option><option>Luz</option><option>Gas</option><option>Internet</option><option>Servicios</option><option>Delivery</option><option>Mantención</option><option>Otros</option></select>
@@ -248,7 +254,7 @@ import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut}fro
 import {crearControlCompras} from "./mi-administracion-compras.js?v=razones-v1";
 const app=initializeApp({apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",appId:"1:1070481165758:web:b8f0f9ff40caf5b8ac7def"});
 const auth=getAuth(app),$=id=>document.getElementById(id);
-let session="",businesses=[],branches=[],transactions=[],docs=[],tab='resumen';
+let session="",businesses=[],branches=[],razones=[],vinculos=[],transactions=[],docs=[],tab='resumen';
 const AM=['Efectivo','Transferencia','Débito','Crédito','Edenred','Junaeb','Uber','Rappi','PedidosYa','Otro'];
 const pesos=n=>'$'+Number(n||0).toLocaleString('es-CL',{maximumFractionDigits:0});
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -269,13 +275,34 @@ const selected=(id,label,arr)=>{const t=$(id);t.replaceChildren(new Option(label
 function branchesFor(b){return branches.filter(x=>x.negocio_id===b);}
 function chooseBranch(id,b,label='Sin sucursal específica'){selected(id,label,branchesFor(b));}
 function businessName(id){return businesses.find(b=>b.id===id)?.nombre||'Negocio';}
+function reasonName(id){return razones.find(r=>r.id===id)?.nombre||'Sin clasificar';}
+function optionsForReason(id,biz){
+ const target=$(id),current=target.value;
+ target.replaceChildren(new Option('Selecciona razón social',''));
+ razones.filter(r=>vinculos.some(v=>v.negocio_id===biz&&v.razon_social_id===r.id))
+  .forEach(r=>target.add(new Option(r.nombre+(r.rut?' · '+r.rut:''),r.id)));
+ if([...target.options].some(o=>o.value===current))target.value=current;
+}
+function scopeReasons(){
+ const target=$('scopeRazon'),current=target.value;
+ target.replaceChildren(new Option('Todas las razones sociales','todos'),new Option('Sin clasificar','sin_clasificar'));
+ razones.forEach(r=>target.add(new Option(r.nombre+(r.rut?' · '+r.rut:''),r.id)));
+ if([...target.options].some(o=>o.value===current))target.value=current;
+}
 function branchName(id){return branches.find(s=>s.id===id)?.nombre||'General';}
 function currentBiz(){return value('scopeBusiness');}
 function currentBranch(){return value('scopeBranch');}
 function options(){
  selected('scopeBusiness','Todos los negocios',businesses);
  for(const id of ['saleBiz','expenseBiz','docBiz','newBranchBiz','costBiz'])selected(id,'Selecciona negocio',businesses);
- ['saleBiz','expenseBiz','docBiz'].forEach((id,i)=>{const branchId=['saleBranch','expenseBranch','docBranch'][i];$(id).onchange=()=>chooseBranch(branchId,value(id));});
+ ['saleBiz','expenseBiz','docBiz'].forEach((id,i)=>{
+ const branchId=['saleBranch','expenseBranch','docBranch'][i];
+ $(id).onchange=()=>{
+  chooseBranch(branchId,value(id));
+  if(id==='saleBiz')optionsForReason('saleRazon',value(id));
+  if(id==='expenseBiz')optionsForReason('expenseRazon',value(id));
+ };
+});
  $('scopeBusiness').onchange=()=>{chooseBranch('scopeBranch',currentBiz(),'Todas las sucursales');void refresh();};
  $('scopeBranch').onchange=()=>void refresh();
  for(const id of ['saleBiz','expenseBiz','docBiz']){if(businesses.length){$(id).value=businesses[0].id;$(id).onchange();}}
@@ -286,7 +313,11 @@ function options(){
 async function loadBusinesses(){
  const r=await api('negocios');businesses=r.negocios||[];branches=r.sucursales||[];
  const prev=currentBiz();options();if(businesses.some(x=>x.id===prev))$('scopeBusiness').value=prev;
- await controlCompras.cargarRazones();
+ const legal=await controlCompras.cargarRazones();
+ razones=legal.razones||[];vinculos=legal.vinculos||[];
+ scopeReasons();
+ optionsForReason('saleRazon',value('saleBiz'));
+ optionsForReason('expenseRazon',value('expenseBiz'));
  $('scopeBusiness').onchange();
 }
 const payFields=$('paymentFields');
@@ -405,7 +436,7 @@ document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>switchTab(b.dat
 document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>switchTab(b.dataset.go));
 function moneyRows(m){return Object.entries(m).filter(([k,v])=>Number(v)>0).map(([k,v])=>'<div class="line row"><span>'+esc(k)+'</span><b>'+pesos(v)+'</b></div>').join('')}
 function renderRows(){
- $('recent').innerHTML=transactions.slice(0,35).map(t=>'<div class="line"><div class="row"><b>'+esc(t.tipo)+' · '+pesos(t.monto)+'</b><span>'+esc(String(t.fecha).slice(0,10))+'</span></div><small>'+esc(businessName(t.negocio_id))+' · '+esc(branchName(t.sucursal_id))+' · '+esc(t.concepto||t.referencia||'Sin concepto')+'</small><div class="hint">'+esc(t.estado)+(t.datos?.vence?' · vence '+esc(String(t.datos.vence).slice(0,10)):'')+'</div>'+
+ $('recent').innerHTML=transactions.slice(0,35).map(t=>'<div class="line"><div class="row"><b>'+esc(t.tipo)+' · '+pesos(t.monto)+'</b><span>'+esc(String(t.fecha).slice(0,10))+'</span></div><small>'+esc(reasonName(t.razon_social_id))+' · '+esc(businessName(t.negocio_id))+' · '+esc(branchName(t.sucursal_id))+' · '+esc(t.concepto||t.referencia||'Sin concepto')+'</small><div class="hint">'+esc(t.estado)+(t.datos?.vence?' · vence '+esc(String(t.datos.vence).slice(0,10)):'')+'</div>'+
   '<details><summary class="hint">Opciones del registro</summary>'+
   (t.estado==='pendiente'&&['gasto','compra','retiro'].includes(t.tipo)?'<button type="button" data-pagado="'+esc(t.id)+'">Marcar pagado</button> ':'')+
   (t.estado!=='anulado'?'<button type="button" data-anular="'+esc(t.id)+'">Anular (con confirmación)</button>':'')+'</details></div>').join('')||'<p class="muted">Aún no hay registros financieros.</p>';
@@ -429,7 +460,7 @@ async function refresh(){
  if(!session)return;
  try{
   notify('Actualizando información financiera…');
-  const params={negocio_id:currentBiz()||null,sucursal_id:currentBranch()||null,desde:value('from'),hasta:value('to')};
+  const params={negocio_id:currentBiz()||null,sucursal_id:currentBranch()||null,razon_social_id:value('scopeRazon')||'todos',desde:value('from'),hasta:value('to')};
   const [s,l]=await Promise.all([api('resumen',params),api('listar_movimientos',params)]);
   transactions=l.movimientos||[];
   let ventas=0,gastos=0,pendientes=0;
