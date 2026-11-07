@@ -853,6 +853,183 @@ function ukiVistaBorradores(){
  '<p class="muted">Varios celulares simultáneos requieren otra integración; esta función no elimina conflictos de nube.</p></div>';
 }
 
+/* WHATSAPP SOLICITUDES QA (sin API de WhatsApp):
+   el personal pega el texto; se revisa antes de ingresarlo como pedido.
+   Solicitudes rechazadas nunca ingresan a pedidos, caja o timbres. */
+let ukiSolicitudWhatsAppActiva=null;
+let ukiWhatsappBandejaAbierta=true;
+function ukiWhatsAppSolicitudesSucursal(){
+ return (S.solicitudesWhatsApp||[]).filter(x=>x.suc===S.suc)
+   .slice().sort((a,b)=>(b.creadoEn||0)-(a.creadoEn||0));
+}
+function ukiWhatsAppDatosDesdeTexto(raw){
+ const t=String(raw||'').trim();
+ const textoCarta=esMensajeCartaUki(t),carta=textoCarta?extraerMensajeCartaUki(t):null;
+ const telMatch=t.match(/^\s*(?:WhatsApp|tel[eé]fono|celular|fono)\s*:\s*([+0-9 ()-]{8,30})/im)
+   ||t.match(/(?:\+?56\s*)?9\s*\d{4}\s*\d{4}/);
+ const nomMatch=t.match(/^\s*(?:Cliente|Nombre)\s*:\s*([^\r\n]{2,80})/im);
+ const telefono=String(carta?.telefono||((telMatch&&telMatch[1])||telMatch?.[0]||'')).trim().slice(0,30);
+ const medio=MEDIOS.find(m=>m.toLowerCase()===String(carta?.pago||'').toLowerCase())||'Efectivo';
+ const detalle=carta?.items?.length?ukiCopia(carta.items):[{nombre:'',cant:1,precio:0,det:''}];
+ // Pago SIEMPRE sin confirmar hasta la revisión, aun si WhatsApp dice "transferencia".
+ return {texto:t,fecha:ahora(),cliente:String(carta?.cliente||nomMatch?.[1]||'').trim().slice(0,60),
+  telefono,codigoCarta:String(carta?.codigoCarta||'').trim().slice(0,60),
+  codigoCliente:ukiCodigoWhatsApp(telefono)||String(carta?.codigoCliente||'').slice(-4),
+  qrSolicitudes:[],sucursalCarta:String(carta?.sucursal||'').slice(0,70),
+  mesaReferencia:'',modalidad:carta?.modalidad||(/delivery|env[ií]o|domicilio/i.test(t)?'Delivery':'Retiro'),
+  envio:carta?.modalidad==='Delivery'?Number(carta.delivery||0):0,
+  medio,medioEnvio:medio,pagado:false,items:detalle,mixtoProductos:false,mixtoEnvio:false,
+  pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,
+  montoProductosOtroLocal:'',envioPagadoOtroLocal:false,montoEnvioOtroLocal:'',
+  localPagoExterno:'',propinaModo:'ninguna',propinaPersonalizada:'',
+  medioPropina:'Efectivo',editando:null};
+}
+function ukiWhatsAppIdentificador(req){
+ return req.codigoCarta?'Carta #'+req.codigoCarta:'Sin código de carta · WA-'+String(req.id||'').slice(-6).toUpperCase();
+}
+function ukiWhatsAppSolicitudDuplicada(datos,idActual=''){
+ const cod=String(datos.codigoCarta||'').trim().toLowerCase();
+ if(!cod)return null; // pedidos sin folio se revisan por teléfono y texto.
+ const p=(S.pedidos||[]).find(p=>p.suc===S.suc&&String(p.codigoCarta||'').toLowerCase()===cod);
+ if(p)return 'Este código ya está registrado como pedido #'+p.id+'. No se duplicó.';
+ const a=(S.solicitudesWhatsApp||[]).find(x=>x.suc===S.suc&&x.id!==idActual&&
+   x.estado!=='rechazada'&&String(x.codigoCarta||'').toLowerCase()===cod);
+ return a?'Este código ya existe en solicitudes de WhatsApp. Revísalo antes de guardar otro.':null;
+}
+async function ukiWhatsAppGuardarSolicitud(datos){
+ if(!S.suc||!datos||typeof datos.texto!=='string'||datos.texto.trim().length<6||
+    datos.texto.length>12000){aviso('Pega el mensaje recibido por WhatsApp (máximo 12.000 caracteres).');return false;}
+ const dupe=ukiWhatsAppSolicitudDuplicada(datos);if(dupe){aviso(dupe);return false;}
+ const snapshot=ukiCopia(datos);snapshot.pagado=false;snapshot.editando=null;
+ snapshot.pagosProductos=[];snapshot.pagosEnvio=[];
+ S.solicitudesWhatsApp=Array.isArray(S.solicitudesWhatsApp)?S.solicitudesWhatsApp:[];
+ const item={id:'w-'+Date.now().toString(36)+'-'+Math.floor(Math.random()*1e9).toString(36),
+  suc:S.suc,fechaISO:ahora(),creadoEn:Date.now(),actualizadoEn:Date.now(),estado:'pendiente',
+  codigoCarta:String(snapshot.codigoCarta||''),codigoCliente:ukiCodigoWhatsApp(snapshot.telefono)||snapshot.codigoCliente||'',
+  cliente:String(snapshot.cliente||''),telefono:String(snapshot.telefono||''),
+  datos:snapshot,motivo:'',pedidoId:null};
+ S.solicitudesWhatsApp.push(item);
+ const guardado=await guardarEnLocalStorage();
+ if(!guardado){S.solicitudesWhatsApp=S.solicitudesWhatsApp.filter(x=>x.id!==item.id);
+   aviso('No se pudo guardar esta solicitud. Revisa el respaldo antes de continuar.');return false;}
+ S.msg='Solicitud de WhatsApp agregada. Aún no es pedido ni venta. Elige Aceptar y revisar o Rechazar.';
+ S.vista='pedidos';render();return true;
+}
+async function ukiWhatsAppAgregarDeBandeja(){
+ if(S.busy)return;
+ const t=String($('ukiWhatsAppEntrada')?.value||'').trim();
+ if(!t){aviso('Pega el mensaje completo que llegó a WhatsApp.');return;}
+ const d=ukiWhatsAppDatosDesdeTexto(t);
+ await ukiWhatsAppGuardarSolicitud(d);
+}
+async function ukiWhatsAppAgregarDelFormulario(){
+ if(S.busy||D.editando||ukiSolicitudWhatsAppActiva){
+  aviso('Termina primero la edición o revisión actual.');return;}
+ const texto=String(D.texto||'').trim();
+ if(!texto){aviso('Pega primero el mensaje de WhatsApp.');return;}
+ const parsed=ukiWhatsAppDatosDesdeTexto(texto);
+ // Mantener las correcciones que el agendador ya hizo en el formulario.
+ const d={...parsed,...ukiCopia(D),texto,pagado:false,editando:null,pagosProductos:[],pagosEnvio:[]};
+ if(esMensajeCartaUki(texto)&&parsed.codigoCarta&&d.codigoCarta!==parsed.codigoCarta){
+  aviso('El código de la carta no coincide con el mensaje original. Procesa el texto nuevamente.');return;}
+ await ukiWhatsAppGuardarSolicitud(d);
+ if(S.vista==='pedidos'){nuevoDraft();ukiSolicitudWhatsAppActiva=null;}
+}
+function ukiWhatsAppPausarRevision(){
+ const x=(S.solicitudesWhatsApp||[]).find(x=>x.id===ukiSolicitudWhatsAppActiva&&x.suc===S.suc);
+ if(!x||x.estado!=='pendiente'){ukiSolicitudWhatsAppActiva=null;return;}
+ const d=ukiCopia(D);d.pagado=false;d.editando=null;d.pagosProductos=[];d.pagosEnvio=[];
+ x.datos=d;x.actualizadoEn=Date.now();x.cliente=d.cliente;x.telefono=d.telefono;
+ x.codigoCliente=ukiCodigoWhatsApp(d.telefono)||d.codigoCliente||'';
+ ukiSolicitudWhatsAppActiva=null;
+ void guardarEnLocalStorage();
+}
+function ukiWhatsAppAceptarYRevisar(id){
+ const item=(S.solicitudesWhatsApp||[]).find(x=>x.id===id&&x.suc===S.suc);
+ if(!item||item.estado!=='pendiente'){aviso('Esta solicitud ya fue procesada o no existe.');return;}
+ if(S.busy){aviso('Termina la operación actual antes de revisar otra.');return;}
+ if(ukiSolicitudWhatsAppActiva&&ukiSolicitudWhatsAppActiva!==id)ukiWhatsAppPausarRevision();
+ if(ukiBorradorTieneContenido()&&!D.editando&&!ukiGuardarBorradorSinVista())return;
+ D=ukiCopia(item.datos);D.pagado=false;D.editando=null;D.pagosProductos=[];D.pagosEnvio=[];
+ D.codigoCliente=ukiCodigoWhatsApp(D.telefono)||D.codigoCliente||'';
+ if(!Array.isArray(D.items)||!D.items.length)D.items=[{nombre:'',cant:1,precio:0,det:''}];
+ ukiSolicitudWhatsAppActiva=id;ukiBorradorActivo=null;modoNuevo='whatsapp';
+ S.vista='nuevo';S.msg='Verifica y corrige el pedido de '+(D.cliente||'WhatsApp')+
+   '. Se aceptará cuando pulses Guardar pedido. Hasta entonces NO se suma a ventas.';
+ render();window.scrollTo({top:0,behavior:'instant'});
+}
+async function ukiWhatsAppRechazar(id){
+ const item=(S.solicitudesWhatsApp||[]).find(x=>x.id===id&&x.suc===S.suc);
+ if(!item||item.estado!=='pendiente'){aviso('La solicitud ya fue procesada.');return;}
+ const motivo=String($('ukiMotivoRechazo'+id)?.value||'').trim();
+ if(!['Cliente canceló','Cliente no respondió','Producto no disponible','Otro motivo'].includes(motivo)){
+  aviso('Selecciona por qué no se realizará este pedido.');return;}
+ if(!window.confirm('¿Rechazar '+ukiWhatsAppIdentificador(item)+'? Quedará en el historial y no afectará caja ni ventas.'))return;
+ const antes={estado:item.estado,motivo:item.motivo,finalizadoEn:item.finalizadoEn};
+ item.estado='rechazada';item.motivo=motivo;item.finalizadoEn=Date.now();
+ const ok=await guardarEnLocalStorage();
+ if(!ok){Object.assign(item,antes);aviso('No se guardó el rechazo. La solicitud sigue pendiente.');return;}
+ if(ukiSolicitudWhatsAppActiva===id){ukiSolicitudWhatsAppActiva=null;nuevoDraft();}
+ S.msg='Solicitud rechazada y archivada, sin sumar ventas, caja, deliverys ni timbres.';
+ render();
+}
+function ukiWhatsAppMarcarAceptada(pedido){
+ if(!ukiSolicitudWhatsAppActiva)return;
+ const item=(S.solicitudesWhatsApp||[]).find(x=>x.id===ukiSolicitudWhatsAppActiva&&x.suc===S.suc);
+ if(item&&item.estado==='pendiente'){
+  item.estado='aceptada';item.pedidoId=pedido.id;item.finalizadoEn=Date.now();
+  item.actualizadoEn=Date.now();item.datos=ukiCopia(D);
+  item.cliente=String(pedido.cliente||'');item.telefono=String(pedido.telefono||'');
+  item.codigoCliente=ukiCodigoWhatsApp(item.telefono)||String(pedido.codigoCliente||'');
+ }
+ ukiSolicitudWhatsAppActiva=null;
+}
+function ukiWhatsAppFicha(s,pendiente){
+ const d=s.datos||{},productos=(d.items||[]).filter(x=>x.nombre);
+ const subtotal=productos.reduce((a,p)=>a+Number(p.cant||0)*Number(p.precio||0),0);
+ const total=subtotal+(d.modalidad==='Delivery'?Number(d.envio||0):0);
+ const code=ukiWhatsAppIdentificador(s);
+ const phone=String(s.telefono||d.telefono||'').trim();
+ const four=ukiCodigoWhatsApp(phone)||s.codigoCliente||'';
+ return '<div style="padding:13px 0;border-bottom:1px solid var(--line)">'+
+  '<div class="row"><b style="overflow-wrap:anywhere">'+esc(code)+'</b>'+
+    '<strong style="white-space:nowrap">'+(total>0?fmt(total):'Monto por revisar')+'</strong></div>'+
+  '<p style="margin:5px 0"><b>Cliente:</b> '+esc(s.cliente||'Sin identificar')+
+    ' · <b>Código cliente:</b> '+esc(four||'sin número')+'</p>'+
+  '<p style="margin:5px 0"><b>WhatsApp:</b> '+esc(phone||'Número por confirmar')+'</p>'+
+  '<p class="muted" style="margin:5px 0">'+esc(s.suc)+' · '+esc(d.modalidad||'Retiro')+
+   ' · '+esc(productos.length)+' producto(s)'+(s.estado==='rechazada'?' · Rechazada: '+esc(s.motivo||''):s.estado==='aceptada'?' · Pedido interno #'+esc(s.pedidoId||''):' · Por confirmar')+'</p>'+
+  '<details class="inner-details"><summary>Ver productos y mensaje original</summary>'+
+  (productos.map(p=>'<p>'+esc(p.cant||1)+' × '+esc(p.nombre)+' · '+fmt((p.cant||1)*(p.precio||0))+'</p>').join('')||
+   '<p class="muted">Productos pendientes de revisar</p>')+
+  '<p class="muted" style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(d.texto||'')+'</p></details>'+
+  (pendiente?
+   '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:9px">'+
+   '<button class="sm ok" type="button" onclick="ukiWhatsAppAceptarYRevisar('+esc(JSON.stringify(s.id))+')">✅ Aceptar y revisar</button>'+
+   '<label style="flex:1;min-width:140px">Motivo si no se hará<select id="ukiMotivoRechazo'+esc(s.id)+'"><option value="">Selecciona motivo</option>'+
+   ['Cliente canceló','Cliente no respondió','Producto no disponible','Otro motivo'].map(x=>
+      '<option value="'+esc(x)+'">'+esc(x)+'</option>').join('')+'</select></label>'+
+   '<button class="sm" type="button" onclick="ukiWhatsAppRechazar('+esc(JSON.stringify(s.id))+')">✕ Rechazar</button></div>'
+   :'')+'</div>';
+}
+function ukiWhatsAppSolicitudesUI(){
+ const items=ukiWhatsAppSolicitudesSucursal();
+ const pending=items.filter(x=>x.estado==='pendiente'),historic=items.filter(x=>x.estado!=='pendiente');
+ const open=ukiWhatsappBandejaAbierta?' open':'';
+ return '<details class="card"'+open+'><summary onclick="ukiWhatsappBandejaAbierta=!ukiWhatsappBandejaAbierta" style="cursor:pointer">'+
+  '<b>📲 Solicitudes WhatsApp · '+pending.length+' por confirmar</b></summary>'+
+  '<p class="muted">Pega el mensaje recibido de WhatsApp. No se conecta automáticamente con WhatsApp Business y NO se registra una venta al recibirlo.</p>'+
+  '<label>Mensaje completo del cliente</label>'+
+  '<textarea id="ukiWhatsAppEntrada" rows="4" placeholder="Pega aquí el mensaje de la carta o del chat"></textarea>'+
+  '<button class="sm ok" type="button" onclick="ukiWhatsAppAgregarDeBandeja()">📩 Agregar a solicitudes</button>'+
+  (pending.map(x=>ukiWhatsAppFicha(x,true)).join('')||
+    '<p class="muted">No hay solicitudes esperando confirmación.</p>')+
+  '<details class="inner-details" style="margin-top:12px"><summary>Historial: aceptadas o rechazadas · '+historic.length+'</summary>'+
+  historic.slice(0,100).map(x=>ukiWhatsAppFicha(x,false)).join('')+
+  (historic.length>100?'<p class="muted">Se muestran las 100 solicitudes procesadas más recientes.</p>':'')+
+  '</details></details>';
+}
+
 function nuevoDraft(){D={texto:"",fecha:ahora(),cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",qrSolicitudes:[],sucursalCarta:"",mesaReferencia:"",modalidad:"Retiro",envio:0,medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[{nombre:"",cant:1,precio:0,det:""}],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:"",envioPagadoOtroLocal:false,montoEnvioOtroLocal:"",localPagoExterno:"",propinaModo:"ninguna",propinaPersonalizada:"",medioPropina:"Efectivo",editando:null};}
 function delItem(k){D.items.splice(k,1);if(!D.items.length)D.items=[{nombre:"",cant:1,precio:0,det:""}];render();}
 function addItem(){const n=$("pNom").value.trim(); const c=parseInt($("pCant").value)||1; const p=parseInt($("pPre").value)||0; const d=$("pDet").value.trim(); if(!n||!p){aviso("Pon nombre y precio");return;} D.items=D.items.filter(x=>x.nombre); D.items.push({nombre:n,cant:c,precio:p,det:d}); $("pNom").value=""; $("pCant").value=1; $("pPre").value=""; $("pDet").value=""; render();}
