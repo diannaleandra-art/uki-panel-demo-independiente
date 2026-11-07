@@ -918,13 +918,6 @@ async function ukiWhatsAppGuardarSolicitud(datos){
  S.msg='Solicitud de WhatsApp agregada. Aún no es pedido ni venta. Elige Aceptar y revisar o Rechazar.';
  S.vista='pedidos';render();return true;
 }
-async function ukiWhatsAppAgregarDeBandeja(){
- if(S.busy)return;
- const t=String($('ukiWhatsAppEntrada')?.value||'').trim();
- if(!t){aviso('Pega el mensaje completo que llegó a WhatsApp.');return;}
- const d=ukiWhatsAppDatosDesdeTexto(t);
- await ukiWhatsAppGuardarSolicitud(d);
-}
 async function ukiWhatsAppAgregarDelFormulario(){
  if(S.busy||D.editando||ukiSolicitudWhatsAppActiva){
   aviso('Termina primero la edición o revisión actual.');return;}
@@ -1022,10 +1015,7 @@ function ukiWhatsAppSolicitudesUI(){
  const open=(ukiWhatsappBandejaAbierta===null?pending.length>0:ukiWhatsappBandejaAbierta)?' open':'';
  return '<details class="card"'+open+'><summary onclick="ukiWhatsappBandejaAbierta=!ukiWhatsappBandejaAbierta" style="cursor:pointer">'+
   '<b>📲 Solicitudes WhatsApp · '+pending.length+' por confirmar</b></summary>'+
-  '<p class="muted">Pega el mensaje recibido de WhatsApp. No se conecta automáticamente con WhatsApp Business y NO se registra una venta al recibirlo.</p>'+
-  '<label>Mensaje completo del cliente</label>'+
-  '<textarea id="ukiWhatsAppEntrada" rows="4" placeholder="Pega aquí el mensaje de la carta o del chat"></textarea>'+
-  '<button class="sm ok" type="button" onclick="ukiWhatsAppAgregarDeBandeja()">📩 Agregar a solicitudes</button>'+
+  '<p class="muted">Para agregar una solicitud, utiliza la opción <b>Nuevo pedido → Pegar WhatsApp</b> que ya tienes. Verifica los datos y pulsa <b>Guardar como solicitud por confirmar</b>. Esta bandeja es solo para <b>aceptar, corregir o rechazar</b>; no duplica la función de pegar mensajes.</p>'+
   (pending.map(x=>ukiWhatsAppFicha(x,true)).join('')||
     '<p class="muted">No hay solicitudes esperando confirmación.</p>')+
   '<details class="inner-details" style="margin-top:12px"><summary>Historial: aceptadas o rechazadas · '+historic.length+'</summary>'+
