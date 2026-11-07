@@ -47,6 +47,10 @@ test('CORS sólo incluye la carta QA en la rama QA',()=>{
  const qa='https://uki-sushi-pedidos-git-feature-uki-dis-eb0d72-diannaleandra-7046.vercel.app';
  const env={VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'feature/uki-disponibilidad-manual-live-2026-11-06',UKI_INVENTARIO_QA_ENABLED:'true'};
  assert.equal(api._testing.allowedOrigin(qa,env),true);
+ const panel='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app';
+ assert.equal(api._testing.allowedOrigin(panel,env),true);
+ assert.equal(api._testing.allowedOrigin(panel,{...env,VERCEL_ENV:'production'}),false);
+ assert.equal(api._testing.allowedOrigin(panel,{...env,VERCEL_GIT_COMMIT_REF:'main'}),false);
  assert.equal(api._testing.allowedOrigin(qa,{...env,VERCEL_ENV:'production'}),false);
  assert.equal(api._testing.allowedOrigin(qa,{...env,VERCEL_GIT_COMMIT_REF:'main'}),false);
  assert.equal(api._testing.allowedOrigin('https://otros.vercel.app',env),false);
