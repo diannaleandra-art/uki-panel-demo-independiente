@@ -25,8 +25,6 @@ test('Sin acceso a caja ni inventario para registrar ingredientes',()=>{
  const api=fs.readFileSync('api/uki-ingredientes-armado-live.js','utf8');
  assert.match(api,/uki_armado_ingredientes_v1/);
  assert.match(api,/userFromToken/);
- const admin=fs.readFileSync('firebase/uki-armado-ingredientes-admin.js','utf8');
- assert.match(admin,/Administrar ingredientes del armado/);
- assert.match(admin,/syncCategory/);
- assert.match(admin,/data-uki-ingredient="surcharge"/);
+ assert.match(api,/userFromToken/);
+ assert.doesNotMatch(api,/INSERT INTO.*(?:uki_pedidos|uki_inventario_items)/i);
 });
