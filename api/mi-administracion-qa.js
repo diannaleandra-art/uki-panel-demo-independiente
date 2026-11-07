@@ -379,20 +379,35 @@ module.exports=async(req,res)=>{
    const buffer=Buffer.from(b64,'base64');
    if(buffer.length<1||buffer.length>MAX_BYTES||!mimeOK(buffer,mime))return fail(res,400,'Archivo no permitido; usa una foto o PDF de hasta 1,7 MB.');
    const movimiento=body.movimiento_id||null;
+   let razonDocumento=null;
    if(movimiento){
     if(!uuid.test(String(movimiento)))return fail(res,400,'Referencia inválida.');
-    const linked=await sql.query('SELECT 1 FROM public.fin_movimientos WHERE id=$1 AND negocio_id=$2',[movimiento,body.negocio_id]);
+    const linked=await sql.query('SELECT razon_social_id FROM public.fin_movimientos WHERE id=$1 AND negocio_id=$2',[movimiento,body.negocio_id]);
     if(!linked.length)return fail(res,400,'La referencia pertenece a otro negocio.');
+    razonDocumento=linked[0].razon_social_id||null;
    }
-   const r=await sql.query('INSERT INTO public.fin_documentos(negocio_id,sucursal_id,movimiento_id,nombre,mime,bytes,contenido,sha256,tipo,fecha_documento,proveedor,creado_por) VALUES($1,$2,$3,$4,$5,$6,decode($7,\'hex\'),$8,$9,$10,$11,$12) RETURNING id',
-   [body.negocio_id,body.sucursal_id||null,movimiento,name,mime,buffer.length,buffer.toString('hex'),hash(buffer),tipo,validDate(body.fecha_documento)?body.fecha_documento:null,text(body.proveedor,120),who.uid]);
+   const r=await sql.query('INSERT INTO public.fin_documentos(negocio_id,sucursal_id,movimiento_id,nombre,mime,bytes,contenido,sha256,tipo,fecha_documento,proveedor,creado_por,razon_social_id) VALUES($1,$2,$3,$4,$5,$6,decode($7,\'hex\'),$8,$9,$10,$11,$12,$13) RETURNING id',
+   [body.negocio_id,body.sucursal_id||null,movimiento,name,mime,buffer.length,buffer.toString('hex'),hash(buffer),tipo,validDate(body.fecha_documento)?body.fecha_documento:null,text(body.proveedor,120),who.uid,razonDocumento]);
    await audit(sql,'documento',r[0].id,'cargar',who,{nombre:name,mime,bytes:buffer.length,tipo});
    return ok(res,{id:r[0].id});
   }
   if(action==='documentos'){
    const b=body.negocio_id||null;
    if(b)await belongs(sql,b,null);
-   const rows=await sql.query('SELECT id,negocio_id,sucursal_id,movimiento_id,nombre,mime,bytes,tipo,fecha_documento,proveedor,creado_en FROM public.fin_documentos WHERE ($1::uuid IS NULL OR negocio_id=$1) ORDER BY creado_en DESC LIMIT 100',[b]);
+   const reason=String(body.razon_social_id||'todos');
+   if(!['todos','sin_clasificar'].includes(reason)&&!uuid.test(reason))
+    return fail(res,400,'Razón social de búsqueda inválida.');
+   const rows=await sql.query("SELECT d.id,d.negocio_id,d.sucursal_id,d.movimiento_id,d.nombre,d.mime,"+
+     "d.bytes,d.tipo,d.fecha_documento,d.proveedor,d.creado_en,"+
+     "coalesce(d.razon_social_id,m.razon_social_id) AS razon_social_id,"+
+     "coalesce(r.nombre,'Sin clasificar') AS razon_social "+
+     "FROM public.fin_documentos d "+
+     "LEFT JOIN public.fin_movimientos m ON m.id=d.movimiento_id "+
+     "LEFT JOIN public.fin_razones_sociales r ON r.id=coalesce(d.razon_social_id,m.razon_social_id) "+
+     "WHERE ($1::uuid IS NULL OR d.negocio_id=$1) "+
+     "AND ($2::text='todos' OR ($2::text='sin_clasificar' AND coalesce(d.razon_social_id,m.razon_social_id) IS NULL) "+
+     "OR coalesce(d.razon_social_id,m.razon_social_id)::text=$2::text) "+
+     "ORDER BY d.creado_en DESC LIMIT 150",[b,reason]);
    return ok(res,{documentos:rows});
   }
   if(action==='abrir_documento'){
