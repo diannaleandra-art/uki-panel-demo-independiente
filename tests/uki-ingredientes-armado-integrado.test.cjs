@@ -42,3 +42,11 @@ test('Inventario del trabajador es visible sin duplicar accesos ni exponer caja'
  assert.ok(role.includes("if(!await pin.autorizar"),'PIN del trabajador obligatorio');
  assert.ok(!inv.includes('api/cierre')&&!role.includes("action==='cierre'"),'No dar cierre al trabajador');
 });
+
+test('El editor no aparece si falta desplegar o habilitar la API de ingredientes',()=>{
+ assert.match(admin,/id="ukiArmadoIngredientes" hidden/);
+ assert.match(admin,/async function checkAvailability\(chosen\)/);
+ assert.match(admin,/if\(!response\.ok\)\{state\.availability=false;box\.hidden=true;return;\}/);
+ assert.match(admin,/state\.availability=ready;box\.hidden=!ready/);
+ assert.match(admin,/QA_HOST\.test\(location\.hostname\)\?location\.origin/);
+});
