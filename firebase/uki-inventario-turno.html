@@ -30,8 +30,12 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 <div class="grid"><select id="tipo" aria-label="Tipo de artículo">
 <option value="ingredientes">Ingredientes e insumos</option><option value="productos">Productos para contar</option><option value="todos">Todos</option></select>
 <input id="buscar" placeholder="Buscar pollo, palta…"></div>
+<div class="grid" style="margin-top:10px"><select id="estadoLista" aria-label="Filtrar inventario por estado">
+<option value="pendiente">Pendientes de contar</option><option value="todos">Todos los artículos</option>
+<option value="contados">Contados en esta sesión</option><option value="reponer">Para reponer</option>
+</select><p class="muted" id="listaAvance" role="status"></p></div>
 <p class="muted">Al cierre cuenta lo que realmente queda y pulsa <b>Guardar conteo</b> en cada artículo. Cuando llega mercadería, usa <b>Registrar entrada</b>. Solo administración decide Disponible / Agotado en la carta.</p><p id="turnoProgreso" role="status" class="pill">Todavía no hay conteos guardados en este turno.</p></section>
-<div id="items"></div>
+<div id="items"></div><div style="text-align:center;margin:10px 16px"><button type="button" id="mostrarMas" class="secondary" hidden>Mostrar 12 artículos más</button></div>
 <section class="card"><h2>3. Terminar el turno</h2><p class="muted">Confirma los conteos guardados. Si faltan artículos por revisar, puedes completar el conteo antes de terminar.</p><p id="resumen" class="muted"></p>
 <button id="enviar">Guardar en el panel y compartir por WhatsApp</button>
 <p class="muted">Primero confirma el guardado en el panel. Después podrás compartir el mismo reporte por WhatsApp.</p>
@@ -104,21 +108,28 @@ function resumen(){
  $('resumen').textContent=missing.length+' artículos por reponer · '+configured.length+
   ' mínimos configurados · '+(items.length-configured.length)+' sin mínimo.';
 }
-const revisados=new Set();
+const revisados=new Set();let visibleLimit=12;
 function render(){
  const box=$('items');box.replaceChildren();
  const kind=$('tipo').value,term=$('buscar').value.trim().toLocaleLowerCase('es-CL');
+ const progress=$('estadoLista').value;
  const visible=items.filter(i=>(kind==='todos'||(kind==='ingredientes'?['ingredient','inventory'].includes(i.kind):!['ingredient','inventory'].includes(i.kind)))&&
-  (!term||String(i.name).toLocaleLowerCase('es-CL').includes(term)));
- for(const item of visible){
-  const card=elt('section',undefined,'card');
+  (!term||String(i.name).toLocaleLowerCase('es-CL').includes(term))&&
+  (progress==='todos'||(progress==='pendiente'&&!revisados.has(i.sku))||
+  (progress==='contados'&&revisados.has(i.sku))||
+  (progress==='reponer'&&Number(i.min_stock_qty)>0&&Number(i.stock_qty)<=Number(i.min_stock_qty))))
+  .sort((a,b)=>String(a.name).localeCompare(String(b.name),'es'));
+ $('listaAvance').textContent='Mostrando '+Math.min(visible.length,visibleLimit)+' de '+visible.length+' resultados';
+ for(const item of visible.slice(0,visibleLimit)){
+  const card=elt('details',undefined,'card');
+  const head=elt('summary');
   const description=elt('div'),name=elt('strong',item.name);
   if(revisados.has(item.sku))description.append(elt('span',' · Contado ✓','pill small'));
   const min=Number(item.min_stock_qty)||0,qty=Number(item.stock_qty)||0;
   description.append(name,elt('p','Hay: '+formato(qty,item.stock_unit||'un')+
    ' · mínimo: '+(min>0?formato(min,item.stock_unit||'un'):'sin configurar'),'muted small'));
   if(min>0&&qty<=min)description.append(elt('p',min===qty?'Comprar: mínimo alcanzado. ' : 'Faltan '+formato(Math.round((min-qty)*1000)/1000,item.stock_unit||'un'),'warn small'));
-  card.append(description);
+  head.append(description);card.append(head);
   const countRow=elt('div',undefined,'unit-row'),countValue=elt('input'),countUnit=selectorUnidad(item);
   countValue.type='text';countValue.inputMode='text';countValue.autocomplete='off';countValue.maxLength=12;
   countValue.value=String(qty);countValue.setAttribute('aria-label','Cantidad contada de '+item.name);
@@ -181,7 +192,8 @@ function render(){
   }
   box.append(card);
  }
- if(!visible.length)box.append(elt('p','No hay productos con este filtro.','muted'));
+ if(!visible.length)box.append(elt('p','No hay artículos en este filtro. Cambia a «Todos los artículos» si quieres verlos.','muted'));
+ $('mostrarMas').hidden=visible.length<=visibleLimit;
  const faltantes=items.filter(i=>Number(i.min_stock_qty)>0&&Number(i.stock_qty)<=Number(i.min_stock_qty));
  $('turnoProgreso').textContent=revisados.size+' de '+items.length+' artículos contados durante este turno · '+faltantes.length+' para reponer.';
  resumen();
@@ -210,16 +222,19 @@ async function abrir(){
  setBusy(true);status('Cargando inventario…');
  try{
   const result=await api('listar');
-  branch=$('branch').value;items=result.items||[];revisados.clear();requestId=null;lastSaved=null;factura.reset();
+  branch=$('branch').value;items=result.items||[];revisados.clear();visibleLimit=12;requestId=null;lastSaved=null;factura.reset();
   $('activo').hidden=false;$('confirmacion').textContent='';
   render();status('Inventario del turno listo.');
  }catch(e){branch='';items=[];$('activo').hidden=true;status(String(e.message));}
  finally{setBusy(false);}
 }
 $('abrir').onclick=abrir;
-$('branch').onchange=()=>{branch='';items=[];revisados.clear();lastSaved=null;factura.reset();$('activo').hidden=true;status('');};
+$('branch').onchange=()=>{branch='';items=[];revisados.clear();visibleLimit=12;lastSaved=null;factura.reset();$('activo').hidden=true;status('');};
 $('codigo').oninput=()=>{if(branch){branch='';items=[];revisados.clear();factura.reset();$('activo').hidden=true;}};
-$('tipo').onchange=render;$('buscar').oninput=render;
+$('tipo').onchange=()=>{visibleLimit=12;render();};
+$('buscar').oninput=()=>{visibleLimit=12;render();};
+$('estadoLista').onchange=()=>{visibleLimit=12;render();};
+$('mostrarMas').onclick=()=>{visibleLimit+=12;render();};
 $('enviar').onclick=async()=>{
  if(busy||!branch||branch!==$('branch').value)return;
  setBusy(true);$('confirmacion').textContent='Guardando revisión en el panel…';
@@ -227,7 +242,9 @@ $('enviar').onclick=async()=>{
   if(!requestId)requestId=crypto.randomUUID();
   const result=await api('finalizar',{request_id:requestId});
   if(result.guardado!==true)throw Error('No se confirmó el guardado.');
-  $('confirmacion').textContent='✓ Revisión guardada en el panel. Puedes compartirla.';
+  const chile=new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',weekday:'long',day:'2-digit',
+   month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(result.fecha));
+  $('confirmacion').textContent='✓ Revisión guardada: '+chile+' (Chile). Puedes compartirla.';
   if(navigator.share){
    try{await navigator.share({title:'Uki Sushi · Reposición',text:result.mensaje});return;}
    catch(e){if(e?.name==='AbortError')return;}
