@@ -19,4 +19,7 @@ jobs:
       - run: npm test
       - run: node --test tests/uki-disponibilidad-live.test.cjs
       - run: node --test tests/inventario-admin-integrado.test.cjs
+      - run: node --check firebase/uki-carta-precios-admin.js
+      - run: node --check api/uki-carta-precios-live.js
+      - run: node --test tests/uki-carta-precios-live.test.cjs
 
