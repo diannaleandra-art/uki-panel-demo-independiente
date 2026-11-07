@@ -20,7 +20,7 @@ const envOk=(e=process.env)=>e.VERCEL_ENV==='preview'&&e.UKI_FIN_QA_ENABLED==='t
 function dbUrl(e=process.env){
  if(!envOk(e))return null;
  // Reusar exclusivamente la conexión QA ya habilitada, nunca producción.
- const candidate=e.UKI_INVENTARIO_QA_DATABASE_URL;
+ const candidate=e.UKI_FIN_QA_DATABASE_URL; // Solo la conexión QA independiente de finanzas.
  if(!candidate)return null;
  let url;try{url=new URL(candidate)}catch{return null}
  if(!['postgres:','postgresql:'].includes(url.protocol))return null;
