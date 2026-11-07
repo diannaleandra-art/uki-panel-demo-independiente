@@ -380,56 +380,78 @@ module.exports=async(req,res)=>{
    return ok(res,{distribucion:x[0]?.resultado});
   }
   if(action==='resumen_compras'){
-   const b=body.negocio_id||null,s=body.sucursal_id||null;
-   if(b)await belongs(sql,b,s);else if(s)return fail(res,400,'Selecciona el negocio de la sucursal.');
+   const biz=body.negocio_id||null,branch=body.sucursal_id||null;
+   if(biz)await belongs(sql,biz,branch);else if(branch)return fail(res,400,'Selecciona el negocio de la sucursal.');
    const from=validDate(body.desde)?body.desde:'2000-01-01';
    const to=validDate(body.hasta)?body.hasta:'2099-12-31';
    const reason=String(body.razon_social_id||'todos');
    if(!['todos','sin_clasificar'].includes(reason)&&!uuid.test(reason))
     return fail(res,400,'Filtro de razón social incorrecto.');
-   const query=text(body.buscar,100);
-   const params=[b,s,from,to,reason,query];
-   // Un conjunto filtrado compartido evita discrepancias entre informes y detalle.
+   const query=text(body.buscar,100),params=[biz,branch,from,to,reason,query];
+   // Si una factura se reparte entre dos locales se cuenta UNA vez en el total general,
+   // y cada local recibe solo el importe que se le asignó. Sin reparto -> General.
    const cte=[
-    "WITH filtradas AS ( SELECT m.id,m.negocio_id,m.sucursal_id,m.razon_social_id,m.fecha,m.proveedor,",
-    "m.referencia,m.monto,m.estado,m.datos,m.creado_en,",
-    "coalesce(r.nombre,'Sin clasificar') AS razon_social,coalesce(r.rut,'') AS rut_razon,",
-    "b.nombre AS marca FROM public.fin_movimientos m",
-    "JOIN public.fin_negocios b ON b.id=m.negocio_id",
-    "LEFT JOIN public.fin_razones_sociales r ON r.id=m.razon_social_id",
-    "WHERE m.tipo='compra' AND m.fuente='factura' AND m.estado<>'anulado'",
-    "AND ($1::uuid IS NULL OR m.negocio_id=$1)",
-    "AND ($2::uuid IS NULL OR m.sucursal_id=$2)",
-    "AND m.fecha BETWEEN $3::date AND $4::date",
-    "AND ($5::text='todos' OR ($5::text='sin_clasificar' AND m.razon_social_id IS NULL)",
-    "OR m.razon_social_id::text=$5::text)",
-    "AND ($6::text='' OR position(lower($6) in lower(concat_ws(' ',m.proveedor,m.referencia,",
-    "b.nombre,coalesce(r.nombre,''),coalesce(r.rut,''))))>0",
-    "OR EXISTS(SELECT 1 FROM public.fin_compra_items it WHERE it.compra_id=m.id",
-    "AND position(lower($6) in lower(it.descripcion))>0)) ) "
+    "WITH compras AS (",
+    " SELECT m.id,m.negocio_id,m.sucursal_id,m.fecha,m.proveedor,m.referencia,m.estado,",
+    " m.datos,m.creado_en,m.razon_social_id,m.monto AS importe_factura,",
+    " COALESCE(rs.nombre,'Sin clasificar') AS razon_social,COALESCE(rs.rut,'') AS rut_razon",
+    " FROM public.fin_movimientos m",
+    " LEFT JOIN public.fin_razones_sociales rs ON rs.id=m.razon_social_id",
+    " WHERE m.tipo='compra' AND m.fuente='factura' AND m.estado<>'anulado'",
+    "), partes AS (",
+    " SELECT c.*,r.negocio_id AS destino_negocio_id,r.sucursal_id AS destino_sucursal_id,",
+    " r.monto AS monto_imputado FROM compras c",
+    " JOIN public.fin_compra_repartos r ON r.compra_id=c.id",
+    " UNION ALL",
+    " SELECT c.*,c.negocio_id AS destino_negocio_id,c.sucursal_id AS destino_sucursal_id,",
+    " c.importe_factura AS monto_imputado FROM compras c",
+    " WHERE NOT EXISTS(SELECT 1 FROM public.fin_compra_repartos r WHERE r.compra_id=c.id)",
+    "), filtradas AS (",
+    " SELECT p.id,p.destino_negocio_id AS negocio_id,p.destino_sucursal_id AS sucursal_id,",
+    " p.fecha,p.proveedor,p.referencia,p.estado,p.datos,p.creado_en,p.razon_social_id,",
+    " p.importe_factura,p.monto_imputado AS monto,p.razon_social,p.rut_razon,",
+    " b.nombre AS marca,COALESCE(s.nombre,'General') AS local",
+    " FROM partes p JOIN public.fin_negocios b ON b.id=p.destino_negocio_id",
+    " LEFT JOIN public.fin_sucursales s ON s.id=p.destino_sucursal_id",
+    " WHERE ($1::uuid IS NULL OR p.destino_negocio_id=$1)",
+    " AND ($2::uuid IS NULL OR p.destino_sucursal_id=$2)",
+    " AND p.fecha BETWEEN $3::date AND $4::date",
+    " AND ($5::text='todos' OR ($5::text='sin_clasificar' AND p.razon_social_id IS NULL)",
+    " OR p.razon_social_id::text=$5::text)",
+    " AND ($6::text='' OR position(lower($6) in lower(concat_ws(' ',p.proveedor,p.referencia,",
+    " b.nombre,p.razon_social,p.rut_razon)))>0",
+    " OR EXISTS(SELECT 1 FROM public.fin_compra_items it WHERE it.compra_id=p.id",
+    " AND position(lower($6) in lower(it.descripcion))>0))",
+    ") "
    ].join(' ');
-   const result=await Promise.all([
-    sql.query(cte+"SELECT COUNT(*)::int AS facturas,coalesce(SUM(monto),0)::bigint AS compras,"+
-      "coalesce(SUM(monto) FILTER (WHERE estado='pendiente'),0)::bigint AS pendiente,"+
-      "COUNT(*) FILTER (WHERE razon_social_id IS NULL)::int AS sin_clasificar,"+
-      "COUNT(DISTINCT proveedor)::int AS proveedores FROM filtradas",params),
-    sql.query(cte+"SELECT proveedor,COUNT(*)::int AS facturas,SUM(monto)::bigint AS total,"+
-      "coalesce(SUM(monto) FILTER (WHERE estado='pendiente'),0)::bigint AS pendiente"+
-      " FROM filtradas GROUP BY proveedor ORDER BY total DESC LIMIT 100",params),
-    sql.query(cte+"SELECT lower(btrim(i.descripcion)) AS producto,COUNT(*)::int AS veces,"+
-      "SUM(i.cantidad)::numeric(16,3) AS cantidad,i.unidad,SUM(i.total_linea)::bigint AS importe"+
-      " FROM public.fin_compra_items i JOIN filtradas f ON i.compra_id=f.id"+
-      " GROUP BY lower(btrim(i.descripcion)),i.unidad ORDER BY importe DESC LIMIT 120",params),
-    sql.query(cte+"SELECT id,negocio_id,sucursal_id,razon_social_id,razon_social,rut_razon,"+
-      "marca,fecha,proveedor,referencia,monto,estado,datos FROM filtradas"+
-      " ORDER BY fecha DESC,creado_en DESC LIMIT 200",params),
-    sql.query(cte+"SELECT razon_social_id,razon_social,rut_razon,COUNT(*)::int AS facturas,"+
-      "SUM(monto)::bigint AS total,coalesce(SUM(monto) FILTER (WHERE estado='pendiente'),0)::bigint AS pendiente"+
-      " FROM filtradas GROUP BY razon_social_id,razon_social,rut_razon ORDER BY total DESC",params)
-   ]);
-   return ok(res,{resumen:result[0][0]||{},proveedores:result[1],
-     productos:result[2],facturas:result[3],razones:result[4],
-     nota:'Facturas registradas una sola vez. Las compras sin razón social se muestran como pendientes de clasificar.'});
+   const statements=[
+    "SELECT COUNT(DISTINCT id)::int AS facturas,COALESCE(SUM(monto),0)::bigint AS compras,"+
+     "COALESCE(SUM(monto) FILTER(WHERE estado='pendiente'),0)::bigint AS pendiente,"+
+     "COUNT(DISTINCT id) FILTER(WHERE razon_social_id IS NULL)::int AS sin_clasificar,"+
+     "COUNT(DISTINCT proveedor)::int AS proveedores FROM filtradas",
+    "SELECT proveedor,COUNT(DISTINCT id)::int AS facturas,SUM(monto)::bigint AS total,"+
+     "COALESCE(SUM(monto) FILTER(WHERE estado='pendiente'),0)::bigint AS pendiente"+
+     " FROM filtradas GROUP BY proveedor ORDER BY total DESC LIMIT 100",
+    "SELECT lower(btrim(i.descripcion)) AS producto,COUNT(DISTINCT i.compra_id)::int AS veces,"+
+     "SUM(i.cantidad)::numeric(16,3) AS cantidad,i.unidad,SUM(i.total_linea)::bigint AS importe"+
+     " FROM public.fin_compra_items i JOIN (SELECT DISTINCT id FROM filtradas) f ON f.id=i.compra_id"+
+     " GROUP BY lower(btrim(i.descripcion)),i.unidad ORDER BY importe DESC LIMIT 120",
+    "SELECT DISTINCT ON (id) id,negocio_id,sucursal_id,razon_social_id,razon_social,rut_razon,"+
+     "marca,local,fecha,proveedor,referencia,importe_factura AS monto,estado,datos,"+
+     "(SELECT SUM(f2.monto)::bigint FROM filtradas f2 WHERE f2.id=filtradas.id) AS monto_filtrado"+
+     " FROM filtradas ORDER BY id,fecha DESC,creado_en DESC",
+    "SELECT razon_social_id,razon_social,rut_razon,COUNT(DISTINCT id)::int AS facturas,"+
+     "SUM(monto)::bigint AS total,"+
+     "COALESCE(SUM(monto) FILTER(WHERE estado='pendiente'),0)::bigint AS pendiente"+
+     " FROM filtradas GROUP BY razon_social_id,razon_social,rut_razon ORDER BY total DESC",
+    "SELECT negocio_id,sucursal_id,marca,local,COUNT(DISTINCT id)::int AS facturas,"+
+     "SUM(monto)::bigint AS total FROM filtradas GROUP BY negocio_id,sucursal_id,marca,local"+
+     " ORDER BY marca,local"
+   ];
+   const result=await Promise.all(statements.map(st=>sql.query(cte+st,params)));
+   return ok(res,{resumen:result[0][0]||{},proveedores:result[1],productos:result[2],
+    facturas:result[3],razones:result[4],locales:result[5],
+    nota:'Las compras compartidas se reparten por importe sin duplicar la factura. Los artículos son los de la factura completa.'});
   }
   if(action==='detalle_compra'){
    if(!uuid.test(String(body.id||'')))return fail(res,400,'Identificador incorrecto.');
