@@ -1022,10 +1022,26 @@ function ukiWhatsAppFicha(s,pendiente){
   '<p class="muted" style="margin:4px 0"><b>Recibido:</b> '+esc(s.fechaISO||'Fecha por confirmar')+'</p>'+
   '<p class="muted" style="margin:5px 0">'+esc(s.suc)+' · '+esc(d.modalidad||'Retiro')+
    ' · '+esc(productos.length)+' producto(s)'+(s.estado==='rechazada'?' · Rechazada: '+esc(s.motivo||''):s.estado==='aceptada'?' · Pedido interno #'+esc(s.pedidoId||''):' · Por confirmar')+'</p>'+
-  '<details class="inner-details"><summary>Ver productos y mensaje original</summary>'+
-  (productos.map(p=>'<p>'+esc(p.cant||1)+' × '+esc(p.nombre)+' · '+fmt((p.cant||1)*(p.precio||0))+'</p>').join('')||
+  '<details class="inner-details"><summary>'+(
+   s.estado==='rechazada'?'Ver detalle del rechazo · productos y mensaje original':
+   'Ver productos y mensaje original')+'</summary>'+
+  (s.estado==='rechazada'?
+   '<div style="border-left:4px solid #b42318;background:#fff1ed;padding:10px 12px;margin:10px 0;border-radius:8px">'+
+   '<b style="color:#8c1d18">✕ RECHAZADO · NO REALIZADO</b>'+
+   '<p style="margin:6px 0"><b>Motivo:</b> '+esc(s.motivo||'No informado')+'</p>'+
+   (s.finalizadoEn?'<p style="margin:6px 0"><b>Rechazado el:</b> '+esc(new Date(s.finalizadoEn).toLocaleString('es-CL'))+'</p>':'')+
+   '<p style="margin:6px 0"><b>Pedido:</b> '+esc(code)+' · <b>WhatsApp:</b> '+esc(phone||'No indicado')+'</p>'+
+   '<p style="margin:6px 0"><b>Modalidad:</b> '+esc(d.modalidad||'Por revisar')+
+   ' · <b>Productos:</b> '+fmt(subtotal)+' · <b>Delivery:</b> '+fmt(d.modalidad==='Delivery'?Number(d.envio||0):0)+
+   ' · <b>Total solicitado:</b> '+fmt(total)+'</p>'+
+   '<p style="margin:6px 0"><b>Pago indicado:</b> '+esc(d.medio||'No indicado')+' (no cobrado por esta solicitud)</p>'+
+   '<p style="margin:6px 0;font-size:12px">No se registró como pedido, venta, cobro ni timbre de fidelidad.</p></div>':'')+
+  '<b>Productos solicitados</b>'+
+  (productos.map(p=>'<p>'+esc(p.cant||1)+' × '+esc(p.nombre)+' · '+fmt((p.cant||1)*(p.precio||0))+
+   (p.det?' · '+esc(p.det):'')+'</p>').join('')||
    '<p class="muted">Productos pendientes de revisar</p>')+
-  '<p class="muted" style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(d.texto||'')+'</p></details>'+
+  '<b>Mensaje original de WhatsApp</b>'+
+  '<p class="muted" style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(d.texto||'Sin texto original')+'</p></details>'+
   (pendiente?
    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:9px">'+
    '<button class="sm ok" type="button" onclick="ukiWhatsAppAceptarYRevisar('+esc(JSON.stringify(s.id))+')">✅ Aceptar y revisar</button>'+
