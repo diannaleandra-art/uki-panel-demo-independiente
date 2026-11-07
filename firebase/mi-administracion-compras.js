@@ -3,7 +3,7 @@
 import {interpretarFacturaChile} from './mi-administracion-factura-parser.js';
 import {leerPDFLocal} from './mi-administracion-pdf-ocr.js';
 export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, branchName, currentBiz, currentBranch, upload, safe}){
- let productos=[],leyendo=false;
+ let productos=[],leyendo=false,datosFactura={receptor:'',observacion:''};
  const n=x=>Number(x||0),money=x=>Number.isSafeInteger(Number(x))&&Number(x)>=0&&Number(x)<=1000000000;
  const dia=x=>typeof x==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(x);
  const normal=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
@@ -81,6 +81,7 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
     p.referencia=filename.replace(/\.pdf$/i,'');
     folioArchivo=true;
   }
+  datosFactura={receptor:p.receptor||'',observacion:p.observacion||''};
   let count=0;
   if(p.proveedor){$('docVendor').value=p.proveedor;count++}
   if(p.fecha){$('docDate').value=p.fecha;count++}
@@ -97,6 +98,16 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
   const parts=[count+' datos sugeridos.'];
   if(p.productos.length)parts.push(p.productos.length+' productos reconocidos.');
   if(folioArchivo)parts.push('Folio sugerido por el nombre del archivo: compruébalo en la factura.');
+  if(p.receptor)parts.push('Comprador indicado en la factura: '+p.receptor+'.');
+  if(p.observacion)parts.push('Observación del proveedor: '+p.observacion+'. Confirma el negocio y local seleccionados.');
+  if(p.neto!==null&&p.productos.length){
+   const articulosTotal=p.productos.reduce((a,i)=>a+Number(i.total||0),0);
+   if(articulosTotal!==p.neto){
+    const diferencia=Math.abs(articulosTotal-p.neto);
+    parts.push('Atención: artículos suman '+fmt(articulosTotal)+' y neto declarado '+fmt(p.neto)+
+      ' (diferencia '+fmt(diferencia)+'). Revisa el documento: puede ser redondeo.');
+   }
+  }
   if(faltan.length)parts.push('Falta revisar: '+faltan.join(', ')+'.');
   parts.push('Revisa todo antes de confirmar; nada se ha contabilizado.');
   $('invoiceOCRStatus').textContent=parts.join(' ');
@@ -125,6 +136,7 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
    if(file.type==='application/pdf'||/\.pdf$/i.test(file.name)){
     const parsed=await leerPDFLocal(file,m=>{$('invoiceOCRStatus').textContent=m;});
     txt=parsed.texto||'';other=parsed.alternativo||'';note=parsed.aviso||'';
+    if(parsed.copiasIgnoradas)note+=(note?' ':'')+'Se ignoró '+parsed.copiasIgnoradas+' página(s) de copia cedible para no repetir productos.';
    }else if(file.type.startsWith('image/')){
     $('invoiceOCRStatus').textContent='Reconociendo los datos de la foto…';
     txt=await extractImage(file);
@@ -166,7 +178,7 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
   const articulos=collectItems();
   if(!referencia&&$('docFile').files?.length===0)
    throw Error('Escribe el número de factura o adjunta su fotografía para evitar duplicados.');
-  const detail='Negocio: '+businessName(negocio)+'\nProveedor: '+proveedor+'\nTotal compra: '+fmt(total)+'\nProductos detallados: '+articulos.length+
+  const detail='Negocio seleccionado: '+businessName(negocio)+'\nComprador en factura: '+(datosFactura.receptor||'No reconocido')+'\nSucursal indicada: '+(datosFactura.observacion||'No reconocida')+'\nProveedor: '+proveedor+'\nTotal compra: '+fmt(total)+'\nProductos detallados: '+articulos.length+
    '\nEstado: '+($('docPayment').value==='pendiente'?'Pendiente de pago':'Pagada')+
    '\n\n¿Confirmas que todos los datos son correctos y deseas sumar esta compra al historial?';
   if(!confirm(detail))return false;
@@ -180,7 +192,7 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
   $('docNumber').value='';$('docTotal').value='';$('docNet').value='';$('docTax').value='';
   $('docOther').value='';$('docDiscount').value='';$('docRawText').value='';
   if(!warning)$('docFile').value='';
-  productos=[];renderItems();
+  productos=[];datosFactura={receptor:'',observacion:''};renderItems();
   // Mostrar de inmediato compras antiguas aunque el filtro estuviera en el mes actual.
   if(fecha<$('from').value||fecha>$('to').value){
    const yr=Number(fecha.slice(0,4)),month=Number(fecha.slice(5,7));
