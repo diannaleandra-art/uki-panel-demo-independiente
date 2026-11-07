@@ -4,7 +4,7 @@
 const oldHTML=window.ukiInventarioPanelHTML,oldMount=window.ukiInventarioMontar;
 if(typeof oldHTML!=='function'||typeof oldMount!=='function')return;
 const API='https://uki-sushi-inventario.vercel.app/api/inventario-turno-live';
-const x={branch:'',items:[],loaded:false,limit:12,filter:'todos',query:'',editor:false,
+const x={branch:'',items:[],loaded:false,loadedAt:null,limit:12,filter:'todos',query:'',editor:false,
  history:[],historyLoaded:false,historyOffset:0,historyTotal:0,busyHistory:false,
  selected:null,detailLimit:15,detailQuery:'',detailFilter:'todos'};
 const $=id=>document.getElementById(id),exports=()=>window.ukiInventarioExportar;
@@ -122,8 +122,8 @@ async function loadCurrent(){
  try{
   const data=await request('articulos',{},b);
   if(b!==sucursal())return;
-  x.items=Array.isArray(data.items)?data.items:[];x.loaded=true;renderCurrent();
- }catch(e){x.loaded=false;x.items=[];status('ukiMiniEstado','Error: '+String(e.message||e));$('ukiMiniFilas').replaceChildren();}
+  x.items=Array.isArray(data.items)?data.items:[];x.loaded=true;x.loadedAt=new Date().toISOString();renderCurrent();
+ }catch(e){x.loaded=false;x.loadedAt=null;x.items=[];status('ukiMiniEstado','Error: '+String(e.message||e));$('ukiMiniFilas').replaceChildren();}
 }
 function edit(sku){
  const area=$('invAdmin'),sel=$('invSelect'),search=$('invSearch');
@@ -138,7 +138,7 @@ function edit(sku){
 }
 function currentSnapshot(){
  if(!x.loaded)throw Error('Primero carga el inventario actual.');
- return {branch:sucursal(),created_at:new Date().toISOString(),
+ return {branch:sucursal(),created_at:x.loadedAt,
   worker_name:'Consulta de administración (estado actual)',items:x.items};
 }
 async function exportar(tipo,report,output){
@@ -228,7 +228,7 @@ async function openRevision(id){
 }
 function mount(){
  oldMount();if(!$('ukiMiniInventario')||!exports())return;
- x.branch=sucursal();x.loaded=false;x.historyLoaded=false;x.selected=null;x.editor=false;
+ x.branch=sucursal();x.loaded=false;x.loadedAt=null;x.historyLoaded=false;x.selected=null;x.editor=false;
  $('ukiMiniBuscar').oninput=e=>{x.query=e.target.value;x.limit=12;renderCurrent();};
  $('ukiMiniFiltro').onchange=e=>{x.filter=e.target.value;x.limit=12;renderCurrent();};
  $('ukiMiniActualizar').onclick=()=>void loadCurrent();
@@ -250,7 +250,7 @@ function mount(){
  $('ukiDetallePDF').onclick=()=>void exportar('pdf',x.selected,'ukiDetalleEstado');
  $('ukiDetalleCompartir').onclick=()=>void exportar('whatsapp',x.selected,'ukiDetalleEstado');
  $('invBranch')?.addEventListener('change',()=>{
-  x.branch=sucursal();x.loaded=false;x.historyLoaded=false;x.historyOffset=0;
+  x.branch=sucursal();x.loaded=false;x.loadedAt=null;x.historyLoaded=false;x.historyOffset=0;
   x.selected=null;x.editor=false;x.limit=12;$('ukiHistorialDetalle').hidden=true;show();
  });
  for(const btn of document.querySelectorAll('[data-uki-tab]'))btn.addEventListener('click',show);
