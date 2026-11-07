@@ -86,7 +86,7 @@ test('listas de trabajador y administración compactas, historial protegido con 
 test('la demostración visual no accede a la base real y permite revisar los controles',()=>{
  const s=fs.readFileSync(path.join(__dirname,'../public/vista-previa-inventario.html'),'utf8');
  for(const part of ['VISTA DE PRUEBA','Demostración visual','Inventario actual',
-  'Historial','Fecha desde','Excel','PDF','WhatsApp','Mostrar 12 más']){
+  'Historial','Desde','Excel','PDF','WhatsApp','Mostrar 12 más']){
   assert.ok(s.includes(part),'Falta '+part);
  }
  assert.doesNotMatch(s,/\bfetch\s*\(/);
