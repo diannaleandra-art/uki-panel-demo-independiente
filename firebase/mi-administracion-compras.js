@@ -24,6 +24,64 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
  const field=(id,val)=>{if(val!==null&&val!==undefined&&Number.isFinite(Number(val)))$(id).value=String(val)};
  const todayCL=()=>dateNow();
  const itemTemplate=()=>({nombre:'',cantidad:'1',unidad:'un',precio_unitario:'0',total:'0'});
+ function destinosDisponibles(){
+  return negocios().flatMap(b=>branchesFor(b.id).map(loc=>({nombre:b.nombre+' · '+loc.nombre,negocio_id:b.id,sucursal_id:loc.id})));
+ }
+ function mostrarDestinos(){
+  const mode=$('purchaseAllocationMode').value,one=mode==='uno',two=mode==='dos';
+  $('purchaseAllocationControls').hidden=!(one||two);
+  $('purchaseSecondLocationRow').hidden=!two;
+  $('purchaseSecondAmountRow').hidden=!two;
+  const items=destinosDisponibles();
+  for(const [idx,id]of ['purchaseLocation1','purchaseLocation2'].entries()){
+   const select=$(id),old=select.value;
+   select.replaceChildren(new Option(idx?'Elige el segundo local':'Elige el local',''));
+   for(const item of items)select.add(new Option(item.nombre,item.sucursal_id));
+   if([...select.options].some(x=>x.value===old))select.value=old;
+  }
+  if(one&&$('docTotal').value)$('purchaseAmount1').value=$('docTotal').value;
+  revisarDestinos();
+ }
+ function revisarDestinos(){
+  const mode=$('purchaseAllocationMode').value,total=Number($('docTotal').value||0);
+  if(mode==='general'){
+   $('purchaseAllocationStatus').textContent='La compra se guardará una sola vez en administración general, sin repartir a una sucursal.';
+   return;
+  }
+  if(mode==='uno'){
+   $('purchaseAllocationStatus').textContent='Para un local, el importe debe ser el total de la factura: '+fmt(total)+'.';
+   return;
+  }
+  const a=Number($('purchaseAmount1').value||0),b=Number($('purchaseAmount2').value||0);
+  $('purchaseAllocationStatus').textContent='Suma asignada: '+fmt(a+b)+' de '+fmt(total)+
+    (a+b===total?' ✓':' · Por ajustar: '+fmt(Math.abs(total-a-b)));
+ }
+ function obtenerDestinos(total){
+  const mode=$('purchaseAllocationMode').value;
+  if(mode==='general')return null;
+  const items=destinosDisponibles();
+  const a=items.find(x=>x.sucursal_id===$('purchaseLocation1').value);
+  if(!a)throw Error('Selecciona el primer local que recibió la compra.');
+  const amount1=Number($('purchaseAmount1').value);
+  if(!Number.isSafeInteger(amount1)||amount1<=0)throw Error('Escribe cuánto corresponde al primer local.');
+  if(mode==='uno'){
+   if(amount1!==total)throw Error('El importe del local debe coincidir con el total de la factura.');
+   return [{negocio_id:a.negocio_id,sucursal_id:a.sucursal_id,monto:amount1}];
+  }
+  const b=items.find(x=>x.sucursal_id===$('purchaseLocation2').value);
+  if(!b||b.sucursal_id===a.sucursal_id)throw Error('Selecciona un segundo local diferente.');
+  const amount2=Number($('purchaseAmount2').value);
+  if(!Number.isSafeInteger(amount2)||amount2<=0||amount1+amount2!==total)
+   throw Error('Los importes asignados a ambos locales deben sumar '+fmt(total)+'.');
+  return [{negocio_id:a.negocio_id,sucursal_id:a.sucursal_id,monto:amount1},
+    {negocio_id:b.negocio_id,sucursal_id:b.sucursal_id,monto:amount2}];
+ }
+ $('purchaseAllocationMode').addEventListener('change',mostrarDestinos);
+ ['purchaseAmount1','purchaseAmount2','docTotal','purchaseLocation1','purchaseLocation2'].forEach(id=>{
+  $(id).addEventListener('input',revisarDestinos);
+  $(id).addEventListener('change',revisarDestinos);
+ });
+
  function renderItems(){
   const container=$('invoiceItems');container.replaceChildren();
   productos.forEach((p,i)=>{
@@ -196,19 +254,23 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
   const articulos=collectItems();
   if(!referencia&&$('docFile').files?.length===0)
    throw Error('Escribe el número de factura o adjunta su fotografía para evitar duplicados.');
-  const legal=history.getReasons(negocio).find(x=>x.id===razon_social_id);
+  const legal=history.allReasons().find(x=>x.id===razon_social_id);
   const rutNorm=x=>String(x||'').toUpperCase().replace(/[^0-9K]/g,'');
   if(datosFactura.receptorRut&&legal?.rut&&rutNorm(legal.rut)!==rutNorm(datosFactura.receptorRut)){
    throw Error('El RUT comprador del PDF ('+datosFactura.receptorRut+') es distinto del RUT de la razón social seleccionada. Corrige la clasificación antes de guardar.');
   }
+  const destinos=obtenerDestinos(total);
+  const asignacion=destinos?destinos.map(x=>
+   destinosDisponibles().find(l=>l.sucursal_id===x.sucursal_id)?.nombre+' '+fmt(x.monto)).join('\n'):
+   'Administración general, sin repartir por local';
   const detail='Razón social elegida: '+(legal?.nombre||'No seleccionada')+'\nNegocio seleccionado: '+businessName(negocio)+'\nComprador en factura: '+(datosFactura.receptor||'No reconocido')+'\nSucursal indicada: '+(datosFactura.observacion||'No reconocida')+'\nProveedor: '+proveedor+'\nTotal compra: '+fmt(total)+'\nProductos detallados: '+articulos.length+
-   '\nEstado: '+($('docPayment').value==='pendiente'?'Pendiente de pago':'Pagada')+
+   '\nDestino del costo: '+asignacion+'\nEstado: '+($('docPayment').value==='pendiente'?'Pendiente de pago':'Pagada')+
    '\n\n¿Confirmas que todos los datos son correctos y deseas sumar esta compra al historial?';
   if(!confirm(detail))return false;
   const saved=await api('guardar_compra_factura',{negocio_id:negocio,sucursal_id:sucursal,fecha,
    proveedor,referencia,total,neto,iva,otros,descuento,razon_social_id,
    comprador_factura:datosFactura.receptor,observacion_factura:datosFactura.observacion,
-   pendiente:$('docPayment').value==='pendiente',articulos,confirmado:true});
+   pendiente:$('docPayment').value==='pendiente',articulos,destinos,confirmado:true});
   let warning='';
   try{if($('docFile').files?.length)await upload($('docFile').files[0],negocio,sucursal,
    $('docType').value,fecha,saved.id,proveedor)}
@@ -217,16 +279,22 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
   $('docOther').value='';$('docDiscount').value='';$('docRawText').value='';
   if(!warning)$('docFile').value='';
   productos=[];datosFactura={receptor:'',receptorRut:'',observacion:''};expandIndex=-1;renderItems();
+  $('purchaseAllocationMode').value='general';mostrarDestinos();
   // Mostrar de inmediato compras antiguas aunque el filtro estuviera en el mes actual.
   if(fecha<$('histFrom').value||fecha>$('histTo').value){
    const yr=Number(fecha.slice(0,4)),month=Number(fecha.slice(5,7));
    $('histFrom').value=fecha.slice(0,7)+'-01';
    $('histTo').value=new Date(Date.UTC(yr,month,0)).toISOString().slice(0,10);
   }
-  $('histRazon').value=razon_social_id;
-  $('histBiz').value=negocio;
+  // La administración abre siempre con el consolidado, sin aislar una sola sucursal.
+  $('histRazon').value='todos';
+  $('histBiz').value='';
   history.historyBranches();
-  $('histBranch').value=sucursal||'';
+  $('histBranch').value='';
+  $('histSearch').value='';
+  $('purchaseEntry').hidden=true;
+  $('showPurchaseHistory').classList.add('primary');
+  $('showPurchaseForm').classList.remove('primary');
   try{await cargar();}
   catch(e){warning=(warning?warning+' ':'')+'La compra quedó registrada, pero el historial no se pudo actualizar: '+e.message;}
   return warning;
@@ -255,6 +323,7 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
   }catch(e){alert('No se pudo descargar el archivo: '+e.message)}
  }
  $('docBiz').addEventListener('change',()=>{if(datosFactura.receptor)history.sugerirRazon(datosFactura.receptor,datosFactura.receptorRut);});
+ mostrarDestinos();
  renderItems();
  return {guardar,cargar,cargarRazones:history.cargarRazones,aplicarTexto,interpretar};
 }
