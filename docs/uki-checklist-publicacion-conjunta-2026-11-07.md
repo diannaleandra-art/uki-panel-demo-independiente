@@ -11,7 +11,7 @@
 - **Disponible/Agotado manual en carta/panel** de ambas sucursales, independiente del inventario. Ya se publicó/validó. No rehacer.
 - **Caja acumulada en efectivo**, cierres, precierres, pagos mixtos por producto/delivery, cobros externos, gastos, turnos, reportes y timbres: conservar lo aprobado. No confundir mejoras de apariencia con inexistencia de la función.
 - **Carta por sucursal, WhatsApp y QR impreso**: operativo y NO sustituir enlaces/QR.
-- **Delivery >9 km: pedido completo «Delivery por confirmar»** y **Envoltura mixta**: el desarrollo y sus pruebas de carta ya estaban hechos en rama. NO ponerlos en «falta desarrollar»; solo comprobar si el código elegido está efectivamente en la versión pública al preparar la próxima publicación.
+- **Delivery >9 km: pedido completo «Delivery por confirmar»** y **Envoltura mixta**: la dueña confirmó expresamente que ambas funciones YA ESTÁN, terminadas y funcionando. Darlas por COMPLETADAS. NO volver a proponerlas, desarrollarlas, probarlas como pendientes ni tocarlas en la siguiente publicación.
 - **Administración de Carta y precios**, archivos y accesos del panel: ya hay código incorporado; la activación de NUEVOS ingredientes del armado es una funcionalidad específica, no rehacer todos los precios.
 
 ## 2. Trabajo realmente pendiente de cerrar
