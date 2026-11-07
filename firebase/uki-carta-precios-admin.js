@@ -103,7 +103,7 @@ function line(price){
   try{
    await request(API,'editar-precio',{sku:price.sku,expected_version:price.version,price:amount});
    if(selectedBranch!==branch())return;
-   await loadPrices(true);
+   state.busy=false;await loadPrices(true);
    info('ukiPriceMessage','✓ Precio de '+price.name+' actualizado a '+peso(amount)+' en '+(selectedBranch==='arica'?'Regimiento Arica':'La Serena')+'.');
   }catch(e){info('ukiPriceMessage','No se guardó: '+String(e.message));}
   finally{state.busy=false;save.disabled=false;}
