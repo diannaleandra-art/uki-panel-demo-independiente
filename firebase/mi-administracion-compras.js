@@ -2,7 +2,7 @@
 // No modifica inventario ni el estado de disponibilidad de la carta.
 import {interpretarFacturaChile} from './mi-administracion-factura-parser.js?v=bombo78969-v2';
 import {leerPDFLocal} from './mi-administracion-pdf-ocr.js?v=bombo78969-v2';
-import {crearHistorialCompras} from './mi-administracion-historial.js?v=razones-v1';
+import {crearHistorialCompras} from './mi-administracion-historial.js?v=razones-v2';
 export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, branchName, currentBiz, currentBranch, upload, safe,branchesFor,negocios}){
  let productos=[],leyendo=false,datosFactura={receptor:'',observacion:''};
  const history=crearHistorialCompras({api,$,esc,fmt,businessName,branchName,branchesFor,negocios});
@@ -221,6 +221,8 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
   }
   $('histRazon').value=razon_social_id;
   $('histBiz').value=negocio;
+  history.historyBranches();
+  $('histBranch').value=sucursal||'';
   try{await cargar();}
   catch(e){warning=(warning?warning+' ':'')+'La compra quedó registrada, pero el historial no se pudo actualizar: '+e.message;}
   return warning;
@@ -230,7 +232,7 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
   await history.cargar();
   const negocio=$('histBiz').value||null;
   try{
-   const stored=await api('documentos',{negocio_id:negocio});
+   const stored=await api('documentos',{negocio_id:negocio,razon_social_id:$('histRazon').value||'todos'});
    $('docList').innerHTML=(stored.documentos||[]).map(x=>
     '<div class="finance-total-row"><strong>'+esc(x.nombre)+'</strong>'+
     '<button class="soft" type="button" data-doc="'+esc(x.id)+'">Descargar</button>'+
