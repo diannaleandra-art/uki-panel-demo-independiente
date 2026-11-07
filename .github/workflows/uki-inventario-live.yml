@@ -22,4 +22,8 @@ jobs:
       - run: node --check firebase/uki-carta-precios-admin.js
       - run: node --check api/uki-carta-precios-live.js
       - run: node --test tests/uki-carta-precios-live.test.cjs
+      - run: node --check firebase/uki-inventario-exportar.js
+      - run: node --check firebase/uki-inventario-historial-admin.js
+      - run: node --check api/inventario-turno-live.js
+      - run: node --test tests/uki-inventario-historial.test.cjs
 
