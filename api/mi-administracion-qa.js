@@ -138,6 +138,50 @@ module.exports=async(req,res)=>{
    await sql.query('DELETE FROM public.fin_sesiones WHERE token_hash=$1 AND usuario_uid=$2',[hash(req.headers['x-fin-session']),who.uid]);
    return ok(res,{cerrado:true});
   }
+  if(action==='razones_sociales'){
+   const reasons=await sql.query('SELECT id,nombre,rut FROM public.fin_razones_sociales WHERE activo=true ORDER BY nombre');
+   const links=await sql.query('SELECT nr.negocio_id,nr.razon_social_id FROM public.fin_negocio_razones nr JOIN public.fin_razones_sociales r ON r.id=nr.razon_social_id WHERE r.activo=true');
+   return ok(res,{razones:reasons,vinculos:links});
+  }
+  if(action==='crear_razon_social'){
+   const nombre=text(body.nombre,140),rut=text(body.rut,20).toUpperCase();
+   if(nombre.length<2||/[\x00-\x1f]/.test(nombre))return fail(res,400,'Escribe el nombre legal de la razón social.');
+   if(rut&&!/^[0-9.]{6,13}-[0-9K]$/.test(rut))return fail(res,400,'Revisa el RUT. Ejemplo: 78.165.233-4');
+   const biz=body.negocio_id||null;
+   if(biz)await belongs(sql,biz,null);
+   const repeated=await sql.query('SELECT id,nombre FROM public.fin_razones_sociales WHERE lower(btrim(nombre))=lower($1) LIMIT 1',[nombre]);
+   if(repeated.length)return fail(res,409,'Esta razón social ya existe. Selecciónala y vincúlala al negocio.');
+   const x=await sql.query('INSERT INTO public.fin_razones_sociales(nombre,rut) VALUES($1,$2) RETURNING id,nombre,rut',[nombre,rut]);
+   if(biz)await sql.query('INSERT INTO public.fin_negocio_razones(negocio_id,razon_social_id) VALUES($1,$2) ON CONFLICT DO NOTHING',[biz,x[0].id]);
+   await audit(sql,'razon_social',x[0].id,'crear',who,{nombre,rut,negocio_id:biz});
+   return ok(res,{razon:x[0]});
+  }
+  if(action==='vincular_razon_negocio'){
+   const biz=body.negocio_id,id=body.razon_social_id;
+   await belongs(sql,biz,null);
+   if(!uuid.test(String(id||'')))return fail(res,400,'Razón social inválida.');
+   const valid=await sql.query('SELECT 1 FROM public.fin_razones_sociales WHERE id=$1 AND activo=true',[id]);
+   if(!valid.length)return fail(res,404,'No se encontró la razón social.');
+   await sql.query('INSERT INTO public.fin_negocio_razones(negocio_id,razon_social_id) VALUES($1,$2) ON CONFLICT DO NOTHING',[biz,id]);
+   await audit(sql,'razon_social',id,'vincular_negocio',who,{negocio_id:biz});
+   return ok(res,{vinculado:true});
+  }
+  if(action==='clasificar_compra'){
+   const id=String(body.id||''),razon=String(body.razon_social_id||'');
+   if(!uuid.test(id)||!uuid.test(razon))return fail(res,400,'Selecciona una factura y su razón social.');
+   const existing=await sql.query("SELECT id,negocio_id,sucursal_id,razon_social_id FROM public.fin_movimientos WHERE id=$1 AND tipo='compra' AND fuente='factura' AND estado<>'anulado'",[id]);
+   if(!existing.length)return fail(res,404,'Compra no encontrada.');
+   const b=existing[0].negocio_id;
+   const linked=await sql.query('SELECT 1 FROM public.fin_negocio_razones nr JOIN public.fin_razones_sociales r ON r.id=nr.razon_social_id WHERE nr.negocio_id=$1 AND nr.razon_social_id=$2 AND r.activo=true',[b,razon]);
+   if(!linked.length)return fail(res,400,'Vincula primero la razón social a ese negocio.');
+   const local=body.sucursal_id;
+   if(local!==undefined&&local!==null&&local!=='')await belongs(sql,b,local);
+   const nextLocal=local===undefined?existing[0].sucursal_id:(local||null);
+   await sql.query('UPDATE public.fin_movimientos SET razon_social_id=$2,sucursal_id=$3,actualizado_en=now() WHERE id=$1',[id,razon,nextLocal]);
+   await sql.query('UPDATE public.fin_documentos SET razon_social_id=$2,sucursal_id=$3 WHERE movimiento_id=$1',[id,razon,nextLocal]);
+   await audit(sql,'compra',id,'reclasificar',who,{desde:existing[0].razon_social_id,hasta:razon,sucursal_anterior:existing[0].sucursal_id,sucursal_nueva:nextLocal});
+   return ok(res,{actualizado:true});
+  }
   if(action==='negocios'){
    const b=await sql.query('SELECT id,nombre,razon_social FROM public.fin_negocios WHERE activo=true ORDER BY nombre');
    const s=await sql.query('SELECT id,negocio_id,nombre FROM public.fin_sucursales WHERE activo=true ORDER BY nombre');
@@ -234,6 +278,10 @@ module.exports=async(req,res)=>{
    if(body.confirmado!==true)return fail(res,400,'Revisa y confirma primero los importes de la factura.');
    const business=body.negocio_id,local=body.sucursal_id||null,fecha=body.fecha;
    await belongs(sql,business,local);
+   const legal=String(body.razon_social_id||'');
+   if(!uuid.test(legal))return fail(res,400,'Elige la razón social compradora de esta factura.');
+   const association=await sql.query('SELECT 1 FROM public.fin_negocio_razones WHERE negocio_id=$1 AND razon_social_id=$2',[business,legal]);
+   if(!association.length)return fail(res,400,'La razón social no está vinculada al negocio seleccionado.');
    const proveedor=text(body.proveedor,120),referencia=text(body.referencia,130);
    const total=Number(body.total),neto=Number(body.neto),iva=Number(body.iva);
    const otros=Number(body.otros),descuento=Number(body.descuento);
@@ -254,9 +302,9 @@ module.exports=async(req,res)=>{
       total:String(importe),unidad:unidad||'un'});
    }
    const result=await sql.query(
-    'SELECT public.fin_registrar_compra_v1($1::uuid,$2::uuid,$3::date,$4,$5,$6::bigint,$7::bigint,$8::bigint,$9::bigint,$10::bigint,$11::boolean,$12::jsonb,$13,$14) AS result',
+    'SELECT public.fin_registrar_compra_v2($1::uuid,$2::uuid,$3::date,$4,$5,$6::bigint,$7::bigint,$8::bigint,$9::bigint,$10::bigint,$11::boolean,$12::jsonb,$13,$14,$15::uuid,$16,$17) AS result',
     [business,local,fecha,proveedor,referencia,total,neto,iva,otros,descuento,
-     body.pendiente===true,JSON.stringify(cleans),who.uid,'']);
+     body.pendiente===true,JSON.stringify(cleans),who.uid,'',legal,text(body.comprador_factura,140),text(body.observacion_factura,140)]);
    const saved=result[0]?.result||{};
    if(!saved.ok)return fail(res,409,saved.duplicado?
     'Esta factura ya está registrada. No la guardamos dos veces.':
