@@ -56,6 +56,42 @@ label{color:#66574c}
 .fieldset-title{font-size:15px;font-weight:800;margin:20px 0 6px;padding-top:12px;border-top:1px solid var(--line)}
 .metric b{color:#30251f}
 .view>.card{scroll-margin-top:110px}
+.finance-price{white-space:nowrap;word-break:keep-all;overflow-wrap:normal;font-variant-numeric:tabular-nums;font-size:14px;text-align:right;align-self:start}
+.finance-total-row{display:grid;grid-template-columns:minmax(0,1fr) max-content;gap:3px 12px;padding:11px 0;border-bottom:1px solid var(--line)}
+.finance-total-row>strong{min-width:0;overflow-wrap:anywhere}
+.finance-total-row small{grid-column:1/-1;color:var(--muted)}
+.finance-invoice{padding:15px 0;border-bottom:1px solid var(--line)}
+.finance-invoice-head{display:grid;grid-template-columns:minmax(0,1fr) max-content;gap:8px;align-items:start}
+.finance-invoice-head strong{min-width:0;overflow-wrap:anywhere;line-height:1.3}
+.finance-supplier{font-weight:700;margin-top:8px;font-size:13px}
+.finance-invoice .hint{margin:4px 0;line-height:1.35;font-size:12px}
+.finance-invoice-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0}
+.finance-invoice-details{margin-top:12px;border-top:1px solid var(--line);padding-top:12px}
+.finance-invoice-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:16px}
+.finance-invoice-summary span{min-width:0;background:var(--soft);border-radius:8px;padding:9px 6px;font-size:11px;color:var(--muted)}
+.finance-invoice-summary b{display:block;margin-top:3px;font-size:13px}
+.finance-item-row{display:grid;grid-template-columns:minmax(0,1fr) max-content;align-items:start;gap:11px;padding:11px 0;border-bottom:1px solid var(--line)}
+.finance-item-text{min-width:0;overflow-wrap:anywhere}
+.finance-item-row strong{display:block;font-size:13px;line-height:1.35;font-weight:650}
+.finance-item-row small{display:block;font-size:12px;color:var(--muted);margin-top:4px;line-height:1.35}
+.finance-item-row .finance-price{min-width:83px;text-align:right}
+.invoice-product{border-bottom:1px solid var(--line);padding:3px 0}
+.invoice-product details{margin:0}
+.invoice-product summary{display:grid;grid-template-columns:24px minmax(0,1fr) max-content;align-items:start;gap:8px;padding:13px 1px;list-style:none;cursor:pointer}
+.invoice-product summary::-webkit-details-marker{display:none}
+.invoice-product summary::marker{content:""}
+.invoice-product .item-label{display:block;font-size:13px;font-weight:650;line-height:1.35;overflow-wrap:anywhere}
+.invoice-product .item-meta{display:block;color:var(--muted);font-size:11px;margin-top:5px}
+.invoice-product .item-edit{background:var(--soft);padding:10px;border-radius:10px;margin-bottom:12px}
+.legal-line{padding:10px 0;border-bottom:1px solid var(--line)}
+.legal-line strong{display:block}.legal-line small{display:block;color:var(--muted);margin-top:3px}
+.doc-control-intro{font-size:13px;color:var(--muted);line-height:1.5}
+.purchase-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px}
+.purchase-filters label{margin:5px 0 2px}
+.purchase-filters .wide{grid-column:1/-1}
+#invoiceItemsSum{font-size:12px}
+@media(max-width:390px){.finance-price{font-size:13px}.finance-item-row .finance-price{min-width:76px}.finance-invoice-summary b{font-size:12px}}
+
 #filterCard{scroll-margin-top:90px}
 @media(max-width:360px){.quick-action{min-height:120px}.quick-action strong{font-size:12px}}
 </style></head><body>
@@ -120,11 +156,28 @@ label{color:#66574c}
 <button class="primary" id="saveExpense">Guardar gasto o compra</button></div></section>
 <section class="view" id="v-facturas" hidden>
 <div class="card">
-<div class="eyebrow">CONTROL DE COMPRAS</div><h2>🧾 Compras a proveedores</h2>
+<div class="eyebrow">CONTROL POR RAZÓN SOCIAL</div><h2>🧾 Registrar una factura de compra</h2>
+<p class="doc-control-intro">Cada compra pertenece a una <strong>razón social</strong> (la empresa que figura en la factura) y puede asociarse a un negocio y una sucursal.</p>
 <p class="steps">1. Sube una factura. 2. Revisa los artículos, cantidades y montos. 3. Confirma para sumarlo al historial.</p>
 <p class="hint">La foto queda como respaldo de una compra. No modifica el inventario ni la disponibilidad de la carta.</p>
-<div class="fieldset-title">1 · ¿De qué negocio es la compra?</div>
-<label>Negocio</label><select id="docBiz"></select><label>Sucursal</label><select id="docBranch"></select>
+<div class="fieldset-title">1 · Razón social y negocio</div>
+<label>Negocio (marca)</label><select id="docBiz"></select>
+<label>Razón social compradora (obligatoria)</label><select id="docRazon"><option value="">Selecciona la razón social</option></select>
+<p id="docRazonHelp" class="hint">Selecciona la empresa legal a nombre de la cual está emitida esta factura.</p>
+<p id="docBuyerInfo" class="hint"></p>
+<label>Sucursal</label><select id="docBranch"></select>
+<details><summary>＋ Registrar o vincular otra razón social</summary>
+<p class="hint">Aquí puedes crear la razón social con su RUT y vincularla al negocio que seleccionaste. También puedes asociar una razón social existente a otra marca.</p>
+<label>Nombre legal de la razón social</label><input id="legalNewName" placeholder="Ej.: Inversiones Romo SpA">
+<label>RUT (opcional, recomendable)</label><input id="legalNewRut" placeholder="78.165.233-4" autocomplete="off">
+<button class="soft" id="legalAddButton" type="button">Agregar razón social al negocio</button>
+<div class="fieldset-title">Vincular una razón social existente</div>
+<label>Razón social</label><select id="legalLinkReason"></select>
+<label>Negocio que la utilizará</label><select id="legalLinkBiz"></select>
+<button class="soft" id="legalLinkButton" type="button">Vincular al negocio</button>
+<p id="legalStatus" class="hint"></p>
+<div class="fieldset-title">Razones sociales registradas</div><div id="legalReasonsList"></div>
+</details>
 <div class="fieldset-title">2 · Foto o PDF de la factura</div>
 <label>Subir foto desde el iPhone o elegir PDF</label><input id="docFile" type="file" accept="image/jpeg,image/png,image/webp,application/pdf">
 <button class="soft" id="readInvoice" type="button">📷 Leer datos de la factura</button>
@@ -144,7 +197,8 @@ label{color:#66574c}
 <div><label>IVA ($)</label><input id="docTax" type="number" min="0" inputmode="numeric" placeholder="0"></div>
 <div><label>Otros cargos ($)</label><input id="docOther" type="number" min="0" inputmode="numeric" placeholder="0"></div>
 <div><label>Descuentos ($)</label><input id="docDiscount" type="number" min="0" inputmode="numeric" placeholder="0"></div></div></details>
-<div class="fieldset-title">4 · ¿Qué productos se compraron?</div>
+<div class="fieldset-title">4 · Productos de la factura</div>
+<p class="hint">Los productos aparecen como una lista compacta. Toca uno para corregir su nombre, cantidad, unidad o precio.</p>
 <p class="hint">Cada producto quedará con cantidad, unidad y precio. Si no se reconocieron los artículos, puedes agregarlos manualmente.</p>
 <div id="invoiceItems"></div>
 <button type="button" class="soft" id="invoiceAddItem">＋ Agregar producto</button>
@@ -154,16 +208,32 @@ label{color:#66574c}
 <button class="primary" id="saveDoc">✓ Confirmar y registrar compra</button>
 </div>
 <div class="card">
-<div class="eyebrow">HISTORIAL DE COMPRAS</div><h2>📊 ¿Cuánto hemos comprado?</h2>
-<p class="hint">Los totales incluyen compras pagadas y pendientes. Puedes cambiar el negocio y las fechas desde Inicio.</p>
-<div class="metrics"><div class="metric"><small>Total comprado</small><b id="purchasesTotal">$0</b></div><div class="metric"><small>Por pagar</small><b id="purchasesDue">$0</b></div><div class="metric"><small>Facturas registradas</small><b id="purchasesCount">0</b></div><div class="metric"><small>Proveedores</small><b id="purchasesSuppliers">0</b></div></div>
-<details open><summary>🏪 Total por proveedor</summary><div id="invoiceVendors"></div></details>
-<details><summary>📦 Productos que más se compran</summary><div id="invoiceProducts"></div></details>
-<details open><summary>📖 Historial de compras y facturas</summary><div id="invoicePurchaseList"></div></details>
-<details><summary>📎 Ver fotografías y PDF guardados</summary><div id="docList"></div></details>
+<div class="eyebrow">HISTORIAL FINANCIERO</div><h2>📚 Compras por razón social</h2>
+<p class="hint">Busca por razón social, RUT, proveedor, folio o producto. Cada factura aparece una sola vez.</p>
+<div class="purchase-filters">
+<div class="wide"><label>Razón social</label><select id="histRazon"><option value="todos">Todas las razones sociales</option></select></div>
+<div><label>Negocio</label><select id="histBiz"><option value="">Todos los negocios</option></select></div>
+<div><label>Sucursal</label><select id="histBranch"><option value="">Todas las sucursales</option></select></div>
+<div><label>Desde</label><input id="histFrom" type="date"></div>
+<div><label>Hasta</label><input id="histTo" type="date"></div>
+<div class="wide"><label>Buscar factura, proveedor o producto</label><input id="histSearch" type="search" placeholder="Ej.: Inversiones Romo, Bombo, arroz o 78969"></div>
+</div>
+<button type="button" id="histSearchButton" class="soft">🔎 Buscar compras</button><p id="historyStatus" class="hint"></p>
+<div class="metrics">
+<div class="metric"><small>Total de compras</small><b id="purchasesTotal">$0</b></div>
+<div class="metric"><small>Pendiente de pago</small><b id="purchasesDue">$0</b></div>
+<div class="metric"><small>Facturas</small><b id="purchasesCount">0</b></div>
+<div class="metric"><small>Proveedores</small><b id="purchasesSuppliers">0</b></div>
+</div>
+<p class="hint">Facturas sin clasificar: <strong id="purchasesNoReason">0</strong>. Puedes asignarles razón social desde su detalle.</p>
+<details open><summary>🏢 Totales por razón social</summary><div id="invoiceLegalTotals"></div></details>
+<details><summary>🏪 Totales por proveedor</summary><div id="invoiceVendors"></div></details>
+<details><summary>📦 Productos más comprados</summary><div id="invoiceProducts"></div></details>
+<details open><summary>📖 Facturas registradas</summary><div id="invoicePurchaseList"></div></details>
+<details><summary>📎 Fotografías y documentos guardados</summary><div id="docList"></div></details>
 </div></section>
 <section class="view" id="v-negocios" hidden><div class="card"><div class="eyebrow">ORGANIZACIÓN</div><h2>🏪 Mis negocios y locales</h2><p class="steps">Aquí puedes agregar más negocios, sucursales y costos de sus productos.</p><div id="businessList"></div>
-<details><summary>＋ Agregar negocio</summary><label>Nombre</label><input id="newBizName" placeholder="Ej.: Crepe Pop"><label>Razón social (opcional)</label><input id="newBizReason"><button class="primary" id="newBiz">Crear negocio</button></details>
+<details><summary>＋ Agregar negocio</summary><label>Nombre</label><input id="newBizName" placeholder="Ej.: Crepe Pop"><label>Razón social de referencia (opcional)</label><input id="newBizReason"><p class="hint">Para el control contable, registra y vincula la razón social desde Facturas.</p><button class="primary" id="newBiz">Crear negocio</button></details>
 <details><summary>＋ Agregar sucursal</summary><label>Negocio</label><select id="newBranchBiz"></select><label>Nombre de sucursal</label><input id="newBranchName" placeholder="Ej.: La Serena"><button class="primary" id="newBranch">Crear sucursal</button></details></div>
 <div class="card"><h2>Costos por producto</h2><p class="hint">Para comenzar a calcular márgenes. Los costos no se descuentan automáticamente de las ventas hasta conciliar inventario y compras.</p>
 <label>Negocio</label><select id="costBiz"></select><label>Producto</label><input id="costName" placeholder="Ej.: 24 piezas"><div class="grid2"><div><label>Precio de venta ($)</label><input id="costPrice" type="number" min="0"></div><div><label>Costo estimado ($)</label><input id="costAmount" type="number" min="0"></div></div>
@@ -483,7 +553,8 @@ if(setupLink){
  $('setupkey').value=setupLink[1];
  $('loginhelp').textContent='Enlace de instalación recibido. Configura tu PIN privado después de entrar con Google.';
 }
-['saleDate','expenseDate','docDate','to'].forEach(id=>$(id).value=today());
+['saleDate','expenseDate','docDate','to','histTo'].forEach(id=>$(id).value=today());
 $('from').value=today().slice(0,7)+'-01';
+$('histFrom').value=today().slice(0,7)+'-01';
 onAuthStateChanged(auth,()=>{if(!session)void checkState()});
 </script></body></html>
