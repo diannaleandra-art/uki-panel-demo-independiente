@@ -96,3 +96,26 @@ test('la demostración visual no accede a la base real y permite revisar los con
  const vm=require('node:vm');
  assert.doesNotThrow(()=>new vm.Script(scripts[0],{filename:'vista-previa-inventario.html'}));
 });
+
+test('trabajador ve día fecha y reloj de Chile EN VIVO mientras hace el inventario',()=>{
+ const read=file=>fs.readFileSync(path.join(__dirname,'..',file),'utf8');
+ for(const file of ['public/index.html','firebase/uki-inventario-turno.html']){
+  const source=read(file);
+  assert.match(source,/id="turnoHoraActual"/);
+  assert.match(source,/id="turnoFechaChile"/);
+  assert.match(source,/id="turnoUltimoRegistro"/);
+  assert.match(source,/timeZone:'America\/Santiago'/);
+  assert.match(source,/second:'2-digit'/);
+  assert.match(source,/setInterval\(actualizarReloj,1000\)/);
+  assert.match(source,/iniciarReloj\(\)/);
+  assert.match(source,/detenerReloj\(\)/);
+  assert.match(source,/document\.addEventListener\('visibilitychange'/);
+  assert.match(source,/horaConteos\.set\(item\.sku,horaRegistro\)/);
+  assert.match(source,/Último registro:/);
+  assert.match(source,/Registrado: /);
+ }
+ const demo=read('public/vista-previa-inventario.html');
+ assert.match(demo,/id="hora-actual"/);
+ assert.match(demo,/setInterval\(mostrarHoraActual,1000\)/);
+ assert.match(demo,/timeZone:'America\/Santiago'/);
+});
