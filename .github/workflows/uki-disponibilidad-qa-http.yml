@@ -79,5 +79,23 @@ jobs:
           assert.ok(moduleText.includes('window.ukiInventarioMontar=montar'));
           assert.ok(moduleText.includes('window.ukiInventarioToken'));
           console.log('Panel GitHub Pages: HTML y controles Disponible/Agotado accesibles HTTP 200');
+          const pricesUrl='https://uki-sushi-inventario-13coyvxe9-diannaleandra-7046.vercel.app/api/uki-carta-precios-live';
+          for(const branch of ['arica','serena']){
+            const r=await fetch(pricesUrl+'?branch='+branch,{
+              headers:{Origin:origin},signal:AbortSignal.timeout(12000)});
+            const payload=await r.json();
+            assert.equal(r.status,200,JSON.stringify(payload));
+            assert.equal(payload.ok,true);
+            assert.equal(payload.branch,branch);
+            assert.ok(Array.isArray(payload.items)&&payload.items.some(x=>x.sku==='classic:24'));
+            assert.ok(payload.items.every(x=>x.kind!=='ingredient'));
+            console.log('QA precios '+branch+': HTTP 200, catálogo completo');
+          }
+          const deniedPrices=await fetch(pricesUrl,{
+            method:'POST',headers:{Origin:qaPanel,'Content-Type':'application/json'},
+            body:JSON.stringify({branch:'arica',action:'crear-producto',item:{kind:'pizza',group:'pizzas',name:'NO CREAR',description:'QA',price:9900}}),
+            signal:AbortSignal.timeout(12000)});
+          assert.equal(deniedPrices.status,403,'No se puede crear pizza sin Google');
+          console.log('QA precios: escritura sin Google bloqueada HTTP 403');
 
           JS
