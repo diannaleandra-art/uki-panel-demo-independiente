@@ -30,9 +30,9 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 <div class="grid"><select id="tipo" aria-label="Tipo de artículo">
 <option value="ingredientes">Ingredientes e insumos</option><option value="productos">Productos de la carta</option><option value="todos">Todos</option></select>
 <input id="buscar" placeholder="Buscar pollo, palta…"></div>
-<p class="muted">El stock nunca cambia automáticamente Disponible / Agotado. Eso lo controla el agendador.</p></section>
+<p class="muted">Al cierre cuenta lo que realmente queda y pulsa <b>Guardar conteo</b> en cada artículo. Cuando llega mercadería, usa <b>Registrar entrada</b>. Solo administración decide Disponible / Agotado en la carta.</p><p id="turnoProgreso" role="status" class="pill">Todavía no hay conteos guardados en este turno.</p></section>
 <div id="items"></div>
-<section class="card"><h2>3. Terminar y enviar revisión</h2><p id="resumen" class="muted"></p>
+<section class="card"><h2>3. Terminar el turno</h2><p class="muted">Confirma los conteos guardados. Si faltan artículos por revisar, puedes completar el conteo antes de terminar.</p><p id="resumen" class="muted"></p>
 <button id="enviar">Guardar en el panel y compartir por WhatsApp</button>
 <p class="muted">Primero confirma el guardado en el panel. Después podrás compartir el mismo reporte por WhatsApp.</p>
 <p id="confirmacion" role="status"></p></section>
@@ -104,6 +104,7 @@ function resumen(){
  $('resumen').textContent=missing.length+' artículos por reponer · '+configured.length+
   ' mínimos configurados · '+(items.length-configured.length)+' sin mínimo.';
 }
+const revisados=new Set();
 function render(){
  const box=$('items');box.replaceChildren();
  const kind=$('tipo').value,term=$('buscar').value.trim().toLocaleLowerCase('es-CL');
@@ -112,6 +113,7 @@ function render(){
  for(const item of visible){
   const card=elt('section',undefined,'card');
   const description=elt('div'),name=elt('strong',item.name);
+  if(revisados.has(item.sku))description.append(elt('span',' · Contado ✓','pill small'));
   const min=Number(item.min_stock_qty)||0,qty=Number(item.stock_qty)||0;
   description.append(name,elt('p','Hay: '+formato(qty,item.stock_unit||'un')+
    ' · mínimo: '+(min>0?formato(min,item.stock_unit||'un'):'sin configurar'),'muted small'));
@@ -180,6 +182,8 @@ function render(){
   box.append(card);
  }
  if(!visible.length)box.append(elt('p','No hay productos con este filtro.','muted'));
+ const faltantes=items.filter(i=>Number(i.min_stock_qty)>0&&Number(i.stock_qty)<=Number(i.min_stock_qty));
+ $('turnoProgreso').textContent=revisados.size+' de '+items.length+' artículos contados durante este turno · '+faltantes.length+' para reponer.';
  resumen();
 }
 async function save(item,action,cantidad,unidad){
@@ -187,6 +191,7 @@ async function save(item,action,cantidad,unidad){
  try{
   const response=await api(action,{sku:item.sku,cantidad,unidad,expected_version:Number(item.version)});
   items=items.map(x=>x.sku===item.sku?{...x,...response.item}:x);
+  if(action==='contar')revisados.add(item.sku);
   requestId=null;$('confirmacion').textContent='';
   const registro=response.registro||{base:cantidad,unidadBase:item.stock_unit};
   lastSaved={sku:item.sku,ok:true,message:'✓ '+(action==='contar'?'Conteo':'Entrada')+
@@ -205,15 +210,15 @@ async function abrir(){
  setBusy(true);status('Cargando inventario…');
  try{
   const result=await api('listar');
-  branch=$('branch').value;items=result.items||[];requestId=null;lastSaved=null;factura.reset();
+  branch=$('branch').value;items=result.items||[];revisados.clear();requestId=null;lastSaved=null;factura.reset();
   $('activo').hidden=false;$('confirmacion').textContent='';
   render();status('Inventario del turno listo.');
  }catch(e){branch='';items=[];$('activo').hidden=true;status(String(e.message));}
  finally{setBusy(false);}
 }
 $('abrir').onclick=abrir;
-$('branch').onchange=()=>{branch='';items=[];lastSaved=null;factura.reset();$('activo').hidden=true;status('');};
-$('codigo').oninput=()=>{if(branch){branch='';items=[];factura.reset();$('activo').hidden=true;}};
+$('branch').onchange=()=>{branch='';items=[];revisados.clear();lastSaved=null;factura.reset();$('activo').hidden=true;status('');};
+$('codigo').oninput=()=>{if(branch){branch='';items=[];revisados.clear();factura.reset();$('activo').hidden=true;}};
 $('tipo').onchange=render;$('buscar').oninput=render;
 $('enviar').onclick=async()=>{
  if(busy||!branch||branch!==$('branch').value)return;
