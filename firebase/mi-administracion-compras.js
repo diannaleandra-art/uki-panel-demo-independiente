@@ -206,7 +206,9 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
  }
  const show=(id)=>$(id);
  async function cargar(){
-  const negocio=currentBiz()||null,sucursal=currentBranch()||null;
+  // El filtro de historial sigue el negocio elegido en esta misma pantalla.
+  const negocio=$('docBiz').value||currentBiz()||null;
+  const sucursal=$('docBranch').value||null;
   const params={negocio_id:negocio,sucursal_id:sucursal,desde:$('from').value,hasta:$('to').value};
   try{
    const [purchase,stored]=await Promise.all([api('resumen_compras',params),
@@ -248,6 +250,8 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
    setTimeout(()=>URL.revokeObjectURL(url),60000);
   }catch(e){alert('No se pudo descargar el archivo: '+e.message)}
  }
+ $('docBiz').addEventListener('change',()=>void cargar());
+ $('docBranch').addEventListener('change',()=>void cargar());
  renderItems();
  return {guardar,cargar,aplicarTexto,interpretar};
 }
