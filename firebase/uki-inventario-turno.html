@@ -11,7 +11,10 @@ button{font:600 15px system-ui;background:#e9822d;color:white;border:0;border-ra
 button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;border:1px solid #eed2bd}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.line{display:flex;gap:10px;align-items:center;justify-content:space-between}
 .stock{max-width:130px}.unit-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:9px 0}.unit-row input{max-width:130px}.unit-row select{max-width:185px}.small{font-size:13px}.pill{font-weight:600;color:#355f3b}.warn{color:#97530c}.confirmacion-item{background:#eff9ef;color:#245e2c;padding:9px;border-radius:8px;font-weight:600}.error-item{background:#fff2e8;color:#8a350a;padding:9px;border-radius:8px}
-#estado{min-height:20px}details{margin-top:10px}summary{cursor:pointer;color:#915a2b}footer{text-align:center;color:#826b58;font-size:12px}
+#estado{min-height:20px}
+ .reloj-inventario{background:#fff1e0;border:1px solid #eecfa9;border-radius:12px;padding:12px 14px;margin:12px 0}
+ .reloj-inventario strong{display:block;margin:5px 0;font-size:18px;color:#6c3c12;font-variant-numeric:tabular-nums;line-height:1.35}
+ .reloj-inventario p{margin:6px 0 0}details{margin-top:10px}summary{cursor:pointer;color:#915a2b}footer{text-align:center;color:#826b58;font-size:12px}
 [hidden]{display:none!important}
 </style></head>
 <body><header><h1>🍣 Uki Sushi · Inventario</h1><div>Conteo del turno · sin caja, ventas ni cierres</div></header>
@@ -34,7 +37,12 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 <option value="pendiente">Pendientes de contar</option><option value="todos">Todos los artículos</option>
 <option value="contados">Contados en esta sesión</option><option value="reponer">Para reponer</option>
 </select><p class="muted" id="listaAvance" role="status"></p></div>
-<p id="turnoFechaChile" role="status" class="muted">Fecha y hora del conteo: pendientes de abrir inventario.</p>
+<div class="reloj-inventario" aria-label="Día, fecha y hora actual durante el inventario">
+ <span class="small">Inventario en curso · hora de Chile</span>
+ <strong id="turnoHoraActual">Consultando fecha y hora…</strong>
+ <p id="turnoFechaChile" class="muted small">Hora de inicio: pendiente de abrir inventario.</p>
+ <p id="turnoUltimoRegistro" class="muted small">Aún no hay artículos guardados en esta sesión.</p>
+ </div>
 <p class="muted">Al cierre cuenta lo que realmente queda y pulsa <b>Guardar conteo</b> en cada artículo. Cuando llega mercadería, usa <b>Registrar entrada</b>. Solo administración decide Disponible / Agotado en la carta.</p><p id="turnoProgreso" role="status" class="pill">Todavía no hay conteos guardados en este turno.</p></section>
 <div id="items"></div><div style="text-align:center;margin:10px 16px"><button type="button" id="mostrarMas" class="secondary" hidden>Mostrar 12 artículos más</button></div>
 <section class="card"><h2>3. Terminar el turno</h2><p class="muted">Confirma los conteos guardados. Si faltan artículos por revisar, puedes completar el conteo antes de terminar.</p><p id="resumen" class="muted"></p>
@@ -110,6 +118,26 @@ function resumen(){
   ' mínimos configurados · '+(items.length-configured.length)+' sin mínimo.';
 }
 const revisados=new Set();let visibleLimit=12;
+const horaConteos=new Map();
+let relojIntervalo=null;
+const formatoFechaHoraChile=fecha=>new Intl.DateTimeFormat('es-CL',{
+ timeZone:'America/Santiago',weekday:'long',day:'2-digit',month:'long',year:'numeric',
+ hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'
+}).format(fecha);
+function actualizarReloj(){
+ if($('activo').hidden)return;
+ $('turnoHoraActual').textContent=formatoFechaHoraChile(new Date())+' (Chile)';
+}
+function detenerReloj(){
+ if(relojIntervalo!==null){clearInterval(relojIntervalo);relojIntervalo=null;}
+}
+function iniciarReloj(){
+ detenerReloj();actualizarReloj();
+ relojIntervalo=setInterval(actualizarReloj,1000);
+}
+document.addEventListener('visibilitychange',()=>{
+ if(!document.hidden)actualizarReloj();
+});
 function render(){
  const box=$('items');box.replaceChildren();
  const kind=$('tipo').value,term=$('buscar').value.trim().toLocaleLowerCase('es-CL');
@@ -126,6 +154,7 @@ function render(){
   const head=elt('summary');
   const description=elt('div'),name=elt('strong',item.name);
   if(revisados.has(item.sku))description.append(elt('span',' · Contado ✓','pill small'));
+ if(horaConteos.has(item.sku))description.append(elt('p','Registrado: '+horaConteos.get(item.sku)+' (Chile)','muted small'));
   const min=Number(item.min_stock_qty)||0,qty=Number(item.stock_qty)||0;
   description.append(name,elt('p','Hay: '+formato(qty,item.stock_unit||'un')+
    ' · mínimo: '+(min>0?formato(min,item.stock_unit||'un'):'sin configurar'),'muted small'));
@@ -204,7 +233,10 @@ async function save(item,action,cantidad,unidad){
  try{
   const response=await api(action,{sku:item.sku,cantidad,unidad,expected_version:Number(item.version)});
   items=items.map(x=>x.sku===item.sku?{...x,...response.item}:x);
-  if(action==='contar')revisados.add(item.sku);
+  const horaRegistro=formatoFechaHoraChile(new Date());
+  if(action==='contar'){revisados.add(item.sku);horaConteos.set(item.sku,horaRegistro);}
+  $('turnoUltimoRegistro').textContent='Último registro: '+item.name+' · '+horaRegistro+' (Chile).';
+  actualizarReloj();
   requestId=null;$('confirmacion').textContent='';
   const registro=response.registro||{base:cantidad,unidadBase:item.stock_unit};
   lastSaved={sku:item.sku,ok:true,message:'✓ '+(action==='contar'?'Conteo':'Entrada')+
@@ -223,19 +255,18 @@ async function abrir(){
  setBusy(true);status('Cargando inventario…');
  try{
   const result=await api('listar');
-  branch=$('branch').value;items=result.items||[];revisados.clear();visibleLimit=12;requestId=null;lastSaved=null;factura.reset();
+  branch=$('branch').value;items=result.items||[];revisados.clear();horaConteos.clear();visibleLimit=12;requestId=null;lastSaved=null;factura.reset();
   $('activo').hidden=false;$('confirmacion').textContent='';
-  const inicio=new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',weekday:'long',
-   day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',
-   hourCycle:'h23'}).format(new Date());
-  $('turnoFechaChile').textContent='Inicio del conteo: '+inicio+' (Chile).';
+  $('turnoFechaChile').textContent='Inicio del conteo: '+formatoFechaHoraChile(new Date())+' (Chile).';
+  $('turnoUltimoRegistro').textContent='Aún no hay artículos guardados en esta sesión.';
+  iniciarReloj();
   render();status('Inventario del turno listo.');
  }catch(e){branch='';items=[];$('activo').hidden=true;status(String(e.message));}
  finally{setBusy(false);}
 }
 $('abrir').onclick=abrir;
-$('branch').onchange=()=>{branch='';items=[];revisados.clear();visibleLimit=12;lastSaved=null;factura.reset();$('activo').hidden=true;status('');};
-$('codigo').oninput=()=>{if(branch){branch='';items=[];revisados.clear();factura.reset();$('activo').hidden=true;}};
+$('branch').onchange=()=>{detenerReloj();branch='';items=[];revisados.clear();horaConteos.clear();visibleLimit=12;lastSaved=null;factura.reset();$('activo').hidden=true;status('');};
+$('codigo').oninput=()=>{if(branch){detenerReloj();branch='';items=[];revisados.clear();horaConteos.clear();factura.reset();$('activo').hidden=true;}};
 $('tipo').onchange=()=>{visibleLimit=12;render();};
 $('buscar').oninput=()=>{visibleLimit=12;render();};
 $('estadoLista').onchange=()=>{visibleLimit=12;render();};
