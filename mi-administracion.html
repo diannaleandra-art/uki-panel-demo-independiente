@@ -216,7 +216,7 @@ async function loadCosts(){
 }
 async function safe(action,fn){
  const btn=$(action);btn.disabled=true;notify('Guardando…');
- try{await fn();notify('Guardado correctamente en el entorno de pruebas.','success');}
+ try{const warning=await fn();notify(warning||'Guardado correctamente en el entorno de pruebas.',warning?'error':'success');}
  catch(e){notify(e.message,'error')}
  finally{btn.disabled=false;}
 }
@@ -233,17 +233,21 @@ $('saveSale').onclick=()=>safe('saveSale',async()=>{
  let r;
  try{r=await api('guardar_movimiento',payload)}
  catch(e){if(/Ya existen ventas ese día/.test(e.message)&&confirm(e.message+' ¿Guardar otra venta distinta?'))r=await api('guardar_movimiento',{...payload,confirmar_duplicado:true});else throw e}
- await upload($('salePhoto').files[0],b,s,'cierre',fecha,r.id,'');
- $('saleTotal').value='';AM.forEach((_,i)=>$('pay'+i).value='');$('salePhoto').value='';
- await refresh();
+ let warning='';
+ try{await upload($('salePhoto').files[0],b,s,'cierre',fecha,r.id,'');}
+ catch(e){warning='La venta SÍ quedó guardada, pero la foto NO: '+e.message;}
+ $('saleTotal').value='';AM.forEach((_,i)=>$('pay'+i).value='');if(!warning)$('salePhoto').value='';
+ await refresh();return warning;
 });
 $('saveExpense').onclick=()=>safe('saveExpense',async()=>{
  const b=value('expenseBiz'),s=value('expenseBranch')||null,fecha=value('expenseDate'),monto=amount('expenseAmount'),tipo=value('expenseType');
  if(!b||!monto)throw Error('Elige el negocio y el importe.');
  const r=await api('guardar_movimiento',{negocio_id:b,sucursal_id:s,fecha,monto,tipo,
   categoria:value('expenseCategory'),proveedor:value('expenseVendor'),concepto:value('expenseConcept'),pendiente:$('expensePending').checked});
- await upload($('expensePhoto').files[0],b,s,'factura',fecha,r.id,value('expenseVendor'));
- $('expenseAmount').value='';$('expensePhoto').value='';await refresh();
+ let warning='';
+ try{await upload($('expensePhoto').files[0],b,s,'factura',fecha,r.id,value('expenseVendor'));}
+ catch(e){warning='El gasto SÍ quedó guardado, pero el comprobante NO: '+e.message;}
+ $('expenseAmount').value='';if(!warning)$('expensePhoto').value='';await refresh();return warning;
 });
 $('saveDoc').onclick=()=>safe('saveDoc',async()=>{
  const b=value('docBiz'),s=value('docBranch')||null;
