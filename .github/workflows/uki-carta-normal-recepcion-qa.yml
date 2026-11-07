@@ -16,5 +16,5 @@ jobs:
       - run: node --test tests/uki-carta-normal-recepcion.test.cjs
       - name: Verificar receptor de carta en Vercel sin consultar datos de clientes
         run: |
-          node --input-type=module -e 'const r=await fetch("https://uki-sushi-pedidos.vercel.app/api/carta-solicitudes-live?branch=serena",{signal:AbortSignal.timeout(15000)});const j=await r.json();if(r.status!==403||j.error!=="Personal no autorizado")throw Error("Receptor no listo: HTTP "+r.status+" "+String(j.error||""));console.log("Receptor activo y protegido: HTTP 403 sin credenciales")'
+          node --input-type=module -e 'for(const [name,path] of [["Carta normal","/api/carta-solicitudes-live?branch=serena"],["Mesas QR","/api/mesa-pedidos-live?branch=serena"]]){const r=await fetch("https://uki-sushi-pedidos.vercel.app"+path,{signal:AbortSignal.timeout(15000)});const j=await r.json();if(r.status!==403||j.error!=="Personal no autorizado en esta sucursal") {if(name==="Carta normal"&&r.status===403&&j.error==="Personal no autorizado"){console.log(name+": HTTP 403 protegido");continue;}throw Error(name+" no listo: HTTP "+r.status+" "+String(j.error||""))}console.log(name+": HTTP 403 protegido")}'
 
