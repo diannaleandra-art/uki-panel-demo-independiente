@@ -46,6 +46,15 @@ function makeInput(label,value,maxLength=70){
  const input=document.createElement('input');input.value=value||'';input.maxLength=maxLength;
  container.append(input);return {container,input};
 }
+function syncCategory(box){
+ const category=box.querySelector('[data-uki-ingredient="category"]')?.value;
+ const allowed={vegetal:surfaces.map(x=>x[0]),proteina:['classic','premium','monthly','handroll','burger'],envoltura:['classic','premium','monthly','handroll']};
+ for(const input of box.querySelectorAll('[data-uki-ingredient-surfaces] input')){
+  const ok=(allowed[category]||[]).includes(input.value);
+  input.disabled=!ok;input.closest('label').hidden=!ok;
+  if(!ok)input.checked=false;
+ }
+}
 function syncMode(box){
  const mode=box.querySelector('[data-uki-ingredient="mode"]');
  const label=box.querySelector('[data-uki-ingredient-charge-label]');
@@ -128,7 +137,7 @@ function render(){
   form.append(field);
   const availableLabel=document.createElement('label');availableLabel.style.cssText='display:flex;gap:8px;align-items:center';const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=item.available===true;checkbox.dataset.ukiIngredient='available';checkbox.style.cssText='width:auto;min-height:0';availableLabel.append(checkbox,document.createTextNode('Disponible para elegir'));form.append(availableLabel);
   const button=document.createElement('button');button.type='button';button.className='sm ok';button.textContent='Guardar cambios';button.onclick=()=>send('editar',form,item);form.append(button);
-  mode.onchange=()=>syncMode(form);syncMode(form);wrapper.append(form);target.append(wrapper);
+  mode.onchange=()=>syncMode(form);category.onchange=()=>syncCategory(form);syncMode(form);syncCategory(form);wrapper.append(form);target.append(wrapper);
  }
 }
 function mount(){
@@ -136,7 +145,7 @@ function mount(){
  if(!get('ukiArmadoIngredientes')){
   host.insertAdjacentHTML('beforeend',html);
   const block=get('ukiIngNuevo'),mode=block.querySelector('[data-uki-ingredient="mode"]');
-  mode.onchange=()=>syncMode(block);syncMode(block);
+  mode.onchange=()=>syncMode(block);block.querySelector('[data-uki-ingredient="category"]').onchange=()=>syncCategory(block);syncMode(block);syncCategory(block);
   get('ukiIngCrear').onclick=()=>send('crear',block);
   get('ukiIngActualizar').onclick=()=>load();
  }
