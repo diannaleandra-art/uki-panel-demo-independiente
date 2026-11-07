@@ -306,6 +306,7 @@ function cambiarModoNuevo(t){modoNuevo=t;render();}
 
 function aviso(t){S.msg=t;render();window.scrollTo({top:0,behavior:"smooth"});}
 function ir(v){
+  if(S.vista==='nuevo'&&v!=='nuevo'&&ukiCartaRemotaActiva)ukiCartaRemotaActiva=null;
   if(S.vista==="nuevo"&&v!=="nuevo"&&S.suc&&ukiSolicitudWhatsAppActiva){
     ukiWhatsAppPausarRevision();nuevoDraft();
   }else if(S.vista==="nuevo"&&v!=="nuevo"&&S.suc&&!D.editando&&ukiBorradorTieneContenido()){
@@ -324,6 +325,7 @@ function ir(v){
    if(v==="caja"&&cajaTab==="acumulada")setTimeout(()=>window.ukiCajaAcumuladaMontar?.(),0);
   if(v==="pedidos"&&!ukiMesas.used&&typeof window.ukiMesasQAToken==="function")
     setTimeout(()=>{if(S.vista==="pedidos"&&S.suc)ukiMesaActualizar();},0);
+  if(v==='pedidos')setTimeout(()=>{if(S.vista==='pedidos'&&S.suc)void ukiCartaRemotasActualizar();},0);
   window.scrollTo({top:0,behavior:"instant"});
 }
 
@@ -3010,18 +3012,22 @@ function vPedidos(){
     (id==="pendientes"&&s.estado==="pendiente")||
     (id==="rechazados"&&s.estado==="rechazada");
   const visiblesSolicitudes=solicitudes.filter(s=>solicitudEnCategoria(s,filtroCategoriaPedidos));
+  const remotas=ukiCartaRemotasSucursal().filter(r=>r.estado==='pendiente'||r.estado==='rechazada');
+  const solicitudRemotaEnCategoria=(r,id)=>id==='todos'||(id==='pendientes'&&r.estado==='pendiente')||(id==='rechazados'&&r.estado==='rechazada');
+  const visiblesRemotas=remotas.filter(r=>solicitudRemotaEnCategoria(r,filtroCategoriaPedidos));
   const visibles=todos.filter(p=>ukiCoincideCategoriaPedido(p,filtroCategoriaPedidos,erroresPedidos));
   const categorias=UKI_CATEGORIAS_PEDIDOS.map(([id,nombre])=>
     '<button type="button" class="chip'+(filtroCategoriaPedidos===id?' on':'')+
     '" onclick="ukiCambiarCategoriaPedidos(\''+id+'\')">'+esc(nombre)+
-    ' ('+(todos.filter(p=>ukiCoincideCategoriaPedido(p,id,erroresPedidos)).length+solicitudes.filter(s=>solicitudEnCategoria(s,id)).length)+')</button>'
+    ' ('+(todos.filter(p=>ukiCoincideCategoriaPedido(p,id,erroresPedidos)).length+solicitudes.filter(s=>solicitudEnCategoria(s,id)).length+remotas.filter(r=>solicitudRemotaEnCategoria(r,id)).length)+')</button>'
   ).join("");
   const titulo=buscando?"Resultados de búsqueda":pedidosArchivoDia?"Pedidos del turno "+pedidosArchivoDia:"Pedidos del turno abierto · "+fechaTurno;
-  return `<div class="section-head"><h2>Pedidos</h2><p>${esc(titulo)} · ${todos.length} registrados · ${pagados} pagados · ${solicitudes.length} solicitudes pendientes o rechazadas</p></div>
+  return `<div class="section-head"><h2>Pedidos</h2><p>${esc(titulo)} · ${todos.length} registrados · ${pagados} pagados · ${solicitudes.length+remotas.length} solicitudes pendientes o rechazadas</p></div>
   <button class="big cta" onclick="ir('nuevo')">＋ Nuevo pedido</button>
   <div class="card"><h2 style="margin:0 0 8px">Clasificar pedidos</h2>
     <div class="chips" role="group" aria-label="Filtrar pedidos por estado y pago">${categorias}</div>
-    <p class="muted">${visibles.length+visiblesSolicitudes.length} registro(s) en «${esc((UKI_CATEGORIAS_PEDIDOS.find(x=>x[0]===filtroCategoriaPedidos)||[])[1]||"Todos")}». Los rechazados no suman a caja, ventas ni timbres.</p></div>
+    <p class="muted">📲 Carta normal: ${esc(ukiCartaRemotas.status)} <button type="button" class="sm" onclick="ukiCartaRemotasActualizar()">Actualizar</button></p>
+    <p class="muted">${visibles.length+visiblesSolicitudes.length+visiblesRemotas.length} registro(s) en «${esc((UKI_CATEGORIAS_PEDIDOS.find(x=>x[0]===filtroCategoriaPedidos)||[])[1]||"Todos")}». Los rechazados no suman a caja, ventas ni timbres.</p></div>
   ${(filtroCategoriaPedidos==="todos"||filtroCategoriaPedidos==="pendientes")?ukiMesasUI():""}
   ${pedidosArchivoDia||buscando?'<button class="sm" onclick="limpiarFiltrosPedidos()">← Volver al turno abierto</button>':''}
   <details class="card" ${buscando?'open':''}><summary style="cursor:pointer"><b>🔎 Buscar por nombre, WhatsApp, código del cliente, pedido o fecha</b></summary>
@@ -3060,8 +3066,9 @@ function vPedidos(){
     <div class="order-actions">${ukiCuentaAbierta(p)&&esDelPeriodo(p)?`<button class="sm ok" onclick="ukiAgregarACuenta(${p.id})">+ Agregar a cuenta</button>`:""}${p.estado!=="Cancelado"?`<button class="sm ok" onclick="editarPedido(${p.id})">Editar</button><button class="sm" onclick="togglePagado(${p.id})">${p.pagado?'Quitar pagado':'Marcar pagado'}</button>`:""}<button class="sm" onclick="copiarComanda(${p.id})">Copiar comanda</button></div>
     ${puedeCancelarPedido(p)?`<div class="inner-details" style="padding:12px;margin-top:12px;border:1px solid #e7c8b3;border-radius:12px"><label for="motivoCancelacion${p.id}">Cancelar pedido · Motivo obligatorio</label><select id="motivoCancelacion${p.id}"><option value="">Selecciona un motivo</option><option value="cliente">Lo canceló el cliente</option><option value="local">Lo canceló el local</option></select><button class="sm" type="button" onclick="cancelarPedido(${p.id})" style="color:#9b3328;border-color:#dcb4a5">Cancelar pedido</button><p class="muted">Solo pedidos pendientes sin pago del turno abierto. Queda en el historial.</p></div>`:""}
     </div></details>`).join('')}
+  ${visiblesRemotas.map(r=>ukiCartaRemotaFicha(r)).join('')}
   ${visiblesSolicitudes.map(s=>'<div class="card order-card"><p class="muted"><b>Origen: WhatsApp · '+(s.estado==="rechazada"?"RECHAZADO":"Pendiente de confirmación")+'</b></p>'+ukiWhatsAppFicha(s,s.estado==="pendiente")+'</div>').join('')}
-  ${!visibles.length&&!visiblesSolicitudes.length?'<div class="card muted">'+(todos.length||solicitudes.length?'No hay pedidos en esta categoría. Selecciona «Todos» para verlos.':'Todavía no hay pedidos. Pulsa Nuevo pedido para comenzar.')+'</div>':''}`;
+  ${!visibles.length&&!visiblesSolicitudes.length&&!visiblesRemotas.length?'<div class="card muted">'+(todos.length||solicitudes.length||remotas.length?'No hay pedidos en esta categoría. Selecciona «Todos» para verlos.':'Todavía no hay pedidos. Pulsa Nuevo pedido para comenzar.')+'</div>':''}`;
 }
 let pedidoExpandido=null;
 
@@ -3218,6 +3225,9 @@ async function ndGuardar(){
   const idNuevo=S.nextId++;
   const nuevoPedido={id:idNuevo,numeroTurno,turnoClave,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),cliente:D.cliente,telefono:D.telefono||"",codigoCarta:D.codigoCarta||"",codigoCliente:D.codigoCliente||"",qrSolicitudes:Array.isArray(D.qrSolicitudes)?[...new Set(D.qrSolicitudes)]:[],sucursalCarta:D.sucursalCarta||"",mesaReferencia:D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():"",modalidad:D.modalidad,envio:envio,medio:D.medio,medioEnvio:D.medioEnvio,...datosPago,pagado:D.pagado,estado:"Pendiente",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),total:total,subtotal:sub,propina:propina,propinaModo:D.propinaModo,medioPropina:D.medioPropina,textoOriginal:D.texto,esPremio:false};
   S.pedidos.push(nuevoPedido);
+  // La solicitud remota NO era venta; la caja la registra solo aquí.
+  // Confirmar el estado remoto cuando Firebase verifique el respaldo.
+  if(ukiCartaRemotaActiva){ukiCartaRemotaActiva=null;setTimeout(()=>void ukiCartaConfirmarRespaldados(),1200);}
   ukiWhatsAppMarcarAceptada(nuevoPedido);
   ukiSincronizarPropinaPedido(nuevoPedido);
   if(D.cliente && D.pagado && !D.productosPagadosOtroLocal){
@@ -4059,6 +4069,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 <script src="./uki-caja-acumulada-exportar.js" defer></script>
 <script src="./uki-caja-acumulada-admin.js" defer></script>
 <script src="./uki-control-turnos.js" defer></script>
+<script src="./uki-carta-remotas-panel.js" defer></script>
 <script type="module">
 
 import {initializeApp} from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
