@@ -39,4 +39,22 @@ jobs:
           const bad=await fetch(base+'?branch=otra',{headers:{Origin:origin},signal:AbortSignal.timeout(12000)});
           assert.equal(bad.status,400);
           console.log('QA sucursal inválida: HTTP 400');
+          const qaPanel='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app';
+          const options=await fetch(base,{method:'OPTIONS',headers:{Origin:qaPanel,'Access-Control-Request-Method':'POST'}});
+          assert.equal(options.status,204);
+          assert.equal(options.headers.get('access-control-allow-origin'),qaPanel);
+          const denied=await fetch(base,{method:'POST',headers:{Origin:qaPanel,'Content-Type':'application/json'},
+            body:JSON.stringify({branch:'arica',action:'listar'}),signal:AbortSignal.timeout(12000)});
+          assert.equal(denied.status,403,'Una petición sin token nunca puede modificar disponibilidad');
+          console.log('QA administración: CORS correcto y acceso sin Google rechazado (403)');
+          const page=await fetch(qaPanel+'/firebase/uki-sushi-local.html',{signal:AbortSignal.timeout(12000)});
+          assert.equal(page.status,200,'Panel HTML de preview debe existir');
+          const html=await page.text();
+          assert.match(html,/uki-disponibilidad-admin\\.js/);
+          const adminScript=await fetch(qaPanel+'/firebase/uki-disponibilidad-admin.js',{signal:AbortSignal.timeout(12000)});
+          assert.equal(adminScript.status,200,'Módulo de disponibilidad QA debe existir');
+          const script=await adminScript.text();
+          assert.match(script,/QA_HOST/);
+          assert.match(script,/location\\.hostname===QA_HOST/);
+          console.log('QA interfaz: HTML y módulo admin cargan desde preview');
           JS
