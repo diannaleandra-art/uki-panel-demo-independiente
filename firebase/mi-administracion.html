@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow,noarchive"><meta name="theme-color" content="#fffaf5"><title>Mi Administración Privada · Pruebas Uki</title>
 <style>
-:root{--ink:#2b251f;--muted:#796d63;--paper:#fffaf5;--line:#ebe1d8;--warm:#b56b32;--dark:#6b381e;--soft:#f8f1eb}
+:root{--ink:#30251f;--muted:#87776b;--paper:#fcf9f5;--line:#eee5dc;--warm:#ef820e;--dark:#b65d00;--soft:#fff4e8}
 *{box-sizing:border-box}
 body{margin:0;color:var(--ink);background:var(--paper);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding-bottom:calc(90px + env(safe-area-inset-bottom))}
 header{position:sticky;top:0;z-index:6;background:#fffdf9;border-bottom:1px solid var(--line);padding:calc(10px + env(safe-area-inset-top)) 17px 11px;display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -30,6 +30,34 @@ footer{font-size:12px;color:var(--muted);text-align:center;padding:15px}details{
 .view[hidden],.card[hidden],[hidden]{display:none!important}
 a{color:#70431c}b{overflow-wrap:anywhere}
 @media(max-width:360px){.grid2{grid-template-columns:1fr}.metric b{font-size:17px}}
+
+/* Diseño sencillo y familiar, inspirado en las tarjetas del panel operativo Uki. */
+header{background:#fff;color:var(--ink);box-shadow:none}
+header h1{font-size:19px;letter-spacing:-.5px}
+header small{font-size:12px}
+main{max-width:600px;padding:18px 14px 30px}
+.card{border-radius:16px;padding:16px;border:1px solid #eee6df;box-shadow:0 2px 8px #37271906}
+.card h2{font-size:17px;letter-spacing:-.25px}
+button.primary{background:#ed810e;border-color:#ed810e;color:white}
+button.primary:focus-visible,button:focus-visible,select:focus-visible{outline:3px solid #b65d00;outline-offset:2px}
+nav button.active{background:#fff1e3;color:#af5700}
+nav{box-shadow:0 -8px 24px #40260e0a;gap:2px}
+label{color:#66574c}
+.welcome{margin:0 2px 16px}
+.welcome h2{font-size:23px;letter-spacing:-.7px;margin:4px 0}
+.welcome p{color:var(--muted);font-size:13px}
+.eyebrow{color:#a85f1a;font-size:11px;font-weight:800;letter-spacing:1px}
+.quick-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.quick-action{min-height:104px;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;text-align:left;gap:5px;border:1px solid var(--line);border-radius:13px;background:white;padding:13px}
+.quick-action .emoji{font-size:25px;line-height:1.1}
+.quick-action strong{font-size:13px;color:var(--ink)}
+.quick-action small{font-size:11px;line-height:1.3}
+.steps{font-size:12px;padding:10px 12px;background:#fff5eb;color:#82572d;border-radius:11px}
+.fieldset-title{font-size:15px;font-weight:800;margin:20px 0 6px;padding-top:12px;border-top:1px solid var(--line)}
+.metric b{color:#30251f}
+.view>.card{scroll-margin-top:110px}
+#filterCard{scroll-margin-top:90px}
+@media(max-width:360px){.quick-action{min-height:120px}.quick-action strong{font-size:12px}}
 </style></head><body>
 <header><div><h1>🔒 Mi Administración</h1><small>Finanzas de tus negocios · Entorno de pruebas</small></div><button id="exit" hidden>Salir</button></header>
 <main><p id="notice" role="status" aria-live="polite">Conectando acceso privado…</p>
@@ -39,26 +67,50 @@ a{color:#70431c}b{overflow-wrap:anywhere}
 <div class="grid2"><div><label>Nuevo PIN de 6 números</label><input id="newpin" type="password" inputmode="numeric" pattern="[0-9]{6}" autocomplete="new-password" maxlength="6"></div><div><label>Repite el PIN</label><input id="againpin" type="password" inputmode="numeric" maxlength="6"></div></div><button class="primary" id="configure">Crear acceso privado</button></section>
 <section id="unlock" class="card" hidden><h2>Tu código privado</h2><label>PIN de 6 números</label><input id="pin" type="password" inputmode="numeric" pattern="[0-9]{6}" autocomplete="off" maxlength="6"><button class="primary" id="enter">Abrir Mi Administración</button><p class="hint">La sesión privada caduca después de 30 minutos. No afecta el acceso normal de Uki.</p></section>
 <section id="app" hidden>
-<div class="card"><div class="row"><strong>🏢 Negocio</strong><span class="pill">Privado</span></div><select id="scopeBusiness" aria-label="Filtrar por negocio"><option value="">Todos los negocios</option></select><label>Sucursal</label><select id="scopeBranch"><option value="">Todas las sucursales</option></select>
-<div class="grid2"><div><label>Desde</label><input id="from" type="date"></div><div><label>Hasta</label><input id="to" type="date"></div></div>
-<button class="soft" id="refresh">Actualizar resultados</button></div>
-<section class="view" id="v-resumen"><div class="card"><h2>Resumen financiero</h2><p class="hint">Importes registrados en esta administración; no es una utilidad contable definitiva. No se suman automáticamente cierres del panel operativo.</p><div class="metrics"><div class="metric"><small>Ventas registradas</small><b id="m-ventas">$0</b></div><div class="metric"><small>Compras y gastos pagados</small><b id="m-gastos">$0</b></div><div class="metric"><small>Resultado preliminar</small><b id="m-resultado">$0</b></div><div class="metric"><small>Cuentas pendientes</small><b id="m-pendientes">$0</b></div></div></div>
-<div class="card"><h2>Desglose por medios de pago</h2><div id="mediosReport"><p class="muted">Aún sin datos.</p></div></div>
-<div class="card"><h2>Movimientos recientes</h2><div id="recent"></div></div></section>
-<section class="view" id="v-ventas" hidden><div class="card"><h2>Registrar venta o cierre</h2><p class="hint">Ventas manuales y cierres de cualquier negocio. Una venta guardada aquí no altera la caja de Uki.</p>
-<label>Negocio</label><select id="saleBiz"></select><label>Sucursal</label><select id="saleBranch"></select>
-<div class="grid2"><div><label>Fecha de venta</label><input type="date" id="saleDate"></div><div><label>Venta total ($)</label><input inputmode="numeric" type="number" min="0" id="saleTotal" placeholder="250000"></div></div>
+<section id="filterCard" class="card">
+<div class="row"><strong>🏪 Elige tu negocio</strong><span class="pill">Solo dueños</span></div>
+<label for="scopeBusiness">¿Qué negocio quieres revisar?</label><select id="scopeBusiness" aria-label="Filtrar por negocio"><option value="">Todos mis negocios</option></select>
+<label for="scopeBranch">Sucursal</label><select id="scopeBranch"><option value="">Todas las sucursales</option></select>
+<details id="dateFilters"><summary>📅 Fechas del informe · Ver o cambiar</summary>
+<p class="hint">Por defecto aparecen los registros de este mes. Puedes consultar cualquier fecha anterior.</p>
+<div class="grid2"><div><label>Desde</label><input id="from" type="date"></div><div><label>Hasta</label><input id="to" type="date"></div></div></details>
+<button class="soft" id="refresh">Actualizar resultados</button></section>
+<section class="view" id="v-resumen">
+<div class="welcome"><span class="eyebrow">MI ADMINISTRACIÓN · PRIVADO</span>
+<h2>¿Qué quieres hacer hoy?</h2><p>Elige el negocio arriba y toca una opción. No necesitas saber de contabilidad para usarlo.</p></div>
+<div class="quick-grid" id="homeActions">
+<button type="button" class="quick-action" data-go="ventas"><span class="emoji">🧾</span><strong>Agregar venta o cierre</strong><small>Manual, foto o PDF del cierre</small></button>
+<button type="button" class="quick-action" data-go="gastos"><span class="emoji">💸</span><strong>Registrar gasto</strong><small>Compras, sueldos y proveedores</small></button>
+<button type="button" class="quick-action" data-go="facturas"><span class="emoji">📷</span><strong>Guardar factura</strong><small>Fotos, boletas y comprobantes</small></button>
+<button type="button" class="quick-action" data-go="negocios"><span class="emoji">🏪</span><strong>Mis negocios</strong><small>Agregar locales y costos</small></button>
+</div>
+<div class="card"><h2>📊 ¿Cómo va el negocio?</h2>
+<p class="hint">Estos importes son solamente los que registres aquí. La caja del panel Uki se mantiene separada y las cifras no son ganancias definitivas.</p>
+<div class="metrics"><div class="metric"><small>Ventas anotadas</small><b id="m-ventas">$0</b></div>
+<div class="metric"><small>Gastos y compras pagadas</small><b id="m-gastos">$0</b></div>
+<div class="metric"><small>Resultado preliminar*</small><b id="m-resultado">$0</b></div>
+<div class="metric"><small>Pagos pendientes</small><b id="m-pendientes">$0</b></div></div>
+<p class="hint">*Para conocer la utilidad real faltan costos completos, sueldos, impuestos y otros gastos que corresponda considerar.</p></div>
+<details class="card"><summary>💳 Ver ventas por medio de pago</summary><div id="mediosReport"><p class="muted">Aún sin datos.</p></div></details>
+<details class="card"><summary>📖 Ver movimientos registrados</summary><div id="recent"></div></details>
+</section>
+<section class="view" id="v-ventas" hidden><div class="card">
+<div class="eyebrow">VENTAS Y CIERRES</div><h2>🧾 Agregar venta o cierre de un local</h2>
+<p class="steps">1. Elige negocio y fecha. 2. Escribe cuánto se vendió y cómo pagaron. 3. Revisa y guarda.</p>
+<p class="hint">También puedes adjuntar la foto del cierre. No cambia la caja operativa de Uki.</p>
+<div class="fieldset-title">1 · ¿De qué negocio es la venta?</div><label>Negocio</label><select id="saleBiz"></select><label>Sucursal</label><select id="saleBranch"></select>
+<div class="fieldset-title">2 · Fecha y total vendido</div><div class="grid2"><div><label>Fecha de venta</label><input type="date" id="saleDate"></div><div><label>Venta total ($)</label><input inputmode="numeric" type="number" min="0" id="saleTotal" placeholder="250000"></div></div>
 <label>Origen</label><select id="saleSource"><option value="manual">Venta manual</option><option value="cierre">Cierre de caja importado</option></select>
 <label>Referencia del cierre (si corresponde)</label><input id="saleRef" placeholder="Ej.: cierre 06-11 turno noche">
-<h3>Medios de pago</h3><div class="grid2" id="paymentFields"></div><p class="hint" id="paymentSum">La suma de medios debe coincidir con la venta.</p>
+<div class="fieldset-title">3 · ¿Cómo pagaron los clientes?</div><p class="hint">Escribe solo en los medios de pago que aparezcan en el cierre. Si no tienes el desglose, puedes completarlo después.</p><div class="grid2" id="paymentFields"></div><p class="hint" id="paymentSum">La suma de medios debe coincidir con la venta.</p>
 <details><summary>Otros conceptos del cierre</summary>
 <div class="grid2"><div><label>Pedidos</label><input id="saleOrders" type="number" min="0"></div><div><label>Deliverys</label><input id="saleDelivery" type="number" min="0"></div><div><label>Propinas ($)</label><input id="saleTips" type="number" min="0"></div><div><label>Efectivo contado ($)</label><input id="saleCash" type="number" min="0"></div><div><label>Gastos del cierre ($)</label><input id="saleCloseExpenses" type="number" min="0"></div><div><label>Retiros ($)</label><input id="saleWithdrawals" type="number" min="0"></div></div>
 <label>Observaciones / conceptos adicionales</label><textarea id="saleNotes" placeholder="Responsable, diferencia de caja, repartidores…"></textarea></details>
 <label>Fotografía o PDF del cierre (opcional)</label><input type="file" id="salePhoto" accept="image/*,application/pdf">
 <p class="hint">Si tu navegador permite reconocer texto en imágenes, se sugerirán las cifras al elegir una foto. En iPhone también puedes copiar el texto de la foto con Texto en Vivo y pegarlo aquí. Verifica todas las cantidades.</p>
 <details><summary>🧾 Pegar o revisar el texto de un cierre</summary><label>Texto del cierre</label><textarea id="saleRawText" placeholder="Efectivo $120.000&#10;Transferencia $85.000&#10;Débito $145.000&#10;Venta total $350.000"></textarea><button type="button" class="soft" id="interpretClose">Interpretar y completar cifras</button><p id="closeReadResult" class="hint"></p></details>
-<button class="primary" id="saveSale">Guardar venta y cierre</button></div></section>
-<section class="view" id="v-gastos" hidden><div class="card"><h2>Registrar gasto o compra</h2><label>Negocio</label><select id="expenseBiz"></select><label>Sucursal</label><select id="expenseBranch"></select>
+<div class="fieldset-title">4 · Confirmar</div><p class="steps">Revisa negocio, fecha, total y medios de pago. No se modificarán los cierres existentes de Uki.</p><button class="primary" id="saveSale">✓ Guardar venta o cierre</button></div></section>
+<section class="view" id="v-gastos" hidden><div class="card"><div class="eyebrow">GASTOS Y COMPRAS</div><h2>💸 Registrar un gasto</h2><p class="steps">Elige el negocio, el monto y el motivo. Puedes adjuntar la factura aquí mismo.</p><label>Negocio</label><select id="expenseBiz"></select><label>Sucursal</label><select id="expenseBranch"></select>
 <div class="grid2"><div><label>Fecha</label><input type="date" id="expenseDate"></div><div><label>Monto ($)</label><input type="number" min="0" id="expenseAmount"></div></div>
 <label>Tipo</label><select id="expenseType"><option value="gasto">Gasto operativo</option><option value="compra">Compra de mercadería</option><option value="retiro">Retiro del dueño</option><option value="ingreso_extra">Ingreso extraordinario</option></select>
 <label>Categoría</label><select id="expenseCategory"><option>Mercadería</option><option>Arriendo</option><option>Sueldos</option><option>Agua</option><option>Luz</option><option>Gas</option><option>Internet</option><option>Servicios</option><option>Delivery</option><option>Mantención</option><option>Otros</option></select>
@@ -66,12 +118,12 @@ a{color:#70431c}b{overflow-wrap:anywhere}
 <label style="display:flex;align-items:center;gap:10px"><input type="checkbox" id="expensePending" style="width:20px;min-height:20px;margin:0"> Aún está pendiente de pago</label>
 <label>Vencimiento (si aún está pendiente)</label><input id="expenseDue" type="date"><label>Adjuntar factura o comprobante (opcional)</label><input id="expensePhoto" type="file" accept="image/*,application/pdf">
 <button class="primary" id="saveExpense">Guardar gasto o compra</button></div></section>
-<section class="view" id="v-facturas" hidden><div class="card"><h2>Documentos y facturas</h2><p class="hint">Se guardan en una tabla privada, separados de las fotos de inventario. El PIN es obligatorio para consultar archivos.</p>
+<section class="view" id="v-facturas" hidden><div class="card"><div class="eyebrow">FACTURAS Y COMPROBANTES</div><h2>📷 Guardar una factura o boleta</h2><p class="steps">Selecciona el negocio y toma una foto con tu iPhone o adjunta un PDF. Quedará guardado en su historial.</p><p class="hint">Se guardan en una tabla privada, separados de las fotos de inventario. El PIN es obligatorio para consultar archivos.</p>
 <label>Negocio</label><select id="docBiz"></select><label>Sucursal</label><select id="docBranch"></select><div class="grid2"><div><label>Tipo</label><select id="docType"><option value="factura">Factura</option><option value="boleta">Boleta</option><option value="cierre">Cierre</option><option value="comprobante">Comprobante</option><option value="otro">Otro</option></select></div><div><label>Fecha</label><input id="docDate" type="date"></div></div>
 <label>Proveedor</label><input id="docVendor" placeholder="Ej.: distribuidora"><label>Foto o PDF</label><input type="file" id="docFile" accept="image/*,application/pdf">
 <button class="primary" id="saveDoc">Guardar documento</button></div>
 <div class="card"><h2>Historial de documentos</h2><div id="docList"></div></div></section>
-<section class="view" id="v-negocios" hidden><div class="card"><h2>Mis negocios</h2><div id="businessList"></div>
+<section class="view" id="v-negocios" hidden><div class="card"><div class="eyebrow">ORGANIZACIÓN</div><h2>🏪 Mis negocios y locales</h2><p class="steps">Aquí puedes agregar más negocios, sucursales y costos de sus productos.</p><div id="businessList"></div>
 <details><summary>＋ Agregar negocio</summary><label>Nombre</label><input id="newBizName" placeholder="Ej.: Crepe Pop"><label>Razón social (opcional)</label><input id="newBizReason"><button class="primary" id="newBiz">Crear negocio</button></details>
 <details><summary>＋ Agregar sucursal</summary><label>Negocio</label><select id="newBranchBiz"></select><label>Nombre de sucursal</label><input id="newBranchName" placeholder="Ej.: La Serena"><button class="primary" id="newBranch">Crear sucursal</button></details></div>
 <div class="card"><h2>Costos por producto</h2><p class="hint">Para comenzar a calcular márgenes. Los costos no se descuentan automáticamente de las ventas hasta conciliar inventario y compras.</p>
@@ -80,7 +132,7 @@ a{color:#70431c}b{overflow-wrap:anywhere}
 <div id="costList"></div></div></section>
 </section>
 <footer>Entorno de pruebas · No modifica los cierres, inventario ni ventas existentes de Uki</footer>
-</main><nav id="tabs" hidden><button data-tab="resumen" class="active"><i>▤</i>Resumen</button><button data-tab="ventas"><i>＄</i>Ventas</button><button data-tab="gastos"><i>▣</i>Gastos</button><button data-tab="facturas"><i>▥</i>Facturas</button><button data-tab="negocios"><i>◫</i>Negocios</button></nav>
+</main><nav id="tabs" hidden><button data-tab="resumen" class="active"><i>⌂</i>Inicio</button><button data-tab="ventas"><i>＄</i>Ventas</button><button data-tab="gastos"><i>▣</i>Gastos</button><button data-tab="facturas"><i>▥</i>Facturas</button><button data-tab="negocios"><i>◫</i>Negocios</button></nav>
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
 import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
@@ -220,15 +272,26 @@ async function upload(file,b,s,kind,fecha,linked,proveedor){
  const data=await fileData(file);
  return api('guardar_documento',{...data,negocio_id:b,sucursal_id:s||null,tipo:kind,fecha_documento:fecha,movimiento_id:linked||null,proveedor:proveedor||''});
 }
+function syncSelectedBusiness(name){
+ const chosen=currentBiz(),branch=currentBranch();
+ const map={ventas:['saleBiz','saleBranch'],gastos:['expenseBiz','expenseBranch'],facturas:['docBiz','docBranch']};
+ const ids=map[name];
+ if(!ids||!chosen||!businesses.some(b=>b.id===chosen))return;
+ $(ids[0]).value=chosen;chooseBranch(ids[1],chosen);
+ if(branch&&branchesFor(chosen).some(s=>s.id===branch))$(ids[1]).value=branch;
+}
 function switchTab(name){
  tab=name;
  for(const v of document.querySelectorAll('.view'))v.hidden=v.id!=='v-'+name;
+ $('filterCard').hidden=!['resumen','negocios'].includes(name);
  for(const btn of document.querySelectorAll('[data-tab]'))btn.classList.toggle('active',btn.dataset.tab===name);
+ syncSelectedBusiness(name);
  window.scrollTo({top:0,behavior:'smooth'});
  if(name==='facturas')void loadDocs();
  if(name==='negocios')void loadCosts();
 }
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
+document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>switchTab(b.dataset.go));
 function moneyRows(m){return Object.entries(m).filter(([k,v])=>Number(v)>0).map(([k,v])=>'<div class="line row"><span>'+esc(k)+'</span><b>'+pesos(v)+'</b></div>').join('')}
 function renderRows(){
  $('recent').innerHTML=transactions.slice(0,35).map(t=>'<div class="line"><div class="row"><b>'+esc(t.tipo)+' · '+pesos(t.monto)+'</b><span>'+esc(String(t.fecha).slice(0,10))+'</span></div><small>'+esc(businessName(t.negocio_id))+' · '+esc(branchName(t.sucursal_id))+' · '+esc(t.concepto||t.referencia||'Sin concepto')+'</small><div class="hint">'+esc(t.estado)+(t.datos?.vence?' · vence '+esc(String(t.datos.vence).slice(0,10)):'')+'</div>'+
