@@ -37,8 +37,11 @@ BEGIN
  IF jsonb_typeof(p_articulos)<>'array' OR jsonb_array_length(p_articulos)>60 THEN
    RAISE EXCEPTION 'Los artículos deben ser una lista de hasta 60 productos.';
  END IF;
- k=md5(concat_ws('|','compra_factura',p_negocio::text,lower(btrim(p_proveedor)),
-                      p_fecha::text,lower(btrim(p_referencia)),p_total::text,coalesce(p_documento_clave,'')));
+ k=md5(concat_ws('|','compra_factura',p_negocio::text,coalesce(p_sucursal::text,'sin-sucursal'),
+                      lower(btrim(p_proveedor)),p_fecha::text,
+                      CASE WHEN length(btrim(p_referencia))>0 THEN 'folio:'||lower(btrim(p_referencia))
+                           ELSE 'total:'||p_total::text END,
+                      coalesce(p_documento_clave,'')));
  SELECT id INTO existing FROM public.fin_movimientos WHERE clave_unica=k;
  IF existing IS NOT NULL THEN
   RETURN jsonb_build_object('ok',false,'duplicado',true,'id',existing);
@@ -47,6 +50,7 @@ BEGIN
  SELECT id INTO existing FROM public.fin_movimientos WHERE negocio_id=p_negocio
   AND sucursal_id IS NOT DISTINCT FROM p_sucursal AND fecha=p_fecha AND tipo IN ('compra','gasto')
   AND monto=p_total AND lower(btrim(proveedor))=lower(btrim(p_proveedor))
+  AND (fuente='manual' OR lower(btrim(referencia))=lower(btrim(p_referencia)))
   AND estado<>'anulado' LIMIT 1;
  IF existing IS NOT NULL THEN
   RETURN jsonb_build_object('ok',false,'posible_duplicado',true,'id',existing);
