@@ -1,0 +1,74 @@
+name: Uki publicación conjunta - comprobación HTTP
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Comprobar portal operativo, carta pública y seguridad de caja sin generar movimientos
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          const site='https://diannaleandra-art.github.io/uki-panel-demo-independiente/firebase';
+          const origin='https://diannaleandra-art.github.io';
+          const api='https://uki-sushi-inventario.vercel.app';
+          const menu='https://uki-sushi-pedidos.vercel.app';
+          const get=async(url,init={})=>fetch(url,{...init,signal:AbortSignal.timeout(14000),cache:'no-store'});
+          let done=false;
+          for(let attempt=1;attempt<=18;attempt++){
+            try{
+              const p=await get(site+'/uki-sushi-local.html');
+              assert.equal(p.status,200,'Portal Uki no abre');
+              const html=await p.text();
+              for(const file of ['uki-carta-precios-admin.js','uki-inventario-historial-admin.js','uki-caja-acumulada-exportar.js','uki-caja-acumulada-admin.js'])
+                assert.ok(html.includes(file),'Falta '+file+' en panel operativo');
+              for(const file of ['uki-carta-precios-admin.js','uki-inventario-historial-admin.js','uki-caja-acumulada-exportar.js','uki-caja-acumulada-admin.js']){
+                const r=await get(site+'/'+file);
+                assert.equal(r.status,200,'Módulo '+file+' no se publicó');
+              }
+              console.log('Portal operativo y sus cuatro módulos: HTTP 200');
+              done=true;break;
+            }catch(e){
+              console.log('Portal GitHub Pages todavía propagando, intento '+attempt+': '+String(e.message).slice(0,130));
+              if(attempt<18)await new Promise(resolve=>setTimeout(resolve,5000));
+              else throw e;
+            }
+          }
+          assert.ok(done);
+          const form=await get(api+'/api/uki-caja-acumulada-live',{
+            method:'OPTIONS',
+            headers:{Origin:origin,'Access-Control-Request-Method':'POST',
+              'Access-Control-Request-Headers':'authorization,content-type'}});
+          assert.equal(form.status,204,'CORS desde el panel habitual');
+          assert.equal(form.headers.get('access-control-allow-origin'),origin);
+          console.log('API Caja acumulada: CORS desde acceso habitual correcto');
+          const unauthorized=await get(api+'/api/uki-caja-acumulada-live',{
+            method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},
+            body:JSON.stringify({branch:'arica',action:'saldo'})});
+          assert.equal(unauthorized.status,403,'No permitir ver saldos sin sesión Google');
+          console.log('Caja acumulada: sin Google HTTP 403 (segura)');
+          const qa=await get(api+'/api/uki-caja-acumulada-qa',{
+            method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},
+            body:JSON.stringify({branch:'arica',action:'saldo'})});
+          assert.equal(qa.status,404,'Caja QA no disponible en producción');
+          console.log('Caja QA oculta en producción');
+          const m=await get(menu+'/');
+          assert.equal(m.status,200);
+          const mh=await m.text();
+          assert.ok(mh.includes('app.js?v=uki-mixta-delivery-20261107'));
+          assert.ok(mh.includes('DELIVERY POR CONFIRMAR'));
+          console.log('Carta QR pública: nueva versión y delivery extendido confirmados');
+          for(const branch of ['arica','serena']){
+            const a=await get(api+'/api/uki-carta-precios-live?branch='+branch,{headers:{Origin:menu}});
+            const j=await a.json();
+            assert.equal(a.status,200,JSON.stringify(j));assert.equal(j.ok,true);
+            assert.equal(j.branch,branch);
+            console.log('Precios '+branch+': API 200');
+          }
+          JS
