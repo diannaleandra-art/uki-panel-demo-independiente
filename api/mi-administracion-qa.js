@@ -315,8 +315,8 @@ module.exports=async(req,res)=>{
    await belongs(sql,business,local);
    const legal=String(body.razon_social_id||'');
    if(!uuid.test(legal))return fail(res,400,'Elige la razón social compradora de esta factura.');
-   const association=await sql.query('SELECT 1 FROM public.fin_negocio_razones WHERE negocio_id=$1 AND razon_social_id=$2',[business,legal]);
-   if(!association.length)return fail(res,400,'La razón social no está vinculada al negocio seleccionado.');
+   const association=await sql.query('SELECT 1 FROM public.fin_razones_sociales WHERE id=$1 AND activo=true',[legal]);
+   if(!association.length)return fail(res,400,'La razón social seleccionada no existe.');
    const proveedor=text(body.proveedor,120),referencia=text(body.referencia,130);
    const total=Number(body.total),neto=Number(body.neto),iva=Number(body.iva);
    const otros=Number(body.otros),descuento=Number(body.descuento);
@@ -336,15 +336,48 @@ module.exports=async(req,res)=>{
     cleans.push({nombre,cantidad:String(cantidad),precio_unitario:String(precio),
       total:String(importe),unidad:unidad||'un'});
    }
+   // La asignación a uno o dos locales se hace en la MISMA transacción que crea la factura.
+   // Ausencia de reparto significa 'General' (no se imputa a un local por suposición).
+   const destinos=body.destinos==null?null:body.destinos;
+   if(destinos!==null){
+    if(!Array.isArray(destinos)||destinos.length<1||destinos.length>2)
+     return fail(res,400,'La compra puede distribuirse a uno o dos locales.');
+    let sum=0;const seen=new Set();
+    for(const x of destinos){
+     if(!uuid.test(String(x.negocio_id||''))||!uuid.test(String(x.sucursal_id||''))||
+       !money(Number(x.monto))||Number(x.monto)<1||seen.has(x.sucursal_id))
+      return fail(res,400,'Revisa el reparto entre sucursales.');
+     sum+=Number(x.monto);seen.add(x.sucursal_id);
+    }
+    if(sum!==total)return fail(res,400,'El reparto entre locales debe sumar el total de la factura.');
+   }
    const result=await sql.query(
-    'SELECT public.fin_registrar_compra_v2($1::uuid,$2::uuid,$3::date,$4,$5,$6::bigint,$7::bigint,$8::bigint,$9::bigint,$10::bigint,$11::boolean,$12::jsonb,$13,$14,$15::uuid,$16,$17) AS result',
+    'SELECT public.fin_registrar_compra_v3($1::uuid,$2::uuid,$3::date,$4,$5,$6::bigint,$7::bigint,$8::bigint,$9::bigint,$10::bigint,$11::boolean,$12::jsonb,$13,$14,$15::uuid,$16,$17,$18::jsonb) AS result',
     [business,local,fecha,proveedor,referencia,total,neto,iva,otros,descuento,
-     body.pendiente===true,JSON.stringify(cleans),who.uid,'',legal,text(body.comprador_factura,140),text(body.observacion_factura,140)]);
+     body.pendiente===true,JSON.stringify(cleans),who.uid,'',legal,text(body.comprador_factura,140),text(body.observacion_factura,140),destinos===null?null:JSON.stringify(destinos)]);
    const saved=result[0]?.result||{};
    if(!saved.ok)return fail(res,409,saved.duplicado?
     'Esta factura ya está registrada. No la guardamos dos veces.':
     'Existe una compra o gasto igual para ese proveedor, fecha y total. Revisa el historial antes de registrarla otra vez.');
    return ok(res,{id:saved.id,articulos:saved.articulos,registrado_como:'compra'});
+  }
+  if(action==='repartir_compra'){
+   const id=String(body.id||'');
+   const destinos=body.destinos;
+   if(!uuid.test(id)||!Array.isArray(destinos)||destinos.length<1||destinos.length>2)
+    return fail(res,400,'Selecciona uno o dos locales de destino.');
+   const cleaned=[];
+   for(const p of destinos){
+    const negocio=String(p?.negocio_id||''),local=String(p?.sucursal_id||''),monto=Number(p?.monto);
+    if(!uuid.test(negocio)||!uuid.test(local)||!Number.isSafeInteger(monto)||monto<=0||monto>1000000000)
+     return fail(res,400,'Verifica la sucursal y el monto asignado.');
+    cleaned.push({negocio_id:negocio,sucursal_id:local,monto:String(monto)});
+   }
+   if(new Set(cleaned.map(x=>x.sucursal_id)).size!==cleaned.length)
+    return fail(res,400,'Cada local debe aparecer una sola vez.');
+   const x=await sql.query('SELECT public.fin_repartir_compra_v1($1::uuid,$2::jsonb,$3) AS resultado',
+    [id,JSON.stringify(cleaned),who.uid]);
+   return ok(res,{distribucion:x[0]?.resultado});
   }
   if(action==='resumen_compras'){
    const b=body.negocio_id||null,s=body.sucursal_id||null;
@@ -403,7 +436,8 @@ module.exports=async(req,res)=>{
    const compra=await sql.query("SELECT m.id,m.negocio_id,m.sucursal_id,m.razon_social_id,coalesce(r.nombre,\'Sin clasificar\') AS razon_social,m.fecha,m.proveedor,m.referencia,m.monto,m.datos,m.estado FROM public.fin_movimientos m LEFT JOIN public.fin_razones_sociales r ON r.id=m.razon_social_id WHERE m.id=$1 AND m.tipo=\'compra\' AND m.fuente=\'factura\' LIMIT 1",[body.id]);
    if(!compra.length)return fail(res,404,'Compra no encontrada.');
    const articulos=await sql.query('SELECT posicion,descripcion,cantidad,unidad,precio_unitario,total_linea FROM public.fin_compra_items WHERE compra_id=$1 ORDER BY posicion',[body.id]);
-   return ok(res,{compra:compra[0],articulos});
+   const repartos=await sql.query('SELECT r.negocio_id,r.sucursal_id,r.monto,b.nombre AS negocio,s.nombre AS sucursal FROM public.fin_compra_repartos r JOIN public.fin_negocios b ON b.id=r.negocio_id JOIN public.fin_sucursales s ON s.id=r.sucursal_id WHERE r.compra_id=$1 ORDER BY b.nombre,s.nombre',[body.id]);
+   return ok(res,{compra:compra[0],articulos,repartos});
   }
   if(action==='guardar_documento'){
    await belongs(sql,body.negocio_id,body.sucursal_id||null);
