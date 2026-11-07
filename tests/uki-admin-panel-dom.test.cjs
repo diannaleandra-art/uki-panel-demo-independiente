@@ -93,7 +93,8 @@ test('cuatro secciones, lista corta e inventario en administración con sucursal
   const edit=d.querySelector('#ukiMiniFilas button');
   assert.ok(edit);edit.click();await tick();
   assert.equal(d.getElementById('invAdmin').style.display,'');
-  assert.equal(d.getElementById('invSelect').value,'ingredient:proteina-pollo');
+  assert.equal(d.getElementById('invSelect').value,'inv:00000000-0000-0000-0000-000000000001');
+  assert.match(d.getElementById('ukiMiniFilas').firstElementChild.textContent,/Aceite/);
   await nav('precios');
   assert.match(d.getElementById('ukiPriceList').textContent,/24 piezas/);
   assert.equal(d.getElementById('ukiMiniInventario').hidden,true);
@@ -138,7 +139,9 @@ test('cambio de sucursal durante espera de Google no desvía edición de precio 
   const amount=d.querySelector('#ukiPriceList input[type="number"]');
   const save=d.querySelector('#ukiPriceList button');
   assert.ok(amount&&save);amount.value='8500';
-  let releaseToken;w.ukiInventarioToken=()=>new Promise(resolve=>{releaseToken=resolve});
+  let releaseToken;
+  const pendingGoogle=new Promise(resolve=>{releaseToken=resolve});
+  w.ukiInventarioToken=()=>pendingGoogle;
   save.click();
   assert.ok(releaseToken,'La edición debe esperar el token');
   d.getElementById('invBranch').value='serena';
