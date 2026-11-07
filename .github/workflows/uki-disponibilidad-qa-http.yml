@@ -107,6 +107,32 @@ jobs:
             assert.equal(noGoogle.status,403,'La API debe bloquear '+action+' sin Google');
           }
           console.log('QA inventario: historial, detalle y existencias bloqueados sin Google HTTP 403');
+          // Comprobar pantalla de Google sin iniciar sesión ni pedir credenciales.
+          const checkPage=await fetch(qaPanel+'/verificar-administracion.html',{signal:AbortSignal.timeout(12000)});
+          assert.equal(checkPage.status,200,'Pantalla de prueba Google HTTP 200');
+          const body=await checkPage.text();
+          for(const part of ['Entrar con Google','SOLO PRUEBAS','Consultar historial de prueba'])
+            assert.ok(body.includes(part),'Pantalla Google sin '+part);
+          for(const part of ['/uki-admin-verificacion-qa.mjs','/uki-inventario-exportar.js']){
+            const resource=await fetch(qaPanel+part,{signal:AbortSignal.timeout(12000)});
+            assert.equal(resource.status,200,'Recurso '+part+' debe cargar');
+          }
+          const authCheck=await fetch(qaPanel+'/api/uki-admin-verificacion-qa',{
+            method:'POST',headers:{Origin:qaPanel,'Content-Type':'application/json'},
+            body:JSON.stringify({branch:'arica',action:'diagnostico'}),signal:AbortSignal.timeout(12000)});
+          assert.equal(authCheck.status,403,'No se puede acceder al diagnóstico Google sin cuenta autorizada');
+          console.log('QA Google: pantalla HTTP 200 y diagnóstico sin token bloqueado 403');
+          // Firebase expone sus dominios autorizados por la configuración pública del proyecto.
+          // Esto NO obtiene tokens ni datos de la cuenta.
+          try{
+            const authConfig=await fetch('https://identitytoolkit.googleapis.com/v1/projects?key=AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA',
+              {signal:AbortSignal.timeout(8000)});
+            if(authConfig.ok){
+              const cfg=await authConfig.json();
+              const allowed=Array.isArray(cfg.authorizedDomains)?cfg.authorizedDomains:[];
+              console.log('Firebase: dominio de pruebas Google autorizado='+allowed.includes(new URL(qaPanel).hostname));
+            }else console.log('Firebase: no se pudo confirmar lista pública de dominios (HTTP '+authConfig.status+')');
+          }catch{console.log('Firebase: lista pública de dominios no disponible para esta comprobación');}
           const preview='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app';
           const workerPage=await fetch(preview+'/',{signal:AbortSignal.timeout(12000)});
           assert.equal(workerPage.status,200,'El trabajador debe ver la interfaz QA');
