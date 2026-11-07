@@ -445,10 +445,30 @@ document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>switchTab(b.dat
 document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>switchTab(b.dataset.go));
 function moneyRows(m){return Object.entries(m).filter(([k,v])=>Number(v)>0).map(([k,v])=>'<div class="line row"><span>'+esc(k)+'</span><b>'+pesos(v)+'</b></div>').join('')}
 function renderRows(){
- $('recent').innerHTML=transactions.slice(0,35).map(t=>'<div class="line"><div class="row"><b>'+esc(t.tipo)+' · '+pesos(t.monto)+'</b><span>'+esc(String(t.fecha).slice(0,10))+'</span></div><small>'+esc(reasonName(t.razon_social_id))+' · '+esc(businessName(t.negocio_id))+' · '+esc(branchName(t.sucursal_id))+' · '+esc(t.concepto||t.referencia||'Sin concepto')+'</small><div class="hint">'+esc(t.estado)+(t.datos?.vence?' · vence '+esc(String(t.datos.vence).slice(0,10)):'')+'</div>'+
-  '<details><summary class="hint">Opciones del registro</summary>'+
-  (t.estado==='pendiente'&&['gasto','compra','retiro'].includes(t.tipo)?'<button type="button" data-pagado="'+esc(t.id)+'">Marcar pagado</button> ':'')+
-  (t.estado!=='anulado'?'<button type="button" data-anular="'+esc(t.id)+'">Anular (con confirmación)</button>':'')+'</details></div>').join('')||'<p class="muted">Aún no hay registros financieros.</p>';
+ $('recent').innerHTML=transactions.slice(0,35).map(t=>{
+  const choices=razones.filter(r=>vinculos.some(v=>v.negocio_id===t.negocio_id&&v.razon_social_id===r.id));
+  const reassign=t.estado!=='anulado'&&!(t.tipo==='compra'&&t.fuente==='factura');
+  return '<div class="line"><div class="row"><b>'+esc(t.tipo)+' · '+pesos(t.monto)+'</b><span>'+esc(String(t.fecha).slice(0,10))+'</span></div>'+
+   '<small>'+esc(reasonName(t.razon_social_id))+' · '+esc(businessName(t.negocio_id))+' · '+esc(branchName(t.sucursal_id))+
+   ' · '+esc(t.concepto||t.referencia||'Sin concepto')+'</small>'+
+   '<div class="hint">'+esc(t.estado)+(t.datos?.vence?' · vence '+esc(String(t.datos.vence).slice(0,10)):'')+'</div>'+
+   '<details><summary class="hint">Opciones del registro</summary>'+
+   (reassign?'<label>Razón social de este movimiento</label><select data-mov-select="'+esc(t.id)+'">'+
+     '<option value="">Selecciona razón social</option>'+
+     choices.map(r=>'<option value="'+esc(r.id)+'"'+(t.razon_social_id===r.id?' selected':'')+'>'+esc(r.nombre)+'</option>').join('')+
+     '</select><button class="soft" type="button" data-clasificar="'+esc(t.id)+'">Guardar razón social</button> ':'')+
+   (t.estado==='pendiente'&&['gasto','compra','retiro'].includes(t.tipo)?'<button type="button" data-pagado="'+esc(t.id)+'">Marcar pagado</button> ':'')+
+   (t.estado!=='anulado'?'<button type="button" data-anular="'+esc(t.id)+'">Anular (con confirmación)</button>':'')+
+   '</details></div>';
+ }).join('')||'<p class="muted">Aún no hay registros financieros.</p>';
+ $('recent').querySelectorAll('[data-clasificar]').forEach(b=>b.onclick=async()=>{
+  const select=$('recent').querySelector('[data-mov-select="'+b.dataset.clasificar+'"]');
+  if(!select?.value){notify('Selecciona primero una razón social.','error');return}
+  if(!confirm('¿Asignar este movimiento a la razón social elegida? El importe no cambiará.'))return;
+  try{await api('clasificar_movimiento',{id:b.dataset.clasificar,razon_social_id:select.value});await refresh();
+   notify('Movimiento clasificado sin modificar su importe.','success');}
+  catch(e){notify(e.message,'error')}
+ });
  $('recent').querySelectorAll('[data-pagado]').forEach(b=>b.onclick=async()=>{
   if(!confirm('¿Confirmas que esta cuenta fue PAGADA?'))return;
   try{await api('marcar_pagado',{id:b.dataset.pagado,fecha_pago:today()});await refresh();notify('Pago registrado sin duplicar el gasto.','success');}
