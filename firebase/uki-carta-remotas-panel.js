@@ -80,9 +80,10 @@ function ukiCartaRemotaFicha(r){
    (pendiente?'Por confirmar':'Rechazado')+'</b></p>'+
    '<p class="muted uki-whatsapp-check">Verifica el mensaje en WhatsApp antes de aceptarlo.</p>'+
    detalle+(pendiente?'<div class="uki-solicitud-acciones">'+
-   '<button class="sm uki-accion-rechazar" type="button" onclick="ukiCartaRemotaRechazar('+esc(JSON.stringify(r.id))+')">✕ Rechazar</button>'+
-   '<label class="uki-motivo-rechazo">Motivo<select id="ukiCartaMotivo'+esc(r.id)+'"><option value="">Selecciona motivo</option>'+
+   '<label class="uki-motivo-rechazo">Motivo del rechazo<select id="ukiCartaMotivo'+esc(r.id)+'" onchange="ukiMotivoRechazoCambio(this)"><option value="">Selecciona un motivo</option>'+
    ['Cliente canceló','Cliente no respondió','Producto no disponible','Otro motivo'].map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('')+'</select></label>'+
+   '<button class="sm uki-accion-rechazar" type="button" disabled onclick="ukiCartaRemotaRechazar('+esc(JSON.stringify(r.id))+')">✕ Rechazar solicitud</button>'+
+   '<div class="uki-separador-acciones" aria-hidden="true">o, si vas a preparar el pedido</div>'+
    '<button class="sm ok uki-accion-aceptar" type="button" onclick="ukiCartaRemotaAbrir('+esc(JSON.stringify(r.id))+')">✅ Aceptar y revisar</button></div>':'')+'</div>';
 }
 function ukiCartaRemotaAbrir(id){
