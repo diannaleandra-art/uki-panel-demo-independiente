@@ -90,6 +90,16 @@ function ukiCartaRemotaAbrir(id){
  const r=ukiCartaRemotasSucursal().find(x=>x.id===id&&x.estado==='pendiente');
  if(!r)return aviso('La solicitud ya no está pendiente. Actualiza la bandeja.');
  if(ukiCartaPedidoAceptadoEnCaja(r)){aviso('Este pedido ya figura en caja. Se confirmará tras sincronizar Firebase.');void ukiCartaConfirmarRespaldados();return}
+ const folio=String(r.codigo_pedido||'').trim().toLowerCase();
+ if(folio){
+  const yaGuardado=(S.pedidos||[]).find(p=>p.suc===S.suc&&String(p.codigoCarta||'').trim().toLowerCase()===folio);
+  if(yaGuardado){
+   aviso('Carta #'+folio+' ya fue registrada como pedido interno #'+yaGuardado.id+'. No aceptes ni cobres otra vez. Revisa el pedido existente.');
+   return;
+  }
+  const pegada=ukiSolicitudPegadaYaRecibida({codigoCarta:folio});
+  if(pegada){aviso(pegada);return;}
+ }
  if(S.busy||document.body.classList.contains('uki-operativo-bloqueado')||!window.ukiCancelacionNubeLista?.()){
   aviso('Sincroniza la nube antes de aceptar. La solicitud continúa pendiente.');return;
  }
