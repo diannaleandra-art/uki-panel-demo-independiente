@@ -54,7 +54,7 @@ async function modifyPrice(sql,branch,item,price,version,uid){
  return sql.query(`INSERT INTO public.uki_carta_items_v1
  (branch,sku,kind,group_key,custom,name,description,price,available,stock_qty,stock_unit,version,updated_by)
  SELECT $1,$2,$3,$4,FALSE,$5,$6,$7,TRUE,0,'un',1,$8
- WHERE $9=0
+ WHERE $9=0 OR EXISTS (SELECT 1 FROM public.uki_carta_items_v1 WHERE branch=$1 AND sku=$2 AND version=$9)
  ON CONFLICT(branch,sku) DO UPDATE SET price=$7,version=public.uki_carta_items_v1.version+1,updated_by=$8,updated_at=NOW()
  WHERE public.uki_carta_items_v1.version=$9 AND public.uki_carta_items_v1.price IS DISTINCT FROM $7
  RETURNING sku,price,version`,[branch,item.sku,item.kind,item.group,item.name,item.description,price,uid,version]);
