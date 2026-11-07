@@ -3,7 +3,7 @@
 export function interpretarFacturaChile(input){
   const lines=String(input||'').split(/\r?\n/).map(s=>s.replace(/\u00a0/g,' ').trim()).filter(Boolean);
   const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-  const out={fecha:null,proveedor:'',referencia:'',total:null,neto:null,iva:null,otros:null,descuento:null,productos:[],avisos:[]};
+  const out={fecha:null,proveedor:'',receptor:'',observacion:'',referencia:'',total:null,neto:null,iva:null,otros:null,descuento:null,productos:[],avisos:[]};
   if(!lines.length)return out;
   function amount(token){
     let s=String(token||'').replace(/\s/g,'').replace(/^\$/,'').replace(/^CLP/i,'').replace(/\$$/,'');
@@ -48,6 +48,10 @@ export function interpretarFacturaChile(input){
   for(let i=0;i<lines.length;i++){
     const raw=lines[i],line=norm(raw).replace(/\s+/g,' ');
     if(/\b(?:factura|boleta|documento tributario electronico)\b/.test(line)&&docHeaderAt<0)docHeaderAt=i;
+    const receptor=raw.match(/señor\s*(?:\(es\))?\s*:\s*(.{3,140}?)(?:\s+RUT\s*:|$)/i);
+    if(receptor)out.receptor=receptor[1].trim().slice(0,120);
+    const obs=raw.match(/observaci[oó]n\s*:\s*(.{2,140})/i);
+    if(obs)out.observacion=obs[1].trim().slice(0,140);
     const labeled=raw.match(/(?:raz[oó]n social|proveedor|emisor)\s*[:\-]\s*(.{3,120})/i);
     if(labeled&&!/\b(?:receptor|cliente)\b/i.test(raw))out.proveedor=labeled[1].trim().slice(0,120);
     const iso=raw.match(/\b(20\d{2})[\/-]([01]?\d)[\/-]([0-3]?\d)\b/);
