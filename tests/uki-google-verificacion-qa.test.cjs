@@ -22,7 +22,7 @@ test('el verificador acepta fechas Chile y exige Google; no tiene escrituras en 
  assert.match(api,/jwtVerify/);
  assert.match(api,/action==='diagnostico'/);
  assert.match(api,/action==='historial'/);
- assert.match(api,/action==='revision'/);
+ assert.match(api,/\['diagnostico','historial','revision'\]/);
  assert.match(api,/uki_inventario_revisiones_qa/);
  assert.match(api,/qaDatabase\(\)/);
  assert.doesNotMatch(api,/INSERT INTO|UPDATE public\.|DELETE FROM|DROP TABLE|ALTER TABLE/i);
