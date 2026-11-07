@@ -23,9 +23,10 @@ test('API sólo acepta el sitio real; no permite QR, pruebas ni orígenes tercer
  assert.equal(api._testing.permitido('https://uki-sushi-panel.vercel.app'),false);
  assert.equal(api._testing.permitido('https://evil.example'),false);
 });
-test('el panel sólo suma enlaces al inventario y conserva sus secciones existentes',()=>{
- assert.match(main,/firebase\/uki-inventario-turno\.html/);
- assert.match(main,/firebase\/uki-inventario-administracion\.html/);
+test('el panel incluye la administración de inventario, conserva sus secciones, y el trabajador sigue separado',()=>{
+ assert.match(main,/onclick="ir\('inventario'\)"/);
+ assert.match(main,/window\.ukiInventarioPanelHTML/);
+ assert.match(main,/uki-inventario-admin-embebido\.js/);
  assert.match(main,/uki-operativo-seguridad/);
  assert.match(main,/ukiEstadoOperativo/);
  assert.match(main,/function ukiGuardarPrecierre/);
