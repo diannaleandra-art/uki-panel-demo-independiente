@@ -16,7 +16,7 @@
  '<p class="muted">Marca qué productos, proteínas, vegetales y envolturas puede elegir el cliente. Cada sucursal es independiente. No cambia el inventario ni los precios.</p>',
  '<p class="mini-help">Sucursal: <b id="ukiDispSucursal"></b></p>',
  '<div class="quick-grid"><div><label for="ukiDispBuscar">Buscar en la carta</label><input id="ukiDispBuscar" placeholder="Ej.: Camarón, Gohan, 24 piezas" autocomplete="off" type="search"></div>',
- '<div><label for="ukiDispTipo">Mostrar</label><select id="ukiDispTipo"><option value="all">Todo</option><option value="product">Productos y promociones</option><option value="ingredient">Proteínas, vegetales y envolturas</option></select></div></div>',
+ '<div><label for="ukiDispTipo">Mostrar</label><select id="ukiDispTipo"><option value="all">Todo</option><option value="product">Productos y promociones</option><option value="ingredient">Proteínas, vegetales, envolturas y salsas</option></select></div></div>',
  '<p id="ukiDispMensaje" class="muted" role="status">Cargando estado de la carta…</p>',
  '<button type="button" class="sm" id="ukiDispRefrescar">Actualizar disponibilidad</button>',
  '<div id="ukiDispLista" style="margin-top:12px"></div>',
