@@ -39,7 +39,7 @@ jobs:
           const bad=await fetch(base+'?branch=otra',{headers:{Origin:origin},signal:AbortSignal.timeout(12000)});
           assert.equal(bad.status,400);
           console.log('QA sucursal inválida: HTTP 400');
-          const qaPanel='https://uki-sushi-inventario-e3esma25l-diannaleandra-7046.vercel.app';
+          const qaPanel='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app';
           const options=await fetch(base,{method:'OPTIONS',headers:{Origin:qaPanel,'Access-Control-Request-Method':'POST'}});
           assert.equal(options.status,204);
           assert.equal(options.headers.get('access-control-allow-origin'),qaPanel);
