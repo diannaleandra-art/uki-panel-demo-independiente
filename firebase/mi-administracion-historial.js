@@ -155,5 +155,5 @@ export function crearHistorialCompras({api,$,esc,fmt,businessName,branchName,bra
  $('histSearch').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();void cargar()}});
  $('legalAddButton').onclick=async()=>{try{await nuevaRazon()}catch(e){$('legalStatus').textContent=e.message}};
  $('legalLinkButton').onclick=async()=>{try{await vincular()}catch(e){$('legalStatus').textContent=e.message}};
- return {cargar,cargarRazones,reasonSelector,sugerirRazon,getReasons};
+ return {cargar,cargarRazones,reasonSelector,sugerirRazon,getReasons,historyBranches};
 }
