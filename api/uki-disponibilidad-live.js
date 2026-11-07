@@ -4,6 +4,11 @@ const {url:dbUrl}=require('../lib/uki-inventario-db-live.cjs');
 const {baseItems}=require('../lib/uki-catalogo-v1.cjs');
 const BRANCHES=new Set(['arica','serena']);
 const ORIGINS=new Set(['https://diannaleandra-art.github.io','https://uki-sushi-pedidos.vercel.app']);
+const QA_REF='feature/uki-disponibilidad-manual-live-2026-11-06';
+const QA_MENU_ORIGIN='https://uki-sushi-pedidos-git-feature-uki-dis-eb0d72-diannaleandra-7046.vercel.app';
+function allowedOrigin(origin,env=process.env){
+ return ORIGINS.has(origin)||(env.VERCEL_ENV==='preview'&&env.VERCEL_GIT_COMMIT_REF===QA_REF&&env.UKI_INVENTARIO_QA_ENABLED==='true'&&origin===QA_MENU_ORIGIN);
+}
 const PROJECT='uki-panel-f4909';
 const fail=(res,code,error)=>res.status(code).json({ok:false,error});
 async function authorized(req){
@@ -49,14 +54,14 @@ module.exports=async function(req,res){
  res.setHeader('X-Content-Type-Options','nosniff');
  res.setHeader('Vary','Origin');
  const origin=String(req.headers?.origin||'');
- if(origin&&ORIGINS.has(origin)){
+ if(origin&&allowedOrigin(origin)){
   res.setHeader('Access-Control-Allow-Origin',origin);
   res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type');
  }
- if(req.method==='OPTIONS')return res.status(ORIGINS.has(origin)?204:403).end();
+ if(req.method==='OPTIONS')return res.status(allowedOrigin(origin)?204:403).end();
  if(req.method!=='GET'&&req.method!=='POST')return fail(res,405,'Método no permitido');
- if(origin&&!ORIGINS.has(origin))return fail(res,403,'Origen no autorizado');
+ if(origin&&!allowedOrigin(origin))return fail(res,403,'Origen no autorizado');
  const branch=String(req.method==='GET'?(req.query?.branch||''):(req.body?.branch||''));
  if(!BRANCHES.has(branch))return fail(res,400,'Sucursal incorrecta');
  const url=dbUrl();
@@ -86,4 +91,4 @@ module.exports=async function(req,res){
   return fail(res,503,'No se pudo consultar o guardar la disponibilidad. No se modificó la caja.');
  }
 };
-module.exports._testing={ORIGINS,updateStatement,catalog};
+module.exports._testing={ORIGINS,allowedOrigin,updateStatement,catalog};
