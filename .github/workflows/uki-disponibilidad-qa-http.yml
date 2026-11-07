@@ -108,7 +108,14 @@ jobs:
           }
           console.log('QA inventario: historial, detalle y existencias bloqueados sin Google HTTP 403');
           // Comprobar pantalla de Google sin iniciar sesión ni pedir credenciales.
-          const checkPage=await fetch(qaPanel+'/verificar-administracion.html',{signal:AbortSignal.timeout(12000)});
+          // Vercel puede tardar en mover el alias al commit recién compilado.
+          let checkPage;
+          for(let attempt=0;attempt<8;attempt++){
+            checkPage=await fetch(qaPanel+'/verificar-administracion.html',{signal:AbortSignal.timeout(12000)});
+            if(checkPage.status===200)break;
+            console.log('QA Google aún no disponible, HTTP '+checkPage.status+' intento '+(attempt+1));
+            if(attempt<7)await new Promise(resolve=>setTimeout(resolve,2500));
+          }
           assert.equal(checkPage.status,200,'Pantalla de prueba Google HTTP 200');
           const body=await checkPage.text();
           for(const part of ['Entrar con Google','SOLO PRUEBAS','Consultar historial de prueba'])
