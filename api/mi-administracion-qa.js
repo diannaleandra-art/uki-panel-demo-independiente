@@ -209,7 +209,8 @@ module.exports=async(req,res)=>{
   }
   if(action==='marcar_pagado'){
    if(!uuid.test(String(body.id||'')))return fail(res,400,'Registro inválido.');
-   const rows=await sql.query("UPDATE public.fin_movimientos SET estado='pagado',actualizado_en=now() WHERE id=$1 AND tipo IN ('gasto','compra','retiro') AND estado='pendiente' RETURNING id,tipo,monto,fecha,negocio_id",[body.id]);
+   if(!validDate(body.fecha_pago))return fail(res,400,'Selecciona la fecha real del pago.');
+   const rows=await sql.query("UPDATE public.fin_movimientos SET estado='pagado',datos=coalesce(datos,'{}'::jsonb)||jsonb_build_object('fecha_pago',$2::text),actualizado_en=now() WHERE id=$1 AND tipo IN ('gasto','compra','retiro') AND estado='pendiente' RETURNING id,tipo,monto,fecha,negocio_id",[body.id,body.fecha_pago]);
    if(!rows.length)return fail(res,409,'Solo se puede pagar un gasto, compra o retiro que esté pendiente.');
    await audit(sql,'movimiento',body.id,'pagar',who,{antes:'pendiente',despues:'pagado',fecha_pago:validDate(body.fecha_pago)?body.fecha_pago:null});
    return ok(res,{pagado:true});
