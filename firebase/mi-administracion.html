@@ -76,6 +76,11 @@ label{color:#66574c}
 .finance-item-row small{display:block;font-size:12px;color:var(--muted);margin-top:4px;line-height:1.35}
 .finance-item-row .finance-price{min-width:83px;text-align:right}
 .invoice-product{border-bottom:1px solid var(--line);padding:3px 0}
+#purchaseNavigation{position:sticky;top:68px;z-index:3;background:var(--paper)}
+#purchaseAdvanced{padding:10px 0}
+#purchaseAllocationControls{margin-top:12px;border:1px solid var(--line);border-radius:12px;padding:12px}
+#movimientosGeneral .line{padding:10px 0}
+#purchaseEntry[hidden],#purchaseAdvanced[hidden]{display:none}
 .invoice-product details{margin:0}
 .invoice-product summary{display:grid;grid-template-columns:24px minmax(0,1fr) max-content;align-items:start;gap:8px;padding:13px 1px;list-style:none;cursor:pointer}
 .invoice-product summary::-webkit-details-marker{display:none}
@@ -104,17 +109,19 @@ label{color:#66574c}
 <section id="unlock" class="card" hidden><h2>Tu código privado</h2><label>PIN de 6 números</label><input id="pin" type="password" inputmode="numeric" pattern="[0-9]{6}" autocomplete="off" maxlength="6"><button class="primary" id="enter">Abrir Mi Administración</button><p class="hint">La sesión privada caduca después de 30 minutos. No afecta el acceso normal de Uki.</p></section>
 <section id="app" hidden>
 <section id="filterCard" class="card">
-<div class="row"><strong>🏪 Elige tu negocio</strong><span class="pill">Solo dueños</span></div>
+<div class="row"><strong>🏢 Todos nuestros negocios</strong><span class="pill">Solo dueños</span></div>
+<p class="hint">Vista general compartida por los dueños. Los filtros son opcionales y no necesitas cambiar de acceso para ver otros locales.</p>
+<details id="globalAdvanced"><summary>Filtrar por empresa o local (opcional)</summary>
 <label for="scopeRazon">Razón social (empresa legal)</label><select id="scopeRazon"><option value="todos">Todas las razones sociales</option></select>
 <label for="scopeBusiness">¿Qué negocio quieres revisar?</label><select id="scopeBusiness" aria-label="Filtrar por negocio"><option value="">Todos mis negocios</option></select>
 <label for="scopeBranch">Sucursal</label><select id="scopeBranch"><option value="">Todas las sucursales</option></select>
 <details id="dateFilters"><summary>📅 Fechas del informe · Ver o cambiar</summary>
 <p class="hint">Por defecto aparecen los registros de este mes. Puedes consultar cualquier fecha anterior.</p>
 <div class="grid2"><div><label>Desde</label><input id="from" type="date"></div><div><label>Hasta</label><input id="to" type="date"></div></div></details>
-<button class="soft" id="refresh">Actualizar resultados</button></section>
+<button class="soft" id="refresh">Actualizar resultados</button></details></section>
 <section class="view" id="v-resumen">
 <div class="welcome"><span class="eyebrow">MI ADMINISTRACIÓN · PRIVADO</span>
-<h2>¿Qué quieres hacer hoy?</h2><p>Elige el negocio arriba y toca una opción. No necesitas saber de contabilidad para usarlo.</p></div>
+<h2>Administración de todos los locales</h2><p>Aquí verás juntas las ventas, compras y gastos de todos los negocios. Si necesitas revisar solo uno, abre los filtros opcionales.</p></div>
 <div class="quick-grid" id="homeActions">
 <button type="button" class="quick-action" data-go="ventas"><span class="emoji">🧾</span><strong>Agregar venta o cierre</strong><small>Manual, foto o PDF del cierre</small></button>
 <button type="button" class="quick-action" data-go="gastos"><span class="emoji">💸</span><strong>Registrar gasto</strong><small>Compras, sueldos y proveedores</small></button>
@@ -129,7 +136,9 @@ label{color:#66574c}
 <div class="metric"><small>Pagos pendientes</small><b id="m-pendientes">$0</b></div></div>
 <p class="hint">*Para conocer la utilidad real faltan costos completos, sueldos, impuestos y otros gastos que corresponda considerar.</p></div>
 <details class="card"><summary>💳 Ver ventas por medio de pago</summary><div id="mediosReport"><p class="muted">Aún sin datos.</p></div></details>
-<details class="card"><summary>📖 Ver movimientos registrados</summary><div id="recent"></div></details>
+<div class="card" id="movimientosGeneral"><h2>📖 Últimas ventas, compras y gastos</h2>
+<p class="hint">Aquí también aparecen las ventas manuales anteriores, aunque todavía no tengan razón social asignada.</p>
+<div id="recent"></div></div>
 </section>
 <section class="view" id="v-ventas" hidden><div class="card">
 <div class="eyebrow">VENTAS Y CIERRES</div><h2>🧾 Agregar venta o cierre de un local</h2>
@@ -161,19 +170,28 @@ label{color:#66574c}
 <label>Vencimiento (si aún está pendiente)</label><input id="expenseDue" type="date"><label>Adjuntar factura o comprobante (opcional)</label><input id="expensePhoto" type="file" accept="image/*,application/pdf">
 <button class="primary" id="saveExpense">Guardar gasto o compra</button></div></section>
 <section class="view" id="v-facturas" hidden>
-<div class="card">
+<div class="card" id="purchaseNavigation">
+<div class="eyebrow">ADMINISTRACIÓN GENERAL DE COMPRAS</div>
+<h2>Compras de todos los negocios</h2>
+<p class="hint">Primero verás el historial completo. Registra una nueva compra solo cuando lo necesites.</p>
+<div class="row" style="gap:8px;flex-wrap:wrap">
+<button class="primary" id="showPurchaseHistory" type="button">📖 Ver historial</button>
+<button class="soft" id="showPurchaseForm" type="button">＋ Registrar compra</button></div>
+</div>
+<div class="card" id="purchaseEntry" hidden>
 <div class="eyebrow">CONTROL POR RAZÓN SOCIAL</div><h2>🧾 Registrar una factura de compra</h2>
 <p class="doc-control-intro">Cada compra pertenece a una <strong>razón social</strong> (la empresa que figura en la factura) y puede asociarse a un negocio y una sucursal.</p>
 <p class="steps">1. Sube una factura. 2. Revisa los artículos, cantidades y montos. 3. Confirma para sumarlo al historial.</p>
 <p class="hint">La foto queda como respaldo de una compra. No modifica el inventario ni la disponibilidad de la carta.</p>
-<div class="fieldset-title">1 · Razón social y negocio</div>
+<div class="fieldset-title">1 · Empresa compradora y destino</div>
+<p class="hint">La razón social es el nombre legal de la empresa en la factura; <strong>no es un permiso ni otro código</strong>. Si ya existe, selecciónala y el sistema la vinculará automáticamente.</p>
 <label>Negocio (marca)</label><select id="docBiz"></select>
-<label>Razón social compradora (obligatoria)</label><select id="docRazon"><option value="">Selecciona la razón social</option></select>
+<label>Empresa que aparece como compradora (razón social)</label><select id="docRazon"><option value="">Selecciona la razón social</option></select>
 <p id="docRazonHelp" class="hint">Selecciona la empresa legal a nombre de la cual está emitida esta factura.</p>
 <p id="docBuyerInfo" class="hint"></p>
 <label>Sucursal</label><select id="docBranch"></select>
-<details><summary>＋ Registrar o vincular otra razón social</summary>
-<p class="hint">Aquí puedes crear la razón social con su RUT y vincularla al negocio que seleccionaste. También puedes asociar una razón social existente a otra marca.</p>
+<details><summary>＋ ¿La empresa compradora no aparece? Agrégala aquí</summary>
+<p class="hint">Si la empresa aún no figura en la lista, escribe su nombre y RUT una sola vez. No necesitas dar otra autorización para comprar.</p>
 <label>Nombre legal de la razón social</label><input id="legalNewName" placeholder="Ej.: Inversiones Romo SpA">
 <label>RUT (opcional, recomendable)</label><input id="legalNewRut" placeholder="78.165.233-4" autocomplete="off">
 <button class="soft" id="legalAddButton" type="button">Agregar razón social al negocio</button>
@@ -184,7 +202,22 @@ label{color:#66574c}
 <p id="legalStatus" class="hint"></p>
 <div class="fieldset-title">Razones sociales registradas</div><div id="legalReasonsList"></div>
 </details>
-<div class="fieldset-title">2 · Foto o PDF de la factura</div>
+<div class="fieldset-title">2 · ¿Para qué local es esta compra?</div>
+<p class="hint">El importe de la factura se registra una sola vez, aunque se utilice en dos locales.</p>
+<label>Destino del gasto</label>
+<select id="purchaseAllocationMode">
+<option value="general">Administración general (sin repartir)</option>
+<option value="uno">Un local</option>
+<option value="dos">Dos locales (compra compartida)</option>
+</select>
+<div id="purchaseAllocationControls" hidden>
+<div class="purchase-filters">
+<div class="wide"><label>Local 1</label><select id="purchaseLocation1"></select></div>
+<div><label>Importe para local 1 ($)</label><input id="purchaseAmount1" inputmode="numeric" type="number" min="1"></div>
+<div class="wide" id="purchaseSecondLocationRow" hidden><label>Local 2</label><select id="purchaseLocation2"></select></div>
+<div id="purchaseSecondAmountRow" hidden><label>Importe para local 2 ($)</label><input id="purchaseAmount2" inputmode="numeric" type="number" min="1"></div>
+</div><p id="purchaseAllocationStatus" class="hint">Los importes de los locales deben sumar el total de la factura.</p></div>
+<div class="fieldset-title">3 · Foto o PDF de la factura</div>
 <label>Subir foto desde el iPhone o elegir PDF</label><input id="docFile" type="file" accept="image/jpeg,image/png,image/webp,application/pdf">
 <button class="soft" id="readInvoice" type="button">📷 Leer datos de la factura</button>
 <p id="invoiceOCRStatus" class="hint" role="status" aria-live="polite">El lector intenta reconocer proveedor, folio, total, IVA y productos. Si el PDF está escaneado, intentará una segunda lectura. Siempre revisa el resultado antes de guardar.</p>
@@ -192,7 +225,7 @@ label{color:#66574c}
 <label>Texto extraído del PDF o foto (también puedes pegar texto desde Fotos)</label><textarea id="docRawText" rows="4" placeholder="Pega aquí el texto de la factura…"></textarea>
 <button class="soft" id="parseInvoiceText" type="button">Revisar texto pegado</button>
 </details>
-<div class="fieldset-title">3 · Revisa los datos encontrados</div>
+<div class="fieldset-title">4 · Revisa los datos encontrados</div>
 <div class="grid2"><div><label>Tipo</label><select id="docType"><option value="factura">Factura</option><option value="boleta">Boleta</option><option value="comprobante">Comprobante</option></select></div><div><label>Fecha de compra</label><input id="docDate" type="date"></div></div>
 <label>¿A quién se compró? · Proveedor</label><input id="docVendor" placeholder="Nombre del proveedor" autocomplete="off">
 <label>Número de factura o boleta</label><input id="docNumber" placeholder="Ej.: 15584">
@@ -203,28 +236,29 @@ label{color:#66574c}
 <div><label>IVA ($)</label><input id="docTax" type="number" min="0" inputmode="numeric" placeholder="0"></div>
 <div><label>Otros cargos ($)</label><input id="docOther" type="number" min="0" inputmode="numeric" placeholder="0"></div>
 <div><label>Descuentos ($)</label><input id="docDiscount" type="number" min="0" inputmode="numeric" placeholder="0"></div></div></details>
-<div class="fieldset-title">4 · Productos de la factura</div>
+<div class="fieldset-title">5 · Productos de la factura</div>
 <p class="hint">Los productos aparecen como una lista compacta. Toca uno para corregir su nombre, cantidad, unidad o precio.</p>
 <p class="hint">Cada producto quedará con cantidad, unidad y precio. Si no se reconocieron los artículos, puedes agregarlos manualmente.</p>
 <div id="invoiceItems"></div>
 <button type="button" class="soft" id="invoiceAddItem">＋ Agregar producto</button>
 <p class="steps" id="invoiceItemsSum">Productos detallados: $0</p>
-<div class="fieldset-title">5 · Confirmar compra</div>
+<div class="fieldset-title">6 · Confirmar compra</div>
 <p class="hint" id="invoiceCheck">Verifica los datos antes de guardar. Ningún importe se contabiliza hasta tu confirmación.</p>
 <button class="primary" id="saveDoc">✓ Confirmar y registrar compra</button>
 </div>
 <div class="card">
 <div class="eyebrow">HISTORIAL FINANCIERO</div><h2>📚 Compras por razón social</h2>
-<p class="hint">Busca por razón social, RUT, proveedor, folio o producto. Cada factura aparece una sola vez.</p>
-<div class="purchase-filters">
+<p class="hint">Este historial reúne compras de todas las marcas y sucursales. No necesitas elegir un negocio para verlas.</p>
+<label for="histSearch">Buscar en todas las compras</label>
+<input id="histSearch" type="search" placeholder="Proveedor, producto, factura o razón social">
+<button type="button" id="histSearchButton" class="soft">🔎 Buscar</button>
+<details id="purchaseAdvanced"><summary>Filtrar por empresa, local o fechas (opcional)</summary><div class="purchase-filters">
 <div class="wide"><label>Razón social</label><select id="histRazon"><option value="todos">Todas las razones sociales</option></select></div>
 <div><label>Negocio</label><select id="histBiz"><option value="">Todos los negocios</option></select></div>
 <div><label>Sucursal</label><select id="histBranch"><option value="">Todas las sucursales</option></select></div>
 <div><label>Desde</label><input id="histFrom" type="date"></div>
 <div><label>Hasta</label><input id="histTo" type="date"></div>
-<div class="wide"><label>Buscar factura, proveedor o producto</label><input id="histSearch" type="search" placeholder="Ej.: Inversiones Romo, Bombo, arroz o 78969"></div>
-</div>
-<button type="button" id="histSearchButton" class="soft">🔎 Buscar compras</button><p id="historyStatus" class="hint"></p>
+</div></details><p id="historyStatus" class="hint"></p>
 <div class="metrics">
 <div class="metric"><small>Total de compras</small><b id="purchasesTotal">$0</b></div>
 <div class="metric"><small>Pendiente de pago</small><b id="purchasesDue">$0</b></div>
@@ -233,9 +267,10 @@ label{color:#66574c}
 </div>
 <p class="hint">Facturas sin clasificar: <strong id="purchasesNoReason">0</strong>. Puedes asignarles razón social desde su detalle.</p>
 <details open><summary>🏢 Totales por razón social</summary><div id="invoiceLegalTotals"></div></details>
-<details><summary>🏪 Totales por proveedor</summary><div id="invoiceVendors"></div></details>
+<details><summary>🏪 Ver compras por local (sin duplicar facturas)</summary><div id="invoiceLocalTotals"></div></details>
+<details><summary>🧾 Totales por proveedor</summary><div id="invoiceVendors"></div></details>
 <details><summary>📦 Productos más comprados</summary><div id="invoiceProducts"></div></details>
-<details open><summary>📖 Facturas registradas</summary><div id="invoicePurchaseList"></div></details>
+<details open><summary>📖 Todas las facturas registradas</summary><div id="invoicePurchaseList"></div></details>
 <details><summary>📎 Fotografías y documentos guardados</summary><div id="docList"></div></details>
 </div></section>
 <section class="view" id="v-negocios" hidden><div class="card"><div class="eyebrow">ORGANIZACIÓN</div><h2>🏪 Mis negocios y locales</h2><p class="steps">Aquí puedes agregar más negocios, sucursales y costos de sus productos.</p><div id="businessList"></div>
