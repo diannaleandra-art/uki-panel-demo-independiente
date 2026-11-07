@@ -28,3 +28,17 @@ test('Scripts de producción y nuevo módulo no tienen errores sintácticos',()=
  }
  new vm.Script(admin);
 });
+
+test('Inventario del trabajador es visible sin duplicar accesos ni exponer caja',()=>{
+ const inv=fs.readFileSync('firebase/uki-inventario-admin-embebido.js','utf8');
+ const old=fs.readFileSync('firebase/uki-carta-precios-admin.js','utf8');
+ const role=fs.readFileSync('api/inventario-turno-live.js','utf8');
+ assert.equal((inv.match(/id="ukiInvWorkerAccess"/g)||[]).length,1,'Un solo acceso a inventario del trabajador');
+ assert.equal((inv.match(/id="invBranch"/g)||[]).length,1,'Conservar sucursal única del panel');
+ assert.match(inv,/Abrir acceso del trabajador/);
+ assert.match(inv,/Administración: cuenta Google autorizada del panel/);
+ assert.match(inv,/El trabajador cuenta y recibe mercadería con su código/);
+ assert.match(old,/reportes:\['ukiReponerPanel','ukiHistorial'\]/);
+ assert.ok(role.includes("if(!await pin.autorizar"),'PIN del trabajador obligatorio');
+ assert.ok(!inv.includes('api/cierre')&&!role.includes("action==='cierre'"),'No dar cierre al trabajador');
+});
