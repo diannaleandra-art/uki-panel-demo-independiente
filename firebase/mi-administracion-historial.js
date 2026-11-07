@@ -41,12 +41,12 @@ export function crearHistorialCompras({api,$,esc,fmt,businessName,branchName,bra
   const d=await api('razones_sociales');razones=d.razones||[];vinculos=d.vinculos||[];
   reasonSelector();reasonList();histories();
  }
- function sugerirRazon(receptor){
+ function sugerirRazon(receptor,rut=''){
   if(!receptor)return;
-  $('docBuyerInfo').textContent='Comprador leído en la factura: '+receptor+'. Revisa que corresponda a la razón social seleccionada.';
+  $('docBuyerInfo').textContent='Comprador leído en la factura: '+receptor+(rut?' · RUT '+rut:'')+'. Confirma la razón social antes de guardar.';
   const m=getReasons($('docBiz').value).find(x=>clean(x.nombre)===clean(receptor));
   if(m){$('docRazon').value=m.id;$('docRazonHelp').textContent='Sugerencia detectada: '+m.nombre+'. Confirma antes de guardar.';}
-  else {$('legalNewName').value=receptor;$('docRazonHelp').textContent='Esta empresa no aparece vinculada al negocio. Agrégala y confirma su RUT.';}
+  else {$('legalNewName').value=receptor;if(rut)$('legalNewRut').value=rut;$('docRazonHelp').textContent='Esta empresa no aparece vinculada al negocio. Agrégala y confirma su RUT.';}
  }
  async function nuevaRazon(){
   const nombre=$('legalNewName').value.trim(),rut=$('legalNewRut').value.trim(),biz=$('docBiz').value;
