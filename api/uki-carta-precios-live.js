@@ -117,4 +117,4 @@ module.exports=async function(req,res){
  }catch(e){console.error('Carta precios',String(e?.code||e?.name||'error').slice(0,60));
   return fail(res,503,'No se pudo completar la operación. Inventario y caja siguen intactos');}
 };
-module.exports._testing={goodPrice,validNew,originAllowed,getSKU};
+module.exports._testing={goodPrice,validNew,originAllowed,getSKU,listing,modifyPrice};
