@@ -67,6 +67,17 @@ export function interpretarFacturaChile(input){
     if(direct)out.referencia=direct[1];
     else if(short&&docHeaderAt>=0&&i<=docHeaderAt+8&&!out.referencia)out.referencia=short[1];
     if(!out.referencia&&docHeaderAt>=0&&i>=docHeaderAt&&i<=docHeaderAt+3&&/^\d{3,12}$/.test(line))out.referencia=line;
+    // Algunos PDF juntan «NETO 10.000 IVA 1.900 TOTAL 11.900» en una sola fila.
+    const inlineNeto=line.match(/(?:^|\s)(?:monto\s+)?neto\s*[:$]?\s*(\d[\d.,]*)\b/);
+    const inlineIva=line.match(/(?:^|\s)(?:i\.v\.a\.?|iva)(?:\s*19\s*%)?\s*[:$]?\s*(\d[\d.,]*)\b/);
+    const inlineTotal=line.match(/(?:^|\s)(?:monto\s+)?total(?:\s+a pagar)?\s*[:$]?\s*(\d[\d.,]*)\b/);
+    const several=[inlineNeto,inlineIva,inlineTotal].filter(Boolean).length;
+    if(several>=2){
+      if(inlineNeto){const v=amount(inlineNeto[1]);if(v!==null)out.neto=v;}
+      if(inlineIva){const v=amount(inlineIva[1]);if(v!==null)out.iva=v;}
+      if(inlineTotal){const v=amount(inlineTotal[1]);if(v!==null)out.total=v;}
+      continue;
+    }
     if(/\b(?:monto|valor|total|importe)\s*(?:a pagar|total|general|factura|del documento)\b/.test(line)
        ||/^total(?:\s*[:$]|$)/.test(line)
        ||/^total\s+(?:\$|clp)\b/.test(line)){
