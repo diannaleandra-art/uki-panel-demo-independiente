@@ -26,12 +26,17 @@ async function authorized(req){
  return {uid:String(payload.sub),label:'Administración Uki'};
 }
 async function catalog(sql,branch){
- const base=await baseItems(branch),overrides=await sql.query(
-  'SELECT sku,available,version FROM public.uki_carta_items_v1 WHERE branch=$1',[branch]);
+ const [base,overrides,added]=await Promise.all([
+  baseItems(branch),
+  sql.query('SELECT sku,available,version FROM public.uki_carta_items_v1 WHERE branch=$1',[branch]),
+  sql.query('SELECT sku,kind,name,group_key,available,version FROM public.uki_carta_productos_custom_v1 WHERE branch=$1',[branch])
+ ]);
  const map=new Map(overrides.map(x=>[String(x.sku),x]));
- return base.map(i=>({sku:i.sku,kind:i.kind,name:i.name,group:i.group_key,
+ return [...base.map(i=>({sku:i.sku,kind:i.kind,name:i.name,group:i.group_key,
   available:map.has(i.sku)?map.get(i.sku).available===true:true,
-  version:map.has(i.sku)?Number(map.get(i.sku).version):0}));
+  version:map.has(i.sku)?Number(map.get(i.sku).version):0})),
+  ...added.map(i=>({sku:i.sku,kind:i.kind,name:i.name,group:i.group_key,
+   available:i.available===true,version:Number(i.version)}))];
 }
 function updateStatement(){return [
  'WITH before AS (SELECT available,version FROM public.uki_carta_items_v1 WHERE branch=$1 AND sku=$2),',
@@ -71,8 +76,11 @@ module.exports=async function(req,res){
  let sql;try{sql=require('@neondatabase/serverless').neon(url);}catch{return fail(res,503,'Servicio no disponible');}
  try{
   if(req.method==='GET'){
-   const rows=await sql.query('SELECT sku FROM public.uki_carta_items_v1 WHERE branch=$1 AND available=FALSE',[branch]);
-   return res.status(200).json({ok:true,branch,unavailable:rows.map(r=>String(r.sku))});
+   const [rows,custom]=await Promise.all([
+    sql.query('SELECT sku FROM public.uki_carta_items_v1 WHERE branch=$1 AND available=FALSE',[branch]),
+    sql.query('SELECT sku FROM public.uki_carta_productos_custom_v1 WHERE branch=$1 AND available=FALSE',[branch])
+   ]);
+   return res.status(200).json({ok:true,branch,unavailable:[...rows,...custom].map(r=>String(r.sku))});
   }
   if(origin!=='https://diannaleandra-art.github.io'&&!(qaBranch()&&origin===QA_PANEL_ORIGIN))return fail(res,403,'Solo panel operativo');
   if(String(req.headers?.['content-type']||'').split(';')[0]!=='application/json')return fail(res,415,'Se requiere JSON');
@@ -84,7 +92,27 @@ module.exports=async function(req,res){
   const {sku,available,expected_version}=req.body;
   if(typeof sku!=='string'||typeof available!=='boolean'||!Number.isSafeInteger(expected_version)||expected_version<0)return fail(res,400,'Cambio inválido');
   const items=await baseItems(branch),entry=items.find(x=>x.sku===sku);
-  if(!entry)return fail(res,404,'Producto no reconocido en esta carta y sucursal');
+  if(!entry){
+   const custom=await sql.query('SELECT sku FROM public.uki_carta_productos_custom_v1 WHERE branch=$1 AND sku=$2',[branch,sku]);
+   if(!custom.length)return fail(res,404,'Producto no reconocido en esta carta y sucursal');
+   const rows=await sql.query(`WITH before AS (
+    SELECT available,version FROM public.uki_carta_productos_custom_v1 WHERE branch=$1 AND sku=$2
+   ), changed AS (
+    UPDATE public.uki_carta_productos_custom_v1
+    SET available=$3,version=version+1,updated_by=$5,updated_at=NOW()
+    WHERE branch=$1 AND sku=$2 AND version=$4 AND available IS DISTINCT FROM $3
+    RETURNING branch,sku,available,version
+   ), logged AS (
+    INSERT INTO public.uki_carta_movimientos_v1
+    (branch,sku,accion,disponibilidad_anterior,disponibilidad_nueva,realizado_por,rol,identidad_autorizada)
+    SELECT changed.branch,changed.sku,CASE WHEN changed.available THEN 'disponible' ELSE 'agotado' END,
+     before.available,changed.available,'Administración Uki','admin',$5
+    FROM changed JOIN before ON TRUE RETURNING id
+   ) SELECT changed.available,changed.version FROM changed JOIN logged ON TRUE`,
+    [branch,sku,available,expected_version,user.uid]);
+   if(!rows.length)return fail(res,409,'La disponibilidad cambió. Actualiza antes de guardar.');
+   return res.status(200).json({ok:true,branch,sku,available:rows[0].available,version:Number(rows[0].version)});
+  }
   const rows=await sql.query(updateStatement(),[branch,entry.sku,entry.kind,entry.group_key,entry.name,entry.price,available,user.uid,expected_version,user.label]);
   if(!rows.length)return fail(res,409,'Otro cambio de disponibilidad se guardó antes. Actualiza la lista.');
   return res.status(200).json({ok:true,branch,sku,available:rows[0].available,version:Number(rows[0].version)});
