@@ -65,12 +65,16 @@ button.sm.ok{background:var(--accent);border-color:var(--accent);color:#fff}
 .uki-urgentes-carta .card div[style*="padding:13px 0"]{padding:3px 0!important}
 .uki-urgentes-carta .card .inner-details{margin:6px 0!important;padding:7px!important}
 .uki-urgentes-carta .card .uki-whatsapp-check{display:none}
-.uki-solicitud-acciones{display:grid;grid-template-columns:minmax(105px,.8fr) minmax(0,1.3fr);gap:6px 8px;align-items:end;margin-top:8px}
-.uki-solicitud-acciones .uki-accion-rechazar{grid-column:1;grid-row:1;min-height:42px}
-.uki-solicitud-acciones .uki-motivo-rechazo{grid-column:2;grid-row:1;min-width:0;font-size:12px}
-.uki-solicitud-acciones .uki-motivo-rechazo select{box-sizing:border-box;width:100%;min-height:42px;margin-top:3px;font-size:13px;padding:7px}
-.uki-solicitud-acciones .uki-accion-aceptar{grid-column:1/-1;grid-row:2;min-height:43px}
-.uki-solicitud-acciones button.sm{box-sizing:border-box;width:100%;margin:0!important;padding:9px 7px!important;font-size:13px;line-height:1.25;white-space:normal}
+.uki-solicitud-acciones{display:flex;flex-direction:column;gap:7px;margin-top:9px;padding-top:9px;border-top:1px solid #efe6de}
+.uki-solicitud-acciones .uki-motivo-rechazo{display:block;margin:0!important;color:#665244;font-size:13px;font-weight:700}
+.uki-solicitud-acciones .uki-motivo-rechazo select{box-sizing:border-box;display:block;width:100%;min-height:44px;margin:5px 0 0;border:1px solid #dccfc3;border-radius:10px;background:#fff;font-size:15px;padding:9px 11px;color:#30251f}
+.uki-solicitud-acciones .uki-motivo-rechazo select:focus-visible{outline:2px solid #ea891f;outline-offset:2px}
+.uki-solicitud-acciones button.sm{box-sizing:border-box;width:100%;min-height:43px;margin:0!important;padding:10px 12px!important;border-radius:10px;font-size:14px;font-weight:650;line-height:1.3;white-space:normal}
+.uki-solicitud-acciones button.uki-accion-rechazar{background:#fff4f1!important;border:1px solid #dc9e91!important;color:#983e2c!important}
+.uki-solicitud-acciones button.uki-accion-rechazar:disabled{background:#f6f3f0!important;border-color:#e5ded7!important;color:#998d85!important;opacity:1;cursor:not-allowed}
+.uki-solicitud-acciones .uki-separador-acciones{display:flex;align-items:center;gap:10px;justify-content:center;color:#948478;font-size:12px;font-weight:550;margin:1px 0}
+.uki-solicitud-acciones .uki-separador-acciones:before,.uki-solicitud-acciones .uki-separador-acciones:after{content:"";height:1px;background:#eee4db;flex:1}
+.uki-solicitud-acciones button.uki-accion-aceptar{min-height:45px}
 </style>
 <style id="uki-operativo-seguridad">body.uki-operativo-bloqueado #app, body.uki-operativo-bloqueado #nav{pointer-events:none;opacity:.4;user-select:none}</style>
 
@@ -1037,6 +1041,10 @@ function ukiWhatsAppMarcarAceptada(pedido){
  }
  ukiSolicitudWhatsAppActiva=null;
 }
+function ukiMotivoRechazoCambio(sel){
+ const boton=sel?.closest('.uki-solicitud-acciones')?.querySelector('.uki-accion-rechazar');
+ if(boton)boton.disabled=!sel.value;
+}
 function ukiWhatsAppFicha(s,pendiente){
  const d=s.datos||{},productos=(d.items||[]).filter(x=>x.nombre);
  const subtotal=productos.reduce((a,p)=>a+Number(p.cant||0)*Number(p.precio||0),0);
@@ -1075,10 +1083,11 @@ function ukiWhatsAppFicha(s,pendiente){
   '<p class="muted" style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(d.texto||'Sin texto original')+'</p></details>'+
   (pendiente?
    '<div class="uki-solicitud-acciones">'+
-   '<button class="sm uki-accion-rechazar" type="button" onclick="ukiWhatsAppRechazar('+esc(JSON.stringify(s.id))+')">✕ Rechazar</button>'+
-   '<label class="uki-motivo-rechazo">Motivo<select id="ukiMotivoRechazo'+esc(s.id)+'"><option value="">Selecciona motivo</option>'+
+   '<label class="uki-motivo-rechazo">Motivo del rechazo<select id="ukiMotivoRechazo'+esc(s.id)+'" onchange="ukiMotivoRechazoCambio(this)"><option value="">Selecciona un motivo</option>'+
    ['Cliente canceló','Cliente no respondió','Producto no disponible','Otro motivo'].map(x=>
       '<option value="'+esc(x)+'">'+esc(x)+'</option>').join('')+'</select></label>'+
+   '<button class="sm uki-accion-rechazar" type="button" disabled onclick="ukiWhatsAppRechazar('+esc(JSON.stringify(s.id))+')">✕ Rechazar solicitud</button>'+
+   '<div class="uki-separador-acciones" aria-hidden="true">o, si vas a preparar el pedido</div>'+
    '<button class="sm ok uki-accion-aceptar" type="button" onclick="ukiWhatsAppAceptarYRevisar('+esc(JSON.stringify(s.id))+')">✅ Aceptar y revisar</button></div>'
    :'')+'</div>';
 }
