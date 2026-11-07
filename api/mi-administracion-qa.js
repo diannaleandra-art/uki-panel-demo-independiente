@@ -3,7 +3,6 @@
    Acceso: Google autorizado + PIN exclusivo de finanzas; primer PIN exige clave
    de instalación privada en Vercel. No habilitar producción sin revisión. */
 const crypto=require('node:crypto');
-const {url:dbForInventario}=require('../lib/uki-inventario-db-live.cjs');
 const FIN_BRANCH='feature/mi-administracion-privada-2026-11-07';
 const MAX_BYTES=1700000;
 const MODES=new Set(['venta','gasto','compra','costo_producto','retiro','ingreso_extra']);
@@ -232,8 +231,8 @@ module.exports=async(req,res)=>{
     const linked=await sql.query('SELECT 1 FROM public.fin_movimientos WHERE id=$1 AND negocio_id=$2',[movimiento,body.negocio_id]);
     if(!linked.length)return fail(res,400,'La referencia pertenece a otro negocio.');
    }
-   const r=await sql.query('INSERT INTO public.fin_documentos(negocio_id,sucursal_id,movimiento_id,nombre,mime,bytes,contenido,sha256,tipo,fecha_documento,proveedor,creado_por) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id',
-   [body.negocio_id,body.sucursal_id||null,movimiento,name,mime,buffer.length,buffer,hash(buffer),tipo,validDate(body.fecha_documento)?body.fecha_documento:null,text(body.proveedor,120),who.uid]);
+   const r=await sql.query('INSERT INTO public.fin_documentos(negocio_id,sucursal_id,movimiento_id,nombre,mime,bytes,contenido,sha256,tipo,fecha_documento,proveedor,creado_por) VALUES($1,$2,$3,$4,$5,$6,decode($7,\'hex\'),$8,$9,$10,$11,$12) RETURNING id',
+   [body.negocio_id,body.sucursal_id||null,movimiento,name,mime,buffer.length,buffer.toString('hex'),hash(buffer),tipo,validDate(body.fecha_documento)?body.fecha_documento:null,text(body.proveedor,120),who.uid]);
    await audit(sql,'documento',r[0].id,'cargar',who,{nombre:name,mime,bytes:buffer.length,tipo});
    return ok(res,{id:r[0].id});
   }
@@ -245,10 +244,9 @@ module.exports=async(req,res)=>{
   }
   if(action==='abrir_documento'){
    if(!uuid.test(String(body.id||'')))return fail(res,400,'Documento inválido.');
-   const rows=await sql.query('SELECT mime,contenido,nombre FROM public.fin_documentos WHERE id=$1',[body.id]);
+   const rows=await sql.query("SELECT mime,encode(contenido,'base64') AS base64,nombre FROM public.fin_documentos WHERE id=$1",[body.id]);
    if(!rows.length)return fail(res,404,'No existe ese documento.');
-   const buffer=Buffer.isBuffer(rows[0].contenido)?rows[0].contenido:Buffer.from(rows[0].contenido);
-   return ok(res,{mime:rows[0].mime,nombre:rows[0].nombre,base64:buffer.toString('base64')});
+   return ok(res,{mime:rows[0].mime,nombre:rows[0].nombre,base64:rows[0].base64.replace(/\s/g,'')});
   }
   if(action==='guardar_costo'){
    await belongs(sql,body.negocio_id,null);
