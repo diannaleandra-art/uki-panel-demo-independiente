@@ -68,17 +68,34 @@ async function leerPaginasImagen(doc,informar,maxPages=2){
   }
 }
 
+// La 2.ª página de muchas facturas chilenas es la copia «CEDIBLE» de la primera.
+// Comparar folio, total y todos los ítems; no confundirla con páginas continuadas.
+export function esPaginaDuplicada(anterior,actual){
+ const a=interpretarFacturaChile(anterior),b=interpretarFacturaChile(actual);
+ if(!a.referencia||a.referencia!==b.referencia||a.total===null||a.total!==b.total)return false;
+ if(a.productos.length<2||a.productos.length!==b.productos.length)return false;
+ const lines=p=>p.productos.map(x=>[
+  String(x.nombre||'').toLowerCase().replace(/\s+/g,' ').trim(),
+  String(x.cantidad),String(x.precio_unitario),String(x.total)
+ ].join('|')).sort().join('\n');
+ return lines(a)===lines(b);
+}
+
 export async function leerPDFLocal(file,informar=()=>{}){
  const pdfjs=await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.mjs');
  pdfjs.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.mjs';
  const doc=await pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
  try{
-  let text=[],pages=Math.min(doc.numPages,4);
+  let text=[],copiasIgnoradas=0,pages=Math.min(doc.numPages,4);
   for(let i=1;i<=pages;i++){
     informar('Leyendo texto del PDF, página '+i+' de '+pages+'…');
     const page=await doc.getPage(i),content=await page.getTextContent();
     const rowText=reconstruirLineasPDF(content.items);
-    if(rowText)text.push(rowText);
+    if(rowText){
+      if(text.some(prior=>esPaginaDuplicada(prior,rowText))){
+       copiasIgnoradas++;informar('Se detectó copia cedible; no se duplican los artículos.');
+      }else text.push(rowText);
+    }
   }
   const baseText=text.join('\n').slice(0,120000);
   const first=interpretarFacturaChile(baseText);
@@ -88,7 +105,7 @@ export async function leerPDFLocal(file,informar=()=>{}){
     try{ocrText=await leerPaginasImagen(doc,informar,2)}
     catch(e){aviso='La segunda lectura del PDF no estuvo disponible. '+String(e.message||e).slice(0,130);}
   }
-  return {texto:baseText,alternativo:ocrText.slice(0,100000),aviso,
+  return {texto:baseText,alternativo:ocrText.slice(0,100000),aviso,copiasIgnoradas,
     paginas:doc.numPages,analisis: {total: first.total!==null,folio:!!first.referencia,productos:first.productos.length}};
  }finally{try{await doc.destroy()}catch{}}
 }
