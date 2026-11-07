@@ -6,11 +6,12 @@ const U=[['un','Unidades'],['kg','Kilos'],['g','Gramos'],['l','Litros'],['ml','M
 const C=[['ingrediente','Ingrediente'],['envase','Envase'],['otro','Otro insumo']];
 const X={branch:'',items:[],reports:[],selected:'',busy:false,loaded:false};
 const $=id=>document.getElementById(id);
+const panelBranch=()=>typeof S!=='undefined'&&S?.suc==='Uki La Serena'?'serena':'arica';
 function pick(xs){return xs.map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('');}
 function number(raw){const t=String(raw??'').trim();if(!/^\d{1,6}([.,]\d{1,3})?$/.test(t))throw Error('Cantidad inválida: máximo 3 decimales (ej.: 2,5).');const n=Number(t.replace(',','.'));if(n>100000)throw Error('Cantidad fuera de rango.');return n;}
 function panel(){return [
-'<div class="section-head"><h2>📦 Inventario</h2><p>Administración de existencias · independiente de pedidos y caja.</p></div>',
-'<div class="card" id="invRoot"><label for="invBranch">Sucursal</label><select id="invBranch"><option value="arica">Regimiento Arica</option><option value="serena">La Serena</option></select>',
+'<div class="section-head" id="ukiInvSectionHead"><h2>📦 Inventario</h2><p>Administración de existencias · independiente de pedidos y caja.</p></div>',
+'<div class="card" id="invRoot"><p class="mini-help">Sucursal actual: <b id="ukiInvSucursalActual"></b>. Para ver otro local, utiliza «Salir» y entra a su sucursal.</p><select id="invBranch" hidden disabled aria-label="Sucursal de este panel"><option value="arica">Regimiento Arica</option><option value="serena">La Serena</option></select>',
 '<p class="muted">Se utiliza el acceso Google del panel. El trabajador mantiene su código exclusivo.</p><button id="invRefresh" class="sm ok" type="button">Actualizar</button>',
 '<p id="invStatus" role="status" class="mini-help">Conectando inventario…</p></div>',
 '<div class="card" id="invAdmin" hidden><h2>Existencias y mínimos</h2><label for="invSearch">Buscar artículo</label><input id="invSearch" type="search" autocomplete="off" placeholder="Pollo, palta, aceite…">',
@@ -28,11 +29,12 @@ function panel(){return [
 '<div><label for="invNewMin">Mínimo</label><input id="invNewMin" value="0" inputmode="decimal"></div></div>',
 '<button type="button" id="invCreate" class="big">Agregar al inventario</button></details></div>',
 '<div class="card" id="invReportsBox" hidden><h2>Revisiones de trabajadores</h2><div id="invReports"></div></div>',
-'<div class="card"><p class="muted">Los trabajadores cuentan y reciben facturas en su acceso independiente:</p>',
+'<div class="card" id="ukiInvWorkerAccess"><p class="muted">Los trabajadores cuentan y reciben facturas en su acceso independiente:</p>',
 '<a href="https://uki-sushi-inventario.vercel.app/" target="_blank" rel="noopener noreferrer">Inventario de trabajadores</a></div>'
 ].join('');}
 function status(msg){if($('invStatus'))$('invStatus').textContent=msg;}
 async function request(action,data={},branch=X.branch){
+ if(branch!==panelBranch())throw Error('Abre la sucursal correspondiente para consultar su inventario.');
  const token=await window.ukiInventarioToken?.();
  if(!token)throw Error('Inicia sesión Google en el panel. Solo administración autorizada puede editar inventario.');
  const res=await fetch(API,{method:'POST',mode:'cors',credentials:'omit',cache:'no-store',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({branch,action,...data})});
@@ -110,9 +112,12 @@ async function create(){
 }
 function mount(){
  if(!$('invRoot'))return;
- if(!X.branch)X.branch=(typeof S!=='undefined'&&S.suc==='Uki La Serena')?'serena':'arica';
- $('invBranch').value=X.branch;
- $('invBranch').onchange=e=>{X.branch=e.target.value;X.loaded=false;X.selected='';X.items=[];X.reports=[];$('invAdmin').hidden=true;$('invNewBox').hidden=true;$('invReportsBox').hidden=true;void load();};
+ const active=panelBranch();
+ if(X.branch!==active){X.items=[];X.reports=[];X.selected='';X.loaded=false;}
+ X.branch=active;
+ $('invBranch').value=active;
+ $('invBranch').disabled=true;
+ $('ukiInvSucursalActual').textContent=active==='serena'?'Uki La Serena':'Uki Regimiento Arica';
  $('invRefresh').onclick=()=>void load();$('invSearch').oninput=populate;
  $('invSelect').onchange=e=>{X.selected=e.target.value;selection();};
  $('invSave').onclick=()=>void save();$('invCreate').onclick=()=>void create();
