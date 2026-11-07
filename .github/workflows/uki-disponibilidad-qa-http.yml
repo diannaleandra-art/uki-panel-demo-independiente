@@ -16,7 +16,7 @@ jobs:
         run: |
           node --input-type=module <<'JS'
           import assert from 'node:assert/strict';
-          const base='https://uki-sushi-inventario-e3esma25l-diannaleandra-7046.vercel.app/api/uki-disponibilidad-live';
+          const base='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app/api/uki-disponibilidad-live';
           const origin='https://uki-sushi-pedidos-git-feature-uki-dis-eb0d72-diannaleandra-7046.vercel.app';
           for(const branch of ['arica','serena']){
             let last;
@@ -79,7 +79,7 @@ jobs:
           assert.ok(moduleText.includes('window.ukiInventarioMontar=montar'));
           assert.ok(moduleText.includes('window.ukiInventarioToken'));
           console.log('Panel GitHub Pages: HTML y controles Disponible/Agotado accesibles HTTP 200');
-          const pricesUrl='https://uki-sushi-inventario-13coyvxe9-diannaleandra-7046.vercel.app/api/uki-carta-precios-live';
+          const pricesUrl='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app/api/uki-carta-precios-live';
           for(const branch of ['arica','serena']){
             const r=await fetch(pricesUrl+'?branch='+branch,{
               headers:{Origin:origin},signal:AbortSignal.timeout(12000)});
@@ -97,19 +97,29 @@ jobs:
             signal:AbortSignal.timeout(12000)});
           assert.equal(deniedPrices.status,403,'No se puede crear pizza sin Google');
           console.log('QA precios: escritura sin Google bloqueada HTTP 403');
-          const preview='https://uki-sushi-inventario-4h5sia7h0-diannaleandra-7046.vercel.app';
+          // El historial pertenece sólo a administración. No escribir datos de prueba.
+          const inventoryURL='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app/api/inventario-turno-live';
+          for(const action of ['historial','revision','articulos']){
+            const noGoogle=await fetch(inventoryURL,{
+              method:'POST',headers:{Origin:qaPanel,'Content-Type':'application/json'},
+              body:JSON.stringify({branch:'arica',action,id:'00000000-0000-0000-0000-000000000000'}),
+              signal:AbortSignal.timeout(12000)});
+            assert.equal(noGoogle.status,403,'La API debe bloquear '+action+' sin Google');
+          }
+          console.log('QA inventario: historial, detalle y existencias bloqueados sin Google HTTP 403');
+          const preview='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app';
           const workerPage=await fetch(preview+'/',{signal:AbortSignal.timeout(12000)});
           assert.equal(workerPage.status,200,'El trabajador debe ver la interfaz QA');
           const workerHtml=await workerPage.text();
-          for(const feature of ['turnoFechaChile','turnoHoraActual','turnoUltimoRegistro','setInterval(actualizarReloj,1000)','estadoLista','mostrarMas','Pendientes de contar']){
+          for(const feature of ['turnoFechaChile','turnoHoraActual','turnoUltimoRegistro','setInterval(actualizarReloj,60000)','estadoLista','mostrarMas','Pendientes de contar']){
             assert.ok(workerHtml.includes(feature),'La vista del trabajador debe incluir '+feature);
           }
           console.log('QA trabajador: interfaz móvil, lista compacta y fecha de Chile HTTP 200');
-          const visual=await fetch('https://uki-sushi-inventario-4h5sia7h0-diannaleandra-7046.vercel.app/vista-previa-inventario.html',
+          const visual=await fetch('https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app/vista-previa-inventario.html',
            {signal:AbortSignal.timeout(12000)});
           assert.equal(visual.status,200,'La demostración visual debe abrir en Vercel QA');
           const visualHTML=await visual.text();
-          for(const feature of ['Demostración visual','Historial de inventarios','Regimiento Arica','La Serena','Excel','hora-actual','setInterval(mostrarHoraActual,1000)']){
+          for(const feature of ['Demostración visual','Historial de inventarios','Regimiento Arica','La Serena','Excel','hora-actual','setInterval(mostrarHoraActual,60000)']){
            assert.ok(visualHTML.includes(feature),'Falta '+feature+' en el demo');
           }
           console.log('QA diseño inventario: vista visual accesible HTTP 200');
