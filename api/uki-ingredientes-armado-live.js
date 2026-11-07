@@ -21,7 +21,8 @@ function validateItem(v){
     !Number.isSafeInteger(surcharge)||surcharge<0||surcharge>50000||
     typeof available!=='boolean'||!Array.isArray(v.surfaces))return null;
  const surfaces=[...new Set(v.surfaces)];
- if(!surfaces.length||surfaces.length>6||surfaces.some(s=>!SURFACES.has(s)))return null;
+ const allowedCategory={vegetal:SURFACES,proteina:new Set(['classic','premium','monthly','handroll','burger']),envoltura:new Set(['classic','premium','monthly','handroll'])};
+ if(!surfaces.length||surfaces.length>6||surfaces.some(s=>!SURFACES.has(s)||!allowedCategory[category].has(s)))return null;
  // No llamar un ingrediente como opción estructural de armado.
  if(['mixta','sin vegetal','solo proteina','vegetariano','sin nori','sin queso'].includes(normalizeName(name)))return null;
  return {name,category,surcharge,surfaces,available};
