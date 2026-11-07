@@ -313,20 +313,59 @@ module.exports=async(req,res)=>{
   }
   if(action==='resumen_compras'){
    const b=body.negocio_id||null,s=body.sucursal_id||null;
-   if(b)await belongs(sql,b,s);else if(s)return fail(res,400,'Primero selecciona el negocio.');
+   if(b)await belongs(sql,b,s);else if(s)return fail(res,400,'Selecciona el negocio de la sucursal.');
    const from=validDate(body.desde)?body.desde:'2000-01-01';
    const to=validDate(body.hasta)?body.hasta:'2099-12-31';
-   const params=[b,s,from,to];
-   const rows=await sql.query("SELECT proveedor,COUNT(*)::int AS facturas,SUM(monto)::bigint AS total,SUM(CASE WHEN estado='pendiente' THEN monto ELSE 0 END)::bigint AS pendiente FROM public.fin_movimientos WHERE tipo='compra' AND fuente='factura' AND estado<>'anulado' AND ($1::uuid IS NULL OR negocio_id=$1) AND ($2::uuid IS NULL OR sucursal_id=$2) AND fecha BETWEEN $3 AND $4 GROUP BY proveedor ORDER BY total DESC LIMIT 100",params);
-   const summary=await sql.query("SELECT COUNT(*)::int AS facturas,coalesce(SUM(monto),0)::bigint AS compras,coalesce(SUM(CASE WHEN estado='pendiente' THEN monto ELSE 0 END),0)::bigint AS pendiente FROM public.fin_movimientos WHERE tipo='compra' AND fuente='factura' AND estado<>'anulado' AND ($1::uuid IS NULL OR negocio_id=$1) AND ($2::uuid IS NULL OR sucursal_id=$2) AND fecha BETWEEN $3 AND $4",params);
-   const items=await sql.query("SELECT lower(btrim(i.descripcion)) AS producto,COUNT(*)::int AS veces,SUM(i.cantidad)::numeric(16,3) AS cantidad,i.unidad,SUM(i.total_linea)::bigint AS importe FROM public.fin_compra_items i JOIN public.fin_movimientos m ON m.id=i.compra_id WHERE m.tipo='compra' AND m.fuente='factura' AND m.estado<>'anulado' AND ($1::uuid IS NULL OR m.negocio_id=$1) AND ($2::uuid IS NULL OR m.sucursal_id=$2) AND m.fecha BETWEEN $3 AND $4 GROUP BY lower(btrim(i.descripcion)),i.unidad ORDER BY importe DESC LIMIT 80",params);
-   const invoices=await sql.query("SELECT id,negocio_id,sucursal_id,fecha,proveedor,referencia,monto,estado,datos FROM public.fin_movimientos WHERE tipo='compra' AND fuente='factura' AND estado<>'anulado' AND ($1::uuid IS NULL OR negocio_id=$1) AND ($2::uuid IS NULL OR sucursal_id=$2) AND fecha BETWEEN $3 AND $4 ORDER BY fecha DESC,creado_en DESC LIMIT 100",params);
-   return ok(res,{resumen:summary[0]||{facturas:0,compras:0,pendiente:0},
-    proveedores:rows,productos:items,facturas:invoices,nota:'Total facturado, incluye lo pendiente. No duplica compras registradas desde esta sección.'});
+   const reason=String(body.razon_social_id||'todos');
+   if(!['todos','sin_clasificar'].includes(reason)&&!uuid.test(reason))
+    return fail(res,400,'Filtro de razón social incorrecto.');
+   const query=text(body.buscar,100);
+   const params=[b,s,from,to,reason,query];
+   // Un conjunto filtrado compartido evita discrepancias entre informes y detalle.
+   const cte=[
+    "WITH filtradas AS ( SELECT m.id,m.negocio_id,m.sucursal_id,m.razon_social_id,m.fecha,m.proveedor,",
+    "m.referencia,m.monto,m.estado,m.datos,m.creado_en,",
+    "coalesce(r.nombre,'Sin clasificar') AS razon_social,coalesce(r.rut,'') AS rut_razon,",
+    "b.nombre AS marca FROM public.fin_movimientos m",
+    "JOIN public.fin_negocios b ON b.id=m.negocio_id",
+    "LEFT JOIN public.fin_razones_sociales r ON r.id=m.razon_social_id",
+    "WHERE m.tipo='compra' AND m.fuente='factura' AND m.estado<>'anulado'",
+    "AND ($1::uuid IS NULL OR m.negocio_id=$1)",
+    "AND ($2::uuid IS NULL OR m.sucursal_id=$2)",
+    "AND m.fecha BETWEEN $3::date AND $4::date",
+    "AND ($5::text='todos' OR ($5::text='sin_clasificar' AND m.razon_social_id IS NULL)",
+    "OR m.razon_social_id::text=$5::text)",
+    "AND ($6::text='' OR position(lower($6) in lower(concat_ws(' ',m.proveedor,m.referencia,",
+    "b.nombre,coalesce(r.nombre,''),coalesce(r.rut,''))))>0",
+    "OR EXISTS(SELECT 1 FROM public.fin_compra_items it WHERE it.compra_id=m.id",
+    "AND position(lower($6) in lower(it.descripcion))>0)) ) "
+   ].join(' ');
+   const result=await Promise.all([
+    sql.query(cte+"SELECT COUNT(*)::int AS facturas,coalesce(SUM(monto),0)::bigint AS compras,"+
+      "coalesce(SUM(monto) FILTER (WHERE estado='pendiente'),0)::bigint AS pendiente,"+
+      "COUNT(*) FILTER (WHERE razon_social_id IS NULL)::int AS sin_clasificar,"+
+      "COUNT(DISTINCT proveedor)::int AS proveedores FROM filtradas",params),
+    sql.query(cte+"SELECT proveedor,COUNT(*)::int AS facturas,SUM(monto)::bigint AS total,"+
+      "coalesce(SUM(monto) FILTER (WHERE estado='pendiente'),0)::bigint AS pendiente"+
+      " FROM filtradas GROUP BY proveedor ORDER BY total DESC LIMIT 100",params),
+    sql.query(cte+"SELECT lower(btrim(i.descripcion)) AS producto,COUNT(*)::int AS veces,"+
+      "SUM(i.cantidad)::numeric(16,3) AS cantidad,i.unidad,SUM(i.total_linea)::bigint AS importe"+
+      " FROM public.fin_compra_items i JOIN filtradas f ON i.compra_id=f.id"+
+      " GROUP BY lower(btrim(i.descripcion)),i.unidad ORDER BY importe DESC LIMIT 120",params),
+    sql.query(cte+"SELECT id,negocio_id,sucursal_id,razon_social_id,razon_social,rut_razon,"+
+      "marca,fecha,proveedor,referencia,monto,estado,datos FROM filtradas"+
+      " ORDER BY fecha DESC,creado_en DESC LIMIT 200",params),
+    sql.query(cte+"SELECT razon_social_id,razon_social,rut_razon,COUNT(*)::int AS facturas,"+
+      "SUM(monto)::bigint AS total,coalesce(SUM(monto) FILTER (WHERE estado='pendiente'),0)::bigint AS pendiente"+
+      " FROM filtradas GROUP BY razon_social_id,razon_social,rut_razon ORDER BY total DESC",params)
+   ]);
+   return ok(res,{resumen:result[0][0]||{},proveedores:result[1],
+     productos:result[2],facturas:result[3],razones:result[4],
+     nota:'Facturas registradas una sola vez. Las compras sin razón social se muestran como pendientes de clasificar.'});
   }
   if(action==='detalle_compra'){
    if(!uuid.test(String(body.id||'')))return fail(res,400,'Identificador incorrecto.');
-   const compra=await sql.query("SELECT id,negocio_id,sucursal_id,fecha,proveedor,referencia,monto,datos,estado FROM public.fin_movimientos WHERE id=$1 AND tipo='compra' AND fuente='factura' LIMIT 1",[body.id]);
+   const compra=await sql.query("SELECT m.id,m.negocio_id,m.sucursal_id,m.razon_social_id,coalesce(r.nombre,\'Sin clasificar\') AS razon_social,m.fecha,m.proveedor,m.referencia,m.monto,m.datos,m.estado FROM public.fin_movimientos m LEFT JOIN public.fin_razones_sociales r ON r.id=m.razon_social_id WHERE m.id=$1 AND m.tipo=\'compra\' AND m.fuente=\'factura\' LIMIT 1",[body.id]);
    if(!compra.length)return fail(res,404,'Compra no encontrada.');
    const articulos=await sql.query('SELECT posicion,descripcion,cantidad,unidad,precio_unitario,total_linea FROM public.fin_compra_items WHERE compra_id=$1 ORDER BY posicion',[body.id]);
    return ok(res,{compra:compra[0],articulos});
