@@ -943,6 +943,25 @@ function ukiWhatsAppDatosDesdeTexto(raw){
 function ukiWhatsAppIdentificador(req){
  return req.codigoCarta?'Carta #'+req.codigoCarta:'Sin código de carta · WA-'+String(req.id||'').slice(-6).toUpperCase();
 }
+// Cruce preventivo: una solicitud de la carta no debe registrarse por dos caminos.
+function ukiSolicitudAutomaticaYaRecibida(datos,omitirId=''){
+ const code=String(datos?.codigoCarta||'').trim().toLowerCase();
+ const texto=String(datos?.texto||'').trim();
+ if((!code&&!texto)||typeof ukiCartaRemotasSucursal!=='function')return '';
+ const x=ukiCartaRemotasSucursal().find(r=>r.estado==='pendiente'&&r.id!==omitirId&&(
+   (code&&String(r.codigo_pedido||'').trim().toLowerCase()===code)||
+   (texto&&texto.length>=25&&String(r.mensaje||'').trim()===texto)
+ ));
+ return x?'La solicitud de Carta #'+String(x.codigo_pedido||'sin código')+
+  ' ya está en Pedidos → Pendientes. Ábrela con «Aceptar y revisar» para corregirla; no la pegues ni registres de nuevo.':'';
+}
+function ukiSolicitudPegadaYaRecibida(datos,omitirId=''){
+ const code=String(datos?.codigoCarta||'').trim().toLowerCase();
+ if(!code)return '';
+ const x=(S.solicitudesWhatsApp||[]).find(r=>r.suc===S.suc&&r.estado==='pendiente'&&
+   r.id!==omitirId&&String(r.codigoCarta||'').trim().toLowerCase()===code);
+ return x?'La Carta #'+code+' ya existe como solicitud pegada en Pendientes. Revisa esa misma solicitud y evita duplicarla.':'';
+}
 function ukiWhatsAppSolicitudDuplicada(datos,idActual=''){
  const cod=String(datos.codigoCarta||'').trim().toLowerCase();
  if(!cod)return null; // pedidos sin folio se revisan por teléfono y texto.
@@ -955,7 +974,7 @@ function ukiWhatsAppSolicitudDuplicada(datos,idActual=''){
 async function ukiWhatsAppGuardarSolicitud(datos){
  if(!S.suc||!datos||typeof datos.texto!=='string'||datos.texto.trim().length<6||
     datos.texto.length>12000){aviso('Pega el mensaje recibido por WhatsApp (máximo 12.000 caracteres).');return false;}
- const dupe=ukiWhatsAppSolicitudDuplicada(datos);if(dupe){aviso(dupe);return false;}
+ const dupe=ukiWhatsAppSolicitudDuplicada(datos)||ukiSolicitudAutomaticaYaRecibida(datos);if(dupe){aviso(dupe);return false;}
  // Conservar EXACTAMENTE la configuración del formulario actual: pagos mixtos,
  // medio del delivery, cruce de locales, propina y correcciones.
  // Nunca indicar pago completo hasta que el agendador lo confirme expresamente.
@@ -3203,6 +3222,13 @@ async function ndGuardar(){
     aviso("Uno de los pedidos QR ya pertenece a otra cuenta. No se guardó dos veces.");return;
   }
   D.codigoCliente=ukiCodigoWhatsApp(D.telefono)||D.codigoCliente||"";
+  // Si el pedido llegó por la carta, usa esa solicitud y el formulario existente.
+  // Esta comprobación es adicional a la del código en pedidos ya guardados.
+  if(!D.editando){
+   const duplicado=ukiSolicitudAutomaticaYaRecibida(D,String(D.cartaSolicitudRemotaId||''))||
+     ukiSolicitudPegadaYaRecibida(D,String(ukiSolicitudWhatsAppActiva||''));
+   if(duplicado){aviso(duplicado);return;}
+  }
   if(D.codigoCarta && S.pedidos.some(p=>p.suc===S.suc && String(p.codigoCarta||"")===D.codigoCarta && p.id!==D.editando)){
     aviso("Ya existe un pedido con ese codigo de carta en esta sucursal.");return;
   }
