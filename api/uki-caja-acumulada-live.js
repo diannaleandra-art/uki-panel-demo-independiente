@@ -4,8 +4,8 @@ const {url:dbUrl}=require('../lib/uki-inventario-db-live.cjs');
 const allowedOrigins=new Set(['https://diannaleandra-art.github.io']);
 const BRANCHES=new Set(['arica','serena']);
 const ACTIONS=new Set(['saldo','movimientos','inicializar','entrada','gasto','retiro',
- 'traspaso','cierre','ajustar_cierre','sincronizar_cierre']);
-const writeActions=new Set(['inicializar','entrada','gasto','retiro','traspaso','cierre','ajustar_cierre']);
+ 'traspaso','sincronizar_cierre']);
+const writeActions=new Set(['inicializar','entrada','gasto','retiro','traspaso']);
 const liveEnabled=(env=process.env)=>env.VERCEL_ENV==='production'&&env.UKI_INVENTARIO_LIVE_ENABLED==='true';
 const error=(res,status,msg)=>res.status(status).json({ok:false,error:msg});
 const amount=x=>Number.isSafeInteger(x)&&x>=0&&x<=100000000;
@@ -71,6 +71,8 @@ module.exports=async function ukiCajaAcumuladaLive(req,res){
    if(!amount(body.monto)||!validUUID(body.op_key)||!validDay(day)||
       typeof closeKey!=='string'||closeKey.trim().length<8||closeKey.length>150||
       !Number.isSafeInteger(ms)||ms<1700000000000||ms>Date.now()+20*60000||
+      body.confirmado!==true||body.diferencia_efectivo!==0||
+      body.efectivo_contado!==body.monto||
       typeof body.responsable!=='string'||body.responsable.trim().length<2||
       body.responsable.trim().length>80)
        return error(res,400,'Cierre confirmado incompleto o sin conciliación.');
@@ -80,6 +82,8 @@ module.exports=async function ukiCajaAcumuladaLive(req,res){
    return res.status(200).json({...result[0].resultado,modo:'PRODUCCION'});
   }
   if(!writeActions.has(action))return error(res,400,'Acción desconocida.');
+  if(action==='inicializar'&&body.saldo_inicial_contado!==true)
+    return error(res,400,'Cuenta el efectivo real y confirma el saldo inicial.');
   // La caja no copia silenciosamente movimientos desde los cierres de ventas.
   // Los cierres deberán llevar referencia única, importe y día operativo confirmados.
   if(!amount(body.monto)||!validUUID(body.op_key)||!safeText(body.concepto)||typeof body.responsable!=='string'||body.responsable.trim().length<2||body.responsable.trim().length>80)
