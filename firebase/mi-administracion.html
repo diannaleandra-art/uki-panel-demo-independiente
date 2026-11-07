@@ -305,6 +305,7 @@ function options(){
 });
  $('scopeBusiness').onchange=()=>{chooseBranch('scopeBranch',currentBiz(),'Todas las sucursales');void refresh();};
  $('scopeBranch').onchange=()=>void refresh();
+ $('scopeRazon').onchange=()=>void refresh();
  for(const id of ['saleBiz','expenseBiz','docBiz']){if(businesses.length){$(id).value=businesses[0].id;$(id).onchange();}}
  if(businesses.length){$('costBiz').value=businesses[0].id;$('newBranchBiz').value=businesses[0].id;}
  chooseBranch('scopeBranch','','Todas las sucursales');
@@ -501,15 +502,16 @@ async function safe(action,fn){
  finally{btn.disabled=false;}
 }
 $('saveSale').onclick=()=>safe('saveSale',async()=>{
- const b=value('saleBiz'),s=value('saleBranch')||null,fecha=value('saleDate'),monto=amount('saleTotal'),medios=payments(),total=Object.values(medios).reduce((a,b)=>a+b,0);
+ const b=value('saleBiz'),s=value('saleBranch')||null,fecha=value('saleDate'),monto=amount('saleTotal'),medios=payments(),total=Object.values(medios).reduce((a,b)=>a+b,0),razon_social_id=value('saleRazon');
  if(!b||!monto)throw Error('Selecciona negocio e ingresa la venta.');
+ if(!razon_social_id)throw Error('Selecciona a qué razón social pertenece la venta.');
  if(total&&total!==monto)throw Error('Los medios de pago no cuadran con el total del cierre.');
  if(!confirm('¿Guardar venta de '+pesos(monto)+' del '+fecha+' sin modificar la caja operativa?'))return false;
  const fuente=value('saleSource'),datos={
   pedidos:amount('saleOrders'),deliverys:amount('saleDelivery'),propinas:amount('saleTips'),
   efectivo_contado:amount('saleCash'),gastos_cierre:amount('saleCloseExpenses'),
   retiros:amount('saleWithdrawals'),observaciones:value('saleNotes')};
- const payload={negocio_id:b,sucursal_id:s,fecha,monto,medios,tipo:'venta',fuente,referencia:value('saleRef'),datos,concepto:fuente==='cierre'?'Cierre importado':'Venta manual'};
+ const payload={negocio_id:b,sucursal_id:s,razon_social_id,fecha,monto,medios,tipo:'venta',fuente,referencia:value('saleRef'),datos,concepto:fuente==='cierre'?'Cierre importado':'Venta manual'};
  let r;
  try{r=await api('guardar_movimiento',payload)}
  catch(e){if(/Ya existen ventas ese día/.test(e.message)&&confirm(e.message+' ¿Guardar otra venta distinta?'))r=await api('guardar_movimiento',{...payload,confirmar_duplicado:true});else throw e}
@@ -520,9 +522,10 @@ $('saveSale').onclick=()=>safe('saveSale',async()=>{
  await refresh();return warning;
 });
 $('saveExpense').onclick=()=>safe('saveExpense',async()=>{
- const b=value('expenseBiz'),s=value('expenseBranch')||null,fecha=value('expenseDate'),monto=amount('expenseAmount'),tipo=value('expenseType');
+ const b=value('expenseBiz'),s=value('expenseBranch')||null,fecha=value('expenseDate'),monto=amount('expenseAmount'),tipo=value('expenseType'),razon_social_id=value('expenseRazon');
  if(!b||!monto)throw Error('Elige el negocio y el importe.');
- const r=await api('guardar_movimiento',{negocio_id:b,sucursal_id:s,fecha,monto,tipo,
+ if(!razon_social_id)throw Error('Selecciona la razón social que paga este gasto.');
+ const r=await api('guardar_movimiento',{negocio_id:b,sucursal_id:s,razon_social_id,fecha,monto,tipo,
   categoria:value('expenseCategory'),proveedor:value('expenseVendor'),concepto:value('expenseConcept'),pendiente:$('expensePending').checked,datos:{vence:value('expenseDue')||null}});
  let warning='';
  try{await upload($('expensePhoto').files[0],b,s,'factura',fecha,r.id,value('expenseVendor'));}
