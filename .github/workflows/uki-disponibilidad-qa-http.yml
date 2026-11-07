@@ -137,7 +137,9 @@ jobs:
             if(authConfig.ok){
               const cfg=await authConfig.json();
               const allowed=Array.isArray(cfg.authorizedDomains)?cfg.authorizedDomains:[];
-              console.log('Firebase: dominio de pruebas Google autorizado='+allowed.includes(new URL(qaPanel).hostname));
+              const domainIsAllowed=allowed.includes(new URL(qaPanel).hostname);
+              console.log('Firebase: dominio de pruebas Google autorizado='+domainIsAllowed);
+              assert.equal(domainIsAllowed,true,'Firebase aún no reconoce el dominio de pruebas para Google');
             }else console.log('Firebase: no se pudo confirmar lista pública de dominios (HTTP '+authConfig.status+')');
           }catch{console.log('Firebase: lista pública de dominios no disponible para esta comprobación');}
           const preview='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app';
