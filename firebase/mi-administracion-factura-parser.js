@@ -44,7 +44,7 @@ export function interpretarFacturaChile(input){
   const noName=/\b(?:factura|electronica|boleta|rut|fecha|giro|direccion|sii|servicio de impuestos|telefono|telefonos|www\.|correo|monto|neto|total|subtotal|emision|comuna|vendedor)\b/;
   const initial=lines.slice(0,18).find(s=>/[a-zA-Záéíóúñ]{4,}/.test(s)&&!noName.test(norm(s))&&s.length>=5);
   if(initial)out.proveedor=initial.slice(0,120);
-  let folioNearby=false,docHeaderAt=-1;
+  let docHeaderAt=-1;
   for(let i=0;i<lines.length;i++){
     const raw=lines[i],line=norm(raw).replace(/\s+/g,' ');
     if(/\b(?:factura|boleta|documento tributario electronico)\b/.test(line)&&docHeaderAt<0)docHeaderAt=i;
@@ -61,7 +61,8 @@ export function interpretarFacturaChile(input){
     }
     // Folios pueden venir en la línea siguiente del encabezado, p.ej. «FACTURA ELECTRÓNICA» y «N° 78969».
     const direct=raw.match(/\b(?:factura|boleta)(?:\s+electr[oó]nica)?\s*(?:n[úu]mero|n[°ºo.]|no\.?|nro\.?|#|folio)\s*[:#.\-º°]*\s*(\d{2,12})\b/i)
-      ||raw.match(/\b(?:folio|documento n[°ºo.]|n[úu]mero de factura)\s*[:#.\-º°]*\s*(\d{2,12})\b/i);
+      ||raw.match(/\b(?:folio|documento n[°ºo.]|n[úu]mero de factura)\s*[:#.\-º°]*\s*(\d{2,12})\b/i)
+      ||raw.match(/\b(?:factura|boleta)(?:\s+electr[oó]nica)?\s+(\d{3,12})\b/i);
     const short=raw.match(/(?:^|\s)(?:n[°ºo.]|nro\.?|no\.?|n[úu]mero|#)\s*[:#.\-º°]*\s*(\d{2,12})\b/i);
     if(direct)out.referencia=direct[1];
     else if(short&&docHeaderAt>=0&&i<=docHeaderAt+8&&!out.referencia)out.referencia=short[1];
@@ -74,7 +75,7 @@ export function interpretarFacturaChile(input){
       }
     }else if(/\b(?:monto neto|valor neto|total neto|neto afecto|neto|subtotal)\b/.test(line)&&!/\bdescuento\b/.test(line)){
       const v=nearValue(i);if(v!==null)out.neto=v;
-    }else if(/\b(?:iva|i\.v\.a\.)\b/.test(line)&&!/\b(?:credito fiscal|iva incluido)\b/.test(line)){
+    }else if(/(?:\biva\b|i\.v\.a\.?)/.test(line)&&!/\b(?:credito fiscal|iva incluido)\b/.test(line)){
       const v=nearValue(i);if(v!==null)out.iva=v;
     }else if(/\bdescuentos?\b/.test(line)){
       const v=nearValue(i);if(v!==null)out.descuento=v;
