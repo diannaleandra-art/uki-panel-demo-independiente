@@ -207,6 +207,13 @@ module.exports=async(req,res)=>{
    await audit(sql,'movimiento',body.id,'anular',who,old[0]);
    return ok(res,{anulado:true});
   }
+  if(action==='marcar_pagado'){
+   if(!uuid.test(String(body.id||'')))return fail(res,400,'Registro inválido.');
+   const rows=await sql.query("UPDATE public.fin_movimientos SET estado='pagado',actualizado_en=now() WHERE id=$1 AND tipo IN ('gasto','compra','retiro') AND estado='pendiente' RETURNING id,tipo,monto,fecha,negocio_id",[body.id]);
+   if(!rows.length)return fail(res,409,'Solo se puede pagar un gasto, compra o retiro que esté pendiente.');
+   await audit(sql,'movimiento',body.id,'pagar',who,{antes:'pendiente',despues:'pagado',fecha_pago:validDate(body.fecha_pago)?body.fecha_pago:null});
+   return ok(res,{pagado:true});
+  }
   if(action==='resumen'){
    const b=body.negocio_id||null,s=body.sucursal_id||null;
    if(b)await belongs(sql,b,s);
@@ -214,7 +221,9 @@ module.exports=async(req,res)=>{
    const from=validDate(body.desde)?body.desde:'2000-01-01';
    const to=validDate(body.hasta)?body.hasta:'2099-12-31';
    const rows=await sql.query("SELECT tipo,estado,SUM(monto)::bigint AS total,COUNT(*)::int AS cantidad FROM public.fin_movimientos WHERE ($1::uuid IS NULL OR negocio_id=$1) AND ($2::uuid IS NULL OR sucursal_id=$2) AND fecha BETWEEN $3 AND $4 AND estado<>'anulado' GROUP BY tipo,estado",[b,s,from,to]);
-   return ok(res,{resumen:rows,nota:'Resultado preliminar = ventas - gastos y compras pagadas. No es utilidad contable definitiva.'});
+   // El desglose de pagos usa todas las ventas del período (no solamente los 250 registros del historial).
+   const pagos=await sql.query("SELECT pago.key AS medio,SUM((pago.value)::bigint)::bigint AS total FROM public.fin_movimientos m CROSS JOIN LATERAL jsonb_each_text(m.medios) AS pago(key,value) WHERE ($1::uuid IS NULL OR m.negocio_id=$1) AND ($2::uuid IS NULL OR m.sucursal_id=$2) AND m.fecha BETWEEN $3 AND $4 AND m.tipo='venta' AND m.estado<>'anulado' GROUP BY pago.key ORDER BY pago.key",[b,s,from,to]);
+   return ok(res,{resumen:rows,pagos,nota:'Resultado preliminar = ventas - gastos y compras pagadas. No es utilidad contable definitiva.'});
   }
   if(action==='guardar_documento'){
    await belongs(sql,body.negocio_id,body.sucursal_id||null);
