@@ -4,7 +4,7 @@ import {interpretarFacturaChile} from './mi-administracion-factura-parser.js?v=b
 import {leerPDFLocal} from './mi-administracion-pdf-ocr.js?v=bombo78969-v2';
 import {crearHistorialCompras} from './mi-administracion-historial.js?v=razones-v2';
 export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, branchName, currentBiz, currentBranch, upload, safe,branchesFor,negocios}){
- let productos=[],leyendo=false,datosFactura={receptor:'',observacion:''};
+ let productos=[],leyendo=false,datosFactura={receptor:'',receptorRut:'',observacion:''};
  const history=crearHistorialCompras({api,$,esc,fmt,businessName,branchName,branchesFor,negocios});
  let expandIndex=-1;
  const n=x=>Number(x||0),money=x=>Number.isSafeInteger(Number(x))&&Number(x)>=0&&Number(x)<=1000000000;
@@ -86,7 +86,7 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
   const p=interpretar(raw||extra);
   if(extra&&raw.trim()){
    const p2=interpretar(extra);
-   for(const key of ['fecha','proveedor','referencia','total','neto','iva','otros','descuento','receptor','observacion']){
+   for(const key of ['fecha','proveedor','referencia','total','neto','iva','otros','descuento','receptor','receptorRut','observacion']){
     if(p[key]===null||p[key]===undefined||p[key]==='')p[key]=p2[key];
    }
    if(!p.productos.length&&p2.productos.length)p.productos=p2.productos;
@@ -96,8 +96,8 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
     p.referencia=filename.replace(/\.pdf$/i,'');
     folioArchivo=true;
   }
-  datosFactura={receptor:p.receptor||'',observacion:p.observacion||''};
-  if(p.receptor)history.sugerirRazon(p.receptor);
+  datosFactura={receptor:p.receptor||'',receptorRut:p.receptorRut||'',observacion:p.observacion||''};
+  if(p.receptor)history.sugerirRazon(p.receptor,p.receptorRut);
   let count=0;
   if(p.proveedor){$('docVendor').value=p.proveedor;count++}
   if(p.fecha){$('docDate').value=p.fecha;count++}
@@ -197,6 +197,10 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
   if(!referencia&&$('docFile').files?.length===0)
    throw Error('Escribe el número de factura o adjunta su fotografía para evitar duplicados.');
   const legal=history.getReasons(negocio).find(x=>x.id===razon_social_id);
+  const rutNorm=x=>String(x||'').toUpperCase().replace(/[^0-9K]/g,'');
+  if(datosFactura.receptorRut&&legal?.rut&&rutNorm(legal.rut)!==rutNorm(datosFactura.receptorRut)){
+   throw Error('El RUT comprador del PDF ('+datosFactura.receptorRut+') es distinto del RUT de la razón social seleccionada. Corrige la clasificación antes de guardar.');
+  }
   const detail='Razón social elegida: '+(legal?.nombre||'No seleccionada')+'\nNegocio seleccionado: '+businessName(negocio)+'\nComprador en factura: '+(datosFactura.receptor||'No reconocido')+'\nSucursal indicada: '+(datosFactura.observacion||'No reconocida')+'\nProveedor: '+proveedor+'\nTotal compra: '+fmt(total)+'\nProductos detallados: '+articulos.length+
    '\nEstado: '+($('docPayment').value==='pendiente'?'Pendiente de pago':'Pagada')+
    '\n\n¿Confirmas que todos los datos son correctos y deseas sumar esta compra al historial?';
@@ -212,7 +216,7 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
   $('docNumber').value='';$('docTotal').value='';$('docNet').value='';$('docTax').value='';
   $('docOther').value='';$('docDiscount').value='';$('docRawText').value='';
   if(!warning)$('docFile').value='';
-  productos=[];datosFactura={receptor:'',observacion:''};expandIndex=-1;renderItems();
+  productos=[];datosFactura={receptor:'',receptorRut:'',observacion:''};expandIndex=-1;renderItems();
   // Mostrar de inmediato compras antiguas aunque el filtro estuviera en el mes actual.
   if(fecha<$('histFrom').value||fecha>$('histTo').value){
    const yr=Number(fecha.slice(0,4)),month=Number(fecha.slice(5,7));
@@ -250,6 +254,7 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
    setTimeout(()=>URL.revokeObjectURL(url),60000);
   }catch(e){alert('No se pudo descargar el archivo: '+e.message)}
  }
+ $('docBiz').addEventListener('change',()=>{if(datosFactura.receptor)history.sugerirRazon(datosFactura.receptor,datosFactura.receptorRut);});
  renderItems();
  return {guardar,cargar,cargarRazones:history.cargarRazones,aplicarTexto,interpretar};
 }
