@@ -3,7 +3,6 @@
    Acceso: Google autorizado + PIN exclusivo de finanzas; primer PIN exige clave
    de instalación privada en Vercel. No habilitar producción sin revisión. */
 const crypto=require('node:crypto');
-const FIN_BRANCH='feature/mi-administracion-privada-2026-11-07';
 const MAX_BYTES=1700000;
 const MODES=new Set(['venta','gasto','compra','costo_producto','retiro','ingreso_extra']);
 const PAYMENTS=new Set(['Efectivo','Transferencia','Débito','Crédito','Edenred','Junaeb','Uber','Rappi','PedidosYa','Otro']);
@@ -17,7 +16,7 @@ const fail=(res,status,msg)=>res.status(status).json({ok:false,error:msg});
 const text=(v,max=150)=>String(v??'').trim().slice(0,max);
 const validDate=d=>typeof d==='string'&&day.test(d)&&!Number.isNaN(Date.parse(d+'T12:00:00Z'))&&new Date(d+'T12:00:00Z').toISOString().slice(0,10)===d;
 const money=n=>Number.isSafeInteger(n)&&n>=0&&n<=1000000000;
-const envOk=(e=process.env)=>e.VERCEL_ENV==='preview'&&e.VERCEL_GIT_COMMIT_REF===FIN_BRANCH&&e.UKI_FIN_QA_ENABLED==='true';
+const envOk=(e=process.env)=>e.VERCEL_ENV==='preview'&&e.UKI_FIN_QA_ENABLED==='true'; // Nunca en producción.
 function dbUrl(e=process.env){
  if(!envOk(e))return null;
  // Reusar exclusivamente la conexión QA ya habilitada, nunca producción.
