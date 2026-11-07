@@ -1,8 +1,8 @@
 // Control de compras (QA). Solo sugiere OCR; confirmar siempre antes de registrar.
 // No modifica inventario ni el estado de disponibilidad de la carta.
-import {interpretarFacturaChile} from './mi-administracion-factura-parser.js?v=razones-v3';
-import {leerPDFLocal} from './mi-administracion-pdf-ocr.js?v=razones-v3';
-import {crearHistorialCompras} from './mi-administracion-historial.js?v=razones-v3';
+import {interpretarFacturaChile} from './mi-administracion-factura-parser.js?v=razones-v4';
+import {leerPDFLocal} from './mi-administracion-pdf-ocr.js?v=razones-v4';
+import {crearHistorialCompras} from './mi-administracion-historial.js?v=razones-v4';
 export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, branchName, currentBiz, currentBranch, upload, safe,branchesFor,negocios}){
  let productos=[],leyendo=false,datosFactura={receptor:'',receptorRut:'',observacion:''};
  const history=crearHistorialCompras({api,$,esc,fmt,businessName,branchName,branchesFor,negocios});
