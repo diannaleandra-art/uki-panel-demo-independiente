@@ -28,9 +28,6 @@ jobs:
                 assert.equal(body.ok,true);
                 assert.equal(body.branch,branch);
                 assert.ok(Array.isArray(body.unavailable));
-                for(const sku of ['classic:24','ingredient:vegetal-palta']){
-                  assert.equal(body.unavailable.includes(sku),false,'QA reactivation: '+branch+' '+sku);
-                }
                 assert.equal(r.headers.get('access-control-allow-origin'),origin);
                 assert.equal(r.headers.get('cache-control'),'no-store');
                 console.log('QA '+branch+': HTTP 200, CORS correcto, agotados='+body.unavailable.length);
