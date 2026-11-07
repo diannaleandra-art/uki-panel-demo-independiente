@@ -543,6 +543,7 @@ async function entrarSuc(){
  catch(e){aviso("Clave incorrecta, datos dañados o cifrado no disponible.");}
 }
 async function salirSuc(){
+ if(ukiSolicitudWhatsAppActiva)ukiWhatsAppPausarRevision();
  if(S.suc){const ok=await guardarEnLocalStorage();if(!ok)return;await colaGuardado;}
  revisionGuardado++;claveSesion=null;saltSesion=null;sucursalSesion=null;
  cargarDesdeLocalStorage();nuevoDraft();
@@ -859,7 +860,7 @@ function ukiVistaBorradores(){
    el personal pega el texto; se revisa antes de ingresarlo como pedido.
    Solicitudes rechazadas nunca ingresan a pedidos, caja o timbres. */
 let ukiSolicitudWhatsAppActiva=null;
-let ukiWhatsappBandejaAbierta=true;
+let ukiWhatsappBandejaAbierta=null;
 function ukiWhatsAppSolicitudesSucursal(){
  return (S.solicitudesWhatsApp||[]).filter(x=>x.suc===S.suc)
    .slice().sort((a,b)=>(b.creadoEn||0)-(a.creadoEn||0));
@@ -998,7 +999,8 @@ function ukiWhatsAppFicha(s,pendiente){
     '<strong style="white-space:nowrap">'+(total>0?fmt(total):'Monto por revisar')+'</strong></div>'+
   '<p style="margin:5px 0"><b>Cliente:</b> '+esc(s.cliente||'Sin identificar')+
     ' · <b>Código cliente:</b> '+esc(four||'sin número')+'</p>'+
-  '<p style="margin:5px 0"><b>WhatsApp:</b> '+esc(phone||'Número por confirmar')+'</p>'+
+  '<p style="margin:5px 0"><b>WhatsApp:</b> '+esc(phone||'Número por confirmar')+'</p>'+ 
+  '<p class="muted" style="margin:4px 0"><b>Recibido:</b> '+esc(s.fechaISO||'Fecha por confirmar')+'</p>'+
   '<p class="muted" style="margin:5px 0">'+esc(s.suc)+' · '+esc(d.modalidad||'Retiro')+
    ' · '+esc(productos.length)+' producto(s)'+(s.estado==='rechazada'?' · Rechazada: '+esc(s.motivo||''):s.estado==='aceptada'?' · Pedido interno #'+esc(s.pedidoId||''):' · Por confirmar')+'</p>'+
   '<details class="inner-details"><summary>Ver productos y mensaje original</summary>'+
@@ -1017,7 +1019,7 @@ function ukiWhatsAppFicha(s,pendiente){
 function ukiWhatsAppSolicitudesUI(){
  const items=ukiWhatsAppSolicitudesSucursal();
  const pending=items.filter(x=>x.estado==='pendiente'),historic=items.filter(x=>x.estado!=='pendiente');
- const open=ukiWhatsappBandejaAbierta?' open':'';
+ const open=(ukiWhatsappBandejaAbierta===null?pending.length>0:ukiWhatsappBandejaAbierta)?' open':'';
  return '<details class="card"'+open+'><summary onclick="ukiWhatsappBandejaAbierta=!ukiWhatsappBandejaAbierta" style="cursor:pointer">'+
   '<b>📲 Solicitudes WhatsApp · '+pending.length+' por confirmar</b></summary>'+
   '<p class="muted">Pega el mensaje recibido de WhatsApp. No se conecta automáticamente con WhatsApp Business y NO se registra una venta al recibirlo.</p>'+
