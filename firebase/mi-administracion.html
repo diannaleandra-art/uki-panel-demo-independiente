@@ -128,7 +128,8 @@ label{color:#66574c}
 <button type="button" class="quick-action" data-go="facturas"><span class="emoji">📷</span><strong>Compras y facturas</strong><small>Por razón social y proveedor</small></button>
 <button type="button" class="quick-action" data-go="negocios"><span class="emoji">🏪</span><strong>Mis negocios</strong><small>Agregar locales y costos</small></button>
 </div>
-<div class="card"><h2>📊 ¿Cómo va el negocio?</h2>
+<button id="goRecentMovements" class="soft" type="button" style="margin:12px 0 4px">📖 Ver ventas anteriores y otros movimientos</button>
+<div class="card"><h2>📊 ¿Cómo van todos los negocios?</h2>
 <p class="hint">Estos importes son solamente los que registres aquí. La caja del panel Uki se mantiene separada y las cifras no son ganancias definitivas.</p>
 <div class="metrics"><div class="metric"><small>Ventas anotadas</small><b id="m-ventas">$0</b></div>
 <div class="metric"><small>Gastos y compras pagadas</small><b id="m-gastos">$0</b></div>
@@ -356,10 +357,10 @@ function options(){
 }
 async function loadBusinesses(){
  const r=await api('negocios');businesses=r.negocios||[];branches=r.sucursales||[];
- const prev=currentBiz();options();if(businesses.some(x=>x.id===prev))$('scopeBusiness').value=prev;
+ options();$('scopeBusiness').value='';$('scopeBranch').value='';
  const legal=await controlCompras.cargarRazones();
  razones=legal.razones||[];vinculos=legal.vinculos||[];
- renderBusinessList();scopeReasons();
+ renderBusinessList();scopeReasons();$('scopeRazon').value='todos';
  optionsForReason('saleRazon',value('saleBiz'));
  optionsForReason('expenseRazon',value('expenseBiz'));
  $('scopeBusiness').onchange();
@@ -466,6 +467,13 @@ function syncSelectedBusiness(name){
  $(ids[0]).value=chosen;chooseBranch(ids[1],chosen);
  if(branch&&branchesFor(chosen).some(s=>s.id===branch))$(ids[1]).value=branch;
 }
+function vistaCompras(modo,desplazar=true){
+ const form=modo==='registrar';
+ $('purchaseEntry').hidden=!form;
+ $('showPurchaseForm').classList.toggle('primary',form);
+ $('showPurchaseHistory').classList.toggle('primary',!form);
+ if(desplazar)(form?$('purchaseEntry'):$('purchaseNavigation')).scrollIntoView({behavior:'smooth',block:'start'});
+}
 function switchTab(name){
  tab=name;
  for(const v of document.querySelectorAll('.view'))v.hidden=v.id!=='v-'+name;
@@ -473,11 +481,16 @@ function switchTab(name){
  for(const btn of document.querySelectorAll('[data-tab]'))btn.classList.toggle('active',btn.dataset.tab===name);
  syncSelectedBusiness(name);
  window.scrollTo({top:0,behavior:'smooth'});
- if(name==='facturas')void loadDocs();
+ if(name==='facturas'){vistaCompras('historial',false);void loadDocs();}
  if(name==='negocios')void loadCosts();
 }
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
 document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>switchTab(b.dataset.go));
+$('showPurchaseForm').onclick=()=>vistaCompras('registrar');
+$('showPurchaseHistory').onclick=()=>vistaCompras('historial');
+$('goRecentMovements').onclick=()=>{
+ $('movimientosGeneral').scrollIntoView({behavior:'smooth',block:'start'});
+};
 function moneyRows(m){return Object.entries(m).filter(([k,v])=>Number(v)>0).map(([k,v])=>'<div class="line row"><span>'+esc(k)+'</span><b>'+pesos(v)+'</b></div>').join('')}
 function renderRows(){
  $('recent').innerHTML=transactions.slice(0,35).map(t=>{
