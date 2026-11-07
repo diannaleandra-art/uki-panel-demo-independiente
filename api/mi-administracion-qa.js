@@ -467,6 +467,7 @@ module.exports=async(req,res)=>{
   return fail(res,400,'Función no reconocida.');
  }catch(e){
   const msg=String(e.message||e);
+  if(action==='guardar_compra_factura'&&(e.code==='23505'||/duplicate key/i.test(msg)))return fail(res,409,'Ese proveedor y folio ya están registrados para esta razón social. No se duplicó la compra.');
   if(/invalid input|violates|duplicate key|foreign key|out of range|uuid|synt[aá]x|base64/i.test(msg))return fail(res,400,'Revisa los datos del formulario antes de guardar.');
   if(/invalid|negocio|sucursal|medios|código|documento|archivo|cantidad|Revisa|Indica|Selecciona|importe/i.test(msg))return fail(res,400,msg.slice(0,230));
   console.error('Finanzas QA:',String(e.code||e.name||'error').slice(0,60));
