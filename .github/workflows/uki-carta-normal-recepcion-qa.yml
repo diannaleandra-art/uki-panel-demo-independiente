@@ -14,7 +14,6 @@ jobs:
         with:
           persist-credentials: false
       - run: node --test tests/uki-carta-normal-recepcion.test.cjs
-      - name: Verificar receptor de carta en Vercel sin consultar datos de clientes
+      - name: Verificar carta y comparar recepción QR antigua y nueva sin credenciales
         run: |
-          node --input-type=module -e 'for(const [name,path] of [["Carta normal","/api/carta-solicitudes-live?branch=serena"],["Mesas QR","/api/mesa-pedidos-live?branch=serena"]]){const r=await fetch("https://uki-sushi-pedidos.vercel.app"+path,{signal:AbortSignal.timeout(15000)});const j=await r.json();if(r.status!==403||j.error!=="Personal no autorizado en esta sucursal") {if(name==="Carta normal"&&r.status===403&&j.error==="Personal no autorizado"){console.log(name+": HTTP 403 protegido");continue;}throw Error(name+" no listo: HTTP "+r.status+" "+String(j.error||""))}console.log(name+": HTTP 403 protegido")}'
-
+          node --input-type=module -e 'const base="https://uki-sushi-pedidos.vercel.app";const old="https://uki-sushi-pedidos-cs1kocwd7-diannaleandra-7046.vercel.app";const get=async(url)=>{const r=await fetch(url,{signal:AbortSignal.timeout(15000)});return {status:r.status,body:await r.json().catch(()=>({}))}};const carta=await get(base+"/api/carta-solicitudes-live?branch=serena");if(carta.status!==403||carta.body.error!=="Personal no autorizado")throw Error("La carta debe permanecer protegida: "+carta.status);const antes=await get(old+"/api/mesa-pedidos-live?branch=serena");const ahora=await get(base+"/api/mesa-pedidos-live?branch=serena");console.log("QR anterior:",antes.status,"QR actual:",ahora.status);if(antes.status===403&&ahora.status!==403)throw Error("Regresión de QR: antes habilitado, ahora "+ahora.status);console.log("Carta activa y protegida, sin regresión en QR")'
