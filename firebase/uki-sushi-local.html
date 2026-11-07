@@ -3055,6 +3055,10 @@ function cerrar(){
   delete caja.inicioMs;
   S.fechaOperativa=hoyLocal(); // Nuevo período luego del cierre, no a medianoche.
   guardarEnLocalStorage();
+  // Caja acumulada: sincroniza solo el cierre confirmado, sin detener caja si no hay conexión.
+  const cierreAcumulable=S.cierres[S.cierres.length-1];
+  if(cierreAcumulable&&typeof window.ukiCajaAcumuladaRegistrarCierre==="function")
+    void window.ukiCajaAcumuladaRegistrarCierre(cierreAcumulable);
   S.busy=false;
   cierreDraft={resp:"",obs:"",contado:""};
   aviso("✅ Turno "+fechaTurnoCerrado+" cerrado y guardado en Historial");
