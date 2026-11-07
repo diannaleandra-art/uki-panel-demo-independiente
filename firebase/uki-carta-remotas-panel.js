@@ -76,14 +76,14 @@ function ukiCartaRemotaFicha(r){
   creadoEn:Number.isFinite(recibido)?recibido:Date.now(),
   fechaISO:Number.isFinite(recibido)?new Date(recibido).toLocaleString('es-CL'):'Fecha por confirmar',
   motivo:r.motivo_rechazo||''},false);
- return '<div class="card order-card"><p class="muted"><b>📲 Origen: Carta normal → WhatsApp · '+
-   (pendiente?'PENDIENTE DE CONFIRMACIÓN':'RECHAZADO')+'</b></p>'+
-   '<p class="muted">La solicitud llegó desde la carta. Verifica que el mensaje también esté en WhatsApp antes de aceptarla.</p>'+
-   detalle+(pendiente?'<div style="display:flex;gap:8px;flex-wrap:wrap">'+
-   '<button type="button" class="sm ok" onclick="ukiCartaRemotaAbrir('+esc(JSON.stringify(r.id))+')">✅ Aceptar y revisar</button>'+
-   '<label style="flex:1;min-width:140px">Motivo si no se hará<select id="ukiCartaMotivo'+esc(r.id)+'"><option value="">Selecciona motivo</option>'+
+ return '<div class="card order-card uki-carta-compacta"><p class="muted"><b>📲 Carta normal · '+
+   (pendiente?'Por confirmar':'Rechazado')+'</b></p>'+
+   '<p class="muted uki-whatsapp-check">Verifica el mensaje en WhatsApp antes de aceptarlo.</p>'+
+   detalle+(pendiente?'<div class="uki-solicitud-acciones">'+
+   '<button class="sm uki-accion-rechazar" type="button" onclick="ukiCartaRemotaRechazar('+esc(JSON.stringify(r.id))+')">✕ Rechazar</button>'+
+   '<label class="uki-motivo-rechazo">Motivo<select id="ukiCartaMotivo'+esc(r.id)+'"><option value="">Selecciona motivo</option>'+
    ['Cliente canceló','Cliente no respondió','Producto no disponible','Otro motivo'].map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('')+'</select></label>'+
-   '<button class="sm" type="button" onclick="ukiCartaRemotaRechazar('+esc(JSON.stringify(r.id))+')">✕ Rechazar</button></div>':'')+'</div>';
+   '<button class="sm ok uki-accion-aceptar" type="button" onclick="ukiCartaRemotaAbrir('+esc(JSON.stringify(r.id))+')">✅ Aceptar y revisar</button></div>':'')+'</div>';
 }
 function ukiCartaRemotaAbrir(id){
  const r=ukiCartaRemotasSucursal().find(x=>x.id===id&&x.estado==='pendiente');
