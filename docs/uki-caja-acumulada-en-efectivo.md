@@ -7,7 +7,7 @@ Se incluye en la lista de mejoras para la publicación conjunta posterior a prue
 Registrar el efectivo que efectivamente queda bajo custodia de cada sucursal, trasladándolo desde cierres anteriores a un saldo acumulado; permitir usar una parte de ese efectivo, retirarlo o transferirlo entre locales con trazabilidad.
 
 ## Pantalla en el panel actual
-- Sección exacta «Caja acumulada en efectivo» (visible para administradora, acceso de operaciones según permisos existentes; agendador no autorizado para retiros).
+- Sección exacta «Caja acumulada en efectivo» DENTRO del portal actual de Uki Sushi, en Caja. Acceso con la sesión y clave EXISTENTES de agendador y dueños, sin credenciales, PIN o Google adicional. El agendador y los dueños pueden consultar, ingresar, registrar gastos, retiros y traspasos.
 - Pestañas/filtro por sucursal: Regimiento Arica y La Serena. Nunca mezclar saldos.
 - Resumen por sucursal: saldo inicial reconciliado, acumulado de cierres confirmados, gastos pagados con dinero acumulado, retiros, entradas manuales justificadas, traspasos recibidos/entregados y saldo actual.
 - Historial con fecha/hora Chile, usuario, motivo/concepto, monto, sucursal, origen del movimiento e identificador único. Exportación PDF/CSV compatible Excel y compartir WhatsApp cuando exista autorización. En resumen del cierre incluir saldo sin alterar ventas del día.
@@ -38,7 +38,7 @@ Registrar el efectivo que efectivamente queda bajo custodia de cada sucursal, tr
 - No permitir egresos por encima del saldo disponible salvo permiso administrativo especial explícito; no presupuestar este permiso como comportamiento por defecto.
 - Persistir cada movimiento en BD con ID y clave única para evitar doble clic/doble cargo.
 - Registrar autor, creada_en y nunca editar/borrar movimientos firmes silenciosamente: reversa + nueva entrada auditada.
-- Control administrativo para retiros, correcciones, transferencias y cierre; los trabajadores no tendrán acceso a cierres ni al saldo acumulado completo.
+- El agendador y dueños utilizan los permisos actuales del portal para registrar movimientos; el sistema exige indicar nombre de responsable en cada asiento, conservando también la identidad de sesión. Quienes solo usan acceso restringido de inventario no reciben acceso al portal de caja.
 - Sin dependencia del stock del inventario ni del Disponible/Agotado de la carta.
 
 ## Criterios de aceptación antes de publicar
@@ -50,3 +50,6 @@ Registrar el efectivo que efectivamente queda bajo custodia de cada sucursal, tr
 - Transferencia entre sucursales no crea ni destruye efectivo global.
 - PDF/CSV y acceso iPhone desde panel con usuarios autorizados.
 - Pruebas en base aislada antes de cualquier cambio de producción.
+
+## Decisión de acceso ratificada
+La usuaria confirmó: **sin autorización diferente**. La sección pertenece al mismo portal de ventas/caja y la usan el agendador y los dueños con los accesos actuales. No abrir otra aplicación ni crear PIN/Google aparte. Todo movimiento lleva el campo «Responsable» en el historial. Estado: implementación en QA, pendiente de pruebas integradas y publicación conjunta.
