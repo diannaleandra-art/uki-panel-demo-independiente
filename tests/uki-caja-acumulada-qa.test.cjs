@@ -5,7 +5,7 @@ const {JSDOM}=require('jsdom');
 const root=path.join(__dirname,'..');
 const read=f=>fs.readFileSync(path.join(root,f),'utf8');
 const api=require('../api/uki-caja-acumulada-qa.js')._testing;
-test('caja acumulada: solo QA, y autorización de administración independiente de inventarios',()=>{
+test('caja acumulada: solo QA, usa el acceso Google existente del panel',()=>{
  assert.equal(api.qaEnabled({
   VERCEL_ENV:'preview',
   VERCEL_GIT_COMMIT_REF:'feature/uki-disponibilidad-manual-live-2026-11-06',
@@ -23,9 +23,9 @@ test('caja acumulada: solo QA, y autorización de administración independiente 
  assert.equal(api.validUUID('11111111-1111-4111-8111-111111111111'),true);
  assert.equal(api.validUUID('1111'),false);
  const source=read('api/uki-caja-acumulada-qa.js');
- assert.match(source,/UKI_CAJA_ACUM_ADMIN_UIDS/);
- assert.match(source,/UKI_CAJA_ACUM_ADMIN_EMAILS/);
- assert.doesNotMatch(source,/UKI_INVENTARIO_LIVE_ALLOWED_UIDS/);
+ assert.match(source,/UKI_INVENTARIO_LIVE_ALLOWED_UIDS/);
+ assert.match(source,/UKI_INVENTARIO_LIVE_ALLOWED_EMAILS/);
+ assert.doesNotMatch(source,/UKI_CAJA_ACUM_ADMIN_UIDS/);
  assert.match(source,/uki_caja_acum_aplicar_qa/);
  assert.doesNotMatch(source,/uki_caja_acum_aplicar_live/);
  assert.ok(!source.includes('INSERT INTO public.uki_caja_acum_movimientos_live'));
@@ -37,6 +37,7 @@ test('migración atómica: aislamiento por sucursal, cierres idempotentes y sald
   "WHEN 'traspaso' THEN 'traspaso_salida'", 'traspaso_entrada',
   "if"]) {if(needle==='if')continue;assert.ok(s.includes(needle),needle);}
  assert.ok(s.includes('saldo_resultante'));
+ assert.ok(s.includes('responsable text NOT NULL'));
  assert.ok(s.includes('fecha_operativa'));
  assert.match(s,/initialized boolean NOT NULL DEFAULT false/);
  assert.doesNotMatch(s,/TRUNCATE|DROP TABLE|DELETE FROM/i);
@@ -53,6 +54,8 @@ test('el panel incorpora una pestaña Caja acumulada sin cambiar lógica de cier
  assert.match(ui,/No se registr.* nuevamente|NO se registra nuevamente/);
  assert.doesNotMatch(ui,/\bS\.cierres\s*=|\bS\.pedidos\s*=/);
  assert.match(ui,/crypto\.randomUUID/);
+ assert.match(ui,/ukiAcumResponsable/);
+ assert.match(ui,/responsable,op_key:state\.nonce/);
 });
 test('UI aislada calcula estado y registra gasto sin cambiar sucursal o duplicar retiro',async()=>{
  const dom=new JSDOM('<html><body></body></html>',{
@@ -86,10 +89,12 @@ test('UI aislada calcula estado y registra gasto sin cambiar sucursal o duplicar
   d.getElementById('ukiAcumType').value='gasto';
   d.getElementById('ukiAcumType').dispatchEvent(new w.Event('change'));
   d.getElementById('ukiAcumAmount').value='5000';
+  d.getElementById('ukiAcumResponsable').value='Agendadora de pruebas';
   d.getElementById('ukiAcumConcept').value='Compra de prueba';
   d.getElementById('ukiAcumSave').click();
   await tick();
   const gasto=calls.find(x=>x.action==='gasto');
+  assert.equal(gasto.responsable,'Agendadora de pruebas');
   assert.ok(gasto);
   assert.equal(gasto.monto,5000);
   assert.equal(gasto.branch,'arica');
