@@ -229,6 +229,60 @@ module.exports=async(req,res)=>{
    const pagos=await sql.query("SELECT pago.key AS medio,SUM((pago.value)::bigint)::bigint AS total FROM public.fin_movimientos m CROSS JOIN LATERAL jsonb_each_text(m.medios) AS pago(key,value) WHERE ($1::uuid IS NULL OR m.negocio_id=$1) AND ($2::uuid IS NULL OR m.sucursal_id=$2) AND m.fecha BETWEEN $3 AND $4 AND m.tipo='venta' AND m.estado<>'anulado' GROUP BY pago.key ORDER BY pago.key",[b,s,from,to]);
    return ok(res,{resumen:rows,pagos,nota:'Resultado preliminar = ventas - gastos y compras pagadas. No es utilidad contable definitiva.'});
   }
+  if(action==='guardar_compra_factura'){
+   // Confirmación manual obligatoria: la extracción de foto no autoriza contabilidad.
+   if(body.confirmado!==true)return fail(res,400,'Revisa y confirma primero los importes de la factura.');
+   const business=body.negocio_id,local=body.sucursal_id||null,fecha=body.fecha;
+   await belongs(sql,business,local);
+   const proveedor=text(body.proveedor,120),referencia=text(body.referencia,130);
+   const total=Number(body.total),neto=Number(body.neto),iva=Number(body.iva);
+   const otros=Number(body.otros),descuento=Number(body.descuento);
+   if(!validDate(fecha)||proveedor.length<2||![total,neto,iva,otros,descuento].every(money)||
+      total<1||neto+iva+otros-descuento!==total)
+    return fail(res,400,'Revisa proveedor, fecha, neto, IVA y total. Deben cuadrar.');
+   const items=body.articulos;
+   if(!Array.isArray(items)||items.length>60)return fail(res,400,'Máximo 60 productos por factura.');
+   const cleans=[];
+   for(const item of items){
+    const nombre=text(item?.nombre,180),cantidad=Number(String(item?.cantidad||'').replace(',','.'));
+    const precio=Number(item?.precio_unitario),importe=Number(item?.total),unidad=text(item?.unidad||'un',15);
+    if(nombre.length<2||!Number.isFinite(cantidad)||cantidad<=0||cantidad>100000||
+       !/^\d{1,6}(\.\d{1,3})?$/.test(String(cantidad))||
+       !money(precio)||!money(importe)||Math.abs(Math.round(cantidad*precio)-importe)>2)
+      return fail(res,400,'Revisa cantidad, precio o importe de un producto.');
+    cleans.push({nombre,cantidad:String(cantidad),precio_unitario:String(precio),
+      total:String(importe),unidad:unidad||'un'});
+   }
+   const result=await sql.query(
+    'SELECT public.fin_registrar_compra_v1($1::uuid,$2::uuid,$3::date,$4,$5,$6::bigint,$7::bigint,$8::bigint,$9::bigint,$10::bigint,$11::boolean,$12::jsonb,$13,$14) AS result',
+    [business,local,fecha,proveedor,referencia,total,neto,iva,otros,descuento,
+     body.pendiente===true,JSON.stringify(cleans),who.uid,'']);
+   const saved=result[0]?.result||{};
+   if(!saved.ok)return fail(res,409,saved.duplicado?
+    'Esta factura ya está registrada. No la guardamos dos veces.':
+    'Existe una compra o gasto igual para ese proveedor, fecha y total. Revisa el historial antes de registrarla otra vez.');
+   return ok(res,{id:saved.id,articulos:saved.articulos,registrado_como:'compra'});
+  }
+  if(action==='resumen_compras'){
+   const b=body.negocio_id||null,s=body.sucursal_id||null;
+   if(b)await belongs(sql,b,s);else if(s)return fail(res,400,'Primero selecciona el negocio.');
+   const from=validDate(body.desde)?body.desde:'2000-01-01';
+   const to=validDate(body.hasta)?body.hasta:'2099-12-31';
+   const params=[b,s,from,to];
+   const rows=await sql.query("SELECT proveedor,COUNT(*)::int AS facturas,SUM(monto)::bigint AS total,SUM(CASE WHEN estado='pendiente' THEN monto ELSE 0 END)::bigint AS pendiente FROM public.fin_movimientos WHERE tipo='compra' AND fuente='factura' AND estado<>'anulado' AND ($1::uuid IS NULL OR negocio_id=$1) AND ($2::uuid IS NULL OR sucursal_id=$2) AND fecha BETWEEN $3 AND $4 GROUP BY proveedor ORDER BY total DESC LIMIT 100",params);
+   const summary=await sql.query("SELECT COUNT(*)::int AS facturas,coalesce(SUM(monto),0)::bigint AS compras,coalesce(SUM(CASE WHEN estado='pendiente' THEN monto ELSE 0 END),0)::bigint AS pendiente FROM public.fin_movimientos WHERE tipo='compra' AND fuente='factura' AND estado<>'anulado' AND ($1::uuid IS NULL OR negocio_id=$1) AND ($2::uuid IS NULL OR sucursal_id=$2) AND fecha BETWEEN $3 AND $4",params);
+   const items=await sql.query("SELECT lower(btrim(i.descripcion)) AS producto,COUNT(*)::int AS veces,SUM(i.cantidad)::numeric(16,3) AS cantidad,i.unidad,SUM(i.total_linea)::bigint AS importe FROM public.fin_compra_items i JOIN public.fin_movimientos m ON m.id=i.compra_id WHERE m.tipo='compra' AND m.fuente='factura' AND m.estado<>'anulado' AND ($1::uuid IS NULL OR m.negocio_id=$1) AND ($2::uuid IS NULL OR m.sucursal_id=$2) AND m.fecha BETWEEN $3 AND $4 GROUP BY lower(btrim(i.descripcion)),i.unidad ORDER BY importe DESC LIMIT 80",params);
+   const invoices=await sql.query("SELECT id,negocio_id,sucursal_id,fecha,proveedor,referencia,monto,estado,datos FROM public.fin_movimientos WHERE tipo='compra' AND fuente='factura' AND estado<>'anulado' AND ($1::uuid IS NULL OR negocio_id=$1) AND ($2::uuid IS NULL OR sucursal_id=$2) AND fecha BETWEEN $3 AND $4 ORDER BY fecha DESC,creado_en DESC LIMIT 100",params);
+   return ok(res,{resumen:summary[0]||{facturas:0,compras:0,pendiente:0},
+    proveedores:rows,productos:items,facturas:invoices,nota:'Total facturado, incluye lo pendiente. No duplica compras registradas desde esta sección.'});
+  }
+  if(action==='detalle_compra'){
+   if(!uuid.test(String(body.id||'')))return fail(res,400,'Identificador incorrecto.');
+   const compra=await sql.query("SELECT id,negocio_id,sucursal_id,fecha,proveedor,referencia,monto,datos,estado FROM public.fin_movimientos WHERE id=$1 AND tipo='compra' AND fuente='factura' LIMIT 1",[body.id]);
+   if(!compra.length)return fail(res,404,'Compra no encontrada.');
+   const articulos=await sql.query('SELECT posicion,descripcion,cantidad,unidad,precio_unitario,total_linea FROM public.fin_compra_items WHERE compra_id=$1 ORDER BY posicion',[body.id]);
+   return ok(res,{compra:compra[0],articulos});
+  }
   if(action==='guardar_documento'){
    await belongs(sql,body.negocio_id,body.sucursal_id||null);
    const name=text(body.nombre,150),mime=String(body.mime||''),tipo=String(body.tipo||'');
