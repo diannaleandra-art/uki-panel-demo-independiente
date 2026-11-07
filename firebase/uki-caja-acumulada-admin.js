@@ -22,8 +22,8 @@ function html(){
  '<h2>💵 Caja acumulada en efectivo</h2>'+
  '<p class="muted">Dinero físico que quedó de cierres anteriores. Independiente de transferencias y tarjetas.</p>'+
  '<p class="mini-help"><b>EFECTIVO REAL:</b> para comenzar, cuenta una sola vez el dinero físico que ya quedó de los cierres anteriores. No vuelvas a registrar esos cierres.</p>'+
- '<label for="ukiAcumBranch">Sucursal</label>'+
- '<select id="ukiAcumBranch"><option value="arica">Regimiento Arica</option><option value="serena">La Serena</option></select>'+
+ '<p class="mini-help">Sucursal actual: <b id="ukiAcumSucursalFija"></b>. Para consultar otra caja, utiliza «Salir» y entra a esa sucursal.</p>'+
+ '<select id="ukiAcumBranch" hidden disabled aria-label="Sucursal de este panel"><option value="arica">Regimiento Arica</option><option value="serena">La Serena</option></select>'+
  '<div class="kpi" style="margin:12px 0"><span>Saldo acumulado · <b id="ukiAcumSucursal"></b></span><strong id="ukiAcumBalance">—</strong></div>'+
  '<p id="ukiAcumStatus" role="status" class="mini-help">Cargando con el acceso habitual del panel…</p>'+
  '<button type="button" id="ukiAcumRefresh" class="sm">Actualizar saldo</button>'+
@@ -57,6 +57,7 @@ function html(){
  '<p class="muted">Los cierres antiguos no se acumulan sin reconciliar el dinero real. Las correcciones aportan solo la diferencia.</p>';
 }
 async function request(action,extra={},branch=state.branch){
+ if(branch!==branchFromPanel())throw Error('Abre la sucursal correspondiente para gestionar su caja acumulada.');
  if(!API)throw Error('Servicio de caja acumulada no disponible.');
  const token=await window.ukiInventarioToken?.();
  if(!token)throw Error('Utiliza el acceso habitual de Uki Sushi al panel.');
@@ -115,6 +116,7 @@ async function registerConfirmedClosure(c){
 function draw(){
  if(!$('ukiAcumRoot'))return;
  $('ukiAcumBranch').value=state.branch;
+ $('ukiAcumSucursalFija').textContent='Uki '+BRANCHES[state.branch];
  $('ukiAcumSucursal').textContent=BRANCHES[state.branch];
  $('ukiAcumBalance').textContent=state.ready&&state.initialized?money(state.balance):'Sin saldo inicial';
  $('ukiAcumMain').hidden=!state.ready;
@@ -217,7 +219,7 @@ function exportReport(kind){
 function mount(){
  if(!$('ukiAcumRoot'))return;
  state.branch=branchFromPanel();state.ready=false;state.nonce=null;
- $('ukiAcumBranch').onchange=()=>{state.branch=$('ukiAcumBranch').value;state.ready=false;state.nonce=null;void load();};
+ $('ukiAcumBranch').disabled=true;
  $('ukiAcumType').onchange=draw;
  $('ukiAcumRefresh').onclick=()=>void load();
  $('ukiAcumHistoryRefresh').onclick=()=>void load();
