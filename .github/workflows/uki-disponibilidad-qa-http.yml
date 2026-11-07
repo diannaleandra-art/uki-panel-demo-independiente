@@ -101,15 +101,15 @@ jobs:
           const workerPage=await fetch(preview+'/',{signal:AbortSignal.timeout(12000)});
           assert.equal(workerPage.status,200,'El trabajador debe ver la interfaz QA');
           const workerHtml=await workerPage.text();
-          for(const feature of ['turnoFechaChile','estadoLista','mostrarMas','Pendientes de contar']){
+          for(const feature of ['turnoFechaChile','turnoHoraActual','turnoUltimoRegistro','setInterval(actualizarReloj,1000)','estadoLista','mostrarMas','Pendientes de contar']){
             assert.ok(workerHtml.includes(feature),'La vista del trabajador debe incluir '+feature);
           }
           console.log('QA trabajador: interfaz móvil, lista compacta y fecha de Chile HTTP 200');
-          const visual=await fetch('https://uki-sushi-inventario-lzri8hcev-diannaleandra-7046.vercel.app/vista-previa-inventario.html',
+          const visual=await fetch('https://uki-sushi-inventario-4h5sia7h0-diannaleandra-7046.vercel.app/vista-previa-inventario.html',
            {signal:AbortSignal.timeout(12000)});
           assert.equal(visual.status,200,'La demostración visual debe abrir en Vercel QA');
           const visualHTML=await visual.text();
-          for(const feature of ['Demostración visual','Historial de inventarios','Regimiento Arica','La Serena','Excel']){
+          for(const feature of ['Demostración visual','Historial de inventarios','Regimiento Arica','La Serena','Excel','hora-actual','setInterval(mostrarHoraActual,1000)']){
            assert.ok(visualHTML.includes(feature),'Falta '+feature+' en el demo');
           }
           console.log('QA diseño inventario: vista visual accesible HTTP 200');
