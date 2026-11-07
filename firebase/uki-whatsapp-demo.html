@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive"><title>Uki Sushi · Prueba WhatsApp</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;color:#31271f;background:#fffbf7;--line:#e9ddd2;--muted:#877869;--orange:#ec801a;--light:#fff2e6}
+*{box-sizing:border-box}body{margin:0;padding-bottom:46px}main{max-width:680px;margin:auto;padding:20px 17px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 0 10px}h1{font-size:25px;line-height:1.2;margin:6px 0}h2{font-size:21px;margin:0 0 8px}h3{font-size:17px;margin:0}p{line-height:1.45}small,.muted{color:var(--muted);font-size:13px}.eyebrow{font-size:12px;font-weight:800;letter-spacing:1.2px;color:#ad5e19}.card{background:#fff;border:1px solid var(--line);border-radius:17px;padding:18px;margin:14px 0;box-shadow:0 3px 10px #67330b08}.notice{background:var(--light);color:#754414;border-radius:13px;padding:13px;margin:12px 0;font-size:14px;line-height:1.4}
+label{display:block;font-size:13px;font-weight:700;color:#655343;margin:12px 0 6px}
+input,textarea,select{display:block;width:100%;border:1px solid #d9c8bb;border-radius:11px;padding:12px 12px;background:#fff;color:inherit;font:inherit;font-size:16px;min-height:44px}
+textarea{resize:vertical;min-height:106px;line-height:1.5}button{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:11px;padding:11px 15px;color:inherit;font:inherit;font-size:14px;font-weight:700;min-height:42px}button.primary{background:var(--orange);color:white;border-color:var(--orange)}button.subtle{background:#fff7f0}button:disabled{opacity:.5;cursor:not-allowed}.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.actions button{flex:1}.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.metric{border:1px solid var(--line);border-radius:12px;background:#fff7f0;padding:10px}.metric b{display:block;font-size:24px}.metric small{font-size:11px}.section-head{display:flex;align-items:center;justify-content:space-between;gap:9px;margin:15px 0}.pill{display:inline-block;padding:5px 10px;border-radius:99px;background:#fff1e2;font-size:12px;color:#83501c;font-weight:700}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.grid>*{min-width:0}.order{border-top:1px solid var(--line);padding:17px 0}.order:first-of-type{border-top:none}.name{font-size:18px;font-weight:750}.order-title{display:flex;gap:12px;justify-content:space-between;align-items:start}.price{white-space:nowrap;font-weight:800}.row{display:flex;align-items:baseline;justify-content:space-between;gap:12px}.compact{font-size:14px;margin:5px 0}.code{font-size:15px;color:#995210;font-weight:750}.empty{padding:18px;text-align:center;color:var(--muted)}details{border:1px solid var(--line);border-radius:11px;padding:10px 12px;margin-top:10px}summary{cursor:pointer;font-weight:700;font-size:13px}pre{white-space:pre-wrap;word-break:break-word;font:12px/1.55 system-ui;margin-bottom:0}.status{font-size:13px;margin:10px 0;color:#8e5b22;font-weight:650}.hidden,[hidden]{display:none!important}.review-title{border-bottom:1px solid var(--line);padding-bottom:11px;margin-bottom:10px}
+@media(max-width:390px){main{padding:14px 12px}.card{padding:14px}.metrics{gap:6px}.metric{padding:8px}.metric b{font-size:21px}}
+</style></head><body><main>
+<header><div><div class="eyebrow">UKI SUSHI · DEMOSTRACIÓN</div><h1>📲 Solicitudes WhatsApp</h1><div class="muted">Aceptar, revisar o rechazar un pedido</div></div></header>
+<div class="notice"><b>Prueba independiente.</b> No necesitas ingresar con Google. No se conecta a WhatsApp Business, caja, inventario ni pedidos reales. Usa datos ficticios: nada de lo que hagas aquí se registra en el local.</div>
+<label for="branch">Sucursal que quieres visualizar</label>
+<select id="branch"><option value="Uki Regimiento Arica">Uki Regimiento Arica</option><option value="Uki La Serena">Uki La Serena</option></select>
+<div class="metrics" style="margin-top:13px">
+<div class="metric"><small>Por confirmar</small><b id="pending-count">0</b></div>
+<div class="metric"><small>Aceptadas</small><b id="accepted-count">0</b></div>
+<div class="metric"><small>Rechazadas</small><b id="rejected-count">0</b></div>
+</div>
+<p class="status" id="message" role="status">Puedes usar el ejemplo ficticio que ya aparece abajo.</p>
+<section class="card" id="inbox">
+<div class="section-head"><h2>Por confirmar</h2><span class="pill">No suman a caja</span></div>
+<div id="pending-list"></div>
+</section>
+<section class="card hidden" id="review">
+<div class="review-title"><div class="eyebrow">REVISIÓN ANTES DE ACEPTAR</div><h2>Corregir solicitud</h2><div class="muted">Ningún dato se contabiliza hasta después de guardar y confirmar el pago en el panel real.</div></div>
+<label for="edit-code">Código que aparece en WhatsApp</label><input id="edit-code" autocomplete="off">
+<div class="grid"><div><label for="edit-name">Nombre del cliente</label><input id="edit-name"></div><div><label for="edit-phone">Número WhatsApp</label><input id="edit-phone" inputmode="tel"></div></div>
+<p class="compact"><b>Código de cliente (últimos 4):</b> <span id="edit-last">—</span></p>
+<label for="edit-mode">Modalidad</label><select id="edit-mode"><option>Retiro</option><option>Delivery</option><option>Consumo en local</option></select>
+<label for="edit-products">Productos o detalle de cocina (puedes corregirlo)</label><textarea id="edit-products"></textarea>
+<div class="grid"><div><label for="edit-subtotal">Productos ($)</label><input id="edit-subtotal" type="number" min="0" inputmode="numeric"></div><div><label for="edit-delivery">Delivery ($)</label><input id="edit-delivery" type="number" min="0" inputmode="numeric"></div></div>
+<div class="row" style="margin-top:12px"><strong>Total calculado</strong><strong class="price" id="edit-total">$0</strong></div>
+<label for="edit-payment">Forma de pago indicada</label><select id="edit-payment"><option>Efectivo</option><option>Transferencia</option><option>Débito</option><option>Crédito</option><option>Edenred</option><option>Otros</option></select>
+<p class="muted">Se conserva el mensaje original para comprobarlo. Puedes corregir todos los campos de esta demostración.</p>
+<div class="actions"><button type="button" id="back">Volver sin aceptar</button><button type="button" class="primary" id="accept">✓ Aceptar pedido revisado</button></div>
+</section>
+<section class="card" id="history">
+<div class="section-head"><h2>Historial</h2><span class="pill" id="history-count">0 procesadas</span></div>
+<div id="history-list"></div>
+</section>
+<section class="card" id="add">
+<div class="section-head"><h2>Agregar un mensaje</h2></div>
+<p class="muted">Para esta prueba, pega un mensaje de ejemplo o usa el botón para cargar uno ficticio. Evita poner datos de clientes reales.</p>
+<label for="input-message">Texto recibido por WhatsApp</label><textarea id="input-message" placeholder="Pega un mensaje de ejemplo de la carta digital…"></textarea>
+<div class="actions"><button type="button" id="sample">Poner ejemplo</button><button type="button" class="primary" id="add-request">📩 Agregar por confirmar</button></div>
+</section>
+<p class="muted" style="text-align:center">La información de esta demostración se borra al cerrar o actualizar la página. La integración con el panel real se prueba por separado.</p>
+</main>
+<script>
+(function(){
+"use strict";
+var $=function(id){return document.getElementById(id)};
+var esc=function(x){return String(x==null?"":x).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})};
+var fmt=function(n){return "$"+Math.round(Number(n)||0).toLocaleString("es-CL")};
+var money=function(x){return x?Number(String(x).replace(/[^0-9]/g,"")):0};
+var text=function(t,re){var m=String(t||"").match(re);return m?String(m[1]).trim():""};
+var four=function(phone){var s=String(phone||"").replace(/\D/g,"");return s.length>=8?s.slice(-4):"—"};
+var sample="UKI SUSHI\nN° de pedido: UKI-789\nSucursal: Uki Regimiento Arica\nCliente: Cliente de prueba\nWhatsApp: +56 9 1111 5678\nCódigo del cliente: 5678\n\nCOCINA\n1 x Promo 24 piezas\n\nENTREGA\nRetiro\nTotal productos: $7.000\nTotal pedido: $7.000\nPago: Efectivo";
+var orders=[],nextId=1,reviewId=null;
+function parse(raw,branch){
+ var t=String(raw||"").trim();
+ var p={
+  id:nextId++,estado:"pendiente",sucursal:branch,original:t,
+  code:text(t,/^\s*(?:N[.°ºo\s]*|N[uú]mero)\s+de\s+pedido\s*:\s*([A-Za-z0-9-]+)/im)||
+       text(t,/^\s*UKI\s+SUSHI\s*[·•#:\-]\s*([A-Za-z0-9-]+)/im),
+  name:text(t,/^\s*(?:Cliente|Nombre)\s*:\s*([^\r\n]+)/im),
+  phone:text(t,/^\s*(?:WhatsApp|Celular|Tel[eé]fono|Fono)\s*:\s*([^\r\n]+)/im),
+  sourceBranch:text(t,/^\s*Sucursal\s*:\s*([^\r\n]+)/im),
+  payment:text(t,/^\s*Pago\s*:\s*([^\r\n]+)/im)||"Efectivo",
+  subtotal:money(text(t,/^\s*Total\s+productos\s*:\s*\$?\s*([\d.,]+)/im)),
+  delivery:money(text(t,/^\s*Delivery\s*:\s*\$?\s*([\d.,]+)/im)),
+  totalMessage:money(text(t,/^\s*(?:Total\s+con\s+delivery|Total\s+pedido|Total)\s*:\s*\$?\s*([\d.,]+)/im)),
+  products:"",mode:/\bdelivery\b/i.test(t)?"Delivery":/consumo en local/i.test(t)?"Consumo en local":"Retiro",
+  reason:"",orderInternal:null
+ };
+ var cocina=t.match(/(?:^|\n)\s*\*?COCINA\*?\s*\n([\s\S]*?)(?=\n\s*\*?ENTREGA\*?\s*(?:\n|$)|$)/i);
+ p.products=cocina?cocina[1].trim():text(t,/^\s*(?:Producto|Pedido|Detalle)\s*:\s*([^\r\n]+)/im);
+ var entrega=t.match(/(?:^|\n)\s*\*?ENTREGA\*?\s*\n\s*(Delivery|Retiro|Consumo en local)/i);
+ if(entrega)p.mode=entrega[1];
+ if(!p.phone){
+  var tel=t.match(/(?:\+?56\s*)?9\s*\d{4}\s*\d{4}/);
+  if(tel)p.phone=tel[0];
+ }
+ if(!p.subtotal&&p.totalMessage)p.subtotal=Math.max(0,p.totalMessage-p.delivery);
+ return p;
+}
+function branchOrders(){return orders.filter(function(o){return o.sucursal===$("branch").value})}
+function status(msg){$("message").textContent=msg}
+function htmlOrder(o,pending){
+ var total=fmt((o.subtotal||0)+(o.mode==="Delivery"?(o.delivery||0):0));
+ var btn=pending?'<div class="actions"><button class="primary" data-act="review" data-id="'+o.id+'">✓ Aceptar y revisar</button><button data-act="reject" data-id="'+o.id+'">✕ Rechazar</button></div><div id="reason-wrap-'+o.id+'" hidden><label>Motivo del rechazo</label><select id="reason-'+o.id+'"><option value="">Seleccionar motivo</option><option>Cliente canceló</option><option>Cliente no respondió</option><option>Producto no disponible</option><option>Otro motivo</option></select><button data-act="finish-reject" data-id="'+o.id+'" class="subtle" style="margin-top:8px">Confirmar rechazo</button></div>':"";
+ return '<article class="order">'+
+  '<div class="order-title"><div class="code">'+esc(o.code?"Carta #"+o.code:"Mensaje sin código de carta")+'</div><div class="price">'+total+'</div></div>'+
+  '<div class="name">'+esc(o.name||"Cliente por identificar")+'</div>'+
+  '<p class="compact"><b>WhatsApp:</b> '+esc(o.phone||"Por completar")+'</p>'+
+  '<p class="compact"><b>Código cliente:</b> '+esc(four(o.phone))+'</p>'+
+  '<p class="compact muted">'+esc(o.mode)+' · '+esc(o.products||"Productos por revisar")+'</p>'+
+  (!pending?'<p class="pill">'+esc(o.estado==="rechazada"?"Rechazada · "+o.reason:o.estado==="aceptada"?"Aceptada, pendiente de pago":"Pagada (simulación)")+'</p>':"")+
+  '<details><summary>Ver mensaje original</summary><pre>'+esc(o.original)+'</pre></details>'+btn+
+  '</article>';
+}
+function render(){
+ var current=branchOrders(),pending=current.filter(function(x){return x.estado==="pendiente"}),accepted=current.filter(function(x){return x.estado==="aceptada"||x.estado==="pagada"}),rejected=current.filter(function(x){return x.estado==="rechazada"});
+ $("pending-count").textContent=pending.length;
+ $("accepted-count").textContent=accepted.length;
+ $("rejected-count").textContent=rejected.length;
+ $("pending-list").innerHTML=pending.map(function(x){return htmlOrder(x,true)}).join("")||'<div class="empty">Sin solicitudes pendientes en esta sucursal.</div>';
+ var history=current.filter(function(x){return x.estado!=="pendiente"});
+ $("history-count").textContent=history.length+" procesadas";
+ $("history-list").innerHTML=history.map(function(x){return htmlOrder(x,false)}).join("")||'<div class="empty">Aún no hay solicitudes aceptadas o rechazadas.</div>';
+}
+function beginReview(id){
+ var o=orders.find(function(x){return x.id===id&&x.estado==="pendiente"&&x.sucursal===$("branch").value});
+ if(!o)return status("Esta solicitud ya no está pendiente.");
+ reviewId=id;
+ $("edit-code").value=o.code;$("edit-name").value=o.name;$("edit-phone").value=o.phone;
+ $("edit-mode").value=o.mode;$("edit-products").value=o.products;
+ $("edit-subtotal").value=o.subtotal||0;$("edit-delivery").value=o.delivery||0;
+ $("edit-payment").value=Array.from($("edit-payment").options).some(function(x){return x.value===o.payment})?o.payment:"Otros";
+ $("inbox").classList.add("hidden");$("review").classList.remove("hidden");$("review").scrollIntoView({behavior:"smooth",block:"start"});
+ updateTotals();status("Revisa nombre, número, código y productos antes de aceptar.");
+}
+function endReview(){
+ reviewId=null;$("review").classList.add("hidden");$("inbox").classList.remove("hidden");render();
+}
+function updateTotals(){
+ $("edit-last").textContent=four($("edit-phone").value);
+ var val=money($("edit-subtotal").value)+( $("edit-mode").value==="Delivery"?money($("edit-delivery").value):0);
+ $("edit-total").textContent=fmt(val);
+}
+function accept(){
+ var o=orders.find(function(x){return x.id===reviewId&&x.estado==="pendiente"});
+ if(!o)return endReview();
+ var phone=$("edit-phone").value.trim(),code=$("edit-code").value.trim(),name=$("edit-name").value.trim(),
+    product=$("edit-products").value.trim(),subtotal=Number($("edit-subtotal").value),
+    delivery=$("edit-mode").value==="Delivery"?Number($("edit-delivery").value):0;
+ if(!name||phone.replace(/\D/g,"").length<8||!product||!Number.isSafeInteger(subtotal)||subtotal<=0||!Number.isSafeInteger(delivery)||delivery<0){
+  return status("Completa nombre, WhatsApp, productos e importes válidos antes de aceptar.");
+ }
+ var rawCode=parse(o.original,o.sucursal).code;
+ if(rawCode&&code!==rawCode)return status("El código no coincide con el mensaje original ("+rawCode+"). Corrígelo antes de guardar.");
+ if(code&&orders.some(function(x){return x!==o&&x.sucursal===o.sucursal&&x.code===code&&x.estado!=="rechazada"})){
+  return status("Ese código ya está utilizado por otra solicitud de esta sucursal.");
+ }
+ o.code=code;o.name=name;o.phone=phone;o.products=product;o.mode=$("edit-mode").value;
+ o.subtotal=subtotal;o.delivery=delivery;o.payment=$("edit-payment").value;
+ o.estado="aceptada";o.orderInternal="PRUEBA-"+o.id;
+ endReview();status("Solicitud aceptada y revisada. En esta demostración no se crea venta real ni se cobra.");
+ document.getElementById("history").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function reject(id){
+ var o=orders.find(function(x){return x.id===id&&x.estado==="pendiente"&&x.sucursal===$("branch").value});
+ if(!o)return;
+ var wrapper=$("reason-wrap-"+id);if(wrapper)wrapper.hidden=false;
+}
+function finishReject(id){
+ var o=orders.find(function(x){return x.id===id&&x.estado==="pendiente"&&x.sucursal===$("branch").value});
+ if(!o)return;
+ var r=$("reason-"+id)?.value;if(!r)return status("Selecciona un motivo antes de rechazar.");
+ o.estado="rechazada";o.reason=r;render();status("Solicitud rechazada. No se suma a caja, ventas ni timbres.");
+}
+function addRequest(){
+ var raw=$("input-message").value.trim();
+ if(raw.length<8)return status("Pega el mensaje de prueba para continuar.");
+ if(raw.length>12000)return status("El mensaje excede 12.000 caracteres.");
+ var p=parse(raw,$("branch").value);
+ if(p.code&&branchOrders().some(function(x){return x.code===p.code&&x.estado!=="rechazada"}))
+  return status("Ese código de carta ya está en la bandeja. No se agregó dos veces.");
+ orders.unshift(p);render();$("input-message").value="";
+ status("Mensaje agregado por confirmar. No se ha creado una venta.");
+ document.getElementById("inbox").scrollIntoView({behavior:"smooth",block:"start"});
+}
+$("branch").addEventListener("change",function(){endReview();status("Mostrando solicitudes de "+this.value+".");});
+$("sample").addEventListener("click",function(){$("input-message").value=sample.replace("Uki Regimiento Arica",$("branch").value).replace("UKI-789","UKI-"+(790+nextId));status("Ejemplo ficticio preparado para pegar.");});
+$("add-request").addEventListener("click",addRequest);
+$("back").addEventListener("click",function(){endReview();status("Volviste a la bandeja; la solicitud sigue pendiente.");});
+$("accept").addEventListener("click",accept);
+["edit-phone","edit-subtotal","edit-delivery","edit-mode"].forEach(function(id){$(id).addEventListener("input",updateTotals);$(id).addEventListener("change",updateTotals);});
+document.addEventListener("click",function(event){
+ var btn=event.target.closest("button[data-act]");if(!btn)return;
+ var id=Number(btn.dataset.id);
+ if(btn.dataset.act==="review")beginReview(id);
+ else if(btn.dataset.act==="reject")reject(id);
+ else if(btn.dataset.act==="finish-reject")finishReject(id);
+});
+orders.push(parse(sample,"Uki Regimiento Arica"));
+orders.push(parse(sample.replace("Uki Regimiento Arica","Uki La Serena").replace("UKI-789","UKI-890"),"Uki La Serena"));
+render();
+})();
+</script>
+</body></html>
