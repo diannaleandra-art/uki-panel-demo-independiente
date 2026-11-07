@@ -40,6 +40,7 @@ export function crearHistorialCompras({api,$,esc,fmt,businessName,branchName,bra
  async function cargarRazones(){
   const d=await api('razones_sociales');razones=d.razones||[];vinculos=d.vinculos||[];
   reasonSelector();reasonList();histories();
+  return {razones,vinculos};
  }
  function sugerirRazon(receptor,rut=''){
   if(!receptor)return;
