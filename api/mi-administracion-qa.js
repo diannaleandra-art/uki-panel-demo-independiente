@@ -202,6 +202,20 @@ module.exports=async(req,res)=>{
    await audit(sql,'sucursal',r[0].id,'crear',who,{negocio_id:body.negocio_id,nombre});
    return ok(res,{sucursal:r[0]});
   }
+  if(action==='clasificar_movimiento'){
+   const id=String(body.id||''),legal=String(body.razon_social_id||'');
+   if(!uuid.test(id)||!uuid.test(legal))return fail(res,400,'Selecciona el registro y la razón social.');
+   const existing=await sql.query("SELECT id,negocio_id,razon_social_id,tipo,fuente,estado FROM public.fin_movimientos WHERE id=$1",[id]);
+   if(!existing.length||existing[0].estado==='anulado')return fail(res,404,'Registro no disponible.');
+   if(existing[0].tipo==='compra'&&existing[0].fuente==='factura')
+    return fail(res,400,'Utiliza el detalle de la factura para cambiar su clasificación.');
+   const business=existing[0].negocio_id;
+   const linked=await sql.query('SELECT 1 FROM public.fin_negocio_razones WHERE negocio_id=$1 AND razon_social_id=$2',[business,legal]);
+   if(!linked.length)return fail(res,400,'Vincula primero la razón social al negocio.');
+   await sql.query('UPDATE public.fin_movimientos SET razon_social_id=$2,actualizado_en=now() WHERE id=$1',[id,legal]);
+   await audit(sql,'movimiento',id,'clasificar_razon',who,{antes:existing[0].razon_social_id,despues:legal});
+   return ok(res,{actualizado:true});
+  }
   if(action==='guardar_movimiento'){
    const tipo=String(body.tipo||''),monto=Number(body.monto),fecha=body.fecha;
    if(!MODES.has(tipo)||!money(monto)||!validDate(fecha))return fail(res,400,'Revisa tipo, monto y fecha.');
