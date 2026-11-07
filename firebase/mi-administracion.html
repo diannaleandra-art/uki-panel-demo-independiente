@@ -128,9 +128,9 @@ label{color:#66574c}
 <div class="fieldset-title">2 · Foto o PDF de la factura</div>
 <label>Subir foto desde el iPhone o elegir PDF</label><input id="docFile" type="file" accept="image/jpeg,image/png,image/webp,application/pdf">
 <button class="soft" id="readInvoice" type="button">📷 Leer datos de la factura</button>
-<p id="invoiceOCRStatus" class="hint" role="status">Puedes comenzar con una foto o ingresar los datos manualmente. Siempre revisa el resultado.</p>
-<details><summary>Si no se lee correctamente, pegar el texto</summary>
-<label>Texto obtenido con «Texto en Vivo» de Fotos</label><textarea id="docRawText" rows="4" placeholder="Pega aquí el texto de la factura…"></textarea>
+<p id="invoiceOCRStatus" class="hint" role="status" aria-live="polite">El lector intenta reconocer proveedor, folio, total, IVA y productos. Si el PDF está escaneado, intentará una segunda lectura. Siempre revisa el resultado antes de guardar.</p>
+<details><summary>Ver texto reconocido y corregirlo, si hace falta</summary>
+<label>Texto extraído del PDF o foto (también puedes pegar texto desde Fotos)</label><textarea id="docRawText" rows="4" placeholder="Pega aquí el texto de la factura…"></textarea>
 <button class="soft" id="parseInvoiceText" type="button">Revisar texto pegado</button>
 </details>
 <div class="fieldset-title">3 · Revisa los datos encontrados</div>
@@ -175,7 +175,7 @@ label{color:#66574c}
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
 import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
-import {crearControlCompras} from "./mi-administracion-compras.js";
+import {crearControlCompras} from "./mi-administracion-compras.js?v=lectura2";
 const app=initializeApp({apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",appId:"1:1070481165758:web:b8f0f9ff40caf5b8ac7def"});
 const auth=getAuth(app),$=id=>document.getElementById(id);
 let session="",businesses=[],branches=[],transactions=[],docs=[],tab='resumen';
