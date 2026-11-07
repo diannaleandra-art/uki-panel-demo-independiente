@@ -108,7 +108,32 @@ function line(price){
   }catch(e){info('ukiPriceMessage','No se guardó: '+String(e.message));}
   finally{state.busy=false;save.disabled=false;}
  };
- wrap.append(summary,input,save);return wrap;
+ wrap.append(summary,input,save);
+ if(price.custom){
+  const details=document.createElement('details');details.style.cssText='width:100%;padding:7px 0 0';
+  const title=document.createElement('summary');title.textContent='Editar nombre y descripción';details.append(title);
+  const name=document.createElement('input');name.value=price.name;name.maxLength=100;
+  name.setAttribute('aria-label','Nombre de '+price.name);
+  const description=document.createElement('textarea');description.value=price.description||'';description.maxLength=500;description.rows=2;
+  description.setAttribute('aria-label','Descripción de '+price.name);
+  const button=document.createElement('button');button.className='sm';button.type='button';button.textContent='Guardar producto';
+  button.onclick=async()=>{
+   const next=name.value.trim(),amount=Number(input.value);
+   if(next.length<2||!Number.isSafeInteger(amount)||amount<1||amount>1000000){
+    info('ukiPriceMessage','Revisa nombre y precio.');return;
+   }
+   if(state.busy)return;state.busy=true;button.disabled=true;
+   try{
+    await request(API,'editar-producto',{sku:price.sku,expected_version:price.version,
+     name:next,description:description.value.trim(),price:amount});
+    state.busy=false;await loadPrices(true);
+    info('ukiPriceMessage','✓ Producto actualizado.');
+   }catch(e){info('ukiPriceMessage','No se guardó: '+String(e.message));}
+   finally{state.busy=false;button.disabled=false;}
+  };
+  details.append(name,description,button);wrap.append(details);
+ }
+ return wrap;
 }
 function renderPrices(){
  const target=$('ukiPriceList');if(!target)return;
