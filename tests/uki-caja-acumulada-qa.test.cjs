@@ -49,13 +49,15 @@ test('el panel incorpora una pestaña Caja acumulada sin cambiar lógica de cier
  assert.match(html,/ukiCajaAcumuladaVista/);
  assert.match(html,/ukiCajaAcumuladaMontar/);
  assert.match(html,/uki-caja-acumulada-admin\.js/);
- assert.match(ui,/window\.UKI_CAJA_ACUM_QA_API\|\|''/);
- assert.match(ui,/SOLO PRUEBAS/);
+ assert.match(ui,/uki-sushi-inventario\.vercel\.app\/api\/uki-caja-acumulada-live/);
+ assert.match(ui,/EFECTIVO REAL/);
  assert.match(ui,/No se registr.* nuevamente|NO se registra nuevamente/);
  assert.doesNotMatch(ui,/\bS\.cierres\s*=|\bS\.pedidos\s*=/);
  assert.match(ui,/crypto\.randomUUID/);
  assert.match(ui,/ukiAcumResponsable/);
  assert.match(ui,/responsable,op_key:state\.nonce/);
+ assert.match(ui,/reconcileClosures/);
+ assert.match(ui,/uk[i]CajaAcumuladaRegistrarCierre/);
 });
 test('UI aislada calcula estado y registra gasto sin cambiar sucursal o duplicar retiro',async()=>{
  const dom=new JSDOM('<html><body></body></html>',{
