@@ -206,24 +206,28 @@ module.exports=async(req,res)=>{
    const tipo=String(body.tipo||''),monto=Number(body.monto),fecha=body.fecha;
    if(!MODES.has(tipo)||!money(monto)||!validDate(fecha))return fail(res,400,'Revisa tipo, monto y fecha.');
    await belongs(sql,body.negocio_id,body.sucursal_id||null);
+   const legal=String(body.razon_social_id||'');
+   if(!uuid.test(legal))return fail(res,400,'Selecciona la razón social de esta operación.');
+   const association=await sql.query('SELECT 1 FROM public.fin_negocio_razones WHERE negocio_id=$1 AND razon_social_id=$2',[body.negocio_id,legal]);
+   if(!association.length)return fail(res,400,'Primero vincula la razón social a ese negocio.');
    const medios=checkMethods(body.medios||{});
    if(tipo==='venta'&&Object.keys(medios).length&&Object.values(medios).reduce((a,b)=>a+b,0)!==monto)
     return fail(res,409,'La suma de los medios de pago debe coincidir con la venta.');
    const fuente=body.fuente==='cierre'?'cierre':'manual';
    const referencia=text(body.referencia,130),concepto=text(body.concepto,240);
    if(fuente==='cierre'&&referencia.length<3)return fail(res,400,'Indica el número o referencia del cierre.');
-   const clave=fuente==='cierre'?hash(['cierre',body.negocio_id,body.sucursal_id||'',fecha,referencia.toLowerCase()].join('|')):null;
+   const clave=fuente==='cierre'?hash(['cierre',legal,body.negocio_id,body.sucursal_id||'',fecha,referencia.toLowerCase()].join('|')):null;
    if(tipo==='venta'&&!body.confirmar_duplicado){
-    const dupe=await sql.query("SELECT id FROM public.fin_movimientos WHERE negocio_id=$1 AND sucursal_id IS NOT DISTINCT FROM $2::uuid AND fecha=$3 AND tipo='venta' AND estado<>'anulado' LIMIT 3",[body.negocio_id,body.sucursal_id||null,fecha]);
+    const dupe=await sql.query("SELECT id FROM public.fin_movimientos WHERE negocio_id=$1 AND sucursal_id IS NOT DISTINCT FROM $2::uuid AND fecha=$3 AND razon_social_id=$4 AND tipo='venta' AND estado<>'anulado' LIMIT 3",[body.negocio_id,body.sucursal_id||null,fecha,legal]);
     if(dupe.length)return fail(res,409,'Ya existen ventas ese día para este local. Confirma que no estás duplicando un cierre.');
    }
    const estado=['gasto','compra','retiro'].includes(tipo)&&body.pendiente===true?'pendiente':(['gasto','compra','retiro'].includes(tipo)?'pagado':'registrado');
    const datos=typeof body.datos==='object'&&body.datos&&!Array.isArray(body.datos)?body.datos:{};
    if(JSON.stringify(datos).length>3000)return fail(res,413,'Demasiados detalles.');
-   const r=await sql.query('INSERT INTO public.fin_movimientos(negocio_id,sucursal_id,tipo,fecha,monto,medios,categoria,concepto,proveedor,referencia,estado,fuente,datos,clave_unica,creado_por) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15) ON CONFLICT DO NOTHING RETURNING id',
-    [body.negocio_id,body.sucursal_id||null,tipo,fecha,monto,JSON.stringify(medios),text(body.categoria,90),concepto,text(body.proveedor,120),referencia,estado,fuente,JSON.stringify(datos),clave,who.uid]);
+   const r=await sql.query('INSERT INTO public.fin_movimientos(negocio_id,sucursal_id,tipo,fecha,monto,medios,categoria,concepto,proveedor,referencia,estado,fuente,datos,clave_unica,creado_por,razon_social_id) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16::uuid) ON CONFLICT DO NOTHING RETURNING id',
+    [body.negocio_id,body.sucursal_id||null,tipo,fecha,monto,JSON.stringify(medios),text(body.categoria,90),concepto,text(body.proveedor,120),referencia,estado,fuente,JSON.stringify(datos),clave,who.uid,legal]);
    if(!r.length)return fail(res,409,'Ese cierre ya se importó anteriormente. No se duplicó.');
-   await audit(sql,'movimiento',r[0].id,'crear',who,{tipo,fecha,monto,negocio_id:body.negocio_id,sucursal_id:body.sucursal_id,fuente});
+   await audit(sql,'movimiento',r[0].id,'crear',who,{tipo,fecha,monto,negocio_id:body.negocio_id,sucursal_id:body.sucursal_id,razon_social_id:legal,fuente});
    return ok(res,{id:r[0].id});
   }
   if(action==='registrar_cierre'){
@@ -238,11 +242,19 @@ module.exports=async(req,res)=>{
   }
   if(action==='listar_movimientos'){
    const b=body.negocio_id||null,s=body.sucursal_id||null;
-   if(b)await belongs(sql,b,s);
-   else if(s)return fail(res,400,'Selecciona negocio.');
+   if(b)await belongs(sql,b,s);else if(s)return fail(res,400,'Selecciona negocio.');
    const from=validDate(body.desde)?body.desde:'2000-01-01';
    const to=validDate(body.hasta)?body.hasta:'2099-12-31';
-   const r=await sql.query('SELECT id,negocio_id,sucursal_id,tipo,fecha,monto,medios,categoria,concepto,proveedor,referencia,estado,fuente,datos,creado_en FROM public.fin_movimientos WHERE ($1::uuid IS NULL OR negocio_id=$1) AND ($2::uuid IS NULL OR sucursal_id=$2) AND fecha BETWEEN $3 AND $4 ORDER BY fecha DESC, creado_en DESC LIMIT 250',[b,s,from,to]);
+   const legal=String(body.razon_social_id||'todos');
+   if(!['todos','sin_clasificar'].includes(legal)&&!uuid.test(legal))
+    return fail(res,400,'Razón social de consulta inválida.');
+   const r=await sql.query("SELECT id,negocio_id,sucursal_id,razon_social_id,tipo,fecha,monto,medios,"+
+    "categoria,concepto,proveedor,referencia,estado,fuente,datos,creado_en "+
+    "FROM public.fin_movimientos WHERE ($1::uuid IS NULL OR negocio_id=$1) "+
+    "AND ($2::uuid IS NULL OR sucursal_id=$2) AND fecha BETWEEN $3 AND $4 "+
+    "AND ($5::text='todos' OR ($5::text='sin_clasificar' AND razon_social_id IS NULL) "+
+    "OR razon_social_id::text=$5) ORDER BY fecha DESC,creado_en DESC LIMIT 250",
+    [b,s,from,to,legal]);
    return ok(res,{movimientos:r});
   }
   if(action==='anular_movimiento'){
@@ -264,13 +276,22 @@ module.exports=async(req,res)=>{
   }
   if(action==='resumen'){
    const b=body.negocio_id||null,s=body.sucursal_id||null;
-   if(b)await belongs(sql,b,s);
-   else if(s)return fail(res,400,'Selecciona negocio.');
+   if(b)await belongs(sql,b,s);else if(s)return fail(res,400,'Selecciona negocio.');
    const from=validDate(body.desde)?body.desde:'2000-01-01';
    const to=validDate(body.hasta)?body.hasta:'2099-12-31';
-   const rows=await sql.query("SELECT tipo,estado,SUM(monto)::bigint AS total,COUNT(*)::int AS cantidad FROM public.fin_movimientos WHERE ($1::uuid IS NULL OR negocio_id=$1) AND ($2::uuid IS NULL OR sucursal_id=$2) AND fecha BETWEEN $3 AND $4 AND estado<>'anulado' GROUP BY tipo,estado",[b,s,from,to]);
-   // El desglose de pagos usa todas las ventas del período (no solamente los 250 registros del historial).
-   const pagos=await sql.query("SELECT pago.key AS medio,SUM((pago.value)::bigint)::bigint AS total FROM public.fin_movimientos m CROSS JOIN LATERAL jsonb_each_text(m.medios) AS pago(key,value) WHERE ($1::uuid IS NULL OR m.negocio_id=$1) AND ($2::uuid IS NULL OR m.sucursal_id=$2) AND m.fecha BETWEEN $3 AND $4 AND m.tipo='venta' AND m.estado<>'anulado' GROUP BY pago.key ORDER BY pago.key",[b,s,from,to]);
+   const legal=String(body.razon_social_id||'todos');
+   if(!['todos','sin_clasificar'].includes(legal)&&!uuid.test(legal))
+    return fail(res,400,'Razón social de consulta inválida.');
+   const p=[b,s,from,to,legal];
+   const where="WHERE ($1::uuid IS NULL OR m.negocio_id=$1) "+
+    "AND ($2::uuid IS NULL OR m.sucursal_id=$2) AND m.fecha BETWEEN $3 AND $4 "+
+    "AND ($5::text='todos' OR ($5::text='sin_clasificar' AND m.razon_social_id IS NULL) "+
+    "OR m.razon_social_id::text=$5) AND m.estado<>'anulado'";
+   const rows=await sql.query("SELECT m.tipo,m.estado,SUM(m.monto)::bigint AS total,COUNT(*)::int AS cantidad "+
+    "FROM public.fin_movimientos m "+where+" GROUP BY m.tipo,m.estado",p);
+   const pagos=await sql.query("SELECT pago.key AS medio,SUM((pago.value)::bigint)::bigint AS total "+
+    "FROM public.fin_movimientos m CROSS JOIN LATERAL jsonb_each_text(m.medios) AS pago(key,value) "+
+    where+" AND m.tipo='venta' GROUP BY pago.key ORDER BY pago.key",p);
    return ok(res,{resumen:rows,pagos,nota:'Resultado preliminar = ventas - gastos y compras pagadas. No es utilidad contable definitiva.'});
   }
   if(action==='guardar_compra_factura'){
