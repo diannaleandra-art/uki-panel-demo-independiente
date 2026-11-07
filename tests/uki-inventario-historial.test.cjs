@@ -82,3 +82,17 @@ test('listas de trabajador y administración compactas, historial protegido con 
  assert.match(panel,/uki-inventario-exportar\.js/);
  assert.match(panel,/uki-inventario-historial-admin\.js/);
 });
+
+test('la demostración visual no accede a la base real y permite revisar los controles',()=>{
+ const s=fs.readFileSync(path.join(__dirname,'../public/vista-previa-inventario.html'),'utf8');
+ for(const part of ['VISTA DE PRUEBA','Demostración visual','Inventario actual',
+  'Historial','Fecha desde','Excel','PDF','WhatsApp','Mostrar 12 más']){
+  assert.ok(s.includes(part),'Falta '+part);
+ }
+ assert.doesNotMatch(s,/\bfetch\s*\(/);
+ assert.doesNotMatch(s,/authorization:\s*['"]Bearer /i);
+ const scripts=Array.from(s.matchAll(/<script>([\s\S]*?)<\/script>/g),m=>m[1]);
+ assert.equal(scripts.length,1);
+ const vm=require('node:vm');
+ assert.doesNotThrow(()=>new vm.Script(scripts[0],{filename:'vista-previa-inventario.html'}));
+});
