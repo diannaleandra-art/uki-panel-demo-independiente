@@ -32,6 +32,9 @@ jobs:
       - run: node --check firebase/uki-caja-acumulada-admin.js
       - run: node --check api/uki-caja-acumulada-qa.js
       - run: node --test tests/uki-caja-acumulada-qa.test.cjs
+      - run: node --check api/uki-caja-acumulada-live.js
+      - run: node --check firebase/uki-caja-acumulada-exportar.js
+      - run: node --test tests/uki-caja-acumulada-live.test.cjs
       - run: node --check public/uki-admin-verificacion-qa.mjs
       - run: node --check api/uki-admin-verificacion-qa.js
       - run: node --test tests/uki-google-verificacion-qa.test.cjs
