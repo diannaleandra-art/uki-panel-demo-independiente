@@ -903,8 +903,12 @@ async function ukiWhatsAppGuardarSolicitud(datos){
  if(!S.suc||!datos||typeof datos.texto!=='string'||datos.texto.trim().length<6||
     datos.texto.length>12000){aviso('Pega el mensaje recibido por WhatsApp (máximo 12.000 caracteres).');return false;}
  const dupe=ukiWhatsAppSolicitudDuplicada(datos);if(dupe){aviso(dupe);return false;}
+ // Conservar EXACTAMENTE la configuración del formulario actual: pagos mixtos,
+ // medio del delivery, cruce de locales, propina y correcciones.
+ // Nunca indicar pago completo hasta que el agendador lo confirme expresamente.
  const snapshot=ukiCopia(datos);snapshot.pagado=false;snapshot.editando=null;
- snapshot.pagosProductos=[];snapshot.pagosEnvio=[];
+ snapshot.pagosProductos=Array.isArray(snapshot.pagosProductos)?snapshot.pagosProductos:[];
+ snapshot.pagosEnvio=Array.isArray(snapshot.pagosEnvio)?snapshot.pagosEnvio:[];
  S.solicitudesWhatsApp=Array.isArray(S.solicitudesWhatsApp)?S.solicitudesWhatsApp:[];
  const item={id:'w-'+Date.now().toString(36)+'-'+Math.floor(Math.random()*1e9).toString(36),
   suc:S.suc,fechaISO:ahora(),creadoEn:Date.now(),actualizadoEn:Date.now(),estado:'pendiente',
@@ -925,7 +929,7 @@ async function ukiWhatsAppAgregarDelFormulario(){
  if(!texto){aviso('Pega primero el mensaje de WhatsApp.');return;}
  const parsed=ukiWhatsAppDatosDesdeTexto(texto);
  // Mantener las correcciones que el agendador ya hizo en el formulario.
- const d={...parsed,...ukiCopia(D),texto,pagado:false,editando:null,pagosProductos:[],pagosEnvio:[]};
+ const d={...parsed,...ukiCopia(D),texto,pagado:false,editando:null};
  if(esMensajeCartaUki(texto)&&parsed.codigoCarta&&d.codigoCarta!==parsed.codigoCarta){
   aviso('El código de la carta no coincide con el mensaje original. Procesa el texto nuevamente.');return;}
  await ukiWhatsAppGuardarSolicitud(d);
@@ -934,7 +938,7 @@ async function ukiWhatsAppAgregarDelFormulario(){
 function ukiWhatsAppPausarRevision(){
  const x=(S.solicitudesWhatsApp||[]).find(x=>x.id===ukiSolicitudWhatsAppActiva&&x.suc===S.suc);
  if(!x||x.estado!=='pendiente'){ukiSolicitudWhatsAppActiva=null;return;}
- const d=ukiCopia(D);d.pagado=false;d.editando=null;d.pagosProductos=[];d.pagosEnvio=[];
+ const d=ukiCopia(D);d.pagado=false;d.editando=null;
  x.datos=d;x.actualizadoEn=Date.now();x.cliente=d.cliente;x.telefono=d.telefono;
  x.codigoCliente=ukiCodigoWhatsApp(d.telefono)||d.codigoCliente||'';
  ukiSolicitudWhatsAppActiva=null;
@@ -946,7 +950,11 @@ function ukiWhatsAppAceptarYRevisar(id){
  if(S.busy){aviso('Termina la operación actual antes de revisar otra.');return;}
  if(ukiSolicitudWhatsAppActiva&&ukiSolicitudWhatsAppActiva!==id)ukiWhatsAppPausarRevision();
  if(ukiBorradorTieneContenido()&&!D.editando&&!ukiGuardarBorradorSinVista())return;
- D=ukiCopia(item.datos);D.pagado=false;D.editando=null;D.pagosProductos=[];D.pagosEnvio=[];
+ D=ukiCopia(item.datos);D.pagado=false;D.editando=null;
+ // Se abre vNuevo() sin sustituir su formulario: pagosProductos/pagosEnvio,
+ // mixtoProductos/mixtoEnvio, medioEnvio, cobros de otro local y propinas intactos.
+ D.pagosProductos=Array.isArray(D.pagosProductos)?D.pagosProductos:[];
+ D.pagosEnvio=Array.isArray(D.pagosEnvio)?D.pagosEnvio:[];
  D.codigoCliente=ukiCodigoWhatsApp(D.telefono)||D.codigoCliente||'';
  if(!Array.isArray(D.items)||!D.items.length)D.items=[{nombre:'',cant:1,precio:0,det:''}];
  ukiSolicitudWhatsAppActiva=id;ukiBorradorActivo=null;modoNuevo='whatsapp';
