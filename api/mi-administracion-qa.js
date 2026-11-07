@@ -436,10 +436,10 @@ module.exports=async(req,res)=>{
      "SUM(i.cantidad)::numeric(16,3) AS cantidad,i.unidad,SUM(i.total_linea)::bigint AS importe"+
      " FROM public.fin_compra_items i JOIN (SELECT DISTINCT id FROM filtradas) f ON f.id=i.compra_id"+
      " GROUP BY lower(btrim(i.descripcion)),i.unidad ORDER BY importe DESC LIMIT 120",
-    "SELECT DISTINCT ON (id) id,negocio_id,sucursal_id,razon_social_id,razon_social,rut_razon,"+
+    "SELECT * FROM (SELECT DISTINCT ON (id) id,negocio_id,sucursal_id,razon_social_id,razon_social,rut_razon,"+
      "marca,local,fecha,proveedor,referencia,importe_factura AS monto,estado,datos,"+
      "(SELECT SUM(f2.monto)::bigint FROM filtradas f2 WHERE f2.id=filtradas.id) AS monto_filtrado"+
-     " FROM filtradas ORDER BY id,fecha DESC,creado_en DESC",
+     " FROM filtradas ORDER BY id,fecha DESC,creado_en DESC) x ORDER BY fecha DESC,id LIMIT 200",
     "SELECT razon_social_id,razon_social,rut_razon,COUNT(DISTINCT id)::int AS facturas,"+
      "SUM(monto)::bigint AS total,"+
      "COALESCE(SUM(monto) FILTER(WHERE estado='pendiente'),0)::bigint AS pendiente"+
