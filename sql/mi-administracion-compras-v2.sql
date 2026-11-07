@@ -37,8 +37,8 @@ BEGIN
  IF jsonb_typeof(p_articulos)<>'array' OR jsonb_array_length(p_articulos)>60 THEN
    RAISE EXCEPTION 'Los artículos deben ser una lista de hasta 60 productos.';
  END IF;
- k=encode(digest(concat_ws('|','compra_factura',p_negocio::text,lower(btrim(p_proveedor)),
-                      p_fecha::text,lower(btrim(p_referencia)),p_total::text,coalesce(p_documento_clave,'')),'sha256'),'hex');
+ k=md5(concat_ws('|','compra_factura',p_negocio::text,lower(btrim(p_proveedor)),
+                      p_fecha::text,lower(btrim(p_referencia)),p_total::text,coalesce(p_documento_clave,'')));
  SELECT id INTO existing FROM public.fin_movimientos WHERE clave_unica=k;
  IF existing IS NOT NULL THEN
   RETURN jsonb_build_object('ok',false,'duplicado',true,'id',existing);
