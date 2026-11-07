@@ -97,7 +97,7 @@ jobs:
             signal:AbortSignal.timeout(12000)});
           assert.equal(deniedPrices.status,403,'No se puede crear pizza sin Google');
           console.log('QA precios: escritura sin Google bloqueada HTTP 403');
-          const preview='https://uki-sushi-inventario-a0wbothjv-diannaleandra-7046.vercel.app';
+          const preview='https://uki-sushi-inventario-4h5sia7h0-diannaleandra-7046.vercel.app';
           const workerPage=await fetch(preview+'/',{signal:AbortSignal.timeout(12000)});
           assert.equal(workerPage.status,200,'El trabajador debe ver la interfaz QA');
           const workerHtml=await workerPage.text();
