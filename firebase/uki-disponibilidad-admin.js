@@ -2,7 +2,7 @@
 (function(){
  'use strict';
  const API='https://uki-sushi-inventario.vercel.app/api/uki-disponibilidad-live';
- const state={branch:'',items:[],busy:false,search:'',filter:'all',loaded:false};
+ const state={branch:'',items:[],busy:false,search:'',filter:'all',loaded:false,reloadRequested:false};
  const get=id=>document.getElementById(id);
  const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const oldHtml=window.ukiInventarioPanelHTML,oldMount=window.ukiInventarioMontar;
@@ -52,7 +52,7 @@
   info(filtered.length+' opciones mostradas · '+state.items.filter(x=>!x.available).length+' agotadas en '+label(state.branch)+'.');
  }
  async function cargar(){
-  if(state.busy)return;
+  if(state.busy){state.reloadRequested=true;return;}
   state.busy=true;state.branch=sucursal();
   const branch=state.branch,btn=get('ukiDispRefrescar');
   if(btn)btn.disabled=true;
@@ -63,7 +63,11 @@
    if(branch!==sucursal())return;
    state.items=Array.isArray(data.items)?data.items:[];state.loaded=true;pintar();
   }catch(e){state.items=[];state.loaded=false;get('ukiDispLista')?.replaceChildren();info('No se pudo consultar: '+String(e.message||e));}
-  finally{state.busy=false;if(btn)btn.disabled=false;}
+  finally{
+   state.busy=false;if(btn)btn.disabled=false;
+   if(state.loaded&&state.branch===sucursal())pintar();
+   if(state.reloadRequested){state.reloadRequested=false;void cargar();}
+  }
  }
  async function marcar(item){
   if(state.busy)return;
@@ -75,7 +79,14 @@
    item.available=result.available;item.version=result.version;pintar();
    info('✓ '+item.name+' está '+(item.available?'disponible':'agotado')+' en '+label(branch)+'. La carta consultará este cambio automáticamente.');
   }catch(e){info('No se cambió la disponibilidad: '+String(e.message||e));}
-  finally{state.busy=false;}
+  finally{
+   state.busy=false;
+   if(branch===state.branch&&state.loaded){
+    const message=get('ukiDispMensaje')?.textContent;
+    pintar();if(message)info(message);
+   }
+   if(state.reloadRequested){state.reloadRequested=false;void cargar();}
+  }
  }
  function montar(){
   oldMount();
