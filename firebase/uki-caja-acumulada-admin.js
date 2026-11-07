@@ -25,13 +25,13 @@ function html(){
  '<label for="ukiAcumBranch">Sucursal</label>'+
  '<select id="ukiAcumBranch"><option value="arica">Regimiento Arica</option><option value="serena">La Serena</option></select>'+
  '<div class="kpi" style="margin:12px 0"><span>Saldo acumulado · <b id="ukiAcumSucursal"></b></span><strong id="ukiAcumBalance">—</strong></div>'+
- '<p id="ukiAcumStatus" role="status" class="mini-help">Comprobando autorización administrativa…</p>'+
+ '<p id="ukiAcumStatus" role="status" class="mini-help">Cargando con el acceso habitual del panel…</p>'+
  '<button type="button" id="ukiAcumRefresh" class="sm">Actualizar saldo</button>'+
  '<div id="ukiAcumMain" hidden>'+ 
   '<label for="ukiAcumResponsable">Responsable del movimiento (agendador o administración)</label>'+
   '<input id="ukiAcumResponsable" maxlength="80" placeholder="Ej.: nombre de quien registra">'+
   '<div id="ukiAcumInit">'+
-   '<p class="muted">Solo la administradora puede iniciar con un saldo físicamente contado.</p>'+
+   '<p class="muted">El agendador o la administración pueden registrar un saldo inicial, después de contar el efectivo real.</p>'+
    '<label for="ukiAcumInitial">Saldo inicial contado</label><input id="ukiAcumInitial" type="number" min="0" max="100000000" step="1" inputmode="numeric">'+
    '<label for="ukiAcumInitialConcept">Concepto</label><input id="ukiAcumInitialConcept" maxlength="240" placeholder="Ej.: conteo al iniciar el control">'+
    '<button type="button" id="ukiAcumStart" class="big">Registrar saldo inicial de prueba</button>'+
@@ -59,7 +59,7 @@ function html(){
 async function request(action,extra={},branch=state.branch){
  if(!API)throw Error('Caja acumulada aún no conectada. Esta función sigue en preparación.');
  const token=await window.ukiInventarioToken?.();
- if(!token)throw Error('Inicia sesión Google con la cuenta autorizada para administración.');
+ if(!token)throw Error('Utiliza el acceso habitual de Uki Sushi al panel.');
  const response=await fetch(API,{method:'POST',cache:'no-store',
   headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
   body:JSON.stringify({branch,action,...extra})});
