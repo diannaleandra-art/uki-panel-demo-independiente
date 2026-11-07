@@ -17,11 +17,20 @@ const menu=[
 ];
 const prevPanel=window.ukiInventarioPanelHTML,prevMount=window.ukiInventarioMontar;
 if(typeof prevPanel!=='function'||typeof prevMount!=='function')return;
-const nav='<div class="card" id="ukiInvTabs"><h2>Administrar Uki Sushi</h2>'+
-'<p class="muted">Elige qué necesitas. Carta e inventario se manejan por separado.</p>'+
+const nav='<style id="ukiAdminTabsStyle">#ukiInvTabButtons button[aria-pressed="true"]{border:2px solid #d47109!important;background:#fff0de!important;box-shadow:inset 0 0 0 1px #d47109}#ukiInvTabButtons button:focus-visible{outline:3px solid #d47109;outline-offset:2px}#ukiAdminViewHeader{border-left:4px solid #ef820e!important}</style>'+
+'<div class="card" id="ukiInvTabs"><h2>Administrar Uki Sushi</h2>'+
+'<p class="muted">Elige una función. Se mostrará solamente esa sección y la sucursal con la que ingresaste.</p>'+
+'<p id="ukiInvSucursalActiva" class="mini-help" role="status"></p>'+
 '<div class="quick-grid" id="ukiInvTabButtons">'+menu.map(([id,label,description])=>
-'<button type="button" class="quick" data-uki-tab="'+id+'" style="height:auto;min-height:95px;display:block;text-align:left">'+
-'<strong>'+label+'</strong><small style="display:block;font-size:12px;margin-top:6px;line-height:1.35">'+description+'</small></button>').join('')+'</div></div>';
+'<button type="button" class="quick" data-uki-tab="'+id+'" aria-pressed="false" style="height:auto;min-height:95px;display:block;text-align:left">'+
+'<strong>'+label+'</strong><small style="display:block;font-size:12px;margin-top:6px;line-height:1.35">'+description+'</small></button>').join('')+'</div></div>'+
+'<section class="card" id="ukiAdminViewHeader" style="scroll-margin-top:130px;padding:14px 16px">'+
+'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'+
+'<div><small style="font-weight:700;color:#9b632d">FUNCIÓN SELECCIONADA</small>'+
+'<h2 id="ukiAdminCurrentTitle" style="margin:4px 0">Inventario</h2>'+
+'<p id="ukiAdminCurrentDescription" class="muted" style="margin:0"></p></div>'+
+'<button type="button" id="ukiAdminCambiar" class="sm">↑ Cambiar función</button>'+
+'</div></section>';
 const pricesPanel=[
  '<div class="card" id="ukiPreciosPanel"><h2>🧾 Carta y precios</h2>',
  '<p class="mini-help">Estos son los productos que vendes, no los artículos del inventario. Los cambios serán independientes por sucursal. Solo administración Google.</p>',
@@ -67,19 +76,30 @@ async function request(api,action,fields={},atBranch=state.branch){
  return data;
 }
 function showTab(){
- for(const [id] of menu){
+ const selected=menu.find(([id])=>id===state.tab)||menu[2];
+ state.tab=selected[0];
+ info('ukiInvSucursalActiva','Sucursal actual: '+(branch()==='serena'?'Uki La Serena':'Uki Regimiento Arica')+'. Para cambiar de local, utiliza «Salir».');
+ info('ukiAdminCurrentTitle',selected[1]);
+ info('ukiAdminCurrentDescription',selected[2]);
+ for(const [id,label] of menu){
   const btn=document.querySelector('[data-uki-tab="'+id+'"]');
-  if(btn){btn.setAttribute('aria-pressed',String(state.tab===id));btn.style.borderColor=state.tab===id?'#ed810e':'#e9ded4';
-   btn.style.background=state.tab===id?'#fff0de':'#fff';}
+  if(!btn)continue;
+  const current=state.tab===id;
+  btn.setAttribute('aria-pressed',String(current));
+  if(current)btn.setAttribute('aria-current','page');else btn.removeAttribute('aria-current');
+  const title=btn.querySelector('strong');if(title)title.textContent=(current?'✓ ':'')+label;
  }
  const sections={
   precios:['ukiPreciosPanel'],
   disponibilidad:['ukiCartaDisponibilidad'],
-  inventario:['invAdmin','invNewBox'],
-  reportes:['invReportsBox','ukiReponerPanel']
+  inventario:['ukiInvSectionHead','invRoot','invAdmin','invNewBox','ukiInvWorkerAccess','ukiMiniInventario'],
+  reportes:['ukiReponerPanel','ukiHistorial']
  };
- for(const [tab,ids] of Object.entries(sections))
-  for(const id of ids){const element=$(id);if(element)element.style.display=state.tab===tab?'':'none';}
+ const ids=['ukiInvSectionHead','invRoot','invAdmin','invNewBox','ukiInvWorkerAccess',
+  'ukiCartaDisponibilidad','ukiPreciosPanel','ukiReponerPanel','ukiMiniInventario','ukiHistorial','invReportsBox'];
+ for(const id of ids){
+  const element=$(id);if(element)element.style.display=(sections[state.tab]||[]).includes(id)?'':'none';
+ }
  if(state.tab==='precios'&&!state.ready)void loadPrices();
  if(state.tab==='reportes')void loadReponer();
 }
@@ -205,10 +225,19 @@ async function loadReponer(){
 }
 function mount(){
  prevMount();if(!$('ukiInvTabs'))return;
- state.branch=branch();
+ const selectedBranch=branch();
+ if(state.branch!==selectedBranch){state.items=[];state.ready=false;state.query='';state.group='all';state.tab='inventario';}
+ state.branch=selectedBranch;
+ const scrollOffset=()=>Math.ceil((document.querySelector('header')?.getBoundingClientRect().height||110)+16)+'px';
  document.querySelectorAll('[data-uki-tab]').forEach(btn=>btn.onclick=()=>{
   state.tab=btn.dataset.ukiTab;showTab();
+  const view=$('ukiAdminViewHeader');
+  if(view){view.style.scrollMarginTop=scrollOffset();view.scrollIntoView({behavior:'smooth',block:'start'});}
  });
+ $('ukiAdminCambiar').onclick=()=>{
+  const nav=$('ukiInvTabs');
+  if(nav){nav.style.scrollMarginTop=scrollOffset();nav.scrollIntoView({behavior:'smooth',block:'start'});}
+ };
  const input=$('ukiPriceSearch'),select=$('ukiPriceGroup');
  if(input){input.value=state.query;input.oninput=e=>{state.query=e.target.value;renderPrices();};}
  if(select){select.value=state.group;select.onchange=e=>{state.group=e.target.value;renderPrices();};}
