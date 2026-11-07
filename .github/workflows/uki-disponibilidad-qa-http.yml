@@ -1,0 +1,42 @@
+name: Uki disponibilidad - prueba HTTP QA sin pedidos
+on:
+  push:
+    branches:
+      - feature/uki-disponibilidad-manual-live-2026-11-06
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qa-http:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Consultar API QA en ambas sucursales sin modificar datos
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          const base='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app/api/uki-disponibilidad-live';
+          const origin='https://uki-sushi-pedidos-git-feature-uki-dis-eb0d72-diannaleandra-7046.vercel.app';
+          for(const branch of ['arica','serena']){
+            let last;
+            for(let n=0;n<4;n++){
+              try{
+                const r=await fetch(base+'?branch='+branch,{headers:{Origin:origin},signal:AbortSignal.timeout(12000)});
+                const body=await r.json();
+                assert.equal(r.status,200,JSON.stringify(body));
+                assert.equal(body.ok,true);
+                assert.equal(body.branch,branch);
+                assert.ok(Array.isArray(body.unavailable));
+                assert.equal(r.headers.get('access-control-allow-origin'),origin);
+                assert.equal(r.headers.get('cache-control'),'no-store');
+                console.log('QA '+branch+': HTTP 200, CORS correcto, agotados='+body.unavailable.length);
+                last=null;break;
+              }catch(e){last=e;console.error('Intento '+(n+1)+' '+branch+': '+String(e));if(n<3)await new Promise(resolve=>setTimeout(resolve,2000));}
+            }
+            if(last)throw last;
+          }
+          const bad=await fetch(base+'?branch=otra',{headers:{Origin:origin},signal:AbortSignal.timeout(12000)});
+          assert.equal(bad.status,400);
+          console.log('QA sucursal inválida: HTTP 400');
+          JS
