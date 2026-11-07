@@ -1,0 +1,73 @@
+name: Uki producción - verificación de lectura segura
+on:
+  push:
+    branches:
+      - feature/uki-disponibilidad-manual-live-2026-11-06
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Verificar disponibilidad, precios y worker de ambas sucursales en producción
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          const api='https://uki-sushi-inventario.vercel.app',origin='https://uki-sushi-pedidos.vercel.app';
+          const get=async(path,init={})=>{
+            let last;
+            for(let attempt=0;attempt<5;attempt++){
+              try{
+                const r=await fetch(api+path,{...init,signal:AbortSignal.timeout(12000)});
+                if(r.status>=500&&attempt<4)throw Error('HTTP '+r.status);
+                return r;
+              }catch(e){last=e;if(attempt<4)await new Promise(resolve=>setTimeout(resolve,1500));}
+            }
+            throw last;
+          };
+          for(const branch of ['arica','serena']){
+            const r=await get('/api/uki-disponibilidad-live?branch='+branch,{headers:{Origin:origin}});
+            const json=await r.json();
+            assert.equal(r.status,200,JSON.stringify(json));
+            assert.equal(json.branch,branch);
+            assert.equal(json.ok,true);
+            assert.ok(Array.isArray(json.unavailable));
+            assert.equal(r.headers.get('access-control-allow-origin'),origin);
+            console.log('PRODUCCION disponibilidad '+branch+': HTTP 200 y CORS correcto');
+            const pr=await get('/api/uki-carta-precios-live?branch='+branch,{headers:{Origin:origin}});
+            const prices=await pr.json();
+            assert.equal(pr.status,200,JSON.stringify(prices));
+            assert.equal(prices.branch,branch);
+            assert.equal(prices.ok,true);
+            assert.ok(prices.items.some(x=>x.sku==='classic:24'));
+            assert.ok(prices.items.every(x=>x.kind!=='ingredient'));
+            if(branch==='serena')assert.ok(prices.items.every(x=>x.kind!=='pizza'));
+            console.log('PRODUCCION precios '+branch+': HTTP 200 y productos separados');
+          }
+          const worker=await get('/');
+          assert.equal(worker.status,200,'Inventario del trabajador no abre');
+          const html=await worker.text();
+          for(const part of ['turnoHoraActual','turnoFechaChile','setInterval(actualizarReloj,60000)'])
+            assert.ok(html.includes(part),'Falta '+part);
+          console.log('PRODUCCION trabajador: HTTP 200, día y reloj sin segundos');
+          const adminOrigin='https://diannaleandra-art.github.io';
+          for(const [path,action] of [
+            ['/api/inventario-turno-live','historial'],
+            ['/api/uki-carta-precios-live','crear-producto'],
+            ['/api/uki-disponibilidad-live','listar']
+          ]){
+            const r=await get(path,{method:'POST',headers:{
+              Origin:adminOrigin,'Content-Type':'application/json'},
+              body:JSON.stringify({branch:'arica',action})});
+            assert.equal(r.status,403,'Acceso admin sin Google debía rechazar '+path);
+            console.log('PRODUCCION '+path+': acceso sin Google HTTP 403');
+          }
+          const qa=await get('/api/uki-admin-verificacion-qa',{
+            method:'POST',headers:{Origin:'https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app',
+              'Content-Type':'application/json'},body:JSON.stringify({branch:'arica',action:'diagnostico'})});
+          assert.equal(qa.status,404,'QA no debe estar habilitado en producción');
+          console.log('PRODUCCION: API especial de pruebas cerrada HTTP 404');
+          JS
