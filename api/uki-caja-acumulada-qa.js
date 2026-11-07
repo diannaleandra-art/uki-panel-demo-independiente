@@ -23,8 +23,9 @@ async function adminUser(req,env=process.env){
  const {payload}=await jwtVerify(bearer,jwks,{issuer:'https://securetoken.google.com/uki-panel-f4909',
   audience:'uki-panel-f4909',algorithms:['RS256']});
  if(payload.firebase?.sign_in_provider!=='google.com')return null;
- const uids=String(env.UKI_INVENTARIO_LIVE_ALLOWED_UIDS||'').split(',').map(x=>x.trim()).filter(Boolean);
- const emails=String(env.UKI_INVENTARIO_LIVE_ALLOWED_EMAILS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
+ // Acceso SEPARADO: el Google que permite pedidos o inventario no autoriza caja acumulada.
+ const uids=String(env.UKI_CAJA_ACUM_ADMIN_UIDS||'').split(',').map(x=>x.trim()).filter(Boolean);
+ const emails=String(env.UKI_CAJA_ACUM_ADMIN_EMAILS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
  if(!uids.includes(payload.sub)&&!(payload.email_verified&&emails.includes(String(payload.email||'').toLowerCase())))return null;
  return {uid:String(payload.sub)};
 }
