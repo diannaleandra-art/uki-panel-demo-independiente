@@ -229,11 +229,11 @@ for(const [id,kind,report] of [
 function mostrarHoraActual(){
  $('hora-actual').textContent=new Intl.DateTimeFormat('es-CL',{
   timeZone:'America/Santiago',weekday:'long',day:'2-digit',month:'long',year:'numeric',
-  hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'
+  hour:'2-digit',minute:'2-digit',hourCycle:'h23'
  }).format(new Date())+' (Chile)';
 }
 mostrarHoraActual();
-setInterval(mostrarHoraActual,1000);
+setInterval(mostrarHoraActual,60000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)mostrarHoraActual();});
 current();hist();
 </script>
