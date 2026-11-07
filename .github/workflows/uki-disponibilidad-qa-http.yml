@@ -50,5 +50,22 @@ jobs:
           const blocked=await fetch(base+'?branch=arica',{headers:{Origin:'https://sitio-no-autorizado.example'},signal:AbortSignal.timeout(12000)});
           assert.equal(blocked.status,403,'Los orígenes desconocidos se bloquean');
           console.log('QA seguridad: CORS rechaza otro sitio HTTP 403');
+          // Lectura de disponibilidad de la API definitiva, sin alterar productos reales.
+          const prod='https://uki-sushi-inventario.vercel.app/api/uki-disponibilidad-live';
+          const customer='https://uki-sushi-pedidos.vercel.app';
+          for(const branch of ['arica','serena']){
+            const response=await fetch(prod+'?branch='+branch,{headers:{Origin:customer},signal:AbortSignal.timeout(12000)});
+            const json=await response.json();
+            assert.equal(response.status,200,JSON.stringify(json));
+            assert.equal(json.ok,true);
+            assert.equal(json.branch,branch);
+            assert.ok(Array.isArray(json.unavailable));
+            assert.equal(response.headers.get('access-control-allow-origin'),customer);
+            console.log('Producción '+branch+': consulta de solo lectura HTTP 200');
+          }
+          const unauthorized=await fetch(prod,{method:'POST',headers:{Origin:'https://diannaleandra-art.github.io','Content-Type':'application/json'},
+            body:JSON.stringify({branch:'arica',action:'listar'}),signal:AbortSignal.timeout(12000)});
+          assert.equal(unauthorized.status,403,'Un usuario sin Google no puede administrar en producción');
+          console.log('Producción: administración sin autorización bloqueada HTTP 403');
 
           JS
