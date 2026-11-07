@@ -297,9 +297,9 @@ const VISTAS=[["inicio","Inicio","⌂"],["pedidos","Pedidos","▤"],["nuevo","Nu
 let cajaTab="resumen";
 let movimientoTab="gastos";
 let modoNuevo="whatsapp";
-const CAJA_TABS=[["resumen","Resumen"],["movimientos","Movimientos"],["cierre","Cierre"],["historial","Historial"],["semana","Reportes"]];
+const CAJA_TABS=[["resumen","Resumen"],["movimientos","Movimientos"],["cierre","Cierre"],["historial","Historial"],["semana","Reportes"],["acumulada","Caja acumulada en efectivo"]];
 const MOV_TABS=[["gastos","Gastos"],["apps","Apps"],["delivery","Delivery manual"],["repartidor","Pago repartidor"],["propinas","Propinas"],["retiros","Retiros"],["chica","Caja chica"]];
-function cambiarCajaTab(t){cajaTab=t;S.confirmCierre=false;render();window.scrollTo({top:0,behavior:"instant"});}
+function cambiarCajaTab(t){cajaTab=t;S.confirmCierre=false;render();if(t==="acumulada")setTimeout(()=>window.ukiCajaAcumuladaMontar?.(),0);window.scrollTo({top:0,behavior:"instant");}
 function cambiarMovimientoTab(t){movimientoTab=t;render();}
 function cambiarModoNuevo(t){modoNuevo=t;render();}
 
@@ -319,6 +319,7 @@ function ir(v){
   S.vista=v;
   render();
   if(v==="inventario")setTimeout(()=>window.ukiInventarioMontar?.(),0);
+   if(v==="caja"&&cajaTab==="acumulada")setTimeout(()=>window.ukiCajaAcumuladaMontar?.(),0);
   if(v==="pedidos"&&!ukiMesas.used&&typeof window.ukiMesasQAToken==="function")
     setTimeout(()=>{if(S.vista==="pedidos"&&S.suc)ukiMesaActualizar();},0);
   window.scrollTo({top:0,behavior:"instant"});
@@ -1826,7 +1827,7 @@ function totales(){
 function vCaja(){
   if(!S.suc)return vInicio();
   const active=CAJA_TABS.find(x=>x[0]===cajaTab)||CAJA_TABS[0];
-  const content=({resumen:vCajaResumen,movimientos:vMovimientos,cierre:vCierre,historial:vHistorialCompacto,semana:vReportes})[active[0]]();
+  const content=({resumen:vCajaResumen,movimientos:vMovimientos,cierre:vCierre,historial:vHistorialCompacto,semana:vReportes,acumulada:()=>window.ukiCajaAcumuladaVista?.()||'<div class="card">Preparando Caja acumulada en efectivo…</div>'})[active[0]]();
   return `<div class="section-head"><h2>Caja</h2><p>Turno abierto · ${fechaOperativaActual()}</p></div>
   <div class="sub-tabs" role="group" aria-label="Secciones de caja">${CAJA_TABS.map(([k,l])=>`<button class="${cajaTab===k?'selected':''}" onclick="cambiarCajaTab('${k}')">${l}</button>`).join('')}</div>${content}<div class="card"><h2>💾 Respaldo protegido de esta sucursal</h2><p class="muted">Guarda un respaldo cifrado al terminar el turno. La clave no se guarda: si la olvidas, no podrás recuperar ese archivo.</p><label>Crear clave para este respaldo (minimo 12 caracteres)</label><input id="ukiClaveBackup" type="password" autocomplete="new-password" placeholder="Clave de respaldo"><label>Repite la clave</label><input id="ukiConfirmaBackup" type="password" autocomplete="new-password" placeholder="Confirmar clave"><button class="big" onclick="descargarRespaldoCompleto()">Descargar respaldo cifrado</button><hr><p class="muted">Restaurar reemplaza los registros actuales de esta sucursal. Antes guarda una copia. También se admiten los respaldos anteriores v8.11 sin cifrar.</p><label>Clave del respaldo (si está cifrado)</label><input id="ukiClaveRestaurar" type="password" autocomplete="off" placeholder="Clave del archivo"><label>Elegir archivo para restaurar</label><input type="file" accept=".json,application/json" onchange="cargarRespaldo(event)"></div>`;
 }
@@ -3054,6 +3055,10 @@ function cerrar(){
   delete caja.inicioMs;
   S.fechaOperativa=hoyLocal(); // Nuevo período luego del cierre, no a medianoche.
   guardarEnLocalStorage();
+  // Caja acumulada: sincroniza solo el cierre confirmado, sin detener caja si no hay conexión.
+  const cierreAcumulable=S.cierres[S.cierres.length-1];
+  if(cierreAcumulable&&typeof window.ukiCajaAcumuladaRegistrarCierre==="function")
+    void window.ukiCajaAcumuladaRegistrarCierre(cierreAcumulable);
   S.busy=false;
   cierreDraft={resp:"",obs:"",contado:""};
   aviso("✅ Turno "+fechaTurnoCerrado+" cerrado y guardado en Historial");
@@ -3795,6 +3800,11 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 <script src="./uki-cierre-detallado.js" defer></script>
 <script src="./uki-inventario-admin-embebido.js" defer></script>
 <script src="./uki-disponibilidad-admin.js" defer></script>
+<script src="./uki-carta-precios-admin.js" defer></script>
+<script src="./uki-inventario-exportar.js" defer></script>
+<script src="./uki-inventario-historial-admin.js" defer></script>
+<script src="./uki-caja-acumulada-exportar.js" defer></script>
+<script src="./uki-caja-acumulada-admin.js" defer></script>
 <script src="./uki-control-turnos.js" defer></script>
 <script type="module">
 

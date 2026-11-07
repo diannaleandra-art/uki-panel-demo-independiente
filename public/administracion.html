@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive"><title>Uki Sushi · Administración de inventario</title>
+<style>
+:root{font-family:system-ui,-apple-system,sans-serif;background:#fff9f3;color:#30251c}*{box-sizing:border-box}
+body{margin:0;padding-bottom:28px}header{background:#e9822d;color:#fff;padding:22px}
+header h1{font-size:22px;margin:0 0 5px}main{max-width:680px;margin:auto;padding:16px}
+.card{background:#fff;border:1px solid #eadccf;border-radius:15px;margin-bottom:12px;padding:18px}
+button,select,input{font:inherit;border-radius:9px;padding:12px}button{border:0;background:#e9822d;color:#fff;font-weight:600}
+button:disabled{opacity:.5}.button-line{display:flex;flex-wrap:wrap;gap:8px}.button-line button{flex:1}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.form-grid label{margin-bottom:4px}.form-grid > div{min-width:0}.section-detail{border-top:1px solid #eadccf;margin-top:16px;padding-top:14px}select,input{background:white;border:1px solid #d9c9bb;width:100%}label{font-weight:600;display:block;margin:12px 0 6px}
+p{line-height:1.4}.muted{color:#796657;font-size:14px}h2{font-size:19px;margin:0 0 12px}h3{font-size:17px}
+[hidden]{display:none!important}.confirmacion{border:1px solid #a4c8ad;background:#f2faf3;color:#205934;padding:12px;border-radius:9px;font-weight:650}
+</style></head><body>
+<header><h1>Uki Sushi · Administración de inventario</h1><div>Administración · inventario · sin caja ni cierres</div></header>
+<main>
+<section class="card"><h2>Acceso administrativo</h2>
+<p class="muted">Aquí ves las revisiones que el trabajador guardó desde su QR. No cambia la disponibilidad de la carta ni la caja.</p>
+<button id="google">Entrar con Google</button><p id="cuenta" class="muted">Sin iniciar sesión</p>
+<label for="codigo">Código exclusivo de inventario (solo se crea una vez)</label>
+<input type="password" id="codigo" maxlength="6" inputmode="numeric" autocomplete="off" placeholder="6 números">
+<p id="indicacion" class="muted">Código distinto del panel de pedidos. Nunca lo compartas por este chat.</p>
+<button id="crear" hidden>Crear código de inventario</button>
+<label for="sucursal">Sucursal</label>
+<select id="sucursal"><option value="arica">Regimiento Arica</option><option value="serena">La Serena</option></select>
+<button id="ver" disabled>Ver revisiones del inventario</button>
+<p id="estado" role="status" class="muted"></p>
+</section>
+<section class="card" id="editor" hidden>
+<h2>Agregar artículos al inventario</h2>
+<p class="muted">Crea ingredientes, envases o insumos para contar. Estos artículos NO se agregan a la carta de clientes ni cambian Disponible/Agotado.</p>
+<label for="nuevoNombre">Nombre del artículo</label><input id="nuevoNombre" maxlength="100" placeholder="Ej.: Arroz, bolsas delivery, aceite">
+<div class="form-grid">
+<div><label for="nuevoCategoria">Categoría</label><select id="nuevoCategoria"><option value="ingrediente">Ingrediente</option><option value="envase">Envases y embalajes</option><option value="otro">Otro insumo</option></select></div>
+<div><label for="nuevoUnidad">Unidad</label><select id="nuevoUnidad"><option value="un">Unidades</option><option value="kg">Kilos (kg)</option><option value="g">Gramos (g)</option><option value="l">Litros (l)</option><option value="ml">Mililitros (ml)</option><option value="porciones">Porciones</option></select></div>
+<div><label for="nuevoStock">Cantidad inicial</label><input id="nuevoStock" type="text" inputmode="text" autocomplete="off" maxlength="12" value="0"></div>
+<div><label for="nuevoMinimo">Mínimo para reponer</label><input id="nuevoMinimo" type="text" inputmode="text" autocomplete="off" maxlength="12" value="0"></div>
+</div>
+<p class="muted">Ejemplos: 1,5 kg; 750 g; 0,125 kg; 2,25 litros. Se permiten hasta tres decimales.</p>
+<div class="button-line"><button id="agregarArticulo">Agregar al inventario</button><button id="actualizarArticulos" type="button">Actualizar lista</button></div>
+<p id="estadoArticulos" role="status" class="muted"></p><p id="confirmacionArticulo" role="status" aria-live="polite" class="confirmacion" hidden></p>
+<div class="section-detail">
+<h2>Editar unidad o cantidad</h2>
+<p class="muted">Sirve también para ingredientes existentes, como pollo o palta. Cambiar la unidad no convierte la cifra automáticamente: escribe la cantidad correcta para la nueva unidad.</p>
+<label for="buscarArticulo">Buscar artículo por nombre</label><input id="buscarArticulo" type="search" placeholder="Ej.: aceite, pollo o palta" autocomplete="off" aria-controls="articuloExistente"><label for="articuloExistente">Artículo existente</label><select id="articuloExistente"><option value="">Cargar artículos…</option></select>
+<div id="edicionArticulo" hidden>
+<div class="form-grid">
+<div><label for="editarUnidad">Unidad</label><select id="editarUnidad"><option value="un">Unidades</option><option value="kg">Kilos (kg)</option><option value="g">Gramos (g)</option><option value="l">Litros (l)</option><option value="ml">Mililitros (ml)</option><option value="porciones">Porciones</option></select></div>
+<div><label for="editarStock">Cantidad actual</label><input id="editarStock" type="text" inputmode="text" autocomplete="off" maxlength="12"></div>
+<div><label for="editarMinimo">Mínimo de reposición</label><input id="editarMinimo" type="text" inputmode="text" autocomplete="off" maxlength="12"></div>
+</div>
+<button id="guardarArticulo">Guardar unidad y cantidades</button>
+</div>
+</div>
+</section>
+<section class="card"><h2>QR / enlace para el trabajador</h2>
+<p class="muted">Se abre en el celular del encargado de inventario. Solo necesita su nombre, sucursal y el código de inventario.</p>
+<a id="worker" href="/">Abrir inventario de trabajadores</a>
+</section>
+<section id="resultados" hidden><h2>Revisiones guardadas</h2><div id="lista"></div></section>
+</main>
+<script type="module">
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js';
+import {getAuth,GoogleAuthProvider,signInWithRedirect,getRedirectResult,onAuthStateChanged,getIdToken} from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js';
+const $=id=>document.getElementById(id);
+const validHost=['uki-sushi-inventario.vercel.app','uki-sushi-inventario-diannaleandra-7046.vercel.app'].includes(location.hostname);
+const API='/api/inventario-turno-live';
+const config={apiKey:'AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA',
+ authDomain:'uki-sushi-inventario.vercel.app',projectId:'uki-panel-f4909',
+ storageBucket:'uki-panel-f4909.firebasestorage.app',messagingSenderId:'1070481165758',
+ appId:'1:1070481165758:web:b8f0f9ff40caf5b8ac7def'};
+const auth=getAuth(initializeApp(config));
+const marcadorGoogle='uki_inventario_google_regreso';
+const intentoAnterior=(()=>{try{return sessionStorage.getItem(marcadorGoogle)==='1';}catch{return false;}})();
+function limpiarIntento(){try{sessionStorage.removeItem(marcadorGoogle);}catch{}}
+let configured=null,busy=false,articulos=[];
+function estado(s){$('estado').textContent=s;}
+function controls(){
+ const yes=validHost&&!!auth.currentUser;
+ $('google').disabled=!validHost||busy;
+ $('crear').hidden=!yes||configured!==false;
+ $('crear').disabled=busy||!/^[0-9]{6}$/.test($('codigo').value);
+ $('ver').disabled=!yes||busy;
+ $('editor').hidden=!yes;
+ $('agregarArticulo').disabled=!yes||busy;
+ $('actualizarArticulos').disabled=!yes||busy;
+ $('guardarArticulo').disabled=!yes||busy;
+}
+async function request(action,extra={}){
+ if(!auth.currentUser||!validHost)throw Error('Se requiere cuenta Google de administración autorizada.');
+ const token=await getIdToken(auth.currentUser,true);
+ const response=await fetch(API,{method:'POST',cache:'no-store',credentials:'omit',mode:'cors',
+  headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+  body:JSON.stringify({action,branch:$('sucursal').value,...extra}),signal:AbortSignal.timeout(20000)});
+ const body=await response.json().catch(()=>({}));
+ if(!response.ok||!body.ok)throw Error(body.error||'No se pudo consultar el inventario.');
+ return body;
+}
+async function iniciar(){
+ if(!auth.currentUser)return;
+ busy=true;controls();
+ try{
+  const result=await request('estado');
+  configured=result.configurado===true;
+  $('indicacion').textContent=configured?
+   'El código ya está creado. Los trabajadores lo usan únicamente para inventario.':
+   'Crea una sola vez un código de 6 números diferente al de pedidos.';
+  estado(configured?'Acceso de inventario configurado.':'Crea el código exclusivo para continuar.');
+ }catch(e){configured=null;estado(String(e.message));}
+ finally{busy=false;controls();}
+}
+onAuthStateChanged(auth,user=>{
+ $('cuenta').textContent=user?'Google conectado':'Sin iniciar sesión';
+ if(user){limpiarIntento();estado('Google conectado. Consultando acceso administrativo…');}
+ configured=null;$('codigo').value='';$('resultados').hidden=true;
+ articulos=[];$('buscarArticulo').value='';$('confirmacionArticulo').hidden=true;$('articuloExistente').replaceChildren(new Option('Cargar artículos…',''));
+ $('edicionArticulo').hidden=true;controls();
+ if(user)void iniciar();
+});
+function describirErrorGoogle(e){
+ const code=String(e?.code||'auth/unknown');
+ const dominio=location.hostname;
+ if(code==='auth/unauthorized-domain')
+  return 'Dominio no autorizado por Firebase: '+dominio+'. En Firebase → Authentication → Settings → Authorized domains, debe autorizarse este dominio autorizado.';
+ if(code==='auth/invalid-continue-uri'||code==='auth/unauthorized-continue-uri')
+  return 'La dirección de regreso de Google no está autorizada. Revisa la configuración OAuth.';
+ if(code==='auth/invalid-oauth-client-id')
+  return 'Google no reconoce la configuración OAuth del dominio.';
+ if(code==='auth/operation-not-allowed')
+  return 'Google no está habilitado como proveedor en Firebase Authentication.';
+ if(code==='auth/network-request-failed')
+  return 'No se pudo contactar con Firebase. Verifica la conexión y vuelve a intentarlo.';
+ if(code==='auth/redirect-cancelled-by-user')
+  return 'El inicio de sesión se canceló antes de terminar. Puedes intentarlo nuevamente.';
+ return 'No se completó el acceso Google ('+code+'). Revisa la configuración Firebase de este panel.';
+}
+// Sin ventana emergente: el helper Firebase se sirve en este mismo dominio.
+$('google').onclick=async()=>{
+ if(!validHost||busy)return;
+ busy=true;controls();
+ estado('Abriendo Google y regresando a esta misma página…');
+ try{
+  try{sessionStorage.setItem(marcadorGoogle,'1');}catch{}
+  await signInWithRedirect(auth,new GoogleAuthProvider());
+ }catch(e){
+  limpiarIntento();estado(describirErrorGoogle(e));
+  busy=false;controls();
+ }
+};
+// Recuperar la sesión después del regreso desde Google.
+void getRedirectResult(auth).then(result=>{
+ if(result?.user){
+  limpiarIntento();
+  $('cuenta').textContent='Google conectado';
+  estado('Acceso Google recibido. Comprobando permisos…');
+ }else if(intentoAnterior&&!auth.currentUser){
+  limpiarIntento();
+  estado('Google regresó sin completar la sesión. Comprueba la URI OAuth de redirección autorizada.');
+ }
+}).catch(e=>{limpiarIntento();estado(describirErrorGoogle(e));});
+$('codigo').oninput=controls;
+$('crear').onclick=async()=>{
+ if(busy||configured!==false||!/^[0-9]{6}$/.test($('codigo').value))return;
+ busy=true;controls();estado('Creando código…');
+ try{await request('crear-codigo',{codigo:$('codigo').value});
+  configured=true;$('codigo').value='';
+  $('indicacion').textContent='Código creado. No se guardó en el navegador.';
+  estado('Código de inventario configurado correctamente.');
+ }catch(e){estado(String(e.message));}
+ finally{busy=false;controls();}
+};
+$('sucursal').onchange=()=>{$('resultados').hidden=true;articulos=[];
+ $('edicionArticulo').hidden=true;$('buscarArticulo').value='';$('confirmacionArticulo').hidden=true;$('articuloExistente').replaceChildren(new Option('Cargar artículos…',''));
+ $('estadoArticulos').textContent='';};
+const make=(tag,text)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e;};
+$('ver').onclick=async()=>{
+ if(busy||!auth.currentUser)return;
+ busy=true;controls();estado('Consultando revisiones…');$('resultados').hidden=true;
+ try{
+  const branch=$('sucursal').value,result=await request('reportes');
+  if(branch!==$('sucursal').value)return;
+  const box=$('lista');box.replaceChildren();
+  if(!result.revisiones.length)box.append(make('p','Aún no hay revisiones guardadas.'));
+  for(const entry of result.revisiones){
+   const card=make('section');card.className='card';
+   const fecha=new Date(entry.created_at).toLocaleString('es-CL',{timeZone:'America/Santiago'});
+   card.append(make('h3',entry.worker_name+' · '+fecha));
+   const summ=entry.summary||{};
+   card.append(make('p',(summ.faltantes||[]).length+' por reponer · '+(summ.sinMinimo||0)+' sin mínimo configurado'));
+   if(!summ.faltantes?.length)card.append(make('p','Sin faltantes configurados.'));
+   else for(const item of summ.faltantes.slice(0,120))
+    card.append(make('p',item.nombre+' · llevar '+item.llevar+' '+item.unidad));
+   box.append(card);
+  }
+  $('resultados').hidden=false;estado('Revisiones consultadas.');
+ }catch(e){estado(String(e.message));}
+ finally{busy=false;controls();}
+};
+
+const UNIDADES=new Set(['un','kg','g','l','ml','porciones']);
+function numero(id){
+ const raw=$(id).value.trim();
+ const n=Number(raw.replace(',','.'));
+ if(!/^\d{1,6}(?:[.,]\d{1,3})?$/.test(raw)||!Number.isFinite(n)||n<0||n>100000)
+  throw Error('Revisa las cantidades. Se permiten hasta tres decimales.');
+ return Math.round(n*1000)/1000;
+}
+function entradaDatos(){
+ return {name:$('nuevoNombre').value.trim(),category:$('nuevoCategoria').value,
+  stock_unit:$('nuevoUnidad').value,stock_qty:numero('nuevoStock'),
+  min_stock_qty:numero('nuevoMinimo')};
+}
+function editarDatos(item){
+ const stock_unit=$('editarUnidad').value;
+ if(!UNIDADES.has(stock_unit))throw Error('Unidad no permitida.');
+ return {name:item.name,category:item.category||'ingrediente',
+  stock_unit,stock_qty:numero('editarStock'),min_stock_qty:numero('editarMinimo')};
+}
+function selArticulo(){
+ return articulos.find(x=>x.sku===$('articuloExistente').value);
+}
+function seleccion(){
+ const item=selArticulo();
+ $('edicionArticulo').hidden=!item;
+ if(!item)return;
+ $('editarUnidad').value=item.stock_unit;
+ $('editarStock').value=String(item.stock_qty);
+ $('editarMinimo').value=String(item.min_stock_qty);
+}
+function mostrarArticulos(){
+ const sel=$('articuloExistente'),before=sel.value;
+ const normalizar=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+ const busqueda=normalizar($('buscarArticulo').value.trim());
+ sel.replaceChildren(new Option('Elige un artículo…',''));
+ let encontrados=0;
+ for(const item of articulos){
+  if(busqueda&&!normalizar(item.name).includes(busqueda))continue;
+  const label=item.name+' · '+(item.inventory_only?'Inventario':'Ingrediente')+' ('+item.stock_unit+')';
+  sel.add(new Option(label,item.sku));
+  encontrados++;
+ }
+ if(!encontrados)sel.add(new Option('No se encontraron artículos',''));
+ if([...sel.options].some(opt=>opt.value===before&&before))sel.value=before;
+ seleccion();
+}
+async function cargarArticulos(){
+ const suc=$('sucursal').value;
+ const body=await request('articulos');
+ if(suc!==$('sucursal').value)return;
+ articulos=body.items||[];
+ mostrarArticulos();
+ $('estadoArticulos').textContent=articulos.length+' artículos disponibles para editar.';
+}
+$('articuloExistente').onchange=seleccion;
+$('buscarArticulo').oninput=mostrarArticulos;
+$('actualizarArticulos').onclick=async()=>{
+ if(busy)return;busy=true;controls();$('estadoArticulos').textContent='Cargando artículos…';
+ try{await cargarArticulos();}catch(e){$('estadoArticulos').textContent=String(e.message);}
+ finally{busy=false;controls();}
+};
+$('agregarArticulo').onclick=async()=>{
+ if(busy)return;
+ let item;
+ try{item=entradaDatos();if(item.name.length<2||item.name.length>100)throw Error('Escribe un nombre de 2 a 100 caracteres.');}
+ catch(e){$('estadoArticulos').textContent=String(e.message);return;}
+ busy=true;controls();$('estadoArticulos').textContent='Guardando artículo…';
+ try{
+  await request('crear-articulo',{item});
+  const sucursal=$('sucursal').selectedOptions[0]?.textContent||$('sucursal').value;
+  $('confirmacionArticulo').textContent='✓ «'+item.name+'» agregado correctamente al inventario de '+sucursal+'. No se agregó a la carta de clientes.';
+  $('confirmacionArticulo').hidden=false;
+  $('nuevoNombre').value='';$('nuevoStock').value='0';$('nuevoMinimo').value='0';
+  try{await cargarArticulos();}
+  catch(error){$('estadoArticulos').textContent='Artículo guardado, pero no se pudo actualizar la lista: '+String(error.message);}
+ }catch(e){$('estadoArticulos').textContent=String(e.message);}
+ finally{busy=false;controls();}
+};
+$('guardarArticulo').onclick=async()=>{
+ if(busy)return;
+ const item=selArticulo();
+ if(!item){$('estadoArticulos').textContent='Selecciona un artículo.';return;}
+ let data;try{data=editarDatos(item);}catch(e){$('estadoArticulos').textContent=String(e.message);return;}
+ busy=true;controls();$('estadoArticulos').textContent='Guardando cambios…';
+ try{
+  await request(item.inventory_only?'editar-articulo':'configurar-unidad',{
+   sku:item.sku,expected_version:Number(item.version),
+   ...(item.inventory_only?{item:data}:{stock_unit:data.stock_unit,stock_qty:data.stock_qty,min_stock_qty:data.min_stock_qty})
+  });
+  await cargarArticulos();$('estadoArticulos').textContent='✓ '+item.name+' actualizado en el inventario de '+$('sucursal').selectedOptions[0].textContent+'.';
+ }catch(e){$('estadoArticulos').textContent=String(e.message);}
+ finally{busy=false;controls();}
+};
+if(!validHost)estado('Esta vista solo está disponible en producción.');
+</script></body></html>

@@ -1,0 +1,15 @@
+{
+  "name": "uki-sushi-panel-inventario",
+  "private": true,
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "1.2.0",
+    "jose": "6.2.15"
+  },
+  "scripts": {
+    "test": "node --test tests/inventario-live.test.cjs"
+  }
+}

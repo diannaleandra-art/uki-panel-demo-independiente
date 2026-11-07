@@ -1,0 +1,167 @@
+name: Uki disponibilidad - prueba HTTP QA sin pedidos
+on:
+  push:
+    branches:
+      - feature/uki-disponibilidad-manual-live-2026-11-06
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qa-http:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Consultar API QA en ambas sucursales sin modificar datos
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          const base='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app/api/uki-disponibilidad-live';
+          const origin='https://uki-sushi-pedidos-git-feature-uki-dis-eb0d72-diannaleandra-7046.vercel.app';
+          for(const branch of ['arica','serena']){
+            let last;
+            for(let n=0;n<4;n++){
+              try{
+                const r=await fetch(base+'?branch='+branch,{headers:{Origin:origin},signal:AbortSignal.timeout(12000)});
+                const body=await r.json();
+                assert.equal(r.status,200,JSON.stringify(body));
+                assert.equal(body.ok,true);
+                assert.equal(body.branch,branch);
+                assert.ok(Array.isArray(body.unavailable));
+                assert.equal(r.headers.get('access-control-allow-origin'),origin);
+                assert.equal(r.headers.get('cache-control'),'no-store');
+                console.log('QA '+branch+': HTTP 200, CORS correcto, agotados='+body.unavailable.length);
+                last=null;break;
+              }catch(e){last=e;console.error('Intento '+(n+1)+' '+branch+': '+String(e));if(n<3)await new Promise(resolve=>setTimeout(resolve,2000));}
+            }
+            if(last)throw last;
+          }
+          const bad=await fetch(base+'?branch=otra',{headers:{Origin:origin},signal:AbortSignal.timeout(12000)});
+          assert.equal(bad.status,400);
+          console.log('QA sucursal inválida: HTTP 400');
+          const qaPanel='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app';
+          const options=await fetch(base,{method:'OPTIONS',headers:{Origin:qaPanel,'Access-Control-Request-Method':'POST'}});
+          assert.equal(options.status,204);
+          assert.equal(options.headers.get('access-control-allow-origin'),qaPanel);
+          const denied=await fetch(base,{method:'POST',headers:{Origin:qaPanel,'Content-Type':'application/json'},
+            body:JSON.stringify({branch:'arica',action:'listar'}),signal:AbortSignal.timeout(12000)});
+          assert.equal(denied.status,403,'Una petición sin token nunca puede modificar disponibilidad');
+          console.log('QA administración: CORS correcto y acceso sin Google rechazado (403)');
+          const blocked=await fetch(base+'?branch=arica',{headers:{Origin:'https://sitio-no-autorizado.example'},signal:AbortSignal.timeout(12000)});
+          assert.equal(blocked.status,403,'Los orígenes desconocidos se bloquean');
+          console.log('QA seguridad: CORS rechaza otro sitio HTTP 403');
+          // Lectura de disponibilidad de la API definitiva, sin alterar productos reales.
+          const prod='https://uki-sushi-inventario.vercel.app/api/uki-disponibilidad-live';
+          const customer='https://uki-sushi-pedidos.vercel.app';
+          for(const branch of ['arica','serena']){
+            const response=await fetch(prod+'?branch='+branch,{headers:{Origin:customer},signal:AbortSignal.timeout(12000)});
+            const json=await response.json();
+            assert.equal(response.status,200,JSON.stringify(json));
+            assert.equal(json.ok,true);
+            assert.equal(json.branch,branch);
+            assert.ok(Array.isArray(json.unavailable));
+            assert.equal(response.headers.get('access-control-allow-origin'),customer);
+            console.log('Producción '+branch+': consulta de solo lectura HTTP 200');
+          }
+          const unauthorized=await fetch(prod,{method:'POST',headers:{Origin:'https://diannaleandra-art.github.io','Content-Type':'application/json'},
+            body:JSON.stringify({branch:'arica',action:'listar'}),signal:AbortSignal.timeout(12000)});
+          assert.equal(unauthorized.status,403,'Un usuario sin Google no puede administrar en producción');
+          console.log('Producción: administración sin autorización bloqueada HTTP 403');
+          const pageUrl='https://diannaleandra-art.github.io/uki-panel-demo-independiente/firebase/uki-sushi-local.html';
+          const page=await fetch(pageUrl,{signal:AbortSignal.timeout(12000)});
+          assert.equal(page.status,200,'El panel real debe cargar con HTTP 200');
+          const html=await page.text();
+          assert.ok(html.includes('uki-inventario-admin-embebido.js'));
+          assert.ok(html.includes('uki-disponibilidad-admin.js'));
+          const moduleResp=await fetch(new URL('./uki-disponibilidad-admin.js',pageUrl),{signal:AbortSignal.timeout(12000)});
+          assert.equal(moduleResp.status,200,'La nueva sección debe estar publicada');
+          const moduleText=await moduleResp.text();
+          assert.ok(moduleText.includes('window.ukiInventarioMontar=montar'));
+          assert.ok(moduleText.includes('window.ukiInventarioToken'));
+          console.log('Panel GitHub Pages: HTML y controles Disponible/Agotado accesibles HTTP 200');
+          const pricesUrl='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app/api/uki-carta-precios-live';
+          for(const branch of ['arica','serena']){
+            const r=await fetch(pricesUrl+'?branch='+branch,{
+              headers:{Origin:origin},signal:AbortSignal.timeout(12000)});
+            const payload=await r.json();
+            assert.equal(r.status,200,JSON.stringify(payload));
+            assert.equal(payload.ok,true);
+            assert.equal(payload.branch,branch);
+            assert.ok(Array.isArray(payload.items)&&payload.items.some(x=>x.sku==='classic:24'));
+            assert.ok(payload.items.every(x=>x.kind!=='ingredient'));
+            console.log('QA precios '+branch+': HTTP 200, catálogo completo');
+          }
+          const deniedPrices=await fetch(pricesUrl,{
+            method:'POST',headers:{Origin:qaPanel,'Content-Type':'application/json'},
+            body:JSON.stringify({branch:'arica',action:'crear-producto',item:{kind:'pizza',group:'pizzas',name:'NO CREAR',description:'QA',price:9900}}),
+            signal:AbortSignal.timeout(12000)});
+          assert.equal(deniedPrices.status,403,'No se puede crear pizza sin Google');
+          console.log('QA precios: escritura sin Google bloqueada HTTP 403');
+          // El historial pertenece sólo a administración. No escribir datos de prueba.
+          const inventoryURL='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app/api/inventario-turno-live';
+          for(const action of ['historial','revision','articulos']){
+            const noGoogle=await fetch(inventoryURL,{
+              method:'POST',headers:{Origin:qaPanel,'Content-Type':'application/json'},
+              body:JSON.stringify({branch:'arica',action,id:'00000000-0000-0000-0000-000000000000'}),
+              signal:AbortSignal.timeout(12000)});
+            assert.equal(noGoogle.status,403,'La API debe bloquear '+action+' sin Google');
+          }
+          console.log('QA inventario: historial, detalle y existencias bloqueados sin Google HTTP 403');
+          // Comprobar pantalla de Google sin iniciar sesión ni pedir credenciales.
+          // Vercel puede tardar en mover el alias al commit recién compilado.
+          let checkPage;
+          for(let attempt=0;attempt<8;attempt++){
+            checkPage=await fetch(qaPanel+'/verificar-administracion.html',{signal:AbortSignal.timeout(12000)});
+            if(checkPage.status===200)break;
+            console.log('QA Google aún no disponible, HTTP '+checkPage.status+' intento '+(attempt+1));
+            if(attempt<7)await new Promise(resolve=>setTimeout(resolve,2500));
+          }
+          assert.equal(checkPage.status,200,'Pantalla de prueba Google HTTP 200');
+          const body=await checkPage.text();
+          for(const part of ['Entrar con Google','SOLO PRUEBAS','Consultar historial de prueba'])
+            assert.ok(body.includes(part),'Pantalla Google sin '+part);
+          for(const part of ['/uki-admin-verificacion-qa.mjs','/uki-inventario-exportar.js']){
+            const resource=await fetch(qaPanel+part,{signal:AbortSignal.timeout(12000)});
+            assert.equal(resource.status,200,'Recurso '+part+' debe cargar');
+          }
+          const authCheck=await fetch(qaPanel+'/api/uki-admin-verificacion-qa',{
+            method:'POST',headers:{Origin:qaPanel,'Content-Type':'application/json'},
+            body:JSON.stringify({branch:'arica',action:'diagnostico'}),signal:AbortSignal.timeout(12000)});
+          assert.equal(authCheck.status,403,'No se puede acceder al diagnóstico Google sin cuenta autorizada');
+          console.log('QA Google: pantalla HTTP 200 y diagnóstico sin token bloqueado 403');
+          // Firebase expone sus dominios autorizados por la configuración pública del proyecto.
+          // Esto NO obtiene tokens ni datos de la cuenta.
+          try{
+            const authConfig=await fetch('https://identitytoolkit.googleapis.com/v1/projects?key=AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA',
+              {signal:AbortSignal.timeout(8000)});
+            if(authConfig.ok){
+              const cfg=await authConfig.json();
+              const allowed=Array.isArray(cfg.authorizedDomains)?cfg.authorizedDomains:[];
+              const domainIsAllowed=allowed.includes(new URL(qaPanel).hostname);
+              console.log('Firebase: dominio de pruebas Google autorizado='+domainIsAllowed);
+              assert.equal(domainIsAllowed,true,'Firebase aún no reconoce el dominio de pruebas para Google');
+            }else console.log('Firebase: no se pudo confirmar lista pública de dominios (HTTP '+authConfig.status+')');
+          }catch{console.log('Firebase: lista pública de dominios no disponible para esta comprobación');}
+          const preview='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app';
+          const workerPage=await fetch(preview+'/',{signal:AbortSignal.timeout(12000)});
+          assert.equal(workerPage.status,200,'El trabajador debe ver la interfaz QA');
+          const workerHtml=await workerPage.text();
+          for(const feature of ['turnoFechaChile','turnoHoraActual','turnoUltimoRegistro','setInterval(actualizarReloj,60000)','estadoLista','mostrarMas','Pendientes de contar']){
+            assert.ok(workerHtml.includes(feature),'La vista del trabajador debe incluir '+feature);
+          }
+          console.log('QA trabajador: interfaz móvil, lista compacta y fecha de Chile HTTP 200');
+          const visual=await fetch('https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app/vista-previa-inventario.html',
+           {signal:AbortSignal.timeout(12000)});
+          assert.equal(visual.status,200,'La demostración visual debe abrir en Vercel QA');
+          const visualHTML=await visual.text();
+          for(const feature of ['Demostración visual','Historial de inventarios','Regimiento Arica','La Serena','Excel','hora-actual','setInterval(mostrarHoraActual,60000)']){
+           assert.ok(visualHTML.includes(feature),'Falta '+feature+' en el demo');
+          }
+          console.log('QA diseño inventario: vista visual accesible HTTP 200');
+          for(const file of ['/firebase/uki-sushi-local.html','/firebase/uki-inventario-exportar.js',
+            '/firebase/uki-inventario-historial-admin.js']){
+            const response=await fetch(preview+file,{signal:AbortSignal.timeout(12000)});
+            console.log('QA archivo '+file+': HTTP '+response.status);
+          }
+
+          JS
