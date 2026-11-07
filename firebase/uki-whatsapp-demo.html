@@ -42,12 +42,8 @@ textarea{resize:vertical;min-height:106px;line-height:1.5}button{cursor:pointer;
 <div class="section-head"><h2>Historial</h2><span class="pill" id="history-count">0 procesadas</span></div>
 <div id="history-list"></div>
 </section>
-<section class="card" id="add">
-<div class="section-head"><h2>Agregar un mensaje</h2></div>
-<p class="muted">Para esta prueba, pega un mensaje de ejemplo o usa el botón para cargar uno ficticio. Evita poner datos de clientes reales.</p>
-<label for="input-message">Texto recibido por WhatsApp</label><textarea id="input-message" placeholder="Pega un mensaje de ejemplo de la carta digital…"></textarea>
-<div class="actions"><button type="button" id="sample">Poner ejemplo</button><button type="button" class="primary" id="add-request">📩 Agregar por confirmar</button></div>
-</section>
+<div class="notice"><b>Así quedará en el panel:</b> solo usarás <b>Nuevo pedido → Pegar WhatsApp</b>, que ya existe. La bandeja de solicitudes servirá para aceptar, revisar, corregir o rechazar. Esta demostración contiene pedidos ficticios para probar esas acciones.</div>
+
 <p class="muted" style="text-align:center">La información de esta demostración se borra al cerrar o actualizar la página. La integración con el panel real se prueba por separado.</p>
 </main>
 <script>
@@ -163,20 +159,7 @@ function finishReject(id){
  var r=$("reason-"+id)?.value;if(!r)return status("Selecciona un motivo antes de rechazar.");
  o.estado="rechazada";o.reason=r;render();status("Solicitud rechazada. No se suma a caja, ventas ni timbres.");
 }
-function addRequest(){
- var raw=$("input-message").value.trim();
- if(raw.length<8)return status("Pega el mensaje de prueba para continuar.");
- if(raw.length>12000)return status("El mensaje excede 12.000 caracteres.");
- var p=parse(raw,$("branch").value);
- if(p.code&&branchOrders().some(function(x){return x.code===p.code&&x.estado!=="rechazada"}))
-  return status("Ese código de carta ya está en la bandeja. No se agregó dos veces.");
- orders.unshift(p);render();$("input-message").value="";
- status("Mensaje agregado por confirmar. No se ha creado una venta.");
- document.getElementById("inbox").scrollIntoView({behavior:"smooth",block:"start"});
-}
 $("branch").addEventListener("change",function(){endReview();status("Mostrando solicitudes de "+this.value+".");});
-$("sample").addEventListener("click",function(){$("input-message").value=sample.replace("Uki Regimiento Arica",$("branch").value).replace("UKI-789","UKI-"+(790+nextId));status("Ejemplo ficticio preparado para pegar.");});
-$("add-request").addEventListener("click",addRequest);
 $("back").addEventListener("click",function(){endReview();status("Volviste a la bandeja; la solicitud sigue pendiente.");});
 $("accept").addEventListener("click",accept);
 ["edit-phone","edit-subtotal","edit-delivery","edit-mode"].forEach(function(id){$(id).addEventListener("input",updateTotals);$(id).addEventListener("change",updateTotals);});
@@ -188,6 +171,7 @@ document.addEventListener("click",function(event){
  else if(btn.dataset.act==="finish-reject")finishReject(id);
 });
 orders.push(parse(sample,"Uki Regimiento Arica"));
+orders.push(parse(sample.replace("UKI-789","UKI-790").replace("Cliente de prueba","Segundo cliente de prueba").replace("1111 5678","2222 8765"),"Uki Regimiento Arica"));
 orders.push(parse(sample.replace("Uki Regimiento Arica","Uki La Serena").replace("UKI-789","UKI-890"),"Uki La Serena"));
 render();
 })();
