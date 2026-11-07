@@ -6,8 +6,10 @@ const BRANCHES=new Set(['arica','serena']);
 const ORIGINS=new Set(['https://diannaleandra-art.github.io','https://uki-sushi-pedidos.vercel.app']);
 const QA_REF='feature/uki-disponibilidad-manual-live-2026-11-06';
 const QA_MENU_ORIGIN='https://uki-sushi-pedidos-git-feature-uki-dis-eb0d72-diannaleandra-7046.vercel.app';
+const QA_PANEL_ORIGIN='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app';
+function qaBranch(env=process.env){return env.VERCEL_ENV==='preview'&&env.VERCEL_GIT_COMMIT_REF===QA_REF&&env.UKI_INVENTARIO_QA_ENABLED==='true';}
 function allowedOrigin(origin,env=process.env){
- return ORIGINS.has(origin)||(env.VERCEL_ENV==='preview'&&env.VERCEL_GIT_COMMIT_REF===QA_REF&&env.UKI_INVENTARIO_QA_ENABLED==='true'&&origin===QA_MENU_ORIGIN);
+ return ORIGINS.has(origin)||(qaBranch(env)&&(origin===QA_MENU_ORIGIN||origin===QA_PANEL_ORIGIN));
 }
 const PROJECT='uki-panel-f4909';
 const fail=(res,code,error)=>res.status(code).json({ok:false,error});
@@ -72,7 +74,7 @@ module.exports=async function(req,res){
    const rows=await sql.query('SELECT sku FROM public.uki_carta_items_v1 WHERE branch=$1 AND available=FALSE',[branch]);
    return res.status(200).json({ok:true,branch,unavailable:rows.map(r=>String(r.sku))});
   }
-  if(origin!=='https://diannaleandra-art.github.io')return fail(res,403,'Solo panel operativo');
+  if(origin!=='https://diannaleandra-art.github.io'&&!(qaBranch()&&origin===QA_PANEL_ORIGIN))return fail(res,403,'Solo panel operativo');
   if(String(req.headers?.['content-type']||'').split(';')[0]!=='application/json')return fail(res,415,'Se requiere JSON');
   if(!req.body||JSON.stringify(req.body).length>1200)return fail(res,400,'Solicitud inválida');
   const user=await authorized(req).catch(()=>null);
