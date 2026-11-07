@@ -26,4 +26,7 @@ jobs:
       - run: node --check firebase/uki-inventario-historial-admin.js
       - run: node --check api/inventario-turno-live.js
       - run: node --test tests/uki-inventario-historial.test.cjs
+      - name: Instalar DOM de pruebas (no modifica dependencias de producción)
+        run: npm install --no-save --ignore-scripts --no-audit --no-fund jsdom@26.1.0
+      - run: node --test tests/uki-admin-panel-dom.test.cjs
 
