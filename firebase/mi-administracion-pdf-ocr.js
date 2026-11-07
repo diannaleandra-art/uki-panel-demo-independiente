@@ -2,7 +2,7 @@
 // Reconstruye filas usando las coordenadas PDF; si faltan datos, intenta OCR de la página.
 // No envía facturas a nuestros servidores durante el reconocimiento: PDF.js/Tesseract
 // procesan el archivo en el navegador y solo cargan librerías/modelos públicos.
-import {interpretarFacturaChile} from './mi-administracion-factura-parser.js?v=bombo78969-v2';
+import {interpretarFacturaChile} from './mi-administracion-factura-parser.js?v=razones-v3';
 
 export function reconstruirLineasPDF(items){
   const chunks=(items||[]).filter(it=>it&&typeof it.str==='string'&&it.str.trim())
