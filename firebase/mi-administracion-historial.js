@@ -142,7 +142,7 @@ export function crearHistorialCompras({api,$,esc,fmt,businessName,branchName,bra
      selected2=locals.find(d=>d.sucursal_id===dest2.value);
     const a=Number(view.querySelector('[data-reparto-monto1]').value),
      b=Number(view.querySelector('[data-reparto-monto2]').value||0);
-    if(!selected1||!(a>0)&&!selected2){notice.textContent='Selecciona el local 1 y su importe.';return;}
+    if(!selected1||!(a>0)){notice.textContent='Selecciona el local 1 y su importe.';return;}
     if(selected2&&selected2.sucursal_id===selected1.sucursal_id){notice.textContent='Los dos locales deben ser diferentes.';return;}
     if(!selected2&&a!==Number(c.monto)){notice.textContent='Para un solo local, ingresa el total de la factura.';return;}
     if(selected2&&(!(b>0)||a+b!==Number(c.monto))){notice.textContent='La suma de ambos locales debe ser '+fmt(c.monto)+'.';return;}
