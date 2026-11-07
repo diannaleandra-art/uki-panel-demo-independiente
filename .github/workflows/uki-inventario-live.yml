@@ -29,4 +29,7 @@ jobs:
       - name: Instalar DOM de pruebas (no modifica dependencias de producción)
         run: npm install --no-save --ignore-scripts --no-audit --no-fund jsdom@26.1.0
       - run: node --test tests/uki-admin-panel-dom.test.cjs
+      - run: node --check public/uki-admin-verificacion-qa.mjs
+      - run: node --check api/uki-admin-verificacion-qa.js
+      - run: node --test tests/uki-google-verificacion-qa.test.cjs
 
