@@ -201,7 +201,14 @@ export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, br
   $('docOther').value='';$('docDiscount').value='';$('docRawText').value='';
   if(!warning)$('docFile').value='';
   productos=[];renderItems();
-  await cargar();
+  // Mostrar de inmediato compras antiguas aunque el filtro estuviera en el mes actual.
+  if(fecha<$('from').value||fecha>$('to').value){
+   const yr=Number(fecha.slice(0,4)),month=Number(fecha.slice(5,7));
+   $('from').value=fecha.slice(0,7)+'-01';
+   $('to').value=new Date(Date.UTC(yr,month,0)).toISOString().slice(0,10);
+  }
+  try{await cargar();}
+  catch(e){warning=(warning?warning+' ':'')+'La compra quedó registrada, pero el historial no se pudo actualizar: '+e.message;}
   return warning;
  }
  const show=(id)=>$(id);
