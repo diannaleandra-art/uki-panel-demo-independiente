@@ -118,11 +118,50 @@ label{color:#66574c}
 <label style="display:flex;align-items:center;gap:10px"><input type="checkbox" id="expensePending" style="width:20px;min-height:20px;margin:0"> Aún está pendiente de pago</label>
 <label>Vencimiento (si aún está pendiente)</label><input id="expenseDue" type="date"><label>Adjuntar factura o comprobante (opcional)</label><input id="expensePhoto" type="file" accept="image/*,application/pdf">
 <button class="primary" id="saveExpense">Guardar gasto o compra</button></div></section>
-<section class="view" id="v-facturas" hidden><div class="card"><div class="eyebrow">FACTURAS Y COMPROBANTES</div><h2>📷 Guardar una factura o boleta</h2><p class="steps">Selecciona el negocio y toma una foto con tu iPhone o adjunta un PDF. Quedará guardado en su historial.</p><p class="hint">Se guardan en una tabla privada, separados de las fotos de inventario. El PIN es obligatorio para consultar archivos.</p>
-<label>Negocio</label><select id="docBiz"></select><label>Sucursal</label><select id="docBranch"></select><div class="grid2"><div><label>Tipo</label><select id="docType"><option value="factura">Factura</option><option value="boleta">Boleta</option><option value="cierre">Cierre</option><option value="comprobante">Comprobante</option><option value="otro">Otro</option></select></div><div><label>Fecha</label><input id="docDate" type="date"></div></div>
-<label>Proveedor</label><input id="docVendor" placeholder="Ej.: distribuidora"><label>Foto o PDF</label><input type="file" id="docFile" accept="image/*,application/pdf">
-<button class="primary" id="saveDoc">Guardar documento</button></div>
-<div class="card"><h2>Historial de documentos</h2><div id="docList"></div></div></section>
+<section class="view" id="v-facturas" hidden>
+<div class="card">
+<div class="eyebrow">CONTROL DE COMPRAS</div><h2>🧾 Compras a proveedores</h2>
+<p class="steps">1. Sube una factura. 2. Revisa los artículos, cantidades y montos. 3. Confirma para sumarlo al historial.</p>
+<p class="hint">La foto queda como respaldo de una compra. No modifica el inventario ni la disponibilidad de la carta.</p>
+<div class="fieldset-title">1 · ¿De qué negocio es la compra?</div>
+<label>Negocio</label><select id="docBiz"></select><label>Sucursal</label><select id="docBranch"></select>
+<div class="fieldset-title">2 · Foto o PDF de la factura</div>
+<label>Subir foto desde el iPhone o elegir PDF</label><input id="docFile" type="file" accept="image/jpeg,image/png,image/webp,application/pdf">
+<button class="soft" id="readInvoice" type="button">📷 Leer datos de la factura</button>
+<p id="invoiceOCRStatus" class="hint" role="status">Puedes comenzar con una foto o ingresar los datos manualmente. Siempre revisa el resultado.</p>
+<details><summary>Si no se lee correctamente, pegar el texto</summary>
+<label>Texto obtenido con «Texto en Vivo» de Fotos</label><textarea id="docRawText" rows="4" placeholder="Pega aquí el texto de la factura…"></textarea>
+<button class="soft" id="parseInvoiceText" type="button">Revisar texto pegado</button>
+</details>
+<div class="fieldset-title">3 · Revisa los datos encontrados</div>
+<div class="grid2"><div><label>Tipo</label><select id="docType"><option value="factura">Factura</option><option value="boleta">Boleta</option><option value="comprobante">Comprobante</option></select></div><div><label>Fecha de compra</label><input id="docDate" type="date"></div></div>
+<label>¿A quién se compró? · Proveedor</label><input id="docVendor" placeholder="Nombre del proveedor" autocomplete="off">
+<label>Número de factura o boleta</label><input id="docNumber" placeholder="Ej.: 15584">
+<div class="grid2"><div><label>Total compra ($)</label><input id="docTotal" type="number" min="0" inputmode="numeric" placeholder="Ej.: 45000"></div>
+<div><label>Estado del pago</label><select id="docPayment"><option value="pagado">Ya está pagada</option><option value="pendiente">Pendiente de pago</option></select></div></div>
+<details><summary>Ver / ajustar neto, IVA y otros cargos</summary>
+<div class="grid2"><div><label>Neto ($)</label><input id="docNet" type="number" min="0" inputmode="numeric" placeholder="0"></div>
+<div><label>IVA ($)</label><input id="docTax" type="number" min="0" inputmode="numeric" placeholder="0"></div>
+<div><label>Otros cargos ($)</label><input id="docOther" type="number" min="0" inputmode="numeric" placeholder="0"></div>
+<div><label>Descuentos ($)</label><input id="docDiscount" type="number" min="0" inputmode="numeric" placeholder="0"></div></div></details>
+<div class="fieldset-title">4 · ¿Qué productos se compraron?</div>
+<p class="hint">Cada producto quedará con cantidad, unidad y precio. Si no se reconocieron los artículos, puedes agregarlos manualmente.</p>
+<div id="invoiceItems"></div>
+<button type="button" class="soft" id="invoiceAddItem">＋ Agregar producto</button>
+<p class="steps" id="invoiceItemsSum">Productos detallados: $0</p>
+<div class="fieldset-title">5 · Confirmar compra</div>
+<p class="hint" id="invoiceCheck">Verifica los datos antes de guardar. Ningún importe se contabiliza hasta tu confirmación.</p>
+<button class="primary" id="saveDoc">✓ Confirmar y registrar compra</button>
+</div>
+<div class="card">
+<div class="eyebrow">HISTORIAL DE COMPRAS</div><h2>📊 ¿Cuánto hemos comprado?</h2>
+<p class="hint">Los totales incluyen compras pagadas y pendientes. Puedes cambiar el negocio y las fechas desde Inicio.</p>
+<div class="metrics"><div class="metric"><small>Total comprado</small><b id="purchasesTotal">$0</b></div><div class="metric"><small>Por pagar</small><b id="purchasesDue">$0</b></div><div class="metric"><small>Facturas registradas</small><b id="purchasesCount">0</b></div><div class="metric"><small>Proveedores</small><b id="purchasesSuppliers">0</b></div></div>
+<details open><summary>🏪 Total por proveedor</summary><div id="invoiceVendors"></div></details>
+<details><summary>📦 Productos que más se compran</summary><div id="invoiceProducts"></div></details>
+<details open><summary>📖 Historial de compras y facturas</summary><div id="invoicePurchaseList"></div></details>
+<details><summary>📎 Ver fotografías y PDF guardados</summary><div id="docList"></div></details>
+</div></section>
 <section class="view" id="v-negocios" hidden><div class="card"><div class="eyebrow">ORGANIZACIÓN</div><h2>🏪 Mis negocios y locales</h2><p class="steps">Aquí puedes agregar más negocios, sucursales y costos de sus productos.</p><div id="businessList"></div>
 <details><summary>＋ Agregar negocio</summary><label>Nombre</label><input id="newBizName" placeholder="Ej.: Crepe Pop"><label>Razón social (opcional)</label><input id="newBizReason"><button class="primary" id="newBiz">Crear negocio</button></details>
 <details><summary>＋ Agregar sucursal</summary><label>Negocio</label><select id="newBranchBiz"></select><label>Nombre de sucursal</label><input id="newBranchName" placeholder="Ej.: La Serena"><button class="primary" id="newBranch">Crear sucursal</button></details></div>
@@ -136,6 +175,7 @@ label{color:#66574c}
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
 import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
+import {crearControlCompras} from "./mi-administracion-compras.js";
 const app=initializeApp({apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",appId:"1:1070481165758:web:b8f0f9ff40caf5b8ac7def"});
 const auth=getAuth(app),$=id=>document.getElementById(id);
 let session="",businesses=[],branches=[],transactions=[],docs=[],tab='resumen';
@@ -333,12 +373,8 @@ async function refresh(){
  }catch(e){notify(e.message,'error');if(/código privado|sesión|Introduce el código/.test(e.message))lock();}
 }
 async function loadDocs(){
- try{
-  const r=await api('documentos',{negocio_id:currentBiz()||null});
-  docs=r.documentos||[];
-  $('docList').innerHTML=docs.map(x=>'<div class="line"><div class="row"><b>'+esc(x.nombre)+'</b><button type="button" data-doc="'+esc(x.id)+'">Ver</button></div><small>'+esc(businessName(x.negocio_id))+' · '+esc(x.tipo)+' · '+esc(x.fecha_documento||'')+'</small></div>').join('')||'<p class="muted">Todavía no has cargado documentos.</p>';
-  $('docList').querySelectorAll('[data-doc]').forEach(b=>b.onclick=()=>void openDoc(b.dataset.doc));
- }catch(e){notify(e.message,'error')}
+ try{await controlCompras.cargar()}
+ catch(e){notify(e.message,'error')}
 }
 async function openDoc(id){
  try{
@@ -391,11 +427,9 @@ $('saveExpense').onclick=()=>safe('saveExpense',async()=>{
  catch(e){warning='El gasto SÍ quedó guardado, pero el comprobante NO: '+e.message;}
  $('expenseAmount').value='';if(!warning)$('expensePhoto').value='';await refresh();return warning;
 });
-$('saveDoc').onclick=()=>safe('saveDoc',async()=>{
- const b=value('docBiz'),s=value('docBranch')||null;
- if(!b)throw Error('Selecciona el negocio.');
- await upload($('docFile').files[0],b,s,value('docType'),value('docDate'),null,value('docVendor'));
- $('docFile').value='';await loadDocs();
+$('saveDoc').onclick=()=>safe('saveDoc',()=>controlCompras.guardar());
+const controlCompras=crearControlCompras({
+ api,$,esc,fmt:pesos,dateNow:today,businessName,branchName,currentBiz,currentBranch,upload,safe
 });
 $('newBiz').onclick=()=>safe('newBiz',async()=>{await api('nuevo_negocio',{nombre:value('newBizName'),razon_social:value('newBizReason')});$('newBizName').value='';await loadBusinesses()});
 $('newBranch').onclick=()=>safe('newBranch',async()=>{await api('nueva_sucursal',{negocio_id:value('newBranchBiz'),nombre:value('newBranchName')});$('newBranchName').value='';await loadBusinesses()});
