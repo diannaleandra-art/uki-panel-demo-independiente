@@ -1,4 +1,4 @@
-/* Uki Sushi · exportación local de Caja acumulada en efectivo (QA).
+/* Uki Sushi · exportación local de Caja acumulada en efectivo.
    CSV compatible Excel, PDF y compartir WhatsApp; sin enviar registros a terceros. */
 (function(root,factory){
  const api=factory();
@@ -28,7 +28,7 @@ function rows(report){
   'Concepto','Responsable','Fecha operativa','Referencia de cierre'];
  const data=report.history.map(m=>[branchName(report.branch),dateChile(m.creado_en),
   types[m.tipo]||m.tipo,Number(m.monto),Number(m.saldo_resultante),
-  m.concepto,m.actor_uid||'',m.fecha_operativa||'',m.cierre_clave||'']);
+  m.concepto,m.responsable||'',m.fecha_operativa||'',m.cierre_clave||'']);
  return [headers,...data];
 }
 function csv(report){return '\uFEFFsep=;\r\n'+rows(report).map(row=>row.map(safeCsv).join(';')).join('\r\n')+'\r\n';}
@@ -42,7 +42,7 @@ function message(report){
   '','MOVIMIENTOS'];
  for(const m of report.history.slice(0,20))
   out.push('• '+dateChile(m.creado_en)+' · '+(types[m.tipo]||m.tipo)+' · '+money(m.monto)+
-   ' · '+String(m.concepto||'').slice(0,65));
+   ' · '+String(m.concepto||'').slice(0,45)+' · '+String(m.responsable||'').slice(0,35));
  if(report.history.length>20)out.push('…'+(report.history.length-20)+' movimientos adicionales en el archivo.');
  out.push('','Las ventas bancarias no se suman al efectivo físico.');
  return out.join('\n');
@@ -69,7 +69,7 @@ function pdf(report){
   const typ=(types[m.tipo]||String(m.tipo||'')).slice(0,16);
   lines.push(dateChile(m.creado_en).padEnd(17)+typ.padEnd(18)+
    money(m.monto).padEnd(12)+money(m.saldo_resultante));
-  lines.push(('  '+String(m.concepto||'').slice(0,80)));
+  lines.push(('  '+String(m.concepto||'').slice(0,58)+' | '+String(m.responsable||'')).slice(0,95));
  }
  if(!report.history.length)lines.push('Sin movimientos registrados.');
  lines.push('','Documento de consulta. No cambia los cierres ni el saldo.');
