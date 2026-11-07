@@ -64,13 +64,13 @@ module.exports=async function ukiCajaAcumuladaQA(req,res){
    return res.status(200).json({ok:true,branch,modo:'QA',cuenta:rows[0]||{branch,balance:0,initialized:false}});
   }
   if(action==='movimientos'){
-   const rows=await sql.query('SELECT id,branch,op_key,tipo,monto,saldo_resultante,concepto,actor_uid,fecha_operativa,cierre_clave,sucursal_destino,creado_en FROM public.uki_caja_acum_movimientos_qa WHERE branch=$1 ORDER BY creado_en DESC,id DESC LIMIT 80',[branch]);
+   const rows=await sql.query('SELECT id,branch,op_key,tipo,monto,saldo_resultante,concepto,actor_uid,responsable,fecha_operativa,cierre_clave,sucursal_destino,creado_en FROM public.uki_caja_acum_movimientos_qa WHERE branch=$1 ORDER BY creado_en DESC,id DESC LIMIT 80',[branch]);
    return res.status(200).json({ok:true,branch,modo:'QA',movimientos:rows});
   }
   if(!writeActions.has(action))return error(res,400,'Acción desconocida.');
   // La caja no copia silenciosamente movimientos desde los cierres de ventas.
   // Los cierres deberán llevar referencia única, importe y día operativo confirmados.
-  if(!amount(body.monto)||!validUUID(body.op_key)||!safeText(body.concepto))
+  if(!amount(body.monto)||!validUUID(body.op_key)||!safeText(body.concepto)||!safeText(body.responsable,80)||body.responsable.trim().length<2)
    return error(res,400,'Monto, concepto o identificador incorrecto.');
   const fecha=body.fecha_operativa??null;
   if(fecha!==null&&!validDay(fecha))return error(res,400,'Fecha operativa incorrecta.');
@@ -81,8 +81,8 @@ module.exports=async function ukiCajaAcumuladaQA(req,res){
   if(action==='traspaso'&&(!BRANCHES.has(destino)||destino===branch))
    return error(res,400,'Destino del traspaso incorrecto.');
   const rows=await sql.query(
-   'SELECT public.uki_caja_acum_aplicar_qa($1,$2,$3,$4::uuid,$5,$6,$7,$8,$9) AS resultado',
-   [branch,action,body.monto,body.op_key,user.uid,body.concepto.trim(),fecha,cierre,destino]);
+   'SELECT public.uki_caja_acum_aplicar_qa($1,$2,$3,$4::uuid,$5,$6,$7,$8,$9,$10) AS resultado',
+   [branch,action,body.monto,body.op_key,user.uid,body.concepto.trim(),fecha,cierre,destino,body.responsable.trim()]);
   return res.status(200).json({...rows[0].resultado,modo:'QA'});
  }catch(e){
   const label=String(e?.message||'Error en caja acumulada');
