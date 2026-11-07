@@ -153,8 +153,8 @@ module.exports=async(req,res)=>{
     const rows=await sql.query(`SELECT id,worker_name,summary,created_at,
        COUNT(*) OVER ()::int AS total
       FROM public.uki_inventario_revisiones_live WHERE branch=$1
-       AND ($2::text='' OR (created_at AT TIME ZONE 'America/Santiago')::date >= $2::date)
-       AND ($3::text='' OR (created_at AT TIME ZONE 'America/Santiago')::date <= $3::date)
+       AND ($2::text='' OR (created_at AT TIME ZONE 'America/Santiago')::date >= NULLIF($2::text,'')::date)
+       AND ($3::text='' OR (created_at AT TIME ZONE 'America/Santiago')::date <= NULLIF($3::text,'')::date)
        AND ($4::text='' OR worker_name ILIKE '%' || $4 || '%')
       ORDER BY created_at DESC,id DESC LIMIT 25 OFFSET $5`,
       [branch,from,to,worker,offset]);
