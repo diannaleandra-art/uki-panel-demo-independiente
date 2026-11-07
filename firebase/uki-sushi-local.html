@@ -318,6 +318,7 @@ function ir(v){
   if(!S.suc&&v!=="inicio")v="inicio";
   S.vista=v;
   render();
+  if(v==="inventario")setTimeout(()=>window.ukiInventarioMontar?.(),0);
   if(v==="pedidos"&&!ukiMesas.used&&typeof window.ukiMesasQAToken==="function")
     setTimeout(()=>{if(S.vista==="pedidos"&&S.suc)ukiMesaActualizar();},0);
   window.scrollTo({top:0,behavior:"instant"});
@@ -513,7 +514,7 @@ function render(){
   $("suc").innerHTML=S.suc?`<span>${esc(S.suc)}</span><a href="#" onclick="salirSuc();return false;" class="salir">Salir</a>`:"Selecciona una sucursal para empezar";
   $("nav").style.display=S.suc?"grid":"none";
   $("nav").innerHTML=VISTAS.map(([k,l,icon])=>`<button type="button" class="${S.vista===k?"on":""}" onclick="ir('${k}')" aria-label="${l}" ${S.vista===k?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${l}</span></button>`).join("");
-  const f={inicio:vInicio,pedidos:vPedidos,nuevo:vNuevo,clientes:vClientes,caja:vCaja}[S.vista]||vInicio;
+  const f={inicio:vInicio,pedidos:vPedidos,nuevo:vNuevo,clientes:vClientes,caja:vCaja,inventario:()=>window.ukiInventarioPanelHTML?.()||'<div class="card"><p>Preparando inventario…</p></div>'}[S.vista]||vInicio;
   const msg=S.msg?`<div role="status" class="aviso" style="background:#ffece4;color:#7a2c08">${esc(S.msg)}</div>`:"";
   S.msg=null;
   $("app").innerHTML=msg+f();
@@ -568,7 +569,7 @@ function vInicio(){
     <div class="kpi"><span>Efectivo en caja</span><strong>${fmt(t.efectivoCaja)}</strong></div>
   </section>
   <button class="big cta" onclick="ir('nuevo')">＋ Registrar nuevo pedido</button>
-  <div class="quick-grid"><button class="quick" onclick="ir('pedidos')"><b>▤</b> Revisar pedidos <span>›</span></button><button class="quick" onclick="ir('clientes')"><b>✧</b> Tarjetas (${Object.keys(S.clientes).length}) <span>›</span></button><button class="quick" onclick="ir('cierre')"><b>▣</b> Hacer cierre <span>›</span></button><button class="quick" onclick="ir('historial')"><b>◷</b> Ver historial <span>›</span></button><button class="quick" onclick="cajaTab='semana';ir('caja')"><b>▥</b> Resumen semanal <span>›</span></button></div>
+  <div class="quick-grid"><button class="quick" onclick="ir('inventario')"><b>📦</b> Inventario <span>›</span></button><button class="quick" onclick="ir('pedidos')"><b>▤</b> Revisar pedidos <span>›</span></button><button class="quick" onclick="ir('clientes')"><b>✧</b> Tarjetas (${Object.keys(S.clientes).length}) <span>›</span></button><button class="quick" onclick="ir('cierre')"><b>▣</b> Hacer cierre <span>›</span></button><button class="quick" onclick="ir('historial')"><b>◷</b> Ver historial <span>›</span></button><button class="quick" onclick="cajaTab='semana';ir('caja')"><b>▥</b> Resumen semanal <span>›</span></button></div>
   <div class="mini-help">🎟️ Timbres: 6 compras = 12 piezas · 10 compras = 36 piezas + 2 korokes.</div>`;
 }
 // Datos temporales de cierre: no alteran el respaldo ni el formato guardado.
@@ -3792,6 +3793,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 </script>
 <script src="./uki-tarjeta-cliente.js" defer></script>
 <script src="./uki-cierre-detallado.js" defer></script>
+<script src="./uki-inventario-admin-embebido.js" defer></script>
 <script src="./uki-control-turnos.js" defer></script>
 <script type="module">
 
@@ -3813,6 +3815,8 @@ const config={
 // Uso interno habilitado después de verificar lectura/escritura de las dos sucursales.
 const UKI_OPERACION_HABILITADA=location.hostname==='diannaleandra-art.github.io'; // Solo dominio del panel vigente: Preview no escribe caja real.
 const auth=getAuth(initializeApp(config)),db=getFirestore(auth.app);
+// Para inventario se utiliza esta misma sesión Google, nunca el PIN del trabajador.
+window.ukiInventarioToken=async()=>auth.currentUser?auth.currentUser.getIdToken():null;
 const cloud=crearSnapshotsUki({db,auth,api:{doc,getDocFromServer,writeBatch,runTransaction},
  blocks:{dividirEstado,reunirEstado},
  codec:{nuevaSal,nuevaGeneracion,derivarClave,cifrarBloque,descifrarBloque}});
