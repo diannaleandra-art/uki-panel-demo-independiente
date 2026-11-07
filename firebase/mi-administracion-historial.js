@@ -13,10 +13,12 @@ export function crearHistorialCompras({api,$,esc,fmt,businessName,branchName,bra
  const optReasons=()=>razones.map(x=>({value:x.id,label:x.nombre+(x.rut?' · '+x.rut:'')}));
  function reasonSelector(){
   const list=getReasons($('docBiz').value),e=$('docRazon');
-  options('docRazon','Selecciona la razón social compradora',list.map(x=>({label:x.nombre+(x.rut?' · '+x.rut:''),value:x.id})));
-  $('docRazonHelp').textContent=list.length?
-   'Elige la empresa que figura como compradora en la factura; confirma el RUT.':
-   'No hay razón social vinculada. Agrégala a continuación.';
+  // Administración única: una empresa existente se puede utilizar en cualquier
+  // negocio; la vinculación sucede automáticamente al registrar la factura.
+  options('docRazon','Selecciona la empresa que figura en la factura',optReasons());
+  $('docRazonHelp').textContent=razones.length?
+   'Esta es la empresa compradora, no una autorización. El sistema la vincula al negocio al guardar.':
+   'Registra la razón social que aparece como compradora en el PDF.';
  }
  function reasonList(){
   $('legalReasonsList').innerHTML=razones.map(r=>
@@ -45,8 +47,8 @@ export function crearHistorialCompras({api,$,esc,fmt,businessName,branchName,bra
  function sugerirRazon(receptor,rut=''){
   if(!receptor)return;
   $('docBuyerInfo').textContent='Comprador leído en la factura: '+receptor+(rut?' · RUT '+rut:'')+'. Confirma la razón social antes de guardar.';
-  const m=getReasons($('docBiz').value).find(x=>clean(x.nombre)===clean(receptor));
-  if(m){$('docRazon').value=m.id;$('docRazonHelp').textContent='Sugerencia detectada: '+m.nombre+'. Confirma antes de guardar.';}
+  const m=razones.find(x=>clean(x.nombre)===clean(receptor));
+  if(m){$('docRazon').value=m.id;$('docRazonHelp').textContent='Empresa compradora detectada: '+m.nombre+'. No necesitas autorizarla por separado.';}
   else {$('legalNewName').value=receptor;if(rut)$('legalNewRut').value=rut;$('docRazonHelp').textContent='Esta empresa no aparece vinculada al negocio. Agrégala y confirma su RUT.';}
  }
  async function nuevaRazon(){
@@ -73,6 +75,10 @@ export function crearHistorialCompras({api,$,esc,fmt,businessName,branchName,bra
    '<div class="finance-total-row"><strong>'+html(x.razon_social)+'</strong><b class="finance-price">'+fmt(x.total)+'</b>'+
    '<small>'+html(x.rut_razon||'')+' · '+html(x.facturas)+' facturas · Por pagar '+fmt(x.pendiente)+'</small></div>'
   ).join('')||'<p class="hint">No hay compras para los filtros elegidos.</p>';
+  $('invoiceLocalTotals').innerHTML=(p.locales||[]).map(x=>
+   '<div class="finance-total-row"><strong>'+html(x.marca)+' · '+html(x.local)+'</strong>'+
+   '<b class="finance-price">'+fmt(x.total)+'</b><small>'+html(x.facturas)+' factura(s) · Un importe repartido no se duplica</small></div>'
+  ).join('')||'<p class="hint">No hay compras por local.</p>';
   $('invoiceVendors').innerHTML=(p.proveedores||[]).map(x=>
    '<div class="finance-total-row"><strong>'+html(x.proveedor)+'</strong><b class="finance-price">'+fmt(x.total)+'</b>'+
    '<small>'+html(x.facturas)+' factura(s) · Pendiente '+fmt(x.pendiente)+'</small></div>'
@@ -94,12 +100,23 @@ export function crearHistorialCompras({api,$,esc,fmt,businessName,branchName,bra
   if(!view.hidden){view.hidden=true;button.textContent='Ver detalle';return;}
   view.hidden=false;view.textContent='Cargando…';button.disabled=true;
   try{
-   const {compra:c,articulos:items}=await api('detalle_compra',{id:button.dataset.id});
+   const {compra:c,articulos:items,repartos=[]}=await api('detalle_compra',{id:button.dataset.id});
    view.innerHTML='<div class="finance-invoice-summary">'+
     '<span>Neto <b class="finance-price">'+fmt(c.datos?.neto||0)+'</b></span>'+
     '<span>IVA <b class="finance-price">'+fmt(c.datos?.iva||0)+'</b></span>'+
     '<span>Total <b class="finance-price">'+fmt(c.monto)+'</b></span></div>'+
     '<h3>Productos y cantidades</h3>'+((items||[]).length?productRows(items):'<p class="hint">Sin desglose de productos.</p>')+
+    '<div class="steps"><b>Distribución de esta compra:</b> '+
+    (repartos.length?repartos.map(x=>html(x.negocio)+' / '+html(x.sucursal)+' '+fmt(x.monto)).join(' · '):
+      'Administración general (sin repartir entre locales)')+'</div>'+
+    '<details><summary>Asignar o corregir reparto entre locales</summary>'+
+    '<p class="hint">Esta factura sigue siendo una sola compra. Asigna todo el monto a un local o repártelo entre dos.</p>'+
+    '<label>Local 1</label><select data-reparto-local1></select>'+
+    '<label>Importe local 1</label><input data-reparto-monto1 type="number" inputmode="numeric">'+
+    '<label>Local 2 (opcional)</label><select data-reparto-local2></select>'+
+    '<label>Importe local 2</label><input data-reparto-monto2 type="number" inputmode="numeric" placeholder="0">'+
+    '<button class="soft" type="button" data-save-reparto>Guardar reparto</button>'+
+    '<p class="hint" data-reparto-status></p></details>'+
     '<details><summary>Corregir razón social o sucursal</summary>'+
     '<label>Razón social</label><select data-reason></select><label>Sucursal</label><select data-branch></select>'+
     '<button class="soft" type="button" data-update>Guardar clasificación</button><p class="hint" data-update-status></p></details>';
@@ -110,6 +127,34 @@ export function crearHistorialCompras({api,$,esc,fmt,businessName,branchName,bra
    loc.add(new Option('General / sin sucursal',''));
    branchesFor(c.negocio_id).forEach(br=>loc.add(new Option(br.nombre,br.id)));
    loc.value=c.sucursal_id||'';
+   const locals=negocios().flatMap(b=>branchesFor(b.id).map(s=>({negocio_id:b.id,sucursal_id:s.id,nombre:b.nombre+' · '+s.nombre})));
+   const dest1=view.querySelector('[data-reparto-local1]'),dest2=view.querySelector('[data-reparto-local2]');
+   dest1.add(new Option('Elige el primer local',''));
+   dest2.add(new Option('Sin segundo local',''));
+   locals.forEach(d=>{
+    dest1.add(new Option(d.nombre,d.sucursal_id));
+    dest2.add(new Option(d.nombre,d.sucursal_id));
+   });
+   if(repartos[0]){dest1.value=repartos[0].sucursal_id;view.querySelector('[data-reparto-monto1]').value=repartos[0].monto;}
+   if(repartos[1]){dest2.value=repartos[1].sucursal_id;view.querySelector('[data-reparto-monto2]').value=repartos[1].monto;}
+   view.querySelector('[data-save-reparto]').onclick=async()=>{
+    const notice=view.querySelector('[data-reparto-status]'),selected1=locals.find(d=>d.sucursal_id===dest1.value),
+     selected2=locals.find(d=>d.sucursal_id===dest2.value);
+    const a=Number(view.querySelector('[data-reparto-monto1]').value),
+     b=Number(view.querySelector('[data-reparto-monto2]').value||0);
+    if(!selected1||!(a>0)&&!selected2){notice.textContent='Selecciona el local 1 y su importe.';return;}
+    if(selected2&&selected2.sucursal_id===selected1.sucursal_id){notice.textContent='Los dos locales deben ser diferentes.';return;}
+    if(!selected2&&a!==Number(c.monto)){notice.textContent='Para un solo local, ingresa el total de la factura.';return;}
+    if(selected2&&(!(b>0)||a+b!==Number(c.monto))){notice.textContent='La suma de ambos locales debe ser '+fmt(c.monto)+'.';return;}
+    const destinos=[{...selected1,monto:a},...(selected2?[{...selected2,monto:b}]:[])]
+     .map(x=>({negocio_id:x.negocio_id,sucursal_id:x.sucursal_id,monto:x.monto}));
+    if(!confirm('¿Asignar '+fmt(c.monto)+' entre '+destinos.length+' local(es)? No se registra otra compra.'))return;
+    try{
+     await api('repartir_compra',{id:c.id,destinos});
+     notice.textContent='Reparto guardado. No se duplicó la compra.';
+     await cargar();
+    }catch(e){notice.textContent='No se pudo guardar: '+e.message;}
+   };
    view.querySelector('[data-update]').onclick=async()=>{
     try{
      if(!legal.value)throw Error('Selecciona una razón social.');
