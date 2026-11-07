@@ -26,6 +26,12 @@ const nombre=n=>{
  return v;
 };
 const enteroVersion=n=>Number.isSafeInteger(n)&&n>=0;
+const validDate=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&
+ Number.isFinite(Date.parse(s+'T12:00:00Z'))&&new Date(s+'T12:00:00Z').toISOString().slice(0,10)===s;
+const fechaHoraChile=fecha=>new Intl.DateTimeFormat('es-CL',{
+ timeZone:'America/Santiago',weekday:'long',day:'2-digit',month:'2-digit',
+ year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'
+}).format(new Date(fecha));
 function resumen(items){
  const rows=items.map(i=>({
   sku:String(i.sku),name:String(i.name),kind:String(i.kind),stock_qty:Number(i.stock_qty)||0,
@@ -44,7 +50,7 @@ function resumen(items){
  }};
 }
 function textoReporte(branch,worker,summary,fecha){
- const date=new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date(fecha));
+ const date=fechaHoraChile(fecha);
  const a=['📦 UKI SUSHI · LISTA PARA REPONER','Sucursal: '+BRANCH_NAME[branch],
   'Revisión: '+date,'Responsable: '+worker,''];
  if(!summary.configurados)a.push('Falta configurar los mínimos desde administración.');
@@ -86,7 +92,7 @@ module.exports=async(req,res)=>{
   return fail(res,400,'Solicitud de inventario inválida');
  const branch=String(input.branch||''),action=String(input.action||'');
  if(!BRANCHES.has(branch))return fail(res,400,'Sucursal no válida');
- if(!['estado','crear-codigo','listar','contar','recibir','factura-consultar','factura-preparar-articulos','factura-recibir','finalizar','reportes','articulos','crear-articulo','editar-articulo','configurar-unidad'].includes(action))
+ if(!['estado','crear-codigo','listar','contar','recibir','factura-consultar','factura-preparar-articulos','factura-recibir','finalizar','reportes','historial','revision','articulos','crear-articulo','editar-articulo','configurar-unidad'].includes(action))
   return fail(res,400,'Acción no permitida');
  const dbUrl=liveDbUrl();
  if(!dbUrl)return fail(res,503,'Base de inventario no habilitada');
@@ -95,7 +101,7 @@ module.exports=async(req,res)=>{
  catch{return fail(res,503,'Base de inventario no disponible');}
  let etapa='autorizacion';
  try{
-  if(['estado','crear-codigo','reportes','articulos','crear-articulo','editar-articulo','configurar-unidad'].includes(action)){
+  if(['estado','crear-codigo','reportes','historial','revision','articulos','crear-articulo','editar-articulo','configurar-unidad'].includes(action)){
    const uid=await admin(req).catch(()=>null);
    if(!uid)return fail(res,403,'Solo administración autorizada');
    if(action==='estado')return res.status(200).json({ok:true,configurado:!!(await pin.consultar(sql))});
@@ -128,6 +134,32 @@ module.exports=async(req,res)=>{
     const next=extra.crearDatos({name:'Validación ingrediente',stock_unit:input.stock_unit,stock_qty:input.stock_qty,min_stock_qty:input.min_stock_qty});
     const item=await core.configurar(sql,branch,sku,{stock_unit:next.stock_unit,stock_qty:next.stock_qty,min_stock_qty:next.min_stock_qty},input.expected_version,uid);
     return res.status(200).json({ok:true,branch,item:{sku:item.sku,name:item.name,kind:item.kind,stock_unit:item.stock_unit,stock_qty:item.stock_qty,min_stock_qty:item.min_stock_qty,version:item.version,inventory_only:false}});
+   }
+   if(action==='revision'){
+    const id=String(input.id||'');
+    if(!/^[a-zA-Z0-9-]{1,60}$/.test(id))return fail(res,400,'Revisión inválida');
+    const rows=await sql.query(`SELECT id,worker_name,summary,items,created_at
+     FROM public.uki_inventario_revisiones_live WHERE branch=$1 AND id::text=$2 LIMIT 1`,[branch,id]);
+    if(!rows.length)return fail(res,404,'Revisión no encontrada en esta sucursal');
+    return res.status(200).json({ok:true,branch,revision:rows[0]});
+   }
+   if(action==='historial'){
+    const from=input.desde==null?'':String(input.desde),to=input.hasta==null?'':String(input.hasta);
+    const worker=input.trabajador==null?'':String(input.trabajador).trim();
+    const offset=input.offset??0;
+    if((from&&!validDate(from))||(to&&!validDate(to))||(from&&to&&from>to)||
+     worker.length>60||!Number.isSafeInteger(offset)||offset<0||offset>100000)
+     return fail(res,400,'Filtros del historial inválidos');
+    const rows=await sql.query(`SELECT id,worker_name,summary,created_at,
+       COUNT(*) OVER ()::int AS total
+      FROM public.uki_inventario_revisiones_live WHERE branch=$1
+       AND ($2::text='' OR (created_at AT TIME ZONE 'America/Santiago')::date >= $2::date)
+       AND ($3::text='' OR (created_at AT TIME ZONE 'America/Santiago')::date <= $3::date)
+       AND ($4::text='' OR worker_name ILIKE '%' || $4 || '%')
+      ORDER BY created_at DESC,id DESC LIMIT 25 OFFSET $5`,
+      [branch,from,to,worker,offset]);
+    return res.status(200).json({ok:true,branch,revisiones:rows.map(({total,...r})=>r),
+     total:rows.length?Number(rows[0].total):0,offset,limite:25});
    }
    const rows=await sql.query(`SELECT id,worker_name,summary,created_at
      FROM public.uki_inventario_revisiones_live WHERE branch=$1
@@ -233,4 +265,4 @@ module.exports=async(req,res)=>{
   return fail(res,status,status===503?'No se pudo abrir el inventario de pruebas ('+etiqueta+'). No se modificó la caja.':String(e.message));
  }
 };
-module.exports._testing={permitido,admin,resumen,textoReporte};
+module.exports._testing={permitido,admin,resumen,textoReporte,validDate,fechaHoraChile};
