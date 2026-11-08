@@ -13,7 +13,8 @@ test('Panel mantiene JS válido y conserva funciones de caja',()=>{
 test('Timbres sin teléfono permiten WhatsApp del local, copiar y confirmar por separado',()=>{
  assert.match(html,/function avisarTimbres\(key,modo='abrir'\)/);
  assert.match(html,/tieneNumeroValido\?mensaje/);
- assert.match(html,/numero=S\.suc===SUCURSALES\[0\]\?'56958977186':'56971243606'/);
+ assert.match(html,/const destino=tieneNumeroValido\?"https:\/\/wa\.me\/"\+numero:"https:\/\/api\.whatsapp\.com\/send"/);
+ assert.doesNotMatch(html,/numero=S\.suc===SUCURSALES\[0\]/);
  assert.ok(html.includes("avisarTimbres("+String.fromCharCode(36)+"{keyArg},'copiar')"));
  assert.ok(html.includes("ultimoTimbre?"));
  const f=html.slice(html.indexOf('function avisarTimbres('),html.indexOf('function canjear12('));
