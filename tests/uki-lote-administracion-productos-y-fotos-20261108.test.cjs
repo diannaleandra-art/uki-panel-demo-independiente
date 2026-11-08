@@ -17,7 +17,7 @@ test('Los nuevos APIs no alteran datos de pedidos ni caja, autenticación obliga
   assert.doesNotMatch(s,/UPDATE\s+public\.uki_(?:pedidos|caja|cierres)|DELETE\s+FROM\s+public\.uki_(?:pedidos|caja|cierres)/i);
   assert.match(s,/branch/);
  }
- assert.match(prices,/Quitar producto de la carta/);
+ assert.match(prices,/Retirar de carta/);
  assert.match(prices,/restaurar-producto/);
  assert.match(ingredients,/Quitar ingrediente de la carta/);
  assert.match(ingredients,/restaurar/);
@@ -25,9 +25,9 @@ test('Los nuevos APIs no alteran datos de pedidos ni caja, autenticación obliga
 test('Retirar productos se puede revertir y no elimina ventas antiguas',()=>{
  const src=fs.readFileSync('api/uki-carta-precios-live.js','utf8');
  assert.match(src,/action==='retirar-producto'\|\|action==='restaurar-producto'/);
- assert.match(src,/if\(!entry\.custom\)return fail/);
- assert.match(src,/UPDATE public\.uki_carta_productos_custom_v1 SET available=/);
- assert.match(src,/custom\|\|i\.available/);
+ assert.match(src,/uki_carta_visibilidad_v1/);
+ assert.match(src,/visibilityVersion/);
+ assert.match(src,/const items=await listing\(sql,branch\)/);
  assert.doesNotMatch(src,/DELETE FROM\s+public\.uki_carta_productos_custom_v1/);
 });
 test('Retirar ingredientes no confunde stock y disponibilidad; conserva SKU',()=>{
