@@ -14,7 +14,7 @@ function status(message){if(get('ukiIngEstado'))get('ukiIngEstado').textContent=
 function pesos(value){return '$'+Number(value).toLocaleString('es-CL')}
 const html=[
  '<details class="card" id="ukiArmadoIngredientes" hidden style="margin-top:15px;border:1.5px solid #e5a560">',
- '<summary style="font-size:16px;font-weight:700;cursor:pointer">🥑 Administrar ingredientes del armado</summary>',
+ '<summary style="font-size:16px;font-weight:700;cursor:pointer">＋ Agregar ingrediente al armado</summary>',
  '<p class="muted">Agrega vegetales, proteínas o envolturas para elegir dentro de cada roll, handroll o preparación. No es un producto independiente ni modifica inventario.</p>',
  '<p class="muted">Cada sucursal tiene sus opciones. «Incluida» significa $0 adicional; «Con recargo» exige indicar el precio exacto.</p>',
  '<p id="ukiIngSucursal" class="mini-help"></p>',
@@ -165,7 +165,11 @@ async function checkAvailability(chosen){
 function mount(){
  const host=get('ukiPreciosPanel');if(!host)return;
  if(!get('ukiArmadoIngredientes')){
-  host.insertAdjacentHTML('beforeend',html);
+  // Este formulario va justo después de «Agregar producto», dentro de Carta y precios.
+  // No necesita otra pestaña, otro ingreso ni modifica el inventario.
+  const addProduct=get('ukiPriceAddBox');
+  if(addProduct)addProduct.insertAdjacentHTML('afterend',html);
+  else host.insertAdjacentHTML('beforeend',html);
   const block=get('ukiIngNuevo'),mode=block.querySelector('[data-uki-ingredient="mode"]');
   mode.onchange=()=>syncMode(block);block.querySelector('[data-uki-ingredient="category"]').onchange=()=>syncCategory(block);syncMode(block);syncCategory(block);
   get('ukiIngCrear').onclick=()=>send('crear',block);
