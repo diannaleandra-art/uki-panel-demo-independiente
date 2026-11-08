@@ -114,9 +114,11 @@ function ukiCartaRemotaAbrir(id){
    aviso('Carta #'+folio+' ya fue registrada como pedido interno #'+yaGuardado.id+'. No aceptes ni cobres otra vez. Revisa el pedido existente.');
    return;
   }
-  const pegada=ukiSolicitudPegadaYaRecibida({codigoCarta:folio});
-  if(pegada){aviso(pegada);return;}
  }
+ const pegada=ukiSolicitudPegadaYaRecibida({
+  codigoCarta:folio,telefono:r.telefono,texto:r.mensaje
+ });
+ if(pegada){aviso(pegada);return;}
  if(S.busy||document.body.classList.contains('uki-operativo-bloqueado')||!window.ukiCancelacionNubeLista?.()){
   aviso('Sincroniza la nube antes de aceptar. La solicitud continúa pendiente.');return;
  }
