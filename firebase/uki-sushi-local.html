@@ -3438,9 +3438,41 @@ function ukiPrepararAjusteCobro(antes,despues,yaRegularizado){
 }
 function ukiDiferenciaPedidoUI(p){
  const q=ukiCobroPendiente(p);if(!q)return '';
- const n=Number(q.saldo)||0,txt=n>0?'Por devolver al cliente':n<0?'Por cobrar al cliente':'Por revisar en medios de pago';
- return '<p class="muted" style="padding:10px;border:1px solid var(--line);border-radius:9px"><b>⚠️ '+txt+': '+fmt(Math.abs(n))+
-  '</b>. La caja conserva el cobro real. Para regularizarlo, entra a Editar.</p>';
+ const n=Number(q.saldo)||0,txt=n>0?'Por devolver al cliente':n<0?'Por cobrar al cliente':'Diferencia de cobro';
+ const accion=n>0?'Confirmar devolución realizada':n<0?'Confirmar cobro adicional realizado':'Regularizar diferencia';
+ return '<div class="card" style="padding:12px;border-left:3px solid var(--accent)">'+
+  '<p class="muted"><b>⚠️ '+txt+': '+fmt(Math.abs(n))+'</b></p>'+
+  '<p class="muted">La caja conserva lo realmente cobrado. Confirma solamente después de entregar o recibir el dinero.</p>'+
+  (esDelPeriodo(p)&&!ukiCierreConfirmadoPedido(p)?
+   '<button class="sm ok" type="button" onclick="ukiConfirmarDiferenciaPedido('+Number(p.id)+')">'+accion+'</button>':
+   '<p class="muted">Pertenece a un cierre anterior: revisar en historial.</p>')+'</div>';
+}
+/* No es un segundo cobro ni una devolución automática:
+   este botón confirma un movimiento que ya ocurrió y deja su historial. */
+function ukiConfirmarDiferenciaPedido(id){
+ const p=(S.pedidos||[]).find(x=>x.suc===S.suc&&x.id===Number(id));
+ const q=ukiCobroPendiente(p);
+ if(!p||!q||!esDelPeriodo(p)||ukiCierreConfirmadoPedido(p)){
+  aviso('Solo se puede regularizar una diferencia pendiente de la caja abierta.');return;
+ }
+ const n=Number(q.saldo)||0;
+ if(!Number.isSafeInteger(n)){aviso('Monto pendiente inválido. Revisa el pedido.');return;}
+ const accion=n>0?'¿Confirmas que YA devolviste '+fmt(n)+' al cliente?':
+  n<0?'¿Confirmas que YA recibiste '+fmt(-n)+' del cliente?':
+  '¿Confirmas que el medio y el cobro ya fueron conciliados?';
+ if(!window.confirm(accion+' No pulses confirmar antes de mover el dinero.'))return;
+ const responsable=String(ukiTimbreResponsableActual()||'').trim();
+ const autor=responsable&&responsable!=='Sin turno identificado'?responsable:
+  String(window.prompt('¿Quién confirmó esta devolución o cobro?','')||'').trim().slice(0,80);
+ if(!autor){aviso('No se confirmó el movimiento: identifica al responsable.');return;}
+ const antes=ukiFotoCorreccionPedido(p);
+ p.ajusteCobroPendiente=null;
+ if(!Array.isArray(p.correccionesTurno))p.correccionesTurno=[];
+ p.correccionesTurno.push({fechaISO:new Date().toISOString(),registradoEn:Date.now(),
+  responsable:autor,accion:'diferencia_regularizada',importe:n,
+  antes,despues:ukiFotoCorreccionPedido(p),saldoPendiente:0});
+ aviso('Diferencia regularizada. El pedido queda actualizado sin cobrarlo dos veces.');
+ render();
 }
 function ukiPagoModificado(antes,despues){
  // Comparar valores reales, no undefined vs "" / [] de pedidos antiguos.
@@ -3757,6 +3789,9 @@ function cerrar(){
     efectivoContado:contadoStr===""?null:Number(contadoStr),
     diferenciaEfectivo:diferencia,
     pendientesAlCerrar:pendientes.length,
+    correccionesPendientesAlCerrar:t.correccionesPendientes||0,
+    saldoDiferenciasPendientesAlCerrar:t.saldoDiferenciasPendientes||0,
+    ventaCorregida:t.ventaCorregida,
     suc:S.suc,fechaOperativa:fechaTurnoCerrado,
     fecha:new Date().toLocaleString("es-CL",{dateStyle:"short",timeStyle:"short"}),
     fechaISO:ahora(),fechaMs:fechaCierre,

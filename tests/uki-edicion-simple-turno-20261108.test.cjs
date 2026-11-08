@@ -16,3 +16,14 @@ test('Guarda auditoría de todos los cambios y conserva caja real',()=>{
  assert.match(h,/ukiCobroFisicoPedido\(p\)/);
  assert.match(h,/Historial de ediciones|Correcciones del turno/);
 });
+
+test('La devolución o cobro ya realizado se confirma con un botón del pedido, sin editar otra vez',()=>{
+ assert.match(h,/function ukiConfirmarDiferenciaPedido\(id\)/);
+ assert.match(h,/Confirmar devolución realizada/);
+ assert.match(h,/Confirmar cobro adicional realizado/);
+ assert.match(h,/if\(!window\.confirm\(accion/);
+ assert.match(h,/p\.ajusteCobroPendiente=null/);
+ assert.match(h,/accion:'diferencia_regularizada'/);
+ assert.match(h,/ukiCierreConfirmadoPedido\(p\)/);
+ assert.match(h,/saldoDiferenciasPendientesAlCerrar:t\.saldoDiferenciasPendientes/);
+});
