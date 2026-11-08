@@ -2243,7 +2243,7 @@ function totales(){
     for(const [medio,valor] of Object.entries(ukiCobroFisicoPedido(p)))
       if(MEDIOS.includes(medio)&&Number.isSafeInteger(Number(valor)))medios[medio]+=Number(valor);
   }
-  const correccionesPendientes=pedidos.filter(ukiCobroPendiente);
+  const correccionesPendientes=pedidos.filter(p=>p.estado!=="Cancelado"&&!p.esPremio&&ukiCobroPendiente(p));
   const saldoDiferenciasPendientes=correccionesPendientes.reduce((a,p)=>a+Number(p.ajusteCobroPendiente.saldo||0),0);
   Object.keys(caja.apps||{}).forEach(k=>{if(APPS.includes(k)||k==="Otros")medios[k]=(medios[k]||0)+(Number(caja.apps[k])||0);});
   const dms=delSucHoy(S.deliveriesManuales);
@@ -3353,6 +3353,7 @@ function vPedidos(){
     ${p.textoOriginal&&!p.esPremio?`<details class="inner-details"><summary>Ver WhatsApp original</summary><p style="white-space:pre-wrap">${esc(p.textoOriginal)}</p></details>`:''}
     ${ukiVCorreccionesPedido(p)}
     ${ukiDiferenciaPedidoUI(p)}
+    ${p.correccionesTurno?.length?'<details class="inner-details"><summary>📝 Correcciones del turno · '+p.correccionesTurno.length+'</summary>'+p.correccionesTurno.map(a=>'<p>'+esc(a.fechaISO)+' · '+esc(a.responsable)+' · '+fmt(a.antes?.total)+' → '+fmt(a.despues?.total)+(a.saldoPendiente?' · Diferencia pendiente '+fmt(Math.abs(a.saldoPendiente)):' · Sin diferencia pendiente')+'</p>').join('')+'</details>':''}
     ${ukiTimbrePedidoUI(p)}
     <details class="inner-details"><summary>⚠️ Registrar error / ver soluciones</summary>
     ${(S.incidencias||[]).filter(x=>x.suc===p.suc && x.pedidoId===p.id).map(x=>renderIncidencia(x,"orden")).join("")}

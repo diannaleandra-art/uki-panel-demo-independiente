@@ -95,3 +95,26 @@ test('Cambiar precio, productos o forma de pago sí exige explicación',()=>{
  assert.equal(c.ukiPagoModificado(original,{...original,productos:[{...producto,precioUnit:15000}]}),true);
  assert.equal(c.ukiPagoModificado(original,{...original,medio:'Transferencia'}),true);
 });
+
+test('Un pedido cancelado con cobro antiguo no vuelve a sumar ventas ni diferencias al total',()=>{
+ const {c,old}=fixture();
+ c.S.pedidos=[{...old,estado:'Cancelado',ajusteCobroPendiente:{estado:'pendiente',recibido:{Efectivo:18000},saldo:3000}}];
+ const x=c.totales();
+ assert.equal(x.totalMedios,0);
+ assert.equal(x.pagadosN,0);
+ assert.equal(x.correccionesPendientes,0);
+});
+test('Un premio pagado incorrectamente no genera otra venta en efectivo',()=>{
+ const {c,old}=fixture();
+ c.S.pedidos=[{...old,esPremio:true}];
+ const x=c.totales();
+ assert.equal(x.totalMedios,0);
+ assert.equal(x.pagadosN,0);
+});
+test('Pedido cobrado en otro local no suma dinero a la caja de esta sucursal',()=>{
+ const {c,old}=fixture();
+ c.ukiLineasPago=(p,t,monto)=>p.productosPagadosOtroLocal?[]:[{medio:p.medio,monto}];
+ c.S.pedidos=[{...old,productosPagadosOtroLocal:true}];
+ const x=c.totales();
+ assert.equal(x.totalMedios,0);
+});
