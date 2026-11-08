@@ -977,21 +977,35 @@ function ukiSolicitudAutomaticaYaRecibida(datos,omitirId=''){
  return x?'La solicitud de Carta #'+String(x.codigo_pedido||'sin código')+
   ' ya está en Pedidos → Pendientes. Ábrela con «Aceptar y revisar» para corregirla; no la pegues ni registres de nuevo.':'';
 }
+// Un folio de 3 cifras NO identifica un pedido. Se compara el mensaje original,
+// también si llegó por WhatsApp sin código. Dos mensajes con el mismo folio
+// pero distinto cliente o contenido son pedidos independientes.
+function ukiSolicitudManualMismoMensaje(solicitud,datos){
+ if(!solicitud||solicitud.suc!==S.suc)return false;
+ const texto=x=>String(x||'').replace(/\s+/g,' ').trim();
+ const a=texto(solicitud.datos?.texto||solicitud.texto),
+       b=texto(datos?.texto);
+ if(a.length<25||b.length<25||a!==b)return false;
+ const ca=String(solicitud.codigoCarta||solicitud.datos?.codigoCarta||'').trim().toLowerCase(),
+       cb=String(datos?.codigoCarta||'').trim().toLowerCase();
+ if(ca&&cb&&ca!==cb)return false;
+ const digits=x=>String(x||'').replace(/\D/g,'');
+ const ta=digits(solicitud.telefono||solicitud.datos?.telefono),
+       tb=digits(datos?.telefono);
+ if(ta&&tb&&ta.slice(-8)!==tb.slice(-8))return false;
+ return true;
+}
 function ukiSolicitudPegadaYaRecibida(datos,omitirId=''){
- const code=String(datos?.codigoCarta||'').trim().toLowerCase();
- if(!code)return '';
- const x=(S.solicitudesWhatsApp||[]).find(r=>r.suc===S.suc&&r.estado==='pendiente'&&
-   r.id!==omitirId&&String(r.codigoCarta||'').trim().toLowerCase()===code);
- return x?'La Carta #'+code+' ya existe como solicitud pegada en Pendientes. Revisa esa misma solicitud y evita duplicarla.':'';
+ const x=(S.solicitudesWhatsApp||[]).find(r=>r.estado==='pendiente'&&
+   r.id!==omitirId&&ukiSolicitudManualMismoMensaje(r,datos));
+ return x?'Este mensaje ya está en Pedidos → Solicitudes de WhatsApp. Revísalo allí; no crees otro pedido.':'';
 }
 function ukiWhatsAppSolicitudDuplicada(datos,idActual=''){
- const cod=String(datos.codigoCarta||'').trim().toLowerCase();
- if(!cod)return null; // pedidos sin folio se revisan por teléfono y texto.
  const p=(S.pedidos||[]).find(p=>ukiRegistroMismoOrigen(p,datos));
- if(p)return 'Este código ya está registrado como pedido #'+p.id+'. No se duplicó.';
- const a=(S.solicitudesWhatsApp||[]).find(x=>x.suc===S.suc&&x.id!==idActual&&
-   x.estado!=='rechazada'&&String(x.codigoCarta||'').toLowerCase()===cod);
- return a?'Este código ya existe en solicitudes de WhatsApp. Revísalo antes de guardar otro.':null;
+ if(p)return 'Esta solicitud ya está registrada como pedido #'+p.id+'. No se duplicó.';
+ const a=(S.solicitudesWhatsApp||[]).find(r=>r.id!==idActual&&
+   r.estado!=='rechazada'&&ukiSolicitudManualMismoMensaje(r,datos));
+ return a?'Este mensaje de WhatsApp ya está guardado como solicitud. Revisa el original.':null;
 }
 async function ukiWhatsAppGuardarSolicitud(datos){
  if(!S.suc||!datos||typeof datos.texto!=='string'||datos.texto.trim().length<6||
