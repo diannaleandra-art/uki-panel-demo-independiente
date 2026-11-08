@@ -38,7 +38,7 @@ test('El precio y la propina de un QR cobrado son corregibles con conciliación'
  assert.equal(ctx.ukiQRPagoEditadoConservaCuenta(draft,original),true);
  draft.propinaModo='otro';draft.propinaPersonalizada=1000;
  assert.equal(ctx.ukiQRPagoEditadoConservaCuenta(draft,original),true);
- assert.match(html,/Responsable y motivo de la corrección del pedido/);
+ assert.match(html,/¿Quién editó este pedido\\?/);
  assert.match(html,/ukiPrepararAjusteCobro\(snapshot,p,regularizado\)/);
 });
 test('Cobro QR nuevo o cuenta por cobrar que pasa a pagada conserva control central',()=>{

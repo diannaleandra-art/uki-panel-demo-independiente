@@ -1331,13 +1331,8 @@ function vNuevo(){
       `<label>Pago del delivery recibido en Uki · ${fmt(envio)}</label>${ukiPagoUI("envio",envio)}`):""}
     <label class="check"><input type="checkbox" ${D.pagado?"checked":""} onchange="D.pagado=this.checked;render()"> <b>Pago completo confirmado</b></label>
     <p class="muted">Solo se consideran ventas los pagos completos confirmados. Los montos mixtos deben sumar exactamente lo que corresponde.</p></div>
-  ${pedidoEdicion?.pagado&&(deltaEdicion!==0||pendienteEdicion)?`<div class="card" style="border:1px solid var(--accent)">
-    <h3>Diferencia del pedido</h3>
-    <p class="muted">Original: <b>${fmt(pedidoEdicion.total)}</b> · Corregido: <b>${fmt(total)}</b></p>
-    <label class="check"><input type="checkbox" ${D.ajusteCajaRegularizado?'checked':''} onchange="D.ajusteCajaRegularizado=this.checked;render()">
-    Ya se devolvió o cobró realmente la diferencia</label>
-    <p class="muted">Si todavía no, deja sin marcar. Se registrará pendiente sin mover el efectivo real.</p>
-   </div>`:''}
+  ${pedidoEdicion?.pagado&&(deltaEdicion!==0||pendienteEdicion)?
+    '<p class="muted">La diferencia del cobro quedará registrada automáticamente; editar no declara una devolución.</p>':''}
    <button class="big" onclick="ndGuardar()">${D.editando?`💾 Guardar cambios #${D.editando}`:D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición</button>`:""}`;
 }
 
@@ -3437,7 +3432,7 @@ function ukiImporteMedios(x){return Object.values(x||{}).reduce((t,n)=>t+(Number
 function ukiCobroFisicoPedido(p){return ukiCobroPendiente(p)?.recibido||ukiCobrosRealesMedios(p);}
 function ukiPrepararAjusteCobro(antes,despues,yaRegularizado){
  const recibido=ukiCobroFisicoPedido(antes),corregido=ukiCobrosRealesMedios(despues);
- if(yaRegularizado||JSON.stringify(recibido)===JSON.stringify(corregido))return null;
+ if(yaRegularizado||ukiImporteMedios(recibido)===ukiImporteMedios(corregido))return null;
  return {estado:"pendiente",recibido:{...recibido},
   saldo:ukiImporteMedios(recibido)-ukiImporteMedios(corregido),fechaISO:ahora()};
 }
@@ -3596,13 +3591,15 @@ async function ndGuardar(){
       const propuesta={...p,subtotal:sub,total,envio,propina,medio:D.medio,medioEnvio:D.medioEnvio,pagado:!!D.pagado,
        productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),...datosPago};
       const cambiaCobro=ukiPagoModificado(snapshot,propuesta);
-      const requiereAjuste=cambiaCobro||(!!ukiCobroPendiente(snapshot)&&!!D.ajusteCajaRegularizado);
+      const requiereAjuste=cambiaCobro||!!ukiCobroPendiente(snapshot);
       let autorizacion='';
-      if(!cierreHistorico&&requiereAjuste&&(snapshot.pagado||ukiCobroPendiente(snapshot))){
-        if(!esDelPeriodo(snapshot)){aviso('El pedido no pertenece a la caja abierta. Usa corrección histórica.');return;}
-        autorizacion=String(window.prompt('Responsable y motivo de la corrección del pedido (obligatorio):','')||'').trim().slice(0,250);
-        if(!autorizacion){aviso('No se guardaron cambios: falta responsable y motivo.');return;}
-        if(!window.confirm('¿Confirmar corrección del pedido #'+snapshot.id+'? El cobro original seguirá en caja mientras la diferencia esté pendiente.'))return;
+      if(!cierreHistorico){
+        if(!esDelPeriodo(snapshot)){aviso('Solo puedes editar directamente pedidos de la caja abierta.');return;}
+        autorizacion=String(ukiTimbreResponsableActual()||'').trim();
+        if(!autorizacion||autorizacion==='Sin turno identificado')
+          autorizacion=String(window.prompt('¿Quién editó este pedido?','')||'').trim();
+        autorizacion=autorizacion.slice(0,80);
+        if(!autorizacion){aviso('No se guardó: indica quién hizo la edición.');return;}
       }
       let correccionHistorica=null;
       if(cierreHistorico){
@@ -3628,14 +3625,16 @@ async function ndGuardar(){
       p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||"";p.codigoCarta=D.codigoCarta||"";p.codigoCliente=D.codigoCliente||"";p.qrSolicitudes=Array.isArray(D.qrSolicitudes)?[...new Set(D.qrSolicitudes)]:[];p.sucursalCarta=D.sucursalCarta||""; p.mesaReferencia=D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():""; p.modalidad=D.modalidad; p.envio=envio; p.medio=D.medio; p.medioEnvio=D.medioEnvio; Object.assign(p,datosPago); p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})); p.total=total; p.subtotal=sub; p.propina=propina;p.propinaModo=D.propinaModo;p.medioPropina=D.medioPropina;p.textoOriginal=D.texto;
       // Un cierre confirmado mantiene intactos sus movimientos de propina y fidelidad.
       if(!cierreHistorico)ukiSincronizarPropinaPedido(p);
-      if(!cierreHistorico&&requiereAjuste&&(snapshot.pagado||ukiCobroPendiente(snapshot))){
-        const regularizado=D.ajusteCajaRegularizado===true||
-          (Number(snapshot.total)===Number(p.total)&&!ukiCobroPendiente(snapshot));
-        p.ajusteCobroPendiente=ukiPrepararAjusteCobro(snapshot,p,regularizado);
-        if(!Array.isArray(p.correccionesTurno))p.correccionesTurno=[];
-        p.correccionesTurno.push({fechaISO:ahora(),registradoEn:Date.now(),responsable:autorizacion,
-          antes:ukiFotoCorreccionPedido(snapshot),despues:ukiFotoCorreccionPedido(p),
-          saldoPendiente:p.ajusteCobroPendiente?.saldo||0});
+      if(!cierreHistorico){
+        if(requiereAjuste&&(snapshot.pagado||ukiCobroPendiente(snapshot)))
+          p.ajusteCobroPendiente=ukiPrepararAjusteCobro(snapshot,p,false);
+        const antes=ukiFotoCorreccionPedido(snapshot),despues=ukiFotoCorreccionPedido(p);
+        if(JSON.stringify(antes)!==JSON.stringify(despues)){
+          if(!Array.isArray(p.correccionesTurno))p.correccionesTurno=[];
+          p.correccionesTurno.push({fechaISO:new Date().toISOString(),registradoEn:Date.now(),
+            responsable:autorizacion,antes,despues,
+            saldoPendiente:p.ajusteCobroPendiente?.saldo||0});
+        }
       }
       if(!cierreHistorico && !p.esPremio && D.cliente && D.pagado && !D.productosPagadosOtroLocal){
         const cli=asegurarCliente(D.cliente,D.codigoCliente,D.telefono);
@@ -3732,9 +3731,8 @@ function cerrar(){
     return;
   }
   if(!$("ukiConfirmarCierreDefinitivo")?.checked){aviso("Marca la casilla: esta acción CIERRA DEFINITIVAMENTE el día. Para cambios de trabajador usa PRECIERRE.");return;}
-  if(t.correccionesPendientes){
-    aviso('Hay '+t.correccionesPendientes+' diferencia(s) por regularizar. Revisa Editar en esos pedidos antes del cierre definitivo.');return;
-  }
+  // Las diferencias quedan visibles en el historial y el resumen; no bloquear
+  // el cierre diario solo por una edición de precio aún por conciliar.
   const caja=cajaDelDia();
   if(!window.ukiDetalleCierre){aviso("No se cargó el desglose detallado. Actualiza antes de cerrar.");return;}
   let detalleGuardado;

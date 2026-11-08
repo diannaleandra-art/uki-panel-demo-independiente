@@ -72,11 +72,12 @@ test('Si se desmarca pagado sin devolución, el cobro original sigue visible com
  assert.equal(t.medios.Efectivo,18000);
  assert.equal(t.correccionesPendientes,1);
 });
-test('Exige responsable y motivo y no permite cierre definitivo con diferencias sin resolver',()=>{
- assert.match(html,/Responsable y motivo de la corrección del pedido/);
+test('Solo registrar responsable en toda edición y conservar el cierre disponible',()=>{
+ assert.match(html,/¿Quién editó este pedido\?/);
+ assert.match(html,/ukiTimbreResponsableActual\(\)/);
  assert.match(html,/p\.correccionesTurno\.push/);
  assert.match(html,/if\(!esDelPeriodo\(snapshot\)\)/);
- assert.match(html,/if\(t\.correccionesPendientes\)/);
+ assert.doesNotMatch(html,/Responsable y motivo de la corrección del pedido/);
+ assert.doesNotMatch(html,/if\(t\.correccionesPendientes\)\{/);
  assert.match(html,/ukiCierreConfirmadoPedido\(p\)/);
- assert.match(html,/uk(i|I)CobroPendiente\(p\)/);
 });
