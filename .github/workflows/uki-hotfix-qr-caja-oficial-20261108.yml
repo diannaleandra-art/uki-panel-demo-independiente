@@ -1,0 +1,21 @@
+name: Uki HOTFIX · edición QR y caja abierta · QA
+on:
+  push:
+    branches:
+      - hotfix/uki-qr-edicion-caja-oficial-20261108
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Editar pedido existente, QR, medios y conciliación de caja
+        run: node --test tests/uki-qr-edicion-pagada-20261108.test.cjs tests/uki-correcciones-caja-abierta-20261108.test.cjs tests/uki-edicion-simple-turno-20261108.test.cjs tests/uki-hotfix-qr-proteccion-caja-20261108.test.cjs tests/uki-qr-cobro-integrado.test.cjs tests/uki-qr-huella-nube.test.cjs
