@@ -3862,6 +3862,11 @@ function ukiMensajeCierreHistorico(c){
   "Importe deliverys: "+fmt(c.envios||0),
   "Base diaria: "+fmt(c.base||0),
   "Pago al repartidor ("+(c.pagoDeliveryMedio||"Efectivo")+"): "+fmt(c.pagadoDelivery??c.delivery??0),
+  ...(c.pagoDeliveryDia!==undefined?[
+    "  Repartos del día: "+fmt(c.pagoDeliveryDia||0)+" ("+(c.pagoDeliveryMedioDia||"Efectivo")+")",
+    "  Saldos anteriores: "+fmt(c.pagoDeliveryAnterior||0)+" ("+(c.pagoDeliveryMedioAnterior||"Efectivo")+")",
+    ...(c.pagoDeliveryAnterior>0?["  Concepto: "+(c.pagoDeliveryConceptoAnterior||"Saldo anterior")]:[])
+  ]:[]),
   "",
   "*CIERRE DE CAJA*",
   "Gastos: "+fmt(c.gastos||0),
@@ -3987,6 +3992,11 @@ function ukiCrearPdfResumenHistorico(c){
  fila("Monto de los deliverys",fmt(c.envios||0));
  fila("Base diaria",fmt(c.base||0));
  fila("Pago realizado ("+(c.pagoDeliveryMedio||"Efectivo")+")",fmt(c.pagadoDelivery??c.delivery??0));
+ if(c.pagoDeliveryDia!==undefined){
+   fila("Pago repartos del día",fmt(c.pagoDeliveryDia||0)+" · "+(c.pagoDeliveryMedioDia||"Efectivo"));
+   fila("Abono saldo anterior",fmt(c.pagoDeliveryAnterior||0)+" · "+(c.pagoDeliveryMedioAnterior||"Efectivo"));
+   if(c.pagoDeliveryAnterior>0)fila("Concepto saldo anterior",String(c.pagoDeliveryConceptoAnterior||"Sin concepto").slice(0,100));
+ }
  seccion("Caja y resultado");
  fila("Gastos",fmt(c.gastos||0));
  const gastosCierre=ukiGastosCierreHistorico(c);
@@ -4151,8 +4161,13 @@ function vHistorial(){
     ${(x.dels||[]).map(d=>row(`#${d.id} · ${d.cliente||"sin nombre"}`,fmt(d.envio))).join("")||'<p class="muted">Sin deliveries</p>'}
     ${row("Deliveries pedidos",fmt(x.enviosPedidos||0))}${row("Deliveries manuales",fmt(x.enviosManuales||0))}${row("Total para repartidor",fmt((x.dels||[]).reduce((a,d)=>a+(d.envio||0),0)+(x.base||0)),"sub")}${x.enviosCobradosUki!==undefined?row("Delivery cobrado en Uki",fmt(x.enviosCobradosUki)):""}${x.enviosCobradosOtroLocal?row("Delivery cobrado en otro local",fmt(x.enviosCobradosOtroLocal)):""}
     <p class="muted" style="margin:12px 0 2px"><b>💰 Efectivo</b></p>
-    ${row("Efectivo cobrado",fmt(x.efectivoCobrado))}${row("− Gastos en efectivo",fmt(x.gastosEf))}${row("− Retiros",fmt(x.retiros))}${row(`− Pago a delivery (${x.pagoDeliveryMedio||"Efectivo"})`,fmt(x.pagadoDelivery))}${row("Efectivo que quedó",fmt(x.efectivo),"sub")}
+    ${row("Efectivo cobrado",fmt(x.efectivoCobrado))}${row("− Gastos en efectivo",fmt(x.gastosEf))}${row("− Retiros",fmt(x.retiros))}${x.pagoDeliveryDia!==undefined?(
+       row("− Pago delivery del día en efectivo",fmt(x.pagoDeliveryMedioDia==="Efectivo"?x.pagoDeliveryDia:0))+
+       (x.pagoDeliveryAnterior?row("− Saldo anterior pagado en efectivo",fmt(x.pagoDeliveryMedioAnterior==="Efectivo"?x.pagoDeliveryAnterior:0)):'')
+     ):row("− Pago delivery en efectivo",fmt(x.pagoDeliveryMedio==="Efectivo"?x.pagadoDelivery:0))}${row("Efectivo que quedó",fmt(x.efectivo),"sub")}
     <p class="muted" style="margin:12px 0 2px"><b>📊 Resultado</b></p>
+    ${x.pagoDeliveryDia!==undefined?row("Repartidor: pagado del turno",fmt(x.pagoDeliveryDia)):''}${x.pagoDeliveryAnterior?row("Repartidor: abonado de saldos anteriores",fmt(x.pagoDeliveryAnterior)):''}
+    ${x.pagoDeliveryAnterior&&x.pagoDeliveryConceptoAnterior?'<p class="muted">Concepto saldo anterior: '+esc(x.pagoDeliveryConceptoAnterior)+'</p>':''}
     ${row("Gastos",fmt(x.gastos),"neg")}${row("Total final",fmt(x.final),"final")}${row("Propinas (aparte)",fmt(x.propinas))}
     ${x.inicioTurnoMs?row("Inicio del turno",window.ukiControlTurnos?.fechaHoraLegible(x.inicioTurnoMs)||""):""}
     ${Object.prototype.hasOwnProperty.call(x,"efectivoContado")?
