@@ -33,3 +33,11 @@
 Vercel impidió un despliegue anterior con HTTP 402 por límite diario; esto es un evento histórico, **NO afirmar que sigue bloqueado sin comprobación nueva**. No contratar servicios ni subir de plan.
 
 **Instrucciones finales:** preservar panel del agendador, inventario restringido del trabajador, dos sucursales, WhatsApp, caja/ventas y QR. Priorizar la protección anti-duplicados y la incidencia de visibilidad. No fusionar ramas ni publicar por escribir este documento.
+
+## Revisión de publicación y límite (7 noviembre 2026)
+
+- **Panel vigente GitHub Pages:** la rama `main` (commit `01aada25eceac20301c1a8f5c0c33a9756c4ed95`) tiene `pages build and deployment` **aprobado** y comprobación HTTP conjunta **aprobada**. La mejora de motivo antes de rechazar ya forma parte del `main` publicado; **NO publicar de nuevo por separado**.
+- **Editor de ingredientes:** GitHub Actions QA aprobó en rama `feature/uki-ingredientes-armado-integracion-completa-2026-11-07` (commit `65a6dfcbf56147c36b41c6233869ec646c6adc21`), pero la rama diverge de `main` y no incluye todas las funciones posteriores. **NO desplegar a producción sin integración**.
+- **Intento de versión de pruebas Vercel:** solicitud explícita de despliegue `staging` a proyecto `uki-sushi-panel`, equipo `diannaleandra-7046`, desde la rama de ingredientes. **Rechazada por Vercel HTTP 402** con `api-deployments-free-per-day`, límite diario alcanzado y indicación de reintento después de 1 día. **No se creó un despliegue**. No modificar plan ni contratar.
+- **Otros componentes en prueba:** prevención de duplicados entre dispositivos todavía no integrada completamente con Firebase, reservas inciertas y conciliación; no afirmar lista para producción.
+- **Publicaciones nuevas en este intento: ninguna.** Se conservan caja, cierres, timbres, QR y carta pública sin cambios. Comprobar cuota y compatibilidad antes del próximo intento; no gastar despliegues por cada ajuste.
