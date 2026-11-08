@@ -37,8 +37,11 @@ async function authorize(req,env){
 async function productExists(sql,branch,sku){
  const base=await baseItems(branch);
  if(base.some(x=>x.sku===sku&&x.kind!=='ingredient'))return true;
- const custom=await sql.query('SELECT sku FROM public.uki_carta_productos_custom_v1 WHERE branch=$1 AND sku=$2 LIMIT 1',[branch,sku]);
- return custom.length>0;
+ const [custom,promos]=await Promise.all([
+  sql.query('SELECT sku FROM public.uki_carta_productos_custom_v1 WHERE branch=$1 AND sku=$2 LIMIT 1',[branch,sku]),
+  sql.query('SELECT sku FROM public.uki_carta_promos_custom_v1 WHERE branch=$1 AND sku=$2 LIMIT 1',[branch,sku])
+ ]);
+ return custom.length>0||promos.length>0;
 }
 module.exports=async function(req,res){
  const origin=String(req.headers?.origin||''),env=process.env;
