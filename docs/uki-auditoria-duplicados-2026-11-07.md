@@ -66,3 +66,9 @@ Se verificó por lectura que la rama Neon QA `br-wild-sky-b5bruake` del proyecto
 **Aún pendiente:** E2E autentificado desde Safari entre la API desplegada de QA, Neon QA y Firebase QA aislado; verificar un corte de red entre reserva y guardado y la conciliación contra respaldos; establecer la política definitiva de coincidencia al pegar mensajes sin UUID, sin bloquear pedidos legítimos con folio repetido; integrar ramas con las mejoras de ingredientes e inventario antes de publicación conjunta.
 
 **No hubo modificaciones en producción, GitHub main, QR impreso, caja, ventas ni cierres.**
+
+### Prueba adicional de recuperación ante una interrupción (QA)
+
+Con la segunda solicitud ficticia se interrumpió deliberadamente el flujo **entre** marcar `aceptada` y finalizar la reserva. Se verificó el estado intermedio `solicitud=aceptada, reserva=reservado, pedido_id=NULL`. Después se reanudó utilizando el mismo token de reserva y el mismo pedido ficticio `902`; la reserva terminó en `confirmado` sin crear una segunda solicitud ni venta. Esta es una **prueba controlada de recuperación SQL**, no una simulación real de caída de red y Firebase. La tercera solicitud ficticia continúa reservada sin pedido confirmado para probar el caso de guardado fallido.
+
+Las pruebas automáticas de la rama panel pasaron en `https://github.com/diannaleandra-art/uki-panel-demo-independiente/actions/runs/42429963718`; las del backend, en `https://github.com/diannaleandra-art/uki-sushi-respaldo/actions/runs/42429826323`. **QA aislado únicamente: sin publicación.**
