@@ -66,3 +66,10 @@ test('doble clic y cambio de formulario durante reserva no generan dos ventas',(
  const add=html.indexOf('S.pedidos.push(nuevoPedido)');
  assert.ok(guard>0&&add>guard);
 });
+
+test('solicitudes aceptadas sin vínculo se señalan sin crear ventas',()=>{
+ assert.match(remota,/function ukiCartaAceptadasSinVinculo\(\)/);
+ assert.match(remota,/r\.estado==='aceptada'&&!ukiCartaPedidoAceptadoEnCaja\(r\)/);
+ assert.match(html,/const aceptadasPendientesDeConciliar=/);
+ assert.match(html,/Revisar \$\{aceptadasPendientesDeConciliar\.length\}/); 
+});
