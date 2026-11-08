@@ -14,15 +14,19 @@ async function ukiCartaApiSesion(){
  if(!token)throw Error('Este equipo necesita autorización para recibir pedidos. Utiliza la autorización QR existente.');
  return token;
 }
-async function ukiCartaApiCambio(id,estado,motivo=''){
+async function ukiCartaApiCambio(id,estado,motivo='',extra={}){
  const branch=ukiMesaBranch(),token=await ukiCartaApiSesion();
  const r=await fetch(UKI_CARTA_REMOTAS_API,{
   method:'PATCH',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
-  body:JSON.stringify({branch,id,estado,motivo}),signal:AbortSignal.timeout(15000)
+  body:JSON.stringify({branch,id,estado,motivo,...extra}),signal:AbortSignal.timeout(15000)
  });
  const data=await r.json().catch(()=>({}));
  if(!r.ok||!data.ok)throw Error(String(data.error||'El servidor no confirmó la operación'));
  return data;
+}
+async function ukiCartaReservarRegistro(id,claimToken){
+ if(!claimToken||!id)throw Error('Falta identificación de la solicitud original.');
+ return ukiCartaApiCambio(id,'reservar','',{claimToken});
 }
 function ukiCartaPedidoAceptadoEnCaja(r){
  if(!r?.id)return false;
@@ -37,7 +41,11 @@ async function ukiCartaConfirmarRespaldados(){
  try{
   for(const r of rows){
    if(!window.ukiCancelacionNubeLista?.()||r.branch!==ukiMesaBranch())break;
-   try{await ukiCartaApiCambio(r.id,'aceptada');r.estado='aceptada'}
+   try{
+    const p=S.pedidos.find(p=>p.suc===S.suc&&p.estado!=='Cancelado'&&String(p.cartaSolicitudRemotaId||'')===String(r.id));
+    const extra=p?.cartaReservaToken?{claimToken:p.cartaReservaToken,pedidoId:String(p.id)}:{};
+    await ukiCartaApiCambio(r.id,'aceptada','',extra);r.estado='aceptada';
+   }
    catch(e){ukiCartaRemotas.status='Pedido registrado en Uki; el estado de la bandeja sigue pendiente: '+String(e?.message||e);break}
   }
  }finally{ukiCartaConfirmando=false;if(S.vista==='pedidos')render()}
@@ -92,7 +100,9 @@ function ukiCartaRemotaAbrir(id){
  if(ukiCartaPedidoAceptadoEnCaja(r)){aviso('Este pedido ya figura en caja. Se confirmará tras sincronizar Firebase.');void ukiCartaConfirmarRespaldados();return}
  const folio=String(r.codigo_pedido||'').trim().toLowerCase();
  if(folio){
-  const yaGuardado=(S.pedidos||[]).find(p=>p.suc===S.suc&&String(p.codigoCarta||'').trim().toLowerCase()===folio);
+  const yaGuardado=(S.pedidos||[]).find(p=>ukiRegistroMismoOrigen(p,{
+   cartaSolicitudRemotaId:id,codigoCarta:folio,telefono:r.telefono,texto:r.mensaje
+  }));
   if(yaGuardado){
    aviso('Carta #'+folio+' ya fue registrada como pedido interno #'+yaGuardado.id+'. No aceptes ni cobres otra vez. Revisa el pedido existente.');
    return;
