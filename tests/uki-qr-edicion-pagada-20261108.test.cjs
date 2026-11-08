@@ -62,3 +62,48 @@ test('La edición termina antes de añadir un pedido nuevo a la caja',()=>{
  assert.match(save.slice(edit),/S\.vista="pedidos"; render\(\); return;/);
  assert.ok(edit<save.indexOf('S.pedidos.push(nuevoPedido)'));
 });
+
+function guardScenario({originalPagado=true,editando=true,paid=true,approval=false,change=null}={}){
+ const {original,draft}=scenario();
+ original.pagado=originalPagado;draft.pagado=paid;
+ if(!editando)draft.editando=null;
+ if(change)change(draft);
+ const log=[];
+ const context={
+  S:{suc:original.suc,pedidos:editando?[original]:[]},D:draft,
+  ukiMesaNumeroReferencia:x=>Number(String(x).replace(/\\D/g,''))||null,
+  ukiMontoPropina:(d,sub)=>d.propinaModo==='diez'?Math.round(sub*0.1):d.propinaModo==='otro'?Number(d.propinaPersonalizada||0):0,
+  UKI_MESAS_ENDPOINT:'live',UKI_MESAS_LIVE_URL:'live',
+  ukiGuardadoSolicitudEnCurso:false,ukiQRComprobandoCobro:false,
+  aviso:m=>log.push(String(m)),ukiQRPermitirCobroDefinitivo:async()=>{log.push('QR_VERIFICADO');return approval;}
+ };
+ const start=html.indexOf('async function ndGuardar(){');
+ const stop=html.indexOf('  if(D.sucursalCarta &&',start);
+ assert.ok(start>0&&stop>start);
+ const excerpt=html.slice(start,stop);
+ const f=vm.runInNewContext(html.slice(a,b)+'\\n'+excerpt+'  return true;\\n  }finally{ukiGuardadoSolicitudEnCurso=false;}\\n}\\nndGuardar;',context);
+ return {f,log,context};
+}
+test('Integración: guardar corrección de pago ya cobrado no llama validación remota QR',async()=>{
+ const q=guardScenario({originalPagado:true});
+ assert.equal(await q.f(),true);assert.deepEqual(q.log,[]);
+});
+test('Integración: cobrar desde cero o confirmar cuenta pendiente consulta QR central',async()=>{
+ for(const editando of [false,true]){
+  const q=guardScenario({editando,originalPagado:false,approval:false});
+  assert.equal(await q.f(),undefined);
+  assert.deepEqual(q.log,['QR_VERIFICADO']);
+ }
+});
+test('Integración: cambio de precio, mesa o rondas en cuenta pagada se detiene sin cobrar',async()=>{
+ for(const change of [
+  d=>{d.items[0].precio=12500;},
+  d=>{d.mesaReferencia='Mesa 3';},
+  d=>{d.qrSolicitudes=[];}
+ ]){
+  const q=guardScenario({originalPagado:true,change});
+  assert.equal(await q.f(),undefined);
+  assert.equal(q.log.length,1);
+  assert.match(q.log[0],/QR ya fue cobrado/);
+ }
+});
