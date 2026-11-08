@@ -946,6 +946,7 @@ function ukiWhatsAppIdentificador(req){
 // QA: folios cortos pueden repetirse; preferir siempre UUID original.
 // Sin UUID, cotejar código + sucursal + día + teléfono y, si existe, texto.
 let ukiCartaReservaEnCurso=false;
+let ukiGuardadoSolicitudEnCurso=false;
 function ukiRegistroMismoOrigen(p,datos){
  if(!p||p.suc!==S.suc)return false;
  const a=String(p.cartaSolicitudRemotaId||''),b=String(datos?.cartaSolicitudRemotaId||'');
@@ -3203,11 +3204,11 @@ async function ukiQRPermitirCobroDefinitivo(d){
   if(!window.ukiCancelacionNubeLista?.())throw Error('Cambió el estado de la nube mientras comprobábamos el pago.');
   return true;
  }catch(e){
-  aviso('No se confirmó el cobro QR: '+String(e?.message||e)+' No se modificó la caja.');
-  return false;
- }
-}
-async function ndGuardar(){
+  aviso('No se confirmó el cobro QR: '+String(e?.message||e)+' No se modasync function ndGuardar(){
+  // Un solo guardado activo por dispositivo, incluso si se pulsa dos veces.
+  if(ukiGuardadoSolicitudEnCurso)return;
+  ukiGuardadoSolicitudEnCurso=true;
+  try{
   if(ukiQRComprobandoCobro)return;
   if(D.pagado&&Array.isArray(D.qrSolicitudes)&&D.qrSolicitudes.length&&
      UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL){
@@ -3329,7 +3330,14 @@ async function ndGuardar(){
    ukiCartaReservaEnCurso=true;
    try{
     if(!D.cartaReservaToken)D.cartaReservaToken=crypto.randomUUID();
+    const firmaAntesReserva=JSON.stringify({sucursal:S.suc,datos:D});
     await ukiCartaReservarRegistro(String(D.cartaSolicitudRemotaId),D.cartaReservaToken);
+    if(firmaAntesReserva!==JSON.stringify({sucursal:S.suc,datos:D})){
+     aviso('La solicitud cambió durante la reserva. No se registró venta; revisa y concilia la solicitud reservada.');return;
+    }
+    if((S.pedidos||[]).some(p=>p.suc===S.suc&&String(p.cartaSolicitudRemotaId||'')===String(D.cartaSolicitudRemotaId))){
+     aviso('Esta solicitud ya tiene un pedido registrado. Abre el registro original; no crees otro.');return;
+    }
     if(!window.ukiCancelacionNubeLista?.()){
      aviso('La solicitud quedó reservada, pero cambió la nube. Recarga y concilia antes de continuar; no crees otro pedido.');return;
     }
@@ -3362,6 +3370,8 @@ async function ndGuardar(){
     aviso(`Pedido #${idNuevo} guardado ${total}${D.pagado?"":" · Pendiente de pago"}`);
   }
   ukiQuitarBorradorActivo();nuevoDraft(); 
+  S.vista="pedidos"; render();  }finally{ukiGuardadoSolicitudEnCurso=false;}
+}ft(); 
   S.vista="pedidos"; render();
 }
 function cerrar(){
