@@ -73,3 +73,27 @@ test('solicitudes aceptadas sin vínculo se señalan sin crear ventas',()=>{
  assert.match(html,/const aceptadasPendientesDeConciliar=/);
  assert.match(html,/Revisar \$\{aceptadasPendientesDeConciliar\.length\}/); 
 });
+
+test('revisión visual solo alerta sobre aceptados sin pedido vinculado, jamás sobre rechazados',()=>{
+ const context={
+  S:{suc:'Uki Regimiento Arica',pedidos:[
+   {suc:'Uki Regimiento Arica',id:15,estado:'Pendiente',cartaSolicitudRemotaId:'uuid-aceptada-1'},
+   {suc:'Uki La Serena',id:16,estado:'Pendiente',cartaSolicitudRemotaId:'uuid-aceptada-2'}
+  ]},
+  ukiCartaRemotasSucursal:()=>[
+   {id:'uuid-aceptada-1',estado:'aceptada'},
+   {id:'uuid-aceptada-2',estado:'aceptada'},
+   {id:'uuid-rechazada',estado:'rechazada'},
+   {id:'uuid-pendiente',estado:'pendiente'}
+  ]
+ };
+ vm.createContext(context);
+ const from=remota.indexOf('function ukiCartaPedidoAceptadoEnCaja(');
+ const until=remota.indexOf('let ukiCartaConfirmando=',from);
+ assert.ok(from>0&&until>from);
+ vm.runInContext(remota.slice(from,until),context);
+ assert.equal(context.ukiCartaAceptadasSinVinculo().length,1);
+ assert.equal(context.ukiCartaAceptadasSinVinculo()[0].id,'uuid-aceptada-2');
+ assert.match(html,/sin vínculo visible en esta copia de caja/);
+ assert.match(html,/No las ingreses otra vez ni las marques pagadas/);
+});
