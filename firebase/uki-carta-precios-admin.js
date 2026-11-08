@@ -108,7 +108,7 @@ function line(price){
  const summary=document.createElement('div');summary.style.flex='1 1 130px';
  const name=document.createElement('b');name.textContent=price.name;
  const sub=document.createElement('small');sub.style.cssText='display:block;color:#756759';
- sub.textContent=(price.group||price.kind)+' · '+peso(price.price)+' · '+(price.available?'Disponible':'Agotado');
+ sub.textContent=(price.group||price.kind)+' · '+peso(price.price)+' · '+(price.available?'Disponible':price.custom?'Retirado de la carta':'Agotado');
  summary.append(name,sub);
  const input=document.createElement('input');input.type='number';input.inputMode='numeric';input.min='1';input.max='1000000';
  input.value=String(price.price);input.setAttribute('aria-label','Nuevo precio de '+price.name);
@@ -153,7 +153,23 @@ function line(price){
    }catch(e){info('ukiPriceMessage','No se guardó: '+String(e.message));}
    finally{state.busy=false;button.disabled=false;}
   };
-  details.append(name,description,button);wrap.append(details);
+  const retire=document.createElement('button');retire.type='button';retire.className='sm';
+  retire.style.cssText='border:1px solid #bb7060;color:#973729;margin-left:6px';
+  retire.textContent=price.available?'🗑 Quitar producto de la carta':'↩ Volver a mostrar producto';
+  retire.onclick=async()=>{
+   if(state.busy)return;
+   const deactivate=price.available;
+   const question=deactivate?'¿Quitar «'+price.name+'» del menú de clientes? Los pedidos anteriores NO se borran.':'¿Volver a ofrecer «'+price.name+'» a los clientes?';
+   if(!window.confirm(question))return;
+   const chosen=state.branch;state.busy=true;retire.disabled=true;
+   try{
+    await request(API,deactivate?'retirar-producto':'restaurar-producto',{sku:price.sku,expected_version:price.version},chosen);
+    state.busy=false;await loadPrices(true);
+    if(chosen===branch())info('ukiPriceMessage',deactivate?'✓ Producto quitado de la carta, historial conservado.':'✓ Producto restaurado en la carta.');
+   }catch(e){info('ukiPriceMessage','No se modificó: '+String(e.message));}
+   finally{state.busy=false;retire.disabled=false;}
+  };
+  details.append(name,description,button,retire);wrap.append(details);
  }
  return wrap;
 }
