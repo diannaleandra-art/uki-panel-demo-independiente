@@ -613,7 +613,7 @@ function vInicio(){
     <div class="kpi"><span>Efectivo en caja</span><strong>${fmt(t.efectivoCaja)}</strong></div>
   </section>
   <button class="big cta" onclick="ir('nuevo')">＋ Registrar nuevo pedido</button>
-  <div class="quick-grid"><button class="quick" onclick="ir('inventario')"><b>📦</b> Inventario <span>›</span></button><button class="quick" onclick="ir('pedidos')"><b>▤</b> Revisar pedidos <span>›</span></button><button class="quick" onclick="ir('clientes')"><b>✧</b> Tarjetas (${Object.keys(S.clientes).length}) <span>›</span></button><button class="quick" onclick="ir('cierre')"><b>▣</b> Hacer cierre <span>›</span></button><button class="quick" onclick="ir('historial')"><b>◷</b> Ver historial <span>›</span></button><button class="quick" onclick="cajaTab='semana';ir('caja')"><b>▥</b> Resumen semanal <span>›</span></button></div>
+  <div class="quick-grid"><button class="quick" onclick="ir('inventario')"><b>📦</b> Inventario <span>›</span></button><button class="quick" onclick="ir('pedidos')"><b>▤</b> Revisar pedidos <span>›</span></button><button class="quick" onclick="ir('clientes')"><b>✧</b> Tarjetas (${Object.keys(S.clientes).length}) <span>›</span></button><button class="quick" onclick="ir('cierre')"><b>🔒</b> Cierre definitivo <span>›</span></button><button class="quick" onclick="ir('historial')"><b>◷</b> Ver historial <span>›</span></button><button class="quick" onclick="cajaTab='semana';ir('caja')"><b>▥</b> Resumen semanal <span>›</span></button></div>
   <div class="mini-help">🎟️ Timbres: 6 compras = 12 piezas · 10 compras = 36 piezas + 2 korokes.</div>`;
 }
 // Datos temporales de cierre: no alteran el respaldo ni el formato guardado.
@@ -2568,7 +2568,7 @@ let filtroCategoriaPedidos="todos";
 const UKI_CATEGORIAS_PEDIDOS=[
  ["todos","Todos"],["cuentas","Cuentas abiertas"],["sin-pago","Por cobrar"],["pagados","Pagados"],
  ["pendientes","Pendientes"],["entregados","Entregados"],
- ["cancelados","Cancelados"],["rechazados","Rechazados"],["errores","Con error"]
+ ["cancelados","Cancelados"],["rechazados","Rechazados (historial)"],["errores","Con error"]
 ];
 // Una venta aceptada aparece una sola vez, con el origen identificado.
 function ukiOrigenPedido(p){
