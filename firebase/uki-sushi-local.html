@@ -944,19 +944,72 @@ function ukiWhatsAppDatosDesdeTexto(raw){
 function ukiWhatsAppIdentificador(req){
  return req.codigoCarta?'Carta #'+req.codigoCarta:'Sin código de carta · WA-'+String(req.id||'').slice(-6).toUpperCase();
 }
+let ukiCartaReservaEnCurso=false;
+let ukiGuardadoSolicitudEnCurso=false;
+function ukiRegistroMismoOrigen(p,datos){
+ if(!p||p.suc!==S.suc)return false;
+ const a=String(p.cartaSolicitudRemotaId||''),b=String(datos?.cartaSolicitudRemotaId||'');
+ if(a&&b)return a===b;
+ const code=String(datos?.codigoCarta||'').trim().toLowerCase();
+ if(!code||String(p.codigoCarta||'').trim().toLowerCase()!==code)return false;
+ if(fechaTurnoRegistro(p)!==fechaOperativaActual())return false;
+ const phone1=String(p.telefono||'').replace(/\D/g,''),phone2=String(datos?.telefono||'').replace(/\D/g,'');
+ const t1=String(p.textoOriginal||'').replace(/\s+/g,' ').trim();
+ const t2=String(datos?.texto||'').replace(/\s+/g,' ').trim();
+ if(phone1&&phone2&&phone1.slice(-8)!==phone2.slice(-8))return false;
+ if(t1.length>=30&&t2.length>=30&&t1!==t2)return false;
+ if(!phone1||!phone2)return t1.length>=30&&t1===t2;
+ return true;
+}
+// Cruce preventivo: una solicitud de la carta no debe registrarse por dos caminos.
+function ukiSolicitudAutomaticaYaRecibida(datos,omitirId=''){
+ const code=String(datos?.codigoCarta||'').trim().toLowerCase();
+ const texto=String(datos?.texto||'').trim();
+ if((!code&&!texto)||typeof ukiCartaRemotasSucursal!=='function')return '';
+ const x=ukiCartaRemotasSucursal().find(r=>r.estado==='pendiente'&&r.id!==omitirId&&(
+   (texto&&texto.length>=25&&String(r.mensaje||'').trim()===texto)||
+   (code&&String(r.codigo_pedido||'').trim().toLowerCase()===code&&
+    String(datos?.telefono||'').replace(/\D/g,'').slice(-8)&&
+    String(r.telefono||'').replace(/\D/g,'').slice(-8)===String(datos?.telefono||'').replace(/\D/g,'').slice(-8)&&
+    (!texto||String(r.mensaje||'').replace(/\s+/g,' ').trim()===texto.replace(/\s+/g,' ').trim()))
+ ));
+ return x?'La solicitud de Carta #'+String(x.codigo_pedido||'sin código')+
+  ' ya está en Pedidos → Pendientes. Ábrela con «Aceptar y revisar» para corregirla; no la pegues ni registres de nuevo.':'';
+}
+// Un folio de 3 cifras NO identifica un pedido. Se compara el mensaje original,
+// también si llegó por WhatsApp sin código. Dos mensajes con el mismo folio
+// pero distinto cliente o contenido son pedidos independientes.
+function ukiSolicitudManualMismoMensaje(solicitud,datos){
+ if(!solicitud||solicitud.suc!==S.suc)return false;
+ const texto=x=>String(x||'').replace(/\s+/g,' ').trim();
+ const a=texto(solicitud.datos?.texto||solicitud.texto),
+       b=texto(datos?.texto);
+ if(a.length<25||b.length<25||a!==b)return false;
+ const ca=String(solicitud.codigoCarta||solicitud.datos?.codigoCarta||'').trim().toLowerCase(),
+       cb=String(datos?.codigoCarta||'').trim().toLowerCase();
+ if(ca&&cb&&ca!==cb)return false;
+ const digits=x=>String(x||'').replace(/\D/g,'');
+ const ta=digits(solicitud.telefono||solicitud.datos?.telefono),
+       tb=digits(datos?.telefono);
+ if(ta&&tb&&ta.slice(-8)!==tb.slice(-8))return false;
+ return true;
+}
+function ukiSolicitudPegadaYaRecibida(datos,omitirId=''){
+ const x=(S.solicitudesWhatsApp||[]).find(r=>r.estado==='pendiente'&&
+   r.id!==omitirId&&ukiSolicitudManualMismoMensaje(r,datos));
+ return x?'Este mensaje ya está en Pedidos → Solicitudes de WhatsApp. Revísalo allí; no crees otro pedido.':'';
+}
 function ukiWhatsAppSolicitudDuplicada(datos,idActual=''){
- const cod=String(datos.codigoCarta||'').trim().toLowerCase();
- if(!cod)return null; // pedidos sin folio se revisan por teléfono y texto.
- const p=(S.pedidos||[]).find(p=>p.suc===S.suc&&String(p.codigoCarta||'').toLowerCase()===cod);
- if(p)return 'Este código ya está registrado como pedido #'+p.id+'. No se duplicó.';
- const a=(S.solicitudesWhatsApp||[]).find(x=>x.suc===S.suc&&x.id!==idActual&&
-   x.estado!=='rechazada'&&String(x.codigoCarta||'').toLowerCase()===cod);
- return a?'Este código ya existe en solicitudes de WhatsApp. Revísalo antes de guardar otro.':null;
+ const p=(S.pedidos||[]).find(p=>ukiRegistroMismoOrigen(p,datos));
+ if(p)return 'Esta solicitud ya está registrada como pedido #'+p.id+'. No se duplicó.';
+ const a=(S.solicitudesWhatsApp||[]).find(r=>r.id!==idActual&&
+   r.estado!=='rechazada'&&ukiSolicitudManualMismoMensaje(r,datos));
+ return a?'Este mensaje de WhatsApp ya está guardado como solicitud. Revisa el original.':null;
 }
 async function ukiWhatsAppGuardarSolicitud(datos){
  if(!S.suc||!datos||typeof datos.texto!=='string'||datos.texto.trim().length<6||
     datos.texto.length>12000){aviso('Pega el mensaje recibido por WhatsApp (máximo 12.000 caracteres).');return false;}
- const dupe=ukiWhatsAppSolicitudDuplicada(datos);if(dupe){aviso(dupe);return false;}
+ const dupe=ukiWhatsAppSolicitudDuplicada(datos)||ukiSolicitudAutomaticaYaRecibida(datos);if(dupe){aviso(dupe);return false;}
  // Conservar EXACTAMENTE la configuración del formulario actual: pagos mixtos,
  // medio del delivery, cruce de locales, propina y correcciones.
  // Nunca indicar pago completo hasta que el agendador lo confirme expresamente.
@@ -3192,6 +3245,7 @@ function vPedidos(){
   });
   const viendoArchivoRechazados=filtroCategoriaPedidos==='rechazados'&&!buscando&&!pedidosArchivoDia;
   const remotas=viendoArchivoRechazados?remotasTodas.filter(r=>r.estado==='rechazada'):remotasTurno;
+  const aceptadasPendientesDeConciliar=!buscando&&!pedidosArchivoDia?ukiCartaAceptadasSinVinculo():[];
   const solicitudRemotaEnCategoria=(r,id)=>id==='todos'||(id==='pendientes'&&r.estado==='pendiente')||(id==='rechazados'&&r.estado==='rechazada');
   const visiblesRemotas=remotas.filter(r=>solicitudRemotaEnCategoria(r,filtroCategoriaPedidos));
   const urgentesCarta=remotas.filter(r=>r.estado==='pendiente');
@@ -3214,6 +3268,10 @@ function vPedidos(){
       urgentesManuales.map(r=>'<div class="card order-card uki-carta-solicitud-urgente"><p><b>📲 Solicitud WhatsApp por confirmar</b></p>'+ukiWhatsAppFicha(r,true)+'</div>').join(''):
       '<button class="sm ok" type="button" onclick="ukiCambiarCategoriaPedidos(&quot;pendientes&quot;)">Revisar solicitudes pendientes</button>'}
   </section>`:''}
+  ${aceptadasPendientesDeConciliar.length?`<details class="card" aria-label="Solicitudes aceptadas por verificar"><summary><b>Revisar ${aceptadasPendientesDeConciliar.length} solicitud(es) aceptadas</b> · sin vínculo visible en esta copia de caja</summary>
+    <p class="muted">El servidor las identifica como aceptadas, pero no se encuentra su pedido vinculado en esta copia del panel. Primero sincroniza Firebase y verifica el historial. No las ingreses otra vez ni las marques pagadas.</p>
+    ${aceptadasPendientesDeConciliar.map(r=>'<p><b>Carta #'+esc(r.codigo_pedido||'sin código')+'</b> · '+esc(r.cliente||'Cliente sin identificar')+' · WhatsApp '+esc(r.telefono||'por verificar')+'</p>').join('')}
+    </details>`:''}
   <button class="big cta" onclick="ir('nuevo')">＋ Nuevo pedido</button>
   <div class="card"><h2 style="margin:0 0 8px">Clasificar pedidos</h2>
     <div class="chips" role="group" aria-label="Filtrar pedidos por estado y pago">${categorias}</div>
@@ -3308,6 +3366,9 @@ async function ukiQRPermitirCobroDefinitivo(d){
  }
 }
 async function ndGuardar(){
+  if(ukiGuardadoSolicitudEnCurso)return;
+  ukiGuardadoSolicitudEnCurso=true;
+  try{
   if(ukiQRComprobandoCobro)return;
   if(D.pagado&&Array.isArray(D.qrSolicitudes)&&D.qrSolicitudes.length&&
      UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL){
@@ -3343,7 +3404,14 @@ async function ndGuardar(){
     aviso("Uno de los pedidos QR ya pertenece a otra cuenta. No se guardó dos veces.");return;
   }
   D.codigoCliente=ukiCodigoWhatsApp(D.telefono)||D.codigoCliente||"";
-  if(D.codigoCarta && S.pedidos.some(p=>p.suc===S.suc && String(p.codigoCarta||"")===D.codigoCarta && p.id!==D.editando)){
+  // Si el pedido llegó por la carta, usa esa solicitud y el formulario existente.
+  // Esta comprobación es adicional a la del código en pedidos ya guardados.
+  if(!D.editando){
+   const duplicado=ukiSolicitudAutomaticaYaRecibida(D,String(D.cartaSolicitudRemotaId||''))||
+     ukiSolicitudPegadaYaRecibida(D,String(ukiSolicitudWhatsAppActiva||''));
+   if(duplicado){aviso(duplicado);return;}
+  }
+  if(D.codigoCarta && S.pedidos.some(p=>p.id!==D.editando&&ukiRegistroMismoOrigen(p,D))){
     aviso("Ya existe un pedido con ese codigo de carta en esta sucursal.");return;
   }
   if(!D.items.filter(x=>x.nombre).length){aviso("Agrega producto");return;}
@@ -3412,9 +3480,35 @@ async function ndGuardar(){
     ukiQuitarBorradorActivo();nuevoDraft();
     S.vista="pedidos"; render(); return;
   }
+  // Exclusión mutua central ANTES de añadir la venta. Si no confirma, no
+  // incrementamos el contador ni tocamos caja. Sin cambio para pedidos manuales.
+  if(D.cartaSolicitudRemotaId){
+   if(ukiCartaReservaEnCurso)return;
+   if(!window.ukiCancelacionNubeLista?.()){
+    aviso('Sincroniza Firebase antes de registrar esta solicitud. La caja no cambió.');return;
+   }
+   ukiCartaReservaEnCurso=true;
+   try{
+    if(!D.cartaReservaToken)D.cartaReservaToken=crypto.randomUUID();
+    const firmaAntesReserva=JSON.stringify({sucursal:S.suc,datos:D});
+    await ukiCartaReservarRegistro(String(D.cartaSolicitudRemotaId),D.cartaReservaToken);
+    if(firmaAntesReserva!==JSON.stringify({sucursal:S.suc,datos:D})){
+     aviso('La solicitud cambió durante la reserva. No se registró venta; revisa y concilia la solicitud reservada.');return;
+    }
+    if((S.pedidos||[]).some(p=>p.suc===S.suc&&String(p.cartaSolicitudRemotaId||'')===String(D.cartaSolicitudRemotaId))){
+     aviso('Esta solicitud ya tiene un pedido registrado. Abre el registro original; no crees otro.');return;
+    }
+    if(!window.ukiCancelacionNubeLista?.()){
+     aviso('La solicitud quedó reservada, pero cambió la nube. Recarga y concilia antes de continuar; no crees otro pedido.');return;
+    }
+   }catch(e){
+    aviso('No se registró ninguna venta: '+String(e?.message||e)+
+     ' Revisa la solicitud original, no la ingreses manualmente.');return;
+   }finally{ukiCartaReservaEnCurso=false;}
+  }
   const {numero:numeroTurno,clave:turnoClave}=ukiTurnoFolioActual();
   const idNuevo=S.nextId++;
-  const nuevoPedido={id:idNuevo,numeroTurno,turnoClave,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),cliente:D.cliente,telefono:D.telefono||"",codigoCarta:D.codigoCarta||"",codigoCliente:D.codigoCliente||"",cartaSolicitudRemotaId:String(D.cartaSolicitudRemotaId||""),qrSolicitudes:Array.isArray(D.qrSolicitudes)?[...new Set(D.qrSolicitudes)]:[],sucursalCarta:D.sucursalCarta||"",mesaReferencia:D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():"",modalidad:D.modalidad,envio:envio,medio:D.medio,medioEnvio:D.medioEnvio,...datosPago,pagado:D.pagado,estado:"Pendiente",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),total:total,subtotal:sub,propina:propina,propinaModo:D.propinaModo,medioPropina:D.medioPropina,textoOriginal:D.texto,esPremio:false};
+  const nuevoPedido={id:idNuevo,numeroTurno,turnoClave,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),cliente:D.cliente,telefono:D.telefono||"",codigoCarta:D.codigoCarta||"",codigoCliente:D.codigoCliente||"",cartaSolicitudRemotaId:String(D.cartaSolicitudRemotaId||""),cartaReservaToken:String(D.cartaReservaToken||""),qrSolicitudes:Array.isArray(D.qrSolicitudes)?[...new Set(D.qrSolicitudes)]:[],sucursalCarta:D.sucursalCarta||"",mesaReferencia:D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():"",modalidad:D.modalidad,envio:envio,medio:D.medio,medioEnvio:D.medioEnvio,...datosPago,pagado:D.pagado,estado:"Pendiente",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),total:total,subtotal:sub,propina:propina,propinaModo:D.propinaModo,medioPropina:D.medioPropina,textoOriginal:D.texto,esPremio:false};
   S.pedidos.push(nuevoPedido);
   // La solicitud remota NO era venta; la caja la registra solo aquí.
   // Confirmar el estado remoto cuando Firebase verifique el respaldo.
@@ -3437,6 +3531,7 @@ async function ndGuardar(){
   }
   ukiQuitarBorradorActivo();nuevoDraft(); 
   S.vista="pedidos"; render();
+  }finally{ukiGuardadoSolicitudEnCurso=false;}
 }
 function cerrar(){
   if(S.busy)return;
