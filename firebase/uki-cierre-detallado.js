@@ -97,7 +97,7 @@ function filas(c){
  for(const x of d.gastos||[])r.push(["Gasto",x.fechaISO,x.id,x.concepto,x.monto,x.medio,""]);
  for(const x of d.retiros||[])r.push(["Retiro",x.fechaISO,x.id,x.motivo,x.monto,"Efectivo",""]);
  for(const x of d.propinas||[])r.push(["Propina",x.fechaISO,x.pedidoId?"Pedido "+x.pedidoId:x.id,"Propina",x.monto,x.medio,"Aparte de ventas"]);
- for(const x of d.deliveriesManuales||[])r.push(["Delivery manual",x.fechaISO,x.id,x.cliente,x.monto,x.medio,x.nota]);
+ for(const x of d.deliveriesManuales||[])r.push(["Delivery manual",x.fechaISO,x.id,x.cliente,x.monto,x.medio,"Para pagar al repartidor. No es venta ni ingreso. "+(x.nota||"")]);
  for(const x of d.cajaChica?.gastos||[])r.push(["Caja chica","","",x.concepto,x.monto,"Caja chica","No suma al total general de gastos"]);
  for(const [nombre,monto] of Object.entries(d.apps||{}))if(monto)r.push(["Venta app manual","","",nombre,monto,nombre,""]);
  if(d.repartidor?.monto){
