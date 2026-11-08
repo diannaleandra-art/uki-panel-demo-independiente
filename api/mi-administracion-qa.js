@@ -3,6 +3,7 @@
    Acceso: Google autorizado + PIN exclusivo de finanzas; primer PIN exige clave
    de instalación privada en Vercel. No habilitar producción sin revisión. */
 const crypto=require('node:crypto');
+const ukiAuto=require('../lib/uki-fin-resumen-auto-qa.cjs');
 const MAX_BYTES=1700000;
 const MODES=new Set(['venta','gasto','compra','costo_producto','retiro','ingreso_extra']);
 const PAYMENTS=new Set(['Efectivo','Transferencia','Débito','Crédito','Edenred','Junaeb','Uber','Rappi','PedidosYa','Otro']);
@@ -104,6 +105,42 @@ module.exports=async(req,res)=>{
    const active=await authorized(sql,req,who);
    return ok(res,{pin_configurado:!!rows.length,autorizado:active});
   }
+  // INGESTA QA: un dueño autorizado con Google puede enviar únicamente
+  // el RESUMEN numérico del turno. No nombres, WhatsApp ni ventas individuales.
+  // No requiere PIN porque llega desde el panel de locales, pero su lectura sí.
+  if(action==='recibir_uki_auto'){
+   const snapshot=ukiAuto.normalize(body.resumen);
+   if(!snapshot)return fail(res,400,'Resumen de turno inválido o sin cuadratura.');
+   const prior=await sql.query(
+    'SELECT branch,source_key,turno_ref,fecha_operativa::text,estado,revision,venta_total,pedidos,medios '+
+    'FROM public.fin_uki_snapshots_qa WHERE branch=$1 AND source_key=$2',
+    [snapshot.branch,snapshot.source_key]);
+   const decision=ukiAuto.chooseUpdate(prior[0]||null,snapshot);
+   if(decision==='ya_registrado')return ok(res,{estado:'ya_registrado',source_key:snapshot.source_key});
+   if(decision==='cierre_bloqueado'||decision==='conflicto'||decision==='obsoleto')
+    return fail(res,409,'El turno ya tiene un registro más reciente o un cierre confirmado. Revisar en Administración.');
+   if(decision==='nuevo'){
+    const rows=await sql.query(
+     'INSERT INTO public.fin_uki_snapshots_qa '+
+     '(branch,source_key,turno_ref,fecha_operativa,estado,revision,venta_total,pedidos,medios,recibido_de_uid) '+
+     'VALUES($1,$2,$3,$4::date,$5,$6,$7,$8,$9::jsonb,$10) ON CONFLICT DO NOTHING RETURNING source_key',
+     [snapshot.branch,snapshot.source_key,snapshot.turno_ref,snapshot.fecha_operativa,
+      snapshot.estado,snapshot.revision,snapshot.venta_total,snapshot.pedidos,
+      JSON.stringify(snapshot.medios),who.uid]);
+    if(!rows.length)return fail(res,409,'El turno se actualizó simultáneamente. Vuelve a consultar.');
+    return ok(res,{estado:'recibido_en_pruebas',source_key:snapshot.source_key});
+   }
+   const rows=await sql.query(
+    'UPDATE public.fin_uki_snapshots_qa SET estado=$3,revision=$4,venta_total=$5,pedidos=$6,'+
+    'medios=$7::jsonb,recibido_de_uid=$8,actualizado_en=now() '+
+    "WHERE branch=$1 AND source_key=$2 AND estado='abierto' AND revision<$4 "+
+    'AND turno_ref=$9 AND fecha_operativa=$10::date RETURNING source_key',
+    [snapshot.branch,snapshot.source_key,snapshot.estado,snapshot.revision,
+     snapshot.venta_total,snapshot.pedidos,JSON.stringify(snapshot.medios),
+     who.uid,snapshot.turno_ref,snapshot.fecha_operativa]);
+   if(!rows.length)return fail(res,409,'El turno cambió en otro dispositivo. No se duplicó.');
+   return ok(res,{estado:'actualizado_en_pruebas',source_key:snapshot.source_key});
+  }
   if(action==='configurar_pin'){
    if(!pinRegex.test(String(body.pin||'')))return fail(res,400,'Elige un PIN de seis números.');
    const secret=String(process.env.UKI_FIN_QA_BOOTSTRAP_KEY||'');
@@ -134,6 +171,20 @@ module.exports=async(req,res)=>{
    return ok(res,{sesion:token,minutos:30});
   }
   if(!await authorized(sql,req,who))return fail(res,401,'Introduce el código privado para continuar.');
+  if(action==='consultar_uki_auto'){
+   const desde=ukiAuto.validDate(body.desde)?body.desde:'2000-01-01';
+   const hasta=ukiAuto.validDate(body.hasta)?body.hasta:'2099-12-31';
+   const branch=String(body.branch||'todos');
+   if(!['todos','arica','serena'].includes(branch)||desde>hasta)
+    return fail(res,400,'Filtro de sucursal o fechas inválido.');
+   const rows=await sql.query(
+    'SELECT branch,source_key,turno_ref,fecha_operativa::text AS fecha_operativa,'+
+    'estado,revision,venta_total,pedidos,medios,actualizado_en '+
+    'FROM public.fin_uki_snapshots_qa WHERE fecha_operativa BETWEEN $1::date AND $2::date '+
+    "AND ($3='todos' OR branch=$3) ORDER BY fecha_operativa DESC,actualizado_en DESC LIMIT 120",
+    [desde,hasta,branch]);
+   return ok(res,{modo:'QA_NO_CONTABILIZADO',turnos:rows,resumen:ukiAuto.aggregate(rows)});
+  }
   if(action==='salir'){
    await sql.query('DELETE FROM public.fin_sesiones WHERE token_hash=$1 AND usuario_uid=$2',[hash(req.headers['x-fin-session']),who.uid]);
    return ok(res,{cerrado:true});
