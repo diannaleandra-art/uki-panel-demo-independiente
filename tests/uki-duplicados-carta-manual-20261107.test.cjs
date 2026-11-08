@@ -17,7 +17,7 @@ function createContext(){
   ]
  };
  vm.createContext(context);
- vm.runInContext(html.slice(start,end),context);
+ vm.runInContext(html.slice(start,html.indexOf('async function ukiWhatsAppGuardarSolicitud(',end)),context);
  return context;
 }
 test('Pegar WhatsApp: rechaza si el folio ya está en la bandeja automática',()=>{
