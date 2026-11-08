@@ -41,8 +41,8 @@ test('Un rechazo antiguo sale de Todos tras el corte; los pendientes no desapare
  const visible=evaluate(rows,()=>cutoff);
  assert.deepEqual(visible.map(x=>x.id),['hoy','pendiente','sin-fecha']);
  assert.equal(rows.length,4,'No se borran registros históricos');
- assert.match(html,/viendoArchivoRechazados\?remotasTodas\.filter\(r=>r\.estado==='rechazada'\):remotasTurno/);
- assert.match(html,/Historial de solicitudes rechazadas/);
+ assert.match(html,/const remotas=remotasTurno/);
+ assert.match(html,/Archivo de rechazados de días anteriores/);
 });
 
 test('Los rechazados nunca se registran como ventas',()=>{

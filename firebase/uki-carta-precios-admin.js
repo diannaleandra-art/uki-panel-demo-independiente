@@ -4,7 +4,8 @@
 'use strict';
 const API='https://uki-sushi-inventario.vercel.app/api/uki-carta-precios-live';
 const STOCK_API='https://uki-sushi-inventario.vercel.app/api/inventario-turno-live';
-const state={tab:'inventario',branch:'',items:[],query:'',group:'all',busy:false,ready:false};
+const PHOTO_API='https://uki-sushi-inventario.vercel.app/api/uki-carta-fotos-live';
+const state={tab:'inventario',branch:'',items:[],photos:{},query:'',group:'all',busy:false,ready:false};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
 const peso=n=>'$'+Number(n).toLocaleString('es-CL');
@@ -103,12 +104,85 @@ function showTab(){
  if(state.tab==='precios'&&!state.ready)void loadPrices();
  if(state.tab==='reportes')void loadReponer();
 }
+// Fotos optimizadas: el mismo menú de Uki, sin servicios adicionales.
+function photoUrl(sku,chosen=state.branch){return PHOTO_API+'?branch='+encodeURIComponent(chosen)+'&sku='+encodeURIComponent(sku);}
+async function loadPhotos(chosen){
+ try{
+  const response=await fetch(PHOTO_API+'?branch='+encodeURIComponent(chosen),{cache:'no-store',mode:'cors',credentials:'omit',signal:AbortSignal.timeout(10000)});
+  if(!response.ok)return;
+  const json=await response.json();if(!json.ok||json.branch!==chosen||!Array.isArray(json.items))return;
+  if(chosen===branch())state.photos=Object.fromEntries(json.items.map(x=>[x.sku,x]));
+ }catch{/* Un servicio de fotos desconectado no bloquea precios, ingredientes ni ventas. */}
+}
+function reduceImage(file){
+ if(!file||!/^image\//.test(file.type)||file.size>15*1024*1024)return Promise.reject(Error('Elige una fotografía de hasta 15 MB.'));
+ return new Promise((resolve,reject)=>{
+  const photo=new Image(),url=URL.createObjectURL(file);
+  photo.onerror=()=>{URL.revokeObjectURL(url);reject(Error('No se pudo abrir la imagen.'))};
+  photo.onload=()=>{
+   URL.revokeObjectURL(url);
+   try{
+    const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');
+    if(!ctx)throw Error('Este navegador no admite el ajuste de fotos.');
+    for(const side of [1100,900,720,600,480]){
+     const ratio=Math.min(1,side/Math.max(photo.naturalWidth,photo.naturalHeight));
+     canvas.width=Math.max(1,Math.round(photo.naturalWidth*ratio));canvas.height=Math.max(1,Math.round(photo.naturalHeight*ratio));
+     ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(photo,0,0,canvas.width,canvas.height);
+     for(const q of [0.8,0.65,0.5,0.35]){
+      const jpg=canvas.toDataURL('image/jpeg',q),data=jpg.split(',')[1]||'';
+      if(data.length<=340000){resolve({mime:'image/jpeg',data_base64:data});return;}
+     }
+    }
+    reject(Error('No se pudo reducir la fotografía. Elige una imagen más pequeña.'));
+   }catch(e){reject(e)}
+  };
+  photo.src=url;
+ });
+}
+function photoControls(price){
+ const wrap=document.createElement('div');wrap.style.cssText='width:100%;border-top:1px dashed #eee0d3;padding-top:8px;margin-top:5px';
+ const title=document.createElement('b');title.textContent='📷 Fotografía de la carta';wrap.append(title);
+ const current=state.photos[price.sku];
+ if(current){
+  const img=document.createElement('img');img.src=photoUrl(price.sku)+'&v='+Number(current.version);img.alt='Foto de '+price.name;
+  img.style.cssText='display:block;width:125px;height:90px;object-fit:cover;border-radius:10px;margin:8px 0';wrap.append(img);
+ }
+ const file=document.createElement('input');file.type='file';file.accept='image/jpeg,image/png,image/webp,image/heic,image/heif';
+ file.style.cssText='margin:7px 0';file.setAttribute('aria-label','Elegir foto de '+price.name);
+ const upload=document.createElement('button');upload.type='button';upload.className='sm ok';upload.textContent=current?'Cambiar foto':'Cargar foto';
+ upload.onclick=async()=>{
+  if(state.busy)return;
+  if(!file.files?.length){info('ukiPriceMessage','Primero selecciona una fotografía desde tu iPhone.');return;}
+  const chosen=state.branch;state.busy=true;upload.disabled=true;info('ukiPriceMessage','Reduciendo y guardando foto de '+price.name+'…');
+  try{
+   const pic=await reduceImage(file.files[0]);
+   await request(PHOTO_API,'subir',{sku:price.sku,expected_version:Number(current?.version||0),...pic},chosen);
+   state.busy=false;await loadPhotos(chosen);renderPrices();
+   if(chosen===branch())info('ukiPriceMessage','✓ Fotografía guardada para '+price.name+'.');
+  }catch(e){info('ukiPriceMessage','La foto no se cambió: '+String(e.message));}
+  finally{state.busy=false;upload.disabled=false;}
+ };
+ wrap.append(file,upload);
+ if(current){
+  const remove=document.createElement('button');remove.type='button';remove.className='sm';remove.style.marginLeft='6px';remove.textContent='Quitar foto';
+  remove.onclick=async()=>{
+   if(state.busy||!window.confirm('¿Quitar la foto de «'+price.name+'»? La promoción y sus ventas no se eliminan.'))return;
+   const chosen=state.branch;state.busy=true;remove.disabled=true;
+   try{
+    await request(PHOTO_API,'quitar',{sku:price.sku,expected_version:Number(current.version)},chosen);
+    state.busy=false;await loadPhotos(chosen);renderPrices();info('ukiPriceMessage','✓ Foto quitada. La promoción sigue disponible.');
+   }catch(e){info('ukiPriceMessage','No se quitó la foto: '+String(e.message));}
+   finally{state.busy=false;remove.disabled=false;}
+  };wrap.append(remove);
+ }
+ return wrap;
+}
 function line(price){
  const wrap=document.createElement('div');wrap.className='row';wrap.style.cssText='align-items:center;gap:9px;padding:10px 0;border-bottom:1px solid #eee0d3;flex-wrap:wrap';
  const summary=document.createElement('div');summary.style.flex='1 1 130px';
  const name=document.createElement('b');name.textContent=price.name;
  const sub=document.createElement('small');sub.style.cssText='display:block;color:#756759';
- sub.textContent=(price.group||price.kind)+' · '+peso(price.price)+' · '+(price.available?'Disponible':'Agotado');
+ sub.textContent=(price.group||price.kind)+' · '+peso(price.price)+' · '+(price.available?'Disponible':price.custom?'Retirado de la carta':'Agotado');
  summary.append(name,sub);
  const input=document.createElement('input');input.type='number';input.inputMode='numeric';input.min='1';input.max='1000000';
  input.value=String(price.price);input.setAttribute('aria-label','Nuevo precio de '+price.name);
@@ -131,6 +205,7 @@ function line(price){
   finally{state.busy=false;save.disabled=false;}
  };
  wrap.append(summary,input,save);
+ if(['monthly','classic','premium','dish','pizza'].includes(price.kind))wrap.append(photoControls(price));
  if(price.custom){
   const details=document.createElement('details');details.style.cssText='width:100%;padding:7px 0 0';
   const title=document.createElement('summary');title.textContent='Editar nombre y descripción';details.append(title);
@@ -153,7 +228,23 @@ function line(price){
    }catch(e){info('ukiPriceMessage','No se guardó: '+String(e.message));}
    finally{state.busy=false;button.disabled=false;}
   };
-  details.append(name,description,button);wrap.append(details);
+  const retire=document.createElement('button');retire.type='button';retire.className='sm';
+  retire.style.cssText='border:1px solid #bb7060;color:#973729;margin-left:6px';
+  retire.textContent=price.available?'🗑 Quitar producto de la carta':'↩ Volver a mostrar producto';
+  retire.onclick=async()=>{
+   if(state.busy)return;
+   const deactivate=price.available;
+   const question=deactivate?'¿Quitar «'+price.name+'» del menú de clientes? Los pedidos anteriores NO se borran.':'¿Volver a ofrecer «'+price.name+'» a los clientes?';
+   if(!window.confirm(question))return;
+   const chosen=state.branch;state.busy=true;retire.disabled=true;
+   try{
+    await request(API,deactivate?'retirar-producto':'restaurar-producto',{sku:price.sku,expected_version:price.version},chosen);
+    state.busy=false;await loadPrices(true);
+    if(chosen===branch())info('ukiPriceMessage',deactivate?'✓ Producto quitado de la carta, historial conservado.':'✓ Producto restaurado en la carta.');
+   }catch(e){info('ukiPriceMessage','No se modificó: '+String(e.message));}
+   finally{state.busy=false;retire.disabled=false;}
+  };
+  details.append(name,description,button,retire);wrap.append(details);
  }
  return wrap;
 }
@@ -174,7 +265,7 @@ async function loadPrices(force=false){
  try{
   const data=await request(API,'listar',{},selected);
   if(selected!==branch())return;
-  state.items=Array.isArray(data.items)?data.items:[];state.ready=true;renderPrices();
+  state.items=Array.isArray(data.items)?data.items:[];state.ready=true;await loadPhotos(selected);renderPrices();
   info('ukiPriceMessage','✓ '+state.items.length+' productos y precios de esta sucursal.');
  }catch(e){state.ready=false;state.items=[];
   info('ukiPriceMessage','No se pudo consultar: '+String(e.message));}
@@ -226,7 +317,7 @@ async function loadReponer(){
 function mount(){
  prevMount();if(!$('ukiInvTabs'))return;
  const selectedBranch=branch();
- if(state.branch!==selectedBranch){state.items=[];state.ready=false;state.query='';state.group='all';state.tab='inventario';}
+ if(state.branch!==selectedBranch){state.items=[];state.photos={};state.ready=false;state.query='';state.group='all';state.tab='inventario';}
  state.branch=selectedBranch;
  const scrollOffset=()=>Math.ceil((document.querySelector('header')?.getBoundingClientRect().height||110)+16)+'px';
  document.querySelectorAll('[data-uki-tab]').forEach(btn=>btn.onclick=()=>{

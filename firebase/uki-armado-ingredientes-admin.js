@@ -113,6 +113,18 @@ async function send(action,box,record){
  }catch(e){status('No se guardó: '+String(e.message||e))}
  finally{state.busy=false;}
 }
+async function toggleIngredient(record){
+ if(state.busy)return;
+ const remove=record.available===true;
+ if(!window.confirm(remove?'¿Quitar «'+record.name+'» de los armados de esta sucursal? Los pedidos anteriores se conservan.':'¿Volver a mostrar «'+record.name+'» en los armados?'))return;
+ const selected=branch();state.busy=true;status('Actualizando '+record.name+'…');
+ try{
+  await request(remove?'retirar':'restaurar',{sku:record.sku,expected_version:record.version},selected);
+  state.busy=false;await load();
+  if(selected===branch())status(remove?'✓ Ingrediente retirado de la carta; historial intacto.':'✓ Ingrediente restaurado en la carta.');
+ }catch(e){status('No se modificó: '+String(e.message||e));}
+ finally{state.busy=false;}
+}
 function render(){
  const target=get('ukiIngLista');if(!target)return;
  target.replaceChildren();
@@ -138,6 +150,10 @@ function render(){
   form.append(field);
   const availableLabel=document.createElement('label');availableLabel.style.cssText='display:flex;gap:8px;align-items:center';const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=item.available===true;checkbox.dataset.ukiIngredient='available';checkbox.style.cssText='width:auto;min-height:0';availableLabel.append(checkbox,document.createTextNode('Disponible para elegir'));form.append(availableLabel);
   const button=document.createElement('button');button.type='button';button.className='sm ok';button.textContent='Guardar cambios';button.onclick=()=>send('editar',form,item);form.append(button);
+  const retire=document.createElement('button');retire.type='button';retire.className='sm';
+  retire.style.cssText='border:1px solid #bb7060;color:#973729';
+  retire.textContent=item.available?'🗑 Quitar ingrediente de la carta':'↩ Volver a mostrar ingrediente';
+  retire.onclick=()=>toggleIngredient(item);form.append(retire);
   mode.onchange=()=>syncMode(form);category.onchange=()=>syncCategory(form);syncMode(form);syncCategory(form);wrapper.append(form);target.append(wrapper);
  }
 }

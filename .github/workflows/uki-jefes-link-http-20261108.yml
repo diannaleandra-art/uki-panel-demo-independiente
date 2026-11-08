@@ -1,0 +1,23 @@
+name: Uki · enlace administración jefes HTTP sin datos
+on:
+  push:
+    branches:
+      - release/uki-mejoras-lote-20261108
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  enlace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Comprobar página pública de acceso (sin iniciar sesión)
+        run: |
+          set -euo pipefail
+          url='https://diannaleandra-art.github.io/uki-panel-demo-independiente/firebase/mi-administracion.html'
+          code="$(curl --location --silent --show-error --output /tmp/uki-jefes.html --write-out '%{http_code}' --max-time 16 "$url")"
+          printf 'Administración de jefes (página HTML, sin login): HTTP %s\n' "$code"
+          test "$code" = 200
+          grep -q 'Mi Administración' /tmp/uki-jefes.html
+          grep -q 'Entrar con Google' /tmp/uki-jefes.html
+          echo 'Página pública de acceso encontrada. No se probó sesión privada.'

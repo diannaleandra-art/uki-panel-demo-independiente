@@ -75,7 +75,9 @@ module.exports=async function(req,res){
  let sql;try{sql=require('@neondatabase/serverless').neon(url);}catch{return fail(res,503,'Servicio no disponible');}
  try{
   if(req.method==='GET'){
-   const items=await listing(sql,branch);
+   // No enviar productos personalizados retirados al menú de los clientes;
+   // la lista administrativa conserva todos los registros para poder restaurarlos.
+   const items=(await listing(sql,branch)).filter(i=>!i.custom||i.available);
    return res.status(200).json({ok:true,branch,items});
   }
   if(origin!=='https://diannaleandra-art.github.io'&&!(qa(process.env)&&origin===QA_PANEL))
@@ -95,11 +97,20 @@ module.exports=async function(req,res){
    [branch,sku,input.kind,input.group,input.name,input.description,input.price,user.uid]);
    return res.status(201).json({ok:true,branch,item:rows[0]});
   }
-  if(!['editar-precio','editar-producto'].includes(action))return fail(res,400,'Acción no permitida');
+  if(!['editar-precio','editar-producto','retirar-producto','restaurar-producto'].includes(action))return fail(res,400,'Acción no permitida');
   const sku=String(req.body.sku||''),version=req.body.expected_version;
   if(!Number.isSafeInteger(version)||version<0||!sku||sku.length>120)return fail(res,400,'Actualiza la lista y vuelve a intentar');
   const items=await listing(sql,branch),entry=items.find(x=>x.sku===sku);
   if(!entry)return fail(res,404,'Producto no encontrado');
+  if(action==='retirar-producto'||action==='restaurar-producto'){
+   if(!entry.custom)return fail(res,400,'Los productos originales se controlan con Disponible/Agotado; solo puedes retirar los que agregaste.');
+   const disponible=action==='restaurar-producto';
+   if(entry.available===disponible)return fail(res,409,'El producto ya tiene ese estado. Actualiza la lista.');
+   const changed=await sql.query('UPDATE public.uki_carta_productos_custom_v1 SET available=$3,version=version+1,updated_by=$5,updated_at=NOW() WHERE branch=$1 AND sku=$2 AND available IS DISTINCT FROM $3 AND version=$4 RETURNING sku,available,version',
+    [branch,sku,disponible,version,user.uid]);
+   if(!changed.length)return fail(res,409,'El producto cambió. Actualiza antes de continuar.');
+   return res.status(200).json({ok:true,branch,item:changed[0]});
+  }
   if(!goodPrice(req.body.price))return fail(res,400,'Precio inválido');
   let rows;
   if(action==='editar-precio')rows=await modifyPrice(sql,branch,entry,req.body.price,version,user.uid);
