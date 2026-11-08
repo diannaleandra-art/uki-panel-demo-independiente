@@ -3,7 +3,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const html=fs.readFileSync('firebase/uki-sushi-local.html','utf8');
 test('La reorganización conserva llamadas de operaciones, pagos y esperas',()=>{
  for(const key of ['ukiPausarPedido()','ukiRetomarBorrador(','ukiWhatsAppRechazar(','ukiWhatsAppAceptarYRevisar(','ndGuardar()','ukiDatosPago(D,sub)','ukiErrorDistribucionPago','ukiCajaAcumulada','ukiQRPermitirCobroDefinitivo']) assert.ok(html.includes(key),key);
- for(const label of ['Revisar solicitud','Dejar abierto y atender otro','Ver mensaje original y opciones de ingreso','1 · Cliente y entrega','2 · Productos y total','3 · Pago del pedido','Guardar pedido · por cobrar','Guardar pedido · pago confirmado'])assert.ok(html.includes(label),label);
+ for(const label of ['Revisar solicitud','Dejar abierto y atender otro','Ver mensaje original','1 · Cliente y entrega','2 · Productos y total','3 · Pago del pedido','Guardar pedido · por cobrar','Guardar pedido · pago confirmado'])assert.ok(html.includes(label),label);
  assert.doesNotMatch(html,/✅ Guardar pedido \+1 timbre/);
 });
 test('Orden visual: filtros antes de recibidos, esperas y pedidos registrados',()=>{

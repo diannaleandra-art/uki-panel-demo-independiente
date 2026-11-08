@@ -56,3 +56,15 @@ test('el formulario utiliza el mismo botón de guardado y no crea otro flujo',()
  assert.match(code,/onchange="D\.pagado=this\.checked;render\(\)"/);
  assert.match(code,/ukiPagoUI\("productos",sub\)/);
 });
+
+test('Una solicitud ya recibida no invita a pegarla o registrarla nuevamente',()=>{
+ const recibido=renderNuevo({modo:'whatsapp',modalidad:'Retiro',carta:true});
+ const nuevo=renderNuevo({modo:'whatsapp',modalidad:'Retiro',carta:false});
+ assert.match(recibido,/Ver mensaje original/);
+ assert.doesNotMatch(recibido,/Procesar pedido pegado/);
+ assert.doesNotMatch(recibido,/Guardar solicitud existente/);
+ assert.doesNotMatch(recibido,/aria-label="Modo de ingresar pedido"/);
+ assert.match(nuevo,/Procesar pedido pegado/);
+ assert.match(nuevo,/Guardar solicitud existente/);
+ assert.match(nuevo,/aria-label="Modo de ingresar pedido"/);
+});
