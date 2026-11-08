@@ -78,7 +78,7 @@ test('Historial identifica compras por pedido y conserva nombres anteriores',()=
  assert.match(html,/const ids=new Set\(pedidosHist\(cli\.nombre,cli\.codigoCliente,cli\.telefono\)/);
 });
 test('Sin WhatsApp se permite completar después y no se exige enviar',()=>{
- for(const x of ['tieneWhatsApp','Completar WhatsApp','El WhatsApp es opcional',
+ for(const x of ['tieneWhatsApp','📋 Copiar aviso','El WhatsApp es opcional',
   'const key=Object.keys(S.clientes).find(k=>S.clientes[k]===cli)'])
   assert.ok(html.includes(x),x);
 });
