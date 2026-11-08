@@ -905,6 +905,8 @@ function ukiQuitarBorradorActivo(){
  ukiBorradorActivo=null;
 }
 function ukiVistaBorradores(){
+ // En edición no presentar borradores vacíos ni botón de abrir otro.
+ if(D.editando)return '';
  const list=ukiBorradoresSucursal();
  const items=list.map(b=>{
   const d=b.datos||{},ref=String(d.mesaReferencia||d.cliente||"").trim();
@@ -1284,9 +1286,9 @@ function vNuevo(){
   const ventasCli=cli?ventasValidas(cli):0;
   const revisandoSolicitud=!D.editando&&!!(D.cartaSolicitudRemotaId||ukiSolicitudWhatsAppActiva);
    const entregaUI=`<label>Tipo de entrega</label><div class="chips">${["Retiro","Delivery","Consumo en local"].map(m=>`<button ${chip(D.modalidad===m)} onclick="setModalidad('${m}')">${m}</button>`).join("")}</div>${D.modalidad==="Consumo en local"?`<label>Mesa o referencia (opcional)</label><input maxlength="50" value="${esc(D.mesaReferencia||"")}" placeholder="Ej: Mesa 2" oninput="D.mesaReferencia=this.value">`:""}${D.modalidad==="Delivery"?`<label>💰 Valor delivery (se suma)</label><input type="number" inputmode="numeric" value="${D.envio||""}" placeholder="Ej: 2000" oninput="setEnvioManual(this.value)"><p class="muted" id="pedidoEnvioAyuda">Delivery seleccionado - ${D.envio||0} se suma al total</p>`:""}`;
-  return `<div class="section-head"><h2>${D.editando?`Editar pedido #${D.editando}`:revisandoSolicitud?"Revisar solicitud":"Nuevo pedido"}</h2><p>${revisandoSolicitud?"Solicitud recibida: verifica el detalle y la forma de entrega. Todavía NO es un pedido registrado ni un pago confirmado.":"Completa los datos y guarda el pedido una sola vez."}</p></div>
+  return `<div class="section-head"><h2>${D.editando?`Editar pedido #${D.editando}`:revisandoSolicitud?"Revisar solicitud":"Nuevo pedido"}</h2><p>${D.editando?"Corrige los datos y el medio de pago del pedido existente. Guardar cambios no genera otro pedido ni otro cobro.":revisandoSolicitud?"Solicitud recibida: verifica el detalle y la forma de entrega. Todavía NO es un pedido registrado ni un pago confirmado.":"Completa los datos y guarda el pedido una sola vez."}</p></div>
   ${ukiVistaBorradores()}
-  <details class="uki-modos-ingreso" ${revisandoSolicitud?'':'open'} style="margin:10px 0"><summary><b>${revisandoSolicitud?'Ver mensaje original':'Opciones de ingreso · WhatsApp o manual'}</b></summary>
+  <details class="uki-modos-ingreso" ${revisandoSolicitud?'':'open'} style="${D.editando?'display:none;':'margin:10px 0'}"><summary><b>${revisandoSolicitud?'Ver mensaje original':'Opciones de ingreso · WhatsApp o manual'}</b></summary>
    ${revisandoSolicitud?'':`<div class="mode-switch" role="group" aria-label="Modo de ingresar pedido"><button type="button" class="${modoNuevo==='whatsapp'?'selected':''}" onclick="cambiarModoNuevo('whatsapp')">📋 Pegar WhatsApp</button><button type="button" class="${modoNuevo==='manual'?'selected':''}" onclick="cambiarModoNuevo('manual')">✎ Manual</button></div>`}
 
   ${modoNuevo==='whatsapp'?`<div class="card"><h2>Texto del pedido</h2><p class="muted">Pega el mensaje de la carta digital y toca Procesar.</p><textarea id="pegaTxt" rows="4" placeholder="Pega aquí el pedido de WhatsApp" oninput="D.texto=this.value" onpaste="setTimeout(()=>{const el=document.getElementById('pegaTxt');if(el){D.texto=el.value;leerTextoD();}},150)">${esc(D.texto)}</textarea>${revisandoSolicitud?'':'<button class="big" onclick="leerTextoD()">Procesar pedido pegado</button>'}${revisandoSolicitud?'':ukiWhatsAppGuardarSolicitudBoton()}<p class="muted">Revisa nombre, WhatsApp, código de carta, productos, precio y delivery. Como solicitud no suma ventas.</p></div>`:`<div class="mini-help">Agrega los datos del pedido manualmente en el formulario siguiente.</div>`}
@@ -1383,7 +1385,7 @@ montoProductosOtroLocal:p.productosPagadosOtroLocal?Math.min(Number(p.subtotal)|
 envioPagadoOtroLocal:ukiMontoEnvioOtroLocal(p,Number(p.envio)||0,Number(p.subtotal)||0)>0,
 montoEnvioOtroLocal:p.montoEnvioOtroLocal??"",
 localPagoExterno:p.localPagoExterno||"",propinaModo:p.propinaModo||((Number(p.propina)||0)>0?"otro":"ninguna"),propinaPersonalizada:p.propinaModo==="otro"||!p.propinaModo?p.propina||"": "",medioPropina:p.medioPropina||"Efectivo",
-items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}]; ir("nuevo"); aviso(`Editando pedido #${id}`);}
+items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}]; modoNuevo="manual";ir("nuevo"); aviso(`Editando pedido #${id}`);}
 function reanalizar(){leerTextoD();}
 
 // La propina es opcional (sugerencia 10% de productos), fuera de la venta.
@@ -3394,6 +3396,31 @@ function vPedidos(){
 }
 let pedidoExpandido=null;
 
+
+/* Una corrección de datos/pagos de un QR ya cobrado NO es otro cobro QR.
+ * La identidad y el importe original se mantienen inalterados.
+ * El control del primer cobro y la validación de pagos siguen siendo obligatorios.
+ */
+function ukiQREsCorreccionDePagoExistente(d,original){
+ return !!(original&&original.suc===S.suc&&original.pagado===true&&d.pagado===true&&
+  Array.isArray(original.qrSolicitudes)&&original.qrSolicitudes.length>0);
+}
+function ukiQRPagoEditadoConservaCuenta(d,original){
+ if(!ukiQREsCorreccionDePagoExistente(d,original))return false;
+ const ids=v=>[...new Set((Array.isArray(v)?v:[]).map(q=>String(q).replace(/^MESA-/i,'').toLowerCase()))].sort().join('|');
+ if(!Array.isArray(d.qrSolicitudes)||ids(d.qrSolicitudes)!==ids(original.qrSolicitudes))return false;
+ if(d.modalidad!=='Consumo en local'||original.modalidad!==d.modalidad)return false;
+ const mesaOriginal=ukiMesaNumeroReferencia(original.mesaReferencia);
+ if(!mesaOriginal||ukiMesaNumeroReferencia(d.mesaReferencia)!==mesaOriginal)return false;
+ const sub=(d.items||[]).filter(x=>x.nombre).reduce((sum,x)=>sum+Number(x.cant||0)*Number(x.precio||0),0);
+ const propina=ukiMontoPropina(d,sub);
+ return Number.isSafeInteger(sub)&&sub>=0&&
+  sub===Number(original.subtotal)&&
+  Number(d.envio||0)===Number(original.envio||0)&&
+  propina===Number(original.propina||0)&&
+  sub+Number(d.envio||0)+propina===Number(original.total);
+}
+
 let ukiQRComprobandoCobro=false;
 async function ukiQRPermitirCobroDefinitivo(d){
  if(!d.pagado||UKI_MESAS_ENDPOINT!==UKI_MESAS_LIVE_URL||
@@ -3443,8 +3470,16 @@ async function ndGuardar(){
   ukiGuardadoSolicitudEnCurso=true;
   try{
   if(ukiQRComprobandoCobro)return;
+  const originalQR=D.editando?S.pedidos.find(p=>p.suc===S.suc&&p.id===D.editando):null;
+  if(D.editando&&!originalQR){
+    aviso('No se encontró el pedido original. Actualiza la lista antes de editar.');return;
+  }
+  const editandoPagoQRConfirmado=ukiQREsCorreccionDePagoExistente(D,originalQR);
+  if(editandoPagoQRConfirmado&&!ukiQRPagoEditadoConservaCuenta(D,originalQR)){
+    aviso('Este QR ya fue cobrado. Para corregir datos o medio de pago conserva mesa, rondas y montos originales. No se modificó la caja.');return;
+  }
   if(D.pagado&&Array.isArray(D.qrSolicitudes)&&D.qrSolicitudes.length&&
-     UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL){
+     UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL&&!editandoPagoQRConfirmado){
    ukiQRComprobandoCobro=true;
    const firma=JSON.stringify({sucursal:S.suc,datos:D});
    let permitir=false;
