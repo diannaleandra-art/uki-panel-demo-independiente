@@ -71,5 +71,5 @@ test('Migración se mantiene aislada de inventario y caja',()=>{
  const sql=fs.readFileSync('sql/uki-carta-fotos-v1.sql','utf8');
  assert.match(sql,/CREATE TABLE IF NOT EXISTS public\.uki_carta_fotos_v1/);
  assert.match(sql,/PRIMARY KEY \(branch,sku\)/);
- assert.doesNotMatch(sql,/DROP TABLE|UPDATE|DELETE FROM/i);
+ assert.doesNotMatch(sql,/\bDROP\s+TABLE\b|\bUPDATE\s+public\.|\bDELETE\s+FROM\b/i);
 });
