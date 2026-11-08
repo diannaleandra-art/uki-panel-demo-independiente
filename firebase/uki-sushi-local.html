@@ -1907,7 +1907,7 @@ function savePD(){
  caja.pagoDeliveryConceptoAnterior=anterior>0?concepto:'';
  // Compatibilidad con cierres e informes existentes: el importe global refleja ambos pagos.
  caja.pagoDelivery=dia+anterior;
- caja.pagoDeliveryMedio=medioDia===medioAnterior?medioDia:'Mixto';
+ caja.pagoDeliveryMedio=anterior>0&&dia>0&&medioDia!==medioAnterior?'Mixto':dia>0?medioDia:medioAnterior;
  aviso('Pagos al repartidor guardados: del turno '+fmt(dia)+' · saldos anteriores '+fmt(anterior)+'.');
  render();
 }
@@ -3477,6 +3477,10 @@ function descargarPDF(tipo){
       txt+=`Venta con delivery: $${x.venta}\nVenta sin delivery: $${x.ventaSinDelivery}\n`;
       txt+=`Base: $${x.base||0} - Deliveries: $${x.envios||0} (${x.enviosPedidos||0}+${x.enviosManuales||0})\n`;
       txt+=`Gastos: $${x.gastos} - Delivery pagado: $${x.pagadoDelivery} (${x.pagoDeliveryMedio})\n`;
+      if(x.pagoDeliveryDia!==undefined){
+        txt+=`Pago repartos del día: $${x.pagoDeliveryDia||0} (${x.pagoDeliveryMedioDia||'Efectivo'})\n`;
+        txt+=`Abono saldos anteriores: $${x.pagoDeliveryAnterior||0} (${x.pagoDeliveryMedioAnterior||'Efectivo'}) · ${x.pagoDeliveryConceptoAnterior||'Sin saldo anterior'}\n`;
+      }
       txt+=`Total final: $${x.final} - Efectivo quedó: $${x.efectivo}\n`;
       if(x.obs) txt+=`Obs: ${x.obs}\n`;
       txt+="\n--- DESGLOSE DEL CIERRE ---\n";
@@ -3495,6 +3499,8 @@ function descargarPDF(tipo){
     txt+=`Deliveries para repartidor: ${fmt(t.envios)} (${t.enviosPedidos} pedidos + ${t.enviosManuales} manuales)\nCobrado por delivery en Uki: ${fmt(t.enviosCobradosUki)}\nCobrado por delivery fuera de Uki: ${fmt(t.enviosCobradosOtroLocal)}\n`;
     txt+=`Repartidor: ${ukiNombreRepartidorTurno(caja)||"Sin indicar"}\nBase diaria: ${fmt(caja.base)}\nTotal delivery (base+envios): ${fmt(caja.base+t.envios)}\n`;
     txt+=`Pago a delivery (${caja.pagoDeliveryMedio}): ${fmt(t.pagoDelivery)}\n`;
+    txt+=`  Repartos del día: ${fmt(t.pagoDeliveryDia)} (${t.pagoDeliveryMedioDia})\n`;
+    txt+=`  Abono saldos anteriores: ${fmt(t.pagoDeliveryAnterior)} (${t.pagoDeliveryMedioAnterior}) · ${t.pagoDeliveryConceptoAnterior||'Sin abono'}\n`;
     txt+=`Gastos: ${fmt(t.gastosTotal)}\nVenta - gastos: ${fmt(t.totalMedios-t.gastosTotal)}\n`;
     txt+=`Total final: ${fmt(t.final)}\nEfectivo queda: ${fmt(t.efectivoCaja)}\nPropinas: ${fmt(t.propinas)}\n`;
     descargarTextoArchivo(`cierre-${S.suc}-${new Date().toISOString().slice(0,10)}.txt`, txt, "text/plain");
@@ -3535,6 +3541,8 @@ function descargarExcel(tipo){
     csv+=`Venta con delivery;${t.totalMedios};\nVenta sin delivery;${t.ventaSinDelivery};\n`;
     csv+=`Base diaria;${caja.base};\nDeliveries pedidos;${t.enviosPedidos};\nDeliveries manuales;${t.enviosManuales};\nTotal deliveries para repartidor;${t.envios};\nDelivery cobrado en Uki;${t.enviosCobradosUki};\nDelivery cobrado en otro local;${t.enviosCobradosOtroLocal};\nTotal delivery (base+envios);${caja.base+t.envios};\n`;
     csv+=`Pago a delivery (${csvSeguro(caja.pagoDeliveryMedio)});${t.pagoDelivery};\n`;
+    csv+=`Pago reparto del día;${t.pagoDeliveryDia};${csvSeguro(t.pagoDeliveryMedioDia)}\n`;
+    csv+=`Abono saldos anteriores;${t.pagoDeliveryAnterior};${csvSeguro(t.pagoDeliveryMedioAnterior+' · '+t.pagoDeliveryConceptoAnterior)}\n`;
     csv+=`Gastos total;${t.gastosTotal};\nVenta - gastos;${t.totalMedios-t.gastosTotal};\n`;
     csv+=`Total final;${t.final};\nEfectivo queda;${t.efectivoCaja};\nPropinas;${t.propinas};\n`;
     descargarTextoArchivo(`cierre-${S.suc}-${new Date().toISOString().slice(0,10)}.csv`, csv, "text/csv;charset=utf-8");
@@ -3606,6 +3614,11 @@ function compartirWhatsAppCierre(){
     "Delivery cobrado: "+fmt(envios),
     "Base diaria: "+fmt(cierre?cierre.base:caja.base),
     "Pago a repartidor: "+fmt(pagadoDelivery),
+    ...(!cierre||cierre.pagoDeliveryDia!==undefined?[
+      "  Repartos del día: "+fmt(cierre?cierre.pagoDeliveryDia:t.pagoDeliveryDia)+" ("+(cierre?cierre.pagoDeliveryMedioDia:t.pagoDeliveryMedioDia)+")",
+      "  Saldos anteriores: "+fmt(cierre?cierre.pagoDeliveryAnterior:t.pagoDeliveryAnterior)+" ("+(cierre?cierre.pagoDeliveryMedioAnterior:t.pagoDeliveryMedioAnterior)+")",
+      ...((cierre?cierre.pagoDeliveryAnterior:t.pagoDeliveryAnterior)>0?["  Concepto saldo: "+(cierre?cierre.pagoDeliveryConceptoAnterior:t.pagoDeliveryConceptoAnterior)]:[])
+    ]:[]),
     "",
     "Gastos: "+fmt(gastos),
     ...(detalleGastos.length?["*DETALLE DE GASTOS*",...detalleGastos.slice(0,25),...(detalleGastos.length>25?["Ver historial para el resto"]:[])]:[]),
