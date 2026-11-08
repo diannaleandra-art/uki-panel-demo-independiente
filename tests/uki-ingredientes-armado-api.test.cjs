@@ -1,6 +1,6 @@
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
-const {validateItem,enabled}=require('../api/uki-ingredientes-armado-live.js')._test;
+const {validateItem,enabled,allow}=require('../api/uki-ingredientes-armado-live.js')._test;
 const sample=(extra={})=>({name:'Frutilla',category:'vegetal',surcharge:0,available:true,surfaces:['classic','premium'],...extra});
 test('Incluido, recargo y selección de preparaciones validan sin inventar precios',()=>{
  assert.equal(validateItem(sample()).surcharge,0);
@@ -27,4 +27,17 @@ test('Sin acceso a caja ni inventario para registrar ingredientes',()=>{
  assert.match(api,/userFromToken/);
  assert.match(api,/userFromToken/);
  assert.doesNotMatch(api,/INSERT INTO.*(?:uki_pedidos|uki_inventario_items)/i);
+});
+
+test('La carta QA aislada puede leer ingredientes; no se abre el origen en producción',()=>{
+ const qa={VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'preparacion/uki-publicacion-unificada-2026-11-07',UKI_INVENTARIO_QA_ENABLED:'true'};
+ const prod={VERCEL_ENV:'production',UKI_INGREDIENTES_ARMADO_ENABLED:'true'};
+ for(const origin of [
+  'https://uki-sushi-carta-prueba.vercel.app',
+  'https://uki-sushi-carta-prueba-qacarta-diannaleandra-7046.vercel.app',
+ ]){
+  assert.equal(allow(origin,qa),true);
+  assert.equal(allow(origin,prod),false);
+ }
+ assert.equal(allow('https://carta-ajena.example',qa),false);
 });
