@@ -70,6 +70,18 @@ module.exports=async function(req,res){
   if(!uid)return error(res,403,'Solo administración Google autorizada');
   const action=String(req.body.action||'');
   if(action==='listar')return res.status(200).json({ok:true,branch,items:await listing(sql,branch)});
+  // Retirar no borra una preparación antigua ni altera stock/caja.
+  // La carta usa available=false para ocultar esta opción, el editor permite restaurarla.
+  if(action==='retirar'||action==='restaurar'){
+   const sku=String(req.body.sku||''),version=req.body.expected_version;
+   if(!/^armado:(vegetal|proteina|envoltura):[0-9a-f-]{13}$/i.test(sku)||!Number.isSafeInteger(version)||version<1)
+    return error(res,400,'Actualiza el ingrediente antes de continuar');
+   const available=action==='restaurar';
+   const changed=await sql.query('UPDATE public.uki_armado_ingredientes_v1 SET available=$4,version=version+1,updated_by=$5,updated_at=now() WHERE branch=$1 AND sku=$2 AND version=$3 AND available IS DISTINCT FROM $4 RETURNING sku,available,version',
+    [branch,sku,version,available,uid]);
+   if(!changed.length)return error(res,409,'La opción ya cambió. Actualiza la lista.');
+   return res.status(200).json({ok:true,branch,sku,available,version:Number(changed[0].version)});
+  }
   const item=validateItem(req.body.item);
   if(!item)return error(res,400,'Revisa ingrediente, categoría, recargo y preparaciones');
   if(action==='crear'){
