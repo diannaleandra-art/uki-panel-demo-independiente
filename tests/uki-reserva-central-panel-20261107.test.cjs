@@ -56,3 +56,13 @@ test('preservar pago mixto, cierres y detalle sin nuevo formulario',()=>{
   assert.ok(html.includes(x)||remota.includes(x),x);
  }
 });
+
+test('doble clic y cambio de formulario durante reserva no generan dos ventas',()=>{
+ assert.match(html,/if\(ukiGuardadoSolicitudEnCurso\)return/);
+ assert.match(html,/ukiGuardadoSolicitudEnCurso=true/);
+ assert.match(html,/finally\{ukiGuardadoSolicitudEnCurso=false;\}/);
+ assert.match(html,/firmaAntesReserva!==JSON\.stringify\(\{sucursal:S\.suc,datos:D\}\)/);
+ const guard=html.indexOf('if((S.pedidos||[]).some(p=>p.suc===S.suc&&String(p.cartaSolicitudRemotaId||');
+ const add=html.indexOf('S.pedidos.push(nuevoPedido)');
+ assert.ok(guard>0&&add>guard);
+});
