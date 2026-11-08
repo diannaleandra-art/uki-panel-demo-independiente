@@ -22,7 +22,8 @@ function createContext(){
 }
 test('Pegar WhatsApp: rechaza si el folio ya está en la bandeja automática',()=>{
  const x=createContext();
- assert.match(x.ukiSolicitudAutomaticaYaRecibida({codigoCarta:'246'}),/ya está en Pedidos/);
+ assert.match(x.ukiSolicitudAutomaticaYaRecibida({codigoCarta:'246',texto:'UKI SUSHI - Pedido 246 / Cliente'}),/ya está en Pedidos/);
+ assert.equal(x.ukiSolicitudAutomaticaYaRecibida({codigoCarta:'246'}),''); // Folio solo no basta.
  assert.equal(x.ukiSolicitudAutomaticaYaRecibida({codigoCarta:'999'}),'');
  assert.equal(x.ukiSolicitudAutomaticaYaRecibida({codigoCarta:'250'}),'');
  assert.equal(x.ukiSolicitudAutomaticaYaRecibida({codigoCarta:'246'},'auto-one'),'');
