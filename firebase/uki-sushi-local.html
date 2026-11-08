@@ -1509,10 +1509,8 @@ function ukiTimbrePedidoUI(p){
 }
 function ukiUltimoPedidoConTimbre(cli){
  if(!cli)return null;
- const clave=claveCliente(cli.nombre,cli.codigoCliente,cli.telefono);
- const numero=ukiTelefonoNormalizado(cli.telefono);
- return pedidosSuc().filter(p=>ukiPedidoDaTimbre(p)&&ukiTextoBusqueda(p.cliente)===ukiTextoBusqueda(cli.nombre)&&
-  (numero.length>=8?ukiTelefonoNormalizado(p.telefono)===numero:claveCliente(p.cliente,p.codigoCliente,p.telefono)===clave))
+ const ids=new Set(pedidosHist(cli.nombre,cli.codigoCliente,cli.telefono).map(p=>Number(p.id)));
+ return pedidosSuc().filter(p=>ukiPedidoDaTimbre(p)&&ids.has(Number(p.id)))
   .sort((a,b)=>fechaRegistroMs(b)-fechaRegistroMs(a)||(Number(b.id)||0)-(Number(a.id)||0))[0]||null;
 }
 
@@ -1618,13 +1616,20 @@ function claveCliente(nombre,codigo="",telefono=""){
 // coinciden nombre y número COMPLETO de WhatsApp, aunque antes se digitara otro código.
 function ukiClaveClienteExistente(nombre,codigo="",telefono=""){
  const exacta=claveCliente(nombre,codigo,telefono);
+ const n=ukiTextoBusqueda(nombre),numero=ukiTelefonoNormalizado(telefono);
+ const perfiles=Object.entries(S.clientes||{}).filter(([,c])=>{
+  if(ukiTextoBusqueda(c.nombre)!==n)return false;
+  const t=ukiTelefonoNormalizado(c.telefono);
+  if(numero.length>=8)return t===numero;
+  if(t.length>=8)return false;
+  const cod=String(codigo||"").trim();
+  return !cod||ukiCodigoClienteVisible(c)===cod;
+ });
+ if(perfiles.length===1)return perfiles[0][0];
+ if(perfiles.length>1)return null; // No fusionar dos tarjetas con nombres coincidentes.
  if(Object.prototype.hasOwnProperty.call(S.clientes||{},exacta)&&
-  ukiTextoBusqueda(S.clientes[exacta].nombre)===ukiTextoBusqueda(nombre))return exacta;
- const numero=ukiTelefonoNormalizado(telefono);
- if(numero.length<8)return null;
- const iguales=Object.entries(S.clientes||{}).filter(([,c])=>
-  ukiTelefonoNormalizado(c.telefono)===numero&&ukiTextoBusqueda(c.nombre)===ukiTextoBusqueda(nombre));
- return iguales.length===1?iguales[0][0]:null;
+    ukiTextoBusqueda(S.clientes[exacta].nombre)===n)return exacta;
+ return null;
 }
 function getCliente(nombre,codigo="",telefono=""){
  if(!nombre)return null;
@@ -1669,11 +1674,21 @@ function ventasValidas(cli){
 /* Historial por cliente; solo lee registros, no modifica calculos de timbres. */
 const nombreHist=n=>String(n||"").trim().toLocaleLowerCase("es-CL");
 function pedidosHist(nombre,codigo="",telefono=""){
- const numero=ukiTelefonoNormalizado(telefono),id=claveCliente(nombre,codigo,telefono);
- return (S.pedidos||[]).filter(p=>ukiTextoBusqueda(p.cliente)===ukiTextoBusqueda(nombre)&&
-  (numero.length>=8?ukiTelefonoNormalizado(p.telefono)===numero:
-    claveCliente(p.cliente,p.codigoCliente,p.telefono)===id))
-  .slice().sort((a,b)=>String(b.fechaISO||"").localeCompare(String(a.fechaISO||"")));
+ const perfil=getCliente(nombre,codigo,telefono);
+ const ids=new Set((perfil?.movimientos||[]).map(m=>Number(m.pedidoId)).filter(n=>Number.isSafeInteger(n)&&n>0));
+ const identidades=[{nombre,codigoCliente:codigo,telefono},...(perfil?.identidadesAnteriores||[])];
+ return (S.pedidos||[]).filter(p=>{
+  if(p.suc!==S.suc)return false;
+  if(ids.has(Number(p.id)))return true; // Venta ya vinculada: no perderla por corregir el nombre.
+  return identidades.some(d=>{
+   if(ukiTextoBusqueda(p.cliente)!==ukiTextoBusqueda(d.nombre))return false;
+   const numero=ukiTelefonoNormalizado(d.telefono);
+   if(numero.length>=8)return ukiTelefonoNormalizado(p.telefono)===numero;
+   if(ukiTelefonoNormalizado(p.telefono).length>=8)return false;
+   const cod=String(d.codigoCliente||"").trim();
+   return !cod||!String(p.codigoCliente||"").trim()||String(p.codigoCliente).trim()===cod;
+  });
+ }).slice().sort((a,b)=>String(b.fechaISO||"").localeCompare(String(a.fechaISO||"")));
 }
 function fichaHistorial(cli){
   const pedidos=pedidosHist(cli.nombre,cli.codigoCliente,cli.telefono), compras=pedidos.filter(p=>!p.esPremio&&p.estado!=="Cancelado");
@@ -1713,6 +1728,9 @@ function fichaHistorial(cli){
   }).join('');
   return '<details class="inner-details" style="margin-top:12px"><summary><b>📚 Ver historial del cliente</b> · '+compras.length+' compras</summary>'
     +'<div style="padding:10px 0">'
+    +'<div class="row"><span>Nombre y apellido</span><b>'+esc(cli.nombre||"Sin registrar")+'</b></div>'
+    +'<div class="row"><span>WhatsApp</span><b>'+esc(cli.telefono||"Sin registrar")+'</b></div>'
+    +'<div class="row"><span>Código cliente</span><b>'+esc(ukiCodigoClienteVisible(cli)||"Sin registrar")+'</b></div>'
     +'<div class="row"><span>Compras registradas</span><b>'+compras.length+'</b></div>'
     +'<div class="row"><span>Total productos</span><b>'+fmt(compras.reduce((n,p)=>n+(+p.subtotal||0),0))+'</b></div>'
     +'<div class="row"><span>Reclamos</span><b>'+inc.length+'</b></div>'
@@ -1760,6 +1778,58 @@ function buscarTimbresPorFecha(){
       :'<p class="muted">Selecciona una fecha para ver pedidos, timbres y canjes, sin modificar los acumulados.</p>')+
     '</div></details>';
 }
+// La tarjeta es válida sin WhatsApp; los datos se completan sin tocar ventas ni timbres.
+function ukiWhatsAppClienteValido(telefono){
+ const valor=String(telefono||"").trim();
+ if(!valor)return true; // Dato opcional.
+ const numero=ukiTelefonoNormalizado(valor);
+ return /^569\d{8}$/.test(numero)||(/^\+/.test(valor)&&/^[1-9]\d{9,14}$/.test(numero));
+}
+function ukiAbrirDatosCliente(key){
+ const editor=Array.from(document.querySelectorAll("details[data-uki-cliente-datos]"))
+  .find(e=>e.getAttribute("data-uki-cliente-datos")===key);
+ if(!editor)return;
+ editor.open=true;
+ editor.scrollIntoView({behavior:"smooth",block:"center"});
+}
+function ukiGuardarDatosCliente(key,boton){
+ if(!S.suc||S.busy||!window.ukiCancelacionNubeLista?.()){
+  aviso("Primero comprueba que la nube esté sincronizada. No se cambiaron los datos.");return;
+ }
+ const cli=S.clientes?.[key],editor=boton?.closest("details");
+ if(!cli||!editor){aviso("La tarjeta no está disponible. Actualiza el panel.");return;}
+ const nombre=String(editor.querySelector('[data-uki-cliente-campo="nombre"]')?.value||"").trim().replace(/\s+/g," ");
+ const telefono=String(editor.querySelector('[data-uki-cliente-campo="telefono"]')?.value||"").trim();
+ const codigoManual=String(editor.querySelector('[data-uki-cliente-campo="codigo"]')?.value||"").trim();
+ if(nombre.length<2||nombre.length>90){aviso("Escribe el nombre y apellido del cliente (máximo 90 caracteres).");return;}
+ if(telefono.length>30||!ukiWhatsAppClienteValido(telefono)){
+  aviso("WhatsApp inválido. Usa +56 9 XXXX XXXX o déjalo vacío para completar después.");return;
+ }
+ if(codigoManual&&!/^\d{4}$/.test(codigoManual)){
+  aviso("El código debe tener 4 números, o estar vacío si aún no tienes WhatsApp.");return;
+ }
+ const numero=ukiTelefonoNormalizado(telefono);
+ const codigo=numero.length>=8?numero.slice(-4):codigoManual;
+ const duplicado=Object.entries(S.clientes||{}).find(([otro,c])=>otro!==key&&
+  (numero.length>=8?ukiTelefonoNormalizado(c.telefono)===numero:
+   !ukiTelefonoNormalizado(c.telefono)&&ukiTextoBusqueda(c.nombre)===ukiTextoBusqueda(nombre)&&
+   String(c.codigoCliente||"").trim()===codigo));
+ if(duplicado){aviso("Ya existe otra tarjeta con esos datos. No se unificaron timbres. Revisa la ficha antes de guardar.");return;}
+ const antes={nombre:cli.nombre||"",telefono:cli.telefono||"",codigoCliente:cli.codigoCliente||""};
+ if(ukiTextoBusqueda(antes.nombre)===ukiTextoBusqueda(nombre)&&
+    ukiTelefonoNormalizado(antes.telefono)===numero&&String(antes.codigoCliente)===codigo){
+  aviso("Los datos del cliente ya están actualizados.");return;
+ }
+ if(!Array.isArray(cli.identidadesAnteriores))cli.identidadesAnteriores=[];
+ if(!cli.identidadesAnteriores.some(x=>x.nombre===antes.nombre&&x.telefono===antes.telefono&&x.codigoCliente===antes.codigoCliente))
+  cli.identidadesAnteriores.push(antes);
+ if(cli.identidadesAnteriores.length>30)cli.identidadesAnteriores=cli.identidadesAnteriores.slice(-30);
+ // Conservar la misma clave estable, movimientos, compras, canjes y pedidos.
+ cli.nombre=nombre;cli.telefono=telefono;cli.codigoCliente=codigo;
+ cli.datosActualizadosEn=new Date().toISOString();
+ guardarEnLocalStorage();
+ aviso("Datos del cliente guardados. Timbres, premios e historial se conservaron. Comprueba «Nube: sincronizado».");
+}
 function vClientes(){
   if(!S.suc) return vInicio();
   const buscar=String(S.filtroCliente||"").trim();
@@ -1795,14 +1865,24 @@ function vClientes(){
     <div style="padding-top:10px">${dias.length?dias.slice(0,30).map(([f,conjunto])=>`<button class="sm" style="display:block;width:100%;margin:6px 0;text-align:left" onclick="verDiaTimbres('${esc(f)}')">📅 ${esc(f)} · ${conjunto.size} cliente${conjunto.size===1?'':'s'}</button>`).join(''):'<p class="muted">Aún no hay movimientos de días anteriores.</p>'}
     ${dias.length>30?'<p class="muted">Para fechas más antiguas utiliza el calendario.</p>':''}</div></details>
   ${lista.length?lista.map(cli=>{
-    const key=ukiClaveClienteExistente(cli.nombre,cli.codigoCliente,cli.telefono)||
+    // La clave interna no cambia al completar nombre, WhatsApp o código.
+    const key=Object.keys(S.clientes).find(k=>S.clientes[k]===cli)||
+      ukiClaveClienteExistente(cli.nombre,cli.codigoCliente,cli.telefono)||
       claveCliente(cli.nombre,cli.codigoCliente,cli.telefono);
     const keyArg=esc(JSON.stringify(key));
     const ventas=ventasValidas(cli);
     const puede6=ventas>=6 && !cli.canje6;
     const puede10=ventas>=10;
     const ultimoTimbre=ukiUltimoPedidoConTimbre(cli);
-    return `<div class="card" style="${puede10?'border:2px solid #111':puede6?'border:2px solid var(--ok)':''}"><h2>${esc(cli.nombre)} ${ukiCodigoClienteVisible(cli)?`<span class="tag">Código ${esc(ukiCodigoClienteVisible(cli))}</span>`:""} <span class="tag">🎫 ${ventas}/10 timbres</span> ${puede6?'<span class="tag" style="background:var(--ok);color:#fff">🎁 12 piezas listo!</span>':''} ${puede10?'<span class="tag" style="background:#111;color:#fff">🎉 36+2 korokes listo!</span>':''}</h2><p class="muted">${cli.pedidos} pedidos · Gastado ${fmt(cli.gastado)} · Último ${esc(cli.ultimo||"")}</p><div class="tarjeta">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventas?'lleno':''} ${i===5?'premio':''} ${i===9?'premio':''}" title="${i===5?'6 ventas = 12 piezas':i===9?'10 ventas = 36+2 korokes':''}">${i<ventas?'✓':i+1}${i===5?'<br><small style="font-size:8px">12p</small>':''}${i===9?'<br><small style="font-size:7px">36+2k</small>':''}</div>`).join("")}</div><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"><button class="sm ok" onclick="avisarTimbres(${keyArg})">📲 Avisar por WhatsApp</button><button class="sm ok" onclick="compartirImagenTimbres(${keyArg})">🖼️ Compartir tarjeta</button>${ultimoTimbre?`<button class="sm" onclick="ukiMarcarTimbreEnviado(${ultimoTimbre.id})">${ultimoTimbre.timbreEnviadoEn?'✅ Timbre enviado':'☐ Marcar timbre enviado'}</button>`:""}${puede6?`<button class="sm ok" onclick="canjear12(${keyArg})">🎁 Canjear 12 piezas (6)</button>`:''}${puede10?`<button class="sm" style="background:#111;color:#fff" onclick="canjear36(${keyArg})">🎉 Canjear 36+2 korokes (10)</button>`:''}<button class="sm" onclick="D.cliente=${esc(JSON.stringify(cli.nombre))};D.codigoCliente=${esc(JSON.stringify(ukiCodigoClienteVisible(cli)))};D.telefono=${esc(JSON.stringify(cli.telefono||''))};ir('nuevo');">+ Pedido</button></div><details style="margin-top:8px"><summary class="muted">Ver historial timbres</summary>${(cli.movimientos||[]).slice(-15).reverse().map(m=>`<div class="row"><span>${m.tipo==='venta'?'🟢 Venta':m.tipo==='canje6'?'🔴 Canje 12 piezas':m.tipo==='canje10'?'🔴 Canje 36+2k':esc(m.tipo)} - ${new Date(m.fecha).toLocaleDateString('es-CL')} ${m.vence?'· Vence '+new Date(m.vence).toLocaleDateString('es-CL'):''}</span></div>`).join("")||"<p class='muted'>Sin movimientos</p>"}</details>${fichaHistorial(cli)}</div>`;
+    const tieneWhatsApp=!!String(cli.telefono||"").trim()&&ukiWhatsAppClienteValido(cli.telefono);
+    return `<div class="card" style="${puede10?'border:2px solid #111':puede6?'border:2px solid var(--ok)':''}"><h2>${esc(cli.nombre)} ${ukiCodigoClienteVisible(cli)?`<span class="tag">Código ${esc(ukiCodigoClienteVisible(cli))}</span>`:""} <span class="tag">🎫 ${ventas}/10 timbres</span> ${puede6?'<span class="tag" style="background:var(--ok);color:#fff">🎁 12 piezas listo!</span>':''} ${puede10?'<span class="tag" style="background:#111;color:#fff">🎉 36+2 korokes listo!</span>':''}</h2><p class="muted"><b>👤 Nombre:</b> ${esc(cli.nombre||"Sin registrar")} · <b>📱 WhatsApp:</b> ${esc(cli.telefono||"Sin registrar")} · <b>🔢 Código:</b> ${esc(ukiCodigoClienteVisible(cli)||"Sin registrar")}</p><p class="muted">${cli.pedidos} pedidos · Gastado ${fmt(cli.gastado)} · Último ${esc(cli.ultimo||"")}</p><div class="tarjeta">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventas?'lleno':''} ${i===5?'premio':''} ${i===9?'premio':''}" title="${i===5?'6 ventas = 12 piezas':i===9?'10 ventas = 36+2 korokes':''}">${i<ventas?'✓':i+1}${i===5?'<br><small style="font-size:8px">12p</small>':''}${i===9?'<br><small style="font-size:7px">36+2k</small>':''}</div>`).join("")}</div><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">${tieneWhatsApp?`<button class="sm ok" onclick="avisarTimbres(${keyArg})">📲 Avisar por WhatsApp</button>`:`<button class="sm" onclick="ukiAbrirDatosCliente(${keyArg})">＋ Completar WhatsApp</button>`}<button class="sm ok" onclick="compartirImagenTimbres(${keyArg})">🖼️ Compartir tarjeta</button>${ultimoTimbre?(tieneWhatsApp?`<button class="sm" onclick="ukiMarcarTimbreEnviado(${ultimoTimbre.id})">${ultimoTimbre.timbreEnviadoEn?'✅ Timbre enviado':'☐ Marcar timbre enviado'}</button>`:'<span class="tag">🎫 Timbre válido · falta WhatsApp para avisar</span>'):""}${puede6?`<button class="sm ok" onclick="canjear12(${keyArg})">🎁 Canjear 12 piezas (6)</button>`:''}${puede10?`<button class="sm" style="background:#111;color:#fff" onclick="canjear36(${keyArg})">🎉 Canjear 36+2 korokes (10)</button>`:''}<button class="sm" onclick="D.cliente=${esc(JSON.stringify(cli.nombre))};D.codigoCliente=${esc(JSON.stringify(ukiCodigoClienteVisible(cli)))};D.telefono=${esc(JSON.stringify(cli.telefono||''))};ir('nuevo');">+ Pedido</button></div><details class="inner-details" style="margin-top:10px" data-uki-cliente-datos="${esc(key)}"><summary><b>👤 Completar o editar datos del cliente</b></summary>
+    <p class="muted">El WhatsApp es opcional. La tarjeta y los timbres siguen siendo válidos sin él.</p>
+    <label>Nombre y apellido</label><input data-uki-cliente-campo="nombre" maxlength="90" value="${esc(cli.nombre||"")}" placeholder="Ej.: Sergio Pérez">
+    <label>WhatsApp (opcional)</label><input data-uki-cliente-campo="telefono" type="tel" inputmode="tel" maxlength="30" value="${esc(cli.telefono||"")}" placeholder="Sin registrar · +56 9 XXXX XXXX">
+    <label>Código cliente · 4 dígitos</label><input data-uki-cliente-campo="codigo" inputmode="numeric" maxlength="4" value="${esc(ukiCodigoClienteVisible(cli)||"")}" placeholder="Opcional · automático si hay WhatsApp">
+    <p class="muted">Cuando hay WhatsApp, el código se calcula con sus últimos 4 dígitos. El historial y los timbres no se eliminan al completar los datos.</p>
+    <button type="button" class="sm ok" onclick="ukiGuardarDatosCliente(${keyArg},this)">Guardar datos del cliente</button></details>
+    <details style="margin-top:8px"><summary class="muted">Ver historial timbres</summary>${(cli.movimientos||[]).slice(-15).reverse().map(m=>`<div class="row"><span>${m.tipo==='venta'?'🟢 Venta':m.tipo==='canje6'?'🔴 Canje 12 piezas':m.tipo==='canje10'?'🔴 Canje 36+2k':esc(m.tipo)} - ${new Date(m.fecha).toLocaleDateString('es-CL')} ${m.vence?'· Vence '+new Date(m.vence).toLocaleDateString('es-CL'):''}</span></div>`).join("")||"<p class='muted'>Sin movimientos</p>"}</details>${fichaHistorial(cli)}</div>`;
   }).join(""):`<div class="card muted">${buscar?'No se encontraron clientes.':'No hay tarjetas con movimientos en este turno o fecha. Busca por nombre para consultar cualquier tarjeta acumulada.'}</div>`}
   <details class="card"><summary style="cursor:pointer"><b>🏅 Ranking clientes frecuentes</b></summary>${Object.values(S.clientes).sort((a,b)=>b.pedidos-a.pedidos).slice(0,10).map((c,i)=>`<div class="row"><span>${i+1}. ${esc(c.nombre)} - ${ventasValidas(c)}/10 timbres</span><b>${c.pedidos} pedidos</b></div>`).join("")||"<p class='muted'>Sin datos</p>"}</details>`;
 }
@@ -1810,7 +1890,7 @@ function compartirImagenTimbres(key){
  const cli=S.clientes[key];
  if(!cli){aviso("No se encontró la tarjeta del cliente.");return;}
  if(!window.ukiTarjetaMostrar){aviso("La tarjeta todavía no está disponible. Actualiza la página.");return;}
- window.ukiTarjetaMostrar({nombre:cli.nombre,timbres:ventasValidas(cli),sucursal:S.suc,ultimaCompra:cli.ultimo||""});
+ window.ukiTarjetaMostrar({nombre:cli.nombre,whatsapp:cli.telefono||"",codigoCliente:ukiCodigoClienteVisible(cli)||"",timbres:ventasValidas(cli),sucursal:S.suc,ultimaCompra:cli.ultimo||""});
 }
 function avisarTimbres(key){
   const cli=S.clientes[key];

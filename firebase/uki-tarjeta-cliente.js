@@ -29,6 +29,8 @@
   }
   async function generar(datos){
     const nombre=String(datos.nombre||"Cliente").trim().slice(0,90);
+    const whatsapp=String(datos.whatsapp||"").trim().slice(0,30);
+    const codigo=String(datos.codigoCliente||"").trim().slice(0,12);
     const timbres=Math.min(10,Math.max(0,Number(datos.timbres)||0));
     const sucursal=String(datos.sucursal||"Uki Sushi").slice(0,70);
     const fecha=String(datos.ultimaCompra||"");
@@ -45,11 +47,14 @@
     txt(c,"TARJETA DE TIMBRES",450,293,47,C.tinta,800,"center");
     txt(c,sucursal,450,342,27,C.gris,600,"center");
 
-    rect(c,75,391,750,120,28,"#FFF",C.borde,2);
-    txt(c,"Cliente",109,427,23,C.gris,600);
-    txt(c,nombre,110,469,ajustar(c,nombre,455,42,22),C.tinta,750);
-    rect(c,612,414,178,74,30,C.naranja);
-    txt(c,timbres+"/10",700,451,46,"#FFF",800,"center");
+    rect(c,75,384,750,126,28,"#FFF",C.borde,2);
+    txt(c,"Nombre y apellido",109,408,21,C.gris,600);
+    txt(c,nombre,110,447,ajustar(c,nombre,455,37,20),C.tinta,750);
+    rect(c,612,398,178,73,30,C.naranja);
+    txt(c,timbres+"/10",700,434,44,"#FFF",800,"center");
+    txt(c,"Código: "+(codigo||"Sin registrar"),110,491,20,C.gris,650);
+    const telefonoTexto="WhatsApp: "+(whatsapp||"Sin registrar");
+    txt(c,telefonoTexto,365,491,ajustar(c,telefonoTexto,427,20,16),C.gris,600);
 
     for(let k=0;k<10;k++){
       const x=151+(k%5)*148,y=577+Math.floor(k/5)*139,marked=k<timbres;
