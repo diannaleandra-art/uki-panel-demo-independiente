@@ -70,7 +70,7 @@ test('Salir de una revisión retomada guarda el último borrador y limpia su ref
  x.S.vista='nuevo';
  x.ir('clientes');
  assert.equal(x.S.vista,'clientes');
- assert.equal(x.ukiBorradorActivo,null);
+ assert.equal(vm.runInContext('ukiBorradorActivo',x),null);
  assert.equal(x.ukiSolicitudWhatsAppActiva,null);
  assert.equal(x.S.borradores.length,1);
  assert.equal(x.S.borradores[0].datos.cliente,'Cliente Corregido');

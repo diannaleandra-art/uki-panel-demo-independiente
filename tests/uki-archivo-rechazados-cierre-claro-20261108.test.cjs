@@ -49,7 +49,8 @@ test('Los rechazados nunca se registran como ventas',()=>{
  assert.match(html,/No cuentan como pedidos, ventas ni timbres/);
  assert.match(html,/if\(s\.estado==="aceptada"\)return false/);
  assert.match(html,/const remotasTurno=remotasTodas/);
- assert.match(html,/const urgentesCarta=remotas\.filter\(r=>r\.estado==='pendiente'\)/);
+ assert.match(html,/const remotasActivas=remotas\.filter\(r=>r\.estado!=='pendiente'\|\|!cartaEnAtencion/);
+ assert.match(html,/const urgentesCarta=remotasActivas\.filter\(r=>r\.estado==='pendiente'\)/);
 });
 
 test('Resumen provisional no crea precierre ni cierre',()=>{
