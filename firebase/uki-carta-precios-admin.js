@@ -78,7 +78,7 @@ const pricesPanel=[
  '</div>'
 ].join('');
 window.ukiInventarioPanelHTML=()=>nav+prevPanel()+pricesPanel;
-function branch(){return $('invBranch')?.value||'arica';}
+function branch(){const active=$('invBranch')?.value||'';return ['arica','serena'].includes(active)?active:'';}
 function info(id,message){const el=$(id);if(el)el.textContent=message;}
 async function request(api,action,fields={},atBranch=state.branch){
  // Capturar la sucursal ANTES de esperar el token Google: nunca cruzar precios entre locales.
@@ -87,7 +87,7 @@ async function request(api,action,fields={},atBranch=state.branch){
  if(!token)throw Error('Inicia sesión con Google como administradora de Uki Sushi.');
  const response=await fetch(api,{method:'POST',cache:'no-store',mode:'cors',
   credentials:'omit',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
-  body:JSON.stringify({branch:atBranch,action,...fields})});
+  body:JSON.stringify({...fields,action,branch:atBranch})});
  const data=await response.json().catch(()=>({}));
  if(!response.ok||!data.ok)throw Error(data.error||'No se pudo consultar o guardar');
  return data;

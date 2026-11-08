@@ -6,9 +6,10 @@ const {baseItems}=require('../lib/uki-catalogo-v1.cjs');
 const BRANCHES=new Set(['arica','serena']);
 const ALLOWED=new Set(['https://diannaleandra-art.github.io','https://uki-sushi-pedidos.vercel.app']);
 const QA_REF='feature/uki-disponibilidad-manual-live-2026-11-06';
+const QA_REF_ETAPA2='feature/uki-carta-ordenada-y-reconciliacion-20261108';
 const QA_MENU='https://uki-sushi-pedidos-git-feature-uki-dis-eb0d72-diannaleandra-7046.vercel.app';
 const QA_PANEL='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app';
-const qa=env=>env.VERCEL_ENV==='preview'&&env.VERCEL_GIT_COMMIT_REF===QA_REF&&env.UKI_INVENTARIO_QA_ENABLED==='true';
+const qa=env=>env.VERCEL_ENV==='preview'&&(env.VERCEL_GIT_COMMIT_REF===QA_REF||env.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2)&&env.UKI_INVENTARIO_QA_ENABLED==='true';
 const originAllowed=(origin,env=process.env)=>ALLOWED.has(origin)||(qa(env)&&(origin===QA_MENU||origin===QA_PANEL));
 const fail=(res,status,error)=>res.status(status).json({ok:false,error});
 async function authorized(req,env=process.env){

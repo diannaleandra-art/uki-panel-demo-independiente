@@ -5,6 +5,10 @@ const {url:dbUrl}=require('../lib/uki-inventario-db-live.cjs');
 const {baseItems}=require('../lib/uki-catalogo-v1.cjs');
 const ORIGINS=new Set(['https://diannaleandra-art.github.io','https://uki-sushi-pedidos.vercel.app']);
 const BRANCHES=new Set(['arica','serena']);
+const QA_REF_ETAPA2='feature/uki-carta-ordenada-y-reconciliacion-20261108';
+// En preview sólo funciona con la rama exacta, bandera QA y URL Neon QA validada por dbUrl.
+const enabled=env=>(env.VERCEL_ENV==='production'&&env.UKI_INGREDIENTES_ARMADO_ENABLED==='true')||
+ (env.VERCEL_ENV==='preview'&&env.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2&&env.UKI_INVENTARIO_QA_ENABLED==='true');
 const KINDS=new Set(['classic','premium','monthly','pizza','dish','topping']);
 const fail=(res,code,error)=>res.status(code).json({ok:false,error});
 function validSku(value){
@@ -54,7 +58,7 @@ module.exports=async function(req,res){
  if(req.method==='OPTIONS')return res.status(ORIGINS.has(origin)?204:403).end();
  if(!['GET','POST'].includes(req.method))return fail(res,405,'Método no permitido');
  if(origin&&!ORIGINS.has(origin))return fail(res,403,'Origen no autorizado');
- if(env.VERCEL_ENV!=='production'||env.UKI_INGREDIENTES_ARMADO_ENABLED!=='true')
+ if(!enabled(env))
   return fail(res,503,'Fotos de carta aún no habilitadas');
  const branch=String(req.method==='GET'?req.query?.branch||'':req.body?.branch||'');
  if(!BRANCHES.has(branch))return fail(res,400,'Sucursal inválida');
@@ -104,4 +108,4 @@ module.exports=async function(req,res){
   return fail(res,503,'Servicio de fotos temporalmente no disponible; tus productos no cambiaron');
  }
 };
-module.exports._test={validPicture,validSku,productExists};
+module.exports._test={validPicture,validSku,productExists,enabled};
