@@ -1,0 +1,26 @@
+name: Uki comprobación HTTP de ingredientes (QA)
+on:
+  push:
+    branches:
+      - qa/uki-ingredientes-http-20261108
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  comprobar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Consultar API pública desde carta real en ambas sucursales
+        run: |
+          node --input-type=module <<'JS'
+          for(const branch of ['arica','serena']){
+           const origin='https://uki-sushi-pedidos.vercel.app';
+           const r=await fetch('https://uki-sushi-inventario.vercel.app/api/uki-ingredientes-armado-live?branch='+branch,
+            {headers:{Origin:origin,Accept:'application/json'},signal:AbortSignal.timeout(15000)});
+           const body=await r.text();
+           console.log('API '+branch+': HTTP '+r.status+', CORS '+r.headers.get('access-control-allow-origin')+', body '+body.slice(0,380));
+           if(![200,503].includes(r.status))throw new Error('API no disponible o mal configurada: '+r.status);
+           if(r.status===200&&r.headers.get('access-control-allow-origin')!==origin)throw new Error('CORS incorrecto');
+          }
+          JS
