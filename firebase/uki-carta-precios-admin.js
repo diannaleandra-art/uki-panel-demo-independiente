@@ -2,9 +2,12 @@
    No modifica pedidos, caja, reportes de ventas ni cierres. */
 (function(){
 'use strict';
-const API='https://uki-sushi-inventario.vercel.app/api/uki-carta-precios-live';
-const STOCK_API='https://uki-sushi-inventario.vercel.app/api/inventario-turno-live';
-const PHOTO_API='https://uki-sushi-inventario.vercel.app/api/uki-carta-fotos-live';
+const QA_HOST=/^(?:uki-sushi-panel|uki-sushi-inventario)-[a-z0-9-]+-diannaleandra-7046\.vercel\.app$/;
+// Los previews usan su propio servidor; nunca escriben en inventario ni carta real.
+const BACKEND=QA_HOST.test(location.hostname)?location.origin:'https://uki-sushi-inventario.vercel.app';
+const API=BACKEND+'/api/uki-carta-precios-live';
+const STOCK_API=BACKEND+'/api/inventario-turno-live';
+const PHOTO_API=BACKEND+'/api/uki-carta-fotos-live';
 const state={tab:'inventario',branch:'',items:[],photos:{},query:'',group:'all',busy:false,ready:false};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));

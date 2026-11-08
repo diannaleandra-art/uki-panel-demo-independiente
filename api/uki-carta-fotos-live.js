@@ -10,6 +10,8 @@ const QA_REF_ETAPA2='feature/uki-carta-ordenada-y-reconciliacion-20261108';
 const enabled=env=>(env.VERCEL_ENV==='production'&&env.UKI_INGREDIENTES_ARMADO_ENABLED==='true')||
  (env.VERCEL_ENV==='preview'&&env.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2&&env.UKI_INVENTARIO_QA_ENABLED==='true');
 const KINDS=new Set(['classic','premium','monthly','pizza','dish','topping']);
+const originAllowed=(origin,env=process.env)=>ORIGINS.has(origin)||
+ (enabled(env)&&env.VERCEL_ENV==='preview'&&!!env.VERCEL_URL&&origin==='https://'+env.VERCEL_URL);
 const fail=(res,code,error)=>res.status(code).json({ok:false,error});
 function validSku(value){
  if(typeof value!=='string'||value.length<5||value.length>120||!/^[a-z]+:[a-z0-9-]+$/.test(value))return false;
@@ -51,13 +53,13 @@ module.exports=async function(req,res){
  const origin=String(req.headers?.origin||''),env=process.env;
  res.setHeader('Cache-Control','no-store');res.setHeader('Vary','Origin');
  res.setHeader('X-Content-Type-Options','nosniff');
- if(origin&&ORIGINS.has(origin)){res.setHeader('Access-Control-Allow-Origin',origin);
+ if(origin&&originAllowed(origin,env)){res.setHeader('Access-Control-Allow-Origin',origin);
   res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers','Content-Type,Authorization');
  }
- if(req.method==='OPTIONS')return res.status(ORIGINS.has(origin)?204:403).end();
+ if(req.method==='OPTIONS')return res.status(originAllowed(origin,env)?204:403).end();
  if(!['GET','POST'].includes(req.method))return fail(res,405,'Método no permitido');
- if(origin&&!ORIGINS.has(origin))return fail(res,403,'Origen no autorizado');
+ if(origin&&!originAllowed(origin,env))return fail(res,403,'Origen no autorizado');
  if(!enabled(env))
   return fail(res,503,'Fotos de carta aún no habilitadas');
  const branch=String(req.method==='GET'?req.query?.branch||'':req.body?.branch||'');
@@ -108,4 +110,4 @@ module.exports=async function(req,res){
   return fail(res,503,'Servicio de fotos temporalmente no disponible; tus productos no cambiaron');
  }
 };
-module.exports._test={validPicture,validSku,productExists,enabled};
+module.exports._test={validPicture,validSku,productExists,enabled,originAllowed};

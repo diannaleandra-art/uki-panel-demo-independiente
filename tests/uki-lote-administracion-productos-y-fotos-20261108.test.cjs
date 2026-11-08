@@ -94,3 +94,19 @@ test('Sucursal no asumida: la selección de sesión prevalece sobre cualquier ca
  assert.doesNotMatch(prices,/\?\.value\|\|'arica'/);
  assert.match(prices,/body:JSON\.stringify\(\{\.\.\.fields,action,branch:atBranch\}\)/);
 });
+
+test('QA: las rutas de carta, inventario y fotos utilizan exclusivamente su preview',()=>{
+ const preview='https://uki-sushi-panel-ejemplo-diannaleandra-7046.vercel.app';
+ assert.ok(prices.includes("const BACKEND=QA_HOST.test(location.hostname)?location.origin:"));
+ assert.ok(prices.includes("const STOCK_API=BACKEND+'/api/inventario-turno-live';"));
+ assert.ok(prices.includes("const PHOTO_API=BACKEND+'/api/uki-carta-fotos-live';"));
+ const ing=fs.readFileSync('firebase/uki-armado-ingredientes-admin.js','utf8');
+ assert.ok(ing.includes('uki-sushi-inventario|uki-sushi-panel'));
+ assert.ok(ing.includes('body:JSON.stringify({...fields,action,branch:chosen})'));
+ const pricesApi=fs.readFileSync('api/uki-carta-precios-live.js','utf8');
+ assert.ok(pricesApi.includes('qaOrigin(origin)'));
+ const env={VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'feature/uki-carta-ordenada-y-reconciliacion-20261108',UKI_INVENTARIO_QA_ENABLED:'true',VERCEL_URL:'uki-sushi-panel-ejemplo-diannaleandra-7046.vercel.app'};
+ assert.equal(apiPhoto._test.originAllowed(preview,env),true);
+ assert.equal(apiPhoto._test.originAllowed(preview,{...env,VERCEL_GIT_COMMIT_REF:'main'}),false);
+ assert.equal(apiPhoto._test.originAllowed(preview,{...env,VERCEL_ENV:'production'}),false);
+});

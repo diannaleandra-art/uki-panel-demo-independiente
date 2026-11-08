@@ -3,13 +3,13 @@
  * Se incrusta dentro de la pestaña ya existente Carta y precios. */
 (function(){
 'use strict';
-const QA_HOST=/^uki-sushi-inventario-[a-z0-9-]+-diannaleandra-7046\.vercel\.app$/;
+const QA_HOST=/^(?:uki-sushi-inventario|uki-sushi-panel)-[a-z0-9-]+-diannaleandra-7046\.vercel\.app$/;
 const API=(QA_HOST.test(location.hostname)?location.origin:'https://uki-sushi-inventario.vercel.app')+'/api/uki-ingredientes-armado-live';
 const categories=[['vegetal','Vegetal'],['proteina','Proteína'],['envoltura','Envoltura']];
 const surfaces=[['classic','Sushi clásico'],['premium','Sushi premium'],['monthly','Promos del mes'],['handroll','Handrolls'],['burger','Sushi Burger'],['gohan','Gohan']];
 const state={branch:'',items:[],busy:false,availability:null,check:0};
 const get=id=>document.getElementById(id);
-const branch=()=>get('invBranch')?.value||(typeof S!=='undefined'&&S?.suc==='Uki La Serena'?'serena':'arica');
+const branch=()=>{const selected=get('invBranch')?.value||(typeof S!=='undefined'&&S?.suc==='Uki La Serena'?'serena':typeof S!=='undefined'&&S?.suc==='Uki Regimiento Arica'?'arica':'');return ['arica','serena'].includes(selected)?selected:''};
 function status(message){if(get('ukiIngEstado'))get('ukiIngEstado').textContent=message}
 function pesos(value){return '$'+Number(value).toLocaleString('es-CL')}
 const html=[
@@ -80,7 +80,7 @@ async function request(action,fields,chosen=branch()){
  if(!token)throw Error('Accede como administradora con Google para gestionar ingredientes.');
  const r=await fetch(API,{method:'POST',mode:'cors',credentials:'omit',cache:'no-store',
   headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-  body:JSON.stringify({branch:chosen,action,...fields}),signal:AbortSignal.timeout(15000)});
+  body:JSON.stringify({...fields,action,branch:chosen}),signal:AbortSignal.timeout(15000)});
  const data=await r.json().catch(()=>({}));
  if(!r.ok||data.ok!==true)throw Error(data.error||'No se pudo guardar. Ningún ingrediente cambió.');
  return data;
