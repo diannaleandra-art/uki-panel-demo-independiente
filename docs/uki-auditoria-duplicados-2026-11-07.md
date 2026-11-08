@@ -51,3 +51,18 @@ No proclamar protección total sin pruebas de simultaneidad y recuperación ante
 - **Sin publicación de producción ni migración de Neon.** Estas dos ramas se deben validar juntas con el flag apagado primero y activarlo solo tras desplegar tabla, backend y panel compatibles.
 - **No afirmar protección total aún:** faltan pruebas integradas entre dos navegadores reales, persistencia Firebase y API Neon en QA aislado; recuperación/conciliación de reservas que se interrumpan; identificación definitiva de mensajes pegados sin UUID. No eliminar bloqueo por timeout sin verificar la nube.
 - **Coexistencia con cambios históricos:** antes de encender el flag, conciliar solicitudes pendientes que ya tienen un pedido guardado pero no contienen \`cartaReservaToken\`; jamás bloquearlas ni crear ventas duplicadas.
+
+## Validación posterior con Neon QA aislado (7 noviembre 2026)
+
+Se verificó por lectura que la rama Neon QA `br-wild-sky-b5bruake` del proyecto `tiny-grass-92161762` NO tenía inicialmente tablas de solicitudes. **Se crearon únicamente en QA**, sin copiar pedidos reales, las tablas aditivas `uki_carta_solicitudes_live` y `uki_carta_registro_unico_live` de prueba.
+
+- Se insertaron tres solicitudes **sintéticas** con idéntico folio corto `735`: dos en Regimiento Arica y una en La Serena. No son ventas, no se escribieron en Firebase ni son clientes reales.
+- Con dos consultas simultáneas a Neon QA para reservar el mismo `branch+UUID`, **una creó la reserva y otra devolvió cero filas** (un único titular). Las otras dos solicitudes con igual folio se reservaron independientemente.
+- Antes de confirmar, las tres tenían `estado=pendiente` y `reserva=reservado`; sin pedido confirmado. La primera se convirtió, **solo en QA**, a `aceptada` y `confirmado`, con referencia de pedido sintético `901`. Las otras permanecen reservadas para posteriores pruebas de recuperación. No liberar automáticamente.
+- GitHub Actions de la rama del panel y de la rama de API pasó tras las correcciones; el panel incluye guardia de doble clic que cubre todo `ndGuardar`, comprobación de cambios en el formulario durante la reserva y verificación local por UUID antes de añadir `S.pedidos`.
+- Consulta agregada de **solo lectura** a Neon producción confirmó solicitudes reales por sucursal. No se abrieron datos personales ni se modificaron filas. En la API QA, GET incluye también las aceptadas de los últimos 14 días para detectar aceptación no reflejada.
+- El panel QA muestra **solicitudes aceptadas sin vínculo visible en la copia sincronizada de caja**, solo como alerta de conciliación. No crea registros nuevos, no suma ventas y no etiqueta erróneamente esas solicitudes como rechazadas.
+
+**Aún pendiente:** E2E autentificado desde Safari entre la API desplegada de QA, Neon QA y Firebase QA aislado; verificar un corte de red entre reserva y guardado y la conciliación contra respaldos; establecer la política definitiva de coincidencia al pegar mensajes sin UUID, sin bloquear pedidos legítimos con folio repetido; integrar ramas con las mejoras de ingredientes e inventario antes de publicación conjunta.
+
+**No hubo modificaciones en producción, GitHub main, QR impreso, caja, ventas ni cierres.**
