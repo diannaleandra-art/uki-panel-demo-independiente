@@ -1,0 +1,17 @@
+name: Uki ingredientes · comprobar API existente sin publicar
+on:
+  push:
+    branches:
+      - preparacion/uki-publicacion-unificada-2026-11-07
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  estado-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: node --test tests/uki-ingredientes-endpoint-publicado-readonly.test.cjs
