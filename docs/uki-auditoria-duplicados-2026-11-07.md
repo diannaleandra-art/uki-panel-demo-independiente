@@ -38,3 +38,16 @@
 ## Puerta de publicación
 
 No proclamar protección total sin pruebas de simultaneidad y recuperación ante errores en QA aislada. Coordinar cambios de panel y backend antes de cualquier despliegue. **Producción y datos reales quedan intactos.**
+
+
+## Avance verificable posterior (7 noviembre 2026, QA únicamente)
+
+- **Servidor de carta, desarrollado en rama de pruebas:** 
+  - Código \`lib/uki-carta-registro-unico.cjs\`: reserva de un único agendador por sucursal+UUID; reintento del mismo token; confirmación idempotente posterior al registro.
+  - API \`api/carta-solicitudes-live.js\`: nueva acción autenticada \`reservar\` y confirmación protegida, exclusivamente si se activa el flag \`UKI_CARTA_REGISTRO_UNICO_ENABLED=true\`.
+  - Migración aditiva **NO ejecutada** \`migrations/2026-11-07-uki-carta-registro-unico-qa.sql\` para registro único central.
+  - GitHub Actions QA **aprobó las seis pruebas** en \`https://github.com/diannaleandra-art/uki-sushi-respaldo/actions/runs/42428654776\`.
+- **Panel de pruebas:** rama \`feature/uki-evitar-duplicados-carta-manual-2026-11-07\`, con reserva previa a \`S.pedidos.push\`, token almacenado en pedido para enviar confirmación tras sincronización de nube y prioridad del UUID real ante folio corto. GitHub Actions QA aprobado: \`https://github.com/diannaleandra-art/uki-panel-demo-independiente/actions/runs/42428786622\`.
+- **Sin publicación de producción ni migración de Neon.** Estas dos ramas se deben validar juntas con el flag apagado primero y activarlo solo tras desplegar tabla, backend y panel compatibles.
+- **No afirmar protección total aún:** faltan pruebas integradas entre dos navegadores reales, persistencia Firebase y API Neon en QA aislado; recuperación/conciliación de reservas que se interrumpan; identificación definitiva de mensajes pegados sin UUID. No eliminar bloqueo por timeout sin verificar la nube.
+- **Coexistencia con cambios históricos:** antes de encender el flag, conciliar solicitudes pendientes que ya tienen un pedido guardado pero no contienen \`cartaReservaToken\`; jamás bloquearlas ni crear ventas duplicadas.
