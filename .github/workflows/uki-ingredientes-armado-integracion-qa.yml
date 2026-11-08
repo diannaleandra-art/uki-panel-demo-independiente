@@ -1,0 +1,17 @@
+name: Uki editor de ingredientes · integración QA
+on:
+  push:
+    branches:
+      - preparacion/uki-publicacion-unificada-2026-11-07
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: node --test tests/uki-ingredientes-armado-api.test.cjs tests/uki-ingredientes-armado-integrado.test.cjs
