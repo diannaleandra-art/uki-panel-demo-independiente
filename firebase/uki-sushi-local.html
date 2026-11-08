@@ -3093,6 +3093,7 @@ function vPedidos(){
     (id==="rechazados"&&s.estado==="rechazada");
   const visiblesSolicitudes=solicitudes.filter(s=>solicitudEnCategoria(s,filtroCategoriaPedidos));
   const remotas=(!buscando&&!pedidosArchivoDia?ukiCartaRemotasSucursal():[]).filter(r=>r.estado==='pendiente'||r.estado==='rechazada');
+  const aceptadasPendientesDeConciliar=!buscando&&!pedidosArchivoDia?ukiCartaAceptadasSinVinculo():[];
   const solicitudRemotaEnCategoria=(r,id)=>id==='todos'||(id==='pendientes'&&r.estado==='pendiente')||(id==='rechazados'&&r.estado==='rechazada');
   const visiblesRemotas=remotas.filter(r=>solicitudRemotaEnCategoria(r,filtroCategoriaPedidos));
   const urgentesCarta=remotas.filter(r=>r.estado==='pendiente');
@@ -3115,6 +3116,10 @@ function vPedidos(){
       urgentesManuales.map(r=>'<div class="card order-card uki-carta-solicitud-urgente"><p><b>📲 Solicitud WhatsApp por confirmar</b></p>'+ukiWhatsAppFicha(r,true)+'</div>').join(''):
       '<button class="sm ok" type="button" onclick="ukiCambiarCategoriaPedidos(&quot;pendientes&quot;)">Revisar solicitudes pendientes</button>'}
   </section>`:''}
+  ${aceptadasPendientesDeConciliar.length?`<details class="card" aria-label="Solicitudes aceptadas por verificar"><summary><b>Revisar ${aceptadasPendientesDeConciliar.length} solicitud(es) aceptadas</b> · sin vínculo visible en esta copia de caja</summary>
+    <p class="muted">El servidor las identifica como aceptadas, pero no se encuentra su pedido vinculado en esta copia del panel. Primero sincroniza Firebase y verifica el historial. No las ingreses otra vez ni las marques pagadas.</p>
+    ${aceptadasPendientesDeConciliar.map(r=>'<p><b>Carta #'+esc(r.codigo_pedido||'sin código')+'</b> · '+esc(r.cliente||'Cliente sin identificar')+' · WhatsApp '+esc(r.telefono||'por verificar')+'</p>').join('')}
+    </details>`:''}
   <button class="big cta" onclick="ir('nuevo')">＋ Nuevo pedido</button>
   <div class="card"><h2 style="margin:0 0 8px">Clasificar pedidos</h2>
     <div class="chips" role="group" aria-label="Filtrar pedidos por estado y pago">${categorias}</div>
