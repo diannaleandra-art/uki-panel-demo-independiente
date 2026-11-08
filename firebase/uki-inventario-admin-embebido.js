@@ -10,10 +10,14 @@ const panelBranch=()=>typeof S!=='undefined'&&S?.suc==='Uki La Serena'?'serena':
 function pick(xs){return xs.map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('');}
 function number(raw){const t=String(raw??'').trim();if(!/^\d{1,6}([.,]\d{1,3})?$/.test(t))throw Error('Cantidad inválida: máximo 3 decimales (ej.: 2,5).');const n=Number(t.replace(',','.'));if(n>100000)throw Error('Cantidad fuera de rango.');return n;}
 function panel(){return [
-'<div class="section-head" id="ukiInvSectionHead"><h2>📦 Inventario</h2><p>Administración de existencias · independiente de pedidos y caja.</p></div>',
-'<div class="card" id="invRoot"><p class="mini-help">Sucursal actual: <b id="ukiInvSucursalActual"></b>. Para ver otro local, utiliza «Salir» y entra a su sucursal.</p><select id="invBranch" hidden disabled aria-label="Sucursal de este panel"><option value="arica">Regimiento Arica</option><option value="serena">La Serena</option></select>',
-'<p class="muted">Se utiliza el acceso Google del panel. El trabajador mantiene su código exclusivo.</p><button id="invRefresh" class="sm ok" type="button">Actualizar</button>',
-'<p id="invStatus" role="status" class="mini-help">Conectando inventario…</p></div>',
+'<div class="section-head" id="ukiInvSectionHead"><h2>📦 Inventario</h2><p>Existencias, conteos y reposición. No modifica pedidos ni caja.</p></div>',
+'<div class="card" id="invRoot" style="padding:14px"><p class="mini-help" style="margin:2px 0 8px">📍 <b id="ukiInvSucursalActual"></b> · para cambiar de sucursal, usa «Salir».</p><select id="invBranch" hidden disabled aria-label="Sucursal de este panel"><option value="arica">Regimiento Arica</option><option value="serena">La Serena</option></select>',
+'<p class="mini-help" style="margin:4px 0 9px">Administración: cuenta Google autorizada del panel. Trabajador: código exclusivo de inventario.</p>',
+'<button id="invRefresh" class="sm ok" type="button">↻ Actualizar inventario</button>',
+'<p id="invStatus" role="status" class="mini-help" style="margin:9px 0 0">Consultando inventario…</p></div>',
+'<div class="card" id="ukiInvWorkerAccess" style="padding:14px"><h3 style="margin:2px 0 5px;font-size:17px">👷 Inventario del trabajador</h3>',
+'<p class="muted" style="margin:5px 0 10px">El trabajador cuenta y recibe mercadería con su código. Sus revisiones se consultan en «Revisiones y compras». No puede ver cierres.</p>',
+'<a href="https://uki-sushi-inventario.vercel.app/" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#fff4e8;color:#8c4708;border:1px solid #edbd85;font-weight:700;text-decoration:none">Abrir acceso del trabajador</a></div>',
 '<div class="card" id="invAdmin" hidden><h2>Existencias y mínimos</h2><label for="invSearch">Buscar artículo</label><input id="invSearch" type="search" autocomplete="off" placeholder="Pollo, palta, aceite…">',
 '<label for="invSelect">Artículo</label><select id="invSelect"></select><div id="invEditor" hidden>',
 '<label for="invName">Nombre</label><input id="invName" maxlength="100"><label for="invCategory">Categoría</label><select id="invCategory">'+pick(C)+'</select>',
@@ -28,9 +32,7 @@ function panel(){return [
 '<div class="quick-grid"><div><label for="invNewStock">Cantidad inicial</label><input id="invNewStock" value="0" inputmode="decimal"></div>',
 '<div><label for="invNewMin">Mínimo</label><input id="invNewMin" value="0" inputmode="decimal"></div></div>',
 '<button type="button" id="invCreate" class="big">Agregar al inventario</button></details></div>',
-'<div class="card" id="invReportsBox" hidden><h2>Revisiones de trabajadores</h2><div id="invReports"></div></div>',
-'<div class="card" id="ukiInvWorkerAccess"><p class="muted">Los trabajadores cuentan y reciben facturas en su acceso independiente:</p>',
-'<a href="https://uki-sushi-inventario.vercel.app/" target="_blank" rel="noopener noreferrer">Inventario de trabajadores</a></div>'
+'<div class="card" id="invReportsBox" hidden><h2>Revisiones de trabajadores</h2><div id="invReports"></div></div>'
 ].join('');}
 function status(msg){if($('invStatus'))$('invStatus').textContent=msg;}
 async function request(action,data={},branch=X.branch){
