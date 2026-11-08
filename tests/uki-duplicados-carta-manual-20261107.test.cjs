@@ -33,18 +33,24 @@ test('Si falta código, comparar texto exacto ayuda a detectar pegados dobles',(
  assert.match(x.ukiSolicitudAutomaticaYaRecibida({texto:'UKI SUSHI - Pedido 246 / Cliente'}),/ya está en Pedidos/);
  assert.equal(x.ukiSolicitudAutomaticaYaRecibida({texto:'Pedido distinto del cliente'}),'');
 });
-test('Comprobar una solicitud manual pendiente antes de aceptar la automática',()=>{
+test('Comprobar el mensaje real de una solicitud pendiente, no solo el folio',()=>{
  const x=createContext();
- x.S.solicitudesWhatsApp.push({id:'paste-one',suc:x.S.suc,estado:'pendiente',codigoCarta:'246'});
- assert.match(x.ukiSolicitudPegadaYaRecibida({codigoCarta:'246'}),/solicitud pegada/);
- assert.equal(x.ukiSolicitudPegadaYaRecibida({codigoCarta:'246'},'paste-one'),'');
+ const texto='UKI SUSHI - Pedido 246 / Cliente / Pollo / Tempura / Retiro';
+ x.S.solicitudesWhatsApp.push({id:'paste-one',suc:x.S.suc,estado:'pendiente',codigoCarta:'246',
+  telefono:'56911112222',datos:{texto}});
+ assert.match(x.ukiSolicitudPegadaYaRecibida({codigoCarta:'246',telefono:'56911112222',texto}),/ya está en Pedidos/);
+ assert.equal(x.ukiSolicitudPegadaYaRecibida({codigoCarta:'246'}),''); // Folio corto NO basta.
+ assert.equal(x.ukiSolicitudPegadaYaRecibida({codigoCarta:'246',telefono:'56977778888',texto}),'');
+ assert.equal(x.ukiSolicitudPegadaYaRecibida({codigoCarta:'246',telefono:'56911112222',
+  texto:'UKI SUSHI - Pedido 246 / Cliente / Salmón / Panko / Delivery'}),'');
+ assert.equal(x.ukiSolicitudPegadaYaRecibida({codigoCarta:'246',telefono:'56911112222',texto},'paste-one'),'');
 });
 test('Los dos caminos comprueban duplicados antes de guardar o aceptar',()=>{
  assert.match(html,/ukiWhatsAppSolicitudDuplicada\(datos\)\|\|ukiSolicitudAutomaticaYaRecibida\(datos\)/);
  assert.match(html,/ukiSolicitudAutomaticaYaRecibida\(D,String\(D\.cartaSolicitudRemotaId\|\|''\)\)/);
  assert.match(html,/ukiSolicitudPegadaYaRecibida\(D,String\(ukiSolicitudWhatsAppActiva\|\|''\)\)/);
  assert.match(remote,/const yaGuardado=\(S\.pedidos\|\|\[\]\)\.find/);
- assert.match(remote,/const pegada=ukiSolicitudPegadaYaRecibida\(\{codigoCarta:folio\}\)/);
+ assert.match(remote,/const pegada=ukiSolicitudPegadaYaRecibida\(\{\s*codigoCarta:folio,telefono:r\.telefono,texto:r\.mensaje/);
 });
 test('Mantener formularios de pagos mixtos, QR, cierres y timbres',()=>{
  for(const name of ['ukiErrorDistribucionPago','ukiDatosPago(D,sub)','ukiCajaAcumulada','ukiMesasUI()','ukiQRPermitirCobroDefinitivo','ukiCartaRemotasActualizar()','ukiWhatsAppMarcarAceptada']){
@@ -57,4 +63,26 @@ test('Javascripts sin errores sintácticos',()=>{
   new vm.Script(m[1].includes('module')?m[2].replace(/^\s*import[^\n]*$/gm,''):m[2]);
  }
  new vm.Script(remote);
+});
+
+test('Pegar dos pedidos con igual folio pero distinta preparación no genera falso duplicado',()=>{
+ const x=createContext();
+ const original='UKI SUSHI - Pedido 735 / Pollo / Tempura / Delivery';
+ x.S.solicitudesWhatsApp.push({id:'paste-original',suc:x.S.suc,estado:'pendiente',
+  codigoCarta:'735',telefono:'56912345678',datos:{texto:original}});
+ assert.match(x.ukiWhatsAppSolicitudDuplicada({codigoCarta:'735',texto:original,
+  telefono:'56912345678'}),/ya está guardado/);
+ assert.equal(x.ukiWhatsAppSolicitudDuplicada({codigoCarta:'735',
+  texto:'UKI SUSHI - Pedido 735 / Kanikama / Sésamo / Retiro',
+  telefono:'56912345678'}),null);
+ assert.equal(x.ukiWhatsAppSolicitudDuplicada({codigoCarta:'735',
+  texto:original,telefono:'56987654321'}),null);
+});
+test('Sin folio se detecta el mensaje original repetido, pero no otros mensajes',()=>{
+ const x=createContext();
+ const t='Pedido por WhatsApp sin código / 2 Gohan de pollo / Entrega';
+ x.S.solicitudesWhatsApp.push({id:'paste-two',suc:x.S.suc,estado:'pendiente',
+  telefono:'56944445555',datos:{texto:t}});
+ assert.match(x.ukiSolicitudPegadaYaRecibida({texto:t,telefono:'56944445555'}),/ya está en Pedidos/);
+ assert.equal(x.ukiSolicitudPegadaYaRecibida({texto:t+' hoy',telefono:'56944445555'}),'');
 });
