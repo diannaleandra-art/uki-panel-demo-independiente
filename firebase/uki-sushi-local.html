@@ -3311,7 +3311,7 @@ function vPedidos(){
   <div class="card"><h2 style="margin:0 0 8px">Clasificar pedidos</h2>
     <div class="chips" role="group" aria-label="Filtrar pedidos por estado y pago">${categorias}</div>
     <p class="muted">📲 Carta normal: ${esc(ukiCartaRemotas.status)} <button type="button" class="sm" onclick="ukiCartaRemotasActualizar()">Actualizar</button></p>
-    <p class="muted">${visibles.length+visiblesSolicitudes.length+visiblesRemotas.length} registro(s) en «${esc((UKI_CATEGORIAS_PEDIDOS.find(x=>x[0]===filtroCategoriaPedidos)||[])[1]||"Todos")}». Los rechazados no suman a caja, ventas ni timbres.</p>${viendoArchivoRechazados?'<p class="muted"><b>Archivo de rechazados:</b> conserva motivo, fecha y mensaje original de turnos anteriores. No son ventas.</p>':''}</div>
+    <p class="muted">${visibles.length+visiblesSolicitudes.length+visiblesRemotas.length} registro(s) en «${esc((UKI_CATEGORIAS_PEDIDOS.find(x=>x[0]===filtroCategoriaPedidos)||[])[1]||"Todos")}». Los rechazados no suman a caja, ventas ni timbres.</p></div>
   ${(filtroCategoriaPedidos==="todos"||filtroCategoriaPedidos==="por-confirmar")?ukiMesasUI():""}
   ${rechazadosArchivo.length+remotasArchivo.length?'<details class="card"><summary><b>📚 Archivo de rechazados de días anteriores</b> · '+(rechazadosArchivo.length+remotasArchivo.length)+'</summary><p class="muted">Son solicitudes anteriores; no se suman a los pedidos ni a la caja de hoy.</p>'+rechazadosArchivo.map(x=>ukiWhatsAppFicha(x,false)).join('')+remotasArchivo.map(x=>ukiCartaRemotaFicha(x)).join('')+'</details>':''}
   ${pedidosArchivoDia||buscando?'<button class="sm" onclick="limpiarFiltrosPedidos()">← Volver al turno abierto</button>':''}
