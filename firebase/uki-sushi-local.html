@@ -3443,10 +3443,20 @@ function ukiDiferenciaPedidoUI(p){
   '</b>. La caja conserva el cobro real. Para regularizarlo, entra a Editar.</p>';
 }
 function ukiPagoModificado(antes,despues){
- const fields=["pagado","productos","total","subtotal","envio","propina","medio","medioEnvio",
-  "pagosProductos","pagosEnvio","productosPagadosOtroLocal","montoProductosOtroLocal",
-  "envioPagadoOtroLocal","montoEnvioOtroLocal","localPagoExterno"];
- return fields.some(k=>JSON.stringify(antes?.[k]??null)!==JSON.stringify(despues?.[k]??null));
+ // Comparar valores reales, no undefined vs "" / [] de pedidos antiguos.
+ // Así corregir solo nombre o WhatsApp no pide autorización financiera.
+ const numero=k=>Number(antes?.[k]||0)!==Number(despues?.[k]||0);
+ if(["total","subtotal","envio","propina"].some(numero))return true;
+ if(!!antes?.pagado!==!!despues?.pagado)return true;
+ const canon=p=>(p?.productos||[]).map(x=>[String(x.nombre||""),Number(x.cantidad)||0,
+  Number(x.precioUnit)||0,String(x.detalle||"")]);
+ if(JSON.stringify(canon(antes))!==JSON.stringify(canon(despues)))return true;
+ if(JSON.stringify(ukiCobrosRealesMedios(antes))!==JSON.stringify(ukiCobrosRealesMedios(despues)))return true;
+ const externo=p=>{
+  const sub=Math.max(0,Number(p?.subtotal)||0),env=p?.modalidad==="Delivery"?Number(p?.envio)||0:0;
+  return [ukiMontoProductosOtroLocal(p,sub),ukiMontoEnvioOtroLocal(p,env,sub),String(p?.localPagoExterno||"")];
+ };
+ return JSON.stringify(externo(antes))!==JSON.stringify(externo(despues));
 }
 
 function ukiQREsCorreccionDePagoExistente(d,original){

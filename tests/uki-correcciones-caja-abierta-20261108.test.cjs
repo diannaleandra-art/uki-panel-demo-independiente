@@ -81,3 +81,17 @@ test('Solo registrar responsable en toda edición y conservar el cierre disponib
  assert.doesNotMatch(html,/if\(t\.correccionesPendientes\)\{/);
  assert.match(html,/ukiCierreConfirmadoPedido\(p\)/);
 });
+
+test('Editar solo nombre y WhatsApp no genera una autorización financiera innecesaria',()=>{
+ const {c,old}=fixture();
+ const copy={...old,cliente:'Nuevo cliente',telefono:'56988881234',pagosProductos:[],pagosEnvio:[],medioEnvio:'Efectivo'};
+ assert.equal(c.ukiPagoModificado(old,copy),false);
+});
+test('Cambiar precio, productos o forma de pago sí exige explicación',()=>{
+ const {c,old}=fixture();
+ const producto={nombre:'Rollo',cantidad:1,precioUnit:18000,detalle:''};
+ const original={...old,productos:[producto]};
+ assert.equal(c.ukiPagoModificado(original,{...original,total:15000}),true);
+ assert.equal(c.ukiPagoModificado(original,{...original,productos:[{...producto,precioUnit:15000}]}),true);
+ assert.equal(c.ukiPagoModificado(original,{...original,medio:'Transferencia'}),true);
+});
