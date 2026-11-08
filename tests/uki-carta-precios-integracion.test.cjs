@@ -18,6 +18,7 @@ function fixture(){
     [{sku:'pizza:cuatro-quesos-ab12cd34',kind:'pizza',group_key:'pizzas',name:'Pizza Cuatro Quesos',
       description:'Cuatro quesos',price:10900,available:true,version:1}]:[];
   }
+  if(q.includes('uki_carta_promos_custom_v1')||q.includes('uki_carta_visibilidad_v1'))return [];
   throw Error('SQL inesperada');
  }};
  return {sql,calls};

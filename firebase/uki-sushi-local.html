@@ -342,7 +342,11 @@ function aviso(t){S.msg=t;render();window.scrollTo({top:0,behavior:"smooth"});}
 function ir(v){
   if(S.vista==='nuevo'&&v!=='nuevo'&&ukiCartaRemotaActiva)ukiCartaRemotaActiva=null;
   if(S.vista==="nuevo"&&v!=="nuevo"&&S.suc&&ukiSolicitudWhatsAppActiva){
-    ukiWhatsAppPausarRevision();nuevoDraft();
+    if(ukiBorradorActivo){
+      if(!ukiGuardarBorradorSinVista())return;
+      ukiSolicitudWhatsAppActiva=null;
+    }else ukiWhatsAppPausarRevision();
+    nuevoDraft();ukiBorradorActivo=null;
   }else if(S.vista==="nuevo"&&v!=="nuevo"&&S.suc&&!D.editando&&ukiBorradorTieneContenido()){
    if(ukiGuardarBorradorSinVista()){nuevoDraft();ukiBorradorActivo=null;}
    else return;
@@ -860,13 +864,16 @@ function ukiGuardarBorradorSinVista(){
   S.borradores.push(b);
  }
  b.actualizadoEn=Date.now();b.modo=modoNuevo;
- b.datos=ukiCopia(D);b.compositor=ukiCamposEnProceso();ukiBorradorActivo=b.id;
+ b.datos=ukiCopia(D);b.solicitudWhatsAppId=ukiSolicitudWhatsAppActiva||null;
+ b.compositor=ukiCamposEnProceso();ukiBorradorActivo=b.id;
  return true;
 }
 function ukiPausarPedido(){
  if(S.busy||D.editando){aviso("Termina primero la edición del pedido registrado.");return;}
  if(!ukiBorradorTieneContenido()){aviso("Escribe un producto, cliente o tipo de entrega para guardar un pedido en espera.");return;}
  if(!ukiGuardarBorradorSinVista())return;
+ // El siguiente pedido no hereda la solicitud que quedó pausada.
+ ukiSolicitudWhatsAppActiva=null;ukiCartaRemotaActiva=null;
  nuevoDraft();ukiBorradorActivo=null;modoNuevo="manual";
  S.msg="Pedido en espera guardado. Puedes registrar otra venta; no se agregó a caja ni se asignó número de pedido.";
  render();
@@ -875,10 +882,15 @@ function ukiRetomarBorrador(id){
  if(S.busy||D.editando){aviso("Termina primero la edición actual.");return;}
  const b=ukiBorradoresSucursal().find(x=>x.id===id);
  if(!b){aviso("El borrador ya no está disponible.");return;}
+ if(b.solicitudWhatsAppId && !(S.solicitudesWhatsApp||[]).some(s=>s.id===b.solicitudWhatsAppId&&s.suc===S.suc&&s.estado==='pendiente')){
+  aviso('La solicitud original ya fue aceptada o rechazada. No registres otro pedido; revisa su historial.');return;
+ }
  if(ukiBorradorActivo!==id&&ukiBorradorTieneContenido()&&!ukiGuardarBorradorSinVista())return;
  D=ukiCopia(b.datos);D.editando=null;
  if(!Array.isArray(D.items)||!D.items.length)D.items=[{nombre:"",cant:1,precio:0,det:""}];
  modoNuevo=b.modo==="manual"?"manual":"whatsapp";
+ ukiSolicitudWhatsAppActiva=b.solicitudWhatsAppId||null;
+ ukiCartaRemotaActiva=String(D.cartaSolicitudRemotaId||"")||null;
  ukiBorradorActivo=b.id;S.vista="nuevo";render();
  Object.entries(b.compositor||{}).forEach(([k,v])=>{if($(k))$(k).value=v;});
 }
@@ -893,6 +905,8 @@ function ukiQuitarBorradorActivo(){
  ukiBorradorActivo=null;
 }
 function ukiVistaBorradores(){
+ // En edición no presentar borradores vacíos ni botón de abrir otro.
+ if(D.editando)return '';
  const list=ukiBorradoresSucursal();
  const items=list.map(b=>{
   const d=b.datos||{},ref=String(d.mesaReferencia||d.cliente||"").trim();
@@ -904,17 +918,17 @@ function ukiVistaBorradores(){
    '<button class="sm ok" type="button" onclick="ukiRetomarBorrador('+esc(JSON.stringify(b.id))+')">Continuar</button> '+
    '<button class="sm" type="button" onclick="ukiEliminarBorrador('+esc(JSON.stringify(b.id))+')">Eliminar</button></div>';
  }).join("");
- return '<div class="card"><h2>⏸ Pedidos en espera (borradores) · '+list.length+'</h2>'+
- '<p class="muted">Son borradores guardados en este dispositivo, NO pedidos registrados ni ventas. Pulsa Continuar para abrirlo y, cuando termines, guarda el pedido una sola vez.</p>'+
- (items||'<p class="muted">Todavía no hay pedidos en espera.</p>')+
+ return '<div class="card uki-formulario-en-espera"><h2>⏸ Dejar abierto y atender otro</h2>'+
+ '<p class="muted">Guarda lo que llevas escrito en este dispositivo. Todavía NO registra un pedido ni confirma ningún pago.</p>'+
  (!D.editando?'<button class="sm ok" type="button" onclick="ukiPausarPedido()">Guardar en espera y abrir otro</button>':'')+
- '<p class="muted">Varios celulares simultáneos requieren otra integración; esta función no elimina conflictos de nube.</p></div>';
+ (list.length?'<details style="margin-top:12px"><summary><b>En atención · '+list.length+' pedido(s) sin terminar</b></summary>'+items+'</details>':'')+
+ '<p class="muted" style="font-size:12px">Los borradores se conservan solo en este dispositivo, separados de los pedidos registrados.</p></div>';
 }
 
 function ukiBorradoresResumenPedidos(){
  const list=ukiBorradoresSucursal();
  if(!list.length)return '';
- return '<details class="card"><summary><b>⏸ Pedidos en espera · '+list.length+'</b> (borradores, sin venta)</summary>'+
+ return '<details class="card"><summary><b>⏸ En atención · '+list.length+'</b> (sin registrar ni cobrar)</summary>'+
   '<p class="muted">No aparecen entre los pedidos del turno hasta que pulses Guardar al terminarlos. Están guardados solo en este dispositivo.</p>'+
   list.map(b=>'<p><b>'+esc(b.datos?.cliente||b.datos?.mesaReferencia||'Pedido sin nombre')+'</b> · '+esc(b.datos?.modalidad||'Retiro')+
    ' · <button class="sm ok" type="button" onclick="ukiRetomarBorrador('+esc(JSON.stringify(b.id))+')">Continuar pedido</button></p>').join('')+
@@ -1066,6 +1080,8 @@ function ukiWhatsAppAceptarYRevisar(id){
  const item=(S.solicitudesWhatsApp||[]).find(x=>x.id===id&&x.suc===S.suc);
  if(!item||item.estado!=='pendiente'){aviso('Esta solicitud ya fue procesada o no existe.');return;}
  if(S.busy){aviso('Termina la operación actual antes de revisar otra.');return;}
+ const pausado=ukiBorradoresSucursal().find(b=>b.solicitudWhatsAppId===id);
+ if(pausado){ukiRetomarBorrador(pausado.id);return;}
  if(ukiSolicitudWhatsAppActiva&&ukiSolicitudWhatsAppActiva!==id)ukiWhatsAppPausarRevision();
  if(ukiBorradorTieneContenido()&&!D.editando&&!ukiGuardarBorradorSinVista())return;
  D=ukiCopia(item.datos);D.pagado=false;D.editando=null;
@@ -1088,9 +1104,13 @@ async function ukiWhatsAppRechazar(id){
   aviso('Selecciona por qué no se realizará este pedido.');return;}
  if(!window.confirm('¿Rechazar '+ukiWhatsAppIdentificador(item)+'? Quedará en el historial y no afectará caja ni ventas.'))return;
  const antes={estado:item.estado,motivo:item.motivo,finalizadoEn:item.finalizadoEn};
+ const borradoresAntes=S.borradores;
  item.estado='rechazada';item.motivo=motivo;item.finalizadoEn=Date.now();
+ // Una solicitud rechazada ya no puede permanecer en "En atención".
+ S.borradores=(S.borradores||[]).filter(b=>b.suc!==S.suc||b.solicitudWhatsAppId!==id);
  const ok=await guardarEnLocalStorage();
- if(!ok){Object.assign(item,antes);aviso('No se guardó el rechazo. La solicitud sigue pendiente.');return;}
+ if(!ok){S.borradores=borradoresAntes;Object.assign(item,antes);aviso('No se guardó el rechazo. La solicitud sigue pendiente.');return;}
+ if(ukiBorradorActivo&&!S.borradores.some(b=>b.id===ukiBorradorActivo))ukiBorradorActivo=null;
  if(ukiSolicitudWhatsAppActiva===id){ukiSolicitudWhatsAppActiva=null;nuevoDraft();}
  S.msg='Solicitud rechazada y archivada, sin sumar ventas, caja, deliverys ni timbres.';
  render();
@@ -1264,27 +1284,33 @@ function vNuevo(){
   const chip=on=>`class="chip${on?" on":""}"`;
   const cli=getCliente(D.cliente,D.codigoCliente,D.telefono);
   const ventasCli=cli?ventasValidas(cli):0;
+  const revisandoSolicitud=!D.editando&&!!(D.cartaSolicitudRemotaId||ukiSolicitudWhatsAppActiva);
+  const pedidoEdicion=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&p.id===D.editando):null;
+  const deltaEdicion=pedidoEdicion?.pagado?Number(pedidoEdicion.total||0)-total:0;
+  const pendienteEdicion=!!ukiCobroPendiente(pedidoEdicion);
    const entregaUI=`<label>Tipo de entrega</label><div class="chips">${["Retiro","Delivery","Consumo en local"].map(m=>`<button ${chip(D.modalidad===m)} onclick="setModalidad('${m}')">${m}</button>`).join("")}</div>${D.modalidad==="Consumo en local"?`<label>Mesa o referencia (opcional)</label><input maxlength="50" value="${esc(D.mesaReferencia||"")}" placeholder="Ej: Mesa 2" oninput="D.mesaReferencia=this.value">`:""}${D.modalidad==="Delivery"?`<label>💰 Valor delivery (se suma)</label><input type="number" inputmode="numeric" value="${D.envio||""}" placeholder="Ej: 2000" oninput="setEnvioManual(this.value)"><p class="muted" id="pedidoEnvioAyuda">Delivery seleccionado - ${D.envio||0} se suma al total</p>`:""}`;
-  return `<div class="section-head"><h2>${D.editando?`Editar pedido #${D.editando}`:"Nuevo pedido"}</h2><p>Elige cómo ingresar el pedido. Puedes revisar los datos antes de guardarlo.</p></div>
+  return `<div class="section-head"><h2>${D.editando?`Editar pedido #${D.editando}`:revisandoSolicitud?"Revisar solicitud":"Nuevo pedido"}</h2><p>${D.editando?"Corrige los datos y el medio de pago del pedido existente. Guardar cambios no genera otro pedido ni otro cobro.":revisandoSolicitud?"Solicitud recibida: verifica el detalle y la forma de entrega. Todavía NO es un pedido registrado ni un pago confirmado.":"Completa los datos y guarda el pedido una sola vez."}</p></div>
   ${ukiVistaBorradores()}
-   <div class="mode-switch" role="group" aria-label="Modo de ingresar pedido"><button type="button" class="${modoNuevo==='whatsapp'?'selected':''}" onclick="cambiarModoNuevo('whatsapp')">📋 Pegar WhatsApp</button><button type="button" class="${modoNuevo==='manual'?'selected':''}" onclick="cambiarModoNuevo('manual')">✎ Manual</button></div>
-   ${modoNuevo==="manual"?`<div class="card" style="border:1px solid var(--accent);"><h2>¿Cómo se entregará este pedido?</h2>${entregaUI}</div>`:""}
-  ${modoNuevo==='whatsapp'?`<div class="card"><h2>Texto del pedido</h2><p class="muted">Pega el mensaje de la carta digital y toca Procesar.</p><textarea id="pegaTxt" rows="4" placeholder="Pega aquí el pedido de WhatsApp" oninput="D.texto=this.value" onpaste="setTimeout(()=>{const el=document.getElementById('pegaTxt');if(el){D.texto=el.value;leerTextoD();}},150)">${esc(D.texto)}</textarea><button class="big" onclick="leerTextoD()">Procesar pedido pegado</button>${ukiWhatsAppGuardarSolicitudBoton()}<p class="muted">Revisa nombre, WhatsApp, código de carta, productos, precio y delivery. Como solicitud no suma ventas.</p></div>`:`<div class="mini-help">Agrega los datos del pedido manualmente en el formulario siguiente.</div>`}
-  <div class="card"><h2>Datos del pedido</h2>${modoNuevo==="manual"?`<div class="mini-help"><b>🔢 Número visible: ${esc(ukiFolioBorrador())}</b><p class="muted" style="margin:6px 0 0">${D.editando?"Este número ya pertenece al pedido y no cambiará.":"El sistema asignará el número correlativo definitivo al guardar. No tienes que escribir un código."}</p></div>`:`<div class="mini-help"><b>${esc(ukiFolioBorrador())}</b> · Identificador visible del turno.</div>`}${D.codigoCarta&&esMensajeCartaUki(D.texto||"")?`<div style="padding:10px;background:var(--bg);border-radius:10px"><b>📋 Carta #${esc(D.codigoCarta)}</b><p class="muted" style="margin:5px 0 0">Código original detectado automáticamente desde el pedido de la carta. No se escribe ni se modifica aquí.</p></div>`:modoNuevo!=="manual"?`<label>Código de la carta (solo si existe)</label><input value="${esc(D.codigoCarta||"")}" placeholder="Se detecta al procesar WhatsApp" oninput="D.codigoCarta=this.value.trim()" inputmode="text"><p class="muted">Si el pedido llegó desde la carta digital, pega su mensaje completo para detectar el código automáticamente.</p>`:""}<label>Código del cliente · últimos 4 dígitos del WhatsApp</label><input id="ukiCodigoAuto" value="${esc(ukiCodigoWhatsApp(D.telefono)||D.codigoCliente||"")}" placeholder="Automático al escribir WhatsApp" readonly inputmode="numeric"><p class="muted">Se calcula automáticamente. Para identificarlo y buscarlo usa también su nombre o el WhatsApp completo.</p><label>Fecha y hora</label><input type="datetime-local" value="${D.fecha}" oninput="D.fecha=this.value"><label>Cliente (no se autocompleta con total)</label><input value="${esc(D.cliente)}" placeholder="Ej: Camila Rojas" oninput="D.cliente=this.value">${cli?`<div style="margin-top:8px;padding:8px;background:#fff1e0;border-radius:8px"><b>${esc(cli.nombre)}</b> tiene <b>${ventasCli}/10</b> timbres ${ventasCli>=6?'<span class="tag" style="background:var(--ok);color:#fff">Puede canjear 12 piezas!</span>':''} ${ventasCli>=10?'<span class="tag" style="background:#111;color:#fff">Puede canjear 36+2 korokes!</span>':''}<div class="tarjeta" style="margin-top:6px">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventasCli?'lleno':''} ${i===5||i===9?'premio':''}">${i<ventasCli?'✓':i+1}</div>`).join("")}</div></div>`:"<p class='muted'>Nuevo cliente - empezará con 1 timbre</p>"}<label>📱 WhatsApp / Teléfono</label><input value="${esc(D.telefono)}" placeholder="+56 9 1234 5678" oninput="D.telefono=this.value;D.codigoCliente=ukiCodigoWhatsApp(D.telefono);const cod=document.getElementById('ukiCodigoAuto');if(cod)cod.value=D.codigoCliente" inputmode="tel">${modoNuevo!=="manual"?entregaUI:""}</div>
-  <div class="card"><h2>Productos y total</h2>${D.items.filter(x=>x.nombre).map((i,k)=>`<div class="row"><span>${i.cant} × ${esc(i.nombre)}${i.det?` <span class="muted">(${esc(i.det)})</span>`:""}</span><b>${fmt(i.cant*i.precio)} <button class="sm" onclick="delItem(${k})">✕</button></b></div>`).join("")||'<p class="muted">Aún no hay productos. Agrégalos abajo.</p>'}<div style="display:grid;grid-template-columns:80px 1fr;gap:8px;margin-top:10px"><div><label>Cant</label><input id="pCant" type="number" value="1" style="text-align:center;font-weight:700"></div><div><label>Precio</label><input id="pPre" type="number" inputmode="numeric" placeholder="14900"></div></div><label>Nombre producto</label><input id="pNom" placeholder="Promo 24 piezas"><label>Detalle</label><input id="pDet" placeholder="sin cebollín"><button class="sm ok" onclick="addItem()">+ Agregar producto</button><div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:10px;border-top:2px solid var(--accent)"><div class="row sub"><span>Subtotal productos</span><b>${fmt(sub)}</b></div><div class="row"><span>Delivery</span><b id="pedidoEnvioVista">${fmt(envio)}</b></div><div class="row"><span>Propina voluntaria</span><b>${fmt(propina)}</b></div><div class="row final"><span>Total a pagar</span><b id="pedidoTotalVista">${fmt(total)}</b></div><div class="row"><span>Este pedido da</span><b>${D.productosPagadosOtroLocal?"Pago registrado en otro local":"⭐ +1 timbre"}</b></div></div></div>
+  <details class="uki-modos-ingreso" ${revisandoSolicitud?'':'open'} style="${D.editando?'display:none;':'margin:10px 0'}"><summary><b>${revisandoSolicitud?'Ver mensaje original':'Opciones de ingreso · WhatsApp o manual'}</b></summary>
+   ${revisandoSolicitud?'':`<div class="mode-switch" role="group" aria-label="Modo de ingresar pedido"><button type="button" class="${modoNuevo==='whatsapp'?'selected':''}" onclick="cambiarModoNuevo('whatsapp')">📋 Pegar WhatsApp</button><button type="button" class="${modoNuevo==='manual'?'selected':''}" onclick="cambiarModoNuevo('manual')">✎ Manual</button></div>`}
+
+  ${modoNuevo==='whatsapp'?`<div class="card"><h2>Texto del pedido</h2><p class="muted">Pega el mensaje de la carta digital y toca Procesar.</p><textarea id="pegaTxt" rows="4" placeholder="Pega aquí el pedido de WhatsApp" oninput="D.texto=this.value" onpaste="setTimeout(()=>{const el=document.getElementById('pegaTxt');if(el){D.texto=el.value;leerTextoD();}},150)">${esc(D.texto)}</textarea>${revisandoSolicitud?'':'<button class="big" onclick="leerTextoD()">Procesar pedido pegado</button>'}${revisandoSolicitud?'':ukiWhatsAppGuardarSolicitudBoton()}<p class="muted">Revisa nombre, WhatsApp, código de carta, productos, precio y delivery. Como solicitud no suma ventas.</p></div>`:`<div class="mini-help">Agrega los datos del pedido manualmente en el formulario siguiente.</div>`}
+  </details>
+  <div class="card"><h2>1 · Cliente y entrega</h2>${modoNuevo==="manual"?`<div class="mini-help"><b>🔢 Número visible: ${esc(ukiFolioBorrador())}</b><p class="muted" style="margin:6px 0 0">${D.editando?"Este número ya pertenece al pedido y no cambiará.":"El sistema asignará el número correlativo definitivo al guardar. No tienes que escribir un código."}</p></div>`:`<div class="mini-help"><b>${esc(ukiFolioBorrador())}</b> · Identificador visible del turno.</div>`}${D.codigoCarta&&esMensajeCartaUki(D.texto||"")?`<div style="padding:10px;background:var(--bg);border-radius:10px"><b>📋 Carta #${esc(D.codigoCarta)}</b><p class="muted" style="margin:5px 0 0">Código original detectado automáticamente desde el pedido de la carta. No se escribe ni se modifica aquí.</p></div>`:modoNuevo!=="manual"?`<label>Código de la carta (solo si existe)</label><input value="${esc(D.codigoCarta||"")}" placeholder="Se detecta al procesar WhatsApp" oninput="D.codigoCarta=this.value.trim()" inputmode="text"><p class="muted">Si el pedido llegó desde la carta digital, pega su mensaje completo para detectar el código automáticamente.</p>`:""}<label>Código del cliente · últimos 4 dígitos del WhatsApp</label><input id="ukiCodigoAuto" value="${esc(ukiCodigoWhatsApp(D.telefono)||D.codigoCliente||"")}" placeholder="Automático al escribir WhatsApp" readonly inputmode="numeric"><p class="muted">Se calcula automáticamente. Para identificarlo y buscarlo usa también su nombre o el WhatsApp completo.</p><label>Fecha y hora</label><input type="datetime-local" value="${D.fecha}" oninput="D.fecha=this.value"><label>Cliente (no se autocompleta con total)</label><input value="${esc(D.cliente)}" placeholder="Ej: Camila Rojas" oninput="D.cliente=this.value">${cli?`<div style="margin-top:8px;padding:8px;background:#fff1e0;border-radius:8px"><b>${esc(cli.nombre)}</b> tiene <b>${ventasCli}/10</b> timbres ${ventasCli>=6?'<span class="tag" style="background:var(--ok);color:#fff">Puede canjear 12 piezas!</span>':''} ${ventasCli>=10?'<span class="tag" style="background:#111;color:#fff">Puede canjear 36+2 korokes!</span>':''}<div class="tarjeta" style="margin-top:6px">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventasCli?'lleno':''} ${i===5||i===9?'premio':''}">${i<ventasCli?'✓':i+1}</div>`).join("")}</div></div>`:"<p class='muted'>Nuevo cliente - empezará con 1 timbre</p>"}<label>📱 WhatsApp / Teléfono</label><input value="${esc(D.telefono)}" placeholder="+56 9 1234 5678" oninput="D.telefono=this.value;D.codigoCliente=ukiCodigoWhatsApp(D.telefono);const cod=document.getElementById('ukiCodigoAuto');if(cod)cod.value=D.codigoCliente" inputmode="tel">${entregaUI}</div>
+  <div class="card"><h2>2 · Productos y total</h2>${D.items.filter(x=>x.nombre).map((i,k)=>`<div class="row"><span>${i.cant} × ${esc(i.nombre)}${i.det?` <span class="muted">(${esc(i.det)})</span>`:""}</span><b>${fmt(i.cant*i.precio)} <button class="sm" onclick="delItem(${k})">✕</button></b></div>`).join("")||'<p class="muted">Aún no hay productos. Agrégalos abajo.</p>'}<div style="display:grid;grid-template-columns:80px 1fr;gap:8px;margin-top:10px"><div><label>Cant</label><input id="pCant" type="number" value="1" style="text-align:center;font-weight:700"></div><div><label>Precio</label><input id="pPre" type="number" inputmode="numeric" placeholder="14900"></div></div><label>Nombre producto</label><input id="pNom" placeholder="Promo 24 piezas"><label>Detalle</label><input id="pDet" placeholder="sin cebollín"><button class="sm ok" onclick="addItem()">+ Agregar producto</button><div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:10px;border-top:2px solid var(--accent)"><div class="row sub"><span>Subtotal productos</span><b>${fmt(sub)}</b></div><div class="row"><span>Delivery</span><b id="pedidoEnvioVista">${fmt(envio)}</b></div><div class="row"><span>Propina voluntaria</span><b>${fmt(propina)}</b></div><div class="row final"><span>Total a pagar</span><b id="pedidoTotalVista">${fmt(total)}</b></div><div class="row"><span>Este pedido da</span><b>${D.productosPagadosOtroLocal?"Pago registrado en otro local":"⭐ +1 timbre"}</b></div></div></div>
   ${ukiPropinaUI(sub)}
-  <div class="card"><h2>Medios de pago</h2>
+  <div class="card"><h2>3 · Pago del pedido</h2><p class="muted">Si todavía no han pagado, no marques la confirmación. El pedido quedará registrado por cobrar.</p>
     <div style="padding:12px;margin-bottom:14px;background:var(--bg);border-radius:12px">
-      <h3 style="margin:0 0 6px">¿Cuánto pagaron en Uki?</h3>
+      <h3 style="margin:0 0 6px">${D.pagado?"Cobro confirmado en Uki":"Cobro por confirmar en Uki"}</h3>
       <p class="muted">Escribe cuánto recibió esta caja de los productos y delivery, sin incluir propina. El resto corresponde al otro local.</p>
-      <label>Total recibido en Uki · de ${fmt(sub+envio)}</label>
+      <label>${D.pagado?"Total recibido en Uki":"Monto previsto en Uki"} · de ${fmt(sub+envio)}</label>
       <input type="number" min="0" max="${sub+envio}" step="1" inputmode="numeric"
         value="${Math.max(0,sub+envio-ukiMontoProductosOtroLocal(D,sub)-ukiMontoEnvioOtroLocal(D,envio,sub))}"
         onchange="ukiAjustarPagoPorLocal(this.value)">
-      <p class="muted"><b>Recibido en Uki:</b> ${fmt(Math.max(0,sub+envio-ukiMontoProductosOtroLocal(D,sub)-ukiMontoEnvioOtroLocal(D,envio,sub)))} · <b>Pagado en el otro local:</b> ${fmt(ukiMontoProductosOtroLocal(D,sub)+ukiMontoEnvioOtroLocal(D,envio,sub))}</p>
+      <p class="muted"><b>${D.pagado?"Recibido en Uki":"Previsto en Uki"}:</b> ${fmt(Math.max(0,sub+envio-ukiMontoProductosOtroLocal(D,sub)-ukiMontoEnvioOtroLocal(D,envio,sub)))} · <b>${D.pagado?"Pagado en otro local":"Informado en otro local"}:</b> ${fmt(ukiMontoProductosOtroLocal(D,sub)+ukiMontoEnvioOtroLocal(D,envio,sub))}</p>
       ${D.modalidad==="Delivery"?"<p class='muted'><b>Delivery para repartidor Uki:</b> "+fmt(envio)+" (siempre se considera, sin importar qué local cobró).</p>":""}
     </div>
-    <p class="muted">Debajo puedes elegir los medios de pago efectivamente recibidos por Uki.</p>
+    <p class="muted">Indica el medio correspondiente; no se contabiliza ningún cobro hasta confirmar el pago completo.</p>
     <label class="check"><input type="checkbox" ${D.productosPagadosOtroLocal?"checked":""}
     onchange="D.productosPagadosOtroLocal=this.checked;D.montoProductosOtroLocal='';D.mixtoProductos=false;D.pagosProductos=[];render()">
       <b>Parte o toda la comida fue pagada en otro local</b></label>
@@ -1304,7 +1330,10 @@ function vNuevo(){
       `<p class="muted"><b>Delivery ${fmt(envio)}:</b> se incluirá en los deliverys de Uki para el repartidor, pero NO como ingreso de la caja porque lo cobraron en otro local.</p>`:
       `<label>Pago del delivery recibido en Uki · ${fmt(envio)}</label>${ukiPagoUI("envio",envio)}`):""}
     <label class="check"><input type="checkbox" ${D.pagado?"checked":""} onchange="D.pagado=this.checked;render()"> <b>Pago completo confirmado</b></label>
-    <p class="muted">Solo se consideran ventas los pagos completos confirmados. Los montos mixtos deben sumar exactamente lo que corresponde.</p></div><button class="big" onclick="ndGuardar()">${D.editando?`💾 Guardar cambios #${D.editando}`:D.productosPagadosOtroLocal?`✅ Guardar pedido con pago compartido`:`✅ Guardar pedido +1 timbre`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición</button>`:""}`;
+    <p class="muted">Solo se consideran ventas los pagos completos confirmados. Los montos mixtos deben sumar exactamente lo que corresponde.</p></div>
+  ${pedidoEdicion?.pagado&&(deltaEdicion!==0||pendienteEdicion)?
+    '<p class="muted">La diferencia del cobro quedará registrada automáticamente; editar no declara una devolución.</p>':''}
+   <button class="big" onclick="ndGuardar()">${D.editando?`💾 Guardar cambios #${D.editando}`:D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición</button>`:""}`;
 }
 
 // Corrección histórica: el pedido muestra los datos corregidos, pero el cierre ya emitido nunca cambia.
@@ -1362,7 +1391,7 @@ montoProductosOtroLocal:p.productosPagadosOtroLocal?Math.min(Number(p.subtotal)|
 envioPagadoOtroLocal:ukiMontoEnvioOtroLocal(p,Number(p.envio)||0,Number(p.subtotal)||0)>0,
 montoEnvioOtroLocal:p.montoEnvioOtroLocal??"",
 localPagoExterno:p.localPagoExterno||"",propinaModo:p.propinaModo||((Number(p.propina)||0)>0?"otro":"ninguna"),propinaPersonalizada:p.propinaModo==="otro"||!p.propinaModo?p.propina||"": "",medioPropina:p.medioPropina||"Efectivo",
-items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}]; ir("nuevo"); aviso(`Editando pedido #${id}`);}
+items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),ajusteCajaRegularizado:false,editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}]; modoNuevo="manual";ir("nuevo"); aviso(`Editando pedido #${id}`);}
 function reanalizar(){leerTextoD();}
 
 // La propina es opcional (sugerencia 10% de productos), fuera de la venta.
@@ -2227,12 +2256,14 @@ function totales(){
   const caja=cajaDelDia(),pedidos=delSucHoy(S.pedidos);
   const pag=pedidos.filter(p=>p.pagado&&p.estado!=="Cancelado"&&!p.esPremio);
   const medios={}; MEDIOS.forEach(m=>medios[m]=0);
-  pag.forEach(p=>{
-    const envio=p.modalidad==="Delivery"?Math.max(0,Number(p.envio)||0):0;
-    const productos=Math.max(0,Number(p.subtotal??((p.total||0)-envio))||0);
-    for(const x of ukiLineasPago(p,"productos",productos))medios[MEDIOS.includes(x.medio)?x.medio:"Otros"]+=x.monto;
-    for(const x of ukiLineasPago(p,"envio",envio))medios[MEDIOS.includes(x.medio)?x.medio:"Otros"]+=x.monto;
-  });
+  // La caja refleja cobros reales, no devoluciones que aún no ocurrieron.
+  for(const p of pedidos){
+    if(!p.pagado&&!ukiCobroPendiente(p))continue;
+    for(const [medio,valor] of Object.entries(ukiCobroFisicoPedido(p)))
+      if(MEDIOS.includes(medio)&&Number.isSafeInteger(Number(valor)))medios[medio]+=Number(valor);
+  }
+  const correccionesPendientes=pedidos.filter(ukiCobroPendiente);
+  const saldoDiferenciasPendientes=correccionesPendientes.reduce((a,p)=>a+Number(p.ajusteCobroPendiente.saldo||0),0);
   Object.keys(caja.apps||{}).forEach(k=>{if(APPS.includes(k)||k==="Otros")medios[k]=(medios[k]||0)+(Number(caja.apps[k])||0);});
   const dms=delSucHoy(S.deliveriesManuales);
   // El delivery manual es un importe A PAGAR al repartidor; no es venta ni dinero recibido.
@@ -2257,7 +2288,9 @@ function totales(){
   const pagoRepartidor=ukiPagoDeliveryDesglose(caja);
   const pagoDelivery=pagoRepartidor.total;
   return {
-    medios,totalMedios,productosPagadosOtroLocal,nDeliv,envios,enviosPedidos,enviosManuales,enviosCobradosUki,enviosCobradosOtroLocal,base:caja.base,pagoDelivery,
+    medios,totalMedios,correccionesPendientes:correccionesPendientes.length,saldoDiferenciasPendientes,
+    ventaCorregida:totalMedios-saldoDiferenciasPendientes,
+    productosPagadosOtroLocal,nDeliv,envios,enviosPedidos,enviosManuales,enviosCobradosUki,enviosCobradosOtroLocal,base:caja.base,pagoDelivery,
     pagoDeliveryDia:pagoRepartidor.dia,pagoDeliveryAnterior:pagoRepartidor.anterior,
     pagoDeliveryMedioDia:pagoRepartidor.medioDia,pagoDeliveryMedioAnterior:pagoRepartidor.medioAnterior,
     pagoDeliveryConceptoAnterior:pagoRepartidor.conceptoAnterior,
@@ -2480,8 +2513,8 @@ function ukiAuditoriaTimbresUI(){
 }
 function vCajaResumen(){
   const t=totales(), caja=cajaDelDia();
-  return `<section class="kpis"><div class="kpi"><span>Venta total</span><strong>${fmt(t.totalMedios)}</strong></div><div class="kpi"><span>Sin delivery</span><strong>${fmt(t.ventaSinDelivery)}</strong></div><div class="kpi"><span>Gastos</span><strong>${fmt(t.gastosTotal)}</strong></div><div class="kpi"><span>Efectivo que queda</span><strong>${fmt(t.efectivoCaja)}</strong></div></section>
-    <div class="card"><h2>Resumen de hoy</h2>${row('Pedidos pagados',t.pagadosN)}${row('Deliverys registrados para el repartidor',fmt(t.envios))}${t.enviosManuales?row('Deliverys manuales (no son ingreso)',fmt(t.enviosManuales)):''}${row('Delivery cobrado en Uki',fmt(t.enviosCobradosUki))}${t.propinasEfectivo?row('Propinas en efectivo (aparte)',fmt(t.propinasEfectivo)):''}${row('Pago a repartidor de hoy',fmt(t.pagoDeliveryDia))}${t.pagoDeliveryAnterior?row('Abono a saldos anteriores',fmt(t.pagoDeliveryAnterior)):''}${row('Total pagado a repartidor',fmt(t.pagoDelivery))}${row('Total final',fmt(t.final),'final')}</div>
+  return `<section class="kpis"><div class="kpi"><span>Venta corregida</span><strong>${fmt(t.ventaCorregida)}</strong></div><div class="kpi"><span>Sin delivery</span><strong>${fmt(t.ventaSinDelivery)}</strong></div><div class="kpi"><span>Gastos</span><strong>${fmt(t.gastosTotal)}</strong></div><div class="kpi"><span>Efectivo que queda</span><strong>${fmt(t.efectivoCaja)}</strong></div></section>
+    <div class="card"><h2>Resumen de hoy</h2>${t.correccionesPendientes?'<p><b>⚠️ '+t.correccionesPendientes+' diferencia(s) por regularizar</b></p>'+row('Diferencia pendiente (no es venta)',fmt(t.saldoDiferenciasPendientes))+row('Dinero registrado en caja',fmt(t.totalMedios)):''}${row('Pedidos pagados',t.pagadosN)}${row('Deliverys registrados para el repartidor',fmt(t.envios))}${t.enviosManuales?row('Deliverys manuales (no son ingreso)',fmt(t.enviosManuales)):''}${row('Delivery cobrado en Uki',fmt(t.enviosCobradosUki))}${t.propinasEfectivo?row('Propinas en efectivo (aparte)',fmt(t.propinasEfectivo)):''}${row('Pago a repartidor de hoy',fmt(t.pagoDeliveryDia))}${t.pagoDeliveryAnterior?row('Abono a saldos anteriores',fmt(t.pagoDeliveryAnterior)):''}${row('Total pagado a repartidor',fmt(t.pagoDelivery))}${row('Total final',fmt(t.final),'final')}</div>
      ${ukiCobrosExternosTurno(t)}
      ${ukiAuditoriaPagosUI()}
      ${ukiAuditoriaTimbresUI()}
@@ -3261,7 +3294,13 @@ function vPedidos(){
   const solicitudEnCategoria=(s,id)=>id==="todos"||
     (id==="por-confirmar"&&s.estado==="pendiente")||
     (id==="rechazados"&&s.estado==="rechazada");
-  const visiblesSolicitudes=solicitudes.filter(s=>solicitudEnCategoria(s,filtroCategoriaPedidos));
+  // Si hay un borrador de esta solicitud en el mismo dispositivo, se muestra
+  // únicamente en «En atención», no dos veces como «Recibida».
+  const borradoresEnAtencion=ukiBorradoresSucursal();
+  const whatsappEnAtencion=new Set(borradoresEnAtencion.map(b=>String(b.solicitudWhatsAppId||'')).filter(Boolean));
+  const cartaEnAtencion=new Set(borradoresEnAtencion.map(b=>String(b.datos?.cartaSolicitudRemotaId||'')).filter(Boolean));
+  const solicitudesActivas=solicitudes.filter(s=>s.estado!=="pendiente"||!whatsappEnAtencion.has(String(s.id)));
+  const visiblesSolicitudes=solicitudesActivas.filter(s=>solicitudEnCategoria(s,filtroCategoriaPedidos));
   // Los rechazos de jornadas anteriores no ocupan la bandeja del turno abierto.
   // Los pendientes viejos siguen visibles hasta que se resuelvan, sin transformarse en ventas.
   const remotasTodas=(!buscando&&!pedidosArchivoDia?ukiCartaRemotasSucursal():[]).filter(r=>r.estado==='pendiente'||r.estado==='rechazada');
@@ -3271,49 +3310,54 @@ function vPedidos(){
     return !Number.isFinite(recibido)||recibido>corteDelDiaMs();
   });
   // El turno muestra solo rechazos de hoy. El archivo queda separado y colapsable.
-  const rechazadosArchivo=!buscando&&!pedidosArchivoDia?ukiWhatsAppSolicitudesSucursal().filter(x=>{
-    if(x.estado!=='rechazada')return false;
-    const creado=Number(x.creadoEn)||Date.parse(x.fechaISO||'')||0;
-    return creado>0&&fechaTurnoRegistro({...x,registradoEn:creado})!==fechaTurno;
-  }):[];
-  const remotasArchivo=!buscando&&!pedidosArchivoDia?remotasTodas.filter(r=>r.estado==='rechazada'&&
-    Number.isFinite(Date.parse(r.creado_en||''))&&Date.parse(r.creado_en)<corteDelDiaMs()):[];
   const remotas=remotasTurno;
   const aceptadasPendientesDeConciliar=!buscando&&!pedidosArchivoDia?ukiCartaAceptadasSinVinculo():[];
   const solicitudRemotaEnCategoria=(r,id)=>id==='todos'||(id==='por-confirmar'&&r.estado==='pendiente')||(id==='rechazados'&&r.estado==='rechazada');
-  const visiblesRemotas=remotas.filter(r=>solicitudRemotaEnCategoria(r,filtroCategoriaPedidos));
-  const urgentesCarta=remotas.filter(r=>r.estado==='pendiente');
-  const urgentesManuales=solicitudes.filter(r=>r.estado==='pendiente');
+  const remotasActivas=remotas.filter(r=>r.estado!=='pendiente'||!cartaEnAtencion.has(String(r.id)));
+  const visiblesRemotas=remotasActivas.filter(r=>solicitudRemotaEnCategoria(r,filtroCategoriaPedidos));
+  const urgentesCarta=remotasActivas.filter(r=>r.estado==='pendiente');
+  const urgentesManuales=solicitudesActivas.filter(r=>r.estado==='pendiente');
   const mostrarPrioridad=!buscando&&!pedidosArchivoDia&&(urgentesCarta.length+urgentesManuales.length)>0;
   const mostrarFichasPrioritarias=filtroCategoriaPedidos==='todos'||filtroCategoriaPedidos==='por-confirmar';
   const visibles=todos.filter(p=>ukiCoincideCategoriaPedido(p,filtroCategoriaPedidos,erroresPedidos));
-  const categorias=UKI_CATEGORIAS_PEDIDOS.map(([id,nombre])=>
-    '<button type="button" class="chip'+(filtroCategoriaPedidos===id?' on':'')+(id==='pendientes'&&mostrarPrioridad?' uki-alerta-filtro':'')+
-    '" onclick="ukiCambiarCategoriaPedidos(\''+id+'\')">'+esc(nombre)+
-    ' ('+(todos.filter(p=>ukiCoincideCategoriaPedido(p,id,erroresPedidos)).length+solicitudes.filter(s=>solicitudEnCategoria(s,id)).length+remotas.filter(r=>solicitudRemotaEnCategoria(r,id)).length)+')</button>'
-  ).join("");
+  const resumenCategorias=UKI_CATEGORIAS_PEDIDOS.map(([id,nombre])=>({
+    id,nombre,
+    total:todos.filter(p=>ukiCoincideCategoriaPedido(p,id,erroresPedidos)).length+
+      solicitudesActivas.filter(x=>solicitudEnCategoria(x,id)).length+
+      remotasActivas.filter(r=>solicitudRemotaEnCategoria(r,id)).length
+  }));
+  const chipCategoria=({id,nombre,total})=>'<button type="button" class="chip'+(filtroCategoriaPedidos===id?' on':'')+
+    (id==='por-confirmar'&&mostrarPrioridad?' uki-alerta-filtro':'')+
+    '" onclick="ukiCambiarCategoriaPedidos(\''+id+'\')">'+esc(nombre)+' ('+total+')</button>';
+  const principales=new Set(['todos','por-confirmar','pendientes','sin-pago','pagados']);
+  const categorias=resumenCategorias.filter(x=>principales.has(x.id)).map(chipCategoria).join('');
+  const secundarios=resumenCategorias.filter(x=>!principales.has(x.id)).map(chipCategoria).join('');
   const titulo=buscando?"Resultados de búsqueda":pedidosArchivoDia?"Pedidos del turno "+pedidosArchivoDia:"Pedidos del turno abierto · "+fechaTurno;
-  return `<div class="section-head"><h2>Pedidos</h2><p>${esc(titulo)} · ${todos.length} registrados · ${pagados} pagados · ${solicitudes.length+remotas.length} solicitudes pendientes o rechazadas</p></div>
+  return `<div class="section-head"><h2>Pedidos</h2><p>${esc(titulo)} · ${todos.length} registrados · ${pagados} pagados · ${solicitudesActivas.length+remotasActivas.length} solicitudes activas o rechazadas · ${borradoresEnAtencion.length} en atención</p></div>
+  <button class="big cta" onclick="ir('nuevo')">＋ Nuevo pedido</button>
+  <div class="card uki-pedidos-filtros"><h2 style="margin:0 0 10px">Ver pedidos por estado</h2>
+    <div class="chips" role="group" aria-label="Filtros principales de pedidos">${categorias}</div>
+    <details style="margin-top:12px" ${!principales.has(filtroCategoriaPedidos)?'open':''}><summary style="cursor:pointer;font-weight:650">Más estados y filtros</summary>
+      <div class="chips" role="group" aria-label="Otros estados" style="margin-top:12px">${secundarios}</div></details>
+    <details style="margin-top:10px"><summary style="cursor:pointer">📲 Conexión con carta digital</summary>
+      <p class="muted">${esc(ukiCartaRemotas.status)}</p><button type="button" class="sm" onclick="ukiCartaRemotasActualizar()">Actualizar solicitudes</button>
+    </details>
+    <p class="muted">${visibles.length+visiblesSolicitudes.length+visiblesRemotas.length} registro(s) en «${esc((UKI_CATEGORIAS_PEDIDOS.find(x=>x[0]===filtroCategoriaPedidos)||[])[1]||"Todos")}».</p></div>
   ${mostrarPrioridad?`<section class="uki-urgentes-carta" aria-label="Solicitudes nuevas por confirmar">
-    <div class="uki-urgentes-titulo">🔔 ${urgentesCarta.length+urgentesManuales.length} solicitud(es) por confirmar</div>
-    <p class="uki-urgentes-subtitulo">Revisa el WhatsApp recibido y acepta o rechaza. No se suman a ventas, caja ni timbres hasta registrar el pedido.</p>
+    <div class="uki-urgentes-titulo">🔔 Recibidos · ${urgentesCarta.length+urgentesManuales.length} solicitud(es) por confirmar</div>
+    <p class="uki-urgentes-subtitulo">Revisa el WhatsApp y acepta o rechaza. Estas solicitudes todavía NO son pedidos registrados y no suman caja ni timbres.</p>
     ${mostrarFichasPrioritarias?
       urgentesCarta.map(r=>ukiCartaRemotaFicha(r)).join('')+
       urgentesManuales.map(r=>'<div class="card order-card uki-carta-solicitud-urgente"><p><b>📲 Solicitud WhatsApp por confirmar</b></p>'+ukiWhatsAppFicha(r,true)+'</div>').join(''):
-      '<button class="sm ok" type="button" onclick="ukiCambiarCategoriaPedidos(&quot;pendientes&quot;)">Revisar solicitudes pendientes</button>'}
+      '<button class="sm ok" type="button" onclick="ukiCambiarCategoriaPedidos(&quot;por-confirmar&quot;)">Ver solicitudes recibidas</button>'}
   </section>`:''}
   ${ukiBorradoresResumenPedidos()}
   ${aceptadasPendientesDeConciliar.length?`<details class="card" aria-label="Solicitudes aceptadas por verificar"><summary><b>Revisar ${aceptadasPendientesDeConciliar.length} solicitud(es) aceptadas</b> · sin vínculo visible en esta copia de caja</summary>
     <p class="muted">El servidor las identifica como aceptadas, pero no se encuentra su pedido vinculado en esta copia del panel. Primero sincroniza Firebase y verifica el historial. No las ingreses otra vez ni las marques pagadas.</p>
     ${aceptadasPendientesDeConciliar.map(r=>'<p><b>Carta #'+esc(r.codigo_pedido||'sin código')+'</b> · '+esc(r.cliente||'Cliente sin identificar')+' · WhatsApp '+esc(r.telefono||'por verificar')+'</p>').join('')}
     </details>`:''}
-  <button class="big cta" onclick="ir('nuevo')">＋ Nuevo pedido</button>
-  <div class="card"><h2 style="margin:0 0 8px">Clasificar pedidos</h2>
-    <div class="chips" role="group" aria-label="Filtrar pedidos por estado y pago">${categorias}</div>
-    <p class="muted">📲 Carta normal: ${esc(ukiCartaRemotas.status)} <button type="button" class="sm" onclick="ukiCartaRemotasActualizar()">Actualizar</button></p>
-    <p class="muted">${visibles.length+visiblesSolicitudes.length+visiblesRemotas.length} registro(s) en «${esc((UKI_CATEGORIAS_PEDIDOS.find(x=>x[0]===filtroCategoriaPedidos)||[])[1]||"Todos")}». Los rechazados no suman a caja, ventas ni timbres.</p></div>
   ${(filtroCategoriaPedidos==="todos"||filtroCategoriaPedidos==="por-confirmar")?ukiMesasUI():""}
-  ${rechazadosArchivo.length+remotasArchivo.length?'<details class="card"><summary><b>📚 Archivo de rechazados de días anteriores</b> · '+(rechazadosArchivo.length+remotasArchivo.length)+'</summary><p class="muted">Son solicitudes anteriores; no se suman a los pedidos ni a la caja de hoy.</p>'+rechazadosArchivo.map(x=>ukiWhatsAppFicha(x,false)).join('')+remotasArchivo.map(x=>ukiCartaRemotaFicha(x)).join('')+'</details>':''}
+
   ${pedidosArchivoDia||buscando?'<button class="sm" onclick="limpiarFiltrosPedidos()">← Volver al turno abierto</button>':''}
   <details class="card" ${buscando?'open':''}><summary style="cursor:pointer"><b>🔎 Buscar por nombre, WhatsApp, código del cliente, pedido o fecha</b></summary>
     <div style="margin-top:12px"><label>Nombre, últimos 4 del WhatsApp, celular completo o número del pedido</label><input id="codigoFiltro" value="${esc(filtroCodigoCarta)}" placeholder="Ej: Camila, 5678 o 56912345678" inputmode="text">
@@ -3323,6 +3367,7 @@ function vPedidos(){
     <p class="muted">Los pedidos de jornadas anteriores se conservan en el historial por turno.</p></div>
   </details>
   <details class="card" ${erroresAbiertos?'open':''}><summary onclick="erroresAbiertos=!erroresAbiertos"><b>⚠️ Errores e incidencias</b> · ${pendientes} pendientes</summary><label>Buscar errores por dia de reporte</label><input id="diaErrorFiltro" type="date" value="${esc(filtroDiaIncidencias)}"><button class="sm ok" onclick="aplicarDiaIncidencias()">Buscar errores</button><p class="muted">Los reportes se conservan aunque se cierre la caja del dia.</p>${incidencias.length?incidencias.map(x=>renderIncidencia(x,"lista")).join(""):"<p class='muted'>No hay errores para esta busqueda.</p>"}</details>
+  ${visibles.length?'<h3 class="uki-pedidos-registrados">Pedidos registrados · revisar pagos y entregas</h3>':''}
   ${visibles.map(p=>`<details class="card order-card" ${p.id===pedidoExpandido?'open':''}>
     <summary onclick="pedidoExpandido=${p.id}"><div class="order-head"><div><b>${esc(ukiReferenciaConCarta(p))} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)} · Origen: ${esc(ukiOrigenPedido(p))}${ukiCodigoClienteVisible(p)?" · Código cliente: "+esc(ukiCodigoClienteVisible(p)):""}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small>${p.esPremio?'🎁 Premio':p.estado==="Cancelado"?'Cancelado':p.pagado?'Pagado':'Sin pago'}${erroresPedidos.has(p.id)?' · ⚠️ Con error':''}</small></div></div></summary>
     <div class="order-body"><p class="muted">${esc(p.estado||'Entregado')} · ${esc(p.medio||'Efectivo')}${p.telefono?' · '+esc(p.telefono):''}</p>${p.estado==="Cancelado"?`<p class="muted"><b>Motivo:</b> ${esc(p.motivoCancelacion==="cliente"?"Cancelado por el cliente":p.motivoCancelacion==="local"?"Cancelado por el local":"No informado")}${p.canceladoEn?" · "+esc(fechaTxt(p.canceladoEn)):""}</p>`:""}
@@ -3338,6 +3383,8 @@ function vPedidos(){
     ${ukiCodigoClienteVisible(p)?`<p class='muted'>Código cliente: ${esc(ukiCodigoClienteVisible(p))}</p>`:''}
     ${p.textoOriginal&&!p.esPremio?`<details class="inner-details"><summary>Ver WhatsApp original</summary><p style="white-space:pre-wrap">${esc(p.textoOriginal)}</p></details>`:''}
     ${ukiVCorreccionesPedido(p)}
+    ${ukiDiferenciaPedidoUI(p)}
+    ${p.correccionesTurno?.length?'<details class="inner-details"><summary>📝 Correcciones del turno · '+p.correccionesTurno.length+'</summary>'+p.correccionesTurno.map(a=>'<p>'+esc(a.fechaISO)+' · '+esc(a.responsable)+' · '+fmt(a.antes?.total)+' → '+fmt(a.despues?.total)+(a.saldoPendiente?' · Diferencia pendiente '+fmt(Math.abs(a.saldoPendiente)):' · Sin diferencia pendiente')+'</p>').join('')+'</details>':''}
     ${ukiTimbrePedidoUI(p)}
     <details class="inner-details"><summary>⚠️ Registrar error / ver soluciones</summary>
     ${(S.incidencias||[]).filter(x=>x.suc===p.suc && x.pedidoId===p.id).map(x=>renderIncidencia(x,"orden")).join("")}
@@ -3347,8 +3394,12 @@ function vPedidos(){
     <div class="order-actions">${ukiCuentaAbierta(p)&&esDelPeriodo(p)?`<button class="sm ok" onclick="ukiAgregarACuenta(${p.id})">+ Agregar a cuenta</button>`:""}${p.estado!=="Cancelado"?`<button class="sm ok" onclick="editarPedido(${p.id})">Editar</button><button class="sm" onclick="togglePagado(${p.id})">${p.pagado?'Quitar pagado':'Marcar pagado'}</button>${p.estado==="Pendiente"?`<button class="sm ok" onclick="ukiMarcarPedidoEntregado(${p.id})">✓ Marcar entregado</button>`:""}`:""}<button class="sm" onclick="copiarComanda(${p.id})">Copiar comanda</button></div>
     ${puedeCancelarPedido(p)?`<div class="inner-details" style="padding:12px;margin-top:12px;border:1px solid #e7c8b3;border-radius:12px"><label for="motivoCancelacion${p.id}">Cancelar pedido · Motivo obligatorio</label><select id="motivoCancelacion${p.id}"><option value="">Selecciona un motivo</option><option value="cliente">Lo canceló el cliente</option><option value="local">Lo canceló el local</option></select><button class="sm" type="button" onclick="cancelarPedido(${p.id})" style="color:#9b3328;border-color:#dcb4a5">Cancelar pedido</button><p class="muted">Solo pedidos pendientes sin pago del turno abierto. Queda en el historial.</p></div>`:""}
     </div></details>`).join('')}
-  ${visiblesRemotas.filter(r=>!mostrarPrioridad||r.estado!=='pendiente').map(r=>ukiCartaRemotaFicha(r)).join('')}
-  ${visiblesSolicitudes.filter(r=>!mostrarPrioridad||r.estado!=='pendiente').map(s=>'<div class="card order-card"><p class="muted"><b>Origen: WhatsApp · '+(s.estado==="rechazada"?"RECHAZADO":"Pendiente de confirmación")+'</b></p>'+ukiWhatsAppFicha(s,s.estado==="pendiente")+'</div>').join('')}
+  ${visiblesRemotas.filter(r=>r.estado==='pendiente'&&!mostrarPrioridad).map(r=>ukiCartaRemotaFicha(r)).join('')}
+  ${visiblesSolicitudes.filter(s=>s.estado==='pendiente'&&!mostrarPrioridad).map(s=>'<div class="card order-card"><p class="muted"><b>Origen: WhatsApp · Pendiente de confirmación</b></p>'+ukiWhatsAppFicha(s,true)+'</div>').join('')}
+  ${visiblesRemotas.filter(r=>r.estado==='rechazada').length+visiblesSolicitudes.filter(s=>s.estado==='rechazada').length?'<details class="card uki-solicitudes-rechazadas" '+(filtroCategoriaPedidos==='rechazados'?'open':'')+'><summary><b>📚 Rechazados · '+(visiblesRemotas.filter(r=>r.estado==='rechazada').length+visiblesSolicitudes.filter(s=>s.estado==='rechazada').length)+'</b> (historial, sin venta)</summary><p class="muted">Estas solicitudes ya fueron rechazadas. No están en espera ni suman a caja, ventas o timbres.</p>'+
+   visiblesRemotas.filter(r=>r.estado==='rechazada').map(r=>ukiCartaRemotaFicha(r)).join('')+
+   visiblesSolicitudes.filter(s=>s.estado==='rechazada').map(s=>'<div class="card order-card"><p><b>Origen: WhatsApp · RECHAZADO</b></p>'+ukiWhatsAppFicha(s,false)+'</div>').join('')+
+   '</details>':''}
   ${!visibles.length&&!visiblesSolicitudes.length&&!visiblesRemotas.length?'<div class="card muted">'+(todos.length||solicitudes.length||remotas.length?'No hay pedidos en esta categoría. Selecciona «Todos» para verlos.':'Todavía no hay pedidos. Pulsa Nuevo pedido para comenzar.')+'</div>':''}
   <details class="card uki-pedidos-archivo-acceso" ${pedidosArchivoDia?'open':''}><summary>📚 Pedidos anteriores por día · ${dias.length} turnos</summary>
     <div style="padding-top:10px">${dias.length?dias.slice(0,30).map(([f,n])=>`<button class="sm" style="display:block;width:100%;margin:6px 0;text-align:left" onclick="verArchivoPedidos('${esc(f)}')">📅 ${esc(f)} · ${n} pedido${n===1?'':'s'}</button>`).join(''):'<p class="muted">Todavía no hay turnos anteriores.</p>'}
@@ -3356,6 +3407,106 @@ function vPedidos(){
   </details>`;
 }
 let pedidoExpandido=null;
+
+
+/* Una corrección de datos/pagos de un QR ya cobrado NO es otro cobro QR.
+ * La identidad y el importe original se mantienen inalterados.
+ * El control del primer cobro y la validación de pagos siguen siendo obligatorios.
+ */
+
+/* Caja realmente cobrada separada de correcciones pendientes. */
+function ukiCobrosRealesMedios(p){
+ const x={};if(!p?.pagado)return x;
+ const sub=Math.max(0,Number(p.subtotal)||0),env=p.modalidad==="Delivery"?Math.max(0,Number(p.envio)||0):0;
+ for(const [tipo,valor] of [["productos",sub],["envio",env]]){
+  for(const linea of ukiLineasPago(p,tipo,valor)){
+   if(!Number.isSafeInteger(linea.monto)||linea.monto<=0)continue;
+   const m=MEDIOS.includes(linea.medio)?linea.medio:"Otros";
+   x[m]=(x[m]||0)+linea.monto;
+  }
+ }
+ return x;
+}
+function ukiCobroPendiente(p){return p?.ajusteCobroPendiente?.estado==="pendiente"?p.ajusteCobroPendiente:null;}
+function ukiImporteMedios(x){return Object.values(x||{}).reduce((t,n)=>t+(Number(n)||0),0);}
+function ukiCobroFisicoPedido(p){return ukiCobroPendiente(p)?.recibido||ukiCobrosRealesMedios(p);}
+function ukiPrepararAjusteCobro(antes,despues,yaRegularizado){
+ const recibido=ukiCobroFisicoPedido(antes),corregido=ukiCobrosRealesMedios(despues);
+ if(yaRegularizado||ukiImporteMedios(recibido)===ukiImporteMedios(corregido))return null;
+ return {estado:"pendiente",recibido:{...recibido},
+  saldo:ukiImporteMedios(recibido)-ukiImporteMedios(corregido),fechaISO:ahora()};
+}
+function ukiDiferenciaPedidoUI(p){
+ const q=ukiCobroPendiente(p);if(!q)return '';
+ const n=Number(q.saldo)||0,txt=n>0?'Por devolver al cliente':n<0?'Por cobrar al cliente':'Diferencia de cobro';
+ const accion=n>0?'Confirmar devolución realizada':n<0?'Confirmar cobro adicional realizado':'Regularizar diferencia';
+ return '<div class="card" style="padding:12px;border-left:3px solid var(--accent)">'+
+  '<p class="muted"><b>⚠️ '+txt+': '+fmt(Math.abs(n))+'</b></p>'+
+  '<p class="muted">La caja conserva lo realmente cobrado. Confirma solamente después de entregar o recibir el dinero.</p>'+
+  (esDelPeriodo(p)&&!ukiCierreConfirmadoPedido(p)?
+   '<button class="sm ok" type="button" onclick="ukiConfirmarDiferenciaPedido('+Number(p.id)+')">'+accion+'</button>':
+   '<p class="muted">Pertenece a un cierre anterior: revisar en historial.</p>')+'</div>';
+}
+/* No es un segundo cobro ni una devolución automática:
+   este botón confirma un movimiento que ya ocurrió y deja su historial. */
+function ukiConfirmarDiferenciaPedido(id){
+ const p=(S.pedidos||[]).find(x=>x.suc===S.suc&&x.id===Number(id));
+ const q=ukiCobroPendiente(p);
+ if(!p||!q||!esDelPeriodo(p)||ukiCierreConfirmadoPedido(p)){
+  aviso('Solo se puede regularizar una diferencia pendiente de la caja abierta.');return;
+ }
+ const n=Number(q.saldo)||0;
+ if(!Number.isSafeInteger(n)){aviso('Monto pendiente inválido. Revisa el pedido.');return;}
+ const accion=n>0?'¿Confirmas que YA devolviste '+fmt(n)+' al cliente?':
+  n<0?'¿Confirmas que YA recibiste '+fmt(-n)+' del cliente?':
+  '¿Confirmas que el medio y el cobro ya fueron conciliados?';
+ if(!window.confirm(accion+' No pulses confirmar antes de mover el dinero.'))return;
+ const responsable=String(ukiTimbreResponsableActual()||'').trim();
+ const autor=responsable&&responsable!=='Sin turno identificado'?responsable:
+  String(window.prompt('¿Quién confirmó esta devolución o cobro?','')||'').trim().slice(0,80);
+ if(!autor){aviso('No se confirmó el movimiento: identifica al responsable.');return;}
+ const antes=ukiFotoCorreccionPedido(p);
+ p.ajusteCobroPendiente=null;
+ if(!Array.isArray(p.correccionesTurno))p.correccionesTurno=[];
+ p.correccionesTurno.push({fechaISO:new Date().toISOString(),registradoEn:Date.now(),
+  responsable:autor,accion:'diferencia_regularizada',importe:n,
+  antes,despues:ukiFotoCorreccionPedido(p),saldoPendiente:0});
+ aviso('Diferencia regularizada. El pedido queda actualizado sin cobrarlo dos veces.');
+ render();
+}
+function ukiPagoModificado(antes,despues){
+ // Comparar valores reales, no undefined vs "" / [] de pedidos antiguos.
+ // Así corregir solo nombre o WhatsApp no pide autorización financiera.
+ const numero=k=>Number(antes?.[k]||0)!==Number(despues?.[k]||0);
+ if(["total","subtotal","envio","propina"].some(numero))return true;
+ if(!!antes?.pagado!==!!despues?.pagado)return true;
+ const canon=p=>(p?.productos||[]).map(x=>[String(x.nombre||""),Number(x.cantidad)||0,
+  Number(x.precioUnit)||0,String(x.detalle||"")]);
+ if(JSON.stringify(canon(antes))!==JSON.stringify(canon(despues)))return true;
+ if(JSON.stringify(ukiCobrosRealesMedios(antes))!==JSON.stringify(ukiCobrosRealesMedios(despues)))return true;
+ const externo=p=>{
+  const sub=Math.max(0,Number(p?.subtotal)||0),env=p?.modalidad==="Delivery"?Number(p?.envio)||0:0;
+  return [ukiMontoProductosOtroLocal(p,sub),ukiMontoEnvioOtroLocal(p,env,sub),String(p?.localPagoExterno||"")];
+ };
+ return JSON.stringify(externo(antes))!==JSON.stringify(externo(despues));
+}
+
+function ukiQREsCorreccionDePagoExistente(d,original){
+ return !!(original&&original.suc===S.suc&&original.pagado===true&&d.pagado===true&&
+  Array.isArray(original.qrSolicitudes)&&original.qrSolicitudes.length>0);
+}
+function ukiQRPagoEditadoConservaCuenta(d,original){
+ if(!ukiQREsCorreccionDePagoExistente(d,original))return false;
+ const ids=v=>[...new Set((Array.isArray(v)?v:[]).map(q=>String(q).replace(/^MESA-/i,'').toLowerCase()))].sort().join('|');
+ if(!Array.isArray(d.qrSolicitudes)||ids(d.qrSolicitudes)!==ids(original.qrSolicitudes))return false;
+ if(d.modalidad!=='Consumo en local'||original.modalidad!==d.modalidad)return false;
+ const mesaOriginal=ukiMesaNumeroReferencia(original.mesaReferencia);
+ if(!mesaOriginal||ukiMesaNumeroReferencia(d.mesaReferencia)!==mesaOriginal)return false;
+ const sub=(d.items||[]).filter(x=>x.nombre).reduce((sum,x)=>sum+Number(x.cant||0)*Number(x.precio||0),0);
+ const propina=ukiMontoPropina(d,sub);
+ return Number.isSafeInteger(sub)&&sub>=0&&Number.isSafeInteger(propina)&&propina>=0&&
+  Number.isSafeInteger(Number(d.envio||0))&&Number(d.envio||0)>=0;
+}
 
 let ukiQRComprobandoCobro=false;
 async function ukiQRPermitirCobroDefinitivo(d){
@@ -3406,8 +3557,16 @@ async function ndGuardar(){
   ukiGuardadoSolicitudEnCurso=true;
   try{
   if(ukiQRComprobandoCobro)return;
+  const originalQR=D.editando?S.pedidos.find(p=>p.suc===S.suc&&p.id===D.editando):null;
+  if(D.editando&&!originalQR){
+    aviso('No se encontró el pedido original. Actualiza la lista antes de editar.');return;
+  }
+  const editandoPagoQRConfirmado=ukiQREsCorreccionDePagoExistente(D,originalQR);
+  if(editandoPagoQRConfirmado&&!ukiQRPagoEditadoConservaCuenta(D,originalQR)){
+    aviso('Este QR ya fue cobrado. Para corregir datos o medio de pago conserva mesa, rondas y montos originales. No se modificó la caja.');return;
+  }
   if(D.pagado&&Array.isArray(D.qrSolicitudes)&&D.qrSolicitudes.length&&
-     UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL){
+     UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL&&!editandoPagoQRConfirmado){
    ukiQRComprobandoCobro=true;
    const firma=JSON.stringify({sucursal:S.suc,datos:D});
    let permitir=false;
@@ -3470,6 +3629,20 @@ async function ndGuardar(){
     if(p?.estado==="Cancelado"){aviso("El pedido cancelado no se puede modificar.");return;}
     if(p){
       const cierreHistorico=ukiCierreConfirmadoPedido(p);
+      const snapshot=ukiCopia(p);
+      const propuesta={...p,subtotal:sub,total,envio,propina,medio:D.medio,medioEnvio:D.medioEnvio,pagado:!!D.pagado,
+       productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),...datosPago};
+      const cambiaCobro=ukiPagoModificado(snapshot,propuesta);
+      const requiereAjuste=cambiaCobro||!!ukiCobroPendiente(snapshot);
+      let autorizacion='';
+      if(!cierreHistorico){
+        if(!esDelPeriodo(snapshot)){aviso('Solo puedes editar directamente pedidos de la caja abierta.');return;}
+        autorizacion=String(ukiTimbreResponsableActual()||'').trim();
+        if(!autorizacion||autorizacion==='Sin turno identificado')
+          autorizacion=String(window.prompt('¿Quién editó este pedido?','')||'').trim();
+        autorizacion=autorizacion.slice(0,80);
+        if(!autorizacion){aviso('No se guardó: indica quién hizo la edición.');return;}
+      }
       let correccionHistorica=null;
       if(cierreHistorico){
         if(Array.isArray(p.qrSolicitudes)&&p.qrSolicitudes.length){
@@ -3494,6 +3667,17 @@ async function ndGuardar(){
       p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||"";p.codigoCarta=D.codigoCarta||"";p.codigoCliente=D.codigoCliente||"";p.qrSolicitudes=Array.isArray(D.qrSolicitudes)?[...new Set(D.qrSolicitudes)]:[];p.sucursalCarta=D.sucursalCarta||""; p.mesaReferencia=D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():""; p.modalidad=D.modalidad; p.envio=envio; p.medio=D.medio; p.medioEnvio=D.medioEnvio; Object.assign(p,datosPago); p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})); p.total=total; p.subtotal=sub; p.propina=propina;p.propinaModo=D.propinaModo;p.medioPropina=D.medioPropina;p.textoOriginal=D.texto;
       // Un cierre confirmado mantiene intactos sus movimientos de propina y fidelidad.
       if(!cierreHistorico)ukiSincronizarPropinaPedido(p);
+      if(!cierreHistorico){
+        if(requiereAjuste&&(snapshot.pagado||ukiCobroPendiente(snapshot)))
+          p.ajusteCobroPendiente=ukiPrepararAjusteCobro(snapshot,p,false);
+        const antes=ukiFotoCorreccionPedido(snapshot),despues=ukiFotoCorreccionPedido(p);
+        if(JSON.stringify(antes)!==JSON.stringify(despues)){
+          if(!Array.isArray(p.correccionesTurno))p.correccionesTurno=[];
+          p.correccionesTurno.push({fechaISO:new Date().toISOString(),registradoEn:Date.now(),
+            responsable:autorizacion,antes,despues,
+            saldoPendiente:p.ajusteCobroPendiente?.saldo||0});
+        }
+      }
       if(!cierreHistorico && !p.esPremio && D.cliente && D.pagado && !D.productosPagadosOtroLocal){
         const cli=asegurarCliente(D.cliente,D.codigoCliente,D.telefono);
         cli.gastado+=sub;
@@ -3511,7 +3695,7 @@ async function ndGuardar(){
             nota:correccionHistorica.nota,antes:correccionHistorica.antes,despues});
         }
       }
-      aviso(`Pedido #${p.id} actualizado por ${fmt(total)}${ukiCuentaAbierta(p)?" · Cuenta abierta, pendiente de pago":""}`);
+      aviso(`Pedido #${p.id} actualizado por ${fmt(total)}${ukiCobroPendiente(p)?" · Diferencia pendiente "+fmt(Math.abs(p.ajusteCobroPendiente.saldo)):""}${ukiCuentaAbierta(p)?" · Cuenta abierta, pendiente de pago":""}`);
     }
     ukiQuitarBorradorActivo();nuevoDraft();
     S.vista="pedidos"; render(); return;
@@ -3589,6 +3773,8 @@ function cerrar(){
     return;
   }
   if(!$("ukiConfirmarCierreDefinitivo")?.checked){aviso("Marca la casilla: esta acción CIERRA DEFINITIVAMENTE el día. Para cambios de trabajador usa PRECIERRE.");return;}
+  // Las diferencias quedan visibles en el historial y el resumen; no bloquear
+  // el cierre diario solo por una edición de precio aún por conciliar.
   const caja=cajaDelDia();
   if(!window.ukiDetalleCierre){aviso("No se cargó el desglose detallado. Actualiza antes de cerrar.");return;}
   let detalleGuardado;
@@ -3603,6 +3789,9 @@ function cerrar(){
     efectivoContado:contadoStr===""?null:Number(contadoStr),
     diferenciaEfectivo:diferencia,
     pendientesAlCerrar:pendientes.length,
+    correccionesPendientesAlCerrar:t.correccionesPendientes||0,
+    saldoDiferenciasPendientesAlCerrar:t.saldoDiferenciasPendientes||0,
+    ventaCorregida:t.ventaCorregida,
     suc:S.suc,fechaOperativa:fechaTurnoCerrado,
     fecha:new Date().toLocaleString("es-CL",{dateStyle:"short",timeStyle:"short"}),
     fechaISO:ahora(),fechaMs:fechaCierre,
@@ -3651,6 +3840,8 @@ function cerrar(){
   const cierreAcumulable=S.cierres[S.cierres.length-1];
   if(cierreAcumulable&&typeof window.ukiCajaAcumuladaRegistrarCierre==="function")
     void window.ukiCajaAcumuladaRegistrarCierre(cierreAcumulable);
+  if(cierreAcumulable&&typeof window.ukiFinAutoQAEnviarCierre==="function")
+    void window.ukiFinAutoQAEnviarCierre(cierreAcumulable);
   S.busy=false;
   cierreDraft={resp:"",obs:"",contado:""};
   aviso("✅ Turno "+fechaTurnoCerrado+" cerrado y guardado en Historial");
@@ -4370,11 +4561,36 @@ function vHistorialCompacto(){
   return vHistorialPrecierres()+ukiVAgregarPedidoOlvidado()+tmp.innerHTML;
 }
 
+function ukiHistorialSolicitudesRechazadas(){
+ // Consulta histórica: no registra ventas, timbres, pagos ni cambia estados.
+ const fecha=String(S.filtroFecha||'');
+ const texto=String(S.filtro||'').trim().toLowerCase();
+ const diaVisible=iso=>(!fecha||fecha===iso)&&(!texto||iso.toLowerCase().includes(texto));
+ const manuales=ukiWhatsAppSolicitudesSucursal().filter(x=>{
+   if(x.estado!=='rechazada')return false;
+   const ms=Number(x.creadoEn)||Date.parse(x.fechaISO||'')||0;
+   const d=ms?fechaTurnoRegistro({...x,registradoEn:ms}):String(x.fechaISO||'').slice(0,10);
+   return diaVisible(d)||(!fecha&&texto&&[x.cliente,x.codigoCarta,x.telefono,x.motivo].some(v=>String(v||'').toLowerCase().includes(texto)));
+ });
+ const remotas=ukiCartaRemotasSucursal().filter(x=>{
+   if(x.estado!=='rechazada')return false;
+   const d=fechaLocalRegistro(x.creado_en||x.actualizado_en||'');
+   return diaVisible(d)||(!fecha&&texto&&[x.cliente,x.codigo_pedido,x.telefono,x.motivo_rechazo].some(v=>String(v||'').toLowerCase().includes(texto)));
+ });
+ const total=manuales.length+remotas.length;
+ return '<details class="card uki-antecedentes"><summary style="cursor:pointer"><b>📚 Solicitudes rechazadas · antecedentes</b> · '+total+'</summary>'+
+  '<p class="muted">Se consultan con el calendario y buscador de arriba. No cuentan como pedidos, ventas ni timbres.</p>'+
+  (total?manuales.map(x=>ukiWhatsAppFicha(x,false)).join('')+
+      remotas.map(x=>ukiCartaRemotaFicha(x)).join(''):'<p class="muted">No hay solicitudes rechazadas para este filtro.</p>')+
+  '</details>';
+}
+
 function vHistorial(){
   if(!S.suc) return vInicio(); const c=ukiCierresFiltradosHistorial().slice().reverse();
   const buscador=`<div class="card"><h2>Buscar por día</h2><label>Texto (ej: 29-10)</label><input id="ukiHistorialFiltroTexto" placeholder="Ej: 29-10" value="${esc(S.filtro||"")}" oninput="S.filtro=this.value" onkeydown="if(event.key==='Enter'){event.preventDefault();render()}"><button class="sm ok" type="button" onclick="S.filtro=document.getElementById('ukiHistorialFiltroTexto').value;render()">Buscar</button><label>Calendario</label><input type="date" value="${S.filtroFecha||""}" onchange="S.filtroFecha=this.value;render()"><p class="muted">Cada cierre queda guardado aquí. Abre el cierre deseado para reenviarlo por WhatsApp o guardarlo en PDF.</p>${c.length===1&&(S.filtro||S.filtroFecha)?'<p class="muted"><b>Cierre encontrado:</b> '+esc(c[0].fechaOperativa||c[0].fecha)+'</p>'+ukiAccionesHistorial(c[0]):""}${c.length?row("Días mostrados",c.length)+row("Deliveries en total",fmt(c.reduce((a,x)=>a+(x.dels||[]).reduce((b,d)=>b+(d.envio||0),0),0)))+row("Efectivo que quedó en total",fmt(c.reduce((a,x)=>a+x.efectivo,0))):""}<button class="sm" onclick="S.filtro='';S.filtroFecha='';render()">Limpiar</button><button class="sm" onclick="copiarResumen()">Copiar resumen</button><details style="margin:10px 0"><summary style="cursor:pointer">Descargas completas (avanzado)</summary><button class="sm" onclick="descargarPDF('historial')">TXT con todos los detalles</button></details><button class="sm" onclick="descargarExcel('historial')">Excel historial</button><button class="sm ok" onclick="descargarRespaldoCompleto()">💾 Respaldo PC</button></div>`;
-  if(!c.length) return buscador+'<div class="card muted">Sin cierres para mostrar - Haz un cierre en Cierre del día con Responsable</div>';
-  return buscador+c.map(x=>{
+  const antecedentes=ukiHistorialSolicitudesRechazadas();
+  if(!c.length) return buscador+antecedentes+'<div class="card muted">Sin cierres para mostrar - Haz un cierre en Cierre del día con Responsable</div>';
+  return buscador+antecedentes+c.map(x=>{
     const m=x.medios||{};
     const mediosRows=Object.keys(m).length?Object.keys(m).map(k=>m[k]>0?row(k,fmt(m[k])):"").join(""):"";
     return `<div class="card" style="border-left:4px solid var(--accent)"><h2>${esc(x.fecha)} · ${esc(x.resp)}</h2>${ukiAccionesHistorial(x)}${x.fechaOperativa?'<p class="muted">Turno: '+esc(x.fechaOperativa)+'</p>':''}
@@ -4405,6 +4621,32 @@ function vHistorial(){
   }).join("");
 }
 
+// Puente de SOLO LECTURA para ventas automáticas en entorno financiero QA.
+// No envía información personal y no escribe en caja ni en pedidos.
+function ukiVentasAutoRama(suc){
+ return suc==='Uki Regimiento Arica'?'arica':suc==='Uki La Serena'?'serena':null;
+}
+function ukiVentasAutoResumen(cierre=null){
+ const branch=ukiVentasAutoRama(cierre?.suc||S.suc);
+ if(!branch||!S.suc||branch!==ukiVentasAutoRama(S.suc))return null;
+ const cerrado=!!cierre,day=cerrado?String(cierre.fechaOperativa||''):fechaOperativaActual();
+ const caja=cerrado?null:cajaDelDia();
+ const start=cerrado?Number(cierre.inicioTurnoMs)||Number(cierre.fechaMs):
+   Number(caja?.inicioMs)||Number(caja?.desdeMs);
+ const current=cerrado?null:totales();
+ const total=cerrado?Number(cierre.venta):Number(current?.totalMedios);
+ const pedidos=cerrado?Number(cierre.pedidos):Number(current?.n);
+ const medios=cerrado?cierre.medios:current?.medios;
+ const revision=cerrado?Number(cierre.fechaMs)+1:Date.now();
+ if(!Number.isSafeInteger(start)||start<1600000000000||
+    !Number.isSafeInteger(total)||total<0||!Number.isSafeInteger(pedidos)||pedidos<0||
+    !medios||typeof medios!=='object')return null;
+ return {branch,turno_ref:branch+'|'+day+'|'+start,fecha_operativa:day,
+    estado:cerrado?'cerrado':'abierto',revision,venta_total:total,pedidos,
+    medios:Object.fromEntries(Object.entries(medios).map(([k,v])=>[k,Number(v)||0]))};
+}
+window.ukiVentasAutoResumenActual=()=>ukiVentasAutoResumen();
+window.ukiVentasAutoResumenCierre=c=>ukiVentasAutoResumen(c);
 window.ukiQAGet=()=>S.suc?{suc:S.suc,estado:datosSoloSucursal()}:null;
 window.ukiQASet=async(data)=>{
  if(!S.suc||!validarEstadoSucursal(data,S.suc))throw Error("Estado inválido para esta sucursal");
@@ -4428,6 +4670,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 <script src="./uki-inventario-historial-admin.js" defer></script>
 <script src="./uki-caja-acumulada-exportar.js" defer></script>
 <script src="./uki-caja-acumulada-admin.js" defer></script>
+<script src="./uki-fin-auto-qa.js" defer></script>
 <script src="./uki-control-turnos.js" defer></script>
 <script src="./uki-carta-remotas-panel.js" defer></script>
 <script type="module">
@@ -4473,6 +4716,8 @@ const auto=crearAutoGuardadoOperativo({
    el("ukiSaveQA").disabled=auto.resumen().activo;
    actualizarBloqueo();
    if(estado==='sincronizado')Promise.resolve().then(async()=>{
+    if(typeof window.ukiFinAutoQAActualizar==="function")
+      void window.ukiFinAutoQAActualizar();
     await ukiMesaConfirmarGuardadosSeguro();
     if(UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL)
      await ukiMesaCerrarPagadasCentralSeguro();

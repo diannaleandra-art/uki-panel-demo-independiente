@@ -106,6 +106,8 @@ function ukiCartaRemotaAbrir(id){
  const r=ukiCartaRemotasSucursal().find(x=>x.id===id&&x.estado==='pendiente');
  if(!r)return aviso('La solicitud ya no está pendiente. Actualiza la bandeja.');
  if(r.en_reserva===true)return aviso('Esta solicitud se está revisando en otro equipo. Actualiza y verifica antes de continuar.');
+ const pausado=ukiBorradoresSucursal().find(b=>String(b.datos?.cartaSolicitudRemotaId||'')===String(id));
+ if(pausado){ukiRetomarBorrador(pausado.id);return;}
  if(ukiCartaPedidoAceptadoEnCaja(r)){aviso('Este pedido ya figura en caja. Se confirmará tras sincronizar Firebase.');void ukiCartaConfirmarRespaldados();return}
  const folio=String(r.codigo_pedido||'').trim().toLowerCase();
  if(folio){
@@ -146,7 +148,15 @@ async function ukiCartaRemotaRechazar(id){
  try{
   await ukiCartaApiCambio(id,'rechazada',motivo);
   r.estado='rechazada';r.motivo_rechazo=motivo;
+  // Limpieza solo después de que el rechazo quedó confirmado en el servidor.
+  const borradoresAntes=S.borradores||[];
+  S.borradores=borradoresAntes.filter(b=>String(b.datos?.cartaSolicitudRemotaId||'')!==String(id));
+  if(ukiBorradorActivo&&!S.borradores.some(b=>b.id===ukiBorradorActivo))ukiBorradorActivo=null;
   if(ukiCartaRemotaActiva===id)ukiCartaRemotaActiva=null;
+  if(borradoresAntes.length!==S.borradores.length){
+   const ok=await guardarEnLocalStorage();
+   if(!ok)return aviso('La solicitud fue rechazada, pero el borrador local no se pudo guardar. Comprueba la nube.');
+  }
   aviso('Solicitud rechazada y archivada, sin registrar venta.');
  }catch(e){aviso('No se pudo rechazar: '+String(e?.message||e))}
 }
