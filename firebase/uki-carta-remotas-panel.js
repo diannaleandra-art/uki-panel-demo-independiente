@@ -32,6 +32,11 @@ function ukiCartaPedidoAceptadoEnCaja(r){
  if(!r?.id)return false;
  return S.pedidos.some(p=>p.suc===S.suc&&p.estado!=='Cancelado'&&String(p.cartaSolicitudRemotaId||'')===String(r.id));
 }
+// Auditoría de solo lectura: una solicitud aceptada por el servidor que todavía
+// no tiene vínculo visible con un pedido de esta copia. Nunca crea otra venta.
+function ukiCartaAceptadasSinVinculo(){
+ return ukiCartaRemotasSucursal().filter(r=>r.estado==='aceptada'&&!ukiCartaPedidoAceptadoEnCaja(r));
+}
 let ukiCartaConfirmando=false;
 async function ukiCartaConfirmarRespaldados(){
  if(ukiCartaConfirmando||ukiCartaRemotas.busy||!S.suc||!window.ukiCancelacionNubeLista?.())return;
@@ -66,6 +71,8 @@ async function ukiCartaRemotasActualizar(){
    ukiCartaRemotas.branch=branch;
    ukiCartaRemotas.status=ukiCartaRemotas.rows.filter(x=>x.estado==='pendiente').length+
     ' solicitud(es) pendientes. Comprueba que el WhatsApp del cliente también haya llegado.';
+   const sinVinculo=ukiCartaAceptadasSinVinculo().length;
+   if(sinVinculo)ukiCartaRemotas.status+=' · '+sinVinculo+' aceptada(s) por revisar tras sincronizar la caja.';
   }
  }catch(e){ukiCartaRemotas.status='Recepción de carta no disponible: '+String(e?.message||e)}
  finally{ukiCartaRemotas.busy=false;if(S.vista==='pedidos')render()}
