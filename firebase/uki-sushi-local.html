@@ -3396,6 +3396,11 @@ function cerrar(){
     retiros:t.retirosTotal,
     pagadoDelivery:t.pagoDelivery,
     pagoDeliveryMedio:caja.pagoDeliveryMedio,
+    pagoDeliveryDia:t.pagoDeliveryDia,
+    pagoDeliveryAnterior:t.pagoDeliveryAnterior,
+    pagoDeliveryMedioDia:t.pagoDeliveryMedioDia,
+    pagoDeliveryMedioAnterior:t.pagoDeliveryMedioAnterior,
+    pagoDeliveryConceptoAnterior:t.pagoDeliveryConceptoAnterior,
     dels:t.delsConManuales,
     medios:t.medios,
     base:caja.base,
@@ -3408,6 +3413,9 @@ function cerrar(){
   // Empezar un nuevo periodo sin eliminar pedidos, gastos ni cierres antiguos.
   caja.desdeMs=fechaCierre;
   caja.apps={}; caja.pagoDelivery=0; caja.pagoDeliveryMedio="Efectivo";
+  caja.pagoDeliveryDia=0;caja.pagoDeliveryAnterior=0;
+  caja.pagoDeliveryMedioDia="Efectivo";caja.pagoDeliveryMedioAnterior="Efectivo";
+  caja.pagoDeliveryConceptoAnterior="";
   caja.cajaChica={inicial:caja.cajaChica.inicial,gastos:[]};
   delete caja.inicioMs;
   delete caja.repartidorNombre; // siguiente turno vuelve al habitual
