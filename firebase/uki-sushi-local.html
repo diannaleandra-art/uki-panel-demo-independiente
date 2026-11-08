@@ -2202,6 +2202,8 @@ function vReportes(){
    row("Ventas sin delivery",fmt(total("ventaSinDelivery")))+
    row("Venta media por pedido",pedidos?fmt(venta/pedidos):"Sin pedidos")+
    row("Gastos",fmt(gastos),"neg")+row("Pago a repartidores",fmt(total("pagadoDelivery")))+
+   row("Pagado por entregas del turno (cierres nuevos)",fmt(total("pagoDeliveryDia")))+
+   row("Abonos a saldos anteriores (cierres nuevos)",fmt(total("pagoDeliveryAnterior")))+
    row("Resultado final sumado",fmt(total("final")),"final")+
    row("Propinas aparte",fmt(total("propinas")))+
    (diaMayor?row("Día con mayor venta",diaMayor[0]+" · "+fmt(diaMayor[1])):"")+
