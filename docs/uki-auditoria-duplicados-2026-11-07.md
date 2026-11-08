@@ -72,3 +72,12 @@ Se verificó por lectura que la rama Neon QA `br-wild-sky-b5bruake` del proyecto
 Con la segunda solicitud ficticia se interrumpió deliberadamente el flujo **entre** marcar `aceptada` y finalizar la reserva. Se verificó el estado intermedio `solicitud=aceptada, reserva=reservado, pedido_id=NULL`. Después se reanudó utilizando el mismo token de reserva y el mismo pedido ficticio `902`; la reserva terminó en `confirmado` sin crear una segunda solicitud ni venta. Esta es una **prueba controlada de recuperación SQL**, no una simulación real de caída de red y Firebase. La tercera solicitud ficticia continúa reservada sin pedido confirmado para probar el caso de guardado fallido.
 
 Las pruebas automáticas de la rama panel pasaron en `https://github.com/diannaleandra-art/uki-panel-demo-independiente/actions/runs/42429963718`; las del backend, en `https://github.com/diannaleandra-art/uki-sushi-respaldo/actions/runs/42429826323`. **QA aislado únicamente: sin publicación.**
+
+
+### 8 noviembre de 2026 — precisión de duplicados y revisión de aceptados (solo QA)
+
+- Se eliminó el bloqueo por **folio corto solamente** en los duplicados de solicitudes WhatsApp pegadas. Ahora compara el mensaje normalizado, el código si ambos están presentes y el teléfono si ambos están presentes. También se reconoce el mismo mensaje sin folio; dos solicitudes legítimas con el mismo número corto y contenido distinto no se bloquean.
+- Se actualizó «Aceptar y revisar» para cotejar el **mensaje completo** de la carta normal con las solicitudes pegadas, no solo el número corto.
+- Se comprobó con una prueba de bandeja que una solicitud **aceptada y vinculada en la caja de la sucursal** no genera aviso, pero una aceptada sin vínculo en la copia local sí se marca «Revisar», con aviso explícito de no sumar una segunda venta. Rechazadas y pendientes no se etiquetan como aceptadas sin vínculo.
+- Pruebas automáticas del panel aprobadas: https://github.com/diannaleandra-art/uki-panel-demo-independiente/actions/runs/42443667270
+- **Producción sin cambios.** No desplegar todavía el control entre dispositivos: faltan validación integral autenticada con Firebase sincronizado + Neon y recuperación de reservas que quedan sin pedido. No modificar el formulario existente ni las opciones de pago mixto.
