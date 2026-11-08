@@ -49,3 +49,17 @@ test('Por entregar no es por cobrar ni solicitud sin confirmar',()=>{
  assert.doesNotMatch(f,/p\.pagado\s*=|p\.total\s*=|S\.caja\s*=/);
  assert.match(html,/✓ Marcar entregado/);
 });
+
+
+test('En Inicio se ofrece acceso al panel de jefes existente sin compartir sesión o cambiar caja',()=>{
+ const section=html.slice(html.indexOf('function vInicio(){'),html.indexOf('function vInicioTrabajador(){'));
+ assert.match(section,/id="ukiAccesoJefes"/);
+ assert.match(section,/href="\.\/mi-administracion\.html"/);
+ assert.match(section,/cuenta Google autorizada/);
+ assert.match(section,/PIN exclusivo de dueños/);
+ assert.match(section,/rel="noopener noreferrer"/);
+ const qa=fs.readFileSync('firebase/mi-administracion.html','utf8');
+ assert.match(qa,/id="google">Entrar con Google/);
+ assert.match(qa,/PIN de 6 números/);
+ assert.match(qa,/Entorno de pruebas/);
+});
