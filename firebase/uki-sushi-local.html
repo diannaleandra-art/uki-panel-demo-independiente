@@ -1880,7 +1880,37 @@ function addGasto(){const c=$("gCon").value.trim(); const m=parseInt($("gMon").v
 function quitarGasto(id){S.gastos=S.gastos.filter(x=>x.id!==id);render();}
 function addDM(){const monto=parseInt($("dmMon").value)||0; const cliente=$("dmCli").value.trim(); const nota=$("dmNota").value.trim(); const medio=$("dmMed").value; if(!monto){aviso("Monto delivery");return;} S.deliveriesManuales.push({suc:S.suc,id:Date.now(),fechaISO:ahora(),registradoEn:Date.now(),monto:monto,cliente:cliente,nota:nota,medio:medio}); $("dmMon").value=""; $("dmCli").value=""; $("dmNota").value=""; render();}
 function quitarDM(id){S.deliveriesManuales=S.deliveriesManuales.filter(x=>x.id!==id);render();}
-function savePD(){const m=parseInt($("pdMon").value)||0; const med=$("pdMed").value; if(!m){aviso("Monto pago delivery");return;} const caja=cajaDelDia(); caja.pagoDelivery=m; caja.pagoDeliveryMedio=med; aviso("Pago delivery guardado"); render();}
+// Compatibilidad con turnos anteriores que solo guardaban un importe global.
+function ukiPagoDeliveryDesglose(caja){
+ const separado=Number.isSafeInteger(caja.pagoDeliveryDia)&&Number.isSafeInteger(caja.pagoDeliveryAnterior);
+ const dia=separado?Math.max(0,caja.pagoDeliveryDia):Math.max(0,Number(caja.pagoDelivery)||0);
+ const anterior=separado?Math.max(0,caja.pagoDeliveryAnterior):0;
+ const medioDia=separado?String(caja.pagoDeliveryMedioDia||'Efectivo'):String(caja.pagoDeliveryMedio||'Efectivo');
+ const medioAnterior=String(caja.pagoDeliveryMedioAnterior||'Efectivo');
+ return {dia,anterior,total:dia+anterior,medioDia,medioAnterior,
+  conceptoAnterior:separado?String(caja.pagoDeliveryConceptoAnterior||''):'',
+  efectivo:(medioDia==='Efectivo'?dia:0)+(medioAnterior==='Efectivo'?anterior:0)};
+}
+function savePD(){
+ const dia=Number($('pdDia')?.value||0),anterior=Number($('pdAnterior')?.value||0);
+ const medioDia=String($('pdDiaMed')?.value||'Efectivo'),medioAnterior=String($('pdAnteriorMed')?.value||'Efectivo');
+ const concepto=String($('pdConceptoAnterior')?.value||'').trim().replace(/\s+/g,' ');
+ if(!Number.isSafeInteger(dia)||dia<0||!Number.isSafeInteger(anterior)||anterior<0||
+   dia+anterior>100000000){aviso('Ingresa importes válidos, sin decimales ni negativos.');return;}
+ if(!MEDIOS.includes(medioDia)||!MEDIOS.includes(medioAnterior)){aviso('Selecciona el medio correcto de cada pago.');return;}
+ if(anterior>0&&(concepto.length<3||concepto.length>120)){
+   aviso('Identifica el saldo anterior (fecha, repartidor o motivo).');return;
+ }
+ const caja=cajaDelDia();
+ caja.pagoDeliveryDia=dia;caja.pagoDeliveryAnterior=anterior;
+ caja.pagoDeliveryMedioDia=medioDia;caja.pagoDeliveryMedioAnterior=medioAnterior;
+ caja.pagoDeliveryConceptoAnterior=anterior>0?concepto:'';
+ // Compatibilidad con cierres e informes existentes: el importe global refleja ambos pagos.
+ caja.pagoDelivery=dia+anterior;
+ caja.pagoDeliveryMedio=medioDia===medioAnterior?medioDia:'Mixto';
+ aviso('Pagos al repartidor guardados: del turno '+fmt(dia)+' · saldos anteriores '+fmt(anterior)+'.');
+ render();
+}
 function addPropina(){const m=parseInt($("prMon").value)||0; const med=$("prMed").value; if(!m){aviso("Monto propina");return;} S.propinas.push({suc:S.suc,id:Date.now(),fechaISO:ahora(),registradoEn:Date.now(),monto:m,medio:med}); $("prMon").value=""; render();}
 function quitarPropina(id){const x=S.propinas.find(x=>x.id===id&&x.suc===S.suc);if(x?.pedidoId){aviso("Esta propina pertenece a un pedido. Corrige el pedido para evitar descuadres.");return;}S.propinas=S.propinas.filter(x=>x.id!==id);render();}
 function addRetiro(){const m=parseInt($("reMon").value)||0; const mot=$("reMot").value.trim(); if(!m){aviso("Monto retiro");return;} S.retiros.push({suc:S.suc,id:Date.now(),fechaISO:ahora(),registradoEn:Date.now(),monto:m,motivo:mot}); $("reMon").value=""; $("reMot").value=""; render();}
@@ -2071,12 +2101,16 @@ function totales(){
   const gastosTotal=gastos.reduce((a,x)=>a+(Number(x.monto)||0),0);
   const gastosEf=gastos.filter(g=>g.medio==="Efectivo").reduce((a,x)=>a+(Number(x.monto)||0),0);
   const retirosTotal=retiros.reduce((a,x)=>a+(Number(x.monto)||0),0);
-  const pagoDelivery=Number(caja.pagoDelivery)||0;
+  const pagoRepartidor=ukiPagoDeliveryDesglose(caja);
+  const pagoDelivery=pagoRepartidor.total;
   return {
     medios,totalMedios,productosPagadosOtroLocal,nDeliv,envios,enviosPedidos,enviosManuales,enviosCobradosUki,enviosCobradosOtroLocal,base:caja.base,pagoDelivery,
+    pagoDeliveryDia:pagoRepartidor.dia,pagoDeliveryAnterior:pagoRepartidor.anterior,
+    pagoDeliveryMedioDia:pagoRepartidor.medioDia,pagoDeliveryMedioAnterior:pagoRepartidor.medioAnterior,
+    pagoDeliveryConceptoAnterior:pagoRepartidor.conceptoAnterior,
     ventaSinDelivery:totalMedios-enviosCobradosUki,gastosTotal,gastosEf,retirosTotal,
     propinas:propinas.reduce((a,x)=>a+(Number(x.monto)||0),0),propinasEfectivo,
-    efectivoCaja:(medios.Efectivo||0)-gastosEf-retirosTotal-(caja.pagoDeliveryMedio==="Efectivo"?pagoDelivery:0),
+    efectivoCaja:(medios.Efectivo||0)-gastosEf-retirosTotal-pagoRepartidor.efectivo,
     final:totalMedios-pagoDelivery-gastosTotal,
     n:pedidos.filter(x=>x.estado!=="Cancelado"&&!x.esPremio).length,
     dels,cancelados:pedidos.filter(x=>x.estado==="Cancelado").length,pagadosN:pag.length,
@@ -2292,7 +2326,7 @@ function ukiAuditoriaTimbresUI(){
 function vCajaResumen(){
   const t=totales(), caja=cajaDelDia();
   return `<section class="kpis"><div class="kpi"><span>Venta total</span><strong>${fmt(t.totalMedios)}</strong></div><div class="kpi"><span>Sin delivery</span><strong>${fmt(t.ventaSinDelivery)}</strong></div><div class="kpi"><span>Gastos</span><strong>${fmt(t.gastosTotal)}</strong></div><div class="kpi"><span>Efectivo que queda</span><strong>${fmt(t.efectivoCaja)}</strong></div></section>
-    <div class="card"><h2>Resumen de hoy</h2>${row('Pedidos pagados',t.pagadosN)}${row('Deliverys registrados para el repartidor',fmt(t.envios))}${t.enviosManuales?row('Deliverys manuales (no son ingreso)',fmt(t.enviosManuales)):''}${row('Delivery cobrado en Uki',fmt(t.enviosCobradosUki))}${t.propinasEfectivo?row('Propinas en efectivo (aparte)',fmt(t.propinasEfectivo)):''}${row('Pago a repartidor',fmt(t.pagoDelivery))}${row('Total final',fmt(t.final),'final')}</div>
+    <div class="card"><h2>Resumen de hoy</h2>${row('Pedidos pagados',t.pagadosN)}${row('Deliverys registrados para el repartidor',fmt(t.envios))}${t.enviosManuales?row('Deliverys manuales (no son ingreso)',fmt(t.enviosManuales)):''}${row('Delivery cobrado en Uki',fmt(t.enviosCobradosUki))}${t.propinasEfectivo?row('Propinas en efectivo (aparte)',fmt(t.propinasEfectivo)):''}${row('Pago a repartidor de hoy',fmt(t.pagoDeliveryDia))}${t.pagoDeliveryAnterior?row('Abono a saldos anteriores',fmt(t.pagoDeliveryAnterior)):''}${row('Total pagado a repartidor',fmt(t.pagoDelivery))}${row('Total final',fmt(t.final),'final')}</div>
      ${ukiCobrosExternosTurno(t)}
      ${ukiAuditoriaPagosUI()}
      ${ukiAuditoriaTimbresUI()}
@@ -2309,12 +2343,25 @@ function vMovimientos(){
 }
 
 function vRegistros(){
-  if(!S.suc) return vInicio(); const t=totales(); const caja=cajaDelDia(); const gastos=delSucHoy(S.gastos); const propinas=delSucHoy(S.propinas); const retiros=delSucHoy(S.retiros); const dms=delSucHoy(S.deliveriesManuales);
-  return `<div class="card"><h2>Precierre del turno · ${fechaOperativaActual()}</h2>${row("Pedidos",t.n)}${row("Pagados",t.pagadosN)}${row("Pendientes pago",t.pendientesN)}${row("Cancelados",t.cancelados)}${row("Efectivo",fmt(t.medios.Efectivo))}${row("Transferencia",fmt(t.medios.Transferencia))}${row("Débito",fmt(t.medios.Débito))}${row("Edenred",fmt(t.medios.Edenred))}${row("Otros",fmt(t.medios.Otros))}${row("Uber Eats",fmt(t.medios["Uber Eats"]))}${row("PedidosYa",fmt(t.medios.PedidosYa))}${row("Rappi",fmt(t.medios.Rappi))}${row("Venta total con delivery",fmt(t.totalMedios),"sub")}${row("Deliveries para repartidor ("+t.nDeliv+")",fmt(t.envios))}${row("− Pago a delivery ("+caja.pagoDeliveryMedio+")",fmt(t.pagoDelivery),"neg")}${row("− Gastos",fmt(t.gastosTotal),"neg")}${row("Venta total - gastos",fmt(t.totalMedios-t.gastosTotal))}${row("Total final (venta - pago delivery - gastos)",fmt(t.final),"final")}</div>
+  if(!S.suc) return vInicio(); const t=totales(); const caja=cajaDelDia(); const pago=ukiPagoDeliveryDesglose(caja); const gastos=delSucHoy(S.gastos); const propinas=delSucHoy(S.propinas); const retiros=delSucHoy(S.retiros); const dms=delSucHoy(S.deliveriesManuales);
+  return `<div class="card"><h2>Precierre del turno · ${fechaOperativaActual()}</h2>${row("Pedidos",t.n)}${row("Pagados",t.pagadosN)}${row("Pendientes pago",t.pendientesN)}${row("Cancelados",t.cancelados)}${row("Efectivo",fmt(t.medios.Efectivo))}${row("Transferencia",fmt(t.medios.Transferencia))}${row("Débito",fmt(t.medios.Débito))}${row("Edenred",fmt(t.medios.Edenred))}${row("Otros",fmt(t.medios.Otros))}${row("Uber Eats",fmt(t.medios["Uber Eats"]))}${row("PedidosYa",fmt(t.medios.PedidosYa))}${row("Rappi",fmt(t.medios.Rappi))}${row("Venta total con delivery",fmt(t.totalMedios),"sub")}${row("Deliveries para repartidor ("+t.nDeliv+")",fmt(t.envios))}${row("− Pago a delivery del día ("+t.pagoDeliveryMedioDia+")",fmt(t.pagoDeliveryDia),"neg")}${t.pagoDeliveryAnterior?row("− Abono de saldos anteriores ("+t.pagoDeliveryMedioAnterior+")",fmt(t.pagoDeliveryAnterior),"neg"):''}${row("− Gastos",fmt(t.gastosTotal),"neg")}${row("Venta total - gastos",fmt(t.totalMedios-t.gastosTotal))}${row("Total final (venta - pago delivery - gastos)",fmt(t.final),"final")}</div>
   <div class="card"><h2>💳 Ventas manuales por app - como v2 arriba</h2><p class="muted">Solo si no están como pedido. Se suman a la venta.</p>${APPS.concat("Otros").map(k=>`<label>${k}</label><input type="number" value="${caja.apps[k]||""}" inputmode="numeric" placeholder="0" onchange="setApp('${k}',this.value)">`).join("")}</div>
   <div class="card"><h2>🛵 Deliverys manuales del día</h2><p class="muted">Repartos adicionales para pagar al repartidor. No aumentan las ventas ni el efectivo. Solo se descuenta dinero cuando registras el pago real en «Pago a delivery».</p><label>Monto del reparto a pagar</label><input id="dmMon" type="number" min="1" inputmode="numeric" placeholder="Ej: 2000"><label>Cliente (opcional)</label><input id="dmCli" placeholder="Ej: Juan"><label>Nota</label><input id="dmNota" placeholder="Casa azul"><label>Medio previsto para pagar al repartidor (no es ingreso)</label><select id="dmMed">${MEDIOS.map(m=>`<option>${m}</option>`).join("")}</select><button class="big" onclick="addDM()">+ Agregar delivery manual</button>${dms.length?dms.map(d=>`<div class="row"><span>${esc(d.cliente||"Manual")} · ${esc(d.medio||"Sin medio")} ${d.nota?"· "+esc(d.nota):""}</span><b>${fmt(d.monto)} <button class="sm" onclick="quitarDM(${d.id})">✕</button></b></div>`).join(""):"<p class='muted'>Sin deliverys manuales hoy</p>"}${row("Total manual para repartidor (no ingresa a caja)",fmt(t.enviosManuales),"sub")}</div>
   <div class="card"><h2>Gastos del día</h2><label>Concepto</label><input id="gCon" placeholder="Ej: Palta"><label>Monto</label><input id="gMon" type="number" inputmode="numeric"><label>Medio</label><select id="gMed">${MEDIOS.map(m=>`<option>${m}</option>`).join("")}</select><button class="big" onclick="addGasto()">+ Agregar gasto</button>${gastos.map(g=>`<div class="row"><span>${esc(g.concepto)} - ${esc(g.medio)}</span><b>${fmt(g.monto)} <button class="sm" onclick="quitarGasto(${g.id})">✕</button></b></div>`).join("")||"<p class='muted'>Sin gastos</p>"}${row("Total gastos",fmt(t.gastosTotal),"sub")}</div>
-  <div class="card"><h2>Pago a delivery</h2><p class="muted">Registra solo el dinero que se pagó realmente desde caja. Evita anotar ese mismo pago como gasto o retiro para no descontarlo dos veces.</p><label>Monto pagado desde caja</label><input id="pdMon" type="number" value="${caja.pagoDelivery||""}" inputmode="numeric"><label>Medio</label><select id="pdMed">${MEDIOS.map(m=>`<option ${m===caja.pagoDeliveryMedio?"selected":""}>${m}</option>`).join("")}</select><button class="big" onclick="savePD()">Guardar pago delivery</button>${row("Pagado hoy",fmt(caja.pagoDelivery))}</div>
+  <div class="card"><h2>🛵 Pago a delivery</h2>
+  <p class="muted">Aquí solo se registran pagos realmente realizados. El reparto manual se anota aparte como deuda al repartidor; no suma efectivo.</p>
+  <h3>Pago de los repartos del día</h3>
+  <label>Importe pagado del turno ($)</label><input id="pdDia" type="number" min="0" step="1" inputmode="numeric" value="${pago.dia||""}" placeholder="0">
+  <label>Medio de pago de hoy</label><select id="pdDiaMed">${MEDIOS.map(m=>`<option ${m===pago.medioDia?"selected":""}>${m}</option>`).join("")}</select>
+  <h3>Abono de saldos anteriores</h3>
+  <label>Importe pagado de deuda anterior ($)</label><input id="pdAnterior" type="number" min="0" step="1" inputmode="numeric" value="${pago.anterior||""}" placeholder="0">
+  <label>Concepto del saldo anterior</label><input id="pdConceptoAnterior" maxlength="120" value="${esc(pago.conceptoAnterior)}" placeholder="Ej: deuda del viernes o repartidor Patricio">
+  <label>Medio del pago anterior</label><select id="pdAnteriorMed">${MEDIOS.map(m=>`<option ${m===pago.medioAnterior?"selected":""}>${m}</option>`).join("")}</select>
+  <p class="muted">Estos dos importes se pagan y descuentan una sola vez. No registres el mismo dinero también en Gastos o Retiros.</p>
+  <button class="big" onclick="savePD()">Guardar pagos al repartidor</button>
+  ${row("Pagado por repartos del día",fmt(t.pagoDeliveryDia))}
+  ${row("Pagado de saldos anteriores",fmt(t.pagoDeliveryAnterior))}
+  ${row("Total pagado desde caja",fmt(t.pagoDelivery),"sub")}</div>
   <div class="card"><h2>Propinas (aparte)</h2><label>Monto</label><input id="prMon" type="number" inputmode="numeric"><label>Medio</label><select id="prMed">${MEDIOS.map(m=>`<option>${m}</option>`).join("")}</select><button class="big" onclick="addPropina()">+ Agregar propina</button>${propinas.map(p=>`<div class="row"><span>${esc(p.medio)}</span><b>${fmt(p.monto)} <button class="sm" onclick="quitarPropina(${p.id})">✕</button></b></div>`).join("")||"<p class='muted'>Sin propinas</p>"}</div>
   <div class="card"><h2>Retiros de efectivo</h2><label>Monto</label><input id="reMon" type="number" inputmode="numeric"><label>Motivo</label><input id="reMot" placeholder="Ej: Compra"><button class="big" onclick="addRetiro()">+ Agregar retiro</button>${retiros.map(r=>`<div class="row"><span>${esc(r.motivo||"Retiro")}</span><b>${fmt(r.monto)} <button class="sm" onclick="quitarRetiro(${r.id})">✕</button></b></div>`).join("")||"<p class='muted'>Sin retiros</p>"}</div>
   <div class="card"><h2>Caja chica</h2><label>Inicial</label><input type="number" value="${caja.cajaChica.inicial}" onchange="cajaDelDia().cajaChica.inicial=Math.max(0,parseInt(this.value)||0);render()" inputmode="numeric"><label>Concepto</label><input id="ccCon" placeholder="Detergente"><label>Monto</label><input id="ccMon" type="number" inputmode="numeric"><button class="big" onclick="addCC()">+ Agregar gasto caja chica</button>${caja.cajaChica.gastos.map(g=>`<div class="row"><span>${esc(g.concepto)}</span><b>${fmt(g.monto)} <button class="sm" onclick="quitarCC(${g.id})">✕</button></b></div>`).join("")||"<p class='muted'>Sin gastos</p>"}${row("Saldo caja chica",fmt(caja.cajaChica.inicial - caja.cajaChica.gastos.reduce((a,g)=>a+g.monto,0)),"sub")}</div>`;
@@ -2440,7 +2487,7 @@ function vCierre(){
   <div class="card" style="border:2px solid var(--accent)"><h2>🛵 Pago al repartidor de Uki</h2><p class="muted">Se consideran los deliverys registrados, sin importar en qué local pagó el cliente.</p><label>Repartidor habitual (se guarda para próximos turnos)</label><input type="text" maxlength="80" value="${esc(S.repartidorHabitual||"")}" placeholder="Nombre del repartidor fijo" onchange="ukiCambiarRepartidorHabitual(this.value)"><label>Repartidor de este turno</label><input type="text" maxlength="80" value="${esc(ukiNombreRepartidorTurno(caja))}" placeholder="Nombre del habitual o reemplazante" onchange="ukiCambiarRepartidorTurno(this.value)"><p class="muted">Si vino un reemplazo, cambia solo el nombre de este turno. No modifica el habitual ni el pago.</p><label>Base diaria ($)</label><input type="number" value="${caja.base}" inputmode="numeric" onchange="cajaDelDia().base=Math.max(0,parseInt(this.value)||0);render()" style="font-weight:700">${row("Deliverys de pedidos ("+t.dels.length+")",fmt(t.enviosPedidos))}${row("Deliverys manuales ("+delSucHoy(S.deliveriesManuales).length+")",fmt(t.enviosManuales))}${row("Total de "+t.nDeliv+" deliverys",fmt(t.envios),"sub")}${row("Base diaria",fmt(caja.base))}${row("Total calculado para repartidor",fmt(caja.base+t.envios),"final")}<p class="muted">Antes de pagar, revisa que estos repartos se hayan realizado y no estén duplicados.</p></div>
   ${ukiDesgloseDeliverysTurno(t)}
   ${ukiGastosTurnoVisible(t)}
-  <div class="card"><h2>Resultado final</h2>${row("Venta total con delivery",fmt(t.totalMedios))}${row("− Pago a delivery ("+caja.pagoDeliveryMedio+")",fmt(t.pagoDelivery),"neg")}${row("Venta - pago delivery",fmt(t.totalMedios-t.pagoDelivery))}${row("− Gastos",fmt(t.gastosTotal),"neg")}${row("Venta total - gastos",fmt(t.totalMedios-t.gastosTotal),"sub")}${row("Total final (venta - pago delivery - gastos)",fmt(t.final),"final")}${row("Efectivo que queda en caja, sin propinas",fmt(t.efectivoCaja))}${row("Propinas (aparte)",fmt(t.propinas))}${t.propinasEfectivo?row("De ellas, en efectivo",fmt(t.propinasEfectivo)):""}</div>
+  <div class="card"><h2>Resultado final</h2>${row("Venta total con delivery",fmt(t.totalMedios))}${row("− Pago de repartos del día ("+t.pagoDeliveryMedioDia+")",fmt(t.pagoDeliveryDia),"neg")}${t.pagoDeliveryAnterior?row("− Abono saldos anteriores ("+t.pagoDeliveryMedioAnterior+")",fmt(t.pagoDeliveryAnterior),"neg"):''}${t.pagoDeliveryAnterior&&t.pagoDeliveryConceptoAnterior?'<p class="muted">Concepto de saldo anterior: '+esc(t.pagoDeliveryConceptoAnterior)+'</p>':''}${row("Venta - pagos al repartidor",fmt(t.totalMedios-t.pagoDelivery))}${row("− Gastos",fmt(t.gastosTotal),"neg")}${row("Venta total - gastos",fmt(t.totalMedios-t.gastosTotal),"sub")}${row("Total final (venta - pago delivery - gastos)",fmt(t.final),"final")}${row("Efectivo que queda en caja, sin propinas",fmt(t.efectivoCaja))}${row("Propinas (aparte)",fmt(t.propinas))}${t.propinasEfectivo?row("De ellas, en efectivo",fmt(t.propinasEfectivo)):""}</div>
   ${pendientes.length?`<div class="card" style="border:2px solid #bd4d1b"><h2>⚠️ Pedidos pendientes de pago · ${pendientes.length}</h2><p class="muted">Revisa estos pedidos antes de cerrar. Si decides cerrar, seguirán registrados como pendientes.</p><p>${pendientesText}</p></div>`:
      '<div class="card"><p style="margin:4px 0">✅ No hay pedidos pendientes de pago en este turno.</p></div>'}
   <div class="card"><h2>💵 Cuadre de efectivo</h2>
