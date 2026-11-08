@@ -21,3 +21,17 @@ test('Sintaxis JS de los scripts del panel',()=>{
   assert.doesNotThrow(()=>new vm.Script(s));
  }
 });
+
+test('Los rechazados quedan fuera de recibidos y del listado activo, sin borrar su historial',()=>{
+ const begin=html.indexOf('function vPedidos()');
+ const end=html.indexOf('let pedidoExpandido=',begin);
+ const ui=html.slice(begin,end);
+ assert.match(ui,/uki-solicitudes-rechazadas/);
+ assert.match(ui,/Rechazados · /);
+ assert.match(ui,/historial, sin venta/);
+ assert.match(ui,/visiblesRemotas\.filter\(r=>r\.estado==='rechazada'\)/);
+ assert.match(ui,/visiblesSolicitudes\.filter\(s=>s\.estado==='rechazada'\)/);
+ assert.match(ui,/Ver solicitudes recibidas/);
+ assert.match(ui,/ukiCambiarCategoriaPedidos\(&quot;por-confirmar&quot;\)/);
+ assert.doesNotMatch(ui,/ukiCambiarCategoriaPedidos\(&quot;pendientes&quot;\)/);
+});

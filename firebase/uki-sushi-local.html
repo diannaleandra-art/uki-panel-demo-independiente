@@ -3312,7 +3312,7 @@ function vPedidos(){
     ${mostrarFichasPrioritarias?
       urgentesCarta.map(r=>ukiCartaRemotaFicha(r)).join('')+
       urgentesManuales.map(r=>'<div class="card order-card uki-carta-solicitud-urgente"><p><b>📲 Solicitud WhatsApp por confirmar</b></p>'+ukiWhatsAppFicha(r,true)+'</div>').join(''):
-      '<button class="sm ok" type="button" onclick="ukiCambiarCategoriaPedidos(&quot;pendientes&quot;)">Revisar solicitudes pendientes</button>'}
+      '<button class="sm ok" type="button" onclick="ukiCambiarCategoriaPedidos(&quot;por-confirmar&quot;)">Ver solicitudes recibidas</button>'}
   </section>`:''}
   ${ukiBorradoresResumenPedidos()}
   ${aceptadasPendientesDeConciliar.length?`<details class="card" aria-label="Solicitudes aceptadas por verificar"><summary><b>Revisar ${aceptadasPendientesDeConciliar.length} solicitud(es) aceptadas</b> · sin vínculo visible en esta copia de caja</summary>
@@ -3355,8 +3355,12 @@ function vPedidos(){
     <div class="order-actions">${ukiCuentaAbierta(p)&&esDelPeriodo(p)?`<button class="sm ok" onclick="ukiAgregarACuenta(${p.id})">+ Agregar a cuenta</button>`:""}${p.estado!=="Cancelado"?`<button class="sm ok" onclick="editarPedido(${p.id})">Editar</button><button class="sm" onclick="togglePagado(${p.id})">${p.pagado?'Quitar pagado':'Marcar pagado'}</button>${p.estado==="Pendiente"?`<button class="sm ok" onclick="ukiMarcarPedidoEntregado(${p.id})">✓ Marcar entregado</button>`:""}`:""}<button class="sm" onclick="copiarComanda(${p.id})">Copiar comanda</button></div>
     ${puedeCancelarPedido(p)?`<div class="inner-details" style="padding:12px;margin-top:12px;border:1px solid #e7c8b3;border-radius:12px"><label for="motivoCancelacion${p.id}">Cancelar pedido · Motivo obligatorio</label><select id="motivoCancelacion${p.id}"><option value="">Selecciona un motivo</option><option value="cliente">Lo canceló el cliente</option><option value="local">Lo canceló el local</option></select><button class="sm" type="button" onclick="cancelarPedido(${p.id})" style="color:#9b3328;border-color:#dcb4a5">Cancelar pedido</button><p class="muted">Solo pedidos pendientes sin pago del turno abierto. Queda en el historial.</p></div>`:""}
     </div></details>`).join('')}
-  ${visiblesRemotas.filter(r=>!mostrarPrioridad||r.estado!=='pendiente').map(r=>ukiCartaRemotaFicha(r)).join('')}
-  ${visiblesSolicitudes.filter(r=>!mostrarPrioridad||r.estado!=='pendiente').map(s=>'<div class="card order-card"><p class="muted"><b>Origen: WhatsApp · '+(s.estado==="rechazada"?"RECHAZADO":"Pendiente de confirmación")+'</b></p>'+ukiWhatsAppFicha(s,s.estado==="pendiente")+'</div>').join('')}
+  ${visiblesRemotas.filter(r=>r.estado==='pendiente'&&!mostrarPrioridad).map(r=>ukiCartaRemotaFicha(r)).join('')}
+  ${visiblesSolicitudes.filter(s=>s.estado==='pendiente'&&!mostrarPrioridad).map(s=>'<div class="card order-card"><p class="muted"><b>Origen: WhatsApp · Pendiente de confirmación</b></p>'+ukiWhatsAppFicha(s,true)+'</div>').join('')}
+  ${visiblesRemotas.filter(r=>r.estado==='rechazada').length+visiblesSolicitudes.filter(s=>s.estado==='rechazada').length?'<details class="card uki-solicitudes-rechazadas" '+(filtroCategoriaPedidos==='rechazados'?'open':'')+'><summary><b>📚 Rechazados · '+(visiblesRemotas.filter(r=>r.estado==='rechazada').length+visiblesSolicitudes.filter(s=>s.estado==='rechazada').length)+'</b> (historial, sin venta)</summary><p class="muted">Estas solicitudes ya fueron rechazadas. No están en espera ni suman a caja, ventas o timbres.</p>'+
+   visiblesRemotas.filter(r=>r.estado==='rechazada').map(r=>ukiCartaRemotaFicha(r)).join('')+
+   visiblesSolicitudes.filter(s=>s.estado==='rechazada').map(s=>'<div class="card order-card"><p><b>Origen: WhatsApp · RECHAZADO</b></p>'+ukiWhatsAppFicha(s,false)+'</div>').join('')+
+   '</details>':''}
   ${!visibles.length&&!visiblesSolicitudes.length&&!visiblesRemotas.length?'<div class="card muted">'+(todos.length||solicitudes.length||remotas.length?'No hay pedidos en esta categoría. Selecciona «Todos» para verlos.':'Todavía no hay pedidos. Pulsa Nuevo pedido para comenzar.')+'</div>':''}
   <details class="card uki-pedidos-archivo-acceso" ${pedidosArchivoDia?'open':''}><summary>📚 Pedidos anteriores por día · ${dias.length} turnos</summary>
     <div style="padding-top:10px">${dias.length?dias.slice(0,30).map(([f,n])=>`<button class="sm" style="display:block;width:100%;margin:6px 0;text-align:left" onclick="verArchivoPedidos('${esc(f)}')">📅 ${esc(f)} · ${n} pedido${n===1?'':'s'}</button>`).join(''):'<p class="muted">Todavía no hay turnos anteriores.</p>'}
