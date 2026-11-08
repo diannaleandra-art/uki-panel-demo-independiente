@@ -2250,12 +2250,14 @@ function totales(){
   const caja=cajaDelDia(),pedidos=delSucHoy(S.pedidos);
   const pag=pedidos.filter(p=>p.pagado&&p.estado!=="Cancelado"&&!p.esPremio);
   const medios={}; MEDIOS.forEach(m=>medios[m]=0);
-  pag.forEach(p=>{
-    const envio=p.modalidad==="Delivery"?Math.max(0,Number(p.envio)||0):0;
-    const productos=Math.max(0,Number(p.subtotal??((p.total||0)-envio))||0);
-    for(const x of ukiLineasPago(p,"productos",productos))medios[MEDIOS.includes(x.medio)?x.medio:"Otros"]+=x.monto;
-    for(const x of ukiLineasPago(p,"envio",envio))medios[MEDIOS.includes(x.medio)?x.medio:"Otros"]+=x.monto;
-  });
+  // La caja refleja cobros reales, no devoluciones que aún no ocurrieron.
+  for(const p of pedidos){
+    if(!p.pagado&&!ukiCobroPendiente(p))continue;
+    for(const [medio,valor] of Object.entries(ukiCobroFisicoPedido(p)))
+      if(MEDIOS.includes(medio)&&Number.isSafeInteger(Number(valor)))medios[medio]+=Number(valor);
+  }
+  const correccionesPendientes=pedidos.filter(ukiCobroPendiente);
+  const saldoDiferenciasPendientes=correccionesPendientes.reduce((a,p)=>a+Number(p.ajusteCobroPendiente.saldo||0),0);
   Object.keys(caja.apps||{}).forEach(k=>{if(APPS.includes(k)||k==="Otros")medios[k]=(medios[k]||0)+(Number(caja.apps[k])||0);});
   const dms=delSucHoy(S.deliveriesManuales);
   // El delivery manual es un importe A PAGAR al repartidor; no es venta ni dinero recibido.
@@ -2280,7 +2282,9 @@ function totales(){
   const pagoRepartidor=ukiPagoDeliveryDesglose(caja);
   const pagoDelivery=pagoRepartidor.total;
   return {
-    medios,totalMedios,productosPagadosOtroLocal,nDeliv,envios,enviosPedidos,enviosManuales,enviosCobradosUki,enviosCobradosOtroLocal,base:caja.base,pagoDelivery,
+    medios,totalMedios,correccionesPendientes:correccionesPendientes.length,saldoDiferenciasPendientes,
+    ventaCorregida:totalMedios-saldoDiferenciasPendientes,
+    productosPagadosOtroLocal,nDeliv,envios,enviosPedidos,enviosManuales,enviosCobradosUki,enviosCobradosOtroLocal,base:caja.base,pagoDelivery,
     pagoDeliveryDia:pagoRepartidor.dia,pagoDeliveryAnterior:pagoRepartidor.anterior,
     pagoDeliveryMedioDia:pagoRepartidor.medioDia,pagoDeliveryMedioAnterior:pagoRepartidor.medioAnterior,
     pagoDeliveryConceptoAnterior:pagoRepartidor.conceptoAnterior,
@@ -3401,6 +3405,42 @@ let pedidoExpandido=null;
  * La identidad y el importe original se mantienen inalterados.
  * El control del primer cobro y la validación de pagos siguen siendo obligatorios.
  */
+
+/* Caja realmente cobrada separada de correcciones pendientes. */
+function ukiCobrosRealesMedios(p){
+ const x={};if(!p?.pagado)return x;
+ const sub=Math.max(0,Number(p.subtotal)||0),env=p.modalidad==="Delivery"?Math.max(0,Number(p.envio)||0):0;
+ for(const [tipo,valor] of [["productos",sub],["envio",env]]){
+  for(const linea of ukiLineasPago(p,tipo,valor)){
+   if(!Number.isSafeInteger(linea.monto)||linea.monto<=0)continue;
+   const m=MEDIOS.includes(linea.medio)?linea.medio:"Otros";
+   x[m]=(x[m]||0)+linea.monto;
+  }
+ }
+ return x;
+}
+function ukiCobroPendiente(p){return p?.ajusteCobroPendiente?.estado==="pendiente"?p.ajusteCobroPendiente:null;}
+function ukiImporteMedios(x){return Object.values(x||{}).reduce((t,n)=>t+(Number(n)||0),0);}
+function ukiCobroFisicoPedido(p){return ukiCobroPendiente(p)?.recibido||ukiCobrosRealesMedios(p);}
+function ukiPrepararAjusteCobro(antes,despues,yaRegularizado){
+ const recibido=ukiCobroFisicoPedido(antes),corregido=ukiCobrosRealesMedios(despues);
+ if(yaRegularizado||JSON.stringify(recibido)===JSON.stringify(corregido))return null;
+ return {estado:"pendiente",recibido:{...recibido},
+  saldo:ukiImporteMedios(recibido)-ukiImporteMedios(corregido),fechaISO:ahora()};
+}
+function ukiDiferenciaPedidoUI(p){
+ const q=ukiCobroPendiente(p);if(!q)return '';
+ const n=Number(q.saldo)||0,txt=n>0?'Por devolver al cliente':n<0?'Por cobrar al cliente':'Por revisar en medios de pago';
+ return '<p class="muted" style="padding:10px;border:1px solid var(--line);border-radius:9px"><b>⚠️ '+txt+': '+fmt(Math.abs(n))+
+  '</b>. La caja conserva el cobro real. Para regularizarlo, entra a Editar.</p>';
+}
+function ukiPagoModificado(antes,despues){
+ const fields=["pagado","productos","total","subtotal","envio","propina","medio","medioEnvio",
+  "pagosProductos","pagosEnvio","productosPagadosOtroLocal","montoProductosOtroLocal",
+  "envioPagadoOtroLocal","montoEnvioOtroLocal","localPagoExterno"];
+ return fields.some(k=>JSON.stringify(antes?.[k]??null)!==JSON.stringify(despues?.[k]??null));
+}
+
 function ukiQREsCorreccionDePagoExistente(d,original){
  return !!(original&&original.suc===S.suc&&original.pagado===true&&d.pagado===true&&
   Array.isArray(original.qrSolicitudes)&&original.qrSolicitudes.length>0);
@@ -3414,11 +3454,8 @@ function ukiQRPagoEditadoConservaCuenta(d,original){
  if(!mesaOriginal||ukiMesaNumeroReferencia(d.mesaReferencia)!==mesaOriginal)return false;
  const sub=(d.items||[]).filter(x=>x.nombre).reduce((sum,x)=>sum+Number(x.cant||0)*Number(x.precio||0),0);
  const propina=ukiMontoPropina(d,sub);
- return Number.isSafeInteger(sub)&&sub>=0&&
-  sub===Number(original.subtotal)&&
-  Number(d.envio||0)===Number(original.envio||0)&&
-  propina===Number(original.propina||0)&&
-  sub+Number(d.envio||0)+propina===Number(original.total);
+ return Number.isSafeInteger(sub)&&sub>=0&&Number.isSafeInteger(propina)&&propina>=0&&
+  Number.isSafeInteger(Number(d.envio||0))&&Number(d.envio||0)>=0;
 }
 
 let ukiQRComprobandoCobro=false;
