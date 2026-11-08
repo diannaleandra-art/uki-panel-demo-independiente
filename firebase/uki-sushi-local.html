@@ -605,6 +605,7 @@ function vInicio(){
   const inicio=window.ukiControlTurnos?.fechaHoraLegible(caja.inicioMs)||"No registrado antes de esta actualización";
   return `<div class="welcome"><div class="eyebrow">RESUMEN DEL TURNO · ${esc(turno)}</div><h2>Hola, Uki Sushi <span>🍣</span></h2><p class="muted">${esc(S.suc)}</p></div>
   ${vInicioTrabajador()}
+  <details class="card" id="ukiAccesoJefes" style="border-color:#dcbfa2;background:#fffcf7"><summary style="cursor:pointer;font-weight:700">🔒 Administración de jefes · acceso privado</summary><p class="muted">Módulo existente en entorno de pruebas. Requiere una cuenta Google autorizada y el PIN exclusivo de dueños. No comparte claves del agendador ni modifica pedidos o caja desde este acceso.</p><a href="./mi-administracion.html" target="_blank" rel="noopener noreferrer" class="big" style="display:block;text-align:center;text-decoration:none;color:#fff;font-weight:650">Abrir Mi Administración</a></details>
   <div class="card" style="padding:14px"><h2 style="margin:0 0 6px">🕒 Inicio del turno</h2><p style="margin:4px 0"><b>${esc(diaOperativo)}</b></p><p class="muted" style="margin:4px 0">Fecha y hora registradas: ${esc(inicio)}</p></div>
   <section class="kpis" aria-label="Resumen de ventas">
     <div class="kpi"><span>Venta de hoy</span><strong>${fmt(t.totalMedios)}</strong></div>
