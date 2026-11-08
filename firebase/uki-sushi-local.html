@@ -342,7 +342,11 @@ function aviso(t){S.msg=t;render();window.scrollTo({top:0,behavior:"smooth"});}
 function ir(v){
   if(S.vista==='nuevo'&&v!=='nuevo'&&ukiCartaRemotaActiva)ukiCartaRemotaActiva=null;
   if(S.vista==="nuevo"&&v!=="nuevo"&&S.suc&&ukiSolicitudWhatsAppActiva){
-    ukiWhatsAppPausarRevision();nuevoDraft();
+    if(ukiBorradorActivo){
+      if(!ukiGuardarBorradorSinVista())return;
+      ukiSolicitudWhatsAppActiva=null;
+    }else ukiWhatsAppPausarRevision();
+    nuevoDraft();ukiBorradorActivo=null;
   }else if(S.vista==="nuevo"&&v!=="nuevo"&&S.suc&&!D.editando&&ukiBorradorTieneContenido()){
    if(ukiGuardarBorradorSinVista()){nuevoDraft();ukiBorradorActivo=null;}
    else return;
@@ -3278,7 +3282,13 @@ function vPedidos(){
   const solicitudEnCategoria=(s,id)=>id==="todos"||
     (id==="por-confirmar"&&s.estado==="pendiente")||
     (id==="rechazados"&&s.estado==="rechazada");
-  const visiblesSolicitudes=solicitudes.filter(s=>solicitudEnCategoria(s,filtroCategoriaPedidos));
+  // Si hay un borrador de esta solicitud en el mismo dispositivo, se muestra
+  // únicamente en «En atención», no dos veces como «Recibida».
+  const borradoresEnAtencion=ukiBorradoresSucursal();
+  const whatsappEnAtencion=new Set(borradoresEnAtencion.map(b=>String(b.solicitudWhatsAppId||'')).filter(Boolean));
+  const cartaEnAtencion=new Set(borradoresEnAtencion.map(b=>String(b.datos?.cartaSolicitudRemotaId||'')).filter(Boolean));
+  const solicitudesActivas=solicitudes.filter(s=>s.estado!=="pendiente"||!whatsappEnAtencion.has(String(s.id)));
+  const visiblesSolicitudes=solicitudesActivas.filter(s=>solicitudEnCategoria(s,filtroCategoriaPedidos));
   // Los rechazos de jornadas anteriores no ocupan la bandeja del turno abierto.
   // Los pendientes viejos siguen visibles hasta que se resuelvan, sin transformarse en ventas.
   const remotasTodas=(!buscando&&!pedidosArchivoDia?ukiCartaRemotasSucursal():[]).filter(r=>r.estado==='pendiente'||r.estado==='rechazada');
@@ -3291,17 +3301,18 @@ function vPedidos(){
   const remotas=remotasTurno;
   const aceptadasPendientesDeConciliar=!buscando&&!pedidosArchivoDia?ukiCartaAceptadasSinVinculo():[];
   const solicitudRemotaEnCategoria=(r,id)=>id==='todos'||(id==='por-confirmar'&&r.estado==='pendiente')||(id==='rechazados'&&r.estado==='rechazada');
-  const visiblesRemotas=remotas.filter(r=>solicitudRemotaEnCategoria(r,filtroCategoriaPedidos));
-  const urgentesCarta=remotas.filter(r=>r.estado==='pendiente');
-  const urgentesManuales=solicitudes.filter(r=>r.estado==='pendiente');
+  const remotasActivas=remotas.filter(r=>r.estado!=='pendiente'||!cartaEnAtencion.has(String(r.id)));
+  const visiblesRemotas=remotasActivas.filter(r=>solicitudRemotaEnCategoria(r,filtroCategoriaPedidos));
+  const urgentesCarta=remotasActivas.filter(r=>r.estado==='pendiente');
+  const urgentesManuales=solicitudesActivas.filter(r=>r.estado==='pendiente');
   const mostrarPrioridad=!buscando&&!pedidosArchivoDia&&(urgentesCarta.length+urgentesManuales.length)>0;
   const mostrarFichasPrioritarias=filtroCategoriaPedidos==='todos'||filtroCategoriaPedidos==='por-confirmar';
   const visibles=todos.filter(p=>ukiCoincideCategoriaPedido(p,filtroCategoriaPedidos,erroresPedidos));
   const resumenCategorias=UKI_CATEGORIAS_PEDIDOS.map(([id,nombre])=>({
     id,nombre,
     total:todos.filter(p=>ukiCoincideCategoriaPedido(p,id,erroresPedidos)).length+
-      solicitudes.filter(x=>solicitudEnCategoria(x,id)).length+
-      remotas.filter(r=>solicitudRemotaEnCategoria(r,id)).length
+      solicitudesActivas.filter(x=>solicitudEnCategoria(x,id)).length+
+      remotasActivas.filter(r=>solicitudRemotaEnCategoria(r,id)).length
   }));
   const chipCategoria=({id,nombre,total})=>'<button type="button" class="chip'+(filtroCategoriaPedidos===id?' on':'')+
     (id==='por-confirmar'&&mostrarPrioridad?' uki-alerta-filtro':'')+
@@ -3310,7 +3321,7 @@ function vPedidos(){
   const categorias=resumenCategorias.filter(x=>principales.has(x.id)).map(chipCategoria).join('');
   const secundarios=resumenCategorias.filter(x=>!principales.has(x.id)).map(chipCategoria).join('');
   const titulo=buscando?"Resultados de búsqueda":pedidosArchivoDia?"Pedidos del turno "+pedidosArchivoDia:"Pedidos del turno abierto · "+fechaTurno;
-  return `<div class="section-head"><h2>Pedidos</h2><p>${esc(titulo)} · ${todos.length} registrados · ${pagados} pagados · ${solicitudes.length+remotas.length} solicitudes pendientes o rechazadas</p></div>
+  return `<div class="section-head"><h2>Pedidos</h2><p>${esc(titulo)} · ${todos.length} registrados · ${pagados} pagados · ${solicitudesActivas.length+remotasActivas.length} solicitudes activas o rechazadas · ${borradoresEnAtencion.length} en atención</p></div>
   <button class="big cta" onclick="ir('nuevo')">＋ Nuevo pedido</button>
   <div class="card uki-pedidos-filtros"><h2 style="margin:0 0 10px">Ver pedidos por estado</h2>
     <div class="chips" role="group" aria-label="Filtros principales de pedidos">${categorias}</div>

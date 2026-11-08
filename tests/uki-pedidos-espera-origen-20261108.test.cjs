@@ -54,3 +54,34 @@ test('Rechazar limpia espera asociada solo al confirmar el servidor o respaldo l
  assert.ok(fragment.indexOf("await ukiCartaApiCambio(id,'rechazada'")<fragment.indexOf('S.borradores=borradoresAntes.filter'));
  assert.match(remote,/ukiBorradoresSucursal\(\)\.find\(b=>String\(b\.datos\?\.cartaSolicitudRemotaId/);
 });
+
+test('Salir de una revisión retomada guarda el último borrador y limpia su referencia',()=>{
+ const x=ctxOf({local:true});
+ x.ukiPausarPedido();
+ const draft=x.S.borradores[0];
+ x.ukiRetomarBorrador(draft.id);
+ x.D.cliente='Cliente Corregido';
+ x.window={scrollTo:()=>{}};
+ x.setTimeout=()=>{};
+ const from=html.indexOf('function ir(v){');
+ const to=html.indexOf('/* Cifrado local',from);
+ assert.ok(from>0&&to>from);
+ vm.runInContext(html.slice(from,to),x);
+ x.S.vista='nuevo';
+ x.ir('clientes');
+ assert.equal(x.S.vista,'clientes');
+ assert.equal(x.ukiBorradorActivo,null);
+ assert.equal(x.ukiSolicitudWhatsAppActiva,null);
+ assert.equal(x.S.borradores.length,1);
+ assert.equal(x.S.borradores[0].datos.cliente,'Cliente Corregido');
+ assert.equal(x.S.borradores[0].solicitudWhatsAppId,'local-uno');
+});
+test('La bandeja evita mostrar dos veces solicitudes pausadas en el mismo dispositivo',()=>{
+ const start=html.indexOf('function vPedidos()'),end=html.indexOf('let pedidoExpandido=',start);
+ const ui=html.slice(start,end);
+ for(const key of ['borradoresEnAtencion=ukiBorradoresSucursal()','whatsappEnAtencion=new Set','cartaEnAtencion=new Set',
+ 'solicitudesActivas=solicitudes.filter','remotasActivas=remotas.filter',
+ 'const urgentesCarta=remotasActivas.filter','const urgentesManuales=solicitudesActivas.filter'])
+  assert.ok(ui.includes(key),key);
+ assert.match(ui,/\$\{borradoresEnAtencion\.length\} en atención/);
+});
