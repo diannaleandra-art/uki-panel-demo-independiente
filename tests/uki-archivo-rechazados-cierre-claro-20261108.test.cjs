@@ -42,11 +42,11 @@ test('Un rechazo antiguo sale de Todos tras el corte; los pendientes no desapare
  assert.deepEqual(visible.map(x=>x.id),['hoy','pendiente','sin-fecha']);
  assert.equal(rows.length,4,'No se borran registros históricos');
  assert.match(html,/const remotas=remotasTurno/);
- assert.match(html,/Archivo de rechazados de días anteriores/);
+ assert.match(html,/function ukiHistorialSolicitudesRechazadas\(\)/);
 });
 
 test('Los rechazados nunca se registran como ventas',()=>{
- assert.match(html,/Los rechazados no suman a caja, ventas ni timbres/);
+ assert.match(html,/No cuentan como pedidos, ventas ni timbres/);
  assert.match(html,/if\(s\.estado==="aceptada"\)return false/);
  assert.match(html,/const remotasTurno=remotasTodas/);
  assert.match(html,/const urgentesCarta=remotas\.filter\(r=>r\.estado==='pendiente'\)/);
