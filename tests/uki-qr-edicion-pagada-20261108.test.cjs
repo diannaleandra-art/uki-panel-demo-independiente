@@ -22,17 +22,24 @@ test('QR ya pagado admite corregir cliente y medio de pago sin otra cuenta abier
  draft.cliente='Cliente corregido';draft.medio='Transferencia';
  assert.equal(ctx.ukiQRPagoEditadoConservaCuenta(draft,original),true);
 });
-test('Se bloquean cambios de mesa, QR, subtotal o propina de QR ya pagado',()=>{
+test('Se protege la ronda, mesa y modalidad del QR original ya pagado',()=>{
  for(const bad of [
   d=>{d.qrSolicitudes=['MESA-OTRA'];},
   d=>{d.qrSolicitudes=[];},
   d=>{d.mesaReferencia='Mesa 3';},
-  d=>{d.modalidad='Retiro';},
-  d=>{d.items[0].precio=12500;},
-  d=>{d.propinaModo='otro';d.propinaPersonalizada=1000;}
+  d=>{d.modalidad='Retiro';}
  ]){const {ctx,original,draft}=scenario();bad(draft);
   assert.equal(ctx.ukiQRPagoEditadoConservaCuenta(draft,original),false);
  }
+});
+test('El precio y la propina de un QR cobrado son corregibles con conciliación',()=>{
+ const {ctx,original,draft}=scenario();
+ draft.items[0].precio=12500;
+ assert.equal(ctx.ukiQRPagoEditadoConservaCuenta(draft,original),true);
+ draft.propinaModo='otro';draft.propinaPersonalizada=1000;
+ assert.equal(ctx.ukiQRPagoEditadoConservaCuenta(draft,original),true);
+ assert.match(html,/Responsable y motivo de la corrección del pedido/);
+ assert.match(html,/ukiPrepararAjusteCobro\(snapshot,p,regularizado\)/);
 });
 test('Cobro QR nuevo o cuenta por cobrar que pasa a pagada conserva control central',()=>{
  const {ctx,original,draft}=scenario();
@@ -95,9 +102,8 @@ test('Integración: cobrar desde cero o confirmar cuenta pendiente consulta QR c
   assert.deepEqual(q.log,['QR_VERIFICADO']);
  }
 });
-test('Integración: cambio de precio, mesa o rondas en cuenta pagada se detiene sin cobrar',async()=>{
+test('Integración: mesa y rondas incorrectas se bloquean, pero cambiar precio no repite cobro QR',async()=>{
  for(const change of [
-  d=>{d.items[0].precio=12500;},
   d=>{d.mesaReferencia='Mesa 3';},
   d=>{d.qrSolicitudes=[];}
  ]){
@@ -106,4 +112,7 @@ test('Integración: cambio de precio, mesa o rondas en cuenta pagada se detiene 
   assert.equal(q.log.length,1);
   assert.match(q.log[0],/QR ya fue cobrado/);
  }
+ const corregido=guardScenario({originalPagado:true,change:d=>{d.items[0].precio=12500;}});
+ assert.equal(await corregido.f(),true);
+ assert.deepEqual(corregido.log,[]);
 });

@@ -12,7 +12,7 @@ function renderNuevo({modo='manual',modalidad='Retiro',pagado=false,carta=false}
  const ctx={
   S:{suc:'Uki Regimiento Arica'},D:{texto:carta?'UKI SUSHI · Carta #751':'',fecha:'2026-11-08T18:00',cliente:'Cliente Prueba',telefono:'56912345678',codigoCarta:carta?'751':'',codigoCliente:'5678',qrSolicitudes:[],sucursalCarta:'',mesaReferencia:'',modalidad,envio:modalidad==='Delivery'?2000:0,medio:'Efectivo',medioEnvio:'Efectivo',pagado,items:[{nombre:'Promo',cant:1,precio:9000,det:''}],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:'',envioPagadoOtroLocal:false,montoEnvioOtroLocal:'',localPagoExterno:'',propinaModo:'ninguna',propinaPersonalizada:'',medioPropina:'Efectivo',editando:null,...(carta?{cartaSolicitudRemotaId:'id-remoto'}:{})},
   modoNuevo:modo,ukiSolicitudWhatsAppActiva:null,fmt:n=>'$'+Number(n||0),esc:x=>String(x??''),getCliente:()=>null,ventasValidas:()=>0,
-  ukiVistaBorradores:()=>'',ukiFolioBorrador:()=> 'Turno #01',esMensajeCartaUki:()=>carta,ukiCodigoWhatsApp:()=> '5678',
+  ukiVistaBorradores:()=>'',ukiCobroPendiente:()=>null,ukiFolioBorrador:()=> 'Turno #01',esMensajeCartaUki:()=>carta,ukiCodigoWhatsApp:()=> '5678',
   ukiMontoPropina:()=>0,ukiPropinaUI:()=>'',ukiPagoUI:()=>'<div class="medio-de-pago">Efectivo</div>',
   ukiMontoProductosOtroLocal:()=>0,ukiMontoEnvioOtroLocal:()=>0,ukiMontoProductosLocal:(d,s)=>s,
   ukiWhatsAppGuardarSolicitudBoton:()=>'<span>Guardar solicitud existente</span>',
