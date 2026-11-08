@@ -3271,13 +3271,6 @@ function vPedidos(){
     return !Number.isFinite(recibido)||recibido>corteDelDiaMs();
   });
   // El turno muestra solo rechazos de hoy. El archivo queda separado y colapsable.
-  const rechazadosArchivo=!buscando&&!pedidosArchivoDia?ukiWhatsAppSolicitudesSucursal().filter(x=>{
-    if(x.estado!=='rechazada')return false;
-    const creado=Number(x.creadoEn)||Date.parse(x.fechaISO||'')||0;
-    return creado>0&&fechaTurnoRegistro({...x,registradoEn:creado})!==fechaTurno;
-  }):[];
-  const remotasArchivo=!buscando&&!pedidosArchivoDia?remotasTodas.filter(r=>r.estado==='rechazada'&&
-    Number.isFinite(Date.parse(r.creado_en||''))&&Date.parse(r.creado_en)<corteDelDiaMs()):[];
   const remotas=remotasTurno;
   const aceptadasPendientesDeConciliar=!buscando&&!pedidosArchivoDia?ukiCartaAceptadasSinVinculo():[];
   const solicitudRemotaEnCategoria=(r,id)=>id==='todos'||(id==='por-confirmar'&&r.estado==='pendiente')||(id==='rechazados'&&r.estado==='rechazada');
@@ -3287,11 +3280,18 @@ function vPedidos(){
   const mostrarPrioridad=!buscando&&!pedidosArchivoDia&&(urgentesCarta.length+urgentesManuales.length)>0;
   const mostrarFichasPrioritarias=filtroCategoriaPedidos==='todos'||filtroCategoriaPedidos==='por-confirmar';
   const visibles=todos.filter(p=>ukiCoincideCategoriaPedido(p,filtroCategoriaPedidos,erroresPedidos));
-  const categorias=UKI_CATEGORIAS_PEDIDOS.map(([id,nombre])=>
-    '<button type="button" class="chip'+(filtroCategoriaPedidos===id?' on':'')+(id==='pendientes'&&mostrarPrioridad?' uki-alerta-filtro':'')+
-    '" onclick="ukiCambiarCategoriaPedidos(\''+id+'\')">'+esc(nombre)+
-    ' ('+(todos.filter(p=>ukiCoincideCategoriaPedido(p,id,erroresPedidos)).length+solicitudes.filter(s=>solicitudEnCategoria(s,id)).length+remotas.filter(r=>solicitudRemotaEnCategoria(r,id)).length)+')</button>'
-  ).join("");
+  const resumenCategorias=UKI_CATEGORIAS_PEDIDOS.map(([id,nombre])=>({
+    id,nombre,
+    total:todos.filter(p=>ukiCoincideCategoriaPedido(p,id,erroresPedidos)).length+
+      solicitudes.filter(x=>solicitudEnCategoria(x,id)).length+
+      remotas.filter(r=>solicitudRemotaEnCategoria(r,id)).length
+  }));
+  const chipCategoria=({id,nombre,total})=>'<button type="button" class="chip'+(filtroCategoriaPedidos===id?' on':'')+
+    (id==='por-confirmar'&&mostrarPrioridad?' uki-alerta-filtro':'')+
+    '" onclick="ukiCambiarCategoriaPedidos(\''+id+'\')">'+esc(nombre)+' ('+total+')</button>';
+  const principales=new Set(['todos','por-confirmar','pendientes','sin-pago','pagados']);
+  const categorias=resumenCategorias.filter(x=>principales.has(x.id)).map(chipCategoria).join('');
+  const secundarios=resumenCategorias.filter(x=>!principales.has(x.id)).map(chipCategoria).join('');
   const titulo=buscando?"Resultados de búsqueda":pedidosArchivoDia?"Pedidos del turno "+pedidosArchivoDia:"Pedidos del turno abierto · "+fechaTurno;
   return `<div class="section-head"><h2>Pedidos</h2><p>${esc(titulo)} · ${todos.length} registrados · ${pagados} pagados · ${solicitudes.length+remotas.length} solicitudes pendientes o rechazadas</p></div>
   ${mostrarPrioridad?`<section class="uki-urgentes-carta" aria-label="Solicitudes nuevas por confirmar">
@@ -3308,12 +3308,16 @@ function vPedidos(){
     ${aceptadasPendientesDeConciliar.map(r=>'<p><b>Carta #'+esc(r.codigo_pedido||'sin código')+'</b> · '+esc(r.cliente||'Cliente sin identificar')+' · WhatsApp '+esc(r.telefono||'por verificar')+'</p>').join('')}
     </details>`:''}
   <button class="big cta" onclick="ir('nuevo')">＋ Nuevo pedido</button>
-  <div class="card"><h2 style="margin:0 0 8px">Clasificar pedidos</h2>
-    <div class="chips" role="group" aria-label="Filtrar pedidos por estado y pago">${categorias}</div>
-    <p class="muted">📲 Carta normal: ${esc(ukiCartaRemotas.status)} <button type="button" class="sm" onclick="ukiCartaRemotasActualizar()">Actualizar</button></p>
-    <p class="muted">${visibles.length+visiblesSolicitudes.length+visiblesRemotas.length} registro(s) en «${esc((UKI_CATEGORIAS_PEDIDOS.find(x=>x[0]===filtroCategoriaPedidos)||[])[1]||"Todos")}». Los rechazados no suman a caja, ventas ni timbres.</p></div>
+  <div class="card uki-pedidos-filtros"><h2 style="margin:0 0 10px">Filtrar pedidos de hoy</h2>
+    <div class="chips" role="group" aria-label="Filtros principales de pedidos">${categorias}</div>
+    <details style="margin-top:12px" ${!principales.has(filtroCategoriaPedidos)?'open':''}><summary style="cursor:pointer;font-weight:650">Más estados y filtros</summary>
+      <div class="chips" role="group" aria-label="Otros estados" style="margin-top:12px">${secundarios}</div></details>
+    <details style="margin-top:10px"><summary style="cursor:pointer">📲 Conexión con carta digital</summary>
+      <p class="muted">${esc(ukiCartaRemotas.status)}</p><button type="button" class="sm" onclick="ukiCartaRemotasActualizar()">Actualizar solicitudes</button>
+    </details>
+    <p class="muted">${visibles.length+visiblesSolicitudes.length+visiblesRemotas.length} registro(s) en «${esc((UKI_CATEGORIAS_PEDIDOS.find(x=>x[0]===filtroCategoriaPedidos)||[])[1]||"Todos")}».</p></div>
   ${(filtroCategoriaPedidos==="todos"||filtroCategoriaPedidos==="por-confirmar")?ukiMesasUI():""}
-  ${rechazadosArchivo.length+remotasArchivo.length?'<details class="card"><summary><b>📚 Archivo de rechazados de días anteriores</b> · '+(rechazadosArchivo.length+remotasArchivo.length)+'</summary><p class="muted">Son solicitudes anteriores; no se suman a los pedidos ni a la caja de hoy.</p>'+rechazadosArchivo.map(x=>ukiWhatsAppFicha(x,false)).join('')+remotasArchivo.map(x=>ukiCartaRemotaFicha(x)).join('')+'</details>':''}
+
   ${pedidosArchivoDia||buscando?'<button class="sm" onclick="limpiarFiltrosPedidos()">← Volver al turno abierto</button>':''}
   <details class="card" ${buscando?'open':''}><summary style="cursor:pointer"><b>🔎 Buscar por nombre, WhatsApp, código del cliente, pedido o fecha</b></summary>
     <div style="margin-top:12px"><label>Nombre, últimos 4 del WhatsApp, celular completo o número del pedido</label><input id="codigoFiltro" value="${esc(filtroCodigoCarta)}" placeholder="Ej: Camila, 5678 o 56912345678" inputmode="text">
@@ -4370,11 +4374,36 @@ function vHistorialCompacto(){
   return vHistorialPrecierres()+ukiVAgregarPedidoOlvidado()+tmp.innerHTML;
 }
 
+function ukiHistorialSolicitudesRechazadas(){
+ // Consulta histórica: no registra ventas, timbres, pagos ni cambia estados.
+ const fecha=String(S.filtroFecha||'');
+ const texto=String(S.filtro||'').trim().toLowerCase();
+ const diaVisible=iso=>(!fecha||fecha===iso)&&(!texto||iso.toLowerCase().includes(texto));
+ const manuales=ukiWhatsAppSolicitudesSucursal().filter(x=>{
+   if(x.estado!=='rechazada')return false;
+   const ms=Number(x.creadoEn)||Date.parse(x.fechaISO||'')||0;
+   const d=ms?fechaTurnoRegistro({...x,registradoEn:ms}):String(x.fechaISO||'').slice(0,10);
+   return diaVisible(d)||(!fecha&&texto&&[x.cliente,x.codigoCarta,x.telefono,x.motivo].some(v=>String(v||'').toLowerCase().includes(texto)));
+ });
+ const remotas=ukiCartaRemotasSucursal().filter(x=>{
+   if(x.estado!=='rechazada')return false;
+   const d=fechaLocalRegistro(x.creado_en||x.actualizado_en||'');
+   return diaVisible(d)||(!fecha&&texto&&[x.cliente,x.codigo_pedido,x.telefono,x.motivo_rechazo].some(v=>String(v||'').toLowerCase().includes(texto)));
+ });
+ const total=manuales.length+remotas.length;
+ return '<details class="card uki-antecedentes"><summary style="cursor:pointer"><b>📚 Solicitudes rechazadas · antecedentes</b> · '+total+'</summary>'+
+  '<p class="muted">Se consultan con el calendario y buscador de arriba. No cuentan como pedidos, ventas ni timbres.</p>'+
+  (total?manuales.map(x=>ukiWhatsAppFicha(x,false)).join('')+
+      remotas.map(x=>ukiCartaRemotaFicha(x)).join(''):'<p class="muted">No hay solicitudes rechazadas para este filtro.</p>')+
+  '</details>';
+}
+
 function vHistorial(){
   if(!S.suc) return vInicio(); const c=ukiCierresFiltradosHistorial().slice().reverse();
   const buscador=`<div class="card"><h2>Buscar por día</h2><label>Texto (ej: 29-10)</label><input id="ukiHistorialFiltroTexto" placeholder="Ej: 29-10" value="${esc(S.filtro||"")}" oninput="S.filtro=this.value" onkeydown="if(event.key==='Enter'){event.preventDefault();render()}"><button class="sm ok" type="button" onclick="S.filtro=document.getElementById('ukiHistorialFiltroTexto').value;render()">Buscar</button><label>Calendario</label><input type="date" value="${S.filtroFecha||""}" onchange="S.filtroFecha=this.value;render()"><p class="muted">Cada cierre queda guardado aquí. Abre el cierre deseado para reenviarlo por WhatsApp o guardarlo en PDF.</p>${c.length===1&&(S.filtro||S.filtroFecha)?'<p class="muted"><b>Cierre encontrado:</b> '+esc(c[0].fechaOperativa||c[0].fecha)+'</p>'+ukiAccionesHistorial(c[0]):""}${c.length?row("Días mostrados",c.length)+row("Deliveries en total",fmt(c.reduce((a,x)=>a+(x.dels||[]).reduce((b,d)=>b+(d.envio||0),0),0)))+row("Efectivo que quedó en total",fmt(c.reduce((a,x)=>a+x.efectivo,0))):""}<button class="sm" onclick="S.filtro='';S.filtroFecha='';render()">Limpiar</button><button class="sm" onclick="copiarResumen()">Copiar resumen</button><details style="margin:10px 0"><summary style="cursor:pointer">Descargas completas (avanzado)</summary><button class="sm" onclick="descargarPDF('historial')">TXT con todos los detalles</button></details><button class="sm" onclick="descargarExcel('historial')">Excel historial</button><button class="sm ok" onclick="descargarRespaldoCompleto()">💾 Respaldo PC</button></div>`;
-  if(!c.length) return buscador+'<div class="card muted">Sin cierres para mostrar - Haz un cierre en Cierre del día con Responsable</div>';
-  return buscador+c.map(x=>{
+  const antecedentes=ukiHistorialSolicitudesRechazadas();
+  if(!c.length) return buscador+antecedentes+'<div class="card muted">Sin cierres para mostrar - Haz un cierre en Cierre del día con Responsable</div>';
+  return buscador+antecedentes+c.map(x=>{
     const m=x.medios||{};
     const mediosRows=Object.keys(m).length?Object.keys(m).map(k=>m[k]>0?row(k,fmt(m[k])):"").join(""):"";
     return `<div class="card" style="border-left:4px solid var(--accent)"><h2>${esc(x.fecha)} · ${esc(x.resp)}</h2>${ukiAccionesHistorial(x)}${x.fechaOperativa?'<p class="muted">Turno: '+esc(x.fechaOperativa)+'</p>':''}
