@@ -3655,6 +3655,8 @@ function cerrar(){
   const cierreAcumulable=S.cierres[S.cierres.length-1];
   if(cierreAcumulable&&typeof window.ukiCajaAcumuladaRegistrarCierre==="function")
     void window.ukiCajaAcumuladaRegistrarCierre(cierreAcumulable);
+  if(cierreAcumulable&&typeof window.ukiFinAutoQAEnviarCierre==="function")
+    void window.ukiFinAutoQAEnviarCierre(cierreAcumulable);
   S.busy=false;
   cierreDraft={resp:"",obs:"",contado:""};
   aviso("✅ Turno "+fechaTurnoCerrado+" cerrado y guardado en Historial");
@@ -4434,6 +4436,32 @@ function vHistorial(){
   }).join("");
 }
 
+// Puente de SOLO LECTURA para ventas automáticas en entorno financiero QA.
+// No envía información personal y no escribe en caja ni en pedidos.
+function ukiVentasAutoRama(suc){
+ return suc==='Uki Regimiento Arica'?'arica':suc==='Uki La Serena'?'serena':null;
+}
+function ukiVentasAutoResumen(cierre=null){
+ const branch=ukiVentasAutoRama(cierre?.suc||S.suc);
+ if(!branch||!S.suc||branch!==ukiVentasAutoRama(S.suc))return null;
+ const cerrado=!!cierre,day=cerrado?String(cierre.fechaOperativa||''):fechaOperativaActual();
+ const caja=cerrado?null:cajaDelDia();
+ const start=cerrado?Number(cierre.inicioTurnoMs)||Number(cierre.fechaMs):
+   Number(caja?.inicioMs)||Number(caja?.desdeMs);
+ const current=cerrado?null:totales();
+ const total=cerrado?Number(cierre.venta):Number(current?.totalMedios);
+ const pedidos=cerrado?Number(cierre.pedidos):Number(current?.n);
+ const medios=cerrado?cierre.medios:current?.medios;
+ const revision=cerrado?Number(cierre.fechaMs)+1:Date.now();
+ if(!Number.isSafeInteger(start)||start<1600000000000||
+    !Number.isSafeInteger(total)||total<0||!Number.isSafeInteger(pedidos)||pedidos<0||
+    !medios||typeof medios!=='object')return null;
+ return {branch,turno_ref:branch+'|'+day+'|'+start,fecha_operativa:day,
+    estado:cerrado?'cerrado':'abierto',revision,venta_total:total,pedidos,
+    medios:Object.fromEntries(Object.entries(medios).map(([k,v])=>[k,Number(v)||0]))};
+}
+window.ukiVentasAutoResumenActual=()=>ukiVentasAutoResumen();
+window.ukiVentasAutoResumenCierre=c=>ukiVentasAutoResumen(c);
 window.ukiQAGet=()=>S.suc?{suc:S.suc,estado:datosSoloSucursal()}:null;
 window.ukiQASet=async(data)=>{
  if(!S.suc||!validarEstadoSucursal(data,S.suc))throw Error("Estado inválido para esta sucursal");
@@ -4457,6 +4485,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 <script src="./uki-inventario-historial-admin.js" defer></script>
 <script src="./uki-caja-acumulada-exportar.js" defer></script>
 <script src="./uki-caja-acumulada-admin.js" defer></script>
+<script src="./uki-fin-auto-qa.js" defer></script>
 <script src="./uki-control-turnos.js" defer></script>
 <script src="./uki-carta-remotas-panel.js" defer></script>
 <script type="module">
@@ -4502,6 +4531,8 @@ const auto=crearAutoGuardadoOperativo({
    el("ukiSaveQA").disabled=auto.resumen().activo;
    actualizarBloqueo();
    if(estado==='sincronizado')Promise.resolve().then(async()=>{
+    if(typeof window.ukiFinAutoQAActualizar==="function")
+      void window.ukiFinAutoQAActualizar();
     await ukiMesaConfirmarGuardadosSeguro();
     if(UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL)
      await ukiMesaCerrarPagadasCentralSeguro();
