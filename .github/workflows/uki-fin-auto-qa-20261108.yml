@@ -1,0 +1,32 @@
+name: Uki QA · ventas automáticas de dueños
+on:
+  push:
+    branches:
+      - feature/uki-ventas-automaticas-duenos-qa-20261108
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ventas_qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Validar API y librerías
+        run: |
+          node --check api/mi-administracion-qa.js
+          node --check lib/uki-fin-resumen-auto-qa.cjs
+          node --test tests/uki-fin-auto-qa-20261108.test.cjs
+      - name: Validar sintaxis del navegador sin desplegar
+        run: |
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const {execFileSync}=require('node:child_process');
+          const html=fs.readFileSync('firebase/mi-administracion.html','utf8');
+          const m=html.match(/<script type="module">([\s\S]*?)<\/script>/);
+          if(!m)throw Error('Módulo privado no encontrado');
+          fs.writeFileSync('/tmp/uki-fin-auto-qa-ui.mjs',m[1]);
+          execFileSync(process.execPath,['--check','/tmp/uki-fin-auto-qa-ui.mjs'],{stdio:'inherit'});
+          NODE
