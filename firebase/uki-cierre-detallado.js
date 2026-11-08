@@ -73,7 +73,12 @@ function capturar(S,caja,delSucHoy){
   cajaChica:{inicial:Number(caja.cajaChica?.inicial)||0,
    gastos:(caja.cajaChica?.gastos||[]).map(x=>({concepto:x.concepto||"",monto:Number(x.monto)||0}))},
   apps:Object.fromEntries(Object.entries(caja.apps||{}).map(([k,v])=>[k,Number(v)||0])),
-  repartidor:{monto:Number(caja.pagoDelivery)||0,medio:caja.pagoDeliveryMedio||"Efectivo"},
+  repartidor:{monto:Number(caja.pagoDelivery)||0,medio:caja.pagoDeliveryMedio||"Efectivo",
+   dia:Number.isSafeInteger(caja.pagoDeliveryDia)?Math.max(0,caja.pagoDeliveryDia):Math.max(0,Number(caja.pagoDelivery)||0),
+   anterior:Number.isSafeInteger(caja.pagoDeliveryAnterior)?Math.max(0,caja.pagoDeliveryAnterior):0,
+   medioDia:caja.pagoDeliveryMedioDia||caja.pagoDeliveryMedio||"Efectivo",
+   medioAnterior:caja.pagoDeliveryMedioAnterior||"Efectivo",
+   conceptoAnterior:String(caja.pagoDeliveryConceptoAnterior||"").slice(0,120)},
   baseDelivery:Number(caja.base)||0
  };
 }
@@ -95,7 +100,12 @@ function filas(c){
  for(const x of d.deliveriesManuales||[])r.push(["Delivery manual",x.fechaISO,x.id,x.cliente,x.monto,x.medio,x.nota]);
  for(const x of d.cajaChica?.gastos||[])r.push(["Caja chica","","",x.concepto,x.monto,"Caja chica","No suma al total general de gastos"]);
  for(const [nombre,monto] of Object.entries(d.apps||{}))if(monto)r.push(["Venta app manual","","",nombre,monto,nombre,""]);
- if(d.repartidor?.monto)r.push(["Pago repartidor","","","Repartidor",d.repartidor.monto,d.repartidor.medio,""]);
+ if(d.repartidor?.monto){
+  if(Number.isSafeInteger(d.repartidor.dia)&&Number.isSafeInteger(d.repartidor.anterior)){
+   if(d.repartidor.dia>0)r.push(["Pago repartidor","","","Repartos del turno",d.repartidor.dia,d.repartidor.medioDia||"Efectivo","Salida de caja"]);
+   if(d.repartidor.anterior>0)r.push(["Pago repartidor","","","Abono saldo anterior",d.repartidor.anterior,d.repartidor.medioAnterior||"Efectivo",d.repartidor.conceptoAnterior||"Saldo anterior"]);
+  }else r.push(["Pago repartidor","","","Repartidor",d.repartidor.monto,d.repartidor.medio,""]);
+ }
  return r;
 }
 // Los movimientos individuales anteriores al historial detallado aún pueden existir
