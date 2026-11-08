@@ -1,0 +1,17 @@
+name: Uki QA · dos agendadores y compatibilidad caja
+on:
+  push:
+    branches:
+      - qa/uki-panel-dos-agendadores-20261108
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: node --test tests/uki-duplicados-carta-manual-20261107.test.cjs tests/uki-reserva-central-panel-20261107.test.cjs tests/uki-delivery-manual-caja-20261108.test.cjs
