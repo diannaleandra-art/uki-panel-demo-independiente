@@ -61,13 +61,23 @@ Estas mejoras quedan **reunidas como pendientes coordinadas**, no afirmadas como
 5. **Hora exacta** del cierre guardado en Historial, WhatsApp y PDF.
 6. **Acciones al final del cierre**: WhatsApp, CSV compatible con Excel y PDF real del informe guardado/rectificado; retirar el botón engañoso «Descargar cierre TXT» de esa sección. El cierre rectificado se puede volver a compartir. No mandar el cierre original por error.
 
-**Pendientes para terminar el lote visual/operativo que se pidió acumular:**
+**Implementados también en QA PR #40, sin publicar (9 de noviembre):**
 
-7. **Detalle de pedidos**: mostrar kilómetros de recorrido, propina y valor (si existe), usando los datos realmente registrados; no inventar distancias.
-8. **Propinas manuales**: concepto + pedido correspondiente, y reporte diario, semanal y mensual separado de la caja de ventas, sin doble conteo.
-9. **Inicio**: frase que cambie diariamente, hora/día/fecha junto a «Hola Uki» y retirar «Información de turno» redundante, **conservar los controles reales de iniciar turno/precierre**.
-10. **Pedidos**: hacer la parte de filtros, solicitudes, mesas e incidencias de la segunda captura más compacta y fácil de entender en iPhone sin ocultar urgencias.
-11. **Navegación**: accesos rápidos para subir/bajar sin deslizar mucho; selector compacto para Caja, Caja acumulada y las subsecciones de Movimientos.
+7. **Detalle de pedidos (QA)**: mostrar kilómetros de recorrido, propina y valor (si existe), usando los datos realmente registrados; no inventar distancias.
+8. **Propinas manuales (QA)**: concepto + pedido correspondiente, y reporte diario, semanal y mensual separado de la caja de ventas, sin doble conteo.
+9. **Inicio (QA)**: frase que cambie diariamente, hora/día/fecha junto a «Hola Uki» y retirar «Información de turno» redundante, **conservar los controles reales de iniciar turno/precierre**.
+10. **Pedidos (QA)**: hacer la parte de filtros, solicitudes, mesas e incidencias de la segunda captura más compacta y fácil de entender en iPhone sin ocultar urgencias.
+11. **Navegación (QA)**: accesos rápidos para subir/bajar sin deslizar mucho; selector compacto para Caja, Caja acumulada y las subsecciones de Movimientos.
 12. **Validación**: revisión real de ambas sucursales desde Safari, comparar pedidos pagados contra sus movimientos de timbre en los datos cifrados con cuenta autorizada; las pruebas del código no pueden confirmar por sí solas los 21 timbres.
 
-**Condición de publicación**: el PR #40 no representa todavía todos los puntos pendientes de esta sección. No fusionar ni declarar el lote completo hasta ejecutar la lista restante y validar que no hay impacto en caja, cierres, clientes, timbres ni cierres físicos. La publicación debe requerir una autorización nueva, explícita.
+**Condición de publicación**: los puntos de código del lote (timbres, cierre, propinas, km, Inicio, filtros y navegación) están implementados en PR #40 y cubiertos por pruebas automáticas. Sigue **pendiente la validación visual y operativa real en Safari/iPhone para ambas sucursales, incluida la conciliación de los 21 timbres**. Las pruebas no prueban entrega real de WhatsApp ni acceso a datos cifrados de producción. No publicar ni fusionar sin autorización nueva y explícita; no tocar datos reales ni facturación para probar.
+
+
+## F. Precauciones verificadas antes de publicar
+
+- Propina manual: exige concepto, monto, medio y referencia inequívoca. Si coinciden un ID interno y una Carta con el mismo número, pide especificar `Carta 457` o `Interno 244`; no asignar la propina al cliente equivocado. Bloquea un segundo registro ya vinculado y pedidos cerrados.
+- Kilómetros: campo informativo opcional en un delivery; si la carta enviaba la distancia explícita se puede leer, de lo contrario se muestra **Km sin registrar** sin inventar mediciones. El precio del delivery no se recalcula.
+- Inicio: reloj local chileno y frase distinta por día calendario (la jornada operativa sigue hasta confirmar cierre). No se elimina el inicio de turno del trabajador.
+- Navegación: selectores compactos en Caja y Movimientos, acciones para ir arriba/abajo con iPhone. No se elimina ningún botón operativo.
+- Reportes: propinas desde la fuente original, con filtros día/semana/mes, sin sumar totales del cierre como movimientos adicionales. Reportes de ventas usan una versión vigente de cada cierre, sin sumar ajustes dos veces.
+- Seguridad: registros antiguos sin kilómetros, concepto o vínculo deben identificarse como tales; no modificar silenciosamente historial.
