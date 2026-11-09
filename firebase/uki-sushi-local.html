@@ -2402,15 +2402,23 @@ function savePD(){
 function addPropina(){
  const m=Number(String($("prMon")?.value||"").trim());
  const med=String($("prMed")?.value||"").trim();
- const ref=String($("prPed")?.value||"").trim().replace(/^#/,"");
+ const refTexto=String($("prPed")?.value||"").trim();
+ const tipoRef=/^carta\b/i.test(refTexto)?"carta":/^(?:interno|pedido\s+interno)\b/i.test(refTexto)?"interno":"auto";
+ const ref=refTexto.replace(/^(?:carta|pedido\s+interno|interno)\s*#?\s*/i,"").replace(/^#/,"").trim();
  const concepto=String($("prCon")?.value||"").trim().slice(0,150);
  if(!Number.isSafeInteger(m)||m<=0||m>10000000){aviso("Escribe una propina válida mayor a cero.");return;}
  if(!concepto){aviso("La propina manual debe tener concepto.");return;}
  if(!ref){aviso("Indica el número del pedido al que corresponde la propina.");return;}
  if(!MEDIOS.filter(x=>!APPS.includes(x)).includes(med)){aviso("Selecciona un medio válido para la propina.");return;}
- const p=(S.pedidos||[]).find(p=>p.suc===S.suc&&
-  (String(p.id)===ref||String(p.codigoCarta||"")===ref));
- if(!p){aviso("No se encontró ese pedido en esta sucursal. Revisa su número interno o código de carta.");return;}
+ const coincidencias=(S.pedidos||[]).filter(p=>p.suc===S.suc&&
+  (tipoRef==="interno"?String(p.id)===ref:
+   tipoRef==="carta"?String(p.codigoCarta||"")===ref:
+   String(p.id)===ref||String(p.codigoCarta||"")===ref));
+ if(coincidencias.length>1){
+  aviso("Número ambiguo: escribe «Carta "+ref+"» o «Interno "+ref+"» para identificar correctamente el pedido.");return;
+ }
+ const p=coincidencias[0];
+ if(!p){aviso("No se encontró ese pedido en esta sucursal. Escribe «Carta 457» o «Interno 244».");return;}
  if(!p.pagado||p.estado==="Cancelado"||p.esPremio){aviso("Solo puedes asociar una propina a un pedido pagado, vigente y no cancelado.");return;}
  if(ukiCierreConfirmadoPedido(p)){aviso("Este pedido pertenece a una caja ya cerrada. No se altera un cierre histórico desde Movimientos.");return;}
  if((S.propinas||[]).some(x=>x.suc===S.suc&&Number(x.pedidoId)===Number(p.id))){
@@ -2954,7 +2962,7 @@ function vRegistros(){
   ${row("Pagado por repartos del día",fmt(t.pagoDeliveryDia))}
   ${row("Pagado de saldos anteriores",fmt(t.pagoDeliveryAnterior))}
   ${row("Total pagado desde caja",fmt(t.pagoDelivery),"sub")}</div>
-  <div class="card"><h2>💝 Propinas (aparte de ventas)</h2><p class="muted">Solo registra aquí una propina manual que no exista ya en el pedido. Requiere identificarlo para evitar duplicarla.</p><label>Pedido interno # o código de carta · obligatorio</label><input id="prPed" inputmode="text" placeholder="Ej: 244 o 457"><label>Concepto · obligatorio</label><input id="prCon" maxlength="150" placeholder="Ej: Propina entregada en efectivo"><label>Monto ($)</label><input id="prMon" type="number" min="1" step="1" inputmode="numeric" placeholder="Ej: 2000"><label>Medio</label><select id="prMed">${MEDIOS.filter(m=>!APPS.includes(m)).map(m=>`<option>${m}</option>`).join("")}</select><button class="big" onclick="addPropina()">+ Registrar propina manual</button>${propinas.map(p=>`<div class="row"><span>${esc(p.concepto||"Propina anterior sin concepto")} · ${esc(p.pedidoId?("Pedido #"+p.pedidoId):"Pedido no vinculado (anterior)")} · ${esc(p.medio)}</span><b>${fmt(p.monto)} ${!p.pedidoId?`<button class="sm" onclick="quitarPropina(${p.id})">✕</button>`:""}</b></div>`).join("")||"<p class='muted'>Sin propinas</p>"}${ukiReportePropinasPeriodoUI()}</div>
+  <div class="card"><h2>💝 Propinas (aparte de ventas)</h2><p class="muted">Solo registra aquí una propina manual que no exista ya en el pedido. Requiere identificarlo para evitar duplicarla.</p><label>Número de pedido · obligatorio</label><input id="prPed" inputmode="text" placeholder="Ej: Carta 457 o Interno 244"><p class="muted">Si dos pedidos tienen el mismo número visible, especifica Carta o Interno para evitar confusiones.</p><label>Concepto · obligatorio</label><input id="prCon" maxlength="150" placeholder="Ej: Propina entregada en efectivo"><label>Monto ($)</label><input id="prMon" type="number" min="1" step="1" inputmode="numeric" placeholder="Ej: 2000"><label>Medio</label><select id="prMed">${MEDIOS.filter(m=>!APPS.includes(m)).map(m=>`<option>${m}</option>`).join("")}</select><button class="big" onclick="addPropina()">+ Registrar propina manual</button>${propinas.map(p=>`<div class="row"><span>${esc(p.concepto||"Propina anterior sin concepto")} · ${esc(p.pedidoId?("Pedido #"+p.pedidoId):"Pedido no vinculado (anterior)")} · ${esc(p.medio)}</span><b>${fmt(p.monto)} ${!p.pedidoId?`<button class="sm" onclick="quitarPropina(${p.id})">✕</button>`:""}</b></div>`).join("")||"<p class='muted'>Sin propinas</p>"}${ukiReportePropinasPeriodoUI()}</div>
   <div class="card"><h2>Retiros de efectivo</h2><label>Monto</label><input id="reMon" type="number" inputmode="numeric"><label>Motivo</label><input id="reMot" placeholder="Ej: Compra"><button class="big" onclick="addRetiro()">+ Agregar retiro</button>${retiros.map(r=>`<div class="row"><span>${esc(r.motivo||"Retiro")}</span><b>${fmt(r.monto)} <button class="sm" onclick="quitarRetiro(${r.id})">✕</button></b></div>`).join("")||"<p class='muted'>Sin retiros</p>"}</div>
   <div class="card"><h2>Caja chica</h2><label>Inicial</label><input type="number" value="${caja.cajaChica.inicial}" onchange="cajaDelDia().cajaChica.inicial=Math.max(0,parseInt(this.value)||0);render()" inputmode="numeric"><label>Concepto</label><input id="ccCon" placeholder="Detergente"><label>Monto</label><input id="ccMon" type="number" inputmode="numeric"><button class="big" onclick="addCC()">+ Agregar gasto caja chica</button>${caja.cajaChica.gastos.map(g=>`<div class="row"><span>${esc(g.concepto)}</span><b>${fmt(g.monto)} <button class="sm" onclick="quitarCC(${g.id})">✕</button></b></div>`).join("")||"<p class='muted'>Sin gastos</p>"}${row("Saldo caja chica",fmt(caja.cajaChica.inicial - caja.cajaChica.gastos.reduce((a,g)=>a+g.monto,0)),"sub")}</div>`;
 }
