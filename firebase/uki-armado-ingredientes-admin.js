@@ -11,13 +11,19 @@ const state={branch:'',items:[],busy:false,availability:null,check:0};
 const get=id=>document.getElementById(id);
 const branch=()=>{const selected=get('invBranch')?.value||(typeof S!=='undefined'&&S?.suc==='Uki La Serena'?'serena':typeof S!=='undefined'&&S?.suc==='Uki Regimiento Arica'?'arica':'');return ['arica','serena'].includes(selected)?selected:''};
 function status(message){if(get('ukiIngEstado'))get('ukiIngEstado').textContent=message}
+function connection(ready,message){
+ state.availability=ready;
+ const create=get('ukiIngCrear');if(create)create.disabled=!ready;
+ const indicator=get('ukiIngConexion');if(indicator)indicator.textContent=message;
+}
 function pesos(value){return '$'+Number(value).toLocaleString('es-CL')}
 const html=[
- '<details class="card" id="ukiArmadoIngredientes" hidden style="margin-top:15px;border:1.5px solid #e5a560">',
+ '<details class="card" id="ukiArmadoIngredientes" style="margin-top:15px;border:1.5px solid #e5a560">',
  '<summary style="font-size:16px;font-weight:700;cursor:pointer">＋ Agregar ingrediente al armado</summary>',
  '<p class="muted">Agrega vegetales, proteínas o envolturas para elegir dentro de cada roll, handroll o preparación. No es un producto independiente ni modifica inventario.</p>',
  '<p class="muted">Cada sucursal tiene sus opciones. «Incluida» significa $0 adicional; «Con recargo» exige indicar el precio exacto.</p>',
  '<p id="ukiIngSucursal" class="mini-help"></p>',
+ '<p id="ukiIngConexion" class="mini-help" role="status">Comprobando conexión con ingredientes…</p>',
  '<div class="card" id="ukiIngNuevo" style="padding:10px;background:#fffaf5">',
  '<b>＋ Nuevo ingrediente</b>',
  '<label>Nombre<input data-uki-ingredient="name" type="text" maxlength="70" placeholder="Ej. Frutilla" autocomplete="off"></label>',
@@ -28,7 +34,7 @@ const html=[
  ...surfaces.map(([id,label])=>'<label style="display:flex;gap:9px;align-items:center;padding:4px 0"><input style="width:auto;min-height:0" type="checkbox" value="'+id+'" '+(id==='classic'?'checked':'')+'>'+label+'</label>'),
  '</fieldset>',
  '<label style="display:flex;gap:8px;align-items:center"><input data-uki-ingredient="available" type="checkbox" checked style="width:auto;min-height:0"> Disponible para elegir</label>',
- '<button class="sm ok" type="button" id="ukiIngCrear" style="width:100%">Agregar ingrediente</button>',
+ '<button class="sm ok" type="button" id="ukiIngCrear" disabled style="width:100%">Agregar ingrediente</button>',
  '</div>',
  '<p role="status" id="ukiIngEstado" class="muted">Pulsa Actualizar para consultar ingredientes configurados.</p>',
  '<button type="button" class="sm" id="ukiIngActualizar">Actualizar ingredientes</button>',
@@ -86,7 +92,8 @@ async function request(action,fields,chosen=branch()){
  return data;
 }
 async function load(){
- if(state.busy||!get('ukiIngLista')||get('ukiArmadoIngredientes')?.hidden)return;
+ if(state.busy||!get('ukiIngLista')||!get('ukiArmadoIngredientes')?.open)return;
+ if(state.availability!==true){void checkAvailability(branch());return;}
  const selected=branch();state.branch=selected;state.busy=true;
  status('Consultando ingredientes de '+(selected==='arica'?'Regimiento Arica':'La Serena')+'…');
  try{
@@ -98,6 +105,7 @@ async function load(){
 }
 async function send(action,box,record){
  if(state.busy)return;
+ if(state.availability!==true){status('No se verificó la conexión. Pulsa Actualizar ingredientes e intenta nuevamente.');return;}
  let item;try{item=getPayload(box)}catch(e){status(String(e.message));return}
  const selected=branch();state.busy=true;status('Guardando '+item.name+'…');
  try{
@@ -115,6 +123,7 @@ async function send(action,box,record){
 }
 async function toggleIngredient(record){
  if(state.busy)return;
+ if(state.availability!==true){status('No se verificó la conexión. Pulsa Actualizar ingredientes e intenta nuevamente.');return;}
  const remove=record.available===true;
  if(!window.confirm(remove?'¿Quitar «'+record.name+'» de los armados de esta sucursal? Los pedidos anteriores se conservan.':'¿Volver a mostrar «'+record.name+'» en los armados?'))return;
  const selected=branch();state.busy=true;status('Actualizando '+record.name+'…');
@@ -159,23 +168,33 @@ function render(){
 }
 async function checkAvailability(chosen){
  const seq=++state.check;
- const box=get('ukiArmadoIngredientes');
- if(!box)return;
- box.hidden=true;
+ const box=get('ukiArmadoIngredientes');if(!box)return;
+ // El editor permanece visible aunque falle la conexión. Solo bloqueamos guardar.
+ connection(false,'Comprobando ingredientes de esta sucursal…');
+ if(!['arica','serena'].includes(chosen)){
+  connection(false,'No se pudo identificar la sucursal. Sal y vuelve a ingresar.');
+  return;
+ }
  try{
   const response=await fetch(API+'?branch='+encodeURIComponent(chosen),{
    method:'GET',credentials:'omit',cache:'no-store',mode:'cors',
    signal:AbortSignal.timeout(10000)
   });
-  if(seq!==state.check||chosen!==branch())return;
-  // No mostrar un editor inservible si todavía no se publicó y habilitó la API.
-  if(!response.ok){state.availability=false;box.hidden=true;return;}
+  if(seq!==state.check||chosen!==branch()||get('ukiArmadoIngredientes')!==box)return;
+  if(!response.ok){
+   connection(false,'Sin conexión con ingredientes ('+response.status+'). Pulsa Actualizar ingredientes.');
+   return;
+  }
   const data=await response.json().catch(()=>({}));
-  if(seq!==state.check||chosen!==branch())return;
+  if(seq!==state.check||chosen!==branch()||get('ukiArmadoIngredientes')!==box)return;
   const ready=data.ok===true&&data.branch===chosen&&Array.isArray(data.items);
-  state.availability=ready;box.hidden=!ready;
+  connection(ready,ready?'✓ Ingredientes disponibles para '+(chosen==='arica'?'Regimiento Arica':'La Serena')+'.':
+   'No se pudo verificar el catálogo. Pulsa Actualizar ingredientes.');
+  if(ready&&box.open)void load();
  }catch{
-  if(seq===state.check){state.availability=false;box.hidden=true;}
+  if(seq===state.check&&get('ukiArmadoIngredientes')===box){
+   connection(false,'No se pudo conectar con ingredientes. Pulsa Actualizar ingredientes.');
+  }
  }
 }
 function mount(){
@@ -189,14 +208,20 @@ function mount(){
   const block=get('ukiIngNuevo'),mode=block.querySelector('[data-uki-ingredient="mode"]');
   mode.onchange=()=>syncMode(block);block.querySelector('[data-uki-ingredient="category"]').onchange=()=>syncCategory(block);syncMode(block);syncCategory(block);
   get('ukiIngCrear').onclick=()=>send('crear',block);
-  get('ukiIngActualizar').onclick=()=>load();
+  get('ukiIngActualizar').onclick=()=>state.availability===true?void load():void checkAvailability(branch());
+  const editor=get('ukiArmadoIngredientes');
+  editor.addEventListener('toggle',()=>{
+   if(!editor.open)return;
+   if(state.availability===true)void load();
+   else void checkAvailability(branch());
+  });
  }
  const selected=branch();const statusText=get('ukiIngSucursal');
  if(statusText)statusText.textContent='Sucursal: '+(selected==='arica'?'Uki Regimiento Arica':'Uki La Serena');
  void checkAvailability(selected);
  const tab=document.querySelector('[data-uki-tab="precios"]');
  if(tab&&!tab.dataset.ukiIngredientesListener){
-  tab.dataset.ukiIngredientesListener='1';tab.addEventListener('click',()=>{if(get('ukiArmadoIngredientes')&&!get('ukiArmadoIngredientes').hidden)void load();});
+  tab.dataset.ukiIngredientesListener='1';tab.addEventListener('click',()=>{const editor=get('ukiArmadoIngredientes');if(editor?.open)void load();});
  }
 }
 const prevMount=window.ukiInventarioMontar;
