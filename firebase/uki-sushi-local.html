@@ -640,7 +640,64 @@ async function cargarRespaldo(event){
   finally{if(event?.target)event.target.value="";}
 }
 
+// No perder la edición por una sincronización o actualización automática.
+// Guardamos solo estado VISUAL y borradores de cancelación, nunca en S.caja/pedidos.
+let ukiUltimaVistaRender="",ukiUltimaSucursalRender="";
+function ukiClaveVentanaDetalle(el,app){
+ const pedido=el.closest('details[data-uki-pedido-id]');
+ if(pedido){
+  const id=pedido.getAttribute('data-uki-pedido-id');
+  if(el===pedido)return 'pedido:'+id;
+  return 'pedido:'+id+':sub:'+Array.from(pedido.querySelectorAll('details')).indexOf(el);
+ }
+ if(el.id)return 'id:'+el.id;
+ const padre=el.parentElement?.closest('details');
+ if(padre)return ukiClaveVentanaDetalle(padre,app)+':sub:'+Array.from(padre.querySelectorAll('details')).indexOf(el);
+ const raiz=Array.from(app.querySelectorAll('details')).filter(d=>!d.parentElement?.closest('details'));
+ const nombre=String(el.querySelector(':scope > summary')?.textContent||'')
+  .replace(/\d+/g,'#').replace(/\s+/g,' ').trim().slice(0,95);
+ let repeticion=0;
+ for(const d of raiz){
+  if(d===el)break;
+  const otro=String(d.querySelector(':scope > summary')?.textContent||'')
+   .replace(/\d+/g,'#').replace(/\s+/g,' ').trim().slice(0,95);
+  if(otro===nombre)repeticion++;
+ }
+ return 'vista:'+nombre+':'+repeticion;
+}
+function ukiCapturarVistaAntesRender(){
+ const app=$('app');
+ if(!app||S.vista!==ukiUltimaVistaRender||S.suc!==ukiUltimaSucursalRender)return null;
+ const abiertas=new Map(),campos=new Map();
+ for(const d of app.querySelectorAll('details'))abiertas.set(ukiClaveVentanaDetalle(d,app),d.open);
+ for(const el of app.querySelectorAll('[id^="motivoCancelacion"],[id^="detalleCancelacion"],[id^="cobroCancelacion"],[id^="respCancelacion"]'))
+  campos.set(el.id,el.value);
+ const focus=document.activeElement,focusId=focus&&app.contains(focus)?focus.id:null;
+ let seleccion=null;
+ try{if(focusId&&typeof focus.selectionStart==='number')seleccion=[focus.selectionStart,focus.selectionEnd];}catch{}
+ return {abiertas,campos,focusId,seleccion,scrollY:window.scrollY};
+}
+function ukiRestaurarVistaTrasRender(vista){
+ if(!vista)return;
+ const app=$('app');if(!app)return;
+ for(const d of app.querySelectorAll('details')){
+  const key=ukiClaveVentanaDetalle(d,app);
+  if(vista.abiertas.has(key))d.open=vista.abiertas.get(key);
+ }
+ for(const [id,valor] of vista.campos){
+  const campo=document.getElementById(id);
+  if(campo&&app.contains(campo))campo.value=valor;
+ }
+ if(vista.focusId){
+  const campo=document.getElementById(vista.focusId);
+  if(campo&&app.contains(campo)){
+   try{campo.focus({preventScroll:true});if(vista.seleccion&&campo.setSelectionRange)campo.setSelectionRange(...vista.seleccion);}catch{}
+  }
+ }
+ if(Number.isFinite(vista.scrollY))window.scrollTo({top:vista.scrollY,behavior:'instant'});
+}
 function render(){
+  const ukiVistaAnterior=ukiCapturarVistaAntesRender();
   try{
   $("suc").innerHTML=S.suc?`<span>${esc(S.suc)}</span><a href="#" onclick="salirSuc();return false;" class="salir">Salir</a>`:"Selecciona una sucursal para empezar";
   $("nav").style.display=S.suc?"grid":"none";
@@ -650,6 +707,8 @@ function render(){
   const msg=S.msg?`<div role="status" class="aviso" style="background:#ffece4;color:#7a2c08">${esc(S.msg)}</div>`:"";
   S.msg=null;
   $("app").innerHTML=msg+f();
+  ukiRestaurarVistaTrasRender(ukiVistaAnterior);
+  ukiUltimaVistaRender=S.vista;ukiUltimaSucursalRender=S.suc;
   guardarEnLocalStorage();
   }catch(error){
     console.error("Error en pantalla Uki",error);
@@ -3965,7 +4024,7 @@ function vPedidos(){
     <p class="muted">Los pedidos de jornadas anteriores se conservan en el historial por turno.</p></div>
   </details>
   <details class="card uki-bloque-incidencias" ${erroresAbiertos?'open':''}><summary onclick="erroresAbiertos=!erroresAbiertos"><b>⚠️ Errores e incidencias</b> · ${pendientes} pendientes</summary><label>Buscar errores por dia de reporte</label><input id="diaErrorFiltro" type="date" value="${esc(filtroDiaIncidencias)}"><button class="sm ok" onclick="aplicarDiaIncidencias()">Buscar errores</button><p class="muted">Los reportes se conservan aunque se cierre la caja del dia.</p>${incidencias.length?incidencias.map(x=>renderIncidencia(x,"lista")).join(""):"<p class='muted'>No hay errores para esta busqueda.</p>"}</details>
-  ${visibles.map(p=>`<details class="card order-card ${p.estado==="Cancelado"?"uki-pedido-cancelado":p.esPremio?"uki-pedido-premio":p.estado==="Entregado"&&p.pagado?"uki-pedido-entregado":p.pagado?"uki-pedido-pagado":"uki-pedido-cobrar"}">
+  ${visibles.map(p=>`<details data-uki-pedido-id="${p.id}" class="card order-card ${p.estado==="Cancelado"?"uki-pedido-cancelado":p.esPremio?"uki-pedido-premio":p.estado==="Entregado"&&p.pagado?"uki-pedido-entregado":p.pagado?"uki-pedido-pagado":"uki-pedido-cobrar"}">
     <summary><div class="order-head"><div><b>${esc(ukiReferenciaConCarta(p))} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)} · Origen: ${esc(ukiOrigenPedido(p))}${p.modalidad==="Delivery"?" · 🛵 "+esc(ukiKmTexto(p)):""}${ukiPropinaVisiblePedido(p)>0?" · 💝 Propina "+fmt(ukiPropinaVisiblePedido(p)):""}${ukiCodigoClienteVisible(p)?" · Código cliente: "+esc(ukiCodigoClienteVisible(p)):""}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small class="uki-estado-badge">${p.esPremio?'🎁 Premio':p.estado==="Cancelado"?'Cancelado':p.estado==="Entregado"&&p.pagado?'✓ Entregado':p.pagado?'✓ Pagado · por entregar':'$ Por cobrar'}${erroresPedidos.has(p.id)?' · ⚠️ Con error':''}</small></div></div></summary>
     <div class="order-body"><p class="muted">${esc(p.estado==="Entregado"&&!p.pagado?"Pendiente de pago · Entrega anterior por revisar":p.estado||"Pendiente")} · ${esc(p.medio||'Efectivo')}${p.telefono?' · '+esc(p.telefono):''}</p>${p.estado==="Cancelado"?`<p class="muted"><b>Motivo:</b> ${esc(p.motivoCancelacion==="cliente"?"Cancelado por el cliente":p.motivoCancelacion==="local"?"Cancelado por el local":"No informado")}${p.motivoDetalleCancelacion?" · "+esc(p.motivoDetalleCancelacion):""}${p.canceladoEn?" · "+esc(fechaTxt(p.canceladoEn)):""}</p>`:""}
     ${(p.productos||[]).map(pr=>`<div class="row"><span>${pr.cantidad}x ${esc(pr.nombre)}${pr.detalle?` · ${esc(pr.detalle)}`:''}</span><b>${fmt(pr.cantidad*pr.precioUnit)}</b></div>`).join('')}
