@@ -1,8 +1,8 @@
 # Uki Sushi · Lote único de organización del panel (8–9 noviembre 2026)
 
-**Estado:** consolidación de acuerdos del proyecto, sin publicar ni ejecutar cambios de datos reales.  
+**Estado actualizado:** el lote de organización del PR #39 fue publicado y comprobado en GitHub Pages. Las correcciones posteriores de timbres/cierre están solo en QA PR #40, sin publicación ni cambios de datos reales.  
 **Destino:** panel operativo ya utilizado en Regimiento Arica y La Serena, misma URL, mismo sistema y permisos vigentes.  
-**Referencia de código:** PR #39 de este repositorio. Otras ramas de QA se relacionan por su finalidad, **no deben fusionarse a ciegas**.
+**Referencias de código:** PR #39 ya integrado; PR #40 abierto para Timbres y cierre rectificado. Otras ramas de QA se relacionan por finalidad, **no deben fusionarse a ciegas**.
 
 ## A. Organización y corrección incorporadas en esta rama de panel (PR #39)
 
@@ -42,10 +42,32 @@ Estas mejoras quedan **reunidas como pendientes coordinadas**, no afirmadas como
 
 ## D. Condiciones para la publicación única
 
-- No fusionar ni desplegar por la mera existencia de este documento. PR #39 y las otras preparaciones necesitan autorización explícita de publicación.
+- No fusionar ni desplegar por la mera existencia de este documento. PR #39 ya se publicó; PR #40 y las otras preparaciones necesitan autorización explícita de publicación.
 - Verificar que las pruebas sean de la última versión y que no se pierdan cambios posteriores del panel oficial.
 - Si se publican funciones de **carta/fotos/ingredientes**, la secuencia es compatible con backend/API → carta de clientes → panel administrativo; las migraciones deben ser aditivas y autorizadas. Si alguno falla, detener publicación, no tocar registros reales.
-- Si el lote finalmente solo contiene **organización del panel**, se puede integrar PR #39 solo, sin activar API/carta que aún no funcionan; informar con precisión qué se publicó.
+- El lote de **organización del panel** del PR #39 ya está integrado. No re-publicarlo ni introducir API/carta que aún necesitan validación conjunta.
 - No cambiar ni borrar ventas, caja, cierres antiguos, timbres ni su historial, folios, pedidos QR, inventario, disponibilidad, credenciales o enlaces existentes por reorganizar botones.
 - Mantenerlo **limpio, claro y sencillo desde iPhone**; no añadir secciones repetidas ni obligar al agendador a repetir datos ya introducidos.
 - Probar en Safari con ambas sucursales; verificar el registro del responsable y su historial sin crear pedidos reales de prueba ni modificar el #244 ya corregido.
+
+## E. Ajustes solicitados el 8 de noviembre · lote de UI, timbres y cierre
+
+**Preparados en QA PR #40 (aún no publicados):**
+
+1. **Timbres por venta**: orden del más reciente al más antiguo por hora real de Chile, mostrar todo el día calendario incluyendo turnos cerrados, una fila por compra, total pendientes/enviados, no confundir 21 movimientos con 21 tarjetas. Detectar pedidos pagados sin movimiento de timbre, **sin crearles timbres automáticamente**.
+2. **Timbre obligatorio en el mismo pedido**: si se confirma pago y el cliente tiene WhatsApp, preparar mensaje con saldo +1, abrir WhatsApp, exigir declaración explícita de que el agendador lo envió y luego habilitar guardado; sin WhatsApp no bloquear. Guardar marca con nombre, fecha y pedido. Editar una venta antigua pagada no fuerza doble envío. Sin API de Meta no se puede probar la entrega real.
+3. **Conteo físico**: en precierre de trabajador y cierre definitivo se exige importe contado, se acepta $0; preservar montos ya archivados y no mover el corte por medianoche.
+4. **Cierre rectificado por pedido olvidado**: la corrección histórica incorpora origen, monto, medio, efectivo, reparto, fecha, responsable y motivo. Se genera un **informe vigente** con pedidos y cobros adicionales, sin agregar otro movimiento a la caja ni insertar un segundo cierre físico. El documento original permanece accesible únicamente como respaldo de auditoría. Los importes de otro local y el delivery por conciliar permanecen separados.
+5. **Hora exacta** del cierre guardado en Historial, WhatsApp y PDF.
+6. **Acciones al final del cierre**: WhatsApp, CSV compatible con Excel y PDF real del informe guardado/rectificado; retirar el botón engañoso «Descargar cierre TXT» de esa sección. El cierre rectificado se puede volver a compartir. No mandar el cierre original por error.
+
+**Pendientes para terminar el lote visual/operativo que se pidió acumular:**
+
+7. **Detalle de pedidos**: mostrar kilómetros de recorrido, propina y valor (si existe), usando los datos realmente registrados; no inventar distancias.
+8. **Propinas manuales**: concepto + pedido correspondiente, y reporte diario, semanal y mensual separado de la caja de ventas, sin doble conteo.
+9. **Inicio**: frase que cambie diariamente, hora/día/fecha junto a «Hola Uki» y retirar «Información de turno» redundante, **conservar los controles reales de iniciar turno/precierre**.
+10. **Pedidos**: hacer la parte de filtros, solicitudes, mesas e incidencias de la segunda captura más compacta y fácil de entender en iPhone sin ocultar urgencias.
+11. **Navegación**: accesos rápidos para subir/bajar sin deslizar mucho; selector compacto para Caja, Caja acumulada y las subsecciones de Movimientos.
+12. **Validación**: revisión real de ambas sucursales desde Safari, comparar pedidos pagados contra sus movimientos de timbre en los datos cifrados con cuenta autorizada; las pruebas del código no pueden confirmar por sí solas los 21 timbres.
+
+**Condición de publicación**: el PR #40 no representa todavía todos los puntos pendientes de esta sección. No fusionar ni declarar el lote completo hasta ejecutar la lista restante y validar que no hay impacto en caja, cierres, clientes, timbres ni cierres físicos. La publicación debe requerir una autorización nueva, explícita.
