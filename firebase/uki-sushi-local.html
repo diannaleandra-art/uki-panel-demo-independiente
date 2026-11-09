@@ -342,7 +342,11 @@ function aviso(t){S.msg=t;render();window.scrollTo({top:0,behavior:"smooth"});}
 function ir(v){
   if(S.vista==='nuevo'&&v!=='nuevo'&&ukiCartaRemotaActiva)ukiCartaRemotaActiva=null;
   if(S.vista==="nuevo"&&v!=="nuevo"&&S.suc&&ukiSolicitudWhatsAppActiva){
-    ukiWhatsAppPausarRevision();nuevoDraft();
+    if(ukiBorradorActivo){
+      if(!ukiGuardarBorradorSinVista())return;
+      ukiSolicitudWhatsAppActiva=null;
+    }else ukiWhatsAppPausarRevision();
+    nuevoDraft();ukiBorradorActivo=null;
   }else if(S.vista==="nuevo"&&v!=="nuevo"&&S.suc&&!D.editando&&ukiBorradorTieneContenido()){
    if(ukiGuardarBorradorSinVista()){nuevoDraft();ukiBorradorActivo=null;}
    else return;
@@ -861,13 +865,16 @@ function ukiGuardarBorradorSinVista(){
   S.borradores.push(b);
  }
  b.actualizadoEn=Date.now();b.modo=modoNuevo;
- b.datos=ukiCopia(D);b.compositor=ukiCamposEnProceso();ukiBorradorActivo=b.id;
+ b.datos=ukiCopia(D);b.solicitudWhatsAppId=ukiSolicitudWhatsAppActiva||null;
+ b.compositor=ukiCamposEnProceso();ukiBorradorActivo=b.id;
  return true;
 }
 function ukiPausarPedido(){
  if(S.busy||D.editando){aviso("Termina primero la edición del pedido registrado.");return;}
  if(!ukiBorradorTieneContenido()){aviso("Escribe un producto, cliente o tipo de entrega para guardar un pedido en espera.");return;}
  if(!ukiGuardarBorradorSinVista())return;
+ // Otro pedido nunca debe heredar la solicitud que quedó en pausa.
+ ukiSolicitudWhatsAppActiva=null;ukiCartaRemotaActiva=null;
  nuevoDraft();ukiBorradorActivo=null;modoNuevo="manual";
  S.msg="Pedido en espera guardado. Puedes registrar otra venta; no se agregó a caja ni se asignó número de pedido.";
  render();
@@ -876,10 +883,15 @@ function ukiRetomarBorrador(id){
  if(S.busy||D.editando){aviso("Termina primero la edición actual.");return;}
  const b=ukiBorradoresSucursal().find(x=>x.id===id);
  if(!b){aviso("El borrador ya no está disponible.");return;}
+ if(b.solicitudWhatsAppId && !(S.solicitudesWhatsApp||[]).some(s=>s.id===b.solicitudWhatsAppId&&s.suc===S.suc&&s.estado==='pendiente')){
+  aviso('La solicitud original ya fue aceptada o rechazada. No registres otro pedido; revisa su historial.');return;
+ }
  if(ukiBorradorActivo!==id&&ukiBorradorTieneContenido()&&!ukiGuardarBorradorSinVista())return;
  D=ukiCopia(b.datos);D.editando=null;
  if(!Array.isArray(D.items)||!D.items.length)D.items=[{nombre:"",cant:1,precio:0,det:""}];
  modoNuevo=b.modo==="manual"?"manual":"whatsapp";
+ ukiSolicitudWhatsAppActiva=b.solicitudWhatsAppId||null;
+ ukiCartaRemotaActiva=String(D.cartaSolicitudRemotaId||"")||null;
  ukiBorradorActivo=b.id;S.vista="nuevo";render();
  Object.entries(b.compositor||{}).forEach(([k,v])=>{if($(k))$(k).value=v;});
 }
@@ -1068,6 +1080,8 @@ function ukiWhatsAppAceptarYRevisar(id){
  const item=(S.solicitudesWhatsApp||[]).find(x=>x.id===id&&x.suc===S.suc);
  if(!item||item.estado!=='pendiente'){aviso('Esta solicitud ya fue procesada o no existe.');return;}
  if(S.busy){aviso('Termina la operación actual antes de revisar otra.');return;}
+ const pausado=ukiBorradoresSucursal().find(b=>b.solicitudWhatsAppId===id);
+ if(pausado){ukiRetomarBorrador(pausado.id);return;}
  if(ukiSolicitudWhatsAppActiva&&ukiSolicitudWhatsAppActiva!==id)ukiWhatsAppPausarRevision();
  if(ukiBorradorTieneContenido()&&!D.editando&&!ukiGuardarBorradorSinVista())return;
  D=ukiCopia(item.datos);D.pagado=false;D.editando=null;
@@ -1090,9 +1104,13 @@ async function ukiWhatsAppRechazar(id){
   aviso('Selecciona por qué no se realizará este pedido.');return;}
  if(!window.confirm('¿Rechazar '+ukiWhatsAppIdentificador(item)+'? Quedará en el historial y no afectará caja ni ventas.'))return;
  const antes={estado:item.estado,motivo:item.motivo,finalizadoEn:item.finalizadoEn};
+ const borradoresAntes=S.borradores;
  item.estado='rechazada';item.motivo=motivo;item.finalizadoEn=Date.now();
+ // No dejar solicitudes rechazadas como pedidos sin terminar.
+ S.borradores=(S.borradores||[]).filter(b=>b.suc!==S.suc||b.solicitudWhatsAppId!==id);
  const ok=await guardarEnLocalStorage();
- if(!ok){Object.assign(item,antes);aviso('No se guardó el rechazo. La solicitud sigue pendiente.');return;}
+ if(!ok){S.borradores=borradoresAntes;Object.assign(item,antes);aviso('No se guardó el rechazo. La solicitud sigue pendiente.');return;}
+ if(ukiBorradorActivo&&!S.borradores.some(b=>b.id===ukiBorradorActivo))ukiBorradorActivo=null;
  if(ukiSolicitudWhatsAppActiva===id){ukiSolicitudWhatsAppActiva=null;nuevoDraft();}
  S.msg='Solicitud rechazada y archivada, sin sumar ventas, caja, deliverys ni timbres.';
  render();
