@@ -15,7 +15,8 @@ function escenario({pagado=false,estado='Pendiente',ajuste=null,closed=false,tur
  const ctx={
   S,esDelPeriodo:()=>turno,ukiCierreConfirmadoPedido:()=>closed?{}:null,
   ukiCobroPendiente:x=>x?.ajusteCobroPendiente?.estado==='pendiente'?x.ajusteCobroPendiente:null,
-  window:{ukiCancelacionNubeLista:()=>true,confirm:()=>{confirmaciones++;return true;}},
+  window:{ukiCancelacionNubeLista:()=>true},
+  confirm:()=>{confirmaciones++;return true;},
   document:{body:{classList:{contains:()=>false}}},
   $:()=>({value:'cliente'}),
   guardarEnLocalStorage:async()=>{registros++;return true},
