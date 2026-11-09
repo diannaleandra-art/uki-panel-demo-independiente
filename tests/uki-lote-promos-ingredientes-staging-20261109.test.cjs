@@ -139,3 +139,60 @@ test('El servidor conserva la fecha de primera publicación al retirar y permite
  assert.match(ui,/estado==='Publicada'/);
  assert.match(ui,/estado==='Retirada'/);
 });
+
+
+test('Panel organiza opciones base y personalizadas de vegetales, proteínas y envolturas sin duplicar',()=>{
+ const source=fs.readFileSync('firebase/uki-armado-ingredientes-admin.js','utf8');
+ const begin=source.indexOf('// Catálogo base del menú Uki aprobado');
+ const end=source.indexOf('function renderEditorIngrediente(item,target){',begin);
+ assert.ok(begin>=0&&end>begin,'Vista agrupada creada');
+ const nodes=[];
+ function createElement(tag){const node={tag,style:{},children:[],textContent:'',title:'',open:false,
+  append(...xs){this.children.push(...xs)},replaceChildren(){this.children=[]}};
+  nodes.push(node);return node;}
+ const root=createElement('root'),edits=[];
+ const ctx={
+  document:{createElement},get:id=>id==='ukiIngLista'?root:null,
+  state:{items:[{name:'Frutilla',category:'vegetal',surcharge:0,available:true},
+   {name:'Nuez',category:'vegetal',surcharge:500,available:true}]},
+  renderEditorIngrediente:(item,container)=>{edits.push(item.name);container.append(createElement('editable'));}
+ };
+ vm.runInNewContext(source.slice(begin,end)+'\nrender();',ctx);
+ const panels=root.children.filter(x=>x.tag==='details');
+ assert.equal(panels.length,3);
+ assert.match(panels[0].children[0].textContent,/Vegetales/);
+ assert.match(panels[1].children[0].textContent,/Proteínas/);
+ assert.match(panels[2].children[0].textContent,/Envolturas/);
+ assert.deepEqual(edits,['Frutilla','Nuez']);
+ const chips=nodes.filter(x=>x.tag==='span').map(x=>x.textContent);
+ assert.ok(chips.includes('Palta')&&chips.includes('Pollo')&&chips.includes('Panko'));
+ assert.ok(!chips.includes('Frutilla'),'No duplicar Frutilla agregada respecto de la base');
+ const html=fs.readFileSync('firebase/uki-sushi-local.html','utf8');
+ assert.match(html,/uki-armado-ingredientes-admin\.js\?v=uki-listas-organizadas-20261109/);
+});
+
+test('Panel muestra resumen por sucursal de promociones con acceso a precios existentes',()=>{
+ const code=fs.readFileSync('firebase/uki-carta-precios-admin.js','utf8');
+ const a=code.indexOf('function renderPromoResumen(){'),b=code.indexOf('function renderPrices(){',a);
+ assert.ok(a>=0&&b>a);
+ function createElement(tag){return {tag,children:[],style:{},textContent:'',
+  append(...xs){this.children.push(...xs)},replaceChildren(){this.children=[]}}}
+ const target=createElement('root'),search={value:''},group={value:''};
+ const roots={ukiPromosListaResumen:target,ukiPriceSearch:search,ukiPriceGroup:group,
+  ukiPriceList:{style:{},scrollIntoView(){}}};
+ let refreshed=0;
+ const state={items:[{kind:'monthly',name:'Promo especial QA',price:16000,visible:true},
+  {kind:'classic',name:'Clásico QA',price:8000}],group:'all',query:''};
+ vm.runInNewContext(code.slice(a,b)+'\nrenderPromoResumen();',{
+  document:{createElement},state,$:id=>roots[id],renderPrices:()=>refreshed++
+ });
+ const rows=target.children.filter(x=>x.tag==='div');
+ assert.equal(rows.length,1);
+ assert.match(rows[0].children[0].children[0].textContent,/Promo especial QA/);
+ assert.match(rows[0].children[0].children[1].textContent,/16\.000/);
+ rows[0].children[1].onclick();
+ assert.equal(group.value,'monthly');assert.equal(search.value,'Promo especial QA');
+ assert.equal(refreshed,1);
+ const html=fs.readFileSync('firebase/uki-sushi-local.html','utf8');
+ assert.match(html,/uki-carta-precios-admin\.js\?v=uki-listas-organizadas-20261109/);
+});

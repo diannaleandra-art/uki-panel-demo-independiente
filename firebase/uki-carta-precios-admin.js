@@ -46,6 +46,10 @@ const pricesPanel=[
  '<option value="topping">Toppings</option><option value="extra">Salsas adicionales</option></select></div></div>',
  '<button class="sm" id="ukiPriceReload" type="button">Actualizar precios</button>',
  '<p id="ukiPriceMessage" role="status" class="muted">Carga los precios de la sucursal para comenzar.</p>',
+ '<section id="ukiPromosResumen" style="padding:12px 14px;margin:13px 0;background:#fff6ed;border:1.5px solid #e8c49e;border-radius:14px" aria-label="Promociones del mes organizadas">',
+ '<h3 style="margin:0 0 7px;color:#7c441a;font-size:17px">🎁 Promociones del mes</h3>',
+ '<p class="mini-help" style="margin:0 0 8px">Nombre, precio y estado por sucursal. Ver detalles lleva al editor existente.</p>',
+ '<div id="ukiPromosListaResumen"><p class="muted">Actualiza precios para consultar las promociones.</p></div></section>',
  '<div id="ukiPriceList"></div>',
  '<details id="ukiPriceAddBox" class="card" style="margin-top:15px">',
  '<summary style="cursor:pointer;font-weight:700">＋ Agregar producto a la carta</summary>',
@@ -411,6 +415,42 @@ function line(price){
  }
  return wrap;
 }
+// Resumen de promociones sin controles nuevos de cobro ni publicación.
+function renderPromoResumen(){
+ const target=$('ukiPromosListaResumen');if(!target)return;
+ target.replaceChildren();
+ const promos=state.items.filter(item=>item.kind==='monthly');
+ const count=document.createElement('p');count.className='mini-help';
+ count.textContent=promos.length+' promociones y productos especiales de esta sucursal.';
+ target.append(count);
+ if(!promos.length){
+  const none=document.createElement('p');none.className='muted';
+  none.textContent='No hay promociones para mostrar todavía.';target.append(none);return;
+ }
+ for(const promo of promos){
+  const row=document.createElement('div');
+  row.style.cssText='padding:9px 0;border-top:1px solid #ecd7c1;display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap';
+  const label=document.createElement('div');label.style.cssText='flex:1 1 160px;min-width:0';
+  const title=document.createElement('strong');title.style.cssText='font-size:14px;display:block';
+  title.textContent=promo.name;
+  const note=document.createElement('small');note.style.cssText='display:block;margin-top:4px;color:#705d4b';
+  const estado=promo.estadoPublicacion||(promo.visible===false?'Retirada':'Publicada');
+  note.textContent='$'+Number(promo.price||0).toLocaleString('es-CL')+' · '+estado;
+  label.append(title,note);row.append(label);
+  const btn=document.createElement('button');btn.type='button';btn.className='sm';
+  btn.textContent='Ver detalles';
+  btn.onclick=()=>{
+   state.group='monthly';state.query=promo.name;
+   const group=$('ukiPriceGroup'),search=$('ukiPriceSearch');
+   if(group)group.value='monthly';if(search)search.value=promo.name;
+   renderPrices();
+   const list=$('ukiPriceList');if(list){
+    list.style.scrollMarginTop='130px';list.scrollIntoView({behavior:'smooth',block:'start'});
+   }
+  };
+  row.append(btn);target.append(row);
+ }
+}
 function renderPrices(){
  const target=$('ukiPriceList');if(!target)return;
  target.replaceChildren();
@@ -432,7 +472,7 @@ async function loadPrices(force=false){
   state.promocionesHabilitadas=data.promocionesHabilitadas===true;
   const promoBox=$('ukiPromoAddBox');if(promoBox){promoBox.hidden=!state.promocionesHabilitadas;
    if(!state.promocionesHabilitadas)promoBox.open=false;}
-  state.ready=true;await loadPhotos(selected);renderPrices();
+  state.ready=true;await loadPhotos(selected);renderPrices();renderPromoResumen();
   info('ukiPriceMessage','✓ '+state.items.length+' productos y precios de esta sucursal.'+
    (state.promocionesHabilitadas?' Promociones dinámicas disponibles.':' Las promociones nuevas estarán disponibles tras la publicación conjunta.'));
  }catch(e){state.ready=false;state.items=[];
