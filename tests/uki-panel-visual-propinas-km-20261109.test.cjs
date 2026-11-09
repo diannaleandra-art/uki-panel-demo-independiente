@@ -88,6 +88,18 @@ test('Reportes de propinas por calendario, sucursal y medio: no duplicar con cie
  assert.match(html,/cierresOriginales\.map\(ukiCierreInformeVigente\)/);
  assert.match(html,/uk[iI]AccionesHistorial\(original\)/);
 });
+test('Evita duplicar la propina manual al editar el pedido ya pagado',()=>{
+ const src=slice('function ndGuardar(){','function cerrar(){');
+ assert.match(src,/if\(D\.editando&&propina>0&&\(S\.propinas\|\|\[\]\)\.some/);
+ assert.match(src,/x\.origen==="manual"/);
+ assert.match(src,/Este pedido ya tiene una propina manual registrada/);
+});
+test('Seleccionar día, semana o mes no cierra visualmente los reportes de propinas',()=>{
+ const src=slice('let reportePropinasPeriodo=','function vReportes(){');
+ assert.match(src,/reportePropinasAbierto=true;render\(\)/);
+ assert.match(src,/ontoggle="reportePropinasAbierto=this\.open"/);
+ assert.match(src,/reportePropinasAbierto\?'open':''/);
+});
 test('Página principal conserva sintaxis válida, QR/caja no se modifican desde la navegación',()=>{
  const scripts=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(x=>x[1]);
  const main=scripts.find(x=>x.includes('function vPedidos(){')&&x.includes('function vNuevo(){'));
