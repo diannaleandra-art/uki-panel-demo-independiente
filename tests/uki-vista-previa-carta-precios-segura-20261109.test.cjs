@@ -31,5 +31,5 @@ test('Las acciones de edición se ven como ejemplo pero desactivadas',()=>{
  assert.match(html,/Guardar ingrediente \(solo en panel real\)<\/button>/);
  assert.match(html,/Guardar borrador \(solo en panel real\)<\/button>/);
  assert.match(html,/Agregar a la carta \(solo en panel real\)<\/button>/);
- assert.equal((html.match(/<button\s+class="demo"[^>]*disabled/g)||[]).length,2);
+ assert.equal((html.match(/<button\s+class="demo"[^>]*disabled/g)||[]).length,3);
 });
