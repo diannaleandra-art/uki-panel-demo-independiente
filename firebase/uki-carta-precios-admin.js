@@ -109,6 +109,15 @@ function showTab(){
   if(current)btn.setAttribute('aria-current','page');else btn.removeAttribute('aria-current');
   const title=btn.querySelector('strong');if(title)title.textContent=(current?'✓ ':'')+label;
  }
+ // Mostrar faltantes e historial juntos, justo debajo del título.
+ // Solo mueve elementos visuales; no modifica inventario, caja ni pedidos.
+ if(state.tab==='reportes'){
+  const header=$('ukiAdminViewHeader'),faltantes=$('ukiReponerPanel'),historial=$('ukiHistorial');
+  if(header){
+   if(historial)header.insertAdjacentElement('afterend',historial);
+   if(faltantes)header.insertAdjacentElement('afterend',faltantes);
+  }
+ }
  const sections={
   precios:['ukiPreciosPanel'],
   disponibilidad:['ukiCartaDisponibilidad'],
@@ -118,7 +127,11 @@ function showTab(){
  const ids=['ukiInvSectionHead','invRoot','invAdmin','invNewBox','ukiInvWorkerAccess',
   'ukiCartaDisponibilidad','ukiPreciosPanel','ukiReponerPanel','ukiMiniInventario','ukiHistorial','invReportsBox'];
  for(const id of ids){
-  const element=$(id);if(element)element.style.display=(sections[state.tab]||[]).includes(id)?'':'none';
+  const element=$(id);if(!element)continue;
+  const visible=(sections[state.tab]||[]).includes(id);
+  element.style.display=visible?'':'none';
+  // El historial nace oculto; restaurar su visibilidad al elegir reportes.
+  if(id==='ukiHistorial')element.hidden=!visible;
  }
  if(state.tab==='precios'&&!state.ready)void loadPrices();
  if(state.tab==='reportes')void loadReponer();
