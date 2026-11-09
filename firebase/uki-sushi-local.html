@@ -1327,6 +1327,7 @@ function ukiAbrirTimbreBorrador(){
  D.timbreAvisoAbiertoFirma=firma;D.timbreAvisoConfirmadoFirma="";
  D.timbreAvisoAbiertoEn=new Date().toISOString();D.timbreAvisoConfirmadoEn="";
  const mensaje=ukiTimbreTextoPedido(D.cliente,acumulados+1);
+ render(); // Habilita la confirmación al regresar de WhatsApp sin refrescar ni perder el pedido.
  window.open("https://wa.me/"+numero+"?text="+encodeURIComponent(mensaje),"_blank","noopener,noreferrer");
 }
 function ukiConfirmarTimbreBorrador(marcado){
@@ -1723,6 +1724,25 @@ function ukiMarcarTimbreEnviado(id){
  void guardarEnLocalStorage();render();
  aviso("✅ Envío DECLARADO por personal (no verificado por WhatsApp) · "+ukiReferenciaConCarta(p)+".");
 }
+
+function ukiTimbreMovimientoRegistrado(p){
+ return Object.values(S.clientes||{}).some(c=>
+  (c.movimientos||[]).some(m=>m.tipo==='venta'&&Number(m.pedidoId)===Number(p?.id)));
+}
+function ukiAbrirTimbrePedido(id){
+ const p=(S.pedidos||[]).find(x=>x.suc===S.suc&&x.id===Number(id));
+ if(!ukiPedidoDaTimbre(p))return aviso("Este pedido no genera un timbre enviado.");
+ const numero=ukiNumeroTimbreWhatsApp(p.telefono);
+ if(!numero)return aviso("Este cliente no tiene WhatsApp válido. Completa o corrige el número desde Editar.");
+ if(!ukiTimbreMovimientoRegistrado(p))
+  return aviso("Este pedido está pagado pero falta su movimiento de timbre. Revisa antes de enviar para evitar un saldo incorrecto.");
+ const cli=getCliente(p.cliente,p.codigoCliente,p.telefono);
+ const cantidad=cli?ventasValidas(cli):0;
+ const evento=ukiAnotarEventoTimbre(p,"whatsapp_abierto");
+ p.timbreWhatsAppAbiertoEn=evento.fecha;p.timbreWhatsAppAbiertoPor=evento.responsable;
+ void guardarEnLocalStorage();
+ window.open("https://wa.me/"+numero+"?text="+encodeURIComponent(ukiTimbreTextoPedido(p.cliente,cantidad)),"_blank","noopener,noreferrer");
+}
 function ukiTimbrePedidoUI(p){
  if(!ukiPedidoDaTimbre(p))return "";
  const enviado=!!p.timbreEnviadoEn;
@@ -1732,6 +1752,7 @@ function ukiTimbrePedidoUI(p){
    ' · '+esc(p.timbreEnviadoPor||"Sin turno identificado")+' (no verificado por WhatsApp)</p>':
    '<p class="muted">'+(p.timbreWhatsAppAbiertoEn?'WhatsApp abierto: '+esc(new Date(p.timbreWhatsAppAbiertoEn).toLocaleString('es-CL'))+'. ':'')+
    'Después de pulsar Enviar en WhatsApp, confirma manualmente. Abrir WhatsApp no prueba el envío.</p>')+
+  (ukiNumeroTimbreWhatsApp(p.telefono)?'<button type="button" class="sm ok" onclick="ukiAbrirTimbrePedido('+Number(p.id)+')">📲 Enviar timbre por WhatsApp</button>':'<p class="muted">Sin WhatsApp registrado · no bloquea el pedido.</p>')+
   '<button type="button" class="sm'+(enviado?'':' ok')+'" onclick="ukiMarcarTimbreEnviado('+Number(p.id)+')">'+
   (enviado?'Desmarcar envío':'✓ Marcar timbre enviado')+'</button></div>';
 }
@@ -1747,6 +1768,11 @@ function togglePagado(id){
  const p=S.pedidos.find(x=>x.id===id);if(!p||p.esPremio||p.estado==="Cancelado")return;
  if(ukiCierreConfirmadoPedido(p)){aviso("Este pedido ya pertenece a un cierre confirmado. Usa Editar para dejar una corrección identificada sin modificar el cierre.");return;}
  if(!p.pagado){
+   if(ukiTimbreObligatorioGuardar({...p,editando:p.id,pagado:true},p)){
+     editarPedido(p.id);D.pagado=true;render();
+     aviso("Pago con WhatsApp: envía el timbre desde este mismo pedido y confirma antes de guardar el cobro.");
+     return;
+   }
    const err=ukiErrorDistribucionPago(p,Number(p.subtotal)||0,p.modalidad==="Delivery"?(Number(p.envio)||0):0);
    if(err){aviso(err+" Edita el pedido antes de marcarlo pagado.");return;}
    if(!confirm("¿Confirmas el pago completo del pedido #"+id+"? Solo se sumará el dinero cobrado en este local."))return;
@@ -2929,6 +2955,8 @@ function ukiOrigenPedido(p){
 function ukiMarcarPedidoEntregado(id){
  const p=(S.pedidos||[]).find(x=>x.id===Number(id)&&x.suc===S.suc);
  if(!p||p.estado!=='Pendiente'||p.esPremio)return aviso('Solo puedes confirmar la entrega de un pedido pendiente.');
+ if(p.timbreReglaObligatoria&&p.pagado&&ukiNumeroTimbreWhatsApp(p.telefono)&&!p.timbreEnviadoEn)
+  return aviso('Antes de finalizar este pedido, envía y confirma su timbre por WhatsApp.');
  if(!window.confirm('¿Confirmas que el cliente recibió este pedido? Su pago y caja no cambiarán.'))return;
  p.estado='Entregado';p.entregadoEn=new Date().toISOString();
  p.entregadoPor=ukiTimbreResponsableActual();
