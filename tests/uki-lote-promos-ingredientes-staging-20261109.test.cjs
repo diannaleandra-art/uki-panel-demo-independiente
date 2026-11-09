@@ -26,7 +26,8 @@ test('Sin bandera no consulta tablas no migradas ni modifica precios originales'
 });
 test('La bandera requiere backend oficial y no basta activarla por accidente',()=>{
  assert.equal(api.promocionesHabilitadas({VERCEL_ENV:'production',UKI_PROMOS_VISIBILIDAD_ENABLED:'true'}),false);
- assert.equal(api.promocionesHabilitadas({VERCEL_ENV:'production',UKI_PROMOS_VISIBILIDAD_ENABLED:'true',UKI_INVENTARIO_LIVE_ENABLED:'true'}),true);
+ assert.equal(api.promocionesHabilitadas({VERCEL_ENV:'production',UKI_PROMOS_VISIBILIDAD_ENABLED:'true',UKI_INVENTARIO_LIVE_ENABLED:'true'}),false);
+ assert.equal(api.promocionesHabilitadas({VERCEL_ENV:'production',UKI_PROMOS_VISIBILIDAD_ENABLED:'true',UKI_INVENTARIO_LIVE_ENABLED:'true',UKI_INGREDIENTES_ARMADO_ENABLED:'true'}),true);
  assert.equal(api.promocionesHabilitadas({VERCEL_ENV:'preview',UKI_PROMOS_VISIBILIDAD_ENABLED:'true'}),false);
 });
 test('Una vez migrado y habilitado, cada promoción consulta su sucursal y nace oculta',async()=>{
