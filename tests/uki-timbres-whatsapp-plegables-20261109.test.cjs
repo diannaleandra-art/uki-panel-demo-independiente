@@ -75,7 +75,7 @@ test('Canje 10 en un alias reinicia los timbres vinculados sin perder registros'
 });
 test('Tarjetas de Pedidos y Timbres cerradas; click sobre summary las abre',()=>{
  const pedidos=section('function vPedidos(){','let pedidoExpandido=null;');
- assert.match(pedidos,/<details class="card order-card/);
+ assert.match(pedidos,/<details data-uki-pedido-id="\$\{p\.id\}" class="card order-card/);
  assert.match(pedidos,/<summary><div class="order-head">/);
  assert.doesNotMatch(pedidos,/p\.id===pedidoExpandido\?'open'/);
  const timbres=section('function vClientes(){','function compartirImagenTimbres(');
