@@ -11,8 +11,9 @@ const promocionesHabilitadas=env=>env.UKI_PROMOS_VISIBILIDAD_ENABLED==='true';
 const enabled=env=>(env.VERCEL_ENV==='production'&&env.UKI_INGREDIENTES_ARMADO_ENABLED==='true')||
  (env.VERCEL_ENV==='preview'&&env.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2&&env.UKI_INVENTARIO_QA_ENABLED==='true');
 const KINDS=new Set(['classic','premium','monthly','pizza','dish','topping']);
-const originAllowed=(origin,env=process.env)=>ORIGINS.has(origin)||
- (enabled(env)&&env.VERCEL_ENV==='preview'&&!!env.VERCEL_URL&&origin==='https://'+env.VERCEL_URL);
+const sameQAOrigin=(origin,env=process.env)=>enabled(env)&&env.VERCEL_ENV==='preview'&&
+ !!env.VERCEL_URL&&origin==='https://'+env.VERCEL_URL;
+const originAllowed=(origin,env=process.env)=>ORIGINS.has(origin)||sameQAOrigin(origin,env);
 const fail=(res,code,error)=>res.status(code).json({ok:false,error});
 function validSku(value){
  if(typeof value!=='string'||value.length<5||value.length>120||!/^[a-z]+:[a-z0-9-]+$/.test(value))return false;
@@ -82,7 +83,7 @@ module.exports=async function(req,res){
    const rows=await sql.query('SELECT sku,version,mime FROM public.uki_carta_fotos_v1 WHERE branch=$1 ORDER BY sku LIMIT 200',[branch]);
    return res.status(200).json({ok:true,branch,items:rows.map(x=>({sku:x.sku,version:Number(x.version),mime:x.mime}))});
   }
-  if(origin!=='https://diannaleandra-art.github.io')return fail(res,403,'Solo administración');
+  if(origin!=='https://diannaleandra-art.github.io'&&!sameQAOrigin(origin,env))return fail(res,403,'Solo administración');
   if(String(req.headers?.['content-type']||'').split(';')[0]!=='application/json')
    return fail(res,415,'Se requiere JSON');
   if(!req.body||JSON.stringify(req.body).length>355000)return fail(res,400,'Imagen demasiado grande');
@@ -112,4 +113,4 @@ module.exports=async function(req,res){
   return fail(res,503,'Servicio de fotos temporalmente no disponible; tus productos no cambiaron');
  }
 };
-module.exports._test={validPicture,validSku,productExists,enabled,originAllowed,promocionesHabilitadas};
+module.exports._test={validPicture,validSku,productExists,enabled,originAllowed,sameQAOrigin,promocionesHabilitadas};
