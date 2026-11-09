@@ -248,8 +248,9 @@ function visibilityControl(price){
  const button=document.createElement('button');button.type='button';button.className='sm';
  button.style.cssText=price.visible===false?'border:1px solid #61a18b;color:#176d48':'border:1px solid #bb7060;color:#973729';
  const esPromoDelMes=price.kind==='monthly'&&price.custom;
+ const estado=esPromoDelMes?price.estadoPublicacion:null;
  button.textContent=esPromoDelMes?
-  (price.visible===false?'↩ Volver a publicar promoción':'🗑 Eliminar promoción de la carta'):
+  (estado==='Borrador'?'✓ Publicar promoción':estado==='Retirada'?'↩ Volver a publicar promoción':'🗑 Eliminar promoción de la carta'):
   (price.visible===false?'↩ Restaurar en carta':'🗑 Retirar de carta');
  button.onclick=async()=>{
   if(state.busy)return;
@@ -259,14 +260,16 @@ function visibilityControl(price){
     '¿Retirar «'+price.name+'» de la carta de esta sucursal? No se borrarán sus pedidos, precios históricos ni timbres.';
    if(!window.confirm(pregunta))return;
   }
-  const chosen=state.branch,action=price.visible===false?'restaurar-producto':'retirar-producto';
+  const chosen=state.branch,action=price.visible===false?
+   (esPromoDelMes&&estado==='Borrador'?'publicar-promocion':'restaurar-producto'):'retirar-producto';
   state.busy=true;button.disabled=true;
   try{
    await request(API,action,{sku:price.sku,expected_version:price.version,
     expected_visibility_version:price.visibilityVersion},chosen);
    state.busy=false;await loadPrices(true);
    info('ukiPriceMessage',esPromoDelMes?
-    (action==='retirar-producto'?'✓ Promoción eliminada de la carta de esta sucursal. Ya no aparece a los clientes.':'✓ Promoción publicada nuevamente en esta sucursal.'):
+    (action==='retirar-producto'?'✓ Promoción retirada de la carta de esta sucursal. Ya no aparece a los clientes.':
+     estado==='Borrador'?'✓ Promoción publicada por primera vez en esta sucursal.':'✓ Promoción publicada nuevamente en esta sucursal.'):
     (action==='retirar-producto'?'✓ Retirado del menú de esta sucursal.':'✓ Restaurado en la carta.'));
   }catch(e){info('ukiPriceMessage','No se modificó: '+String(e.message||e))}
   finally{state.busy=false;button.disabled=false}
@@ -314,9 +317,20 @@ function line(price){
  const summary=document.createElement('div');summary.style.flex='1 1 130px';
  const name=document.createElement('b');name.textContent=price.name;
  const sub=document.createElement('small');sub.style.cssText='display:block;color:#756759';
- sub.textContent=(price.group||price.kind)+' · '+peso(price.price)+' · '+
-   (price.visible===false?'Retirado de carta':price.available?'Disponible':'Agotado');
+ const esPromo=price.kind==='monthly';
+ const estado=esPromo?(price.custom?price.estadoPublicacion:(price.visible===false?'Retirada':'Publicada')):null;
+ sub.textContent=(price.group||price.kind)+' · '+peso(price.price)+(esPromo?'': ' · '+
+   (price.visible===false?'Retirado de carta':price.available?'Disponible':'Agotado'));
  summary.append(name,sub);
+ if(esPromo&&estado){
+  const indicador=document.createElement('span');
+  indicador.textContent=estado+(price.available?'':' · Agotada');
+  indicador.style.cssText='display:inline-block;margin-top:5px;padding:5px 9px;border-radius:999px;font-size:12px;font-weight:800;'+
+   (estado==='Publicada'?'background:#edf7ed;color:#287044':estado==='Borrador'?
+    'background:#fff0df;color:#925210':'background:#f1edeb;color:#775e4d');
+  indicador.setAttribute('aria-label','Estado de promoción: '+estado);
+  summary.append(indicador);
+ }
  const input=document.createElement('input');input.type='number';input.inputMode='numeric';input.min='1';input.max='1000000';
  input.value=String(price.price);input.setAttribute('aria-label','Nuevo precio de '+price.name);
  input.style.cssText='width:115px;max-width:35%;flex:0 0 115px';
