@@ -196,3 +196,37 @@ test('Panel muestra resumen por sucursal de promociones con acceso a precios exi
  const html=fs.readFileSync('firebase/uki-sushi-local.html','utf8');
  assert.match(html,/uki-carta-precios-admin\.js\?v=uki-listas-organizadas-20261109/);
 });
+
+
+test('QA organización: cada área de carta contiene buscar, agregar y acceso a retirar sin perder controles',()=>{
+ const precios=fs.readFileSync('firebase/uki-carta-precios-admin.js','utf8');
+ const ingredientes=fs.readFileSync('firebase/uki-armado-ingredientes-admin.js','utf8');
+ const html=fs.readFileSync('firebase/uki-sushi-local.html','utf8');
+ assert.doesNotThrow(()=>new vm.Script(precios));
+ assert.doesNotThrow(()=>new vm.Script(ingredientes));
+ for(const name of ['productos','ingredientes','promociones'])
+  assert.match(precios,new RegExp("'"+name+"'"));
+ assert.match(precios,/function organizarCarta\(\)/);
+ assert.match(precios,/window\.ukiCartaSeleccion=choose/);
+ assert.match(precios,/areas\[name\]\.hidden=name!==key/);
+ assert.match(precios,/ukiPriceSearch/);
+ assert.match(precios,/ukiPriceAddBox/);
+ assert.match(precios,/ukiPriceList/);
+ assert.match(precios,/ukiPromoBuscar/);
+ assert.match(precios,/ukiPromoAddBox/);
+ assert.match(precios,/ukiPromosResumen/);
+ assert.match(precios,/row\.append\(visibilityControl\(promo\)\)/);
+ assert.match(precios,/Buscar en todas/);
+ assert.match(ingredientes,/ukiIngBuscar/);
+ assert.match(ingredientes,/ukiCartaAreaIngredientes/);
+ assert.match(ingredientes,/ukiIngAddPlegable/);
+ assert.match(ingredientes,/function renderEditorIngrediente\(item,target\)/);
+ assert.match(ingredientes,/request\(remove\?'retirar':'restaurar'/);
+ assert.match(html,/uki-carta-precios-admin\.js\?v=uki-tres-vistas-qa-20261109/);
+ assert.match(html,/uki-armado-ingredientes-admin\.js\?v=uki-tres-vistas-qa-20261109/);
+ // Las funciones originales siguen disponibles y fuera de los nuevos filtros.
+ for(const text of ['function visibilityControl','function crearPromo','function loadPrices','function renderPrices','function create','function promoEditor'])
+  assert.ok(precios.includes(text),text);
+ for(const text of ['async function request','async function send','async function toggleIngredient','async function load','function render'])
+  assert.ok(ingredientes.includes(text),text);
+});
