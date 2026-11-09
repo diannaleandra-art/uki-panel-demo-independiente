@@ -56,3 +56,41 @@ test('Las fotografías y vegetales de QA siguen exigiendo autenticación Google 
  assert.match(photo,/if\(origin!=='https:\/\/diannaleandra-art\.github\.io'&&!sameQAOrigin\(origin,env\)\)/);
  assert.match(veg,/if\(origin!=='https:\/\/diannaleandra-art\.github\.io'&&!\(qa\(e\)&&QA_PANEL\.test\(origin\)\)&&!sameQAOrigin\(origin,e\)\)/);
 });
+
+test('Carta QA puede LEER las cuatro APIs desde el mismo preview sin acceso de escritura',()=>{
+ const origin='https://uki-sushi-pedidos-git-feature-uki-dis-eb0d72-diannaleandra-7046.vercel.app';
+ const other='https://uki-sushi-pedidos-otro123-diannaleandra-7046.vercel.app';
+ const price=require('../api/uki-carta-precios-live.js')._testing;
+ const availability=require('../api/uki-disponibilidad-live.js')._testing;
+ for(const source of [origin,other]){
+  assert.equal(price.originAllowed(source,env),true,'precio '+source);
+  assert.equal(ingredient.allow(source,env),true,'ingredientes '+source);
+  assert.equal(photos.originAllowed(source,env),true,'fotografías '+source);
+  assert.equal(availability.allowedOrigin(source,env),true,'agotados '+source);
+ }
+ const photo=fs.readFileSync('api/uki-carta-fotos-live.js','utf8');
+ const prices=fs.readFileSync('api/uki-carta-precios-live.js','utf8');
+ const vegetables=fs.readFileSync('api/uki-ingredientes-armado-live.js','utf8');
+ const stock=fs.readFileSync('api/uki-disponibilidad-live.js','utf8');
+ assert.match(photo,/if\(origin!=='https:\/\/diannaleandra-art\.github\.io'&&!sameQAOrigin\(origin,env\)\)/);
+ assert.match(prices,/if\(origin!=='https:\/\/diannaleandra-art\.github\.io'&&!\(qa\(process\.env\)&&origin===QA_PANEL\)&&!qaOrigin\(origin\)\)/);
+ assert.match(vegetables,/if\(origin!=='https:\/\/diannaleandra-art\.github\.io'&&!\(qa\(e\)&&QA_PANEL\.test\(origin\)\)&&!sameQAOrigin\(origin,e\)\)/);
+ assert.match(stock,/if\(origin!=='https:\/\/diannaleandra-art\.github\.io'&&!\(qaBranch\(\)&&origin===QA_PANEL_ORIGIN\)\)/);
+});
+test('Carta QA no obtiene acceso mediante prod, origen ajeno, sin bandera o desde rama distinta',()=>{
+ const origin='https://uki-sushi-pedidos-git-feature-uki-dis-eb0d72-diannaleandra-7046.vercel.app';
+ const price=require('../api/uki-carta-precios-live.js')._testing;
+ const availability=require('../api/uki-disponibilidad-live.js')._testing;
+ const endpoints=[(e,o)=>price.originAllowed(o,e),(e,o)=>ingredient.allow(o,e),
+  (e,o)=>photos.originAllowed(o,e),(e,o)=>availability.allowedOrigin(o,e)];
+ for(const override of [
+  {UKI_INVENTARIO_QA_ENABLED:'false'},
+  {VERCEL_GIT_COMMIT_REF:'main'},
+  {VERCEL_ENV:'production'},
+  {VERCEL_ENV:'development'}
+ ]){
+  const e={...env,...override};
+  for(const f of endpoints)assert.equal(f(e,origin),false,'no autorizar QA cuando no sea rama aislada');
+ }
+ for(const f of endpoints)assert.equal(f(env,'https://otro-ejemplo.vercel.app'),false);
+});
