@@ -31,6 +31,7 @@ test('Al quitar pagado en pedido entregado, estado nuevo es Pendiente sin mutar 
  assert.equal(ctx.ukiEstadoTrasRetirarPago(p,false),'Pendiente');
  assert.equal(p.estado,'Entregado');
  assert.equal(ctx.ukiEstadoTrasRetirarPago(p,true),'Entregado');
+ assert.equal(ctx.ukiEstadoTrasRetirarPago({...p,pagado:false},false),'Pendiente'); // caso ya guardado sin pago
  assert.equal(ctx.ukiEstadoTrasRetirarPago({...p,estado:'Cancelado'},false),'Cancelado');
  assert.equal(ctx.ukiEstadoTrasRetirarPago({...p,estado:'Pendiente'},false),'Pendiente');
 });
