@@ -705,7 +705,7 @@ function ukiEscribiendoCancelacion(){
 function render(){
   // Una notificación de nube no debe destruir el campo mientras se está escribiendo.
   // La validación al pulsar Confirmar usa siempre S actualizado y la revisión de nube.
-  if(ukiEscribiendoCancelacion())return;
+  if(ukiEscribiendoCancelacion()){void guardarEnLocalStorage();return;}
   const ukiVistaAnterior=ukiCapturarVistaAntesRender();
   try{
   $("suc").innerHTML=S.suc?`<span>${esc(S.suc)}</span><a href="#" onclick="salirSuc();return false;" class="salir">Salir</a>`:"Selecciona una sucursal para empezar";
