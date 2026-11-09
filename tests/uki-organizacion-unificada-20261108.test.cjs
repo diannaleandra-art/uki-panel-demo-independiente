@@ -11,7 +11,11 @@ test('El script operativo conserva sintaxis JavaScript válida',()=>{
 test('Inicio muestra acciones operativas antes de acceso avanzado a jefes',()=>{
  const h=cut('function vInicio(){','// Datos temporales de cierre:');
  assert.ok(h.indexOf('<div class="quick-grid">')<h.indexOf('id="ukiAccesoJefes"'));
- assert.match(h,/Información del turno/);
+ assert.match(h,/ukiFechaHoraInicio\(\)/);
+ assert.match(h,/ukiFraseDiaria\(\)/);
+ assert.match(h,/Jornada operativa/);
+ assert.doesNotMatch(h,/🕒 Información del turno/);
+ assert.match(html,/function vInicioTrabajador\(\)/);
  assert.match(h,/Reportes <span>/);
  for(const x of ["ir('pedidos')","ir('inventario')","ir('clientes')","ir('cierre')","ir('historial')"])assert.ok(h.includes(x),x);
 });
