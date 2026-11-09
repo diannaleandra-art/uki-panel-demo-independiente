@@ -7,6 +7,7 @@ const ORIGINS=new Set(['https://diannaleandra-art.github.io','https://uki-sushi-
 const BRANCHES=new Set(['arica','serena']);
 const QA_REF_ETAPA2='integracion/uki-promociones-ingredientes-seguros-qa-20261109';
 // En preview sólo funciona con la rama exacta, bandera QA y URL Neon QA validada por dbUrl.
+const promocionesHabilitadas=env=>env.UKI_PROMOS_VISIBILIDAD_ENABLED==='true';
 const enabled=env=>(env.VERCEL_ENV==='production'&&env.UKI_INGREDIENTES_ARMADO_ENABLED==='true')||
  (env.VERCEL_ENV==='preview'&&env.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2&&env.UKI_INVENTARIO_QA_ENABLED==='true');
 const KINDS=new Set(['classic','premium','monthly','pizza','dish','topping']);
@@ -40,12 +41,13 @@ async function authorize(req,env){
  if(!ids.includes(payload.sub)&&!(email&&payload.email_verified===true&&emails.includes(email)))return null;
  return String(payload.sub);
 }
-async function productExists(sql,branch,sku){
+async function productExists(sql,branch,sku,env=process.env){
  const base=await baseItems(branch);
  if(base.some(x=>x.sku===sku&&x.kind!=='ingredient'))return true;
  const [custom,promos]=await Promise.all([
   sql.query('SELECT sku FROM public.uki_carta_productos_custom_v1 WHERE branch=$1 AND sku=$2 LIMIT 1',[branch,sku]),
-  sql.query('SELECT sku FROM public.uki_carta_promos_custom_v1 WHERE branch=$1 AND sku=$2 LIMIT 1',[branch,sku])
+  promocionesHabilitadas(env)?
+   sql.query('SELECT sku FROM public.uki_carta_promos_custom_v1 WHERE branch=$1 AND sku=$2 LIMIT 1',[branch,sku]):Promise.resolve([])
  ]);
  return custom.length>0||promos.length>0;
 }
@@ -110,4 +112,4 @@ module.exports=async function(req,res){
   return fail(res,503,'Servicio de fotos temporalmente no disponible; tus productos no cambiaron');
  }
 };
-module.exports._test={validPicture,validSku,productExists,enabled,originAllowed};
+module.exports._test={validPicture,validSku,productExists,enabled,originAllowed,promocionesHabilitadas};
