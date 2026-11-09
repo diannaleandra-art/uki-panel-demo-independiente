@@ -71,7 +71,8 @@ test('Falta de autorización del dispositivo bloquea cobro',async()=>{
 test('El cobro existente del panel se conserva y se valida antes de guardar',()=>{
  assert.match(html,/async function ndGuardar\(\)/);
  assert.match(html,/permitir=await ukiQRPermitirCobroDefinitivo\(D\)/);
- assert.match(html,/if\(!permitir\)return/);
+ assert.match(html,/if\(!permitir\)\{/);
+ assert.match(html,/cuentaYaNoAbierta/);
  assert.match(html,/ukiQRComprobandoCobro=true/);
  assert.match(html,/ukiErrorDistribucionPago/);
  assert.match(html,/ukiSincronizarPropinaPedido/);
