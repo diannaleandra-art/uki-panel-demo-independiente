@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS public.uki_carta_promos_custom_v1 (
  payments TEXT[] NOT NULL DEFAULT ARRAY['efectivo','transferencia']::text[],
  available BOOLEAN NOT NULL DEFAULT TRUE,
  visible BOOLEAN NOT NULL DEFAULT FALSE,
+ -- Al publicar por primera vez queda constancia histórica, incluso si luego se retira.
+ published_at TIMESTAMPTZ,
  version INTEGER NOT NULL DEFAULT 1 CHECK(version >= 1),
  updated_by TEXT NOT NULL,
  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -32,3 +34,7 @@ CREATE TABLE IF NOT EXISTS public.uki_carta_promos_custom_v1 (
 );
 CREATE INDEX IF NOT EXISTS uki_carta_promos_custom_v1_publica_idx
  ON public.uki_carta_promos_custom_v1(branch,visible,available);
+
+-- Compatible con una tabla preexistente: nunca borra ni cambia registros anteriores.
+ALTER TABLE public.uki_carta_promos_custom_v1
+ ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ;
