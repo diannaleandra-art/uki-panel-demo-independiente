@@ -3532,7 +3532,7 @@ async function ndGuardar(){
   if(editandoQRRegistrado&&!ukiQRPagoEditadoConservaCuenta(D,originalQR)){
     aviso('Para corregir este QR conserva la sucursal, mesa y rondas originales. No se modificó la caja.');return;
   }
-  let conciliacionQRManual=false;
+  let conciliacionQRManual=false,cobroRecibidoQR=null;
   if(D.pagado&&Array.isArray(D.qrSolicitudes)&&D.qrSolicitudes.length&&
      UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL&&!editandoPagoQRConfirmado){
    ukiQRComprobandoCobro=true;
@@ -3545,9 +3545,23 @@ async function ndGuardar(){
      // con identidad de mesa intacta y confirmación explícita de pago real.
      const cuentaYaNoAbierta=ukiUltimoErrorQR===
        'No hay exactamente una cuenta QR abierta para esta mesa.';
-     if(!(editandoQRRegistrado&&!originalQR.pagado&&cuentaYaNoAbierta&&
-       window.confirm('Este pedido QR ya está registrado y su mesa no tiene una cuenta QR abierta. ¿Confirmas que el pago YA fue recibido realmente y solo quieres corregir el pedido existente? No se hará otro cobro QR.')))
-       return;
+     if(!(editandoQRRegistrado&&!originalQR.pagado&&cuentaYaNoAbierta))return;
+     // Si había un cobro previo fuera de la cuenta QR central, se registra
+     // el monto real por medio. La diferencia no se considera devuelta
+     // hasta confirmar el movimiento, igual que en otras correcciones.
+     if(D.mixtoProductos||D.mixtoEnvio||D.productosPagadosOtroLocal||D.envioPagadoOtroLocal){
+       aviso('Para conciliar un QR ya cerrado con varios medios o pagos entre locales, revisa el cobro con administración. No se modificó la caja.');return;
+     }
+     const textoRecibido=window.prompt(
+       'Este QR ya está registrado y la mesa no tiene cuenta abierta. Indica cuánto YA recibiste realmente por los productos en '+D.medio+
+       ' (sin propina). Este registro NO cobra de nuevo. La diferencia con el total corregido quedará pendiente de devolución o cobro.',
+       String(Math.max(0,Number(originalQR.subtotal)||0)));
+     if(textoRecibido===null)return;
+     const cantidadRecibida=Number(String(textoRecibido).trim().replace(/[.\s]/g,''));
+     if(!Number.isSafeInteger(cantidadRecibida)||cantidadRecibida<=0){
+       aviso('El monto recibido debe ser un número positivo de pesos. No se modificó la caja.');return;
+     }
+     cobroRecibidoQR={medio:D.medio,monto:cantidadRecibida};
      conciliacionQRManual=true;
    }
    if(firma!==JSON.stringify({sucursal:S.suc,datos:D})){
@@ -3648,12 +3662,20 @@ async function ndGuardar(){
       if(!cierreHistorico){
         if(requiereAjuste&&(snapshot.pagado||ukiCobroPendiente(snapshot)))
           p.ajusteCobroPendiente=ukiPrepararAjusteCobro(snapshot,p,false);
+        if(conciliacionQRManual&&cobroRecibidoQR){
+          const recibido={[cobroRecibidoQR.medio]:cobroRecibidoQR.monto};
+          const saldo=ukiImporteMedios(recibido)-ukiImporteMedios(ukiCobrosRealesMedios(p));
+          p.ajusteCobroPendiente=saldo===0?null:{
+            estado:'pendiente',recibido,saldo,fechaISO:ahora()
+          };
+        }
         const antes=ukiFotoCorreccionPedido(snapshot),despues=ukiFotoCorreccionPedido(p);
         if(JSON.stringify(antes)!==JSON.stringify(despues)){
           if(!Array.isArray(p.correccionesTurno))p.correccionesTurno=[];
           p.correccionesTurno.push({fechaISO:new Date().toISOString(),registradoEn:Date.now(),
             responsable:autorizacion,antes,despues,
             conciliacionQRManual:conciliacionQRManual,
+            cobroRecibidoQR:conciliacionQRManual?{...cobroRecibidoQR}:null,
             saldoPendiente:p.ajusteCobroPendiente?.saldo||0});
         }
       }
