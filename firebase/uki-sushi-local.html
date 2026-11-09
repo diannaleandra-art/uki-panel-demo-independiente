@@ -699,9 +699,10 @@ function ukiGuardarPrecierre(){
  const caja=cajaDelDia(),abierto=caja.turnoPrecierreAbierto;
  if(!abierto){aviso("No hay un turno abierto.");return;}
  const contadoTexto=String($("ukiEfectivoPrecierre")?.value||"").trim();
- const contado=contadoTexto===""?null:Number(contadoTexto);
- if(contado!==null&&(!Number.isSafeInteger(contado)||contado<0||contado>100000000)){
-   aviso("El efectivo contado debe ser un monto entero válido.");return;
+ if(contadoTexto===""){aviso("⚠️ Cuenta el efectivo físicamente e ingresa el valor antes de guardar el precierre.");return;}
+ const contado=Number(contadoTexto);
+ if(!Number.isSafeInteger(contado)||contado<0||contado>100000000){
+   aviso("El efectivo contado debe ser un monto entero válido, incluido cero si no hay efectivo.");return;
  }
  const obs=String($("ukiObsPrecierre")?.value||"").trim();
  if(obs.length>300){aviso("Las observaciones deben tener máximo 300 caracteres.");return;}
@@ -772,7 +773,7 @@ function vPrecierreTrabajadores(){
    '<p><b>'+esc(abierto.nombre)+'</b></p><p class="muted">Inicio: '+esc(inicio)+'</p>'+
    (propinasEfectivoTurno===null?'<p class="muted">Este turno comenzó antes de actualizar el panel. Las propinas en efectivo se registran aparte, pero no se puede calcular aquí el importe atribuible solo a este turno.</p>':propinasEfectivoTurno?'<p class="muted"><b>Propinas en efectivo de este turno: '+fmt(propinasEfectivoTurno)+'.</b> Si siguen en el cajón, sepáralas antes de contar. Se registran aparte de las ventas.</p>':'')+
    '<p class="muted"><b>El día seguirá abierto.</b> Este registro solo documenta la entrega de turno del trabajador.</p>'+ 
-   '<label>Efectivo contado, sin incluir propinas (opcional)</label><input id="ukiEfectivoPrecierre" type="number" min="0" step="1" inputmode="numeric" placeholder="Monto contado">'+
+   '<label><b>💵 Conteo físico de efectivo · OBLIGATORIO (sin propinas)</b></label><input id="ukiEfectivoPrecierre" type="number" min="0" step="1" inputmode="numeric" required placeholder="Escribe 0 si no hay efectivo">'+
    '<label>Observaciones (opcional)</label><textarea id="ukiObsPrecierre" maxlength="300" rows="2"></textarea>'+
    '<button class="big" style="background:#e9e5de;color:#473b2d" onclick="ukiGuardarPrecierre()">Guardar PRECIERRE del trabajador · dejar día abierto</button>'+
    (registros.length?'<details style="margin-top:14px"><summary><b>Precierres del día · '+registros.length+
@@ -2874,7 +2875,7 @@ function vCierre(){
   const t=totales(); const caja=cajaDelDia();
   const pendientes=window.ukiControlTurnos?.pedidosSinPago(S.pedidos,S.suc,esDelPeriodo)||[];
   const dif=window.ukiControlTurnos?.diferencia(t.efectivoCaja,cierreDraft.contado);
-  const conteoTexto=cierreDraft.contado.trim()===""?"Sin conteo físico registrado":
+  const conteoTexto=cierreDraft.contado.trim()===""?"⚠️ Falta conteo físico obligatorio":
     dif===null?"Ingresa un monto válido, sin decimales":dif===0?"✅ Caja exacta":
     dif>0?"Sobrante: "+fmt(dif):"Faltante: "+fmt(-dif);
   const pendientesText=pendientes.map(p=>"#"+esc(p.codigoCarta||p.id)+" · "+esc(p.cliente||"Sin nombre")+" · "+fmt(p.total)).join("; ");
@@ -2891,10 +2892,10 @@ function vCierre(){
   <div class="card"><h2>💵 Cuadre de efectivo</h2>
     ${row("Efectivo esperado sin propinas",fmt(t.efectivoCaja))}
     ${t.propinasEfectivo?'<p class="muted"><b>Hay '+fmt(t.propinasEfectivo)+' de propinas en efectivo.</b> Si ese dinero sigue en el cajón, sepáralo antes de contar. El monto esperado NO incluye propinas.</p>':''}
-    <label>Dinero contado físicamente, sin propinas ($)</label><input type="number" min="0" step="1" inputmode="numeric" placeholder="Ej: 83000"
+    <label><b>Dinero contado físicamente · OBLIGATORIO, sin propinas ($)</b></label><input type="number" min="0" step="1" inputmode="numeric" required placeholder="Ej: 83000 o 0"
       value="${esc(cierreDraft.contado)}" oninput="actualizarConteoEfectivo(this.value)">
     <p id="ukiDiferenciaEfectivo" style="font-weight:650">${esc(conteoTexto)}</p>
-    <p class="muted">El conteo es opcional. Si lo ingresas, la diferencia queda guardada junto al cierre.</p>
+    <p class="muted"><b>Conteo obligatorio.</b> No se podrá cerrar definitivamente la caja sin registrar el efectivo físico, incluso si es $0. La diferencia quedará guardada junto al cierre.</p>
   </div>
   <div class="card"><p class="muted"><b>🕒 ¿Solo finaliza el turno de un trabajador?</b> Usa «Precierre trabajador». No realiza un cierre de caja. <button type="button" class="sm" onclick="cambiarCajaTab('precierre')">Ir a precierre</button></p></div>
   <div class="card" style="border:2px solid #a44b2a"><h2>🔒 CIERRE DEFINITIVO · ${fechaOperativaActual()}</h2><p class="muted"><b>ESTA OPCIÓN SÍ CIERRA LA CAJA Y GUARDA EL CORTE DEL DÍA.</b> No es el precierre de un trabajador.</p><label>Responsable</label><input id="resp" placeholder="Nombre" value="${esc(cierreDraft.resp)}" oninput="cierreDraft.resp=this.value"><label>Observaciones</label><textarea id="obs" rows="2" oninput="cierreDraft.obs=this.value">${esc(cierreDraft.obs)}</textarea>${S.confirmCierre?'<p class="aviso" style="background:#ffe1e1;color:#7a0010">El siguiente botón CIERRA DEFINITIVAMENTE la caja del día. Marca la casilla antes de confirmar.</p>':""}${S.confirmCierre?'<label style="font-weight:700"><input id="ukiConfirmarCierreDefinitivo" type="checkbox"> Confirmo que deseo cerrar definitivamente la caja del día.</label>':''}<button class="big" style="background:#8c302b;color:#fff" onclick="cerrar()">${S.confirmCierre?"CONFIRMAR CIERRE DEFINITIVO":"Revisar cierre definitivo"}</button></div>
@@ -4015,12 +4016,13 @@ function cerrar(){
   const t=totales();
   const contadoStr=String(cierreDraft.contado||"").trim();
   const diferencia=window.ukiControlTurnos?.diferencia(t.efectivoCaja,contadoStr);
-  if(contadoStr!==""&&diferencia===null){aviso("⚠️ El efectivo contado debe ser un número entero positivo o cero.");return;}
+  if(contadoStr===""){aviso("⚠️ Antes de cerrar, cuenta el efectivo e ingresa el monto real. Escribe 0 si no hay efectivo.");return;}
+  if(diferencia===null){aviso("⚠️ El efectivo contado debe ser un número entero positivo o cero.");return;}
   const pendientes=window.ukiControlTurnos?.pedidosSinPago(S.pedidos,S.suc,esDelPeriodo)||[];
   if(!S.confirmCierre){
     cierreDraft={resp,obs:$("obs")?$("obs").value.trim():cierreDraft.obs,contado:contadoStr};
     S.confirmCierre=true;
-    S.msg=`Revisa antes de confirmar. Total final: ${fmt(t.final)}. ${pendientes.length?"⚠️ "+pendientes.length+" pedido(s) pendiente(s) de pago. ":""}${contadoStr===""?"Sin conteo físico.":diferencia===0?"Caja exacta.":diferencia>0?"Sobrante de "+fmt(diferencia)+".":"Faltante de "+fmt(-diferencia)+"."} Marca la casilla y pulsa CONFIRMAR CIERRE DEFINITIVO para guardar el corte del día.`;
+    S.msg=`Revisa antes de confirmar. Total final: ${fmt(t.final)}. ${pendientes.length?"⚠️ "+pendientes.length+" pedido(s) pendiente(s) de pago. ":""}${diferencia===0?"Caja exacta.":diferencia>0?"Sobrante de "+fmt(diferencia)+".":"Faltante de "+fmt(-diferencia)+"."} Marca la casilla y pulsa CONFIRMAR CIERRE DEFINITIVO para guardar el corte del día.`;
     render();
     setTimeout(()=>{ const b=document.querySelector('button.big'); if(b) b.scrollIntoView({behavior:'smooth'}); },200);
     return;
@@ -4126,7 +4128,7 @@ function descargarTextoArchivo(nombre, contenido, mime){
 }
 function descargarPDF(tipo){
   if(tipo==="historial"){
-    const cierres=ukiCierresFiltradosHistorial();
+    const cierres=ukiCierresFiltradosHistorial().map(ukiCierreInformeVigente);
     if(!cierres.length){aviso("No hay cierres para descargar");return;}
     let txt=`Uki Sushi - ${S.suc} - HISTORIAL COMPLETO - ${new Date().toLocaleString("es-CL")}\n`;
     txt+=`Total cierres: ${cierres.length}\n\n`;
@@ -4190,12 +4192,12 @@ function descargarDetalleCierreCSV(i){
 }
 function descargarExcel(tipo){
   if(tipo==="historial"){
-    const cierres=ukiCierresFiltradosHistorial();
+    const cierres=ukiCierresFiltradosHistorial().map(ukiCierreInformeVigente);
     if(!cierres.length){aviso("No hay cierres");return;}
-    let csv="Turno operativo;Fecha del cierre;Responsable;Pedidos;Efectivo;Transferencia;Debito;Edenred;Otros;Uber Eats;PedidosYa;Rappi;Venta con delivery;Venta sin delivery;Base;Deliveries;Gastos;Pago Delivery;Total final;Efectivo esperado;Efectivo contado;Diferencia efectivo;Pendientes al cerrar;Inicio de turno;Obs\n";
+    let csv="Turno operativo;Fecha del cierre;Hora;Estado;Responsable;Pedidos;Efectivo;Transferencia;Debito;Edenred;Otros;Uber Eats;PedidosYa;Rappi;Venta con delivery;Venta sin delivery;Base;Deliveries;Gastos;Pago Delivery;Total final;Efectivo esperado;Efectivo contado;Diferencia efectivo;Pendientes al cerrar;Inicio de turno;Obs\n";
     cierres.forEach(x=>{
       const m=x.medios||{};
-      csv+=`${csvSeguro(x.fechaOperativa||"")};${csvSeguro(x.fecha)};${csvSeguro(x.resp)};${x.pedidos};${m.Efectivo||0};${m.Transferencia||0};${m.Débito||0};${m.Edenred||0};${m.Otros||0};${m["Uber Eats"]||0};${m.PedidosYa||0};${m.Rappi||0};${x.venta};${x.ventaSinDelivery||0};${x.base||0};${x.envios||0};${x.gastos};${x.pagadoDelivery};${x.final};${x.efectivo};${x.efectivoContado??""};${x.diferenciaEfectivo??""};${x.pendientesAlCerrar??""};${csvSeguro(x.inicioTurnoMs?window.ukiControlTurnos?.fechaHoraLegible(x.inicioTurnoMs)||"":"")};${csvSeguro(x.obs||"")}\n`;
+      csv+=`${csvSeguro(x.fechaOperativa||"")};${csvSeguro(x.fecha)};${csvSeguro(ukiHoraCierreHistorial(x))};${csvSeguro(x.rectificacion?'Rectificado '+x.rectificacion.version:'Original')};${csvSeguro(x.resp)};${x.pedidos};${m.Efectivo||0};${m.Transferencia||0};${m.Débito||0};${m.Edenred||0};${m.Otros||0};${m["Uber Eats"]||0};${m.PedidosYa||0};${m.Rappi||0};${x.venta};${x.ventaSinDelivery||0};${x.base||0};${x.envios||0};${x.gastos};${x.pagadoDelivery};${x.final};${x.efectivo};${x.efectivoContado??""};${x.diferenciaEfectivo??""};${x.pendientesAlCerrar??""};${csvSeguro(x.inicioTurnoMs?window.ukiControlTurnos?.fechaHoraLegible(x.inicioTurnoMs)||"":"")};${csvSeguro(x.obs||"")}\n`;
     });
     descargarTextoArchivo(`historial-${S.suc}-${new Date().toISOString().slice(0,10)}.csv`, csv, "text/csv;charset=utf-8");
     aviso("📊 Excel historial descargado");
@@ -4216,7 +4218,7 @@ function descargarExcel(tipo){
   }
 }
 function copiarResumen(){
-  const c=ukiCierresFiltradosHistorial();
+  const c=ukiCierresFiltradosHistorial().map(ukiCierreInformeVigente);
   if(!c.length){aviso("No hay cierres");return;}
   const txt=["Fecha;Responsable;Pedidos;Efectivo;Transferencia;Debito;Venta con delivery;Deliveries;Efectivo que queda;Total final",...c.map(x=>{
     const m=x.medios||{};
