@@ -72,7 +72,7 @@ test('Un QR ya pagado permite corregir producto y medio sin validar otra vez la 
 });
 test('La edición existente no crea otro pedido y exige responsable antes de guardar',()=>{
  const save=html.slice(start,html.indexOf('\nfunction cerrar(){',start));
- assert.match(save,/autorizacion=String\(ukiTimbreResponsableActual\(\)/);
+ assert.match(save,/autorizacion=String\(D\.responsableEdicion/);
  assert.match(save,/S\.vista="pedidos"; render\(\); return/);
  assert.ok(save.indexOf('S.pedidos.push(nuevoPedido)')>save.indexOf('if(D.editando){\n    const p='));
  assert.match(save,/conciliacionQRManual:conciliacionQRManual/);
