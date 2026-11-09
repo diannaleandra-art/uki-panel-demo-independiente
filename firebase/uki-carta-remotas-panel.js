@@ -32,10 +32,33 @@ function ukiCartaPedidoAceptadoEnCaja(r){
  if(!r?.id)return false;
  return S.pedidos.some(p=>p.suc===S.suc&&p.estado!=='Cancelado'&&String(p.cartaSolicitudRemotaId||'')===String(r.id));
 }
-// Auditoría de solo lectura: una solicitud aceptada por el servidor que todavía
-// no tiene vínculo visible con un pedido de esta copia. Nunca crea otra venta.
+// Distinto de "pedido activo": una solicitud sigue vinculada a su pedido
+// original aunque este se haya CANCELADO después de aceptarse. La aceptación
+// remota es un hecho histórico; NO debe generar una alerta ni otra venta.
+function ukiCartaSolicitudYaRegistrada(r){
+ if(!r?.id)return false;
+ const pedidos=(S.pedidos||[]).filter(p=>p.suc===S.suc);
+ const remoto=String(r.id);
+ if(pedidos.some(p=>String(p.cartaSolicitudRemotaId||'')===remoto))return true;
+ // Compatibilidad MUY conservadora con cancelaciones antiguas sin ID remoto:
+ // exigir folio, WhatsApp completo, mensaje original idéntico y un único candidato.
+ // Nunca relacionar por los últimos cuatro dígitos ni solo por el nombre.
+ const folio=String(r.codigo_pedido||'').trim().toLowerCase();
+ const tel=ukiTelefonoNormalizado(r.telefono);
+ const texto=String(r.mensaje||'').replace(/\s+/g,' ').trim();
+ if(!folio||tel.length<8||texto.length<25)return false;
+ const candidatos=pedidos.filter(p=>
+  p.estado==='Cancelado'&&!String(p.cartaSolicitudRemotaId||'').trim()&&
+  String(p.codigoCarta||'').trim().toLowerCase()===folio&&
+  ukiTelefonoNormalizado(p.telefono)===tel&&
+  String(p.textoOriginal||'').replace(/\s+/g,' ').trim()===texto
+ );
+ return candidatos.length===1;
+}
+// Auditoría SOLO de las aceptadas que siguen realmente sin registro visible.
+// Un pedido cancelado se conserva en historial y NO cuenta en ventas/timbres.
 function ukiCartaAceptadasSinVinculo(){
- return ukiCartaRemotasSucursal().filter(r=>r.estado==='aceptada'&&!ukiCartaPedidoAceptadoEnCaja(r));
+ return ukiCartaRemotasSucursal().filter(r=>r.estado==='aceptada'&&!ukiCartaSolicitudYaRegistrada(r));
 }
 let ukiCartaConfirmando=false;
 async function ukiCartaConfirmarRespaldados(){
