@@ -2030,55 +2030,135 @@ let cancelacionGuardando=false;
 function ukiEstadoTrasRetirarPago(p,nuevoPagado){
  return p?.estado==="Entregado"&&!nuevoPagado?"Pendiente":p?.estado;
 }
-function puedeCancelarPedido(p){
+// UI y operación separadas: un refresco pasajero de la nube no debe
+// ocultar el formulario que alguien está completando.
+function ukiPuedeAclararCobroCancelar(p){
+ const q=ukiCobroPendiente(p);
+ if(!q)return false;
+ const saldo=Number(q.saldo),recibido=ukiImporteMedios(q.recibido);
+ return Number.isSafeInteger(saldo)&&saldo>0&&
+  Number.isSafeInteger(recibido)&&recibido===saldo;
+}
+function ukiFormularioCancelarDisponible(p){
  return !!p&&p.suc===S.suc&&!p.esPremio&&!p.pagado&&
   (p.estado==="Pendiente"||p.estado==="Entregado")&&esDelPeriodo(p)&&
-  !ukiCierreConfirmadoPedido(p)&&!ukiCobroPendiente(p)&&!S.busy&&!cancelacionGuardando;
+  !ukiCierreConfirmadoPedido(p)&&
+  (!ukiCobroPendiente(p)||ukiPuedeAclararCobroCancelar(p));
+}
+function puedeCancelarPedido(p){
+ return ukiFormularioCancelarDisponible(p)&&!S.busy&&!cancelacionGuardando;
 }
 function ukiAyudaCancelarPedido(p){
  if(!p||p.esPremio||p.estado==="Cancelado")return "";
  if(ukiCierreConfirmadoPedido(p)||!esDelPeriodo(p))
-  return "Este pedido corresponde a un turno cerrado o anterior. No se cancela desde la caja abierta.";
- if(ukiCobroPendiente(p))
-  return "Este pedido tiene una devolución o un cobro pendiente de regularizar. Confirma primero el movimiento real de dinero.";
+  return "Pedido de un turno cerrado o anterior. No se cancela desde la caja abierta.";
  if(p.pagado)
-  return "El pedido figura pagado. Si el pago fue un error, quita la confirmación desde Editar, guarda el cambio e informa la devolución si corresponde.";
- if(p.estado==="Entregado")
-  return "Este pedido figuró entregado; verifica que realmente deba anularse.";
- return "Solo se cancelan pedidos sin pago del turno abierto y sin cobros pendientes.";
+  return "Figura pagado. Si se registró por error, quita Pagado desde Editar y guarda el cambio antes de cancelar.";
+ if(ukiCobroPendiente(p))
+  return "Hay una diferencia de cobro que requiere revisión. No se ha confirmado que el dinero fuera devuelto.";
+ if(S.busy)return "La nube está actualizando los pedidos. Conservamos el formulario; vuelve a confirmar cuando termine.";
+ return "Solo se cancelan pedidos sin pago de esta caja abierta.";
+}
+function ukiErrorCancelarPedido(id,mensaje){
+ const destino=$('ukiErrorCancelar'+id);
+ if(destino){
+  destino.textContent=mensaje;destino.hidden=false;
+  destino.scrollIntoView?.({block:'nearest',behavior:'smooth'});
+  return;
+ }
+ aviso(mensaje);
+}
+function ukiPlanCancelarCobro(p,tipo){
+ const q=ukiCobroPendiente(p);
+ if(!q)return {ok:true,accion:null,importe:0};
+ if(!ukiPuedeAclararCobroCancelar(p))
+  return {ok:false,error:"La diferencia de cobro debe revisarse antes de cancelar."};
+ if(tipo==="no_recibido")
+  return {ok:true,accion:"pago_erroneo_no_cobrado",importe:Number(q.saldo)};
+ if(tipo==="devuelto")
+  return {ok:true,accion:"devolucion_cancelacion_confirmada",importe:Number(q.saldo)};
+ if(tipo==="pendiente")
+  return {ok:false,error:"Si todavía falta devolver dinero, no canceles hasta haberlo devuelto."};
+ return {ok:false,error:"Selecciona si nunca se recibió dinero o si ya fue devuelto."};
 }
 async function cancelarPedido(id){
- const p=S.pedidos.find(x=>x.id===id&&x.suc===S.suc);
+ const p=(S.pedidos||[]).find(x=>x.id===Number(id)&&x.suc===S.suc);
  if(!p){aviso("Pedido no encontrado en esta sucursal.");return;}
- if(!puedeCancelarPedido(p)){aviso(ukiAyudaCancelarPedido(p)||"El pedido no puede cancelarse desde aquí.");return;}
- if(document.body.classList.contains("uki-operativo-bloqueado")||typeof window.ukiCancelacionNubeLista!=="function"||!window.ukiCancelacionNubeLista()){aviso("Espera a que Firebase confirme «Nube: sincronizado» antes de cancelar.");return;}
+ if(!ukiFormularioCancelarDisponible(p)){
+  ukiErrorCancelarPedido(id,ukiAyudaCancelarPedido(p)||"Esta cancelación necesita revisión.");
+  return;
+ }
+ if(!puedeCancelarPedido(p)){
+  ukiErrorCancelarPedido(id,"El panel está sincronizando. Intenta confirmar cuando termine; tu motivo se conservará.");
+  return;
+ }
  const motivo=String($("motivoCancelacion"+id)?.value||"").trim().toLowerCase();
- if(!["cliente","local"].includes(motivo)){aviso("Selecciona si canceló el cliente o el local.");return;}
+ if(!["cliente","local"].includes(motivo)){
+  ukiErrorCancelarPedido(id,"Selecciona si canceló el cliente o el local.");return;
+ }
  const detalle=String($("detalleCancelacion"+id)?.value||"").trim().slice(0,300);
- if(!detalle){aviso("Escribe el motivo específico de la cancelación antes de confirmar.");return;}
- if(!confirm("¿Confirmas cancelar el pedido #"+p.id+" por decisión del "+(motivo==="cliente"?"cliente":"local")+"? Motivo: "+detalle+". "+(p.estado==="Entregado"?"Antes figuraba como ENTREGADO. Verifica que no se haya entregado realmente. ":"")+"Quedará registrado y no contará como venta. Esta acción no se puede deshacer desde el panel."))return;
- if(!puedeCancelarPedido(p)||document.body.classList.contains("uki-operativo-bloqueado")||typeof window.ukiCancelacionNubeLista!=="function"||!window.ukiCancelacionNubeLista()){
-   aviso("El pedido o la sincronización cambió. No se realizó la cancelación.");return;
+ if(!detalle){
+  ukiErrorCancelarPedido(id,"Escribe por qué se cancela el pedido.");return;
+ }
+ const plan=ukiPlanCancelarCobro(p,String($("cobroCancelacion"+id)?.value||""));
+ if(!plan.ok){ukiErrorCancelarPedido(id,plan.error);return;}
+ let responsable="";
+ if(plan.accion){
+  responsable=String($("respCancelacion"+id)?.value||"").trim().slice(0,80);
+  if(responsable.length<2){
+   ukiErrorCancelarPedido(id,"Para aclarar ese pago, escribe quién verificó el dinero.");return;
+  }
+ }
+ if(document.body.classList.contains("uki-operativo-bloqueado")||
+   typeof window.ukiCancelacionNubeLista!=="function"||!window.ukiCancelacionNubeLista()){
+  ukiErrorCancelarPedido(id,"Aún no está sincronizada la nube. Conservamos los campos; confirma después.");return;
+ }
+ const avisoCobro=plan.accion==="pago_erroneo_no_cobrado"?
+  "Se registrará bajo tu responsabilidad que NUNCA se recibió "+fmt(plan.importe)+" (estaba marcado pagado por error). ":
+  plan.accion==="devolucion_cancelacion_confirmada"?
+  "Se registrará bajo tu responsabilidad que YA SE DEVOLVIÓ "+fmt(plan.importe)+". ":"";
+ if(!confirm("¿Cancelar el pedido #"+p.id+"? Motivo: "+detalle+". "+avisoCobro+
+  (p.estado==="Entregado"?"Antes figuraba entregado: verifica que se deba anular. ":"")+
+  "Se conservará el historial. No se mueve dinero automáticamente."))return;
+ if(!puedeCancelarPedido(p)||document.body.classList.contains("uki-operativo-bloqueado")||
+  typeof window.ukiCancelacionNubeLista!=="function"||!window.ukiCancelacionNubeLista()){
+  ukiErrorCancelarPedido(id,"La sincronización o el pedido cambió. No se canceló; revisa y confirma nuevamente.");return;
  }
  cancelacionGuardando=true;
- const anterior={estado:p.estado,motivo:p.motivoCancelacion,detalle:p.motivoDetalleCancelacion,fecha:p.canceladoEn};
+ const anterior={
+  estado:p.estado,motivo:p.motivoCancelacion,detalle:p.motivoDetalleCancelacion,fecha:p.canceladoEn,
+  ajuste:p.ajusteCobroPendiente,correcciones:p.correccionesTurno
+ };
  try{
- p.estado="Cancelado";
- p.motivoCancelacion=motivo;
- p.motivoDetalleCancelacion=detalle;
- p.canceladoEn=new Date().toISOString();
- // Nunca afirmar que se guardó si Safari no pudo escribir el respaldo local cifrado.
- const guardado=await guardarEnLocalStorage();
- if(!guardado){
+  const fotoAnterior=plan.accion?ukiFotoCorreccionPedido(p):null;
+  const registroAjuste=plan.accion?JSON.parse(JSON.stringify(ukiCobroPendiente(p))):null;
+  p.estado="Cancelado";
+  p.motivoCancelacion=motivo;
+  p.motivoDetalleCancelacion=detalle;
+  p.canceladoEn=new Date().toISOString();
+  if(plan.accion){
+   p.ajusteCobroPendiente=null;
+   p.correccionesTurno=[...(Array.isArray(p.correccionesTurno)?p.correccionesTurno:[]),{
+    fechaISO:new Date().toISOString(),registradoEn:Date.now(),
+    responsable,accion:plan.accion,importe:plan.importe,
+    recibidoRegistrado:registroAjuste?.recibido||{},detalleMotivo:detalle,
+    antes:fotoAnterior,despues:ukiFotoCorreccionPedido(p),saldoPendiente:0
+   }];
+  }
+  let guardado=false;
+  try{guardado=await guardarEnLocalStorage();}catch(error){console.error("Error guardando cancelación",error);}
+  if(!guardado){
    p.estado=anterior.estado;
    if(anterior.motivo===undefined)delete p.motivoCancelacion;else p.motivoCancelacion=anterior.motivo;
    if(anterior.detalle===undefined)delete p.motivoDetalleCancelacion;else p.motivoDetalleCancelacion=anterior.detalle;
    if(anterior.fecha===undefined)delete p.canceladoEn;else p.canceladoEn=anterior.fecha;
-   aviso("No se guardó la cancelación. El pedido sigue pendiente. Revisa el espacio del iPhone.");
+   if(anterior.ajuste===undefined)delete p.ajusteCobroPendiente;else p.ajusteCobroPendiente=anterior.ajuste;
+   if(anterior.correcciones===undefined)delete p.correccionesTurno;else p.correccionesTurno=anterior.correcciones;
+   ukiErrorCancelarPedido(id,"No se guardó la cancelación. El pedido sigue activo; revisa el espacio o la conexión.");
    return;
- }
- pedidoExpandido=id;
- aviso("Cancelación guardada en este dispositivo por "+(motivo==="cliente"?"el cliente":"el local")+". Verifica que aparezca «Nube: sincronizado» antes de salir.");
+  }
+  S.msg="✅ Pedido cancelado. Motivo y aclaración de cobro registrados, sin crear otro cobro. Comprueba «Nube: sincronizado».";
+  render();
  }finally{cancelacionGuardando=false;}
 }
 // El código visible sale siempre de los 4 últimos dígitos del WhatsApp real.
