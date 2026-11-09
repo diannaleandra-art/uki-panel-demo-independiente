@@ -168,7 +168,7 @@ test('Panel organiza opciones base y personalizadas de vegetales, proteínas y e
  assert.ok(chips.includes('Palta')&&chips.includes('Pollo')&&chips.includes('Panko'));
  assert.ok(!chips.includes('Frutilla'),'No duplicar Frutilla agregada respecto de la base');
  const html=fs.readFileSync('firebase/uki-sushi-local.html','utf8');
- assert.match(html,/uki-armado-ingredientes-admin\.js\?v=uki-listas-organizadas-20261109/);
+ assert.match(html,/uki-armado-ingredientes-admin\.js\?v=uki-tres-vistas-qa-20261109/);
 });
 
 test('Panel muestra resumen por sucursal de promociones con acceso a precios existentes',()=>{
@@ -184,7 +184,8 @@ test('Panel muestra resumen por sucursal de promociones con acceso a precios exi
  const state={items:[{kind:'monthly',name:'Promo especial QA',price:16000,visible:true},
   {kind:'classic',name:'Clásico QA',price:8000}],group:'all',query:''};
  vm.runInNewContext(code.slice(a,b)+'\nrenderPromoResumen();',{
-  document:{createElement},state,$:id=>roots[id],renderPrices:()=>refreshed++
+  document:{createElement},state,$:id=>roots[id],renderPrices:()=>refreshed++,
+  visibilityControl:()=>createElement('button')
  });
  const rows=target.children.filter(x=>x.tag==='div');
  assert.equal(rows.length,1);
@@ -194,7 +195,7 @@ test('Panel muestra resumen por sucursal de promociones con acceso a precios exi
  assert.equal(group.value,'monthly');assert.equal(search.value,'Promo especial QA');
  assert.equal(refreshed,1);
  const html=fs.readFileSync('firebase/uki-sushi-local.html','utf8');
- assert.match(html,/uki-carta-precios-admin\.js\?v=uki-listas-organizadas-20261109/);
+ assert.match(html,/uki-carta-precios-admin\.js\?v=uki-tres-vistas-qa-20261109/);
 });
 
 
