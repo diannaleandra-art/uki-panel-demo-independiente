@@ -1352,18 +1352,19 @@ function ukiNumeroTimbreWhatsApp(telefono){
  if(/^\+/.test(raw)&&/^[1-9]\d{9,14}$/.test(numero))return numero;
  return '';
 }
+// La confirmación de envío se conserva por pedido aunque se quite y se reponga el pago.
+// No depende de importes, productos, modalidad ni casilla Pagado: editarlos no reenvía.
+function ukiTimbreYaEnviadoPedido(p){
+ return !!(p&&p.timbreEnviadoEn);
+}
 function ukiTimbreObligatorioGuardar(d,original){
  return !!d?.pagado&&!d.productosPagadosOtroLocal&&!!String(d.telefono||'').trim()&&
-   (!d.editando||!original?.pagado);
+   !ukiTimbreYaEnviadoPedido(original)&&(!d.editando||!original?.pagado);
 }
 function ukiFirmaTimbreBorrador(d){
- return JSON.stringify([S.suc,d.editando||null,String(d.cliente||'').trim(),
-   ukiTelefonoNormalizado(d.telefono),d.codigoCarta||'',d.cartaSolicitudRemotaId||'',
-   d.modalidad,d.fecha,d.pagado,d.productosPagadosOtroLocal,d.medio,d.medioEnvio,
-   d.envio,d.kmRecorrido,d.propinaModo,d.propinaPersonalizada,d.medioPropina,
-   d.mixtoProductos,d.mixtoEnvio,d.pagosProductos,d.pagosEnvio,d.localPagoExterno,
-   d.envioPagadoOtroLocal,d.montoEnvioOtroLocal,d.montoProductosOtroLocal,
-   (d.items||[]).filter(x=>x.nombre).map(x=>[x.nombre,x.cant,x.precio,x.det])]);
+ // La prueba de envío se vincula a esta sucursal/pedido y al WhatsApp DESTINO.
+ // Cambiar Pagado, detalles, precios o nombre no debe invalidar el aviso ya enviado.
+ return JSON.stringify([S.suc,d.editando||null,ukiTelefonoNormalizado(d.telefono)]);
 }
 function ukiTimbreBorradorConfirmado(d){
  const firma=ukiFirmaTimbreBorrador(d);
@@ -1383,6 +1384,8 @@ function ukiTimbreTextoPedido(nombre,cantidad){
 }
 function ukiAbrirTimbreBorrador(){
  const original=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&p.id===D.editando):null;
+ if(ukiTimbreYaEnviadoPedido(original)||ukiTimbreBorradorConfirmado(D))
+  return aviso("✅ Este pedido ya tiene timbre enviado. No abras WhatsApp nuevamente: evita duplicarlo.");
  if(!ukiTimbreObligatorioGuardar(D,original))return aviso("El timbre se envía cuando la compra está pagada y tiene WhatsApp.");
  const numero=ukiNumeroTimbreWhatsApp(D.telefono);
  if(!numero)return aviso("Revisa el WhatsApp del cliente. Para un cliente sin WhatsApp, deja el campo vacío.");
@@ -1398,6 +1401,9 @@ function ukiAbrirTimbreBorrador(){
  window.open("https://wa.me/"+numero+"?text="+encodeURIComponent(mensaje),"_blank","noopener,noreferrer");
 }
 function ukiConfirmarTimbreBorrador(marcado){
+ if(!marcado&&ukiTimbreBorradorConfirmado(D)){
+  return aviso("✅ Este timbre ya fue declarado enviado. Editar el pago no obliga a reenviarlo.");
+ }
  if(!marcado){D.timbreAvisoConfirmadoFirma="";D.timbreAvisoConfirmadoEn="";render();return;}
  const firma=ukiFirmaTimbreBorrador(D);
  if(!D.timbreAvisoAbiertoEn||D.timbreAvisoAbiertoFirma!==firma){
@@ -1408,6 +1414,10 @@ function ukiConfirmarTimbreBorrador(marcado){
  render();
 }
 function ukiPasoTimbreAntesDeGuardar(pedidoEdicion){
+ if(ukiTimbreYaEnviadoPedido(pedidoEdicion)||ukiTimbreBorradorConfirmado(D))
+  return '<div class="card uki-timbre-confirmado"><h2>✅ Timbre enviado · NO reenviar</h2>'+
+    '<p><b>El timbre ya está registrado para este pedido.</b> Puedes modificar productos o cambiar de pagado a no pagado y viceversa sin volver a enviarlo.</p>'+
+    '<p class="muted">Si editas el WhatsApp de destino antes del primer guardado, revisa la información: no se debe enviar al número equivocado.</p></div>';
  if(!D.pagado||D.productosPagadosOtroLocal)return "";
  if(!String(D.telefono||'').trim())
   return '<div class="card"><h2>4 · Timbre del pedido</h2><p class="muted">Sin WhatsApp registrado: el pedido se puede guardar normalmente. La tarjeta de timbres queda acumulada para consultar después.</p></div>';
@@ -1416,12 +1426,13 @@ function ukiPasoTimbreAntesDeGuardar(pedidoEdicion){
  const firma=ukiFirmaTimbreBorrador(D);
  const abierto=D.timbreAvisoAbiertoFirma===firma&&!!D.timbreAvisoAbiertoEn;
  const enviado=ukiTimbreBorradorConfirmado(D);
- return '<div class="card" style="border:2px solid var(--accent)"><h2>4 · Enviar timbre antes de guardar</h2>'+
-  '<p class="muted">Pedido con WhatsApp. Envía el aviso desde esta misma venta. El cobro NO se registra hasta guardar.</p>'+
+ return '<div class="card uki-timbre-obligatorio"><h2>🎫 PASO OBLIGATORIO ANTES DE GUARDAR</h2>'+
+  '<p><b>Este pedido tiene WhatsApp y está marcado como pagado.</b> Primero envía el timbre al cliente desde aquí; luego confirma que pulsaste Enviar. Solo así se habilita «Guardar».</p>'+
+  '<p class="muted">Enviar un timbre no genera un segundo cobro. El registro del pago se realiza al guardar el pedido.</p>'+
   '<p><b>Cliente:</b> '+esc(D.cliente||'Sin nombre')+' · <b>WhatsApp:</b> '+esc(D.telefono||'')+'</p>'+
   '<button type="button" class="big" onclick="ukiAbrirTimbreBorrador()">📲 Enviar timbre por WhatsApp</button>'+
   '<label class="check" style="margin:12px 0"><input type="checkbox" '+(enviado?'checked':'')+
-  ' '+(abierto?'':'disabled')+' onchange="ukiConfirmarTimbreBorrador(this.checked)">'+
+  ' '+(abierto&&!enviado?'':'disabled')+' onchange="ukiConfirmarTimbreBorrador(this.checked)">'+
   '<b>Confirmo que pulsé Enviar en WhatsApp</b></label>'+
   '<p class="muted">'+(enviado?'✅ Envío confirmado por el agendador. Ya puedes guardar.':
     abierto?'Regresa de WhatsApp y confirma el envío para habilitar Guardar.':
@@ -1438,7 +1449,7 @@ function ukiValidarTimbreAntesGuardar(d,original){
  return true;
 }
 function ukiAnotarTimbreConfirmadoEnPedido(p,d){
- if(!ukiTimbreBorradorConfirmado(d))return;
+ if(ukiTimbreYaEnviadoPedido(p)||!ukiTimbreBorradorConfirmado(d))return;
  if(!Array.isArray(p.timbreEventos))p.timbreEventos=[];
  const responsable=String(d.timbreAvisoConfirmadoPor||'Sin turno identificado');
  p.timbreWhatsAppAbiertoEn=d.timbreAvisoAbiertoEn;
@@ -1837,6 +1848,7 @@ function ukiTimbreMovimientoRegistrado(p){
 }
 function ukiAbrirTimbrePedido(id){
  const p=(S.pedidos||[]).find(x=>x.suc===S.suc&&x.id===Number(id));
+ if(ukiTimbreYaEnviadoPedido(p))return aviso("✅ Este pedido ya tiene timbre enviado. No se vuelve a enviar por una edición.");
  if(!ukiPedidoDaTimbre(p))return aviso("Este pedido no genera un timbre enviado.");
  const numero=ukiNumeroTimbreWhatsApp(p.telefono);
  if(!numero)return aviso("Este cliente no tiene WhatsApp válido. Completa o corrige el número desde Editar.");
@@ -1858,7 +1870,7 @@ function ukiTimbrePedidoUI(p){
    ' · '+esc(p.timbreEnviadoPor||"Sin turno identificado")+' (no verificado por WhatsApp)</p>':
    '<p class="muted">'+(p.timbreWhatsAppAbiertoEn?'WhatsApp abierto: '+esc(new Date(p.timbreWhatsAppAbiertoEn).toLocaleString('es-CL'))+'. ':'')+
    'Después de pulsar Enviar en WhatsApp, confirma manualmente. Abrir WhatsApp no prueba el envío.</p>')+
-  (ukiNumeroTimbreWhatsApp(p.telefono)?'<button type="button" class="sm ok" onclick="ukiAbrirTimbrePedido('+Number(p.id)+')">📲 Enviar timbre por WhatsApp</button>':'<p class="muted">Sin WhatsApp registrado · no bloquea el pedido.</p>')+
+  (!enviado&&ukiNumeroTimbreWhatsApp(p.telefono)?'<button type="button" class="sm ok" onclick="ukiAbrirTimbrePedido('+Number(p.id)+')">📲 Enviar timbre por WhatsApp</button>':enviado?'':'<p class="muted">Sin WhatsApp registrado · no bloquea el pedido.</p>')+
   '<button type="button" class="sm'+(enviado?'':' ok')+'" onclick="ukiMarcarTimbreEnviado('+Number(p.id)+')">'+
   (enviado?'Desmarcar envío':'✓ Marcar timbre enviado')+'</button></div>';
 }
@@ -4152,7 +4164,7 @@ async function ndGuardar(){
             saldoPendiente:p.ajusteCobroPendiente?.saldo||0});
         }
       }
-      if(!snapshot.pagado&&D.pagado&&ukiTimbreObligatorioGuardar(D,snapshot))
+      if(!ukiTimbreYaEnviadoPedido(p)&&ukiTimbreBorradorConfirmado(D))
         ukiAnotarTimbreConfirmadoEnPedido(p,D);
       if(!cierreHistorico && !p.esPremio && D.cliente && D.pagado && !D.productosPagadosOtroLocal){
         const cli=asegurarCliente(D.cliente,D.codigoCliente,D.telefono);
@@ -4206,7 +4218,9 @@ async function ndGuardar(){
   const idNuevo=S.nextId++;
   const nuevoPedido={id:idNuevo,numeroTurno,turnoClave,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),cliente:D.cliente,telefono:D.telefono||"",codigoCarta:D.codigoCarta||"",codigoCliente:D.codigoCliente||"",cartaSolicitudRemotaId:String(D.cartaSolicitudRemotaId||""),cartaReservaToken:String(D.cartaReservaToken||""),qrSolicitudes:Array.isArray(D.qrSolicitudes)?[...new Set(D.qrSolicitudes)]:[],sucursalCarta:D.sucursalCarta||"",mesaReferencia:D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():"",modalidad:D.modalidad,envio:envio,kmRecorrido,medio:D.medio,medioEnvio:D.medioEnvio,...datosPago,pagado:D.pagado,estado:"Pendiente",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),total:total,subtotal:sub,propina:propina,propinaModo:D.propinaModo,medioPropina:D.medioPropina,textoOriginal:D.texto,esPremio:false};
   S.pedidos.push(nuevoPedido);
-  if(ukiTimbreObligatorioGuardar(D,null))ukiAnotarTimbreConfirmadoEnPedido(nuevoPedido,D);
+  // Incluso si el pago se desmarcó tras enviar WhatsApp, conservar la marca enviada.
+  // No suma timbres de fidelidad mientras la compra continúe sin pagar.
+  if(ukiTimbreBorradorConfirmado(D))ukiAnotarTimbreConfirmadoEnPedido(nuevoPedido,D);
   // La solicitud remota NO era venta; la caja la registra solo aquí.
   // Confirmar el estado remoto cuando Firebase verifique el respaldo.
   if(ukiCartaRemotaActiva){ukiCartaRemotaActiva=null;setTimeout(()=>void ukiCartaConfirmarRespaldados(),1200);}
