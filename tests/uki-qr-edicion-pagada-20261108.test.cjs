@@ -110,7 +110,7 @@ test('Integración: mesa y rondas incorrectas se bloquean, pero cambiar precio n
   const q=guardScenario({originalPagado:true,change});
   assert.equal(await q.f(),undefined);
   assert.equal(q.log.length,1);
-  assert.match(q.log[0],/QR ya fue cobrado/);
+  assert.match(q.log[0],/conserva la sucursal, mesa y rondas originales/);
  }
  const corregido=guardScenario({originalPagado:true,change:d=>{d.items[0].precio=12500;}});
  assert.equal(await corregido.f(),true);
