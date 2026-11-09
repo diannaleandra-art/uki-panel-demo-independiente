@@ -1969,7 +1969,7 @@ let cancelacionGuardando=false;
 // Al corregir una confirmación de pago, una entrega previamente finalizada
 // deja de figurar como entregada. El estado anterior se conserva en auditoría.
 function ukiEstadoTrasRetirarPago(p,nuevoPagado){
- return p?.estado==="Entregado"&&!nuevoPagado&&!!p.pagado?"Pendiente":p?.estado;
+ return p?.estado==="Entregado"&&!nuevoPagado?"Pendiente":p?.estado;
 }
 function puedeCancelarPedido(p){
  return !!p&&p.suc===S.suc&&!p.esPremio&&!p.pagado&&
