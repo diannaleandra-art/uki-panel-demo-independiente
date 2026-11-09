@@ -38,6 +38,17 @@ test('Kilómetros reales: admite coma decimal y texto explícito, sin calcular p
  assert.match(html,/kmRecorrido,medio:D\.medio/);
  assert.match(html,/p\.kmRecorrido=kmRecorrido/);
 });
+test('Tarjeta de pedido muestra propina manual sin sumar dos veces la registrada desde el pedido',()=>{
+ const ctx={S:{propinas:[{suc:"Uki Regimiento Arica",pedidoId:244,origen:"manual",monto:2200},
+   {suc:"Uki Regimiento Arica",pedidoId:245,origen:"pedido",monto:1000}]}};
+ vm.createContext(ctx);
+ vm.runInContext(slice('function ukiPropinaVisiblePedido(p){','function ukiKmTexto(p){'),ctx);
+ assert.equal(ctx.ukiPropinaVisiblePedido({suc:"Uki Regimiento Arica",id:244,propina:0}),2200);
+ assert.equal(ctx.ukiPropinaVisiblePedido({suc:"Uki Regimiento Arica",id:245,propina:1000}),1000);
+ assert.equal(ctx.ukiPropinaVisiblePedido({suc:"Uki La Serena",id:244,propina:0}),0);
+ assert.equal(ctx.ukiPropinaVisiblePedido({suc:"Uki Regimiento Arica",id:244,propina:1500}),3700);
+ assert.match(html,/Propina voluntaria",fmt\(ukiPropinaVisiblePedido\(p\)\)/);
+});
 test('Propina manual: exige concepto y pedido pagado, impide duplicación',()=>{
  const inputs={prMon:{value:"1500"},prMed:{value:"Efectivo"},prPed:{value:"244"},prCon:{value:"Servicio adicional"}};
  const avisos=[],ctx={
