@@ -35,3 +35,13 @@ Se recuperan únicamente archivos de catálogo, fotos, precios e ingredientes, m
 7. Registrar versiones de retorno y confirmar que nunca se crea un pedido duplicado ni se mueve caja.
 
 No tocar los otros PR de QA (dos agendadores, centro de dueños, inventario separado), ni inventar nuevas promociones. Los ingredientes y promociones deben gestionarse desde la sección existente **Carta y precios**, no desde una pantalla nueva.
+
+## Compatibilidad QR de las promociones · avance de QA del 9 de noviembre
+
+- Rama de carta coordinada: `diannaleandra-art/uki-sushi-respaldo`, PR **#36**, rama `qa/uki-promociones-vegetales-qr-compatible-20261109`, basada sobre la rama ya preparada del PR #35.
+- **22/22 pruebas de carta, armado, ingredientes y QR aprobadas** en GitHub Actions `42637919636`.
+- El modelo del QR toma las promociones dinámicas solo desde la **misma sucursal** y con ambas banderas activas. Valida SKU, armado, piezas 10/12, salsas, precio y visibilidad; rechaza promo inexistente u oculta. Durante el cálculo no hay consultas asíncronas que puedan mezclar el estado de ambas sucursales, y el catálogo temporal se restaura en `finally`.
+- Validado sintéticamente un pedido de 200 piezas y **20 pedidos simultáneos** entre sucursales sin modificación de pedidos reales, timbres ni caja. También se comprobó que con las banderas apagadas el QR antiguo no consulta las nuevas tablas.
+- **No se publicó** ninguna actualización de carta, API, panel o Neon por estas pruebas.
+- **Vercel sigue bloqueado para inspección desde la conexión disponible** (GET de deployment devolvió 404); no se puede afirmar que haya Preview accesible o compatible ni avanzar a producción.
+- **Orden de activación requerido**: permisos verificables + QA Safari → migración aditiva autorizada → backend y QR publicados con banderas apagadas → carta y panel compatible → comprobar ambos locales y fotos → activar banderas de forma coordinada y comprobar de nuevo. La activación por partes podría mostrar en carta una promoción que aún no pueda validar el servidor QR.
