@@ -3320,7 +3320,12 @@ function vPedidos(){
   const solicitudEnCategoria=(s,id)=>id==="todos"||
     (id==="por-confirmar"&&s.estado==="pendiente")||
     (id==="rechazados"&&s.estado==="rechazada");
-  const visiblesSolicitudes=solicitudes.filter(s=>solicitudEnCategoria(s,filtroCategoriaPedidos));
+  // Una solicitud pausada en este dispositivo aparece solo en «En atención».
+  const borradoresEnAtencion=ukiBorradoresSucursal();
+  const whatsappEnAtencion=new Set(borradoresEnAtencion.map(b=>String(b.solicitudWhatsAppId||'')).filter(Boolean));
+  const cartaEnAtencion=new Set(borradoresEnAtencion.map(b=>String(b.datos?.cartaSolicitudRemotaId||'')).filter(Boolean));
+  const solicitudesActivas=solicitudes.filter(s=>s.estado!=='pendiente'||!whatsappEnAtencion.has(String(s.id)));
+  const visiblesSolicitudes=solicitudesActivas.filter(s=>solicitudEnCategoria(s,filtroCategoriaPedidos));
   // Los rechazos de jornadas anteriores no ocupan la bandeja del turno abierto.
   // Los pendientes viejos siguen visibles hasta que se resuelvan, sin transformarse en ventas.
   const remotasTodas=(!buscando&&!pedidosArchivoDia?ukiCartaRemotasSucursal():[]).filter(r=>r.estado==='pendiente'||r.estado==='rechazada');
@@ -3340,9 +3345,10 @@ function vPedidos(){
   const remotas=remotasTurno;
   const aceptadasPendientesDeConciliar=!buscando&&!pedidosArchivoDia?ukiCartaAceptadasSinVinculo():[];
   const solicitudRemotaEnCategoria=(r,id)=>id==='todos'||(id==='por-confirmar'&&r.estado==='pendiente')||(id==='rechazados'&&r.estado==='rechazada');
-  const visiblesRemotas=remotas.filter(r=>solicitudRemotaEnCategoria(r,filtroCategoriaPedidos));
-  const urgentesCarta=remotas.filter(r=>r.estado==='pendiente');
-  const urgentesManuales=solicitudes.filter(r=>r.estado==='pendiente');
+  const remotasActivas=remotas.filter(r=>r.estado!=='pendiente'||!cartaEnAtencion.has(String(r.id)));
+  const visiblesRemotas=remotasActivas.filter(r=>solicitudRemotaEnCategoria(r,filtroCategoriaPedidos));
+  const urgentesCarta=remotasActivas.filter(r=>r.estado==='pendiente');
+  const urgentesManuales=solicitudesActivas.filter(r=>r.estado==='pendiente');
   const mostrarPrioridad=!buscando&&!pedidosArchivoDia&&(urgentesCarta.length+urgentesManuales.length)>0;
   const mostrarFichasPrioritarias=filtroCategoriaPedidos==='todos'||filtroCategoriaPedidos==='por-confirmar';
   const visibles=todos.filter(p=>ukiCoincideCategoriaPedido(p,filtroCategoriaPedidos,erroresPedidos));
@@ -3350,16 +3356,16 @@ function vPedidos(){
   const categorias=UKI_CATEGORIAS_PEDIDOS.filter(([id])=>filtrosPrincipales.has(id)).map(([id,nombre])=>
     '<button type="button" class="chip'+(filtroCategoriaPedidos===id?' on':'')+(id==='pendientes'&&mostrarPrioridad?' uki-alerta-filtro':'')+
     '" onclick="ukiCambiarCategoriaPedidos(\''+id+'\')">'+esc(nombre)+
-    ' ('+(todos.filter(p=>ukiCoincideCategoriaPedido(p,id,erroresPedidos)).length+solicitudes.filter(s=>solicitudEnCategoria(s,id)).length+remotas.filter(r=>solicitudRemotaEnCategoria(r,id)).length)+')</button>'
+    ' ('+(todos.filter(p=>ukiCoincideCategoriaPedido(p,id,erroresPedidos)).length+solicitudesActivas.filter(s=>solicitudEnCategoria(s,id)).length+remotasActivas.filter(r=>solicitudRemotaEnCategoria(r,id)).length)+')</button>'
   ).join("");
   const categoriasExtra=UKI_CATEGORIAS_PEDIDOS.filter(([id])=>!filtrosPrincipales.has(id)).map(([id,nombre])=>
     '<button type="button" class="chip'+(filtroCategoriaPedidos===id?' on':'')+
     '" onclick="ukiCambiarCategoriaPedidos(\''+id+'\')">'+esc(nombre)+
-    ' ('+(todos.filter(p=>ukiCoincideCategoriaPedido(p,id,erroresPedidos)).length+solicitudes.filter(s=>solicitudEnCategoria(s,id)).length+remotas.filter(r=>solicitudRemotaEnCategoria(r,id)).length)+')</button>'
+    ' ('+(todos.filter(p=>ukiCoincideCategoriaPedido(p,id,erroresPedidos)).length+solicitudesActivas.filter(s=>solicitudEnCategoria(s,id)).length+remotasActivas.filter(r=>solicitudRemotaEnCategoria(r,id)).length)+')</button>'
   ).join("");
   const categoriaExtraActiva=!filtrosPrincipales.has(filtroCategoriaPedidos);
   const titulo=buscando?"Resultados de búsqueda":pedidosArchivoDia?"Pedidos del turno "+pedidosArchivoDia:"Pedidos del turno abierto · "+fechaTurno;
-  return `<div class="section-head"><h2>Pedidos</h2><p>${esc(titulo)} · ${todos.length} registrados · ${pagados} pagados · ${solicitudes.length+remotas.length} solicitudes pendientes o rechazadas</p></div>
+  return `<div class="section-head"><h2>Pedidos</h2><p>${esc(titulo)} · ${todos.length} registrados · ${pagados} pagados · ${solicitudesActivas.length+remotasActivas.length} solicitudes pendientes o rechazadas · ${borradoresEnAtencion.length} en atención</p></div>
   ${mostrarPrioridad?`<section class="uki-urgentes-carta" aria-label="Solicitudes nuevas por confirmar">
     <div class="uki-urgentes-titulo">🔔 ${urgentesCarta.length+urgentesManuales.length} solicitud(es) por confirmar</div>
     <p class="uki-urgentes-subtitulo">Revisa el WhatsApp recibido y acepta o rechaza. No se suman a ventas, caja ni timbres hasta registrar el pedido.</p>
