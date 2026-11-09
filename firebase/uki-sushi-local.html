@@ -202,6 +202,60 @@ color:#955115;box-shadow:0 2px 10px rgba(0,0,0,.12);font-weight:800;font-size:19
 .uki-filtros-pedidos .uki-carta-estado-compacto .sm{margin-top:10px}
 .uki-reportes-propinas summary{cursor:pointer}
 </style>
+
+<style id="uki-visual-amable-20261109">
+/* Apariencia cálida y más legible. No modifica órdenes, caja ni datos. */
+#app .muted,#app label,#app .section-head p{color:#624b3b}
+#app .card{border-color:#e8cbb3;box-shadow:0 5px 16px rgba(93,51,20,.075)}
+#app .card:not(.order-card){background:linear-gradient(180deg,#fffdfa 0%,#fff 100%)}
+#app details.card:not(.order-card){border-left:4px solid #e98a34}
+#app .card h2,#app details.card>summary{color:#35241a}
+#app .card h2{font-weight:800}
+#app .uki-bloque-filtros{border-top:4px solid #ed810e}
+#app .uki-bloque-busqueda{border-left-color:#b75b25!important;background:linear-gradient(115deg,#fff6ea,#fff)!important}
+#app .uki-bloque-incidencias{border-left-color:#bd7441!important}
+#app .uki-bloque-archivo{border-left-color:#df7e14!important;background:linear-gradient(115deg,#fff2e1,#fff)!important}
+#app .uki-navegacion-caja,#app .uki-navegacion-movimientos{border-top:3px solid #ec861c}
+#app .uki-navegacion-compacta .sub-tabs,#app .uki-navegacion-compacta .movement-tabs{margin:9px 0 0;padding-bottom:4px}
+#app .uki-navegacion-compacta select{background:#fff;border:1.5px solid #d99a64;color:#36271d;font-weight:650}
+#app .order-card{position:relative;border-width:1.5px;border-color:#e7ba94!important;background:#fff!important;
+ box-shadow:0 5px 15px rgba(98,52,22,.12);margin-bottom:15px}
+#app .order-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:#e6822c}
+#app .order-card>summary{padding:17px 17px 16px 21px;background:linear-gradient(120deg,#fff5e9 0%,#fff 80%)}
+#app .order-card[open]>summary{border-bottom:1px solid #e9c3a5}
+#app .order-card .order-head b{font-size:16px;color:#30241e;font-weight:800;line-height:1.35}
+#app .order-card .order-head .muted{font-size:13px;line-height:1.5;color:#614b3b}
+#app .order-card .order-right strong{font-size:19px;color:#37251c}
+#app .order-card .uki-estado-badge{display:inline-block;margin-top:7px;padding:4px 9px;border-radius:16px;
+ font-size:12px;font-weight:800;color:#96501b;background:#ffe0bf;border:1px solid #f3ba7f;white-space:normal}
+#app .order-card.uki-pedido-pagado::before{background:#34836b}
+#app .order-card.uki-pedido-pagado>summary{background:linear-gradient(110deg,#eefaf3 0%,#fff 80%)}
+#app .order-card.uki-pedido-pagado .uki-estado-badge{color:#23634f;background:#e2f5eb;border-color:#9bd9bd}
+#app .order-card.uki-pedido-cobrar::before{background:#d57a1b}
+#app .order-card.uki-pedido-cobrar>summary{background:linear-gradient(110deg,#fff0d9 0%,#fff 80%)}
+#app .order-card.uki-pedido-entregado::before{background:#647b6e}
+#app .order-card.uki-pedido-entregado>summary{background:linear-gradient(110deg,#eef2ec 0%,#fff 80%)}
+#app .order-card.uki-pedido-entregado .uki-estado-badge{color:#365d43;background:#e7f0e8;border-color:#b6cdbb}
+#app .order-card.uki-pedido-cancelado::before{background:#9b5a54}
+#app .order-card.uki-pedido-cancelado>summary{background:linear-gradient(110deg,#fff0ec 0%,#fff 80%)}
+#app .order-card.uki-pedido-premio::before{background:#b08a2c}
+#app .order-card.uki-pedido-premio>summary{background:linear-gradient(110deg,#fff6db 0%,#fff 80%)}
+#app button.big:not(:disabled),#app button.sm.ok:not(:disabled),#app .chips button.chip.on{
+ background:#e77b0b;border-color:#e77b0b;color:#fff;font-weight:750;box-shadow:0 3px 9px rgba(173,78,10,.22)}
+#app button.sm{font-weight:700;border-color:#e6b994}
+#app .sub-tabs button.selected{background:#cf6503;color:#fff;border-color:#cf6503;
+ box-shadow:0 2px 9px rgba(189,90,13,.19)}
+#app .movement-tabs button.selected{background:#443023;border-color:#443023;color:white}
+#app .uki-turno-frase,#app #ukiFraseDiariaInicio{font-size:17px!important;font-weight:750;line-height:1.5;
+ color:#593419;background:#fff1dd;border-left:5px solid #e98727;padding:15px;border-radius:12px}
+#app .uki-timbre-obligatorio{background:#fff5e6!important;border:2px solid #e58012!important;
+ box-shadow:0 5px 16px rgba(190,105,20,.13)}
+#app .uki-timbre-obligatorio h2{color:#9d4b0b}
+#app .uki-timbre-confirmado{background:#eef9f2!important;border:2px solid #88c8aa!important}
+#app .uki-responsable-edicion{border:2px solid #ca8b53!important}
+#app .order-card .order-actions .sm.ok{min-height:38px}
+@media(max-width:400px){#app .uki-turno-frase,#app #ukiFraseDiariaInicio{font-size:16px!important}}
+</style>
 </head>
 <body>
 <header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.16 · LOCALES</h1><small id="ukiEstadoOperativo" role="status">Nube: desactivada · Abre tu sucursal y carga Firebase</small></header>
@@ -2656,7 +2710,7 @@ function vCaja(){
   const active=CAJA_TABS.find(x=>x[0]===cajaTab)||CAJA_TABS[0];
   const content=({resumen:vCajaResumen,movimientos:vMovimientos,precierre:vPrecierreTrabajadores,cierre:vCierre,historial:vHistorialCompacto,semana:vReportes,acumulada:()=>window.ukiCajaAcumuladaVista?.()||'<div class="card">Preparando Caja acumulada en efectivo…</div>'})[active[0]]();
   return `<div class="section-head"><h2>Caja</h2><p>Turno abierto · ${fechaOperativaActual()}</p></div>
-  <div class="card uki-navegacion-compacta"><label for="ukiCajaIrA"><b>Ir directamente a una sección de Caja</b></label><select id="ukiCajaIrA" onchange="cambiarCajaTab(this.value)">${CAJA_TABS.map(([k,l])=>`<option value="${k}" ${cajaTab===k?'selected':''}>${l}</option>`).join('')}</select><details style="margin-top:8px"><summary>Ver todas las opciones de Caja</summary><div class="sub-tabs" role="group" aria-label="Secciones de caja">${CAJA_TABS.map(([k,l])=>`<button type="button" class="${cajaTab===k?'selected':''}" onclick="cambiarCajaTab('${k}')">${l}</button>`).join('')}</div></details></div>${content}<div class="card"><h2>💾 Respaldo protegido de esta sucursal</h2><p class="muted">Guarda un respaldo cifrado al terminar el turno. La clave no se guarda: si la olvidas, no podrás recuperar ese archivo.</p><label>Crear clave para este respaldo (minimo 12 caracteres)</label><input id="ukiClaveBackup" type="password" autocomplete="new-password" placeholder="Clave de respaldo"><label>Repite la clave</label><input id="ukiConfirmaBackup" type="password" autocomplete="new-password" placeholder="Confirmar clave"><button class="big" onclick="descargarRespaldoCompleto()">Descargar respaldo cifrado</button><hr><p class="muted">Restaurar reemplaza los registros actuales de esta sucursal. Antes guarda una copia. También se admiten los respaldos anteriores v8.11 sin cifrar.</p><label>Clave del respaldo (si está cifrado)</label><input id="ukiClaveRestaurar" type="password" autocomplete="off" placeholder="Clave del archivo"><label>Elegir archivo para restaurar</label><input type="file" accept=".json,application/json" onchange="cargarRespaldo(event)"></div>`;
+  <div class="card uki-navegacion-compacta uki-navegacion-caja"><label for="ukiCajaIrA"><b>🔎 Ir directamente a una sección de Caja</b></label><select id="ukiCajaIrA" onchange="cambiarCajaTab(this.value)">${CAJA_TABS.map(([k,l])=>`<option value="${k}" ${cajaTab===k?'selected':''}>${l}</option>`).join('')}</select><div class="sub-tabs" role="group" aria-label="Secciones de Caja visibles">${CAJA_TABS.map(([k,l])=>`<button type="button" class="${cajaTab===k?'selected':''}" onclick="cambiarCajaTab('${k}')">${l}</button>`).join('')}</div></div>${content}<div class="card"><h2>💾 Respaldo protegido de esta sucursal</h2><p class="muted">Guarda un respaldo cifrado al terminar el turno. La clave no se guarda: si la olvidas, no podrás recuperar ese archivo.</p><label>Crear clave para este respaldo (minimo 12 caracteres)</label><input id="ukiClaveBackup" type="password" autocomplete="new-password" placeholder="Clave de respaldo"><label>Repite la clave</label><input id="ukiConfirmaBackup" type="password" autocomplete="new-password" placeholder="Confirmar clave"><button class="big" onclick="descargarRespaldoCompleto()">Descargar respaldo cifrado</button><hr><p class="muted">Restaurar reemplaza los registros actuales de esta sucursal. Antes guarda una copia. También se admiten los respaldos anteriores v8.11 sin cifrar.</p><label>Clave del respaldo (si está cifrado)</label><input id="ukiClaveRestaurar" type="password" autocomplete="off" placeholder="Clave del archivo"><label>Elegir archivo para restaurar</label><input type="file" accept=".json,application/json" onchange="cargarRespaldo(event)"></div>`;
 }
 let semanaConsulta="";
 function actualizarSemana(fecha){semanaConsulta=fecha||"";render();}
@@ -2945,7 +2999,7 @@ function vMovimientos(){
   const cards=Array.from(tmp.children);
   const index={apps:1,delivery:2,gastos:3,repartidor:4,propinas:5,retiros:6,chica:7}[movimientoTab];
   const selected=cards[index];
-  return `<div class="card uki-navegacion-compacta"><label for="ukiMovimientoIrA"><b>Ir directamente al movimiento</b></label><select id="ukiMovimientoIrA" onchange="cambiarMovimientoTab(this.value)">${MOV_TABS.map(([k,l])=>`<option value="${k}" ${movimientoTab===k?'selected':''}>${l}</option>`).join('')}</select><details style="margin-top:8px"><summary>Ver todos los tipos de movimiento</summary><div class="movement-tabs" role="group" aria-label="Tipos de movimiento">${MOV_TABS.map(([k,l])=>`<button type="button" class="${movimientoTab===k?'selected':''}" onclick="cambiarMovimientoTab('${k}')">${l}</button>`).join('')}</div></details></div>
+  return `<div class="card uki-navegacion-compacta uki-navegacion-movimientos"><label for="ukiMovimientoIrA"><b>🔎 Elegir tipo de movimiento</b></label><select id="ukiMovimientoIrA" onchange="cambiarMovimientoTab(this.value)">${MOV_TABS.map(([k,l])=>`<option value="${k}" ${movimientoTab===k?'selected':''}>${l}</option>`).join('')}</select><div class="movement-tabs" role="group" aria-label="Tipos de movimiento visibles">${MOV_TABS.map(([k,l])=>`<button type="button" class="${movimientoTab===k?'selected':''}" onclick="cambiarMovimientoTab('${k}')">${l}</button>`).join('')}</div></div>
     ${selected?selected.outerHTML:'<div class="card">No se encontró esta sección. Regresa al resumen.</div>'}`;
 }
 
@@ -3775,7 +3829,7 @@ function vPedidos(){
     ${aceptadasPendientesDeConciliar.map(r=>'<p><b>Carta #'+esc(r.codigo_pedido||'sin código')+'</b> · '+esc(r.cliente||'Cliente sin identificar')+' · WhatsApp '+esc(r.telefono||'por verificar')+'</p>').join('')}
     </details>`:''}
   <button class="big cta" onclick="ir('nuevo')">＋ Nuevo pedido</button>
-  <div class="card uki-filtros-pedidos"><div class="row" style="align-items:center"><h2 style="margin:0;font-size:15px">Pedidos por estado</h2><span class="muted" style="font-size:12px">${visibles.length} a la vista</span></div>
+  <div class="card uki-filtros-pedidos uki-bloque-filtros"><div class="row" style="align-items:center"><h2 style="margin:0;font-size:15px">Pedidos por estado</h2><span class="muted" style="font-size:12px">${visibles.length} a la vista</span></div>
     <div class="chips" role="group" aria-label="Filtrar pedidos por estado y pago">${categorias}</div>
     <details style="margin-top:10px" ${categoriaExtraActiva?'open':''}><summary style="cursor:pointer"><b>Más filtros</b></summary>
       <div class="chips" role="group" aria-label="Otros estados de pedidos" style="margin-top:10px">${categoriasExtra}</div></details>
@@ -3783,16 +3837,16 @@ function vPedidos(){
     <p class="muted uki-contador-pedidos">${visibles.length+visiblesSolicitudes.length+visiblesRemotas.length} registro(s) en «${esc((UKI_CATEGORIAS_PEDIDOS.find(x=>x[0]===filtroCategoriaPedidos)||[])[1]||"Todos")}»</p></div>
   ${(filtroCategoriaPedidos==="todos"||filtroCategoriaPedidos==="por-confirmar")?ukiMesasUI():""}
   ${pedidosArchivoDia||buscando?'<button class="sm" onclick="limpiarFiltrosPedidos()">← Volver al turno abierto</button>':''}
-  <details class="card" ${buscando?'open':''}><summary style="cursor:pointer"><b>🔎 Buscar por nombre, WhatsApp, código del cliente, pedido o fecha</b></summary>
+  <details class="card uki-bloque-busqueda" ${buscando?'open':''}><summary style="cursor:pointer"><b>🔎 Buscar por nombre, WhatsApp, código del cliente, pedido o fecha</b></summary>
     <div style="margin-top:12px"><label>Nombre, últimos 4 del WhatsApp, celular completo o número del pedido</label><input id="codigoFiltro" value="${esc(filtroCodigoCarta)}" placeholder="Ej: Camila, 5678 o 56912345678" inputmode="text">
     <label>Fecha del pedido o turno</label><input id="diaPedidoFiltro" type="date" value="${esc(filtroDiaPedidos)}">
     <button class="sm ok" onclick="aplicarFiltrosPedidos()">Buscar pedidos</button>
     <button class="sm" onclick="limpiarFiltrosPedidos()">Ver turno abierto</button>
     <p class="muted">Los pedidos de jornadas anteriores se conservan en el historial por turno.</p></div>
   </details>
-  <details class="card" ${erroresAbiertos?'open':''}><summary onclick="erroresAbiertos=!erroresAbiertos"><b>⚠️ Errores e incidencias</b> · ${pendientes} pendientes</summary><label>Buscar errores por dia de reporte</label><input id="diaErrorFiltro" type="date" value="${esc(filtroDiaIncidencias)}"><button class="sm ok" onclick="aplicarDiaIncidencias()">Buscar errores</button><p class="muted">Los reportes se conservan aunque se cierre la caja del dia.</p>${incidencias.length?incidencias.map(x=>renderIncidencia(x,"lista")).join(""):"<p class='muted'>No hay errores para esta busqueda.</p>"}</details>
-  ${visibles.map(p=>`<details class="card order-card" ${p.id===pedidoExpandido?'open':''}>
-    <summary onclick="pedidoExpandido=${p.id}"><div class="order-head"><div><b>${esc(ukiReferenciaConCarta(p))} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)} · Origen: ${esc(ukiOrigenPedido(p))}${p.modalidad==="Delivery"?" · 🛵 "+esc(ukiKmTexto(p)):""}${ukiPropinaVisiblePedido(p)>0?" · 💝 Propina "+fmt(ukiPropinaVisiblePedido(p)):""}${ukiCodigoClienteVisible(p)?" · Código cliente: "+esc(ukiCodigoClienteVisible(p)):""}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small>${p.esPremio?'🎁 Premio':p.estado==="Cancelado"?'Cancelado':p.pagado?'Pagado':'Sin pago'}${erroresPedidos.has(p.id)?' · ⚠️ Con error':''}</small></div></div></summary>
+  <details class="card uki-bloque-incidencias" ${erroresAbiertos?'open':''}><summary onclick="erroresAbiertos=!erroresAbiertos"><b>⚠️ Errores e incidencias</b> · ${pendientes} pendientes</summary><label>Buscar errores por dia de reporte</label><input id="diaErrorFiltro" type="date" value="${esc(filtroDiaIncidencias)}"><button class="sm ok" onclick="aplicarDiaIncidencias()">Buscar errores</button><p class="muted">Los reportes se conservan aunque se cierre la caja del dia.</p>${incidencias.length?incidencias.map(x=>renderIncidencia(x,"lista")).join(""):"<p class='muted'>No hay errores para esta busqueda.</p>"}</details>
+  ${visibles.map(p=>`<details class="card order-card ${p.estado==="Cancelado"?"uki-pedido-cancelado":p.esPremio?"uki-pedido-premio":p.estado==="Entregado"?"uki-pedido-entregado":p.pagado?"uki-pedido-pagado":"uki-pedido-cobrar"}" ${p.id===pedidoExpandido?'open':''}>
+    <summary onclick="pedidoExpandido=${p.id}"><div class="order-head"><div><b>${esc(ukiReferenciaConCarta(p))} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)} · Origen: ${esc(ukiOrigenPedido(p))}${p.modalidad==="Delivery"?" · 🛵 "+esc(ukiKmTexto(p)):""}${ukiPropinaVisiblePedido(p)>0?" · 💝 Propina "+fmt(ukiPropinaVisiblePedido(p)):""}${ukiCodigoClienteVisible(p)?" · Código cliente: "+esc(ukiCodigoClienteVisible(p)):""}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small class="uki-estado-badge">${p.esPremio?'🎁 Premio':p.estado==="Cancelado"?'Cancelado':p.estado==="Entregado"?'✓ Entregado':p.pagado?'✓ Pagado · por entregar':'$ Por cobrar'}${erroresPedidos.has(p.id)?' · ⚠️ Con error':''}</small></div></div></summary>
     <div class="order-body"><p class="muted">${esc(p.estado||'Entregado')} · ${esc(p.medio||'Efectivo')}${p.telefono?' · '+esc(p.telefono):''}</p>${p.estado==="Cancelado"?`<p class="muted"><b>Motivo:</b> ${esc(p.motivoCancelacion==="cliente"?"Cancelado por el cliente":p.motivoCancelacion==="local"?"Cancelado por el local":"No informado")}${p.canceladoEn?" · "+esc(fechaTxt(p.canceladoEn)):""}</p>`:""}
     ${(p.productos||[]).map(pr=>`<div class="row"><span>${pr.cantidad}x ${esc(pr.nombre)}${pr.detalle?` · ${esc(pr.detalle)}`:''}</span><b>${fmt(pr.cantidad*pr.precioUnit)}</b></div>`).join('')}
     ${p.envio?row('Delivery',fmt(p.envio)):''}
@@ -3822,7 +3876,7 @@ function vPedidos(){
   ${visiblesRemotas.filter(r=>!mostrarPrioridad||r.estado!=='pendiente').map(r=>ukiCartaRemotaFicha(r)).join('')}
   ${visiblesSolicitudes.filter(r=>!mostrarPrioridad||r.estado!=='pendiente').map(s=>'<div class="card order-card"><p class="muted"><b>Origen: WhatsApp · '+(s.estado==="rechazada"?"RECHAZADO":"Pendiente de confirmación")+'</b></p>'+ukiWhatsAppFicha(s,s.estado==="pendiente")+'</div>').join('')}
   ${!visibles.length&&!visiblesSolicitudes.length&&!visiblesRemotas.length?'<div class="card muted">'+(todos.length||solicitudes.length||remotas.length?'No hay pedidos en esta categoría. Selecciona «Todos» para verlos.':'Todavía no hay pedidos. Pulsa Nuevo pedido para comenzar.')+'</div>':''}
-  <details class="card uki-pedidos-archivo-acceso" ${pedidosArchivoDia?'open':''}><summary>📚 Pedidos anteriores por día · ${dias.length} turnos</summary>
+  <details class="card uki-pedidos-archivo-acceso uki-bloque-archivo" ${pedidosArchivoDia?'open':''}><summary>📚 Pedidos anteriores por día · ${dias.length} turnos</summary>
     <div style="padding-top:10px">${dias.length?dias.slice(0,30).map(([f,n])=>`<button class="sm" style="display:block;width:100%;margin:6px 0;text-align:left" onclick="verArchivoPedidos('${esc(f)}')">📅 ${esc(f)} · ${n} pedido${n===1?'':'s'}</button>`).join(''):'<p class="muted">Todavía no hay turnos anteriores.</p>'}
     ${dias.length>30?'<p class="muted">Para fechas más antiguas utiliza el calendario de búsqueda.</p>':''}</div>
   </details>`;
