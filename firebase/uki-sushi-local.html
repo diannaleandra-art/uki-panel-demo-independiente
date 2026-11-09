@@ -4582,6 +4582,35 @@ function ukiAccionesHistorial(c){
   '</div>';
 }
 
+// Archivo visual consultable por calendario. Solo lectura de rechazos anteriores
+// a la jornada activa; nunca crea pedidos, modifica caja ni borra solicitudes.
+let ukiArchivoRechazadosDia="";
+function ukiArchivoRechazadosHistorialUI(){
+ if(!S.suc)return '';
+ const hoy=fechaOperativaActual();
+ const locales=ukiWhatsAppSolicitudesSucursal().filter(x=>x.estado==='rechazada').map(x=>{
+  const ms=Number(x.creadoEn)||Date.parse(x.fechaISO||'')||0;
+  const dia=ms>0?fechaTurnoRegistro({...x,registradoEn:ms}):'';
+  return {tipo:'whatsapp',dia,ms,valor:x};
+ }).filter(x=>x.ms>0&&x.dia!==hoy);
+ const remotos=ukiCartaRemotasSucursal().filter(r=>r.estado==='rechazada').map(r=>{
+  const ms=Date.parse(r.creado_en||'');
+  return {tipo:'carta',dia:Number.isFinite(ms)?fechaLocalRegistro(r.creado_en):'',ms,valor:r};
+ }).filter(x=>Number.isFinite(x.ms)&&x.ms<corteDelDiaMs());
+ const todos=[...locales,...remotos].sort((a,b)=>b.ms-a.ms);
+ const visibles=ukiArchivoRechazadosDia?todos.filter(x=>x.dia===ukiArchivoRechazadosDia):todos;
+ return '<details class="card"><summary><b>📚 Solicitudes rechazadas de días anteriores · '+todos.length+'</b></summary>'+
+  '<p class="muted">Antecedentes, no ventas. No se suman a caja, timbres ni pedidos actuales.</p>'+
+  '<label for="ukiArchivoRechazadosDia">Consultar por fecha</label>'+
+  '<input id="ukiArchivoRechazadosDia" type="date" value="'+esc(ukiArchivoRechazadosDia)+'" onchange="ukiArchivoRechazadosDia=this.value;render()">'+
+  (ukiArchivoRechazadosDia?'<button class="sm" type="button" onclick="ukiArchivoRechazadosDia=\'\';render()">Ver todas las fechas</button>':'')+
+  (visibles.length?visibles.map(x=>'<div style="border-top:1px solid var(--line);padding-top:8px">'+
+    '<p class="muted"><b>'+esc(x.dia||'Fecha por confirmar')+'</b></p>'+
+    (x.tipo==='whatsapp'?ukiWhatsAppFicha(x.valor,false):ukiCartaRemotaFicha(x.valor))+'</div>').join(''):
+    '<p class="muted">No hay solicitudes rechazadas para la fecha seleccionada.</p>')+
+ '</details>';
+}
+
 function vHistorialCompacto(){
   const tmp=document.createElement('div');tmp.innerHTML=vHistorial();
   Array.from(tmp.children).forEach((card,i)=>{
@@ -4593,7 +4622,7 @@ function vHistorialCompacto(){
     while(card.firstChild)d.appendChild(card.firstChild);
     card.replaceWith(d);
   });
-  return vHistorialPrecierres()+ukiVAgregarPedidoOlvidado()+tmp.innerHTML;
+  return vHistorialPrecierres()+ukiVAgregarPedidoOlvidado()+ukiArchivoRechazadosHistorialUI()+tmp.innerHTML;
 }
 
 function vHistorial(){
