@@ -77,3 +77,23 @@ test('Migración es aditiva y aislada de pedidos, ventas y cajas',()=>{
  assert.match(sql,/PRIMARY KEY\(branch,sku\)/);
  assert.doesNotMatch(sql,/\b(DROP|TRUNCATE|DELETE FROM|ALTER TABLE public\.uki_pedidos)\b/i);
 });
+
+test('Las promociones pueden eliminarse de la carta en cualquier momento, como ingredientes, sin borrar el historial',()=>{
+ const ui=fs.readFileSync('firebase/uki-carta-precios-admin.js','utf8');
+ const backend=fs.readFileSync('api/uki-carta-precios-live.js','utf8');
+ const ingredients=fs.readFileSync('firebase/uki-armado-ingredientes-admin.js','utf8');
+ const preview=fs.readFileSync('public/vista-previa-carta-precios.html','utf8');
+ assert.match(ui,/Elimina[r]? promoción de la carta|Eliminar promoción de la carta/);
+ assert.match(ui,/Volver a publicar promoción/);
+ assert.match(ui,/const chosen=state\.branch,action=price\.visible===false\?'restaurar-producto':'retirar-producto'/);
+ assert.match(ui,/Los pedidos anteriores se conservan/);
+ assert.match(backend,/if\(entry\.kind==='monthly'&&entry\.custom\)\{/);
+ assert.match(backend,/UPDATE public\.uki_carta_promos_custom_v1 SET visible=\$3,version=version\+1/);
+ assert.match(backend,/WHERE branch=\$1 AND sku=\$2 AND version=\$4 AND visible IS DISTINCT FROM \$3/);
+ assert.doesNotMatch(backend,/\bDELETE FROM public\.uki_carta_promos_custom_v1\b/i);
+ assert.match(ingredients,/request\(remove\?'retirar':'restaurar'/);
+ assert.match(preview,/promosOcultasDemo=\{arica:new Set\(\),serena:new Set\(\)\}/);
+ assert.match(preview,/Eliminar promoción de la carta/);
+ assert.match(preview,/↩ Volver a publicar/);
+ assert.doesNotMatch(preview,/\bfetch\s*\(|XMLHttpRequest|localStorage|indexedDB/);
+});
