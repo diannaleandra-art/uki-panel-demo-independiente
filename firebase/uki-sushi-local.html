@@ -2304,7 +2304,7 @@ function ukiGuardarDatosCliente(key,boton){
   (numero.length>=8?ukiTelefonoNormalizado(c.telefono)===numero:
    !ukiTelefonoNormalizado(c.telefono)&&ukiTextoBusqueda(c.nombre)===ukiTextoBusqueda(nombre)&&
    String(c.codigoCliente||"").trim()===codigo));
- if(duplicado){aviso("Ya existe otra tarjeta con esos datos. No se unificaron timbres. Revisa la ficha antes de guardar.");return;}
+ if(duplicado&&ukiTelefonoNormalizado(cli.telefono)!==numero){aviso("Ya existe otra tarjeta con esos datos. No se unificaron timbres. Revisa la ficha antes de guardar.");return;}
  const antes={nombre:cli.nombre||"",telefono:cli.telefono||"",codigoCliente:cli.codigoCliente||""};
  if(ukiTextoBusqueda(antes.nombre)===ukiTextoBusqueda(nombre)&&
     ukiTelefonoNormalizado(antes.telefono)===numero&&String(antes.codigoCliente)===codigo){
@@ -2324,7 +2324,7 @@ function vClientes(){
   if(!S.suc) return vInicio();
   const buscar=String(S.filtroCliente||"").trim();
   const fecha=filtroFechaTimbres||ukiFechaCalendarioChile(Date.now());
-  const clientes=Object.values(S.clientes||{});
+  const clientes=ukiTarjetasAgrupadas();
   const lista=clientes.filter(c=>{
     if(buscar)return ukiBusquedaPorDatos(buscar,[c.nombre,ukiCodigoClienteVisible(c),c.codigoCliente,c.telefono,ukiTelefonoNormalizado(c.telefono)])||
       pedidosHist(c.nombre,c.codigoCliente,c.telefono).some(p=>
@@ -2363,7 +2363,7 @@ function vClientes(){
     <div class="card" style="margin:0"><h2 style="font-size:12px">Clientes del día</h2><b>${lista.length}</b></div>
     <div class="card" style="margin:0"><h2 style="font-size:12px">Timbres ganados</h2><b>${movimientosDelDia.length}</b></div>
     <div class="card" style="margin:0"><h2 style="font-size:12px">Premios 10</h2><b>${lista.filter(c=>ventasValidas(c)>=10).length}</b></div></div></div>
-  <details class="card" open><summary style="cursor:pointer"><b>🎫 Timbres del ${esc(fecha)} · ${movimientosDelDia.length} ganados · ${pendientesTimbreDelDia} por enviar</b></summary>
+  <details class="card"><summary style="cursor:pointer"><b>🎫 Timbres del ${esc(fecha)} · ${movimientosDelDia.length} ganados · ${pendientesTimbreDelDia} por enviar</b></summary>
     <p class="muted">Ordenados del más reciente al más antiguo por hora del timbre, incluyendo turnos ya cerrados. Un registro por compra. Confirmar envío no modifica el cobro.</p>
     ${movimientosDelDia.map(m=>'<div style="padding:11px 0;border-bottom:1px solid var(--line)"><div class="row"><span><b>'+esc(m.cliente)+'</b>'+
       (m.codigo?' · Código '+esc(m.codigo):'')+
@@ -2389,7 +2389,7 @@ function vClientes(){
     ${dias.length>30?'<p class="muted">Para fechas más antiguas utiliza el calendario.</p>':''}</div></details>
   ${lista.length?lista.map(cli=>{
     // La clave interna no cambia al completar nombre, WhatsApp o código.
-    const key=Object.keys(S.clientes).find(k=>S.clientes[k]===cli)||
+    const key=cli._ukiClave||
       ukiClaveClienteExistente(cli.nombre,cli.codigoCliente,cli.telefono)||
       claveCliente(cli.nombre,cli.codigoCliente,cli.telefono);
     const keyArg=esc(JSON.stringify(key));
@@ -2398,25 +2398,25 @@ function vClientes(){
     const puede10=ventas>=10;
     const ultimoTimbre=ukiUltimoPedidoConTimbre(cli);
     const tieneWhatsApp=!!String(cli.telefono||"").trim()&&ukiWhatsAppClienteValido(cli.telefono);
-    return `<div class="card" style="${puede10?'border:2px solid #111':puede6?'border:2px solid var(--ok)':''}"><h2>${esc(cli.nombre)} ${ukiCodigoClienteVisible(cli)?`<span class="tag">Código ${esc(ukiCodigoClienteVisible(cli))}</span>`:""} <span class="tag">🎫 ${ventas}/10 timbres</span> ${puede6?'<span class="tag" style="background:var(--ok);color:#fff">🎁 12 piezas listo!</span>':''} ${puede10?'<span class="tag" style="background:#111;color:#fff">🎉 36+2 korokes listo!</span>':''}</h2><p class="muted"><b>👤 Nombre:</b> ${esc(cli.nombre||"Sin registrar")} · <b>📱 WhatsApp:</b> ${esc(cli.telefono||"Sin registrar")} · <b>🔢 Código:</b> ${esc(ukiCodigoClienteVisible(cli)||"Sin registrar")}</p><p class="muted">${cli.pedidos} pedidos · Gastado ${fmt(cli.gastado)} · Último ${esc(cli.ultimo||"")}</p><div class="tarjeta">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventas?'lleno':''} ${i===5?'premio':''} ${i===9?'premio':''}" title="${i===5?'6 ventas = 12 piezas':i===9?'10 ventas = 36+2 korokes':''}">${i<ventas?'✓':i+1}${i===5?'<br><small style="font-size:8px">12p</small>':''}${i===9?'<br><small style="font-size:7px">36+2k</small>':''}</div>`).join("")}</div><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"><button class="sm ok" onclick="avisarTimbres(${keyArg})">${tieneWhatsApp?'📲 Avisar por WhatsApp':'📲 Compartir en WhatsApp'}</button><button class="sm" onclick="avisarTimbres(${keyArg},'copiar')">📋 Copiar aviso</button><button class="sm ok" onclick="compartirImagenTimbres(${keyArg})">🖼️ Compartir tarjeta</button>${ultimoTimbre?`<button class="sm" onclick="ukiMarcarTimbreEnviado(${ultimoTimbre.id})">${ultimoTimbre.timbreEnviadoEn?'✅ Timbre enviado':'☐ Marcar timbre enviado'}</button>`:""}${puede6?`<button class="sm ok" onclick="canjear12(${keyArg})">🎁 Canjear 12 piezas (6)</button>`:''}${puede10?`<button class="sm" style="background:#111;color:#fff" onclick="canjear36(${keyArg})">🎉 Canjear 36+2 korokes (10)</button>`:''}<button class="sm" onclick="D.cliente=${esc(JSON.stringify(cli.nombre))};D.codigoCliente=${esc(JSON.stringify(ukiCodigoClienteVisible(cli)))};D.telefono=${esc(JSON.stringify(cli.telefono||''))};ir('nuevo');">+ Pedido</button></div><details class="inner-details" style="margin-top:10px" data-uki-cliente-datos="${esc(key)}"><summary><b>👤 Completar o editar datos del cliente</b></summary>
+    return `<details class="card uki-timbre-tarjeta" style="${puede10?'border:2px solid #111':puede6?'border:2px solid var(--ok)':''}"><summary style="cursor:pointer;font-weight:800">${esc(cli.nombre)} ${ukiCodigoClienteVisible(cli)?`<span class="tag">Código ${esc(ukiCodigoClienteVisible(cli))}</span>`:""} <span class="tag">🎫 ${ventas}/10 timbres</span> ${puede6?'<span class="tag" style="background:var(--ok);color:#fff">🎁 12 piezas listo!</span>':''} ${puede10?'<span class="tag" style="background:#111;color:#fff">🎉 36+2 korokes listo!</span>':''}</summary><div style="padding-top:12px"><p class="muted"><b>👤 Nombre:</b> ${esc(cli.nombre||"Sin registrar")} · <b>📱 WhatsApp:</b> ${esc(cli.telefono||"Sin registrar")} · <b>🔢 Código:</b> ${esc(ukiCodigoClienteVisible(cli)||"Sin registrar")}</p><p class="muted">${cli.pedidos} pedidos · Gastado ${fmt(cli.gastado)} · Último ${esc(cli.ultimo||"")}</p><div class="tarjeta">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventas?'lleno':''} ${i===5?'premio':''} ${i===9?'premio':''}" title="${i===5?'6 ventas = 12 piezas':i===9?'10 ventas = 36+2 korokes':''}">${i<ventas?'✓':i+1}${i===5?'<br><small style="font-size:8px">12p</small>':''}${i===9?'<br><small style="font-size:7px">36+2k</small>':''}</div>`).join("")}</div><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"><button class="sm ok" onclick="avisarTimbres(${keyArg})">${tieneWhatsApp?'📲 Avisar por WhatsApp':'📲 Compartir en WhatsApp'}</button><button class="sm" onclick="avisarTimbres(${keyArg},'copiar')">📋 Copiar aviso</button><button class="sm ok" onclick="compartirImagenTimbres(${keyArg})">🖼️ Compartir tarjeta</button>${ultimoTimbre?`<button class="sm" onclick="ukiMarcarTimbreEnviado(${ultimoTimbre.id})">${ultimoTimbre.timbreEnviadoEn?'✅ Timbre enviado':'☐ Marcar timbre enviado'}</button>`:""}${puede6?`<button class="sm ok" onclick="canjear12(${keyArg})">🎁 Canjear 12 piezas (6)</button>`:''}${puede10?`<button class="sm" style="background:#111;color:#fff" onclick="canjear36(${keyArg})">🎉 Canjear 36+2 korokes (10)</button>`:''}<button class="sm" onclick="D.cliente=${esc(JSON.stringify(cli.nombre))};D.codigoCliente=${esc(JSON.stringify(ukiCodigoClienteVisible(cli)))};D.telefono=${esc(JSON.stringify(cli.telefono||''))};ir('nuevo');">+ Pedido</button></div><details class="inner-details" style="margin-top:10px" data-uki-cliente-datos="${esc(key)}"><summary><b>👤 Completar o editar datos del cliente</b></summary>
     <p class="muted">El WhatsApp es opcional. La tarjeta y los timbres siguen siendo válidos sin él.</p>
     <label>Nombre y apellido</label><input data-uki-cliente-campo="nombre" maxlength="90" value="${esc(cli.nombre||"")}" placeholder="Ej.: Sergio Pérez">
     <label>WhatsApp (opcional)</label><input data-uki-cliente-campo="telefono" type="tel" inputmode="tel" maxlength="30" value="${esc(cli.telefono||"")}" placeholder="Sin registrar · +56 9 XXXX XXXX">
     <label>Código cliente · 4 dígitos</label><input data-uki-cliente-campo="codigo" inputmode="numeric" maxlength="4" value="${esc(ukiCodigoClienteVisible(cli)||"")}" placeholder="Opcional · automático si hay WhatsApp">
     <p class="muted">Cuando hay WhatsApp, el código se calcula con sus últimos 4 dígitos. El historial y los timbres no se eliminan al completar los datos.</p>
     <button type="button" class="sm ok" onclick="ukiGuardarDatosCliente(${keyArg},this)">Guardar datos del cliente</button></details>
-    <details style="margin-top:8px"><summary class="muted">Ver historial timbres</summary>${(cli.movimientos||[]).slice(-15).reverse().map(m=>`<div class="row"><span>${m.tipo==='venta'?'🟢 Venta':m.tipo==='canje6'?'🔴 Canje 12 piezas':m.tipo==='canje10'?'🔴 Canje 36+2k':esc(m.tipo)} - ${new Date(m.fecha).toLocaleDateString('es-CL')} ${m.vence?'· Vence '+new Date(m.vence).toLocaleDateString('es-CL'):''}</span></div>`).join("")||"<p class='muted'>Sin movimientos</p>"}</details>${fichaHistorial(cli)}</div>`;
+    <details style="margin-top:8px"><summary class="muted">Ver historial timbres</summary>${(cli.movimientos||[]).slice(-15).reverse().map(m=>`<div class="row"><span>${m.tipo==='venta'?'🟢 Venta':m.tipo==='canje6'?'🔴 Canje 12 piezas':m.tipo==='canje10'?'🔴 Canje 36+2k':esc(m.tipo)} - ${new Date(m.fecha).toLocaleDateString('es-CL')} ${m.vence?'· Vence '+new Date(m.vence).toLocaleDateString('es-CL'):''}</span></div>`).join("")||"<p class='muted'>Sin movimientos</p>"}</details>${fichaHistorial(cli)}</div></details>`;
   }).join(""):`<div class="card muted">${buscar?'No se encontraron clientes.':'No hay timbres ganados en esta fecha. Busca por nombre para consultar cualquier tarjeta acumulada.'}</div>`}
-  <details class="card"><summary style="cursor:pointer"><b>🏅 Ranking clientes frecuentes</b></summary>${Object.values(S.clientes).sort((a,b)=>b.pedidos-a.pedidos).slice(0,10).map((c,i)=>`<div class="row"><span>${i+1}. ${esc(c.nombre)} - ${ventasValidas(c)}/10 timbres</span><b>${c.pedidos} pedidos</b></div>`).join("")||"<p class='muted'>Sin datos</p>"}</details>`;
+  <details class="card"><summary style="cursor:pointer"><b>🏅 Ranking clientes frecuentes</b></summary>${clientes.slice().sort((a,b)=>b.pedidos-a.pedidos).slice(0,10).map((c,i)=>`<div class="row"><span>${i+1}. ${esc(c.nombre)} - ${ventasValidas(c)}/10 timbres</span><b>${c.pedidos} pedidos</b></div>`).join("")||"<p class='muted'>Sin datos</p>"}</details>`;
 }
 function compartirImagenTimbres(key){
- const cli=S.clientes[key];
+ const cli=ukiVistaCliente(key);
  if(!cli){aviso("No se encontró la tarjeta del cliente.");return;}
  if(!window.ukiTarjetaMostrar){aviso("La tarjeta todavía no está disponible. Actualiza la página.");return;}
  window.ukiTarjetaMostrar({nombre:cli.nombre,whatsapp:cli.telefono||"",codigoCliente:ukiCodigoClienteVisible(cli)||"",timbres:ventasValidas(cli),sucursal:S.suc,ultimaCompra:cli.ultimo||""});
 }
 function avisarTimbres(key,modo='abrir'){
-  const cli=S.clientes[key];
+  const cli=ukiVistaCliente(key);
   if(!cli){aviso("No se encontró la tarjeta del cliente.");return;}
   const timbres=ventasValidas(cli);
   const premio=timbres>=10
@@ -2463,24 +2463,25 @@ function avisarTimbres(key,modo='abrir'){
 }
 
 function canjear12(key){
-  const cli=S.clientes[key]; if(!cli) return;
+  const original=S.clientes[key],cli=ukiVistaCliente(key); if(!original||!cli)return;
+  if(cli.canje6){aviso('El premio de 6 timbres ya fue canjeado.');return;}
   if(ventasValidas(cli)<6){aviso("Necesita 6 ventas");return;}
   if(!confirm(`¿Canjear 12 piezas gratis para ${cli.nombre}? Tiene ${ventasValidas(cli)}/10 timbres. Después de canjear 12, seguirá con ${ventasValidas(cli)} timbres hacia las 10.`)) return;
-  cli.movimientos.push({tipo:'canje6',fecha:new Date().toISOString(),vence:null});
-  cli.canje6=true;
+  original.movimientos.push({tipo:'canje6',fecha:new Date().toISOString(),vence:null});
+  original.canje6=true;
   aviso(`Canje 12 piezas para ${cli.nombre} registrado. Ahora puede seguir hacia 10 ventas para 36+2 korokes.`);
   // Crear pedido gratis de 12 piezas para cocina
   S.pedidos.push({id:S.nextId++,suc:S.suc,fechaISO:ahora(),cliente:cli.nombre,telefono:cli.telefono||"",codigoCliente:cli.codigoCliente||"",modalidad:"Retiro",envio:0,medio:"Canje 6 ventas",medioEnvio:"Efectivo",pagado:true,estado:"Entregado",productos:[{nombre:"PREMIO 12 piezas - Canje 6 ventas",cantidad:1,precioUnit:0,detalle:"Gratis por tarjeta 6 timbres"}],total:0,subtotal:0,textoOriginal:`Canje premio 6 ventas - ${cli.nombre}`,esPremio:true});
   guardarEnLocalStorage(); render();
 }
 function canjear36(key){
-  const cli=S.clientes[key]; if(!cli) return;
+  const original=S.clientes[key],cli=ukiVistaCliente(key); if(!original||!cli)return;
   if(ventasValidas(cli)<10){aviso("Necesita 10 ventas");return;}
   if(!confirm(`¿Canjear 36 piezas + 2 korokes GRATIS para ${cli.nombre}? Tiene ${ventasValidas(cli)}/10. Después de canjear, su tarjeta se reinicia a 0.`)) return;
-  cli.movimientos.push({tipo:'canje10',fecha:new Date().toISOString(),vence:null});
-  cli.ventas=0;
-  cli.canje6=false;
-  cli.canje10=false;
+  original.movimientos.push({tipo:'canje10',fecha:new Date().toISOString(),vence:null});
+  original.ventas=0;
+  original.canje6=false;
+  original.canje10=false;
   // Marcar todas las ventas anteriores como canjeadas (reset)
   aviso(`¡Canje 36+2 korokes para ${cli.nombre}! Tarjeta reiniciada a 0.`);
   S.pedidos.push({id:S.nextId++,suc:S.suc,fechaISO:ahora(),cliente:cli.nombre,telefono:cli.telefono||"",codigoCliente:cli.codigoCliente||"",modalidad:"Retiro",envio:0,medio:"Canje 10 ventas",medioEnvio:"Efectivo",pagado:true,estado:"Entregado",productos:[{nombre:"PREMIO 36 piezas + 2 korokes - Canje 10 ventas",cantidad:1,precioUnit:0,detalle:"Gratis por tarjeta 10 timbres"}],total:0,subtotal:0,textoOriginal:`Canje premio 10 ventas - ${cli.nombre}`,esPremio:true});
@@ -3929,8 +3930,8 @@ function vPedidos(){
     <p class="muted">Los pedidos de jornadas anteriores se conservan en el historial por turno.</p></div>
   </details>
   <details class="card uki-bloque-incidencias" ${erroresAbiertos?'open':''}><summary onclick="erroresAbiertos=!erroresAbiertos"><b>⚠️ Errores e incidencias</b> · ${pendientes} pendientes</summary><label>Buscar errores por dia de reporte</label><input id="diaErrorFiltro" type="date" value="${esc(filtroDiaIncidencias)}"><button class="sm ok" onclick="aplicarDiaIncidencias()">Buscar errores</button><p class="muted">Los reportes se conservan aunque se cierre la caja del dia.</p>${incidencias.length?incidencias.map(x=>renderIncidencia(x,"lista")).join(""):"<p class='muted'>No hay errores para esta busqueda.</p>"}</details>
-  ${visibles.map(p=>`<details class="card order-card ${p.estado==="Cancelado"?"uki-pedido-cancelado":p.esPremio?"uki-pedido-premio":p.estado==="Entregado"?"uki-pedido-entregado":p.pagado?"uki-pedido-pagado":"uki-pedido-cobrar"}" ${p.id===pedidoExpandido?'open':''}>
-    <summary onclick="pedidoExpandido=${p.id}"><div class="order-head"><div><b>${esc(ukiReferenciaConCarta(p))} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)} · Origen: ${esc(ukiOrigenPedido(p))}${p.modalidad==="Delivery"?" · 🛵 "+esc(ukiKmTexto(p)):""}${ukiPropinaVisiblePedido(p)>0?" · 💝 Propina "+fmt(ukiPropinaVisiblePedido(p)):""}${ukiCodigoClienteVisible(p)?" · Código cliente: "+esc(ukiCodigoClienteVisible(p)):""}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small class="uki-estado-badge">${p.esPremio?'🎁 Premio':p.estado==="Cancelado"?'Cancelado':p.estado==="Entregado"?'✓ Entregado':p.pagado?'✓ Pagado · por entregar':'$ Por cobrar'}${erroresPedidos.has(p.id)?' · ⚠️ Con error':''}</small></div></div></summary>
+  ${visibles.map(p=>`<details class="card order-card ${p.estado==="Cancelado"?"uki-pedido-cancelado":p.esPremio?"uki-pedido-premio":p.estado==="Entregado"?"uki-pedido-entregado":p.pagado?"uki-pedido-pagado":"uki-pedido-cobrar"}">
+    <summary><div class="order-head"><div><b>${esc(ukiReferenciaConCarta(p))} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)} · Origen: ${esc(ukiOrigenPedido(p))}${p.modalidad==="Delivery"?" · 🛵 "+esc(ukiKmTexto(p)):""}${ukiPropinaVisiblePedido(p)>0?" · 💝 Propina "+fmt(ukiPropinaVisiblePedido(p)):""}${ukiCodigoClienteVisible(p)?" · Código cliente: "+esc(ukiCodigoClienteVisible(p)):""}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small class="uki-estado-badge">${p.esPremio?'🎁 Premio':p.estado==="Cancelado"?'Cancelado':p.estado==="Entregado"?'✓ Entregado':p.pagado?'✓ Pagado · por entregar':'$ Por cobrar'}${erroresPedidos.has(p.id)?' · ⚠️ Con error':''}</small></div></div></summary>
     <div class="order-body"><p class="muted">${esc(p.estado||'Entregado')} · ${esc(p.medio||'Efectivo')}${p.telefono?' · '+esc(p.telefono):''}</p>${p.estado==="Cancelado"?`<p class="muted"><b>Motivo:</b> ${esc(p.motivoCancelacion==="cliente"?"Cancelado por el cliente":p.motivoCancelacion==="local"?"Cancelado por el local":"No informado")}${p.canceladoEn?" · "+esc(fechaTxt(p.canceladoEn)):""}</p>`:""}
     ${(p.productos||[]).map(pr=>`<div class="row"><span>${pr.cantidad}x ${esc(pr.nombre)}${pr.detalle?` · ${esc(pr.detalle)}`:''}</span><b>${fmt(pr.cantidad*pr.precioUnit)}</b></div>`).join('')}
     ${p.envio?row('Delivery',fmt(p.envio)):''}
