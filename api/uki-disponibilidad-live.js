@@ -5,11 +5,19 @@ const {baseItems}=require('../lib/uki-catalogo-v1.cjs');
 const BRANCHES=new Set(['arica','serena']);
 const ORIGINS=new Set(['https://diannaleandra-art.github.io','https://uki-sushi-pedidos.vercel.app']);
 const QA_REF='feature/uki-disponibilidad-manual-live-2026-11-06';
-const QA_MENU_ORIGIN='https://uki-sushi-pedidos-git-feature-uki-dis-eb0d72-diannaleandra-7046.vercel.app';
+const QA_REF_ETAPA2='integracion/uki-promociones-ingredientes-seguros-qa-20261109';
 const QA_PANEL_ORIGIN='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app';
-function qaBranch(env=process.env){return env.VERCEL_ENV==='preview'&&env.VERCEL_GIT_COMMIT_REF===QA_REF&&env.UKI_INVENTARIO_QA_ENABLED==='true';}
+function qaBranch(env=process.env){return env.VERCEL_ENV==='preview'&&
+ (env.VERCEL_GIT_COMMIT_REF===QA_REF||env.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2)&&
+ env.UKI_INVENTARIO_QA_ENABLED==='true';}
+function qaMenuOrigin(origin){
+ return /^https:\/\/uki-sushi-pedidos-[a-z0-9-]+-diannaleandra-7046\.vercel\.app$/.test(origin);
+}
+function qaOwnOrigin(origin,env=process.env){
+ return qaBranch(env)&&!!env.VERCEL_URL&&origin==='https://'+env.VERCEL_URL;
+}
 function allowedOrigin(origin,env=process.env){
- return ORIGINS.has(origin)||(qaBranch(env)&&(origin===QA_MENU_ORIGIN||origin===QA_PANEL_ORIGIN));
+ return ORIGINS.has(origin)||(qaBranch(env)&&(qaMenuOrigin(origin)||origin===QA_PANEL_ORIGIN))||qaOwnOrigin(origin,env);
 }
 const PROJECT='uki-panel-f4909';
 const fail=(res,code,error)=>res.status(code).json({ok:false,error});
