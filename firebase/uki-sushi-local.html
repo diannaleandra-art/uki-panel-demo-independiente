@@ -1277,6 +1277,113 @@ function leerTextoD(){
   render();
   setTimeout(()=>{const el=document.getElementById("pegaTxt"); if(el && tmpTexto){ el.value=tmpTexto; }},50);
 }
+
+// Enlace manual del timbre dentro del pedido. No usa servicios de pago ni APIs externas.
+function ukiNumeroTimbreWhatsApp(telefono){
+ const raw=String(telefono||'').trim(),numero=ukiTelefonoNormalizado(raw);
+ if(/^569\d{8}$/.test(numero))return numero;
+ if(/^\+/.test(raw)&&/^[1-9]\d{9,14}$/.test(numero))return numero;
+ return '';
+}
+function ukiTimbreObligatorioGuardar(d,original){
+ return !!d?.pagado&&!d.productosPagadosOtroLocal&&!!String(d.telefono||'').trim()&&
+   (!d.editando||!original?.pagado);
+}
+function ukiFirmaTimbreBorrador(d){
+ return JSON.stringify([S.suc,d.editando||null,String(d.cliente||'').trim(),
+   ukiTelefonoNormalizado(d.telefono),d.codigoCarta||'',d.cartaSolicitudRemotaId||'',
+   d.modalidad,d.fecha,d.pagado,d.productosPagadosOtroLocal,d.medio,d.medioEnvio,
+   d.envio,d.propinaModo,d.propinaPersonalizada,d.medioPropina,
+   d.mixtoProductos,d.mixtoEnvio,d.pagosProductos,d.pagosEnvio,d.localPagoExterno,
+   d.envioPagadoOtroLocal,d.montoEnvioOtroLocal,d.montoProductosOtroLocal,
+   (d.items||[]).filter(x=>x.nombre).map(x=>[x.nombre,x.cant,x.precio,x.det])]);
+}
+function ukiTimbreBorradorConfirmado(d){
+ const firma=ukiFirmaTimbreBorrador(d);
+ return !!d.timbreAvisoAbiertoEn&&!!d.timbreAvisoConfirmadoEn&&
+   d.timbreAvisoAbiertoFirma===firma&&d.timbreAvisoConfirmadoFirma===firma;
+}
+function ukiTimbreTextoPedido(nombre,cantidad){
+ const n=Math.min(10,Math.max(0,Number(cantidad)||0));
+ return ["🍣 *UKI SUSHI · TARJETA DE TIMBRES*",
+   "Hola, "+String(nombre||"cliente").trim()+" 👋",
+   "Tu compra suma 1 timbre. Tienes *"+n+"/10 timbres* acumulados.",
+   "🎁 6 compras = 12 piezas gratis.",
+   "🎁 10 compras = 36 piezas + 2 korokes gratis.",
+   "Los timbres tienen vigencia de 3 meses desde cada compra.",
+   "Sucursal: "+S.suc,
+   "¡Gracias por preferir Uki Sushi!"].join("\n");
+}
+function ukiAbrirTimbreBorrador(){
+ const original=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&p.id===D.editando):null;
+ if(!ukiTimbreObligatorioGuardar(D,original))return aviso("El timbre se envía cuando la compra está pagada y tiene WhatsApp.");
+ const numero=ukiNumeroTimbreWhatsApp(D.telefono);
+ if(!numero)return aviso("Revisa el WhatsApp del cliente. Para un cliente sin WhatsApp, deja el campo vacío.");
+ if(!String(D.cliente||'').trim())return aviso("Escribe el nombre del cliente antes de preparar el timbre.");
+ if(!(D.items||[]).some(x=>x.nombre))return aviso("Agrega el producto antes de preparar el timbre.");
+ const cli=getCliente(D.cliente,D.codigoCliente,D.telefono);
+ const acumulados=cli?ventasValidas(cli):0;
+ const firma=ukiFirmaTimbreBorrador(D);
+ D.timbreAvisoAbiertoFirma=firma;D.timbreAvisoConfirmadoFirma="";
+ D.timbreAvisoAbiertoEn=new Date().toISOString();D.timbreAvisoConfirmadoEn="";
+ const mensaje=ukiTimbreTextoPedido(D.cliente,acumulados+1);
+ window.open("https://wa.me/"+numero+"?text="+encodeURIComponent(mensaje),"_blank","noopener,noreferrer");
+}
+function ukiConfirmarTimbreBorrador(marcado){
+ if(!marcado){D.timbreAvisoConfirmadoFirma="";D.timbreAvisoConfirmadoEn="";render();return;}
+ const firma=ukiFirmaTimbreBorrador(D);
+ if(!D.timbreAvisoAbiertoEn||D.timbreAvisoAbiertoFirma!==firma){
+  aviso("Primero pulsa Enviar timbre por WhatsApp. No basta con marcar la casilla.");return;
+ }
+ D.timbreAvisoConfirmadoFirma=firma;D.timbreAvisoConfirmadoEn=new Date().toISOString();
+ D.timbreAvisoConfirmadoPor=ukiTimbreResponsableActual();
+ render();
+}
+function ukiPasoTimbreAntesDeGuardar(pedidoEdicion){
+ if(!D.pagado||D.productosPagadosOtroLocal)return "";
+ if(!String(D.telefono||'').trim())
+  return '<div class="card"><h2>4 · Timbre del pedido</h2><p class="muted">Sin WhatsApp registrado: el pedido se puede guardar normalmente. La tarjeta de timbres queda acumulada para consultar después.</p></div>';
+ if(!ukiTimbreObligatorioGuardar(D,pedidoEdicion))
+  return '<div class="card"><h2>4 · Timbre del pedido</h2><p class="muted">Esta compra ya estaba pagada. No es necesario reenviar el timbre por editarla.</p></div>';
+ const firma=ukiFirmaTimbreBorrador(D);
+ const abierto=D.timbreAvisoAbiertoFirma===firma&&!!D.timbreAvisoAbiertoEn;
+ const enviado=ukiTimbreBorradorConfirmado(D);
+ return '<div class="card" style="border:2px solid var(--accent)"><h2>4 · Enviar timbre antes de guardar</h2>'+
+  '<p class="muted">Pedido con WhatsApp. Envía el aviso desde esta misma venta. El cobro NO se registra hasta guardar.</p>'+
+  '<p><b>Cliente:</b> '+esc(D.cliente||'Sin nombre')+' · <b>WhatsApp:</b> '+esc(D.telefono||'')+'</p>'+
+  '<button type="button" class="big" onclick="ukiAbrirTimbreBorrador()">📲 Enviar timbre por WhatsApp</button>'+
+  '<label class="check" style="margin:12px 0"><input type="checkbox" '+(enviado?'checked':'')+
+  ' '+(abierto?'':'disabled')+' onchange="ukiConfirmarTimbreBorrador(this.checked)">'+
+  '<b>Confirmo que pulsé Enviar en WhatsApp</b></label>'+
+  '<p class="muted">'+(enviado?'✅ Envío confirmado por el agendador. Ya puedes guardar.':
+    abierto?'Regresa de WhatsApp y confirma el envío para habilitar Guardar.':
+    'Primero abre el WhatsApp del cliente con el botón de arriba.')+
+  ' Abrir el enlace no demuestra entrega; esta confirmación es manual.</p></div>';
+}
+function ukiValidarTimbreAntesGuardar(d,original){
+ if(!ukiTimbreObligatorioGuardar(d,original))return true;
+ if(!String(d.cliente||'').trim())return aviso("El timbre necesita el nombre del cliente."),false;
+ if(!ukiNumeroTimbreWhatsApp(d.telefono))
+  return aviso("WhatsApp inválido. Corrige el número o deja el campo vacío si el cliente no tiene WhatsApp."),false;
+ if(!ukiTimbreBorradorConfirmado(d))
+  return aviso("Antes de guardar, envía el timbre por WhatsApp y confirma que pulsaste Enviar."),false;
+ return true;
+}
+function ukiAnotarTimbreConfirmadoEnPedido(p,d){
+ if(!ukiTimbreBorradorConfirmado(d))return;
+ if(!Array.isArray(p.timbreEventos))p.timbreEventos=[];
+ const responsable=String(d.timbreAvisoConfirmadoPor||'Sin turno identificado');
+ p.timbreWhatsAppAbiertoEn=d.timbreAvisoAbiertoEn;
+ p.timbreWhatsAppAbiertoPor=responsable;
+ p.timbreEnviadoEn=d.timbreAvisoConfirmadoEn;
+ p.timbreEnviadoPor=responsable;
+ p.timbreReglaObligatoria=true;
+ p.timbreEventos.push(
+  {tipo:"whatsapp_abierto",fecha:d.timbreAvisoAbiertoEn,responsable},
+  {tipo:"declarado_enviado",fecha:d.timbreAvisoConfirmadoEn,responsable});
+ if(p.timbreEventos.length>60)p.timbreEventos=p.timbreEventos.slice(-60);
+}
+
 function vNuevo(){
   if(!S.suc) return vInicio(); if(!D.fecha) nuevoDraft();
   const sub=D.items.reduce((a,i)=>a+(i.cant||0)*(i.precio||0),0);
@@ -1333,8 +1440,9 @@ function vNuevo(){
     <p class="muted">Solo se consideran ventas los pagos completos confirmados. Los montos mixtos deben sumar exactamente lo que corresponde.</p></div>
   ${pedidoEdicion?.pagado&&(deltaEdicion!==0||pendienteEdicion)?
     '<p class="muted">La diferencia del cobro quedará registrada automáticamente; editar no declara una devolución.</p>':''}
+   ${ukiPasoTimbreAntesDeGuardar(pedidoEdicion)}
    ${D.editando?'<div class="card"><h2>Responsable de la corrección</h2><label for="ukiResponsableEdicion"><b>¿Quién está haciendo este cambio? · Obligatorio</b></label><input id="ukiResponsableEdicion" maxlength="80" autocomplete="off" placeholder="Nombre de quien corrige" value="'+esc(D.responsableEdicion||"")+'" oninput="D.responsableEdicion=this.value"><p class="muted">El nombre, la fecha y el detalle del cambio quedarán en el historial del pedido.</p></div>':''}
-   <button class="big" onclick="ndGuardar()">${D.editando?`💾 Guardar cambios #${D.editando}`:D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición</button>`:""}`;
+   <button class="big" onclick="ndGuardar()" ${ukiTimbreObligatorioGuardar(D,pedidoEdicion)&&!ukiTimbreBorradorConfirmado(D)?'disabled title="Primero confirma el envío del timbre"':''}>${D.editando?`💾 Guardar cambios #${D.editando}`:D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición</button>`:""}`;
 }
 
 // Corrección histórica: el pedido muestra los datos corregidos, pero el cierre ya emitido nunca cambia.
@@ -3704,6 +3812,7 @@ async function ndGuardar(){
     const err=ukiErrorDistribucionPago({...D,...datosPago},sub,envio);
     if(err){aviso(err);return;}
   }
+  if(!ukiValidarTimbreAntesGuardar(D,originalQR))return;
   if(D.editando){
     const p=S.pedidos.find(x=>x.id===D.editando);
     if(p?.estado==="Cancelado"){aviso("El pedido cancelado no se puede modificar.");return;}
@@ -3770,6 +3879,8 @@ async function ndGuardar(){
             saldoPendiente:p.ajusteCobroPendiente?.saldo||0});
         }
       }
+      if(!snapshot.pagado&&D.pagado&&ukiTimbreObligatorioGuardar(D,snapshot))
+        ukiAnotarTimbreConfirmadoEnPedido(p,D);
       if(!cierreHistorico && !p.esPremio && D.cliente && D.pagado && !D.productosPagadosOtroLocal){
         const cli=asegurarCliente(D.cliente,D.codigoCliente,D.telefono);
         cli.gastado+=sub;
@@ -3822,6 +3933,7 @@ async function ndGuardar(){
   const idNuevo=S.nextId++;
   const nuevoPedido={id:idNuevo,numeroTurno,turnoClave,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),cliente:D.cliente,telefono:D.telefono||"",codigoCarta:D.codigoCarta||"",codigoCliente:D.codigoCliente||"",cartaSolicitudRemotaId:String(D.cartaSolicitudRemotaId||""),cartaReservaToken:String(D.cartaReservaToken||""),qrSolicitudes:Array.isArray(D.qrSolicitudes)?[...new Set(D.qrSolicitudes)]:[],sucursalCarta:D.sucursalCarta||"",mesaReferencia:D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():"",modalidad:D.modalidad,envio:envio,medio:D.medio,medioEnvio:D.medioEnvio,...datosPago,pagado:D.pagado,estado:"Pendiente",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),total:total,subtotal:sub,propina:propina,propinaModo:D.propinaModo,medioPropina:D.medioPropina,textoOriginal:D.texto,esPremio:false};
   S.pedidos.push(nuevoPedido);
+  if(ukiTimbreObligatorioGuardar(D,null))ukiAnotarTimbreConfirmadoEnPedido(nuevoPedido,D);
   // La solicitud remota NO era venta; la caja la registra solo aquí.
   // Confirmar el estado remoto cuando Firebase verifique el respaldo.
   if(ukiCartaRemotaActiva){ukiCartaRemotaActiva=null;setTimeout(()=>void ukiCartaConfirmarRespaldados(),1200);}
