@@ -98,3 +98,31 @@ test('El JavaScript íntegro del panel es sintácticamente válido',()=>{
  assert.ok(main);
  assert.doesNotThrow(()=>new vm.Script(main));
 });
+test('Primero el último PEDIDO registrado aunque la fecha del timbre sea distinta',()=>{
+ const S={suc:'Uki Regimiento Arica',pedidos:[
+  {id:1,suc:'Uki Regimiento Arica',registradoEn:1000},
+  {id:2,suc:'Uki Regimiento Arica',registradoEn:3000},
+  {id:3,suc:'Uki Regimiento Arica',registradoEn:2000}
+ ]};
+ const ctx={S,fechaRegistroMs:p=>p.registradoEn};
+ vm.createContext(ctx);
+ vm.runInContext(section('function ukiRegistroTimbreMs(m){','function vClientes(){'),ctx);
+ const compras=[
+  {tipo:'venta',pedidoId:1,fecha:'2026-11-09T20:00:00Z'},
+  {tipo:'venta',pedidoId:2,fecha:'2026-11-09T08:00:00Z'},
+  {tipo:'venta',pedidoId:3,fecha:'2026-11-09T15:00:00Z'}
+ ];
+ const orden=compras.slice().sort((a,b)=>ctx.ukiRegistroTimbreMs(b)-ctx.ukiRegistroTimbreMs(a));
+ assert.deepEqual(orden.map(m=>m.pedidoId),[2,3,1]);
+ const tarjetas=[
+  {nombre:'Primero',movimientos:[compras[0]]},
+  {nombre:'Último',movimientos:[compras[1]]},
+  {nombre:'Medio',movimientos:[compras[2]]}
+ ];
+ tarjetas.sort((a,b)=>ctx.ukiUltimaCompraClienteMs(b)-ctx.ukiUltimaCompraClienteMs(a));
+ assert.deepEqual(tarjetas.map(x=>x.nombre),['Último','Medio','Primero']);
+ const vista=section('function vClientes(){','function compartirImagenTimbres(');
+ assert.match(vista,/sort\(\(a,b\)=>ukiUltimaCompraClienteMs\(b\)-ukiUltimaCompraClienteMs\(a\)/);
+ assert.match(vista,/sort\(\(a,b\)=>b\.registroMs-a\.registroMs/);
+ assert.match(vista,/Primero el último pedido registrado/);
+});
