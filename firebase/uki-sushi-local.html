@@ -191,6 +191,17 @@ color:#955115;box-shadow:0 2px 10px rgba(0,0,0,.12);font-weight:800;font-size:19
 .uki-navegacion-compacta select{width:100%;min-height:42px}
 .uki-navegacion-compacta details summary{font-size:13px;color:#7a6355}
 </style>
+
+<style>
+.uki-filtros-pedidos{padding:12px!important;margin-bottom:8px!important}
+.uki-filtros-pedidos .chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.uki-filtros-pedidos .chip{font-size:13px!important;padding:6px 9px!important;min-height:34px!important;margin:0!important}
+.uki-filtros-pedidos details summary{font-size:13px}
+.uki-filtros-pedidos .uki-contador-pedidos{font-size:12px;margin:6px 0 0}
+.uki-filtros-pedidos .uki-carta-estado-compacto{padding:5px 0}
+.uki-filtros-pedidos .uki-carta-estado-compacto .sm{margin-top:10px}
+.uki-reportes-propinas summary{cursor:pointer}
+</style>
 </head>
 <body>
 <header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.16 · LOCALES</h1><small id="ukiEstadoOperativo" role="status">Nube: desactivada · Abre tu sucursal y carga Firebase</small></header>
@@ -3747,12 +3758,12 @@ function vPedidos(){
     ${aceptadasPendientesDeConciliar.map(r=>'<p><b>Carta #'+esc(r.codigo_pedido||'sin código')+'</b> · '+esc(r.cliente||'Cliente sin identificar')+' · WhatsApp '+esc(r.telefono||'por verificar')+'</p>').join('')}
     </details>`:''}
   <button class="big cta" onclick="ir('nuevo')">＋ Nuevo pedido</button>
-  <div class="card"><h2 style="margin:0 0 8px">Clasificar pedidos</h2>
+  <div class="card uki-filtros-pedidos"><div class="row" style="align-items:center"><h2 style="margin:0;font-size:15px">Pedidos por estado</h2><span class="muted" style="font-size:12px">${visibles.length} a la vista</span></div>
     <div class="chips" role="group" aria-label="Filtrar pedidos por estado y pago">${categorias}</div>
     <details style="margin-top:10px" ${categoriaExtraActiva?'open':''}><summary style="cursor:pointer"><b>Más filtros</b></summary>
       <div class="chips" role="group" aria-label="Otros estados de pedidos" style="margin-top:10px">${categoriasExtra}</div></details>
-    <p class="muted">📲 Carta normal: ${esc(ukiCartaRemotas.status)} <button type="button" class="sm" onclick="ukiCartaRemotasActualizar()">Actualizar</button></p>
-    <p class="muted">${visibles.length+visiblesSolicitudes.length+visiblesRemotas.length} registro(s) en «${esc((UKI_CATEGORIAS_PEDIDOS.find(x=>x[0]===filtroCategoriaPedidos)||[])[1]||"Todos")}». Los rechazados no suman a caja, ventas ni timbres.</p></div>
+    <details class="uki-carta-estado-compacto" style="margin-top:8px"><summary>📲 Carta digital · ${esc(ukiCartaRemotas.status)} · Ver estado</summary><button type="button" class="sm" onclick="ukiCartaRemotasActualizar()">Actualizar solicitudes</button><p class="muted">Las solicitudes rechazadas no suman a ventas, caja ni timbres.</p></details>
+    <p class="muted uki-contador-pedidos">${visibles.length+visiblesSolicitudes.length+visiblesRemotas.length} registro(s) en «${esc((UKI_CATEGORIAS_PEDIDOS.find(x=>x[0]===filtroCategoriaPedidos)||[])[1]||"Todos")}»</p></div>
   ${(filtroCategoriaPedidos==="todos"||filtroCategoriaPedidos==="por-confirmar")?ukiMesasUI():""}
   ${pedidosArchivoDia||buscando?'<button class="sm" onclick="limpiarFiltrosPedidos()">← Volver al turno abierto</button>':''}
   <details class="card" ${buscando?'open':''}><summary style="cursor:pointer"><b>🔎 Buscar por nombre, WhatsApp, código del cliente, pedido o fecha</b></summary>
