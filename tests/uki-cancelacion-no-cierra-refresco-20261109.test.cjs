@@ -83,7 +83,7 @@ test('Mientras se escribe el motivo NO se reemplaza la pantalla por refresco',()
  ctx.S.msg='Cancelado';
  assert.equal(vm.runInContext('ukiEscribiendoCancelacion()',ctx),false);
  const render=seg('function render(){','function pedirPin(s){');
- assert.match(render,/if\(ukiEscribiendoCancelacion\(\)\)return/);
+ assert.match(render,/if\(ukiEscribiendoCancelacion\(\)\)\{void guardarEnLocalStorage\(\);return;\}/);
  assert.match(render,/ukiCapturarVistaAntesRender\(\)/);
  assert.match(render,/ukiRestaurarVistaTrasRender\(ukiVistaAnterior\)/);
 });
