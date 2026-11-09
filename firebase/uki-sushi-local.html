@@ -1714,11 +1714,16 @@ function ukiCorreccionesTurnoUI(p){
   cambios.slice().reverse().map(a=>{
    const antes=a.antes||{},despues=a.despues||{};
    const regularizada=a.accion==='diferencia_regularizada';
+   const aclaracion=a.accion==='pago_erroneo_no_cobrado'||a.accion==='devolucion_cancelacion_confirmada';
    const formaAntes=medios(antes),formaDespues=medios(despues);
    const productosAntes=items(antes),productosDespues=items(despues);
    return '<div style="padding:11px 0;border-bottom:1px solid var(--line)">'+
     '<p style="margin:0 0 5px"><b>Registró: '+esc(a.responsable||'Responsable no identificado en registro anterior')+'</b> · '+esc(a.fechaISO||'Fecha no registrada')+'</p>'+
     (regularizada?'<p class="muted">Diferencia de caja regularizada: '+fmt(Math.abs(Number(a.importe)||0))+'</p>':
+     aclaracion?'<p class="muted">'+(a.accion==='pago_erroneo_no_cobrado'?
+      'Declaró que NO se recibió un cobro marcado por error: ':
+      'Confirmó devolución YA realizada: ')+fmt(Math.abs(Number(a.importe)||0))+
+      '</p><p class="muted">Motivo: '+esc(a.detalleMotivo||'Sin texto')+'</p>':
      '<p class="muted">Total: '+fmt(antes.total||0)+' → '+fmt(despues.total||0)+'</p>'+
      (formaAntes!==formaDespues?'<p class="muted">Forma de pago: '+esc(formaAntes)+' → '+esc(formaDespues)+'</p>':'')+
      (antes.pagado!==despues.pagado?'<p class="muted">Estado del pago: '+(antes.pagado?'Confirmado':'Pendiente')+' → '+(despues.pagado?'Confirmado':'Pendiente')+'</p>':'')+
@@ -4130,7 +4135,7 @@ function vPedidos(){
     <label>Solucion (opcional)</label><textarea rows="2" id="incSolucion${p.id}" placeholder="Ej: reposicion enviada"></textarea>
     <button class="sm ok" onclick="anotarIncidencia(${p.id})">Guardar error</button></details>
     <div class="order-actions">${ukiCuentaAbierta(p)&&esDelPeriodo(p)?`<button class="sm ok" onclick="ukiAgregarACuenta(${p.id})">+ Agregar a cuenta</button>`:""}${p.estado!=="Cancelado"?`<button class="sm ok" onclick="editarPedido(${p.id})">Editar</button><button class="sm" onclick="togglePagado(${p.id})">${p.pagado?'Quitar pagado':'Marcar pagado'}</button>${p.estado==="Pendiente"?`<button class="sm ok" onclick="ukiMarcarPedidoEntregado(${p.id})">✓ Marcar entregado</button>`:""}`:""}<button class="sm" onclick="copiarComanda(${p.id})">Copiar comanda</button></div>
-    ${p.estado!=="Cancelado"&&!p.esPremio?`<details class="inner-details uki-cancelar-pedido" style="padding:12px;margin-top:12px;border:1px solid #e7c8b3;border-radius:12px"><summary style="cursor:pointer;color:#9b3328;font-weight:750">❌ Cancelar pedido</summary>${puedeCancelarPedido(p)?`<div style="margin-top:12px"><label for="motivoCancelacion${p.id}">¿Quién canceló? · Obligatorio</label><select id="motivoCancelacion${p.id}"><option value="">Selecciona una opción</option><option value="cliente">Lo canceló el cliente</option><option value="local">Lo canceló el local</option></select><label for="detalleCancelacion${p.id}">¿Por qué se cancela? · Motivo obligatorio</label><textarea id="detalleCancelacion${p.id} rows="2" maxlength="300" placeholder="Ej.: El cliente desistió del pedido"></textarea><button class="sm" type="button" onclick="cancelarPedido(${p.id})" style="color:#9b3328;border-color:#dcb4a5">Confirmar cancelación del pedido</button><p class="muted">El motivo queda guardado y no crea otro cobro.</p></div>`:`<p class="muted" style="margin-top:10px">${esc(ukiAyudaCancelarPedido(p))}</p>`}</details>`:""}
+    ${p.estado!=="Cancelado"&&!p.esPremio?`<details class="inner-details uki-cancelar-pedido" style="padding:12px;margin-top:12px;border:1px solid #e7c8b3;border-radius:12px"><summary style="cursor:pointer;color:#9b3328;font-weight:750">❌ Cancelar pedido</summary>${ukiFormularioCancelarDisponible(p)?`<div style="margin-top:12px"><label for="motivoCancelacion${p.id}">¿Quién canceló? · Obligatorio</label><select id="motivoCancelacion${p.id}"><option value="">Selecciona una opción</option><option value="cliente">Lo canceló el cliente</option><option value="local">Lo canceló el local</option></select><label for="detalleCancelacion${p.id}">¿Por qué se cancela? · Motivo obligatorio</label><textarea id="detalleCancelacion${p.id}" rows="2" maxlength="300" placeholder="Ej.: El cliente desistió del pedido"></textarea>${ukiCobroPendiente(p)?`<div class="mini-help" style="padding:10px;margin-top:12px;border-left:3px solid var(--accent)"><b>¿Qué pasó con el dinero que figuraba pagado? · ${fmt(Number(ukiCobroPendiente(p).saldo))}</b><p class="muted">El pago anterior puede haberse marcado por error. No significa que haya devolución.</p><select id="cobroCancelacion${p.id}"><option value="">Selecciona qué ocurrió</option><option value="no_recibido">Nunca recibimos ese dinero; se marcó pagado por error</option><option value="devuelto">Sí se cobró, pero YA lo devolvimos al cliente</option><option value="pendiente">Sí se cobró y todavía falta devolverlo</option></select><label for="respCancelacion${p.id}">¿Quién verificó el dinero? · Obligatorio</label><input id="respCancelacion${p.id}" maxlength="80" autocomplete="off" placeholder="Nombre del responsable"><p class="muted">No se puede cancelar si falta devolver dinero. El panel no realiza devoluciones.</p></div>`:""}<p id="ukiErrorCancelar${p.id}" role="alert" hidden style="padding:10px;border-radius:10px;background:#ffece4;color:#863417;margin:10px 0"></p><button class="sm" type="button" onclick="cancelarPedido(${p.id})" style="color:#9b3328;border-color:#dcb4a5">Confirmar cancelación del pedido</button><p class="muted">El motivo queda guardado y no crea otro cobro.</p></div>`:`<p class="muted" style="margin-top:10px">${esc(ukiAyudaCancelarPedido(p))}</p>`}</details>`:""}
     </div></details>`).join('')}
   ${visiblesRemotas.filter(r=>!mostrarPrioridad||r.estado!=='pendiente').map(r=>ukiCartaRemotaFicha(r)).join('')}
   ${visiblesSolicitudes.filter(r=>!mostrarPrioridad||r.estado!=='pendiente').map(s=>'<div class="card order-card"><p class="muted"><b>Origen: WhatsApp · '+(s.estado==="rechazada"?"RECHAZADO":"Pendiente de confirmación")+'</b></p>'+ukiWhatsAppFicha(s,s.estado==="pendiente")+'</div>').join('')}
@@ -4165,11 +4170,11 @@ function ukiPrepararAjusteCobro(antes,despues,yaRegularizado){
 }
 function ukiDiferenciaPedidoUI(p){
  const q=ukiCobroPendiente(p);if(!q)return '';
- const n=Number(q.saldo)||0,txt=n>0?'Por devolver al cliente':n<0?'Por cobrar al cliente':'Diferencia de cobro';
+ const n=Number(q.saldo)||0,txt=n>0&&!p.pagado?'Cobro anterior por aclarar (no necesariamente devolución)':n>0?'Por devolver al cliente':n<0?'Por cobrar al cliente':'Diferencia de cobro';
  const accion=n>0?'Confirmar devolución realizada':n<0?'Confirmar cobro adicional realizado':'Regularizar diferencia';
  return '<div class="card" style="padding:12px;border-left:3px solid var(--accent)">'+
   '<p class="muted"><b>⚠️ '+txt+': '+fmt(Math.abs(n))+'</b></p>'+
-  '<p class="muted">La caja conserva lo realmente cobrado. Confirma solamente después de entregar o recibir el dinero.</p>'+
+  '<p class="muted">'+(n>0&&!p.pagado?'Si se marcó Pagado por error, acláralo dentro de «Cancelar pedido». ':'')+'Confirma una devolución solo si realmente se entregó dinero al cliente. El panel no mueve dinero automáticamente.</p>'+
   (esDelPeriodo(p)&&!ukiCierreConfirmadoPedido(p)?
    '<button class="sm ok" type="button" onclick="ukiConfirmarDiferenciaPedido('+Number(p.id)+')">'+accion+'</button>':
    '<p class="muted">Pertenece a un cierre anterior: revisar en historial.</p>')+'</div>';
