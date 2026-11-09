@@ -2116,8 +2116,15 @@ function vClientes(){
   const movimientosDelDia=lista.flatMap(c=>(c.movimientos||[])
     .filter(m=>m.tipo==='venta'&&ukiFechaTimbreCalendario(m)===fecha)
     .map(m=>({cliente:c.nombre||'Sin nombre',codigo:ukiCodigoClienteVisible(c),
-      fecha:m.fecha||'',pedidoId:m.pedidoId||null})))
+      fecha:m.fecha||'',pedidoId:m.pedidoId||null,
+      pedido:(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(m.pedidoId))||null})))
     .sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
+  const pendientesTimbreDelDia=movimientosDelDia.filter(m=>m.pedido&&
+    !m.pedido.timbreEnviadoEn&&ukiNumeroTimbreWhatsApp(m.pedido.telefono)).length;
+  const pedidosSinTimbreDelDia=(S.pedidos||[]).filter(p=>
+    p.suc===S.suc&&p.pagado&&p.estado!=='Cancelado'&&!p.esPremio&&
+    !p.productosPagadosOtroLocal&&
+    ukiFechaCalendarioChile(fechaRegistroMs(p))===fecha&&!ukiTimbreMovimientoRegistrado(p));
   const fechas=new Map();
   for(const c of clientes)for(const m of c.movimientos||[]){
     const f=ukiFechaTimbreCalendario(m);
@@ -2137,11 +2144,25 @@ function vClientes(){
     <div class="card" style="margin:0"><h2 style="font-size:12px">Clientes del día</h2><b>${lista.length}</b></div>
     <div class="card" style="margin:0"><h2 style="font-size:12px">Timbres ganados</h2><b>${movimientosDelDia.length}</b></div>
     <div class="card" style="margin:0"><h2 style="font-size:12px">Premios 10</h2><b>${lista.filter(c=>ventasValidas(c)>=10).length}</b></div></div></div>
-  <details class="card" open><summary style="cursor:pointer"><b>🎫 Timbres ganados el ${esc(fecha)} · ${movimientosDelDia.length}</b></summary>
-    <p class="muted">Desde las 00:00 hasta las 23:59 (hora de Chile), aunque el local haya cerrado un turno. Solo consulta: no modifica caja ni timbres.</p>
-    ${movimientosDelDia.map(m=>'<div class="row"><span>'+esc(m.cliente)+(m.codigo?' · '+esc(m.codigo):'')+
-       (m.pedidoId?' · Pedido #'+esc(m.pedidoId):'')+'</span><b>'+esc(m.fecha?new Date(m.fecha).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit',timeZone:'America/Santiago'}):'Hora sin registrar')+'</b></div>').join('')||
-       '<p class="muted">No hay timbres ganados en esta fecha.</p>'}
+  <details class="card" open><summary style="cursor:pointer"><b>🎫 Timbres del ${esc(fecha)} · ${movimientosDelDia.length} ganados · ${pendientesTimbreDelDia} por enviar</b></summary>
+    <p class="muted">Ordenados del más reciente al más antiguo por hora del timbre, incluyendo turnos ya cerrados. Un registro por compra. Confirmar envío no modifica el cobro.</p>
+    ${movimientosDelDia.map(m=>'<div style="padding:11px 0;border-bottom:1px solid var(--line)"><div class="row"><span><b>'+esc(m.cliente)+'</b>'+
+      (m.codigo?' · Código '+esc(m.codigo):'')+
+      (m.pedidoId?' · Pedido #'+esc(m.pedidoId):'')+'</span><b>'+
+      esc(m.fecha?new Date(m.fecha).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit',timeZone:'America/Santiago'}):'Sin hora')+
+      '</b></div><p class="muted" style="margin:6px 0">'+
+      (!m.pedido?'⚠️ Sin pedido vinculado: revisar':m.pedido.timbreEnviadoEn?'✅ Declarado enviado':
+       ukiNumeroTimbreWhatsApp(m.pedido.telefono)?'⚪ Pendiente de enviar':'ℹ️ Cliente sin WhatsApp registrado')+
+      '</p>'+
+      (m.pedido&&ukiNumeroTimbreWhatsApp(m.pedido.telefono)?
+        '<button type="button" class="sm ok" onclick="ukiAbrirTimbrePedido('+Number(m.pedido.id)+')">📲 Abrir WhatsApp</button> '+
+        '<button type="button" class="sm" onclick="ukiMarcarTimbreEnviado('+Number(m.pedido.id)+')">'+
+        (m.pedido.timbreEnviadoEn?'Desmarcar envío':'✓ Confirmar enviado')+'</button>':'')+'</div>').join('')||
+      '<p class="muted">No hay movimientos de timbre registrados en esta fecha.</p>'}
+    ${pedidosSinTimbreDelDia.length?'<details style="padding-top:12px"><summary style="color:#a42b19;font-weight:700">⚠️ Pedidos pagados SIN timbre registrado · '+
+      pedidosSinTimbreDelDia.length+'</summary><p class="muted">Revisar identificación y movimiento antes de enviar. No se crean timbres automáticamente ni se duplican pagos.</p>'+
+      pedidosSinTimbreDelDia.map(p=>'<p>'+esc(ukiReferenciaConCarta(p))+' · '+esc(p.cliente||'Cliente sin nombre')+'</p>').join('')+
+      '</details>':''}
   </details>
   ${buscarTimbresPorFecha()}
   <details class="card"><summary style="cursor:pointer"><b>📚 Timbres de días anteriores</b> · ${dias.length} días</summary>
