@@ -168,7 +168,7 @@ test('Panel organiza opciones base y personalizadas de vegetales, proteínas y e
  assert.ok(chips.includes('Palta')&&chips.includes('Pollo')&&chips.includes('Panko'));
  assert.ok(!chips.includes('Frutilla'),'No duplicar Frutilla agregada respecto de la base');
  const html=fs.readFileSync('firebase/uki-sushi-local.html','utf8');
- assert.match(html,/uki-armado-ingredientes-admin\.js\?v=uki-listas-organizadas-20261109/);
+ assert.match(html,/uki-armado-ingredientes-admin\.js\?v=uki-tres-vistas-qa-20261109/);
 });
 
 test('Panel muestra resumen por sucursal de promociones con acceso a precios existentes',()=>{
@@ -180,19 +180,56 @@ test('Panel muestra resumen por sucursal de promociones con acceso a precios exi
  const target=createElement('root'),search={value:''},group={value:''};
  const roots={ukiPromosListaResumen:target,ukiPriceSearch:search,ukiPriceGroup:group,
   ukiPriceList:{style:{},scrollIntoView(){}}};
- let refreshed=0;
+ const details=[];
  const state={items:[{kind:'monthly',name:'Promo especial QA',price:16000,visible:true},
   {kind:'classic',name:'Clásico QA',price:8000}],group:'all',query:''};
  vm.runInNewContext(code.slice(a,b)+'\nrenderPromoResumen();',{
-  document:{createElement},state,$:id=>roots[id],renderPrices:()=>refreshed++
+  document:{createElement},state,$:id=>roots[id],
+  visibilityControl:()=>createElement('button'),
+  line:(item,hideVisibility)=>{details.push({name:item.name,hideVisibility});return createElement('editor')}
  });
  const rows=target.children.filter(x=>x.tag==='div');
  assert.equal(rows.length,1);
  assert.match(rows[0].children[0].children[0].textContent,/Promo especial QA/);
  assert.match(rows[0].children[0].children[1].textContent,/16\.000/);
- rows[0].children[1].onclick();
- assert.equal(group.value,'monthly');assert.equal(search.value,'Promo especial QA');
- assert.equal(refreshed,1);
+ assert.equal(rows[0].children[1].tag,'details');
+ assert.match(rows[0].children[1].children[0].textContent,/Editar \/ ver detalles/);
+ assert.deepEqual(details,[{name:'Promo especial QA',hideVisibility:true}]);
+ assert.equal(rows[0].children[2].tag,'button','Retirar o restaurar permanece visible');
  const html=fs.readFileSync('firebase/uki-sushi-local.html','utf8');
- assert.match(html,/uki-carta-precios-admin\.js\?v=uki-listas-organizadas-20261109/);
+ assert.match(html,/uki-carta-precios-admin\.js\?v=uki-tres-vistas-qa-20261109/);
+});
+
+
+test('QA organización: cada área de carta contiene buscar, agregar y acceso a retirar sin perder controles',()=>{
+ const precios=fs.readFileSync('firebase/uki-carta-precios-admin.js','utf8');
+ const ingredientes=fs.readFileSync('firebase/uki-armado-ingredientes-admin.js','utf8');
+ const html=fs.readFileSync('firebase/uki-sushi-local.html','utf8');
+ assert.doesNotThrow(()=>new vm.Script(precios));
+ assert.doesNotThrow(()=>new vm.Script(ingredientes));
+ for(const name of ['productos','ingredientes','promociones'])
+  assert.match(precios,new RegExp("'"+name+"'"));
+ assert.match(precios,/function organizarCarta\(\)/);
+ assert.match(precios,/window\.ukiCartaSeleccion=choose/);
+ assert.match(precios,/areas\[name\]\.hidden=name!==key/);
+ assert.match(precios,/ukiPriceSearch/);
+ assert.match(precios,/ukiPriceAddBox/);
+ assert.match(precios,/ukiPriceList/);
+ assert.match(precios,/ukiPromoBuscar/);
+ assert.match(precios,/ukiPromoAddBox/);
+ assert.match(precios,/ukiPromosResumen/);
+ assert.match(precios,/row\.append\(visibilityControl\(promo\)\)/);
+ assert.match(precios,/Buscar en todas/);
+ assert.match(ingredientes,/ukiIngBuscar/);
+ assert.match(ingredientes,/ukiCartaAreaIngredientes/);
+ assert.match(ingredientes,/ukiIngAddPlegable/);
+ assert.match(ingredientes,/function renderEditorIngrediente\(item,target\)/);
+ assert.match(ingredientes,/request\(remove\?'retirar':'restaurar'/);
+ assert.match(html,/uki-carta-precios-admin\.js\?v=uki-tres-vistas-qa-20261109/);
+ assert.match(html,/uki-armado-ingredientes-admin\.js\?v=uki-tres-vistas-qa-20261109/);
+ // Las funciones originales siguen disponibles y fuera de los nuevos filtros.
+ for(const text of ['function visibilityControl','function crearPromo','function loadPrices','function renderPrices','function create','function promoEditor'])
+  assert.ok(precios.includes(text),text);
+ for(const text of ['async function request','async function send','async function toggleIngredient','async function load','function render'])
+  assert.ok(ingredientes.includes(text),text);
 });
