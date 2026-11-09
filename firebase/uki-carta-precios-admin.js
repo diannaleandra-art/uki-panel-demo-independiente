@@ -461,11 +461,19 @@ function renderPrices(){
  const target=$('ukiPriceList');if(!target)return;
  target.replaceChildren();
  const query=state.query.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
- const filtered=state.items.filter(x=>(state.group==='all'||x.kind===state.group)&&
+ const filtered=state.items.filter(x=>(state.group==='all'?x.kind!=='monthly':x.kind===state.group)&&
   (!query||(x.name+' '+x.sku).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(query)));
  const title=document.createElement('p');title.className='muted';title.textContent=filtered.length+' productos encontrados';target.append(title);
  for(const item of filtered)target.append(line(item));
- if(!filtered.length){const p=document.createElement('p');p.textContent='No hay productos en esta búsqueda.';target.append(p);}
+ if(!filtered.length){
+  const p=document.createElement('p');p.textContent=query&&state.group!=='all'?
+   'No hay resultados en esta categoría. Prueba Todas las categorías.':'No hay productos en esta búsqueda.';
+  target.append(p);
+  if(query&&state.group!=='all'){
+   const btn=document.createElement('button');btn.className='sm';btn.type='button';btn.textContent='Buscar en todas';
+   btn.onclick=()=>{state.group='all';$('ukiPriceGroup').value='all';renderPrices();};target.append(btn);
+  }
+ }
 }
 async function loadPrices(force=false){
  if(state.busy)return;
