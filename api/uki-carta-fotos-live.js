@@ -5,7 +5,20 @@ const {url:dbUrl}=require('../lib/uki-inventario-db-live.cjs');
 const {baseItems}=require('../lib/uki-catalogo-v1.cjs');
 const ORIGINS=new Set(['https://diannaleandra-art.github.io','https://uki-sushi-pedidos.vercel.app']);
 const BRANCHES=new Set(['arica','serena']);
+const QA_REF_ETAPA2='integracion/uki-promociones-ingredientes-seguros-qa-20261109';
+// En preview sólo funciona con la rama exacta, bandera QA y URL Neon QA validada por dbUrl.
+const promocionesHabilitadas=env=>env.UKI_PROMOS_VISIBILIDAD_ENABLED==='true';
+const enabled=env=>(env.VERCEL_ENV==='production'&&env.UKI_INGREDIENTES_ARMADO_ENABLED==='true')||
+ (env.VERCEL_ENV==='preview'&&env.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2&&env.UKI_INVENTARIO_QA_ENABLED==='true');
 const KINDS=new Set(['classic','premium','monthly','pizza','dish','topping']);
+const sameQAOrigin=(origin,env=process.env)=>enabled(env)&&env.VERCEL_ENV==='preview'&&
+ !!env.VERCEL_URL&&origin==='https://'+env.VERCEL_URL;
+// La carta de prueba solo puede LEER fotos, nunca modificarlas: POST sigue
+// limitado al panel autenticado. QA requiere rama y base separada.
+const qaMenuAllowed=(origin,env=process.env)=>env.VERCEL_ENV==='preview'&&
+ env.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2&&env.UKI_INVENTARIO_QA_ENABLED==='true'&&
+ /^https:\/\/uki-sushi-pedidos-[a-z0-9-]+-diannaleandra-7046\.vercel\.app$/.test(origin);
+const originAllowed=(origin,env=process.env)=>ORIGINS.has(origin)||sameQAOrigin(origin,env)||qaMenuAllowed(origin,env);
 const fail=(res,code,error)=>res.status(code).json({ok:false,error});
 function validSku(value){
  if(typeof value!=='string'||value.length<5||value.length>120||!/^[a-z]+:[a-z0-9-]+$/.test(value))return false;
@@ -34,24 +47,28 @@ async function authorize(req,env){
  if(!ids.includes(payload.sub)&&!(email&&payload.email_verified===true&&emails.includes(email)))return null;
  return String(payload.sub);
 }
-async function productExists(sql,branch,sku){
+async function productExists(sql,branch,sku,env=process.env){
  const base=await baseItems(branch);
  if(base.some(x=>x.sku===sku&&x.kind!=='ingredient'))return true;
- const custom=await sql.query('SELECT sku FROM public.uki_carta_productos_custom_v1 WHERE branch=$1 AND sku=$2 LIMIT 1',[branch,sku]);
- return custom.length>0;
+ const [custom,promos]=await Promise.all([
+  sql.query('SELECT sku FROM public.uki_carta_productos_custom_v1 WHERE branch=$1 AND sku=$2 LIMIT 1',[branch,sku]),
+  promocionesHabilitadas(env)?
+   sql.query('SELECT sku FROM public.uki_carta_promos_custom_v1 WHERE branch=$1 AND sku=$2 LIMIT 1',[branch,sku]):Promise.resolve([])
+ ]);
+ return custom.length>0||promos.length>0;
 }
 module.exports=async function(req,res){
  const origin=String(req.headers?.origin||''),env=process.env;
  res.setHeader('Cache-Control','no-store');res.setHeader('Vary','Origin');
  res.setHeader('X-Content-Type-Options','nosniff');
- if(origin&&ORIGINS.has(origin)){res.setHeader('Access-Control-Allow-Origin',origin);
+ if(origin&&originAllowed(origin,env)){res.setHeader('Access-Control-Allow-Origin',origin);
   res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers','Content-Type,Authorization');
  }
- if(req.method==='OPTIONS')return res.status(ORIGINS.has(origin)?204:403).end();
+ if(req.method==='OPTIONS')return res.status(originAllowed(origin,env)?204:403).end();
  if(!['GET','POST'].includes(req.method))return fail(res,405,'Método no permitido');
- if(origin&&!ORIGINS.has(origin))return fail(res,403,'Origen no autorizado');
- if(env.VERCEL_ENV!=='production'||env.UKI_INGREDIENTES_ARMADO_ENABLED!=='true')
+ if(origin&&!originAllowed(origin,env))return fail(res,403,'Origen no autorizado');
+ if(!enabled(env))
   return fail(res,503,'Fotos de carta aún no habilitadas');
  const branch=String(req.method==='GET'?req.query?.branch||'':req.body?.branch||'');
  if(!BRANCHES.has(branch))return fail(res,400,'Sucursal inválida');
@@ -71,7 +88,7 @@ module.exports=async function(req,res){
    const rows=await sql.query('SELECT sku,version,mime FROM public.uki_carta_fotos_v1 WHERE branch=$1 ORDER BY sku LIMIT 200',[branch]);
    return res.status(200).json({ok:true,branch,items:rows.map(x=>({sku:x.sku,version:Number(x.version),mime:x.mime}))});
   }
-  if(origin!=='https://diannaleandra-art.github.io')return fail(res,403,'Solo administración');
+  if(origin!=='https://diannaleandra-art.github.io'&&!sameQAOrigin(origin,env))return fail(res,403,'Solo administración');
   if(String(req.headers?.['content-type']||'').split(';')[0]!=='application/json')
    return fail(res,415,'Se requiere JSON');
   if(!req.body||JSON.stringify(req.body).length>355000)return fail(res,400,'Imagen demasiado grande');
@@ -101,4 +118,4 @@ module.exports=async function(req,res){
   return fail(res,503,'Servicio de fotos temporalmente no disponible; tus productos no cambiaron');
  }
 };
-module.exports._test={validPicture,validSku,productExists};
+module.exports._test={validPicture,validSku,productExists,enabled,originAllowed,sameQAOrigin,promocionesHabilitadas};

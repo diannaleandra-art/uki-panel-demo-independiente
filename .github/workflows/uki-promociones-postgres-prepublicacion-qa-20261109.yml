@@ -1,0 +1,34 @@
+name: Uki prepublicación · PostgreSQL aislado · promociones
+on:
+  push:
+    branches:
+      - integracion/uki-promociones-ingredientes-seguros-qa-20261109
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ensayo-postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ukiqa
+          POSTGRES_PASSWORD: prueba-aislada-2026
+          POSTGRES_DB: ukiqa
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ukiqa -d ukiqa"
+          --health-interval 3s --health-timeout 3s --health-retries 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Instalar cliente SQL para ensayo local
+        run: npm install --no-save --ignore-scripts pg@8.13.1
+      - name: Ejecutar migración y ciclo de promociones EN POSTGRES LOCAL
+        env:
+          UKI_QA_LOCAL_POSTGRES_URL: postgresql://ukiqa:prueba-aislada-2026@127.0.0.1:5432/ukiqa
+        run: node --test tests/uki-promociones-postgres-ciclo-real-20261109.test.cjs

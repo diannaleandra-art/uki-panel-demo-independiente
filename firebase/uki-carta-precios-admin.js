@@ -2,10 +2,13 @@
    No modifica pedidos, caja, reportes de ventas ni cierres. */
 (function(){
 'use strict';
-const API='https://uki-sushi-inventario.vercel.app/api/uki-carta-precios-live';
-const STOCK_API='https://uki-sushi-inventario.vercel.app/api/inventario-turno-live';
-const PHOTO_API='https://uki-sushi-inventario.vercel.app/api/uki-carta-fotos-live';
-const state={tab:'inventario',branch:'',items:[],photos:{},query:'',group:'all',busy:false,ready:false};
+const QA_HOST=/^(?:uki-sushi-panel|uki-sushi-inventario)-[a-z0-9-]+-diannaleandra-7046\.vercel\.app$/;
+// Los previews usan su propio servidor; nunca escriben en inventario ni carta real.
+const BACKEND=QA_HOST.test(location.hostname)?location.origin:'https://uki-sushi-inventario.vercel.app';
+const API=BACKEND+'/api/uki-carta-precios-live';
+const STOCK_API=BACKEND+'/api/inventario-turno-live';
+const PHOTO_API=BACKEND+'/api/uki-carta-fotos-live';
+const state={tab:'inventario',branch:'',items:[],photos:{},query:'',group:'all',busy:false,ready:false,promocionesHabilitadas:false};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
 const peso=n=>'$'+Number(n).toLocaleString('es-CL');
@@ -52,6 +55,22 @@ const pricesPanel=[
  '<label for="ukiPriceNewDesc">Descripción / ingredientes</label><textarea id="ukiPriceNewDesc" maxlength="500" rows="2" placeholder="Ingredientes del producto"></textarea>',
  '<label for="ukiPriceNewAmount">Precio en pesos chilenos</label><input id="ukiPriceNewAmount" type="number" min="1" max="1000000" inputmode="numeric" placeholder="10900">',
  '<button type="button" class="big" id="ukiPriceCreate">Agregar a la carta</button>',
+ '</details>',
+ '<details id="ukiPromoAddBox" class="card" style="margin-top:14px">',
+ '<summary style="cursor:pointer;font-weight:700">＋ Agregar promoción de sushi con fotografía</summary>',
+ '<p class="muted">La sucursal queda asignada automáticamente. Primero se guarda un borrador; solo aparece en la carta tras guardar su foto tipo banner.</p>',
+ '<label for="ukiPromoName">Nombre de la promoción</label><input id="ukiPromoName" maxlength="100" placeholder="Ej. Promo especial 200 piezas">',
+ '<label for="ukiPromoDescription">Qué incluye</label><textarea id="ukiPromoDescription" maxlength="500" rows="2" placeholder="Pollo, kanikama, envolturas y condiciones">',
+ '<div class="quick-grid"><div><label for="ukiPromoRollCount">Cantidad de rolls</label><input id="ukiPromoRollCount" type="number" inputmode="numeric" min="1" max="20" value="5"></div>',
+ '<div><label for="ukiPromoPiecesPerRoll">Piezas por roll</label><select id="ukiPromoPiecesPerRoll"><option value="12">12 piezas</option><option value="10">10 piezas</option></select></div></div>',
+ '<p id="ukiPromoPieceSummary" class="mini-help">5 rolls × 12 piezas = 60 piezas.</p>',
+ '<div class="quick-grid"><div><label for="ukiPromoSauces">Salsas incluidas</label><input id="ukiPromoSauces" type="number" inputmode="numeric" min="0" max="20" value="5"></div>',
+ '<div><label for="ukiPromoKorokes">Korokes incluidos</label><input id="ukiPromoKorokes" type="number" inputmode="numeric" min="0" max="30" value="0"></div></div>',
+ '<label for="ukiPromoPayment">Medios de pago</label><select id="ukiPromoPayment"><option value="normal">Efectivo y transferencia</option><option value="edenred">Solo Edenred</option><option value="todos">Efectivo, transferencia, tarjetas y Edenred</option></select>',
+ '<label for="ukiPromoPrice">Precio de venta ($)</label><input id="ukiPromoPrice" type="number" inputmode="numeric" min="1" max="1000000" placeholder="16000">',
+ '<label for="ukiPromoPhoto">Foto real o banner de la promoción</label><input id="ukiPromoPhoto" type="file" accept="image/*">',
+ '<p class="muted">Si falla la fotografía, la promoción queda como borrador NO visible para clientes.</p>',
+ '<button type="button" id="ukiPromoCreate" class="big">Guardar promoción y publicar con foto</button>',
  '</details></div>',
  '<div class="card" id="ukiReponerPanel"><h2>🛒 Qué comprar</h2>',
  '<p class="muted">Resumen por sucursal según el último saldo registrado y los mínimos configurados.</p>',
@@ -62,7 +81,7 @@ const pricesPanel=[
  '</div>'
 ].join('');
 window.ukiInventarioPanelHTML=()=>nav+prevPanel()+pricesPanel;
-function branch(){return $('invBranch')?.value||'arica';}
+function branch(){const active=$('invBranch')?.value||'';return ['arica','serena'].includes(active)?active:'';}
 function info(id,message){const el=$(id);if(el)el.textContent=message;}
 async function request(api,action,fields={},atBranch=state.branch){
  // Capturar la sucursal ANTES de esperar el token Google: nunca cruzar precios entre locales.
@@ -71,7 +90,7 @@ async function request(api,action,fields={},atBranch=state.branch){
  if(!token)throw Error('Inicia sesión con Google como administradora de Uki Sushi.');
  const response=await fetch(api,{method:'POST',cache:'no-store',mode:'cors',
   credentials:'omit',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
-  body:JSON.stringify({branch:atBranch,action,...fields})});
+  body:JSON.stringify({...fields,action,branch:atBranch})});
  const data=await response.json().catch(()=>({}));
  if(!response.ok||!data.ok)throw Error(data.error||'No se pudo consultar o guardar');
  return data;
@@ -177,13 +196,141 @@ function photoControls(price){
  }
  return wrap;
 }
+function mediosPromo(valor){
+ return valor==='edenred'?['edenred']:valor==='todos'?
+  ['efectivo','transferencia','debito','credito','edenred']:['efectivo','transferencia'];
+}
+function modoMediosPromo(pagos){
+ const p=Array.isArray(pagos)?pagos:[];
+ if(p.length===1&&p[0]==='edenred')return 'edenred';
+ if(p.length>2)return 'todos';
+ return 'normal';
+}
+function numeroPromo(id){return Number($(id)?.value);}
+function actualizaPiezasPromo(){
+ const el=$('ukiPromoPieceSummary');if(!el)return;
+ const rolls=numeroPromo('ukiPromoRollCount'),pieces=numeroPromo('ukiPromoPiecesPerRoll');
+ el.textContent=Number.isSafeInteger(rolls)&&rolls>=1&&rolls<=20?
+  rolls+' rolls × '+pieces+' piezas = '+(rolls*pieces)+' piezas.':'Indica una cantidad de rolls entre 1 y 20.';
+}
+async function crearPromo(){
+ if(state.busy)return;
+ const chosen=branch(),file=$('ukiPromoPhoto')?.files?.[0];
+ const p={name:String($('ukiPromoName')?.value||'').trim(),
+  description:String($('ukiPromoDescription')?.value||'').trim(),
+  price:numeroPromo('ukiPromoPrice'),rollCount:numeroPromo('ukiPromoRollCount'),
+  piecesPerRoll:numeroPromo('ukiPromoPiecesPerRoll'),sauceCount:numeroPromo('ukiPromoSauces'),
+  korokes:numeroPromo('ukiPromoKorokes'),payments:mediosPromo($('ukiPromoPayment')?.value)};
+ if(!p.name||!file){info('ukiPriceMessage','Agrega nombre y una fotografía real para la promoción.');return;}
+ if(p.rollCount<1||p.rollCount>20||![10,12].includes(p.piecesPerRoll)||
+   !Number.isSafeInteger(p.price)||p.price<1){info('ukiPriceMessage','Revisa rolls, piezas y precio.');return;}
+ state.busy=true;const button=$('ukiPromoCreate');button.disabled=true;
+ let created=null,notice='';
+ try{
+  // Reducir antes de guardar en Neon. Si falla, no se crea producto alguno.
+  const pic=await reduceImage(file);
+  const result=await request(API,'crear-promocion',{item:p},chosen);
+  created=result.item;
+  await request(PHOTO_API,'subir',{sku:created.sku,expected_version:0,...pic},chosen);
+  await request(API,'publicar-promocion',{sku:created.sku,expected_version:Number(created.version)},chosen);
+  notice='✓ Promoción publicada con foto para '+(chosen==='arica'?'Regimiento Arica':'La Serena')+'.';
+  $('ukiPromoAddBox').open=false;
+  for(const id of ['ukiPromoName','ukiPromoDescription','ukiPromoPrice'])$(id).value='';
+  $('ukiPromoPhoto').value='';
+ }catch(e){
+  notice=(created?'La promoción quedó en borrador, NO aparece a clientes. ':'No se creó la promoción. ')+String(e.message||e);
+ }finally{
+  state.busy=false;button.disabled=false;
+  await loadPrices(true);info('ukiPriceMessage',notice);
+ }
+}
+function visibilityControl(price){
+ const button=document.createElement('button');button.type='button';button.className='sm';
+ button.style.cssText=price.visible===false?'border:1px solid #61a18b;color:#176d48':'border:1px solid #bb7060;color:#973729';
+ const esPromoDelMes=price.kind==='monthly'&&price.custom;
+ const estado=esPromoDelMes?price.estadoPublicacion:null;
+ button.textContent=esPromoDelMes?
+  (estado==='Borrador'?'✓ Publicar promoción':estado==='Retirada'?'↩ Volver a publicar promoción':'🗑 Eliminar promoción de la carta'):
+  (price.visible===false?'↩ Restaurar en carta':'🗑 Retirar de carta');
+ button.onclick=async()=>{
+  if(state.busy)return;
+  if(price.visible!==false){
+   const pregunta=esPromoDelMes?
+    '¿Eliminar la promoción «'+price.name+'» de la carta de '+(state.branch==='arica'?'Regimiento Arica':'La Serena')+' ahora? Ya no la podrán elegir los clientes. Los pedidos anteriores se conservan.':
+    '¿Retirar «'+price.name+'» de la carta de esta sucursal? No se borrarán sus pedidos, precios históricos ni timbres.';
+   if(!window.confirm(pregunta))return;
+  }
+  const chosen=state.branch,action=price.visible===false?
+   (esPromoDelMes&&estado==='Borrador'?'publicar-promocion':'restaurar-producto'):'retirar-producto';
+  state.busy=true;button.disabled=true;
+  try{
+   await request(API,action,{sku:price.sku,expected_version:price.version,
+    expected_visibility_version:price.visibilityVersion},chosen);
+   state.busy=false;await loadPrices(true);
+   info('ukiPriceMessage',esPromoDelMes?
+    (action==='retirar-producto'?'✓ Promoción retirada de la carta de esta sucursal. Ya no aparece a los clientes.':
+     estado==='Borrador'?'✓ Promoción publicada por primera vez en esta sucursal.':'✓ Promoción publicada nuevamente en esta sucursal.'):
+    (action==='retirar-producto'?'✓ Retirado del menú de esta sucursal.':'✓ Restaurado en la carta.'));
+  }catch(e){info('ukiPriceMessage','No se modificó: '+String(e.message||e))}
+  finally{state.busy=false;button.disabled=false}
+ };
+ return button;
+}
+function promoEditor(price){
+ const details=document.createElement('details');details.style.cssText='width:100%;padding:8px 0';
+ const summary=document.createElement('summary');summary.textContent='Editar promoción y su armado';details.append(summary);
+ const form=document.createElement('div');form.style.cssText='display:grid;gap:8px;margin-top:10px';
+ const field=(label,value,type='text',min,max)=>{
+  const wrap=document.createElement('label');wrap.textContent=label;
+  const inp=document.createElement('input');inp.type=type;inp.value=String(value??'');
+  if(type==='number'){inp.inputMode='numeric';inp.min=String(min);inp.max=String(max)}
+  wrap.append(inp);form.append(wrap);return inp;
+ };
+ const name=field('Nombre',price.name),description=field('Descripción',price.description||''),
+   rolls=field('Rolls',price.config?.rollCount,'number',1,20),
+   sauces=field('Salsas',price.config?.sauceCount,'number',0,20),
+   korokes=field('Korokes',price.config?.korokes,'number',0,30),
+   amount=field('Precio ($)',price.price,'number',1,1000000);
+ name.maxLength=100;description.maxLength=500;
+ const label=document.createElement('label');label.textContent='Piezas por roll';
+ const per=document.createElement('select');for(const n of [12,10])per.add(new Option(n+' piezas',String(n)));per.value=String(price.config?.piecesPerRoll||12);label.append(per);form.append(label);
+ const paylabel=document.createElement('label');paylabel.textContent='Medios de pago';
+ const pay=document.createElement('select');for(const [id,title] of [['normal','Efectivo y transferencia'],['edenred','Solo Edenred'],['todos','Todos los medios']])pay.add(new Option(title,id));
+ pay.value=modoMediosPromo(price.config?.payments);paylabel.append(pay);form.append(paylabel);
+ const save=document.createElement('button');save.type='button';save.className='sm ok';save.textContent='Guardar cambios de promoción';
+ save.onclick=async()=>{
+  if(state.busy)return;
+  const chosen=state.branch;state.busy=true;save.disabled=true;
+  try{
+   const item={name:name.value,description:description.value,price:Number(amount.value),
+    rollCount:Number(rolls.value),piecesPerRoll:Number(per.value),sauceCount:Number(sauces.value),
+    korokes:Number(korokes.value),payments:mediosPromo(pay.value)};
+   await request(API,'editar-promocion',{sku:price.sku,expected_version:price.version,item},chosen);
+   state.busy=false;await loadPrices(true);info('ukiPriceMessage','✓ Promoción actualizada para esta sucursal.');
+  }catch(e){info('ukiPriceMessage','No se guardó: '+String(e.message))}
+  finally{state.busy=false;save.disabled=false}
+ };form.append(save);
+ details.append(form);return details;
+}
 function line(price){
  const wrap=document.createElement('div');wrap.className='row';wrap.style.cssText='align-items:center;gap:9px;padding:10px 0;border-bottom:1px solid #eee0d3;flex-wrap:wrap';
  const summary=document.createElement('div');summary.style.flex='1 1 130px';
  const name=document.createElement('b');name.textContent=price.name;
  const sub=document.createElement('small');sub.style.cssText='display:block;color:#756759';
- sub.textContent=(price.group||price.kind)+' · '+peso(price.price)+' · '+(price.available?'Disponible':price.custom?'Retirado de la carta':'Agotado');
+ const esPromo=price.kind==='monthly';
+ const estado=esPromo?(price.custom?price.estadoPublicacion:(price.visible===false?'Retirada':'Publicada')):null;
+ sub.textContent=(price.group||price.kind)+' · '+peso(price.price)+(esPromo?'': ' · '+
+   (price.visible===false?'Retirado de carta':price.available?'Disponible':'Agotado'));
  summary.append(name,sub);
+ if(esPromo&&estado){
+  const indicador=document.createElement('span');
+  indicador.textContent=estado+(price.available?'':' · Agotada');
+  indicador.style.cssText='display:inline-block;margin-top:5px;padding:5px 9px;border-radius:999px;font-size:12px;font-weight:800;'+
+   (estado==='Publicada'?'background:#edf7ed;color:#287044':estado==='Borrador'?
+    'background:#fff0df;color:#925210':'background:#f1edeb;color:#775e4d');
+  indicador.setAttribute('aria-label','Estado de promoción: '+estado);
+  summary.append(indicador);
+ }
  const input=document.createElement('input');input.type='number';input.inputMode='numeric';input.min='1';input.max='1000000';
  input.value=String(price.price);input.setAttribute('aria-label','Nuevo precio de '+price.name);
  input.style.cssText='width:115px;max-width:35%;flex:0 0 115px';
@@ -206,7 +353,7 @@ function line(price){
  };
  wrap.append(summary,input,save);
  if(['monthly','classic','premium','dish','pizza'].includes(price.kind))wrap.append(photoControls(price));
- if(price.custom){
+ if(price.custom&&price.kind!=='monthly'){
   const details=document.createElement('details');details.style.cssText='width:100%;padding:7px 0 0';
   const title=document.createElement('summary');title.textContent='Editar nombre y descripción';details.append(title);
   const name=document.createElement('input');name.value=price.name;name.maxLength=100;
@@ -228,23 +375,26 @@ function line(price){
    }catch(e){info('ukiPriceMessage','No se guardó: '+String(e.message));}
    finally{state.busy=false;button.disabled=false;}
   };
+  details.append(name,description,button);wrap.append(details);
+ }
+ if(state.promocionesHabilitadas){
+  if(price.kind==='monthly'&&price.custom)wrap.append(promoEditor(price));
+  const vis=visibilityControl(price);vis.style.marginTop='6px';wrap.append(vis);
+ }else if(price.custom){
+  // Mantener el retiro/restauración que ya usaba Uki, sin tablas ni APIs nuevas.
   const retire=document.createElement('button');retire.type='button';retire.className='sm';
-  retire.style.cssText='border:1px solid #bb7060;color:#973729;margin-left:6px';
   retire.textContent=price.available?'🗑 Quitar producto de la carta':'↩ Volver a mostrar producto';
   retire.onclick=async()=>{
    if(state.busy)return;
-   const deactivate=price.available;
-   const question=deactivate?'¿Quitar «'+price.name+'» del menú de clientes? Los pedidos anteriores NO se borran.':'¿Volver a ofrecer «'+price.name+'» a los clientes?';
-   if(!window.confirm(question))return;
-   const chosen=state.branch;state.busy=true;retire.disabled=true;
-   try{
-    await request(API,deactivate?'retirar-producto':'restaurar-producto',{sku:price.sku,expected_version:price.version},chosen);
-    state.busy=false;await loadPrices(true);
-    if(chosen===branch())info('ukiPriceMessage',deactivate?'✓ Producto quitado de la carta, historial conservado.':'✓ Producto restaurado en la carta.');
-   }catch(e){info('ukiPriceMessage','No se modificó: '+String(e.message));}
+   const chosen=state.branch,action=price.available?'retirar-producto':'restaurar-producto';
+   if(price.available&&!window.confirm('¿Quitar «'+price.name+'» de la carta de esta sucursal? El historial se conserva.'))return;
+   state.busy=true;retire.disabled=true;
+   try{await request(API,action,{sku:price.sku,expected_version:price.version},chosen);
+    state.busy=false;await loadPrices(true);info('ukiPriceMessage','✓ Producto actualizado en esta sucursal.');}
+   catch(e){info('ukiPriceMessage','No se modificó: '+String(e.message))}
    finally{state.busy=false;retire.disabled=false;}
   };
-  details.append(name,description,button,retire);wrap.append(details);
+  wrap.append(retire);
  }
  return wrap;
 }
@@ -265,8 +415,13 @@ async function loadPrices(force=false){
  try{
   const data=await request(API,'listar',{},selected);
   if(selected!==branch())return;
-  state.items=Array.isArray(data.items)?data.items:[];state.ready=true;await loadPhotos(selected);renderPrices();
-  info('ukiPriceMessage','✓ '+state.items.length+' productos y precios de esta sucursal.');
+  state.items=Array.isArray(data.items)?data.items:[];
+  state.promocionesHabilitadas=data.promocionesHabilitadas===true;
+  const promoBox=$('ukiPromoAddBox');if(promoBox){promoBox.hidden=!state.promocionesHabilitadas;
+   if(!state.promocionesHabilitadas)promoBox.open=false;}
+  state.ready=true;await loadPhotos(selected);renderPrices();
+  info('ukiPriceMessage','✓ '+state.items.length+' productos y precios de esta sucursal.'+
+   (state.promocionesHabilitadas?' Promociones dinámicas disponibles.':' Las promociones nuevas estarán disponibles tras la publicación conjunta.'));
  }catch(e){state.ready=false;state.items=[];
   info('ukiPriceMessage','No se pudo consultar: '+String(e.message));}
  const pizza=$('ukiPriceNewKind');
@@ -334,6 +489,10 @@ function mount(){
  if(select){select.value=state.group;select.onchange=e=>{state.group=e.target.value;renderPrices();};}
  $('ukiPriceReload').onclick=()=>void loadPrices(true);
  $('ukiPriceCreate').onclick=()=>void create();
+ $('ukiPromoCreate').onclick=()=>void crearPromo();
+ for(const id of ['ukiPromoRollCount','ukiPromoPiecesPerRoll'])
+   $(id).oninput=actualizaPiezasPromo;
+ actualizaPiezasPromo();
  $('ukiReponerReload').onclick=()=>void loadReponer();
  const invBranch=$('invBranch');
  if(invBranch&&!invBranch.dataset.ukiPrecioObservador){
