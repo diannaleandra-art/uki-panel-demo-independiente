@@ -419,7 +419,9 @@ function line(price){
 function renderPromoResumen(){
  const target=$('ukiPromosListaResumen');if(!target)return;
  target.replaceChildren();
- const promos=state.items.filter(item=>item.kind==='monthly');
+ const query=String($('ukiPromoBuscar')?.value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('es-CL').trim();
+ const promos=state.items.filter(item=>item.kind==='monthly'&&(!query||
+  item.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('es-CL').includes(query)));
  const count=document.createElement('p');count.className='mini-help';
  count.textContent=promos.length+' promociones y productos especiales de esta sucursal.';
  target.append(count);
@@ -444,11 +446,15 @@ function renderPromoResumen(){
    const group=$('ukiPriceGroup'),search=$('ukiPriceSearch');
    if(group)group.value='monthly';if(search)search.value=promo.name;
    renderPrices();
+   window.ukiCartaSeleccion?.('productos');
    const list=$('ukiPriceList');if(list){
     list.style.scrollMarginTop='130px';list.scrollIntoView({behavior:'smooth',block:'start'});
    }
   };
-  row.append(btn);target.append(row);
+  row.append(btn);
+  // Retirar o recuperar la promoción sin abandonar su lista.
+  row.append(visibilityControl(promo));
+  target.append(row);
  }
 }
 function renderPrices(){
@@ -522,8 +528,71 @@ async function loadReponer(){
   }
  }catch(e){info('ukiReponerEstado','No se pudo consultar: '+String(e.message));}
 }
+// Navegación compacta dentro de la función ya existente Carta y precios.
+function organizarCarta(){
+ const root=$('ukiPreciosPanel');if(!root||$('ukiCartaOrdenNav'))return;
+ const nav=document.createElement('div');nav.id='ukiCartaOrdenNav';
+ nav.style.cssText='display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:14px 0 16px';
+ const areas={};
+ const choices=[
+  ['productos','📋 Productos','#fff4e7','#d87928'],
+  ['ingredientes','🌿 Ingredientes','#edf6ed','#448355'],
+  ['promociones','🎁 Promociones','#fff2ed','#b15a3a']
+ ];
+ for(const [key,title,bg,border] of choices){
+  const btn=document.createElement('button');btn.type='button';btn.dataset.ukiCartaArea=key;
+  btn.className='sm';btn.textContent=title;
+  btn.style.cssText='min-width:0;width:100%;font-size:13px;font-weight:750;padding:11px 5px;line-height:1.35;white-space:normal;border:1.5px solid '+border+';border-radius:12px;background:'+bg+';color:#40312b';
+  nav.append(btn);
+  const area=document.createElement('section');area.id='ukiCartaArea'+key[0].toUpperCase()+key.slice(1);
+  area.style.cssText='border:1px solid #ead9cc;border-radius:14px;padding:12px;margin:10px 0;background:#fff';
+  const head=document.createElement('h3');head.style.cssText='font-size:17px;margin:0 0 8px;color:#503225';head.textContent=title;area.append(head);
+  areas[key]=area;
+ }
+ const move=(element,parent)=>{if(element)parent.append(element)};
+ // Mover los controles existentes sin recrear entradas ni manejadores.
+ move($('ukiPriceSearch')?.closest('.quick-grid'),areas.productos);
+ for(const id of ['ukiPriceReload','ukiPriceMessage','ukiPriceList','ukiPriceAddBox'])move($(id),areas.productos);
+ move($('ukiPromosResumen'),areas.promociones);
+ move($('ukiPromoAddBox'),areas.promociones);
+ const searchLabel=document.createElement('label');searchLabel.textContent='Buscar promoción por nombre';
+ searchLabel.htmlFor='ukiPromoBuscar';
+ const search=document.createElement('input');search.id='ukiPromoBuscar';search.type='search';
+ search.placeholder='Ej. 60 piezas o Edenred';
+ search.addEventListener('input',()=>renderPromoResumen());
+ areas.promociones.insertBefore(searchLabel,$('ukiPromosResumen')||null);
+ areas.promociones.insertBefore(search,$('ukiPromosResumen')||null);
+ const clean=document.createElement('button');clean.type='button';clean.className='sm';
+ clean.textContent='Limpiar búsqueda y categoría';
+ clean.addEventListener('click',()=>{
+  state.query='';state.group='all';
+  if($('ukiPriceSearch'))$('ukiPriceSearch').value='';
+  if($('ukiPriceGroup'))$('ukiPriceGroup').value='all';
+  renderPrices();
+ });
+ const list=$('ukiPriceList');if(list)areas.productos.insertBefore(clean,list);
+ root.append(nav,areas.productos,areas.ingredientes,areas.promociones);
+ const choose=key=>{
+  if(!areas[key])return;
+  state.cartaArea=key;
+  for(const [name,title,bg,border] of choices){
+   areas[name].hidden=name!==key;
+   const btn=nav.querySelector('[data-uki-carta-area="'+name+'"]');
+   if(btn){btn.setAttribute('aria-pressed',String(name===key));
+    btn.style.boxShadow=name===key?'inset 0 0 0 2px '+border:'none';}
+  }
+  // La lista de ingredientes se carga desde su propio módulo, sin duplicación.
+  if(key==='ingredientes'){
+   const editor=$('ukiArmadoIngredientes');if(editor&&!editor.open)editor.open=true;
+  }
+ };
+ nav.querySelectorAll('button').forEach(btn=>btn.onclick=()=>choose(btn.dataset.ukiCartaArea));
+ window.ukiCartaSeleccion=choose;
+ choose(state.cartaArea||'productos');
+}
 function mount(){
  prevMount();if(!$('ukiInvTabs'))return;
+ organizarCarta();
  const selectedBranch=branch();
  if(state.branch!==selectedBranch){state.items=[];state.photos={};state.ready=false;state.query='';state.group='all';state.tab='inventario';}
  state.branch=selectedBranch;
