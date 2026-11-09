@@ -180,21 +180,22 @@ test('Panel muestra resumen por sucursal de promociones con acceso a precios exi
  const target=createElement('root'),search={value:''},group={value:''};
  const roots={ukiPromosListaResumen:target,ukiPriceSearch:search,ukiPriceGroup:group,
   ukiPriceList:{style:{},scrollIntoView(){}}};
- let refreshed=0;
+ const details=[];
  const state={items:[{kind:'monthly',name:'Promo especial QA',price:16000,visible:true},
   {kind:'classic',name:'Clásico QA',price:8000}],group:'all',query:''};
  vm.runInNewContext(code.slice(a,b)+'\nrenderPromoResumen();',{
-  document:{createElement},state,$:id=>roots[id],renderPrices:()=>refreshed++,
+  document:{createElement},state,$:id=>roots[id],
   visibilityControl:()=>createElement('button'),
-  window:{ukiCartaSeleccion:()=>{}}
+  line:(item,hideVisibility)=>{details.push({name:item.name,hideVisibility});return createElement('editor')}
  });
  const rows=target.children.filter(x=>x.tag==='div');
  assert.equal(rows.length,1);
  assert.match(rows[0].children[0].children[0].textContent,/Promo especial QA/);
  assert.match(rows[0].children[0].children[1].textContent,/16\.000/);
- rows[0].children[1].onclick();
- assert.equal(group.value,'monthly');assert.equal(search.value,'Promo especial QA');
- assert.equal(refreshed,1);
+ assert.equal(rows[0].children[1].tag,'details');
+ assert.match(rows[0].children[1].children[0].textContent,/Editar \/ ver detalles/);
+ assert.deepEqual(details,[{name:'Promo especial QA',hideVisibility:true}]);
+ assert.equal(rows[0].children[2].tag,'button','Retirar o restaurar permanece visible');
  const html=fs.readFileSync('firebase/uki-sushi-local.html','utf8');
  assert.match(html,/uki-carta-precios-admin\.js\?v=uki-tres-vistas-qa-20261109/);
 });
