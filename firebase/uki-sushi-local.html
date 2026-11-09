@@ -1622,7 +1622,7 @@ function vNuevo(){
     '<p class="muted">La diferencia del cobro quedará registrada automáticamente; editar no declara una devolución.</p>':''}
    ${ukiPasoTimbreAntesDeGuardar(pedidoEdicion)}
    ${D.editando?'<div class="card"><h2>Responsable de la corrección</h2><p><b>✍️ SOLO CUANDO MODIFICAS UN PEDIDO EXISTENTE</b></p><label for="ukiResponsableEdicion"><b>¿Quién está haciendo este cambio? · Obligatorio</b></label><input id="ukiResponsableEdicion" maxlength="80" autocomplete="off" placeholder="Nombre de quien corrige" value="'+esc(D.responsableEdicion||"")+'" oninput="D.responsableEdicion=this.value"><p class="muted">El nombre, la fecha y el detalle del cambio quedarán en el historial del pedido. En el primer registro NO es necesario este nombre.</p></div>':''}
-   <button class="big" onclick="ndGuardar()" ${ukiTimbreObligatorioGuardar(D,pedidoEdicion)&&!ukiTimbreBorradorConfirmado(D)?'disabled title="Primero confirma el envío del timbre"':''}>${D.editando?`💾 Guardar cambios #${D.editando}`:D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición</button>`:""}`;
+   <button class="big" onclick="ndGuardar()" ${ukiTimbreObligatorioGuardar(D,pedidoEdicion)&&!ukiTimbreBorradorConfirmado(D)?'disabled title="Primero confirma el envío del timbre"':''}>${D.editando?`💾 Guardar cambios #${D.editando}`:D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición (no cancela el pedido)</button><p class="muted">Para cancelar el pedido, guarda primero cualquier corrección de pago. Luego vuelve a Pedidos, abre Ver detalle y selecciona ❌ Cancelar pedido. Si hay una devolución, regularízala primero.</p>`:""}`;
 }
 
 // Corrección histórica: el pedido muestra los datos corregidos, pero el cierre ya emitido nunca cambia.
@@ -1634,7 +1634,7 @@ function ukiCierreConfirmadoPedido(p){
   .sort((a,b)=>fechaCierreMs(a)-fechaCierreMs(b))[0]||null;
 }
 function ukiFotoCorreccionPedido(p){
- const campos=["fechaISO","cliente","telefono","codigoCarta","codigoCliente","modalidad",
+ const campos=["fechaISO","cliente","telefono","codigoCarta","codigoCliente","modalidad","estado",
   "mesaReferencia","envio","kmRecorrido","medio","medioEnvio","pagado","pagosProductos","pagosEnvio",
   "productosPagadosOtroLocal","montoProductosOtroLocal","envioPagadoOtroLocal",
   "montoEnvioOtroLocal","localPagoExterno","productos","total","subtotal","propina",
@@ -1663,6 +1663,7 @@ function ukiCorreccionesTurnoUI(p){
      '<p class="muted">Total: '+fmt(antes.total||0)+' → '+fmt(despues.total||0)+'</p>'+
      (formaAntes!==formaDespues?'<p class="muted">Forma de pago: '+esc(formaAntes)+' → '+esc(formaDespues)+'</p>':'')+
      (antes.pagado!==despues.pagado?'<p class="muted">Estado del pago: '+(antes.pagado?'Confirmado':'Pendiente')+' → '+(despues.pagado?'Confirmado':'Pendiente')+'</p>':'')+
+     (antes.estado!==despues.estado?'<p class="muted">Estado de entrega: '+esc(antes.estado||'Sin registrar')+' → '+esc(despues.estado||'Sin registrar')+'</p>':'')+
      (productosAntes!==productosDespues?'<details style="margin:5px 0"><summary>Ver productos antes y después</summary>'+
       '<p class="muted">Antes: '+esc(productosAntes)+'</p><p class="muted">Después: '+esc(productosDespues)+'</p></details>':''))+
     (a.saldoPendiente?'<p class="muted">Diferencia pendiente: '+fmt(Math.abs(Number(a.saldoPendiente)))+'</p>':'')+'</div>';
@@ -1965,17 +1966,36 @@ function togglePagado(id){
 // Cancelación operativa: conserva el registro y nunca altera caja, timbres ni cierres ya guardados.
 // Exclusión de doble pulsación mientras se cifra y guarda una cancelación.
 let cancelacionGuardando=false;
+// Al corregir una confirmación de pago, una entrega previamente finalizada
+// deja de figurar como entregada. El estado anterior se conserva en auditoría.
+function ukiEstadoTrasRetirarPago(p,nuevoPagado){
+ return p?.estado==="Entregado"&&!nuevoPagado&&!!p.pagado?"Pendiente":p?.estado;
+}
 function puedeCancelarPedido(p){
- return !!p&&p.suc===S.suc&&!p.esPremio&&!p.pagado&&p.estado==="Pendiente"&&esDelPeriodo(p)&&!S.busy&&!cancelacionGuardando;
+ return !!p&&p.suc===S.suc&&!p.esPremio&&!p.pagado&&
+  (p.estado==="Pendiente"||p.estado==="Entregado")&&esDelPeriodo(p)&&
+  !ukiCierreConfirmadoPedido(p)&&!ukiCobroPendiente(p)&&!S.busy&&!cancelacionGuardando;
+}
+function ukiAyudaCancelarPedido(p){
+ if(!p||p.esPremio||p.estado==="Cancelado")return "";
+ if(ukiCierreConfirmadoPedido(p)||!esDelPeriodo(p))
+  return "Este pedido corresponde a un turno cerrado o anterior. No se cancela desde la caja abierta.";
+ if(ukiCobroPendiente(p))
+  return "Este pedido tiene una devolución o un cobro pendiente de regularizar. Confirma primero el movimiento real de dinero.";
+ if(p.pagado)
+  return "El pedido figura pagado. Si el pago fue un error, quita la confirmación desde Editar, guarda el cambio e informa la devolución si corresponde.";
+ if(p.estado==="Entregado")
+  return "Este pedido figuró entregado; verifica que realmente deba anularse.";
+ return "Solo se cancelan pedidos sin pago del turno abierto y sin cobros pendientes.";
 }
 async function cancelarPedido(id){
  const p=S.pedidos.find(x=>x.id===id&&x.suc===S.suc);
  if(!p){aviso("Pedido no encontrado en esta sucursal.");return;}
- if(!puedeCancelarPedido(p)){aviso("Solo puedes cancelar pedidos pendientes, sin pago y del turno abierto. Los pagados requieren devolución o ajuste por separado.");return;}
+ if(!puedeCancelarPedido(p)){aviso(ukiAyudaCancelarPedido(p)||"El pedido no puede cancelarse desde aquí.");return;}
  if(document.body.classList.contains("uki-operativo-bloqueado")||typeof window.ukiCancelacionNubeLista!=="function"||!window.ukiCancelacionNubeLista()){aviso("Espera a que Firebase confirme «Nube: sincronizado» antes de cancelar.");return;}
  const motivo=String($("motivoCancelacion"+id)?.value||"").trim().toLowerCase();
  if(!["cliente","local"].includes(motivo)){aviso("Selecciona si canceló el cliente o el local.");return;}
- if(!confirm("¿Confirmas cancelar el pedido #"+p.id+" por decisión del "+(motivo==="cliente"?"cliente":"local")+"? Quedará registrado y no contará como venta. Esta acción no se puede deshacer desde el panel."))return;
+ if(!confirm("¿Confirmas cancelar el pedido #"+p.id+" por decisión del "+(motivo==="cliente"?"cliente":"local")+"? "+(p.estado==="Entregado"?"Antes figuraba como ENTREGADO. Verifica que no se haya entregado realmente. ":"")+"Quedará registrado y no contará como venta. Esta acción no se puede deshacer desde el panel."))return;
  if(!puedeCancelarPedido(p)||document.body.classList.contains("uki-operativo-bloqueado")||typeof window.ukiCancelacionNubeLista!=="function"||!window.ukiCancelacionNubeLista()){
    aviso("El pedido o la sincronización cambió. No se realizó la cancelación.");return;
  }
@@ -3342,9 +3362,9 @@ function ukiCoincideCategoriaPedido(p,categoria,errores){
  if(categoria==="cuentas")return ukiCuentaAbierta(p);
  if(categoria==="sin-pago")return !p.pagado&&p.estado!=="Cancelado"&&!p.esPremio;
  if(categoria==="pagados")return !!p.pagado&&p.estado!=="Cancelado"&&!p.esPremio;
- if(categoria==="pendientes")return p.estado==="Pendiente";
+ if(categoria==="pendientes")return p.estado==="Pendiente"||(p.estado==="Entregado"&&!p.pagado);
  if(categoria==="por-confirmar")return false;
- if(categoria==="entregados")return p.estado==="Entregado";
+ if(categoria==="entregados")return p.estado==="Entregado"&&p.pagado;
  if(categoria==="cancelados")return p.estado==="Cancelado";
  if(categoria==="rechazados")return false; // solicitudes rechazadas, no ventas
  if(categoria==="errores")return errores.has(p.id);
@@ -3941,9 +3961,9 @@ function vPedidos(){
     <p class="muted">Los pedidos de jornadas anteriores se conservan en el historial por turno.</p></div>
   </details>
   <details class="card uki-bloque-incidencias" ${erroresAbiertos?'open':''}><summary onclick="erroresAbiertos=!erroresAbiertos"><b>⚠️ Errores e incidencias</b> · ${pendientes} pendientes</summary><label>Buscar errores por dia de reporte</label><input id="diaErrorFiltro" type="date" value="${esc(filtroDiaIncidencias)}"><button class="sm ok" onclick="aplicarDiaIncidencias()">Buscar errores</button><p class="muted">Los reportes se conservan aunque se cierre la caja del dia.</p>${incidencias.length?incidencias.map(x=>renderIncidencia(x,"lista")).join(""):"<p class='muted'>No hay errores para esta busqueda.</p>"}</details>
-  ${visibles.map(p=>`<details class="card order-card ${p.estado==="Cancelado"?"uki-pedido-cancelado":p.esPremio?"uki-pedido-premio":p.estado==="Entregado"?"uki-pedido-entregado":p.pagado?"uki-pedido-pagado":"uki-pedido-cobrar"}">
-    <summary><div class="order-head"><div><b>${esc(ukiReferenciaConCarta(p))} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)} · Origen: ${esc(ukiOrigenPedido(p))}${p.modalidad==="Delivery"?" · 🛵 "+esc(ukiKmTexto(p)):""}${ukiPropinaVisiblePedido(p)>0?" · 💝 Propina "+fmt(ukiPropinaVisiblePedido(p)):""}${ukiCodigoClienteVisible(p)?" · Código cliente: "+esc(ukiCodigoClienteVisible(p)):""}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small class="uki-estado-badge">${p.esPremio?'🎁 Premio':p.estado==="Cancelado"?'Cancelado':p.estado==="Entregado"?'✓ Entregado':p.pagado?'✓ Pagado · por entregar':'$ Por cobrar'}${erroresPedidos.has(p.id)?' · ⚠️ Con error':''}</small></div></div></summary>
-    <div class="order-body"><p class="muted">${esc(p.estado||'Entregado')} · ${esc(p.medio||'Efectivo')}${p.telefono?' · '+esc(p.telefono):''}</p>${p.estado==="Cancelado"?`<p class="muted"><b>Motivo:</b> ${esc(p.motivoCancelacion==="cliente"?"Cancelado por el cliente":p.motivoCancelacion==="local"?"Cancelado por el local":"No informado")}${p.canceladoEn?" · "+esc(fechaTxt(p.canceladoEn)):""}</p>`:""}
+  ${visibles.map(p=>`<details class="card order-card ${p.estado==="Cancelado"?"uki-pedido-cancelado":p.esPremio?"uki-pedido-premio":p.estado==="Entregado"&&p.pagado?"uki-pedido-entregado":p.pagado?"uki-pedido-pagado":"uki-pedido-cobrar"}">
+    <summary><div class="order-head"><div><b>${esc(ukiReferenciaConCarta(p))} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)} · Origen: ${esc(ukiOrigenPedido(p))}${p.modalidad==="Delivery"?" · 🛵 "+esc(ukiKmTexto(p)):""}${ukiPropinaVisiblePedido(p)>0?" · 💝 Propina "+fmt(ukiPropinaVisiblePedido(p)):""}${ukiCodigoClienteVisible(p)?" · Código cliente: "+esc(ukiCodigoClienteVisible(p)):""}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small class="uki-estado-badge">${p.esPremio?'🎁 Premio':p.estado==="Cancelado"?'Cancelado':p.estado==="Entregado"&&p.pagado?'✓ Entregado':p.pagado?'✓ Pagado · por entregar':'$ Por cobrar'}${erroresPedidos.has(p.id)?' · ⚠️ Con error':''}</small></div></div></summary>
+    <div class="order-body"><p class="muted">${esc(p.estado==="Entregado"&&!p.pagado?"Pendiente de pago · Entrega anterior por revisar":p.estado||"Pendiente")} · ${esc(p.medio||'Efectivo')}${p.telefono?' · '+esc(p.telefono):''}</p>${p.estado==="Cancelado"?`<p class="muted"><b>Motivo:</b> ${esc(p.motivoCancelacion==="cliente"?"Cancelado por el cliente":p.motivoCancelacion==="local"?"Cancelado por el local":"No informado")}${p.canceladoEn?" · "+esc(fechaTxt(p.canceladoEn)):""}</p>`:""}
     ${(p.productos||[]).map(pr=>`<div class="row"><span>${pr.cantidad}x ${esc(pr.nombre)}${pr.detalle?` · ${esc(pr.detalle)}`:''}</span><b>${fmt(pr.cantidad*pr.precioUnit)}</b></div>`).join('')}
     ${p.envio?row('Delivery',fmt(p.envio)):''}
     ${p.modalidad==="Delivery"?row("Kilómetros del recorrido",ukiKmTexto(p)):''}
@@ -3967,7 +3987,7 @@ function vPedidos(){
     <label>Solucion (opcional)</label><textarea rows="2" id="incSolucion${p.id}" placeholder="Ej: reposicion enviada"></textarea>
     <button class="sm ok" onclick="anotarIncidencia(${p.id})">Guardar error</button></details>
     <div class="order-actions">${ukiCuentaAbierta(p)&&esDelPeriodo(p)?`<button class="sm ok" onclick="ukiAgregarACuenta(${p.id})">+ Agregar a cuenta</button>`:""}${p.estado!=="Cancelado"?`<button class="sm ok" onclick="editarPedido(${p.id})">Editar</button><button class="sm" onclick="togglePagado(${p.id})">${p.pagado?'Quitar pagado':'Marcar pagado'}</button>${p.estado==="Pendiente"?`<button class="sm ok" onclick="ukiMarcarPedidoEntregado(${p.id})">✓ Marcar entregado</button>`:""}`:""}<button class="sm" onclick="copiarComanda(${p.id})">Copiar comanda</button></div>
-    ${puedeCancelarPedido(p)?`<div class="inner-details" style="padding:12px;margin-top:12px;border:1px solid #e7c8b3;border-radius:12px"><label for="motivoCancelacion${p.id}">Cancelar pedido · Motivo obligatorio</label><select id="motivoCancelacion${p.id}"><option value="">Selecciona un motivo</option><option value="cliente">Lo canceló el cliente</option><option value="local">Lo canceló el local</option></select><button class="sm" type="button" onclick="cancelarPedido(${p.id})" style="color:#9b3328;border-color:#dcb4a5">Cancelar pedido</button><p class="muted">Solo pedidos pendientes sin pago del turno abierto. Queda en el historial.</p></div>`:""}
+    ${p.estado!=="Cancelado"&&!p.esPremio?`<details class="inner-details uki-cancelar-pedido" style="padding:12px;margin-top:12px;border:1px solid #e7c8b3;border-radius:12px"><summary style="cursor:pointer;color:#9b3328;font-weight:750">❌ Cancelar pedido</summary>${puedeCancelarPedido(p)?`<div style="margin-top:12px"><label for="motivoCancelacion${p.id}">Motivo obligatorio</label><select id="motivoCancelacion${p.id}"><option value="">Selecciona un motivo</option><option value="cliente">Lo canceló el cliente</option><option value="local">Lo canceló el local</option></select><button class="sm" type="button" onclick="cancelarPedido(${p.id})" style="color:#9b3328;border-color:#dcb4a5">Confirmar cancelación del pedido</button><p class="muted">El motivo queda guardado y no crea otro cobro.</p></div>`:`<p class="muted" style="margin-top:10px">${esc(ukiAyudaCancelarPedido(p))}</p>`}</details>`:""}
     </div></details>`).join('')}
   ${visiblesRemotas.filter(r=>!mostrarPrioridad||r.estado!=='pendiente').map(r=>ukiCartaRemotaFicha(r)).join('')}
   ${visiblesSolicitudes.filter(r=>!mostrarPrioridad||r.estado!=='pendiente').map(s=>'<div class="card order-card"><p class="muted"><b>Origen: WhatsApp · '+(s.estado==="rechazada"?"RECHAZADO":"Pendiente de confirmación")+'</b></p>'+ukiWhatsAppFicha(s,s.estado==="pendiente")+'</div>').join('')}
@@ -4283,7 +4303,7 @@ async function ndGuardar(){
           perfil.gastado=Math.max(0,(perfil.gastado||0)-(Number(p.subtotal)||0));
         }
       }
-      p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||"";p.codigoCarta=D.codigoCarta||"";p.codigoCliente=D.codigoCliente||"";p.qrSolicitudes=Array.isArray(D.qrSolicitudes)?[...new Set(D.qrSolicitudes)]:[];p.sucursalCarta=D.sucursalCarta||""; p.mesaReferencia=D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():""; p.modalidad=D.modalidad; p.envio=envio; p.kmRecorrido=kmRecorrido; p.medio=D.medio; p.medioEnvio=D.medioEnvio; Object.assign(p,datosPago); p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})); p.total=total; p.subtotal=sub; p.propina=propina;p.propinaModo=D.propinaModo;p.medioPropina=D.medioPropina;p.textoOriginal=D.texto;
+      p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||"";p.codigoCarta=D.codigoCarta||"";p.codigoCliente=D.codigoCliente||"";p.qrSolicitudes=Array.isArray(D.qrSolicitudes)?[...new Set(D.qrSolicitudes)]:[];p.sucursalCarta=D.sucursalCarta||""; p.mesaReferencia=D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():""; p.modalidad=D.modalidad; p.envio=envio; p.kmRecorrido=kmRecorrido; p.medio=D.medio; p.medioEnvio=D.medioEnvio; Object.assign(p,datosPago); p.estado=ukiEstadoTrasRetirarPago(snapshot,D.pagado);p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})); p.total=total; p.subtotal=sub; p.propina=propina;p.propinaModo=D.propinaModo;p.medioPropina=D.medioPropina;p.textoOriginal=D.texto;
       // Un cierre confirmado mantiene intactos sus movimientos de propina y fidelidad.
       if(!cierreHistorico)ukiSincronizarPropinaPedido(p);
       if(!cierreHistorico){
