@@ -4630,7 +4630,7 @@ function ukiAjustePedidoOlvidado(){
   const recibidoUki=n("ukiOlvidoUki");
   if(recibidoUki>total)throw Error("Lo recibido en Uki no puede superar el total del pedido.");
   const recibidoOtroLocal=total-recibidoUki;
-  const deliveryCobradoUki=modalidad==="Delivery"?n("ukiOlvidoDeliveryUki"):0;
+  const deliveryCobradoUki=modalidad==="Delivery"?n("ukiOlvidoDeliveryUki",false):0;
   if(deliveryCobradoUki>envio||deliveryCobradoUki>recibidoUki||
      recibidoUki-deliveryCobradoUki>subtotal)
    throw Error("El delivery cobrado en Uki debe cuadrar con lo cobrado aquí y el valor del pedido.");
