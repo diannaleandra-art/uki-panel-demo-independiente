@@ -28,7 +28,7 @@ test('El panel conserva los cierres intactos: cambios de visualización solo Tim
  assert.match(s,/const movimientosDelDia=lista\.flatMap/);
  assert.match(s,/m\.tipo==='venta'/);
  assert.match(s,/Timbres de hoy/);
- assert.match(s,/Timbres ganados el/);
+ assert.match(s,/Timbres del/);
  assert.match(s,/timbres ganados en esta fecha/i);
  assert.doesNotMatch(s,/S\.cierres\s*=/);
  assert.doesNotMatch(s,/S\.pedidos\.push/);
