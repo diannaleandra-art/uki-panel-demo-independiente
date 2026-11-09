@@ -68,9 +68,9 @@ Estas mejoras quedan **reunidas como pendientes coordinadas**, no afirmadas como
 9. **Inicio (QA)**: frase que cambie diariamente, hora/día/fecha junto a «Hola Uki» y retirar «Información de turno» redundante, **conservar los controles reales de iniciar turno/precierre**.
 10. **Pedidos (QA)**: hacer la parte de filtros, solicitudes, mesas e incidencias de la segunda captura más compacta y fácil de entender en iPhone sin ocultar urgencias.
 11. **Navegación (QA)**: accesos rápidos para subir/bajar sin deslizar mucho; selector compacto para Caja, Caja acumulada y las subsecciones de Movimientos.
-12. **Validación**: revisión real de ambas sucursales desde Safari, comparar pedidos pagados contra sus movimientos de timbre en los datos cifrados con cuenta autorizada; las pruebas del código no pueden confirmar por sí solas los 21 timbres.
+12. **Validación**: revisión visual y operativa en Safari de ambas sucursales. La revisión individual de los 21 timbres se pospone expresamente por decisión del usuario; no afirmar que esos registros reales están conciliados.
 
-**Condición de publicación**: los puntos de código del lote (timbres, cierre, propinas, km, Inicio, filtros y navegación) están implementados en PR #40 y cubiertos por pruebas automáticas. Sigue **pendiente la validación visual y operativa real en Safari/iPhone para ambas sucursales, incluida la conciliación de los 21 timbres**. Las pruebas no prueban entrega real de WhatsApp ni acceso a datos cifrados de producción. No publicar ni fusionar sin autorización nueva y explícita; no tocar datos reales ni facturación para probar.
+**Condición de publicación**: los puntos de código del lote (timbres, cierre, propinas, km, Inicio, filtros y navegación) están implementados en PR #40 y cubiertos por pruebas automáticas. Sigue **pendiente la validación visual y operativa real en Safari/iPhone para ambas sucursales, sin incluir por ahora la conciliación de los 21 timbres (pospuesta a solicitud del usuario)**. Las pruebas no prueban entrega real de WhatsApp ni acceso a datos cifrados de producción. No publicar ni fusionar sin autorización nueva y explícita; no tocar datos reales ni facturación para probar.
 
 
 ## F. Precauciones verificadas antes de publicar
@@ -81,3 +81,6 @@ Estas mejoras quedan **reunidas como pendientes coordinadas**, no afirmadas como
 - Navegación: selectores compactos en Caja y Movimientos, acciones para ir arriba/abajo con iPhone. No se elimina ningún botón operativo.
 - Reportes: propinas desde la fuente original, con filtros día/semana/mes, sin sumar totales del cierre como movimientos adicionales. Reportes de ventas usan una versión vigente de cada cierre, sin sumar ajustes dos veces.
 - Seguridad: registros antiguos sin kilómetros, concepto o vínculo deben identificarse como tales; no modificar silenciosamente historial.
+
+
+**Ajustes de seguridad en QA, 9 noviembre:** se bloquea añadir una propina en la edición si el mismo pedido ya tiene una propina manual; la tarjeta incluye propinas manuales sin duplicar el registro automático. El reporte permanece abierto al cambiar entre día, semana y mes. El ingreso de un pedido olvidado permite dejar en blanco (equivalente a $0) el delivery cobrado en Uki cuando lo cobró íntegramente otro local. Último conjunto de 96 pruebas automáticas aprobado; **esto no sustituye una revisión visual real ni verifica el envío de WhatsApp**.
