@@ -2320,6 +2320,16 @@ function ukiGuardarDatosCliente(key,boton){
  guardarEnLocalStorage();
  aviso("Datos del cliente guardados. Timbres, premios e historial se conservaron. Comprueba «Nube: sincronizado».");
 }
+// Ordenar únicamente la VISTA: la compra más recientemente registrada arriba.
+// No cambia la fecha del timbre ni la fecha operativa de cierres antiguos.
+function ukiRegistroTimbreMs(m){
+ const pedido=(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(m?.pedidoId));
+ const registrado=pedido?fechaRegistroMs(pedido):0;
+ return registrado>0?registrado:(Date.parse(m?.fecha||"")||0);
+}
+function ukiUltimaCompraClienteMs(cli){
+ return Math.max(0,...(cli?.movimientos||[]).filter(m=>m.tipo==='venta').map(ukiRegistroTimbreMs));
+}
 function vClientes(){
   if(!S.suc) return vInicio();
   const buscar=String(S.filtroCliente||"").trim();
@@ -2330,14 +2340,15 @@ function vClientes(){
       pedidosHist(c.nombre,c.codigoCliente,c.telefono).some(p=>
         ukiBusquedaPorDatos(buscar,[p.cliente,ukiCodigoClienteVisible(p),p.codigoCliente,p.telefono,ukiTelefonoNormalizado(p.telefono)]));
     return (c.movimientos||[]).some(m=>ukiFechaTimbreCalendario(m)===fecha);
-  }).sort((a,b)=>ventasValidas(b)-ventasValidas(a));
+  }).sort((a,b)=>ukiUltimaCompraClienteMs(b)-ukiUltimaCompraClienteMs(a)||ventasValidas(b)-ventasValidas(a));
   // Un timbre equivale a un movimiento de compra pagada (sin perder múltiples por cliente).
   const movimientosDelDia=lista.flatMap(c=>(c.movimientos||[])
     .filter(m=>m.tipo==='venta'&&ukiFechaTimbreCalendario(m)===fecha)
     .map(m=>({cliente:c.nombre||'Sin nombre',codigo:ukiCodigoClienteVisible(c),
       fecha:m.fecha||'',pedidoId:m.pedidoId||null,
-      pedido:(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(m.pedidoId))||null})))
-    .sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
+      pedido:(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(m.pedidoId))||null,
+      registroMs:ukiRegistroTimbreMs(m)})))
+    .sort((a,b)=>b.registroMs-a.registroMs||(Number(b.pedidoId)||0)-(Number(a.pedidoId)||0));
   const pendientesTimbreDelDia=movimientosDelDia.filter(m=>m.pedido&&
     !m.pedido.timbreEnviadoEn&&ukiNumeroTimbreWhatsApp(m.pedido.telefono)).length;
   const pedidosSinTimbreDelDia=(S.pedidos||[]).filter(p=>
@@ -2364,7 +2375,7 @@ function vClientes(){
     <div class="card" style="margin:0"><h2 style="font-size:12px">Timbres ganados</h2><b>${movimientosDelDia.length}</b></div>
     <div class="card" style="margin:0"><h2 style="font-size:12px">Premios 10</h2><b>${lista.filter(c=>ventasValidas(c)>=10).length}</b></div></div></div>
   <details class="card"><summary style="cursor:pointer"><b>🎫 Timbres del ${esc(fecha)} · ${movimientosDelDia.length} ganados · ${pendientesTimbreDelDia} por enviar</b></summary>
-    <p class="muted">Ordenados del más reciente al más antiguo por hora del timbre, incluyendo turnos ya cerrados. Un registro por compra. Confirmar envío no modifica el cobro.</p>
+    <p class="muted">Primero el último pedido registrado; debajo los anteriores, incluso de turnos ya cerrados. Un registro por compra. Confirmar envío no modifica el cobro.</p>
     ${movimientosDelDia.map(m=>'<div style="padding:11px 0;border-bottom:1px solid var(--line)"><div class="row"><span><b>'+esc(m.cliente)+'</b>'+
       (m.codigo?' · Código '+esc(m.codigo):'')+
       (m.pedidoId?' · Pedido #'+esc(m.pedidoId):'')+'</span><b>'+
