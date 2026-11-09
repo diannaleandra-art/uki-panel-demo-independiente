@@ -2766,9 +2766,10 @@ function vReportes(){
    desde=key(new Date(seleccion.getFullYear(),seleccion.getMonth(),1));
    hasta=key(new Date(seleccion.getFullYear(),seleccion.getMonth()+1,0));
  }
- const cierres=delSuc(S.cierres).filter(c=>{
+ const cierresOriginales=delSuc(S.cierres).filter(c=>{
    const dia=ukiDiaReporte(c);return dia>=desde&&dia<=hasta;
  }).slice().sort((a,b)=>fechaCierreMs(b)-fechaCierreMs(a));
+ const cierres=cierresOriginales.map(ukiCierreInformeVigente);
  const total=nombre=>cierres.reduce((n,c)=>n+(Number(c[nombre])||0),0);
  const venta=total("venta"),gastos=total("gastos"),pedidos=total("pedidos");
  const pagos=MEDIOS.map(m=>({medio:m,total:cierres.reduce((n,c)=>n+(Number(c.medios?.[m])||0),0)})).filter(x=>x.total);
@@ -2796,7 +2797,7 @@ function vReportes(){
    row("Propinas aparte",fmt(total("propinas")))+
    (diaMayor?row("Día con mayor venta",diaMayor[0]+" · "+fmt(diaMayor[1])):"")+
    (ajustes.length?row("Ventas olvidadas registradas después ("+ajustes.length+")",fmt(ajusteTotal))+
-    '<p class="muted">Este ajuste es informativo y no está incluido en los cierres originales.</p>':"")+
+    '<p class="muted">Estos ajustes YA están incluidos en los informes vigentes rectificados. No se suman de nuevo.</p>':"")+
    '</div>';
  const medios='<details class="card"><summary style="cursor:pointer;font-weight:700">💳 Ver medios de pago · '+pagos.length+'</summary>'+
    (pagos.map(p=>row(p.medio,fmt(p.total))).join("")||'<p class="muted">Sin medios registrados.</p>')+
@@ -2804,8 +2805,9 @@ function vReportes(){
  const dias='<details class="card" open><summary style="cursor:pointer;font-weight:700">📅 Ver ventas por día · '+porDia.size+'</summary>'+
    [...porDia].sort((a,b)=>a[0].localeCompare(b[0])).map(([d,v])=>row(d,fmt(v))).join("")+
    '</details>';
- const detalles='<h3>Detalle de cada cierre · '+cierres.length+'</h3>'+cierres.map(c=>{
-   const g=ukiGastosCierreHistorico(c);
+ const detalles='<h3>Detalle de cada cierre · '+cierres.length+'</h3>'+cierres.map((c,i)=>{
+   const original=cierresOriginales[i];
+   const g=ukiGastosCierreHistorico(original);
    const gastosDetalle=g.disponible?(g.gastos.map(x=>row(x.concepto+" · "+x.medio,fmt(x.monto))).join("")||
      '<p class="muted">Sin gastos individualizados.</p>'):
      '<p class="muted">Este cierre antiguo no conserva el detalle individual de gastos.</p>';
@@ -2824,7 +2826,7 @@ function vReportes(){
      row("Deliverys",fmt(c.envios||0))+row("Pago a repartidor",fmt(c.pagadoDelivery??c.delivery??0))+
      row("Resultado final",fmt(c.final||0),"final")+
      row("Propinas (aparte)",fmt(c.propinas||0))+
-     ukiAccionesHistorial(c)+ukiVHistorialCorreccionesCierre(c)+ukiVCorreccionesPedidoCierre(c)+ukiVRectificarCierre(c)+
+     ukiAccionesHistorial(original)+ukiVHistorialCorreccionesCierre(original)+ukiVCorreccionesPedidoCierre(original)+ukiVRectificarCierre(original)+
      '</details>';
  }).join("");
  return fechas+resumen+ukiReportePropinasPeriodoUI()+medios+dias+detalles;
