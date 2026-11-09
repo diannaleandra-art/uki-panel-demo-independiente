@@ -56,7 +56,7 @@ test('Cambio de estado del pago se realiza a través de editar y exige responsab
  const calls=[],context={S:{suc:'Uki Regimiento Arica',vista:'pedidos',pedidos:[
   {id:77,suc:'Uki Regimiento Arica',pagado:true,timbreEnviadoEn:'2026-11-09T15:00:00Z',estado:'Pendiente'}
  ]},D:{},ukiCierreConfirmadoPedido:()=>null,editarPedido(id){
- calls.push(['editar',id]);this.D={editando:id,pagado:true};this.S.vista='nuevo';
+ calls.push(['editar',id]);context.D={editando:id,pagado:true};context.S.vista='nuevo';
  },render(){calls.push(['render']);},aviso(t){calls.push(['aviso',t]);},
  ukiTimbreYaEnviadoPedido:ctx.ukiTimbreYaEnviadoPedido,
  ukiTimbreObligatorioGuardar:ctx.ukiTimbreObligatorioGuardar};
@@ -71,7 +71,7 @@ test('Cambio de estado del pago se realiza a través de editar y exige responsab
  assert.match(src,/autorizacion=String\(D\.responsableEdicion\|\|''\)/);
  assert.match(src,/if\(!autorizacion\)/);
  const nuevo=chunk('function vNuevo(){','function uki');
- assert.ok(html.includes("D.editando?'<div class=\"card uki-responsable-edicion\""));
+ assert.ok(html.includes("D.editando?'<div class=\"card\"><h2>Responsable de la corrección"));
 });
 test('Primera creación no exige nombre de edición y conserva aviso aunque guarde como no pagado',()=>{
  const src=chunk('function ndGuardar(){','function cerrar(){');
