@@ -185,7 +185,8 @@ test('Panel muestra resumen por sucursal de promociones con acceso a precios exi
   {kind:'classic',name:'Clásico QA',price:8000}],group:'all',query:''};
  vm.runInNewContext(code.slice(a,b)+'\nrenderPromoResumen();',{
   document:{createElement},state,$:id=>roots[id],renderPrices:()=>refreshed++,
-  visibilityControl:()=>createElement('button')
+  visibilityControl:()=>createElement('button'),
+  window:{ukiCartaSeleccion:()=>{}}
  });
  const rows=target.children.filter(x=>x.tag==='div');
  assert.equal(rows.length,1);
