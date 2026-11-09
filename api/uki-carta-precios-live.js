@@ -15,6 +15,7 @@ const qaOrigin=(origin,env=process.env)=>qa(env)&&!!env.VERCEL_URL&&origin==='ht
 // APAGADO por defecto: el servidor conserva EXACTAMENTE la conducta previa.
 const promocionesHabilitadas=(env=process.env)=>
  env.UKI_PROMOS_VISIBILIDAD_ENABLED==='true'&&
+ env.UKI_INGREDIENTES_ARMADO_ENABLED==='true'&&
  (env.VERCEL_ENV==='production'&&env.UKI_INVENTARIO_LIVE_ENABLED==='true'||qa(env));
 const originAllowed=(origin,env=process.env)=>ALLOWED.has(origin)||(qa(env)&&(origin===QA_MENU||origin===QA_PANEL))||qaOrigin(origin,env);
 const fail=(res,status,error)=>res.status(status).json({ok:false,error});
