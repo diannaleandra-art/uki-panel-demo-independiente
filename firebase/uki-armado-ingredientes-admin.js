@@ -26,6 +26,8 @@ const html=[
  '<p id="ukiIngConexion" class="mini-help" role="status">Comprobando conexión con ingredientes…</p>',
  '<p role="status" id="ukiIngEstado" class="muted">Pulsa Actualizar para consultar ingredientes configurados.</p>',
  '<button type="button" class="sm" id="ukiIngActualizar">Actualizar ingredientes</button>',
+ '<label for="ukiIngBuscar" style="margin-top:12px;font-weight:650">Buscar vegetal, proteína o envoltura</label>',
+ '<input id="ukiIngBuscar" type="search" placeholder="Ej. Frutilla, pollo, panko" autocomplete="off">',
  '<div id="ukiIngLista" aria-label="Opciones de armado por categoría"></div>',
  '<div class="card" id="ukiIngNuevo" style="padding:10px;background:#fffaf5">',
  '<b>＋ Nuevo ingrediente</b>',
@@ -196,26 +198,31 @@ const skuNombre=n=>String(n||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
 function render(){
  const target=get('ukiIngLista');if(!target)return;
  target.replaceChildren();
+ const query=skuNombre(get('ukiIngBuscar')?.value||'');
+ let visibles=0;
  const estilos={
   vegetal:{title:'🌿 Vegetales',bg:'#f2f9f0',border:'#a8cda4',ink:'#285b35'},
   proteina:{title:'🍗 Proteínas',bg:'#fff5ed',border:'#e7b28c',ink:'#854624'},
   envoltura:{title:'🍙 Envolturas',bg:'#f5f3fb',border:'#c2b2df',ink:'#58416d'}
  };
  for(const cat of ['vegetal','proteina','envoltura']){
-  const style=estilos[cat],custom=state.items.filter(x=>x.category===cat);
-  const group=document.createElement('details');group.open=cat==='vegetal';
+  const style=estilos[cat],allCustom=state.items.filter(x=>x.category===cat);
+  const custom=allCustom.filter(x=>!query||skuNombre(x.name).includes(query));
+  const names=baseArmado[cat].filter(name=>
+   !allCustom.some(x=>skuNombre(x.name)===skuNombre(name))&&(!query||skuNombre(name).includes(query)));
+  if(!custom.length&&!names.length)continue;
+  visibles++;
+  const group=document.createElement('details');group.open=cat==='vegetal'||!!query;
   group.style.cssText='border:1.5px solid '+style.border+';border-radius:15px;background:'+style.bg+';margin:12px 0;overflow:hidden';
   const head=document.createElement('summary');head.style.cssText='cursor:pointer;padding:13px 14px;font-weight:750;color:'+style.ink+';font-size:16px';
-  head.textContent=style.title+' · '+(baseArmado[cat].length+custom.filter(x=>!baseArmado[cat].some(n=>skuNombre(n)===skuNombre(x.name))).length)+' opciones';
+  head.textContent=style.title+' · '+(query?(names.length+custom.length)+' coincidencias':(baseArmado[cat].length+allCustom.filter(x=>!baseArmado[cat].some(n=>skuNombre(n)===skuNombre(x.name))).length)+' opciones');
   group.append(head);
   const body=document.createElement('div');body.style.cssText='padding:0 12px 12px';
   const description=document.createElement('p');description.className='muted';
   description.textContent='Opciones originales de la carta y agregadas en esta sucursal. Los recargos de las originales dependen del armado.';
   body.append(description);
   const grid=document.createElement('div');grid.style.cssText='display:flex;flex-wrap:wrap;gap:7px;margin:10px 0';
-  const added=new Set(custom.map(x=>skuNombre(x.name)));
-  for(const name of [...baseArmado[cat]].sort((a,b)=>a.localeCompare(b,'es'))){
-   if(added.has(skuNombre(name)))continue;
+  for(const name of [...names].sort((a,b)=>a.localeCompare(b,'es'))){
    const chip=document.createElement('span');chip.style.cssText='background:#fff;border:1px solid '+style.border+';border-radius:10px;padding:7px 9px;font-size:13px;color:#4b423a';
    chip.textContent=name;chip.title='Opción original de la carta. Su recargo depende del producto o promoción.';
    grid.append(chip);
@@ -231,6 +238,8 @@ function render(){
   }
   group.append(body);target.append(group);
  }
+ if(!visibles){const msg=document.createElement('p');msg.className='muted';
+ msg.textContent='No hay ingredientes con ese nombre. Limpia la búsqueda para ver todos.';target.append(msg);}
 }
 function renderEditorIngrediente(item,target){
   const wrapper=document.createElement('details');wrapper.className='card';wrapper.style.cssText='padding:10px;margin:8px 0';
@@ -295,10 +304,20 @@ function mount(){
  if(!get('ukiArmadoIngredientes')){
   // Este formulario va justo después de «Agregar producto», dentro de Carta y precios.
   // No necesita otra pestaña, otro ingreso ni modifica el inventario.
+  const categoryArea=get('ukiCartaAreaIngredientes');
   const addProduct=get('ukiPriceAddBox');
-  if(addProduct)addProduct.insertAdjacentHTML('afterend',html);
+  if(categoryArea)categoryArea.insertAdjacentHTML('beforeend',html);
+  else if(addProduct)addProduct.insertAdjacentHTML('afterend',html);
   else host.insertAdjacentHTML('beforeend',html);
   const block=get('ukiIngNuevo'),mode=block.querySelector('[data-uki-ingredient="mode"]');
+  // Agregar cerca de la búsqueda, sin obligar a recorrer toda la lista.
+  const wrapper=document.createElement('details');wrapper.id='ukiIngAddPlegable';
+  wrapper.style.cssText='border:1.5px solid #a6c9a4;border-radius:12px;margin:12px 0;padding:12px;background:#f3faf2';
+  const summary=document.createElement('summary');summary.style.cssText='font-weight:750;cursor:pointer;color:#315c38';
+  summary.textContent='＋ Agregar ingrediente';wrapper.append(summary);
+  block.parentNode.insertBefore(wrapper,block);wrapper.append(block);
+  get('ukiIngLista').parentNode.insertBefore(wrapper,get('ukiIngLista'));
+  const find=get('ukiIngBuscar');if(find)find.oninput=()=>render();
   mode.onchange=()=>syncMode(block);block.querySelector('[data-uki-ingredient="category"]').onchange=()=>syncCategory(block);syncMode(block);syncCategory(block);
   get('ukiIngCrear').onclick=()=>send('crear',block);
   get('ukiIngActualizar').onclick=()=>state.availability===true?void load():void checkAvailability(branch());
