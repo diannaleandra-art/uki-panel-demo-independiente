@@ -13,7 +13,12 @@ const enabled=env=>(env.VERCEL_ENV==='production'&&env.UKI_INGREDIENTES_ARMADO_E
 const KINDS=new Set(['classic','premium','monthly','pizza','dish','topping']);
 const sameQAOrigin=(origin,env=process.env)=>enabled(env)&&env.VERCEL_ENV==='preview'&&
  !!env.VERCEL_URL&&origin==='https://'+env.VERCEL_URL;
-const originAllowed=(origin,env=process.env)=>ORIGINS.has(origin)||sameQAOrigin(origin,env);
+// La carta de prueba solo puede LEER fotos, nunca modificarlas: POST sigue
+// limitado al panel autenticado. QA requiere rama y base separada.
+const qaMenuAllowed=(origin,env=process.env)=>env.VERCEL_ENV==='preview'&&
+ env.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2&&env.UKI_INVENTARIO_QA_ENABLED==='true'&&
+ /^https:\/\/uki-sushi-pedidos-[a-z0-9-]+-diannaleandra-7046\.vercel\.app$/.test(origin);
+const originAllowed=(origin,env=process.env)=>ORIGINS.has(origin)||sameQAOrigin(origin,env)||qaMenuAllowed(origin,env);
 const fail=(res,code,error)=>res.status(code).json({ok:false,error});
 function validSku(value){
  if(typeof value!=='string'||value.length<5||value.length>120||!/^[a-z]+:[a-z0-9-]+$/.test(value))return false;
