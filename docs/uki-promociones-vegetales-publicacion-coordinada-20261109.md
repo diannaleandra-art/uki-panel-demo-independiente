@@ -63,3 +63,27 @@ No tocar los otros PR de QA (dos agendadores, centro de dueños, inventario sepa
 - El frontend de carta/QR preparado previamente solo incorpora promociones `visible=true` y disponibles, de la sucursal exacta. No se activa nada hasta completar verificación conjunta.
 - Vista privada de ejemplo `public/vista-previa-carta-precios.html`: muestra los tres estados y permite cambiar Publicada ↔ Retirada, o Borrador → Publicada en la simulación, con edición ilustrativa y **sin acceso a Neon, Firebase ni API**. Es una representación visual, no el panel operativo.
 - Pruebas QA de estado, distinción histórica, migración aditiva y no eliminación física superadas en flujo de regresión del panel. **Sin cambios de producción ni pagos.**
+
+## Prepublicación integrada · resultado final de las pruebas (9 nov 2026)
+
+**Concluido sin publicar a clientes:** PR panel #46 (rama `integracion/uki-promociones-ingredientes-seguros-qa-20261109`) y PR carta/QR #36 (rama `qa/uki-promociones-vegetales-qr-compatible-20261109`) siguen en borrador.
+
+- GitHub Actions panel, head `8f02476db9e074272c3fdee9e1210deb892645c7`: **167/167** pruebas correctas (workflow `42655418737`). Incluye conservación de pedidos/caja/timbres, estados Publicada/Borrador/Retirada, auth de Google, origen de preview y bloqueo de usar host Neon producción durante QA.
+- PostgreSQL 16 **local y temporal de GitHub Actions**: **prueba integral aprobada**, workflow `42655405722`. Aplica **dos veces** el SQL aditivo (idempotencia), consulta API `listing` real, crea borradores para ambos locales, exige foto al publicar, verifica fecha de primera publicación, retira, restaura, rechaza edición concurrente obsoleta, valida precios por sucursal. No toca Neon ni ventas. No es un ensayo HTTP autenticado de producción.
+- Carta/QR PR #36: pruebas automatizadas de catálogo y cotización aprobadas y emulación WebKit/iPhone en `42640938451` aprobada con datos ficticios. La prueba WebKit no equivale a Safari físico ni a pedido en Vercel real.
+- Se reforzó la activación conjunta: `UKI_PROMOS_VISIBILIDAD_ENABLED=true` **no habilita nada por sí sola**; también requiere `UKI_INGREDIENTES_ARMADO_ENABLED=true` y el entorno de backend válido. El QR exige ambas. De otro modo no aparecen promos dinámicas.
+- Se corrigieron las rutas de pruebas de ingredientes y fotos: la rama de QA exacta acepta el origen del **propio preview** solamente si `UKI_INVENTARIO_QA_ENABLED=true` y la URL de Neon tiene un host **QA autorizado**. Se mantiene autenticación Google para escrituras. No se configuraron esas variables ni se extrajeron credenciales.
+- Lectura real del preview Vercel existente `https://uki-sushi-panel-h74iqt4ub-diannaleandra-7046.vercel.app` con API de Vercel: la vista de ejemplo devuelve HTTP 200; `/api/uki-carta-precios-live?branch=arica` devuelve **503 «Servicio de carta no disponible»**, y `/api/uki-ingredientes-armado-live?branch=arica` devuelve **503 «Administrador de ingredientes aún no habilitado»**. Esto es consistente con las banderas protectoras apagadas. **No** demuestra conexión funcional Neon QA.
+- Intento de desplegar la última rama del panel mediante Vercel API: **HTTP 402 `api-deployments-free-per-day`**, límite gratuito de API de despliegues alcanzado. No se contrató plan ni se reintentó forzar costos. Las pruebas de GitHub sí funcionan.
+- Esta conexión Vercel solo enumera el proyecto `uki-sushi-panel`, no tiene acceso verificable a `uki-sushi-inventario` ni `uki-sushi-pedidos` por URL: consultas protegidas devolvieron 404 (proyecto ausente/no autorizado). No se debe inferir que su producción fue actualizada.
+- Neon producción: las tablas `uki_carta_promos_custom_v1` y `uki_carta_visibilidad_v1` **siguen sin existir**. Ninguna migración fue ejecutada en producción; fotos e ingredientes actuales se conservaron. QR impresos y carta real intactos.
+
+### Condiciones concretas para poder liberar
+
+1. Recuperar acceso Vercel a **los proyectos reales del backend de inventario/carta y del servidor QR/pedidos**, e identificar sus dominios y ramas de producción.
+2. Esperar a que vuelva la capacidad de desplegar previews sin pago y confirmar **Neon QA aislado** y que la rama probada coincida con las variables de QA configuradas.
+3. Publicar un preview integrado del **backend + carta/QR + panel** con las banderas apagadas inicialmente, probar con cuentas autorizadas en sucursales ficticias, fotografías, precios, vegetales y promo retirada. Ningún pedido real.
+4. Solo tras una **autorización posterior de cambios de producción**, aplicar SQL aditivo en Neon, confirmar versión de reversión y realizar liberación coordinada en ambos servicios y GitHub Pages, nunca uno por uno.
+5. Finalmente revisar carrito, WhatsApp, solicitud QR, montaje automático, disponibilidad, recargos y las dos sucursales desde iPhone. Verificar que ninguna promo oculta pueda volver a pedirse y que historial/caja no cambien.
+
+**Estado: QA local APROBADA; QA integrada Vercel real BLOQUEADA POR ACCESO Y CUOTA; NO LISTA PARA PRODUCCIÓN.**
