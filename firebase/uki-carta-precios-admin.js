@@ -8,7 +8,7 @@ const BACKEND=QA_HOST.test(location.hostname)?location.origin:'https://uki-sushi
 const API=BACKEND+'/api/uki-carta-precios-live';
 const STOCK_API=BACKEND+'/api/inventario-turno-live';
 const PHOTO_API=BACKEND+'/api/uki-carta-fotos-live';
-const state={tab:'inventario',branch:'',items:[],photos:{},query:'',group:'all',busy:false,ready:false};
+const state={tab:'inventario',branch:'',items:[],photos:{},query:'',group:'all',busy:false,ready:false,promocionesHabilitadas:false};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
 const peso=n=>'$'+Number(n).toLocaleString('es-CL');
@@ -353,9 +353,25 @@ function line(price){
   };
   details.append(name,description,button);wrap.append(details);
  }
- if(price.kind==='monthly'&&price.custom)wrap.append(promoEditor(price));
- const vis=visibilityControl(price);
- vis.style.marginTop='6px';wrap.append(vis);
+ if(state.promocionesHabilitadas){
+  if(price.kind==='monthly'&&price.custom)wrap.append(promoEditor(price));
+  const vis=visibilityControl(price);vis.style.marginTop='6px';wrap.append(vis);
+ }else if(price.custom){
+  // Mantener el retiro/restauración que ya usaba Uki, sin tablas ni APIs nuevas.
+  const retire=document.createElement('button');retire.type='button';retire.className='sm';
+  retire.textContent=price.available?'🗑 Quitar producto de la carta':'↩ Volver a mostrar producto';
+  retire.onclick=async()=>{
+   if(state.busy)return;
+   const chosen=state.branch,action=price.available?'retirar-producto':'restaurar-producto';
+   if(price.available&&!window.confirm('¿Quitar «'+price.name+'» de la carta de esta sucursal? El historial se conserva.'))return;
+   state.busy=true;retire.disabled=true;
+   try{await request(API,action,{sku:price.sku,expected_version:price.version},chosen);
+    state.busy=false;await loadPrices(true);info('ukiPriceMessage','✓ Producto actualizado en esta sucursal.');}
+   catch(e){info('ukiPriceMessage','No se modificó: '+String(e.message))}
+   finally{state.busy=false;retire.disabled=false;}
+  };
+  wrap.append(retire);
+ }
  return wrap;
 }
 function renderPrices(){
@@ -375,8 +391,13 @@ async function loadPrices(force=false){
  try{
   const data=await request(API,'listar',{},selected);
   if(selected!==branch())return;
-  state.items=Array.isArray(data.items)?data.items:[];state.ready=true;await loadPhotos(selected);renderPrices();
-  info('ukiPriceMessage','✓ '+state.items.length+' productos y precios de esta sucursal.');
+  state.items=Array.isArray(data.items)?data.items:[];
+  state.promocionesHabilitadas=data.promocionesHabilitadas===true;
+  const promoBox=$('ukiPromoAddBox');if(promoBox){promoBox.hidden=!state.promocionesHabilitadas;
+   if(!state.promocionesHabilitadas)promoBox.open=false;}
+  state.ready=true;await loadPhotos(selected);renderPrices();
+  info('ukiPriceMessage','✓ '+state.items.length+' productos y precios de esta sucursal.'+
+   (state.promocionesHabilitadas?' Promociones dinámicas disponibles.':' Las promociones nuevas estarán disponibles tras la publicación conjunta.'));
  }catch(e){state.ready=false;state.items=[];
   info('ukiPriceMessage','No se pudo consultar: '+String(e.message));}
  const pizza=$('ukiPriceNewKind');
