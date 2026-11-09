@@ -30,6 +30,7 @@ input:disabled,select:disabled,textarea:disabled{opacity:1;color:#84766c;backgro
 .demo{width:100%;border:0;background:#e5dacf;color:#746252;border-radius:11px;padding:13px;font-weight:750;margin-top:13px}
 .photo{height:106px;border-radius:12px;background:linear-gradient(135deg,#fff3e6,#f3d5b5);display:flex;align-items:center;justify-content:center;gap:7px;flex-direction:column;color:#b47639;font-size:13px}
 .photo strong{font-size:33px}.promo{border:1px solid #efdecd;border-radius:14px;padding:12px;margin-top:12px}.promo.off{background:#faf8f6;opacity:.75}.promo-action{margin-top:12px;padding:10px 12px;border-radius:10px;background:#fff8ef;border:1px solid #e7c9af;color:#954e15;font-size:13px;font-weight:750;min-height:41px}.promo-action.restore{background:#edf8ef;color:#397349;border-color:#b9d9bf}
+.promo-actions{display:flex;flex-wrap:wrap;gap:8px}.promo-actions .promo-action{flex:1 1 150px}.state-pill{display:inline-block;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:800;background:#fff1e0;color:#97500f}.state-pill.publicada{background:#edf7ed;color:#276d41}.state-pill.retirada{background:#f2eeec;color:#786155}.promo-edit{border-top:1px dashed #e9daca;margin-top:12px;padding-top:9px}.promo-edit summary{font-size:14px;color:#7c5031}
 .promoname{display:flex;justify-content:space-between;gap:10px;margin:13px 0 2px}.promoname b{font-size:16px}.promoname strong{color:#c16c0b;white-space:nowrap}
 footer{max-width:640px;margin:15px auto;padding:0 20px;color:#846c59;font-size:12px;text-align:center}
 a{color:#aa570b}button:focus-visible,summary:focus-visible{outline:3px solid #da8a31;outline-offset:2px}
@@ -97,7 +98,7 @@ const sample={
  }};
 let branch='arica',tab='ingredientes';
 // Solo estado visual temporal: sin red ni almacenamiento, se reinicia al refrescar.
-const promosOcultasDemo={arica:new Set(),serena:new Set()};
+const promoEstadosDemo={arica:['Publicada','Borrador'],serena:['Publicada','Retirada']};
 const h=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e};
 function items(id,rows){
  const root=document.getElementById(id);root.replaceChildren();
@@ -110,20 +111,29 @@ function items(id,rows){
 function promos(rows){
  const root=document.getElementById('promo-list');root.replaceChildren();
  rows.forEach(([name,desc,cost],index)=>{
-  const ocultada=promosOcultasDemo[branch].has(index);
-  const card=h('div',undefined,ocultada?'promo off':'promo'),photo=h('div',undefined,'photo');
+  const estado=promoEstadosDemo[branch][index];
+  const card=h('div',undefined,estado==='Retirada'?'promo off':'promo'),photo=h('div',undefined,'photo');
   photo.append(h('strong','🍱'),h('span','Aquí aparecerá la foto real que agregues'));
   const title=h('div',undefined,'promoname');title.append(h('b',name),h('strong',cost));
-  const state=h('span',ocultada?'Eliminada de esta carta (solo ejemplo)':'Ejemplo · no publicado','pill orange');
-  const btn=h('button',ocultada?'↩ Volver a publicar':'🗑 Eliminar promoción de la carta',
-   ocultada?'promo-action restore':'promo-action');
+  const tag=h('span',estado, 'state-pill '+estado.toLowerCase());
+  tag.setAttribute('aria-label','Estado de promoción: '+estado);
+  const btn=h('button',estado==='Publicada'?'🗑 Eliminar promoción de la carta':
+   estado==='Borrador'?'✓ Publicar promoción':'↩ Volver a publicar',
+   estado==='Publicada'?'promo-action':'promo-action restore');
   btn.type='button';
-  btn.setAttribute('aria-label',(ocultada?'Restaurar':'Eliminar')+' '+name+' solo en la demostración');
+  btn.setAttribute('aria-label',(estado==='Publicada'?'Eliminar':estado==='Borrador'?'Publicar':'Restaurar')+' '+name+' solo en la demostración');
   btn.onclick=()=>{
-   if(ocultada)promosOcultasDemo[branch].delete(index);else promosOcultasDemo[branch].add(index);
+   promoEstadosDemo[branch][index]=estado==='Publicada'?'Retirada':'Publicada';
    render();
   };
-  card.append(photo,title,h('p',desc,'sm'),state,btn);root.append(card);
+  const edit=document.createElement('details');edit.className='promo-edit';
+  const summary=h('summary','✏️ Editar promoción (ejemplo)');
+  const info=h('p','Aquí podrás modificar precio, armado, medios de pago y fotografía. La demostración no guarda cambios.','sm');
+  const field=document.createElement('label');field.textContent='Precio de ejemplo';
+  const amount=document.createElement('input');amount.disabled=true;amount.value=cost;
+  field.append(amount);edit.append(summary,info,field);
+  const actions=h('div',undefined,'promo-actions');actions.append(btn);
+  card.append(photo,title,h('p',desc,'sm'),tag,edit,actions);root.append(card);
  });
 }
 function render(){
