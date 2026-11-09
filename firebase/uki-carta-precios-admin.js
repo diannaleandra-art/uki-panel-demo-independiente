@@ -329,7 +329,7 @@ function promoEditor(price){
  };form.append(save);
  details.append(form);return details;
 }
-function line(price){
+function line(price,ocultarRetiro=false){
  const wrap=document.createElement('div');wrap.className='row';wrap.style.cssText='align-items:center;gap:9px;padding:10px 0;border-bottom:1px solid #eee0d3;flex-wrap:wrap';
  const summary=document.createElement('div');summary.style.flex='1 1 130px';
  const name=document.createElement('b');name.textContent=price.name;
@@ -396,7 +396,7 @@ function line(price){
  }
  if(state.promocionesHabilitadas){
   if(price.kind==='monthly'&&price.custom)wrap.append(promoEditor(price));
-  const vis=visibilityControl(price);vis.style.marginTop='6px';wrap.append(vis);
+  if(!ocultarRetiro){const vis=visibilityControl(price);vis.style.marginTop='6px';wrap.append(vis);}
  }else if(price.custom){
   // Mantener el retiro/restauración que ya usaba Uki, sin tablas ni APIs nuevas.
   const retire=document.createElement('button');retire.type='button';retire.className='sm';
@@ -439,20 +439,14 @@ function renderPromoResumen(){
   const estado=promo.estadoPublicacion||(promo.visible===false?'Retirada':'Publicada');
   note.textContent='$'+Number(promo.price||0).toLocaleString('es-CL')+' · '+estado;
   label.append(title,note);row.append(label);
-  const btn=document.createElement('button');btn.type='button';btn.className='sm';
-  btn.textContent='Ver detalles';
-  btn.onclick=()=>{
-   state.group='monthly';state.query=promo.name;
-   const group=$('ukiPriceGroup'),search=$('ukiPriceSearch');
-   if(group)group.value='monthly';if(search)search.value=promo.name;
-   renderPrices();
-   window.ukiCartaSeleccion?.('productos');
-   const list=$('ukiPriceList');if(list){
-    list.style.scrollMarginTop='130px';list.scrollIntoView({behavior:'smooth',block:'start'});
-   }
-  };
-  row.append(btn);
-  // Retirar o recuperar la promoción sin abandonar su lista.
+  // El detalle y la edición se abren dentro de Promociones, sin navegar a Productos.
+  const detalle=document.createElement('details');
+  detalle.style.cssText='flex:1 0 100%;border-radius:10px;background:#fffaf5;padding:7px 10px;margin-top:4px';
+  const titulo=document.createElement('summary');titulo.textContent='Editar / ver detalles';
+  titulo.style.cssText='font-weight:700;cursor:pointer;color:#88502c';detalle.append(titulo);
+  detalle.append(line(promo,true));
+  row.append(detalle);
+  // Mantener la retirada o restauración visible en la misma lista.
   row.append(visibilityControl(promo));
   target.append(row);
  }
