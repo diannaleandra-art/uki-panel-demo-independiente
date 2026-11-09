@@ -30,6 +30,11 @@ async function authorized(req,env=process.env){
  if(!ids.includes(payload.sub)&&!(payload.email_verified===true&&emails.includes(String(payload.email||'').toLowerCase())))return null;
  return {uid:String(payload.sub)};
 }
+// Estado legible para la dueña: un borrador nunca publicado no es lo mismo
+// que una promoción retirada después de haberse ofrecido a clientes.
+function estadoPromocion(visible,primeraPublicacion){
+ return visible===true?'Publicada':primeraPublicacion?'Retirada':'Borrador';
+}
 function goodPrice(x){return Number.isSafeInteger(x)&&x>=1&&x<=1000000;}
 function goodText(value,max=100){return typeof value==='string'&&value.trim().length>=2&&value.trim().length<=max;}
 function getSKU(kind,name){return kind+':'+String(name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,62)+'-'+randomUUID().slice(0,8);}
@@ -59,7 +64,7 @@ async function listing(sql,branch,conPromos=promocionesHabilitadas()){
   baseItems(branch),
   sql.query("SELECT sku,price,available,version FROM public.uki_carta_items_v1 WHERE branch=$1 AND kind<>'ingredient'",[branch]),
   sql.query("SELECT sku,kind,group_key,name,description,price,available,version FROM public.uki_carta_productos_custom_v1 WHERE branch=$1 ORDER BY group_key,name",[branch]),
-  conPromos?sql.query("SELECT sku,name,description,price,available,visible,version,roll_count,pieces_per_roll,size,sauce_count,korokes,payments FROM public.uki_carta_promos_custom_v1 WHERE branch=$1 ORDER BY name",[branch]):Promise.resolve([]),
+  conPromos?sql.query("SELECT sku,name,description,price,available,visible,published_at,version,roll_count,pieces_per_roll,size,sauce_count,korokes,payments FROM public.uki_carta_promos_custom_v1 WHERE branch=$1 ORDER BY name",[branch]):Promise.resolve([]),
   conPromos?sql.query("SELECT sku,visible,version FROM public.uki_carta_visibilidad_v1 WHERE branch=$1",[branch]):Promise.resolve([])
  ]);
  const map=new Map(overrides.map(o=>[String(o.sku),o]));
@@ -76,6 +81,7 @@ async function listing(sql,branch,conPromos=promocionesHabilitadas()){
   ...visibility(x.sku)})),...promos.map(x=>({sku:x.sku,kind:'monthly',group:'promos',name:x.name,
    description:x.description,price:Number(x.price),available:x.available===true,
    visible:x.visible===true,visibilityVersion:Number(x.version),version:Number(x.version),custom:true,
+   estadoPublicacion:estadoPromocion(x.visible,x.published_at),
    config:{rollCount:Number(x.roll_count),piecesPerRoll:Number(x.pieces_per_roll),size:Number(x.size),
     sauceCount:Number(x.sauce_count),korokes:Number(x.korokes),payments:x.payments}}))];
 }
@@ -171,7 +177,7 @@ module.exports=async function(req,res){
     if(!photo.length)return fail(res,409,'Primero sube la fotografía de la promoción.');
    }
    if(entry.kind==='monthly'&&entry.custom){
-    const changed=await sql.query('UPDATE public.uki_carta_promos_custom_v1 SET visible=$3,version=version+1,updated_by=$5,updated_at=NOW() WHERE branch=$1 AND sku=$2 AND version=$4 AND visible IS DISTINCT FROM $3 RETURNING sku,visible,version',
+    const changed=await sql.query('UPDATE public.uki_carta_promos_custom_v1 SET visible=$3,published_at=CASE WHEN $3 THEN COALESCE(published_at,NOW()) ELSE published_at END,version=version+1,updated_by=$5,updated_at=NOW() WHERE branch=$1 AND sku=$2 AND version=$4 AND visible IS DISTINCT FROM $3 RETURNING sku,visible,published_at,version',
       [branch,sku,visible,version,user.uid]);
     if(!changed.length)return fail(res,409,'La promoción cambió. Actualiza antes de continuar.');
     return res.status(200).json({ok:true,branch,item:changed[0]});
@@ -215,4 +221,4 @@ module.exports=async function(req,res){
  }catch(e){console.error('Carta precios',String(e?.code||e?.name||'error').slice(0,60));
   return fail(res,503,'No se pudo completar la operación. Inventario y caja siguen intactos');}
 };
-module.exports._testing={goodPrice,validNew,validPromo,originAllowed,getSKU,listing,modifyPrice,promocionesHabilitadas};
+module.exports._testing={goodPrice,validNew,validPromo,originAllowed,getSKU,listing,modifyPrice,promocionesHabilitadas,estadoPromocion};
