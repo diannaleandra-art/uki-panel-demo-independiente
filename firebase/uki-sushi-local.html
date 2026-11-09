@@ -4559,18 +4559,24 @@ function ukiLineasGastosCierreHistorico(c){
  return out;
 }
 
-function ukiMensajeCierreHistorico(c){
+function ukiMensajeCierreHistorico(original){
+ const c=ukiCierreInformeVigente(original);
+ const r=c.rectificacion;
  const lineas=[
-  "🍣 *UKI SUSHI · CIERRE GUARDADO*",
+  "🍣 *UKI SUSHI · "+(r?"CIERRE RECTIFICADO · VERSIÓN "+r.version:"CIERRE GUARDADO")+"*",
   "*Sucursal:* "+c.suc,
   "*Turno:* "+(c.fechaOperativa||String(c.fechaISO||"").slice(0,10)),
   "*Fecha del cierre:* "+(c.fecha||c.fechaISO||""),
+  "*Hora de cierre:* "+ukiHoraCierreHistorial(c),
+  ...(r?["*Fecha de rectificación:* "+(r.fecha||""),
+   "*Rectificación registrada por:* "+(r.responsable||"No indicado")]:[]),
   "*Responsable:* "+(c.resp||"No indicado"),
   "",
   "*RESUMEN DE VENTAS*",
   "Pedidos: "+(Number(c.pedidos)||0),
   "Venta total con delivery: "+fmt(c.venta||0),
-  "Venta sin delivery: "+fmt(c.ventaSinDelivery??((Number(c.venta)||0)-(Number(c.envios)||0))),
+  "Venta sin delivery: "+(r&&!r.sinDeliveryVerificado?
+     "Pendiente de desglose de ajustes anteriores":fmt(c.ventaSinDelivery??((Number(c.venta)||0)-(Number(c.envios)||0)))),
   "",
   "*MEDIOS DE PAGO*",
   ...ukiMediosCierreHistorico(c).map(m=>m.nombre+": "+fmt(m.importe)),
@@ -4595,13 +4601,27 @@ function ukiMensajeCierreHistorico(c){
   "Propinas (aparte): "+fmt(c.propinas||0)
  ];
  if(Number.isFinite(c.diferenciaEfectivo))lineas.push("Diferencia de efectivo: "+(c.diferenciaEfectivo===0?"Caja exacta":(c.diferenciaEfectivo>0?"Sobrante ":"Faltante ")+fmt(Math.abs(c.diferenciaEfectivo))));
+ if(r){
+  lineas.push("","*RECTIFICACIÓN DEL CIERRE · INFORME VIGENTE*",
+   "Pedidos olvidados incorporados: "+r.ajustes.length,
+   "Cobrado en Uki después del cierre: "+fmt(r.cobradoUki),
+   "Cobrado en otros locales: "+fmt(r.cobradoOtros),
+   "Efectivo adicional registrado: "+fmt(r.efectivoAdicional)+
+    " (no modifica el efectivo físico contado al cerrar)",
+   "Delivery por conciliar con repartidor: "+fmt(r.deliveryPendiente));
+  for(const x of r.ajustes)lineas.push(
+   "Pedido olvidado "+(x.codigoCarta?"Carta #"+x.codigoCarta:"#"+x.id)+
+   " · "+(x.cliente||"Sin nombre")+" · "+fmt(x.total)+
+   " · "+x.responsable+" · Motivo: "+x.motivo);
+  lineas.push("Cierre original archivado para auditoría; no se contabiliza por duplicado.");
+ }
  if(c.obs)lineas.push("Observaciones: "+String(c.obs).slice(0,250)+(String(c.obs).length>250?"…":""));
  const correcciones=ukiCorreccionesRegistradasCierre(c);
  if(correcciones.length){
   lineas.push("","*ACLARACIONES POSTERIORES AL CIERRE*");
   correcciones.forEach(x=>lineas.push(x.dato+" → "+x.correcto+" · "+x.responsable+" · Motivo: "+x.motivo));
  }
- lineas.push("","Cifras originales del cierre guardado. Las aclaraciones no cambian la caja ni los pagos.");
+ lineas.push("",r?"Este informe sustituye al original en la consulta. No se alteran las transacciones, el efectivo físico ni los pagos ya realizados.":"Cifras originales del cierre guardado. Las aclaraciones no cambian la caja ni los pagos.");
  return lineas.join("\n");
 }
 function ukiCompartirCierreHistorial(i){
@@ -4625,7 +4645,9 @@ function ukiPdfWinAnsi(texto){
  }
  return out;
 }
-function ukiCrearPdfResumenHistorico(c){
+function ukiCrearPdfResumenHistorico(original){
+ const c=ukiCierreInformeVigente(original);
+ const r=c.rectificacion;
  const W=595,H=842;
  let paginas=[],actual=[],y=0;
  const txt=(texto,x,yy,sz=10,negrita=false,color="0.17 0.14 0.12")=>{
@@ -4635,7 +4657,7 @@ function ukiCrearPdfResumenHistorico(c){
   actual=[];paginas.push(actual);y=785;
   actual.push("0.80 0.38 0.07 rg 0 822 "+W+" 20 re f");
   txt("UKI SUSHI",42,790,21,true);
-  txt("CIERRE DE CAJA · RESUMEN ARCHIVADO",42,772,10,false,"0.51 0.39 0.30");
+  txt("CIERRE DE CAJA · "+(r?"INFORME RECTIFICADO":"RESUMEN ARCHIVADO"),42,772,10,false,"0.51 0.39 0.30");
   y=744;
  };
  const salto=(alto=20)=>{if(y-alto<65)pagina();};
@@ -4670,11 +4692,17 @@ function ukiCrearPdfResumenHistorico(c){
  fila("Sucursal",c.suc||S.suc);
  fila("Turno operativo",c.fechaOperativa||String(c.fechaISO||"").slice(0,10));
  fila("Cierre registrado",c.fecha||c.fechaISO||"");
+ fila("Hora del cierre",ukiHoraCierreHistorial(c));
  fila("Responsable",c.resp||"No indicado");
+ if(r){
+  fila("Version vigente","Rectificado "+r.version);
+  fila("Rectificacion creada",r.fecha||"");
+ }
  seccion("Ventas");
  fila("Pedidos",Number(c.pedidos)||0);
  fila("Venta con delivery",fmt(c.venta||0));
- fila("Venta sin delivery",fmt(c.ventaSinDelivery??((Number(c.venta)||0)-(Number(c.envios)||0))));
+ fila("Venta sin delivery",r&&!r.sinDeliveryVerificado?
+   "Pendiente de desglose":fmt(c.ventaSinDelivery??((Number(c.venta)||0)-(Number(c.envios)||0))));
  seccion("Medios de pago");
  const medios=ukiMediosCierreHistorico(c);
  if(medios.length)medios.forEach(m=>fila(m.nombre,fmt(m.importe)));
@@ -4740,6 +4768,20 @@ function ukiCrearPdfResumenHistorico(c){
  fila("Efectivo contado",ukiEfectivoContadoHistorial(c));
  if(Number.isFinite(c.diferenciaEfectivo))fila("Diferencia de efectivo",c.diferenciaEfectivo===0?"Caja exacta":(c.diferenciaEfectivo>0?"Sobrante ":"Faltante ")+fmt(Math.abs(c.diferenciaEfectivo)));
  fila("Propinas (aparte)",fmt(c.propinas||0));
+ if(r){
+  seccion("Rectificacion del cierre · informe vigente");
+  fila("Pedidos olvidados",r.ajustes.length);
+  fila("Cobros adicionales en Uki",fmt(r.cobradoUki));
+  fila("Cobros en otros locales",fmt(r.cobradoOtros));
+  fila("Efectivo adicional",fmt(r.efectivoAdicional));
+  fila("Delivery por conciliar",fmt(r.deliveryPendiente));
+  lineaNota("El efectivo contado y los pagos anteriores no se reescriben; el informe original queda archivado para auditoria.");
+  for(const x of r.ajustes){
+   lineaNota("Pedido "+(x.codigoCarta?"Carta #"+x.codigoCarta:"#"+x.id)+
+    " · "+(x.cliente||"Sin nombre")+" · "+fmt(x.total));
+   lineaNota("Responsable: "+x.responsable+" · Motivo: "+x.motivo);
+  }
+ }
  if(c.obs){seccion("Observaciones");lineaNota(String(c.obs).slice(0,400));}
  const rectificaciones=ukiCorreccionesRegistradasCierre(c);
  if(rectificaciones.length){
@@ -4752,7 +4794,8 @@ function ukiCrearPdfResumenHistorico(c){
  }
  for(let i=0;i<paginas.length;i++){
   const pg=paginas[i];
-  pg.push("0.58 0.51 0.45 rg BT /F1 8 Tf 1 0 0 1 42 39 Tm (Cifras originales del cierre. Pagos y timbres archivados.) Tj ET");
+  pg.push("0.58 0.51 0.45 rg BT /F1 8 Tf 1 0 0 1 42 39 Tm ("+(r?
+    "Informe rectificado. Original archivado para auditoria.":"Cifras originales del cierre. Pagos y timbres archivados.")+") Tj ET");
   pg.push("0.58 0.51 0.45 rg BT /F1 8 Tf 1 0 0 1 500 39 Tm (Pag. "+(i+1)+"/"+paginas.length+") Tj ET");
  }
  const objs=[null];
@@ -4791,7 +4834,7 @@ async function ukiPDFCierreHistorial(i){
   const dia=/^\d{4}-\d{2}-\d{2}$/.test(c.fechaOperativa||"")?c.fechaOperativa:"historico";
   const local=String(c.suc||"uki").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")
     .replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
-  const nombre="uki-cierre-"+local+"-"+dia+".pdf";
+  const nombre="uki-cierre-"+local+"-"+dia+(ukiCierreInformeVigente(c).rectificacion?"-rectificado":"")+".pdf";
   if(navigator.share&&navigator.canShare&&typeof File!=="undefined"){
    const file=new File([archivo],nombre,{type:"application/pdf"});
    if(navigator.canShare({files:[file]})){
