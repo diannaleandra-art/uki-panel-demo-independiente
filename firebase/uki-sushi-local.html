@@ -1995,21 +1995,25 @@ async function cancelarPedido(id){
  if(document.body.classList.contains("uki-operativo-bloqueado")||typeof window.ukiCancelacionNubeLista!=="function"||!window.ukiCancelacionNubeLista()){aviso("Espera a que Firebase confirme «Nube: sincronizado» antes de cancelar.");return;}
  const motivo=String($("motivoCancelacion"+id)?.value||"").trim().toLowerCase();
  if(!["cliente","local"].includes(motivo)){aviso("Selecciona si canceló el cliente o el local.");return;}
- if(!confirm("¿Confirmas cancelar el pedido #"+p.id+" por decisión del "+(motivo==="cliente"?"cliente":"local")+"? "+(p.estado==="Entregado"?"Antes figuraba como ENTREGADO. Verifica que no se haya entregado realmente. ":"")+"Quedará registrado y no contará como venta. Esta acción no se puede deshacer desde el panel."))return;
+ const detalle=String($("detalleCancelacion"+id)?.value||"").trim().slice(0,300);
+ if(!detalle){aviso("Escribe el motivo específico de la cancelación antes de confirmar.");return;}
+ if(!confirm("¿Confirmas cancelar el pedido #"+p.id+" por decisión del "+(motivo==="cliente"?"cliente":"local")+"? Motivo: "+detalle+". "+(p.estado==="Entregado"?"Antes figuraba como ENTREGADO. Verifica que no se haya entregado realmente. ":"")+"Quedará registrado y no contará como venta. Esta acción no se puede deshacer desde el panel."))return;
  if(!puedeCancelarPedido(p)||document.body.classList.contains("uki-operativo-bloqueado")||typeof window.ukiCancelacionNubeLista!=="function"||!window.ukiCancelacionNubeLista()){
    aviso("El pedido o la sincronización cambió. No se realizó la cancelación.");return;
  }
  cancelacionGuardando=true;
- const anterior={estado:p.estado,motivo:p.motivoCancelacion,fecha:p.canceladoEn};
+ const anterior={estado:p.estado,motivo:p.motivoCancelacion,detalle:p.motivoDetalleCancelacion,fecha:p.canceladoEn};
  try{
  p.estado="Cancelado";
  p.motivoCancelacion=motivo;
+ p.motivoDetalleCancelacion=detalle;
  p.canceladoEn=new Date().toISOString();
  // Nunca afirmar que se guardó si Safari no pudo escribir el respaldo local cifrado.
  const guardado=await guardarEnLocalStorage();
  if(!guardado){
    p.estado=anterior.estado;
    if(anterior.motivo===undefined)delete p.motivoCancelacion;else p.motivoCancelacion=anterior.motivo;
+   if(anterior.detalle===undefined)delete p.motivoDetalleCancelacion;else p.motivoDetalleCancelacion=anterior.detalle;
    if(anterior.fecha===undefined)delete p.canceladoEn;else p.canceladoEn=anterior.fecha;
    aviso("No se guardó la cancelación. El pedido sigue pendiente. Revisa el espacio del iPhone.");
    return;
@@ -2203,7 +2207,7 @@ function fichaHistorial(cli){
       +' · '+fmt(p.total)+'</summary><div style="padding:8px"><p class="muted">'
       +esc(p.suc||"Sucursal no indicada")+' · '+esc(p.modalidad||"")+' · '+esc(p.medio||"")+'</p>'
       +'<p class="muted">Estado: '+esc(p.estado||"Pendiente")
-      +(p.estado==="Cancelado"?' · '+esc(p.motivoCancelacion==="cliente"?"Cancelado por el cliente":p.motivoCancelacion==="local"?"Cancelado por el local":"Motivo no informado"):'')+'</p>'
+      +(p.estado==="Cancelado"?' · '+esc(p.motivoCancelacion==="cliente"?"Cancelado por el cliente":p.motivoCancelacion==="local"?"Cancelado por el local":"Motivo no informado")+(p.motivoDetalleCancelacion?" · "+p.motivoDetalleCancelacion:"")):'')+'</p>'
       +(p.productos||[]).map(x=>'<div class="row"><span>'+esc(x.cantidad)+' × '+esc(x.nombre)
         +(x.detalle?' · '+esc(x.detalle):'')+'</span><b>'+fmt((+x.cantidad||0)*(+x.precioUnit||0))+'</b></div>').join('')
       +(p.envio?'<div class="row"><span>Delivery</span><b>'+fmt(p.envio)+'</b></div>':'')
@@ -3963,7 +3967,7 @@ function vPedidos(){
   <details class="card uki-bloque-incidencias" ${erroresAbiertos?'open':''}><summary onclick="erroresAbiertos=!erroresAbiertos"><b>⚠️ Errores e incidencias</b> · ${pendientes} pendientes</summary><label>Buscar errores por dia de reporte</label><input id="diaErrorFiltro" type="date" value="${esc(filtroDiaIncidencias)}"><button class="sm ok" onclick="aplicarDiaIncidencias()">Buscar errores</button><p class="muted">Los reportes se conservan aunque se cierre la caja del dia.</p>${incidencias.length?incidencias.map(x=>renderIncidencia(x,"lista")).join(""):"<p class='muted'>No hay errores para esta busqueda.</p>"}</details>
   ${visibles.map(p=>`<details class="card order-card ${p.estado==="Cancelado"?"uki-pedido-cancelado":p.esPremio?"uki-pedido-premio":p.estado==="Entregado"&&p.pagado?"uki-pedido-entregado":p.pagado?"uki-pedido-pagado":"uki-pedido-cobrar"}">
     <summary><div class="order-head"><div><b>${esc(ukiReferenciaConCarta(p))} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)} · Origen: ${esc(ukiOrigenPedido(p))}${p.modalidad==="Delivery"?" · 🛵 "+esc(ukiKmTexto(p)):""}${ukiPropinaVisiblePedido(p)>0?" · 💝 Propina "+fmt(ukiPropinaVisiblePedido(p)):""}${ukiCodigoClienteVisible(p)?" · Código cliente: "+esc(ukiCodigoClienteVisible(p)):""}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small class="uki-estado-badge">${p.esPremio?'🎁 Premio':p.estado==="Cancelado"?'Cancelado':p.estado==="Entregado"&&p.pagado?'✓ Entregado':p.pagado?'✓ Pagado · por entregar':'$ Por cobrar'}${erroresPedidos.has(p.id)?' · ⚠️ Con error':''}</small></div></div></summary>
-    <div class="order-body"><p class="muted">${esc(p.estado==="Entregado"&&!p.pagado?"Pendiente de pago · Entrega anterior por revisar":p.estado||"Pendiente")} · ${esc(p.medio||'Efectivo')}${p.telefono?' · '+esc(p.telefono):''}</p>${p.estado==="Cancelado"?`<p class="muted"><b>Motivo:</b> ${esc(p.motivoCancelacion==="cliente"?"Cancelado por el cliente":p.motivoCancelacion==="local"?"Cancelado por el local":"No informado")}${p.canceladoEn?" · "+esc(fechaTxt(p.canceladoEn)):""}</p>`:""}
+    <div class="order-body"><p class="muted">${esc(p.estado==="Entregado"&&!p.pagado?"Pendiente de pago · Entrega anterior por revisar":p.estado||"Pendiente")} · ${esc(p.medio||'Efectivo')}${p.telefono?' · '+esc(p.telefono):''}</p>${p.estado==="Cancelado"?`<p class="muted"><b>Motivo:</b> ${esc(p.motivoCancelacion==="cliente"?"Cancelado por el cliente":p.motivoCancelacion==="local"?"Cancelado por el local":"No informado")}${p.motivoDetalleCancelacion?" · "+esc(p.motivoDetalleCancelacion):""}${p.canceladoEn?" · "+esc(fechaTxt(p.canceladoEn)):""}</p>`:""}
     ${(p.productos||[]).map(pr=>`<div class="row"><span>${pr.cantidad}x ${esc(pr.nombre)}${pr.detalle?` · ${esc(pr.detalle)}`:''}</span><b>${fmt(pr.cantidad*pr.precioUnit)}</b></div>`).join('')}
     ${p.envio?row('Delivery',fmt(p.envio)):''}
     ${p.modalidad==="Delivery"?row("Kilómetros del recorrido",ukiKmTexto(p)):''}
@@ -3987,7 +3991,7 @@ function vPedidos(){
     <label>Solucion (opcional)</label><textarea rows="2" id="incSolucion${p.id}" placeholder="Ej: reposicion enviada"></textarea>
     <button class="sm ok" onclick="anotarIncidencia(${p.id})">Guardar error</button></details>
     <div class="order-actions">${ukiCuentaAbierta(p)&&esDelPeriodo(p)?`<button class="sm ok" onclick="ukiAgregarACuenta(${p.id})">+ Agregar a cuenta</button>`:""}${p.estado!=="Cancelado"?`<button class="sm ok" onclick="editarPedido(${p.id})">Editar</button><button class="sm" onclick="togglePagado(${p.id})">${p.pagado?'Quitar pagado':'Marcar pagado'}</button>${p.estado==="Pendiente"?`<button class="sm ok" onclick="ukiMarcarPedidoEntregado(${p.id})">✓ Marcar entregado</button>`:""}`:""}<button class="sm" onclick="copiarComanda(${p.id})">Copiar comanda</button></div>
-    ${p.estado!=="Cancelado"&&!p.esPremio?`<details class="inner-details uki-cancelar-pedido" style="padding:12px;margin-top:12px;border:1px solid #e7c8b3;border-radius:12px"><summary style="cursor:pointer;color:#9b3328;font-weight:750">❌ Cancelar pedido</summary>${puedeCancelarPedido(p)?`<div style="margin-top:12px"><label for="motivoCancelacion${p.id}">Motivo obligatorio</label><select id="motivoCancelacion${p.id}"><option value="">Selecciona un motivo</option><option value="cliente">Lo canceló el cliente</option><option value="local">Lo canceló el local</option></select><button class="sm" type="button" onclick="cancelarPedido(${p.id})" style="color:#9b3328;border-color:#dcb4a5">Confirmar cancelación del pedido</button><p class="muted">El motivo queda guardado y no crea otro cobro.</p></div>`:`<p class="muted" style="margin-top:10px">${esc(ukiAyudaCancelarPedido(p))}</p>`}</details>`:""}
+    ${p.estado!=="Cancelado"&&!p.esPremio?`<details class="inner-details uki-cancelar-pedido" style="padding:12px;margin-top:12px;border:1px solid #e7c8b3;border-radius:12px"><summary style="cursor:pointer;color:#9b3328;font-weight:750">❌ Cancelar pedido</summary>${puedeCancelarPedido(p)?`<div style="margin-top:12px"><label for="motivoCancelacion${p.id}">¿Quién canceló? · Obligatorio</label><select id="motivoCancelacion${p.id}"><option value="">Selecciona una opción</option><option value="cliente">Lo canceló el cliente</option><option value="local">Lo canceló el local</option></select><label for="detalleCancelacion${p.id}">¿Por qué se cancela? · Motivo obligatorio</label><textarea id="detalleCancelacion${p.id} rows="2" maxlength="300" placeholder="Ej.: El cliente desistió del pedido"></textarea><button class="sm" type="button" onclick="cancelarPedido(${p.id})" style="color:#9b3328;border-color:#dcb4a5">Confirmar cancelación del pedido</button><p class="muted">El motivo queda guardado y no crea otro cobro.</p></div>`:`<p class="muted" style="margin-top:10px">${esc(ukiAyudaCancelarPedido(p))}</p>`}</details>`:""}
     </div></details>`).join('')}
   ${visiblesRemotas.filter(r=>!mostrarPrioridad||r.estado!=='pendiente').map(r=>ukiCartaRemotaFicha(r)).join('')}
   ${visiblesSolicitudes.filter(r=>!mostrarPrioridad||r.estado!=='pendiente').map(s=>'<div class="card order-card"><p class="muted"><b>Origen: WhatsApp · '+(s.estado==="rechazada"?"RECHAZADO":"Pendiente de confirmación")+'</b></p>'+ukiWhatsAppFicha(s,s.estado==="pendiente")+'</div>').join('')}
