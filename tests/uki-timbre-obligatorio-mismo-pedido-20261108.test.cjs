@@ -44,12 +44,12 @@ test("WhatsApp inválido no se salta la obligación",()=>{
  assert.equal(ctx.ukiTimbreObligatorioGuardar(ctx.D,null),true);
  assert.equal(ctx.ukiValidarTimbreAntesGuardar(ctx.D,null),false);
 });
-test("Cambiar teléfono, nombre o productos después de enviar invalida confirmación",()=>{
+test("Editar productos, nombre o pago NO invalida timbre enviado; cambiar WhatsApp destino sí",()=>{
  ctx.D=base();ctx.ukiAbrirTimbreBorrador();ctx.ukiConfirmarTimbreBorrador(true);
  assert.equal(ctx.ukiTimbreBorradorConfirmado(ctx.D),true);
- ctx.D.items[0].precio=8000;
- assert.equal(ctx.ukiTimbreBorradorConfirmado(ctx.D),false);
- ctx.D.items[0].precio=7500;ctx.D.telefono='+56 9 8765 4321';
+ ctx.D.items[0].precio=8000;ctx.D.cliente="Camila Editada";ctx.D.pagado=false;
+ assert.equal(ctx.ukiTimbreBorradorConfirmado(ctx.D),true);
+ ctx.D.pagado=true;ctx.D.telefono='+56 9 8765 4321';
  assert.equal(ctx.ukiTimbreBorradorConfirmado(ctx.D),false);
 });
 test("Pedido todavía sin pago y edición de venta ya pagada no exige reenviar",()=>{
@@ -59,8 +59,8 @@ test("Pedido todavía sin pago y edición de venta ya pagada no exige reenviar",
 });
 test("UI incluye validación antes del guardado y timbre por pedido exacto",()=>{
  assert.match(html,/if\(!ukiValidarTimbreAntesGuardar\(D,originalQR\)\)return/);
- assert.match(html,/if\(ukiTimbreObligatorioGuardar\(D,null\)\)ukiAnotarTimbreConfirmadoEnPedido\(nuevoPedido,D\)/);
- assert.match(html,/if\(!snapshot.pagado&&D.pagado&&ukiTimbreObligatorioGuardar\(D,snapshot\)\)/);
+ assert.match(html,/if\(ukiTimbreBorradorConfirmado\(D\)\)ukiAnotarTimbreConfirmadoEnPedido\(nuevoPedido,D\)/);
+ assert.match(html,/if\(!ukiTimbreYaEnviadoPedido\(p\)&&ukiTimbreBorradorConfirmado\(D\)\)/);
  assert.match(html,/function ukiAbrirTimbrePedido\(id\)/);
  assert.match(html,/pedidosSinTimbreDelDia/);
  assert.match(html,/pendientesTimbreDelDia/);
