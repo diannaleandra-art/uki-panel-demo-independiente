@@ -79,9 +79,10 @@ test('Tarjetas de Pedidos y Timbres cerradas; click sobre summary las abre',()=>
  assert.match(pedidos,/<summary><div class="order-head">/);
  assert.doesNotMatch(pedidos,/p\.id===pedidoExpandido\?'open'/);
  const timbres=section('function vClientes(){','function compartirImagenTimbres(');
- assert.match(timbres,/<details class="card uki-timbre-tarjeta"/);
- assert.match(timbres,/<summary style="cursor:pointer;font-weight:800">/);
+ assert.match(timbres,/<details class="card"><summary style="cursor:pointer"><b>🎫 Timbres del/);
  assert.doesNotMatch(timbres,/<details class="card" open>/);
+ assert.doesNotMatch(timbres,/uki-timbre-tarjeta/);
+ assert.match(timbres,/return `<div class="card" style=/);
  assert.match(timbres,/const clientes=ukiTarjetasAgrupadas\(\)/);
 });
 test('Compartir, avisar y canjear usan vista agrupada pero escriben solo en original',()=>{
