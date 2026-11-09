@@ -72,13 +72,13 @@ test('No guarda WhatsApp inválido ni fusiona identidades diferentes',()=>{
  assert.equal(cli.movimientos.length,1);
 });
 test('Historial identifica compras por pedido y conserva nombres anteriores',()=>{
- assert.match(html,/const ids=new Set\(\(perfil\?\.movimientos\|\|\[\]\)\.map\(m=>Number\(m\.pedidoId\)\)/);
+ assert.match(html,/const ids=new Set\(\(perfil\?ukiMovimientosVinculados\(perfil\):\[\]\)\.map\(m=>Number\(m\.pedidoId\)\)/);
  assert.match(html,/if\(ids\.has\(Number\(p\.id\)\)\)return true/);
  assert.match(html,/identidadesAnteriores/);
  assert.match(html,/const ids=new Set\(pedidosHist\(cli\.nombre,cli\.codigoCliente,cli\.telefono\)/);
 });
 test('Sin WhatsApp se permite completar después y no se exige enviar',()=>{
  for(const x of ['tieneWhatsApp','📋 Copiar aviso','El WhatsApp es opcional',
-  'const key=Object.keys(S.clientes).find(k=>S.clientes[k]===cli)'])
+  'const key=cli._ukiClave||'])
   assert.ok(html.includes(x),x);
 });

@@ -2033,25 +2033,39 @@ function claveCliente(nombre,codigo="",telefono=""){
 }
 // No migrar ni eliminar tarjetas anteriores. Reutilizar su clave antigua si
 // coinciden nombre y número COMPLETO de WhatsApp, aunque antes se digitara otro código.
+// Identificación: número COMPLETO de WhatsApp, sin depender del nombre.
+// Sin teléfono, solo coinciden el mismo nombre Y código; cuatro dígitos por sí solos no identifican.
+function ukiPerfilesVinculados(cli){
+ if(!cli)return [];
+ const numero=ukiTelefonoNormalizado(cli.telefono),codigo=String(cli.codigoCliente||"").trim();
+ const nombre=ukiTextoBusqueda(cli.nombre);
+ return Object.entries(S.clientes||{}).filter(([,c])=>{
+  const otro=ukiTelefonoNormalizado(c.telefono);
+  if(numero.length>=8)return otro===numero;
+  return !otro&&!!nombre&&!!codigo&&ukiTextoBusqueda(c.nombre)===nombre&&
+   String(c.codigoCliente||"").trim()===codigo;
+ });
+}
 function ukiClaveClienteExistente(nombre,codigo="",telefono=""){
- const exacta=claveCliente(nombre,codigo,telefono);
- const n=ukiTextoBusqueda(nombre),numero=ukiTelefonoNormalizado(telefono);
+ const numero=ukiTelefonoNormalizado(telefono),n=ukiTextoBusqueda(nombre);
  const perfiles=Object.entries(S.clientes||{}).filter(([,c])=>{
-  if(ukiTextoBusqueda(c.nombre)!==n)return false;
   const t=ukiTelefonoNormalizado(c.telefono);
   if(numero.length>=8)return t===numero;
   if(t.length>=8)return false;
-  const cod=String(codigo||"").trim();
-  return !cod||ukiCodigoClienteVisible(c)===cod;
+  return !!n&&ukiTextoBusqueda(c.nombre)===n&&
+   !!String(codigo||"").trim()&&ukiCodigoClienteVisible(c)===String(codigo||"").trim();
  });
- if(perfiles.length===1)return perfiles[0][0];
- if(perfiles.length>1)return null; // No fusionar dos tarjetas con nombres coincidentes.
- if(Object.prototype.hasOwnProperty.call(S.clientes||{},exacta)&&
-    ukiTextoBusqueda(S.clientes[exacta].nombre)===n)return exacta;
- return null;
+ if(perfiles.length){
+  perfiles.sort((a,b)=>String(b[1].nombre||"").trim().length-String(a[1].nombre||"").trim().length||
+   (b[1].movimientos||[]).length-(a[1].movimientos||[]).length||a[0].localeCompare(b[0]));
+  return perfiles[0][0];
+ }
+ const exacta=claveCliente(nombre,codigo,telefono);
+ return Object.prototype.hasOwnProperty.call(S.clientes||{},exacta)&&
+  ukiTextoBusqueda(S.clientes[exacta].nombre)===n?exacta:null;
 }
 function getCliente(nombre,codigo="",telefono=""){
- if(!nombre)return null;
+ if(!nombre&&!telefono)return null;
  const key=ukiClaveClienteExistente(nombre,codigo,telefono);
  return key?S.clientes[key]:null;
 }
@@ -2069,41 +2083,81 @@ function asegurarCliente(nombre,codigo="",telefono=""){
  if(!Array.isArray(S.clientes[key].movimientos))S.clientes[key].movimientos=[];
  return S.clientes[key];
 }
+// Vista unificada SOLO LECTURA: no se destruye ni mueve ningún registro histórico.
+function ukiMovimientosVinculados(cli){
+ if(!cli)return [];
+ if(cli._ukiVista)return cli.movimientos||[];
+ const grupos=ukiPerfilesVinculados(cli),fuentes=grupos.length?grupos.map(([,c])=>c):[cli];
+ const vistos=new Set();
+ return fuentes.flatMap(c=>c.movimientos||[]).filter(m=>{
+  const id=Number(m.pedidoId);
+  if(m.tipo==="venta"&&Number.isSafeInteger(id)&&id>0){
+   const k="venta:"+id;
+   if(vistos.has(k))return false;
+   vistos.add(k);
+  }
+  return true;
+ }).slice().sort((a,b)=>String(a.fecha||"").localeCompare(String(b.fecha||"")));
+}
+function ukiVistaCliente(key){
+ const seleccionado=S.clientes?.[key];if(!seleccionado)return null;
+ const canon=ukiClaveClienteExistente(seleccionado.nombre,seleccionado.codigoCliente,seleccionado.telefono)||key;
+ const base=S.clientes[canon]||seleccionado;
+ const fuentes=ukiPerfilesVinculados(base).map(([,c])=>c),movimientos=ukiMovimientosVinculados(base);
+ const ids=new Set(movimientos.filter(m=>m.tipo==="venta").map(m=>Number(m.pedidoId))
+  .filter(n=>Number.isSafeInteger(n)&&n>0));
+ const pedidos=(S.pedidos||[]).filter(p=>p.suc===S.suc&&ids.has(Number(p.id))&&
+  !p.esPremio&&p.estado!=="Cancelado");
+ const reset=movimientos.filter(m=>m.tipo==="canje10").map(m=>Date.parse(m.fecha||"")||0)
+  .reduce((a,b)=>Math.max(a,b),0);
+ const canje6=movimientos.some(m=>m.tipo==="canje6"&&(Date.parse(m.fecha||"")||0)>reset)||
+  (!reset&&fuentes.some(c=>!!c.canje6));
+ const ultima=movimientos.filter(m=>m.tipo==="venta"&&m.fecha).slice(-1)[0];
+ return {...base,_ukiVista:true,_ukiClave:canon,movimientos,canje6,
+  pedidos:ids.size||fuentes.reduce((n,c)=>n+(Number(c.pedidos)||0),0),
+  gastado:pedidos.length?pedidos.reduce((n,p)=>n+(Number(p.subtotal)||0),0):
+   fuentes.reduce((n,c)=>n+(Number(c.gastado)||0),0),
+  ultimo:ultima?new Date(ultima.fecha).toLocaleDateString("es-CL"):base.ultimo||""};
+}
+function ukiTarjetasAgrupadas(){
+ const vistas=new Map();
+ for(const key of Object.keys(S.clientes||{})){
+  const perfil=ukiVistaCliente(key);
+  if(perfil&&!vistas.has(perfil._ukiClave))vistas.set(perfil._ukiClave,perfil);
+ }
+ return [...vistas.values()];
+}
 function fechaVencimiento(fechaISO){const d=new Date(fechaISO); d.setMonth(d.getMonth()+3); return d.toISOString();}
 function ventasValidas(cli){
-  if(!cli||!cli.movimientos) return cli?.ventas||0;
-  const hoy=new Date();
-  // Contar ventas no vencidas y no canjeadas por reseteo
-  let count=0;
-  // Si hubo reseteo (canje 10), solo contar después del último canje 10
-  const ultimoCanje10 = [...cli.movimientos].reverse().find(m=>m.tipo==='canje10');
-  const desde = ultimoCanje10? new Date(ultimoCanje10.fecha) : new Date(0);
-  cli.movimientos.forEach(m=>{
-    if(m.tipo==='venta'){
-      const f=new Date(m.fecha);
-      if(f>desde){
-        const vence=new Date(m.vence||m.fecha);
-        if(vence>hoy) count++;
-      }
-    }
-  });
-  return count;
+ if(!cli)return 0;
+ const movimientos=ukiMovimientosVinculados(cli);
+ if(!movimientos.length)return cli.ventas||0;
+ const desde=movimientos.filter(m=>m.tipo==="canje10")
+  .map(m=>Date.parse(m.fecha||"")||0).reduce((a,b)=>Math.max(a,b),0);
+ const hoy=Date.now();
+ return movimientos.filter(m=>m.tipo==="venta"&&(Date.parse(m.fecha||"")||0)>desde&&
+  (Date.parse(m.vence||m.fecha||"")||0)>hoy).length;
 }
+
 
 /* Historial por cliente; solo lee registros, no modifica calculos de timbres. */
 const nombreHist=n=>String(n||"").trim().toLocaleLowerCase("es-CL");
 function pedidosHist(nombre,codigo="",telefono=""){
  const perfil=getCliente(nombre,codigo,telefono);
- const ids=new Set((perfil?.movimientos||[]).map(m=>Number(m.pedidoId)).filter(n=>Number.isSafeInteger(n)&&n>0));
- const identidades=[{nombre,codigoCliente:codigo,telefono},...(perfil?.identidadesAnteriores||[])];
+ const fuentes=perfil?ukiPerfilesVinculados(perfil).map(([,c])=>c):[];
+ const ids=new Set((perfil?ukiMovimientosVinculados(perfil):[]).map(m=>Number(m.pedidoId))
+  .filter(n=>Number.isSafeInteger(n)&&n>0));
+ const identidades=[{nombre,codigoCliente:codigo,telefono},
+  ...fuentes.flatMap(c=>[{nombre:c.nombre,codigoCliente:c.codigoCliente,telefono:c.telefono},
+   ...(c.identidadesAnteriores||[])])];
  return (S.pedidos||[]).filter(p=>{
   if(p.suc!==S.suc)return false;
-  if(ids.has(Number(p.id)))return true; // Venta ya vinculada: no perderla por corregir el nombre.
+  if(ids.has(Number(p.id)))return true;
   return identidades.some(d=>{
-   if(ukiTextoBusqueda(p.cliente)!==ukiTextoBusqueda(d.nombre))return false;
    const numero=ukiTelefonoNormalizado(d.telefono);
    if(numero.length>=8)return ukiTelefonoNormalizado(p.telefono)===numero;
    if(ukiTelefonoNormalizado(p.telefono).length>=8)return false;
+   if(ukiTextoBusqueda(p.cliente)!==ukiTextoBusqueda(d.nombre))return false;
    const cod=String(d.codigoCliente||"").trim();
    return !cod||!String(p.codigoCliente||"").trim()||String(p.codigoCliente).trim()===cod;
   });
@@ -2250,7 +2304,7 @@ function ukiGuardarDatosCliente(key,boton){
   (numero.length>=8?ukiTelefonoNormalizado(c.telefono)===numero:
    !ukiTelefonoNormalizado(c.telefono)&&ukiTextoBusqueda(c.nombre)===ukiTextoBusqueda(nombre)&&
    String(c.codigoCliente||"").trim()===codigo));
- if(duplicado){aviso("Ya existe otra tarjeta con esos datos. No se unificaron timbres. Revisa la ficha antes de guardar.");return;}
+ if(duplicado&&ukiTelefonoNormalizado(cli.telefono)!==numero){aviso("Ya existe otra tarjeta con esos datos. No se unificaron timbres. Revisa la ficha antes de guardar.");return;}
  const antes={nombre:cli.nombre||"",telefono:cli.telefono||"",codigoCliente:cli.codigoCliente||""};
  if(ukiTextoBusqueda(antes.nombre)===ukiTextoBusqueda(nombre)&&
     ukiTelefonoNormalizado(antes.telefono)===numero&&String(antes.codigoCliente)===codigo){
@@ -2266,24 +2320,35 @@ function ukiGuardarDatosCliente(key,boton){
  guardarEnLocalStorage();
  aviso("Datos del cliente guardados. Timbres, premios e historial se conservaron. Comprueba «Nube: sincronizado».");
 }
+// Ordenar únicamente la VISTA: la compra más recientemente registrada arriba.
+// No cambia la fecha del timbre ni la fecha operativa de cierres antiguos.
+function ukiRegistroTimbreMs(m){
+ const pedido=(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(m?.pedidoId));
+ const registrado=pedido?fechaRegistroMs(pedido):0;
+ return registrado>0?registrado:(Date.parse(m?.fecha||"")||0);
+}
+function ukiUltimaCompraClienteMs(cli){
+ return Math.max(0,...(cli?.movimientos||[]).filter(m=>m.tipo==='venta').map(ukiRegistroTimbreMs));
+}
 function vClientes(){
   if(!S.suc) return vInicio();
   const buscar=String(S.filtroCliente||"").trim();
   const fecha=filtroFechaTimbres||ukiFechaCalendarioChile(Date.now());
-  const clientes=Object.values(S.clientes||{});
+  const clientes=ukiTarjetasAgrupadas();
   const lista=clientes.filter(c=>{
     if(buscar)return ukiBusquedaPorDatos(buscar,[c.nombre,ukiCodigoClienteVisible(c),c.codigoCliente,c.telefono,ukiTelefonoNormalizado(c.telefono)])||
       pedidosHist(c.nombre,c.codigoCliente,c.telefono).some(p=>
         ukiBusquedaPorDatos(buscar,[p.cliente,ukiCodigoClienteVisible(p),p.codigoCliente,p.telefono,ukiTelefonoNormalizado(p.telefono)]));
     return (c.movimientos||[]).some(m=>ukiFechaTimbreCalendario(m)===fecha);
-  }).sort((a,b)=>ventasValidas(b)-ventasValidas(a));
+  }).sort((a,b)=>ukiUltimaCompraClienteMs(b)-ukiUltimaCompraClienteMs(a)||ventasValidas(b)-ventasValidas(a));
   // Un timbre equivale a un movimiento de compra pagada (sin perder múltiples por cliente).
   const movimientosDelDia=lista.flatMap(c=>(c.movimientos||[])
     .filter(m=>m.tipo==='venta'&&ukiFechaTimbreCalendario(m)===fecha)
     .map(m=>({cliente:c.nombre||'Sin nombre',codigo:ukiCodigoClienteVisible(c),
       fecha:m.fecha||'',pedidoId:m.pedidoId||null,
-      pedido:(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(m.pedidoId))||null})))
-    .sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
+      pedido:(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(m.pedidoId))||null,
+      registroMs:ukiRegistroTimbreMs(m)})))
+    .sort((a,b)=>b.registroMs-a.registroMs||(Number(b.pedidoId)||0)-(Number(a.pedidoId)||0));
   const pendientesTimbreDelDia=movimientosDelDia.filter(m=>m.pedido&&
     !m.pedido.timbreEnviadoEn&&ukiNumeroTimbreWhatsApp(m.pedido.telefono)).length;
   const pedidosSinTimbreDelDia=(S.pedidos||[]).filter(p=>
@@ -2309,8 +2374,8 @@ function vClientes(){
     <div class="card" style="margin:0"><h2 style="font-size:12px">Clientes del día</h2><b>${lista.length}</b></div>
     <div class="card" style="margin:0"><h2 style="font-size:12px">Timbres ganados</h2><b>${movimientosDelDia.length}</b></div>
     <div class="card" style="margin:0"><h2 style="font-size:12px">Premios 10</h2><b>${lista.filter(c=>ventasValidas(c)>=10).length}</b></div></div></div>
-  <details class="card" open><summary style="cursor:pointer"><b>🎫 Timbres del ${esc(fecha)} · ${movimientosDelDia.length} ganados · ${pendientesTimbreDelDia} por enviar</b></summary>
-    <p class="muted">Ordenados del más reciente al más antiguo por hora del timbre, incluyendo turnos ya cerrados. Un registro por compra. Confirmar envío no modifica el cobro.</p>
+  <details class="card"><summary style="cursor:pointer"><b>🎫 Timbres del ${esc(fecha)} · ${movimientosDelDia.length} ganados · ${pendientesTimbreDelDia} por enviar</b></summary>
+    <p class="muted">Primero el último pedido registrado; debajo los anteriores, incluso de turnos ya cerrados. Un registro por compra. Confirmar envío no modifica el cobro.</p>
     ${movimientosDelDia.map(m=>'<div style="padding:11px 0;border-bottom:1px solid var(--line)"><div class="row"><span><b>'+esc(m.cliente)+'</b>'+
       (m.codigo?' · Código '+esc(m.codigo):'')+
       (m.pedidoId?' · Pedido #'+esc(m.pedidoId):'')+'</span><b>'+
@@ -2335,7 +2400,7 @@ function vClientes(){
     ${dias.length>30?'<p class="muted">Para fechas más antiguas utiliza el calendario.</p>':''}</div></details>
   ${lista.length?lista.map(cli=>{
     // La clave interna no cambia al completar nombre, WhatsApp o código.
-    const key=Object.keys(S.clientes).find(k=>S.clientes[k]===cli)||
+    const key=cli._ukiClave||
       ukiClaveClienteExistente(cli.nombre,cli.codigoCliente,cli.telefono)||
       claveCliente(cli.nombre,cli.codigoCliente,cli.telefono);
     const keyArg=esc(JSON.stringify(key));
@@ -2353,16 +2418,16 @@ function vClientes(){
     <button type="button" class="sm ok" onclick="ukiGuardarDatosCliente(${keyArg},this)">Guardar datos del cliente</button></details>
     <details style="margin-top:8px"><summary class="muted">Ver historial timbres</summary>${(cli.movimientos||[]).slice(-15).reverse().map(m=>`<div class="row"><span>${m.tipo==='venta'?'🟢 Venta':m.tipo==='canje6'?'🔴 Canje 12 piezas':m.tipo==='canje10'?'🔴 Canje 36+2k':esc(m.tipo)} - ${new Date(m.fecha).toLocaleDateString('es-CL')} ${m.vence?'· Vence '+new Date(m.vence).toLocaleDateString('es-CL'):''}</span></div>`).join("")||"<p class='muted'>Sin movimientos</p>"}</details>${fichaHistorial(cli)}</div>`;
   }).join(""):`<div class="card muted">${buscar?'No se encontraron clientes.':'No hay timbres ganados en esta fecha. Busca por nombre para consultar cualquier tarjeta acumulada.'}</div>`}
-  <details class="card"><summary style="cursor:pointer"><b>🏅 Ranking clientes frecuentes</b></summary>${Object.values(S.clientes).sort((a,b)=>b.pedidos-a.pedidos).slice(0,10).map((c,i)=>`<div class="row"><span>${i+1}. ${esc(c.nombre)} - ${ventasValidas(c)}/10 timbres</span><b>${c.pedidos} pedidos</b></div>`).join("")||"<p class='muted'>Sin datos</p>"}</details>`;
+  <details class="card"><summary style="cursor:pointer"><b>🏅 Ranking clientes frecuentes</b></summary>${clientes.slice().sort((a,b)=>b.pedidos-a.pedidos).slice(0,10).map((c,i)=>`<div class="row"><span>${i+1}. ${esc(c.nombre)} - ${ventasValidas(c)}/10 timbres</span><b>${c.pedidos} pedidos</b></div>`).join("")||"<p class='muted'>Sin datos</p>"}</details>`;
 }
 function compartirImagenTimbres(key){
- const cli=S.clientes[key];
+ const cli=ukiVistaCliente(key);
  if(!cli){aviso("No se encontró la tarjeta del cliente.");return;}
  if(!window.ukiTarjetaMostrar){aviso("La tarjeta todavía no está disponible. Actualiza la página.");return;}
  window.ukiTarjetaMostrar({nombre:cli.nombre,whatsapp:cli.telefono||"",codigoCliente:ukiCodigoClienteVisible(cli)||"",timbres:ventasValidas(cli),sucursal:S.suc,ultimaCompra:cli.ultimo||""});
 }
 function avisarTimbres(key,modo='abrir'){
-  const cli=S.clientes[key];
+  const cli=ukiVistaCliente(key);
   if(!cli){aviso("No se encontró la tarjeta del cliente.");return;}
   const timbres=ventasValidas(cli);
   const premio=timbres>=10
@@ -2409,24 +2474,25 @@ function avisarTimbres(key,modo='abrir'){
 }
 
 function canjear12(key){
-  const cli=S.clientes[key]; if(!cli) return;
+  const original=S.clientes[key],cli=ukiVistaCliente(key); if(!original||!cli)return;
+  if(cli.canje6){aviso('El premio de 6 timbres ya fue canjeado.');return;}
   if(ventasValidas(cli)<6){aviso("Necesita 6 ventas");return;}
   if(!confirm(`¿Canjear 12 piezas gratis para ${cli.nombre}? Tiene ${ventasValidas(cli)}/10 timbres. Después de canjear 12, seguirá con ${ventasValidas(cli)} timbres hacia las 10.`)) return;
-  cli.movimientos.push({tipo:'canje6',fecha:new Date().toISOString(),vence:null});
-  cli.canje6=true;
+  original.movimientos.push({tipo:'canje6',fecha:new Date().toISOString(),vence:null});
+  original.canje6=true;
   aviso(`Canje 12 piezas para ${cli.nombre} registrado. Ahora puede seguir hacia 10 ventas para 36+2 korokes.`);
   // Crear pedido gratis de 12 piezas para cocina
   S.pedidos.push({id:S.nextId++,suc:S.suc,fechaISO:ahora(),cliente:cli.nombre,telefono:cli.telefono||"",codigoCliente:cli.codigoCliente||"",modalidad:"Retiro",envio:0,medio:"Canje 6 ventas",medioEnvio:"Efectivo",pagado:true,estado:"Entregado",productos:[{nombre:"PREMIO 12 piezas - Canje 6 ventas",cantidad:1,precioUnit:0,detalle:"Gratis por tarjeta 6 timbres"}],total:0,subtotal:0,textoOriginal:`Canje premio 6 ventas - ${cli.nombre}`,esPremio:true});
   guardarEnLocalStorage(); render();
 }
 function canjear36(key){
-  const cli=S.clientes[key]; if(!cli) return;
+  const original=S.clientes[key],cli=ukiVistaCliente(key); if(!original||!cli)return;
   if(ventasValidas(cli)<10){aviso("Necesita 10 ventas");return;}
   if(!confirm(`¿Canjear 36 piezas + 2 korokes GRATIS para ${cli.nombre}? Tiene ${ventasValidas(cli)}/10. Después de canjear, su tarjeta se reinicia a 0.`)) return;
-  cli.movimientos.push({tipo:'canje10',fecha:new Date().toISOString(),vence:null});
-  cli.ventas=0;
-  cli.canje6=false;
-  cli.canje10=false;
+  original.movimientos.push({tipo:'canje10',fecha:new Date().toISOString(),vence:null});
+  original.ventas=0;
+  original.canje6=false;
+  original.canje10=false;
   // Marcar todas las ventas anteriores como canjeadas (reset)
   aviso(`¡Canje 36+2 korokes para ${cli.nombre}! Tarjeta reiniciada a 0.`);
   S.pedidos.push({id:S.nextId++,suc:S.suc,fechaISO:ahora(),cliente:cli.nombre,telefono:cli.telefono||"",codigoCliente:cli.codigoCliente||"",modalidad:"Retiro",envio:0,medio:"Canje 10 ventas",medioEnvio:"Efectivo",pagado:true,estado:"Entregado",productos:[{nombre:"PREMIO 36 piezas + 2 korokes - Canje 10 ventas",cantidad:1,precioUnit:0,detalle:"Gratis por tarjeta 10 timbres"}],total:0,subtotal:0,textoOriginal:`Canje premio 10 ventas - ${cli.nombre}`,esPremio:true});
@@ -3875,8 +3941,8 @@ function vPedidos(){
     <p class="muted">Los pedidos de jornadas anteriores se conservan en el historial por turno.</p></div>
   </details>
   <details class="card uki-bloque-incidencias" ${erroresAbiertos?'open':''}><summary onclick="erroresAbiertos=!erroresAbiertos"><b>⚠️ Errores e incidencias</b> · ${pendientes} pendientes</summary><label>Buscar errores por dia de reporte</label><input id="diaErrorFiltro" type="date" value="${esc(filtroDiaIncidencias)}"><button class="sm ok" onclick="aplicarDiaIncidencias()">Buscar errores</button><p class="muted">Los reportes se conservan aunque se cierre la caja del dia.</p>${incidencias.length?incidencias.map(x=>renderIncidencia(x,"lista")).join(""):"<p class='muted'>No hay errores para esta busqueda.</p>"}</details>
-  ${visibles.map(p=>`<details class="card order-card ${p.estado==="Cancelado"?"uki-pedido-cancelado":p.esPremio?"uki-pedido-premio":p.estado==="Entregado"?"uki-pedido-entregado":p.pagado?"uki-pedido-pagado":"uki-pedido-cobrar"}" ${p.id===pedidoExpandido?'open':''}>
-    <summary onclick="pedidoExpandido=${p.id}"><div class="order-head"><div><b>${esc(ukiReferenciaConCarta(p))} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)} · Origen: ${esc(ukiOrigenPedido(p))}${p.modalidad==="Delivery"?" · 🛵 "+esc(ukiKmTexto(p)):""}${ukiPropinaVisiblePedido(p)>0?" · 💝 Propina "+fmt(ukiPropinaVisiblePedido(p)):""}${ukiCodigoClienteVisible(p)?" · Código cliente: "+esc(ukiCodigoClienteVisible(p)):""}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small class="uki-estado-badge">${p.esPremio?'🎁 Premio':p.estado==="Cancelado"?'Cancelado':p.estado==="Entregado"?'✓ Entregado':p.pagado?'✓ Pagado · por entregar':'$ Por cobrar'}${erroresPedidos.has(p.id)?' · ⚠️ Con error':''}</small></div></div></summary>
+  ${visibles.map(p=>`<details class="card order-card ${p.estado==="Cancelado"?"uki-pedido-cancelado":p.esPremio?"uki-pedido-premio":p.estado==="Entregado"?"uki-pedido-entregado":p.pagado?"uki-pedido-pagado":"uki-pedido-cobrar"}">
+    <summary><div class="order-head"><div><b>${esc(ukiReferenciaConCarta(p))} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)} · Origen: ${esc(ukiOrigenPedido(p))}${p.modalidad==="Delivery"?" · 🛵 "+esc(ukiKmTexto(p)):""}${ukiPropinaVisiblePedido(p)>0?" · 💝 Propina "+fmt(ukiPropinaVisiblePedido(p)):""}${ukiCodigoClienteVisible(p)?" · Código cliente: "+esc(ukiCodigoClienteVisible(p)):""}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small class="uki-estado-badge">${p.esPremio?'🎁 Premio':p.estado==="Cancelado"?'Cancelado':p.estado==="Entregado"?'✓ Entregado':p.pagado?'✓ Pagado · por entregar':'$ Por cobrar'}${erroresPedidos.has(p.id)?' · ⚠️ Con error':''}</small></div></div></summary>
     <div class="order-body"><p class="muted">${esc(p.estado||'Entregado')} · ${esc(p.medio||'Efectivo')}${p.telefono?' · '+esc(p.telefono):''}</p>${p.estado==="Cancelado"?`<p class="muted"><b>Motivo:</b> ${esc(p.motivoCancelacion==="cliente"?"Cancelado por el cliente":p.motivoCancelacion==="local"?"Cancelado por el local":"No informado")}${p.canceladoEn?" · "+esc(fechaTxt(p.canceladoEn)):""}</p>`:""}
     ${(p.productos||[]).map(pr=>`<div class="row"><span>${pr.cantidad}x ${esc(pr.nombre)}${pr.detalle?` · ${esc(pr.detalle)}`:''}</span><b>${fmt(pr.cantidad*pr.precioUnit)}</b></div>`).join('')}
     ${p.envio?row('Delivery',fmt(p.envio)):''}
@@ -4203,10 +4269,18 @@ async function ndGuardar(){
       // Si era premio, no afecta tarjeta
       if(!cierreHistorico && !p.esPremio && p.cliente && p.pagado && !p.productosPagadosOtroLocal){
         const cliOld=getCliente(p.cliente,p.codigoCliente,p.telefono);
-        if(cliOld && cliOld.movimientos){
-          cliOld.movimientos = cliOld.movimientos.filter(m=>m.pedidoId!==p.id);
-          cliOld.pedidos=Math.max(0,(cliOld.pedidos||1)-1);
-          cliOld.gastado=Math.max(0,(cliOld.gastado||0)-(p.subtotal||0));
+        // En una edición retirar el timbre del perfil histórico que lo contiene,
+        // aunque un alias anterior tuviera el mismo WhatsApp con otro nombre.
+        // No tocar ninguna otra compra o cierre confirmado.
+        const vinculados=cliOld?ukiPerfilesVinculados(cliOld):[];
+        for(const [,perfil] of vinculados){
+          const registrados=(perfil.movimientos||[]).filter(m=>
+            m.tipo==='venta'&&Number(m.pedidoId)===Number(p.id));
+          if(!registrados.length)continue;
+          perfil.movimientos=perfil.movimientos.filter(m=>
+            !(m.tipo==='venta'&&Number(m.pedidoId)===Number(p.id)));
+          perfil.pedidos=Math.max(0,(perfil.pedidos||registrados.length)-registrados.length);
+          perfil.gastado=Math.max(0,(perfil.gastado||0)-(Number(p.subtotal)||0));
         }
       }
       p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||"";p.codigoCarta=D.codigoCarta||"";p.codigoCliente=D.codigoCliente||"";p.qrSolicitudes=Array.isArray(D.qrSolicitudes)?[...new Set(D.qrSolicitudes)]:[];p.sucursalCarta=D.sucursalCarta||""; p.mesaReferencia=D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():""; p.modalidad=D.modalidad; p.envio=envio; p.kmRecorrido=kmRecorrido; p.medio=D.medio; p.medioEnvio=D.medioEnvio; Object.assign(p,datosPago); p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})); p.total=total; p.subtotal=sub; p.propina=propina;p.propinaModo=D.propinaModo;p.medioPropina=D.medioPropina;p.textoOriginal=D.texto;
