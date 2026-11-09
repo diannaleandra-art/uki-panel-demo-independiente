@@ -605,8 +605,8 @@ function vInicio(){
   const inicio=window.ukiControlTurnos?.fechaHoraLegible(caja.inicioMs)||"No registrado antes de esta actualización";
   return `<div class="welcome"><div class="eyebrow">RESUMEN DEL TURNO · ${esc(turno)}</div><h2>Hola, Uki Sushi <span>🍣</span></h2><p class="muted">${esc(S.suc)}</p></div>
   ${vInicioTrabajador()}
-  <details class="card" id="ukiAccesoJefes" style="border-color:#dcbfa2;background:#fffcf7"><summary style="cursor:pointer;font-weight:700">🔒 Administración de jefes · acceso privado</summary><p class="muted">Módulo existente en entorno de pruebas. Requiere una cuenta Google autorizada y el PIN exclusivo de dueños. No comparte claves del agendador ni modifica pedidos o caja desde este acceso.</p><a href="./mi-administracion.html" target="_blank" rel="noopener noreferrer" class="big" style="display:block;background:#ed810e;color:#fff!important;text-align:center;text-decoration:none;font-weight:700;padding:14px 12px;margin-top:14px;border-radius:12px;min-height:48px;line-height:1.4">Abrir Mi Administración</a></details>
-  <div class="card" style="padding:14px"><h2 style="margin:0 0 6px">🕒 Inicio del turno</h2><p style="margin:4px 0"><b>${esc(diaOperativo)}</b></p><p class="muted" style="margin:4px 0">Fecha y hora registradas: ${esc(inicio)}</p></div>
+
+  <details class="card" style="padding:14px"><summary style="cursor:pointer;font-weight:700">🕒 Información del turno</summary><p style="margin:8px 0 4px"><b>${esc(diaOperativo)}</b></p><p class="muted" style="margin:4px 0">Fecha y hora registradas: ${esc(inicio)}</p></details>
   <section class="kpis" aria-label="Resumen de ventas">
     <div class="kpi"><span>Venta de hoy</span><strong>${fmt(t.totalMedios)}</strong></div>
     <div class="kpi"><span>Pedidos</span><strong>${t.n}</strong></div>
@@ -614,7 +614,8 @@ function vInicio(){
     <div class="kpi"><span>Efectivo en caja</span><strong>${fmt(t.efectivoCaja)}</strong></div>
   </section>
   <button class="big cta" onclick="ir('nuevo')">＋ Registrar nuevo pedido</button>
-  <div class="quick-grid"><button class="quick" onclick="ir('inventario')"><b>📦</b> Inventario <span>›</span></button><button class="quick" onclick="ir('pedidos')"><b>▤</b> Revisar pedidos <span>›</span></button><button class="quick" onclick="ir('clientes')"><b>✧</b> Tarjetas (${Object.keys(S.clientes).length}) <span>›</span></button><button class="quick" onclick="ir('cierre')"><b>🔒</b> Cierre definitivo <span>›</span></button><button class="quick" onclick="ir('historial')"><b>◷</b> Ver historial <span>›</span></button><button class="quick" onclick="cajaTab='semana';ir('caja')"><b>▥</b> Resumen semanal <span>›</span></button></div>
+  <div class="quick-grid"><button class="quick" onclick="ir('pedidos')"><b>▤</b> Revisar pedidos <span>›</span></button><button class="quick" onclick="ir('inventario')"><b>📦</b> Inventario <span>›</span></button><button class="quick" onclick="ir('clientes')"><b>✧</b> Tarjetas (${Object.keys(S.clientes).length}) <span>›</span></button><button class="quick" onclick="ir('cierre')"><b>🔒</b> Cierre definitivo <span>›</span></button><button class="quick" onclick="ir('historial')"><b>◷</b> Ver historial <span>›</span></button><button class="quick" onclick="cajaTab='semana';ir('caja')"><b>▥</b> Reportes <span>›</span></button></div>
+    <details class="card" id="ukiAccesoJefes" style="border-color:#dcbfa2;background:#fffcf7"><summary style="cursor:pointer;font-weight:700">🔒 Administración de jefes · acceso privado</summary><p class="muted">Módulo existente en entorno de pruebas. Requiere una cuenta Google autorizada y el PIN exclusivo de dueños. No comparte claves del agendador ni modifica pedidos o caja desde este acceso.</p><a href="./mi-administracion.html" target="_blank" rel="noopener noreferrer" class="big" style="display:block;background:#ed810e;color:#fff!important;text-align:center;text-decoration:none;font-weight:700;padding:14px 12px;margin-top:14px;border-radius:12px;min-height:48px;line-height:1.4">Abrir Mi Administración</a></details>
   <div class="mini-help">🎟️ Timbres: 6 compras = 12 piezas · 10 compras = 36 piezas + 2 korokes.</div>`;
 }
 // Datos temporales de cierre: no alteran el respaldo ni el formato guardado.
@@ -905,17 +906,17 @@ function ukiVistaBorradores(){
    '<button class="sm ok" type="button" onclick="ukiRetomarBorrador('+esc(JSON.stringify(b.id))+')">Continuar</button> '+
    '<button class="sm" type="button" onclick="ukiEliminarBorrador('+esc(JSON.stringify(b.id))+')">Eliminar</button></div>';
  }).join("");
- return '<div class="card"><h2>⏸ Pedidos en espera (borradores) · '+list.length+'</h2>'+
- '<p class="muted">Son borradores guardados en este dispositivo, NO pedidos registrados ni ventas. Pulsa Continuar para abrirlo y, cuando termines, guarda el pedido una sola vez.</p>'+
- (items||'<p class="muted">Todavía no hay pedidos en espera.</p>')+
+ return '<div class="card uki-formulario-en-espera"><h2>⏸ Dejar abierto y atender otro</h2>'+
+ '<p class="muted">Puedes guardar este pedido sin terminar y atender otro. No suma ventas ni confirma pagos.</p>'+
  (!D.editando?'<button class="sm ok" type="button" onclick="ukiPausarPedido()">Guardar en espera y abrir otro</button>':'')+
- '<p class="muted">Varios celulares simultáneos requieren otra integración; esta función no elimina conflictos de nube.</p></div>';
+ (list.length?'<details style="margin-top:12px"><summary><b>En atención · '+list.length+' pedido(s) sin terminar</b></summary>'+items+'</details>':'')+
+ '<p class="muted" style="font-size:12px">Los borradores se guardan solo en este dispositivo; usar dos celulares requiere una integración independiente para evitar duplicados.</p></div>';
 }
 
 function ukiBorradoresResumenPedidos(){
  const list=ukiBorradoresSucursal();
  if(!list.length)return '';
- return '<details class="card"><summary><b>⏸ Pedidos en espera · '+list.length+'</b> (borradores, sin venta)</summary>'+
+ return '<details class="card"><summary><b>⏸ En atención · '+list.length+'</b> (sin registrar ni cobrar)</summary>'+
   '<p class="muted">No aparecen entre los pedidos del turno hasta que pulses Guardar al terminarlos. Están guardados solo en este dispositivo.</p>'+
   list.map(b=>'<p><b>'+esc(b.datos?.cliente||b.datos?.mesaReferencia||'Pedido sin nombre')+'</b> · '+esc(b.datos?.modalidad||'Retiro')+
    ' · <button class="sm ok" type="button" onclick="ukiRetomarBorrador('+esc(JSON.stringify(b.id))+')">Continuar pedido</button></p>').join('')+
@@ -3327,11 +3328,18 @@ function vPedidos(){
   const mostrarPrioridad=!buscando&&!pedidosArchivoDia&&(urgentesCarta.length+urgentesManuales.length)>0;
   const mostrarFichasPrioritarias=filtroCategoriaPedidos==='todos'||filtroCategoriaPedidos==='por-confirmar';
   const visibles=todos.filter(p=>ukiCoincideCategoriaPedido(p,filtroCategoriaPedidos,erroresPedidos));
-  const categorias=UKI_CATEGORIAS_PEDIDOS.map(([id,nombre])=>
+  const filtrosPrincipales=new Set(["todos","por-confirmar","pendientes","sin-pago","pagados"]);
+  const categorias=UKI_CATEGORIAS_PEDIDOS.filter(([id])=>filtrosPrincipales.has(id)).map(([id,nombre])=>
     '<button type="button" class="chip'+(filtroCategoriaPedidos===id?' on':'')+(id==='pendientes'&&mostrarPrioridad?' uki-alerta-filtro':'')+
     '" onclick="ukiCambiarCategoriaPedidos(\''+id+'\')">'+esc(nombre)+
     ' ('+(todos.filter(p=>ukiCoincideCategoriaPedido(p,id,erroresPedidos)).length+solicitudes.filter(s=>solicitudEnCategoria(s,id)).length+remotas.filter(r=>solicitudRemotaEnCategoria(r,id)).length)+')</button>'
   ).join("");
+  const categoriasExtra=UKI_CATEGORIAS_PEDIDOS.filter(([id])=>!filtrosPrincipales.has(id)).map(([id,nombre])=>
+    '<button type="button" class="chip'+(filtroCategoriaPedidos===id?' on':'')+
+    '" onclick="ukiCambiarCategoriaPedidos(\''+id+'\')">'+esc(nombre)+
+    ' ('+(todos.filter(p=>ukiCoincideCategoriaPedido(p,id,erroresPedidos)).length+solicitudes.filter(s=>solicitudEnCategoria(s,id)).length+remotas.filter(r=>solicitudRemotaEnCategoria(r,id)).length)+')</button>'
+  ).join("");
+  const categoriaExtraActiva=!filtrosPrincipales.has(filtroCategoriaPedidos);
   const titulo=buscando?"Resultados de búsqueda":pedidosArchivoDia?"Pedidos del turno "+pedidosArchivoDia:"Pedidos del turno abierto · "+fechaTurno;
   return `<div class="section-head"><h2>Pedidos</h2><p>${esc(titulo)} · ${todos.length} registrados · ${pagados} pagados · ${solicitudes.length+remotas.length} solicitudes pendientes o rechazadas</p></div>
   ${mostrarPrioridad?`<section class="uki-urgentes-carta" aria-label="Solicitudes nuevas por confirmar">
@@ -3350,10 +3358,11 @@ function vPedidos(){
   <button class="big cta" onclick="ir('nuevo')">＋ Nuevo pedido</button>
   <div class="card"><h2 style="margin:0 0 8px">Clasificar pedidos</h2>
     <div class="chips" role="group" aria-label="Filtrar pedidos por estado y pago">${categorias}</div>
+    <details style="margin-top:10px" ${categoriaExtraActiva?'open':''}><summary style="cursor:pointer"><b>Más filtros</b></summary>
+      <div class="chips" role="group" aria-label="Otros estados de pedidos" style="margin-top:10px">${categoriasExtra}</div></details>
     <p class="muted">📲 Carta normal: ${esc(ukiCartaRemotas.status)} <button type="button" class="sm" onclick="ukiCartaRemotasActualizar()">Actualizar</button></p>
     <p class="muted">${visibles.length+visiblesSolicitudes.length+visiblesRemotas.length} registro(s) en «${esc((UKI_CATEGORIAS_PEDIDOS.find(x=>x[0]===filtroCategoriaPedidos)||[])[1]||"Todos")}». Los rechazados no suman a caja, ventas ni timbres.</p></div>
   ${(filtroCategoriaPedidos==="todos"||filtroCategoriaPedidos==="por-confirmar")?ukiMesasUI():""}
-  ${rechazadosArchivo.length+remotasArchivo.length?'<details class="card"><summary><b>📚 Archivo de rechazados de días anteriores</b> · '+(rechazadosArchivo.length+remotasArchivo.length)+'</summary><p class="muted">Son solicitudes anteriores; no se suman a los pedidos ni a la caja de hoy.</p>'+rechazadosArchivo.map(x=>ukiWhatsAppFicha(x,false)).join('')+remotasArchivo.map(x=>ukiCartaRemotaFicha(x)).join('')+'</details>':''}
   ${pedidosArchivoDia||buscando?'<button class="sm" onclick="limpiarFiltrosPedidos()">← Volver al turno abierto</button>':''}
   <details class="card" ${buscando?'open':''}><summary style="cursor:pointer"><b>🔎 Buscar por nombre, WhatsApp, código del cliente, pedido o fecha</b></summary>
     <div style="margin-top:12px"><label>Nombre, últimos 4 del WhatsApp, celular completo o número del pedido</label><input id="codigoFiltro" value="${esc(filtroCodigoCarta)}" placeholder="Ej: Camila, 5678 o 56912345678" inputmode="text">
