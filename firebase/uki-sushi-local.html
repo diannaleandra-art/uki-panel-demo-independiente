@@ -4317,6 +4317,52 @@ function ukiOlvidosCierre(c){
  const key=fechaCierreMs(c);
  return (S.ajustesHistoricos||[]).filter(x=>x.suc===S.suc&&x.tipo==="pedido_olvidado"&&x.cierreMs===key);
 }
+// Informe vigente: la rectificación reemplaza VISUALMENTE el cierre original.
+// Los movimientos del cierre físico y su fechaMs no se reescriben ni duplican.
+function ukiCierreInformeVigente(original){
+ const ajustes=ukiOlvidosCierre(original);
+ if(!ajustes.length)return original;
+ const cobradoUki=ajustes.reduce((n,x)=>n+(Number(x.recibidoUki)||0),0);
+ const cobradoOtros=ajustes.reduce((n,x)=>n+(Number(x.recibidoOtroLocal)||0),0);
+ const deliveryPendiente=ajustes.reduce((n,x)=>n+(x.repartoRealizado?(Number(x.envio)||0):0),0);
+ const efectivoAdicional=ajustes.reduce((n,x)=>n+(x.medioUki==="Efectivo"?(Number(x.recibidoUki)||0):0),0);
+ const medios={...(original.medios||{})};
+ for(const x of ajustes){
+  const m=String(x.medioUki||"").trim(),cobrado=Number(x.recibidoUki)||0;
+  if(cobrado>0)medios[m]=Number(medios[m]||0)+cobrado;
+ }
+ const seConoceDelivery=ajustes.every(x=>x.modalidad!=="Delivery"||
+   Number.isSafeInteger(x.deliveryCobradoUki));
+ const sinDeliveryAdicional=ajustes.reduce((n,x)=>n+
+  (Number(x.recibidoUki)||0)-(Number(x.deliveryCobradoUki)||0),0);
+ const ultimo=ajustes[ajustes.length-1];
+ return {...original,
+  pedidos:(Number(original.pedidos)||0)+ajustes.length,
+  venta:(Number(original.venta)||0)+cobradoUki,
+  final:(Number(original.final)||0)+cobradoUki,
+  medios,
+  ventaSinDelivery:seConoceDelivery?
+   Number(original.ventaSinDelivery??0)+sinDeliveryAdicional:
+   original.ventaSinDelivery,
+  rectificacion:{
+   version:ajustes.length+1,fecha:ultimo.fechaISO,responsable:ultimo.responsable,
+   motivo:ultimo.motivo,ajustes,cobradoUki,cobradoOtros,
+   efectivoAdicional,deliveryPendiente,
+   sinDeliveryVerificado:seConoceDelivery,
+   cierreOriginalMs:fechaCierreMs(original),
+   original:{pedidos:original.pedidos,venta:original.venta,final:original.final,
+     medios:original.medios,efectivoContado:original.efectivoContado}
+  }
+ };
+}
+function ukiHoraCierreHistorial(c){
+ const ms=fechaCierreMs(c);
+ if(!(ms>0))return 'Hora no registrada';
+ return new Date(ms).toLocaleTimeString('es-CL',{
+  timeZone:'America/Santiago',hour:'2-digit',minute:'2-digit',hour12:false
+ });
+}
+
 function ukiOlvidoCambiarTurno(){
  const value=Number($("ukiOlvidoCierre")?.value);
  const c=(S.cierres||[]).find(x=>x.suc===S.suc&&fechaCierreMs(x)===value);
@@ -4324,8 +4370,11 @@ function ukiOlvidoCambiarTurno(){
  if(/^\d{4}-\d{2}-\d{2}$/.test(fecha)&&$("ukiOlvidoFecha"))$("ukiOlvidoFecha").value=fecha+"T12:00";
 }
 function ukiOlvidoCambiarModalidad(){
+ const esDelivery=$("ukiOlvidoModalidad")?.value==="Delivery";
  const wrap=$("ukiOlvidoEnvioBloque");
- if(wrap)wrap.style.display=$("ukiOlvidoModalidad")?.value==="Delivery"?"block":"none";
+ if(wrap)wrap.style.display=esDelivery?"block":"none";
+ const monto=$("ukiOlvidoDeliveryUkiBloque");
+ if(monto)monto.style.display=esDelivery?"block":"none";
 }
 function ukiAjustePedidoOlvidado(){
  if(S.busy){aviso("Espera a que termine la operación actual.");return;}
@@ -4366,6 +4415,10 @@ function ukiAjustePedidoOlvidado(){
   const recibidoUki=n("ukiOlvidoUki");
   if(recibidoUki>total)throw Error("Lo recibido en Uki no puede superar el total del pedido.");
   const recibidoOtroLocal=total-recibidoUki;
+  const deliveryCobradoUki=modalidad==="Delivery"?n("ukiOlvidoDeliveryUki"):0;
+  if(deliveryCobradoUki>envio||deliveryCobradoUki>recibidoUki||
+     recibidoUki-deliveryCobradoUki>subtotal)
+   throw Error("El delivery cobrado en Uki debe cuadrar con lo cobrado aquí y el valor del pedido.");
   const localExterno=val("ukiOlvidoExterno").slice(0,80);
   if(recibidoOtroLocal>0&&!localExterno)throw Error("Indica el local que cobró el resto del pedido.");
   if(!$("ukiOlvidoPagado")?.checked)throw Error("Esta función solo registra pedidos con pago completo confirmado. Verifica el cobro antes de guardar.");
@@ -4381,16 +4434,16 @@ function ukiAjustePedidoOlvidado(){
   if(!confirm("Registrar este pedido olvidado en el turno cerrado "+fechaTurno+"?\nTotal: "+fmt(total)+
     "\nCobrado en Uki: "+fmt(recibidoUki)+"\nCobrado en otro local: "+fmt(recibidoOtroLocal)+
     "\nDelivery adicional para conciliar: "+fmt(repartoRealizado?envio:0)+
-    "\nEl cierre original NO se modificará."))return;
+    "\nSe generará un nuevo informe de cierre rectificado. Se conserva respaldo del original sin duplicar caja."))return;
   if(!Array.isArray(S.ajustesHistoricos))S.ajustesHistoricos=[];
   const item={id:S.nextId++,suc:S.suc,tipo:"pedido_olvidado",cierreMs,fechaOperativa:fechaTurno,
     fechaPedido,fechaISO:new Date().toISOString(),registradoEn:Date.now(),cliente,detalle,codigoCarta,
-    modalidad,subtotal,envio,total,pagado:true,recibidoUki,recibidoOtroLocal,
+    modalidad,subtotal,envio,total,pagado:true,recibidoUki,recibidoOtroLocal,deliveryCobradoUki,
     medioUki:val("ukiOlvidoMedio"),localExterno,repartoRealizado,responsable,motivo};
   S.ajustesHistoricos.push(item);
   S.filtroFecha=fechaTurno;S.filtro="";
   render();
-  aviso("Corrección interna #"+item.id+" registrada. Comprueba que la nube muestre «sincronizado». El cierre original permanece intacto.");
+  aviso("✅ Pedido olvidado registrado. El cierre rectificado reemplaza al original en la vista y se puede volver a compartir; el comprobante anterior queda archivado para auditoría.");
  }catch(e){aviso(String(e?.message||e));}
 }
 function ukiVAgregarPedidoOlvidado(){
@@ -4415,12 +4468,13 @@ function ukiVAgregarPedidoOlvidado(){
   '<div id="ukiOlvidoEnvioBloque" style="display:none">'+input("ukiOlvidoEnvio","Valor delivery ($)","number","2000")+
   '<label class="check"><input type="checkbox" id="ukiOlvidoRepartido"> Delivery realmente realizado por repartidor Uki</label></div>'+
   input("ukiOlvidoUki","Monto cobrado en Uki ($)","number","0 si todo se pagó en otro local")+
+  '<div id="ukiOlvidoDeliveryUkiBloque" style="display:none">'+input("ukiOlvidoDeliveryUki","De lo cobrado en Uki, cuánto corresponde a delivery ($)","number","0 si aquí no cobraron delivery")+'</div>'+
   '<label>Medio recibido en Uki (si cobró)</label><select id="ukiOlvidoMedio">'+medios.map(m=>'<option>'+esc(m)+'</option>').join("")+'</select>'+
   input("ukiOlvidoExterno","Local que cobró el resto (si corresponde)","text","Ej: Romo")+
   '<label class="check"><input type="checkbox" id="ukiOlvidoPagado"> Pago completo confirmado</label>'+
   input("ukiOlvidoResponsable","Responsable de la corrección","text","Nombre de quien registra")+
   input("ukiOlvidoMotivo","Motivo obligatorio","text","Ej: pedido omitido en el registro al cerrar")+
-  '<p class="muted">Se conservarán el cierre y el efectivo contado originales. Si hubo delivery, quedará como importe adicional por conciliar, no como pago automático.</p>'+
+  '<p class="muted">Se mostrará un nuevo informe de cierre rectificado con el pedido incluido. El cierre original y el efectivo contado se conservarán solo para auditoría. El delivery adicional por conciliar no se registra como pagado al repartidor.</p>'+
   '<button class="big" type="button" onclick="ukiAjustePedidoOlvidado()">Guardar venta olvidada</button>'+
   '</details>';
 }
