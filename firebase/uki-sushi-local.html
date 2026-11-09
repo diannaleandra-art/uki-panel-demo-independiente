@@ -1314,6 +1314,7 @@ function vNuevo(){
     <p class="muted">Solo se consideran ventas los pagos completos confirmados. Los montos mixtos deben sumar exactamente lo que corresponde.</p></div>
   ${pedidoEdicion?.pagado&&(deltaEdicion!==0||pendienteEdicion)?
     '<p class="muted">La diferencia del cobro quedará registrada automáticamente; editar no declara una devolución.</p>':''}
+   ${D.editando?'<div class="card"><h2>Responsable de la corrección</h2><label for="ukiResponsableEdicion"><b>¿Quién está haciendo este cambio? · Obligatorio</b></label><input id="ukiResponsableEdicion" maxlength="80" autocomplete="off" placeholder="Nombre de quien corrige" value="'+esc(D.responsableEdicion||"")+'" oninput="D.responsableEdicion=this.value"><p class="muted">El nombre, la fecha y el detalle del cambio quedarán en el historial del pedido.</p></div>':''}
    <button class="big" onclick="ndGuardar()">${D.editando?`💾 Guardar cambios #${D.editando}`:D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición</button>`:""}`;
 }
 
@@ -1334,6 +1335,31 @@ function ukiFotoCorreccionPedido(p){
  const foto={};
  for(const k of campos)foto[k]=p[k]===undefined?null:JSON.parse(JSON.stringify(p[k]));
  return foto;
+}
+// Auditoría de cambios por pedido (se muestran los registros existentes, sin alterar caja).
+function ukiCorreccionesTurnoUI(p){
+ const cambios=Array.isArray(p?.correccionesTurno)?p.correccionesTurno:[];
+ if(!cambios.length)return '';
+ const medios=x=>[String(x?.medio||''),String(x?.medioEnvio||'')].filter(Boolean).join(' / ')||'Sin especificar';
+ const items=x=>(Array.isArray(x?.productos)?x.productos:[]).map(i=>
+   (Number(i.cantidad)||0)+' × '+String(i.nombre||'Producto')+' ('+fmt((Number(i.cantidad)||0)*(Number(i.precioUnit)||0))+')'
+ ).join(', ')||'Sin productos';
+ return '<details class="inner-details"><summary>📝 Historial de ediciones · '+cambios.length+'</summary>'+
+  cambios.slice().reverse().map(a=>{
+   const antes=a.antes||{},despues=a.despues||{};
+   const regularizada=a.accion==='diferencia_regularizada';
+   const formaAntes=medios(antes),formaDespues=medios(despues);
+   const productosAntes=items(antes),productosDespues=items(despues);
+   return '<div style="padding:11px 0;border-bottom:1px solid var(--line)">'+
+    '<p style="margin:0 0 5px"><b>Registró: '+esc(a.responsable||'Responsable no identificado en registro anterior')+'</b> · '+esc(a.fechaISO||'Fecha no registrada')+'</p>'+
+    (regularizada?'<p class="muted">Diferencia de caja regularizada: '+fmt(Math.abs(Number(a.importe)||0))+'</p>':
+     '<p class="muted">Total: '+fmt(antes.total||0)+' → '+fmt(despues.total||0)+'</p>'+
+     (formaAntes!==formaDespues?'<p class="muted">Forma de pago: '+esc(formaAntes)+' → '+esc(formaDespues)+'</p>':'')+
+     (antes.pagado!==despues.pagado?'<p class="muted">Estado del pago: '+(antes.pagado?'Confirmado':'Pendiente')+' → '+(despues.pagado?'Confirmado':'Pendiente')+'</p>':'')+
+     (productosAntes!==productosDespues?'<details style="margin:5px 0"><summary>Ver productos antes y después</summary>'+
+      '<p class="muted">Antes: '+esc(productosAntes)+'</p><p class="muted">Después: '+esc(productosDespues)+'</p></details>':''))+
+    (a.saldoPendiente?'<p class="muted">Diferencia pendiente: '+fmt(Math.abs(Number(a.saldoPendiente)))+'</p>':'')+'</div>';
+  }).join('')+'</details>';
 }
 function ukiVCorreccionesPedido(p){
  const ajustes=(S.ajustesHistoricos||[]).filter(a=>a.suc===S.suc&&a.tipo==="pedido_corregido"&&a.pedidoId===p.id);
@@ -1372,7 +1398,7 @@ montoProductosOtroLocal:p.productosPagadosOtroLocal?Math.min(Number(p.subtotal)|
 envioPagadoOtroLocal:ukiMontoEnvioOtroLocal(p,Number(p.envio)||0,Number(p.subtotal)||0)>0,
 montoEnvioOtroLocal:p.montoEnvioOtroLocal??"",
 localPagoExterno:p.localPagoExterno||"",propinaModo:p.propinaModo||((Number(p.propina)||0)>0?"otro":"ninguna"),propinaPersonalizada:p.propinaModo==="otro"||!p.propinaModo?p.propina||"": "",medioPropina:p.medioPropina||"Efectivo",
-items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),ajusteCajaRegularizado:false,editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}]; modoNuevo="manual";ir("nuevo"); aviso(`Editando pedido #${id}`);}
+items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),ajusteCajaRegularizado:false,responsableEdicion:"",editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}]; modoNuevo="manual";ir("nuevo"); aviso(`Editando pedido #${id}`);}
 function reanalizar(){leerTextoD();}
 
 // La propina es opcional (sugerencia 10% de productos), fuera de la venta.
@@ -3353,7 +3379,7 @@ function vPedidos(){
     ${p.textoOriginal&&!p.esPremio?`<details class="inner-details"><summary>Ver WhatsApp original</summary><p style="white-space:pre-wrap">${esc(p.textoOriginal)}</p></details>`:''}
     ${ukiVCorreccionesPedido(p)}
     ${ukiDiferenciaPedidoUI(p)}
-    ${p.correccionesTurno?.length?'<details class="inner-details"><summary>📝 Correcciones del turno · '+p.correccionesTurno.length+'</summary>'+p.correccionesTurno.map(a=>'<p>'+esc(a.fechaISO)+' · '+esc(a.responsable)+' · '+fmt(a.antes?.total)+' → '+fmt(a.despues?.total)+(a.saldoPendiente?' · Diferencia pendiente '+fmt(Math.abs(a.saldoPendiente)):' · Sin diferencia pendiente')+'</p>').join('')+'</details>':''}
+    ${ukiCorreccionesTurnoUI(p)}
     ${ukiTimbrePedidoUI(p)}
     <details class="inner-details"><summary>⚠️ Registrar error / ver soluciones</summary>
     ${(S.incidencias||[]).filter(x=>x.suc===p.suc && x.pedidoId===p.id).map(x=>renderIncidencia(x,"orden")).join("")}
@@ -3629,11 +3655,14 @@ async function ndGuardar(){
       let autorizacion='';
       if(!cierreHistorico){
         if(!esDelPeriodo(snapshot)){aviso('Solo puedes editar directamente pedidos de la caja abierta.');return;}
-        autorizacion=String(ukiTimbreResponsableActual()||'').trim();
-        if(!autorizacion||autorizacion==='Sin turno identificado')
-          autorizacion=String(window.prompt('¿Quién editó este pedido?','')||'').trim();
-        autorizacion=autorizacion.slice(0,80);
-        if(!autorizacion){aviso('No se guardó: indica quién hizo la edición.');return;}
+        // La persona confirma su identidad, no se asume el nombre del turno.
+        autorizacion=String(D.responsableEdicion||'').trim().slice(0,80);
+        if(!autorizacion){
+          aviso('No se guardó: escribe el nombre de quien hizo la corrección.');
+          const campo=document.getElementById('ukiResponsableEdicion');
+          if(campo){campo.focus();campo.scrollIntoView({block:'center',behavior:'smooth'});}
+          return;
+        }
       }
       let correccionHistorica=null;
       if(cierreHistorico){
