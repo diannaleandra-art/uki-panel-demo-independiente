@@ -322,6 +322,9 @@ function mount(){
   get('ukiIngCrear').onclick=()=>send('crear',block);
   get('ukiIngActualizar').onclick=()=>state.availability===true?void load():void checkAvailability(branch());
   const editor=get('ukiArmadoIngredientes');
+  // Si se conserva Ingredientes seleccionada después de un render, abrir su lista.
+  const selectedArea=document.querySelector('[data-uki-carta-area="ingredientes"]');
+  if(selectedArea?.getAttribute('aria-pressed')==='true')editor.open=true;
   editor.addEventListener('toggle',()=>{
    if(!editor.open)return;
    if(state.availability===true)void load();
