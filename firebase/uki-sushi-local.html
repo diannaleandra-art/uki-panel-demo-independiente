@@ -2898,7 +2898,7 @@ function vCierre(){
   </div>
   <div class="card"><p class="muted"><b>🕒 ¿Solo finaliza el turno de un trabajador?</b> Usa «Precierre trabajador». No realiza un cierre de caja. <button type="button" class="sm" onclick="cambiarCajaTab('precierre')">Ir a precierre</button></p></div>
   <div class="card" style="border:2px solid #a44b2a"><h2>🔒 CIERRE DEFINITIVO · ${fechaOperativaActual()}</h2><p class="muted"><b>ESTA OPCIÓN SÍ CIERRA LA CAJA Y GUARDA EL CORTE DEL DÍA.</b> No es el precierre de un trabajador.</p><label>Responsable</label><input id="resp" placeholder="Nombre" value="${esc(cierreDraft.resp)}" oninput="cierreDraft.resp=this.value"><label>Observaciones</label><textarea id="obs" rows="2" oninput="cierreDraft.obs=this.value">${esc(cierreDraft.obs)}</textarea>${S.confirmCierre?'<p class="aviso" style="background:#ffe1e1;color:#7a0010">El siguiente botón CIERRA DEFINITIVAMENTE la caja del día. Marca la casilla antes de confirmar.</p>':""}${S.confirmCierre?'<label style="font-weight:700"><input id="ukiConfirmarCierreDefinitivo" type="checkbox"> Confirmo que deseo cerrar definitivamente la caja del día.</label>':''}<button class="big" style="background:#8c302b;color:#fff" onclick="cerrar()">${S.confirmCierre?"CONFIRMAR CIERRE DEFINITIVO":"Revisar cierre definitivo"}</button></div>
-  <div class="card"><h2>📱 Compartir y Descargar</h2><button class="big" style="background:#25D366" onclick="compartirWhatsAppCierre()">📲 Compartir cierre por WhatsApp</button><button class="big" onclick="descargarPDF('cierre')">📄 Descargar cierre TXT</button><button class="big" style="background:#111" onclick="descargarExcel('cierre')">📊 Descargar Excel cierre</button></div>`;
+  <div class="card"><h2>📤 Compartir y descargar · al final del cierre</h2><p class="muted">Primero confirma el cierre definitivo. Después podrás compartir la versión guardada por WhatsApp y descargar el PDF real o Excel desde Historial, sin confundirla con un resumen provisional.</p><button type="button" class="big" onclick="cambiarCajaTab('historial')">📚 Ir a cierres guardados · WhatsApp / Excel / PDF</button></div>`;
 }
 // Fechas independientes: pedidos por fecha del pedido, incidencias por fecha del reporte.
 let filtroCodigoCarta="",filtroDiaPedidos="",filtroDiaIncidencias="",erroresAbiertos=false;
@@ -4884,13 +4884,58 @@ function ukiVRectificarCierre(c){
   '<label>Motivo</label><input id="'+pref+'Motivo" maxlength="300" placeholder="Por qué fue necesario corregir">'+
   '<button type="button" class="sm ok" onclick="ukiRegistrarCorreccionCierre('+i+')">Guardar aclaración del cierre</button></details>';
 }
+function ukiExcelCierreHistorial(i){
+ const original=ukiCierreHistoricoPorIndice(i);
+ if(!original)return aviso("No se encontró el cierre guardado.");
+ const c=ukiCierreInformeVigente(original),r=c.rectificacion;
+ let csv="Concepto;Valor;Detalle\n";
+ const linea=(concepto,valor,detalle="")=>{
+  csv+=csvSeguro(concepto)+";"+csvSeguro(valor)+";"+csvSeguro(detalle)+"\n";
+ };
+ linea("Sucursal",c.suc);
+ linea("Turno operativo",c.fechaOperativa||"");
+ linea("Fecha de cierre",c.fecha||c.fechaISO||"");
+ linea("Hora exacta de cierre",ukiHoraCierreHistorial(c));
+ linea("Responsable original",c.resp||"");
+ linea("Estado del cierre",r?"Rectificado · versión "+r.version:"Original guardado");
+ if(r)linea("Rectificado en",r.fecha,r.responsable+" · "+r.motivo);
+ linea("Pedidos",c.pedidos);
+ linea("Venta total en Uki",c.venta);
+ linea("Venta sin delivery",r&&!r.sinDeliveryVerificado?
+  "Pendiente de verificar desglose anterior":c.ventaSinDelivery);
+ for(const medio of MEDIOS)linea("Pago · "+medio,Number(c.medios?.[medio])||0);
+ linea("Gastos originales",c.gastos);
+ linea("Pago repartidor original",c.pagadoDelivery??c.delivery??0);
+ linea("Total final rectificado",c.final);
+ linea("Efectivo contado al cerrar",c.efectivoContado??"Sin conteo");
+ linea("Efectivo esperado original",c.efectivo);
+ linea("Diferencia original",c.diferenciaEfectivo??"");
+ if(r){
+  linea("Pedidos olvidados incorporados",r.ajustes.length);
+  linea("Cobrado en Uki después del cierre",r.cobradoUki);
+  linea("Cobrado en otros locales",r.cobradoOtros);
+  linea("Efectivo adicional registrado (no recuento físico)",r.efectivoAdicional);
+  linea("Delivery adicional por conciliar",r.deliveryPendiente);
+  for(const x of r.ajustes){
+   linea("Pedido olvidado "+(x.codigoCarta||x.id),x.total,
+    x.cliente+" · "+x.detalle+" · "+x.responsable+" · "+x.motivo);
+  }
+  linea("Auditoría","Original archivado, no suma dos veces","No se altera caja ni pago del repartidor del cierre original");
+ }
+ const dia=c.fechaOperativa||"historico";
+ descargarTextoArchivo("uki-cierre-"+dia+(r?"-rectificado":"")+".csv",csv,"text/csv;charset=utf-8");
+ aviso("Excel del cierre "+(r?"rectificado":"guardado")+" generado. No modifica la caja.");
+}
 function ukiAccionesHistorial(c){
  const i=S.cierres.indexOf(c);
  if(i<0)return "";
- return '<div class="order-actions" style="padding:10px 0 12px;gap:8px">'+
-  '<button type="button" class="sm ok" style="background:#25D366;color:#fff" onclick="ukiCompartirCierreHistorial('+i+')">Compartir cierre por WhatsApp</button>'+
-  '<button type="button" class="sm" onclick="ukiPDFCierreHistorial('+i+')">PDF · Guardar o compartir</button>'+
-  '</div>';
+ return '<div class="card" style="margin-top:14px"><h2>📤 Compartir y descargar cierre '+(ukiCierreInformeVigente(c).rectificacion?'rectificado':'guardado')+'</h2>'+
+  '<p class="muted">Estas opciones usan el informe vigente y la hora real de cierre. El original anterior se conserva para auditoría.</p>'+
+  '<div class="order-actions" style="padding:10px 0 12px;gap:8px">'+
+  '<button type="button" class="sm ok" style="background:#25D366;color:#fff" onclick="ukiCompartirCierreHistorial('+i+')">📲 Compartir por WhatsApp</button>'+
+  '<button type="button" class="sm" onclick="ukiExcelCierreHistorial('+i+')">📊 Descargar Excel</button>'+
+  '<button type="button" class="sm" onclick="ukiPDFCierreHistorial('+i+')">📄 PDF · Guardar o compartir</button>'+
+  '</div></div>';
 }
 
 // Archivo visual consultable por calendario. Solo lectura de rechazos anteriores
@@ -4938,12 +4983,13 @@ function vHistorialCompacto(){
 
 function vHistorial(){
   if(!S.suc) return vInicio(); const c=ukiCierresFiltradosHistorial().slice().reverse();
-  const buscador=`<div class="card"><h2>Buscar por día</h2><label>Texto (ej: 29-10)</label><input id="ukiHistorialFiltroTexto" placeholder="Ej: 29-10" value="${esc(S.filtro||"")}" oninput="S.filtro=this.value" onkeydown="if(event.key==='Enter'){event.preventDefault();render()}"><button class="sm ok" type="button" onclick="S.filtro=document.getElementById('ukiHistorialFiltroTexto').value;render()">Buscar</button><label>Calendario</label><input type="date" value="${S.filtroFecha||""}" onchange="S.filtroFecha=this.value;render()"><p class="muted">Cada cierre queda guardado aquí. Abre el cierre deseado para reenviarlo por WhatsApp o guardarlo en PDF.</p>${c.length===1&&(S.filtro||S.filtroFecha)?'<p class="muted"><b>Cierre encontrado:</b> '+esc(c[0].fechaOperativa||c[0].fecha)+'</p>'+ukiAccionesHistorial(c[0]):""}${c.length?row("Días mostrados",c.length)+row("Deliveries en total",fmt(c.reduce((a,x)=>a+(x.dels||[]).reduce((b,d)=>b+(d.envio||0),0),0)))+row("Efectivo que quedó en total",fmt(c.reduce((a,x)=>a+x.efectivo,0))):""}<button class="sm" onclick="S.filtro='';S.filtroFecha='';render()">Limpiar</button><button class="sm" onclick="copiarResumen()">Copiar resumen</button><details style="margin:10px 0"><summary style="cursor:pointer">Descargas completas (avanzado)</summary><button class="sm" onclick="descargarPDF('historial')">TXT con todos los detalles</button></details><button class="sm" onclick="descargarExcel('historial')">Excel historial</button><button class="sm ok" onclick="descargarRespaldoCompleto()">💾 Respaldo PC</button></div>`;
+  const buscador=`<div class="card"><h2>Buscar por día</h2><label>Texto (ej: 29-10)</label><input id="ukiHistorialFiltroTexto" placeholder="Ej: 29-10" value="${esc(S.filtro||"")}" oninput="S.filtro=this.value" onkeydown="if(event.key==='Enter'){event.preventDefault();render()}"><button class="sm ok" type="button" onclick="S.filtro=document.getElementById('ukiHistorialFiltroTexto').value;render()">Buscar</button><label>Calendario</label><input type="date" value="${S.filtroFecha||""}" onchange="S.filtroFecha=this.value;render()"><p class="muted">Cada cierre queda guardado aquí. Abre el cierre deseado para reenviarlo por WhatsApp o guardarlo en PDF.</p>${c.length===1&&(S.filtro||S.filtroFecha)?'<p class="muted"><b>Cierre encontrado:</b> '+esc(c[0].fechaOperativa||c[0].fecha)+'</p>':""}${c.length?row("Días mostrados",c.length)+row("Deliveries en total",fmt(c.reduce((a,x)=>a+(x.dels||[]).reduce((b,d)=>b+(d.envio||0),0),0)))+row("Efectivo que quedó en total",fmt(c.reduce((a,x)=>a+x.efectivo,0))):""}<button class="sm" onclick="S.filtro='';S.filtroFecha='';render()">Limpiar</button><button class="sm" onclick="copiarResumen()">Copiar resumen</button><details style="margin:10px 0"><summary style="cursor:pointer">Descargas completas (avanzado)</summary><button class="sm" onclick="descargarPDF('historial')">TXT con todos los detalles</button></details><button class="sm" onclick="descargarExcel('historial')">Excel historial</button><button class="sm ok" onclick="descargarRespaldoCompleto()">💾 Respaldo PC</button></div>`;
   if(!c.length) return buscador+'<div class="card muted">Sin cierres para mostrar - Haz un cierre en Cierre del día con Responsable</div>';
-  return buscador+c.map(x=>{
+  return buscador+c.map(original=>{
+    const x=ukiCierreInformeVigente(original);
     const m=x.medios||{};
     const mediosRows=Object.keys(m).length?Object.keys(m).map(k=>m[k]>0?row(k,fmt(m[k])):"").join(""):"";
-    return `<div class="card" style="border-left:4px solid var(--accent)"><h2>${esc(x.fecha)} · ${esc(x.resp)}</h2>${ukiAccionesHistorial(x)}${x.fechaOperativa?'<p class="muted">Turno: '+esc(x.fechaOperativa)+'</p>':''}
+    return `<div class="card" style="border-left:4px solid var(--accent)"><h2>${esc(x.fecha)} · ${esc(x.resp)}${x.rectificacion?' · RECTIFICADO':''}</h2>${x.rectificacion?'<p class="muted"><b>Versión vigente '+x.rectificacion.version+'</b> · Rectificado '+esc(x.rectificacion.fecha||'')+' · Original archivado para auditoría</p>':''}${row("Hora exacta del cierre",ukiHoraCierreHistorial(original))}${x.fechaOperativa?'<p class="muted">Turno: '+esc(x.fechaOperativa)+'</p>':''}
     <p class="muted" style="margin:8px 0 4px"><b>💳 Desglose pagos</b></p>
     ${mediosRows||'<p class="muted">Sin desglose (cierre antiguo)</p>'}
     ${row("Pedidos",x.pedidos)}${row("Venta total con delivery",fmt(x.venta),"sub")}${row("Venta sin delivery",fmt(x.ventaSinDelivery ?? (x.venta-(x.envios||0))))}
@@ -4966,7 +5012,14 @@ function vHistorial(){
         row("Diferencia de caja",x.diferenciaEfectivo===0?"Caja exacta":
           (x.diferenciaEfectivo>0?"Sobrante ":"Faltante ")+fmt(Math.abs(x.diferenciaEfectivo))):""):""}
     ${Number(x.pendientesAlCerrar)>0?row("Pedidos pendientes al cerrar",x.pendientesAlCerrar):""}
-    ${window.ukiDetalleCierre?window.ukiDetalleCierre.render(x,fmt,esc,S.cierres.indexOf(x),S):''}${ukiVHistorialCorreccionesCierre(x)}${ukiVCorreccionesPedidoCierre(x)}${ukiVRectificarCierre(x)}${x.obs?`<p class="muted" style="background:var(--bg);padding:8px;border-radius:6px;margin-top:8px">📝 ${esc(x.obs)}</p>`:""}
+    ${x.rectificacion?'<p class="muted"><b>Incluye '+x.rectificacion.ajustes.length+' pedido(s) olvidado(s)</b> · Cobros adicionales en Uki '+fmt(x.rectificacion.cobradoUki)+'. Los cobros de otros locales y el delivery por conciliar se presentan aparte; el efectivo contado original no se reemplaza.</p>':''}
+    ${window.ukiDetalleCierre?window.ukiDetalleCierre.render(original,fmt,esc,S.cierres.indexOf(original),S):''}${ukiVHistorialCorreccionesCierre(original)}${ukiVCorreccionesPedidoCierre(original)}${ukiVRectificarCierre(original)}${x.obs?`<p class="muted" style="background:var(--bg);padding:8px;border-radius:6px;margin-top:8px">📝 ${esc(x.obs)}</p>`:""}
+    ${x.rectificacion?'<details class="inner-details"><summary>Ver respaldo del cierre original (auditoría)</summary>'+
+      row("Pedidos originales",x.rectificacion.original.pedidos)+
+      row("Venta original",fmt(x.rectificacion.original.venta))+
+      row("Total final original",fmt(x.rectificacion.original.final))+
+      row("Efectivo contado entonces",x.rectificacion.original.efectivoContado===null?'No se registró':fmt(x.rectificacion.original.efectivoContado))+'</details>':''}
+    ${ukiAccionesHistorial(original)}
     </div>`;
   }).join("");
 }
