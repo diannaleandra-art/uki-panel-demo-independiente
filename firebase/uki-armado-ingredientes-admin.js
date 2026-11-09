@@ -24,6 +24,9 @@ const html=[
  '<p class="muted">Cada sucursal tiene sus opciones. «Incluida» significa $0 adicional; «Con recargo» exige indicar el precio exacto.</p>',
  '<p id="ukiIngSucursal" class="mini-help"></p>',
  '<p id="ukiIngConexion" class="mini-help" role="status">Comprobando conexión con ingredientes…</p>',
+ '<p role="status" id="ukiIngEstado" class="muted">Pulsa Actualizar para consultar ingredientes configurados.</p>',
+ '<button type="button" class="sm" id="ukiIngActualizar">Actualizar ingredientes</button>',
+ '<div id="ukiIngLista" aria-label="Opciones de armado por categoría"></div>',
  '<div class="card" id="ukiIngNuevo" style="padding:10px;background:#fffaf5">',
  '<b>＋ Nuevo ingrediente</b>',
  '<label>Nombre<input data-uki-ingredient="name" type="text" maxlength="70" placeholder="Ej. Frutilla" autocomplete="off"></label>',
@@ -36,9 +39,7 @@ const html=[
  '<label style="display:flex;gap:8px;align-items:center"><input data-uki-ingredient="available" type="checkbox" checked style="width:auto;min-height:0"> Disponible para elegir</label>',
  '<button class="sm ok" type="button" id="ukiIngCrear" disabled style="width:100%">Agregar ingrediente</button>',
  '</div>',
- '<p role="status" id="ukiIngEstado" class="muted">Pulsa Actualizar para consultar ingredientes configurados.</p>',
- '<button type="button" class="sm" id="ukiIngActualizar">Actualizar ingredientes</button>',
- '<div id="ukiIngLista"></div>',
+
  '</details>'
 ].join('');
 const categoryOptions=()=>categories.map(([k,v])=>({k,v}));
@@ -134,11 +135,104 @@ async function toggleIngredient(record){
  }catch(e){status('No se modificó: '+String(e.message||e));}
  finally{state.busy=false;}
 }
+// Catálogo base del menú Uki aprobado (clásicos + premium): referencia visual.
+ // Los precios y el agotado de estas opciones se gestionan en sus controles ya existentes.
+const baseArmado={
+ "vegetal": [
+  "Cebollín",
+  "Ciboulette",
+  "Palta",
+  "Pepino",
+  "Pimentón",
+  "Tomate",
+  "Aceituna amarga",
+  "Aceituna sin amargo",
+  "Choclo",
+  "Cilantro",
+  "Cebolla caramelizada",
+  "Champiñón",
+  "Piña",
+  "Palmito",
+  "Albahaca",
+  "Maní",
+  "Ralladura de limón",
+  "Zanahoria",
+  "Frutilla",
+  "Pepinillo",
+  "Ají verde"
+ ],
+ "proteina": [
+  "Pollo",
+  "Kanicama",
+  "Berenjena crispy",
+  "Cerdo",
+  "Camarón",
+  "Carne",
+  "Salmón",
+  "Pulpo"
+ ],
+ "envoltura": [
+  "Tempura",
+  "Panko",
+  "Ciboulette",
+  "Sésamo",
+  "Merkén",
+  "Pepino",
+  "Mixta",
+  "Nori",
+  "Queso",
+  "Palta",
+  "Queso maní",
+  "Queso ciboulette",
+  "Queso sésamo",
+  "Queso panko",
+  "Jamón serrano",
+  "Palta queso",
+  "Salmón ahumado",
+  "Salmón palta"
+ ]
+};
+const skuNombre=n=>String(n||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('es-CL').trim();
 function render(){
  const target=get('ukiIngLista');if(!target)return;
  target.replaceChildren();
- if(!state.items.length){const p=document.createElement('p');p.className='muted';p.textContent='Sin ingredientes agregados. Los ingredientes originales de Uki siguen disponibles.';target.append(p);return;}
- for(const item of state.items){
+ const estilos={
+  vegetal:{title:'🌿 Vegetales',bg:'#f2f9f0',border:'#a8cda4',ink:'#285b35'},
+  proteina:{title:'🍗 Proteínas',bg:'#fff5ed',border:'#e7b28c',ink:'#854624'},
+  envoltura:{title:'🍙 Envolturas',bg:'#f5f3fb',border:'#c2b2df',ink:'#58416d'}
+ };
+ for(const cat of ['vegetal','proteina','envoltura']){
+  const style=estilos[cat],custom=state.items.filter(x=>x.category===cat);
+  const group=document.createElement('details');group.open=cat==='vegetal';
+  group.style.cssText='border:1.5px solid '+style.border+';border-radius:15px;background:'+style.bg+';margin:12px 0;overflow:hidden';
+  const head=document.createElement('summary');head.style.cssText='cursor:pointer;padding:13px 14px;font-weight:750;color:'+style.ink+';font-size:16px';
+  head.textContent=style.title+' · '+(baseArmado[cat].length+custom.filter(x=>!baseArmado[cat].some(n=>skuNombre(n)===skuNombre(x.name))).length)+' opciones';
+  group.append(head);
+  const body=document.createElement('div');body.style.cssText='padding:0 12px 12px';
+  const description=document.createElement('p');description.className='muted';
+  description.textContent='Opciones originales de la carta y agregadas en esta sucursal. Los recargos de las originales dependen del armado.';
+  body.append(description);
+  const grid=document.createElement('div');grid.style.cssText='display:flex;flex-wrap:wrap;gap:7px;margin:10px 0';
+  const added=new Set(custom.map(x=>skuNombre(x.name)));
+  for(const name of [...baseArmado[cat]].sort((a,b)=>a.localeCompare(b,'es'))){
+   if(added.has(skuNombre(name)))continue;
+   const chip=document.createElement('span');chip.style.cssText='background:#fff;border:1px solid '+style.border+';border-radius:10px;padding:7px 9px;font-size:13px;color:#4b423a';
+   chip.textContent=name;chip.title='Opción original de la carta. Su recargo depende del producto o promoción.';
+   grid.append(chip);
+  }
+  body.append(grid);
+  if(custom.length){
+   const label=document.createElement('h3');label.style.cssText='font-size:15px;color:'+style.ink+';margin:16px 0 8px';
+   label.textContent='Personalizados en este local · '+custom.length;
+   body.append(label);
+   for(const item of [...custom].sort((a,b)=>a.name.localeCompare(b.name,'es'))){
+    renderEditorIngrediente(item,body);
+   }
+  }
+  group.append(body);target.append(group);
+ }
+}
+function renderEditorIngrediente(item,target){
   const wrapper=document.createElement('details');wrapper.className='card';wrapper.style.cssText='padding:10px;margin:8px 0';
   const title=document.createElement('summary');title.style.cursor='pointer';
   title.textContent=item.name+' · '+(categories.find(x=>x[0]===item.category)?.[1]||item.category)+' · '+(item.surcharge?pesos(item.surcharge):'Incluida')+' · '+(item.available?'Disponible':'Agotado');
@@ -164,7 +258,6 @@ function render(){
   retire.textContent=item.available?'🗑 Quitar ingrediente de la carta':'↩ Volver a mostrar ingrediente';
   retire.onclick=()=>toggleIngredient(item);form.append(retire);
   mode.onchange=()=>syncMode(form);category.onchange=()=>syncCategory(form);syncMode(form);syncCategory(form);wrapper.append(form);target.append(wrapper);
- }
 }
 async function checkAvailability(chosen){
  const seq=++state.check;
