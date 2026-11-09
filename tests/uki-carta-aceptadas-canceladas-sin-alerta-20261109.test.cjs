@@ -17,6 +17,7 @@ function escenario({pedidos=[],remotas=[]}={}){
    return /^9\d{8}$/.test(n)?'56'+n:n;
   }};
  vm.createContext(ctx);
+ vm.runInContext(extraer('function ukiCartaPedidoAceptadoEnCaja(r){','// Distinto de "pedido activo":'),ctx);
  vm.runInContext(extraer('function ukiCartaSolicitudYaRegistrada(','let ukiCartaConfirmando=false;'),ctx);
  return ctx;
 }
@@ -85,7 +86,7 @@ test('Solicitud pendiente vinculada a pedido CANCELADO no se confirma de nuevo n
 });
 test('Solo se modifica aviso de reconciliación; no hay alta de ventas ni cambio en caja',()=>{
  const code=extraer('function ukiCartaSolicitudYaRegistrada(','let ukiCartaConfirmando=false;');
- assert.doesNotMatch(code,/S\.pedidos\.push|S\.pedidos\.splice|p\.estado\s*=|p\.pagado\s*=|S\.cierres\s*=/);
+ assert.doesNotMatch(code,/S\.pedidos\.push|S\.pedidos\.splice|p\.estado\s*=(?!=)|p\.pagado\s*=(?!=)|S\.cierres\s*=(?!=)/);
  assert.match(code,/r\.estado==='aceptada'&&!ukiCartaSolicitudYaRegistrada\(r\)/);
  assert.doesNotThrow(()=>new vm.Script(carta));
 });
