@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive"><meta http-equiv="Content-Security-Policy" content="default-src 'none';script-src 'unsafe-inline';style-src 'unsafe-inline';img-src data:;connect-src 'none';form-action 'none';frame-src 'none';base-uri 'none'">
+<title>Uki Sushi · Vista segura de Carta y precios</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:#332720;background:#fbf7f1;--orange:#ed800e;--dark:#392820;--muted:#7c6655;--border:#e9d9cb}
+*{box-sizing:border-box}body{margin:0;padding-bottom:55px}header{background:white;padding:20px 17px 17px;border-bottom:1px solid #eee1d6}header .eyebrow{font-weight:800;color:#b25f13;font-size:12px;letter-spacing:.6px}
+h1{font-size:27px;line-height:1.15;letter-spacing:-1px;margin:7px 0 6px}header p{margin:0;color:var(--muted);font-size:14px;line-height:1.4}
+main{max-width:640px;margin:auto;padding:16px}h2{font-size:21px;letter-spacing:-.5px;margin:0 0 9px}h3{font-size:17px;margin:0 0 6px}
+p{line-height:1.45}.note{background:#fff4e6;border:1px solid #f2d8b7;color:#7a4b22;border-radius:13px;padding:12px 14px;margin:0 0 17px;font-size:13px}
+.card{background:white;border:1px solid var(--border);border-radius:17px;padding:17px;margin-bottom:14px;box-shadow:0 2px 10px #5d381909}
+.cardhead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.caption{font-size:13px;color:var(--muted);margin:5px 0 12px}
+.branchset{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+button,summary{font:inherit;cursor:pointer}button.branch{min-height:47px;border:1px solid #e8d5c0;background:#fffaf5;color:#6c472a;font-weight:750;border-radius:12px;padding:10px}
+button.branch[aria-pressed="true"]{background:var(--orange);color:#fff;border-color:var(--orange);box-shadow:0 5px 12px #ed800e2a}
+.pill{display:inline-block;background:#eef7ee;color:#326b3f;font-size:12px;font-weight:700;border-radius:50px;padding:6px 10px}
+.pill.orange{background:#fff0df;color:#a4550b}.sm{font-size:13px;color:var(--muted)}
+.tabs{display:flex;gap:8px;overflow-x:auto;margin:16px 0;scrollbar-width:none}
+.tabs button{white-space:nowrap;flex:1;min-height:45px;border-radius:11px;border:1px solid #e9dacf;background:#fff;color:#74523b;font-size:13px;font-weight:750;padding:10px}
+.tabs button[aria-pressed="true"]{background:#3b2d24;border-color:#3b2d24;color:#fff}
+.section[hidden]{display:none!important}
+.item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 0;border-bottom:1px dashed #eadfd7}
+.item:last-child{border-bottom:0}.item strong{display:block;font-size:15px}.item small{color:var(--muted);font-size:12px;display:block;margin-top:4px}.item b{text-align:right;white-space:nowrap;font-size:15px;color:#994d08}
+summary{list-style:none;font-weight:750;font-size:16px;padding:5px 0}summary:after{content:'⌄';float:right;color:#b8752c}details[open]>summary:after{content:'⌃'}details[open]>summary{margin-bottom:12px}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}.field.wide{grid-column:1/-1}
+label{font-size:13px;font-weight:700;color:#644e40;display:block;margin-bottom:5px}
+input,select,textarea{width:100%;border:1px solid #e3d0c1;border-radius:10px;padding:12px;font-size:15px;background:#fffcf9;color:#44342d;min-height:43px}
+input:disabled,select:disabled,textarea:disabled{opacity:1;color:#84766c;background:#f8f3ee}
+.demo{width:100%;border:0;background:#e5dacf;color:#746252;border-radius:11px;padding:13px;font-weight:750;margin-top:13px}
+.photo{height:106px;border-radius:12px;background:linear-gradient(135deg,#fff3e6,#f3d5b5);display:flex;align-items:center;justify-content:center;gap:7px;flex-direction:column;color:#b47639;font-size:13px}
+.photo strong{font-size:33px}.promo{border:1px solid #efdecd;border-radius:14px;padding:12px;margin-top:12px}
+.promoname{display:flex;justify-content:space-between;gap:10px;margin:13px 0 2px}.promoname b{font-size:16px}.promoname strong{color:#c16c0b;white-space:nowrap}
+footer{max-width:640px;margin:15px auto;padding:0 20px;color:#846c59;font-size:12px;text-align:center}
+a{color:#aa570b}button:focus-visible,summary:focus-visible{outline:3px solid #da8a31;outline-offset:2px}
+</style></head><body>
+<header><div class="eyebrow">🍣 UKI SUSHI · VISTA DE ENSAYO</div><h1>Carta y precios</h1>
+<p>Así se organizarían los ingredientes y las promociones por sucursal.</p></header>
+<main>
+<div class="note" role="status"><strong>Vista visual, no es el panel operativo.</strong> Todos los productos y valores de esta pantalla son ejemplos. No guarda, no publica ni consulta datos reales.</div>
+<section class="card" aria-labelledby="branch-heading"><h2 id="branch-heading">1. Elige tu sucursal</h2>
+<div class="branchset" role="group" aria-label="Sucursal de ejemplo">
+<button class="branch" data-branch="arica" aria-pressed="true" type="button">Regimiento Arica</button>
+<button class="branch" data-branch="serena" aria-pressed="false" type="button">La Serena</button></div>
+<p id="branch-notice" class="caption" aria-live="polite">Estás viendo ejemplos de Regimiento Arica.</p></section>
+<div class="tabs" role="group" aria-label="Categorías de la carta">
+<button type="button" data-tab="ingredientes" aria-pressed="true">🥑 Ingredientes</button>
+<button type="button" data-tab="promos" aria-pressed="false">🍣 Promociones</button>
+<button type="button" data-tab="productos" aria-pressed="false">🧾 Productos</button></div>
+<section class="section" id="ingredientes">
+<div class="card">
+<div class="cardhead"><div><h2>Ingredientes para armar</h2><p class="caption">Vegetales, proteínas y envolturas para sushi, handrolls, gohan y burger.</p></div><span class="pill">Por sucursal</span></div>
+<div id="ingredient-list"></div></div>
+<details class="card"><summary>＋ Agregar ingrediente al armado</summary>
+<p class="caption">Ejemplo del formulario: se indica si viene incluido o tiene recargo. No es un artículo del inventario.</p>
+<div class="fields">
+<div class="field"><label>Categoría</label><select disabled><option>Vegetal</option></select></div>
+<div class="field"><label>Recargo ($)</label><input disabled value="0" inputmode="numeric"></div>
+<div class="field wide"><label>Ingrediente</label><input disabled placeholder="Ej. Frutilla"></div>
+<div class="field wide"><label>Se utiliza en</label><input disabled value="Clásico, premium, handroll, gohan…"></div>
+</div><button class="demo" type="button" disabled>Guardar ingrediente (solo en panel real)</button>
+</details></section>
+<section class="section" id="promos" hidden>
+<div class="card"><h2>Promociones del mes</h2><p class="caption">Precio, armado, salsas, korokes, medio de pago y fotografía. Las nuevas promociones se guardan primero como borrador.</p>
+<div id="promo-list"></div></div>
+<details class="card"><summary>＋ Agregar promoción de sushi</summary>
+<p class="caption">Vista ilustrativa. El botón estará disponible en el panel real cuando carta y servidor estén activados.</p>
+<div class="fields">
+<div class="field wide"><label>Nombre de la promoción</label><input disabled placeholder="Ej. Promo especial"></div>
+<div class="field"><label>Rolls</label><input disabled value="5"></div>
+<div class="field"><label>Piezas por roll</label><select disabled><option>12</option><option>10</option></select></div>
+<div class="field"><label>Precio ($)</label><input disabled value="16000"></div>
+<div class="field"><label>Salsas</label><input disabled value="5"></div>
+<div class="field"><label>Korokes</label><input disabled value="3"></div>
+<div class="field"><label>Fotografía</label><input disabled value="Desde iPhone"></div></div>
+<button class="demo" type="button" disabled>Guardar borrador (solo en panel real)</button></details></section>
+<section class="section" id="productos" hidden>
+<div class="card"><h2>Productos de la carta</h2><p class="caption">Buscar, cambiar precio, agregar o marcar disponible/agostado. Cada sucursal tiene su catálogo.</p>
+<div id="product-list"></div></div>
+<details class="card"><summary>＋ Agregar producto</summary><p class="caption">Ejemplo de la edición desde Carta y precios, sin registrar nada.</p>
+<div class="fields"><div class="field wide"><label>Nombre</label><input disabled placeholder="Ej. Entrada especial"></div>
+<div class="field wide"><label>Descripción</label><textarea disabled rows="2" placeholder="Armado o ingredientes"></textarea></div>
+<div class="field wide"><label>Precio ($)</label><input disabled value="6000"></div></div>
+<button class="demo" disabled>Agregar a la carta (solo en panel real)</button></details></section>
+</main><footer>Uki Sushi · Prototipo privado de revisión · Sin conexión a pedidos, caja, timbres ni Neon</footer>
+<script>
+'use strict';
+const sample={
+ arica:{
+  ingredientes:[['Frutilla','Vegetal · Clásico / premium','Incluido','$0'],['Palta','Vegetal · Sushi y handrolls','Incluido','$0'],['Camarón','Proteína · Sushi y burger','Recargo','+$1.000'],['Tempura','Envoltura · Sushi y handrolls','Incluido','$0']],
+  promos:[['Promo de ejemplo · 60 piezas','5 rolls de 12 · 5 salsas · 3 korokes','$16.000'],['Promo de ejemplo · 24 piezas','2 rolls de 12 · 2 salsas','$7.000']],
+  productos:[['Sushi clásico de ejemplo','24 piezas','$8.000'],['Gohan de ejemplo','Con proteína y vegetal','$6.000']]
+ },serena:{
+  ingredientes:[['Cebollín','Vegetal · Sushi clásico','Incluido','$0'],['Palta','Vegetal · Sushi y handrolls','Incluido','$0'],['Salmón','Proteína · Sushi y burger','Recargo','+$2.500'],['Panko','Envoltura · Sushi y handrolls','Incluido','$0']],
+  promos:[['Promo de ejemplo · 36 piezas','3 rolls de 12 · 2 salsas','$11.800'],['Promo de ejemplo · 72 piezas','6 rolls de 12 · 5 salsas','$21.500']],
+  productos:[['Sushi clásico de ejemplo','36 piezas','$11.800'],['Gohan de ejemplo','Con proteína y vegetal','$6.500']]
+ }};
+let branch='arica',tab='ingredientes';
+const h=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e};
+function items(id,rows){
+ const root=document.getElementById(id);root.replaceChildren();
+ for(const [name,desc,type,cost] of rows){
+  const item=h('div',undefined,'item'),left=h('div');left.append(h('strong',name),h('small',desc));
+  const right=h('div');if(type)right.append(h('small',type));if(cost)right.append(h('b',cost));
+  item.append(left,right);root.append(item);
+ }
+}
+function promos(rows){
+ const root=document.getElementById('promo-list');root.replaceChildren();
+ for(const [name,desc,cost] of rows){
+  const card=h('div',undefined,'promo'),photo=h('div',undefined,'photo');
+  photo.append(h('strong','🍱'),h('span','Aquí aparecerá la foto real que agregues'));
+  const title=h('div',undefined,'promoname');title.append(h('b',name),h('strong',cost));
+  card.append(photo,title,h('p',desc,'sm'),h('span','Ejemplo · no publicado','pill orange'));root.append(card);
+ }
+}
+function render(){
+ document.querySelectorAll('[data-branch]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.branch===branch)));
+ document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tab===tab)));
+ for(const id of ['ingredientes','promos','productos'])document.getElementById(id).hidden=id!==tab;
+ document.getElementById('branch-notice').textContent='Estás viendo ejemplos de '+(branch==='arica'?'Regimiento Arica':'La Serena')+'.';
+ items('ingredient-list',sample[branch].ingredientes);items('product-list',sample[branch].productos);
+ promos(sample[branch].promos);
+}
+document.querySelectorAll('[data-branch]').forEach(b=>b.addEventListener('click',()=>{branch=b.dataset.branch;render()}));
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{tab=b.dataset.tab;render()}));
+render();
+</script></body></html>
