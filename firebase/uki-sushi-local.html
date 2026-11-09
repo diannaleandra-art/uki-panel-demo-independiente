@@ -1558,7 +1558,7 @@ function vNuevo(){
   ${pedidoEdicion?.pagado&&(deltaEdicion!==0||pendienteEdicion)?
     '<p class="muted">La diferencia del cobro quedará registrada automáticamente; editar no declara una devolución.</p>':''}
    ${ukiPasoTimbreAntesDeGuardar(pedidoEdicion)}
-   ${D.editando?'<div class="card"><h2>Responsable de la corrección</h2><label for="ukiResponsableEdicion"><b>¿Quién está haciendo este cambio? · Obligatorio</b></label><input id="ukiResponsableEdicion" maxlength="80" autocomplete="off" placeholder="Nombre de quien corrige" value="'+esc(D.responsableEdicion||"")+'" oninput="D.responsableEdicion=this.value"><p class="muted">El nombre, la fecha y el detalle del cambio quedarán en el historial del pedido.</p></div>':''}
+   ${D.editando?'<div class="card uki-responsable-edicion"><h2>✍️ Solo para modificaciones</h2><label for="ukiResponsableEdicion"><b>Nombre de quien modificó este pedido · obligatorio</b></label><input id="ukiResponsableEdicion" maxlength="80" autocomplete="off" placeholder="Escribe tu nombre" value="'+esc(D.responsableEdicion||"")+'" oninput="D.responsableEdicion=this.value"><p class="muted">Se registra una sola vez por corrección, junto con la fecha y los cambios. En un pedido nuevo NO se solicita.</p></div>':''}
    <button class="big" onclick="ndGuardar()" ${ukiTimbreObligatorioGuardar(D,pedidoEdicion)&&!ukiTimbreBorradorConfirmado(D)?'disabled title="Primero confirma el envío del timbre"':''}>${D.editando?`💾 Guardar cambios #${D.editando}`:D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición</button>`:""}`;
 }
 
@@ -1883,37 +1883,21 @@ function ukiUltimoPedidoConTimbre(cli){
 
 function copiarComanda(id){const p=S.pedidos.find(x=>x.id===id); if(!p) return; const txt=[`${ukiReferenciaConCarta(p)} · ${p.modalidad}`, ...(p.productos||[]).map(pr=>`${pr.cantidad}x ${pr.nombre}${pr.detalle?` (${pr.detalle})`:""}`), p.envio?`Delivery ${fmt(p.envio)}`:"", `Total ${fmt(p.total)}`].filter(Boolean).join("\n"); if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>aviso("Comanda copiada")).catch(()=>aviso(txt)); else aviso(txt);}
 function togglePagado(id){
- const p=S.pedidos.find(x=>x.id===id);if(!p||p.esPremio||p.estado==="Cancelado")return;
- if(ukiCierreConfirmadoPedido(p)){aviso("Este pedido ya pertenece a un cierre confirmado. Usa Editar para dejar una corrección identificada sin modificar el cierre.");return;}
- if(!p.pagado){
-   if(ukiTimbreObligatorioGuardar({...p,editando:p.id,pagado:true},p)){
-     editarPedido(p.id);D.pagado=true;render();
-     aviso("Pago con WhatsApp: envía el timbre desde este mismo pedido y confirma antes de guardar el cobro.");
-     return;
-   }
-   const err=ukiErrorDistribucionPago(p,Number(p.subtotal)||0,p.modalidad==="Delivery"?(Number(p.envio)||0):0);
-   if(err){aviso(err+" Edita el pedido antes de marcarlo pagado.");return;}
-   if(!confirm("¿Confirmas el pago completo del pedido #"+id+"? Solo se sumará el dinero cobrado en este local."))return;
+ const p=(S.pedidos||[]).find(x=>x.suc===S.suc&&x.id===Number(id));
+ if(!p||p.esPremio||p.estado==="Cancelado")return;
+ if(ukiCierreConfirmadoPedido(p)){
+  aviso("Este pedido pertenece a un cierre confirmado. Usa Editar para dejar constancia sin modificar su cierre.");return;
  }
- if(p.cliente && !p.productosPagadosOtroLocal){
-   const cli=asegurarCliente(p.cliente,p.codigoCliente,p.telefono);
-   if(p.pagado){
-     cli.movimientos=cli.movimientos.filter(m=>m.pedidoId!==p.id);
-     cli.pedidos=Math.max(0,(cli.pedidos||0)-1);
-     cli.gastado=Math.max(0,(cli.gastado||0)-(p.subtotal||0));
-   }else{
-     if(!cli.movimientos.some(m=>m.tipo==="venta"&&m.pedidoId===p.id)){
-       cli.movimientos.push({tipo:"venta",fecha:new Date().toISOString(),vence:fechaVencimiento(new Date().toISOString()),pedidoId:p.id});
-       cli.pedidos=(cli.pedidos||0)+1;
-       cli.gastado=(cli.gastado||0)+(p.subtotal||0);
-       cli.ultimo=new Date().toLocaleDateString("es-CL");
-     }
-   }
- }
- p.pagado=!p.pagado;
- ukiSincronizarPropinaPedido(p);
- if(ukiPedidoDaTimbre(p)&&!p.timbreEnviadoEn)aviso("✅ Pago confirmado. 📲 Recuerda enviar el timbre al cliente y marcarlo como enviado.");
- else render();
+ // Cambiar Pagado también es una MODIFICACIÓN: solicitar responsable y guardar auditoría.
+ // Jamás usar este botón para alterar una venta sin identificación de quien corrigió.
+ editarPedido(p.id);
+ if(S.vista!=="nuevo"||Number(D.editando)!==Number(p.id))return;
+ D.pagado=!p.pagado;
+ render();
+ aviso((D.pagado?"Marcar como pagado":"Quitar pagado")+
+  ": confirma el cambio y escribe quién lo modificó. "+
+  (ukiTimbreYaEnviadoPedido(p)?"✅ Timbre ya enviado: NO debes enviarlo otra vez.":
+   D.pagado&&ukiTimbreObligatorioGuardar(D,p)?"Si el cliente tiene WhatsApp, envía el timbre una vez antes de guardar.":""));
 }
 // Cancelación operativa: conserva el registro y nunca altera caja, timbres ni cierres ya guardados.
 // Exclusión de doble pulsación mientras se cifra y guarda una cancelación.
