@@ -4623,7 +4623,7 @@ function ukiArchivoRechazadosHistorialUI(){
  }).filter(x=>Number.isFinite(x.ms)&&x.ms<corteDelDiaMs());
  const todos=[...locales,...remotos].sort((a,b)=>b.ms-a.ms);
  const visibles=ukiArchivoRechazadosDia?todos.filter(x=>x.dia===ukiArchivoRechazadosDia):todos;
- return '<details class="card"><summary><b>📚 Solicitudes rechazadas de días anteriores · '+todos.length+'</b></summary>'+
+ return '<details class="card" '+(ukiArchivoRechazadosDia?'open':'')+'><summary><b>📚 Solicitudes rechazadas de días anteriores · '+todos.length+'</b></summary>'+
   '<p class="muted">Antecedentes, no ventas. No se suman a caja, timbres ni pedidos actuales.</p>'+
   '<label for="ukiArchivoRechazadosDia">Consultar por fecha</label>'+
   '<input id="ukiArchivoRechazadosDia" type="date" value="'+esc(ukiArchivoRechazadosDia)+'" onchange="ukiArchivoRechazadosDia=this.value;render()">'+
