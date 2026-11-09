@@ -1864,6 +1864,23 @@ function fichaHistorial(cli){
 }
 
 // La fecha de búsqueda es solo un filtro visual; no altera registros ni timbres.
+// Fecha calendario chilena para Timbres: NO cambia el corte de caja o los cierres.
+function ukiFechaCalendarioChile(valor){
+ const fecha=new Date(valor);
+ if(!Number.isFinite(fecha.getTime()))return "";
+ const partes=new Intl.DateTimeFormat('en-GB',{
+  timeZone:'America/Santiago',day:'2-digit',month:'2-digit',year:'numeric'
+ }).formatToParts(fecha);
+ const campo=t=>partes.find(p=>p.type===t)?.value||'';
+ return campo('year')+'-'+campo('month')+'-'+campo('day');
+}
+function ukiFechaTimbreCalendario(m){
+ if(m?.fecha&&Number.isFinite(new Date(m.fecha).getTime()))
+  return ukiFechaCalendarioChile(m.fecha);
+ const pedido=m?.pedidoId?(S.pedidos||[]).find(p=>p.suc===S.suc&&p.id===m.pedidoId):null;
+ const t=pedido?fechaRegistroMs(pedido):0;
+ return t>0?ukiFechaCalendarioChile(t):"";
+}
 let filtroFechaTimbres="";
 function verDiaTimbres(fecha){
  filtroFechaTimbres=/^\d{4}-\d{2}-\d{2}$/.test(fecha)?fecha:"";
@@ -1873,10 +1890,10 @@ function buscarTimbresPorFecha(){
   const f=filtroFechaTimbres;
   const diaValido=/^\d{4}-\d{2}-\d{2}$/.test(f);
   const pedidos=diaValido?(S.pedidos||[]).filter(p=>
-    p.suc===S.suc&&fechaTurnoRegistro(p)===f&&!p.esPremio
+    p.suc===S.suc&&ukiFechaCalendarioChile(fechaRegistroMs(p))===f&&!p.esPremio
   ).slice().sort((a,b)=>String(b.fechaISO||"").localeCompare(String(a.fechaISO||""))):[];
   const movimientos=diaValido?Object.values(S.clientes||{}).flatMap(c=>
-    (c.movimientos||[]).filter(m=>fechaTurnoMovimiento(m)===f).map(m=>({cliente:c.nombre||"",...m}))
+    (c.movimientos||[]).filter(m=>ukiFechaTimbreCalendario(m)===f).map(m=>({cliente:c.nombre||"",...m}))
   ):[];
   const etiqueta=m=>m.tipo==="venta"?"Timbre ganado":m.tipo==="canje6"?"Canje de 12 piezas":m.tipo==="canje10"?"Canje de 36 piezas + 2 korokes":m.tipo;
   return '<details class="card" id="ukiTimbresCalendario" '+(diaValido?'open':'')+'>'+
@@ -1953,18 +1970,24 @@ function ukiGuardarDatosCliente(key,boton){
 function vClientes(){
   if(!S.suc) return vInicio();
   const buscar=String(S.filtroCliente||"").trim();
-  const fecha=filtroFechaTimbres||fechaOperativaActual();
+  const fecha=filtroFechaTimbres||ukiFechaCalendarioChile(Date.now());
   const clientes=Object.values(S.clientes||{});
   const lista=clientes.filter(c=>{
     if(buscar)return ukiBusquedaPorDatos(buscar,[c.nombre,ukiCodigoClienteVisible(c),c.codigoCliente,c.telefono,ukiTelefonoNormalizado(c.telefono)])||
       pedidosHist(c.nombre,c.codigoCliente,c.telefono).some(p=>
         ukiBusquedaPorDatos(buscar,[p.cliente,ukiCodigoClienteVisible(p),p.codigoCliente,p.telefono,ukiTelefonoNormalizado(p.telefono)]));
-    return (c.movimientos||[]).some(m=>fechaTurnoMovimiento(m)===fecha);
+    return (c.movimientos||[]).some(m=>ukiFechaTimbreCalendario(m)===fecha);
   }).sort((a,b)=>ventasValidas(b)-ventasValidas(a));
+  // Un timbre equivale a un movimiento de compra pagada (sin perder múltiples por cliente).
+  const movimientosDelDia=lista.flatMap(c=>(c.movimientos||[])
+    .filter(m=>m.tipo==='venta'&&ukiFechaTimbreCalendario(m)===fecha)
+    .map(m=>({cliente:c.nombre||'Sin nombre',codigo:ukiCodigoClienteVisible(c),
+      fecha:m.fecha||'',pedidoId:m.pedidoId||null})))
+    .sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
   const fechas=new Map();
   for(const c of clientes)for(const m of c.movimientos||[]){
-    const f=fechaTurnoMovimiento(m);
-    if(/^\d{4}-\d{2}-\d{2}$/.test(f)&&f!==fechaOperativaActual()){
+    const f=ukiFechaTimbreCalendario(m);
+    if(/^\d{4}-\d{2}-\d{2}$/.test(f)&&f!==ukiFechaCalendarioChile(Date.now())){
       if(!fechas.has(f))fechas.set(f,new Set());
       fechas.get(f).add(ukiClaveClienteExistente(c.nombre,c.codigoCliente,c.telefono)||claveCliente(c.nombre,c.codigoCliente,c.telefono));
     }
@@ -1972,14 +1995,20 @@ function vClientes(){
   const dias=[...fechas.entries()].sort((a,b)=>b[0].localeCompare(a[0]));
   return `<div class="card"><h2>⭐ Tarjetas de Timbres</h2>
     <p class="muted">Los timbres se acumulan por 3 meses. Premios: 6 ventas = 12 piezas; 10 ventas = 36 piezas + 2 korokes.</p>
-    <p><b>${buscar?'Resultados de búsqueda':filtroFechaTimbres?'Tarjetas del '+esc(fecha):'Tarjetas con actividad del turno · '+esc(fecha)}</b></p>
+    <p><b>${buscar?'Resultados de búsqueda':filtroFechaTimbres?'Tarjetas del '+esc(fecha):'Timbres de hoy · '+esc(fecha)+' · día completo'}</b></p>
     <label>Buscar por nombre, últimos 4 del WhatsApp o celular completo (cualquier día)</label>
     <input id="ukiTimbresBuscarInput" placeholder="Ej: Camila, 5678 o +56 9..." value="${esc(S.filtroCliente||"")}" oninput="S.filtroCliente=this.value" onkeydown="if(event.key==='Enter'){event.preventDefault();S.filtroCliente=this.value;render()}"><button class="sm ok" type="button" onclick="S.filtroCliente=document.getElementById('ukiTimbresBuscarInput').value;render()">Buscar</button>
-    <button class="sm" onclick="verDiaTimbres(&quot;&quot;)">Ver turno actual</button>
+    <button class="sm" onclick="verDiaTimbres(&quot;&quot;)">Ver timbres de hoy</button>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px">
-    <div class="card" style="margin:0"><h2 style="font-size:12px">Tarjetas visibles</h2><b>${lista.length}</b></div>
-    <div class="card" style="margin:0"><h2 style="font-size:12px">Premios 6</h2><b>${lista.filter(c=>ventasValidas(c)>=6).length}</b></div>
+    <div class="card" style="margin:0"><h2 style="font-size:12px">Clientes del día</h2><b>${lista.length}</b></div>
+    <div class="card" style="margin:0"><h2 style="font-size:12px">Timbres ganados</h2><b>${movimientosDelDia.length}</b></div>
     <div class="card" style="margin:0"><h2 style="font-size:12px">Premios 10</h2><b>${lista.filter(c=>ventasValidas(c)>=10).length}</b></div></div></div>
+  <details class="card" open><summary style="cursor:pointer"><b>🎫 Timbres ganados el ${esc(fecha)} · ${movimientosDelDia.length}</b></summary>
+    <p class="muted">Desde las 00:00 hasta las 23:59 (hora de Chile), aunque el local haya cerrado un turno. Solo consulta: no modifica caja ni timbres.</p>
+    ${movimientosDelDia.map(m=>'<div class="row"><span>'+esc(m.cliente)+(m.codigo?' · '+esc(m.codigo):'')+
+       (m.pedidoId?' · Pedido #'+esc(m.pedidoId):'')+'</span><b>'+esc(m.fecha?new Date(m.fecha).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit',timeZone:'America/Santiago'}):'Hora sin registrar')+'</b></div>').join('')||
+       '<p class="muted">No hay timbres ganados en esta fecha.</p>'}
+  </details>
   ${buscarTimbresPorFecha()}
   <details class="card"><summary style="cursor:pointer"><b>📚 Timbres de días anteriores</b> · ${dias.length} días</summary>
     <div style="padding-top:10px">${dias.length?dias.slice(0,30).map(([f,conjunto])=>`<button class="sm" style="display:block;width:100%;margin:6px 0;text-align:left" onclick="verDiaTimbres('${esc(f)}')">📅 ${esc(f)} · ${conjunto.size} cliente${conjunto.size===1?'':'s'}</button>`).join(''):'<p class="muted">Aún no hay movimientos de días anteriores.</p>'}
@@ -2003,7 +2032,7 @@ function vClientes(){
     <p class="muted">Cuando hay WhatsApp, el código se calcula con sus últimos 4 dígitos. El historial y los timbres no se eliminan al completar los datos.</p>
     <button type="button" class="sm ok" onclick="ukiGuardarDatosCliente(${keyArg},this)">Guardar datos del cliente</button></details>
     <details style="margin-top:8px"><summary class="muted">Ver historial timbres</summary>${(cli.movimientos||[]).slice(-15).reverse().map(m=>`<div class="row"><span>${m.tipo==='venta'?'🟢 Venta':m.tipo==='canje6'?'🔴 Canje 12 piezas':m.tipo==='canje10'?'🔴 Canje 36+2k':esc(m.tipo)} - ${new Date(m.fecha).toLocaleDateString('es-CL')} ${m.vence?'· Vence '+new Date(m.vence).toLocaleDateString('es-CL'):''}</span></div>`).join("")||"<p class='muted'>Sin movimientos</p>"}</details>${fichaHistorial(cli)}</div>`;
-  }).join(""):`<div class="card muted">${buscar?'No se encontraron clientes.':'No hay tarjetas con movimientos en este turno o fecha. Busca por nombre para consultar cualquier tarjeta acumulada.'}</div>`}
+  }).join(""):`<div class="card muted">${buscar?'No se encontraron clientes.':'No hay timbres ganados en esta fecha. Busca por nombre para consultar cualquier tarjeta acumulada.'}</div>`}
   <details class="card"><summary style="cursor:pointer"><b>🏅 Ranking clientes frecuentes</b></summary>${Object.values(S.clientes).sort((a,b)=>b.pedidos-a.pedidos).slice(0,10).map((c,i)=>`<div class="row"><span>${i+1}. ${esc(c.nombre)} - ${ventasValidas(c)}/10 timbres</span><b>${c.pedidos} pedidos</b></div>`).join("")||"<p class='muted'>Sin datos</p>"}</details>`;
 }
 function compartirImagenTimbres(key){
