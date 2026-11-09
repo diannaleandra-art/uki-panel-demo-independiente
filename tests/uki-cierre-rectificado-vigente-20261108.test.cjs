@@ -82,6 +82,13 @@ test('WhatsApp, PDF y Excel ofrecen versión vigente y hora, sin agregar otro ci
  assert.match(html,/function ukiExcelCierreHistorial\(i\)/);
  assert.match(html,/Pedidos pagados SIN timbre registrado/);
 });
+test('Pedido olvidado puede registrar cero delivery recibido en Uki sin duplicar pago',()=>{
+ const codigo=html.slice(html.indexOf('function ukiAjustePedidoOlvidado(){'),
+   html.indexOf('function ukiVAgregarPedidoOlvidado(){'));
+ assert.match(codigo,/n\("ukiOlvidoDeliveryUki",false\)/);
+ assert.match(codigo,/deliveryCobradoUki>envio/);
+ assert.match(codigo,/deliveryCobradoUki>recibidoUki/);
+});
 test('Sintaxis completa del código de panel sigue siendo válida',()=>{
  const scripts=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
  const main=scripts.find(x=>x.includes('function vCierre(){'));
