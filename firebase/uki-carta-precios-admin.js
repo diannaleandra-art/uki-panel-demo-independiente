@@ -560,16 +560,16 @@ function organizarCarta(){
  const move=(element,parent)=>{if(element)parent.append(element)};
  // Mover los controles existentes sin recrear entradas ni manejadores.
  move($('ukiPriceSearch')?.closest('.quick-grid'),areas.productos);
- for(const id of ['ukiPriceReload','ukiPriceMessage','ukiPriceList','ukiPriceAddBox'])move($(id),areas.productos);
- move($('ukiPromosResumen'),areas.promociones);
+ for(const id of ['ukiPriceReload','ukiPriceMessage','ukiPriceAddBox','ukiPriceList'])move($(id),areas.productos);
  move($('ukiPromoAddBox'),areas.promociones);
+ move($('ukiPromosResumen'),areas.promociones);
  const searchLabel=document.createElement('label');searchLabel.textContent='Buscar promoción por nombre';
  searchLabel.htmlFor='ukiPromoBuscar';
  const search=document.createElement('input');search.id='ukiPromoBuscar';search.type='search';
  search.placeholder='Ej. 60 piezas o Edenred';
  search.addEventListener('input',()=>renderPromoResumen());
- areas.promociones.insertBefore(searchLabel,$('ukiPromosResumen')||null);
- areas.promociones.insertBefore(search,$('ukiPromosResumen')||null);
+ areas.promociones.insertBefore(searchLabel,$('ukiPromoAddBox')||null);
+ areas.promociones.insertBefore(search,$('ukiPromoAddBox')||null);
  const clean=document.createElement('button');clean.type='button';clean.className='sm';
  clean.textContent='Limpiar búsqueda y categoría';
  clean.addEventListener('click',()=>{
