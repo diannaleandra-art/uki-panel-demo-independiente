@@ -247,17 +247,27 @@ async function crearPromo(){
 function visibilityControl(price){
  const button=document.createElement('button');button.type='button';button.className='sm';
  button.style.cssText=price.visible===false?'border:1px solid #61a18b;color:#176d48':'border:1px solid #bb7060;color:#973729';
- button.textContent=price.visible===false?'↩ Restaurar en carta':'🗑 Retirar de carta';
+ const esPromoDelMes=price.kind==='monthly'&&price.custom;
+ button.textContent=esPromoDelMes?
+  (price.visible===false?'↩ Volver a publicar promoción':'🗑 Eliminar promoción de la carta'):
+  (price.visible===false?'↩ Restaurar en carta':'🗑 Retirar de carta');
  button.onclick=async()=>{
   if(state.busy)return;
-  if(price.visible!==false&&!window.confirm('¿Retirar «'+price.name+'» de la carta de esta sucursal? No se borrarán sus pedidos, precios históricos ni timbres.'))return;
+  if(price.visible!==false){
+   const pregunta=esPromoDelMes?
+    '¿Eliminar la promoción «'+price.name+'» de la carta de '+(state.branch==='arica'?'Regimiento Arica':'La Serena')+' ahora? Ya no la podrán elegir los clientes. Los pedidos anteriores se conservan.':
+    '¿Retirar «'+price.name+'» de la carta de esta sucursal? No se borrarán sus pedidos, precios históricos ni timbres.';
+   if(!window.confirm(pregunta))return;
+  }
   const chosen=state.branch,action=price.visible===false?'restaurar-producto':'retirar-producto';
   state.busy=true;button.disabled=true;
   try{
    await request(API,action,{sku:price.sku,expected_version:price.version,
     expected_visibility_version:price.visibilityVersion},chosen);
    state.busy=false;await loadPrices(true);
-   info('ukiPriceMessage',action==='retirar-producto'?'✓ Retirado del menú de esta sucursal.':'✓ Restaurado en la carta.');
+   info('ukiPriceMessage',esPromoDelMes?
+    (action==='retirar-producto'?'✓ Promoción eliminada de la carta de esta sucursal. Ya no aparece a los clientes.':'✓ Promoción publicada nuevamente en esta sucursal.'):
+    (action==='retirar-producto'?'✓ Retirado del menú de esta sucursal.':'✓ Restaurado en la carta.'));
   }catch(e){info('ukiPriceMessage','No se modificó: '+String(e.message||e))}
   finally{state.busy=false;button.disabled=false}
  };
