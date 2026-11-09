@@ -87,3 +87,16 @@ No tocar los otros PR de QA (dos agendadores, centro de dueños, inventario sepa
 5. Finalmente revisar carrito, WhatsApp, solicitud QR, montaje automático, disponibilidad, recargos y las dos sucursales desde iPhone. Verificar que ninguna promo oculta pueda volver a pedirse y que historial/caja no cambien.
 
 **Estado: QA local APROBADA; QA integrada Vercel real BLOQUEADA POR ACCESO Y CUOTA; NO LISTA PARA PRODUCCIÓN.**
+
+## QA integrada adicional de carta y servidor QR (9 nov 2026)
+
+El PR **#36** del repositorio `diannaleandra-art/uki-sushi-respaldo`, rama `qa/uki-promociones-vegetales-qr-compatible-20261109`, commit `8db5f1ab3604f0039e26c94f2eecc50192dbd879`, incorporó la prueba de SQL real de carta/QR `tests/uki-qr-postgres-sucursales-prepublicacion-20261109.test.cjs`.
+
+- GitHub Actions `42660989032`: **prueba PostgreSQL temporal aprobada**. Simula exactamente las consultas SQL del servidor QR, modifica precio, retira y restaura promoción y cambia su disponibilidad, verifica que se rechace la promo retirada/agotada, prueba recargos de 20 rolls con vegetal incluido por sucursal y ejecuta 12 validaciones concurrentes. No escribe datos reales ni conecta a Neon.
+- GitHub Actions `42660989162`: regresión de carta y QR correcta.
+- GitHub Actions `42660989413`: visual WebKit/iPhone simulado correcta (no equivale a Safari físico ni conexión autenticada de producción).
+- Tabla de migración en la rama Neon **QA existente** `br-wild-sky-b5bruake`: confirmado `published_at` mediante `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`. No se insertaron promociones de ensayo en Neon. Producción `br-quiet-tree-b5m84jln` mantiene **sin migrar** las nuevas tablas.
+- La conexión Vercel sigue enumerando únicamente `uki-sushi-panel`, no los proyectos oficiales `uki-sushi-inventario` y `uki-sushi-pedidos`. Las demos anteriores están listadas en preview pero **no son una validación end-to-end desplegada del commit nuevo**.
+- Importante: **no liberar a producción** solo por estas pruebas. Todavía falta validar juntos el servidor oficial de carta, el servidor QR, la migración y la autorización de la dueña para el cambio real.
+
+Próximo paso tras recuperar acceso Vercel sin cobros: abrir previews reales de ambos servicios en la misma base Neon **QA aislada**, validar GET/POST autenticado de promociones y fotos, cotización cliente QR/WhatsApp y solo entonces preparar una publicación coordinada. No añadir pantallas ni duplicar el panel.
