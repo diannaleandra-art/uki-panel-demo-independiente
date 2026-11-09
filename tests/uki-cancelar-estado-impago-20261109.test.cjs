@@ -7,7 +7,7 @@ function segment(begin,end){
  assert.ok(i>0&&j>i,'No encontrado '+begin);
  return html.slice(i,j);
 }
-function escenario({pagado=false,estado='Pendiente',ajuste=null,closed=false,turno=true}={}){
+function escenario({pagado=false,estado='Pendiente',ajuste=null,closed=false,turno=true,detalle='El cliente desistió del pedido'}={}){
  const p={id:257,suc:'Uki Regimiento Arica',pagado,estado,ajusteCobroPendiente:ajuste,
   productos:[{nombre:'24 piezas',cantidad:1,precioUnit:7000}]};
  const S={suc:p.suc,pedidos:[p],busy:false};
@@ -18,7 +18,7 @@ function escenario({pagado=false,estado='Pendiente',ajuste=null,closed=false,tur
   window:{ukiCancelacionNubeLista:()=>true},
   confirm:()=>{confirmaciones++;return true;},
   document:{body:{classList:{contains:()=>false}}},
-  $:()=>({value:'cliente'}),
+  $:id=>({value:id.startsWith('detalleCancelacion')?detalle:'cliente'}),
   guardarEnLocalStorage:async()=>{registros++;return true},
   aviso:x=>msg.push(String(x))
  };
@@ -41,9 +41,18 @@ test('No pagado, entregado por error: puede cancelar con motivo y sin tocar la c
  await x.ctx.cancelarPedido(257);
  assert.equal(x.p.estado,'Cancelado');
  assert.equal(x.p.motivoCancelacion,'cliente');
+ assert.equal(x.p.motivoDetalleCancelacion,'El cliente desistió del pedido');
  assert.equal(x.registros(),1);
  assert.equal(x.confirmaciones(),1);
  assert.equal(x.S.pedidos.length,1);
+});
+test('No permite cancelar si no se escribió motivo específico',async()=>{
+ const x=escenario({detalle:'   '});
+ await x.ctx.cancelarPedido(257);
+ assert.equal(x.registros(),0);
+ assert.equal(x.confirmaciones(),0);
+ assert.equal(x.p.estado,'Pendiente');
+ assert.match(x.msg.join(' '),/Escribe el motivo específico/);
 });
 test('Un pedido pagado no puede cancelarse directamente',async()=>{
  const x=escenario({pagado:true,estado:'Entregado'});
@@ -78,6 +87,9 @@ test('El detalle ofrece Cancelar pedido con motivo incluso si no está permitido
  assert.match(view,/ukiAyudaCancelarPedido\(p\)/);
  assert.match(view,/Confirmar cancelación del pedido/);
  assert.match(view,/motivoCancelacion/);
+ assert.match(view,/detalleCancelacion/);
+ assert.match(view,/Motivo obligatorio/);
+ assert.match(view,/El cliente desistió del pedido/);
  assert.match(view,/\$\{puedeCancelarPedido\(p\)\?/);
 });
 test('Una edición indica que cancelar edición NO cancela pedido y exige responsable',()=>{
@@ -94,6 +106,15 @@ test('Auditoría conserva Entregado → Pendiente y caja intacta',()=>{
  assert.match(save,/p\.estado=ukiEstadoTrasRetirarPago\(snapshot,D\.pagado\);p\.pagado=D\.pagado/);
  assert.match(save,/ukiPrepararAjusteCobro\(snapshot,p,false\)/);
  assert.doesNotMatch(segment('function ukiEstadoTrasRetirarPago(','// El código visible sale siempre'),/S\.cierres\s*=/);
+});
+test('El motivo específico se guarda, se puede consultar y se restaura si falla el respaldo',()=>{
+ const code=segment('async function cancelarPedido(id){','// El código visible sale siempre');
+ assert.match(code,/p\.motivoDetalleCancelacion=detalle/);
+ assert.match(code,/anterior\.detalle===undefined\)delete p\.motivoDetalleCancelacion/);
+ const detalle=segment('function vPedidos(){','let pedidoExpandido=null;');
+ assert.match(detalle,/p\.motivoDetalleCancelacion/);
+ const history=segment('function pedidosHist(','function fichaHistorial(');
+ assert.match(history,/motivoDetalleCancelacion/);
 });
 test('Toda la lógica JavaScript del panel es sintácticamente válida',()=>{
  const scripts=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(x=>x[1]);
