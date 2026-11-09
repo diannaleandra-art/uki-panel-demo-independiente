@@ -2692,14 +2692,14 @@ function ukiDiaReporte(c){return /^\d{4}-\d{2}-\d{2}$/.test(c.fechaOperativa||""
 
 // Reporte real de propinas, fuente única S.propinas (automáticas + manuales).
 // No copia importes de cierres ni crea movimientos adicionales.
-let reportePropinasPeriodo="dia",reportePropinasFecha="";
+let reportePropinasPeriodo="dia",reportePropinasFecha="",reportePropinasAbierto=false;
 function ukiSeleccionarPeriodoPropinas(periodo){
  if(!["dia","semana","mes"].includes(periodo))return;
- reportePropinasPeriodo=periodo;render();
+ reportePropinasPeriodo=periodo;reportePropinasAbierto=true;render();
 }
 function ukiSeleccionarFechaPropinas(fecha){
  if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha))return;
- reportePropinasFecha=fecha;render();
+ reportePropinasFecha=fecha;reportePropinasAbierto=true;render();
 }
 function ukiRangoPropinas(){
  const fecha=reportePropinasFecha||ukiFechaCalendarioChile(Date.now());
@@ -2730,7 +2730,8 @@ function ukiReportePropinasDatos(){
 }
 function ukiReportePropinasPeriodoUI(){
  const datos=ukiReportePropinasDatos();
- return '<details class="inner-details uki-reportes-propinas" style="margin-top:12px">'+
+ return '<details class="inner-details uki-reportes-propinas" style="margin-top:12px" '+(reportePropinasAbierto?'open':'')+
+  ' ontoggle="reportePropinasAbierto=this.open">'+
   '<summary style="font-weight:700">📊 Reporte de propinas · '+fmt(datos.total)+' · '+datos.registros.length+' registros</summary>'+
   '<p class="muted">Propinas de esta sucursal, separadas de las ventas. Incluye turnos cerrados y abiertos, sin sumarlas dos veces.</p>'+
   '<div class="chips">'+[["dia","Diario"],["semana","Semanal"],["mes","Mensual"]].map(([k,l])=>
@@ -4056,6 +4057,10 @@ async function ndGuardar(){
   const propina=ukiMontoPropina(D,sub);
   if(!ukiPropinaConfigurada(D,sub)){aviso("La propina debe ser un monto válido (o selecciona Sin propina).");return;}
   if(propina>0&&!MEDIOS.filter(m=>!APPS.includes(m)).includes(D.medioPropina)){aviso("Selecciona un medio válido para la propina.");return;}
+  if(D.editando&&propina>0&&(S.propinas||[]).some(x=>
+    x.suc===S.suc&&Number(x.pedidoId)===Number(D.editando)&&x.origen==="manual")){
+    aviso("Este pedido ya tiene una propina manual registrada. No agregues otra desde Editar pedido porque se duplicaría. Revisa su importe en Caja → Movimientos → Propinas.");return;
+  }
   let total=sub+envio+propina;
   if(D.modalidad==="Delivery"&&String(D.kmRecorrido??"").trim()){
     const km=Number(String(D.kmRecorrido).trim().replace(",","."));
