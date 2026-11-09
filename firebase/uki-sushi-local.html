@@ -256,6 +256,15 @@ color:#955115;box-shadow:0 2px 10px rgba(0,0,0,.12);font-weight:800;font-size:19
 #app .order-card .order-actions .sm.ok{min-height:38px}
 @media(max-width:400px){#app .uki-turno-frase,#app #ukiFraseDiariaInicio{font-size:16px!important}}
 </style>
+
+<style id="uki-fechas-20261109">
+#app .uki-fecha-flechas{display:flex;align-items:center;justify-content:space-between;gap:8px;
+ padding:8px 10px;margin:10px 0;border:1px solid #e8b989;border-radius:13px;background:#fff2df;
+ color:#58351e;font-size:13px;font-weight:800}
+#app .uki-fecha-flechas button{flex:0 0 44px;min-height:38px;padding:6px;border:1px solid #deab78;
+ border-radius:10px;background:#fff;color:#b56018;font-size:18px;font-weight:850}
+#app .uki-fecha-flechas span{text-align:center;flex:1}
+</style>
 </head>
 <body>
 <header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.16 · LOCALES</h1><small id="ukiEstadoOperativo" role="status">Nube: desactivada · Abre tu sucursal y carga Firebase</small></header>
@@ -1925,8 +1934,8 @@ function ukiTimbrePedidoUI(p){
    '<p class="muted">'+(p.timbreWhatsAppAbiertoEn?'WhatsApp abierto: '+esc(new Date(p.timbreWhatsAppAbiertoEn).toLocaleString('es-CL'))+'. ':'')+
    'Después de pulsar Enviar en WhatsApp, confirma manualmente. Abrir WhatsApp no prueba el envío.</p>')+
   (!enviado&&ukiNumeroTimbreWhatsApp(p.telefono)?'<button type="button" class="sm ok" onclick="ukiAbrirTimbrePedido('+Number(p.id)+')">📲 Enviar timbre por WhatsApp</button>':enviado?'':'<p class="muted">Sin WhatsApp registrado · no bloquea el pedido.</p>')+
-  '<button type="button" class="sm'+(enviado?'':' ok')+'" onclick="ukiMarcarTimbreEnviado('+Number(p.id)+')">'+
-  (enviado?'Desmarcar envío':'✓ Marcar timbre enviado')+'</button></div>';
+  (enviado?'<p class="muted"><b>✅ Ya enviado · no volver a compartir por cambio de pago.</b></p>':
+   '<button type="button" class="sm ok" onclick="ukiMarcarTimbreEnviado('+Number(p.id)+')">✓ Confirmar que lo envié</button>')+'</div>';
 }
 function ukiUltimoPedidoConTimbre(cli){
  if(!cli)return null;
@@ -3192,6 +3201,22 @@ function verArchivoPedidos(fecha){
  pedidosArchivoDia=/^\d{4}-\d{2}-\d{2}$/.test(fecha)?fecha:"";
  filtroCodigoCarta="";filtroDiaPedidos="";render();
 }
+function ukiDesplazarFechaISO(fecha,dias){
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha))return "";
+ const d=new Date(fecha+"T12:00:00Z");
+ if(!Number.isFinite(d.getTime())||!Number.isInteger(dias))return "";
+ d.setUTCDate(d.getUTCDate()+dias);
+ return d.toISOString().slice(0,10);
+}
+function ukiMoverDiaPedidos(dias){
+ const nuevo=ukiDesplazarFechaISO(pedidosArchivoDia||fechaOperativaActual(),dias);
+ if(nuevo)verArchivoPedidos(nuevo);
+}
+function ukiMoverDiaCierres(dias){
+ const nuevo=ukiDesplazarFechaISO(S.filtroFecha||fechaOperativaActual(),dias);
+ if(!nuevo)return;
+ S.filtro="";S.filtroFecha=nuevo;render();
+}
 function aplicarDiaIncidencias(){filtroDiaIncidencias=($("diaErrorFiltro")?.value||"").trim();erroresAbiertos=true;render();}
 function aplicarFiltrosPedidos(){
   filtroCodigoCarta=($("codigoFiltro")?.value||"").trim();
@@ -3836,6 +3861,11 @@ function vPedidos(){
     <details class="uki-carta-estado-compacto" style="margin-top:8px"><summary>📲 Carta digital · ${esc(ukiCartaRemotas.status)} · Ver estado</summary><button type="button" class="sm" onclick="ukiCartaRemotasActualizar()">Actualizar solicitudes</button><p class="muted">Las solicitudes rechazadas no suman a ventas, caja ni timbres.</p></details>
     <p class="muted uki-contador-pedidos">${visibles.length+visiblesSolicitudes.length+visiblesRemotas.length} registro(s) en «${esc((UKI_CATEGORIAS_PEDIDOS.find(x=>x[0]===filtroCategoriaPedidos)||[])[1]||"Todos")}»</p></div>
   ${(filtroCategoriaPedidos==="todos"||filtroCategoriaPedidos==="por-confirmar")?ukiMesasUI():""}
+  <div class="uki-fecha-flechas" role="group" aria-label="Cambiar fecha de pedidos">
+    <button type="button" aria-label="Pedidos del día anterior" onclick="ukiMoverDiaPedidos(-1)">⏪</button>
+    <span>📅 ${esc(pedidosArchivoDia||fechaTurno)} · ${pedidosArchivoDia?'Archivo':'Turno actual'}</span>
+    <button type="button" aria-label="Pedidos del día siguiente" onclick="ukiMoverDiaPedidos(1)">⏩</button>
+  </div>
   ${pedidosArchivoDia||buscando?'<button class="sm" onclick="limpiarFiltrosPedidos()">← Volver al turno abierto</button>':''}
   <details class="card uki-bloque-busqueda" ${buscando?'open':''}><summary style="cursor:pointer"><b>🔎 Buscar por nombre, WhatsApp, código del cliente, pedido o fecha</b></summary>
     <div style="margin-top:12px"><label>Nombre, últimos 4 del WhatsApp, celular completo o número del pedido</label><input id="codigoFiltro" value="${esc(filtroCodigoCarta)}" placeholder="Ej: Camila, 5678 o 56912345678" inputmode="text">
@@ -5260,7 +5290,7 @@ function vHistorialCompacto(){
 
 function vHistorial(){
   if(!S.suc) return vInicio(); const c=ukiCierresFiltradosHistorial().slice().reverse();
-  const buscador=`<div class="card"><h2>Buscar por día</h2><label>Texto (ej: 29-10)</label><input id="ukiHistorialFiltroTexto" placeholder="Ej: 29-10" value="${esc(S.filtro||"")}" oninput="S.filtro=this.value" onkeydown="if(event.key==='Enter'){event.preventDefault();render()}"><button class="sm ok" type="button" onclick="S.filtro=document.getElementById('ukiHistorialFiltroTexto').value;render()">Buscar</button><label>Calendario</label><input type="date" value="${S.filtroFecha||""}" onchange="S.filtroFecha=this.value;render()"><p class="muted">Cada cierre queda guardado aquí. Abre el cierre deseado para reenviarlo por WhatsApp o guardarlo en PDF.</p>${c.length===1&&(S.filtro||S.filtroFecha)?'<p class="muted"><b>Cierre encontrado:</b> '+esc(c[0].fechaOperativa||c[0].fecha)+'</p>':""}${c.length?row("Días mostrados",c.length)+row("Deliveries en total",fmt(c.reduce((a,x)=>a+(x.dels||[]).reduce((b,d)=>b+(d.envio||0),0),0)))+row("Efectivo que quedó en total",fmt(c.reduce((a,x)=>a+x.efectivo,0))):""}<button class="sm" onclick="S.filtro='';S.filtroFecha='';render()">Limpiar</button><button class="sm" onclick="copiarResumen()">Copiar resumen</button><details style="margin:10px 0"><summary style="cursor:pointer">Descargas completas (avanzado)</summary><button class="sm" onclick="descargarPDF('historial')">TXT con todos los detalles</button></details><button class="sm" onclick="descargarExcel('historial')">Excel historial</button><button class="sm ok" onclick="descargarRespaldoCompleto()">💾 Respaldo PC</button></div>`;
+  const buscador=`<div class="card"><h2>Buscar por día</h2><label>Texto (ej: 29-10)</label><input id="ukiHistorialFiltroTexto" placeholder="Ej: 29-10" value="${esc(S.filtro||"")}" oninput="S.filtro=this.value" onkeydown="if(event.key==='Enter'){event.preventDefault();render()}"><button class="sm ok" type="button" onclick="S.filtro=document.getElementById('ukiHistorialFiltroTexto').value;render()">Buscar</button><label>Calendario</label><input type="date" value="${S.filtroFecha||""}" onchange="S.filtroFecha=this.value;S.filtro='';render()"><div class="uki-fecha-flechas" role="group" aria-label="Cambiar fecha de cierres"><button type="button" aria-label="Cierre del día anterior" onclick="ukiMoverDiaCierres(-1)">⏪</button><span>📅 ${esc(S.filtroFecha||fechaOperativaActual())}</span><button type="button" aria-label="Cierre del día siguiente" onclick="ukiMoverDiaCierres(1)">⏩</button></div><p class="muted">Cada cierre queda guardado aquí. Abre el cierre deseado para reenviarlo por WhatsApp o guardarlo en PDF.</p>${c.length===1&&(S.filtro||S.filtroFecha)?'<p class="muted"><b>Cierre encontrado:</b> '+esc(c[0].fechaOperativa||c[0].fecha)+'</p>':""}${c.length?row("Días mostrados",c.length)+row("Deliveries en total",fmt(c.reduce((a,x)=>a+(x.dels||[]).reduce((b,d)=>b+(d.envio||0),0),0)))+row("Efectivo que quedó en total",fmt(c.reduce((a,x)=>a+x.efectivo,0))):""}<button class="sm" onclick="S.filtro='';S.filtroFecha='';render()">Limpiar</button><button class="sm" onclick="copiarResumen()">Copiar resumen</button><details style="margin:10px 0"><summary style="cursor:pointer">Descargas completas (avanzado)</summary><button class="sm" onclick="descargarPDF('historial')">TXT con todos los detalles</button></details><button class="sm" onclick="descargarExcel('historial')">Excel historial</button><button class="sm ok" onclick="descargarRespaldoCompleto()">💾 Respaldo PC</button></div>`;
   if(!c.length) return buscador+'<div class="card muted">Sin cierres para mostrar - Haz un cierre en Cierre del día con Responsable</div>';
   return buscador+c.map(original=>{
     const x=ukiCierreInformeVigente(original);
