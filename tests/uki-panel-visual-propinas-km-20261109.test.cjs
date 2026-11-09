@@ -59,6 +59,12 @@ test('Propina manual: exige concepto y pedido pagado, impide duplicación',()=>{
  ctx.addPropina();assert.equal(ctx.S.propinas.length,0,'concepto obligatorio');
  ctx.S.pedidos[0].pagado=false;inputs.prCon.value="Adicional";ctx.addPropina();
  assert.equal(ctx.S.propinas.length,0,'sin pago no se asocia');
+ ctx.S.pedidos[0].pagado=true;
+ ctx.S.pedidos.push({...ctx.S.pedidos[0],id:500,codigoCarta:"244"});
+ inputs.prPed.value="244";ctx.addPropina();
+ assert.equal(ctx.S.propinas.length,0,'un código de carta nunca debe confundirse con otro ID interno');
+ inputs.prPed.value="Interno 244";ctx.addPropina();
+ assert.equal(ctx.S.propinas.length,1,'el agendador identifica cuál de los dos pedidos es');
 });
 test('Reportes de propinas por calendario, sucursal y medio: no duplicar con cierres',()=>{
  const ctx={S:{suc:"Uki Regimiento Arica",propinas:[
