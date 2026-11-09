@@ -17,7 +17,10 @@ const promocionesHabilitadas=(env=process.env)=>
  env.UKI_PROMOS_VISIBILIDAD_ENABLED==='true'&&
  env.UKI_INGREDIENTES_ARMADO_ENABLED==='true'&&
  (env.VERCEL_ENV==='production'&&env.UKI_INVENTARIO_LIVE_ENABLED==='true'||qa(env));
-const originAllowed=(origin,env=process.env)=>ALLOWED.has(origin)||(qa(env)&&(origin===QA_MENU||origin===QA_PANEL))||qaOrigin(origin,env);
+const qaMenuAllowed=(origin,env=process.env)=>qa(env)&&
+ /^https:\/\/uki-sushi-pedidos-[a-z0-9-]+-diannaleandra-7046\.vercel\.app$/.test(origin);
+const originAllowed=(origin,env=process.env)=>ALLOWED.has(origin)||
+ (qa(env)&&(qaMenuAllowed(origin,env)||origin===QA_PANEL))||qaOrigin(origin,env);
 const fail=(res,status,error)=>res.status(status).json({ok:false,error});
 async function authorized(req,env=process.env){
  const token=String(req.headers?.authorization||'').match(/^Bearer ([A-Za-z0-9_.-]+)$/)?.[1];
