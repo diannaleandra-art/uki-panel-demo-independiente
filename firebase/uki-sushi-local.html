@@ -3454,7 +3454,10 @@ function ukiQREsCorreccionDePagoExistente(d,original){
   Array.isArray(original.qrSolicitudes)&&original.qrSolicitudes.length>0);
 }
 function ukiQRPagoEditadoConservaCuenta(d,original){
- if(!ukiQREsCorreccionDePagoExistente(d,original))return false;
+ // Una corrección nunca puede trasladar las rondas ni la mesa de un QR ya registrado.
+ // Esto protege también los pedidos registrados antes de confirmar su pago.
+ if(!original||original.suc!==S.suc||Number(d.editando)!==Number(original.id)||
+    !Array.isArray(original.qrSolicitudes)||!original.qrSolicitudes.length)return false;
  const ids=v=>[...new Set((Array.isArray(v)?v:[]).map(q=>String(q).replace(/^MESA-/i,'').toLowerCase()))].sort().join('|');
  if(!Array.isArray(d.qrSolicitudes)||ids(d.qrSolicitudes)!==ids(original.qrSolicitudes))return false;
  if(d.modalidad!=='Consumo en local'||original.modalidad!==d.modalidad)return false;
@@ -3466,8 +3469,10 @@ function ukiQRPagoEditadoConservaCuenta(d,original){
   Number.isSafeInteger(Number(d.envio||0))&&Number(d.envio||0)>=0;
 }
 
+let ukiUltimoErrorQR='';
 let ukiQRComprobandoCobro=false;
 async function ukiQRPermitirCobroDefinitivo(d){
+ ukiUltimoErrorQR='';
  if(!d.pagado||UKI_MESAS_ENDPOINT!==UKI_MESAS_LIVE_URL||
     !Array.isArray(d.qrSolicitudes)||!d.qrSolicitudes.length)return true;
  const branch=ukiMesaBranch(),mesa=ukiMesaNumeroReferencia(d.mesaReferencia);
@@ -3506,7 +3511,8 @@ async function ukiQRPermitirCobroDefinitivo(d){
   if(!window.ukiCancelacionNubeLista?.())throw Error('Cambió el estado de la nube mientras comprobábamos el pago.');
   return true;
  }catch(e){
-  aviso('No se confirmó el cobro QR: '+String(e?.message||e)+' No se modificó la caja.');
+  ukiUltimoErrorQR=String(e?.message||e);
+  aviso('No se confirmó el cobro QR: '+ukiUltimoErrorQR+' No se modificó la caja.');
   return false;
  }
 }
@@ -3520,16 +3526,30 @@ async function ndGuardar(){
     aviso('No se encontró el pedido original. Actualiza la lista antes de editar.');return;
   }
   const editandoPagoQRConfirmado=ukiQREsCorreccionDePagoExistente(D,originalQR);
-  if(editandoPagoQRConfirmado&&!ukiQRPagoEditadoConservaCuenta(D,originalQR)){
-    aviso('Este QR ya fue cobrado. Para corregir datos o medio de pago conserva mesa, rondas y montos originales. No se modificó la caja.');return;
+  const editandoQRRegistrado=!!(originalQR&&originalQR.suc===S.suc&&
+    Number(D.editando)===Number(originalQR.id)&&
+    Array.isArray(originalQR.qrSolicitudes)&&originalQR.qrSolicitudes.length);
+  if(editandoQRRegistrado&&!ukiQRPagoEditadoConservaCuenta(D,originalQR)){
+    aviso('Para corregir este QR conserva la sucursal, mesa y rondas originales. No se modificó la caja.');return;
   }
+  let conciliacionQRManual=false;
   if(D.pagado&&Array.isArray(D.qrSolicitudes)&&D.qrSolicitudes.length&&
      UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL&&!editandoPagoQRConfirmado){
    ukiQRComprobandoCobro=true;
    const firma=JSON.stringify({sucursal:S.suc,datos:D});
    let permitir=false;
    try{permitir=await ukiQRPermitirCobroDefinitivo(D);}finally{ukiQRComprobandoCobro=false;}
-   if(!permitir)return;
+   if(!permitir){
+     // La cuenta central puede estar cerrada, aunque el pedido ya se registró.
+     // No repetir el cobro QR. Solo la corrección del pedido existente,
+     // con identidad de mesa intacta y confirmación explícita de pago real.
+     const cuentaYaNoAbierta=ukiUltimoErrorQR===
+       'No hay exactamente una cuenta QR abierta para esta mesa.';
+     if(!(editandoQRRegistrado&&!originalQR.pagado&&cuentaYaNoAbierta&&
+       window.confirm('Este pedido QR ya está registrado y su mesa no tiene una cuenta QR abierta. ¿Confirmas que el pago YA fue recibido realmente y solo quieres corregir el pedido existente? No se hará otro cobro QR.')))
+       return;
+     conciliacionQRManual=true;
+   }
    if(firma!==JSON.stringify({sucursal:S.suc,datos:D})){
     aviso('El pedido cambió mientras comprobábamos el pago. Revísalo y vuelve a guardar.');
     return;
@@ -3633,6 +3653,7 @@ async function ndGuardar(){
           if(!Array.isArray(p.correccionesTurno))p.correccionesTurno=[];
           p.correccionesTurno.push({fechaISO:new Date().toISOString(),registradoEn:Date.now(),
             responsable:autorizacion,antes,despues,
+            conciliacionQRManual:conciliacionQRManual,
             saldoPendiente:p.ajusteCobroPendiente?.saldo||0});
         }
       }
