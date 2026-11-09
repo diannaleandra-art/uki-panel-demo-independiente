@@ -1599,15 +1599,16 @@ function ukiPropinaConfigurada(p,subtotal){
 }
 function ukiSincronizarPropinaPedido(p){
  if(!Array.isArray(S.propinas))S.propinas=[];
- const anteriores=S.propinas.filter(x=>x.suc===p.suc&&x.pedidoId===p.id);
- // Mantener un solo movimiento por pedido y no tocar propinas manuales.
- S.propinas=S.propinas.filter(x=>!(x.suc===p.suc&&x.pedidoId===p.id));
+ const anteriores=S.propinas.filter(x=>x.suc===p.suc&&x.pedidoId===p.id&&x.origen!=="manual");
+ // Conservar las propinas manuales, su concepto y su auditoría al editar el pedido.
+ S.propinas=S.propinas.filter(x=>!(x.suc===p.suc&&x.pedidoId===p.id&&x.origen!=="manual"));
  if(!p.pagado||p.estado==="Cancelado"||p.esPremio||!(Number(p.propina)>0))return;
  const stamp=anteriores[0];
  const ahoraMs=Date.now();
  S.propinas.push({suc:p.suc,id:stamp?.id||ahoraMs+Number(p.id||0),pedidoId:p.id,
    fechaISO:stamp?.fechaISO||ahora(),registradoEn:stamp?.registradoEn||ahoraMs,
-   monto:Number(p.propina),medio:p.medioPropina||"Efectivo"});
+   monto:Number(p.propina),medio:p.medioPropina||"Efectivo",
+   origen:"pedido",concepto:"Propina del pedido "+(p.codigoCarta?"Carta #"+p.codigoCarta:"#"+p.id)});
 }
 function ukiPropinaUI(sub){
  const tip=ukiMontoPropina(D,sub),diez=Math.round(sub*0.10);
@@ -2359,7 +2360,32 @@ function savePD(){
  aviso('Pagos al repartidor guardados: del turno '+fmt(dia)+' · saldos anteriores '+fmt(anterior)+'.');
  render();
 }
-function addPropina(){const m=parseInt($("prMon").value)||0; const med=$("prMed").value; if(!m){aviso("Monto propina");return;} S.propinas.push({suc:S.suc,id:Date.now(),fechaISO:ahora(),registradoEn:Date.now(),monto:m,medio:med}); $("prMon").value=""; render();}
+function addPropina(){
+ const m=Number(String($("prMon")?.value||"").trim());
+ const med=String($("prMed")?.value||"").trim();
+ const ref=String($("prPed")?.value||"").trim().replace(/^#/,"");
+ const concepto=String($("prCon")?.value||"").trim().slice(0,150);
+ if(!Number.isSafeInteger(m)||m<=0||m>10000000){aviso("Escribe una propina válida mayor a cero.");return;}
+ if(!concepto){aviso("La propina manual debe tener concepto.");return;}
+ if(!ref){aviso("Indica el número del pedido al que corresponde la propina.");return;}
+ if(!MEDIOS.filter(x=>!APPS.includes(x)).includes(med)){aviso("Selecciona un medio válido para la propina.");return;}
+ const p=(S.pedidos||[]).find(p=>p.suc===S.suc&&
+  (String(p.id)===ref||String(p.codigoCarta||"")===ref));
+ if(!p){aviso("No se encontró ese pedido en esta sucursal. Revisa su número interno o código de carta.");return;}
+ if(!p.pagado||p.estado==="Cancelado"||p.esPremio){aviso("Solo puedes asociar una propina a un pedido pagado, vigente y no cancelado.");return;}
+ if(ukiCierreConfirmadoPedido(p)){aviso("Este pedido pertenece a una caja ya cerrada. No se altera un cierre histórico desde Movimientos.");return;}
+ if((S.propinas||[]).some(x=>x.suc===S.suc&&Number(x.pedidoId)===Number(p.id))){
+  aviso("Ese pedido ya tiene propina registrada. Edita el importe en el pedido para no duplicarla.");return;
+ }
+ const confirmar=window.confirm("¿Registrar propina manual de "+fmt(m)+" para "+ukiReferenciaConCarta(p)+
+  "?\nConcepto: "+concepto+"\nLa propina es independiente de las ventas y del delivery.");
+ if(!confirmar)return;
+ const instante=Date.now();
+ S.propinas.push({suc:S.suc,id:instante,fechaISO:new Date(instante).toISOString(),
+  registradoEn:instante,monto:m,medio:med,pedidoId:p.id,codigoCarta:p.codigoCarta||"",
+  concepto,origen:"manual",responsable:ukiTimbreResponsableActual()});
+ render();aviso("✅ Propina manual vinculada al pedido "+ukiReferenciaConCarta(p)+". No se sumó como venta.");
+}
 function quitarPropina(id){const x=S.propinas.find(x=>x.id===id&&x.suc===S.suc);if(x?.pedidoId){aviso("Esta propina pertenece a un pedido. Corrige el pedido para evitar descuadres.");return;}S.propinas=S.propinas.filter(x=>x.id!==id);render();}
 function addRetiro(){const m=parseInt($("reMon").value)||0; const mot=$("reMot").value.trim(); if(!m){aviso("Monto retiro");return;} S.retiros.push({suc:S.suc,id:Date.now(),fechaISO:ahora(),registradoEn:Date.now(),monto:m,motivo:mot}); $("reMon").value=""; $("reMot").value=""; render();}
 function quitarRetiro(id){S.retiros=S.retiros.filter(x=>x.id!==id);render();}
@@ -2616,6 +2642,77 @@ function vResumenSemanal(){
 let reportesPeriodo="semana";
 function cambiarReportesPeriodo(p){if(["dia","semana","mes"].includes(p)){reportesPeriodo=p;render();}}
 function ukiDiaReporte(c){return /^\d{4}-\d{2}-\d{2}$/.test(c.fechaOperativa||"")?c.fechaOperativa:String(c.fechaISO||"").slice(0,10);}
+
+// Reporte real de propinas, fuente única S.propinas (automáticas + manuales).
+// No copia importes de cierres ni crea movimientos adicionales.
+let reportePropinasPeriodo="dia",reportePropinasFecha="";
+function ukiSeleccionarPeriodoPropinas(periodo){
+ if(!["dia","semana","mes"].includes(periodo))return;
+ reportePropinasPeriodo=periodo;render();
+}
+function ukiSeleccionarFechaPropinas(fecha){
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha))return;
+ reportePropinasFecha=fecha;render();
+}
+function ukiRangoPropinas(){
+ const fecha=reportePropinasFecha||ukiFechaCalendarioChile(Date.now());
+ const d=new Date(fecha+"T12:00:00Z");
+ const key=x=>x.toISOString().slice(0,10);
+ if(reportePropinasPeriodo==="semana"){
+  const lunes=new Date(d);lunes.setUTCDate(d.getUTCDate()-((d.getUTCDay()+6)%7));
+  const domingo=new Date(lunes);domingo.setUTCDate(lunes.getUTCDate()+6);
+  return {desde:key(lunes),hasta:key(domingo),fecha};
+ }
+ if(reportePropinasPeriodo==="mes")return {desde:key(new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),1))),
+   hasta:key(new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0))),fecha};
+ return {desde:fecha,hasta:fecha,fecha};
+}
+function ukiReportePropinasDatos(){
+ const {desde,hasta}=ukiRangoPropinas();
+ const registros=(S.propinas||[]).filter(p=>{
+  if(p.suc!==S.suc)return false;
+  const ms=Number(p.registradoEn)||Date.parse(p.fechaISO||"")||0;
+  if(!ms)return false;
+  const dia=ukiFechaCalendarioChile(ms);
+  return dia>=desde&&dia<=hasta;
+ }).sort((a,b)=>(Number(b.registradoEn)||0)-(Number(a.registradoEn)||0));
+ const total=registros.reduce((n,p)=>n+(Number(p.monto)||0),0);
+ const medios=MEDIOS.map(m=>({medio:m,total:registros.filter(p=>p.medio===m)
+  .reduce((n,p)=>n+(Number(p.monto)||0),0)})).filter(m=>m.total);
+ return {registros,total,medios,desde,hasta};
+}
+function ukiReportePropinasPeriodoUI(){
+ const datos=ukiReportePropinasDatos();
+ return '<details class="inner-details uki-reportes-propinas" style="margin-top:12px">'+
+  '<summary style="font-weight:700">📊 Reporte de propinas · '+fmt(datos.total)+' · '+datos.registros.length+' registros</summary>'+
+  '<p class="muted">Propinas de esta sucursal, separadas de las ventas. Incluye turnos cerrados y abiertos, sin sumarlas dos veces.</p>'+
+  '<div class="chips">'+[["dia","Diario"],["semana","Semanal"],["mes","Mensual"]].map(([k,l])=>
+   '<button type="button" class="chip'+(reportePropinasPeriodo===k?' on':'')+
+   '" onclick="ukiSeleccionarPeriodoPropinas(\''+k+'\')">'+l+'</button>').join("")+'</div>'+
+  '<label>Fecha de referencia</label><input type="date" value="'+esc(reportePropinasFecha||ukiFechaCalendarioChile(Date.now()))+
+   '" onchange="ukiSeleccionarFechaPropinas(this.value)">'+
+  '<p><b>'+esc(datos.desde)+' al '+esc(datos.hasta)+'</b></p>'+
+  row("Total de propinas",fmt(datos.total),"final")+
+  row("Registradas manualmente",fmt(datos.registros.filter(x=>x.origen==="manual")
+    .reduce((n,x)=>n+(Number(x.monto)||0),0)))+
+  row("Desde pedido u otros registros",fmt(datos.registros.filter(x=>x.origen!=="manual")
+    .reduce((n,x)=>n+(Number(x.monto)||0),0)))+
+  '<p><b>Por medio de pago</b></p>'+
+  (datos.medios.map(x=>row(x.medio,fmt(x.total))).join("")||'<p class="muted">Sin propinas en el período.</p>')+
+  '<p><b>Detalle por pedido</b></p>'+
+  (datos.registros.map(p=>{
+   const pedido=(S.pedidos||[]).find(x=>x.suc===S.suc&&Number(x.id)===Number(p.pedidoId));
+   const ref=pedido?ukiReferenciaConCarta(pedido):
+    p.pedidoId?"Pedido #"+p.pedidoId:"Registro antiguo sin pedido";
+   const cuando=Number(p.registradoEn)||Date.parse(p.fechaISO||"");
+   return '<div style="padding:9px 0;border-top:1px solid var(--line)">'+
+    '<b>'+esc(ref)+'</b> · '+fmt(p.monto)+
+    '<p class="muted" style="margin:3px 0">'+esc(p.concepto||"Concepto no registrado (histórico)")+
+    ' · '+esc(p.medio||"Sin medio")+' · '+esc(p.origen==="manual"?"Manual":"Desde pedido / anterior")+
+    ' · '+esc(cuando?new Date(cuando).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"Sin fecha")+'</p></div>';
+  }).join("")||'<p class="muted">Sin registros en el período.</p>')+'</details>';
+}
+
 function vReportes(){
  if(!S.suc)return vInicio();
  const fecha=semanaConsulta||hoyLocal(),seleccion=new Date(fecha+"T12:00:00");
@@ -2647,7 +2744,7 @@ function vReportes(){
      '<button class="chip'+(reportesPeriodo===k?' on':'')+'" type="button" onclick="cambiarReportesPeriodo(\''+k+'\')">'+l+'</button>').join("")+'</div>'+
    '<label>Elegir fecha de referencia</label><input type="date" value="'+esc(fecha)+'" onchange="actualizarSemana(this.value)">'+
    '<p class="muted">Período: <b>'+esc(desde)+' al '+esc(hasta)+'</b></p></div>';
- if(!cierres.length)return fechas+'<div class="card"><p>No hay cierres confirmados para este período. El turno abierto no se suma aquí.</p></div>';
+ if(!cierres.length)return fechas+ukiReportePropinasPeriodoUI()+'<div class="card"><p>No hay cierres confirmados para este período. El turno abierto no se suma a las ventas de cierres.</p></div>';
  const resumen='<div class="card"><h2>Resumen del período</h2>'+
    row("Cierres guardados",cierres.length)+row("Días con cierre",porDia.size)+
    row("Pedidos",pedidos)+row("Ventas con delivery",fmt(venta),"sub")+
@@ -2691,7 +2788,7 @@ function vReportes(){
      ukiAccionesHistorial(c)+ukiVHistorialCorreccionesCierre(c)+ukiVCorreccionesPedidoCierre(c)+ukiVRectificarCierre(c)+
      '</details>';
  }).join("");
- return fechas+resumen+medios+dias+detalles;
+ return fechas+resumen+ukiReportePropinasPeriodoUI()+medios+dias+detalles;
 }
 // Auditoría de caja: lectura por comprobante, separada del cálculo de totales.
 // No modifica pedidos, pagos, timbres, cierres ni el efectivo de la sucursal.
@@ -2816,7 +2913,7 @@ function vRegistros(){
   ${row("Pagado por repartos del día",fmt(t.pagoDeliveryDia))}
   ${row("Pagado de saldos anteriores",fmt(t.pagoDeliveryAnterior))}
   ${row("Total pagado desde caja",fmt(t.pagoDelivery),"sub")}</div>
-  <div class="card"><h2>Propinas (aparte)</h2><label>Monto</label><input id="prMon" type="number" inputmode="numeric"><label>Medio</label><select id="prMed">${MEDIOS.map(m=>`<option>${m}</option>`).join("")}</select><button class="big" onclick="addPropina()">+ Agregar propina</button>${propinas.map(p=>`<div class="row"><span>${esc(p.medio)}</span><b>${fmt(p.monto)} <button class="sm" onclick="quitarPropina(${p.id})">✕</button></b></div>`).join("")||"<p class='muted'>Sin propinas</p>"}</div>
+  <div class="card"><h2>💝 Propinas (aparte de ventas)</h2><p class="muted">Solo registra aquí una propina manual que no exista ya en el pedido. Requiere identificarlo para evitar duplicarla.</p><label>Pedido interno # o código de carta · obligatorio</label><input id="prPed" inputmode="text" placeholder="Ej: 244 o 457"><label>Concepto · obligatorio</label><input id="prCon" maxlength="150" placeholder="Ej: Propina entregada en efectivo"><label>Monto ($)</label><input id="prMon" type="number" min="1" step="1" inputmode="numeric" placeholder="Ej: 2000"><label>Medio</label><select id="prMed">${MEDIOS.filter(m=>!APPS.includes(m)).map(m=>`<option>${m}</option>`).join("")}</select><button class="big" onclick="addPropina()">+ Registrar propina manual</button>${propinas.map(p=>`<div class="row"><span>${esc(p.concepto||"Propina anterior sin concepto")} · ${esc(p.pedidoId?("Pedido #"+p.pedidoId):"Pedido no vinculado (anterior)")} · ${esc(p.medio)}</span><b>${fmt(p.monto)} ${!p.pedidoId?`<button class="sm" onclick="quitarPropina(${p.id})">✕</button>`:""}</b></div>`).join("")||"<p class='muted'>Sin propinas</p>"}${ukiReportePropinasPeriodoUI()}</div>
   <div class="card"><h2>Retiros de efectivo</h2><label>Monto</label><input id="reMon" type="number" inputmode="numeric"><label>Motivo</label><input id="reMot" placeholder="Ej: Compra"><button class="big" onclick="addRetiro()">+ Agregar retiro</button>${retiros.map(r=>`<div class="row"><span>${esc(r.motivo||"Retiro")}</span><b>${fmt(r.monto)} <button class="sm" onclick="quitarRetiro(${r.id})">✕</button></b></div>`).join("")||"<p class='muted'>Sin retiros</p>"}</div>
   <div class="card"><h2>Caja chica</h2><label>Inicial</label><input type="number" value="${caja.cajaChica.inicial}" onchange="cajaDelDia().cajaChica.inicial=Math.max(0,parseInt(this.value)||0);render()" inputmode="numeric"><label>Concepto</label><input id="ccCon" placeholder="Detergente"><label>Monto</label><input id="ccMon" type="number" inputmode="numeric"><button class="big" onclick="addCC()">+ Agregar gasto caja chica</button>${caja.cajaChica.gastos.map(g=>`<div class="row"><span>${esc(g.concepto)}</span><b>${fmt(g.monto)} <button class="sm" onclick="quitarCC(${g.id})">✕</button></b></div>`).join("")||"<p class='muted'>Sin gastos</p>"}${row("Saldo caja chica",fmt(caja.cajaChica.inicial - caja.cajaChica.gastos.reduce((a,g)=>a+g.monto,0)),"sub")}</div>`;
 }
