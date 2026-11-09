@@ -113,7 +113,7 @@ test('El motivo específico se guarda, se puede consultar y se restaura si falla
  assert.match(code,/anterior\.detalle===undefined\)delete p\.motivoDetalleCancelacion/);
  const detalle=segment('function vPedidos(){','let pedidoExpandido=null;');
  assert.match(detalle,/p\.motivoDetalleCancelacion/);
- const history=segment('function pedidosHist(','function fichaHistorial(');
+ const history=segment('function fichaHistorial(','function compartirImagenTimbres(');
  assert.match(history,/motivoDetalleCancelacion/);
 });
 test('Toda la lógica JavaScript del panel es sintácticamente válida',()=>{
