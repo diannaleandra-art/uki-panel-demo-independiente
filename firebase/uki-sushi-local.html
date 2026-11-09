@@ -181,6 +181,16 @@ body.uki-nube-alerta #ukiEstadoOperativo{color:#b44713;font-weight:700}
  @page{margin:5mm}
 }
 </style>
+
+<style>
+#ukiScrollRapido{position:fixed;right:11px;bottom:108px;z-index:70;display:flex;flex-direction:column;gap:7px}
+#ukiScrollRapido[hidden]{display:none}
+#ukiScrollRapido button{width:38px;height:38px;border-radius:50%;border:1px solid #ead8c5;background:#fff9f3;
+color:#955115;box-shadow:0 2px 10px rgba(0,0,0,.12);font-weight:800;font-size:19px;line-height:1}
+.uki-navegacion-compacta{padding:12px!important;margin-bottom:10px!important}
+.uki-navegacion-compacta select{width:100%;min-height:42px}
+.uki-navegacion-compacta details summary{font-size:13px;color:#7a6355}
+</style>
 </head>
 <body>
 <header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.16 · LOCALES</h1><small id="ukiEstadoOperativo" role="status">Nube: desactivada · Abre tu sucursal y carga Firebase</small></header>
@@ -560,6 +570,7 @@ function render(){
   try{
   $("suc").innerHTML=S.suc?`<span>${esc(S.suc)}</span><a href="#" onclick="salirSuc();return false;" class="salir">Salir</a>`:"Selecciona una sucursal para empezar";
   $("nav").style.display=S.suc?"grid":"none";
+  ukiAccesosDesplazamiento();
   $("nav").innerHTML=VISTAS.map(([k,l,icon])=>`<button type="button" class="${S.vista===k?"on":""}" onclick="ir('${k}')" aria-label="${l}" ${S.vista===k?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${l}</span></button>`).join("");
   const f={inicio:vInicio,pedidos:vPedidos,nuevo:vNuevo,clientes:vClientes,caja:vCaja,inventario:()=>window.ukiInventarioPanelHTML?.()||'<div class="card"><p>Preparando inventario…</p></div>'}[S.vista]||vInicio;
   const msg=S.msg?`<div role="status" class="aviso" style="background:#ffece4;color:#7a2c08">${esc(S.msg)}</div>`:"";
@@ -591,6 +602,55 @@ async function salirSuc(){
  document.body.classList.remove("uki-operativo-bloqueado");
  render();
 }
+// Mensaje de equipo rotativo, determinista por día calendario de Chile.
+function ukiFraseDiaria(fecha=ukiFechaCalendarioChile(Date.now())){
+ const frases=[
+  "✨ Un buen turno empieza con orden y trabajo en equipo.",
+  "🍣 Cada pedido bien atendido es un cliente que vuelve.",
+  "🌟 La calidad está en los pequeños detalles.",
+  "🤝 Hoy trabajamos en equipo, con respeto y buena energía.",
+  "💪 La constancia hace la diferencia en cada turno.",
+  "😊 Una buena atención deja una gran impresión.",
+  "🎯 Claridad en caja, cuidado en cocina y alegría al atender.",
+  "🌱 Cada jornada es una oportunidad para mejorar.",
+  "🧡 Un equipo organizado hace todo más sencillo.",
+  "⭐ Entregar bien y a tiempo es parte de nuestra promesa.",
+  "🙌 Cuidamos cada pedido como si fuera el primero.",
+  "☀️ Un día productivo se construye paso a paso.",
+  "💫 Gracias por aportar tu talento a Uki Sushi.",
+  "🍱 Atención amable, pedidos correctos y cuentas claras."
+ ];
+ const dia=Date.parse(String(fecha)+"T12:00:00Z");
+ return frases[Math.floor(dia/86400000)%frases.length]||frases[0];
+}
+function ukiFechaHoraInicio(){
+ return new Date().toLocaleString("es-CL",{timeZone:"America/Santiago",
+  weekday:"long",day:"2-digit",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false});
+}
+function ukiActualizarHoraInicio(){
+ const el=$("ukiFechaHoraInicio");
+ if(!el||S.vista!=="inicio"||!S.suc)return;
+ el.textContent=ukiFechaHoraInicio();
+ const frase=$("ukiFraseDiariaInicio");
+ if(frase)frase.textContent=ukiFraseDiaria();
+}
+setInterval(ukiActualizarHoraInicio,60000);
+// Atajos de desplazamiento sin modificar ni guardar el estado de ventas.
+function ukiSaltarPanel(ubicacion){
+ window.scrollTo({top:ubicacion==="arriba"?0:document.documentElement.scrollHeight,behavior:"smooth"});
+}
+function ukiAccesosDesplazamiento(){
+ let bloque=$("ukiScrollRapido");
+ if(!bloque){
+  bloque=document.createElement("div");
+  bloque.id="ukiScrollRapido";
+  bloque.innerHTML='<button type="button" aria-label="Ir al inicio de la pantalla" onclick="ukiSaltarPanel(&quot;arriba&quot;)">↑</button>'+
+    '<button type="button" aria-label="Ir al final de la pantalla" onclick="ukiSaltarPanel(&quot;abajo&quot;)">↓</button>';
+  document.body.appendChild(bloque);
+ }
+ bloque.hidden=!S.suc;
+}
+
 function vInicio(){
   if(S.pinSuc){
  const existe=!!localStorage.getItem(claveLocal(S.pinSuc));
@@ -603,14 +663,9 @@ function vInicio(){
  }
   if(!S.suc){return `<div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Cada sucursal tendra sus pedidos y timbres independientes.</p>${SUCURSALES.map(s=>`<button class="big" onclick="pedirPin('${s}')">${s}</button>`).join("")}</div><div class="card"><p class="muted"><b>Información de acceso:</b> el enlace web es público, pero Firebase exige la cuenta Google autorizada de Uki Sushi y una clave para descifrar cada sucursal. No compartas las claves con clientes. Los datos permanecen separados entre sucursales.</p></div>`;}
 
-  const t=totales(),caja=cajaDelDia();
-  const turno=fechaOperativaActual();
-  const diaOperativo=new Date(turno+"T12:00:00").toLocaleDateString("es-CL",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
-  const inicio=window.ukiControlTurnos?.fechaHoraLegible(caja.inicioMs)||"No registrado antes de esta actualización";
-  return `<div class="welcome"><div class="eyebrow">RESUMEN DEL TURNO · ${esc(turno)}</div><h2>Hola, Uki Sushi <span>🍣</span></h2><p class="muted">${esc(S.suc)}</p></div>
+  const t=totales(),turno=fechaOperativaActual();
+  return `<div class="welcome"><div class="eyebrow">UKI SUSHI · ${esc(S.suc)}</div><h2>Hola, Uki 🍣</h2><p id="ukiFechaHoraInicio" class="muted" style="font-weight:650">${esc(ukiFechaHoraInicio())}</p><p id="ukiFraseDiariaInicio" class="uki-turno-frase">${esc(ukiFraseDiaria())}</p><p class="muted" style="font-size:12px">Jornada operativa: ${esc(turno)} · Continúa hasta su cierre confirmado.</p></div>
   ${vInicioTrabajador()}
-
-  <details class="card" style="padding:14px"><summary style="cursor:pointer;font-weight:700">🕒 Información del turno</summary><p style="margin:8px 0 4px"><b>${esc(diaOperativo)}</b></p><p class="muted" style="margin:4px 0">Fecha y hora registradas: ${esc(inicio)}</p></details>
   <section class="kpis" aria-label="Resumen de ventas">
     <div class="kpi"><span>Venta de hoy</span><strong>${fmt(t.totalMedios)}</strong></div>
     <div class="kpi"><span>Pedidos</span><strong>${t.n}</strong></div>
@@ -749,14 +804,14 @@ function vInicioTrabajador(){
    const fechaInicio=new Date(abierto.inicioMs).toLocaleString("es-CL",{dateStyle:"short",timeStyle:"short"});
    return '<div class="card uki-turno-card"><h2>🕒 Turno iniciado</h2>'+
      '<p><b>'+esc(abierto.nombre)+'</b></p><p class="muted">Comenzó: '+esc(fechaInicio)+'</p>'+
-     '<p class="uki-turno-frase">✨ Cada detalle cuenta. ¡Hagamos un gran turno en equipo!</p>'+
+     ''+
      '<button class="big" onclick="ir(\'precierre\')">Ir al PRECIERRE del trabajador · no cierra la caja</button></div>';
  }
  return '<div class="card uki-turno-card"><h2>🕒 Iniciar turno de trabajador</h2>'+
    '<p class="muted">Al comenzar, registra el nombre. El precierre se hace después desde Caja.</p>'+
    '<label>Nombre del trabajador</label><input id="ukiTrabajador" maxlength="60" placeholder="Nombre del trabajador">'+
    '<button class="big" onclick="ukiIniciarPrecierre()">Iniciar turno</button>'+
-   '<p class="uki-turno-frase">Un turno organizado comienza con una buena actitud. 🍣</p></div>';
+   '</div>';
 }
 function vPrecierreTrabajadores(){
  const caja=cajaDelDia(),abierto=caja.turnoPrecierreAbierto;
@@ -2522,7 +2577,7 @@ function vCaja(){
   const active=CAJA_TABS.find(x=>x[0]===cajaTab)||CAJA_TABS[0];
   const content=({resumen:vCajaResumen,movimientos:vMovimientos,precierre:vPrecierreTrabajadores,cierre:vCierre,historial:vHistorialCompacto,semana:vReportes,acumulada:()=>window.ukiCajaAcumuladaVista?.()||'<div class="card">Preparando Caja acumulada en efectivo…</div>'})[active[0]]();
   return `<div class="section-head"><h2>Caja</h2><p>Turno abierto · ${fechaOperativaActual()}</p></div>
-  <div class="sub-tabs" role="group" aria-label="Secciones de caja">${CAJA_TABS.map(([k,l])=>`<button class="${cajaTab===k?'selected':''}" onclick="cambiarCajaTab('${k}')">${l}</button>`).join('')}</div>${content}<div class="card"><h2>💾 Respaldo protegido de esta sucursal</h2><p class="muted">Guarda un respaldo cifrado al terminar el turno. La clave no se guarda: si la olvidas, no podrás recuperar ese archivo.</p><label>Crear clave para este respaldo (minimo 12 caracteres)</label><input id="ukiClaveBackup" type="password" autocomplete="new-password" placeholder="Clave de respaldo"><label>Repite la clave</label><input id="ukiConfirmaBackup" type="password" autocomplete="new-password" placeholder="Confirmar clave"><button class="big" onclick="descargarRespaldoCompleto()">Descargar respaldo cifrado</button><hr><p class="muted">Restaurar reemplaza los registros actuales de esta sucursal. Antes guarda una copia. También se admiten los respaldos anteriores v8.11 sin cifrar.</p><label>Clave del respaldo (si está cifrado)</label><input id="ukiClaveRestaurar" type="password" autocomplete="off" placeholder="Clave del archivo"><label>Elegir archivo para restaurar</label><input type="file" accept=".json,application/json" onchange="cargarRespaldo(event)"></div>`;
+  <div class="card uki-navegacion-compacta"><label for="ukiCajaIrA"><b>Ir directamente a una sección de Caja</b></label><select id="ukiCajaIrA" onchange="cambiarCajaTab(this.value)">${CAJA_TABS.map(([k,l])=>`<option value="${k}" ${cajaTab===k?'selected':''}>${l}</option>`).join('')}</select><details style="margin-top:8px"><summary>Ver todas las opciones de Caja</summary><div class="sub-tabs" role="group" aria-label="Secciones de caja">${CAJA_TABS.map(([k,l])=>`<button type="button" class="${cajaTab===k?'selected':''}" onclick="cambiarCajaTab('${k}')">${l}</button>`).join('')}</div></details></div>${content}<div class="card"><h2>💾 Respaldo protegido de esta sucursal</h2><p class="muted">Guarda un respaldo cifrado al terminar el turno. La clave no se guarda: si la olvidas, no podrás recuperar ese archivo.</p><label>Crear clave para este respaldo (minimo 12 caracteres)</label><input id="ukiClaveBackup" type="password" autocomplete="new-password" placeholder="Clave de respaldo"><label>Repite la clave</label><input id="ukiConfirmaBackup" type="password" autocomplete="new-password" placeholder="Confirmar clave"><button class="big" onclick="descargarRespaldoCompleto()">Descargar respaldo cifrado</button><hr><p class="muted">Restaurar reemplaza los registros actuales de esta sucursal. Antes guarda una copia. También se admiten los respaldos anteriores v8.11 sin cifrar.</p><label>Clave del respaldo (si está cifrado)</label><input id="ukiClaveRestaurar" type="password" autocomplete="off" placeholder="Clave del archivo"><label>Elegir archivo para restaurar</label><input type="file" accept=".json,application/json" onchange="cargarRespaldo(event)"></div>`;
 }
 let semanaConsulta="";
 function actualizarSemana(fecha){semanaConsulta=fecha||"";render();}
@@ -2737,7 +2792,7 @@ function vMovimientos(){
   const cards=Array.from(tmp.children);
   const index={apps:1,delivery:2,gastos:3,repartidor:4,propinas:5,retiros:6,chica:7}[movimientoTab];
   const selected=cards[index];
-  return `<div class="movement-tabs" role="group" aria-label="Tipos de movimiento">${MOV_TABS.map(([k,l])=>`<button class="${movimientoTab===k?'selected':''}" onclick="cambiarMovimientoTab('${k}')">${l}</button>`).join('')}</div>
+  return `<div class="card uki-navegacion-compacta"><label for="ukiMovimientoIrA"><b>Ir directamente al movimiento</b></label><select id="ukiMovimientoIrA" onchange="cambiarMovimientoTab(this.value)">${MOV_TABS.map(([k,l])=>`<option value="${k}" ${movimientoTab===k?'selected':''}>${l}</option>`).join('')}</select><details style="margin-top:8px"><summary>Ver todos los tipos de movimiento</summary><div class="movement-tabs" role="group" aria-label="Tipos de movimiento">${MOV_TABS.map(([k,l])=>`<button type="button" class="${movimientoTab===k?'selected':''}" onclick="cambiarMovimientoTab('${k}')">${l}</button>`).join('')}</div></details></div>
     ${selected?selected.outerHTML:'<div class="card">No se encontró esta sección. Regresa al resumen.</div>'}`;
 }
 
