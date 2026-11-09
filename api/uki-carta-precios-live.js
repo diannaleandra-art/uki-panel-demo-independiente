@@ -11,6 +11,11 @@ const QA_MENU='https://uki-sushi-pedidos-git-feature-uki-dis-eb0d72-diannaleandr
 const QA_PANEL='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app';
 const qa=env=>env.VERCEL_ENV==='preview'&&(env.VERCEL_GIT_COMMIT_REF===QA_REF||env.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2)&&env.UKI_INVENTARIO_QA_ENABLED==='true';
 const qaOrigin=(origin,env=process.env)=>qa(env)&&!!env.VERCEL_URL&&origin==='https://'+env.VERCEL_URL;
+// Esta publicación requiere migración aditiva y carta compatible.
+// APAGADO por defecto: el servidor conserva EXACTAMENTE la conducta previa.
+const promocionesHabilitadas=(env=process.env)=>
+ env.UKI_PROMOS_VISIBILIDAD_ENABLED==='true'&&
+ (env.VERCEL_ENV==='production'&&env.UKI_INVENTARIO_LIVE_ENABLED==='true'||qa(env));
 const originAllowed=(origin,env=process.env)=>ALLOWED.has(origin)||(qa(env)&&(origin===QA_MENU||origin===QA_PANEL))||qaOrigin(origin,env);
 const fail=(res,status,error)=>res.status(status).json({ok:false,error});
 async function authorized(req,env=process.env){
@@ -49,13 +54,13 @@ function validPromo(input){
  return {name:input.name.trim(),description:input.description.trim(),price:input.price,
   rollCount:count,piecesPerRoll:per,sauceCount:sauce,korokes,payments};
 }
-async function listing(sql,branch){
+async function listing(sql,branch,conPromos=promocionesHabilitadas()){
  const [base,overrides,custom,promos,vis]=await Promise.all([
   baseItems(branch),
   sql.query("SELECT sku,price,available,version FROM public.uki_carta_items_v1 WHERE branch=$1 AND kind<>'ingredient'",[branch]),
   sql.query("SELECT sku,kind,group_key,name,description,price,available,version FROM public.uki_carta_productos_custom_v1 WHERE branch=$1 ORDER BY group_key,name",[branch]),
-  sql.query("SELECT sku,name,description,price,available,visible,version,roll_count,pieces_per_roll,size,sauce_count,korokes,payments FROM public.uki_carta_promos_custom_v1 WHERE branch=$1 ORDER BY name",[branch]),
-  sql.query("SELECT sku,visible,version FROM public.uki_carta_visibilidad_v1 WHERE branch=$1",[branch])
+  conPromos?sql.query("SELECT sku,name,description,price,available,visible,version,roll_count,pieces_per_roll,size,sauce_count,korokes,payments FROM public.uki_carta_promos_custom_v1 WHERE branch=$1 ORDER BY name",[branch]):Promise.resolve([]),
+  conPromos?sql.query("SELECT sku,visible,version FROM public.uki_carta_visibilidad_v1 WHERE branch=$1",[branch]):Promise.resolve([])
  ]);
  const map=new Map(overrides.map(o=>[String(o.sku),o]));
  const visMap=new Map(vis.map(v=>[String(v.sku),v]));
@@ -106,8 +111,9 @@ module.exports=async function(req,res){
   if(req.method==='GET'){
    // Incluir visibilidad explícita para que la carta pueda ocultar también
    // promociones originales, sin borrar los pedidos que las utilizaron.
-   const items=await listing(sql,branch);
-   return res.status(200).json({ok:true,branch,items});
+   const nuevos=promocionesHabilitadas();
+   const items=(await listing(sql,branch,nuevos)).filter(i=>nuevos||!i.custom||i.available);
+   return res.status(200).json({ok:true,branch,items,promocionesHabilitadas:nuevos});
   }
   if(origin!=='https://diannaleandra-art.github.io'&&!(qa(process.env)&&origin===QA_PANEL)&&!qaOrigin(origin))
    return fail(res,403,'Solo administración');
@@ -115,7 +121,10 @@ module.exports=async function(req,res){
   if(!req.body||JSON.stringify(req.body).length>1800)return fail(res,400,'Solicitud inválida');
   const user=await authorized(req).catch(()=>null);if(!user)return fail(res,403,'Solo administración Google autorizada');
   const action=String(req.body.action||'');
-  if(action==='listar')return res.status(200).json({ok:true,branch,items:await listing(sql,branch)});
+  if(action==='listar')return res.status(200).json({ok:true,branch,
+   items:await listing(sql,branch),promocionesHabilitadas:promocionesHabilitadas()});
+  if(!promocionesHabilitadas()&&['crear-promocion','editar-promocion','publicar-promocion'].includes(action))
+   return fail(res,503,'Promociones aún no habilitadas: falta publicación conjunta de carta y servidor.');
   if(action==='crear-promocion'){
    const p=validPromo(req.body.item);if(!p)return fail(res,400,'Revisa rolls, piezas, salsas, korokes, medios y precio.');
    const sku=getSKU('monthly',p.name);
@@ -142,6 +151,16 @@ module.exports=async function(req,res){
   if(!Number.isSafeInteger(version)||version<0||!sku||sku.length>120)return fail(res,400,'Actualiza la lista y vuelve a intentar');
   const items=await listing(sql,branch),entry=items.find(x=>x.sku===sku);
   if(!entry)return fail(res,404,'Producto no encontrado');
+  if(!promocionesHabilitadas()&&(action==='retirar-producto'||action==='restaurar-producto')){
+   // Compatibilidad operativa con el panel anterior, sin tabla de visibilidad.
+   if(!entry.custom)return fail(res,400,'Los productos originales se controlan con Disponible/Agotado; solo puedes retirar los agregados.');
+   const disponible=action==='restaurar-producto';
+   if(entry.available===disponible)return fail(res,409,'El producto ya tiene ese estado.');
+   const changed=await sql.query('UPDATE public.uki_carta_productos_custom_v1 SET available=$3,version=version+1,updated_by=$5,updated_at=NOW() WHERE branch=$1 AND sku=$2 AND available IS DISTINCT FROM $3 AND version=$4 RETURNING sku,available,version',
+    [branch,sku,disponible,version,user.uid]);
+   if(!changed.length)return fail(res,409,'El producto cambió. Actualiza antes de continuar.');
+   return res.status(200).json({ok:true,branch,item:changed[0]});
+  }
   if(action==='retirar-producto'||action==='restaurar-producto'||action==='publicar-promocion'){
    const visible=action!=='retirar-producto';
    if(action==='publicar-promocion'&&entry.kind!=='monthly')return fail(res,400,'Solo una promoción puede publicarse con fotografía');
@@ -196,4 +215,4 @@ module.exports=async function(req,res){
  }catch(e){console.error('Carta precios',String(e?.code||e?.name||'error').slice(0,60));
   return fail(res,503,'No se pudo completar la operación. Inventario y caja siguen intactos');}
 };
-module.exports._testing={goodPrice,validNew,validPromo,originAllowed,getSKU,listing,modifyPrice};
+module.exports._testing={goodPrice,validNew,validPromo,originAllowed,getSKU,listing,modifyPrice,promocionesHabilitadas};
