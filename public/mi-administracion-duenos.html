@@ -100,7 +100,7 @@ label{color:#66574c}
 #filterCard{scroll-margin-top:90px}
 @media(max-width:360px){.quick-action{min-height:120px}.quick-action strong{font-size:12px}}
 
-/* QA · panel de dueños: jerarquía visual móvil, sin alterar lógica financiera. */
+/* Panel de dueños: diseño móvil privado, sin alterar la lógica financiera. */
 .owner-welcome{padding:4px 2px 8px;max-width:54ch}
 .owner-welcome h2{font-size:27px;line-height:1.12;letter-spacing:-.9px;margin:7px 0 9px}
 .owner-welcome p{font-size:13px;line-height:1.5;margin:0}
@@ -155,11 +155,11 @@ label{color:#66574c}
 <div class="welcome owner-welcome">
  <span class="owner-eyebrow">MI ADMINISTRACIÓN · ACCESO PRIVADO</span>
  <h2>Tu negocio, todo más claro.</h2>
- <p>Consulta tus movimientos y gastos actuales. La conexión automática de los cierres de Uki está en pruebas.</p>
+ <p>Consulta tus movimientos y gastos actuales. Los cierres finales verificados aparecen aquí después del respaldo en Firebase.</p>
 </div>
 <section class="owner-branches" aria-labelledby="ownerBranchTitle">
  <div id="ownerBranchTitle" class="owner-section-label" style="margin:0 0 4px">🏪 Sucursales Uki Sushi</div>
- <p class="hint">Los cierres finales de ambas sucursales aparecerán automáticamente después de activar la conexión segura. No necesitas consultar respaldos ni introducir otra clave.</p>
+ <p class="hint">Los cierres finales de ambas sucursales aparecen automáticamente tras confirmar la copia de seguridad. No necesitas consultar respaldos ni introducir otra clave.</p>
  <div class="owner-branch-grid">
   <button class="owner-branch-button" type="button" data-owner-branch="arica"><strong>Regimiento Arica</strong><small id="ukiAutoArica">Sin cierres confirmados en estas fechas</small></button>
   <button class="owner-branch-button" type="button" data-owner-branch="serena"><strong>La Serena</strong><small id="ukiAutoSerena">Sin cierres confirmados en estas fechas</small></button>
@@ -387,7 +387,7 @@ function mostrarVentasFinancieras(){
  }
  if(data.items.length>250)linea('Mostrando 250 registros. Cambia las fechas para ver otros.');
 }
-// Solo lectura QA: cierres operativos confirmados, sin modificar movimientos manuales.
+// Solo lectura: cierres confirmados, sin modificar movimientos manuales.
 const UKI_DUENOS_CIERRES_URL='https://uki-sushi-inventario.vercel.app/api/mi-administracion-live';
 let ukiCierresQAConsulta=0;
 async function cargarCierresUki(desde,hasta){
