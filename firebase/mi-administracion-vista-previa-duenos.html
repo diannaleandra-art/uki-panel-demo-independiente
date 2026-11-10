@@ -155,28 +155,28 @@ label{color:#66574c}
 <div class="welcome owner-welcome">
  <span class="owner-eyebrow">MI ADMINISTRACIÓN · ACCESO PRIVADO</span>
  <h2>Tu negocio, todo más claro.</h2>
- <p>Consulta tus movimientos y gastos actuales. La conexión automática de los cierres de Uki se incorpora después de verificarla.</p>
+ <p>Consulta tus movimientos y gastos actuales. La conexión automática de los cierres de Uki está en pruebas.</p>
 </div>
 <section class="owner-branches" aria-labelledby="ownerBranchTitle">
  <div id="ownerBranchTitle" class="owner-section-label" style="margin:0 0 4px">🏪 Sucursales Uki Sushi</div>
- <p class="hint">Los cierres definitivos se mostrarán automáticamente cuando termine la integración segura. No necesitas consultar respaldos ni introducir otra clave.</p>
+ <p class="hint">Los cierres finales de ambas sucursales aparecerán automáticamente después de activar la conexión segura. No necesitas consultar respaldos ni introducir otra clave.</p>
  <div class="owner-branch-grid">
   <div class="owner-branch-button"><strong>Regimiento Arica</strong><small id="ukiAutoArica">Conexión automática pendiente</small></div>
   <div class="owner-branch-button"><strong>La Serena</strong><small id="ukiAutoSerena">Conexión automática pendiente</small></div>
  </div>
 </section>
 <div class="card owner-finance-card"><div class="owner-eyebrow">MOVIMIENTOS FINANCIEROS REGISTRADOS</div><h2>📊 Resumen de todos los negocios</h2>
-<p class="owner-finance-note">Estas cifras son únicamente las ventas y gastos registrados en Mi Administración. Los cierres automáticos de Uki aún no están conectados; no se sumarán hasta conciliarlos para evitar duplicados.</p>
+<p class="owner-finance-note">Estas cifras corresponden a los movimientos de Mi Administración. Los cierres automáticos se consultan sin sumar dos veces el mismo importe.</p>
 <div class="metrics"><div class="metric"><small>Ventas anotadas</small><b id="m-ventas">$0</b></div>
 <div class="metric"><small>Gastos y compras pagadas</small><b id="m-gastos">$0</b></div>
 <div class="metric"><small>Resultado preliminar*</small><b id="m-resultado">$0</b></div>
 <div class="metric"><small>Pagos pendientes</small><b id="m-pendientes">$0</b></div></div>
 <p class="hint">*Para conocer la utilidad real faltan costos completos, sueldos, impuestos y otros gastos que corresponda considerar.</p></div>
 <div class="owner-section-label">Detalle de ventas</div>
-<button id="ukiGoTodasVentas" type="button" class="owner-action-all">📋 Todas las ventas registradas<small>Manuales y cierres ya ingresados · Sin duplicar importes</small></button>
+<button id="ukiGoTodasVentas" type="button" class="owner-action-all">📋 Todas las ventas<small>Cierres finales y ventas manuales por fecha y sucursal</small></button>
 <div class="owner-section-label">Administrar movimientos</div>
 <div class="quick-grid owner-quick" id="homeActions">
-<button type="button" class="quick-action" data-go="ventas"><span class="emoji">🧾</span><strong>Agregar venta o cierre</strong><small>Manual, foto o PDF del cierre</small></button>
+<button type="button" class="quick-action" data-go="ventas"><span class="emoji">🧾</span><strong>Agregar venta manual</strong><small>Ingresos que aún no figuran en cierres</small></button>
 <button type="button" class="quick-action" data-go="gastos"><span class="emoji">💸</span><strong>Registrar gasto</strong><small>Compras, sueldos y proveedores</small></button>
 <button type="button" class="quick-action" data-go="facturas"><span class="emoji">📷</span><strong>Compras y facturas</strong><small>Por razón social y proveedor</small></button>
 <button type="button" class="quick-action" data-go="negocios"><span class="emoji">🏪</span><strong>Mis negocios</strong><small>Agregar locales y costos</small></button>
@@ -187,10 +187,10 @@ label{color:#66574c}
 <p class="hint">Aquí también aparecen las ventas manuales anteriores, aunque todavía no tengan razón social asignada.</p>
 <div id="recent"></div>
 <details id="ukiOwnerListadoVentas" style="border-top:1px solid var(--line);margin-top:12px;padding-top:6px">
- <summary>📋 Ver todas las ventas registradas del período</summary>
- <p class="hint">Incluye ventas manuales y cierres que ya ingresaste en Mi Administración. Los cierres automáticos de Uki aún no se reciben. Usa los filtros de fecha del panel para consultar otros días. La consulta devuelve como máximo 250 movimientos por período.</p>
+ <summary>📋 Todas las ventas del período</summary>
+ <p class="hint">Incluye ventas manuales y cierres que ya ingresaste en Mi Administración. Los cierres automáticos de Uki se habilitan al terminar la conexión segura. Usa los filtros de fecha del panel para consultar otros días. La consulta devuelve como máximo 250 movimientos por período.</p>
  <div id="ukiOwnerFinancierasLista"></div>
-<div id="ukiOwnerCierresLecturaQA" aria-live="polite"></div>
+
 </details></div>
 </section>
 <section class="view" id="v-ventas" hidden><div class="card">
@@ -340,76 +340,89 @@ label{color:#66574c}
 import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
 import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
 import {crearControlCompras} from "./mi-administracion-compras.js?v=general-v5";
+import {unirVentasDuenos} from "./uki-duenos-ventas-unificadas-qa.mjs";
 const app=initializeApp({apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",appId:"1:1070481165758:web:b8f0f9ff40caf5b8ac7def"});
 const auth=getAuth(app),$=id=>document.getElementById(id);
+let cierresConfirmadosUki=[],errorConsultaCierresUki='';
 function mostrarVentasFinancieras(){
- const el=$('ukiOwnerFinancierasLista');el.replaceChildren();
- const rows=transactions.filter(x=>x.tipo==='venta');
- const label=document.createElement('p');label.className='hint';
- label.textContent=rows.length+' venta(s) registradas devueltas en este período; se mantienen separadas de la caja operativa.';
- el.append(label);
- for(const x of rows.slice(0,100)){
+ const host=$('ukiOwnerFinancierasLista');host.replaceChildren();
+ const data=unirVentasDuenos({
+  movimientos:transactions,cierres:cierresConfirmadosUki,
+  desde:value('from'),hasta:value('to'),negocio_id:currentBiz(),
+  sucursal_id:currentBranch(),razon_social_id:value('scopeRazon'),
+  negocios:businesses,sucursales:branches
+ });
+ const linea=(texto,clase='hint')=>{
+  const el=document.createElement('p');el.className=clase;el.textContent=texto;host.append(el);
+ };
+ linea(data.manuales+' ventas registradas · '+data.cierresConfirmados+
+  ' cierres finales · '+data.coincidencias+' coincidencias verificadas.');
+ linea('Los importes de ventas manuales y cierres se muestran juntos, pero NO se suman dos veces.');
+ if(data.conflictos)linea(data.conflictos+' referencia(s) con importes distintos. Revisar conciliación.');
+ if(errorConsultaCierresUki)linea(errorConsultaCierresUki+' Las ventas manuales siguen disponibles.');
+ if(!data.items.length)linea('Sin ventas para estas fechas y filtros.');
+ for(const item of data.items.slice(0,250)){
   const box=document.createElement('div');box.className='line';
-  const title=document.createElement('strong');title.textContent=String(x.fecha||'').slice(0,10)+' · '+pesos(x.monto)+' · '+businessName(x.negocio_id);
-  const meta=document.createElement('p');meta.className='hint';
-  meta.textContent=branchName(x.sucursal_id)+' · '+String(x.referencia||x.concepto||'Venta manual').slice(0,90)+' · '+x.estado;
-  box.append(title,meta);el.append(box);
+  const head=document.createElement('strong');
+  head.textContent=item.fecha+' · '+pesos(item.importe)+' · '+item.origen;
+  const desc=document.createElement('p');desc.className='hint';
+  desc.textContent=item.nombre+' · '+item.sucursal+(item.ref?' · Ref. '+item.ref:'');
+  box.append(head,desc);
+  if(item.tipo==='cierre'){
+   const detalles=document.createElement('p');detalles.className='hint';
+   detalles.textContent='Gastos: '+pesos(item.gastos)+' · Delivery por pagar: '+
+    pesos(item.delivery)+' · Propinas: '+pesos(item.propinas)+' · Retiros: '+pesos(item.retiros);
+   box.append(detalles);
+   const medios=Object.entries(item.medios||{}).filter(([,v])=>Number(v)>0);
+   if(medios.length){
+    const p=document.createElement('p');p.className='hint';
+    p.textContent=medios.map(([k,v])=>k+': '+pesos(v)).join(' · ');
+    box.append(p);
+   }
+  }else if(item.estado==='anulado'){
+   const p=document.createElement('p');p.className='hint';
+   p.textContent='Anulado, no suma a los movimientos';box.append(p);
+  }
+  host.append(box);
  }
- if(rows.length>100){const hint=document.createElement('p');hint.className='hint';hint.textContent='Mostrando 100 registros; utiliza los filtros por fecha del panel para acotar la consulta.';el.append(hint);}
+ if(data.items.length>250)linea('Mostrando 250 registros. Cambia las fechas para ver otros.');
 }
 // Solo lectura QA: cierres operativos confirmados, sin modificar movimientos manuales.
 const UKI_DUENOS_CIERRES_QA_URL='https://uki-sushi-inventario-cnr6rwj4v-diannaleandra-7046.vercel.app/api/uki-duenos-cierres-auto-qa';
 let ukiCierresQAConsulta=0;
 async function cargarCierresUkiQA(desde,hasta){
- const numero=++ukiCierresQAConsulta, arica=$('ukiAutoArica'),serena=$('ukiAutoSerena'),
-  destino=$('ukiOwnerCierresLecturaQA');
+ const seq=++ukiCierresQAConsulta,arica=$('ukiAutoArica'),serena=$('ukiAutoSerena');
  if(!session||!auth.currentUser)return;
- arica.textContent=serena.textContent='Consultando cierres QA…';
+ arica.textContent=serena.textContent='Consultando cierres…';
+ errorConsultaCierresUki='';cierresConfirmadosUki=[];
  try{
   const token=await auth.currentUser.getIdToken();
   const r=await fetch(UKI_DUENOS_CIERRES_QA_URL,{method:'POST',cache:'no-store',
-   headers:{'Content-Type':'application/json','Authorization':'Bearer '+token,'X-Fin-Session':session},
+   headers:{'Content-Type':'application/json',Authorization:'Bearer '+token,'X-Fin-Session':session},
    body:JSON.stringify({action:'listar_cierres',branch:'todos',desde,hasta})});
   const payload=await r.json().catch(()=>({}));
   if(!r.ok||payload.ok!==true||!Array.isArray(payload.cierres))
-   throw Error('Los cierres automáticos aún no están disponibles');
-  if(numero!==ukiCierresQAConsulta||!session)return;
-  const seen=new Set(),rows=[];
-  for(const c of payload.cierres){
-   if(!['arica','serena'].includes(c.branch)||typeof c.turno_ref!=='string')continue;
-   const key=c.branch+'|'+c.turno_ref;if(seen.has(key))continue;seen.add(key);
-   const importe=Number(c.venta_total);
-   if(!Number.isSafeInteger(importe)||importe<0)continue;
-   rows.push({...c,importe});
-  }
-  for(const [branch,elemento] of [['arica',arica],['serena',serena]]){
-   const list=rows.filter(c=>c.branch===branch),total=list.reduce((n,c)=>n+c.importe,0);
-   elemento.textContent=list.length?pesos(total)+' · '+list.length+' cierre(s) confirmado(s)':'Sin cierres confirmados en el período';
-  }
-  destino.replaceChildren();
-  if(!rows.length){const p=document.createElement('p');p.className='hint';p.textContent='Sin cierres automáticos confirmados en este período (QA).';destino.append(p);return;}
-  const title=document.createElement('p');title.className='hint';
-  title.textContent='Cierres definitivos de Uki · lectura automática QA, sin sumarlos a las ventas manuales.';
-  destino.append(title);
-  for(const c of rows){
-   const line=document.createElement('div');line.className='line';
-   const fecha=String(c.fecha_operativa||'').slice(0,10);
-   const suc=c.branch==='arica'?'Regimiento Arica':'La Serena';
-   const pagos=Object.entries(c.medios||{}).map(([k,v])=>k+': '+pesos(v)).join(' · ');
-   line.textContent=suc+' · '+fecha+' · '+pesos(c.importe)
-    +' · Gastos '+pesos(c.gastos_cierre)+' · Delivery por pagar '+pesos(c.delivery_por_pagar)
-    +' · Propinas '+pesos(c.propinas)+' · Retiros '+pesos(c.retiros)
-    +(pagos?' · '+pagos:'');
-   destino.append(line);
+   throw Error('Cierres no disponibles');
+  if(seq!==ukiCierresQAConsulta||!session)return;
+  const seen=new Set();
+  cierresConfirmadosUki=payload.cierres.filter(c=>{
+   if(!['arica','serena'].includes(c?.branch)||typeof c.turno_ref!=='string')return false;
+   const key=c.branch+'|'+c.turno_ref;
+   if(seen.has(key))return false;seen.add(key);return true;
+  });
+  for(const [branch,el] of [['arica',arica],['serena',serena]]){
+   const rows=cierresConfirmadosUki.filter(c=>c.branch===branch);
+   const total=rows.reduce((n,c)=>n+Number(c.venta_total||0),0);
+   el.textContent=rows.length?pesos(total)+' · '+rows.length+' cierre(s) confirmado(s)':
+    'Sin cierres confirmados en el período';
   }
  }catch(e){
-  if(numero!==ukiCierresQAConsulta)return;
+  if(seq!==ukiCierresQAConsulta)return;
   arica.textContent=serena.textContent='Conexión automática pendiente';
-  destino.replaceChildren();
-  const p=document.createElement('p');p.className='hint';
-  p.textContent='Los cierres automáticos de QA aún no están disponibles. Las ventas manuales permanecen intactas.';
-  destino.append(p);
+  errorConsultaCierresUki='Los cierres automáticos aún no están disponibles (QA).';
+  cierresConfirmadosUki=[];
  }
+ if(seq===ukiCierresQAConsulta)mostrarVentasFinancieras();
 }
 
 let session="",businesses=[],branches=[],razones=[],vinculos=[],transactions=[],docs=[],tab='resumen';
