@@ -1,0 +1,23 @@
+name: Uki · integrar dueños sin alterar operaciones
+on:
+  push:
+    branches:
+      - qa/uki-duenos-integracion-total-20261110
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verificar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Sintaxis y pruebas del puente, caja y promociones
+        run: |
+          node --check api/mi-administracion-live.js
+          node --check api/uki-duenos-cierres-live.js
+          node --check api/uki-carta-precios-live.js
+          node --check firebase/uki-duenos-cierre-publicador-live.mjs
+          node --test tests/uki-duenos-puente-live-20261110.test.cjs tests/uki-duenos-operativo-live-20261110.test.cjs tests/uki-promociones-tipos-qa-20261110.test.cjs
