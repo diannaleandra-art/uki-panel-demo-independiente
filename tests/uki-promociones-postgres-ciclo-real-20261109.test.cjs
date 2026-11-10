@@ -112,6 +112,45 @@ test('Migraciones y ciclo de publicación/retirada/restauración por sucursal so
   assert.equal((await list('serena')).length,1);
   const count=(await sql.query('SELECT count(*)::int AS c FROM public.uki_carta_promos_custom_v1'))[0].c;
   assert.equal(count,3);
-  console.log('PostgreSQL aislado OK: migración idempotente, foto obligatoria, 3 estados, 2 sucursales, recuperación y concurrencia; CERO registros reales.');
+
+  // Simular en PostgreSQL LOCAL la corrección de una promo originalmente
+  // mal registrada como 1 roll de 12 piezas. Nunca toca Neon ni producción.
+  const antes=(await sql.query(
+   'SELECT sku,price,visible,published_at,version,roll_count,size FROM public.uki_carta_promos_custom_v1 WHERE branch=$1 AND sku=$2',
+   ['arica',sku]))[0];
+  assert.equal(antes.roll_count,5);
+  assert.equal(antes.size,60);
+  assert.equal(antes.price,16000);
+  assert.equal(antes.visible,true);
+  assert.ok(antes.published_at);
+  assert.equal(await photo('arica',sku),true);
+  const fixed=await sql.query(`
+   UPDATE public.uki_carta_promos_custom_v1
+   SET name='Gohan QA más dos korokes',description='Gohan clásico · Incluye 2 korokes',
+     roll_count=0,pieces_per_roll=12,sauce_count=0,korokes=0,
+     promo_type='combo',customizable=false,version=version+1,
+     updated_by='qa-aislado',updated_at=NOW()
+   WHERE branch=$1 AND sku=$2 AND version=$3 AND price=$4
+   RETURNING branch,sku,name,price,visible,published_at,version,roll_count,size,promo_type,customizable`,
+   ['arica',sku,antes.version,antes.price]);
+  assert.equal(fixed.length,1,'Solo se cambia el registro esperado');
+  assert.equal(fixed[0].sku,antes.sku,'No crear otra promo ni cambiar el QR');
+  assert.equal(fixed[0].price,antes.price,'Conservar el precio');
+  assert.equal(fixed[0].visible,true,'Conservar publicada');
+  assert.deepEqual(fixed[0].published_at,antes.published_at,'Conservar primera publicación');
+  assert.equal(fixed[0].roll_count,0);
+  assert.equal(fixed[0].size,0,'La columna calculada no debe contar piezas falsas');
+  assert.equal(fixed[0].promo_type,'combo');
+  assert.equal(fixed[0].customizable,false);
+  assert.equal(await photo('arica',sku),true,'Conservar su fotografía real');
+  const otraSucursal=await get('serena',sku);
+  assert.equal(otraSucursal.price,17000,'No modificar la otra sucursal');
+  const previousVersion=await sql.query(`
+   UPDATE public.uki_carta_promos_custom_v1 SET price=1
+   WHERE branch=$1 AND sku=$2 AND version=$3 RETURNING sku`,
+   ['arica',sku,antes.version]);
+  assert.equal(previousVersion.length,0,'Evitar sobrescribir cambios posteriores');
+
+  console.log('PostgreSQL aislado OK: conversión de gohan, foto, precio, SKU, fecha y sucursal preservados; CERO registros reales.');
  }finally{await db.end();}
 });
