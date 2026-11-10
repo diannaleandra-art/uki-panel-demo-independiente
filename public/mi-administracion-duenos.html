@@ -1,0 +1,837 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow,noarchive"><meta name="theme-color" content="#fffaf5"><title>Mi Administración privada · Uki</title>
+<style>
+:root{--ink:#30251f;--muted:#87776b;--paper:#fcf9f5;--line:#eee5dc;--warm:#ef820e;--dark:#b65d00;--soft:#fff4e8}
+*{box-sizing:border-box}
+body{margin:0;color:var(--ink);background:var(--paper);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding-bottom:calc(90px + env(safe-area-inset-bottom))}
+header{position:sticky;top:0;z-index:6;background:#fffdf9;border-bottom:1px solid var(--line);padding:calc(10px + env(safe-area-inset-top)) 17px 11px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+header h1{font-size:17px;letter-spacing:-.5px;margin:0}header small{display:block;font-size:11px;color:var(--muted)}
+main{max-width:720px;margin:auto;padding:18px 14px}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:0 2px 9px #39230e09}
+h2{font-size:19px;letter-spacing:-.4px;margin:0 0 12px}h3{font-size:16px;margin:8px 0}p{margin:7px 0}
+.muted,small{color:var(--muted)}.hint{font-size:12px;color:var(--muted)}
+button{font:inherit;cursor:pointer;min-height:44px;border-radius:10px;padding:9px 13px;border:1px solid var(--line);background:#fff;color:var(--ink)}
+button.primary{background:var(--dark);color:white;border-color:var(--dark);font-weight:700}
+button.soft{background:var(--soft)}button:disabled{opacity:.55;cursor:default}
+input,select,textarea{width:100%;min-height:44px;margin-top:5px;padding:11px;border:1px solid #dccdc2;border-radius:10px;font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#fff;color:var(--ink)}
+textarea{min-height:82px;resize:vertical}label{display:block;font-size:13px;font-weight:600;margin:12px 0 4px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.row>div{min-width:0;overflow-wrap:anywhere}.row span{color:var(--muted)}
+.metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:13px 0}
+.metric{background:var(--soft);padding:13px;border-radius:13px;border:1px solid #f2e5d9}
+.metric small{display:block;font-size:12px}.metric b{display:block;font-size:20px;letter-spacing:-.6px;margin-top:5px}
+nav{position:fixed;bottom:0;left:0;right:0;z-index:8;display:grid;grid-template-columns:repeat(5,1fr);background:#fff;padding:8px 5px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+nav button{font-size:11px;border:0;min-height:50px;padding:5px 2px;display:flex;flex-direction:column;gap:3px;align-items:center;justify-content:center}nav button.active{background:#f7eadf;color:var(--dark);font-weight:800}
+nav button i{font-size:21px;font-style:normal}.line{padding:12px 0;border-bottom:1px solid var(--line)}.line:last-child{border-bottom:0}
+footer{font-size:12px;color:var(--muted);text-align:center;padding:15px}details{margin:10px 0}summary{font-weight:700;cursor:pointer;padding:10px 0}
+#notice{min-height:26px;white-space:pre-wrap;color:#7b4c22;font-size:13px}
+#notice.error{color:#a22525}#notice.success{color:#206c39}
+.pill{display:inline-block;font-size:11px;border:1px solid var(--line);border-radius:100px;padding:3px 8px;background:var(--soft)}
+.view[hidden],.card[hidden],[hidden]{display:none!important}
+a{color:#70431c}b{overflow-wrap:anywhere}
+@media(max-width:360px){.grid2{grid-template-columns:1fr}.metric b{font-size:17px}}
+
+/* Diseño sencillo y familiar, inspirado en las tarjetas del panel operativo Uki. */
+header{background:#fff;color:var(--ink);box-shadow:none}
+header h1{font-size:19px;letter-spacing:-.5px}
+header small{font-size:12px}
+main{max-width:600px;padding:18px 14px 30px}
+.card{border-radius:16px;padding:16px;border:1px solid #eee6df;box-shadow:0 2px 8px #37271906}
+.card h2{font-size:17px;letter-spacing:-.25px}
+button.primary{background:#ed810e;border-color:#ed810e;color:white}
+button.primary:focus-visible,button:focus-visible,select:focus-visible{outline:3px solid #b65d00;outline-offset:2px}
+nav button.active{background:#fff1e3;color:#af5700}
+nav{box-shadow:0 -8px 24px #40260e0a;gap:2px}
+label{color:#66574c}
+.welcome{margin:0 2px 16px}
+.welcome h2{font-size:23px;letter-spacing:-.7px;margin:4px 0}
+.welcome p{color:var(--muted);font-size:13px}
+.eyebrow{color:#a85f1a;font-size:11px;font-weight:800;letter-spacing:1px}
+.quick-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.quick-action{min-height:104px;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;text-align:left;gap:5px;border:1px solid var(--line);border-radius:13px;background:white;padding:13px}
+.quick-action .emoji{font-size:25px;line-height:1.1}
+.quick-action strong{font-size:13px;color:var(--ink)}
+.quick-action small{font-size:11px;line-height:1.3}
+.steps{font-size:12px;padding:10px 12px;background:#fff5eb;color:#82572d;border-radius:11px}
+.fieldset-title{font-size:15px;font-weight:800;margin:20px 0 6px;padding-top:12px;border-top:1px solid var(--line)}
+.metric b{color:#30251f}
+.view>.card{scroll-margin-top:110px}
+.finance-price{white-space:nowrap;word-break:keep-all;overflow-wrap:normal;font-variant-numeric:tabular-nums;font-size:14px;text-align:right;align-self:start}
+.finance-total-row{display:grid;grid-template-columns:minmax(0,1fr) max-content;gap:3px 12px;padding:11px 0;border-bottom:1px solid var(--line)}
+.finance-total-row>strong{min-width:0;overflow-wrap:anywhere}
+.finance-total-row small{grid-column:1/-1;color:var(--muted)}
+.finance-invoice{padding:15px 0;border-bottom:1px solid var(--line)}
+.finance-invoice-head{display:grid;grid-template-columns:minmax(0,1fr) max-content;gap:8px;align-items:start}
+.finance-invoice-head strong{min-width:0;overflow-wrap:anywhere;line-height:1.3}
+.finance-supplier{font-weight:700;margin-top:8px;font-size:13px}
+.finance-invoice .hint{margin:4px 0;line-height:1.35;font-size:12px}
+.finance-invoice-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0}
+.finance-invoice-details{margin-top:12px;border-top:1px solid var(--line);padding-top:12px}
+.finance-invoice-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:16px}
+.finance-invoice-summary span{min-width:0;background:var(--soft);border-radius:8px;padding:9px 6px;font-size:11px;color:var(--muted)}
+.finance-invoice-summary b{display:block;margin-top:3px;font-size:13px}
+.finance-item-row{display:grid;grid-template-columns:minmax(0,1fr) max-content;align-items:start;gap:11px;padding:11px 0;border-bottom:1px solid var(--line)}
+.finance-item-text{min-width:0;overflow-wrap:anywhere}
+.finance-item-row strong{display:block;font-size:13px;line-height:1.35;font-weight:650}
+.finance-item-row small{display:block;font-size:12px;color:var(--muted);margin-top:4px;line-height:1.35}
+.finance-item-row .finance-price{min-width:83px;text-align:right}
+.invoice-product{border-bottom:1px solid var(--line);padding:3px 0}
+#purchaseNavigation{position:sticky;top:68px;z-index:3;background:var(--paper)}
+#purchaseAdvanced{padding:10px 0}
+#purchaseAllocationControls{margin-top:12px;border:1px solid var(--line);border-radius:12px;padding:12px}
+#movimientosGeneral .line{padding:10px 0}
+#purchaseEntry[hidden],#purchaseAdvanced[hidden]{display:none}
+.invoice-product details{margin:0}
+.invoice-product summary{display:grid;grid-template-columns:24px minmax(0,1fr) max-content;align-items:start;gap:8px;padding:13px 1px;list-style:none;cursor:pointer}
+.invoice-product summary::-webkit-details-marker{display:none}
+.invoice-product summary::marker{content:""}
+.invoice-product .item-label{display:block;font-size:13px;font-weight:650;line-height:1.35;overflow-wrap:anywhere}
+.invoice-product .item-meta{display:block;color:var(--muted);font-size:11px;margin-top:5px}
+.invoice-product .item-edit{background:var(--soft);padding:10px;border-radius:10px;margin-bottom:12px}
+.legal-line{padding:10px 0;border-bottom:1px solid var(--line)}
+.legal-line strong{display:block}.legal-line small{display:block;color:var(--muted);margin-top:3px}
+.doc-control-intro{font-size:13px;color:var(--muted);line-height:1.5}
+.purchase-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px}
+.purchase-filters label{margin:5px 0 2px}
+.purchase-filters .wide{grid-column:1/-1}
+#invoiceItemsSum{font-size:12px}
+@media(max-width:390px){.finance-price{font-size:13px}.finance-item-row .finance-price{min-width:76px}.finance-invoice-summary b{font-size:12px}}
+
+#filterCard{scroll-margin-top:90px}
+@media(max-width:360px){.quick-action{min-height:120px}.quick-action strong{font-size:12px}}
+
+/* QA · panel de dueños: jerarquía visual móvil, sin alterar lógica financiera. */
+.owner-welcome{padding:4px 2px 8px;max-width:54ch}
+.owner-welcome h2{font-size:27px;line-height:1.12;letter-spacing:-.9px;margin:7px 0 9px}
+.owner-welcome p{font-size:13px;line-height:1.5;margin:0}
+.owner-eyebrow{font-size:11px;font-weight:850;letter-spacing:1px;color:#9a561d}
+.owner-section-label{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:20px 2px 9px;font-size:15px;font-weight:850;color:#453327}
+.owner-branches{background:#fff;border:1px solid #ecdac9;border-radius:18px;padding:15px 14px;margin:12px 0 17px;box-shadow:0 3px 11px #45280f08}
+.owner-branches .hint{margin-bottom:12px}
+.owner-branch-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.owner-branch-button{display:block;width:100%;text-align:left;min-width:0;min-height:91px;background:#fffaf5;border:1.5px solid #ead5bf;border-radius:13px;padding:12px}
+.owner-branch-button strong{display:block;font-size:13px;line-height:1.3}
+.owner-branch-button small{display:block;font-size:11px;line-height:1.35;margin-top:6px}
+.owner-branch-button:focus-visible{outline:3px solid #a96524;outline-offset:2px}
+.owner-finance-card{border-color:#e5cbb3;background:#fff;box-shadow:0 4px 15px #5f2d0d0a}
+.owner-finance-card h2{font-size:18px;letter-spacing:-.5px;line-height:1.3}
+.owner-finance-card .metric{background:#fff7ef;border-color:#f0dfcd;padding:15px 12px}
+.owner-finance-card .metric b{font-size:clamp(18px,5vw,23px);line-height:1.25;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.owner-finance-card .metric small{line-height:1.35;font-size:11px}
+.owner-finance-note{font-size:12px;line-height:1.5;border-radius:11px;padding:10px 12px;background:#fbf4ec;color:#7a5336;margin:12px 0}
+.owner-action-all{width:100%;background:#a95513;color:#fff;border:1.5px solid #a95513;min-height:66px;padding:13px 16px;text-align:left;border-radius:15px;font-size:15px;font-weight:850;box-shadow:0 6px 16px #a9551320}
+.owner-action-all small{display:block;font-size:11px;font-weight:550;line-height:1.3;color:#ffe8d8;margin-top:5px}
+.owner-action-all:focus-visible{outline:3px solid #7a390f;outline-offset:3px}
+.owner-quick .quick-action{min-height:97px;background:#fff;border:1px solid #eadbd0;border-radius:13px;padding:12px}
+.owner-quick .quick-action .emoji{font-size:22px}
+.owner-quick .quick-action strong{font-size:13px}
+.owner-quick .quick-action small{font-size:11px}
+#ukiOwnerListadoVentas{scroll-margin-top:115px}
+#ukiOwnerListadoVentas .line{border-bottom:1px solid #eedfd2;padding:9px 0}
+@media(max-width:350px){.owner-branch-grid{grid-template-columns:1fr}.owner-branch-button{min-height:68px}}
+
+</style></head><body>
+<header><div><h1>🔒 Mi Administración</h1><small>Acceso de dueños · Solo personal autorizado</small></div><button id="exit" hidden>Salir</button></header>
+<main><p id="notice" role="status" aria-live="polite">Conectando acceso privado…</p>
+<section id="login" class="card"><h2>Acceso privado</h2><p class="muted">Esta sección no comparte el código del agendador. Primero se confirma la cuenta Google autorizada y después tu código exclusivo.</p><button class="primary" id="google">Entrar con Google</button><p id="loginhelp" class="hint"></p></section>
+<section id="setup" class="card" hidden><h2>Configurar código privado · Una sola vez</h2><p class="muted">Define un código secreto de seis números que solo conozcan los dueños. No se envía por WhatsApp ni se guarda en el navegador.</p>
+<label>Clave de instalación privada</label><input id="setupkey" type="password" autocomplete="off" placeholder="Clave de instalación proporcionada a los dueños">
+<div class="grid2"><div><label>Nuevo PIN de 6 números</label><input id="newpin" type="password" inputmode="numeric" pattern="[0-9]{6}" autocomplete="new-password" maxlength="6"></div><div><label>Repite el PIN</label><input id="againpin" type="password" inputmode="numeric" maxlength="6"></div></div><button class="primary" id="configure">Crear acceso privado</button></section>
+<section id="unlock" class="card" hidden><h2>Tu código privado</h2><label>PIN de 6 números</label><input id="pin" type="password" inputmode="numeric" pattern="[0-9]{6}" autocomplete="off" maxlength="6"><button class="primary" id="enter">Abrir Mi Administración</button><p class="hint">La sesión privada caduca después de 30 minutos. No afecta el acceso normal de Uki.</p></section>
+<section id="app" hidden>
+<section id="filterCard" class="card">
+<div class="row"><strong>🏢 Todos nuestros negocios</strong><span class="pill">Solo dueños</span></div>
+<p class="hint">Vista general compartida por los dueños. Los filtros son opcionales y no necesitas cambiar de acceso para ver otros locales.</p>
+<details id="globalAdvanced"><summary>Filtrar por empresa o local (opcional)</summary>
+<label for="scopeRazon">Razón social (empresa legal)</label><select id="scopeRazon"><option value="todos">Todas las razones sociales</option></select>
+<label for="scopeBusiness">¿Qué negocio quieres revisar?</label><select id="scopeBusiness" aria-label="Filtrar por negocio"><option value="">Todos mis negocios</option></select>
+<label for="scopeBranch">Sucursal</label><select id="scopeBranch"><option value="">Todas las sucursales</option></select>
+<details id="dateFilters"><summary>📅 Fechas del informe · Ver o cambiar</summary>
+<p class="hint">Por defecto aparecen los registros de este mes. Puedes consultar cualquier fecha anterior.</p>
+<div class="grid2"><div><label>Desde</label><input id="from" type="date"></div><div><label>Hasta</label><input id="to" type="date"></div></div></details>
+<button class="soft" id="refresh">Actualizar resultados</button></details></section>
+<section class="view" id="v-resumen">
+
+<div class="welcome owner-welcome">
+ <span class="owner-eyebrow">MI ADMINISTRACIÓN · ACCESO PRIVADO</span>
+ <h2>Tu negocio, todo más claro.</h2>
+ <p>Consulta tus movimientos y gastos actuales. La conexión automática de los cierres de Uki está en pruebas.</p>
+</div>
+<section class="owner-branches" aria-labelledby="ownerBranchTitle">
+ <div id="ownerBranchTitle" class="owner-section-label" style="margin:0 0 4px">🏪 Sucursales Uki Sushi</div>
+ <p class="hint">Los cierres finales de ambas sucursales aparecerán automáticamente después de activar la conexión segura. No necesitas consultar respaldos ni introducir otra clave.</p>
+ <div class="owner-branch-grid">
+  <button class="owner-branch-button" type="button" data-owner-branch="arica"><strong>Regimiento Arica</strong><small id="ukiAutoArica">Sin cierres confirmados en estas fechas</small></button>
+  <button class="owner-branch-button" type="button" data-owner-branch="serena"><strong>La Serena</strong><small id="ukiAutoSerena">Sin cierres confirmados en estas fechas</small></button>
+ </div>
+</section>
+<div class="card owner-finance-card"><div class="owner-eyebrow">MOVIMIENTOS FINANCIEROS REGISTRADOS</div><h2>📊 Resumen de todos los negocios</h2>
+<p class="owner-finance-note">Los movimientos manuales heredados de la etapa de pruebas deben verificarse antes de contabilizarlos como ventas reales. Los cierres automáticos aparecen por separado y no duplican ingresos.</p>
+<div class="metrics"><div class="metric"><small>Ventas anotadas</small><b id="m-ventas">$0</b></div>
+<div class="metric"><small>Gastos y compras pagadas</small><b id="m-gastos">$0</b></div>
+<div class="metric"><small>Resultado preliminar*</small><b id="m-resultado">$0</b></div>
+<div class="metric"><small>Pagos pendientes</small><b id="m-pendientes">$0</b></div></div>
+<p class="hint">*Para conocer la utilidad real faltan costos completos, sueldos, impuestos y otros gastos que corresponda considerar.</p></div>
+<div class="owner-section-label">Detalle de ventas</div>
+<button id="ukiGoTodasVentas" type="button" class="owner-action-all">📋 Todas las ventas<small>Cierres finales y ventas manuales por fecha y sucursal</small></button>
+<div class="owner-section-label">Administrar movimientos</div>
+<div class="quick-grid owner-quick" id="homeActions">
+<button type="button" class="quick-action" data-go="ventas"><span class="emoji">🧾</span><strong>Agregar venta manual</strong><small>Ingresos que aún no figuran en cierres</small></button>
+<button type="button" class="quick-action" data-go="gastos"><span class="emoji">💸</span><strong>Registrar gasto</strong><small>Compras, sueldos y proveedores</small></button>
+<button type="button" class="quick-action" data-go="facturas"><span class="emoji">📷</span><strong>Compras y facturas</strong><small>Por razón social y proveedor</small></button>
+<button type="button" class="quick-action" data-go="negocios"><span class="emoji">🏪</span><strong>Mis negocios</strong><small>Agregar locales y costos</small></button>
+</div>
+<button id="goRecentMovements" class="soft" type="button" style="margin:12px 0 4px">📖 Ver ventas anteriores y otros movimientos</button>
+<details class="card"><summary>💳 Ver ventas por medio de pago</summary><div id="mediosReport"><p class="muted">Aún sin datos.</p></div></details>
+<div class="card" id="movimientosGeneral"><h2>📖 Últimas ventas, compras y gastos</h2>
+<p class="hint">Aquí también aparecen las ventas manuales anteriores, aunque todavía no tengan razón social asignada.</p>
+<div id="recent"></div>
+<details id="ukiOwnerListadoVentas" style="border-top:1px solid var(--line);margin-top:12px;padding-top:6px">
+ <summary>📋 Todas las ventas del período</summary>
+ <p class="hint">Incluye ventas manuales y cierres que ya ingresaste en Mi Administración. Los cierres finales verificados se muestran automáticamente en esta administración. Usa los filtros de fecha del panel para consultar otros días. La consulta devuelve como máximo 250 movimientos por período.</p>
+ <div id="ukiOwnerFinancierasLista"></div>
+
+</details></div>
+</section>
+<section class="view" id="v-ventas" hidden><div class="card">
+<div class="eyebrow">VENTAS Y CIERRES</div><h2>🧾 Agregar venta o cierre de un local</h2>
+<p class="steps">1. Elige negocio y fecha. 2. Escribe cuánto se vendió y cómo pagaron. 3. Revisa y guarda.</p>
+<p class="hint">También puedes adjuntar la foto del cierre. No cambia la caja operativa de Uki.</p>
+<div class="fieldset-title">1 · ¿De qué negocio es la venta?</div><label>Negocio</label><select id="saleBiz"></select>
+<label>Razón social que realizó la venta</label><select id="saleRazon"><option value="">Selecciona razón social</option></select>
+<label>Sucursal</label><select id="saleBranch"></select>
+<div class="fieldset-title">2 · Fecha y total vendido</div><div class="grid2"><div><label>Fecha de venta</label><input type="date" id="saleDate"></div><div><label>Venta total ($)</label><input inputmode="numeric" type="number" min="0" id="saleTotal" placeholder="250000"></div></div>
+<label>Origen</label><select id="saleSource"><option value="manual">Venta manual</option><option value="cierre">Cierre de caja importado</option></select>
+<label>Referencia del cierre (si corresponde)</label><input id="saleRef" placeholder="Ej.: cierre 06-11 turno noche">
+<div class="fieldset-title">3 · ¿Cómo pagaron los clientes?</div><p class="hint">Escribe solo en los medios de pago que aparezcan en el cierre. Si no tienes el desglose, puedes completarlo después.</p><div class="grid2" id="paymentFields"></div><p class="hint" id="paymentSum">La suma de medios debe coincidir con la venta.</p>
+<details><summary>Otros conceptos del cierre</summary>
+<div class="grid2"><div><label>Pedidos</label><input id="saleOrders" type="number" min="0"></div><div><label>Deliverys</label><input id="saleDelivery" type="number" min="0"></div><div><label>Propinas ($)</label><input id="saleTips" type="number" min="0"></div><div><label>Efectivo contado ($)</label><input id="saleCash" type="number" min="0"></div><div><label>Gastos del cierre ($)</label><input id="saleCloseExpenses" type="number" min="0"></div><div><label>Retiros ($)</label><input id="saleWithdrawals" type="number" min="0"></div></div>
+<label>Observaciones / conceptos adicionales</label><textarea id="saleNotes" placeholder="Responsable, diferencia de caja, repartidores…"></textarea></details>
+<label>Fotografía o PDF del cierre (opcional)</label><input type="file" id="salePhoto" accept="image/*,application/pdf">
+<p class="hint">Si tu navegador permite reconocer texto en imágenes, se sugerirán las cifras al elegir una foto. En iPhone también puedes copiar el texto de la foto con Texto en Vivo y pegarlo aquí. Verifica todas las cantidades.</p>
+<details><summary>🧾 Pegar o revisar el texto de un cierre</summary><label>Texto del cierre</label><textarea id="saleRawText" placeholder="Efectivo $120.000&#10;Transferencia $85.000&#10;Débito $145.000&#10;Venta total $350.000"></textarea><button type="button" class="soft" id="interpretClose">Interpretar y completar cifras</button><p id="closeReadResult" class="hint"></p></details>
+<div class="fieldset-title">4 · Confirmar</div><p class="steps">Revisa negocio, fecha, total y medios de pago. No se modificarán los cierres existentes de Uki.</p><button class="primary" id="saveSale">✓ Guardar venta o cierre</button></div></section>
+<section class="view" id="v-gastos" hidden><div class="card"><div class="eyebrow">GASTOS Y COMPRAS</div><h2>💸 Registrar un gasto</h2><p class="steps">Elige la razón social y el negocio que paga el gasto. Puedes adjuntar su factura aquí mismo.</p>
+<label>Negocio</label><select id="expenseBiz"></select>
+<label>Razón social que paga el gasto</label><select id="expenseRazon"><option value="">Selecciona razón social</option></select>
+<label>Sucursal</label><select id="expenseBranch"></select>
+<div class="grid2"><div><label>Fecha</label><input type="date" id="expenseDate"></div><div><label>Monto ($)</label><input type="number" min="0" id="expenseAmount"></div></div>
+<label>Tipo</label><select id="expenseType"><option value="gasto">Gasto operativo</option><option value="compra">Compra de mercadería</option><option value="retiro">Retiro del dueño</option><option value="ingreso_extra">Ingreso extraordinario</option></select>
+<label>Categoría</label><select id="expenseCategory"><option>Mercadería</option><option>Arriendo</option><option>Sueldos</option><option>Agua</option><option>Luz</option><option>Gas</option><option>Internet</option><option>Servicios</option><option>Delivery</option><option>Mantención</option><option>Otros</option></select>
+<label>Proveedor (opcional)</label><input id="expenseVendor"><label>Concepto</label><textarea id="expenseConcept"></textarea>
+<label style="display:flex;align-items:center;gap:10px"><input type="checkbox" id="expensePending" style="width:20px;min-height:20px;margin:0"> Aún está pendiente de pago</label>
+<label>Vencimiento (si aún está pendiente)</label><input id="expenseDue" type="date"><label>Adjuntar factura o comprobante (opcional)</label><input id="expensePhoto" type="file" accept="image/*,application/pdf">
+<button class="primary" id="saveExpense">Guardar gasto o compra</button></div></section>
+<section class="view" id="v-facturas" hidden>
+<div class="card" id="purchaseNavigation">
+<div class="eyebrow">ADMINISTRACIÓN GENERAL DE COMPRAS</div>
+<h2>Compras de todos los negocios</h2>
+<p class="hint">Primero verás el historial completo. Registra una nueva compra solo cuando lo necesites.</p>
+<div class="row" style="gap:8px;flex-wrap:wrap">
+<button class="primary" id="showPurchaseHistory" type="button">📖 Ver historial</button>
+<button class="soft" id="showPurchaseForm" type="button">＋ Registrar compra</button></div>
+</div>
+<div class="card" id="purchaseEntry" hidden>
+<div class="eyebrow">CONTROL POR RAZÓN SOCIAL</div><h2>🧾 Registrar una factura de compra</h2>
+<p class="doc-control-intro">Cada compra pertenece a una <strong>razón social</strong> (la empresa que figura en la factura) y puede asociarse a un negocio y una sucursal.</p>
+<p class="steps">1. Sube una factura. 2. Revisa los artículos, cantidades y montos. 3. Confirma para sumarlo al historial.</p>
+<p class="hint">La foto queda como respaldo de una compra. No modifica el inventario ni la disponibilidad de la carta.</p>
+<div class="fieldset-title">1 · Empresa compradora y destino</div>
+<p class="hint">La razón social es el nombre legal de la empresa en la factura; <strong>no es un permiso ni otro código</strong>. Si ya existe, selecciónala y el sistema la vinculará automáticamente.</p>
+<label>Negocio (marca)</label><select id="docBiz"></select>
+<label>Empresa que aparece como compradora (razón social)</label><select id="docRazon"><option value="">Selecciona la razón social</option></select>
+<p id="docRazonHelp" class="hint">Selecciona la empresa legal a nombre de la cual está emitida esta factura.</p>
+<p id="docBuyerInfo" class="hint"></p>
+<label>Sucursal</label><select id="docBranch"></select>
+<details><summary>＋ ¿La empresa compradora no aparece? Agrégala aquí</summary>
+<p class="hint">Si la empresa aún no figura en la lista, escribe su nombre y RUT una sola vez. No necesitas dar otra autorización para comprar.</p>
+<label>Nombre legal de la razón social</label><input id="legalNewName" placeholder="Ej.: Inversiones Romo SpA">
+<label>RUT (opcional, recomendable)</label><input id="legalNewRut" placeholder="78.165.233-4" autocomplete="off">
+<button class="soft" id="legalAddButton" type="button">Agregar razón social al negocio</button>
+<div class="fieldset-title">Vincular una razón social existente</div>
+<label>Razón social</label><select id="legalLinkReason"></select>
+<label>Negocio que la utilizará</label><select id="legalLinkBiz"></select>
+<button class="soft" id="legalLinkButton" type="button">Vincular al negocio</button>
+<p id="legalStatus" class="hint"></p>
+<div class="fieldset-title">Razones sociales registradas</div><div id="legalReasonsList"></div>
+</details>
+<div class="fieldset-title">2 · ¿Para qué local es esta compra?</div>
+<p class="hint">El importe de la factura se registra una sola vez, aunque se utilice en dos locales.</p>
+<label>Destino del gasto</label>
+<select id="purchaseAllocationMode">
+<option value="general">Administración general (sin repartir)</option>
+<option value="uno">Un local</option>
+<option value="dos">Dos locales (compra compartida)</option>
+</select>
+<div id="purchaseAllocationControls" hidden>
+<div class="purchase-filters">
+<div class="wide"><label>Local 1</label><select id="purchaseLocation1"></select></div>
+<div><label>Importe para local 1 ($)</label><input id="purchaseAmount1" inputmode="numeric" type="number" min="1"></div>
+<div class="wide" id="purchaseSecondLocationRow" hidden><label>Local 2</label><select id="purchaseLocation2"></select></div>
+<div id="purchaseSecondAmountRow" hidden><label>Importe para local 2 ($)</label><input id="purchaseAmount2" inputmode="numeric" type="number" min="1"></div>
+</div><p id="purchaseAllocationStatus" class="hint">Los importes de los locales deben sumar el total de la factura.</p></div>
+<div class="fieldset-title">3 · Foto o PDF de la factura</div>
+<label>Subir foto desde el iPhone o elegir PDF</label><input id="docFile" type="file" accept="image/jpeg,image/png,image/webp,application/pdf">
+<button class="soft" id="readInvoice" type="button">📷 Leer datos de la factura</button>
+<p id="invoiceOCRStatus" class="hint" role="status" aria-live="polite">El lector intenta reconocer proveedor, folio, total, IVA y productos. Si el PDF está escaneado, intentará una segunda lectura. Siempre revisa el resultado antes de guardar.</p>
+<details><summary>Ver texto reconocido y corregirlo, si hace falta</summary>
+<label>Texto extraído del PDF o foto (también puedes pegar texto desde Fotos)</label><textarea id="docRawText" rows="4" placeholder="Pega aquí el texto de la factura…"></textarea>
+<button class="soft" id="parseInvoiceText" type="button">Revisar texto pegado</button>
+</details>
+<div class="fieldset-title">4 · Revisa los datos encontrados</div>
+<div class="grid2"><div><label>Tipo</label><select id="docType"><option value="factura">Factura</option><option value="boleta">Boleta</option><option value="comprobante">Comprobante</option></select></div><div><label>Fecha de compra</label><input id="docDate" type="date"></div></div>
+<label>¿A quién se compró? · Proveedor</label><input id="docVendor" placeholder="Nombre del proveedor" autocomplete="off">
+<label>Número de factura o boleta</label><input id="docNumber" placeholder="Ej.: 15584">
+<div class="grid2"><div><label>Total compra ($)</label><input id="docTotal" type="number" min="0" inputmode="numeric" placeholder="Ej.: 45000"></div>
+<div><label>Estado del pago</label><select id="docPayment"><option value="pagado">Ya está pagada</option><option value="pendiente">Pendiente de pago</option></select></div></div>
+<details><summary>Ver / ajustar neto, IVA y otros cargos</summary>
+<div class="grid2"><div><label>Neto ($)</label><input id="docNet" type="number" min="0" inputmode="numeric" placeholder="0"></div>
+<div><label>IVA ($)</label><input id="docTax" type="number" min="0" inputmode="numeric" placeholder="0"></div>
+<div><label>Otros cargos ($)</label><input id="docOther" type="number" min="0" inputmode="numeric" placeholder="0"></div>
+<div><label>Descuentos ($)</label><input id="docDiscount" type="number" min="0" inputmode="numeric" placeholder="0"></div></div></details>
+<div class="fieldset-title">5 · Productos de la factura</div>
+<p class="hint">Los productos aparecen como una lista compacta. Toca uno para corregir su nombre, cantidad, unidad o precio.</p>
+<p class="hint">Cada producto quedará con cantidad, unidad y precio. Si no se reconocieron los artículos, puedes agregarlos manualmente.</p>
+<div id="invoiceItems"></div>
+<button type="button" class="soft" id="invoiceAddItem">＋ Agregar producto</button>
+<p class="steps" id="invoiceItemsSum">Productos detallados: $0</p>
+<div class="fieldset-title">6 · Confirmar compra</div>
+<p class="hint" id="invoiceCheck">Verifica los datos antes de guardar. Ningún importe se contabiliza hasta tu confirmación.</p>
+<button class="primary" id="saveDoc">✓ Confirmar y registrar compra</button>
+</div>
+<div class="card">
+<div class="eyebrow">HISTORIAL FINANCIERO</div><h2>📚 Compras por razón social</h2>
+<p class="hint">Este historial reúne compras de todas las marcas y sucursales. No necesitas elegir un negocio para verlas.</p>
+<label for="histSearch">Buscar en todas las compras</label>
+<input id="histSearch" type="search" placeholder="Proveedor, producto, factura o razón social">
+<button type="button" id="histSearchButton" class="soft">🔎 Buscar</button>
+<details id="purchaseAdvanced"><summary>Filtrar por empresa, local o fechas (opcional)</summary><div class="purchase-filters">
+<div class="wide"><label>Razón social</label><select id="histRazon"><option value="todos">Todas las razones sociales</option></select></div>
+<div><label>Negocio</label><select id="histBiz"><option value="">Todos los negocios</option></select></div>
+<div><label>Sucursal</label><select id="histBranch"><option value="">Todas las sucursales</option></select></div>
+<div><label>Desde</label><input id="histFrom" type="date"></div>
+<div><label>Hasta</label><input id="histTo" type="date"></div>
+</div></details><p id="historyStatus" class="hint"></p>
+<div class="metrics">
+<div class="metric"><small>Total de compras</small><b id="purchasesTotal">$0</b></div>
+<div class="metric"><small>Pendiente de pago</small><b id="purchasesDue">$0</b></div>
+<div class="metric"><small>Facturas</small><b id="purchasesCount">0</b></div>
+<div class="metric"><small>Proveedores</small><b id="purchasesSuppliers">0</b></div>
+</div>
+<p class="hint">Facturas sin clasificar: <strong id="purchasesNoReason">0</strong>. Puedes asignarles razón social desde su detalle.</p>
+<details open><summary>🏢 Totales por razón social</summary><div id="invoiceLegalTotals"></div></details>
+<details><summary>🏪 Ver compras por local (sin duplicar facturas)</summary><div id="invoiceLocalTotals"></div></details>
+<details><summary>🧾 Totales por proveedor</summary><div id="invoiceVendors"></div></details>
+<details><summary>📦 Productos más comprados</summary><div id="invoiceProducts"></div></details>
+<details open><summary>📖 Todas las facturas registradas</summary><div id="invoicePurchaseList"></div></details>
+<details><summary>📎 Fotografías y documentos guardados</summary><div id="docList"></div></details>
+</div></section>
+<section class="view" id="v-negocios" hidden><div class="card"><div class="eyebrow">ORGANIZACIÓN</div><h2>🏪 Mis negocios y locales</h2><p class="steps">Aquí puedes agregar más negocios, sucursales y costos de sus productos.</p><div id="businessList"></div>
+<details><summary>＋ Agregar negocio</summary><label>Nombre</label><input id="newBizName" placeholder="Ej.: Crepe Pop"><label>Razón social de referencia (opcional)</label><input id="newBizReason"><p class="hint">Para el control contable, registra y vincula la razón social desde Facturas.</p><button class="primary" id="newBiz">Crear negocio</button></details>
+<details><summary>＋ Agregar sucursal</summary><label>Negocio</label><select id="newBranchBiz"></select><label>Nombre de sucursal</label><input id="newBranchName" placeholder="Ej.: La Serena"><button class="primary" id="newBranch">Crear sucursal</button></details></div>
+<div class="card"><h2>Costos por producto</h2><p class="hint">Para comenzar a calcular márgenes. Los costos no se descuentan automáticamente de las ventas hasta conciliar inventario y compras.</p>
+<label>Negocio</label><select id="costBiz"></select><label>Producto</label><input id="costName" placeholder="Ej.: 24 piezas"><div class="grid2"><div><label>Precio de venta ($)</label><input id="costPrice" type="number" min="0"></div><div><label>Costo estimado ($)</label><input id="costAmount" type="number" min="0"></div></div>
+<label>Detalle de ingredientes</label><textarea id="costDescription"></textarea><button class="primary" id="saveCost">Guardar costo</button>
+<div id="costList"></div></div></section>
+</section>
+<footer>Mi Administración · Acceso exclusivo de dueños</footer>
+</main><nav id="tabs" hidden><button data-tab="resumen" class="active"><i>⌂</i>Inicio</button><button data-tab="ventas"><i>＄</i>Ventas</button><button data-tab="gastos"><i>▣</i>Gastos</button><button data-tab="facturas"><i>▥</i>Compras</button><button data-tab="negocios"><i>◫</i>Negocios</button></nav>
+<script type="module">
+import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
+import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
+import {crearControlCompras} from "./mi-administracion-compras.js?v=general-v5";
+import {unirVentasDuenos} from "./uki-duenos-ventas-unificadas-qa.mjs";
+const app=initializeApp({apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",appId:"1:1070481165758:web:b8f0f9ff40caf5b8ac7def"});
+const auth=getAuth(app),$=id=>document.getElementById(id);
+let cierresConfirmadosUki=[],errorConsultaCierresUki='';
+function mostrarVentasFinancieras(){
+ const host=$('ukiOwnerFinancierasLista');host.replaceChildren();
+ const data=unirVentasDuenos({
+  movimientos:transactions,cierres:cierresConfirmadosUki,
+  desde:value('from'),hasta:value('to'),negocio_id:currentBiz(),
+  sucursal_id:currentBranch(),razon_social_id:value('scopeRazon'),
+  negocios:businesses,sucursales:branches
+ });
+ const linea=(texto,clase='hint')=>{
+  const el=document.createElement('p');el.className=clase;el.textContent=texto;host.append(el);
+ };
+ linea(data.manuales+' ventas registradas · '+data.cierresConfirmados+
+  ' cierres finales · '+data.coincidencias+' coincidencias verificadas.');
+ linea('Los importes de ventas manuales y cierres se muestran juntos, pero NO se suman dos veces.');
+ if(data.conflictos)linea(data.conflictos+' referencia(s) con importes distintos. Revisar conciliación.');
+ if(errorConsultaCierresUki)linea(errorConsultaCierresUki+' Las ventas manuales siguen disponibles.');
+ if(!data.items.length)linea('Sin ventas para estas fechas y filtros.');
+ for(const item of data.items.slice(0,250)){
+  const box=document.createElement('div');box.className='line';
+  const head=document.createElement('strong');
+  head.textContent=item.fecha+' · '+pesos(item.importe)+' · '+item.origen;
+  const desc=document.createElement('p');desc.className='hint';
+  desc.textContent=item.nombre+' · '+item.sucursal+(item.ref?' · Ref. '+item.ref:'');
+  box.append(head,desc);
+  if(item.tipo==='cierre'){
+   const detalles=document.createElement('p');detalles.className='hint';
+   detalles.textContent='Gastos: '+pesos(item.gastos)+' · Delivery por pagar: '+
+    pesos(item.delivery)+' · Propinas: '+pesos(item.propinas)+' · Retiros: '+pesos(item.retiros);
+   box.append(detalles);
+   const medios=Object.entries(item.medios||{}).filter(([,v])=>Number(v)>0);
+   if(medios.length){
+    const p=document.createElement('p');p.className='hint';
+    p.textContent=medios.map(([k,v])=>k+': '+pesos(v)).join(' · ');
+    box.append(p);
+   }
+  }else if(item.estado==='anulado'){
+   const p=document.createElement('p');p.className='hint';
+   p.textContent='Anulado, no suma a los movimientos';box.append(p);
+  }
+  host.append(box);
+ }
+ if(data.items.length>250)linea('Mostrando 250 registros. Cambia las fechas para ver otros.');
+}
+// Solo lectura QA: cierres operativos confirmados, sin modificar movimientos manuales.
+const UKI_DUENOS_CIERRES_URL='https://uki-sushi-inventario.vercel.app/api/mi-administracion-live';
+let ukiCierresQAConsulta=0;
+async function cargarCierresUki(desde,hasta){
+ const seq=++ukiCierresQAConsulta,arica=$('ukiAutoArica'),serena=$('ukiAutoSerena');
+ if(!session||!auth.currentUser)return;
+ arica.textContent=serena.textContent='Consultando cierres…';
+ errorConsultaCierresUki='';cierresConfirmadosUki=[];
+ try{
+  const token=await auth.currentUser.getIdToken();
+  const r=await fetch(UKI_DUENOS_CIERRES_URL,{method:'POST',cache:'no-store',
+   headers:{'Content-Type':'application/json',Authorization:'Bearer '+token,'X-Fin-Session':session},
+   body:JSON.stringify({action:'listar_cierres',branch:'todos',desde,hasta})});
+  const payload=await r.json().catch(()=>({}));
+  if(!r.ok||payload.ok!==true||!Array.isArray(payload.cierres))
+   throw Error('Cierres no disponibles');
+  if(seq!==ukiCierresQAConsulta||!session)return;
+  const seen=new Set();
+  cierresConfirmadosUki=payload.cierres.filter(c=>{
+   if(!['arica','serena'].includes(c?.branch)||typeof c.turno_ref!=='string')return false;
+   const key=c.branch+'|'+c.turno_ref;
+   if(seen.has(key))return false;seen.add(key);return true;
+  });
+  for(const [branch,el] of [['arica',arica],['serena',serena]]){
+   const rows=cierresConfirmadosUki.filter(c=>c.branch===branch);
+   const total=rows.reduce((n,c)=>n+Number(c.venta_total||0),0);
+   el.textContent=rows.length?pesos(total)+' · '+rows.length+' cierre(s) confirmado(s)':
+    'Sin cierres confirmados en el período';
+  }
+ }catch(e){
+  if(seq!==ukiCierresQAConsulta)return;
+  arica.textContent=serena.textContent='Sin cierres confirmados en estas fechas';
+  errorConsultaCierresUki='Los cierres automáticos no están disponibles. Consulta después.';
+  cierresConfirmadosUki=[];
+ }
+ if(seq===ukiCierresQAConsulta)mostrarVentasFinancieras();
+}
+
+let session="",businesses=[],branches=[],razones=[],vinculos=[],transactions=[],docs=[],tab='resumen';
+const AM=['Efectivo','Transferencia','Débito','Crédito','Edenred','Junaeb','Uber','Rappi','PedidosYa','Otro'];
+const pesos=n=>'$'+Number(n||0).toLocaleString('es-CL',{maximumFractionDigits:0});
+const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const today=()=>{const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));return parts.year+'-'+parts.month+'-'+parts.day;};
+const notify=(msg,type='')=>{$('notice').textContent=msg;$('notice').className=type;};
+async function api(action,fields={}){
+ if(!auth.currentUser)throw Error('Primero inicia Google.');
+ const bearer=await auth.currentUser.getIdToken();
+ const response=await fetch('https://uki-sushi-inventario.vercel.app/api/mi-administracion-live',{method:'POST',cache:'no-store',credentials:'omit',
+  headers:{Authorization:'Bearer '+bearer,'Content-Type':'application/json','X-Fin-Session':session},
+  body:JSON.stringify({action,...fields})});
+ const data=await response.json().catch(()=>({error:'Respuesta inválida del servidor.'}));
+ if(!response.ok||!data.ok)throw Error(data.error||'No se pudo completar.');
+ return data;
+}
+const value=id=>$(id).value,amount=id=>{const n=Number(value(id)||0);if(!Number.isSafeInteger(n)||n<0||n>1000000000)throw Error('Importe inválido.');return n;};
+const selected=(id,label,arr)=>{const t=$(id);t.replaceChildren(new Option(label,''));arr.forEach(x=>t.add(new Option(x.nombre,x.id)));};
+function branchesFor(b){return branches.filter(x=>x.negocio_id===b);}
+function chooseBranch(id,b,label='Sin sucursal específica'){selected(id,label,branchesFor(b));}
+function businessName(id){return businesses.find(b=>b.id===id)?.nombre||'Negocio';}
+function reasonName(id){return razones.find(r=>r.id===id)?.nombre||'Sin clasificar';}
+function optionsForReason(id,biz){
+ const target=$(id),current=target.value;
+ target.replaceChildren(new Option('Selecciona razón social',''));
+ razones.filter(r=>vinculos.some(v=>v.negocio_id===biz&&v.razon_social_id===r.id))
+  .forEach(r=>target.add(new Option(r.nombre+(r.rut?' · '+r.rut:''),r.id)));
+ if([...target.options].some(o=>o.value===current))target.value=current;
+}
+function scopeReasons(){
+ const target=$('scopeRazon'),current=target.value;
+ target.replaceChildren(new Option('Todas las razones sociales','todos'),new Option('Sin clasificar','sin_clasificar'));
+ razones.forEach(r=>target.add(new Option(r.nombre+(r.rut?' · '+r.rut:''),r.id)));
+ if([...target.options].some(o=>o.value===current))target.value=current;
+}
+function branchName(id){return branches.find(s=>s.id===id)?.nombre||'General';}
+function currentBiz(){return value('scopeBusiness');}
+function currentBranch(){return value('scopeBranch');}
+function renderBusinessList(){
+ $('businessList').innerHTML=businesses.map(b=>{
+  const assoc=razones.filter(r=>vinculos.some(v=>v.negocio_id===b.id&&v.razon_social_id===r.id));
+  return '<div class="line"><b>'+esc(b.nombre)+'</b>'+
+   '<p class="hint">Razones sociales: '+esc(assoc.map(r=>r.nombre).join(', ')||'sin vincular')+'</p>'+
+   '<p class="hint">Sucursales: '+esc(branchesFor(b.id).map(x=>x.nombre).join(', ')||'sin definir')+'</p></div>';
+ }).join('')||'<p class="muted">Agrega tu primer negocio.</p>';
+}
+function options(){
+ selected('scopeBusiness','Todos los negocios',businesses);
+ for(const id of ['saleBiz','expenseBiz','docBiz','newBranchBiz','costBiz'])selected(id,'Selecciona negocio',businesses);
+ ['saleBiz','expenseBiz','docBiz'].forEach((id,i)=>{
+ const branchId=['saleBranch','expenseBranch','docBranch'][i];
+ $(id).onchange=()=>{
+  chooseBranch(branchId,value(id));
+  if(id==='saleBiz')optionsForReason('saleRazon',value(id));
+  if(id==='expenseBiz')optionsForReason('expenseRazon',value(id));
+ };
+});
+ $('scopeBusiness').onchange=()=>{chooseBranch('scopeBranch',currentBiz(),'Todas las sucursales');void refresh();};
+ $('scopeBranch').onchange=()=>void refresh();
+ $('scopeRazon').onchange=()=>void refresh();
+ for(const id of ['saleBiz','expenseBiz','docBiz']){if(businesses.length){$(id).value=businesses[0].id;$(id).onchange();}}
+ if(businesses.length){$('costBiz').value=businesses[0].id;$('newBranchBiz').value=businesses[0].id;}
+ chooseBranch('scopeBranch','','Todas las sucursales');
+ renderBusinessList();
+}
+async function loadBusinesses(){
+ const r=await api('negocios');businesses=r.negocios||[];branches=r.sucursales||[];
+ options();$('scopeBusiness').value='';$('scopeBranch').value='';
+ const legal=await controlCompras.cargarRazones();
+ razones=legal.razones||[];vinculos=legal.vinculos||[];
+ renderBusinessList();scopeReasons();$('scopeRazon').value='todos';
+ optionsForReason('saleRazon',value('saleBiz'));
+ optionsForReason('expenseRazon',value('expenseBiz'));
+ $('scopeBusiness').onchange();
+}
+const payFields=$('paymentFields');
+payFields.innerHTML=AM.map((m,i)=>'<div><label for="pay'+i+'">'+esc(m)+'</label><input id="pay'+i+'" type="number" inputmode="numeric" min="0" step="1" placeholder="0"></div>').join('');
+function payments(){
+ const result={};AM.forEach((m,i)=>{const v=amount('pay'+i);if(v)result[m]=v;});
+ return result;
+}
+function updateSum(){
+ try{$('paymentSum').textContent='Desglose de pagos: '+pesos(Object.values(payments()).reduce((a,b)=>a+b,0))+' de '+pesos(amount('saleTotal'));}
+ catch(e){$('paymentSum').textContent=e.message}
+}
+payFields.addEventListener('input',updateSum);$('saleTotal').addEventListener('input',updateSum);
+
+const norm=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const pesosNumero=x=>Number(String(x||'').replace(/[^0-9]/g,''));
+function interpretarTexto(raw){
+ const lines=String(raw||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+ const encontrado={medios:{},total:null,campos:{},fecha:null};
+ const rules=[
+  ['Efectivo',/\befectivo\b/],['Transferencia',/\btransferencia(s)?\b/],['Débito',/\bdebito\b/],
+  ['Crédito',/\bcredito\b/],['Edenred',/\bedenred\b/],['Junaeb',/\bjunaeb\b/],
+  ['Uber',/\buber\b/],['Rappi',/\brappi\b/],['PedidosYa',/\bpedidos\s*ya\b/]
+ ];
+ for(let i=0;i<lines.length;i++){
+  const line=norm(lines[i]);
+  const date=lines[i].match(/\b(\d{1,2})[\/-](\d{1,2})[\/-](20\d{2})\b/);
+  if(date){const f=date[3]+'-'+date[2].padStart(2,'0')+'-'+date[1].padStart(2,'0');
+   if(!Number.isNaN(Date.parse(f)))encontrado.fecha=f;}
+  const match=line.match(/(?:^|\s|\$)(\d[\d.,\s]{0,17})\s*$/);
+  const v=match?pesosNumero(match[1]):null;
+  if(v===null||!Number.isSafeInteger(v))continue;
+  if(/(?:venta total|total venta|total del dia|total del cierre|total general)\b/.test(line)){encontrado.total=v;continue}
+  if(/efectivo (?:contado|final|que quedo|en caja)/.test(line)){encontrado.campos.saleCash=v;continue}
+  if(/propina/.test(line)){encontrado.campos.saleTips=v;continue}
+  if(/retiro/.test(line)){encontrado.campos.saleWithdrawals=v;continue}
+  if(/gasto/.test(line)){encontrado.campos.saleCloseExpenses=v;continue}
+  if(/cantidad de pedido|total de pedido|pedidos? (?:realizados|del dia|totales)/.test(line)){encontrado.campos.saleOrders=v;continue}
+  if(/cantidad de delivery|deliverys? (?:realizados|del dia)/.test(line)){encontrado.campos.saleDelivery=v;continue}
+  const medio=rules.find(([,re])=>re.test(line));
+  if(medio)encontrado.medios[medio[0]]=v;
+ }
+ if(encontrado.total===null){
+  const sum=Object.values(encontrado.medios).reduce((a,b)=>a+b,0);
+  if(sum)encontrado.total=sum;
+ }
+ return encontrado;
+}
+function completarDesdeTexto(txt){
+ const d=interpretarTexto(txt);let count=0;
+ if(d.fecha){$('saleDate').value=d.fecha;count++}
+ if(d.total!==null){$('saleTotal').value=d.total;count++}
+ for(const [k,v]of Object.entries(d.medios)){const i=AM.indexOf(k);if(i>=0){$('pay'+i).value=v;count++}}
+ for(const [k,v]of Object.entries(d.campos)){if($(k)){$(k).value=v;count++}}
+ updateSum();
+ $('closeReadResult').textContent=count?count+' datos sugeridos. Revísalos antes de guardar.':'No se reconocieron conceptos. Ingresa las cifras manualmente.';
+ return count;
+}
+$('interpretClose').onclick=()=>completarDesdeTexto($('saleRawText').value);
+$('salePhoto').addEventListener('change',async()=>{
+ const file=$('salePhoto').files[0];
+ if(!file||!file.type.startsWith('image/'))return;
+ if(typeof window.TextDetector!=='function'){
+  $('closeReadResult').textContent='Este Safari no tiene reconocimiento de texto disponible para esta página. Puedes usar Texto en Vivo en Fotos y pegarlo arriba.';
+  return;
+ }
+ try{
+  $('closeReadResult').textContent='Reconociendo texto localmente…';
+  const image=await createImageBitmap(file),blocks=await new window.TextDetector().detect(image);
+  image.close?.();
+  $('saleRawText').value=blocks.map(x=>x.rawValue).join('\n');
+  completarDesdeTexto($('saleRawText').value);
+ }catch(e){$('closeReadResult').textContent='No se pudo leer la foto automáticamente. Puedes completar los campos manualmente.'}
+});
+
+async function fileData(file){
+ if(!file)throw Error('Selecciona una foto o PDF.');
+ if(!['image/jpeg','image/png','image/webp','application/pdf'].includes(file.type))throw Error('Solo fotos JPG, PNG, WEBP y PDF.');
+ let blob=file;
+ if(file.type.startsWith('image/')){
+  const img=await createImageBitmap(file);
+  const scale=Math.min(1,1400/Math.max(img.width,img.height));
+  const cv=document.createElement('canvas');cv.width=Math.max(1,Math.round(img.width*scale));cv.height=Math.max(1,Math.round(img.height*scale));
+  cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
+  blob=await new Promise(resolve=>cv.toBlob(resolve,'image/jpeg',0.74));
+  img.close?.();
+ }
+ if(!blob||blob.size>1700000)throw Error('Archivo demasiado grande. Comprime el PDF o usa una foto más pequeña.');
+ const b64=await new Promise((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(String(fr.result).split(',')[1]);fr.onerror=()=>reject(Error('No se pudo leer el archivo.'));fr.readAsDataURL(blob)});
+ return {nombre:file.name.slice(0,140)||'comprobante',mime:blob.type,base64:b64};
+}
+async function upload(file,b,s,kind,fecha,linked,proveedor){
+ if(!file)return;
+ const data=await fileData(file);
+ return api('guardar_documento',{...data,negocio_id:b,sucursal_id:s||null,tipo:kind,fecha_documento:fecha,movimiento_id:linked||null,proveedor:proveedor||''});
+}
+function syncSelectedBusiness(name){
+ const chosen=currentBiz(),branch=currentBranch();
+ const map={ventas:['saleBiz','saleBranch'],gastos:['expenseBiz','expenseBranch'],facturas:['docBiz','docBranch']};
+ const ids=map[name];
+ if(!ids||!chosen||!businesses.some(b=>b.id===chosen))return;
+ $(ids[0]).value=chosen;chooseBranch(ids[1],chosen);
+ if(branch&&branchesFor(chosen).some(s=>s.id===branch))$(ids[1]).value=branch;
+}
+function vistaCompras(modo,desplazar=true){
+ const form=modo==='registrar';
+ $('purchaseEntry').hidden=!form;
+ $('showPurchaseForm').classList.toggle('primary',form);
+ $('showPurchaseHistory').classList.toggle('primary',!form);
+ if(desplazar)(form?$('purchaseEntry'):$('purchaseNavigation')).scrollIntoView({behavior:'smooth',block:'start'});
+}
+function switchTab(name){
+ tab=name;
+ for(const v of document.querySelectorAll('.view'))v.hidden=v.id!=='v-'+name;
+ $('filterCard').hidden=!['resumen','negocios'].includes(name);
+ for(const btn of document.querySelectorAll('[data-tab]'))btn.classList.toggle('active',btn.dataset.tab===name);
+ syncSelectedBusiness(name);
+ window.scrollTo({top:0,behavior:'smooth'});
+ if(name==='facturas'){vistaCompras('historial',false);void loadDocs();}
+ if(name==='negocios')void loadCosts();
+}
+document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
+document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>switchTab(b.dataset.go));
+$('showPurchaseForm').onclick=()=>vistaCompras('registrar');
+$('showPurchaseHistory').onclick=()=>vistaCompras('historial');
+$('ukiGoTodasVentas').onclick=()=>{
+ $('scopeBusiness').value='';
+ chooseBranch('scopeBranch','','Todas las sucursales');
+ $('scopeRazon').value='todos';
+ const details=$('ukiOwnerListadoVentas');details.open=true;
+ void refresh();
+ details.scrollIntoView({behavior:'smooth',block:'start'});
+};
+for(const btn of document.querySelectorAll('[data-owner-branch]'))btn.onclick=()=>{
+ const target=btn.dataset.ownerBranch;
+ const uki=businesses.find(b=>/\buki\b/i.test(String(b.nombre||'')));
+ const branch=branches.find(b=>String(b.negocio_id)===String(uki?.id)&&
+  (target==='arica'?/arica|regimiento/i.test(b.nombre):/la serena|serena/i.test(b.nombre)));
+ if(!uki||!branch){
+  notify('Primero vincula las sucursales de Uki en Mis negocios.','error');return;
+ }
+ $('scopeBusiness').value=String(uki.id);
+ chooseBranch('scopeBranch',String(uki.id),'Todas las sucursales');
+ $('scopeBranch').value=String(branch.id);
+ $('scopeRazon').value='todos';
+ $('ukiOwnerListadoVentas').open=true;
+ void refresh();
+ $('ukiOwnerListadoVentas').scrollIntoView({behavior:'smooth',block:'start'});
+};
+$('goRecentMovements').onclick=()=>{
+ $('movimientosGeneral').scrollIntoView({behavior:'smooth',block:'start'});
+};
+function moneyRows(m){return Object.entries(m).filter(([k,v])=>Number(v)>0).map(([k,v])=>'<div class="line row"><span>'+esc(k)+'</span><b>'+pesos(v)+'</b></div>').join('')}
+function renderRows(){
+ $('recent').innerHTML=transactions.slice(0,35).map(t=>{
+  const choices=razones.filter(r=>vinculos.some(v=>v.negocio_id===t.negocio_id&&v.razon_social_id===r.id));
+  const reassign=t.estado!=='anulado'&&!(t.tipo==='compra'&&t.fuente==='factura');
+  return '<div class="line"><div class="row"><b>'+esc(t.tipo)+' · '+pesos(t.monto)+'</b><span>'+esc(String(t.fecha).slice(0,10))+'</span></div>'+
+   '<small>'+esc(reasonName(t.razon_social_id))+' · '+esc(businessName(t.negocio_id))+' · '+esc(branchName(t.sucursal_id))+
+   ' · '+esc(t.concepto||t.referencia||'Sin concepto')+'</small>'+
+   '<div class="hint">'+esc(t.estado)+(t.datos?.vence?' · vence '+esc(String(t.datos.vence).slice(0,10)):'')+'</div>'+
+   '<details><summary class="hint">Opciones del registro</summary>'+
+   (reassign?'<label>Razón social de este movimiento</label><select data-mov-select="'+esc(t.id)+'">'+
+     '<option value="">Selecciona razón social</option>'+
+     choices.map(r=>'<option value="'+esc(r.id)+'"'+(t.razon_social_id===r.id?' selected':'')+'>'+esc(r.nombre)+'</option>').join('')+
+     '</select><button class="soft" type="button" data-clasificar="'+esc(t.id)+'">Guardar razón social</button> ':'')+
+   (t.estado==='pendiente'&&['gasto','compra','retiro'].includes(t.tipo)?'<button type="button" data-pagado="'+esc(t.id)+'">Marcar pagado</button> ':'')+
+   (t.estado!=='anulado'?'<button type="button" data-anular="'+esc(t.id)+'">Anular (con confirmación)</button>':'')+
+   '</details></div>';
+ }).join('')||'<p class="muted">Aún no hay registros financieros.</p>';
+ $('recent').querySelectorAll('[data-clasificar]').forEach(b=>b.onclick=async()=>{
+  const select=$('recent').querySelector('[data-mov-select="'+b.dataset.clasificar+'"]');
+  if(!select?.value){notify('Selecciona primero una razón social.','error');return}
+  if(!confirm('¿Asignar este movimiento a la razón social elegida? El importe no cambiará.'))return;
+  try{await api('clasificar_movimiento',{id:b.dataset.clasificar,razon_social_id:select.value});await refresh();
+   notify('Movimiento clasificado sin modificar su importe.','success');}
+  catch(e){notify(e.message,'error')}
+ });
+ $('recent').querySelectorAll('[data-pagado]').forEach(b=>b.onclick=async()=>{
+  if(!confirm('¿Confirmas que esta cuenta fue PAGADA?'))return;
+  try{await api('marcar_pagado',{id:b.dataset.pagado,fecha_pago:today()});await refresh();notify('Pago registrado sin duplicar el gasto.','success');}
+  catch(e){notify(e.message,'error');}
+ });
+ $('recent').querySelectorAll('[data-anular]').forEach(b=>b.onclick=async()=>{
+  if(!confirm('¿Anular este registro? Se conservará en el historial como anulado y quedará evidencia.'))return;
+  try{await api('anular_movimiento',{id:b.dataset.anular});await refresh();notify('Registro anulado con auditoría.','success');}
+  catch(e){notify(e.message,'error');}
+ });
+}
+function renderPayments(rows){
+ const pagos={};
+ for(const p of rows||[])if(p.medio&&Number(p.total)>0)pagos[p.medio]=Number(p.total);
+ $('mediosReport').innerHTML=moneyRows(pagos)||'<p class="muted">No se ha registrado el desglose.</p>';
+}
+async function refresh(){
+ if(!session)return;
+ try{
+  notify('Actualizando información financiera…');
+  const params={negocio_id:currentBiz()||null,sucursal_id:currentBranch()||null,razon_social_id:value('scopeRazon')||'todos',desde:value('from'),hasta:value('to')};
+  const [s,l]=await Promise.all([api('resumen',params),api('listar_movimientos',params)]);
+  transactions=l.movimientos||[];
+  mostrarVentasFinancieras();
+  let ventas=0,gastos=0,pendientes=0;
+  for(const item of s.resumen||[]){
+   const n=Number(item.total||0);
+   if(item.tipo==='venta')ventas+=n;
+   if(['gasto','compra','costo_producto'].includes(item.tipo)){if(item.estado==='pendiente')pendientes+=n;else gastos+=n;}
+  }
+  $('m-ventas').textContent=pesos(ventas);$('m-gastos').textContent=pesos(gastos);
+  $('m-resultado').textContent=pesos(ventas-gastos);$('m-pendientes').textContent=pesos(pendientes);
+  renderRows();renderPayments(s.pagos);notify('Información privada actualizada.','success');
+  await cargarCierresUki(value('from'),value('to'));
+ }catch(e){notify(e.message,'error');if(/código privado|sesión|Introduce el código/.test(e.message))lock();}
+}
+async function loadDocs(){
+ try{await controlCompras.cargar()}
+ catch(e){notify(e.message,'error')}
+}
+async function openDoc(id){
+ try{
+  notify('Abriendo documento protegido…');
+  const r=await api('abrir_documento',{id});
+  const bin=atob(r.base64),bytes=Uint8Array.from(bin,c=>c.charCodeAt(0));
+  const url=URL.createObjectURL(new Blob([bytes],{type:r.mime}));
+  const link=document.createElement('a');link.href=url;link.download=r.nombre||'documento';document.body.append(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);notify('Documento preparado. Revisa las descargas.','success');
+ }catch(e){notify(e.message,'error')}
+}
+async function loadCosts(){
+ try{
+  const r=await api('costos',{negocio_id:currentBiz()||null});
+  $('costList').innerHTML=(r.productos||[]).slice(0,25).map(p=>'<div class="line"><b>'+esc(p.nombre)+'</b><p class="hint">Venta: '+pesos(p.precio_venta)+' · Costo estimado: '+pesos(p.costo_estimado)+' · Margen estimado: '+pesos(p.precio_venta-p.costo_estimado)+'</p></div>').join('');
+ }catch(e){notify(e.message,'error')}
+}
+async function safe(action,fn){
+ const btn=$(action);btn.disabled=true;notify('Guardando…');
+ try{const warning=await fn();if(warning===false){notify('Acción cancelada.');}else notify(warning||'Guardado correctamente en el entorno de pruebas.',warning?'error':'success');}
+ catch(e){notify(e.message,'error')}
+ finally{btn.disabled=false;}
+}
+
+$('saveSale').onclick=()=>safe('saveSale',async()=>{
+ const b=value('saleBiz'),s=value('saleBranch')||null,fecha=value('saleDate'),monto=amount('saleTotal'),medios=payments(),total=Object.values(medios).reduce((a,b)=>a+b,0),razon_social_id=value('saleRazon');
+ if(!b||!monto)throw Error('Selecciona negocio e ingresa la venta.');
+ if(!razon_social_id)throw Error('Selecciona a qué razón social pertenece la venta.');
+ if(total&&total!==monto)throw Error('Los medios de pago no cuadran con el total del cierre.');
+ if(!confirm('¿Guardar venta de '+pesos(monto)+' del '+fecha+' sin modificar la caja operativa?'))return false;
+ const fuente=value('saleSource'),datos={
+  pedidos:amount('saleOrders'),deliverys:amount('saleDelivery'),propinas:amount('saleTips'),
+  efectivo_contado:amount('saleCash'),gastos_cierre:amount('saleCloseExpenses'),
+  retiros:amount('saleWithdrawals'),observaciones:value('saleNotes')};
+ const payload={negocio_id:b,sucursal_id:s,razon_social_id,fecha,monto,medios,tipo:'venta',fuente,referencia:value('saleRef'),datos,concepto:fuente==='cierre'?'Cierre importado':'Venta manual'};
+ let r;
+ try{r=await api('guardar_movimiento',payload)}
+ catch(e){if(/Ya existen ventas ese día/.test(e.message)&&confirm(e.message+' ¿Guardar otra venta distinta?'))r=await api('guardar_movimiento',{...payload,confirmar_duplicado:true});else throw e}
+ let warning='';
+ try{await upload($('salePhoto').files[0],b,s,'cierre',fecha,r.id,'');}
+ catch(e){warning='La venta SÍ quedó guardada, pero la foto NO: '+e.message;}
+ $('saleTotal').value='';AM.forEach((_,i)=>$('pay'+i).value='');if(!warning)$('salePhoto').value='';
+ await refresh();return warning;
+});
+$('saveExpense').onclick=()=>safe('saveExpense',async()=>{
+ const b=value('expenseBiz'),s=value('expenseBranch')||null,fecha=value('expenseDate'),monto=amount('expenseAmount'),tipo=value('expenseType'),razon_social_id=value('expenseRazon');
+ if(!b||!monto)throw Error('Elige el negocio y el importe.');
+ if(!razon_social_id)throw Error('Selecciona la razón social que paga este gasto.');
+ const r=await api('guardar_movimiento',{negocio_id:b,sucursal_id:s,razon_social_id,fecha,monto,tipo,
+  categoria:value('expenseCategory'),proveedor:value('expenseVendor'),concepto:value('expenseConcept'),pendiente:$('expensePending').checked,datos:{vence:value('expenseDue')||null}});
+ let warning='';
+ try{await upload($('expensePhoto').files[0],b,s,'factura',fecha,r.id,value('expenseVendor'));}
+ catch(e){warning='El gasto SÍ quedó guardado, pero el comprobante NO: '+e.message;}
+ $('expenseAmount').value='';if(!warning)$('expensePhoto').value='';await refresh();return warning;
+});
+$('saveDoc').onclick=()=>safe('saveDoc',async()=>{
+ try{
+  $('invoiceCheck').textContent='Comprobando los datos de la factura…';
+  const out=await controlCompras.guardar();
+  $('invoiceCheck').textContent=out===false?'Acción cancelada.':'Compra confirmada. Revisa el historial abajo.';
+  return out;
+ }catch(e){
+  $('invoiceCheck').textContent='⚠ '+e.message;
+  $('invoiceCheck').scrollIntoView({behavior:'smooth',block:'center'});
+  throw e;
+ }
+});
+const controlCompras=crearControlCompras({
+ api,$,esc,fmt:pesos,dateNow:today,businessName,branchName,currentBiz,currentBranch,upload,safe,
+ branchesFor,negocios:()=>businesses
+});
+$('newBiz').onclick=()=>safe('newBiz',async()=>{await api('nuevo_negocio',{nombre:value('newBizName'),razon_social:value('newBizReason')});$('newBizName').value='';await loadBusinesses()});
+$('newBranch').onclick=()=>safe('newBranch',async()=>{await api('nueva_sucursal',{negocio_id:value('newBranchBiz'),nombre:value('newBranchName')});$('newBranchName').value='';await loadBusinesses()});
+$('saveCost').onclick=()=>safe('saveCost',async()=>{await api('guardar_costo',{negocio_id:value('costBiz'),nombre:value('costName'),precio_venta:amount('costPrice'),costo_estimado:amount('costAmount'),detalle:value('costDescription')});$('costName').value='';await loadCosts()});
+$('refresh').onclick=()=>void refresh();$('from').onchange=()=>void refresh();$('to').onchange=()=>void refresh();
+function show(id){for(const x of ['login','setup','unlock','app'])$(x).hidden=x!==id;$('tabs').hidden=id!=='app';$('exit').hidden=id==='login';}
+function lock(){session='';show('unlock');}
+async function checkState(){
+ if(!auth.currentUser){show('login');notify('Entra con tu cuenta autorizada.');return}
+ try{const r=await api('estado');if(r.autorizado){show('app');await loadBusinesses();return}
+ show(r.pin_configurado?'unlock':'setup');notify(r.pin_configurado?'Escribe el PIN privado.':'Configura el PIN de dueños una única vez.');
+ }catch(e){show('login');notify(e.message,'error')}
+}
+$('google').onclick=async()=>{
+ try{notify('Autenticando…');await signInWithPopup(auth,new GoogleAuthProvider());await checkState()}
+ catch(e){notify('No se pudo abrir Google: '+e.message,'error');$('loginhelp').textContent='Comprueba que el dominio de esta página esté autorizado en Firebase.'}
+};
+$('configure').onclick=()=>safe('configure',async()=>{
+ if(value('newpin')!==value('againpin'))throw Error('Los dos códigos deben coincidir.');
+ await api('configurar_pin',{pin:value('newpin'),clave_instalacion:value('setupkey')});
+ // La clave de instalación deja de ser necesaria y se quita del enlace solo
+ // DESPUÉS de que el servidor confirma el PIN; antes debe sobrevivir al acceso Google.
+ $('newpin').value='';$('againpin').value='';$('setupkey').value='';
+ if(/^#instalar=[0-9a-f]{64}$/i.test(location.hash))history.replaceState(null,'',location.pathname+location.search);
+ show('unlock');notify('PIN de dueños configurado.','success');
+});
+$('enter').onclick=()=>safe('enter',async()=>{
+ const r=await api('ingresar_pin',{pin:value('pin')});session=r.sesion;$('pin').value='';
+ show('app');await loadBusinesses();switchTab('resumen');
+});
+$('exit').onclick=async()=>{
+ if(session)try{await api('salir')}catch{}
+ session='';await signOut(auth);show('login');notify('Acceso privado cerrado.','success');
+};
+// El fragmento nunca viaja al servidor y se conserva mientras Google completa
+// su inicio de sesión (Safari puede recargar la página durante ese proceso).
+// Eliminamos el fragmento únicamente tras configurar el PIN correctamente.
+const setupLink=String(location.hash||'').match(/^#instalar=([0-9a-f]{64})$/i);
+if(setupLink){
+ $('setupkey').value=setupLink[1];
+ $('loginhelp').textContent='Enlace de instalación recibido. Configura tu PIN privado después de entrar con Google.';
+}
+['saleDate','expenseDate','docDate','to','histTo'].forEach(id=>$(id).value=today());
+$('from').value=today().slice(0,7)+'-01';
+$('histFrom').value=today().slice(0,7)+'-01';
+onAuthStateChanged(auth,user=>{
+ if(!user){session='';show('login');}
+ if(!session)void checkState();
+});
+</script></body></html>
