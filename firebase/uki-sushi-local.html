@@ -1702,44 +1702,102 @@ function ukiCierreConfirmadoPedido(p){
   .sort((a,b)=>fechaCierreMs(a)-fechaCierreMs(b))[0]||null;
 }
 function ukiFotoCorreccionPedido(p){
- const campos=["fechaISO","cliente","telefono","codigoCarta","codigoCliente","modalidad","estado",
+ const campos=["fechaISO","cliente","telefono","codigoCarta","codigoCliente","sucursalCarta","qrSolicitudes","modalidad","estado",
   "mesaReferencia","envio","kmRecorrido","medio","medioEnvio","pagado","pagosProductos","pagosEnvio",
   "productosPagadosOtroLocal","montoProductosOtroLocal","envioPagadoOtroLocal",
   "montoEnvioOtroLocal","localPagoExterno","productos","total","subtotal","propina",
-  "propinaModo","medioPropina","textoOriginal"];
+  "propinaModo","propinaPersonalizada","medioPropina","textoOriginal"];
  const foto={};
  for(const k of campos)foto[k]=p[k]===undefined?null:JSON.parse(JSON.stringify(p[k]));
  return foto;
 }
 // Auditoría de cambios por pedido (se muestran los registros existentes, sin alterar caja).
 function ukiCorreccionesTurnoUI(p){
+ // Solo vista de auditoría: no cambia productos, cobros, caja ni el pedido.
+ // Siempre visible para distinguir entre "sin cambios registrados" y una sección oculta.
  const cambios=Array.isArray(p?.correccionesTurno)?p.correccionesTurno:[];
- if(!cambios.length)return '';
- const medios=x=>[String(x?.medio||''),String(x?.medioEnvio||'')].filter(Boolean).join(' / ')||'Sin especificar';
- const items=x=>(Array.isArray(x?.productos)?x.productos:[]).map(i=>
-   (Number(i.cantidad)||0)+' × '+String(i.nombre||'Producto')+' ('+fmt((Number(i.cantidad)||0)*(Number(i.precioUnit)||0))+')'
- ).join(', ')||'Sin productos';
- return '<details class="inner-details"><summary>📝 Historial de ediciones · '+cambios.length+'</summary>'+
-  cambios.slice().reverse().map(a=>{
+ const titulo='<summary style="cursor:pointer;font-weight:800;color:#853d0b">'+
+  '📝 Historial de ediciones · '+cambios.length+
+  (cambios.length===1?' modificación':' modificaciones')+'</summary>';
+ const inicio='<details class="inner-details uki-historial-modificaciones" '+
+  'style="margin:12px 0;border:2px solid #e5a36a;background:#fffaf5;border-radius:12px;padding:13px"'+
+  (cambios.length?'':' open')+'>'+titulo;
+ if(!cambios.length)return inicio+
+  '<p class="muted" style="margin:10px 0 0">No hay modificaciones registradas para este pedido. '+
+  'Los cambios anteriores a la activación del historial no pueden reconstruirse automáticamente.</p></details>';
+ const campos=[
+  ['cliente','Nombre del cliente'],['telefono','WhatsApp'],['codigoCliente','Código del cliente'],
+  ['codigoCarta','Código de carta'],['fechaISO','Fecha del pedido'],
+  ['modalidad','Modalidad'],['mesaReferencia','Mesa'],
+  ['envio','Costo del delivery'],['kmRecorrido','Kilómetros'],
+  ['subtotal','Subtotal'],['total','Total'],['propina','Propina'],
+  ['medio','Medio de pago'],['medioEnvio','Medio de pago del delivery'],
+  ['pagado','Pago confirmado'],['estado','Estado del pedido'],
+  ['productos','Productos y armado'],['pagosProductos','Distribución pago productos'],
+  ['pagosEnvio','Distribución pago delivery'],
+  ['productosPagadosOtroLocal','Productos cobrados en otro local'],
+  ['montoProductosOtroLocal','Monto cobrado en otro local'],
+  ['envioPagadoOtroLocal','Delivery cobrado en otro local'],
+  ['montoEnvioOtroLocal','Monto delivery otro local'],
+  ['localPagoExterno','Local que recibió el cobro'],
+  ['propinaModo','Tipo de propina'],['medioPropina','Medio de pago de propina'],
+  ['textoOriginal','Texto u observaciones del pedido']
+ ];
+ const montos=new Set(['envio','subtotal','total','propina','montoProductosOtroLocal','montoEnvioOtroLocal']);
+ const booleanos=new Set(['pagado','productosPagadosOtroLocal','envioPagadoOtroLocal']);
+ const ver=(campo,valor)=>{
+  if(valor===undefined||valor===null||valor==='')return 'Sin registrar';
+  if(montos.has(campo))return fmt(Number(valor)||0);
+  if(booleanos.has(campo))return valor?'Sí':'No';
+  if(campo==='productos')return Array.isArray(valor)?
+   valor.map(x=>(Number(x.cantidad)||0)+' × '+String(x.nombre||'Producto')+
+    ' · '+fmt((Number(x.cantidad)||0)*(Number(x.precioUnit)||0))+
+    (x.detalle?' · '+String(x.detalle):'')).join(' | ')||'Sin productos':'Sin productos';
+  if(campo==='pagosProductos'||campo==='pagosEnvio'){
+   if(!Array.isArray(valor)||!valor.length)return 'Sin desglose';
+   return valor.map(x=>String(x.medio||'Sin medio')+': '+fmt(Number(x.monto)||0)).join(' · ');
+  }
+  if(Array.isArray(valor))return valor.map(x=>String(x)).join(', ')||'Sin registrar';
+  if(typeof valor==='object')return JSON.stringify(valor);
+  return String(valor);
+ };
+ const formatoFecha=fecha=>{
+  const d=new Date(fecha);
+  return Number.isNaN(d.getTime())?String(fecha||'Fecha no registrada'):
+   d.toLocaleString('es-CL',{timeZone:'America/Santiago',day:'2-digit',month:'2-digit',
+    year:'numeric',hour:'2-digit',minute:'2-digit'});
+ };
+ return inicio+
+  '<p class="muted" style="margin:8px 0 12px">Registro de lo que se cambió. No genera otra venta ni altera la caja.</p>'+
+  cambios.slice().reverse().map((a,i)=>{
    const antes=a.antes||{},despues=a.despues||{};
+   const filas=campos.filter(([campo])=>{
+    if(!(campo in antes)&&!(campo in despues))return false;
+    if(montos.has(campo))return Number(antes[campo]||0)!==Number(despues[campo]||0);
+    if(booleanos.has(campo))return Boolean(antes[campo])!==Boolean(despues[campo]);
+    return JSON.stringify(antes[campo]??null)!==JSON.stringify(despues[campo]??null);
+   }).map(([campo,nombre])=>
+    '<div style="margin:8px 0;padding:9px;background:#fff;border:1px solid #eee1d5;border-radius:9px">'+
+    '<b>✏️ '+esc(nombre)+'</b>'+
+    '<p class="muted" style="margin:4px 0">Antes: '+esc(ver(campo,antes[campo]))+'</p>'+
+    '<p style="margin:4px 0">Después: '+esc(ver(campo,despues[campo]))+'</p></div>'
+   );
    const regularizada=a.accion==='diferencia_regularizada';
    const aclaracion=a.accion==='pago_erroneo_no_cobrado'||a.accion==='devolucion_cancelacion_confirmada';
-   const formaAntes=medios(antes),formaDespues=medios(despues);
-   const productosAntes=items(antes),productosDespues=items(despues);
-   return '<div style="padding:11px 0;border-bottom:1px solid var(--line)">'+
-    '<p style="margin:0 0 5px"><b>Registró: '+esc(a.responsable||'Responsable no identificado en registro anterior')+'</b> · '+esc(a.fechaISO||'Fecha no registrada')+'</p>'+
-    (regularizada?'<p class="muted">Diferencia de caja regularizada: '+fmt(Math.abs(Number(a.importe)||0))+'</p>':
-     aclaracion?'<p class="muted">'+(a.accion==='pago_erroneo_no_cobrado'?
-      'Declaró que NO se recibió un cobro marcado por error: ':
-      'Confirmó devolución YA realizada: ')+fmt(Math.abs(Number(a.importe)||0))+
-      '</p><p class="muted">Motivo: '+esc(a.detalleMotivo||'Sin texto')+'</p>':
-     '<p class="muted">Total: '+fmt(antes.total||0)+' → '+fmt(despues.total||0)+'</p>'+
-     (formaAntes!==formaDespues?'<p class="muted">Forma de pago: '+esc(formaAntes)+' → '+esc(formaDespues)+'</p>':'')+
-     (antes.pagado!==despues.pagado?'<p class="muted">Estado del pago: '+(antes.pagado?'Confirmado':'Pendiente')+' → '+(despues.pagado?'Confirmado':'Pendiente')+'</p>':'')+
-     (antes.estado!==despues.estado?'<p class="muted">Estado de entrega: '+esc(antes.estado||'Sin registrar')+' → '+esc(despues.estado||'Sin registrar')+'</p>':'')+
-     (productosAntes!==productosDespues?'<details style="margin:5px 0"><summary>Ver productos antes y después</summary>'+
-      '<p class="muted">Antes: '+esc(productosAntes)+'</p><p class="muted">Después: '+esc(productosDespues)+'</p></details>':''))+
-    (a.saldoPendiente?'<p class="muted">Diferencia pendiente: '+fmt(Math.abs(Number(a.saldoPendiente)))+'</p>':'')+'</div>';
+   const aclaracionTexto=a.accion==='pago_erroneo_no_cobrado'?
+    'Se aclaró un pago marcado por error que no se recibió':
+    'Se confirmó una devolución ya realizada';
+   const extra=regularizada?'<p class="muted">Diferencia de caja regularizada: '+
+    fmt(Math.abs(Number(a.importe)||0))+'</p>':
+    aclaracion?'<p class="muted">'+aclaracionTexto+' · '+fmt(Math.abs(Number(a.importe)||0))+
+    '</p><p class="muted">Motivo: '+esc(a.detalleMotivo||'Sin detalle')+'</p>':'';
+   const responsable=esc(a.responsable||'No identificado en registros antiguos');
+   return '<div style="padding:12px 0;border-top:1px solid #e9d7c9">'+
+    '<p style="margin:0 0 5px"><b>Modificación '+(cambios.length-i)+' · '+responsable+'</b></p>'+
+    '<p class="muted" style="margin:0 0 8px">Fecha y hora: '+esc(formatoFecha(a.fechaISO))+'</p>'+
+    extra+(filas.length?filas.join(''):'<p class="muted">Sin detalle adicional de campos en este registro.</p>')+
+    (a.saldoPendiente?'<p class="muted">Diferencia pendiente: '+
+      fmt(Math.abs(Number(a.saldoPendiente)))+'</p>':'')+'</div>';
   }).join('')+'</details>';
 }
 function ukiVCorreccionesPedido(p){
