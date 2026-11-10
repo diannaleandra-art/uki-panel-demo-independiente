@@ -1,0 +1,21 @@
+name: Uki dueños · pruebas puente privado
+on:
+  push:
+    branches:
+      - qa/uki-duenos-puente-privado-live-20261110
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verificar sintaxis y aislamiento
+        run: |
+          node --check api/uki-duenos-cierres-live.js
+          node --check api/mi-administracion-live.js
+          node --test tests/uki-duenos-puente-live-20261110.test.cjs
