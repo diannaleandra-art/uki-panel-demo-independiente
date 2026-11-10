@@ -95,3 +95,25 @@ test('La nueva sección es de lectura, no toca caja, conserva acceso Google y PI
  assert.doesNotMatch(html,/lecturaUki\.guardar\(/);
  assert.doesNotMatch(html,/sessionStorage\.setItem\(/);
 });
+
+test('Diseño del inicio destaca sucursales, resumen registrado y todas las ventas sin duplicar funciones',()=>{
+ const html=fs.readFileSync(path.resolve(__dirname,'../firebase/mi-administracion.html'),'utf8');
+ const home=html.slice(html.indexOf('<section class="view" id="v-resumen">'),html.indexOf('<section class="view" id="v-ventas"'));
+ assert.ok(home.indexOf('class="owner-branches"')>0);
+ assert.ok(home.indexOf('owner-finance-card')>home.indexOf('owner-branches'));
+ assert.ok(home.indexOf('id="ukiGoTodasVentas"')>home.indexOf('owner-finance-card'));
+ assert.ok(home.indexOf('id="homeActions"')>home.indexOf('id="ukiGoTodasVentas"'));
+ for(const id of ['m-ventas','m-gastos','m-resultado','m-pendientes',
+   'ukiOwnerBranch','ukiOwnerClave','ukiOwnerConsultar','ukiOwnerListaVentas',
+   'ukiOwnerResultados','ukiOwnerEstadoArica','ukiOwnerEstadoSerena'])
+  assert.equal((html.match(new RegExp('id="'+id+'"','g'))||[]).length,1,
+   id+' debe estar una sola vez');
+ for(const tab of ['ventas','gastos','facturas','negocios'])
+  assert.match(html,new RegExp('data-go="'+tab+'"'),'Conservar acceso '+tab);
+ assert.match(html,/bloquearEscriturasUki/,'La lectura de caja sigue sin permisos de escritura');
+ assert.match(html,/Este resumen muestra únicamente los movimientos registrados en Mi Administración/,
+  'Distinguir el balance manual del operativo de Uki');
+ assert.match(html,/data-uki-branch="Uki Regimiento Arica"/);
+ assert.match(html,/data-uki-branch="Uki La Serena"/);
+ assert.match(html,/scrollIntoView\(\{behavior:'smooth',block:'start'\}\)/);
+});
