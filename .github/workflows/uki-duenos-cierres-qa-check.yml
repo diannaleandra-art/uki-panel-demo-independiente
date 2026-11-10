@@ -15,4 +15,4 @@ jobs:
         with:
           persist-credentials: false
       - name: Probar cierres y panel de dueños aislados
-        run: node --test tests/uki-duenos-cierres-auto-qa-20261109.test.cjs tests/uki-duenos-sin-consulta-manual-20261109.test.cjs
+        run: node --test tests/uki-duenos-cierres-auto-qa-20261109.test.cjs tests/uki-duenos-sin-consulta-manual-20261109.test.cjs tests/uki-duenos-ventas-unificadas-qa-20261110.test.cjs
