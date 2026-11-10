@@ -140,6 +140,22 @@ label{color:#66574c}
 <div class="card" id="movimientosGeneral"><h2>📖 Últimas ventas, compras y gastos</h2>
 <p class="hint">Aquí también aparecen las ventas manuales anteriores, aunque todavía no tengan razón social asignada.</p>
 <div id="recent"></div></div>
+<section class="card" id="ukiOwnerBridge">
+ <div class="eyebrow">UKI SUSHI · LECTURA CIFRADA · QA</div>
+ <h2>🔐 Cierres del panel operativo</h2>
+ <p class="hint">Conexión de prueba en solo lectura. No importa movimientos ni duplica ventas en Mi Administración. La información debe abrirse con la clave del respaldo de cada sucursal; nunca se guarda.</p>
+ <label for="ukiOwnerBranch">Sucursal de Uki</label>
+ <select id="ukiOwnerBranch"><option value="Uki Regimiento Arica">Regimiento Arica</option><option value="Uki La Serena">La Serena</option></select>
+ <div class="grid2">
+  <div><label for="ukiOwnerDesde">Desde</label><input id="ukiOwnerDesde" type="date"></div>
+  <div><label for="ukiOwnerHasta">Hasta</label><input id="ukiOwnerHasta" type="date"></div>
+ </div>
+ <label for="ukiOwnerClave">Clave del respaldo cifrado de esa sucursal</label>
+ <input id="ukiOwnerClave" type="password" minlength="12" autocomplete="off" placeholder="Solo para descifrar en este dispositivo">
+ <button type="button" id="ukiOwnerConsultar" class="primary" style="margin-top:12px;width:100%">Consultar cierres · solo lectura</button>
+ <p id="ukiOwnerEstado" class="hint" role="status" aria-live="polite">No se ha consultado ningún cierre.</p>
+ <div id="ukiOwnerResultados"></div>
+</section>
 </section>
 <section class="view" id="v-ventas" hidden><div class="card">
 <div class="eyebrow">VENTAS Y CIERRES</div><h2>🧾 Agregar venta o cierre de un local</h2>
@@ -287,9 +303,57 @@ label{color:#66574c}
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
 import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
+import{getFirestore,doc,getDocFromServer}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
+import{crearSnapshotsUki}from"./uki-sushi-nube.js";
+import*as bloquesUki from"./uki-particion-local.js";
+import*as cifradoUki from"./uki-cifrado-bloques.js";
+import{extraerCierresUki,resumirCierresUki}from"./uki-duenos-resumen-cierres.mjs";
 import {crearControlCompras} from "./mi-administracion-compras.js?v=general-v5";
 const app=initializeApp({apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",appId:"1:1070481165758:web:b8f0f9ff40caf5b8ac7def"});
 const auth=getAuth(app),$=id=>document.getElementById(id);
+const bloquearEscriturasUki=()=>{throw Error('Conexión de dueños: acceso exclusivamente de lectura');};
+const lecturaUki=crearSnapshotsUki({
+ db:getFirestore(app),auth,
+ api:{doc,getDocFromServer,writeBatch:bloquearEscriturasUki,runTransaction:bloquearEscriturasUki},
+ blocks:bloquesUki,codec:cifradoUki
+});
+const textoUki=(id,valor)=>{document.getElementById(id).textContent=String(valor)};
+const crearLineaUki=(texto,valor)=>{
+ const row=document.createElement('div');row.className='finance-total-row';
+ const titulo=document.createElement('strong');titulo.textContent=texto;
+ const cifra=document.createElement('b');cifra.className='finance-price';cifra.textContent=valor;
+ row.append(titulo,cifra);return row;
+};
+function renderCierresDuenos(resultado,revision){
+ const host=$('ukiOwnerResultados');host.replaceChildren();
+ const status=document.createElement('p');status.className='hint';
+ status.textContent='Respaldo leído, revisión '+revision+' · '+resultado.cantidad+' cierre(s) confirmados. No se importó ninguna venta.';
+ host.append(status);
+ if(!resultado.cantidad){const none=document.createElement('p');none.className='muted';
+  none.textContent='Sin cierres confirmados en las fechas seleccionadas.';host.append(none);return;}
+ const t=resultado.total;
+ host.append(crearLineaUki('Ventas de cierres confirmados',pesos(t.venta)),
+  crearLineaUki('Pedidos',String(t.pedidos)),
+  crearLineaUki('Gastos del cierre (no duplicar)',pesos(t.gastosCierre)),
+  crearLineaUki('Delivery por pagar (no es venta)',pesos(t.deliveryPorPagar)),
+  crearLineaUki('Propinas (separadas)',pesos(t.propinas)));
+ const medios=document.createElement('details'),summary=document.createElement('summary');
+ summary.textContent='💳 Medios de pago del cierre';medios.append(summary);
+ for(const [medio,valor] of Object.entries(resultado.medios))
+  medios.append(crearLineaUki(medio,pesos(valor)));
+ host.append(medios);
+ const historial=document.createElement('details'),etiqueta=document.createElement('summary');
+ etiqueta.textContent='📅 Ver cierres por fecha';historial.append(etiqueta);
+ for(const c of resultado.cierres){
+  const row=document.createElement('div');row.className='line';
+  const titulo=document.createElement('strong');titulo.textContent=c.fecha+' · '+c.nombreSucursal;
+  const info=document.createElement('p');info.className='hint';
+  info.textContent='Venta '+pesos(c.venta)+' · '+c.pedidos+' pedidos · Gastos '+pesos(c.gastosCierre);
+  row.append(titulo,info);historial.append(row);
+ }
+ host.append(historial);
+}
+
 let session="",businesses=[],branches=[],razones=[],vinculos=[],transactions=[],docs=[],tab='resumen';
 const AM=['Efectivo','Transferencia','Débito','Crédito','Edenred','Junaeb','Uber','Rappi','PedidosYa','Otro'];
 const pesos=n=>'$'+Number(n||0).toLocaleString('es-CL',{maximumFractionDigits:0});
@@ -577,6 +641,25 @@ async function safe(action,fn){
  catch(e){notify(e.message,'error')}
  finally{btn.disabled=false;}
 }
+
+$('ukiOwnerConsultar').onclick=async()=>{
+ const boton=$('ukiOwnerConsultar'),clave=$('ukiOwnerClave').value;
+ const suc=$('ukiOwnerBranch').value,desde=$('ukiOwnerDesde').value,hasta=$('ukiOwnerHasta').value;
+ $('ukiOwnerClave').value=''; // Nunca persistir, enviar ni registrar la clave.
+ $('ukiOwnerResultados').replaceChildren();
+ if(!auth.currentUser||!session){textoUki('ukiOwnerEstado','Primero entra al panel privado de dueños.');return;}
+ if(clave.length<12){textoUki('ukiOwnerEstado','Ingresa la clave cifrada de la sucursal (12 caracteres o más).');return;}
+ if(desde&&hasta&&desde>hasta){textoUki('ukiOwnerEstado','Revisa el rango de fechas.');return;}
+ boton.disabled=true;textoUki('ukiOwnerEstado','Leyendo respaldo cifrado de Uki sin modificarlo…');
+ try{
+  const {revision,estado}=await lecturaUki.cargar(suc,clave);
+  if(!estado){textoUki('ukiOwnerEstado','Esta sucursal todavía no tiene respaldo cifrado disponible.');return;}
+  const lista=extraerCierresUki(suc,estado,{desde,hasta});
+  renderCierresDuenos(resumirCierresUki([lista]),revision);
+  textoUki('ukiOwnerEstado','Lectura correcta. No se agregó ninguna venta a Mi Administración.');
+ }catch(e){textoUki('ukiOwnerEstado','No se pudieron leer los cierres: '+String(e?.message||e));}
+ finally{boton.disabled=false;}
+};
 $('saveSale').onclick=()=>safe('saveSale',async()=>{
  const b=value('saleBiz'),s=value('saleBranch')||null,fecha=value('saleDate'),monto=amount('saleTotal'),medios=payments(),total=Object.values(medios).reduce((a,b)=>a+b,0),razon_social_id=value('saleRazon');
  if(!b||!monto)throw Error('Selecciona negocio e ingresa la venta.');
@@ -655,6 +738,7 @@ $('enter').onclick=()=>safe('enter',async()=>{
 });
 $('exit').onclick=async()=>{
  if(session)try{await api('salir')}catch{}
+ $('ukiOwnerClave').value='';$('ukiOwnerResultados').replaceChildren();textoUki('ukiOwnerEstado','No se ha consultado ningún cierre.');
  session='';await signOut(auth);show('login');notify('Acceso privado cerrado.','success');
 };
 // El fragmento nunca viaja al servidor y se conserva mientras Google completa
