@@ -99,6 +99,40 @@ label{color:#66574c}
 
 #filterCard{scroll-margin-top:90px}
 @media(max-width:360px){.quick-action{min-height:120px}.quick-action strong{font-size:12px}}
+
+/* QA · panel de dueños: jerarquía visual móvil, sin alterar lógica financiera. */
+.owner-welcome{padding:4px 2px 8px;max-width:54ch}
+.owner-welcome h2{font-size:27px;line-height:1.12;letter-spacing:-.9px;margin:7px 0 9px}
+.owner-welcome p{font-size:13px;line-height:1.5;margin:0}
+.owner-eyebrow{font-size:11px;font-weight:850;letter-spacing:1px;color:#9a561d}
+.owner-section-label{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:20px 2px 9px;font-size:15px;font-weight:850;color:#453327}
+.owner-branches{background:#fff;border:1px solid #ecdac9;border-radius:18px;padding:15px 14px;margin:12px 0 17px;box-shadow:0 3px 11px #45280f08}
+.owner-branches .hint{margin-bottom:12px}
+.owner-branch-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.owner-branch-button{display:block;text-align:left;min-width:0;min-height:91px;background:#fffaf5;border:1.5px solid #ead5bf;border-radius:13px;padding:12px}
+.owner-branch-button strong{display:block;font-size:13px;line-height:1.3}
+.owner-branch-button small{display:block;font-size:11px;line-height:1.35;margin-top:6px}
+.owner-branch-button:focus-visible{outline:3px solid #a96524;outline-offset:2px}
+.owner-finance-card{border-color:#e5cbb3;background:#fff;box-shadow:0 4px 15px #5f2d0d0a}
+.owner-finance-card h2{font-size:18px;letter-spacing:-.5px;line-height:1.3}
+.owner-finance-card .metric{background:#fff7ef;border-color:#f0dfcd;padding:15px 12px}
+.owner-finance-card .metric b{font-size:clamp(18px,5vw,23px);line-height:1.25;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.owner-finance-card .metric small{line-height:1.35;font-size:11px}
+.owner-finance-note{font-size:12px;line-height:1.5;border-radius:11px;padding:10px 12px;background:#fbf4ec;color:#7a5336;margin:12px 0}
+.owner-action-all{width:100%;background:#a95513;color:#fff;border:1.5px solid #a95513;min-height:66px;padding:13px 16px;text-align:left;border-radius:15px;font-size:15px;font-weight:850;box-shadow:0 6px 16px #a9551320}
+.owner-action-all small{display:block;font-size:11px;font-weight:550;line-height:1.3;color:#ffe8d8;margin-top:5px}
+.owner-action-all:focus-visible{outline:3px solid #7a390f;outline-offset:3px}
+.owner-quick .quick-action{min-height:97px;background:#fff;border:1px solid #eadbd0;border-radius:13px;padding:12px}
+.owner-quick .quick-action .emoji{font-size:22px}
+.owner-quick .quick-action strong{font-size:13px}
+.owner-quick .quick-action small{font-size:11px}
+#ukiOwnerBridge{scroll-margin-top:110px;border:1px solid #dfbf9e}
+#ukiOwnerBridge h2{font-size:19px}
+#ukiOwnerVentas .line{border:1px solid #eedfd2;background:#fffdfb;border-radius:12px;padding:10px 12px;margin:9px 0}
+#ukiOwnerVentas .line summary{overflow-wrap:anywhere;padding:5px 0;font-size:13px}
+#ukiOwnerVentas .line .hint{line-height:1.45}
+@media(max-width:350px){.owner-branch-grid{grid-template-columns:1fr}.owner-branch-button{min-height:68px}}
+
 </style></head><body>
 <header><div><h1>🔒 Mi Administración</h1><small>Finanzas de tus negocios · Entorno de pruebas</small></div><button id="exit" hidden>Salir</button></header>
 <main><p id="notice" role="status" aria-live="polite">Conectando acceso privado…</p>
@@ -120,23 +154,37 @@ label{color:#66574c}
 <div class="grid2"><div><label>Desde</label><input id="from" type="date"></div><div><label>Hasta</label><input id="to" type="date"></div></div></details>
 <button class="soft" id="refresh">Actualizar resultados</button></details></section>
 <section class="view" id="v-resumen">
-<div class="welcome"><span class="eyebrow">MI ADMINISTRACIÓN · PRIVADO</span>
-<h2>Administración de todos los locales</h2><p>Aquí verás juntas las ventas, compras y gastos de todos los negocios. Si necesitas revisar solo uno, abre los filtros opcionales.</p></div>
-<div class="quick-grid" id="homeActions">
-<button type="button" class="quick-action" data-go="ventas"><span class="emoji">🧾</span><strong>Agregar venta o cierre</strong><small>Manual, foto o PDF del cierre</small></button>
-<button type="button" class="quick-action" data-go="gastos"><span class="emoji">💸</span><strong>Registrar gasto</strong><small>Compras, sueldos y proveedores</small></button>
-<button type="button" class="quick-action" data-go="facturas"><span class="emoji">📷</span><strong>Compras y facturas</strong><small>Por razón social y proveedor</small></button>
-<button type="button" class="quick-action" data-go="negocios"><span class="emoji">🏪</span><strong>Mis negocios</strong><small>Agregar locales y costos</small></button>
+
+<div class="welcome owner-welcome">
+ <span class="owner-eyebrow">MI ADMINISTRACIÓN · ACCESO PRIVADO</span>
+ <h2>Tu negocio, todo más claro.</h2>
+ <p>Revisa ventas, cierres y gastos por sucursal. Las cifras se mantienen separadas hasta verificar la conexión de Uki.</p>
 </div>
-<button id="ukiGoTodasVentas" type="button" class="soft" style="width:100%;font-weight:800;margin:12px 0 3px;border:1.5px solid #eabf98;background:#fff5ea">📋 Todas las ventas · ver cada pedido</button>
-<button id="goRecentMovements" class="soft" type="button" style="margin:12px 0 4px">📖 Ver ventas anteriores y otros movimientos</button>
-<div class="card"><h2>📊 ¿Cómo van todos los negocios?</h2>
-<p class="hint">Estos importes son solamente los que registres aquí. La caja del panel Uki se mantiene separada y las cifras no son ganancias definitivas.</p>
+<section class="owner-branches" aria-labelledby="ownerBranchTitle">
+ <div id="ownerBranchTitle" class="owner-section-label" style="margin:0 0 4px">🏪 Sucursales Uki Sushi</div>
+ <p class="hint">Consulta las ventas de cada sucursal con su respaldo privado, sin cambiar la caja.</p>
+ <div class="owner-branch-grid">
+  <button class="owner-branch-button" type="button" data-uki-branch="Uki Regimiento Arica"><strong>Regimiento Arica</strong><small id="ukiOwnerEstadoArica">Consultar ventas y cierres</small></button>
+  <button class="owner-branch-button" type="button" data-uki-branch="Uki La Serena"><strong>La Serena</strong><small id="ukiOwnerEstadoSerena">Consultar ventas y cierres</small></button>
+ </div>
+</section>
+<div class="card owner-finance-card"><div class="owner-eyebrow">MOVIMIENTOS FINANCIEROS REGISTRADOS</div><h2>📊 Resumen de todos los negocios</h2>
+<p class="owner-finance-note">Este resumen muestra únicamente los movimientos registrados en Mi Administración. Las ventas reales de Uki todavía se consultan por separado y no se suman aquí para evitar duplicarlas.</p>
 <div class="metrics"><div class="metric"><small>Ventas anotadas</small><b id="m-ventas">$0</b></div>
 <div class="metric"><small>Gastos y compras pagadas</small><b id="m-gastos">$0</b></div>
 <div class="metric"><small>Resultado preliminar*</small><b id="m-resultado">$0</b></div>
 <div class="metric"><small>Pagos pendientes</small><b id="m-pendientes">$0</b></div></div>
 <p class="hint">*Para conocer la utilidad real faltan costos completos, sueldos, impuestos y otros gastos que corresponda considerar.</p></div>
+<div class="owner-section-label">Detalle de ventas</div>
+<button id="ukiGoTodasVentas" type="button" class="owner-action-all">📋 Todas las ventas de Uki<small>Buscar pedidos, pagos, productos y cierres sin duplicarlos</small></button>
+<div class="owner-section-label">Administrar movimientos</div>
+<div class="quick-grid owner-quick" id="homeActions">
+<button type="button" class="quick-action" data-go="ventas"><span class="emoji">🧾</span><strong>Agregar venta o cierre</strong><small>Manual, foto o PDF del cierre</small></button>
+<button type="button" class="quick-action" data-go="gastos"><span class="emoji">💸</span><strong>Registrar gasto</strong><small>Compras, sueldos y proveedores</small></button>
+<button type="button" class="quick-action" data-go="facturas"><span class="emoji">📷</span><strong>Compras y facturas</strong><small>Por razón social y proveedor</small></button>
+<button type="button" class="quick-action" data-go="negocios"><span class="emoji">🏪</span><strong>Mis negocios</strong><small>Agregar locales y costos</small></button>
+</div>
+<button id="goRecentMovements" class="soft" type="button" style="margin:12px 0 4px">📖 Ver ventas anteriores y otros movimientos</button>
 <details class="card"><summary>💳 Ver ventas por medio de pago</summary><div id="mediosReport"><p class="muted">Aún sin datos.</p></div></details>
 <div class="card" id="movimientosGeneral"><h2>📖 Últimas ventas, compras y gastos</h2>
 <p class="hint">Aquí también aparecen las ventas manuales anteriores, aunque todavía no tengan razón social asignada.</p>
@@ -629,6 +677,16 @@ document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>switchTab(b.data
 $('showPurchaseForm').onclick=()=>vistaCompras('registrar');
 $('showPurchaseHistory').onclick=()=>vistaCompras('historial');
 $('ukiGoTodasVentas').onclick=()=>{$('ukiOwnerBridge').scrollIntoView({behavior:'smooth',block:'start'});};
+document.querySelectorAll('[data-uki-branch]').forEach(button=>{
+ button.onclick=()=>{
+  const branch=button.dataset.ukiBranch;
+  $('ukiOwnerBranch').value=branch;
+  $('ukiOwnerBranch').dispatchEvent(new Event('change'));
+  $('ukiOwnerBridge').scrollIntoView({behavior:'smooth',block:'start'});
+  $('ukiOwnerClave').focus({preventScroll:true});
+ };
+});
+
 for(const id of ['ukiOwnerBuscarVenta','ukiOwnerEstadoVenta','ukiOwnerMedioVenta','ukiOwnerDesde','ukiOwnerHasta'])
  $(id).addEventListener(id==='ukiOwnerBuscarVenta'?'input':'change',()=>{
   ukiOwnerLimite=25;if(ukiOwnerVentasEnMemoria.length)mostrarVentasPorPedido();
@@ -746,6 +804,8 @@ $('ukiOwnerConsultar').onclick=async()=>{
   const lista=extraerCierresUki(suc,estado,{desde,hasta});
   renderCierresDuenos(resumirCierresUki([lista]),revision);
   ukiOwnerVentasEnMemoria=extraerVentasUki(suc,estado);
+  const badge=$(suc==='Uki Regimiento Arica'?'ukiOwnerEstadoArica':'ukiOwnerEstadoSerena');
+  badge.textContent=ukiOwnerVentasEnMemoria.length+' pedidos consultados · revisión '+revision;
   ukiOwnerLimite=25;
   const medios=new Set(ukiOwnerVentasEnMemoria.flatMap(x=>Object.keys(x.medios)));
   const filter=$('ukiOwnerMedioVenta');filter.replaceChildren(new Option('Todos los medios',''));
