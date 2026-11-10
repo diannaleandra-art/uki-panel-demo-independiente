@@ -1,0 +1,18 @@
+name: Uki dueños · verificar cierres QA
+on:
+  push:
+    branches:
+      - qa/uki-duenos-cierres-auto-seguro-20261109
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  comprobar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Probar cierres y panel de dueños aislados
+        run: node --test tests/uki-duenos-cierres-auto-qa-20261109.test.cjs tests/uki-duenos-sin-consulta-manual-20261109.test.cjs tests/uki-duenos-ventas-unificadas-qa-20261110.test.cjs
