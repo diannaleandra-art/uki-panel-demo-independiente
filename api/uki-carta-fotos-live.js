@@ -6,17 +6,18 @@ const {baseItems}=require('../lib/uki-catalogo-v1.cjs');
 const ORIGINS=new Set(['https://diannaleandra-art.github.io','https://uki-sushi-pedidos.vercel.app']);
 const BRANCHES=new Set(['arica','serena']);
 const QA_REF_ETAPA2='integracion/uki-promociones-ingredientes-seguros-qa-20261109';
+const QA_REF_TIPOS='qa/uki-promos-tipos-producto-20261110';
 // En preview sólo funciona con la rama exacta, bandera QA y URL Neon QA validada por dbUrl.
 const promocionesHabilitadas=env=>env.UKI_PROMOS_VISIBILIDAD_ENABLED==='true';
 const enabled=env=>(env.VERCEL_ENV==='production'&&env.UKI_INGREDIENTES_ARMADO_ENABLED==='true')||
- (env.VERCEL_ENV==='preview'&&env.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2&&env.UKI_INVENTARIO_QA_ENABLED==='true');
+ (env.VERCEL_ENV==='preview'&&(env.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2||env.VERCEL_GIT_COMMIT_REF===QA_REF_TIPOS)&&env.UKI_INVENTARIO_QA_ENABLED==='true');
 const KINDS=new Set(['classic','premium','monthly','pizza','dish','topping']);
 const sameQAOrigin=(origin,env=process.env)=>enabled(env)&&env.VERCEL_ENV==='preview'&&
  !!env.VERCEL_URL&&origin==='https://'+env.VERCEL_URL;
 // La carta de prueba solo puede LEER fotos, nunca modificarlas: POST sigue
 // limitado al panel autenticado. QA requiere rama y base separada.
 const qaMenuAllowed=(origin,env=process.env)=>env.VERCEL_ENV==='preview'&&
- env.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2&&env.UKI_INVENTARIO_QA_ENABLED==='true'&&
+ (env.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2||env.VERCEL_GIT_COMMIT_REF===QA_REF_TIPOS)&&env.UKI_INVENTARIO_QA_ENABLED==='true'&&
  /^https:\/\/uki-sushi-pedidos-[a-z0-9-]+-diannaleandra-7046\.vercel\.app$/.test(origin);
 const originAllowed=(origin,env=process.env)=>ORIGINS.has(origin)||sameQAOrigin(origin,env)||qaMenuAllowed(origin,env);
 const fail=(res,code,error)=>res.status(code).json({ok:false,error});
