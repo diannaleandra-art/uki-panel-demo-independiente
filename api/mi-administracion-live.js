@@ -546,3 +546,5 @@ module.exports=async(req,res)=>{
  }
 };
 module.exports._testing={envOk,dbUrl,validDate,money,mimeOK,checkMethods,hash};
+// Solo helpers puros para pruebas de acceso. No exponen PIN ni conexión.
+module.exports._testing={envOk,dbUrl,validDate,checkMethods};
