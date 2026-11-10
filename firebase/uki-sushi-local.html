@@ -4647,6 +4647,9 @@ function cerrar(){
   guardarEnLocalStorage();
   // Caja acumulada: sincroniza solo el cierre confirmado, sin detener caja si no hay conexión.
   const cierreAcumulable=S.cierres[S.cierres.length-1];
+  // Puente de dueños QA: nunca sustituye el cierre local ni lo envía antes del guardado Firebase.
+  if(cierreAcumulable&&typeof window.ukiDuenosCierrePendienteQA==="function")
+    window.ukiDuenosCierrePendienteQA(cierreAcumulable);
   if(cierreAcumulable&&typeof window.ukiCajaAcumuladaRegistrarCierre==="function")
     void window.ukiCajaAcumuladaRegistrarCierre(cierreAcumulable);
   S.busy=false;
@@ -5616,6 +5619,7 @@ import {dividirEstado,reunirEstado} from "./uki-particion-local.js";
 import {nuevaSal,nuevaGeneracion,derivarClave,cifrarBloque,descifrarBloque} from "./uki-cifrado-bloques.js";
 import {crearSnapshotsUki} from "./uki-sushi-nube.js";
 import {crearAutoGuardadoOperativo} from "./uki-sushi-autoguardado.js";
+import {prepararCierreParaDuenos,sincronizarCierreQA} from "./uki-duenos-cierre-publicador-qa.mjs";
 import {autorizarEquipoQR,obtenerSesionQR,estadoEquipoQR} from "./uki-mesas-dispositivo-live.js";
 const config={
  apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",
@@ -5626,6 +5630,10 @@ const config={
 };
 // Uso interno habilitado después de verificar lectura/escritura de las dos sucursales.
 const UKI_OPERACION_HABILITADA=location.hostname==='diannaleandra-art.github.io'; // Solo dominio del panel vigente: Preview no escribe caja real.
+// La emisión de totales a QA solo se ensaya con el parámetro privado uki_duenos_qa=1.
+// Ningún QR actual ni enlace cotidiano contiene ese parámetro; no altera producción.
+const UKI_DUENOS_QA_ENSAYO=UKI_OPERACION_HABILITADA&&new URLSearchParams(location.search).get('uki_duenos_qa')==='1';
+const UKI_DUENOS_QA_ENDPOINT='https://uki-sushi-inventario-cv8wvp7fc-diannaleandra-7046.vercel.app/api/uki-duenos-cierres-auto-qa';
 const auth=getAuth(initializeApp(config)),db=getFirestore(auth.app);
 // Para inventario se utiliza esta misma sesión Google, nunca el PIN del trabajador.
 window.ukiInventarioToken=async()=>auth.currentUser?auth.currentUser.getIdToken():null;
@@ -5635,6 +5643,39 @@ const cloud=crearSnapshotsUki({db,auth,api:{doc,getDocFromServer,writeBatch,runT
 const el=id=>document.getElementById(id);
 let revision=null,sucursalCargada=null,ocupado=false,desuscribir=null;
 let nubeConfigAbiertaPorUsuario=false;
+const ukiDuenosEnviadosQA=new Set();
+let ukiDuenosEnviandoQA=false;
+window.ukiDuenosCierrePendienteQA=cierre=>{
+ if(!UKI_DUENOS_QA_ENSAYO)return;
+ // Solo se acepta un cierre definitivo con fecha operativa y desglose cuadrado.
+ try{prepararCierreParaDuenos(cierre);}catch{return;}
+ // Se leerá del estado después de que Firebase confirme el guardado cifrado.
+};
+async function ukiDuenosConciliarConfirmadosQA(){
+ if(!UKI_DUENOS_QA_ENSAYO||ukiDuenosEnviandoQA||!auth.currentUser)return;
+ const estadoNube=auto.resumen(),contextoLocal=window.ukiQAGet?.();
+ if(!estadoNube.actualRespaldado||!contextoLocal?.estado||
+    contextoLocal.suc!==estadoNube.sucursal)return;
+ ukiDuenosEnviandoQA=true;
+ try{
+  for(const cierre of contextoLocal.estado.cierres||[]){
+   if(cierre?.suc!==contextoLocal.suc)continue;
+   let p;try{p=prepararCierreParaDuenos(cierre)}catch{continue}
+   const clave=p.branch+'|'+p.fecha_cierre_ms;
+   if(ukiDuenosEnviadosQA.has(clave))continue;
+   try{
+    const result=await sincronizarCierreQA(cierre,{endpoint:UKI_DUENOS_QA_ENDPOINT,
+      obtenerToken:()=>auth.currentUser.getIdToken()});
+    if(result.registrado||result.duplicado)ukiDuenosEnviadosQA.add(clave);
+   }catch(e){
+    // La falla de un resumen QA nunca interrumpe ni reabre un cierre operativo.
+    console.warn('Resumen de dueños QA pendiente de conciliación');
+    break;
+   }
+  }
+ }finally{ukiDuenosEnviandoQA=false;}
+}
+
 const auto=crearAutoGuardadoOperativo({
  delay:3500,
  getEstado:()=>window.ukiQAGet?.()?.estado||null,
@@ -5650,6 +5691,7 @@ const auto=crearAutoGuardadoOperativo({
    el("ukiSaveQA").disabled=auto.resumen().activo;
    actualizarBloqueo();
    if(estado==='sincronizado')Promise.resolve().then(async()=>{
+    void ukiDuenosConciliarConfirmadosQA();
     await ukiMesaConfirmarGuardadosSeguro();
     if(UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL)
      await ukiMesaCerrarPagadasCentralSeguro();
