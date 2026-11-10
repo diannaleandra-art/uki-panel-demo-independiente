@@ -7,9 +7,10 @@ const BRANCHES=new Set(['arica','serena']);
 const ALLOWED=new Set(['https://diannaleandra-art.github.io','https://uki-sushi-pedidos.vercel.app']);
 const QA_REF='feature/uki-disponibilidad-manual-live-2026-11-06';
 const QA_REF_ETAPA2='integracion/uki-promociones-ingredientes-seguros-qa-20261109';
+const QA_REF_TIPOS='qa/uki-promos-tipos-producto-20261110';
 const QA_MENU='https://uki-sushi-pedidos-git-feature-uki-dis-eb0d72-diannaleandra-7046.vercel.app';
 const QA_PANEL='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app';
-const qa=env=>env.VERCEL_ENV==='preview'&&(env.VERCEL_GIT_COMMIT_REF===QA_REF||env.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2)&&env.UKI_INVENTARIO_QA_ENABLED==='true';
+const qa=env=>env.VERCEL_ENV==='preview'&&(env.VERCEL_GIT_COMMIT_REF===QA_REF||(env.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2||env.VERCEL_GIT_COMMIT_REF===QA_REF_TIPOS))&&env.UKI_INVENTARIO_QA_ENABLED==='true';
 const qaOrigin=(origin,env=process.env)=>qa(env)&&!!env.VERCEL_URL&&origin==='https://'+env.VERCEL_URL;
 // Esta publicación requiere migración aditiva y carta compatible.
 // APAGADO por defecto: el servidor conserva EXACTAMENTE la conducta previa.
