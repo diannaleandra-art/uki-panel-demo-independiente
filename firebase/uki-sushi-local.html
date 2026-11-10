@@ -5721,7 +5721,7 @@ let nubeConfigAbiertaPorUsuario=false;
 // después de que Firebase confirma el respaldo de esa sucursal.
 // El puente se ejecuta sin bloquear la caja ni modificar el historial.
 const UKI_DUENOS_CIERRES_ENDPOINT='https://uki-sushi-inventario.vercel.app/api/uki-duenos-cierres-live';
-const UKI_DUENOS_DESDE_MS=Date.parse('2026-11-10T00:00:00-03:00');
+// Recupera todos los cierres definitivos existentes en el Historial del panel, sin cambiar la caja.
 const ukiDuenosEnviados=new Set();
 let ukiDuenosSincronizando=false;
 async function ukiConciliarCierresDuenos(){
@@ -5730,13 +5730,14 @@ async function ukiConciliarCierresDuenos(){
  if(!cloudStatus.actualRespaldado||!local?.estado||
     local.suc!==cloudStatus.sucursal||cloudStatus.estado!=='sincronizado')return;
  ukiDuenosSincronizando=true;
+ let quedanCierres=false;
  try{
   const cierres=(local.estado.cierres||[])
-   .filter(c=>c?.suc===local.suc&&Number(c.fechaMs)>=UKI_DUENOS_DESDE_MS)
-   .sort((a,b)=>Number(b.fechaMs)-Number(a.fechaMs)).slice(0,60);
+   .filter(c=>c?.suc===local.suc)
+   .sort((a,b)=>Number(b.fechaMs)-Number(a.fechaMs));
   let nuevos=0;
   for(const cierre of cierres){
-   if(nuevos>=20)break;
+   if(nuevos>=20){quedanCierres=true;break;}
    let p;try{p=prepararCierreParaDuenos(cierre)}catch{continue}
    const key=p.branch+'|'+p.fecha_cierre_ms;
    if(ukiDuenosEnviados.has(key))continue;
@@ -5751,6 +5752,8 @@ async function ukiConciliarCierresDuenos(){
    }
   }
  }finally{ukiDuenosSincronizando=false;}
+ // La siguiente tanda se envía solo si Firebase sigue respaldado; los duplicados no se repiten.
+ if(quedanCierres)setTimeout(()=>{void ukiConciliarCierresDuenos()},3000);
 }
 const auto=crearAutoGuardadoOperativo({
  delay:3500,
