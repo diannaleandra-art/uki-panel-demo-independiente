@@ -58,3 +58,24 @@ test('Listado conserva tipo, posibilidad de armado y visibilidad de la promoció
  assert.equal(item.config.size,0);assert.equal(item.config.customizable,false);
  assert.equal(item.estadoPublicacion,'Publicada');
 });
+
+
+test('Una salsa opcional en combo: cliente elige soya o teriyaki, sin rolls',()=>{
+ for(const p of ['gohan','pizza','combo']){
+  const input={name:'Promo con una salsa',description:'Incluye gohan y dos korokes',
+   price:6000,promoType:p,customizable:false,sauceCount:1,payments:['efectivo']};
+  const result=api.validPromo(input);
+  assert.ok(result,p);
+  assert.equal(result.rollCount,0);assert.equal(result.sauceCount,1);
+  assert.equal(result.customizable,false);
+  assert.equal(api.validPromo({...input,sauceCount:2}),null);
+  assert.equal(api.validPromo({...input,sauceCount:-1}),null);
+ }
+});
+test('El panel permite seleccionar una salsa y conserva las de sushi',()=>{
+ const editor=fs.readFileSync(path.join(__dirname,'../firebase/uki-carta-precios-admin.js'),'utf8');
+ assert.match(editor,/ukiPromoComboSauce/);
+ assert.match(editor,/Soya o teriyaki/i);
+ assert.match(editor,/promoType==='sushi'\?numeroPromo\('ukiPromoSauces'\):numeroPromo\('ukiPromoComboSauce'\)/);
+ assert.match(editor,/sauces\.max=show\?'20':'1'/);
+});
