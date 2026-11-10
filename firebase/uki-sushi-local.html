@@ -5616,6 +5616,7 @@ import {dividirEstado,reunirEstado} from "./uki-particion-local.js";
 import {nuevaSal,nuevaGeneracion,derivarClave,cifrarBloque,descifrarBloque} from "./uki-cifrado-bloques.js";
 import {crearSnapshotsUki} from "./uki-sushi-nube.js";
 import {crearAutoGuardadoOperativo} from "./uki-sushi-autoguardado.js";
+import {prepararCierreParaDuenos,sincronizarCierreDuenos} from "./uki-duenos-cierre-publicador-live.mjs";
 import {autorizarEquipoQR,obtenerSesionQR,estadoEquipoQR} from "./uki-mesas-dispositivo-live.js";
 const config={
  apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",
@@ -5635,6 +5636,41 @@ const cloud=crearSnapshotsUki({db,auth,api:{doc,getDocFromServer,writeBatch,runT
 const el=id=>document.getElementById(id);
 let revision=null,sucursalCargada=null,ocupado=false,desuscribir=null;
 let nubeConfigAbiertaPorUsuario=false;
+// Nunca se envían clientes, pedidos ni cuentas: únicamente un cierre final
+// después de que Firebase confirma el respaldo de esa sucursal.
+// El puente se ejecuta sin bloquear la caja ni modificar el historial.
+const UKI_DUENOS_CIERRES_ENDPOINT='https://uki-sushi-inventario.vercel.app/api/uki-duenos-cierres-live';
+const UKI_DUENOS_DESDE_MS=Date.parse('2026-11-10T00:00:00-03:00');
+const ukiDuenosEnviados=new Set();
+let ukiDuenosSincronizando=false;
+async function ukiConciliarCierresDuenos(){
+ if(!UKI_OPERACION_HABILITADA||ukiDuenosSincronizando||!auth.currentUser)return;
+ const cloudStatus=auto.resumen(),local=window.ukiQAGet?.();
+ if(!cloudStatus.actualRespaldado||!local?.estado||
+    local.suc!==cloudStatus.sucursal||cloudStatus.estado!=='sincronizado')return;
+ ukiDuenosSincronizando=true;
+ try{
+  const cierres=(local.estado.cierres||[])
+   .filter(c=>c?.suc===local.suc&&Number(c.fechaMs)>=UKI_DUENOS_DESDE_MS)
+   .sort((a,b)=>Number(b.fechaMs)-Number(a.fechaMs)).slice(0,60);
+  let nuevos=0;
+  for(const cierre of cierres){
+   if(nuevos>=20)break;
+   let p;try{p=prepararCierreParaDuenos(cierre)}catch{continue}
+   const key=p.branch+'|'+p.fecha_cierre_ms;
+   if(ukiDuenosEnviados.has(key))continue;
+   try{
+    const r=await sincronizarCierreDuenos(cierre,{endpoint:UKI_DUENOS_CIERRES_ENDPOINT,
+      obtenerToken:()=>auth.currentUser.getIdToken()});
+    if(r.registrado||r.duplicado){ukiDuenosEnviados.add(key);nuevos++}
+   }catch(e){
+    // Reintentar al próximo respaldo. Nunca afecta caja, cierres o QR.
+    console.warn('Resumen financiero pendiente de sincronización');
+    break;
+   }
+  }
+ }finally{ukiDuenosSincronizando=false;}
+}
 const auto=crearAutoGuardadoOperativo({
  delay:3500,
  getEstado:()=>window.ukiQAGet?.()?.estado||null,
@@ -5650,6 +5686,7 @@ const auto=crearAutoGuardadoOperativo({
    el("ukiSaveQA").disabled=auto.resumen().activo;
    actualizarBloqueo();
    if(estado==='sincronizado')Promise.resolve().then(async()=>{
+    void ukiConciliarCierresDuenos();
     await ukiMesaConfirmarGuardadosSeguro();
     if(UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL)
      await ukiMesaCerrarPagadasCentralSeguro();

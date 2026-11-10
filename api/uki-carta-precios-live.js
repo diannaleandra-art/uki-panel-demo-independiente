@@ -7,9 +7,10 @@ const BRANCHES=new Set(['arica','serena']);
 const ALLOWED=new Set(['https://diannaleandra-art.github.io','https://uki-sushi-pedidos.vercel.app']);
 const QA_REF='feature/uki-disponibilidad-manual-live-2026-11-06';
 const QA_REF_ETAPA2='integracion/uki-promociones-ingredientes-seguros-qa-20261109';
+const QA_REF_TIPOS='qa/uki-promos-tipos-producto-20261110';
 const QA_MENU='https://uki-sushi-pedidos-git-feature-uki-dis-eb0d72-diannaleandra-7046.vercel.app';
 const QA_PANEL='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app';
-const qa=env=>env.VERCEL_ENV==='preview'&&(env.VERCEL_GIT_COMMIT_REF===QA_REF||env.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2)&&env.UKI_INVENTARIO_QA_ENABLED==='true';
+const qa=env=>env.VERCEL_ENV==='preview'&&(env.VERCEL_GIT_COMMIT_REF===QA_REF||(env.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2||env.VERCEL_GIT_COMMIT_REF===QA_REF_TIPOS))&&env.UKI_INVENTARIO_QA_ENABLED==='true';
 const qaOrigin=(origin,env=process.env)=>qa(env)&&!!env.VERCEL_URL&&origin==='https://'+env.VERCEL_URL;
 // Esta publicación requiere migración aditiva y carta compatible.
 // APAGADO por defecto: el servidor conserva EXACTAMENTE la conducta previa.
@@ -52,23 +53,31 @@ function validNew(input,branch){
 function validPromo(input){
  if(!input||typeof input!=='object'||Array.isArray(input)||!goodText(input.name)||
    !goodPrice(input.price)||typeof input.description!=='string'||input.description.length>500)return null;
- const count=Number(input.rollCount),per=Number(input.piecesPerRoll),
-  sauce=Number(input.sauceCount),korokes=Number(input.korokes);
- if(!Number.isSafeInteger(count)||count<1||count>20||![10,12].includes(per)||
-   !Number.isSafeInteger(sauce)||sauce<0||sauce>20||!Number.isSafeInteger(korokes)||korokes<0||korokes>30)
+ // La promoción no tiene por qué contener rolls: pizza, gohan y combo son tipos distintos.
+ const promoType=input.promoType||'sushi',customizable=input.customizable!==false;
+ if(!['sushi','gohan','pizza','combo'].includes(promoType))return null;
+ const isSushi=promoType==='sushi';
+ // Los productos no-sushi aún no se exponen como armables hasta validar su
+ // constructor de pedidos, precios y QR. No ofrecer una personalización falsa.
+ if(!isSushi&&(customizable||input.description.trim().length<2))return null;
+ const count=isSushi?Number(input.rollCount):0,per=isSushi?Number(input.piecesPerRoll):12,
+  sauce=Number(input.sauceCount??0),korokes=isSushi?Number(input.korokes):0;
+ if((isSushi&&(!Number.isSafeInteger(count)||count<1||count>20||![10,12].includes(per)))||
+   !Number.isSafeInteger(sauce)||sauce<0||sauce>(isSushi?20:1)||!Number.isSafeInteger(korokes)||korokes<0||korokes>30)
    return null;
  const allowed=new Set(['efectivo','transferencia','debito','credito','edenred']);
  const payments=Array.isArray(input.payments)?[...new Set(input.payments)]:[];
  if(payments.length<1||payments.length>5||payments.some(v=>!allowed.has(v)))return null;
  return {name:input.name.trim(),description:input.description.trim(),price:input.price,
-  rollCount:count,piecesPerRoll:per,sauceCount:sauce,korokes,payments};
+  rollCount:count,piecesPerRoll:per,sauceCount:sauce,korokes,payments,
+  promoType,customizable:isSushi?true:false};
 }
 async function listing(sql,branch,conPromos=promocionesHabilitadas()){
  const [base,overrides,custom,promos,vis]=await Promise.all([
   baseItems(branch),
   sql.query("SELECT sku,price,available,version FROM public.uki_carta_items_v1 WHERE branch=$1 AND kind<>'ingredient'",[branch]),
   sql.query("SELECT sku,kind,group_key,name,description,price,available,version FROM public.uki_carta_productos_custom_v1 WHERE branch=$1 ORDER BY group_key,name",[branch]),
-  conPromos?sql.query("SELECT sku,name,description,price,available,visible,published_at,version,roll_count,pieces_per_roll,size,sauce_count,korokes,payments FROM public.uki_carta_promos_custom_v1 WHERE branch=$1 ORDER BY name",[branch]):Promise.resolve([]),
+  conPromos?sql.query("SELECT sku,name,description,price,available,visible,published_at,version,roll_count,pieces_per_roll,size,sauce_count,korokes,payments,promo_type,customizable FROM public.uki_carta_promos_custom_v1 WHERE branch=$1 ORDER BY name",[branch]):Promise.resolve([]),
   conPromos?sql.query("SELECT sku,visible,version FROM public.uki_carta_visibilidad_v1 WHERE branch=$1",[branch]):Promise.resolve([])
  ]);
  const map=new Map(overrides.map(o=>[String(o.sku),o]));
@@ -87,7 +96,8 @@ async function listing(sql,branch,conPromos=promocionesHabilitadas()){
    visible:x.visible===true,visibilityVersion:Number(x.version),version:Number(x.version),custom:true,
    estadoPublicacion:estadoPromocion(x.visible,x.published_at),
    config:{rollCount:Number(x.roll_count),piecesPerRoll:Number(x.pieces_per_roll),size:Number(x.size),
-    sauceCount:Number(x.sauce_count),korokes:Number(x.korokes),payments:x.payments}}))];
+    sauceCount:Number(x.sauce_count),korokes:Number(x.korokes),payments:x.payments,
+    promoType:x.promo_type||'sushi',customizable:x.customizable===true}}))];
 }
 async function modifyPrice(sql,branch,item,price,version,uid){
  if(item.custom){
@@ -136,13 +146,13 @@ module.exports=async function(req,res){
   if(!promocionesHabilitadas()&&['crear-promocion','editar-promocion','publicar-promocion'].includes(action))
    return fail(res,503,'Promociones aún no habilitadas: falta publicación conjunta de carta y servidor.');
   if(action==='crear-promocion'){
-   const p=validPromo(req.body.item);if(!p)return fail(res,400,'Revisa rolls, piezas, salsas, korokes, medios y precio.');
+   const p=validPromo(req.body.item);if(!p||p.promoType==='pizza'&&branch==='serena')return fail(res,400,'Revisa el tipo de promoción, sus condiciones y precio.');
    const sku=getSKU('monthly',p.name);
    const rows=await sql.query(`INSERT INTO public.uki_carta_promos_custom_v1
-    (branch,sku,name,description,price,roll_count,pieces_per_roll,sauce_count,korokes,payments,visible,updated_by)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::text[],false,$11)
+    (branch,sku,name,description,price,roll_count,pieces_per_roll,sauce_count,korokes,payments,promo_type,customizable,visible,updated_by)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::text[],$11,$12,false,$13)
     RETURNING sku,version,visible`,
-    [branch,sku,p.name,p.description,p.price,p.rollCount,p.piecesPerRoll,p.sauceCount,p.korokes,p.payments,user.uid]);
+    [branch,sku,p.name,p.description,p.price,p.rollCount,p.piecesPerRoll,p.sauceCount,p.korokes,p.payments,p.promoType,p.customizable,user.uid]);
    return res.status(201).json({ok:true,branch,item:rows[0],
     message:'Promoción creada como borrador. Agrega fotografía para publicarla.'});
   }
@@ -199,12 +209,13 @@ module.exports=async function(req,res){
   }
   if(action==='editar-promocion'){
    if(!entry.custom||entry.kind!=='monthly')return fail(res,400,'Esta opción es exclusiva de promociones agregadas.');
-   const p=validPromo(req.body.item);if(!p)return fail(res,400,'Revisa la composición de la promoción.');
+   const p=validPromo(req.body.item);if(!p||p.promoType==='pizza'&&branch==='serena')return fail(res,400,'Revisa la composición de la promoción.');
    const changed=await sql.query(`UPDATE public.uki_carta_promos_custom_v1
      SET name=$3,description=$4,price=$5,roll_count=$6,pieces_per_roll=$7,sauce_count=$8,
-       korokes=$9,payments=$10::text[],version=version+1,updated_by=$12,updated_at=now()
-     WHERE branch=$1 AND sku=$2 AND version=$11
-     RETURNING sku,version`,[branch,sku,p.name,p.description,p.price,p.rollCount,p.piecesPerRoll,p.sauceCount,p.korokes,p.payments,version,user.uid]);
+       korokes=$9,payments=$10::text[],promo_type=$11,customizable=$12,
+       version=version+1,updated_by=$14,updated_at=now()
+     WHERE branch=$1 AND sku=$2 AND version=$13
+     RETURNING sku,version`,[branch,sku,p.name,p.description,p.price,p.rollCount,p.piecesPerRoll,p.sauceCount,p.korokes,p.payments,p.promoType,p.customizable,version,user.uid]);
    if(!changed.length)return fail(res,409,'La promoción cambió. Actualiza la lista.');
    return res.status(200).json({ok:true,branch,item:changed[0]});
   }

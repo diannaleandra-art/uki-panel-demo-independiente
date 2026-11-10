@@ -64,12 +64,17 @@ const pricesPanel=[
  '<summary style="cursor:pointer;font-weight:700">＋ Agregar promoción de sushi con fotografía</summary>',
  '<p class="muted">La sucursal queda asignada automáticamente. Primero se guarda un borrador; solo aparece en la carta tras guardar su foto tipo banner.</p>',
  '<label for="ukiPromoName">Nombre de la promoción</label><input id="ukiPromoName" maxlength="100" placeholder="Ej. Promo especial 200 piezas">',
- '<label for="ukiPromoDescription">Qué incluye</label><textarea id="ukiPromoDescription" maxlength="500" rows="2" placeholder="Pollo, kanikama, envolturas y condiciones"></textarea>',
+ '<label for="ukiPromoDescription">Qué incluye</label><textarea id="ukiPromoDescription" maxlength="500" rows="2" placeholder="Describe exactamente qué recibe el cliente"></textarea>',
+ '<label for="ukiPromoType">Tipo de promoción</label><select id="ukiPromoType"><option value="sushi">Sushi por rolls/piezas · el cliente arma</option><option value="gohan">Gohan · preparación definida</option><option value="pizza">Pizza · preparación definida</option><option value="combo">Combo u otra promoción · sin armado</option></select>',
+ '<p id="ukiPromoTypeHelp" class="mini-help">Solo las promociones de sushi requieren rolls y piezas.</p>',
+ '<div id="ukiPromoSushiConfig">',
  '<div class="quick-grid"><div><label for="ukiPromoRollCount">Cantidad de rolls</label><input id="ukiPromoRollCount" type="number" inputmode="numeric" min="1" max="20" value="5"></div>',
  '<div><label for="ukiPromoPiecesPerRoll">Piezas por roll</label><select id="ukiPromoPiecesPerRoll"><option value="12">12 piezas</option><option value="10">10 piezas</option></select></div></div>',
  '<p id="ukiPromoPieceSummary" class="mini-help">5 rolls × 12 piezas = 60 piezas.</p>',
  '<div class="quick-grid"><div><label for="ukiPromoSauces">Salsas incluidas</label><input id="ukiPromoSauces" type="number" inputmode="numeric" min="0" max="20" value="5"></div>',
  '<div><label for="ukiPromoKorokes">Korokes incluidos</label><input id="ukiPromoKorokes" type="number" inputmode="numeric" min="0" max="30" value="0"></div></div>',
+ '</div>',
+ '<div id="ukiPromoComboSauceBox"><label for="ukiPromoComboSauce">Salsa incluida</label><select id="ukiPromoComboSauce"><option value="0">Sin salsa incluida</option><option value="1">1 salsa · el cliente elige soya o teriyaki</option></select></div>',
  '<label for="ukiPromoPayment">Medios de pago</label><select id="ukiPromoPayment"><option value="normal">Efectivo y transferencia</option><option value="edenred">Solo Edenred</option><option value="todos">Efectivo, transferencia, tarjetas y Edenred</option></select>',
  '<label for="ukiPromoPrice">Precio de venta ($)</label><input id="ukiPromoPrice" type="number" inputmode="numeric" min="1" max="1000000" placeholder="16000">',
  '<label for="ukiPromoPhoto">Foto real o banner de la promoción</label><input id="ukiPromoPhoto" type="file" accept="image/*">',
@@ -224,6 +229,16 @@ function modoMediosPromo(pagos){
  return 'normal';
 }
 function numeroPromo(id){return Number($(id)?.value);}
+function tipoPromoSeleccionado(){return $('ukiPromoType')?.value||'sushi';}
+function mostrarTipoPromo(){
+ const kind=tipoPromoSeleccionado(),sushi=kind==='sushi',section=$('ukiPromoSushiConfig');
+ if(section)section.hidden=!sushi;
+ const comboSauce=$('ukiPromoComboSauceBox');if(comboSauce)comboSauce.hidden=sushi;
+ const note=$('ukiPromoTypeHelp');if(note)note.textContent=sushi?
+ 'Rolls y piezas solo para sushi. El cliente podrá armar cada roll.':
+ 'Describe exactamente los productos incluidos. Puedes incluir una salsa a elección, sin rolls ni piezas.';
+ const create=$('ukiPromoCreate');if(create)create.disabled=kind==='pizza'&&branch()==='serena';
+}
 function actualizaPiezasPromo(){
  const el=$('ukiPromoPieceSummary');if(!el)return;
  const rolls=numeroPromo('ukiPromoRollCount'),pieces=numeroPromo('ukiPromoPiecesPerRoll');
@@ -233,14 +248,19 @@ function actualizaPiezasPromo(){
 async function crearPromo(){
  if(state.busy)return;
  const chosen=branch(),file=$('ukiPromoPhoto')?.files?.[0];
- const p={name:String($('ukiPromoName')?.value||'').trim(),
+ const promoType=tipoPromoSeleccionado();
+ const p={name:String($('ukiPromoName')?.value||'').trim(),promoType,customizable:promoType==='sushi',
   description:String($('ukiPromoDescription')?.value||'').trim(),
   price:numeroPromo('ukiPromoPrice'),rollCount:numeroPromo('ukiPromoRollCount'),
-  piecesPerRoll:numeroPromo('ukiPromoPiecesPerRoll'),sauceCount:numeroPromo('ukiPromoSauces'),
+  piecesPerRoll:numeroPromo('ukiPromoPiecesPerRoll'),sauceCount:promoType==='sushi'?numeroPromo('ukiPromoSauces'):numeroPromo('ukiPromoComboSauce'),
   korokes:numeroPromo('ukiPromoKorokes'),payments:mediosPromo($('ukiPromoPayment')?.value)};
  if(!p.name||!file){info('ukiPriceMessage','Agrega nombre y una fotografía real para la promoción.');return;}
- if(p.rollCount<1||p.rollCount>20||![10,12].includes(p.piecesPerRoll)||
-   !Number.isSafeInteger(p.price)||p.price<1){info('ukiPriceMessage','Revisa rolls, piezas y precio.');return;}
+ if((promoType==='sushi'&&(p.rollCount<1||p.rollCount>20||![10,12].includes(p.piecesPerRoll)))||
+   !Number.isSafeInteger(p.price)||p.price<1||!['sushi','gohan','pizza','combo'].includes(promoType)||
+   (promoType==='pizza'&&chosen==='serena')||
+   (promoType!=='sushi'&&p.description.length<2)){
+  info('ukiPriceMessage','Revisa tipo de promoción, descripción y precio.');return;
+ }
  state.busy=true;const button=$('ukiPromoCreate');button.disabled=true;
  let created=null,notice='';
  try{
@@ -309,24 +329,39 @@ function promoEditor(price){
    korokes=field('Korokes',price.config?.korokes,'number',0,30),
    amount=field('Precio ($)',price.price,'number',1,1000000);
  name.maxLength=100;description.maxLength=500;
+ const tipoLabel=document.createElement('label');tipoLabel.textContent='Tipo de promoción';
+ const tipo=document.createElement('select');
+ for(const [k,t] of [['sushi','Sushi · el cliente arma'],['gohan','Gohan · preparación definida'],['pizza','Pizza · preparación definida'],['combo','Combo u otra · sin armado']])tipo.add(new Option(t,k));
+ tipo.value=price.config?.promoType||'sushi';tipoLabel.append(tipo);form.insertBefore(tipoLabel,rolls.parentElement);
+ const syncEditor=()=>{const show=tipo.value==='sushi';
+  for(const f of [rolls,korokes])f.parentElement.hidden=!show;
+  per.parentElement.hidden=!show;
+  sauces.parentElement.hidden=false;
+  sauces.parentElement.firstChild.textContent=show?'Salsas incluidas':'Salsas incluidas (0 o 1)';
+  sauces.max=show?'20':'1';
+  if(!show&&Number(sauces.value)>1)sauces.value='1';
+  save.disabled=tipo.value==='pizza'&&state.branch==='serena';
+ };
  const label=document.createElement('label');label.textContent='Piezas por roll';
  const per=document.createElement('select');for(const n of [12,10])per.add(new Option(n+' piezas',String(n)));per.value=String(price.config?.piecesPerRoll||12);label.append(per);form.append(label);
  const paylabel=document.createElement('label');paylabel.textContent='Medios de pago';
  const pay=document.createElement('select');for(const [id,title] of [['normal','Efectivo y transferencia'],['edenred','Solo Edenred'],['todos','Todos los medios']])pay.add(new Option(title,id));
  pay.value=modoMediosPromo(price.config?.payments);paylabel.append(pay);form.append(paylabel);
+ tipo.onchange=syncEditor;
  const save=document.createElement('button');save.type='button';save.className='sm ok';save.textContent='Guardar cambios de promoción';
  save.onclick=async()=>{
   if(state.busy)return;
   const chosen=state.branch;state.busy=true;save.disabled=true;
   try{
    const item={name:name.value,description:description.value,price:Number(amount.value),
+    promoType:tipo.value,customizable:tipo.value==='sushi',
     rollCount:Number(rolls.value),piecesPerRoll:Number(per.value),sauceCount:Number(sauces.value),
     korokes:Number(korokes.value),payments:mediosPromo(pay.value)};
    await request(API,'editar-promocion',{sku:price.sku,expected_version:price.version,item},chosen);
    state.busy=false;await loadPrices(true);info('ukiPriceMessage','✓ Promoción actualizada para esta sucursal.');
   }catch(e){info('ukiPriceMessage','No se guardó: '+String(e.message))}
   finally{state.busy=false;save.disabled=false}
- };form.append(save);
+ };form.append(save);syncEditor();
  details.append(form);return details;
 }
 function line(price,ocultarRetiro=false){
@@ -614,6 +649,7 @@ function mount(){
  $('ukiPriceReload').onclick=()=>void loadPrices(true);
  $('ukiPriceCreate').onclick=()=>void create();
  $('ukiPromoCreate').onclick=()=>void crearPromo();
+ $('ukiPromoType').onchange=mostrarTipoPromo;mostrarTipoPromo();
  for(const id of ['ukiPromoRollCount','ukiPromoPiecesPerRoll'])
    $(id).oninput=actualizaPiezasPromo;
  actualizaPiezasPromo();
