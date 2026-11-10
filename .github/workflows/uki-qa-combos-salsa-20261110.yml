@@ -1,0 +1,38 @@
+name: Uki QA salsa · promociones gohan, pizza y combos
+on:
+  push:
+    branches:
+      - qa/uki-combos-salsa-incluida-20261110
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tipos-de-promocion:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ukiqa
+          POSTGRES_PASSWORD: prueba-aislada-2026
+          POSTGRES_DB: ukiqa
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ukiqa -d ukiqa"
+          --health-interval 3s --health-timeout 3s --health-retries 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verificar sintaxis
+        run: |
+          node --check api/uki-carta-precios-live.js
+          node --check firebase/uki-carta-precios-admin.js
+      - name: Instalar cliente PostgreSQL de prueba
+        run: npm install --no-save --ignore-scripts pg@8.13.1
+      - name: Probar editor, migración y publicación en base local
+        env:
+          UKI_QA_LOCAL_POSTGRES_URL: postgresql://ukiqa:prueba-aislada-2026@127.0.0.1:5432/ukiqa
+        run: node --test tests/uki-promociones-tipos-qa-20261110.test.cjs tests/uki-promociones-postgres-ciclo-real-20261109.test.cjs
