@@ -13,7 +13,7 @@ test('Se elimina la consulta cifrada manual que la dueña no necesita',()=>{
   assert.equal(qa.includes(phrase),false,phrase);
  }
  assert.match(qa,/Conexión automática pendiente/);
- assert.match(qa,/Los cierres automáticos de Uki aún no se reciben/);
+ assert.match(qa,/Los cierres automáticos de Uki se habilitan al terminar la conexión segura/);
 });
 test('Se conservan las ventas manuales, cierres y acceso de dueños',()=>{
  for(const id of ['saveSale','saleSource','saleTotal','saleDate','saleBiz','saleBranch',
