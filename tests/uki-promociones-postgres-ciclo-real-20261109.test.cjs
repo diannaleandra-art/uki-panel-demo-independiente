@@ -53,6 +53,9 @@ test('Migraciones y ciclo de publicación/retirada/restauración por sucursal so
   const migration=fs.readFileSync('sql/uki-carta-promos-visibilidad-v1.sql','utf8');
   await db.query(migration);
   await db.query(migration); // re-ejecución idempotente sin alterar datos
+  const tipos=fs.readFileSync('migrations/2026-11-10-uki-promos-por-tipo-qa.sql','utf8');
+  await db.query(tipos);
+  await db.query(tipos); // instalación QA idempotente
   await db.query(fs.readFileSync('sql/uki-carta-fotos-v1.sql','utf8'));
   const columns=await sql.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='uki_carta_promos_custom_v1'");
   assert.ok(columns.some(c=>c.column_name==='published_at'));
