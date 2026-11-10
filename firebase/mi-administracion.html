@@ -128,6 +128,7 @@ label{color:#66574c}
 <button type="button" class="quick-action" data-go="facturas"><span class="emoji">📷</span><strong>Compras y facturas</strong><small>Por razón social y proveedor</small></button>
 <button type="button" class="quick-action" data-go="negocios"><span class="emoji">🏪</span><strong>Mis negocios</strong><small>Agregar locales y costos</small></button>
 </div>
+<button id="ukiGoTodasVentas" type="button" class="soft" style="width:100%;font-weight:800;margin:12px 0 3px;border:1.5px solid #eabf98;background:#fff5ea">📋 Todas las ventas · ver cada pedido</button>
 <button id="goRecentMovements" class="soft" type="button" style="margin:12px 0 4px">📖 Ver ventas anteriores y otros movimientos</button>
 <div class="card"><h2>📊 ¿Cómo van todos los negocios?</h2>
 <p class="hint">Estos importes son solamente los que registres aquí. La caja del panel Uki se mantiene separada y las cifras no son ganancias definitivas.</p>
@@ -142,8 +143,8 @@ label{color:#66574c}
 <div id="recent"></div></div>
 <section class="card" id="ukiOwnerBridge">
  <div class="eyebrow">UKI SUSHI · LECTURA CIFRADA · QA</div>
- <h2>🔐 Cierres del panel operativo</h2>
- <p class="hint">Conexión de prueba en solo lectura. No importa movimientos ni duplica ventas en Mi Administración. La información debe abrirse con la clave del respaldo de cada sucursal; nunca se guarda.</p>
+ <h2>📋 Todas las ventas de Uki</h2>
+ <p class="hint">Conexión privada de pruebas, de solo lectura. Permite revisar cada pedido de Uki y los cierres definitivos, sin sumarlos dos veces. Las ventas anotadas en otros negocios se muestran por separado. La clave nunca se guarda.</p>
  <label for="ukiOwnerBranch">Sucursal de Uki</label>
  <select id="ukiOwnerBranch"><option value="Uki Regimiento Arica">Regimiento Arica</option><option value="Uki La Serena">La Serena</option></select>
  <div class="grid2">
@@ -152,9 +153,26 @@ label{color:#66574c}
  </div>
  <label for="ukiOwnerClave">Clave del respaldo cifrado de esa sucursal</label>
  <input id="ukiOwnerClave" type="password" minlength="12" autocomplete="off" placeholder="Solo para descifrar en este dispositivo">
- <button type="button" id="ukiOwnerConsultar" class="primary" style="margin-top:12px;width:100%">Consultar cierres · solo lectura</button>
+ <button type="button" id="ukiOwnerConsultar" class="primary" style="margin-top:12px;width:100%">Consultar ventas y cierres · solo lectura</button>
  <p id="ukiOwnerEstado" class="hint" role="status" aria-live="polite">No se ha consultado ningún cierre.</p>
- <div id="ukiOwnerResultados"></div>
+ <section id="ukiOwnerVentas" hidden>
+  <div class="fieldset-title">Ventas por pedido · sucursal consultada</div>
+  <div class="grid2">
+   <div><label for="ukiOwnerBuscarVenta">Buscar código o número</label><input id="ukiOwnerBuscarVenta" type="search" placeholder="Ej.: 154 o UKI" autocomplete="off"></div>
+   <div><label for="ukiOwnerEstadoVenta">Estado de pago</label><select id="ukiOwnerEstadoVenta"><option value="">Todos los estados</option><option value="pagada">Pagadas</option><option value="pendiente">Pendientes</option><option value="cancelada">Canceladas</option><option value="revisar">Por conciliar</option><option value="premio">Canjes / premios</option></select></div>
+  </div>
+  <label for="ukiOwnerMedioVenta">Medio de pago</label>
+  <select id="ukiOwnerMedioVenta"><option value="">Todos los medios</option></select>
+  <div id="ukiOwnerVentasResumen" class="steps"></div>
+  <p class="hint">Las cifras por pedido son informativas; los cierres y sus gastos NO se suman nuevamente a estas ventas. Los pagos recibidos en otros locales se muestran aparte.</p>
+  <div id="ukiOwnerListaVentas"></div>
+  <button type="button" id="ukiOwnerMasVentas" class="soft" hidden style="width:100%">Mostrar más ventas</button>
+ </section>
+ <details id="ukiOwnerFinancieras"><summary>📒 Ventas registradas en Mi Administración (otros negocios y manuales)</summary>
+  <p class="hint">Registros financieros independientes. Pueden coincidir con un cierre de Uki: no sumarlos hasta conciliar. Esta lista usa los filtros financieros actuales y el servidor puede devolver un máximo de 250 registros.</p>
+  <div id="ukiOwnerFinancierasLista"></div>
+ </details>
+ <details><summary>🔐 Ver cierres definitivos de Uki</summary><div id="ukiOwnerResultados"></div></details>
 </section>
 </section>
 <section class="view" id="v-ventas" hidden><div class="card">
@@ -308,6 +326,7 @@ import{crearSnapshotsUki}from"./uki-sushi-nube.js";
 import*as bloquesUki from"./uki-particion-local.js";
 import*as cifradoUki from"./uki-cifrado-bloques.js";
 import{extraerCierresUki,resumirCierresUki}from"./uki-duenos-resumen-cierres.mjs";
+import{extraerVentasUki,filtrarVentasUki,resumenVentasUki}from"./uki-duenos-ventas-qa.mjs";
 import {crearControlCompras} from "./mi-administracion-compras.js?v=general-v5";
 const app=initializeApp({apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",appId:"1:1070481165758:web:b8f0f9ff40caf5b8ac7def"});
 const auth=getAuth(app),$=id=>document.getElementById(id);
@@ -324,6 +343,63 @@ const crearLineaUki=(texto,valor)=>{
  const cifra=document.createElement('b');cifra.className='finance-price';cifra.textContent=valor;
  row.append(titulo,cifra);return row;
 };
+
+let ukiOwnerVentasEnMemoria=[],ukiOwnerLimite=25;
+function mostrarVentasFinancieras(){
+ const el=$('ukiOwnerFinancierasLista');el.replaceChildren();
+ const rows=transactions.filter(x=>x.tipo==='venta');
+ const label=document.createElement('p');label.className='hint';
+ label.textContent=rows.length+' venta(s) registradas devueltas en este período; se mantienen separadas de la caja operativa.';
+ el.append(label);
+ for(const x of rows.slice(0,100)){
+  const box=document.createElement('div');box.className='line';
+  const title=document.createElement('strong');title.textContent=String(x.fecha||'').slice(0,10)+' · '+pesos(x.monto)+' · '+businessName(x.negocio_id);
+  const meta=document.createElement('p');meta.className='hint';
+  meta.textContent=branchName(x.sucursal_id)+' · '+String(x.referencia||x.concepto||'Venta manual').slice(0,90)+' · '+x.estado;
+  box.append(title,meta);el.append(box);
+ }
+ if(rows.length>100){const hint=document.createElement('p');hint.className='hint';hint.textContent='Mostrando 100 registros; utiliza los filtros por fecha del panel para acotar la consulta.';el.append(hint);}
+}
+function mostrarVentasPorPedido(){
+ const box=$('ukiOwnerListaVentas');box.replaceChildren();
+ const filtros={buscar:$('ukiOwnerBuscarVenta').value,estado:$('ukiOwnerEstadoVenta').value,
+  medio:$('ukiOwnerMedioVenta').value,desde:$('ukiOwnerDesde').value,hasta:$('ukiOwnerHasta').value};
+ const visible=filtrarVentasUki(ukiOwnerVentasEnMemoria,filtros);
+ const resumen=resumenVentasUki(visible);
+ $('ukiOwnerVentasResumen').textContent=
+  'Pedidos: '+visible.length+' · Pagadas: '+resumen.pagadas+
+  ' · Pendientes: '+resumen.pendientes+' · Canceladas: '+resumen.canceladas+
+  ' · Por conciliar: '+resumen.revision+
+  ' · Cobrado en Uki (pagadas): '+pesos(resumen.cobradoLocal)+
+  ' · Cobrado en otros locales (pagadas): '+pesos(resumen.cobradoOtroLocal);
+ if(!visible.length){const p=document.createElement('p');p.className='muted';p.textContent='No hay pedidos para esta búsqueda y período.';box.append(p);}
+ const labels={pagada:'Pagada',pendiente:'Pendiente de pago',cancelada:'Cancelada',revisar:'Por conciliar',premio:'Canje / premio'};
+ for(const v of visible.slice(0,ukiOwnerLimite)){
+  const wrap=document.createElement('details');wrap.className='line';
+  const summary=document.createElement('summary');
+  summary.textContent=v.fecha+' · '+v.nombreSucursal+' · Pedido #'+v.numero+(v.codigo?' / Carta #'+v.codigo:'')+' · '+pesos(v.total);
+  const status=document.createElement('p');status.className='hint';
+  status.textContent=(labels[v.estado]||v.estado)+' · '+v.modalidad+' · '+(v.fechaHora||'');
+  const amounts=document.createElement('p');amounts.className='hint';
+  amounts.textContent='Total del pedido: '+pesos(v.total)+' · Cobrado en Uki: '+pesos(v.cobradoLocal)+
+   ' · Cobrado en otro local: '+pesos(v.cobradoOtroLocal)+' · Propina aparte: '+pesos(v.propina);
+  const pay=document.createElement('p');pay.className='hint';
+  pay.textContent='Medios de pago: '+(Object.entries(v.medios).map(([medio,valor])=>medio+' '+pesos(valor)).join(' + ')||'No registrado / no pagado');
+  wrap.append(summary,status,amounts,pay);
+  if(v.productos.length){
+   const products=document.createElement('ul');
+   for(const product of v.productos){
+    const item=document.createElement('li');
+    item.textContent=product.cantidad+' × '+product.nombre+' · '+pesos(product.precio);
+    products.append(item);
+   }
+   wrap.append(products);
+  }
+  box.append(wrap);
+ }
+ $('ukiOwnerMasVentas').hidden=visible.length<=ukiOwnerLimite;
+}
+
 function renderCierresDuenos(resultado,revision){
  const host=$('ukiOwnerResultados');host.replaceChildren();
  const status=document.createElement('p');status.className='hint';
@@ -552,6 +628,17 @@ document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>switchTab(b.dat
 document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>switchTab(b.dataset.go));
 $('showPurchaseForm').onclick=()=>vistaCompras('registrar');
 $('showPurchaseHistory').onclick=()=>vistaCompras('historial');
+$('ukiGoTodasVentas').onclick=()=>{$('ukiOwnerBridge').scrollIntoView({behavior:'smooth',block:'start'});};
+for(const id of ['ukiOwnerBuscarVenta','ukiOwnerEstadoVenta','ukiOwnerMedioVenta','ukiOwnerDesde','ukiOwnerHasta'])
+ $(id).addEventListener(id==='ukiOwnerBuscarVenta'?'input':'change',()=>{
+  ukiOwnerLimite=25;if(ukiOwnerVentasEnMemoria.length)mostrarVentasPorPedido();
+ });
+$('ukiOwnerMasVentas').onclick=()=>{ukiOwnerLimite+=25;mostrarVentasPorPedido();};
+$('ukiOwnerBranch').onchange=()=>{
+ ukiOwnerVentasEnMemoria=[];$('ukiOwnerVentas').hidden=true;
+ $('ukiOwnerResultados').replaceChildren();
+ textoUki('ukiOwnerEstado','Selecciona el respaldo de esta sucursal para consultar sus pedidos.');
+};
 $('goRecentMovements').onclick=()=>{
  $('movimientosGeneral').scrollIntoView({behavior:'smooth',block:'start'});
 };
@@ -604,6 +691,7 @@ async function refresh(){
   const params={negocio_id:currentBiz()||null,sucursal_id:currentBranch()||null,razon_social_id:value('scopeRazon')||'todos',desde:value('from'),hasta:value('to')};
   const [s,l]=await Promise.all([api('resumen',params),api('listar_movimientos',params)]);
   transactions=l.movimientos||[];
+  mostrarVentasFinancieras();
   let ventas=0,gastos=0,pendientes=0;
   for(const item of s.resumen||[]){
    const n=Number(item.total||0);
@@ -647,6 +735,7 @@ $('ukiOwnerConsultar').onclick=async()=>{
  const suc=$('ukiOwnerBranch').value,desde=$('ukiOwnerDesde').value,hasta=$('ukiOwnerHasta').value;
  $('ukiOwnerClave').value=''; // Nunca persistir, enviar ni registrar la clave.
  $('ukiOwnerResultados').replaceChildren();
+ ukiOwnerVentasEnMemoria=[];$('ukiOwnerVentas').hidden=true;
  if(!auth.currentUser||!session){textoUki('ukiOwnerEstado','Primero entra al panel privado de dueños.');return;}
  if(clave.length<12){textoUki('ukiOwnerEstado','Ingresa la clave cifrada de la sucursal (12 caracteres o más).');return;}
  if(desde&&hasta&&desde>hasta){textoUki('ukiOwnerEstado','Revisa el rango de fechas.');return;}
@@ -656,7 +745,15 @@ $('ukiOwnerConsultar').onclick=async()=>{
   if(!estado){textoUki('ukiOwnerEstado','Esta sucursal todavía no tiene respaldo cifrado disponible.');return;}
   const lista=extraerCierresUki(suc,estado,{desde,hasta});
   renderCierresDuenos(resumirCierresUki([lista]),revision);
-  textoUki('ukiOwnerEstado','Lectura correcta. No se agregó ninguna venta a Mi Administración.');
+  ukiOwnerVentasEnMemoria=extraerVentasUki(suc,estado);
+  ukiOwnerLimite=25;
+  const medios=new Set(ukiOwnerVentasEnMemoria.flatMap(x=>Object.keys(x.medios)));
+  const filter=$('ukiOwnerMedioVenta');filter.replaceChildren(new Option('Todos los medios',''));
+  for(const medio of [...medios].sort())filter.add(new Option(medio,medio));
+  $('ukiOwnerBuscarVenta').value='';$('ukiOwnerEstadoVenta').value='';
+  $('ukiOwnerVentas').hidden=false;
+  mostrarVentasPorPedido();
+  textoUki('ukiOwnerEstado','Pedidos y cierres leídos correctamente. No se importó ninguna venta a Mi Administración.');
  }catch(e){textoUki('ukiOwnerEstado','No se pudieron leer los cierres: '+String(e?.message||e));}
  finally{boton.disabled=false;}
 };
@@ -738,7 +835,9 @@ $('enter').onclick=()=>safe('enter',async()=>{
 });
 $('exit').onclick=async()=>{
  if(session)try{await api('salir')}catch{}
- $('ukiOwnerClave').value='';$('ukiOwnerResultados').replaceChildren();textoUki('ukiOwnerEstado','No se ha consultado ningún cierre.');
+ $('ukiOwnerClave').value='';$('ukiOwnerResultados').replaceChildren();
+ ukiOwnerVentasEnMemoria=[];$('ukiOwnerVentas').hidden=true;
+ textoUki('ukiOwnerEstado','No se ha consultado ningún cierre.');
  session='';await signOut(auth);show('login');notify('Acceso privado cerrado.','success');
 };
 // El fragmento nunca viaja al servidor y se conserva mientras Google completa
