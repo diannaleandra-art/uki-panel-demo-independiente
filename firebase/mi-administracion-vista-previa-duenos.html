@@ -109,7 +109,7 @@ label{color:#66574c}
 .owner-branches{background:#fff;border:1px solid #ecdac9;border-radius:18px;padding:15px 14px;margin:12px 0 17px;box-shadow:0 3px 11px #45280f08}
 .owner-branches .hint{margin-bottom:12px}
 .owner-branch-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
-.owner-branch-button{display:block;text-align:left;min-width:0;min-height:91px;background:#fffaf5;border:1.5px solid #ead5bf;border-radius:13px;padding:12px}
+.owner-branch-button{display:block;width:100%;text-align:left;min-width:0;min-height:91px;background:#fffaf5;border:1.5px solid #ead5bf;border-radius:13px;padding:12px}
 .owner-branch-button strong{display:block;font-size:13px;line-height:1.3}
 .owner-branch-button small{display:block;font-size:11px;line-height:1.35;margin-top:6px}
 .owner-branch-button:focus-visible{outline:3px solid #a96524;outline-offset:2px}
@@ -161,8 +161,8 @@ label{color:#66574c}
  <div id="ownerBranchTitle" class="owner-section-label" style="margin:0 0 4px">🏪 Sucursales Uki Sushi</div>
  <p class="hint">Los cierres finales de ambas sucursales aparecerán automáticamente después de activar la conexión segura. No necesitas consultar respaldos ni introducir otra clave.</p>
  <div class="owner-branch-grid">
-  <div class="owner-branch-button"><strong>Regimiento Arica</strong><small id="ukiAutoArica">Conexión automática pendiente</small></div>
-  <div class="owner-branch-button"><strong>La Serena</strong><small id="ukiAutoSerena">Conexión automática pendiente</small></div>
+  <button class="owner-branch-button" type="button" data-owner-branch="arica"><strong>Regimiento Arica</strong><small id="ukiAutoArica">Conexión automática pendiente</small></button>
+  <button class="owner-branch-button" type="button" data-owner-branch="serena"><strong>La Serena</strong><small id="ukiAutoSerena">Conexión automática pendiente</small></button>
  </div>
 </section>
 <div class="card owner-finance-card"><div class="owner-eyebrow">MOVIMIENTOS FINANCIEROS REGISTRADOS</div><h2>📊 Resumen de todos los negocios</h2>
@@ -624,8 +624,28 @@ document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>switchTab(b.data
 $('showPurchaseForm').onclick=()=>vistaCompras('registrar');
 $('showPurchaseHistory').onclick=()=>vistaCompras('historial');
 $('ukiGoTodasVentas').onclick=()=>{
+ $('scopeBusiness').value='';
+ chooseBranch('scopeBranch','','Todas las sucursales');
+ $('scopeRazon').value='todos';
  const details=$('ukiOwnerListadoVentas');details.open=true;
+ void refresh();
  details.scrollIntoView({behavior:'smooth',block:'start'});
+};
+for(const btn of document.querySelectorAll('[data-owner-branch]'))btn.onclick=()=>{
+ const target=btn.dataset.ownerBranch;
+ const uki=businesses.find(b=>/\buki\b/i.test(String(b.nombre||'')));
+ const branch=branches.find(b=>String(b.negocio_id)===String(uki?.id)&&
+  (target==='arica'?/arica|regimiento/i.test(b.nombre):/la serena|serena/i.test(b.nombre)));
+ if(!uki||!branch){
+  notify('Primero vincula las sucursales de Uki en Mis negocios.','error');return;
+ }
+ $('scopeBusiness').value=String(uki.id);
+ chooseBranch('scopeBranch',String(uki.id),'Todas las sucursales');
+ $('scopeBranch').value=String(branch.id);
+ $('scopeRazon').value='todos';
+ $('ukiOwnerListadoVentas').open=true;
+ void refresh();
+ $('ukiOwnerListadoVentas').scrollIntoView({behavior:'smooth',block:'start'});
 };
 $('goRecentMovements').onclick=()=>{
  $('movimientosGeneral').scrollIntoView({behavior:'smooth',block:'start'});
