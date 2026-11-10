@@ -61,9 +61,9 @@ function validPromo(input){
  // constructor de pedidos, precios y QR. No ofrecer una personalización falsa.
  if(!isSushi&&(customizable||input.description.trim().length<2))return null;
  const count=isSushi?Number(input.rollCount):0,per=isSushi?Number(input.piecesPerRoll):12,
-  sauce=isSushi?Number(input.sauceCount):0,korokes=isSushi?Number(input.korokes):0;
+  sauce=Number(input.sauceCount??0),korokes=isSushi?Number(input.korokes):0;
  if((isSushi&&(!Number.isSafeInteger(count)||count<1||count>20||![10,12].includes(per)))||
-   !Number.isSafeInteger(sauce)||sauce<0||sauce>20||!Number.isSafeInteger(korokes)||korokes<0||korokes>30)
+   !Number.isSafeInteger(sauce)||sauce<0||sauce>(isSushi?20:1)||!Number.isSafeInteger(korokes)||korokes<0||korokes>30)
    return null;
  const allowed=new Set(['efectivo','transferencia','debito','credito','edenred']);
  const payments=Array.isArray(input.payments)?[...new Set(input.payments)]:[];
