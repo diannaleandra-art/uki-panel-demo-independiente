@@ -161,8 +161,8 @@ label{color:#66574c}
  <div id="ownerBranchTitle" class="owner-section-label" style="margin:0 0 4px">🏪 Sucursales Uki Sushi</div>
  <p class="hint">Los cierres definitivos se mostrarán automáticamente cuando termine la integración segura. No necesitas consultar respaldos ni introducir otra clave.</p>
  <div class="owner-branch-grid">
-  <div class="owner-branch-button"><strong>Regimiento Arica</strong><small>Conexión automática pendiente</small></div>
-  <div class="owner-branch-button"><strong>La Serena</strong><small>Conexión automática pendiente</small></div>
+  <div class="owner-branch-button"><strong>Regimiento Arica</strong><small id="ukiAutoArica">Conexión automática pendiente</small></div>
+  <div class="owner-branch-button"><strong>La Serena</strong><small id="ukiAutoSerena">Conexión automática pendiente</small></div>
  </div>
 </section>
 <div class="card owner-finance-card"><div class="owner-eyebrow">MOVIMIENTOS FINANCIEROS REGISTRADOS</div><h2>📊 Resumen de todos los negocios</h2>
@@ -190,6 +190,7 @@ label{color:#66574c}
  <summary>📋 Ver todas las ventas registradas del período</summary>
  <p class="hint">Incluye ventas manuales y cierres que ya ingresaste en Mi Administración. Los cierres automáticos de Uki aún no se reciben. Usa los filtros de fecha del panel para consultar otros días. La consulta devuelve como máximo 250 movimientos por período.</p>
  <div id="ukiOwnerFinancierasLista"></div>
+<div id="ukiOwnerCierresLecturaQA" aria-live="polite"></div>
 </details></div>
 </section>
 <section class="view" id="v-ventas" hidden><div class="card">
@@ -356,6 +357,61 @@ function mostrarVentasFinancieras(){
  }
  if(rows.length>100){const hint=document.createElement('p');hint.className='hint';hint.textContent='Mostrando 100 registros; utiliza los filtros por fecha del panel para acotar la consulta.';el.append(hint);}
 }
+// Solo lectura QA: cierres operativos confirmados, sin modificar movimientos manuales.
+const UKI_DUENOS_CIERRES_QA_URL='https://uki-sushi-inventario-cv8wvp7fc-diannaleandra-7046.vercel.app/api/uki-duenos-cierres-auto-qa';
+let ukiCierresQAConsulta=0;
+async function cargarCierresUkiQA(desde,hasta){
+ const numero=++ukiCierresQAConsulta, arica=$('ukiAutoArica'),serena=$('ukiAutoSerena'),
+  destino=$('ukiOwnerCierresLecturaQA');
+ if(!session||!auth.currentUser)return;
+ arica.textContent=serena.textContent='Consultando cierres QA…';
+ try{
+  const token=await auth.currentUser.getIdToken();
+  const r=await fetch(UKI_DUENOS_CIERRES_QA_URL,{method:'POST',cache:'no-store',
+   headers:{'Content-Type':'application/json','Authorization':'Bearer '+token,'X-Fin-Session':session},
+   body:JSON.stringify({action:'listar_cierres',branch:'todos',desde,hasta})});
+  const payload=await r.json().catch(()=>({}));
+  if(!r.ok||payload.ok!==true||!Array.isArray(payload.cierres))
+   throw Error('Los cierres automáticos aún no están disponibles');
+  if(numero!==ukiCierresQAConsulta||!session)return;
+  const seen=new Set(),rows=[];
+  for(const c of payload.cierres){
+   if(!['arica','serena'].includes(c.branch)||typeof c.turno_ref!=='string')continue;
+   const key=c.branch+'|'+c.turno_ref;if(seen.has(key))continue;seen.add(key);
+   const importe=Number(c.venta_total);
+   if(!Number.isSafeInteger(importe)||importe<0)continue;
+   rows.push({...c,importe});
+  }
+  for(const [branch,elemento] of [['arica',arica],['serena',serena]]){
+   const list=rows.filter(c=>c.branch===branch),total=list.reduce((n,c)=>n+c.importe,0);
+   elemento.textContent=list.length?pesos(total)+' · '+list.length+' cierre(s) confirmado(s)':'Sin cierres confirmados en el período';
+  }
+  destino.replaceChildren();
+  if(!rows.length){const p=document.createElement('p');p.className='hint';p.textContent='Sin cierres automáticos confirmados en este período (QA).';destino.append(p);return;}
+  const title=document.createElement('p');title.className='hint';
+  title.textContent='Cierres definitivos de Uki · lectura automática QA, sin sumarlos a las ventas manuales.';
+  destino.append(title);
+  for(const c of rows){
+   const line=document.createElement('div');line.className='line';
+   const fecha=String(c.fecha_operativa||'').slice(0,10);
+   const suc=c.branch==='arica'?'Regimiento Arica':'La Serena';
+   const pagos=Object.entries(c.medios||{}).map(([k,v])=>k+': '+pesos(v)).join(' · ');
+   line.textContent=suc+' · '+fecha+' · '+pesos(c.importe)
+    +' · Gastos '+pesos(c.gastos_cierre)+' · Delivery por pagar '+pesos(c.delivery_por_pagar)
+    +' · Propinas '+pesos(c.propinas)+' · Retiros '+pesos(c.retiros)
+    +(pagos?' · '+pagos:'');
+   destino.append(line);
+  }
+ }catch(e){
+  if(numero!==ukiCierresQAConsulta)return;
+  arica.textContent=serena.textContent='Conexión automática pendiente';
+  destino.replaceChildren();
+  const p=document.createElement('p');p.className='hint';
+  p.textContent='Los cierres automáticos de QA aún no están disponibles. Las ventas manuales permanecen intactas.';
+  destino.append(p);
+ }
+}
+
 let session="",businesses=[],branches=[],razones=[],vinculos=[],transactions=[],docs=[],tab='resumen';
 const AM=['Efectivo','Transferencia','Débito','Crédito','Edenred','Junaeb','Uber','Rappi','PedidosYa','Otro'];
 const pesos=n=>'$'+Number(n||0).toLocaleString('es-CL',{maximumFractionDigits:0});
@@ -620,6 +676,7 @@ async function refresh(){
   $('m-ventas').textContent=pesos(ventas);$('m-gastos').textContent=pesos(gastos);
   $('m-resultado').textContent=pesos(ventas-gastos);$('m-pendientes').textContent=pesos(pendientes);
   renderRows();renderPayments(s.pagos);notify('Información privada actualizada.','success');
+  await cargarCierresUkiQA(value('from'),value('to'));
  }catch(e){notify(e.message,'error');if(/código privado|sesión|Introduce el código/.test(e.message))lock();}
 }
 async function loadDocs(){
