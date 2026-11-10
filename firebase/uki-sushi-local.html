@@ -5633,7 +5633,7 @@ const UKI_OPERACION_HABILITADA=location.hostname==='diannaleandra-art.github.io'
 // La emisión de totales a QA solo se ensaya con el parámetro privado uki_duenos_qa=1.
 // Ningún QR actual ni enlace cotidiano contiene ese parámetro; no altera producción.
 const UKI_DUENOS_QA_ENSAYO=UKI_OPERACION_HABILITADA&&new URLSearchParams(location.search).get('uki_duenos_qa')==='1';
-const UKI_DUENOS_QA_ENDPOINT='https://uki-sushi-inventario-cv8wvp7fc-diannaleandra-7046.vercel.app/api/uki-duenos-cierres-auto-qa';
+const UKI_DUENOS_QA_ENDPOINT='https://uki-sushi-inventario-cnr6rwj4v-diannaleandra-7046.vercel.app/api/uki-duenos-cierres-auto-qa';
 const auth=getAuth(initializeApp(config)),db=getFirestore(auth.app);
 // Para inventario se utiliza esta misma sesión Google, nunca el PIN del trabajador.
 window.ukiInventarioToken=async()=>auth.currentUser?auth.currentUser.getIdToken():null;
