@@ -16,6 +16,7 @@ jobs:
       - name: Verificar módulos del lector privado
         run: |
           node --check firebase/uki-duenos-resumen-cierres.mjs
+          node --check firebase/uki-duenos-ventas-qa.mjs
           node --check firebase/uki-sushi-nube.js
       - name: Probar cierres, sucursales, deduplicación y seguridad
-        run: node --test tests/uki-duenos-resumen-cierres-qa-20261109.test.cjs
+        run: node --test tests/uki-duenos-resumen-cierres-qa-20261109.test.cjs tests/uki-duenos-todas-ventas-qa-20261109.test.cjs
