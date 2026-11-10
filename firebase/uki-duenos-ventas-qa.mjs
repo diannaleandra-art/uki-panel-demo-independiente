@@ -35,7 +35,7 @@ function pagosParte(p,nombre,monto,medio){
  return [{medio:String(p[medio]||'Efectivo').slice(0,42),monto}];
 }
 function extraerMedios(p){
- if(!p.pagado)return {medios:{},cobradoLocal:0,inconsistente:false};
+ if(!p.pagado&&p.ajusteCobroPendiente?.estado!=='pendiente')return {medios:{},cobradoLocal:0,inconsistente:false};
  const subtotal=importe(p.subtotal);
  const envio=p.modalidad==='Delivery'?importe(p.envio):0;
  const localProductos=subtotal-pagoExternoProducto(p,subtotal);
@@ -91,8 +91,8 @@ export function extraerVentasUki(sucursal,estado,{desde='',hasta=''}={}){
   if(seen.has(id))continue;
   seen.add(id);
   const subtotal=importe(p.subtotal),envio=p.modalidad==='Delivery'?importe(p.envio):0;
-  const estado=estadoPago(p);
-  const pago=estado==='cancelada'||estado==='premio'?{medios:{},cobradoLocal:0,inconsistente:false}:extraerMedios(p);
+  const situacion=estadoPago(p);
+  const pago=situacion==='cancelada'||situacion==='premio'?{medios:{},cobradoLocal:0,inconsistente:false}:extraerMedios(p);
   const products=Array.isArray(p.productos)?
    p.productos.slice(0,50).map(x=>Object.freeze({nombre:String(x?.nombre||'Producto').slice(0,100),
     cantidad:importe(x?.cantidad),precio:importe(x?.precioUnit)})):[];
@@ -101,10 +101,10 @@ export function extraerVentasUki(sucursal,estado,{desde='',hasta=''}={}){
    codigo:String(p.codigoCarta||'').slice(0,70),
    fecha,fechaHora:String(p.fechaISO||'').slice(0,35),
    modalidad:String(p.modalidad||'Sin modalidad').slice(0,50),
-   estado:estado==='pagada'&&pago.inconsistente?'revisar':estado,
+   estado:situacion==='pagada'&&pago.inconsistente?'revisar':situacion,
    total:importe(p.total)||subtotal+envio,subtotal,envio,
    cobradoLocal:pago.cobradoLocal,
-   cobradoOtroLocal:estado==='pagada'?pagoExternoProducto(p,subtotal)+pagoExternoEnvio(p,envio,subtotal):0,
+   cobradoOtroLocal:situacion==='pagada'?pagoExternoProducto(p,subtotal)+pagoExternoEnvio(p,envio,subtotal):0,
    propina:importe(p.propina),
    medios:Object.freeze({...pago.medios}),
    productos:Object.freeze(products)
