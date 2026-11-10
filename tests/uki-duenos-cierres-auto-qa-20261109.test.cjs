@@ -96,3 +96,42 @@ test('Conserva las validaciones de conflicto y prohíbe sumar cierres a movimien
  assert.match(api,/prior\[0\]\[k\]/);
  assert.doesNotMatch(api,/INSERT INTO public\.fin_movimientos/);
 });
+
+
+test('El cierre operativo solo solicita resumen QA después del guardado de Firebase',()=>{
+ const fs=require('node:fs');
+ const html=fs.readFileSync(path.join(__dirname,'../firebase/uki-sushi-local.html'),'utf8');
+ const start=html.indexOf('function cerrar(){');
+ const close=html.slice(start,html.indexOf('function descargarTextoArchivo',start));
+ assert.ok(start>0);
+ assert.match(close,/fechaOperativa:fechaTurnoCerrado/);
+ assert.match(close,/S\.cierres\.push\(\{/);
+ assert.match(close,/guardarEnLocalStorage\(\);/);
+ assert.match(close,/ukiDuenosCierrePendienteQA/);
+ assert.ok(close.indexOf('guardarEnLocalStorage();')<close.indexOf('ukiDuenosCierrePendienteQA'));
+ assert.match(html,/if\(!estadoNube\.actualRespaldado\|\|!contextoLocal/);
+ assert.match(html,/if\(!UKI_DUENOS_QA_ENSAYO\|\|ukiDuenosEnviandoQA\|\|!auth.currentUser\)return/);
+ assert.match(html,/new URLSearchParams\(location\.search\)\.get\('uki_duenos_qa'\)==='1'/);
+ assert.match(html,/if\(estado==='sincronizado'\)Promise\.resolve\(\)\.then/);
+});
+test('La vista privada presenta ambas sucursales y consulta cierres sin duplicar venta manual',()=>{
+ const fs=require('node:fs');
+ const html=fs.readFileSync(path.join(__dirname,'../firebase/mi-administracion-vista-previa-duenos.html'),'utf8');
+ for(const id of ['ukiAutoArica','ukiAutoSerena','ukiOwnerCierresLecturaQA'])
+  assert.ok(html.includes('id="'+id+'"'),id);
+ assert.match(html,/action:'listar_cierres',branch:'todos'/);
+ assert.match(html,/No se suman|sin sumarlos a las ventas manuales/);
+ assert.match(html,/const \[s,l\]=await Promise\.all\(\[api\('resumen',params\),api\('listar_movimientos',params\)\]\)/);
+ assert.match(html,/await cargarCierresUkiQA\(value\('from'\),value\('to'\)\)/);
+});
+test('Los módulos de Safari y de cierre conservan sintaxis válida',()=>{
+ const fs=require('node:fs');
+ const cp=require('node:child_process');
+ for(const file of ['uki-sushi-local.html','mi-administracion-vista-previa-duenos.html']){
+  const html=fs.readFileSync(path.join(__dirname,'../firebase',file),'utf8');
+  const scripts=[...html.matchAll(/<script\s+type="module"[^>]*>([\s\S]*?)<\/script>/g)];
+  assert.equal(scripts.length,1,file+' debe conservar módulo único');
+  const result=cp.spawnSync(process.execPath,['--check','--input-type=module'],{input:scripts[0][1],encoding:'utf8'});
+  assert.equal(result.status,0,result.stderr);
+ }
+});
