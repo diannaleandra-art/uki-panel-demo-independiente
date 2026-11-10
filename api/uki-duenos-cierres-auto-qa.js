@@ -47,14 +47,17 @@ async function ownerAuthorized(sql,req,user){
 function validateClose(body,now=Date.now()){
  const b=String(body.branch||''),date=body.fecha_operativa,ms=body.fecha_cierre_ms;
  const sale=body.venta_total,pedidos=body.pedidos,methods=body.medios;
+ const desglose={gastos_cierre:body.gastos_cierre,delivery_por_pagar:body.delivery_por_pagar,
+  propinas:body.propinas,retiros:body.retiros};
  if(!BRANCHES.has(b)||!isDay(date)||!int(ms,now+20*60000)||ms<1700000000000||
-  !int(sale)||!int(pedidos,10000)||body.confirmado!==true||
+  !int(sale)||!int(pedidos,10000)||Object.values(desglose).some(v=>!int(v))||
+  body.confirmado!==true||
   !methods||typeof methods!=='object'||Array.isArray(methods))return null;
  const entries=Object.entries(methods);
  if(entries.length>MEDIOS.size||entries.some(([k,v])=>!MEDIOS.has(k)||!int(v)))return null;
  if(entries.reduce((n,[,v])=>n+v,0)!==sale)return null;
  return {branch:b,fecha_operativa:date,fecha_cierre_ms:ms,venta_total:sale,pedidos,
-  medios:Object.fromEntries(entries),source_key:h(['uki',b,ms].join('|')),
+  medios:Object.fromEntries(entries),...desglose,source_key:h(['uki',b,ms].join('|')),
   turno_ref:'uki|'+b+'|'+ms};
 }
 module.exports=async(req,res)=>{
@@ -88,15 +91,17 @@ module.exports=async(req,res)=>{
    // Se inserta una sola vez; nunca sobreescribe cierres históricos.
    const rows=await sql.query(
     'INSERT INTO public.fin_uki_snapshots_qa '+
-    '(branch,source_key,turno_ref,fecha_operativa,estado,revision,venta_total,pedidos,medios,recibido_de_uid) '+
-    'VALUES($1,$2,$3,$4,\'cerrado\',1,$5,$6,$7::jsonb,$8) '+
+    '(branch,source_key,turno_ref,fecha_operativa,estado,revision,venta_total,pedidos,medios,gastos_cierre,delivery_por_pagar,propinas,retiros,recibido_de_uid) '+
+    'VALUES($1,$2,$3,$4,\'cerrado\',1,$5,$6,$7::jsonb,$8,$9,$10,$11,$12) '+
     'ON CONFLICT (branch,source_key) DO NOTHING RETURNING branch,source_key',
     [close.branch,close.source_key,close.turno_ref,close.fecha_operativa,
-     close.venta_total,close.pedidos,JSON.stringify(close.medios),who.uid]);
+     close.venta_total,close.pedidos,JSON.stringify(close.medios),
+     close.gastos_cierre,close.delivery_por_pagar,close.propinas,close.retiros,who.uid]);
    if(!rows.length){
-    const prior=await sql.query('SELECT venta_total,pedidos,medios,fecha_operativa::text AS fecha_operativa FROM public.fin_uki_snapshots_qa WHERE branch=$1 AND source_key=$2',[close.branch,close.source_key]);
+    const prior=await sql.query('SELECT venta_total,pedidos,medios,gastos_cierre,delivery_por_pagar,propinas,retiros,fecha_operativa::text AS fecha_operativa FROM public.fin_uki_snapshots_qa WHERE branch=$1 AND source_key=$2',[close.branch,close.source_key]);
     if(!prior.length||Number(prior[0].venta_total)!==close.venta_total||
      Number(prior[0].pedidos)!==close.pedidos||
+     ['gastos_cierre','delivery_por_pagar','propinas','retiros'].some(k=>Number(prior[0][k])!==close[k])||
      String(prior[0].fecha_operativa).slice(0,10)!==close.fecha_operativa||
      Object.keys(close.medios).sort().some(k=>Number(prior[0].medios?.[k])!==close.medios[k])||
      Object.keys(prior[0].medios||{}).length!==Object.keys(close.medios).length)
@@ -111,7 +116,7 @@ module.exports=async(req,res)=>{
    if(branch!=='todos'&&!BRANCHES.has(branch)||!isDay(from)||!isDay(to)||from>to)
     return fail(res,400,'Filtros incorrectos.');
    const rows=await sql.query(
-    'SELECT branch,turno_ref,fecha_operativa,venta_total,pedidos,medios,actualizado_en '+
+    'SELECT branch,turno_ref,fecha_operativa,venta_total,pedidos,medios,gastos_cierre,delivery_por_pagar,propinas,retiros,actualizado_en '+
     'FROM public.fin_uki_snapshots_qa WHERE estado=\'cerrado\' '+
     'AND ($1::text=\'todos\' OR branch=$1) AND fecha_operativa BETWEEN $2 AND $3 '+
     'ORDER BY fecha_operativa DESC,turno_ref DESC LIMIT 250',[branch,from,to]);
