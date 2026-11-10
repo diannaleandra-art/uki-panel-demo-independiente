@@ -6,13 +6,17 @@ const RAMAS={'Uki Regimiento Arica':'arica','Uki La Serena':'serena'};
 const MEDIOS=new Set(['Efectivo','Transferencia','Débito','Edenred','Otros','Uber Eats','PedidosYa','Rappi']);
 const money=v=>Number.isSafeInteger(v)&&v>=0&&v<=1e9;
 const goodDay=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&
- !Number.isNaN(Date.parse(v+'T12:00:00Z'));
+ !Number.isNaN(Date.parse(v+'T12:00:00Z'))&&new Date(v+'T12:00:00Z').toISOString().slice(0,10)===v;
 export function prepararCierreParaDuenos(cierre){
  const branch=RAMAS[cierre?.suc],fecha=cierre?.fechaOperativa,ms=cierre?.fechaMs;
  const venta=cierre?.venta,pedidos=cierre?.pedidos;
+ const desglose={gastos_cierre:cierre?.gastos,delivery_por_pagar:cierre?.delivery,
+  propinas:cierre?.propinas,retiros:cierre?.retiros};
  if(!branch||!goodDay(fecha)||!Number.isSafeInteger(ms)||ms<1700000000000||
   !money(venta)||!Number.isSafeInteger(pedidos)||pedidos<0||pedidos>10000)
   throw Error('Cierre no apto para sincronización financiera');
+ if(Object.values(desglose).some(v=>!money(v)))
+  throw Error('Falta el desglose válido del cierre; no se envía');
  const medios={};
  for(const [nombre,monto] of Object.entries(cierre.medios||{})){
   if(!MEDIOS.has(nombre)||!money(monto))throw Error('Medios del cierre inválidos');
@@ -22,7 +26,7 @@ export function prepararCierreParaDuenos(cierre){
   throw Error('Los pagos no cuadran con el cierre; no se envía');
  return Object.freeze({action:'registrar_cierre',confirmado:true,
   branch,fecha_operativa:fecha,fecha_cierre_ms:ms,
-  venta_total:venta,pedidos,medios:Object.freeze(medios)});
+  venta_total:venta,pedidos,medios:Object.freeze(medios),...desglose});
 }
 export async function sincronizarCierreQA(cierre,{endpoint,obtenerToken,fetchImpl=fetch}){
  if(typeof endpoint!=='string'||!/^https:\/\/[a-z0-9-]+\.vercel\.app\/api\/uki-duenos-cierres-auto-qa$/i.test(endpoint))
@@ -49,7 +53,8 @@ export async function conciliarCierresQA(cierres,config){
   let key;
   try{
    const p=prepararCierreParaDuenos(c);key=p.branch+'|'+p.fecha_cierre_ms;
-  }catch{continue}
+  }catch(e){resultado.errores.push({cierre:String(c?.suc||'desconocida').slice(0,45),
+   error:String(e?.message||e).slice(0,120)});continue}
   if(vistos.has(key))continue;vistos.add(key);resultado.revisados++;
   try{
    const response=await sincronizarCierreQA(c,config);
