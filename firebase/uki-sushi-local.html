@@ -1727,7 +1727,8 @@ function ukiCorreccionesTurnoUI(p){
   'Los cambios anteriores a la activación del historial no pueden reconstruirse automáticamente.</p></details>';
  const campos=[
   ['cliente','Nombre del cliente'],['telefono','WhatsApp'],['codigoCliente','Código del cliente'],
-  ['codigoCarta','Código de carta'],['fechaISO','Fecha del pedido'],
+  ['codigoCarta','Código de carta'],['sucursalCarta','Sucursal de la carta'],
+  ['qrSolicitudes','Solicitudes de mesa vinculadas'],['fechaISO','Fecha del pedido'],
   ['modalidad','Modalidad'],['mesaReferencia','Mesa'],
   ['envio','Costo del delivery'],['kmRecorrido','Kilómetros'],
   ['subtotal','Subtotal'],['total','Total'],['propina','Propina'],
@@ -1740,7 +1741,8 @@ function ukiCorreccionesTurnoUI(p){
   ['envioPagadoOtroLocal','Delivery cobrado en otro local'],
   ['montoEnvioOtroLocal','Monto delivery otro local'],
   ['localPagoExterno','Local que recibió el cobro'],
-  ['propinaModo','Tipo de propina'],['medioPropina','Medio de pago de propina'],
+  ['propinaModo','Tipo de propina'],['propinaPersonalizada','Propina personalizada'],
+  ['medioPropina','Medio de pago de propina'],
   ['textoOriginal','Texto u observaciones del pedido']
  ];
  const montos=new Set(['envio','subtotal','total','propina','montoProductosOtroLocal','montoEnvioOtroLocal']);
