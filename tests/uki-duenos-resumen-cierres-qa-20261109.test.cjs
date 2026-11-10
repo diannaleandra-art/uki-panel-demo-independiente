@@ -69,3 +69,14 @@ test('La pantalla de dueños únicamente lee y jamás guarda datos operativos o 
  assert.ok(!/localStorage\.setItem\(['"]ukiOwnerClave/.test(html));
  assert.match(html,/if\(!auth\.currentUser\|\|!session\)/,'Requiere Google y PIN de dueños');
 });
+
+test('El JavaScript de la pantalla privada es válido en modo módulo',()=>{
+ const html=fs.readFileSync(path.resolve(__dirname,'../firebase/mi-administracion.html'),'utf8');
+ const scripts=[...html.matchAll(/<script\s+type="module"[^>]*>([\s\S]*?)<\/script>/g)];
+ assert.equal(scripts.length,1,'El módulo privado debe ser único');
+ const {spawnSync}=require('node:child_process');
+ const parsed=spawnSync(process.execPath,['--check','--input-type=module'],{
+  input:scripts[0][1],encoding:'utf8'
+ });
+ assert.equal(parsed.status,0,parsed.stderr||'Sintaxis del panel válida');
+});
