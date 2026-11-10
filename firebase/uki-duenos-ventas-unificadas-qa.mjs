@@ -52,7 +52,7 @@ export function unirVentasDuenos({movimientos=[],cierres=[],desde='',hasta='',ne
   propinas:Number(c.propinas||0),retiros:Number(c.retiros||0)
  }));
  const referenciaManual=new Map();
- for(const m of manuales)if(m.ref)referenciaManual.set(key(m.ref),m);
+ for(const m of manuales)if(m.ref&&m.estado!=='anulado')referenciaManual.set(key(m.ref),m);
  let coincidencias=0,conflictos=0;
  const autosVisibles=[];
  for(const c of auto){
