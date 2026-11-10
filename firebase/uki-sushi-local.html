@@ -5640,7 +5640,7 @@ let nubeConfigAbiertaPorUsuario=false;
 // después de que Firebase confirma el respaldo de esa sucursal.
 // El puente se ejecuta sin bloquear la caja ni modificar el historial.
 const UKI_DUENOS_CIERRES_ENDPOINT='https://uki-sushi-inventario.vercel.app/api/uki-duenos-cierres-live';
-const UKI_DUENOS_DESDE_MS=Date.parse('2026-11-10T00:00:00Z');
+const UKI_DUENOS_DESDE_MS=Date.parse('2026-11-10T00:00:00-03:00');
 const ukiDuenosEnviados=new Set();
 let ukiDuenosSincronizando=false;
 async function ukiConciliarCierresDuenos(){
