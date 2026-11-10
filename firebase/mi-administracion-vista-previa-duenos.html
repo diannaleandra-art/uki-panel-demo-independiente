@@ -358,7 +358,7 @@ function mostrarVentasFinancieras(){
  if(rows.length>100){const hint=document.createElement('p');hint.className='hint';hint.textContent='Mostrando 100 registros; utiliza los filtros por fecha del panel para acotar la consulta.';el.append(hint);}
 }
 // Solo lectura QA: cierres operativos confirmados, sin modificar movimientos manuales.
-const UKI_DUENOS_CIERRES_QA_URL='https://uki-sushi-inventario-cv8wvp7fc-diannaleandra-7046.vercel.app/api/uki-duenos-cierres-auto-qa';
+const UKI_DUENOS_CIERRES_QA_URL='https://uki-sushi-inventario-cnr6rwj4v-diannaleandra-7046.vercel.app/api/uki-duenos-cierres-auto-qa';
 let ukiCierresQAConsulta=0;
 async function cargarCierresUkiQA(desde,hasta){
  const numero=++ukiCierresQAConsulta, arica=$('ukiAutoArica'),serena=$('ukiAutoSerena'),
