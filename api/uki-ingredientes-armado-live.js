@@ -7,10 +7,11 @@ const BRANCHES=new Set(['arica','serena']),CATEGORIES=new Set(['vegetal','protei
 const SURFACES=new Set(['classic','premium','monthly','handroll','burger','gohan']);
 const QA_REF='preparacion/uki-publicacion-unificada-2026-11-07';
 const QA_REF_ETAPA2='integracion/uki-promociones-ingredientes-seguros-qa-20261109';
+const QA_REF_TIPOS='qa/uki-promos-tipos-producto-20261110';
 const QA_MENU=/^https:\/\/(?:uki-sushi-pedidos-[a-z0-9-]+-diannaleandra-7046|uki-sushi-carta-prueba(?:-[a-z0-9-]+-diannaleandra-7046)?)\.vercel\.app$/;
 const QA_PANEL=/^https:\/\/uki-sushi-inventario-[a-z0-9-]+-diannaleandra-7046\.vercel\.app$/;
 const qa=e=>e.VERCEL_ENV==='preview'&&
- (e.VERCEL_GIT_COMMIT_REF===QA_REF||e.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2)&&
+ (e.VERCEL_GIT_COMMIT_REF===QA_REF||(e.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2||e.VERCEL_GIT_COMMIT_REF===QA_REF_TIPOS))&&
  e.UKI_INVENTARIO_QA_ENABLED==='true';
 const sameQAOrigin=(origin,e)=>qa(e)&&!!e.VERCEL_URL&&origin==='https://'+e.VERCEL_URL;
 const enabled=e=>(e.VERCEL_ENV==='production'&&e.UKI_INGREDIENTES_ARMADO_ENABLED==='true')||qa(e);
