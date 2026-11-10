@@ -62,3 +62,16 @@ test('Rechaza registros malformados y no muta cierres ni ventas de origen',async
  assert.equal(d.cierresConfirmados,2);
  assert.deepEqual(m,movimientos);assert.deepEqual(c,cierres);
 });
+
+
+test('En iPhone, Regimiento Arica, La Serena y Todas las ventas son accesos funcionales',()=>{
+ const fs=require('node:fs');
+ const html=fs.readFileSync(path.resolve(__dirname,'../firebase/mi-administracion-vista-previa-duenos.html'),'utf8');
+ for(const id of ['arica','serena'])assert.match(html,new RegExp('data-owner-branch="'+id+'"'));
+ assert.match(html,/for\(const btn of document\.querySelectorAll\('\[data-owner-branch\]'\)\)/);
+ assert.match(html,/\$\('scopeBranch'\)\.value=String\(branch\.id\)/);
+ assert.match(html,/\$\('ukiGoTodasVentas'\)\.onclick=/);
+ assert.match(html,/void refresh\(\)/);
+ assert.match(html,/unirVentasDuenos/);
+ assert.doesNotMatch(html,/id="ukiOwnerCierresLecturaQA"/);
+});
