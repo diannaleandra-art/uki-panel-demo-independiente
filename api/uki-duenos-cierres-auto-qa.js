@@ -12,8 +12,8 @@ const BRANCHES=new Set(['arica','serena']);
 const MEDIOS=new Set(['Efectivo','Transferencia','Débito','Edenred','Otros','Uber Eats','PedidosYa','Rappi']);
 const allowedOrigins=new Set(['https://diannaleandra-art.github.io']);
 const fail=(res,n,error)=>res.status(n).json({ok:false,error});
-const isDay=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&
- new Date(s+'T12:00:00Z').toISOString().slice(0,10)===s;
+const isDay=s=>{if(typeof s!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(s))return false;
+ const d=new Date(s+'T12:00:00Z');return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===s;};
 const int=(n,max=1e9)=>Number.isSafeInteger(n)&&n>=0&&n<=max;
 const enabled=(env=process.env)=>env.VERCEL_ENV==='preview'&&
  env.VERCEL_GIT_COMMIT_REF===QA_REF&&env.UKI_FIN_QA_ENABLED==='true';
@@ -94,11 +94,12 @@ module.exports=async(req,res)=>{
     [close.branch,close.source_key,close.turno_ref,close.fecha_operativa,
      close.venta_total,close.pedidos,JSON.stringify(close.medios),who.uid]);
    if(!rows.length){
-    const prior=await sql.query('SELECT venta_total,pedidos,medios,fecha_operativa FROM public.fin_uki_snapshots_qa WHERE branch=$1 AND source_key=$2',[close.branch,close.source_key]);
+    const prior=await sql.query('SELECT venta_total,pedidos,medios,fecha_operativa::text AS fecha_operativa FROM public.fin_uki_snapshots_qa WHERE branch=$1 AND source_key=$2',[close.branch,close.source_key]);
     if(!prior.length||Number(prior[0].venta_total)!==close.venta_total||
      Number(prior[0].pedidos)!==close.pedidos||
      String(prior[0].fecha_operativa).slice(0,10)!==close.fecha_operativa||
-     JSON.stringify(prior[0].medios)!==JSON.stringify(close.medios))
+     Object.keys(close.medios).sort().some(k=>Number(prior[0].medios?.[k])!==close.medios[k])||
+     Object.keys(prior[0].medios||{}).length!==Object.keys(close.medios).length)
      return fail(res,409,'Ese cierre ya existe con datos distintos; requiere conciliación.');
    }
    return res.status(200).json({ok:true,registrado:!!rows.length,duplicado:!rows.length,
