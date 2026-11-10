@@ -56,7 +56,7 @@ export function resumirCierresUki(colecciones){
   for(const cierre of coleccion){
    if(!cierre||typeof cierre.id!=='string'||vistos.has(cierre.id))continue;
    vistos.add(cierre.id);cierres.push(cierre);
-   if(!porSucursal[cierre.sucursal])porSucursal[cierre.sucursal]={...total,cierres:0};
+   if(!porSucursal[cierre.sucursal])porSucursal[cierre.sucursal]={venta:0,pedidos:0,gastosCierre:0,deliveryPorPagar:0,propinas:0,retiros:0,cierres:0};
    const destino=porSucursal[cierre.sucursal];destino.cierres++;
    for(const campo of Object.keys(total)){
     const n=monto(cierre[campo]);total[campo]+=n;destino[campo]+=n;
