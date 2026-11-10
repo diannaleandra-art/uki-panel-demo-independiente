@@ -74,6 +74,7 @@ const pricesPanel=[
  '<div class="quick-grid"><div><label for="ukiPromoSauces">Salsas incluidas</label><input id="ukiPromoSauces" type="number" inputmode="numeric" min="0" max="20" value="5"></div>',
  '<div><label for="ukiPromoKorokes">Korokes incluidos</label><input id="ukiPromoKorokes" type="number" inputmode="numeric" min="0" max="30" value="0"></div></div>',
  '</div>',
+ '<div id="ukiPromoComboSauceBox"><label for="ukiPromoComboSauce">Salsa incluida</label><select id="ukiPromoComboSauce"><option value="0">Sin salsa incluida</option><option value="1">1 salsa · el cliente elige soya o teriyaki</option></select></div>',
  '<label for="ukiPromoPayment">Medios de pago</label><select id="ukiPromoPayment"><option value="normal">Efectivo y transferencia</option><option value="edenred">Solo Edenred</option><option value="todos">Efectivo, transferencia, tarjetas y Edenred</option></select>',
  '<label for="ukiPromoPrice">Precio de venta ($)</label><input id="ukiPromoPrice" type="number" inputmode="numeric" min="1" max="1000000" placeholder="16000">',
  '<label for="ukiPromoPhoto">Foto real o banner de la promoción</label><input id="ukiPromoPhoto" type="file" accept="image/*">',
@@ -232,9 +233,10 @@ function tipoPromoSeleccionado(){return $('ukiPromoType')?.value||'sushi';}
 function mostrarTipoPromo(){
  const kind=tipoPromoSeleccionado(),sushi=kind==='sushi',section=$('ukiPromoSushiConfig');
  if(section)section.hidden=!sushi;
+ const comboSauce=$('ukiPromoComboSauceBox');if(comboSauce)comboSauce.hidden=sushi;
  const note=$('ukiPromoTypeHelp');if(note)note.textContent=sushi?
  'Rolls y piezas solo para sushi. El cliente podrá armar cada roll.':
- 'Describe exactamente los productos incluidos. No se piden rolls ni piezas; esta opción es de preparación definida.';
+ 'Describe exactamente los productos incluidos. Puedes incluir una salsa a elección, sin rolls ni piezas.';
  const create=$('ukiPromoCreate');if(create)create.disabled=kind==='pizza'&&branch()==='serena';
 }
 function actualizaPiezasPromo(){
@@ -250,7 +252,7 @@ async function crearPromo(){
  const p={name:String($('ukiPromoName')?.value||'').trim(),promoType,customizable:promoType==='sushi',
   description:String($('ukiPromoDescription')?.value||'').trim(),
   price:numeroPromo('ukiPromoPrice'),rollCount:numeroPromo('ukiPromoRollCount'),
-  piecesPerRoll:numeroPromo('ukiPromoPiecesPerRoll'),sauceCount:numeroPromo('ukiPromoSauces'),
+  piecesPerRoll:numeroPromo('ukiPromoPiecesPerRoll'),sauceCount:promoType==='sushi'?numeroPromo('ukiPromoSauces'):numeroPromo('ukiPromoComboSauce'),
   korokes:numeroPromo('ukiPromoKorokes'),payments:mediosPromo($('ukiPromoPayment')?.value)};
  if(!p.name||!file){info('ukiPriceMessage','Agrega nombre y una fotografía real para la promoción.');return;}
  if((promoType==='sushi'&&(p.rollCount<1||p.rollCount>20||![10,12].includes(p.piecesPerRoll)))||
@@ -332,8 +334,12 @@ function promoEditor(price){
  for(const [k,t] of [['sushi','Sushi · el cliente arma'],['gohan','Gohan · preparación definida'],['pizza','Pizza · preparación definida'],['combo','Combo u otra · sin armado']])tipo.add(new Option(t,k));
  tipo.value=price.config?.promoType||'sushi';tipoLabel.append(tipo);form.insertBefore(tipoLabel,rolls.parentElement);
  const syncEditor=()=>{const show=tipo.value==='sushi';
-  for(const f of [rolls,sauces,korokes])f.parentElement.hidden=!show;
+  for(const f of [rolls,korokes])f.parentElement.hidden=!show;
   per.parentElement.hidden=!show;
+  sauces.parentElement.hidden=false;
+  sauces.parentElement.firstChild.textContent=show?'Salsas incluidas':'Salsas incluidas (0 o 1)';
+  sauces.max=show?'20':'1';
+  if(!show&&Number(sauces.value)>1)sauces.value='1';
   save.disabled=tipo.value==='pizza'&&state.branch==='serena';
  };
  const label=document.createElement('label');label.textContent='Piezas por roll';
