@@ -1711,6 +1711,26 @@ function ukiFotoCorreccionPedido(p){
  for(const k of campos)foto[k]=p[k]===undefined?null:JSON.parse(JSON.stringify(p[k]));
  return foto;
 }
+// Verificación informativa del pedido recibido, sin inventar auditoría histórica.
+// Solo compara el campo Delivery explícito del WhatsApp original con el actual.
+function ukiDiferenciaDeliveryOriginalUI(p){
+ const original=String(p?.textoOriginal||'');
+ if(!original||p?.modalidad!=='Delivery')return '';
+ const m=original.match(/^\s*\*?\s*(?:delivery|costo\s+(?:del?\s+)?delivery|env[ií]o|costo\s+de\s+env[ií]o)\s*:\s*\$?\s*([\d.,]+)/im);
+ if(!m)return '';
+ const valor=Number(m[1].replace(/[^\d]/g,''));
+ const actual=Number(p.envio);
+ if(!Number.isSafeInteger(valor)||valor<0||valor>100000||!Number.isSafeInteger(actual)||
+    actual<0||valor===actual)return '';
+ const diferencia=actual-valor;
+ return '<div style="margin:10px 0;padding:11px;border:1px solid #edc38e;border-radius:10px;background:#fff3df">'+
+  '<p style="margin:0 0 6px"><b>🔍 Diferencia respecto al WhatsApp original</b></p>'+
+  '<p class="muted" style="margin:3px 0">Delivery en el mensaje recibido: '+fmt(valor)+'</p>'+
+  '<p style="margin:3px 0">Delivery registrado ahora: <b>'+fmt(actual)+'</b>'+
+  ' · '+(diferencia>0?'+':'−')+fmt(Math.abs(diferencia))+'</p>'+
+  '<p class="muted" style="margin:5px 0 0">Esta comparación no demuestra cuándo ni quién cambió el valor. '+
+  'Solo los cambios guardados como ediciones tienen responsable y hora. No modifica la caja.</p></div>';
+}
 // Auditoría de cambios por pedido (se muestran los registros existentes, sin alterar caja).
 function ukiCorreccionesTurnoUI(p){
  // Solo vista de auditoría: no cambia productos, cobros, caja ni el pedido.
@@ -1724,7 +1744,8 @@ function ukiCorreccionesTurnoUI(p){
   (cambios.length?'':' open')+'>'+titulo;
  if(!cambios.length)return inicio+
   '<p class="muted" style="margin:10px 0 0">No hay modificaciones registradas para este pedido. '+
-  'Los cambios anteriores a la activación del historial no pueden reconstruirse automáticamente.</p></details>';
+  'Los cambios anteriores a la activación del historial no pueden reconstruirse automáticamente.</p>'+
+  ukiDiferenciaDeliveryOriginalUI(p)+'</details>';
  const campos=[
   ['cliente','Nombre del cliente'],['telefono','WhatsApp'],['codigoCliente','Código del cliente'],
   ['codigoCarta','Código de carta'],['sucursalCarta','Sucursal de la carta'],
