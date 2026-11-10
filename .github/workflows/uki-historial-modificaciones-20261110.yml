@@ -1,0 +1,19 @@
+name: Uki QA · historial visible de cambios en pedidos
+on:
+  push:
+    branches:
+      - qa/uki-historial-modificaciones-visible-20261110
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  comprobar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Historial por pedido y protección de caja
+        run: |
+          node --test tests/uki-historial-modificaciones-visibles-20261110.test.cjs tests/uki-edicion-simple-turno-20261108.test.cjs tests/uki-correcciones-caja-abierta-20261108.test.cjs tests/uki-pedidos-compacto-20261107.test.cjs
