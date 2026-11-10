@@ -11,6 +11,8 @@ const HOSTS=new Set(['ep-lingering-glade-b5m4hfhu.c-7.us-east-2.aws.neon.tech',
 const BRANCHES=new Set(['arica','serena']);
 const MEDIOS=new Set(['Efectivo','Transferencia','Débito','Edenred','Otros','Uber Eats','PedidosYa','Rappi']);
 const allowedOrigins=new Set(['https://diannaleandra-art.github.io']);
+// Solo previews de este mismo proyecto Uki. Acceso real exige Google + PIN de dueños.
+const qaPreviewOrigin=/^https:\/\/uki-sushi-inventario-[a-z0-9]{8,16}-diannaleandra-7046\.vercel\.app$/i;
 const fail=(res,n,error)=>res.status(n).json({ok:false,error});
 const isDay=s=>{if(typeof s!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(s))return false;
  const d=new Date(s+'T12:00:00Z');return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===s;};
@@ -65,7 +67,7 @@ module.exports=async(req,res)=>{
  res.setHeader('X-Content-Type-Options','nosniff');
  res.setHeader('Vary','Origin');
  const origin=String(req.headers?.origin||'');
- const allow=allowedOrigins.has(origin);
+ const allow=allowedOrigins.has(origin)||qaPreviewOrigin.test(origin);
  if(enabled()&&allow){
   res.setHeader('Access-Control-Allow-Origin',origin);
   res.setHeader('Access-Control-Allow-Methods','POST,OPTIONS');
