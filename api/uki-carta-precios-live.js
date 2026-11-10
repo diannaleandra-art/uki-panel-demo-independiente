@@ -58,7 +58,7 @@ function validPromo(input){
  const isSushi=promoType==='sushi';
  // Los productos no-sushi aún no se exponen como armables hasta validar su
  // constructor de pedidos, precios y QR. No ofrecer una personalización falsa.
- if(!isSushi&&customizable)return null;
+ if(!isSushi&&(customizable||input.description.trim().length<2))return null;
  const count=isSushi?Number(input.rollCount):0,per=isSushi?Number(input.piecesPerRoll):12,
   sauce=isSushi?Number(input.sauceCount):0,korokes=isSushi?Number(input.korokes):0;
  if((isSushi&&(!Number.isSafeInteger(count)||count<1||count>20||![10,12].includes(per)))||
@@ -145,7 +145,7 @@ module.exports=async function(req,res){
   if(!promocionesHabilitadas()&&['crear-promocion','editar-promocion','publicar-promocion'].includes(action))
    return fail(res,503,'Promociones aún no habilitadas: falta publicación conjunta de carta y servidor.');
   if(action==='crear-promocion'){
-   const p=validPromo(req.body.item);if(!p)return fail(res,400,'Revisa el tipo de promoción, sus condiciones y precio.');
+   const p=validPromo(req.body.item);if(!p||p.promoType==='pizza'&&branch==='serena')return fail(res,400,'Revisa el tipo de promoción, sus condiciones y precio.');
    const sku=getSKU('monthly',p.name);
    const rows=await sql.query(`INSERT INTO public.uki_carta_promos_custom_v1
     (branch,sku,name,description,price,roll_count,pieces_per_roll,sauce_count,korokes,payments,promo_type,customizable,visible,updated_by)
@@ -208,7 +208,7 @@ module.exports=async function(req,res){
   }
   if(action==='editar-promocion'){
    if(!entry.custom||entry.kind!=='monthly')return fail(res,400,'Esta opción es exclusiva de promociones agregadas.');
-   const p=validPromo(req.body.item);if(!p)return fail(res,400,'Revisa la composición de la promoción.');
+   const p=validPromo(req.body.item);if(!p||p.promoType==='pizza'&&branch==='serena')return fail(res,400,'Revisa la composición de la promoción.');
    const changed=await sql.query(`UPDATE public.uki_carta_promos_custom_v1
      SET name=$3,description=$4,price=$5,roll_count=$6,pieces_per_roll=$7,sauce_count=$8,
        korokes=$9,payments=$10::text[],promo_type=$11,customizable=$12,
