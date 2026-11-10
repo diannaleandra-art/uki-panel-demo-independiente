@@ -851,5 +851,13 @@ if(setupLink){
 ['saleDate','expenseDate','docDate','to','histTo'].forEach(id=>$(id).value=today());
 $('from').value=today().slice(0,7)+'-01';
 $('histFrom').value=today().slice(0,7)+'-01';
-onAuthStateChanged(auth,()=>{if(!session)void checkState()});
+onAuthStateChanged(auth,user=>{
+ if(!user){
+  // Evitar conservar pedidos descifrados en pantalla si se pierde la sesión Google.
+  ukiOwnerVentasEnMemoria=[];$('ukiOwnerVentas').hidden=true;
+  $('ukiOwnerResultados').replaceChildren();$('ukiOwnerClave').value='';
+  session='';show('login');
+ }
+ if(!session)void checkState();
+});
 </script></body></html>
