@@ -117,10 +117,12 @@ test('El cierre operativo solo solicita resumen QA después del guardado de Fire
 test('La vista privada presenta ambas sucursales y consulta cierres sin duplicar venta manual',()=>{
  const fs=require('node:fs');
  const html=fs.readFileSync(path.join(__dirname,'../firebase/mi-administracion-vista-previa-duenos.html'),'utf8');
- for(const id of ['ukiAutoArica','ukiAutoSerena','ukiOwnerCierresLecturaQA'])
+ for(const id of ['ukiAutoArica','ukiAutoSerena','ukiOwnerFinancierasLista'])
   assert.ok(html.includes('id="'+id+'"'),id);
  assert.match(html,/action:'listar_cierres',branch:'todos'/);
- assert.match(html,/No se suman|sin sumarlos a las ventas manuales/);
+ assert.match(html,/NO se suman dos veces|no se suman dos veces/);
+ assert.doesNotMatch(html,/LECTURA CIFRADA · QA/i);
+ assert.match(html,/unirVentasDuenos/);
  assert.match(html,/const \[s,l\]=await Promise\.all\(\[api\('resumen',params\),api\('listar_movimientos',params\)\]\)/);
  assert.match(html,/await cargarCierresUkiQA\(value\('from'\),value\('to'\)\)/);
 });
