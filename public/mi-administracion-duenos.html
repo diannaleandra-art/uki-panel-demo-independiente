@@ -167,11 +167,13 @@ label{color:#66574c}
 </section>
 <div class="card owner-finance-card"><div class="owner-eyebrow">MOVIMIENTOS FINANCIEROS REGISTRADOS</div><h2>📊 Resumen de todos los negocios</h2>
 <p class="owner-finance-note">Los movimientos manuales heredados de la etapa de pruebas deben verificarse antes de contabilizarlos como ventas reales. Los cierres automáticos aparecen por separado y no duplican ingresos.</p>
-<div class="metrics"><div class="metric"><small>Ventas anotadas</small><b id="m-ventas">$0</b></div>
-<div class="metric"><small>Gastos y compras pagadas</small><b id="m-gastos">$0</b></div>
-<div class="metric"><small>Resultado preliminar*</small><b id="m-resultado">$0</b></div>
+<p class="hint" id="ukiPeriodoResumen">Período seleccionado: el mes actual</p>
+<button class="soft" id="ukiAbrirFechas" type="button" style="width:auto;padding:8px 12px;min-height:36px;margin-bottom:12px">📅 Cambiar fechas del resumen</button>
+<div class="metrics"><div class="metric"><small>Ventas (manuales + cierres)</small><b id="m-ventas">$0</b></div>
+<div class="metric"><small>Gastos y repartos pagados</small><b id="m-gastos">$0</b></div>
+<div class="metric"><small>Ventas − gastos*</small><b id="m-resultado">$0</b></div>
 <div class="metric"><small>Pagos pendientes</small><b id="m-pendientes">$0</b></div></div>
-<p class="hint">*Para conocer la utilidad real faltan costos completos, sueldos, impuestos y otros gastos que corresponda considerar.</p></div>
+<p class="hint">*Resultado preliminar del período: ventas menos gastos pagados y repartos pagados. Las propinas y retiros se muestran aparte; faltan otros costos e impuestos para calcular la utilidad real.</p></div>
 <div class="owner-section-label">Detalle de ventas</div>
 <button id="ukiGoTodasVentas" type="button" class="owner-action-all">📋 Todas las ventas<small>Cierres finales y ventas manuales por fecha y sucursal</small></button>
 <div class="owner-section-label">Administrar movimientos</div>
@@ -189,7 +191,7 @@ label{color:#66574c}
 <details id="ukiOwnerListadoVentas" style="border-top:1px solid var(--line);margin-top:12px;padding-top:6px">
  <summary>📋 Todas las ventas del período</summary>
  <p class="hint">Incluye ventas manuales y cierres que ya ingresaste en Mi Administración. Los cierres finales verificados se muestran automáticamente en esta administración. Usa los filtros de fecha del panel para consultar otros días. La consulta devuelve como máximo 250 movimientos por período.</p>
- <div id="ukiOwnerFinancierasLista"></div>
+ <div id="ukiOwnerResumenDiario" style="margin:12px 0"></div><div id="ukiOwnerFinancierasLista"></div>
 
 </details></div>
 </section>
@@ -221,7 +223,7 @@ label{color:#66574c}
 <label>Proveedor (opcional)</label><input id="expenseVendor"><label>Concepto</label><textarea id="expenseConcept"></textarea>
 <label style="display:flex;align-items:center;gap:10px"><input type="checkbox" id="expensePending" style="width:20px;min-height:20px;margin:0"> Aún está pendiente de pago</label>
 <label>Vencimiento (si aún está pendiente)</label><input id="expenseDue" type="date"><label>Adjuntar factura o comprobante (opcional)</label><input id="expensePhoto" type="file" accept="image/*,application/pdf">
-<button class="primary" id="saveExpense">Guardar gasto o compra</button></div></section>
+<button class="primary" id="saveExpense">Guardar gasto o compra</button></div><div class="card" id="ukiGastosDeCierres"><h2>📖 Gastos registrados por fecha</h2><p class="hint">Gastos manuales y gastos de los cierres definitivos de Uki, diferenciados. Los gastos automáticos solo se consultan aquí; no crean movimientos nuevos.</p><div id="ukiGastosVisibles"></div></div></section>
 <section class="view" id="v-facturas" hidden>
 <div class="card" id="purchaseNavigation">
 <div class="eyebrow">ADMINISTRACIÓN GENERAL DE COMPRAS</div>
@@ -344,6 +346,7 @@ import {unirVentasDuenos} from "./uki-duenos-ventas-unificadas-qa.mjs";
 const app=initializeApp({apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",appId:"1:1070481165758:web:b8f0f9ff40caf5b8ac7def"});
 const auth=getAuth(app),$=id=>document.getElementById(id);
 let cierresConfirmadosUki=[],errorConsultaCierresUki='';
+let resumenManualUki=[],pagosManualesUki=[];
 function mostrarVentasFinancieras(){
  const host=$('ukiOwnerFinancierasLista');host.replaceChildren();
  const data=unirVentasDuenos({
@@ -386,7 +389,99 @@ function mostrarVentasFinancieras(){
   host.append(box);
  }
  if(data.items.length>250)linea('Mostrando 250 registros. Cambia las fechas para ver otros.');
+ actualizarResumenConCierres(data);
 }
+
+function actualizarResumenConCierres(data){
+ // Solo lectura: las ventas y gastos de caja se reflejan en el resumen sin
+ // guardarse en fin_movimientos ni modificar el cierre original.
+ const normalizarRef=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,'');
+ const refsManual=new Set(data.items.filter(x=>x.tipo==='manual'&&x.estado!=='anulado'&&x.ref)
+  .map(x=>normalizarRef(x.ref)));
+ // Una referencia manual coincidente, incluso con monto distinto, exige
+ // conciliación en vez de sumar dos veces la misma venta.
+ const cierresSumables=data.items.filter(x=>x.tipo==='cierre'&&!refsManual.has(normalizarRef(x.ref)));
+ const monto=x=>{const n=Number(x);return Number.isSafeInteger(n)&&n>=0?n:0;};
+ const total=(rows,key)=>rows.reduce((n,x)=>n+monto(x[key]),0);
+ let ventaManual=0,gastoManual=0,pendiente=0;
+ for(const x of resumenManualUki){
+  const n=monto(x.total);
+  if(x.tipo==='venta')ventaManual+=n;
+  if(['gasto','compra','costo_producto'].includes(x.tipo)){
+   if(x.estado==='pendiente')pendiente+=n;else gastoManual+=n;
+  }
+ }
+ const ventaAuto=total(cierresSumables,'importe');
+ const gastosCierre=total(cierresSumables,'gastos');
+ // El campo delivery contiene los repartos PAGADOS desde caja; no es una venta.
+ const repartosPagados=total(cierresSumables,'delivery');
+ const ventas=ventaManual+ventaAuto,gastos=gastoManual+gastosCierre+repartosPagados;
+ $('m-ventas').textContent=pesos(ventas);
+ $('m-gastos').textContent=pesos(gastos);
+ $('m-resultado').textContent=pesos(ventas-gastos);
+ $('m-pendientes').textContent=pesos(pendiente);
+ $('ukiPeriodoResumen').textContent='Período: '+value('from')+' a '+value('to')+
+  ' · Cierres de Uki incluidos: '+cierresSumables.length+
+  (data.conflictos?' · '+data.conflictos+' pendiente(s) de conciliación':'');
+ const nombrarMedio=k=>k==='Uber'||k==='Uber Eats'?'Uber Eats':k==='Otro'||k==='Otros'?'Otros':k;
+ const pagos=new Map();
+ const sumarPago=(nombre,valor)=>{
+  const n=monto(valor);if(!n)return;
+  const k=nombrarMedio(String(nombre||''));pagos.set(k,(pagos.get(k)||0)+n);
+ };
+ for(const x of pagosManualesUki)sumarPago(x.medio,x.total);
+ for(const c of cierresSumables)for(const [k,v] of Object.entries(c.medios||{}))sumarPago(k,v);
+ renderPayments([...pagos].map(([medio,total])=>({medio,total})));
+ // Desglose diario: una sola entrada por cierre verificado y venta manual.
+ const dias=new Map();
+ const dia=fecha=>{
+  if(!dias.has(fecha))dias.set(fecha,{ventas:0,gastos:0,detalle:0});
+  return dias.get(fecha);
+ };
+ for(const x of data.items){
+  if(x.tipo==='manual'&&x.estado!=='anulado')dia(x.fecha).ventas+=monto(x.importe);
+  if(x.tipo==='cierre'&&cierresSumables.includes(x)){
+   const d=dia(x.fecha);d.ventas+=monto(x.importe);
+   d.gastos+=monto(x.gastos)+monto(x.delivery);d.detalle++;
+  }
+ }
+ const gastosManuales=transactions.filter(x=>['gasto','compra','costo_producto'].includes(x.tipo)&&x.estado!=='anulado');
+ for(const x of gastosManuales)if(x.estado!=='pendiente')dia(String(x.fecha).slice(0,10)).gastos+=monto(x.monto);
+ const diario=$('ukiOwnerResumenDiario');diario.replaceChildren();
+ if(dias.size){
+  const h=document.createElement('strong');h.textContent='📅 Ventas y gastos por fecha';diario.append(h);
+  for(const [fecha,v] of [...dias].sort((a,b)=>b[0].localeCompare(a[0]))){
+   const line=document.createElement('div');line.className='line';
+   line.textContent=fecha+' · Ventas: '+pesos(v.ventas)+' · Gastos y repartos: '+
+    pesos(v.gastos)+' · Resultado: '+pesos(v.ventas-v.gastos);
+   diario.append(line);
+  }
+ }
+ // Mostrar los gastos también en su propia sección, sin registrar duplicados.
+ const items=[];
+ for(const x of gastosManuales)items.push({
+  fecha:String(x.fecha).slice(0,10),titulo:x.tipo==='compra'?'Compra registrada':'Gasto registrado',
+  importe:monto(x.monto),detalle:businessName(x.negocio_id)+' · '+
+   branchName(x.sucursal_id)+(x.estado==='pendiente'?' · Pendiente de pago':' · Pagado')
+ });
+ for(const x of cierresSumables){
+  if(monto(x.gastos))items.push({fecha:x.fecha,titulo:'Gastos del cierre · '+x.sucursal,
+   importe:monto(x.gastos),detalle:'Automático · ya incluido en el cierre de Uki'});
+  if(monto(x.delivery))items.push({fecha:x.fecha,titulo:'Repartidores pagados · '+x.sucursal,
+   importe:monto(x.delivery),detalle:'Automático · pago registrado en caja Uki'});
+ }
+ items.sort((a,b)=>b.fecha.localeCompare(a.fecha));
+ const host=$('ukiGastosVisibles');host.replaceChildren();
+ if(!items.length){
+  const p=document.createElement('p');p.className='hint';p.textContent='No hay gastos registrados para estas fechas y filtros.';host.append(p);
+ }else for(const x of items){
+  const box=document.createElement('div');box.className='line';
+  const strong=document.createElement('strong');strong.textContent=x.fecha+' · '+x.titulo+' · '+pesos(x.importe);
+  const p=document.createElement('p');p.className='hint';p.textContent=x.detalle;
+  box.append(strong,p);host.append(box);
+ }
+}
+
 // Solo lectura: cierres confirmados, sin modificar movimientos manuales.
 const UKI_DUENOS_CIERRES_URL='https://uki-sushi-inventario.vercel.app/api/mi-administracion-live';
 let ukiCierresQAConsulta=0;
@@ -699,16 +794,8 @@ async function refresh(){
   const params={negocio_id:currentBiz()||null,sucursal_id:currentBranch()||null,razon_social_id:value('scopeRazon')||'todos',desde:value('from'),hasta:value('to')};
   const [s,l]=await Promise.all([api('resumen',params),api('listar_movimientos',params)]);
   transactions=l.movimientos||[];
-  mostrarVentasFinancieras();
-  let ventas=0,gastos=0,pendientes=0;
-  for(const item of s.resumen||[]){
-   const n=Number(item.total||0);
-   if(item.tipo==='venta')ventas+=n;
-   if(['gasto','compra','costo_producto'].includes(item.tipo)){if(item.estado==='pendiente')pendientes+=n;else gastos+=n;}
-  }
-  $('m-ventas').textContent=pesos(ventas);$('m-gastos').textContent=pesos(gastos);
-  $('m-resultado').textContent=pesos(ventas-gastos);$('m-pendientes').textContent=pesos(pendientes);
-  renderRows();renderPayments(s.pagos);notify('Información privada actualizada.','success');
+  resumenManualUki=s.resumen||[];pagosManualesUki=s.pagos||[];
+  renderRows();notify('Información privada actualizada.','success');
   await cargarCierresUki(value('from'),value('to'));
  }catch(e){notify(e.message,'error');if(/código privado|sesión|Introduce el código/.test(e.message))lock();}
 }
@@ -790,6 +877,10 @@ $('newBiz').onclick=()=>safe('newBiz',async()=>{await api('nuevo_negocio',{nombr
 $('newBranch').onclick=()=>safe('newBranch',async()=>{await api('nueva_sucursal',{negocio_id:value('newBranchBiz'),nombre:value('newBranchName')});$('newBranchName').value='';await loadBusinesses()});
 $('saveCost').onclick=()=>safe('saveCost',async()=>{await api('guardar_costo',{negocio_id:value('costBiz'),nombre:value('costName'),precio_venta:amount('costPrice'),costo_estimado:amount('costAmount'),detalle:value('costDescription')});$('costName').value='';await loadCosts()});
 $('refresh').onclick=()=>void refresh();$('from').onchange=()=>void refresh();$('to').onchange=()=>void refresh();
+$('ukiAbrirFechas').onclick=()=>{
+ switchTab('resumen');$('globalAdvanced').open=true;$('dateFilters').open=true;
+ $('filterCard').scrollIntoView({behavior:'smooth',block:'start'});
+};
 function show(id){for(const x of ['login','setup','unlock','app'])$(x).hidden=x!==id;$('tabs').hidden=id!=='app';$('exit').hidden=id==='login';}
 function lock(){session='';show('unlock');}
 async function checkState(){
