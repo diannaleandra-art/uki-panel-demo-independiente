@@ -252,8 +252,15 @@ export function generarPDF(informe){
   escribir(sheet.nombre.toUpperCase()+' ('+sheet.filas.length+' registros)',true);
   for(const item of sheet.filas){
    const values=item.map((v,i)=>typeof v==='number'?pesos(v):String(v??''));
-   const record=values.join('  |  ');
-   for(let i=0;i<record.length;i+=108)escribir(record.slice(i,i+108));
+   let record=values.join('  |  ');
+   // En PDF mantener palabras completas para facilitar lectura desde iPhone.
+   while(record.length>96){
+    let corte=record.lastIndexOf(' ',96);
+    if(corte<48)corte=96;
+    escribir(record.slice(0,corte).trimEnd());
+    record=record.slice(corte).trimStart();
+   }
+   if(record)escribir(record);
   }
   y-=7;
  }
