@@ -58,7 +58,11 @@ module.exports=async function romoEstadoOperativoQA(req,res){
   try{
    const state=await store.readRomoOperativeState({db,identity});
    return res.status(200).json({ok:true,...state});
-  }catch{return fail(res,503,'No se pudo consultar el estado de Romo')}
+  }catch(error){
+   if(/no tiene permiso|identidad|La identidad|Sin permiso/.test(String(error?.message||'')))
+    return fail(res,403,'Sin permiso para consultar Romo');
+   return fail(res,503,'No se pudo consultar el estado de Romo');
+  }
  }
  const body=req.body;
  if(!body||typeof body!=='object'||Array.isArray(body)||
