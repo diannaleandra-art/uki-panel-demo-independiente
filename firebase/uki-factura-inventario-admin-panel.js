@@ -7,7 +7,7 @@
 const anteriorMontar=window.ukiInventarioMontar;
 if(typeof anteriorMontar!=='function')return;
 const API='https://uki-sushi-inventario.vercel.app/api/inventario-turno-live';
-const MODULO='https://uki-sushi-inventario.vercel.app/uki-factura-interfaz-live.mjs?v=factura-admin-20261111';
+const MODULO='https://uki-sushi-inventario.vercel.app/uki-factura-interfaz-live.mjs?v=uki-facturas-montaje-admin-v2-20261111';
 const $=id=>document.getElementById(id);
 const estado={branch:'',items:[],form:null,open:false,loading:null,modulo:null};
 const branchActual=()=>String($('invBranch')?.value||'');
@@ -57,6 +57,27 @@ function nuevos(items){
  estado.items=[...lista.values()];
  actualizarPanel(estado.branch);
 }
+function usarRecepcionPorCodigo(razon){
+ // Cuando Vercel sirve todavía la versión anterior, no llamar a una función
+ // que exige el elemento #items del QR. Mantener acceso funcional al trabajador.
+ const host=$('ukiFacturaAdminMount');
+ if(host){
+  host.replaceChildren();
+  const link=document.createElement('a');
+  link.href='https://uki-sushi-inventario.vercel.app/';
+  link.target='_blank';link.rel='noopener noreferrer';
+  link.textContent='Abrir recepción de mercadería con código';
+  link.style.cssText='display:inline-block;max-width:100%;padding:11px 13px;margin:5px 0;'+
+   'background:#fff1de;color:#87460f;border:1px solid #d9ae85;border-radius:10px;'+
+   'font-weight:750;text-decoration:none';
+  const info=document.createElement('p');
+  info.className='muted';
+  info.textContent='Selecciona '+sucursalNombre(estado.branch)+
+   ' e ingresa con el código de inventario. La recepción se guarda en el mismo stock; no la registres dos veces.';
+  host.append(link,info);
+ }
+ mensaje(razon);
+}
 async function mostrarFactura(){
  const branch=branchActual(),contenedor=$('ukiFacturaAdminMount');
  if(!contenedor||!contenedor.isConnected||!$('ukiFacturaAdminDetails')?.open)return;
@@ -73,6 +94,10 @@ async function mostrarFactura(){
   if(!estado.modulo)estado.modulo=import(MODULO);
   const [lib]=await Promise.all([estado.modulo,cargarArticulos(branch)]);
   if(branch!==estado.branch||!contenedor.isConnected||!$('ukiFacturaAdminDetails')?.open)return;
+  if(lib.facturaAdmiteMontajeAdmin!==true){
+   usarRecepcionPorCodigo('El servicio de facturas aún está actualizándose. El acceso con código sigue disponible y registra en el mismo inventario.');
+   return;
+  }
   lib.iniciarFacturaLive({
    getBranch:()=>branchActual()===branch?branch:'',
    getItems:()=>estado.items,
@@ -84,7 +109,7 @@ async function mostrarFactura(){
   estado.form=contenedor.querySelector('#facturaQA');
   mensaje('Factura disponible en '+sucursalNombre(branch)+'. Puedes tomar foto, subir archivo o ingresar líneas manuales.');
  })().catch(e=>{
-  mensaje('No se pudo abrir la factura: '+e.message+'. Comprueba que Google esté conectado y vuelve a abrir este apartado.');
+  usarRecepcionPorCodigo('No se pudo cargar aquí la recepción de facturas. Puedes usar el acceso con código mientras se completa la actualización. Detalle: '+String(e.message||e).slice(0,140));
  }).finally(()=>{estado.loading=null});
  return estado.loading;
 }
