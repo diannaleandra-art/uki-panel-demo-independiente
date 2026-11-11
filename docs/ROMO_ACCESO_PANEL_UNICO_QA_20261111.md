@@ -59,3 +59,21 @@ pruebas reales en iPhone ni a habilitación del proyecto**.
    bloqueados hasta la aprobación de publicación y pruebas reales.
 
 **No cambiar producción del panel Uki, no contratar planes ni activar Romo.**
+
+## Cuenta de dueños identificada (preparación, sin asignar permisos)
+- La propietaria identificó en conversación la cuenta Google actual de administración.
+- Por privacidad, **el correo no se agrega al código fuente ni a pruebas públicas**.
+- Se preparó `ROMO_DUENOS_GOOGLE_EMAIL` como variable de entorno privada
+  del servidor, aún sin configurar ni habilitar.
+- Para un rol `duenos` se exige además un token Firebase Google firmado,
+  correo verificado e idéntico al configurado y **UID activo con ese rol**
+  en `public.romo_personal_acceso_v1`.
+- No se convierte el correo en acceso automático y no se crean permisos
+  a partir del email. El UID fiable se obtiene de la sesión Google real
+  verificada por el servidor en una fase autorizada.
+- El panel y la contraseña no cambian; trabajadores conservan sus roles.
+- Test QA `tests/romo-duenos-google-qa.test.mjs`: denegar cuenta sin
+  registro Neon, email no coincidente, no verificado, proveedor distinto
+  y ausencia de variable privada.
+- Actualmente no hay permiso de dueños otorgado, claves cifradas inscritas
+  ni operaciones Romo habilitadas.
