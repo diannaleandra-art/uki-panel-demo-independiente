@@ -290,7 +290,7 @@ module.exports=async(req,res)=>{
    // Solo edición financiera manual; los cierres automáticos de Uki viven en otra tabla.
    const id=String(body.id||''),fecha=body.fecha,monto=Number(body.monto);
    const version=String(body.version||'');
-   if(!uuid.test(id)||!validDate(fecha)||!money(monto)||!/^\\d{4}-\\d{2}-\\d{2}T/.test(version)||
+   if(!uuid.test(id)||!validDate(fecha)||!money(monto)||!/^\d{4}-\d{2}-\d{2}T/.test(version)||
       !Number.isFinite(Date.parse(version)))
     return fail(res,400,'Revisa registro, fecha y monto antes de guardar.');
    const old=await sql.query(
