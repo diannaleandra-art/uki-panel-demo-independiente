@@ -851,7 +851,10 @@ function pintarGastos(dato=vistaGastosActual){
    row.append(name,cat);
    if(x.concepto||x.proveedor){const extra=document.createElement('p');extra.className='hint';
     extra.textContent=(x.proveedor?x.proveedor+' · ':'')+x.concepto;row.append(extra)}
-   if(x.original)pintarAccionesManual(row,x.original);
+   if(x.original){
+    pintarAccionesManual(row,x.original);
+    pintarHistorialMovimiento(row,x.original.id);
+   }
    host.append(row);
   }
  }
@@ -1330,6 +1333,86 @@ async function cargarCuentasPendientes(){
  }
 }
 
+// Historial de cada movimiento: vista de solo lectura y sesión privada de dueños.
+function pintarHistorialMovimiento(contenedor,id){
+ if(!id||contenedor.querySelector('[data-fin-audit]'))return;
+ const panel=document.createElement('details');panel.className='owner-audit';panel.dataset.finAudit=String(id);
+ const resumen=document.createElement('summary');resumen.textContent='🕘 Ver historial de cambios';
+ const cuerpo=document.createElement('div');
+ panel.append(resumen,cuerpo);contenedor.append(panel);
+ let cargado=false,cargando=false;
+ const representar=valor=>{
+  if(valor===null||valor===undefined)return '—';
+  if(typeof valor==='object')return Array.isArray(valor)?valor.join(', '):
+   Object.entries(valor).map(([k,v])=>k+': '+String(v)).join('; ');
+  return String(valor);
+ };
+ const nombres={fecha:'Fecha',monto:'Importe',concepto:'Concepto',categoria:'Categoría',
+  proveedor:'Proveedor',referencia:'Referencia',sucursal_id:'Sucursal',medios:'Medios de pago',estado:'Estado'};
+ panel.addEventListener('toggle',async()=>{
+  if(!panel.open||cargado||cargando)return;
+  cargando=true;cuerpo.replaceChildren();
+  const espera=document.createElement('p');espera.className='hint';
+  espera.textContent='Consultando modificaciones…';cuerpo.append(espera);
+  try{
+   const respuesta=await api('auditoria_movimiento',{id});
+   const eventos=respuesta.eventos||[];cuerpo.replaceChildren();
+   if(!eventos.length){
+    const p=document.createElement('p');p.className='hint';
+    p.textContent='Este movimiento no tiene eventos de modificación disponibles.';cuerpo.append(p);
+   }
+   for(const e of eventos){
+    const item=document.createElement('div');item.className='owner-audit-item';
+    const titulo=document.createElement('b');
+    const nombre=({editar:'Modificación',crear:'Registro inicial',anular:'Anulación',
+     pagar:'Pago confirmado',clasificar_razon:'Razón social modificada'})[e.accion]||e.accion||'Movimiento';
+    let cuando='Fecha no disponible';
+    try{cuando=new Date(e.creado_en).toLocaleString('es-CL',
+      {timeZone:'America/Santiago',dateStyle:'short',timeStyle:'short'})}catch{}
+    titulo.textContent=nombre+' · '+cuando;item.append(titulo);
+    const quien=document.createElement('small');
+    const info=e.nuevo&&typeof e.nuevo==='object'?e.nuevo:{};
+    quien.textContent='Realizado por: '+(info.responsable_cuenta||
+      ('Cuenta autorizada · ID '+String(e.actor_uid||'no disponible').slice(-8)));
+    item.append(quien);
+    if(e.accion==='editar'&&info.antes&&info.despues){
+     const diff=document.createElement('div');diff.className='owner-audit-diff';
+     let n=0;
+     for(const [k,nuevo] of Object.entries(info.despues)){
+      if(!Object.prototype.hasOwnProperty.call(info.antes,k))continue;
+      const anterior=info.antes[k];
+      if(JSON.stringify(anterior)===JSON.stringify(nuevo))continue;
+      const line=document.createElement('p');
+      const valor=v=>k==='monto'?pesos(v):k==='sucursal_id'?branchName(v):representar(v);
+      line.textContent=(nombres[k]||k)+': '+valor(anterior)+' → '+valor(nuevo);
+      diff.append(line);n++;
+     }
+     if(n)item.append(diff);
+     else{const p=document.createElement('p');p.className='hint';
+      p.textContent='Se guardó una edición sin variación visible de los campos mostrados.';item.append(p)}
+    }else{
+     const note=document.createElement('p');note.className='hint';
+     note.textContent=e.accion==='crear'?'Movimiento registrado por primera vez.':
+      e.accion==='anular'?'Registro anulado; no se suma a los totales.':
+      e.accion==='pagar'?'Obligación marcada como pagada ('+
+       String(info.fecha_pago||'fecha no indicada')+').':
+      e.accion==='clasificar_razon'?'Razón social actualizada con registro de auditoría.':
+      'Movimiento registrado en el historial privado.';
+     item.append(note);
+    }
+    cuerpo.append(item);
+   }
+   if(respuesta.limitado){const a=document.createElement('p');a.className='hint';
+    a.textContent='Se muestran los 80 eventos más recientes.';cuerpo.append(a)}
+   cargado=true;
+  }catch(e){
+   cuerpo.replaceChildren();
+   const p=document.createElement('p');p.className='owner-expense-alert';
+   p.textContent='No se pudo consultar el historial: '+e.message;cuerpo.append(p);
+  }finally{cargando=false}
+ });
+}
+
 function pintarAccionesManual(box,t){
  if(!t||t.estado==='anulado'||t.fuente==='factura'||box.querySelector('[data-acciones-manuales]'))return;
  const bar=document.createElement('div');bar.dataset.accionesManuales='si';bar.className='row';
@@ -1448,7 +1531,10 @@ function renderRows(){
    (t.estado!=='anulado'&&t.fuente==='factura'?'<button type="button" data-anular="'+esc(t.id)+'">Anular (con confirmación)</button>':'')+
    '</details></div>';
  }).join('')||'<p class="muted">Aún no hay registros financieros.</p>';
- $('recent').querySelectorAll('[data-movimiento]').forEach(row=>pintarAccionesManual(row,transactions.find(t=>t.id===row.dataset.movimiento)));
+ $('recent').querySelectorAll('[data-movimiento]').forEach(row=>{
+  pintarAccionesManual(row,transactions.find(t=>t.id===row.dataset.movimiento));
+  pintarHistorialMovimiento(row,row.dataset.movimiento);
+ });
  $('recent').querySelectorAll('[data-clasificar]').forEach(b=>b.onclick=async()=>{
   const select=$('recent').querySelector('[data-mov-select="'+b.dataset.clasificar+'"]');
   if(!select?.value){notify('Selecciona primero una razón social.','error');return}
@@ -1580,7 +1666,7 @@ $('saveDoc').onclick=()=>safe('saveDoc',async()=>{
 });
 const controlCompras=crearControlCompras({
  api,$,esc,fmt:pesos,dateNow:today,businessName,branchName,currentBiz,currentBranch,upload,safe,
- branchesFor,negocios:()=>businesses
+ branchesFor,negocios:()=>businesses,mostrarAuditoria:pintarHistorialMovimiento
 });
 $('newBiz').onclick=()=>safe('newBiz',async()=>{await api('nuevo_negocio',{nombre:value('newBizName'),razon_social:value('newBizReason')});$('newBizName').value='';await loadBusinesses()});
 $('newBranch').onclick=()=>safe('newBranch',async()=>{await api('nueva_sucursal',{negocio_id:value('newBranchBiz'),nombre:value('newBranchName')});$('newBranchName').value='';await loadBusinesses()});
