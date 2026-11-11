@@ -228,7 +228,7 @@ module.exports=async(req,res)=>{
    const linked=await sql.query('SELECT 1 FROM public.fin_negocio_razones WHERE negocio_id=$1 AND razon_social_id=$2',[business,legal]);
    if(!linked.length)return fail(res,400,'Vincula primero la razón social al negocio.');
    await sql.query('UPDATE public.fin_movimientos SET razon_social_id=$2,actualizado_en=now() WHERE id=$1',[id,legal]);
-   await audit(sql,'movimiento',id,'clasificar_razon',who,{antes:existing[0].razon_social_id,despues:legal});
+   await audit(sql,'movimiento',id,'clasificar_razon',who,{antes:existing[0].razon_social_id,despues:legal,responsable_cuenta:who.email});
    return ok(res,{actualizado:true});
   }
   if(action==='guardar_movimiento'){
@@ -256,7 +256,7 @@ module.exports=async(req,res)=>{
    const r=await sql.query('INSERT INTO public.fin_movimientos(negocio_id,sucursal_id,tipo,fecha,monto,medios,categoria,concepto,proveedor,referencia,estado,fuente,datos,clave_unica,creado_por,razon_social_id) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16::uuid) ON CONFLICT DO NOTHING RETURNING id',
     [body.negocio_id,body.sucursal_id||null,tipo,fecha,monto,JSON.stringify(medios),text(body.categoria,90),concepto,text(body.proveedor,120),referencia,estado,fuente,JSON.stringify(datos),clave,who.uid,legal]);
    if(!r.length)return fail(res,409,'Ese cierre ya se importó anteriormente. No se duplicó.');
-   await audit(sql,'movimiento',r[0].id,'crear',who,{tipo,fecha,monto,negocio_id:body.negocio_id,sucursal_id:body.sucursal_id,razon_social_id:legal,fuente});
+   await audit(sql,'movimiento',r[0].id,'crear',who,{tipo,fecha,monto,negocio_id:body.negocio_id,sucursal_id:body.sucursal_id,razon_social_id:legal,fuente,responsable_cuenta:who.email});
    return ok(res,{id:r[0].id});
   }
   if(action==='registrar_cierre'){
@@ -320,7 +320,7 @@ module.exports=async(req,res)=>{
    if(!existe.length)return fail(res,404,'Movimiento no encontrado.');
    const events=await sql.query(
     "SELECT id,accion,actor_uid,anterior,nuevo,creado_en "+
-    "FROM public.fin_auditoria WHERE entidad='movimiento' AND entidad_id=$1 "+
+    "FROM public.fin_auditoria WHERE entidad IN ('movimiento','compra') AND entidad_id=$1 "+
     "ORDER BY creado_en DESC,id DESC LIMIT 80",[id]);
    return ok(res,{eventos:events,limitado:events.length===80});
   }
