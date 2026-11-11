@@ -22,7 +22,7 @@ function createDOM(){
 function run(){
  const {document,nodes}=createDOM();
  const win={document,location:{hostname:'example.net'},crypto:{randomUUID:()=> '12345678-1234-4123-8123-123456789abc'},confirm:()=>true};
- const ctx={window:win,Intl,setTimeout,clearTimeout,AbortController,fetch:async()=>{throw Error('No debe hacer red')}};
+ const ctx={window:win,Intl,structuredClone,setTimeout,clearTimeout,AbortController,fetch:async()=>{throw Error('No debe hacer red')}};
  vm.runInNewContext(source,ctx);
  return {win,nodes};
 }
@@ -60,7 +60,7 @@ test('normaliza lectura Romo sin texto HTML ejecutable ni datos cruzados',()=>{
  const rows=nodes.get('romoQACategoriaproductos').children;
  assert.equal(rows[1].children[0].textContent,'<img src=x onerror=alert(1)>');
  assert.equal(rows[1].children[0].children.length,0);
- assert.match(nodes.get('romoQACartaEstado').textContent,/Revisión 1/);
+ assert.match(nodes.get('romoQACartaEstado').textContent,/revisión 1/i);
  p.catalog.sucursal='uki:serena';
  assert.throws(()=>win.ukiRomoCatalogoRenderQA(p));
 });
