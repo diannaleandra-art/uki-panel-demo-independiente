@@ -10,6 +10,7 @@
     "jose": "6.2.15"
   },
   "scripts": {
-    "test": "node --test tests/inventario-live.test.cjs"
+    "test": "node --test tests/inventario-live.test.cjs",
+    "test:romo-qa": "node --test tests/uki-panel-unico-romo-serena-qa.test.cjs"
   }
 }
