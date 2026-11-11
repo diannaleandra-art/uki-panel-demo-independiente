@@ -335,7 +335,7 @@ module.exports=async(req,res)=>{
    let branch='todos',incluirCierres=true;
    if(biz){
     const b=await sql.query('SELECT nombre FROM public.fin_negocios WHERE id=$1',[biz]);
-    incluirCierres=/\\buki\\b/i.test(String(b[0]?.nombre||''));
+    incluirCierres=/\buki\b/i.test(String(b[0]?.nombre||''));
    }
    if(sucursal){
     const l=await sql.query('SELECT nombre FROM public.fin_sucursales WHERE id=$1',[sucursal]);
