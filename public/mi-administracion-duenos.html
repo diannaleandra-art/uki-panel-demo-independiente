@@ -229,7 +229,7 @@ label{color:#66574c}
 <button type="button" id="ukiAbrirFechas">Elegir fechas</button></div>
 <div class="metrics"><div class="metric"><small>Ventas (manuales + cierres)</small><b id="m-ventas">$0</b></div>
 <div class="metric"><small>Gastos y repartos pagados</small><b id="m-gastos">$0</b></div>
-<div class="metric"><small>Ventas − gastos*</small><b id="m-resultado">$0</b></div>
+<div class="metric"><small>Resultado operativo*</small><b id="m-resultado">$0</b></div>
 <div class="metric"><small>Por pagar · todas las fechas</small><b id="m-pendientes">$0</b></div></div>
 <p class="owner-kpi-detail" id="ukiDesgloseGastos">Gastos de caja · Repartos · Gastos y compras manuales</p>
 <details class="owner-hint-collapsible" id="ukiMovimientosPatrimonialesInicio">
@@ -518,6 +518,13 @@ function mostrarVentasFinancieras(){
 }
 
 
+// No confundir compras de equipamiento con mercadería o gastos operativos.
+function esMovimientoInversion(x){
+ return !!x&&x.tipo==='compra'&&/equipamiento|inversion/i.test(String(x.categoria||''));
+}
+function esGastoOperativo(x){
+ return !!x&&['gasto','compra','costo_producto'].includes(x.tipo)&&!esMovimientoInversion(x);
+}
 function pintarResumenPorNegocio(data,cierresSumables){
  const host=$('ukiOwnerPorNegocio');host.replaceChildren();
  const money=x=>{const n=Number(x);return Number.isSafeInteger(n)&&n>=0?n:0};
@@ -556,7 +563,7 @@ function pintarResumenPorNegocio(data,cierresSumables){
    k==='uki-serena'?'Uki Sushi · La Serena':labelFor(t));
   const amt=money(t.monto);
   if(t.tipo==='venta'&&manualIncluded.has(String(t.id)))row.venta+=amt;
-  if(['gasto','compra','costo_producto'].includes(t.tipo)){
+  if(esGastoOperativo(t)){
    if(t.estado==='pendiente')row.pendientes+=amt;else row.gastos+=amt;
   }
  }
@@ -608,7 +615,7 @@ function actualizarResumenConCierres(data){
  for(const x of resumenManualUki){
   const n=monto(x.total);
   if(x.tipo==='venta')ventaManual+=n;
-  if(['gasto','compra','costo_producto'].includes(x.tipo)){
+  if(esGastoOperativo(x)){
    if(x.estado==='pendiente')pendiente+=n;else gastoManual+=n;
   }
  }
@@ -649,9 +656,10 @@ function actualizarResumenConCierres(data){
    d.gastos+=monto(x.gastos)+monto(x.delivery);d.detalle++;
   }
  }
- const gastosManuales=transactions.filter(x=>['gasto','compra','costo_producto'].includes(x.tipo)&&x.estado!=='anulado');
+ const gastosManuales=transactions.filter(x=>esGastoOperativo(x)&&x.estado!=='anulado');
  for(const x of gastosManuales)if(x.estado!=='pendiente')dia(String(x.fecha).slice(0,10)).gastos+=monto(x.monto);
  pintarCategoriasGastos(gastosManuales,cierresSumables);
+ pintarPatrimonioSeparado();
  const diario=$('ukiOwnerResumenDiario');diario.replaceChildren();
  if(dias.size){
   const h=document.createElement('strong');h.textContent='📅 Ventas y gastos por fecha';diario.append(h);
@@ -668,6 +676,61 @@ function actualizarResumenConCierres(data){
  pintarGastos(vistaGastosActual);
 }
 
+
+function pintarPatrimonioSeparado(){
+ const totals={inversiones:0,retiros:0,ingresos:0,pendienteInversiones:0};
+ const suma=x=>{const n=Number(x);return Number.isSafeInteger(n)&&n>=0?n:0};
+ for(const x of resumenManualUki){
+  const n=suma(x.total);
+  if(esMovimientoInversion(x)){
+   if(x.estado==='pendiente')totals.pendienteInversiones+=n;
+   else totals.inversiones+=n;
+  }else if(x.tipo==='retiro'&&x.estado!=='pendiente')totals.retiros+=n;
+  else if(x.tipo==='ingreso_extra')totals.ingresos+=n;
+ }
+ const metricas=[
+  ['Inversiones pagadas',totals.inversiones],
+  ['Retiros de dueños',totals.retiros],
+  ['Ingresos extraordinarios',totals.ingresos],
+  ['Inversiones por pagar',totals.pendienteInversiones]
+ ];
+ for(const id of ['ukiCapitalMini','ukiPatrimonioTotales']){
+  const host=$(id);host.replaceChildren();
+  for(const [title,val] of metricas){
+   const card=document.createElement('div'),small=document.createElement('small'),strong=document.createElement('b');
+   small.textContent=title;strong.textContent=pesos(val);
+   card.append(small,strong);host.append(card);
+  }
+ }
+ const items=transactions.filter(x=>x.estado!=='anulado'&&
+  (esMovimientoInversion(x)||x.tipo==='retiro'||x.tipo==='ingreso_extra'))
+   .sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
+ const host=$('ukiPatrimonioDetalle');host.replaceChildren();
+ if(!items.length){
+  const p=document.createElement('p');p.className='hint';
+  p.textContent='No hay inversiones, retiros ni ingresos extraordinarios para las fechas seleccionadas.';
+  host.append(p);return;
+ }
+ for(const x of items){
+  const row=document.createElement('div');row.className='line';
+  const head=document.createElement('strong');
+  head.textContent=(esMovimientoInversion(x)?'Inversión':x.tipo==='retiro'?'Retiro del dueño':'Ingreso extraordinario')+
+   ' · '+pesos(x.monto);
+  const details=document.createElement('p');details.className='hint';
+  details.textContent=String(x.fecha).slice(0,10)+' · '+businessName(x.negocio_id)+
+   ' · '+branchName(x.sucursal_id)+' · '+(x.estado==='pendiente'?'Pendiente':'Registrado')+
+   (x.concepto?' · '+x.concepto:'');
+  row.append(head,details);
+  pintarAccionesManual(row,x);
+  pintarHistorialMovimiento(row,x.id);
+  host.append(row);
+ }
+ if(transactions.length>=250){
+  const info=document.createElement('p');info.className='owner-inv-note';
+  info.textContent='Los totales incluyen todos los movimientos del período, pero el detalle muestra como máximo 250 registros. Elige fechas más cortas para verlos todos.';
+  host.append(info);
+ }
+}
 
 function nombreCategoriaGasto(raw,fuente='manual'){
  const cat=String(raw||'').trim();
