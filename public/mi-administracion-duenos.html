@@ -279,6 +279,8 @@ label{color:#66574c}
 <p class="hint" id="ukiAyudaCategoria">Si tienes factura de compra, regístrala en Compras para no duplicarla aquí.</p>
 <label>Proveedor (opcional)</label><input id="expenseVendor"><label>Concepto</label><textarea id="expenseConcept"></textarea>
 <label style="display:flex;align-items:center;gap:10px"><input type="checkbox" id="expensePending" style="width:20px;min-height:20px;margin:0"> Aún está pendiente de pago</label>
+<label for="expensePayMethod">Medio de pago (si ya está pagado)</label>
+<select id="expensePayMethod"><option value="">No indicado</option></select>
 <label>Vencimiento (si aún está pendiente)</label><input id="expenseDue" type="date"><label>Adjuntar factura o comprobante (opcional)</label><input id="expensePhoto" type="file" accept="image/*,application/pdf">
 <p class="owner-expense-alert">Antes de guardar, comprueba que no sea el mismo gasto registrado en un cierre de Uki o en Compras. Los retiros personales se registran aparte del resultado operativo.</p>
 <button class="primary" id="saveExpense">Guardar gasto o compra</button></div><div class="card" id="ukiGastosDeCierres"><h2>📖 Gastos del local y otros gastos</h2>
@@ -677,7 +679,8 @@ function pintarGastos(dato=vistaGastosActual){
    estado:t.estado==='pendiente'?'pendiente':'pagado',
    concepto:String(t.concepto||''),proveedor:String(t.proveedor||''),
    detalle:businessName(t.negocio_id)+' · '+(t.sucursal_id?branchName(t.sucursal_id):'Gasto general')+
-    (t.fuente==='factura'?' · Factura en Compras':' · Manual'),
+    (t.fuente==='factura'?' · Factura en Compras':' · Manual')+
+    (Object.keys(t.medios||{}).length?' · Pago: '+Object.keys(t.medios).join(', '):''),
    original:t
   });
  }
@@ -778,6 +781,7 @@ async function cargarCierresUki(desde,hasta){
 
 let session="",businesses=[],branches=[],razones=[],vinculos=[],transactions=[],docs=[],tab='resumen';
 const AM=['Efectivo','Transferencia','Débito','Crédito','Edenred','Junaeb','Uber','Rappi','PedidosYa','Otro'];
+AM.forEach(m=>$('expensePayMethod').add(new Option(m,m)));
 const pesos=n=>'$'+Number(n||0).toLocaleString('es-CL',{maximumFractionDigits:0});
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const today=()=>{const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));return parts.year+'-'+parts.month+'-'+parts.day;};
@@ -958,6 +962,11 @@ function actualizarAlcanceGasto(){
 }
 $('expenseScope').onchange=actualizarAlcanceGasto;
 $('expenseType').onchange=actualizarAlcanceGasto;
+$('expensePending').onchange=()=>{
+ const pending=$('expensePending').checked;
+ $('expensePayMethod').disabled=pending;
+ if(pending)$('expensePayMethod').value='';
+};
 for(const id of ['ukiFiltroGastoTipo','ukiFiltroGastoEstado','ukiFiltroGastoCategoria']){
  $(id).onchange=()=>pintarGastos();
 }
@@ -1230,7 +1239,9 @@ $('saveExpense').onclick=()=>safe('saveExpense',async()=>{
   (general?'gastos generales':branchName(s))+'? Confirma que no está contabilizado en un cierre o factura.'))return false;
  const r=await api('guardar_movimiento',{negocio_id:b,sucursal_id:s,razon_social_id,fecha,monto,tipo,
   categoria:value('expenseCategory'),proveedor:value('expenseVendor'),concepto:value('expenseConcept'),
-  pendiente:$('expensePending').checked,datos:{vence:value('expenseDue')||null}});
+  pendiente:$('expensePending').checked,
+  medios:(!$('expensePending').checked&&value('expensePayMethod'))?{[value('expensePayMethod')]:monto}:{},
+  datos:{vence:value('expenseDue')||null}});
  let warning='';
  try{await upload($('expensePhoto').files[0],b,s,'comprobante',fecha,r.id,value('expenseVendor'));}
  catch(e){warning='El movimiento SÍ quedó guardado, pero el comprobante NO: '+e.message;}
