@@ -850,6 +850,7 @@ async function loadBusinesses(){
  optionsForReason('saleRazon',value('saleBiz'));
  optionsForReason('expenseRazon',value('expenseBiz'));
  $('scopeBusiness').onchange();
+ actualizarAlcanceGasto();
 }
 const payFields=$('paymentFields');
 payFields.innerHTML=AM.map((m,i)=>'<div><label for="pay'+i+'">'+esc(m)+'</label><input id="pay'+i+'" type="number" inputmode="numeric" min="0" step="1" placeholder="0"></div>').join('');
@@ -945,6 +946,22 @@ async function upload(file,b,s,kind,fecha,linked,proveedor){
  const data=await fileData(file);
  return api('guardar_documento',{...data,negocio_id:b,sucursal_id:s||null,tipo:kind,fecha_documento:fecha,movimiento_id:linked||null,proveedor:proveedor||''});
 }
+function actualizarAlcanceGasto(){
+ const general=$('expenseScope').value==='general';
+ $('expenseBranchWrap').hidden=general;
+ if(general)$('expenseBranch').value='';
+ const tipo=$('expenseType').value;
+ $('ukiAyudaCategoria').textContent=
+  tipo==='retiro'?'Los retiros se conservan en el historial, pero no se descuentan como gasto operativo.':
+  tipo==='ingreso_extra'?'Este ingreso extraordinario se registra por separado: no es una venta.':
+  'Si tienes factura, utiliza Compras; no registres la misma compra dos veces.';
+}
+$('expenseScope').onchange=actualizarAlcanceGasto;
+$('expenseType').onchange=actualizarAlcanceGasto;
+for(const id of ['ukiFiltroGastoTipo','ukiFiltroGastoEstado','ukiFiltroGastoCategoria']){
+ $(id).onchange=()=>pintarGastos();
+}
+$('ukiFiltroGastoProveedor').oninput=()=>pintarGastos();
 function syncSelectedBusiness(name){
  const chosen=currentBiz(),branch=currentBranch();
  const map={ventas:['saleBiz','saleBranch'],gastos:['expenseBiz','expenseBranch'],facturas:['docBiz','docBranch']};
@@ -952,6 +969,7 @@ function syncSelectedBusiness(name){
  if(!ids||!chosen||!businesses.some(b=>b.id===chosen))return;
  $(ids[0]).value=chosen;chooseBranch(ids[1],chosen);
  if(branch&&branchesFor(chosen).some(s=>s.id===branch))$(ids[1]).value=branch;
+ if(name==='gastos')actualizarAlcanceGasto();
 }
 function vistaCompras(modo,desplazar=true){
  const form=modo==='registrar';
@@ -1191,15 +1209,33 @@ $('saveSale').onclick=()=>safe('saveSale',async()=>{
  await refresh();return warning;
 });
 $('saveExpense').onclick=()=>safe('saveExpense',async()=>{
- const b=value('expenseBiz'),s=value('expenseBranch')||null,fecha=value('expenseDate'),monto=amount('expenseAmount'),tipo=value('expenseType'),razon_social_id=value('expenseRazon');
+ const b=value('expenseBiz'),fecha=value('expenseDate'),monto=amount('expenseAmount'),
+  tipo=value('expenseType'),razon_social_id=value('expenseRazon');
+ const general=value('expenseScope')==='general',
+  s=general?null:(value('expenseBranch')||null);
  if(!b||!monto)throw Error('Elige el negocio y el importe.');
- if(!razon_social_id)throw Error('Selecciona la razón social que paga este gasto.');
+ if(!general&&!s)throw Error('Selecciona el local o marca Gasto general.');
+ if(!razon_social_id)throw Error('Selecciona la razón social que paga este movimiento.');
+ if(['gasto','compra'].includes(tipo)){
+  const repetido=transactions.some(t=>t.estado!=='anulado'&&
+   ['gasto','compra','costo_producto'].includes(t.tipo)&&
+   String(t.fecha).slice(0,10)===fecha&&String(t.negocio_id)===String(b)&&
+   String(t.sucursal_id||'')===String(s||'')&&Number(t.monto)===monto);
+  if(repetido&&!confirm('Ya hay una compra o gasto por '+pesos(monto)+
+   ' de este negocio en esa fecha. ¿Es un gasto realmente distinto?'))return false;
+ }
+ const resumen=tipo==='retiro'?'retiro del dueño':tipo==='ingreso_extra'?'ingreso extraordinario':
+  tipo==='compra'?'compra':'gasto';
+ if(!confirm('¿Guardar '+resumen+' por '+pesos(monto)+' en '+
+  (general?'gastos generales':branchName(s))+'? Confirma que no está contabilizado en un cierre o factura.'))return false;
  const r=await api('guardar_movimiento',{negocio_id:b,sucursal_id:s,razon_social_id,fecha,monto,tipo,
-  categoria:value('expenseCategory'),proveedor:value('expenseVendor'),concepto:value('expenseConcept'),pendiente:$('expensePending').checked,datos:{vence:value('expenseDue')||null}});
+  categoria:value('expenseCategory'),proveedor:value('expenseVendor'),concepto:value('expenseConcept'),
+  pendiente:$('expensePending').checked,datos:{vence:value('expenseDue')||null}});
  let warning='';
- try{await upload($('expensePhoto').files[0],b,s,'factura',fecha,r.id,value('expenseVendor'));}
- catch(e){warning='El gasto SÍ quedó guardado, pero el comprobante NO: '+e.message;}
- $('expenseAmount').value='';if(!warning)$('expensePhoto').value='';await refresh();return warning;
+ try{await upload($('expensePhoto').files[0],b,s,'comprobante',fecha,r.id,value('expenseVendor'));}
+ catch(e){warning='El movimiento SÍ quedó guardado, pero el comprobante NO: '+e.message;}
+ $('expenseAmount').value='';if(!warning)$('expensePhoto').value='';
+ await refresh();return warning;
 });
 $('saveDoc').onclick=()=>safe('saveDoc',async()=>{
  try{
