@@ -759,6 +759,11 @@ const ROMO_QA_STORE_ID="romo:serena";
 async function ukiValidarClaveUkiParaRomoQA(pass){
  if(typeof pass!=="string"||pass.length<12)throw Error("Contraseña de acceso inválida.");
  if(!globalThis.crypto?.subtle)throw Error("Cifrado no disponible.");
+ // Cuando se autorice el acceso remoto, primero se verificará Google y la
+ // contraseña cifrada de Romo en su base propia, incluso en otro teléfono.
+ // Sin autorización, esta QA conserva solo la prueba local anterior.
+ if(window.ukiRomoClaveRemotaDisponibleQA?.())
+  return window.ukiRomoVerificarClaveRemotaQA(pass);
  const disponibles=SUCURSALES.filter(s=>localStorage.getItem(claveLocal(s))!==null);
  if(!disponibles.length)
   throw Error("Primero abre Uki con tu contraseña habitual en este dispositivo para poder comprobarla.");
@@ -5856,6 +5861,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
   document.getElementById('app').innerHTML = '<div class="card"><h2>No se puede abrir el panel en este navegador</h2><p>Abre el enlace directamente en Safari. Esta copia no ha borrado tus datos.</p><button class="big" onclick="location.reload()">Reintentar</button></div>';
 }
 </script>
+<script type="module" src="./uki-romo-clave-remota-qa.mjs"></script>
 <script src="./uki-tarjeta-cliente.js" defer></script>
 <script src="./uki-cierre-detallado.js" defer></script>
 <script src="./uki-inventario-admin-embebido.js" defer></script>
