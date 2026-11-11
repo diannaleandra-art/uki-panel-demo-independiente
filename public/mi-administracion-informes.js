@@ -19,9 +19,20 @@ export function construirInforme(data){
   throw Error('No se recibieron todos los datos del informe.');
  const movimientos=data.movimientos,facturas=data.facturas;
  const manuales=movimientos.filter(x=>x.tipo==='venta');
- const refVentas=new Set(manuales.map(x=>normal(x.referencia)).filter(Boolean));
- const cierres=data.cierres.map(c=>({...c,conciliado:refVentas.has(normal(c.turno_ref))}));
- const incluidos=cierres.filter(c=>!c.conciliado);
+ const ventasPorReferencia=new Map();
+ for(const venta of manuales){
+  const ref=normal(venta.referencia);
+  if(ref)ventasPorReferencia.set(ref,venta);
+ }
+ const cierres=data.cierres.map(c=>{
+  const manual=ventasPorReferencia.get(normal(c.turno_ref));
+  const coincidente=!!manual&&seguro(manual.monto)===seguro(c.venta_total);
+  const conflicto=!!manual&&!coincidente;
+  return {...c,conciliado:coincidente,conflicto,referenciaDuplicada:!!manual};
+ });
+ // Igual que el resumen existente, una referencia manual coincidente se
+ // excluye del total automático incluso cuando sus importes necesitan revisión.
+ const incluidos=cierres.filter(c=>!c.referenciaDuplicada);
  const gastosManuales=movimientos.filter(gasto);
  const comprasOperativas=facturas.filter(gasto);
  const capital=movimientos.filter(x=>patrimonio(x)||x.tipo==='retiro'||x.tipo==='ingreso_extra');
@@ -41,7 +52,9 @@ export function construirInforme(data){
  const totales={
   ventas:venta,ventasManuales:ventaManual,ventasCierres:ventaCierres,
   gastosPagados:gastosPagados,gastosCierre,resultado:control,
-  pendiente,inversiones,retiros,ingresosExtra,coincidencias:cierres.length-incluidos.length,
+  pendiente,inversiones,retiros,ingresosExtra,
+  coincidencias:cierres.filter(c=>c.conciliado).length,
+  conflictos:cierres.filter(c=>c.conflicto).length,
   facturas:facturas.length,cierres:incluidos.length
  };
  const nota='Resultado preliminar de control, no utilidad contable. Verificar coincidencias entre gastos de cierre y facturas antes de contabilizar.';
@@ -58,12 +71,14 @@ export function construirInforme(data){
   fila('Inversiones pagadas',inversiones),fila('Retiros de dueños pagados',retiros),
   fila('Ingresos extraordinarios',ingresosExtra),
   fila('Cierres coincidentes excluidos para no duplicar ventas',totales.coincidencias),
+  fila('Cierres con referencias iguales pero montos distintos',totales.conflictos),
   fila('Nota',nota)
  ];
  const ventas=[
   ...manuales.map(x=>fila(fecha(x.fecha),lugar(x),empresa(x),'Venta manual',x.referencia,x.concepto,seguro(x.monto),pago(x))),
   ...cierres.map(c=>fila(fecha(c.fecha),'Uki Sushi · '+(c.branch==='arica'?'Regimiento Arica':'La Serena'),
-   'Cierre Uki',c.conciliado?'Coincide con venta manual; no sumar':'Cierre definitivo',
+   'Cierre Uki',c.conciliado?'Coincide con venta manual; no sumar':
+    c.conflicto?'Monto distinto; revisar, no sumar':'Cierre definitivo',
    c.turno_ref,'',seguro(c.venta_total),pago(c)))
  ].sort(orden);
  const rowsGastos=[
@@ -93,7 +108,8 @@ export function construirInforme(data){
  const rowsCierres=cierres.map(c=>fila(fecha(c.fecha),c.branch==='arica'?'Regimiento Arica':'La Serena',
   c.turno_ref,seguro(c.venta_total),seguro(c.pedidos),
   seguro(c.gastos_cierre),seguro(c.delivery_por_pagar),
-  seguro(c.propinas),seguro(c.retiros),c.conciliado?'Coincidencia manual; excluido':'Incluido')).sort(orden);
+  seguro(c.propinas),seguro(c.retiros),
+  c.conflicto?'Monto distinto; requiere conciliación':c.conciliado?'Coincidencia manual; excluido':'Incluido')).sort(orden);
  const medios=new Map();
  const sumarMedios=c=>{
   for(const [m,v] of Object.entries(c.medios||{}))if(seguro(v))medios.set(m,(medios.get(m)||0)+seguro(v));
@@ -121,6 +137,7 @@ export function construirInforme(data){
   'Inversiones pagadas: '+pesos(inversiones),
   'Retiros pagados: '+pesos(retiros),
   'Ingresos extraordinarios: '+pesos(ingresosExtra),
+  ...(totales.conflictos?['Atención: '+totales.conflictos+' cierre(s) con importes que requieren conciliación.']:[]),
   'Nota: resultado de control, no utilidad contable. Verificar coincidencias con facturas.'
  ].join('\n');
  return {hojas,totales,nota,nombre,mensaje,desde:data.desde,hasta:data.hasta};
