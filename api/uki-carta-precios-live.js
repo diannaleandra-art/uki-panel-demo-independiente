@@ -216,7 +216,10 @@ module.exports=async function(req,res){
     return fail(res,400,'Descuento inválido. Usa un porcentaje entero entre 0 y 99.');
    if(pct===0){
     const rows=await sql.query('DELETE FROM public.uki_carta_descuentos_v1 WHERE branch=$1 AND sku=$2 AND version=$3 RETURNING sku',[branch,sku,expected]);
-    if(!rows.length&&expected!==0)return fail(res,409,'El descuento cambió. Actualiza la lista.');
+    if(!rows.length){
+     const live=await sql.query('SELECT version FROM public.uki_carta_descuentos_v1 WHERE branch=$1 AND sku=$2',[branch,sku]);
+     if(live.length)return fail(res,409,'El descuento cambió. Actualiza la lista.');
+    }
     return res.status(200).json({ok:true,branch,sku,porcentaje:0,precioFinal:Number(current.price),version:0});
    }
    const rows=await sql.query(`INSERT INTO public.uki_carta_descuentos_v1(branch,sku,discount_percent,version,updated_by)
