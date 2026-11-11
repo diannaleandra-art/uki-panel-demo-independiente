@@ -40,3 +40,17 @@ Esta rama no altera env vars, dominios, datos reales, código de sucursales Uki 
 - El botón de consulta tiene ENDPOINT vacío por seguridad. No intenta leer Neon/Uki hasta autorización y credenciales privadas válidas.
 - La futura respuesta autorizada se muestra por DOM textContent, sin inyectar HTML de productos; rechaza datos de otra sucursal.
 - No incluye POST, cambios en caja, guardados, ventas ni habilitación de checkout.
+
+## Continuación — editor de borradores en el panel único (11 nov 2026)
+- La misma pantalla de selección contiene Romo La Serena y su bloque privado «Carta y precios» de pruebas.
+- El bloque llama a `/api/romo-catalogo-qa` desde el mismo dominio preview. La API sólo acepta la rama exacta QA, con dos banderas privadas APAGADAS por defecto: `ROMO_CATALOGO_QA_ENABLED` (lectura) y `ROMO_CATALOGO_QA_WRITE_ENABLED` (borradores).
+- Requiere Google Firebase real, UID con rol `duenos` activo en Neon Romo para POST, y cuenta permitida por correo validado en servidor. Requiere `ROMO_PRIVATE_DATABASE_URL` de Romo, host verificado y origen de preview exacto. La API se niega a funcionar en producción.
+- Permite preparar altas y ediciones de BORRADORES de productos, promociones y ingredientes dentro del panel, con cantidad de rolls/piezas, salsas, korokes y precio. No publica productos, no sube fotos ni habilita pedidos.
+- Conflictos CAS: cambios desde dos dispositivos con revisión vieja devuelven 409, no se sobrescribe silenciosamente.
+- La tabla Neon `romo_catalogo_v1` sigue vacía (0 filas), lo mismo permisos y claves. No se hicieron migraciones ni se copiaron datos comerciales.
+- El catálogo anterior `romos_products` está en Supabase; la lectura con conector fue rechazada por autenticación del usuario read-only. No se alteraron sus productos.
+- La versión privada antigua de Romo tiene **7 imágenes embebidas en su HTML**; no están verificadas individualmente ni relacionadas por SKU con la tabla nueva. Ninguna se da por publicada.
+- El aumento previamente acordado de $500 en promociones de piezas se debe aplicar UNA sola vez tras comprobar la carta original, nunca a ciegas.
+- La edición de esta fase es preparación QA; la pantalla operativa completa idéntica a Uki, la sincronización con la carta comercial y el inventario real siguen pendientes.
+- CI de la rama: 32 pruebas correctas en ejecución `43116042620` (sin red ni datos reales).
+- No se tocaron compras, caja, cierres, timbres ni las dos sucursales de Uki. No se activaron secrets, endpoints, env vars ni ventas.
