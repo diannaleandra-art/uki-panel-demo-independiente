@@ -66,3 +66,19 @@ test('Vista previa de categorías usa solo la rama aprobada y el host QA de Neon
  assert.equal(categoriasDescuentosHabilitados({...qa,VERCEL_GIT_COMMIT_REF:'otra-rama'}),false);
  assert.equal(url({...qa,VERCEL_GIT_COMMIT_REF:'otra-rama'}),null);
 });
+
+test('El panel de categorías acepta solo su dirección QA y nunca la autoriza en producción',()=>{
+ const {originAllowed}=api._testing;
+ const panel='https://uki-sushi-inventario-git-ui-uki-carta-5531d1-diannaleandra-7046.vercel.app';
+ const qa={
+  VERCEL_ENV:'preview',
+  VERCEL_GIT_COMMIT_REF:'ui/uki-carta-promociones-categorias-descuentos-qa-20261111',
+  UKI_INVENTARIO_QA_ENABLED:'true',
+  VERCEL_URL:'uki-sushi-inventario-8j5udjgnx-diannaleandra-7046.vercel.app'
+ };
+ assert.equal(originAllowed(panel,qa),true);
+ assert.equal(originAllowed(panel,{...qa,VERCEL_ENV:'production',UKI_INVENTARIO_LIVE_ENABLED:'true'}),false);
+ assert.equal(originAllowed(panel,{...qa,VERCEL_GIT_COMMIT_REF:'qa/uki-promos-tipos-producto-20261110'}),false);
+ assert.equal(originAllowed('https://otro-panel-desconocido.vercel.app',qa),false);
+ assert.equal(originAllowed('https://uki-sushi-pedidos-2ztmxhepr-diannaleandra-7046.vercel.app',qa),true);
+});
