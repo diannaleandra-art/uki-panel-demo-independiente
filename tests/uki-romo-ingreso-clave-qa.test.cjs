@@ -5,7 +5,8 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 const {webcrypto}=require('node:crypto');
-const {TextEncoder,TextDecoder,atob,btoa}=require('node:util');
+const {TextEncoder,TextDecoder}=require('node:util');
+const {atob,btoa}=require('node:buffer');
 
 const html=fs.readFileSync(path.join(__dirname,'../firebase/uki-sushi-local.html'),'utf8');
 const main=html.match(/<script>([\s\S]*?)<\/script>/)?.[1]||'';
