@@ -307,8 +307,10 @@ async function save(item,action,cantidad,unidad){
   if(action==='contar'){revisados.add(item.sku);horaConteos.set(item.sku,horaRegistro);}
   $('turnoUltimoRegistro').textContent='Último registro: '+item.name+' · '+horaRegistro+' (Chile).';
   actualizarReloj();
-  requestId=null;$('confirmacion').textContent='';
+  requestId=null;reporteFinal=null;$('descargasTurno').hidden=true;$('confirmacion').textContent='';
   const registro=response.registro||{base:cantidad,unidadBase:item.stock_unit};
+  if(action==='recibir'&&Number(registro.base)>0)
+   entradasSesion.set(item.sku,Math.round(((entradasSesion.get(item.sku)||0)+Number(registro.base))*1000)/1000);
   lastSaved={sku:item.sku,ok:true,message:'✓ '+(action==='contar'?'Conteo':'Entrada')+
    ' guardada: '+formato(cantidad,unidad)+' = '+formato(registro.base,registro.unidadBase)+
    '. Ahora hay '+formato(response.item.stock_qty,response.item.stock_unit)+'.'};
@@ -325,7 +327,7 @@ async function abrir(){
  setBusy(true);status('Cargando inventario…');
  try{
   const result=await api('listar');
-  branch=$('branch').value;items=result.items||[];revisados.clear();horaConteos.clear();visibleLimit=12;requestId=null;lastSaved=null;factura.reset();
+  branch=$('branch').value;items=result.items||[];revisados.clear();horaConteos.clear();entradasSesion.clear();visibleLimit=12;requestId=null;lastSaved=null;reporteFinal=null;$('descargasTurno').hidden=true;factura.reset();
   $('activo').hidden=false;$('confirmacion').textContent='';
   $('turnoFechaChile').textContent='Inicio del conteo: '+formatoFechaHoraChile(new Date())+' (Chile).';
   $('turnoUltimoRegistro').textContent='Aún no hay artículos guardados en esta sesión.';
@@ -335,12 +337,20 @@ async function abrir(){
  finally{setBusy(false);}
 }
 $('abrir').onclick=abrir;
-$('branch').onchange=()=>{detenerReloj();branch='';items=[];revisados.clear();horaConteos.clear();visibleLimit=12;lastSaved=null;factura.reset();$('activo').hidden=true;status('');};
-$('codigo').oninput=()=>{if(branch){detenerReloj();branch='';items=[];revisados.clear();horaConteos.clear();factura.reset();$('activo').hidden=true;}};
+$('branch').onchange=()=>{detenerReloj();branch='';items=[];revisados.clear();horaConteos.clear();entradasSesion.clear();visibleLimit=12;lastSaved=null;reporteFinal=null;$('descargasTurno').hidden=true;factura.reset();$('activo').hidden=true;status('');};
+$('codigo').oninput=()=>{if(branch){detenerReloj();branch='';items=[];revisados.clear();horaConteos.clear();entradasSesion.clear();reporteFinal=null;$('descargasTurno').hidden=true;factura.reset();$('activo').hidden=true;}};
 $('tipo').onchange=()=>{visibleLimit=12;render();};
 $('buscar').oninput=()=>{visibleLimit=12;render();};
 $('estadoLista').onchange=()=>{visibleLimit=12;render();};
 $('mostrarMas').onclick=()=>{visibleLimit+=12;render();};
+$('descargarPDF').onclick=()=>{
+ if(reporteFinal&&window.ukiInventarioExportar)
+  window.ukiInventarioExportar.guardarPDF(reporteFinal);
+};
+$('descargarExcel').onclick=()=>{
+ if(reporteFinal&&window.ukiInventarioExportar)
+  window.ukiInventarioExportar.excel(reporteFinal);
+};
 $('enviar').onclick=async()=>{
  if(busy||!branch||branch!==$('branch').value)return;
  const pendientes=items.filter(i=>!revisados.has(i.sku)).length;
@@ -353,11 +363,15 @@ $('enviar').onclick=async()=>{
   const chile=new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',weekday:'long',day:'2-digit',
    month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(result.fecha));
   $('confirmacion').textContent='✓ Revisión guardada: '+chile+' (Chile). Puedes compartirla.';
+  reporteFinal=result.reporte&&Array.isArray(result.reporte.items)?result.reporte:null;
+  $('descargasTurno').hidden=!reporteFinal;
+  const texto=reporteFinal&&window.ukiInventarioExportar?
+   window.ukiInventarioExportar.mensaje(reporteFinal):result.mensaje;
   if(navigator.share){
-   try{await navigator.share({title:'Uki Sushi · Reposición',text:result.mensaje});return;}
+   try{await navigator.share({title:'Uki Sushi · Reposición',text:texto});return;}
    catch(e){if(e?.name==='AbortError')return;}
   }
-  window.open('https://wa.me/?text='+encodeURIComponent(result.mensaje),'_blank','noopener');
+  window.open('https://wa.me/?text='+encodeURIComponent(texto),'_blank','noopener');
  }catch(e){$('confirmacion').textContent='No se confirmó el envío al panel: '+String(e.message);}
  finally{setBusy(false);}
 };
