@@ -10,6 +10,6 @@
     "jose": "6.2.15"
   },
   "scripts": {
-    "test": "node --test tests/inventario-live.test.cjs tests/mi-administracion-informes.test.cjs tests/uki-facturas-ambos-paneles.test.cjs"
+    "test": "node --test tests/inventario-live.test.cjs tests/mi-administracion-informes.test.cjs tests/uki-facturas-ambos-paneles.test.cjs tests/uki-categorias-descuentos-v1.test.cjs"
   }
 }

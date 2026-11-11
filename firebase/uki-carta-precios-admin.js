@@ -466,18 +466,18 @@ function renderPromoResumen(){
  }
  for(const promo of promos){
   const row=document.createElement('div');
-  row.style.cssText='padding:9px 0;border-top:1px solid #ecd7c1;display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap';
+  row.style.cssText='padding:14px;margin:12px 0;border:1.5px solid #e7c7ad;border-left:5px solid #b15a3a;border-radius:14px;background:#fffcf8;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap';
   const label=document.createElement('div');label.style.cssText='flex:1 1 160px;min-width:0';
-  const title=document.createElement('strong');title.style.cssText='font-size:14px;display:block';
+  const title=document.createElement('strong');title.style.cssText='font-size:16px;line-height:1.35;display:block;color:#4d3025';
   title.textContent=promo.name;
-  const note=document.createElement('small');note.style.cssText='display:block;margin-top:4px;color:#705d4b';
+  const note=document.createElement('small');note.style.cssText='display:block;margin-top:6px;color:#705d4b;font-weight:650';
   const estado=promo.estadoPublicacion||(promo.visible===false?'Retirada':'Publicada');
   note.textContent='$'+Number(promo.price||0).toLocaleString('es-CL')+' · '+estado;
   label.append(title,note);row.append(label);
   // El detalle y la edición se abren dentro de Promociones, sin navegar a Productos.
   const detalle=document.createElement('details');
-  detalle.style.cssText='flex:1 0 100%;border-radius:10px;background:#fffaf5;padding:7px 10px;margin-top:4px';
-  const titulo=document.createElement('summary');titulo.textContent='Editar / ver detalles';
+  detalle.style.cssText='flex:1 0 100%;border:1px solid #e9d8ca;border-radius:10px;background:#fff7ed;padding:11px 12px;margin-top:6px';
+  const titulo=document.createElement('summary');titulo.textContent='Ver contenido y editar esta promoción';
   titulo.style.cssText='font-weight:700;cursor:pointer;color:#88502c';detalle.append(titulo);
   detalle.append(line(promo,true));
   row.append(detalle);
@@ -590,15 +590,23 @@ function organizarCarta(){
  // Mover los controles existentes sin recrear entradas ni manejadores.
  move($('ukiPriceSearch')?.closest('.quick-grid'),areas.productos);
  for(const id of ['ukiPriceReload','ukiPriceMessage','ukiPriceAddBox','ukiPriceList'])move($(id),areas.productos);
- move($('ukiPromoAddBox'),areas.promociones);
- move($('ukiPromosResumen'),areas.promociones);
+ // Promociones en dos bloques independientes, sin cambiar ningún manejador.
+ const crearArea=document.createElement('section');crearArea.id='ukiPromoNuevaZona';
+ crearArea.style.cssText='border:1.5px solid #e2c6ad;border-radius:14px;padding:13px;background:#fff8f0;margin-bottom:15px';
+ const nuevaAyuda=document.createElement('p');nuevaAyuda.className='muted';
+ nuevaAyuda.textContent='Agregar una promoción nueva (solo abre el formulario cuando lo necesites).';
+ crearArea.append(nuevaAyuda);move($('ukiPromoAddBox'),crearArea);
+ const existentes=document.createElement('section');existentes.id='ukiPromoExistentesZona';
+ existentes.style.cssText='border:1.5px solid #e2c6ad;border-radius:14px;padding:13px;background:#fff;margin-bottom:12px';
+ const listaTitulo=document.createElement('h4');listaTitulo.style.cssText='font-size:17px;color:#783b24;margin:0 0 5px';
+ listaTitulo.textContent='Promociones existentes · Ver o editar';existentes.append(listaTitulo);
  const searchLabel=document.createElement('label');searchLabel.textContent='Buscar promoción por nombre';
  searchLabel.htmlFor='ukiPromoBuscar';
  const search=document.createElement('input');search.id='ukiPromoBuscar';search.type='search';
  search.placeholder='Ej. 60 piezas o Edenred';
  search.addEventListener('input',()=>renderPromoResumen());
- areas.promociones.insertBefore(searchLabel,$('ukiPromoAddBox')||null);
- areas.promociones.insertBefore(search,$('ukiPromoAddBox')||null);
+ existentes.append(searchLabel,search);move($('ukiPromosResumen'),existentes);
+ areas.promociones.append(crearArea,existentes);
  const clean=document.createElement('button');clean.type='button';clean.className='sm';
  clean.textContent='Limpiar búsqueda y categoría';
  clean.addEventListener('click',()=>{
