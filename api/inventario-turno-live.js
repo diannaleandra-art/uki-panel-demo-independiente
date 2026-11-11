@@ -166,12 +166,24 @@ module.exports=async(req,res)=>{
      ORDER BY created_at DESC LIMIT 20`,[branch]);
    return res.status(200).json({ok:true,branch,revisiones:rows});
   }
-  // A diferencia del agendador, el inventarista nunca recibe un token para
-  // mesas/pedidos, ni el catálogo acepta este código como rol administrador.
-  const worker=nombre(input.worker_name);
+  // Las mismas tres operaciones de factura se pueden realizar desde el
+  // panel normal con Google autorizado, sin pedir el PIN del trabajador.
+  // Todo lo demás conserva las restricciones y roles anteriores.
+  const desdePanel=action==='factura-consultar'||action==='factura-preparar-articulos'||
+   action==='factura-recibir';
+  let worker;
   etapa='verificando-codigo';
-  if(!await pin.autorizar(sql,input.codigo,branch,'inventario-compartido'))
-   return fail(res,403,'Código incorrecto o temporalmente bloqueado');
+  if(desdePanel&&req.headers?.authorization){
+   const uid=await admin(req).catch(()=>null);
+   if(!uid)return fail(res,403,'Solo administración Google autorizada.');
+   worker='Administración Google · '+uid.slice(0,10);
+  }else{
+   // El trabajador sigue entrando exclusivamente con su código de inventario.
+   // Nunca recibe permisos de pedidos, caja, ni acceso Google de administración.
+   worker=nombre(input.worker_name);
+   if(!await pin.autorizar(sql,input.codigo,branch,'inventario-compartido'))
+    return fail(res,403,'Código incorrecto o temporalmente bloqueado');
+  }
   etapa='consulta-catalogo';
   if(action==='listar'){
    const [data,added]=await Promise.all([leerInventario(sql,branch),extra.listar(sql,branch)]);
