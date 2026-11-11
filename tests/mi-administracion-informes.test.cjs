@@ -77,3 +77,47 @@ test('PDF se genera como documento completo, no como captura de pantalla',async(
 test('rechaza respuestas incompletas y nunca las exporta silenciosamente',()=>{
  assert.throws(()=>construirInforme({movimientos:[],facturas:[],cierres:[]}),/datos del informe/);
 });
+
+test('marca diferencias entre el cierre y una venta manual sin duplicarla',()=>{
+ const entrada=data();entrada.cierres[0].venta_total=115000;
+ const r=construirInforme(entrada);
+ assert.equal(r.totales.conflictos,1);
+ assert.equal(r.totales.coincidencias,0);
+ assert.equal(r.totales.ventas,300000);
+ assert.match(r.mensaje,/requieren conciliaci[oó]n/);
+ assert.ok(r.hojas.find(x=>x.nombre==='Ventas').filas.some(row=>String(row[3]).includes('Monto distinto')));
+});
+const apiSource=fs.readFileSync(path.join(__dirname,'../api/mi-administracion-live.js'),'utf8');
+const actionCode=apiSource.slice(
+ apiSource.indexOf("if(action==='exportar_informes'){"),
+ apiSource.indexOf("if(action==='listar_movimientos'){")
+);
+const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
+const exportAction=new AsyncFunction('action','body','sql','belongs','validDate','uuid','fail','ok','res',actionCode);
+const fakeId='a6e422a1-4614-4115-9aa5-cae03485e6b1';
+async function probarAcceso(nombre,razon='todos'){
+ const consulta=[];
+ const sql={query:async(q)=>{
+  consulta.push(q);
+  if(q.startsWith('SELECT nombre FROM public.fin_negocios'))return [{nombre}];
+  return [];
+ }};
+ const body={desde:'2026-11-01',hasta:'2026-11-11',negocio_id:fakeId,razon_social_id:razon};
+ const r=await exportAction('exportar_informes',body,sql,async()=>{},
+  x=>/^\\d{4}-\\d{2}-\\d{2}$/.test(x),{test:()=>true},
+  (_res,code,msg)=>({ok:false,code,msg}),(_res,data)=>({ok:true,...data}),{});
+ return {consulta,r};
+}
+test('incluye cierres Uki para negocio Uki y evita mezclar cierres con Romo',async()=>{
+ const uki=await probarAcceso('Uki Sushi');
+ const romo=await probarAcceso("Romo's Sushi");
+ assert.equal(uki.r.ok,true);
+ assert.equal(romo.r.ok,true);
+ assert.ok(uki.consulta.some(x=>x.includes('fin_uki_cierres_live_v1')));
+ assert.ok(!romo.consulta.some(x=>x.includes('fin_uki_cierres_live_v1')));
+});
+test('no atribuye cierres antiguos sin razón social a una empresa filtrada',async()=>{
+ const reporte=await probarAcceso('Uki Sushi','sin_clasificar');
+ assert.equal(reporte.r.ok,true);
+ assert.ok(!reporte.consulta.some(x=>x.includes('fin_uki_cierres_live_v1')));
+});
