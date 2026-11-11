@@ -32,7 +32,7 @@ function createHandler(customEnv=ENV,payload=claims,jwtThrows=false){
    return {payload};
   }
  };
- const code=original.replace("await import('jose')","Promise.resolve(mockJose)");
+ const code=original.replace("await import('jose')","await Promise.resolve(mockJose)");
  const module={exports:{}};
  new Function('module','process','mockJose',code)(module,{env:customEnv},mockJose);
  return {handler:module.exports,calls};
