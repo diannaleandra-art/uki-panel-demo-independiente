@@ -303,7 +303,7 @@ module.exports=async(req,res)=>{
      "AND m.estado"+(pendientes?"='pendiente'":"<>'anulado'")+
      " AND ($1::uuid IS NULL OR COALESCE(r.negocio_id,m.negocio_id)=$1)"+
      " AND ($2::uuid IS NULL OR COALESCE(r.sucursal_id,m.sucursal_id)=$2)"+
-     (pendientes?"":" AND m.fecha BETWEEN $3::date AND $4::date")+legalWhere;
+     (pendientes?" AND $3::date <= $4::date":" AND m.fecha BETWEEN $3::date AND $4::date")+legalWhere;
     return "SELECT m.id,m.tipo,m.fecha::text AS fecha,m.monto AS total_factura,"+
      "COALESCE(r.monto,m.monto) AS monto,m.categoria,m.concepto,m.proveedor,"+
      "m.referencia,m.estado,m.datos,b.nombre AS negocio,"+
@@ -323,7 +323,7 @@ module.exports=async(req,res)=>{
     "LEFT JOIN public.fin_sucursales s ON s.id=m.sucursal_id "+
     "LEFT JOIN public.fin_razones_sociales l ON l.id=m.razon_social_id "+
     "WHERE m.estado='pendiente' AND m.tipo IN ('gasto','compra') "+
-    "AND m.fuente<>'factura'"+alcance+legalWhere+
+    "AND m.fuente<>'factura'"+alcance+" AND $3::date <= $4::date"+legalWhere+
     " ORDER BY m.fecha DESC,m.creado_en DESC LIMIT 1001";
    const [facturas,pendientesManuales,pendientesFacturas]=await Promise.all([
     sql.query(invoicesSql(false),p),
