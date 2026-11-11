@@ -50,7 +50,7 @@ test('Categorías tienen espacio propio para crear y asignar, sin mezclarse con 
  assert.match(fn,/move\(\$\('ukiCategoriesBox'\),areas\.categorias\)/);
  const categoryCode=cut('function renderCategoryAssignments(){','function renderCategories(){');
  assert.match(categoryCode,/request\(API,'asignar-categoria'/);
- assert.match(categoryCode,/selected\|\|''/);
+ assert.match(categoryCode,/selector\.value=item\.categoriaSlug\|\|''/);
  assert.match(categoryCode,/categoryVisibleLimit/);
  assert.match(categoryCode,/if\(chosen!==branch\(\)\)return/);
 });
