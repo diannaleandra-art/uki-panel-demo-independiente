@@ -74,3 +74,18 @@ test('código del adaptador y formulario original tienen sintaxis JavaScript cor
  assert.doesNotThrow(()=>new Function(common.replace(/^import .*$/gm,'').replace(/^export /gm,'')));
  assert.doesNotThrow(()=>new Function("const module={exports:{}};\n"+api));
 });
+
+test('el panel rechaza limpiamente un módulo de facturas antiguo sin montaje',()=>{
+ const guard=client.indexOf('if(lib.facturaAdmiteMontajeAdmin!==true)');
+ const call=client.indexOf('lib.iniciarFacturaLive({');
+ assert.ok(guard>=0&&call>guard,'Comprobar compatibilidad antes de montar');
+ assert.match(client,/usarRecepcionPorCodigo\('El servicio de facturas/);
+ assert.ok(client.includes('https://uki-sushi-inventario.vercel.app/'));
+ assert.match(client,/no la registres dos veces/);
+});
+test('módulo compartido incluye señal para montaje admin sin alterar QR',()=>{
+ assert.match(common,/export const facturaAdmiteMontajeAdmin\s*=\s*true/);
+ assert.ok(common.includes('mountTarget.append(section)'));
+ assert.ok(common.includes("itemsContainer.parentNode.insertBefore(section,itemsContainer)"));
+ assert.match(panel,/uki-facturas-error-version-v2-20261111/);
+});
