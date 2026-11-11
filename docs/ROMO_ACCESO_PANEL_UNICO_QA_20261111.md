@@ -77,3 +77,33 @@ pruebas reales en iPhone ni a habilitación del proyecto**.
   y ausencia de variable privada.
 - Actualmente no hay permiso de dueños otorgado, claves cifradas inscritas
   ni operaciones Romo habilitadas.
+
+
+## Preparación para reconocer el Google de dueños (sin permisos reales)
+- Se preparó `api/romo-duenos-vinculo-qa.js` en el mismo proyecto del
+  panel Uki y `lib/romo-duenos-vinculo-qa.mjs` para verificar la firma
+  del token Firebase existente y comprobar el correo configurado
+  PRIVADAMENTE como `ROMO_DUENOS_GOOGLE_EMAIL`.
+- El resultado **solo confirma la cuenta Google y su UID en memoria del
+  servidor**, pero **no crea filas ni autoriza a operar Romo**.
+- `firebase/uki-romo-vinculo-duenos-qa.mjs` aprovecha
+  `window.ukiInventarioToken` del inicio de sesión ACTUAL de Uki:
+  no se muestra ni crea otro inicio de sesión ni otra contraseña.
+- Protección por doble condición: `VERCEL_ENV=production` y
+  `ROMO_DUENOS_VINCULO_ENABLED=true`. Ambas deben configurarse
+  explícitamente en una etapa aprobada; sin ello retorna 503.
+- Cliente con `ROMO_DUENOS_CHECK_ENDPOINT=''`: ningún token enviado ni
+  consulta realizada mientras esté apagado.
+- El endpoint deniega orígenes ajenos, métodos de escritura y tokens de
+  pruebas o no firmados. No entrega el UID al navegador ni lo registra en
+  ninguna tabla.
+- Pruebas QA: `tests/romo-duenos-vinculo-qa.test.mjs` y
+  `tests/uki-romo-vinculo-duenos-qa.test.mjs`. Se ejecutó una
+  simulación de 20 comprobaciones, 20 correctas; todavía no se ha hecho
+  inicio real entre iPhone, Firebase y Neon.
+- **Importante:** el correo indicado por la propietaria no demuestra
+  por sí solo cuál es el UID de su sesión Firebase. Ese UID se obtendrá
+  únicamente de un token firmado al completar el flujo real autorizado.
+- Para la siguiente etapa se requiere consentimiento específico antes
+  de habilitar el endpoint en producción, guardar secretos de Romo o
+  dar alta en `romo_personal_acceso_v1`. El acceso sigue sin habilitarse.
