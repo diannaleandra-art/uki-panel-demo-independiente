@@ -127,6 +127,29 @@ label{color:#66574c}
 .owner-quick .quick-action strong{font-size:13px}
 .owner-quick .quick-action small{font-size:11px}
 #ukiOwnerListadoVentas{scroll-margin-top:115px}
+.owner-hint-collapsible{margin:8px 0 12px;border:1px solid #efe2d5;border-radius:11px;padding:0 11px;background:#fcf8f3}
+.owner-hint-collapsible summary{font-size:12px;color:#8a6248;font-weight:700}
+.owner-hint-collapsible p{font-size:12px;line-height:1.45;margin:0 0 10px}
+.owner-kpi-detail{font-size:12px;color:#816954;margin:9px 0 0;line-height:1.5}
+.owner-chart{margin:5px 0 16px}
+.owner-chart-item{margin:12px 0}
+.owner-chart-label{display:flex;gap:8px;justify-content:space-between;align-items:baseline;font-size:13px}
+.owner-chart-track{height:8px;background:#f2e9dd;border-radius:99px;overflow:hidden;margin:7px 0 0}
+.owner-chart-fill{display:block;height:100%;max-width:100%;border-radius:99px;background:#ad713e}
+.owner-chart-sub{font-size:11px;color:#857361;margin-top:5px}
+.owner-finance-mini{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}
+.owner-finance-mini>div{border:1px solid #eadccc;border-radius:12px;padding:11px;background:#fffbf7}
+.owner-finance-mini small{display:block;color:#78675b;font-size:11px}
+.owner-finance-mini b{display:block;margin-top:5px;font-size:17px;overflow-wrap:anywhere}
+.owner-filter-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.owner-filter-grid label{font-size:12px}
+.owner-filter-grid select{margin-top:5px}
+.owner-gastos-head{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.owner-gastos-head b{font-size:14px}
+.owner-expense-alert{font-size:12px;color:#7f5636;line-height:1.5;border-top:1px solid #ebdfd4;padding-top:9px;margin-top:10px}
+#ukiGastosVisibles .line{padding:11px 0;border-bottom:1px solid #eee0d3}
+@media(max-width:380px){.owner-filter-grid{grid-template-columns:1fr}}
+
 .owner-period-actions{display:flex;gap:7px;flex-wrap:wrap;margin:5px 0 12px}
 .owner-period-actions button{min-height:38px;padding:8px 12px;border:1px solid #e7d4c0;border-radius:11px;background:#fffaf5;color:#65462c;font-size:13px;font-weight:700}
 .owner-period-actions button[aria-pressed="true"]{border-color:#aa641c;background:#fff0d9;color:#8b4308}
@@ -165,7 +188,7 @@ label{color:#66574c}
 <div class="welcome owner-welcome">
  <span class="owner-eyebrow">MI ADMINISTRACIÓN · ACCESO PRIVADO</span>
  <h2>Tu negocio, todo más claro.</h2>
- <p>Consulta tus movimientos y gastos actuales. Los cierres finales verificados aparecen aquí después del respaldo en Firebase.</p>
+ <p>Ventas, gastos y cuentas pendientes de cada local, por fecha. Todo desde aquí.</p>
 </div>
 <section class="owner-branches" aria-labelledby="ownerBranchTitle">
  <div id="ownerBranchTitle" class="owner-section-label" style="margin:0 0 4px">🏪 Sucursales Uki Sushi</div>
@@ -176,7 +199,7 @@ label{color:#66574c}
  </div>
 </section>
 <div class="card owner-finance-card"><div class="owner-eyebrow">MOVIMIENTOS FINANCIEROS REGISTRADOS</div><h2>📊 Resumen de todos los negocios</h2>
-<p class="owner-finance-note">Los movimientos manuales heredados de la etapa de pruebas deben verificarse antes de contabilizarlos como ventas reales. Los cierres automáticos aparecen por separado y no duplican ingresos.</p>
+<details class="owner-hint-collapsible"><summary>ℹ️ Acerca de estos totales</summary><p>Incluyen cierres finales y movimientos manuales. Los registros heredados de pruebas deben verificarse antes de tratarlos como operaciones reales. Si una compra ya figura como gasto de caja, hay que conciliarla para evitar contarla dos veces. Los retiros personales no se consideran gastos operativos.</p></details>
 <p class="hint" id="ukiPeriodoResumen">Período seleccionado: el mes actual</p>
 <div class="owner-period-actions" role="group" aria-label="Período del resumen">
 <button type="button" data-owner-period="hoy">Hoy</button>
@@ -187,7 +210,14 @@ label{color:#66574c}
 <div class="metric"><small>Gastos y repartos pagados</small><b id="m-gastos">$0</b></div>
 <div class="metric"><small>Ventas − gastos*</small><b id="m-resultado">$0</b></div>
 <div class="metric"><small>Pagos pendientes</small><b id="m-pendientes">$0</b></div></div>
-<p class="hint">*Resultado preliminar del período: ventas menos gastos pagados y repartos pagados. Las propinas y retiros se muestran aparte; faltan otros costos e impuestos para calcular la utilidad real.</p></div>
+<p class="owner-kpi-detail" id="ukiDesgloseGastos">Gastos de caja · Repartos · Gastos y compras manuales</p>
+<p class="hint">*Resultado de control: ventas menos gastos y repartos pagados. No es utilidad contable ni saldo en efectivo; faltan costos e impuestos por conciliar.</p></div>
+<section class="card" id="ukiAnalisisGastos">
+<h2 style="font-size:18px;margin:0 0 6px">💸 ¿En qué se gastó?</h2>
+<p class="hint">Importes pagados por categoría. Los gastos del cierre sin detalle se muestran juntos; no inventamos su concepto.</p>
+<div id="ukiCategoriasGastos" class="owner-chart"><p class="hint">Consultando gastos…</p></div>
+<button type="button" class="soft" data-go="gastos" style="width:100%">Ver todos los gastos y pendientes</button>
+</section>
 <section class="card" id="ukiResumenPorLocal"><h2 style="margin:0 0 7px;font-size:18px">🏪 Cómo va cada local</h2>
 <p class="hint">Ventas, gastos pagados y resultado del período por sucursal o negocio. Los gastos generales sin sucursal permanecen separados.</p>
 <div id="ukiOwnerPorNegocio" class="owner-business-list"><p class="muted">Consultando movimientos…</p></div></section>
@@ -233,14 +263,33 @@ label{color:#66574c}
 <section class="view" id="v-gastos" hidden><div class="card"><div class="eyebrow">GASTOS Y COMPRAS</div><h2>💸 Registrar un gasto</h2><p class="steps">Elige la razón social y el negocio que paga el gasto. Puedes adjuntar su factura aquí mismo.</p>
 <label>Negocio</label><select id="expenseBiz"></select>
 <label>Razón social que paga el gasto</label><select id="expenseRazon"><option value="">Selecciona razón social</option></select>
-<label>Sucursal</label><select id="expenseBranch"></select>
+<label for="expenseScope">¿A dónde corresponde el movimiento?</label>
+<select id="expenseScope"><option value="local">Gasto de un local</option><option value="general">Gasto general / sin sucursal</option></select>
+<div id="expenseBranchWrap"><label for="expenseBranch">Sucursal</label><select id="expenseBranch"></select></div>
 <div class="grid2"><div><label>Fecha</label><input type="date" id="expenseDate"></div><div><label>Monto ($)</label><input type="number" min="0" id="expenseAmount"></div></div>
-<label>Tipo</label><select id="expenseType"><option value="gasto">Gasto operativo</option><option value="compra">Compra de mercadería</option><option value="retiro">Retiro del dueño</option><option value="ingreso_extra">Ingreso extraordinario</option></select>
-<label>Categoría</label><select id="expenseCategory"><option>Mercadería</option><option>Arriendo</option><option>Sueldos</option><option>Agua</option><option>Luz</option><option>Gas</option><option>Internet</option><option>Servicios</option><option>Delivery</option><option>Mantención</option><option>Otros</option></select>
+<label>Tipo</label><select id="expenseType"><option value="gasto">Gasto operativo</option><option value="compra">Compra de mercadería</option><option value="retiro">Retiro del dueño (separado de gastos)</option><option value="ingreso_extra">Ingreso extraordinario (no es venta)</option></select>
+<label>Categoría</label><select id="expenseCategory">
+<optgroup label="Mercadería y operación">
+<option>Mercadería e insumos</option><option>Envases y empaques</option><option>Fletes y repartos</option><option>Aseo y limpieza</option>
+</optgroup><optgroup label="Personal y servicios">
+<option>Sueldos y personal</option><option>Honorarios y contabilidad</option><option>Arriendo</option><option>Luz</option><option>Agua</option><option>Gas</option><option>Internet y telefonía</option>
+</optgroup><optgroup label="Administración y otros">
+<option>Publicidad y marketing</option><option>Software y plataformas</option><option>Mantenciones</option><option>Equipamiento e inversiones</option><option>Impuestos y patentes</option><option>Otros</option>
+</optgroup></select>
+<p class="hint" id="ukiAyudaCategoria">Si tienes factura de compra, regístrala en Compras para no duplicarla aquí.</p>
 <label>Proveedor (opcional)</label><input id="expenseVendor"><label>Concepto</label><textarea id="expenseConcept"></textarea>
 <label style="display:flex;align-items:center;gap:10px"><input type="checkbox" id="expensePending" style="width:20px;min-height:20px;margin:0"> Aún está pendiente de pago</label>
 <label>Vencimiento (si aún está pendiente)</label><input id="expenseDue" type="date"><label>Adjuntar factura o comprobante (opcional)</label><input id="expensePhoto" type="file" accept="image/*,application/pdf">
-<button class="primary" id="saveExpense">Guardar gasto o compra</button></div><div class="card" id="ukiGastosDeCierres"><h2>📖 Gastos del local y otros gastos</h2><p class="hint">Los gastos de los cierres de Uki no se modifican aquí. Los registros manuales se pueden editar o eliminar sin tocar la caja.</p><div id="ukiGastosVisibles"></div></div></section>
+<p class="owner-expense-alert">Antes de guardar, comprueba que no sea el mismo gasto registrado en un cierre de Uki o en Compras. Los retiros personales se registran aparte del resultado operativo.</p>
+<button class="primary" id="saveExpense">Guardar gasto o compra</button></div><div class="card" id="ukiGastosDeCierres"><h2>📖 Gastos del local y otros gastos</h2>
+<p class="hint">Solo lectura para gastos de cierres; los manuales tienen Editar o Eliminar. Elige un período y filtra aquí.</p>
+<div class="owner-filter-grid">
+<label for="ukiFiltroGastoTipo">Ver gastos<select id="ukiFiltroGastoTipo"><option value="todos">Todos</option><option value="local">Solo locales</option><option value="general">Solo generales</option></select></label>
+<label for="ukiFiltroGastoEstado">Estado<select id="ukiFiltroGastoEstado"><option value="todos">Pagados y pendientes</option><option value="pagado">Solo pagados</option><option value="pendiente">Solo pendientes</option></select></label>
+<label for="ukiFiltroGastoCategoria">Categoría<select id="ukiFiltroGastoCategoria"><option value="todos">Todas las categorías</option></select></label>
+<label for="ukiFiltroGastoProveedor">Buscar proveedor o concepto<input id="ukiFiltroGastoProveedor" type="search" placeholder="Nombre o detalle"></label>
+</div>
+<div id="ukiGastosVisibles"></div></div></section>
 <section class="view" id="v-facturas" hidden>
 <div class="card" id="purchaseNavigation">
 <div class="eyebrow">ADMINISTRACIÓN GENERAL DE COMPRAS</div>
@@ -826,7 +875,7 @@ function vistaCompras(modo,desplazar=true){
 function switchTab(name){
  tab=name;
  for(const v of document.querySelectorAll('.view'))v.hidden=v.id!=='v-'+name;
- $('filterCard').hidden=!['resumen','negocios'].includes(name);
+ $('filterCard').hidden=!['resumen','negocios','gastos'].includes(name);
  for(const btn of document.querySelectorAll('[data-tab]'))btn.classList.toggle('active',btn.dataset.tab===name);
  syncSelectedBusiness(name);
  window.scrollTo({top:0,behavior:'smooth'});
