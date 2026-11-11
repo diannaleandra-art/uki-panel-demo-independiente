@@ -3497,6 +3497,16 @@ function vCierre(){
   if(!window.ukiControlTurnos)return '<div class="card"><h2>No se cargó el control de caja</h2><p class="muted">Actualiza la página para revisar los pagos pendientes y el cuadre antes de cerrar. La caja sigue intacta.</p></div>';
   const t=totales(); const caja=cajaDelDia();
   const pendientes=window.ukiControlTurnos?.pedidosSinPago(S.pedidos,S.suc,esDelPeriodo)||[];
+  // Una solicitud no aceptada NO es venta, pero sí debe impedir cerrar sin resolverla.
+  const pendientesSolicitudesLocales=(S.solicitudesWhatsApp||[])
+   .filter(x=>x.suc===S.suc&&x.estado==='pendiente');
+  const pendientesSolicitudesCarta=typeof ukiCartaRemotasSucursal==='function'?
+   ukiCartaRemotasSucursal().filter(x=>x.estado==='pendiente'):[];
+  const pendientesSolicitudes=[...pendientesSolicitudesLocales.map(x=>({
+   codigo:x.codigoCarta||'WhatsApp',cliente:x.cliente||'Sin nombre'
+  })),...pendientesSolicitudesCarta.map(x=>({
+   codigo:x.codigo_pedido||'Carta normal',cliente:x.cliente||'Sin nombre'
+  }))];
   const dif=window.ukiControlTurnos?.diferencia(t.efectivoCaja,cierreDraft.contado);
   const conteoTexto=cierreDraft.contado.trim()===""?"⚠️ Falta conteo físico obligatorio":
     dif===null?"Ingresa un monto válido, sin decimales":dif===0?"✅ Caja exacta":
@@ -3512,6 +3522,13 @@ function vCierre(){
   <div class="card"><h2>Resultado final</h2>${row("Venta total con delivery",fmt(t.totalMedios))}${row("− Pago de repartos del día ("+t.pagoDeliveryMedioDia+")",fmt(t.pagoDeliveryDia),"neg")}${t.pagoDeliveryAnterior?row("− Abono saldos anteriores ("+t.pagoDeliveryMedioAnterior+")",fmt(t.pagoDeliveryAnterior),"neg"):''}${t.pagoDeliveryAnterior&&t.pagoDeliveryConceptoAnterior?'<p class="muted">Concepto de saldo anterior: '+esc(t.pagoDeliveryConceptoAnterior)+'</p>':''}${row("Venta - pagos al repartidor",fmt(t.totalMedios-t.pagoDelivery))}${row("− Gastos",fmt(t.gastosTotal),"neg")}${row("Venta total - gastos",fmt(t.totalMedios-t.gastosTotal),"sub")}${row("Total final (venta - pago delivery - gastos)",fmt(t.final),"final")}${row("Efectivo que queda en caja, sin propinas",fmt(t.efectivoCaja))}${row("Propinas (aparte)",fmt(t.propinas))}${t.propinasEfectivo?row("De ellas, en efectivo",fmt(t.propinasEfectivo)):""}</div>
   ${pendientes.length?`<div class="card" style="border:2px solid #bd4d1b"><h2>⚠️ Pedidos pendientes de pago · ${pendientes.length}</h2><p class="muted">Revisa estos pedidos antes de cerrar. Si decides cerrar, seguirán registrados como pendientes.</p><p>${pendientesText}</p></div>`:
      '<div class="card"><p style="margin:4px 0">✅ No hay pedidos pendientes de pago en este turno.</p></div>'}
+  ${pendientesSolicitudes.length?
+   '<div class="card" style="border:2px solid #b62a17;background:#fff6ef">'+
+   '<h2 style="color:#a52d18">⛔ No se puede cerrar: '+pendientesSolicitudes.length+' solicitud(es) sin confirmar</h2>'+
+   '<p>Antes de cerrar, acepta y guarda cada pedido o rechaza la solicitud indicando el motivo. No se sumarán a ventas hasta aceptarlas.</p>'+
+   pendientesSolicitudes.map(x=>'<p style="margin:5px 0"><b>'+esc(x.codigo)+'</b> · '+esc(x.cliente)+'</p>').join('')+
+   '<button type="button" class="big" onclick="ir(\'pedidos\')">Ir a Pedidos y resolver solicitudes</button></div>':
+   '<div class="card"><p style="margin:4px 0">✅ Sin solicitudes pendientes en la bandeja cargada. Antes de cerrar se comprobará también la bandeja en línea.</p></div>'}
   <div class="card"><h2>💵 Cuadre de efectivo</h2>
     ${row("Efectivo esperado sin propinas",fmt(t.efectivoCaja))}
     ${t.propinasEfectivo?'<p class="muted"><b>Hay '+fmt(t.propinasEfectivo)+' de propinas en efectivo.</b> Si ese dinero sigue en el cajón, sepáralo antes de contar. El monto esperado NO incluye propinas.</p>':''}
@@ -3521,7 +3538,7 @@ function vCierre(){
     <p class="muted"><b>Conteo obligatorio.</b> No se podrá cerrar definitivamente la caja sin registrar el efectivo físico, incluso si es $0. La diferencia quedará guardada junto al cierre.</p>
   </div>
   <div class="card"><p class="muted"><b>🕒 ¿Solo finaliza el turno de un trabajador?</b> Usa «Precierre trabajador». No realiza un cierre de caja. <button type="button" class="sm" onclick="cambiarCajaTab('precierre')">Ir a precierre</button></p></div>
-  <div class="card" style="border:2px solid #a44b2a"><h2>🔒 CIERRE DEFINITIVO · ${fechaOperativaActual()}</h2><p class="muted"><b>ESTA OPCIÓN SÍ CIERRA LA CAJA Y GUARDA EL CORTE DEL DÍA.</b> No es el precierre de un trabajador.</p><label>Responsable</label><input id="resp" placeholder="Nombre" value="${esc(cierreDraft.resp)}" oninput="cierreDraft.resp=this.value"><label>Observaciones</label><textarea id="obs" rows="2" oninput="cierreDraft.obs=this.value">${esc(cierreDraft.obs)}</textarea>${S.confirmCierre?'<p class="aviso" style="background:#ffe1e1;color:#7a0010">El siguiente botón CIERRA DEFINITIVAMENTE la caja del día. Marca la casilla antes de confirmar.</p>':""}${S.confirmCierre?'<label style="font-weight:700"><input id="ukiConfirmarCierreDefinitivo" type="checkbox"> Confirmo que deseo cerrar definitivamente la caja del día.</label>':''}<button class="big" style="background:#8c302b;color:#fff" onclick="cerrar()">${S.confirmCierre?"CONFIRMAR CIERRE DEFINITIVO":"Revisar cierre definitivo"}</button></div>
+  <div class="card" style="border:2px solid #a44b2a"><h2>🔒 CIERRE DEFINITIVO · ${fechaOperativaActual()}</h2><p class="muted"><b>ESTA OPCIÓN SÍ CIERRA LA CAJA Y GUARDA EL CORTE DEL DÍA.</b> No es el precierre de un trabajador.</p><label>Responsable</label><input id="resp" placeholder="Nombre" value="${esc(cierreDraft.resp)}" oninput="cierreDraft.resp=this.value"><label>Observaciones</label><textarea id="obs" rows="2" oninput="cierreDraft.obs=this.value">${esc(cierreDraft.obs)}</textarea>${S.confirmCierre?'<p class="aviso" style="background:#ffe1e1;color:#7a0010">El siguiente botón CIERRA DEFINITIVAMENTE la caja del día. Marca la casilla antes de confirmar.</p>':""}${S.confirmCierre?'<label style="font-weight:700"><input id="ukiConfirmarCierreDefinitivo" type="checkbox"> Confirmo que deseo cerrar definitivamente la caja del día.</label>':''}<button class="big" style="background:#8c302b;color:#fff" onclick="cerrar()" ${pendientesSolicitudes.length?'disabled title="Resuelve primero las solicitudes pendientes de Pedidos"':''}>${S.confirmCierre?"CONFIRMAR CIERRE DEFINITIVO":"Revisar cierre definitivo"}</button></div>
   <div class="card"><h2>📤 Compartir y descargar · al final del cierre</h2><p class="muted">Primero confirma el cierre definitivo. Después podrás compartir la versión guardada por WhatsApp y descargar el PDF real o Excel desde Historial, sin confundirla con un resumen provisional.</p><button type="button" class="big" onclick="cambiarCajaTab('historial')">📚 Ir a cierres guardados · WhatsApp / Excel / PDF</button></div>`;
 }
 // Fechas independientes: pedidos por fecha del pedido, incidencias por fecha del reporte.
@@ -4672,8 +4689,43 @@ async function ndGuardar(){
   S.vista="pedidos"; render();
   }finally{ukiGuardadoSolicitudEnCurso=false;}
 }
-function cerrar(){
-  if(S.busy)return;
+let ukiCierreComprobandoSolicitudes=false;
+async function cerrar(){
+  if(S.busy||ukiCierreComprobandoSolicitudes)return;
+  // No permitir cierre si quedó una solicitud local pendiente, incluso de otro día.
+  const faltanLocales=()=>((S.solicitudesWhatsApp||[]).filter(
+   x=>x.suc===S.suc&&x.estado==='pendiente'));
+  const localPendiente=faltanLocales();
+  if(localPendiente.length){
+   S.confirmCierre=false;
+   aviso('⛔ No se cerró la caja: '+localPendiente.length+
+    ' solicitud(es) de WhatsApp por aceptar o rechazar en Pedidos.');
+   return;
+  }
+  // La bandeja remota se verifica EN VIVO, no solo desde el último listado.
+  if(typeof ukiCartaRemotasVerificarCierre!=='function'){
+   S.confirmCierre=false;
+   aviso('⛔ No se pudo verificar la carta digital. Actualiza el panel antes de cerrar.');
+   return;
+  }
+  const sucVerificada=S.suc;
+  ukiCierreComprobandoSolicitudes=true;
+  let pendientesRemotas;
+  try{
+   pendientesRemotas=await ukiCartaRemotasVerificarCierre();
+  }catch(e){
+   S.confirmCierre=false;
+   aviso('⛔ No se cerró la caja: no se pudo verificar las solicitudes de la carta. '+
+    String(e?.message||'Revisa la conexión y vuelve a intentarlo.'));
+   return;
+  }finally{ukiCierreComprobandoSolicitudes=false;}
+  if(S.busy||S.suc!==sucVerificada)return;
+  if(faltanLocales().length||pendientesRemotas.length){
+   S.confirmCierre=false;
+   aviso('⛔ Cierre bloqueado: '+(faltanLocales().length+pendientesRemotas.length)+
+    ' solicitud(es) por confirmar. Abre Pedidos y acepta o rechaza antes de cerrar.');
+   return;
+  }
   const respEl=$("resp");
   const resp=respEl?respEl.value.trim():cierreDraft.resp.trim();
   if(!resp){aviso("⚠️ Escribe quién cierra (ej: Dianna) en Responsable"); if(respEl) respEl.focus(); return;}
