@@ -11,6 +11,6 @@
   },
   "scripts": {
     "test": "node --test tests/inventario-live.test.cjs",
-    "test:romo-qa": "node --test tests/uki-panel-unico-romo-serena-qa.test.cjs tests/uki-romo-ingreso-clave-qa.test.cjs tests/uki-romo-clave-remota-qa.test.cjs tests/romo-claves-lectura-servidor-qa.test.mjs tests/romo-claves-lectura-api-cerrada-qa.test.mjs tests/romo-duenos-google-qa.test.mjs tests/romo-duenos-vinculo-qa.test.mjs tests/uki-romo-vinculo-duenos-qa.test.mjs tests/romo-estado-operativo-qa.test.mjs tests/romo-estado-api-cerrada-qa.test.mjs"
+    "test:romo-qa": "node --test tests/uki-panel-unico-romo-serena-qa.test.cjs tests/uki-romo-ingreso-clave-qa.test.cjs tests/uki-romo-clave-remota-qa.test.cjs tests/romo-claves-lectura-servidor-qa.test.mjs tests/romo-claves-lectura-api-cerrada-qa.test.mjs tests/romo-duenos-google-qa.test.mjs tests/romo-duenos-vinculo-qa.test.mjs tests/uki-romo-vinculo-duenos-qa.test.mjs tests/romo-estado-operativo-qa.test.mjs tests/romo-estado-api-cerrada-qa.test.mjs tests/uki-romo-operativo-puente-qa.test.mjs"
   }
 }
