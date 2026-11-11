@@ -304,7 +304,7 @@ module.exports=async(req,res)=>{
      " AND ($1::uuid IS NULL OR COALESCE(r.negocio_id,m.negocio_id)=$1)"+
      " AND ($2::uuid IS NULL OR COALESCE(r.sucursal_id,m.sucursal_id)=$2)"+
      (pendientes?"":" AND m.fecha BETWEEN $3::date AND $4::date")+legalWhere;
-    return "SELECT m.id,m.fecha::text AS fecha,m.monto AS total_factura,"+
+    return "SELECT m.id,m.tipo,m.fecha::text AS fecha,m.monto AS total_factura,"+
      "COALESCE(r.monto,m.monto) AS monto,m.categoria,m.concepto,m.proveedor,"+
      "m.referencia,m.estado,m.datos,b.nombre AS negocio,"+
      "COALESCE(s.nombre,'General') AS sucursal,"+
