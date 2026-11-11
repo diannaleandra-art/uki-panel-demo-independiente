@@ -1,5 +1,5 @@
 import {leerDTE,filasDTE,leerTextoFactura,leerCabeceraFacturaPDF,numeroFactura,opcionesRecepcionFactura,nombrePropuestoFactura,categoriaPropuestaFactura,articuloExistenteFactura} from './uki-factura-lectura-live.mjs';
-export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreated}){
+export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreated,mountTarget=null}){
  const section=document.createElement('section');section.id='facturaQA';section.className='card';
  section.innerHTML="<h2>📷 Recibir mercadería con factura</h2>\n<p class=\"muted\">Gratis: toma una foto o sube una factura. Revisa las cantidades antes de guardar. La foto se procesa en tu teléfono y no se envía al servidor.</p>\n<div class=\"fact-botones\"><label for=\"factFoto\">📷 Tomar foto</label><input id=\"factFoto\" type=\"file\" accept=\"image/*\" capture=\"environment\">\n<label for=\"factArchivo\">Subir archivo</label><input id=\"factArchivo\" type=\"file\" accept=\"image/*,.xml,application/xml,.pdf,application/pdf\"></div>\n<p id=\"factEstado\" role=\"status\" class=\"muted\">Fotos, XML y PDF con texto. El ingreso manual sigue disponible.</p>\n<div id=\"factTextoBox\" hidden><label for=\"factTexto\">Texto leído (corrígelo si hay errores)</label>\n<textarea id=\"factTexto\" rows=\"4\" maxlength=\"20000\" style=\"width:100%;font:inherit;border:1px solid #d5c4b6;border-radius:9px\"></textarea>\n<button type=\"button\" class=\"secondary\" id=\"factReleer\">Volver a detectar productos</button></div>\n<div id=\"factLineas\"></div>\n<div id=\"factAcciones\" hidden><button type=\"button\" class=\"secondary\" id=\"factAnadir\">Añadir línea manual</button>\n<button type=\"button\" id=\"factGuardar\">Confirmar mercadería recibida</button>\n<p id=\"factResultado\" role=\"status\"></p><p class=\"muted small\">Las entradas marcadas se guardan individualmente. Si hay un error, revisa el saldo antes de intentar otra vez.</p></div>\n<style>#facturaQA .fact-botones{display:flex;gap:8px;flex-wrap:wrap}\n#facturaQA .fact-botones input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}\n#facturaQA .fact-botones label{display:inline-block;background:#e9822d;color:white;border-radius:9px;padding:12px;cursor:pointer}\n#facturaQA .fact-fila{border:1px solid #eadbcc;border-radius:10px;padding:12px;margin:9px 0}\n#facturaQA .fact-fila select,#facturaQA .fact-fila input[type=text]{width:100%}\n#facturaQA .fact-columnas{display:grid;grid-template-columns:1fr 1fr;gap:8px}\n#facturaQA .fact-mensaje{background:#fff6e9;border-radius:8px;padding:8px}\n#facturaQA .fact-guardada{background:#f0f9ef;border-radius:8px;padding:8px;color:#25612c}\n#facturaQA button{margin:8px 6px 0 0}\n#facturaQA #factAltas[hidden],#facturaQA #factRecibirVista[hidden]{display:none!important}\n#facturaQA #factEtapas button[aria-pressed=true]{background:#ae5414;color:#fff}\n#facturaQA #factEtapas button[aria-pressed=false]{background:#f6e3d2;color:#663a20}\n@media(max-width:470px){#facturaQA .fact-columnas{grid-template-columns:1fr}}</style>";
  const metaBox=document.createElement('div');
@@ -27,8 +27,15 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
  nav.innerHTML='<button type="button" id="factModoPreparar">1. Preparar artículos</button>'+
   '<button type="button" id="factModoRecibir">2. Registrar mercadería</button>';
  section.insertBefore(nav,altas);
- const itemsContainer=document.getElementById('items');
- itemsContainer.parentNode.insertBefore(section,itemsContainer);
+ // En trabajadores se conserva la ubicación original; en el panel normal
+ // se monta en su propio contenedor plegable sin duplicar la interfaz.
+ if(mountTarget){
+  if(!mountTarget.isConnected)throw Error('Abre la sección de inventario antes de recibir facturas.');
+  mountTarget.append(section);
+ }else{
+  const itemsContainer=document.getElementById('items');
+  itemsContainer.parentNode.insertBefore(section,itemsContainer);
+ }
  const el=id=>section.querySelector('#'+id), estado=t=>{el('factEstado').textContent=t;};
  const make=(tag,parent,text,cls)=>{
   const node=document.createElement(tag);if(text!==undefined)node.textContent=text;
