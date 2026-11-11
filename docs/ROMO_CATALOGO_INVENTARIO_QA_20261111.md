@@ -22,3 +22,14 @@ Esta rama nace de main actualizado del panel compartido y NO reemplaza la rama a
 5. Pruebas integrales y autorización específica antes de producción.
 
 Esta rama no altera env vars, dominios, datos reales, código de sucursales Uki ni producción.
+
+## Proyección de Romo en las mismas vistas del panel (11-11-2026)
+
+- lib/romo-panel-proyeccion-qa.mjs convierte catálogo y inventario de Romo a elementos de lectura del panel.
+- Productos, promociones, ingredientes, disponibilidad, cantidades recibidas y faltantes conservan identificador romo:serena.
+- La proyección pública oculta promociones y productos sin publicar; listaParaRevision no habilita ventas.
+- Fotos faltantes son detectadas como pendientes; no se inventan fotos ni precios.
+- Carta antigua Romo usa Supabase para romos_products, mientras el panel nuevo utiliza la base Neon romos_sushi.
+- El conector Supabase rechazó la consulta de lectura: autenticación fallida del rol de solo lectura.
+- Neon tenía cero registros en romo_catalogo_v1 en la última revisión. No se importaron datos automáticamente.
+- Sin modificaciones a la carta pública, sin SQL ejecutado, sin permisos nuevos y sin tocar producción.
