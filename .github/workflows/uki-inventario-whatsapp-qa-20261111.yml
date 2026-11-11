@@ -8,6 +8,7 @@ on:
       - "firebase/uki-inventario-exportar.js"
       - "public/uki-inventario-exportar.js"
       - "tests/uki-inventario-pdf-lista-compras-whatsapp-20261111.test.cjs"
+      - "tests/uki-inventario-diferencias-reponer-20261111.test.cjs"
       - ".github/workflows/uki-inventario-whatsapp-qa-20261111.yml"
 permissions:
   contents: read
@@ -21,4 +22,4 @@ jobs:
           persist-credentials: false
       - name: Comprobar PDF y texto de compras separados
         run: |
-          node --test tests/uki-inventario-pdf-lista-compras-whatsapp-20261111.test.cjs tests/uki-inventario-informe-ordenado.test.cjs
+          node --test tests/uki-inventario-pdf-lista-compras-whatsapp-20261111.test.cjs tests/uki-inventario-informe-ordenado.test.cjs tests/uki-inventario-diferencias-reponer-20261111.test.cjs
