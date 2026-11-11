@@ -9,5 +9,25 @@
       "source": "/__/firebase/init.json",
       "destination": "https://uki-panel-f4909.firebaseapp.com/__/firebase/init.json"
     }
+  ],
+  "headers": [
+    {
+      "source": "/uki-factura-interfaz-live.mjs",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "https://diannaleandra-art.github.io"
+        }
+      ]
+    },
+    {
+      "source": "/uki-factura-lectura-live.mjs",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "https://diannaleandra-art.github.io"
+        }
+      ]
+    }
   ]
 }
