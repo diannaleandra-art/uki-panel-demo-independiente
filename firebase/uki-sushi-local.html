@@ -750,50 +750,38 @@ function ukiVolverAlSelectorLocales(){
  * La verificación Google / autorizaciones del servidor aún NO está conectada:
  * abrir esta pantalla no concede permisos de pedidos, caja ni nube.
  */
-const ROMO_QA_LOCAL_KEY="romo_operativo_v1_cifrado_la-serena";
-const ROMO_QA_LOCAL_FORMAT="romo-acceso-local-qa-v1";
+/* Vista de Romo QA: reutiliza la contraseña EXISTENTE de Uki, sin
+ * crear otra clave ni guardar el secreto. Solo se verifica, en memoria,
+ * contra una bóveda de Uki previamente abierta/guardada en este navegador.
+ * No abre datos Uki dentro de Romo, ni concede permisos de nube/pedidos.
+ */
 const ROMO_QA_STORE_ID="romo:serena";
-const romoQaAAD=()=>new TextEncoder().encode(ROMO_QA_LOCAL_FORMAT+"|"+ROMO_QA_STORE_ID);
-async function ukiCrearClaveRomoQA(pass){
- if(pass.length<12||!globalThis.crypto?.subtle||!globalThis.crypto?.getRandomValues)
-  throw Error("Se requiere una clave de 12 caracteres y cifrado seguro.");
- if(localStorage.getItem(ROMO_QA_LOCAL_KEY)!==null)
-  throw Error("Ya existe una clave de Romo. Abre la sucursal con esa clave.");
- const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
- const key=await ukiClaveBackup(pass,salt);
- const plaintext=new TextEncoder().encode(JSON.stringify({storeId:ROMO_QA_STORE_ID,soloPrueba:true}));
- const ciphertext=await crypto.subtle.encrypt({name:"AES-GCM",iv,additionalData:romoQaAAD()},key,plaintext);
- const entry={formato:ROMO_QA_LOCAL_FORMAT,storeId:ROMO_QA_STORE_ID,
-  salt:ukiB64(salt),iv:ukiB64(iv),cifrado:ukiB64(ciphertext)};
- localStorage.setItem(ROMO_QA_LOCAL_KEY,JSON.stringify(entry));
-}
-async function ukiVerificarClaveRomoQA(pass){
- if(pass.length<12||!globalThis.crypto?.subtle)throw Error("Contraseña inválida.");
- const raw=localStorage.getItem(ROMO_QA_LOCAL_KEY);
- if(!raw)throw Error("El acceso de prueba de Romo no está creado.");
- const entry=JSON.parse(raw);
- if(!entry||entry.formato!==ROMO_QA_LOCAL_FORMAT||entry.storeId!==ROMO_QA_STORE_ID)
-  throw Error("Acceso de prueba no válido.");
- const salt=ukiBytes(entry.salt),iv=ukiBytes(entry.iv),cipher=ukiBytes(entry.cifrado);
- if(salt.length!==16||iv.length!==12||cipher.length<16)
-  throw Error("Registro de Romo dañado.");
- const key=await ukiClaveBackup(pass,salt);
- const plain=await crypto.subtle.decrypt({name:"AES-GCM",iv,additionalData:romoQaAAD()},key,cipher);
- const item=JSON.parse(new TextDecoder().decode(plain));
- if(item.storeId!==ROMO_QA_STORE_ID||item.soloPrueba!==true)throw Error("Registro ajeno a Romo.");
- return true;
+async function ukiValidarClaveUkiParaRomoQA(pass){
+ if(typeof pass!=="string"||pass.length<12)throw Error("Contraseña de acceso inválida.");
+ if(!globalThis.crypto?.subtle)throw Error("Cifrado no disponible.");
+ const disponibles=SUCURSALES.filter(s=>localStorage.getItem(claveLocal(s))!==null);
+ if(!disponibles.length)
+  throw Error("Primero abre Uki con tu contraseña habitual en este dispositivo para poder comprobarla.");
+ for(const suc of disponibles){
+  try{
+   // Solo comprueba el descifrado de la bóveda de Uki. No modifica datos.
+   const result=await abrirLocal(localStorage.getItem(claveLocal(suc)),suc,pass);
+   if(result?.estado?.suc===suc)return true;
+  }catch(_error){/* probar la otra sucursal sin mostrar ni conservar su estado */}
+ }
+ throw Error("La contraseña no coincide con las sucursales Uki guardadas en este dispositivo.");
 }
 async function ukiEntrarRomoQA(){
  if(!S.romoSeleccionadoQA||S.suc||S.pinSuc)return;
- const pass=$("ukiAccesoClave")?.value||"",existe=localStorage.getItem(ROMO_QA_LOCAL_KEY)!==null;
- if(pass.length<12){aviso("Utiliza una clave de al menos 12 caracteres.");return;}
- if(!existe&&pass!==($("ukiAccesoConfirmar")?.value||"")){aviso("Las claves no coinciden.");return;}
+ const pass=$("ukiAccesoClave")?.value||"";
+ if(pass.length<12){aviso("Utiliza la misma clave de Uki (mínimo 12 caracteres).");return;}
  try{
-  if(existe)await ukiVerificarClaveRomoQA(pass);
-  else await ukiCrearClaveRomoQA(pass);
+  await ukiValidarClaveUkiParaRomoQA(pass);
   S.romoIngresadoQA=true;render();
- }catch(e){console.warn("No se pudo abrir la vista de Romo QA",e?.name||"error");
-  aviso("No se pudo abrir Romo. Revisa la contraseña o el acceso cifrado de prueba.");
+ }catch(error){
+  const msg=String(error?.message||"");
+  console.warn("No se pudo comprobar el acceso de Romo QA",error?.name||"error");
+  aviso(msg.startsWith("Primero abre Uki")?msg:"No se pudo abrir Romo. Comprueba la misma contraseña que utilizas en Uki.");
  }
 }
 function pedirPin(s){
@@ -869,14 +857,12 @@ function ukiAccesosDesplazamiento(){
 function vInicio(){
  if(!S.suc&&!S.pinSuc&&S.romoSeleccionadoQA){
   if(!S.romoIngresadoQA){
-   const existe=localStorage.getItem(ROMO_QA_LOCAL_KEY)!==null;
    return '<section class="card" id="romoIngresoFormularioQA" aria-label="Ingresar a Romo’s Sushi La Serena">'+
     '<h2>Romo’s Sushi · La Serena</h2><p><b>Balmaceda 1612, La Serena</b></p>'+
-    '<p class="muted">'+(existe?"Escribe la contraseña para abrir tus registros cifrados.":"Crea una clave de al menos 12 caracteres para esta sucursal.")+'</p>'+
-    '<label>Contraseña de acceso</label><input id="ukiAccesoClave" type="password" autocomplete="off" placeholder="Mínimo 12 caracteres">'+
-    (existe?'':'<label>Repite la contraseña</label><input id="ukiAccesoConfirmar" type="password" autocomplete="off" placeholder="Confirmar contraseña">')+
-    '<button class="big" type="button" onclick="ukiEntrarRomoQA()">'+(existe?"Abrir sucursal":"Crear acceso")+'</button>'+
-    '<p class="muted">La clave no se guarda en texto. Vista de prueba de ingreso local: todavía no verifica Google ni sincroniza la base Romo. No se habilitan ventas.</p>'+
+    '<p class="muted">Ingresa con la misma contraseña que utilizas en Uki La Serena o Uki Regimiento Arica. No necesitas crear otra.</p>'+
+    '<label>Contraseña de acceso</label><input id="ukiAccesoClave" type="password" autocomplete="off" placeholder="Misma clave de Uki">'+
+    '<button class="big" type="button" onclick="ukiEntrarRomoQA()">Abrir sucursal</button>'+
+    '<p class="muted">Vista de prueba local: primero debe existir el acceso cifrado de alguna sucursal Uki en este dispositivo. Todavía no verifica Google ni sincroniza la base Romo. No se habilitan ventas.</p>'+
     '<button type="button" onclick="ukiVolverAlSelectorLocales()">Volver a los locales</button></section>';
   }
   return '<section class="card" id="romoLaSerenaPreparacionQA" aria-label="Romo’s Sushi La Serena">'+
