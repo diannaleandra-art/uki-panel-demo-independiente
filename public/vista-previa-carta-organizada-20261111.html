@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Uki · Vista previa de Carta y precios</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#392b24;background:#f7f4f0;font-size:15px}
+*{box-sizing:border-box}body{margin:0;padding:0 0 55px}button,input,select,textarea{font:inherit}button{cursor:pointer}
+header{background:linear-gradient(125deg,#3e2823,#70422b);color:white;padding:24px 18px 20px}
+header .inner,main{max-width:820px;margin:auto}header small{font-weight:800;letter-spacing:.12em;color:#f6d3af}
+header h1{font-size:26px;line-height:1.12;margin:10px 0 6px}header p{color:#f6ded1;margin:0;line-height:1.5}
+main{padding:14px}.note{background:#fff7e8;border:1px solid #eacb8c;border-radius:13px;padding:12px 13px;font-size:13px;line-height:1.45;margin:8px 0 16px}
+.card{background:#fff;border:1px solid #e8dbcf;border-radius:16px;padding:17px;margin:12px 0;box-shadow:0 3px 11px rgba(65,40,23,.04)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:9px;flex-wrap:wrap}
+h2{font-size:19px;margin:0 0 10px}h3{font-size:16px;margin:0 0 9px;color:#74442b}
+.muted{color:#76655a;font-size:13px;line-height:1.5}.tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tab{border:1px solid #d9b7a0;border-radius:12px;background:#fff;padding:13px 8px;color:#74422b;font-weight:800}
+.tab[aria-selected=true]{background:#a95b2a;color:white;border-color:#a95b2a}
+label{font-weight:650;font-size:13px;display:block;margin-top:13px}
+input,select,textarea{width:100%;max-width:100%;border:1px solid #d9c9bc;background:#fff;border-radius:10px;padding:11px;margin-top:5px;color:#322820;font-size:15px}
+textarea{resize:vertical;min-height:64px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.primary{background:#b65b25;color:white;border:1px solid #b65b25}
+.secondary{background:#fff7f0;color:#774325;border:1px solid #deb899}
+.ghost{background:#fff;color:#7a4a32;border:1px solid #d8beb0}
+.btn{border-radius:11px;padding:11px 12px;font-weight:750;min-height:44px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:17px;font-weight:800;color:#6a3820}
+summary::after{content:"+";font-size:25px;color:#ad5b22}details[open]>summary::after{content:"−"}
+details>summary::-webkit-details-marker{display:none}
+.sep{border:0;border-top:1px solid #e8ddd3;margin:16px 0}
+.price-preview{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0;background:#f7f1ea;border:1px dashed #dcbb9c;padding:12px;border-radius:12px}
+.price-preview small{display:block;color:#7a6553;font-size:12px}.price-preview strong{display:block;font-size:22px;color:#8b401d;margin-top:4px}
+.product,.promo{border:1.5px solid #e7d5c6;border-radius:14px;padding:13px;margin:11px 0;background:#fffcf8}
+.product strong,.promo strong{font-size:15px}.promo{border-left:5px solid #b76032}
+.pill{display:inline-block;border-radius:99px;background:#f5e9dc;color:#83522e;font-size:12px;font-weight:750;padding:5px 10px}
+.status{background:#e9f4ec;color:#26704a}.off{background:#f3e9e7;color:#855e51}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.actions .btn{flex:1 1 135px}
+.detail{margin-top:10px;padding-top:11px;border-top:1px solid #eadacb}.detail summary{font-size:14px}
+#notice{position:sticky;bottom:9px;z-index:4;display:none;background:#392c24;color:white;padding:12px;border-radius:12px;box-shadow:0 7px 18px #0002}
+#notice.show{display:block}
+#newCategory{margin-top:9px;padding:11px;background:#fff7ed;border-radius:11px}
+[hidden]{display:none!important}
+.footer{text-align:center;color:#756454;font-size:12px;padding:15px 10px}
+@media(max-width:520px){.grid{grid-template-columns:1fr}.price-preview{grid-template-columns:1fr 1fr}header h1{font-size:23px}.card{padding:14px}.btn{font-size:13px}}
+</style></head>
+<body>
+<header><div class="inner"><small>UKI SUSHI · VISTA PREVIA</small><h1>Carta y precios</h1><p>Propuesta de organización para productos, categorías, descuentos y promociones.</p></div></header>
+<main>
+<div class="note"><strong>Prueba visual segura.</strong> Puedes tocar los botones y probar los formularios. Los datos de ejemplo no son ventas reales y ningún cambio se guarda ni se publica en Uki.</div>
+<div class="card">
+<div class="row"><h2 style="margin:0">Sucursal de ejemplo</h2><span class="pill">Independientes</span></div>
+<select id="branch" aria-label="Sucursal de ejemplo"><option value="arica">Regimiento Arica</option><option value="serena">La Serena</option></select>
+</div>
+<div class="tabs" role="tablist"><button class="tab" role="tab" id="tabProducts" aria-selected="true">📋 Productos</button><button class="tab" role="tab" id="tabPromos" aria-selected="false">🎁 Promociones</button></div>
+<section id="products">
+<div class="card">
+<details id="productAdd">
+<summary>＋ Agregar producto</summary>
+<p class="muted">Elige una categoría existente o crea una nueva aquí mismo. Se mantiene separada por sucursal.</p>
+<div class="grid"><div><label for="kind">Tipo de producto</label><select id="kind"><option value="dish">Entrada / producto simple</option><option value="pizza">Pizza (solo Regimiento)</option></select></div>
+<div><label for="category">Categoría de la carta</label><select id="category"></select></div></div>
+<button class="btn secondary" id="toggleCategory" style="width:100%;margin-top:10px" type="button">＋ Nueva categoría</button>
+<div id="newCategory" hidden><label for="categoryName" style="margin-top:0">Nombre de la categoría nueva</label>
+<input id="categoryName" placeholder="Ej. Bebidas o postres" maxlength="45">
+<button class="btn primary" id="saveCategory" style="width:100%;margin-top:9px" type="button">Agregar categoría a esta sucursal (prueba)</button></div>
+<label for="productName">Nombre del producto</label><input id="productName" placeholder="Ej. Fresas con crema" maxlength="100">
+<label for="productDescription">Descripción / ingredientes</label><textarea id="productDescription" maxlength="500" placeholder="Descripción de la carta"></textarea>
+<div class="grid"><div><label for="productBase">Precio original ($)</label><input id="productBase" type="number" min="1" max="1000000" inputmode="numeric" placeholder="10000"></div>
+<div><label for="productDiscount">Descuento (%) · opcional</label><input id="productDiscount" type="number" min="0" max="99" step="1" inputmode="numeric" value="0"></div></div>
+<div class="price-preview"><div><small>Precio de lista (se conserva)</small><strong id="productRegular">$0</strong></div><div><small>Precio final con descuento</small><strong id="productFinal">$0</strong></div></div>
+<button class="btn primary" id="saveProduct" type="button" style="width:100%">Guardar producto de prueba</button>
+</details></div>
+<div class="card"><div class="row"><h2>Productos existentes</h2><span class="pill">Por categoría</span></div>
+<label for="productFilter">Filtrar por categoría</label><select id="productFilter"></select>
+<div id="productList"></div></div>
+</section>
+<section id="promos" hidden>
+<div class="card">
+<details id="promoAdd">
+<summary>＋ Agregar nueva promoción</summary>
+<p class="muted">Formulario independiente: solo se abre cuando necesitas crear una promoción.</p>
+<label for="promoName">Nombre de la promoción</label><input id="promoName" maxlength="100" placeholder="Ej. Promo 60 piezas">
+<label for="promoDetail">Qué incluye</label><textarea id="promoDetail" maxlength="500" placeholder="Rolls, piezas, salsa, korokes…"></textarea>
+<div class="grid"><div><label for="promoRolls">Rolls</label><input id="promoRolls" type="number" min="1" max="20" value="5"></div>
+<div><label for="promoSauces">Salsas incluidas</label><input id="promoSauces" type="number" min="0" max="20" value="5"></div>
+<div><label for="promoKorokes">Korokes</label><input id="promoKorokes" type="number" min="0" max="30" value="0"></div>
+<div><label for="promoPayment">Medios de pago</label><select id="promoPayment"><option>Todos</option><option>Efectivo y transferencia</option><option>Solo Edenred</option></select></div>
+<div><label for="promoBase">Precio original ($)</label><input id="promoBase" type="number" min="1" max="1000000" inputmode="numeric" placeholder="18000"></div>
+<div><label for="promoDiscount">Descuento (%) · opcional</label><input id="promoDiscount" type="number" min="0" max="99" value="0"></div></div>
+<div class="price-preview"><div><small>Precio de lista</small><strong id="promoRegular">$0</strong></div><div><small>Precio final</small><strong id="promoFinal">$0</strong></div></div>
+<label>Foto / banner (se conserva en el panel real)</label><p class="muted">En esta vista previa no se suben imágenes.</p>
+<button class="btn primary" id="savePromo" type="button" style="width:100%">Guardar promoción de prueba</button>
+</details></div>
+<div class="card"><div class="row"><h2>Promociones existentes</h2><span class="pill" id="promoCount">0 promociones</span></div>
+<p class="muted">Cada promoción tiene su propia tarjeta. Solo se despliega el editor cuando la eliges.</p>
+<label for="promoSearch">Buscar promoción por nombre</label><input id="promoSearch" placeholder="Ej. 60 piezas" type="search">
+<div id="promoList"></div>
+</div>
+</section>
+<div id="notice" role="status"></div>
+<p class="footer">VISTA PREVIA · No conectada a inventario, caja, pedidos ni carta pública</p>
+</main>
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const pesos=n=>'$'+Number(n||0).toLocaleString('es-CL');
+const total=(base,pct)=>Math.max(1,Math.round(Number(base||0)*(1-Number(pct||0)/100)));
+const defaults={
+arica:{categories:['Entradas','Pizzas','Bebidas'],products:[{name:'Gohan clásico',category:'Entradas',price:6000,pct:0}],promos:[
+ {name:'Promo 24 piezas',detail:'2 rolls y salsa a elección',rolls:2,sauces:1,korokes:2,payment:'Todos',price:7000,pct:0,active:true},
+ {name:'Promo 60 piezas',detail:'5 rolls + 3 korokes',rolls:5,sauces:5,korokes:3,payment:'Todos',price:16000,pct:0,active:true}]},
+serena:{categories:['Entradas','Bebidas'],products:[{name:'Gohan clásico',category:'Entradas',price:6000,pct:0}],promos:[
+ {name:'Promo 36 piezas',detail:'3 rolls con 2 salsas',rolls:3,sauces:2,korokes:0,payment:'Todos',price:10000,pct:0,active:true}]}
+};
+const data=defaults;let branch='arica';let tab='products';
+function msg(text){$('notice').textContent=text;$('notice').classList.add('show');}
+function el(tag,text,cls){const x=document.createElement(tag);if(text!==undefined)x.textContent=text;if(cls)x.className=cls;return x;}
+function clear(node){node.replaceChildren();}
+function discountValid(value){return Number.isSafeInteger(Number(value))&&Number(value)>=0&&Number(value)<=99;}
+function calc(base,pct,regular,final){const n=Number(base),p=Number(pct);$(regular).textContent=n>0?pesos(n):'$0';$(final).textContent=n>0&&discountValid(p)?pesos(total(n,p)):'—';}
+function catOptions(){const cats=data[branch].categories;const c=$('category'),filter=$('productFilter'),before=c.value,old=filter.value;clear(c);clear(filter);
+filter.add(new Option('Todas las categorías','all'));
+for(const name of cats){c.add(new Option(name,name));filter.add(new Option(name,name));}
+if(cats.includes(before))c.value=before;else c.value=cats[0];
+filter.value=cats.includes(old)?old:'all';}
+function addCategory(){
+const value=$('categoryName').value.trim().replace(/\s+/g,' ');
+if(value.length<2||value.length>45){msg('Escribe un nombre de categoría válido.');return;}
+const cats=data[branch].categories;
+if(cats.some(c=>c.toLocaleLowerCase('es-CL')===value.toLocaleLowerCase('es-CL'))){msg('Esta categoría ya existe en la sucursal.');return;}
+cats.push(value);catOptions();$('category').value=value;$('categoryName').value='';$('newCategory').hidden=true;msg('Categoría «'+value+'» agregada en esta prueba.');renderProducts();
+}
+function renderProducts(){const target=$('productList');clear(target);const filtered=data[branch].products.filter(p=>$('productFilter').value==='all'||p.category===$('productFilter').value);
+if(!filtered.length){target.append(el('p','Todavía no hay productos en esta categoría.','muted'));return;}
+for(const p of filtered){const card=el('div',undefined,'product');const h=el('strong',p.name);const note=el('p',p.category+' · '+pesos(total(p.price,p.pct))+(p.pct?' · '+p.pct+'% descuento':''),'muted');card.append(h,note);target.append(card);}}
+function saveProduct(){const name=$('productName').value.trim(),base=Number($('productBase').value),pct=Number($('productDiscount').value);
+if(name.length<2||!Number.isSafeInteger(base)||base<1||base>1000000||!discountValid(pct)){msg('Revisa nombre, precio y descuento entre 0 y 99%.');return;}
+if($('kind').value==='pizza'&&branch!=='arica'){msg('En la propuesta, las pizzas solo se pueden agregar en Regimiento Arica.');return;}
+data[branch].products.push({name,category:$('category').value,price:base,pct});
+$('productName').value='';$('productBase').value='';$('productDescription').value='';$('productDiscount').value='0';
+$('productAdd').open=false;calc(0,0,'productRegular','productFinal');renderProducts();msg('Producto agregado solo a esta prueba; tu carta real no se modificó.');
+}
+function promoCard(p){
+const card=el('article',undefined,'promo'),head=el('div',undefined,'row');
+const name=el('strong',p.name),pill=el('span',p.active?'Publicada':'Retirada','pill '+(p.active?'status':'off'));head.append(name,pill);card.append(head);
+card.append(el('p',p.detail+' · '+p.rolls+' rolls · '+p.sauces+' salsas · '+p.korokes+' korokes','muted'));
+const regular=el('div','Precio original '+pesos(p.price),'muted');
+const now=el('strong',pesos(total(p.price,p.pct))+(p.pct?' · −'+p.pct+'%':''));
+card.append(regular,now);
+const actions=el('div',undefined,'actions'),details=el('details',undefined,'detail');details.append(el('summary','Editar / ver detalles'));
+const f=el('div'),label=(name,val,type='text')=>{const lab=el('label',name),input=el('input');input.type=type;input.value=String(val);lab.append(input);f.append(lab);return input;};
+const n=label('Nombre de promoción',p.name),d=label('Contenido',p.detail),b=label('Precio original ($)',p.price,'number'),x=label('Descuento (%)',p.pct,'number');
+const saves=el('button','Guardar cambios de prueba','btn primary');saves.type='button';saves.onclick=()=>{const base=Number(b.value),pct=Number(x.value);if(n.value.trim().length<2||!Number.isSafeInteger(base)||base<1||!discountValid(pct)){msg('Revisa los datos de la promoción.');return;}
+Object.assign(p,{name:n.value.trim(),detail:d.value.trim(),price:base,pct});renderPromos();msg('Edición aplicada solo a esta prueba.');};
+f.append(saves);details.append(f);card.append(details);
+const tog=el('button',p.active?'Retirar (prueba)':'Restaurar (prueba)','btn ghost');tog.type='button';tog.onclick=()=>{p.active=!p.active;renderPromos();msg('Estado cambiado solo en la demostración, no en Uki.');};
+actions.append(tog);card.append(actions);return card;
+}
+function renderPromos(){const target=$('promoList');clear(target);const q=$('promoSearch').value.toLocaleLowerCase('es-CL').trim();const items=data[branch].promos.filter(p=>p.name.toLocaleLowerCase('es-CL').includes(q));$('promoCount').textContent=items.length+' promociones';
+if(!items.length){target.append(el('p','No hay promociones con este nombre.','muted'));return;}items.forEach(p=>target.append(promoCard(p)));}
+function savePromo(){const name=$('promoName').value.trim(),price=Number($('promoBase').value),pct=Number($('promoDiscount').value),rolls=Number($('promoRolls').value),sauces=Number($('promoSauces').value),korokes=Number($('promoKorokes').value);
+if(name.length<2||!Number.isSafeInteger(price)||price<1||!discountValid(pct)||!Number.isSafeInteger(rolls)||rolls<1||rolls>20||!Number.isSafeInteger(sauces)||sauces<0||!Number.isSafeInteger(korokes)||korokes<0){msg('Revisa los datos, rolls, precio y descuento.');return;}
+data[branch].promos.unshift({name,detail:$('promoDetail').value.trim(),rolls,sauces,korokes,payment:$('promoPayment').value,price,pct,active:false});
+$('promoAdd').open=false;for(const id of ['promoName','promoDetail','promoBase'])$(id).value='';$('promoDiscount').value='0';calc(0,0,'promoRegular','promoFinal');renderPromos();msg('Promoción de prueba creada como borrador. No se publicó.');
+}
+function sync(){branch=$('branch').value;const onlyArica=branch!=='arica';$('kind').querySelector('[value="pizza"]').disabled=onlyArica;if(onlyArica&&$('kind').value==='pizza')$('kind').value='dish';catOptions();renderProducts();renderPromos();}
+function setTab(next){tab=next;$('products').hidden=next!=='products';$('promos').hidden=next!=='promos';
+$('tabProducts').setAttribute('aria-selected',String(next==='products'));$('tabPromos').setAttribute('aria-selected',String(next==='promos'));}
+$('toggleCategory').onclick=()=>{$('newCategory').hidden=!$('newCategory').hidden;};
+$('saveCategory').onclick=addCategory;$('saveProduct').onclick=saveProduct;$('savePromo').onclick=savePromo;
+$('productBase').addEventListener('input',()=>calc($('productBase').value,$('productDiscount').value,'productRegular','productFinal'));
+$('productDiscount').addEventListener('input',()=>calc($('productBase').value,$('productDiscount').value,'productRegular','productFinal'));
+$('promoBase').addEventListener('input',()=>calc($('promoBase').value,$('promoDiscount').value,'promoRegular','promoFinal'));
+$('promoDiscount').addEventListener('input',()=>calc($('promoBase').value,$('promoDiscount').value,'promoRegular','promoFinal'));
+$('productFilter').onchange=renderProducts;$('promoSearch').oninput=renderPromos;
+$('branch').onchange=sync;$('tabProducts').onclick=()=>setTab('products');$('tabPromos').onclick=()=>setTab('promos');
+sync();setTab('products');
+})();
+</script></body></html>
