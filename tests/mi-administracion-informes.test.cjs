@@ -104,7 +104,7 @@ async function probarAcceso(nombre,razon='todos'){
  }};
  const body={desde:'2026-11-01',hasta:'2026-11-11',negocio_id:fakeId,razon_social_id:razon};
  const r=await exportAction('exportar_informes',body,sql,async()=>{},
-  x=>/^\\d{4}-\\d{2}-\\d{2}$/.test(x),{test:()=>true},
+  x=>/^\d{4}-\d{2}-\d{2}$/.test(x),{test:()=>true},
   (_res,code,msg)=>({ok:false,code,msg}),(_res,data)=>({ok:true,...data}),{});
  return {consulta,r};
 }
