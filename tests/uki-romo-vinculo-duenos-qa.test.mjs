@@ -32,5 +32,5 @@ test('la misma sesión de Uki se reutiliza sin nueva pantalla de Google',()=>{
  assert.doesNotMatch(source,/signInWithPopup|signInWithRedirect|createUserWithEmailAndPassword/);
  assert.match(html,/uki-romo-vinculo-duenos-qa\.mjs/);
  assert.match(html,/const SUCURSALES=\["Uki Regimiento Arica","Uki La Serena"\]/);
- assert.match(html,/pedidos, caja, inventario y cierres de Romo todavía no están habilitados/);
+ assert.match(html,/Aún no están conectados los pedidos, caja, inventario y cierres independientes de Romo/);
 });
