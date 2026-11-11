@@ -15,7 +15,37 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
  .reloj-inventario{background:#fff1e0;border:1px solid #eecfa9;border-radius:12px;padding:12px 14px;margin:12px 0}
  .reloj-inventario strong{display:block;margin:5px 0;font-size:18px;color:#6c3c12;font-variant-numeric:tabular-nums;line-height:1.35}
  .reloj-inventario p{margin:6px 0 0}details{margin-top:10px}summary{cursor:pointer;color:#915a2b}footer{text-align:center;color:#826b58;font-size:12px}
-[hidden]{display:none!important}
+
+ .card[data-estado="reponer"]{border:2px solid #d89e54;border-left:6px solid #c57c1a;background:#fffaf2}
+ .card[data-estado="bien"]{border-left:6px solid #6da77e;background:#fcfffb}
+ .card[data-estado="sin-minimo"]{border-left:6px solid #9b948a;background:#fcfbf9}
+ #items>details>summary{display:flex;align-items:center;justify-content:space-between;gap:9px;list-style:none}
+ #items>details>summary::-webkit-details-marker{display:none}
+ #items>details>summary:after{content:"+";font-size:21px;color:#8a552d}
+ #items>details[open]>summary:after{content:"−"}
+ #items>details strong{font-size:17px}
+ .estado-pill{display:inline-block;margin:6px 0;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:800}
+ .estado-pill.reponer{background:#ffdda8;color:#764008}
+ .estado-pill.bien{background:#dff4e5;color:#24633b}
+ .estado-pill.sin-minimo{background:#f0ece6;color:#796a5e}
+ .action-label{font-weight:800;border-top:1px solid #e6d8cc;padding-top:13px;margin:16px 0 6px;color:#744831}
+ #items details details{border:1px solid #e8c7a8;border-radius:12px;background:#fff8f0;padding:12px;margin-top:16px}
+ #items details details>summary{font-weight:800;color:#7b4527}
+ .reporte-colores{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:12px 0}
+ .resumen-indicador{border:1px solid #e5d5c6;border-radius:12px;padding:10px 7px;background:#f9f7f4}
+ .resumen-indicador .valor{display:block;font-size:21px;font-weight:850}
+ .resumen-indicador .detalle{display:block;font-size:12px;line-height:1.35}
+ .resumen-indicador.verde{background:#edf8ef;border-color:#b4d9bd;color:#26683e}
+ .resumen-indicador.naranja{background:#fff0dc;border-color:#e6bd84;color:#87510d}
+ .resumen-indicador.gris{background:#f3f0ec;border-color:#d5c9bf;color:#655449}
+ .reporte-lista{display:grid;gap:7px;margin:10px 0}
+ .reporte-fila{border-left:4px solid #c4822c;border-radius:10px;background:#fff8ed;padding:10px 12px}
+ .reporte-fila strong{display:block;font-size:14px}
+ .reporte-fila small{display:block;font-size:13px;margin-top:3px;color:#7b542c}
+ .descargas-turno{border:1px solid #b6d7b9;border-radius:13px;background:#f1faf3;padding:12px;margin-top:13px}
+ .descargas-turno .grid{margin-top:8px}.descargas-turno button{width:100%;min-height:45px}
+ @media(max-width:430px){.resumen-indicador{padding:8px 5px}.resumen-indicador .detalle{font-size:11px}}
+ [hidden]{display:none!important}
 </style></head>
 <body><header><h1>🍣 Uki Sushi · Inventario</h1><div>Conteo del turno · sin caja, ventas ni cierres</div></header>
 <main>
@@ -45,19 +75,26 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
  </div>
 <p class="muted">Al cierre cuenta lo que realmente queda y pulsa <b>Guardar conteo</b> en cada artículo. Cuando llega mercadería, usa <b>Registrar entrada</b>. Solo administración decide Disponible / Agotado en la carta.</p><p id="turnoProgreso" role="status" class="pill">Todavía no hay conteos guardados en este turno.</p></section>
 <div id="items"></div><div style="text-align:center;margin:10px 16px"><button type="button" id="mostrarMas" class="secondary" hidden>Mostrar 12 artículos más</button></div>
-<section class="card"><h2>3. Terminar el turno</h2><p class="muted">Confirma los conteos guardados. Si faltan artículos por revisar, puedes completar el conteo antes de terminar.</p><p id="resumen" class="muted"></p>
+<section class="card"><h2>3. Terminar el turno</h2><p class="muted">Confirma los conteos guardados. Si faltan artículos por revisar, puedes completar el conteo antes de terminar.</p><p id="resumen" class="muted"></p><div id="resumenIndicadores" class="reporte-colores" aria-label="Resumen del inventario"></div><div id="resumenArticulos" class="reporte-lista" aria-label="Artículos que requieren reposición"></div>
 <button id="enviar">Guardar en el panel y compartir por WhatsApp</button>
 <p class="muted">Primero confirma el guardado en el panel. Después podrás compartir el mismo reporte por WhatsApp.</p>
-<p id="confirmacion" role="status"></p></section>
+<p id="confirmacion" role="status"></p>
+ <div id="descargasTurno" class="descargas-turno" hidden>
+ <strong>✓ Inventario guardado en el panel</strong>
+ <p class="muted">Puedes descargar exactamente esta revisión: existencias, entradas y artículos para pedir.</p>
+ <div class="grid"><button type="button" id="descargarPDF">Descargar PDF</button>
+ <button type="button" id="descargarExcel" class="secondary">Excel (.csv)</button></div></div></section>
 </div>
 <footer>Uki Sushi · Revisión independiente de caja y cierres</footer>
 </main>
+<script src="./uki-inventario-exportar.js"></script>
 <script type="module">
 import {iniciarFacturaLive} from './uki-factura-interfaz-live.mjs';
 const $=id=>document.getElementById(id);
 const isQA=['uki-sushi-panel.vercel.app','uki-sushi-panel-diannaleandra-7046.vercel.app'].includes(location.hostname);
 const API='/api/inventario-turno-live';
-let branch='',items=[],busy=false,requestId=null,lastSaved=null;
+let branch='',items=[],busy=false,requestId=null,lastSaved=null,reporteFinal=null;
+const entradasSesion=new Map();
 const status=s=>{$('estado').textContent=s;};
 const elt=(type,text,cls)=>{const e=document.createElement(type);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
 function nombre(){const n=$('nombre').value.trim().replace(/\s+/g,' ');if(n.length<2||n.length>60)throw Error('Escribe el nombre de quien cuenta.');return n;}
@@ -100,11 +137,16 @@ function selectorUnidad(item){
 }
 const factura=iniciarFacturaLive({getBranch:()=>branch,getItems:()=>items,
  post:(action,params)=>api(action,params),
- onSaved:response=>{items=items.map(x=>x.sku===response.item.sku?{...x,...response.item}:x);
- requestId=null;$('confirmacion').textContent='';render();},
+ onSaved:response=>{
+ const original=items.find(x=>x.sku===response.item.sku);
+ const diferencia=original?Number(response.item.stock_qty)-Number(original.stock_qty):0;
+ if(!response.duplicada&&Number.isFinite(diferencia)&&diferencia>0)
+  entradasSesion.set(response.item.sku,Math.round(((entradasSesion.get(response.item.sku)||0)+diferencia)*1000)/1000);
+ items=items.map(x=>x.sku===response.item.sku?{...x,...response.item}:x);
+ requestId=null;reporteFinal=null;$('descargasTurno').hidden=true;$('confirmacion').textContent='';render();},
  onItemsCreated:created=>{const union=new Map(items.map(i=>[i.sku,i]));
  for(const item of created)union.set(item.sku,item);
- items=[...union.values()];render();}
+ items=[...union.values()];requestId=null;reporteFinal=null;$('descargasTurno').hidden=true;render();}
 });
 const setBusy=value=>{
  busy=value;$('abrir').disabled=value;$('enviar').disabled=value;
@@ -114,8 +156,29 @@ const setBusy=value=>{
 function resumen(){
  const configured=items.filter(x=>Number(x.min_stock_qty)>0);
  const missing=configured.filter(x=>Number(x.stock_qty)<=Number(x.min_stock_qty));
- $('resumen').textContent=missing.length+' artículos por reponer · '+configured.length+
+ $('resumen').textContent=items.length+' artículos · '+configured.length+
   ' mínimos configurados · '+(items.length-configured.length)+' sin mínimo.';
+ const area=$('resumenIndicadores');area.replaceChildren();
+ const stats=[
+  ['verde',items.filter(i=>Number(i.stock_qty)>0).length,'Con existencias'],
+  ['gris',entradasSesion.size,'Con entradas en este turno'],
+  ['naranja',missing.length,'Para reponer']
+ ];
+ for(const [color,quantity,title] of stats){
+  const card=elt('div',undefined,'resumen-indicador '+color);
+  card.append(elt('span',String(quantity),'valor'),elt('span',title,'detalle'));
+  area.append(card);
+ }
+ const list=$('resumenArticulos');list.replaceChildren();
+ for(const i of missing.slice(0,12)){
+  const hay=Number(i.stock_qty)||0,min=Number(i.min_stock_qty)||0,unit=i.stock_unit||'un';
+  const falta=Math.max(0,Math.round((min-hay)*1000)/1000);
+  const row=elt('div',undefined,'reporte-fila');
+  row.append(elt('strong',i.name),elt('small','Hay '+formato(hay,unit)+' · Mínimo '+formato(min,unit)+
+   (falta>0?' · Falta / pedir '+formato(falta,unit):' · Mínimo alcanzado: revisar compra')));
+  list.append(row);
+ }
+ if(missing.length>12)list.append(elt('p','Y '+(missing.length-12)+' artículos más por revisar.','muted small'));
 }
 const revisados=new Set();let visibleLimit=12;
 const horaConteos=new Map();
@@ -156,9 +219,16 @@ function render(){
   if(revisados.has(item.sku))description.append(elt('span',' · Contado ✓','pill small'));
  if(horaConteos.has(item.sku))description.append(elt('p','Registrado: '+horaConteos.get(item.sku)+' (Chile)','muted small'));
   const min=Number(item.min_stock_qty)||0,qty=Number(item.stock_qty)||0;
+  const estado=min<=0?'sin-minimo':qty<=min?'reponer':'bien';
+  card.dataset.estado=estado;
   description.append(name,elt('p','Hay: '+formato(qty,item.stock_unit||'un')+
-   ' · mínimo: '+(min>0?formato(min,item.stock_unit||'un'):'sin configurar'),'muted small'));
-  if(min>0&&qty<=min)description.append(elt('p',min===qty?'Comprar: mínimo alcanzado. ' : 'Faltan '+formato(Math.round((min-qty)*1000)/1000,item.stock_unit||'un'),'warn small'));
+   ' · Mínimo: '+(min>0?formato(min,item.stock_unit||'un'):'sin configurar'),'muted small'));
+  const llegada=entradasSesion.get(item.sku)||0;
+  if(llegada>0)description.append(elt('p','Llegó en este turno: +'+formato(llegada,item.stock_unit||'un'),'pill small'));
+  if(min>0&&qty<=min)description.append(elt('p',min===qty?'Mínimo alcanzado: revisar compra.' :
+   'Falta / pedir: '+formato(Math.round((min-qty)*1000)/1000,item.stock_unit||'un'),'warn small'));
+  description.append(elt('span',estado==='reponer'?'Para reponer':estado==='bien'?'Existencias suficientes':'Sin mínimo',
+   'estado-pill '+estado));
   head.append(description);card.append(head);
   const countRow=elt('div',undefined,'unit-row'),countValue=elt('input'),countUnit=selectorUnidad(item);
   countValue.type='text';countValue.inputMode='text';countValue.autocomplete='off';countValue.maxLength=12;
@@ -190,7 +260,7 @@ function render(){
    }
    await save(item,'contar',n,countUnit.value);
   };
-  const details=elt('details'),summary=elt('summary','Recibimos mercadería de '+item.name);
+  const details=elt('details'),summary=elt('summary','📦 Registrar mercadería recibida · suma existencias');
   const recRow=elt('div',undefined,'unit-row'),received=elt('input'),recUnit=selectorUnidad(item);
   received.type='text';received.inputMode='text';received.autocomplete='off';received.maxLength=12;
   received.placeholder='Cantidad recibida';received.setAttribute('aria-label','Mercadería recibida de '+item.name);
@@ -215,7 +285,7 @@ function render(){
    await save(item,'recibir',n,recUnit.value);
   };
   details.append(summary,recRow,recHint,receive);
-  card.append(countRow,countHint,count,details);
+  card.append(elt('p','Conteo real · reemplaza el saldo anterior','action-label'),countRow,countHint,count,details);
   if(lastSaved?.sku===item.sku){
    const note=elt('p',lastSaved.message,lastSaved.ok?'confirmacion-item':'error-item');
    note.setAttribute('role','status');card.append(note);
@@ -237,8 +307,10 @@ async function save(item,action,cantidad,unidad){
   if(action==='contar'){revisados.add(item.sku);horaConteos.set(item.sku,horaRegistro);}
   $('turnoUltimoRegistro').textContent='Último registro: '+item.name+' · '+horaRegistro+' (Chile).';
   actualizarReloj();
-  requestId=null;$('confirmacion').textContent='';
+  requestId=null;reporteFinal=null;$('descargasTurno').hidden=true;$('confirmacion').textContent='';
   const registro=response.registro||{base:cantidad,unidadBase:item.stock_unit};
+  if(action==='recibir'&&Number(registro.base)>0)
+   entradasSesion.set(item.sku,Math.round(((entradasSesion.get(item.sku)||0)+Number(registro.base))*1000)/1000);
   lastSaved={sku:item.sku,ok:true,message:'✓ '+(action==='contar'?'Conteo':'Entrada')+
    ' guardada: '+formato(cantidad,unidad)+' = '+formato(registro.base,registro.unidadBase)+
    '. Ahora hay '+formato(response.item.stock_qty,response.item.stock_unit)+'.'};
@@ -255,7 +327,7 @@ async function abrir(){
  setBusy(true);status('Cargando inventario…');
  try{
   const result=await api('listar');
-  branch=$('branch').value;items=result.items||[];revisados.clear();horaConteos.clear();visibleLimit=12;requestId=null;lastSaved=null;factura.reset();
+  branch=$('branch').value;items=result.items||[];revisados.clear();horaConteos.clear();entradasSesion.clear();visibleLimit=12;requestId=null;lastSaved=null;reporteFinal=null;$('descargasTurno').hidden=true;factura.reset();
   $('activo').hidden=false;$('confirmacion').textContent='';
   $('turnoFechaChile').textContent='Inicio del conteo: '+formatoFechaHoraChile(new Date())+' (Chile).';
   $('turnoUltimoRegistro').textContent='Aún no hay artículos guardados en esta sesión.';
@@ -265,12 +337,20 @@ async function abrir(){
  finally{setBusy(false);}
 }
 $('abrir').onclick=abrir;
-$('branch').onchange=()=>{detenerReloj();branch='';items=[];revisados.clear();horaConteos.clear();visibleLimit=12;lastSaved=null;factura.reset();$('activo').hidden=true;status('');};
-$('codigo').oninput=()=>{if(branch){detenerReloj();branch='';items=[];revisados.clear();horaConteos.clear();factura.reset();$('activo').hidden=true;}};
+$('branch').onchange=()=>{detenerReloj();branch='';items=[];revisados.clear();horaConteos.clear();entradasSesion.clear();visibleLimit=12;lastSaved=null;reporteFinal=null;$('descargasTurno').hidden=true;factura.reset();$('activo').hidden=true;status('');};
+$('codigo').oninput=()=>{if(branch){detenerReloj();branch='';items=[];revisados.clear();horaConteos.clear();entradasSesion.clear();reporteFinal=null;$('descargasTurno').hidden=true;factura.reset();$('activo').hidden=true;}};
 $('tipo').onchange=()=>{visibleLimit=12;render();};
 $('buscar').oninput=()=>{visibleLimit=12;render();};
 $('estadoLista').onchange=()=>{visibleLimit=12;render();};
 $('mostrarMas').onclick=()=>{visibleLimit+=12;render();};
+$('descargarPDF').onclick=()=>{
+ if(reporteFinal&&window.ukiInventarioExportar)
+  window.ukiInventarioExportar.guardarPDF(reporteFinal);
+};
+$('descargarExcel').onclick=()=>{
+ if(reporteFinal&&window.ukiInventarioExportar)
+  window.ukiInventarioExportar.excel(reporteFinal);
+};
 $('enviar').onclick=async()=>{
  if(busy||!branch||branch!==$('branch').value)return;
  const pendientes=items.filter(i=>!revisados.has(i.sku)).length;
@@ -283,11 +363,15 @@ $('enviar').onclick=async()=>{
   const chile=new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',weekday:'long',day:'2-digit',
    month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(result.fecha));
   $('confirmacion').textContent='✓ Revisión guardada: '+chile+' (Chile). Puedes compartirla.';
+  reporteFinal=result.reporte&&Array.isArray(result.reporte.items)?result.reporte:null;
+  $('descargasTurno').hidden=!reporteFinal;
+  const texto=reporteFinal&&window.ukiInventarioExportar?
+   window.ukiInventarioExportar.mensaje(reporteFinal):result.mensaje;
   if(navigator.share){
-   try{await navigator.share({title:'Uki Sushi · Reposición',text:result.mensaje});return;}
+   try{await navigator.share({title:'Uki Sushi · Reposición',text:texto});return;}
    catch(e){if(e?.name==='AbortError')return;}
   }
-  window.open('https://wa.me/?text='+encodeURIComponent(result.mensaje),'_blank','noopener');
+  window.open('https://wa.me/?text='+encodeURIComponent(texto),'_blank','noopener');
  }catch(e){$('confirmacion').textContent='No se confirmó el envío al panel: '+String(e.message);}
  finally{setBusy(false);}
 };

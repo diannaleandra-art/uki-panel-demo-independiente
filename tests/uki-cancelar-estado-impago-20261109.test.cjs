@@ -163,7 +163,7 @@ test('Una edición indica que cancelar edición NO cancela pedido y exige respon
 test('Auditoría conserva Entregado → Pendiente y caja intacta',()=>{
  const foto=segment('function ukiFotoCorreccionPedido(p){','function ukiVCorreccionesPedido(p){');
  assert.match(foto,/"modalidad","estado"/);
- assert.match(foto,/Estado de entrega/);
+ assert.match(foto,/\['estado','Estado del pedido'\]/);
  const save=segment('async function ndGuardar(){','function cerrar(){');
  assert.match(save,/p\.estado=ukiEstadoTrasRetirarPago\(snapshot,D\.pagado\);p\.pagado=D\.pagado/);
  assert.match(save,/ukiPrepararAjusteCobro\(snapshot,p,false\)/);

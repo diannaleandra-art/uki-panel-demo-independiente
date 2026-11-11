@@ -19,7 +19,21 @@ const panel=[
 '.uki-mini-info strong{display:block;font-size:14px;word-break:break-word}',
 '.uki-mini-info small{display:block;font-size:12px;color:#766252;margin-top:4px}',
 '.uki-mini-action{display:flex;flex-wrap:wrap;gap:7px;margin:11px 0}',
-'.uki-mini-action button{min-height:40px}',
+'.uki-mini-action button{min-height:42px;font-weight:750}',
+'.uki-mini-item[data-estado="reponer"]{background:#fff7e7;border-color:#e9bb7e;border-left:5px solid #d88425}',
+'.uki-mini-item[data-estado="bien"]{background:#f5fcf7;border-color:#c5e2ce;border-left:5px solid #6da37c}',
+'.uki-mini-item[data-estado="sinminimo"]{background:#faf8f5;border-color:#ddd4cb;border-left:5px solid #a49b93}',
+'.uki-mini-badge{display:inline-block;padding:6px 10px;border-radius:99px;font-weight:800;font-size:12px;white-space:nowrap}',
+'.uki-mini-badge.reponer{background:#f9e0bb;color:#89520c}',
+'.uki-mini-badge.bien{background:#d9f2e0;color:#2a7345}',
+'.uki-mini-badge.sinminimo{background:#ebe6e0;color:#6d6259}',
+'.uki-mini-resumen{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}',
+'.uki-mini-resumen-item{border:1px solid #e0d3c9;border-radius:12px;padding:10px 7px;background:#fffaf6}',
+'.uki-mini-resumen-item strong{display:block;font-size:19px;font-variant-numeric:tabular-nums}',
+'.uki-mini-resumen-item small{display:block;font-size:12px;line-height:1.35;color:#6d5b4f}',
+'.uki-mini-resumen-item.reponer{background:#fff2df;border-color:#e8c491;color:#995b15}',
+'.uki-mini-resumen-item.bien{background:#f1faef;border-color:#c5dfbb;color:#407a44}',
+'.uki-mini-resumen-item.sinminimo{background:#f3f0ed;border-color:#d8cfc7;color:#766356}',
 '.uki-mini-manual{margin:14px 0;border:1.5px solid #e4bd91;border-radius:14px;background:#fffcf8;padding:10px 12px}',
 '.uki-mini-manual summary{cursor:pointer;font-size:16px;font-weight:750;color:#824312;padding:7px 2px}',
 '.uki-mini-manual h3{font-size:15px;margin:16px 0 7px;color:#59391c}',
@@ -71,6 +85,7 @@ const panel=[
 '<option value="bien">Con existencias suficientes</option><option value="sinminimo">Sin mínimo configurado</option>',
 '</select></div></div>',
 '<p id="ukiMiniEstado" role="status" class="muted">Consultando…</p>',
+'<div id="ukiMiniResumen" class="uki-mini-resumen" aria-label="Resumen visual de existencias"></div>',
 '<div class="uki-mini-action"><button type="button" id="ukiMiniActualizar" class="sm">Actualizar lista</button>',
 '<button type="button" id="ukiMiniExcel" class="sm">Excel (.csv)</button>',
 '<button type="button" id="ukiMiniPDF" class="sm">PDF</button>',
@@ -104,6 +119,7 @@ const panel=[
 '<option value="todos">Todos</option><option value="reponer">Para reponer</option>',
 '<option value="bien">Suficientes</option><option value="sinminimo">Sin mínimo</option>',
 '</select></div></div>',
+'<div id="ukiDetalleResumen" class="uki-mini-resumen" aria-label="Resumen de la revisión guardada"></div>',
 '<p id="ukiDetalleEstado" role="status" class="muted"></p><div id="ukiDetalleLista" class="uki-mini-list"></div>',
 '<button id="ukiDetalleMas" type="button" class="sm" hidden>Mostrar 15 más</button>',
 '</div></section>'
@@ -129,24 +145,50 @@ async function request(action,payload={},b=sucursal()){
 }
 function fila(item,action=null){
  const row=document.createElement('div');row.className='uki-mini-item';
+ const estado=filtro(item);row.dataset.estado=estado;
  const left=document.createElement('div');left.className='uki-mini-info';
  const title=document.createElement('strong');title.textContent=item.name;
- const desc=document.createElement('small');const min=Number(item.min_stock_qty)||0;
- desc.textContent='Quedan '+fmt(item.stock_qty)+' '+(item.stock_unit||'un')+
-  ' · '+(min>0?'mínimo '+fmt(min)+' '+(item.stock_unit||'un'):'mínimo sin configurar');
+ title.style.fontSize='15px';
+ const qty=Number(item.stock_qty)||0,min=Number(item.min_stock_qty)||0,unit=item.stock_unit||'un';
+ const desc=document.createElement('small');
+ desc.textContent='Hay '+fmt(qty)+' '+unit+' · Mínimo '+(min>0?fmt(min)+' '+unit:'sin configurar');
  left.append(title,desc);
- const badge=document.createElement('small');
- badge.textContent=filtro(item)==='reponer'?'Reponer':filtro(item)==='bien'?'Bien':'Sin mínimo';
- badge.style.cssText='font-weight:700;color:#855526';
+ const recibido=item.received_qty===null||item.received_qty===undefined?null:Number(item.received_qty);
+ if(recibido!==null&&Number.isFinite(recibido)&&recibido>0){
+  const entrada=document.createElement('small');entrada.textContent='Llegó: +'+fmt(recibido)+' '+unit;
+  entrada.style.cssText='color:#287346;font-weight:800';left.append(entrada);
+ }
+ if(estado==='reponer'){
+  const short=Math.max(0,Math.round((min-qty)*1000)/1000);
+  const need=document.createElement('small');
+  need.textContent=short>0?'Falta / pedir: '+fmt(short)+' '+unit:'Mínimo alcanzado · revisar compra';
+  need.style.cssText='color:#8f520d;font-weight:800';left.append(need);
+ }
+ const badge=document.createElement('span');badge.className='uki-mini-badge '+estado;
+ badge.textContent=estado==='reponer'?'Para reponer':estado==='bien'?'Bien':'Sin mínimo';
  row.append(left,badge);
  if(action)row.append(button(action.text,action.click));
  return row;
+}
+function pintarResumen(id,items){
+ const target=$(id);if(!target)return;
+ target.replaceChildren();
+ const valores=[['reponer','Para reponer'],['bien','Suficientes'],['sinminimo','Sin mínimo']];
+ for(const [status,title] of valores){
+  const number=items.filter(it=>filtro(it)===status).length;
+  const cell=document.createElement('div');cell.className='uki-mini-resumen-item '+status;
+  const n=document.createElement('strong');n.textContent=String(number);
+  const label=document.createElement('small');label.textContent=title;
+  cell.append(n,label);target.append(cell);
+ }
 }
 function renderCurrent(){
  const area=$('ukiMiniFilas');if(!area)return;area.replaceChildren();
  const found=x.items.filter(i=>(x.filter==='todos'||filtro(i)===x.filter)&&
   (!x.query||nombreNormal(i.name).includes(nombreNormal(x.query))))
-  .sort((a,b)=>String(a.name).localeCompare(String(b.name),'es'));
+  .sort((a,b)=>({reponer:0,bien:1,sinminimo:2}[filtro(a)]-({reponer:0,bien:1,sinminimo:2}[filtro(b)]))||
+   String(a.name).localeCompare(String(b.name),'es'));
+ pintarResumen('ukiMiniResumen',x.items);
  for(const item of found.slice(0,x.limit))area.append(fila(item,{text:'Editar',click:()=>edit(item.sku)}));
  if(!found.length)area.textContent='No se encontraron artículos.';
  $('ukiMiniMas').hidden=found.length<=x.limit;
@@ -212,7 +254,8 @@ function renderHistory(){
   const title=document.createElement('strong');title.textContent=fecha(revision.created_at);
   const details=document.createElement('small');const summary=revision.summary||{};
   details.textContent=String(revision.worker_name||'Trabajador')+' · '+(Number(summary.productos)||0)+
-   ' artículos · '+(summary.faltantes?.length||0)+' para reponer';
+   ' artículos · '+(summary.faltantes?.length||0)+' para reponer'+
+  (summary.entradas_verificadas?' · '+(summary.articulos_con_entradas||0)+' con entradas':' · entradas no desglosadas');
   left.append(title,details);row.append(left,button('Ver inventario',()=>void openRevision(revision.id)));
   root.append(row);
  }
@@ -244,9 +287,11 @@ function renderDetail(){
   (!x.detailQuery||nombreNormal(it.name).includes(nombreNormal(x.detailQuery))));
  for(const it of filtered.slice(0,x.detailLimit)){
   target.append(fila({name:it.name,stock_qty:it.stock,
-   stock_unit:it.unit,min_stock_qty:it.minimum}));
+   stock_unit:it.unit,min_stock_qty:it.minimum,received_qty:it.received}));
  }
  if(!filtered.length)target.textContent='Ningún artículo coincide con esta búsqueda.';
+ pintarResumen('ukiDetalleResumen',exports().filas(x.selected).map(it=>({
+  stock_qty:it.stock,min_stock_qty:it.minimum})));
  $('ukiDetalleMas').hidden=filtered.length<=x.detailLimit;
  status('ukiDetalleEstado',filtered.length+' artículos · mostrando '+Math.min(x.detailLimit,filtered.length)+'.');
 }
@@ -265,6 +310,14 @@ async function openRevision(id){
 }
 function mount(){
  oldMount();if(!$('ukiMiniInventario')||!exports())return;
+ // Reordenar solamente contenedores existentes, conservando botones y eventos.
+ const root=$('invRoot');
+ if(root){
+  let anterior=root;
+  for(const id of ['ukiMiniInventario','invAdmin','invNewBox','ukiInvWorkerAccess']){
+   const el=$(id);if(el){anterior.insertAdjacentElement('afterend',el);anterior=el;}
+  }
+ }
  x.branch=sucursal();x.loaded=false;x.loadedAt=null;x.historyLoaded=false;x.selected=null;x.editor=false;
  $('ukiMiniBuscar').oninput=e=>{x.query=e.target.value;x.limit=12;renderCurrent();};
  $('ukiMiniFiltro').onchange=e=>{x.filter=e.target.value;x.limit=12;renderCurrent();};

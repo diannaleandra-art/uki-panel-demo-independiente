@@ -1,0 +1,28 @@
+name: "Uki Inventario · reportes y trabajadores · QA"
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "api/inventario-turno-live.js"
+      - "firebase/uki-inventario-*.js"
+      - "firebase/uki-inventario-turno.html"
+      - "public/index.html"
+      - "public/uki-inventario-exportar.js"
+      - "tests/uki-inventario-informe-ordenado.test.cjs"
+      - ".github/workflows/uki-inventario-informes-qa-20261111.yml"
+permissions:
+  contents: read
+jobs:
+  inventario:
+    name: "Inventario: contar, recibir, PDF y Excel"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Obtener archivos de prueba
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Validar reportes y accesos sin base de datos
+        run: |
+          node --version
+          node --test tests/uki-inventario-informe-ordenado.test.cjs

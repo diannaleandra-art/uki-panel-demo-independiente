@@ -49,6 +49,23 @@ function resumen(items){
   faltantes:faltan
  }};
 }
+// Informe de entradas usando el registro existente del servidor, no datos inventados.
+// Los conteos reemplazan saldos; nunca se suman como ingresos de mercadería.
+async function entradasDesdeUltimaRevision(sql,branch){
+ const prev=await sql.query('SELECT created_at FROM public.uki_inventario_revisiones_live WHERE branch=$1 ORDER BY created_at DESC LIMIT 1',[branch]);
+ const cutoff=prev[0]?.created_at||null;
+ const desde="COALESCE($2::timestamptz, date_trunc('day',now() AT TIME ZONE 'America/Santiago') AT TIME ZONE 'America/Santiago')";
+ const [catalogo,adicionales]=await Promise.all([
+  sql.query("SELECT sku,SUM(cantidad_base) AS recibida FROM public.uki_inventario_movimientos_live WHERE branch=$1 AND accion='entrada' AND creado_en > "+desde+" GROUP BY sku",[branch,cutoff]),
+  sql.query("SELECT sku,SUM(quantity) AS recibida FROM public.uki_inventario_extras_movimientos_live WHERE branch=$1 AND action='entrada' AND created_at > "+desde+" GROUP BY sku",[branch,cutoff])
+ ]);
+ const bySku=new Map();
+ for(const item of [...catalogo,...adicionales]){
+  const n=Number(item.recibida);
+  if(Number.isFinite(n)&&n>=0)bySku.set(String(item.sku),Math.round(n*1000)/1000);
+ }
+ return {bySku,periodo:cutoff?'Desde revisión anterior':'Hoy desde 00:00 (Chile)'};
+}
 function textoReporte(branch,worker,summary,fecha){
  const date=fechaHoraChile(fecha);
  const a=['📦 UKI SUSHI · LISTA PARA REPONER','Sucursal: '+BRANCH_NAME[branch],
@@ -255,20 +272,34 @@ module.exports=async(req,res)=>{
   if(!/^[a-f0-9-]{36}$/.test(requestId))return fail(res,400,'Código de revisión inválido');
   const [catalog,added]=await Promise.all([leerInventario(sql,branch),extra.listar(sql,branch)]);
   const data=resumen([...catalog,...added]);
+  // Solo enriquecemos la copia del informe. No se actualizan existencias ni caja.
+  try{
+   const entradas=await entradasDesdeUltimaRevision(sql,branch);
+   data.items=data.items.map(item=>({...item,received_qty:entradas.bySku.get(item.sku)||0}));
+   data.summary.entradas_periodo=entradas.periodo;
+   data.summary.entradas_verificadas=true;
+   data.summary.articulos_con_entradas=[...entradas.bySku.values()].filter(q=>q>0).length;
+  }catch{
+   // Si falta un registro histórico, no afirmar que hubo cero entradas.
+   data.summary.entradas_periodo='No verificadas';
+   data.summary.entradas_verificadas=false;
+  }
   const created=await sql.query(`INSERT INTO public.uki_inventario_revisiones_live
    (branch,request_id,worker_name,identity,items,summary)
    VALUES($1,$2::uuid,$3,$4,$5::jsonb,$6::jsonb)
    ON CONFLICT(branch,request_id) DO NOTHING
-   RETURNING id,created_at`,
+   RETURNING id,created_at,worker_name,items,summary`,
    [branch,requestId,worker,'inventario:codigo-live',JSON.stringify(data.items),JSON.stringify(data.summary)]);
   const result=created.length?created[0]:
-    (await sql.query(`SELECT id,created_at,worker_name,summary FROM public.uki_inventario_revisiones_live
+    (await sql.query(`SELECT id,created_at,worker_name,items,summary FROM public.uki_inventario_revisiones_live
       WHERE branch=$1 AND request_id=$2::uuid LIMIT 1`,[branch,requestId]))[0];
   if(!result)return fail(res,409,'No se pudo confirmar el guardado; no reenvíes sin comprobar');
   const summary=result.summary||data.summary;
   const reportText=textoReporte(branch,result.worker_name||worker,summary,result.created_at);
   return res.status(200).json({ok:true,branch,id:result.id,
-   fecha:result.created_at,guardado:true,mensaje:reportText});
+   fecha:result.created_at,guardado:true,mensaje:reportText,
+   reporte:{branch,created_at:result.created_at,worker_name:result.worker_name||worker,
+    items:result.items||data.items,summary:result.summary||data.summary}});
  }catch(e){
   const status=e?.status||(['23505','40001','P0001'].includes(e?.code)?409:e?.code==='22023'?400:(String(e?.message||'').includes('código')?400:503));
   // Solo identificador de etapa: no mostrar SQL, datos ni el código privado.
@@ -277,4 +308,4 @@ module.exports=async(req,res)=>{
   return fail(res,status,status===503?'No se pudo abrir el inventario de pruebas ('+etiqueta+'). No se modificó la caja.':String(e.message));
  }
 };
-module.exports._testing={permitido,admin,resumen,textoReporte,validDate,fechaHoraChile};
+module.exports._testing={permitido,admin,resumen,textoReporte,validDate,fechaHoraChile,entradasDesdeUltimaRevision};

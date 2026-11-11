@@ -43,8 +43,11 @@ test('Historial deja ver nombre, hora, pago y lista de productos antes y despué
  const salida=render({correccionesTurno:[{responsable:'María',fechaISO:'2026-11-08T22:10:00',
   antes:{total:16800,medio:'Efectivo',productos:[{nombre:'Gohan',cantidad:1,precioUnit:2800}]},
   despues:{total:14000,medio:'Transferencia',productos:[]},saldoPendiente:2800}]});
- assert.match(salida,/Registró: María/);
- assert.match(salida,/Forma de pago: Efectivo.*Transferencia/);
+ assert.match(salida,/Modificación 1 · María/);
+  assert.match(salida,/Fecha y hora:/);
+ assert.match(salida,/Medio de pago/);
+  assert.match(salida,/Antes: Efectivo/);
+  assert.match(salida,/Después: Transferencia/);
  assert.match(salida,/Antes: 1 × Gohan/);
  assert.match(salida,/Después: Sin productos/);
  assert.match(salida,/Diferencia pendiente/);
@@ -54,5 +57,6 @@ test('Correcciones previas sin un responsable siguen visibles sin inventar una i
  const ctx={fmt:x=>'$'+Number(x),esc:x=>String(x)};
  const render=vm.runInNewContext(html.slice(a,b)+'\nukiCorreccionesTurnoUI',ctx);
  const salida=render({correccionesTurno:[{fechaISO:'2026-11-08',antes:{total:1000},despues:{total:900}}]});
- assert.match(salida,/Responsable no identificado en registro anterior/);
+ assert.match(salida,/No identificado en registros antiguos/);
+  assert.doesNotMatch(salida,/Modificación 1 · (?:María|Sara|Jorge)/);
 });
