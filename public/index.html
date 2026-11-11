@@ -375,8 +375,9 @@ $('enviarComprasTexto').onclick=()=>{
  const text=window.ukiInventarioExportar.mensajeCompras(reporteFinal);
  const enlace='https://wa.me/?text='+encodeURIComponent(text);
  // Apertura directa desde el botón: Safari permite mostrar WhatsApp.
- const opened=window.open(enlace,'_blank','noopener');
- if(!opened)window.location.href=enlace;
+ const opened=window.open(enlace,'_blank');
+ if(opened)opened.opener=null;
+ else window.location.href=enlace;
 };
 $('enviar').onclick=async()=>{
  if(busy||!branch||branch!==$('branch').value)return;
