@@ -148,6 +148,11 @@ label{color:#66574c}
 .owner-gastos-head b{font-size:14px}
 .owner-expense-alert{font-size:12px;color:#7f5636;line-height:1.5;border-top:1px solid #ebdfd4;padding-top:9px;margin-top:10px}
 #ukiGastosVisibles .line{padding:11px 0;border-bottom:1px solid #eee0d3}
+.owner-reports-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:11px}
+.owner-reports-actions button{padding:10px 3px;min-width:0;font-size:13px;font-weight:700;border-color:#e3cdb5;background:#fff6ec}
+#ukiInformesDuenos summary{font-size:15px;color:#50301b}
+#ukiInformeEstado{font-size:12px;line-height:1.5}
+@media(max-width:360px){.owner-reports-actions{grid-template-columns:1fr}}
 .owner-payables-mini{display:grid;gap:9px;margin:10px 0}
 .owner-payables-mini .owner-payables-line{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:8px 0;border-bottom:1px solid #f1e6db}
 .owner-payables-mini .owner-payables-line span{color:#735f50;font-size:13px}
@@ -248,6 +253,18 @@ label{color:#66574c}
 <section class="card" id="ukiResumenPorLocal"><h2 style="margin:0 0 7px;font-size:18px">🏪 Cómo va cada local</h2>
 <p class="hint">Ventas, gastos pagados y resultado del período por sucursal o negocio. Los gastos generales sin sucursal permanecen separados.</p>
 <div id="ukiOwnerPorNegocio" class="owner-business-list"><p class="muted">Consultando movimientos…</p></div></section>
+<details class="card" id="ukiInformesDuenos">
+<summary>📄 Informes privados · PDF, Excel y WhatsApp</summary>
+<p class="hint">Usa las fechas y el negocio seleccionados arriba. Los pagos pendientes se incluyen de todas las fechas. Los informes se generan solo al solicitarlos y no se guardan en el servidor.</p>
+<button type="button" class="primary" id="ukiPrepararInformes" style="width:100%">Preparar informes con estas fechas</button>
+<p id="ukiInformeEstado" role="status" aria-live="polite" class="hint">Primero prepara los datos para habilitar las descargas.</p>
+<div class="owner-reports-actions">
+<button type="button" id="ukiExportarPDF" disabled>📕 PDF</button>
+<button type="button" id="ukiExportarExcel" disabled>📗 Excel</button>
+<button type="button" id="ukiCompartirInforme" disabled>💬 WhatsApp</button>
+</div>
+<p class="hint">WhatsApp abre un mensaje para que elijas destinatario y decidas si enviarlo. Nadie recibe información automáticamente.</p>
+</details>
 <div class="owner-section-label">Detalle de ventas</div>
 <button id="ukiGoTodasVentas" type="button" class="owner-action-all">📋 Todas las ventas<small>Cierres finales y ventas manuales por fecha y sucursal</small></button>
 <div class="owner-section-label">Administrar movimientos</div>
@@ -457,6 +474,7 @@ import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app
 import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
 import {crearControlCompras} from "./mi-administracion-compras.js?v=general-v5";
 import {unirVentasDuenos} from "./uki-duenos-ventas-unificadas-qa.mjs";
+import {construirInforme,generarXLSX,generarPDF,compartirWhatsApp} from "./mi-administracion-informes.js?v=duenos-reporte-v1";
 const app=initializeApp({apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",appId:"1:1070481165758:web:b8f0f9ff40caf5b8ac7def"});
 const auth=getAuth(app),$=id=>document.getElementById(id);
 let cierresConfirmadosUki=[],errorConsultaCierresUki='';
@@ -1548,6 +1566,7 @@ function renderPayments(rows){
 }
 async function refresh(){
  if(!session)return;
+ limpiarInformes();
  try{
   notify('Actualizando información financiera…');
   const params={negocio_id:currentBiz()||null,sucursal_id:currentBranch()||null,razon_social_id:value('scopeRazon')||'todos',desde:value('from'),hasta:value('to')};
@@ -1650,6 +1669,63 @@ $('saveDoc').onclick=()=>safe('saveDoc',async()=>{
   throw e;
  }
 });
+// Un solo juego de informes: consulta privada y preparación por período.
+let informeDuenos=null,claveInformeDuenos='';
+function claveInforme(){
+ return [value('from'),value('to'),currentBiz()||'',currentBranch()||'',
+  value('scopeRazon')||'todos'].join('|');
+}
+function limpiarInformes(){
+ informeDuenos=null;claveInformeDuenos='';
+ for(const id of ['ukiExportarPDF','ukiExportarExcel','ukiCompartirInforme'])$(id).disabled=true;
+ $('ukiInformeEstado').textContent='Prepara los informes para las fechas y filtros seleccionados.';
+}
+$('ukiPrepararInformes').onclick=async()=>{
+ const boton=$('ukiPrepararInformes');boton.disabled=true;limpiarInformes();
+ $('ukiInformeEstado').textContent='Reuniendo ventas, gastos, compras, cierres y pendientes…';
+ try{
+  if(!session)throw Error('Introduce el PIN privado antes de preparar informes.');
+  const clave=claveInforme();
+  const respuesta=await api('exportar_informes',{
+   desde:value('from'),hasta:value('to'),
+   negocio_id:currentBiz()||null,sucursal_id:currentBranch()||null,
+   razon_social_id:value('scopeRazon')||'todos'
+  });
+  if(clave!==claveInforme())throw Error('Los filtros cambiaron; vuelve a preparar los informes.');
+  informeDuenos=construirInforme(respuesta);claveInformeDuenos=clave;
+  $('ukiInformeEstado').textContent='Listos: '+informeDuenos.totales.cierres+
+   ' cierres conciliados, '+informeDuenos.totales.facturas+
+   ' asignaciones de facturas y cuentas pendientes de todas las fechas. '+
+   'Resultado preliminar, no utilidad contable.';
+  for(const id of ['ukiExportarPDF','ukiExportarExcel','ukiCompartirInforme'])$(id).disabled=false;
+ }catch(e){
+  $('ukiInformeEstado').textContent='No se pudieron preparar los informes: '+e.message;
+ }finally{boton.disabled=false}
+};
+function informeVigente(){
+ if(!informeDuenos||claveInformeDuenos!==claveInforme()){
+  limpiarInformes();throw Error('Los filtros cambiaron. Prepara los informes de nuevo.');
+ }
+ return informeDuenos;
+}
+function descargarArchivo(blob,nombre){
+ const url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download=nombre;a.style.display='none';document.body.append(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
+$('ukiExportarPDF').onclick=()=>{
+ try{const r=informeVigente();descargarArchivo(generarPDF(r),r.nombre+'.pdf');}
+ catch(e){$('ukiInformeEstado').textContent=e.message}
+};
+$('ukiExportarExcel').onclick=()=>{
+ try{const r=informeVigente();descargarArchivo(generarXLSX(r),r.nombre+'.xlsx');}
+ catch(e){$('ukiInformeEstado').textContent=e.message}
+};
+$('ukiCompartirInforme').onclick=()=>{
+ try{compartirWhatsApp(informeVigente())}
+ catch(e){$('ukiInformeEstado').textContent=e.message}
+};
+
 const controlCompras=crearControlCompras({
  api,$,esc,fmt:pesos,dateNow:today,businessName,branchName,currentBiz,currentBranch,upload,safe,
  branchesFor,negocios:()=>businesses,mostrarAuditoria:pintarHistorialMovimiento
