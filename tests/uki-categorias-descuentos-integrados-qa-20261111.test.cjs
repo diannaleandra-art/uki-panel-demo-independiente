@@ -50,3 +50,19 @@ test('El panel tiene controles de categoría y descuento sin activarlos cuando f
  assert.match(js,/expected_discount_version/);
  assert.match(js,/if\(state.categoriasDescuentosHabilitados\)/);
 });
+
+test('Vista previa de categorías usa solo la rama aprobada y el host QA de Neon',()=>{
+ const {url}=require('../lib/uki-inventario-db-live.cjs');
+ const qa={
+  VERCEL_ENV:'preview',
+  VERCEL_GIT_COMMIT_REF:'ui/uki-carta-promociones-categorias-descuentos-qa-20261111',
+  UKI_INVENTARIO_QA_ENABLED:'true',
+  UKI_CATEGORIAS_DESCUENTOS_ENABLED:'true',
+  UKI_INVENTARIO_QA_DATABASE_URL:'postgresql://qa:prueba@ep-lingering-glade-b5m4hfhu.c-7.us-east-2.aws.neon.tech/neondb'
+ };
+ assert.equal(categoriasDescuentosHabilitados(qa),true);
+ assert.match(url(qa),/ep-lingering-glade-b5m4hfhu/);
+ assert.equal(url({...qa,UKI_INVENTARIO_QA_DATABASE_URL:'postgresql://qa:prueba@ep-jolly-paper-b5r8w6vu.c-7.us-east-2.aws.neon.tech/neondb'}),null);
+ assert.equal(categoriasDescuentosHabilitados({...qa,VERCEL_GIT_COMMIT_REF:'otra-rama'}),false);
+ assert.equal(url({...qa,VERCEL_GIT_COMMIT_REF:'otra-rama'}),null);
+});
