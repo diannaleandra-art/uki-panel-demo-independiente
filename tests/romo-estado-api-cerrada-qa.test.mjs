@@ -48,9 +48,9 @@ function handlerFor(env,db,identity=owner){
  };
  const module={exports:{}};
  const injected=source
-  .replace("await import('../lib/romo-estado-operativo-qa.mjs')","await Promise.resolve(store)")
-  .replace("await import('../lib/romo-identidad-servidor-qa.mjs')","await Promise.resolve(auth)");
- new Function('module','process','require','store','auth',injected)(
+  .replace("await import('../lib/romo-estado-operativo-qa.mjs')","await Promise.resolve(storeMock)")
+  .replace("await import('../lib/romo-identidad-servidor-qa.mjs')","await Promise.resolve(authMock)");
+ new Function('module','process','require','storeMock','authMock',injected)(
   module,{env},name=>{
    assert.equal(name,'@neondatabase/serverless');
    return {neon:url=>{assert.match(url,/\/romos_sushi/);return db}};
