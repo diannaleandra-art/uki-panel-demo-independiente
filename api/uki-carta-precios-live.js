@@ -12,6 +12,7 @@ const QA_REF_TIPOS='qa/uki-promos-tipos-producto-20261110';
 const QA_REF_CATALOGO='ui/uki-carta-promociones-categorias-descuentos-qa-20261111';
 const QA_MENU='https://uki-sushi-pedidos-git-feature-uki-dis-eb0d72-diannaleandra-7046.vercel.app';
 const QA_PANEL='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app';
+const QA_PANEL_CATEGORIAS='https://uki-sushi-inventario-git-ui-uki-carta-5531d1-diannaleandra-7046.vercel.app';
 const qa=env=>env.VERCEL_ENV==='preview'&&(env.VERCEL_GIT_COMMIT_REF===QA_REF||(env.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2||env.VERCEL_GIT_COMMIT_REF===QA_REF_TIPOS||env.VERCEL_GIT_COMMIT_REF===QA_REF_CATALOGO))&&env.UKI_INVENTARIO_QA_ENABLED==='true';
 const qaOrigin=(origin,env=process.env)=>qa(env)&&!!env.VERCEL_URL&&origin==='https://'+env.VERCEL_URL;
 // Esta publicación requiere migración aditiva y carta compatible.
@@ -27,7 +28,8 @@ const categoriasDescuentosHabilitados=(env=process.env)=>
 const qaMenuAllowed=(origin,env=process.env)=>qa(env)&&
  /^https:\/\/uki-sushi-pedidos-[a-z0-9-]+-diannaleandra-7046\.vercel\.app$/.test(origin);
 const originAllowed=(origin,env=process.env)=>ALLOWED.has(origin)||
- (qa(env)&&(qaMenuAllowed(origin,env)||origin===QA_PANEL))||qaOrigin(origin,env);
+ (qa(env)&&(qaMenuAllowed(origin,env)||origin===QA_PANEL||
+  (env.VERCEL_GIT_COMMIT_REF===QA_REF_CATALOGO&&origin===QA_PANEL_CATEGORIAS)))||qaOrigin(origin,env);
 const fail=(res,status,error)=>res.status(status).json({ok:false,error});
 async function authorized(req,env=process.env){
  const token=String(req.headers?.authorization||'').match(/^Bearer ([A-Za-z0-9_.-]+)$/)?.[1];
