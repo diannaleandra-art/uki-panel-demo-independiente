@@ -294,7 +294,7 @@ module.exports=async(req,res)=>{
       !Number.isFinite(Date.parse(version)))
     return fail(res,400,'Revisa registro, fecha y monto antes de guardar.');
    const old=await sql.query(
-    'SELECT id,tipo,fuente,estado,fecha::text AS fecha,monto,medios,concepto,referencia,categoria,proveedor,actualizado_en,negocio_id FROM public.fin_movimientos WHERE id=$1',[id]);
+    'SELECT id,tipo,fuente,estado,fecha::text AS fecha,monto,medios,concepto,referencia,categoria,proveedor,sucursal_id,actualizado_en,negocio_id FROM public.fin_movimientos WHERE id=$1',[id]);
    if(!old.length)return fail(res,404,'No se encontró el registro.');
    const prev=old[0];
    if(prev.estado==='anulado'||prev.fuente==='factura')
@@ -306,16 +306,21 @@ module.exports=async(req,res)=>{
       Object.values(medios).reduce((a,b)=>a+b,0)!==monto)
     return fail(res,409,'Los medios de pago no cuadran con la venta.');
    const concepto=text(body.concepto,240),referencia=text(body.referencia,130);
+   const nuevaSucursal=Object.prototype.hasOwnProperty.call(body,'sucursal_id')?(body.sucursal_id||null):undefined;
+   if(nuevaSucursal!==undefined)await belongs(sql,prev.negocio_id,nuevaSucursal);
+   const categoria=Object.prototype.hasOwnProperty.call(body,'categoria')?text(body.categoria,90):prev.categoria;
+   const proveedor=Object.prototype.hasOwnProperty.call(body,'proveedor')?text(body.proveedor,120):prev.proveedor;
    if(prev.fuente==='cierre'&&referencia.length<3)
     return fail(res,400,'Conserva una referencia para el cierre ingresado manualmente.');
    const updated=await sql.query(
-    'UPDATE public.fin_movimientos SET fecha=$2,monto=$3,medios=$4::jsonb,concepto=$5,referencia=$6,actualizado_en=now() '+
+    'UPDATE public.fin_movimientos SET fecha=$2,monto=$3,medios=$4::jsonb,concepto=$5,referencia=$6,actualizado_en=now(), '+
+    'sucursal_id=$8::uuid,categoria=$9,proveedor=$10 '+
     'WHERE id=$1 AND actualizado_en=$7::timestamptz AND estado<>\'anulado\' AND fuente<>\'factura\' RETURNING id',
-    [id,fecha,monto,JSON.stringify(medios),concepto,referencia,version]);
+    [id,fecha,monto,JSON.stringify(medios),concepto,referencia,version,nuevaSucursal===undefined?prev.sucursal_id:nuevaSucursal,categoria,proveedor]);
    if(!updated.length)return fail(res,409,'El registro cambió. Actualiza el panel para revisarlo.');
    await audit(sql,'movimiento',id,'editar',who,{
-    antes:{fecha:prev.fecha,monto:Number(prev.monto),medios:prev.medios,concepto:prev.concepto,referencia:prev.referencia},
-    despues:{fecha,monto,medios,concepto,referencia}
+    antes:{fecha:prev.fecha,monto:Number(prev.monto),medios:prev.medios,concepto:prev.concepto,referencia:prev.referencia,sucursal_id:prev.sucursal_id,categoria:prev.categoria,proveedor:prev.proveedor},
+    despues:{fecha,monto,medios,concepto,referencia,sucursal_id:nuevaSucursal===undefined?prev.sucursal_id:nuevaSucursal,categoria,proveedor}
    });
    return ok(res,{actualizado:true});
   }
