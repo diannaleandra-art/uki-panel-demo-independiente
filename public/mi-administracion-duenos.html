@@ -154,6 +154,15 @@ label{color:#66574c}
 .owner-payables-mini .owner-payables-line strong{font-size:14px;text-align:right}
 .owner-payables-small{font-size:12px;line-height:1.5;color:#7b6959}
 #ukiVencimientosInicio button{width:100%}
+.owner-audit{margin:10px 0 0;border:1px solid #eadaca;border-radius:12px;background:#fffdf9;padding:8px 12px}
+.owner-audit summary{cursor:pointer;font-size:12px;font-weight:700;color:#80582f}
+.owner-audit-item{border-top:1px solid #eee2d6;margin-top:8px;padding-top:9px;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.owner-audit-item small{display:block;margin-top:3px}
+.owner-audit-diff{margin-top:7px;padding:8px;background:#fff4e9;border-radius:8px}
+
+#ukiResumenPatrimonial small{display:block;font-size:11px;color:#78675b}
+#ukiResumenPatrimonial b{display:block;font-size:17px;margin-top:4px}
+
 
 @media(max-width:380px){.owner-filter-grid{grid-template-columns:1fr}}
 
@@ -218,6 +227,11 @@ label{color:#66574c}
 <div class="metric"><small>Ventas − gastos*</small><b id="m-resultado">$0</b></div>
 <div class="metric"><small>Por pagar · todas las fechas</small><b id="m-pendientes">$0</b></div></div>
 <p class="owner-kpi-detail" id="ukiDesgloseGastos">Gastos de caja · Repartos · Gastos y compras manuales</p>
+<details class="owner-hint-collapsible">
+<summary>💼 Inversiones, retiros y otros ingresos · Ver por separado</summary>
+<div id="ukiResumenPatrimonial" class="owner-finance-mini"><p class="hint">Consultando movimientos…</p></div>
+<p class="hint">Estos movimientos no se mezclan con los gastos operativos ni con las ventas. Las inversiones pendientes se muestran como obligaciones por pagar.</p>
+</details>
 <p class="hint">*Resultado de control: ventas menos gastos y repartos pagados. No es utilidad contable ni saldo en efectivo; faltan costos e impuestos por conciliar.</p></div>
 <section class="card" id="ukiVencimientosInicio" aria-label="Control de cuentas pendientes">
 <h2 style="font-size:18px;margin:0 0 6px">📅 Cuentas por pagar</h2>
@@ -279,6 +293,8 @@ label{color:#66574c}
 <h2>📅 Cuentas por pagar</h2>
 <p class="hint">Aquí aparecen las cuentas que siguen pendientes, aunque sean de meses anteriores. Se muestran por proveedor, negocio y vencimiento; no se crean gastos nuevos.</p>
 <div id="ukiPendientesResumen" class="owner-finance-mini"></div>
+<label for="ukiBuscarCuenta">Buscar cuenta por proveedor o concepto</label>
+<input id="ukiBuscarCuenta" type="search" placeholder="Proveedor, factura, concepto…">
 <div id="ukiPendientesLista"><p class="hint">Consultando cuentas pendientes…</p></div>
 </section>
 <details class="card" id="ukiFormularioGasto"><summary style="cursor:pointer;font-weight:700">＋ Registrar gasto, compra u otro movimiento</summary>
@@ -315,7 +331,13 @@ label{color:#66574c}
 <label for="ukiFiltroGastoCategoria">Categoría<select id="ukiFiltroGastoCategoria"><option value="todos">Todas las categorías</option></select></label>
 <label for="ukiFiltroGastoProveedor">Buscar proveedor o concepto<input id="ukiFiltroGastoProveedor" type="search" placeholder="Nombre o detalle"></label>
 </div>
-<div id="ukiGastosVisibles"></div></div></section>
+<div id="ukiGastosVisibles"></div>
+<details class="owner-hint-collapsible" id="ukiPatrimonioDetalles">
+<summary>💼 Ver inversiones, retiros e ingresos extraordinarios del período</summary>
+<p class="hint">Son movimientos existentes, presentados por separado para no confundirlos con gastos operativos.</p>
+<div id="ukiPatrimonioDetalle"></div>
+</details>
+</div></section>
 <section class="view" id="v-facturas" hidden>
 <div class="card" id="purchaseNavigation">
 <div class="eyebrow">ADMINISTRACIÓN GENERAL DE COMPRAS</div>
@@ -439,7 +461,7 @@ const app=initializeApp({apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",authDo
 const auth=getAuth(app),$=id=>document.getElementById(id);
 let cierresConfirmadosUki=[],errorConsultaCierresUki='';
 let resumenManualUki=[],pagosManualesUki=[];
-let cuentasPendientesActuales=[];
+let cuentasPendientesActuales=[],cuentasPendientesLimitadas=false;
 let vistaGastosActual={manuales:[],cierres:[]};
 function mostrarVentasFinancieras(){
  const host=$('ukiOwnerFinancierasLista');host.replaceChildren();
@@ -488,6 +510,15 @@ function mostrarVentasFinancieras(){
 }
 
 
+function esMovimientoInversion(x){
+ const cat=String(x?.categoria||'').normalize('NFD')
+  .replace(/[\u0300-\u036f]/g,'').toLowerCase();
+ return !!x&&['gasto','compra','costo_producto'].includes(x.tipo)&&
+  /equipamiento|inversion/.test(cat);
+}
+function esGastoOperativo(x){
+ return !!x&&['gasto','compra','costo_producto'].includes(x.tipo)&&!esMovimientoInversion(x);
+}
 function pintarResumenPorNegocio(data,cierresSumables){
  const host=$('ukiOwnerPorNegocio');host.replaceChildren();
  const money=x=>{const n=Number(x);return Number.isSafeInteger(n)&&n>=0?n:0};
@@ -526,7 +557,7 @@ function pintarResumenPorNegocio(data,cierresSumables){
    k==='uki-serena'?'Uki Sushi · La Serena':labelFor(t));
   const amt=money(t.monto);
   if(t.tipo==='venta'&&manualIncluded.has(String(t.id)))row.venta+=amt;
-  if(['gasto','compra','costo_producto'].includes(t.tipo)){
+  if(esGastoOperativo(t)){
    if(t.estado==='pendiente')row.pendientes+=amt;else row.gastos+=amt;
   }
  }
@@ -578,7 +609,7 @@ function actualizarResumenConCierres(data){
  for(const x of resumenManualUki){
   const n=monto(x.total);
   if(x.tipo==='venta')ventaManual+=n;
-  if(['gasto','compra','costo_producto'].includes(x.tipo)){
+  if(esGastoOperativo(x)){
    if(x.estado==='pendiente')pendiente+=n;else gastoManual+=n;
   }
  }
@@ -619,9 +650,10 @@ function actualizarResumenConCierres(data){
    d.gastos+=monto(x.gastos)+monto(x.delivery);d.detalle++;
   }
  }
- const gastosManuales=transactions.filter(x=>['gasto','compra','costo_producto'].includes(x.tipo)&&x.estado!=='anulado');
+ const gastosManuales=transactions.filter(x=>esGastoOperativo(x)&&x.estado!=='anulado');
  for(const x of gastosManuales)if(x.estado!=='pendiente')dia(String(x.fecha).slice(0,10)).gastos+=monto(x.monto);
  pintarCategoriasGastos(gastosManuales,cierresSumables);
+ pintarPatrimonio();
  const diario=$('ukiOwnerResumenDiario');diario.replaceChildren();
  if(dias.size){
   const h=document.createElement('strong');h.textContent='📅 Ventas y gastos por fecha';diario.append(h);
@@ -638,6 +670,54 @@ function actualizarResumenConCierres(data){
  pintarGastos(vistaGastosActual);
 }
 
+
+function pintarPatrimonio(){
+ const sum={inv:0,invDue:0,ret:0,extra:0};
+ const num=x=>{const n=Number(x);return Number.isSafeInteger(n)&&n>=0?n:0};
+ for(const row of resumenManualUki){
+  const n=num(row.total);
+  if(esMovimientoInversion(row)){
+   if(row.estado==='pendiente')sum.invDue+=n;else sum.inv+=n;
+  }else if(row.tipo==='retiro'&&row.estado!=='pendiente')sum.ret+=n;
+  else if(row.tipo==='ingreso_extra')sum.extra+=n;
+ }
+ const summary=$('ukiResumenPatrimonial');summary.replaceChildren();
+ for(const [caption,value] of [['Inversiones pagadas',sum.inv],
+  ['Retiros de dueños',sum.ret],['Ingresos extraordinarios',sum.extra],
+  ['Inversiones por pagar',sum.invDue]]){
+  const card=document.createElement('div'),text=document.createElement('small'),amount=document.createElement('b');
+  text.textContent=caption;amount.textContent=pesos(value);
+  card.append(text,amount);summary.append(card);
+ }
+ const host=$('ukiPatrimonioDetalle');host.replaceChildren();
+ const items=transactions.filter(x=>x.estado!=='anulado'&&
+  (esMovimientoInversion(x)||x.tipo==='retiro'||x.tipo==='ingreso_extra'))
+  .sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
+ if(!items.length){
+  const p=document.createElement('p');p.className='hint';
+  p.textContent='Sin inversiones, retiros ni ingresos extraordinarios en las fechas seleccionadas.';
+  host.append(p);return;
+ }
+ for(const x of items){
+  const row=document.createElement('div');row.className='line';
+  const head=document.createElement('strong');head.textContent=
+    (esMovimientoInversion(x)?'Inversión':x.tipo==='retiro'?'Retiro de dueño':'Ingreso extraordinario')+
+    ' · '+pesos(x.monto);
+  const details=document.createElement('p');details.className='hint';
+  details.textContent=String(x.fecha).slice(0,10)+' · '+businessName(x.negocio_id)+
+    ' · '+branchName(x.sucursal_id)+(x.concepto?' · '+x.concepto:'')+
+    (x.estado==='pendiente'?' · Pendiente':'');
+  row.append(head,details);
+  pintarAccionesManual(row,x);
+  pintarHistorialMovimiento(row,x.id);
+  host.append(row);
+ }
+ if(transactions.length>=250){
+  const p=document.createElement('p');p.className='hint';
+  p.textContent='Detalle limitado a 250 registros por período; elige menos fechas para revisarlos todos.';
+  host.append(p);
+ }
+}
 
 function nombreCategoriaGasto(raw,fuente='manual'){
  const cat=String(raw||'').trim();
@@ -758,7 +838,10 @@ function pintarGastos(dato=vistaGastosActual){
    row.append(name,cat);
    if(x.concepto||x.proveedor){const extra=document.createElement('p');extra.className='hint';
     extra.textContent=(x.proveedor?x.proveedor+' · ':'')+x.concepto;row.append(extra)}
-   if(x.original)pintarAccionesManual(row,x.original);
+   if(x.original){
+    pintarAccionesManual(row,x.original);
+    pintarHistorialMovimiento(row,x.original.id);
+   }
    host.append(row);
   }
  }
@@ -1117,6 +1200,7 @@ function pintarAlertaPagosInicio(items,total,cantidad,limitado){
  }
  if(limitado)text('p','La lista muestra hasta 250 cuentas; el total incluye todas.','owner-payables-small');
 }
+$('ukiBuscarCuenta').oninput=()=>pintarPendientes(cuentasPendientesActuales,cuentasPendientesLimitadas);
 function pintarResumenPendientes(items,total,cantidad){
  const h=$('ukiPendientesResumen');h.replaceChildren();
  const hoy=today();
@@ -1135,9 +1219,20 @@ function pintarResumenPendientes(items,total,cantidad){
 }
 function pintarPendientes(items,limitado){
  const host=$('ukiPendientesLista');host.replaceChildren();
+ const texto=String($('ukiBuscarCuenta').value||'').trim().toLowerCase();
+ const visibles=texto?items.filter(x=>
+  [x.proveedor,x.concepto,x.referencia,x.categoria,businessName(x.negocio_id),branchName(x.sucursal_id)]
+  .some(y=>String(y||'').toLowerCase().includes(texto))):items;
  if(!items.length){
   const p=document.createElement('p');p.className='hint';
   p.textContent='No hay cuentas pendientes registradas. Las compras pagadas siguen disponibles en Compras.';
+  host.append(p);return;
+ }
+ if(texto&&!visibles.length){
+  const p=document.createElement('p');p.className='hint';
+  p.textContent=limitado?
+   'Sin coincidencias entre las primeras 250 cuentas mostradas. Puedes acotar por negocio para buscar otras.':
+   'No hay pendientes con esa búsqueda.';
   host.append(p);return;
  }
  if(limitado){
@@ -1145,7 +1240,7 @@ function pintarPendientes(items,limitado){
   p.textContent='Hay más de 250 cuentas pendientes. El total incluye todas; esta lista muestra las primeras 250.';
   host.append(p);
  }
- for(const x of items){
+ for(const x of visibles){
   const card=document.createElement('div');card.className='line';
   const ttl=document.createElement('strong');ttl.textContent=
    (x.proveedor||x.concepto||'Cuenta pendiente')+' · '+pesos(x.monto);
@@ -1203,11 +1298,13 @@ async function cargarCuentasPendientes(){
    razon_social_id:value('scopeRazon')||'todos'
   });
   cuentasPendientesActuales=data.pendientes||[];
+  cuentasPendientesLimitadas=!!data.limitado;
   $('m-pendientes').textContent=pesos(data.total||0);
   pintarResumenPendientes(cuentasPendientesActuales,data.total||0,Number(data.cantidad||0));
   pintarAlertaPagosInicio(cuentasPendientesActuales,Number(data.total||0),Number(data.cantidad||0),!!data.limitado);
   pintarPendientes(cuentasPendientesActuales,!!data.limitado);
  }catch(e){
+  cuentasPendientesActuales=[];cuentasPendientesLimitadas=false;
   $('m-pendientes').textContent='Sin verificar';
   $('ukiPendientesResumen').replaceChildren();
   $('ukiAlertaPagos').replaceChildren();
@@ -1219,6 +1316,90 @@ async function cargarCuentasPendientes(){
   p.textContent='No se pudieron consultar todas las cuentas pendientes: '+e.message;
   h.append(p);
  }
+}
+
+// Historial de cada movimiento: vista de solo lectura y sesión privada de dueños.
+function pintarHistorialMovimiento(contenedor,id){
+ if(!id||contenedor.querySelector('[data-fin-audit]'))return;
+ const panel=document.createElement('details');panel.className='owner-audit';panel.dataset.finAudit=String(id);
+ const resumen=document.createElement('summary');resumen.textContent='🕘 Ver historial de cambios';
+ const cuerpo=document.createElement('div');
+ panel.append(resumen,cuerpo);contenedor.append(panel);
+ let cargado=false,cargando=false;
+ const representar=valor=>{
+  if(valor===null||valor===undefined)return '—';
+  if(typeof valor==='object')return Array.isArray(valor)?valor.join(', '):
+   Object.entries(valor).map(([k,v])=>k+': '+String(v)).join('; ');
+  return String(valor);
+ };
+ const nombres={fecha:'Fecha',monto:'Importe',concepto:'Concepto',categoria:'Categoría',
+  proveedor:'Proveedor',referencia:'Referencia',sucursal_id:'Sucursal',medios:'Medios de pago',estado:'Estado'};
+ panel.addEventListener('toggle',async()=>{
+  if(!panel.open||cargado||cargando)return;
+  cargando=true;cuerpo.replaceChildren();
+  const espera=document.createElement('p');espera.className='hint';
+  espera.textContent='Consultando modificaciones…';cuerpo.append(espera);
+  try{
+   const respuesta=await api('auditoria_movimiento',{id});
+   const eventos=respuesta.eventos||[];cuerpo.replaceChildren();
+   if(!eventos.length){
+    const p=document.createElement('p');p.className='hint';
+    p.textContent='Este movimiento no tiene eventos de modificación disponibles.';cuerpo.append(p);
+   }
+   for(const e of eventos){
+    const item=document.createElement('div');item.className='owner-audit-item';
+    const titulo=document.createElement('b');
+    const nombre=({editar:'Modificación',crear:'Registro inicial',anular:'Anulación',
+     pagar:'Pago confirmado',clasificar_razon:'Razón social modificada',
+     clasificar_razon_desde_factura:'Razón social modificada en factura',
+     asignar_razon_social_al_registrar:'Razón social asignada',
+     repartir:'Distribución entre locales actualizada'})[e.accion]||e.accion||'Movimiento';
+    let cuando='Fecha no disponible';
+    try{cuando=new Date(e.creado_en).toLocaleString('es-CL',
+      {timeZone:'America/Santiago',dateStyle:'short',timeStyle:'short'})}catch{}
+    titulo.textContent=nombre+' · '+cuando;item.append(titulo);
+    const quien=document.createElement('small');
+    const info=e.nuevo&&typeof e.nuevo==='object'?e.nuevo:{};
+    quien.textContent='Realizado por: '+(info.responsable_cuenta||
+      ('Cuenta autorizada · ID '+String(e.actor_uid||'no disponible').slice(-8)));
+    item.append(quien);
+    if(e.accion==='editar'&&info.antes&&info.despues){
+     const diff=document.createElement('div');diff.className='owner-audit-diff';
+     let n=0;
+     for(const [k,nuevo] of Object.entries(info.despues)){
+      if(!Object.prototype.hasOwnProperty.call(info.antes,k))continue;
+      const anterior=info.antes[k];
+      if(JSON.stringify(anterior)===JSON.stringify(nuevo))continue;
+      const line=document.createElement('p');
+      const valor=v=>k==='monto'?pesos(v):k==='sucursal_id'?branchName(v):representar(v);
+      line.textContent=(nombres[k]||k)+': '+valor(anterior)+' → '+valor(nuevo);
+      diff.append(line);n++;
+     }
+     if(n)item.append(diff);
+     else{const p=document.createElement('p');p.className='hint';
+      p.textContent='Se guardó una edición sin variación visible de los campos mostrados.';item.append(p)}
+    }else{
+     const note=document.createElement('p');note.className='hint';
+     note.textContent=e.accion==='crear'?'Movimiento registrado por primera vez.':
+      e.accion==='anular'?'Registro anulado; no se suma a los totales.':
+      e.accion==='pagar'?'Obligación marcada como pagada ('+
+       String(info.fecha_pago||'fecha no indicada')+').':
+      String(e.accion||'').includes('clasificar_razon')?'Razón social actualizada con registro de auditoría.':
+      e.accion==='asignar_razon_social_al_registrar'?'Se asignó una razón social al registrar la factura.':
+      'Movimiento registrado en el historial privado.';
+     item.append(note);
+    }
+    cuerpo.append(item);
+   }
+   if(respuesta.limitado){const a=document.createElement('p');a.className='hint';
+    a.textContent='Se muestran los 80 eventos más recientes.';cuerpo.append(a)}
+   cargado=true;
+  }catch(e){
+   cuerpo.replaceChildren();
+   const p=document.createElement('p');p.className='owner-expense-alert';
+   p.textContent='No se pudo consultar el historial: '+e.message;cuerpo.append(p);
+  }finally{cargando=false}
+ });
 }
 
 function pintarAccionesManual(box,t){
@@ -1339,7 +1520,10 @@ function renderRows(){
    (t.estado!=='anulado'&&t.fuente==='factura'?'<button type="button" data-anular="'+esc(t.id)+'">Anular (con confirmación)</button>':'')+
    '</details></div>';
  }).join('')||'<p class="muted">Aún no hay registros financieros.</p>';
- $('recent').querySelectorAll('[data-movimiento]').forEach(row=>pintarAccionesManual(row,transactions.find(t=>t.id===row.dataset.movimiento)));
+ $('recent').querySelectorAll('[data-movimiento]').forEach(row=>{
+  pintarAccionesManual(row,transactions.find(t=>t.id===row.dataset.movimiento));
+  pintarHistorialMovimiento(row,row.dataset.movimiento);
+ });
  $('recent').querySelectorAll('[data-clasificar]').forEach(b=>b.onclick=async()=>{
   const select=$('recent').querySelector('[data-mov-select="'+b.dataset.clasificar+'"]');
   if(!select?.value){notify('Selecciona primero una razón social.','error');return}
@@ -1468,7 +1652,7 @@ $('saveDoc').onclick=()=>safe('saveDoc',async()=>{
 });
 const controlCompras=crearControlCompras({
  api,$,esc,fmt:pesos,dateNow:today,businessName,branchName,currentBiz,currentBranch,upload,safe,
- branchesFor,negocios:()=>businesses
+ branchesFor,negocios:()=>businesses,mostrarAuditoria:pintarHistorialMovimiento
 });
 $('newBiz').onclick=()=>safe('newBiz',async()=>{await api('nuevo_negocio',{nombre:value('newBizName'),razon_social:value('newBizReason')});$('newBizName').value='';await loadBusinesses()});
 $('newBranch').onclick=()=>safe('newBranch',async()=>{await api('nueva_sucursal',{negocio_id:value('newBranchBiz'),nombre:value('newBranchName')});$('newBranchName').value='';await loadBusinesses()});

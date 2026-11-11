@@ -228,7 +228,7 @@ module.exports=async(req,res)=>{
    const linked=await sql.query('SELECT 1 FROM public.fin_negocio_razones WHERE negocio_id=$1 AND razon_social_id=$2',[business,legal]);
    if(!linked.length)return fail(res,400,'Vincula primero la razón social al negocio.');
    await sql.query('UPDATE public.fin_movimientos SET razon_social_id=$2,actualizado_en=now() WHERE id=$1',[id,legal]);
-   await audit(sql,'movimiento',id,'clasificar_razon',who,{antes:existing[0].razon_social_id,despues:legal});
+   await audit(sql,'movimiento',id,'clasificar_razon',who,{antes:existing[0].razon_social_id,despues:legal,responsable_cuenta:who.email});
    return ok(res,{actualizado:true});
   }
   if(action==='guardar_movimiento'){
@@ -256,7 +256,7 @@ module.exports=async(req,res)=>{
    const r=await sql.query('INSERT INTO public.fin_movimientos(negocio_id,sucursal_id,tipo,fecha,monto,medios,categoria,concepto,proveedor,referencia,estado,fuente,datos,clave_unica,creado_por,razon_social_id) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16::uuid) ON CONFLICT DO NOTHING RETURNING id',
     [body.negocio_id,body.sucursal_id||null,tipo,fecha,monto,JSON.stringify(medios),text(body.categoria,90),concepto,text(body.proveedor,120),referencia,estado,fuente,JSON.stringify(datos),clave,who.uid,legal]);
    if(!r.length)return fail(res,409,'Ese cierre ya se importó anteriormente. No se duplicó.');
-   await audit(sql,'movimiento',r[0].id,'crear',who,{tipo,fecha,monto,negocio_id:body.negocio_id,sucursal_id:body.sucursal_id,razon_social_id:legal,fuente});
+   await audit(sql,'movimiento',r[0].id,'crear',who,{tipo,fecha,monto,negocio_id:body.negocio_id,sucursal_id:body.sucursal_id,razon_social_id:legal,fuente,responsable_cuenta:who.email});
    return ok(res,{id:r[0].id});
   }
   if(action==='registrar_cierre'){
@@ -312,6 +312,18 @@ module.exports=async(req,res)=>{
    return ok(res,{pendientes:rows,total:tots[0]?.total||0,
     cantidad:Number(tots[0]?.cantidad||0),limitado:Number(tots[0]?.cantidad||0)>rows.length});
   }
+  if(action==='auditoria_movimiento'){
+   // Historial de un movimiento: solo sesión privada de dueños, solo lectura.
+   const id=String(body.id||'');
+   if(!uuid.test(id))return fail(res,400,'Selecciona un movimiento válido.');
+   const existe=await sql.query('SELECT 1 FROM public.fin_movimientos WHERE id=$1',[id]);
+   if(!existe.length)return fail(res,404,'Movimiento no encontrado.');
+   const events=await sql.query(
+    "SELECT id,accion,actor_uid,anterior,nuevo,creado_en "+
+    "FROM public.fin_auditoria WHERE entidad IN ('movimiento','compra') AND entidad_id=$1 "+
+    "ORDER BY creado_en DESC,id DESC LIMIT 80",[id]);
+   return ok(res,{eventos:events,limitado:events.length===80});
+  }
   if(action==='editar_movimiento'){
    // Solo edición financiera manual; los cierres automáticos de Uki viven en otra tabla.
    const id=String(body.id||''),fecha=body.fecha,monto=Number(body.monto);
@@ -346,7 +358,8 @@ module.exports=async(req,res)=>{
    if(!updated.length)return fail(res,409,'El registro cambió. Actualiza el panel para revisarlo.');
    await audit(sql,'movimiento',id,'editar',who,{
     antes:{fecha:prev.fecha,monto:Number(prev.monto),medios:prev.medios,concepto:prev.concepto,referencia:prev.referencia,sucursal_id:prev.sucursal_id,categoria:prev.categoria,proveedor:prev.proveedor},
-    despues:{fecha,monto,medios,concepto,referencia,sucursal_id:nuevaSucursal===undefined?prev.sucursal_id:nuevaSucursal,categoria,proveedor}
+    despues:{fecha,monto,medios,concepto,referencia,sucursal_id:nuevaSucursal===undefined?prev.sucursal_id:nuevaSucursal,categoria,proveedor},
+    responsable_cuenta:who.email
    });
    return ok(res,{actualizado:true});
   }
@@ -356,7 +369,7 @@ module.exports=async(req,res)=>{
    if(!old.length)return fail(res,404,'No se encontró el registro.');
    if(old[0].estado==='anulado')return fail(res,409,'Ya estaba anulado.');
    await sql.query("UPDATE public.fin_movimientos SET estado='anulado',actualizado_en=now() WHERE id=$1",[body.id]);
-   await audit(sql,'movimiento',body.id,'anular',who,old[0]);
+   await audit(sql,'movimiento',body.id,'anular',who,{antes:old[0],responsable_cuenta:who.email});
    return ok(res,{anulado:true});
   }
   if(action==='marcar_pagado'){
@@ -374,7 +387,8 @@ module.exports=async(req,res)=>{
     [body.id,body.fecha_pago,medio]);
    if(!rows.length)return fail(res,409,'Solo se puede pagar una cuenta que esté pendiente.');
    await audit(sql,'movimiento',body.id,'pagar',who,
-     {antes:'pendiente',despues:'pagado',fecha_pago:body.fecha_pago,medio_pago:medio||null});
+     {antes:'pendiente',despues:'pagado',fecha_pago:body.fecha_pago,medio_pago:medio||null,
+      responsable_cuenta:who.email});
    return ok(res,{pagado:true});
   }
   if(action==='resumen'){
@@ -390,8 +404,10 @@ module.exports=async(req,res)=>{
     "AND ($2::uuid IS NULL OR m.sucursal_id=$2) AND m.fecha BETWEEN $3 AND $4 "+
     "AND ($5::text='todos' OR ($5::text='sin_clasificar' AND m.razon_social_id IS NULL) "+
     "OR m.razon_social_id::text=$5) AND m.estado<>'anulado'";
-   const rows=await sql.query("SELECT m.tipo,m.estado,SUM(m.monto)::bigint AS total,COUNT(*)::int AS cantidad "+
-    "FROM public.fin_movimientos m "+where+" GROUP BY m.tipo,m.estado",p);
+   // Mantener la categoría al agregar los totales para diferenciar inversión
+   // (movimiento patrimonial) de los costos del negocio sin doble registro.
+   const rows=await sql.query("SELECT m.tipo,m.estado,m.categoria,SUM(m.monto)::bigint AS total,COUNT(*)::int AS cantidad "+
+    "FROM public.fin_movimientos m "+where+" GROUP BY m.tipo,m.estado,m.categoria",p);
    const pagos=await sql.query("SELECT pago.key AS medio,SUM((pago.value)::bigint)::bigint AS total "+
     "FROM public.fin_movimientos m CROSS JOIN LATERAL jsonb_each_text(m.medios) AS pago(key,value) "+
     where+" AND m.tipo='venta' GROUP BY pago.key ORDER BY pago.key",p);

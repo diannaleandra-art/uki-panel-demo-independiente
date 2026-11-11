@@ -3,9 +3,9 @@
 import {interpretarFacturaChile} from './mi-administracion-factura-parser.js?v=general-v5';
 import {leerPDFLocal} from './mi-administracion-pdf-ocr.js?v=general-v5';
 import {crearHistorialCompras} from './mi-administracion-historial.js?v=general-v5';
-export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, branchName, currentBiz, currentBranch, upload, safe,branchesFor,negocios}){
+export function crearControlCompras({api, $, esc, fmt, dateNow, businessName, branchName, currentBiz, currentBranch, upload, safe,branchesFor,negocios,mostrarAuditoria}){
  let productos=[],leyendo=false,datosFactura={receptor:'',receptorRut:'',observacion:''};
- const history=crearHistorialCompras({api,$,esc,fmt,businessName,branchName,branchesFor,negocios});
+ const history=crearHistorialCompras({api,$,esc,fmt,businessName,branchName,branchesFor,negocios,mostrarAuditoria});
  let expandIndex=-1;
  const n=x=>Number(x||0),money=x=>Number.isSafeInteger(Number(x))&&Number(x)>=0&&Number(x)<=1000000000;
  const dia=x=>typeof x==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(x);

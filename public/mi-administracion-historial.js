@@ -1,5 +1,5 @@
 // Mi Administración QA: filtros por razón social e historial móvil.
-export function crearHistorialCompras({api,$,esc,fmt,businessName,branchName,branchesFor,negocios}){
+export function crearHistorialCompras({api,$,esc,fmt,businessName,branchName,branchesFor,negocios,mostrarAuditoria}){
  let razones=[],vinculos=[],busy=false;
  const clean=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
  const date=x=>String(x||'').slice(0,10);
@@ -179,7 +179,15 @@ export function crearHistorialCompras({api,$,esc,fmt,businessName,branchName,bra
     '<button class="soft" type="button" data-id="'+html(x.id)+'">Ver detalle</button></div>'+
    '<div class="finance-invoice-details" hidden></div></article>'
   ).join('')||'<p class="hint">No hay facturas que coincidan con esta búsqueda.</p>';
-  $('invoicePurchaseList').querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>void openInvoice(b));
+  $('invoicePurchaseList').querySelectorAll('[data-id]').forEach(b=>{
+   b.onclick=()=>void openInvoice(b);
+   // Histórico protegido, cargado únicamente al abrir cada factura.
+   if(typeof mostrarAuditoria==='function'){
+    const lugar=document.createElement('div');
+    b.closest('.finance-invoice').append(lugar);
+    mostrarAuditoria(lugar,b.dataset.id);
+   }
+  });
  }
  async function cargar(){
   if(busy)return;busy=true;
