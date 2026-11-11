@@ -880,12 +880,31 @@ function ukiNubeListaPrecierre(){
  }
  return true;
 }
+// Un turno del trabajador no vuelve a estar activo si consta su precierre
+// o si la caja ya tuvo un cierre definitivo posterior a su inicio.
+// Solo lectura: no crea ni modifica precierres, pedidos o cobros anteriores.
+function ukiTurnoTrabajadorVigente(caja=cajaDelDia()){
+ const abierto=caja?.turnoPrecierreAbierto;
+ if(!abierto)return null;
+ const inicio=Number(abierto.inicioMs)||0;
+ if(!inicio)return abierto; // No suponer el fin de un turno histórico sin hora.
+ const precierreGuardado=(caja.precierres||[]).some(p=>
+  p?.suc===S.suc&&Number(p.inicioMs)===inicio&&Number(p.finMs)>=inicio);
+ if(precierreGuardado)return null;
+ const cierreGuardado=(S.cierres||[]).some(c=>
+  c?.suc===S.suc&&!c.rectificacion&&fechaCierreMs(c)>=inicio&&
+  (!c.fechaOperativa||!abierto.fechaOperativa||c.fechaOperativa===abierto.fechaOperativa));
+ return cierreGuardado?null:abierto;
+}
+
 function ukiIniciarPrecierre(){
  if(!S.suc||S.busy||!ukiNubeListaPrecierre())return;
  const nombre=String($("ukiTrabajador")?.value||"").trim().replace(/\s+/g," ");
  if(nombre.length<2||nombre.length>60){aviso("Escribe el nombre del trabajador.");return;}
  const caja=cajaDelDia();
- if(caja.turnoPrecierreAbierto){aviso("Primero guarda el precierre del trabajador anterior.");return;}
+ if(ukiTurnoTrabajadorVigente(caja)){aviso("Primero guarda el precierre del trabajador anterior.");return;}
+ // Permitir el siguiente turno si un cierre ya guardado dejó un indicador antiguo.
+ if(caja.turnoPrecierreAbierto)caja.turnoPrecierreAbierto=null;
  const inicioMs=Date.now(),base=ukiFotoPrecierre();
  caja.turnoPrecierreAbierto={nombre,inicioMs,fechaOperativa:fechaOperativaActual(),base};
  guardarEnLocalStorage();
@@ -893,8 +912,8 @@ function ukiIniciarPrecierre(){
 }
 function ukiGuardarPrecierre(){
  if(!S.suc||S.busy||!ukiNubeListaPrecierre())return;
- const caja=cajaDelDia(),abierto=caja.turnoPrecierreAbierto;
- if(!abierto){aviso("No hay un turno abierto.");return;}
+ const caja=cajaDelDia(),abierto=ukiTurnoTrabajadorVigente(caja);
+ if(!abierto){aviso("No hay un turno activo para guardar. Revisa los precierres anteriores.");return;}
  const contadoTexto=String($("ukiEfectivoPrecierre")?.value||"").trim();
  if(contadoTexto===""){aviso("⚠️ Cuenta el efectivo físicamente e ingresa el valor antes de guardar el precierre.");return;}
  const contado=Number(contadoTexto);
@@ -941,7 +960,7 @@ function ukiFilaPrecierre(p){
    (p.observaciones?'<p class="muted">'+esc(p.observaciones)+'</p>':"")+'</div>';
 }
 function vInicioTrabajador(){
- const abierto=cajaDelDia().turnoPrecierreAbierto;
+ const abierto=ukiTurnoTrabajadorVigente();
  if(abierto){
    const fechaInicio=new Date(abierto.inicioMs).toLocaleString("es-CL",{dateStyle:"short",timeStyle:"short"});
    return '<div class="card uki-turno-card"><h2>🕒 Turno iniciado</h2>'+
@@ -956,7 +975,7 @@ function vInicioTrabajador(){
    '</div>';
 }
 function vPrecierreTrabajadores(){
- const caja=cajaDelDia(),abierto=caja.turnoPrecierreAbierto;
+ const caja=cajaDelDia(),abierto=ukiTurnoTrabajadorVigente(caja);
  if(!abierto){
    return '<div class="card"><h2>🕒 PRECIERRE DEL TRABAJADOR · NO CIERRA EL DÍA</h2>'+
      '<p class="muted">Esto NO cierra la caja ni el día. Para registrar el precierre del trabajador, primero inicia el turno desde Inicio.</p>'+
@@ -2035,7 +2054,7 @@ function ukiTimbreResponsableActual(){
  // El PIN común no identifica a la persona. Solo atribuimos el evento
  // al trabajador cuando hay un turno iniciado expresamente con su nombre.
  const caja=S.cajasDiarias?.[S.suc+"|"+fechaOperativaActual()];
- return String(caja?.turnoPrecierreAbierto?.nombre||"Sin turno identificado");
+ return String(ukiTurnoTrabajadorVigente(caja)?.nombre||"Sin turno identificado");
 }
 function ukiAnotarEventoTimbre(p,tipo){
  const fecha=new Date().toISOString(),responsable=ukiTimbreResponsableActual();
@@ -4795,6 +4814,9 @@ async function cerrar(){
     enviosCobradosUki:t.enviosCobradosUki,
     enviosCobradosOtroLocal:t.enviosCobradosOtroLocal
   });
+  // Al cerrar definitivamente la caja termina también el indicador del
+  // turno del trabajador; esto NO crea un precierre ficticio.
+  caja.turnoPrecierreAbierto=null;
   // Empezar un nuevo periodo sin eliminar pedidos, gastos ni cierres antiguos.
   caja.desdeMs=fechaCierre;
   caja.apps={}; caja.pagoDelivery=0; caja.pagoDeliveryMedio="Efectivo";
