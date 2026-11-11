@@ -33,3 +33,10 @@ Esta rama no altera env vars, dominios, datos reales, código de sucursales Uki 
 - El conector Supabase rechazó la consulta de lectura: autenticación fallida del rol de solo lectura.
 - Neon tenía cero registros en romo_catalogo_v1 en la última revisión. No se importaron datos automáticamente.
 - Sin modificaciones a la carta pública, sin SQL ejecutado, sin permisos nuevos y sin tocar producción.
+
+## Vista de catálogo integrada en el mismo panel (QA)
+- Se añadió firebase/uki-romo-carta-panel-qa.js al HTML del panel compartido; sólo se muestra cuando la sucursal seleccionada es Romo.
+- Mostrar secciones Carta y precios, Promociones, Ingredientes, Inventario (este último pendiente) reutilizando clases visuales del panel.
+- El botón de consulta tiene ENDPOINT vacío por seguridad. No intenta leer Neon/Uki hasta autorización y credenciales privadas válidas.
+- La futura respuesta autorizada se muestra por DOM textContent, sin inyectar HTML de productos; rechaza datos de otra sucursal.
+- No incluye POST, cambios en caja, guardados, ventas ni habilitación de checkout.
