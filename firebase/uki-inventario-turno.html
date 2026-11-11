@@ -93,7 +93,8 @@ import {iniciarFacturaLive} from './uki-factura-interfaz-live.mjs';
 const $=id=>document.getElementById(id);
 const isQA=['uki-sushi-panel.vercel.app','uki-sushi-panel-diannaleandra-7046.vercel.app'].includes(location.hostname);
 const API='/api/inventario-turno-live';
-let branch='',items=[],busy=false,requestId=null,lastSaved=null;
+let branch='',items=[],busy=false,requestId=null,lastSaved=null,reporteFinal=null;
+const entradasSesion=new Map();
 const status=s=>{$('estado').textContent=s;};
 const elt=(type,text,cls)=>{const e=document.createElement(type);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
 function nombre(){const n=$('nombre').value.trim().replace(/\s+/g,' ');if(n.length<2||n.length>60)throw Error('Escribe el nombre de quien cuenta.');return n;}
@@ -136,11 +137,16 @@ function selectorUnidad(item){
 }
 const factura=iniciarFacturaLive({getBranch:()=>branch,getItems:()=>items,
  post:(action,params)=>api(action,params),
- onSaved:response=>{items=items.map(x=>x.sku===response.item.sku?{...x,...response.item}:x);
- requestId=null;$('confirmacion').textContent='';render();},
+ onSaved:response=>{
+ const original=items.find(x=>x.sku===response.item.sku);
+ const diferencia=original?Number(response.item.stock_qty)-Number(original.stock_qty):0;
+ if(!response.duplicada&&Number.isFinite(diferencia)&&diferencia>0)
+  entradasSesion.set(response.item.sku,Math.round(((entradasSesion.get(response.item.sku)||0)+diferencia)*1000)/1000);
+ items=items.map(x=>x.sku===response.item.sku?{...x,...response.item}:x);
+ requestId=null;reporteFinal=null;$('descargasTurno').hidden=true;$('confirmacion').textContent='';render();},
  onItemsCreated:created=>{const union=new Map(items.map(i=>[i.sku,i]));
  for(const item of created)union.set(item.sku,item);
- items=[...union.values()];render();}
+ items=[...union.values()];requestId=null;reporteFinal=null;$('descargasTurno').hidden=true;render();}
 });
 const setBusy=value=>{
  busy=value;$('abrir').disabled=value;$('enviar').disabled=value;
@@ -150,8 +156,29 @@ const setBusy=value=>{
 function resumen(){
  const configured=items.filter(x=>Number(x.min_stock_qty)>0);
  const missing=configured.filter(x=>Number(x.stock_qty)<=Number(x.min_stock_qty));
- $('resumen').textContent=missing.length+' artículos por reponer · '+configured.length+
+ $('resumen').textContent=items.length+' artículos · '+configured.length+
   ' mínimos configurados · '+(items.length-configured.length)+' sin mínimo.';
+ const area=$('resumenIndicadores');area.replaceChildren();
+ const stats=[
+  ['verde',items.filter(i=>Number(i.stock_qty)>0).length,'Con existencias'],
+  ['gris',entradasSesion.size,'Con entradas en este turno'],
+  ['naranja',missing.length,'Para reponer']
+ ];
+ for(const [color,quantity,title] of stats){
+  const card=elt('div',undefined,'resumen-indicador '+color);
+  card.append(elt('span',String(quantity),'valor'),elt('span',title,'detalle'));
+  area.append(card);
+ }
+ const list=$('resumenArticulos');list.replaceChildren();
+ for(const i of missing.slice(0,12)){
+  const hay=Number(i.stock_qty)||0,min=Number(i.min_stock_qty)||0,unit=i.stock_unit||'un';
+  const falta=Math.max(0,Math.round((min-hay)*1000)/1000);
+  const row=elt('div',undefined,'reporte-fila');
+  row.append(elt('strong',i.name),elt('small','Hay '+formato(hay,unit)+' · Mínimo '+formato(min,unit)+
+   (falta>0?' · Falta / pedir '+formato(falta,unit):' · Mínimo alcanzado: revisar compra')));
+  list.append(row);
+ }
+ if(missing.length>12)list.append(elt('p','Y '+(missing.length-12)+' artículos más por revisar.','muted small'));
 }
 const revisados=new Set();let visibleLimit=12;
 const horaConteos=new Map();
@@ -192,9 +219,16 @@ function render(){
   if(revisados.has(item.sku))description.append(elt('span',' · Contado ✓','pill small'));
  if(horaConteos.has(item.sku))description.append(elt('p','Registrado: '+horaConteos.get(item.sku)+' (Chile)','muted small'));
   const min=Number(item.min_stock_qty)||0,qty=Number(item.stock_qty)||0;
+  const estado=min<=0?'sin-minimo':qty<=min?'reponer':'bien';
+  card.dataset.estado=estado;
   description.append(name,elt('p','Hay: '+formato(qty,item.stock_unit||'un')+
-   ' · mínimo: '+(min>0?formato(min,item.stock_unit||'un'):'sin configurar'),'muted small'));
-  if(min>0&&qty<=min)description.append(elt('p',min===qty?'Comprar: mínimo alcanzado. ' : 'Faltan '+formato(Math.round((min-qty)*1000)/1000,item.stock_unit||'un'),'warn small'));
+   ' · Mínimo: '+(min>0?formato(min,item.stock_unit||'un'):'sin configurar'),'muted small'));
+  const llegada=entradasSesion.get(item.sku)||0;
+  if(llegada>0)description.append(elt('p','Llegó en este turno: +'+formato(llegada,item.stock_unit||'un'),'pill small'));
+  if(min>0&&qty<=min)description.append(elt('p',min===qty?'Mínimo alcanzado: revisar compra.' :
+   'Falta / pedir: '+formato(Math.round((min-qty)*1000)/1000,item.stock_unit||'un'),'warn small'));
+  description.append(elt('span',estado==='reponer'?'Para reponer':estado==='bien'?'Existencias suficientes':'Sin mínimo',
+   'estado-pill '+estado));
   head.append(description);card.append(head);
   const countRow=elt('div',undefined,'unit-row'),countValue=elt('input'),countUnit=selectorUnidad(item);
   countValue.type='text';countValue.inputMode='text';countValue.autocomplete='off';countValue.maxLength=12;
@@ -226,7 +260,7 @@ function render(){
    }
    await save(item,'contar',n,countUnit.value);
   };
-  const details=elt('details'),summary=elt('summary','Recibimos mercadería de '+item.name);
+  const details=elt('details'),summary=elt('summary','📦 Registrar mercadería recibida · suma existencias');
   const recRow=elt('div',undefined,'unit-row'),received=elt('input'),recUnit=selectorUnidad(item);
   received.type='text';received.inputMode='text';received.autocomplete='off';received.maxLength=12;
   received.placeholder='Cantidad recibida';received.setAttribute('aria-label','Mercadería recibida de '+item.name);
@@ -251,7 +285,7 @@ function render(){
    await save(item,'recibir',n,recUnit.value);
   };
   details.append(summary,recRow,recHint,receive);
-  card.append(countRow,countHint,count,details);
+  card.append(elt('p','Conteo real · reemplaza el saldo anterior','action-label'),countRow,countHint,count,details);
   if(lastSaved?.sku===item.sku){
    const note=elt('p',lastSaved.message,lastSaved.ok?'confirmacion-item':'error-item');
    note.setAttribute('role','status');card.append(note);
