@@ -550,19 +550,73 @@ async function loadReponer(){
   if(selected!==branch())return;
   const all=data.items||[],configured=all.filter(i=>Number(i.min_stock_qty)>0);
   const short=configured.filter(i=>Number(i.stock_qty)<=Number(i.min_stock_qty))
-    .sort((a,b)=>a.name.localeCompare(b.name,'es'));
-  info('ukiReponerEstado',all.length+' artículos · '+short.length+' para reponer · '+
-   (all.length-configured.length)+' sin mínimo configurado.');
+   .sort((a,b)=>a.name.localeCompare(b.name,'es'));
+  const comprar=short.filter(i=>Number(i.stock_qty)<Number(i.min_stock_qty)).length;
+  const revisar=short.length-comprar;
+  info('ukiReponerEstado',all.length+' artículos · '+comprar+' con faltantes · '+
+   revisar+' en el mínimo · '+(all.length-configured.length)+' sin mínimo configurado.');
   const root=$('ukiReponerListado');if(!root)return;root.replaceChildren();
-  if(!short.length){root.textContent='✓ No hay faltantes según los mínimos registrados.';return;}
-  for(const p of short){
-   const row=document.createElement('p');row.style.cssText='padding:10px 0;border-bottom:1px solid #eee0d3;margin:0';
-   const delta=Math.max(0,Number(p.min_stock_qty)-Number(p.stock_qty));
-   row.textContent=p.name+' · Quedan '+Number(p.stock_qty).toLocaleString('es-CL')+' '+(units[p.stock_unit]||p.stock_unit)+
-    ' · mínimo '+Number(p.min_stock_qty).toLocaleString('es-CL')+
-    ' · '+(delta===0?'Mínimo alcanzado, comprar':('Faltan al menos '+delta.toLocaleString('es-CL')+' '+p.stock_unit));
-   root.append(row);
+  const help=document.createElement('p');help.className='muted';
+  help.textContent='Compra sugerida hasta el mínimo. Las llegadas y posibles diferencias de consumo aparecen en los inventarios guardados.';
+  root.append(help);
+  if(!short.length){
+   const none=document.createElement('p');none.textContent='✓ No hay faltantes según los mínimos registrados.';
+   root.append(none);return;
   }
+  const search=document.createElement('input');search.type='search';
+  search.placeholder='Buscar producto para reponer';search.setAttribute('aria-label','Buscar artículo para reponer');
+  search.style.cssText='width:100%;padding:12px;border:1px solid #ddc7b3;border-radius:12px;margin:8px 0 12px';
+  const listing=document.createElement('div'),more=document.createElement('button');
+  more.type='button';more.className='sm';more.textContent='Mostrar 15 más';
+  more.style.cssText='margin:12px 0;width:100%';
+  root.append(search,listing,more);
+  let limit=12;
+  const itemCard=p=>{
+   const amount=Math.max(0,Math.round((Number(p.min_stock_qty)-Number(p.stock_qty))*1000)/1000);
+   const fmt=n=>Number(n).toLocaleString('es-CL',{maximumFractionDigits:3});
+   const unit=p.stock_unit||'un';
+   const card=document.createElement('div');
+   card.style.cssText='border:1px solid #e8cba9;border-left:5px solid #d0812f;border-radius:12px;background:#fffbf5;padding:12px;margin:9px 0';
+   const name=document.createElement('strong');name.style.cssText='display:block;font-size:15px;color:#57361c';
+   name.textContent=p.name;
+   const figures=document.createElement('div');
+   figures.style.cssText='display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:9px';
+   for(const [label,value,bg] of [
+    ['Hay',fmt(p.stock_qty)+' '+unit,'#f6f3ef'],
+    ['Mínimo',fmt(p.min_stock_qty)+' '+unit,'#f6f3ef'],
+    ['Pedir',amount>0?fmt(amount)+' '+unit:'Revisar','#fff0d7']
+   ]){
+    const cell=document.createElement('div');cell.style.cssText='padding:8px 5px;border-radius:9px;background:'+bg+';min-width:0';
+    const heading=document.createElement('small');heading.style.cssText='display:block;font-size:11px;color:#835935';
+    heading.textContent=label;const val=document.createElement('b');
+    val.style.cssText='display:block;overflow-wrap:anywhere;font-size:13px;color:#633c1d';
+    val.textContent=value;cell.append(heading,val);figures.append(cell);
+   }
+   card.append(name,figures);return card;
+  };
+  const render=()=>{
+   listing.replaceChildren();
+   const term=String(search.value||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+   const matches=short.filter(p=>String(p.name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(term));
+   const notEnough=matches.filter(p=>Number(p.stock_qty)<Number(p.min_stock_qty));
+   const atMinimum=matches.filter(p=>Number(p.stock_qty)>=Number(p.min_stock_qty));
+   const buckets=[['🛒 Para comprar',notEnough],['⚠️ Mínimo alcanzado · revisar',atMinimum]];
+   let left=limit;
+   for(const [title,group] of buckets){
+    if(!group.length||left<=0)continue;
+    const h=document.createElement('h4');h.textContent=title+' ('+group.length+')';
+    h.style.cssText='margin:13px 0 7px;color:#78451a;font-size:15px';listing.append(h);
+    for(const p of group.slice(0,left))listing.append(itemCard(p));
+    left-=Math.min(group.length,left);
+   }
+   if(!matches.length){const empty=document.createElement('p');empty.className='muted';
+    empty.textContent='No hay artículos con ese nombre.';listing.append(empty);}
+   more.hidden=matches.length<=limit;
+   more.textContent='Mostrar 15 más · '+Math.max(0,matches.length-limit)+' pendientes de ver';
+  };
+  search.oninput=()=>{limit=12;render();};
+  more.onclick=()=>{limit+=15;render();};
+  render();
  }catch(e){info('ukiReponerEstado','No se pudo consultar: '+String(e.message));}
 }
 // Navegación compacta dentro de la función ya existente Carta y precios.
