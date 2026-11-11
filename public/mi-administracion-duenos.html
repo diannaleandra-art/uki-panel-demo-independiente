@@ -148,6 +148,13 @@ label{color:#66574c}
 .owner-gastos-head b{font-size:14px}
 .owner-expense-alert{font-size:12px;color:#7f5636;line-height:1.5;border-top:1px solid #ebdfd4;padding-top:9px;margin-top:10px}
 #ukiGastosVisibles .line{padding:11px 0;border-bottom:1px solid #eee0d3}
+.owner-payables-mini{display:grid;gap:9px;margin:10px 0}
+.owner-payables-mini .owner-payables-line{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:8px 0;border-bottom:1px solid #f1e6db}
+.owner-payables-mini .owner-payables-line span{color:#735f50;font-size:13px}
+.owner-payables-mini .owner-payables-line strong{font-size:14px;text-align:right}
+.owner-payables-small{font-size:12px;line-height:1.5;color:#7b6959}
+#ukiVencimientosInicio button{width:100%}
+
 @media(max-width:380px){.owner-filter-grid{grid-template-columns:1fr}}
 
 .owner-period-actions{display:flex;gap:7px;flex-wrap:wrap;margin:5px 0 12px}
@@ -212,6 +219,12 @@ label{color:#66574c}
 <div class="metric"><small>Por pagar · todas las fechas</small><b id="m-pendientes">$0</b></div></div>
 <p class="owner-kpi-detail" id="ukiDesgloseGastos">Gastos de caja · Repartos · Gastos y compras manuales</p>
 <p class="hint">*Resultado de control: ventas menos gastos y repartos pagados. No es utilidad contable ni saldo en efectivo; faltan costos e impuestos por conciliar.</p></div>
+<section class="card" id="ukiVencimientosInicio" aria-label="Control de cuentas pendientes">
+<h2 style="font-size:18px;margin:0 0 6px">📅 Cuentas por pagar</h2>
+<p class="hint">Obligaciones de todos los meses, según el negocio y la empresa elegidos.</p>
+<div id="ukiAlertaPagos" role="status" aria-live="polite"><p class="hint">Verificando vencimientos…</p></div>
+<button type="button" class="soft" data-go="gastos">Ver cuentas pendientes y registrar pagos</button>
+</section>
 <section class="card" id="ukiAnalisisGastos">
 <h2 style="font-size:18px;margin:0 0 6px">💸 ¿En qué se gastó?</h2>
 <p class="hint">Importes pagados por categoría. Los gastos del cierre sin detalle se muestran juntos; no inventamos su concepto.</p>
@@ -226,7 +239,7 @@ label{color:#66574c}
 <div class="owner-section-label">Administrar movimientos</div>
 <div class="quick-grid owner-quick" id="homeActions">
 <button type="button" class="quick-action" data-go="ventas"><span class="emoji">🧾</span><strong>Agregar venta manual</strong><small>Ingresos que aún no figuran en cierres</small></button>
-<button type="button" class="quick-action" data-go="gastos"><span class="emoji">💸</span><strong>Registrar gasto</strong><small>Compras, sueldos y proveedores</small></button>
+<button type="button" class="quick-action" id="ukiIrNuevoGasto"><span class="emoji">💸</span><strong>Registrar gasto</strong><small>Compras, sueldos y proveedores</small></button>
 <button type="button" class="quick-action" data-go="facturas"><span class="emoji">📷</span><strong>Compras y facturas</strong><small>Por razón social y proveedor</small></button>
 <button type="button" class="quick-action" data-go="negocios"><span class="emoji">🏪</span><strong>Mis negocios</strong><small>Agregar locales y costos</small></button>
 </div>
@@ -1011,6 +1024,11 @@ function switchTab(name){
 }
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
 document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>switchTab(b.dataset.go));
+$('ukiIrNuevoGasto').onclick=()=>{
+ switchTab('gastos');
+ $('ukiFormularioGasto').open=true;
+ $('ukiFormularioGasto').scrollIntoView({behavior:'smooth',block:'start'});
+};
 $('showPurchaseForm').onclick=()=>vistaCompras('registrar');
 $('showPurchaseHistory').onclick=()=>vistaCompras('historial');
 $('ukiGoTodasVentas').onclick=()=>{
@@ -1043,6 +1061,61 @@ $('goRecentMovements').onclick=()=>{
 function moneyRows(m){return Object.entries(m).filter(([k,v])=>Number(v)>0).map(([k,v])=>'<div class="line row"><span>'+esc(k)+'</span><b>'+pesos(v)+'</b></div>').join('')}
 
 
+function ukiClasificarVencimientos(items,hoy){
+ const fechaValida=s=>/^\d{4}-\d{2}-\d{2}$/.test(s)&&
+  !Number.isNaN(Date.parse(s+'T12:00:00Z'))&&
+  new Date(s+'T12:00:00Z').toISOString().slice(0,10)===s;
+ const hoyValido=fechaValida(hoy)?hoy:new Date().toISOString().slice(0,10);
+ const date=new Date(hoyValido+'T12:00:00Z');
+ date.setUTCDate(date.getUTCDate()+7);
+ const limite=date.toISOString().slice(0,10);
+ const resumen={vencidas:[],proximas:[],futuras:[],sinFecha:[]};
+ for(const x of items||[]){
+  const vence=String(x?.datos?.vence||'').slice(0,10);
+  if(!fechaValida(vence))resumen.sinFecha.push(x);
+  else if(vence<hoyValido)resumen.vencidas.push(x);
+  else if(vence<=limite)resumen.proximas.push(x);
+  else resumen.futuras.push(x);
+ }
+ return resumen;
+}
+function pintarAlertaPagosInicio(items,total,cantidad,limitado){
+ const host=$('ukiAlertaPagos');host.replaceChildren();
+ const text=(tag,content,className)=>{
+  const el=document.createElement(tag);el.textContent=content;
+  if(className)el.className=className;
+  host.append(el);return el;
+ };
+ if(cantidad===0){
+  text('p','✅ No hay cuentas pendientes registradas.','owner-payables-small');
+  return;
+ }
+ const resumen=ukiClasificarVencimientos(items,today());
+ text('p',cantidad+' cuenta(s) pendientes · '+pesos(total),'owner-payables-small');
+ const lista=document.createElement('div');lista.className='owner-payables-mini';host.append(lista);
+ const grupo=(label,values)=>{
+  if(!values.length)return;
+  const fila=document.createElement('div');fila.className='owner-payables-line';
+  const l=document.createElement('span');l.textContent=label+' · '+values.length;
+  const v=document.createElement('strong');
+  v.textContent=pesos(values.reduce((n,x)=>n+(Number(x.monto)||0),0));
+  fila.append(l,v);lista.append(fila);
+ };
+ grupo('⚠️ Vencidas',resumen.vencidas);
+ grupo('Próximos 7 días',resumen.proximas);
+ grupo('Más adelante',resumen.futuras);
+ grupo('Sin vencimiento',resumen.sinFecha);
+ const prioritarias=[...resumen.vencidas,...resumen.proximas].sort((a,b)=>
+  String(a.datos?.vence||'').localeCompare(String(b.datos?.vence||''))).slice(0,3);
+ if(prioritarias.length){
+  const p=document.createElement('p');p.className='owner-payables-small';
+  p.textContent='Próximos a revisar: '+prioritarias.map(x=>
+   (x.proveedor||x.concepto||businessName(x.negocio_id))+' · '+pesos(x.monto)+
+   ' ('+String(x.datos?.vence||'')+')').join(' · ');
+  host.append(p);
+ }
+ if(limitado)text('p','La lista muestra hasta 250 cuentas; el total incluye todas.','owner-payables-small');
+}
 function pintarResumenPendientes(items,total,cantidad){
  const h=$('ukiPendientesResumen');h.replaceChildren();
  const hoy=today();
@@ -1131,8 +1204,14 @@ async function cargarCuentasPendientes(){
   cuentasPendientesActuales=data.pendientes||[];
   $('m-pendientes').textContent=pesos(data.total||0);
   pintarResumenPendientes(cuentasPendientesActuales,data.total||0,Number(data.cantidad||0));
+  pintarAlertaPagosInicio(cuentasPendientesActuales,Number(data.total||0),Number(data.cantidad||0),!!data.limitado);
   pintarPendientes(cuentasPendientesActuales,!!data.limitado);
  }catch(e){
+  $('m-pendientes').textContent='Sin verificar';
+  $('ukiAlertaPagos').replaceChildren();
+  const av=document.createElement('p');av.className='owner-expense-alert';
+  av.textContent='No se pudo verificar las cuentas pendientes. Actualiza resultados para volver a comprobarlas.';
+  $('ukiAlertaPagos').append(av);
   const h=$('ukiPendientesLista');h.replaceChildren();
   const p=document.createElement('p');p.className='owner-expense-alert';
   p.textContent='No se pudieron consultar todas las cuentas pendientes: '+e.message;
