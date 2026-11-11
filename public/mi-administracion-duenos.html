@@ -461,7 +461,7 @@ const app=initializeApp({apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",authDo
 const auth=getAuth(app),$=id=>document.getElementById(id);
 let cierresConfirmadosUki=[],errorConsultaCierresUki='';
 let resumenManualUki=[],pagosManualesUki=[];
-let cuentasPendientesActuales=[];
+let cuentasPendientesActuales=[],cuentasPendientesLimitadas=false;
 let vistaGastosActual={manuales:[],cierres:[]};
 function mostrarVentasFinancieras(){
  const host=$('ukiOwnerFinancierasLista');host.replaceChildren();
@@ -1200,7 +1200,7 @@ function pintarAlertaPagosInicio(items,total,cantidad,limitado){
  }
  if(limitado)text('p','La lista muestra hasta 250 cuentas; el total incluye todas.','owner-payables-small');
 }
-$('ukiBuscarCuenta').oninput=()=>pintarPendientes(cuentasPendientesActuales,cuentasPendientesActuales.length>=250);
+$('ukiBuscarCuenta').oninput=()=>pintarPendientes(cuentasPendientesActuales,cuentasPendientesLimitadas);
 function pintarResumenPendientes(items,total,cantidad){
  const h=$('ukiPendientesResumen');h.replaceChildren();
  const hoy=today();
@@ -1230,7 +1230,10 @@ function pintarPendientes(items,limitado){
  }
  if(texto&&!visibles.length){
   const p=document.createElement('p');p.className='hint';
-  p.textContent='No hay pendientes con esa búsqueda.';host.append(p);return;
+  p.textContent=limitado?
+   'Sin coincidencias entre las primeras 250 cuentas mostradas. Puedes acotar por negocio para buscar otras.':
+   'No hay pendientes con esa búsqueda.';
+  host.append(p);return;
  }
  if(limitado){
   const p=document.createElement('p');p.className='owner-expense-alert';
@@ -1295,11 +1298,13 @@ async function cargarCuentasPendientes(){
    razon_social_id:value('scopeRazon')||'todos'
   });
   cuentasPendientesActuales=data.pendientes||[];
+  cuentasPendientesLimitadas=!!data.limitado;
   $('m-pendientes').textContent=pesos(data.total||0);
   pintarResumenPendientes(cuentasPendientesActuales,data.total||0,Number(data.cantidad||0));
   pintarAlertaPagosInicio(cuentasPendientesActuales,Number(data.total||0),Number(data.cantidad||0),!!data.limitado);
   pintarPendientes(cuentasPendientesActuales,!!data.limitado);
  }catch(e){
+  cuentasPendientesActuales=[];cuentasPendientesLimitadas=false;
   $('m-pendientes').textContent='Sin verificar';
   $('ukiPendientesResumen').replaceChildren();
   $('ukiAlertaPagos').replaceChildren();
