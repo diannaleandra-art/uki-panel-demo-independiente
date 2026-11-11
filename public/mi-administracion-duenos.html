@@ -127,6 +127,29 @@ label{color:#66574c}
 .owner-quick .quick-action strong{font-size:13px}
 .owner-quick .quick-action small{font-size:11px}
 #ukiOwnerListadoVentas{scroll-margin-top:115px}
+.owner-hint-collapsible{margin:8px 0 12px;border:1px solid #efe2d5;border-radius:11px;padding:0 11px;background:#fcf8f3}
+.owner-hint-collapsible summary{font-size:12px;color:#8a6248;font-weight:700}
+.owner-hint-collapsible p{font-size:12px;line-height:1.45;margin:0 0 10px}
+.owner-kpi-detail{font-size:12px;color:#816954;margin:9px 0 0;line-height:1.5}
+.owner-chart{margin:5px 0 16px}
+.owner-chart-item{margin:12px 0}
+.owner-chart-label{display:flex;gap:8px;justify-content:space-between;align-items:baseline;font-size:13px}
+.owner-chart-track{height:8px;background:#f2e9dd;border-radius:99px;overflow:hidden;margin:7px 0 0}
+.owner-chart-fill{display:block;height:100%;max-width:100%;border-radius:99px;background:#ad713e}
+.owner-chart-sub{font-size:11px;color:#857361;margin-top:5px}
+.owner-finance-mini{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}
+.owner-finance-mini>div{border:1px solid #eadccc;border-radius:12px;padding:11px;background:#fffbf7}
+.owner-finance-mini small{display:block;color:#78675b;font-size:11px}
+.owner-finance-mini b{display:block;margin-top:5px;font-size:17px;overflow-wrap:anywhere}
+.owner-filter-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.owner-filter-grid label{font-size:12px}
+.owner-filter-grid select{margin-top:5px}
+.owner-gastos-head{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.owner-gastos-head b{font-size:14px}
+.owner-expense-alert{font-size:12px;color:#7f5636;line-height:1.5;border-top:1px solid #ebdfd4;padding-top:9px;margin-top:10px}
+#ukiGastosVisibles .line{padding:11px 0;border-bottom:1px solid #eee0d3}
+@media(max-width:380px){.owner-filter-grid{grid-template-columns:1fr}}
+
 .owner-period-actions{display:flex;gap:7px;flex-wrap:wrap;margin:5px 0 12px}
 .owner-period-actions button{min-height:38px;padding:8px 12px;border:1px solid #e7d4c0;border-radius:11px;background:#fffaf5;color:#65462c;font-size:13px;font-weight:700}
 .owner-period-actions button[aria-pressed="true"]{border-color:#aa641c;background:#fff0d9;color:#8b4308}
@@ -165,7 +188,7 @@ label{color:#66574c}
 <div class="welcome owner-welcome">
  <span class="owner-eyebrow">MI ADMINISTRACIÓN · ACCESO PRIVADO</span>
  <h2>Tu negocio, todo más claro.</h2>
- <p>Consulta tus movimientos y gastos actuales. Los cierres finales verificados aparecen aquí después del respaldo en Firebase.</p>
+ <p>Ventas, gastos y cuentas pendientes de cada local, por fecha. Todo desde aquí.</p>
 </div>
 <section class="owner-branches" aria-labelledby="ownerBranchTitle">
  <div id="ownerBranchTitle" class="owner-section-label" style="margin:0 0 4px">🏪 Sucursales Uki Sushi</div>
@@ -176,7 +199,7 @@ label{color:#66574c}
  </div>
 </section>
 <div class="card owner-finance-card"><div class="owner-eyebrow">MOVIMIENTOS FINANCIEROS REGISTRADOS</div><h2>📊 Resumen de todos los negocios</h2>
-<p class="owner-finance-note">Los movimientos manuales heredados de la etapa de pruebas deben verificarse antes de contabilizarlos como ventas reales. Los cierres automáticos aparecen por separado y no duplican ingresos.</p>
+<details class="owner-hint-collapsible"><summary>ℹ️ Acerca de estos totales</summary><p>Incluyen cierres finales y movimientos manuales. Los registros heredados de pruebas deben verificarse antes de tratarlos como operaciones reales. Si una compra ya figura como gasto de caja, hay que conciliarla para evitar contarla dos veces. Los retiros personales no se consideran gastos operativos.</p></details>
 <p class="hint" id="ukiPeriodoResumen">Período seleccionado: el mes actual</p>
 <div class="owner-period-actions" role="group" aria-label="Período del resumen">
 <button type="button" data-owner-period="hoy">Hoy</button>
@@ -187,7 +210,14 @@ label{color:#66574c}
 <div class="metric"><small>Gastos y repartos pagados</small><b id="m-gastos">$0</b></div>
 <div class="metric"><small>Ventas − gastos*</small><b id="m-resultado">$0</b></div>
 <div class="metric"><small>Pagos pendientes</small><b id="m-pendientes">$0</b></div></div>
-<p class="hint">*Resultado preliminar del período: ventas menos gastos pagados y repartos pagados. Las propinas y retiros se muestran aparte; faltan otros costos e impuestos para calcular la utilidad real.</p></div>
+<p class="owner-kpi-detail" id="ukiDesgloseGastos">Gastos de caja · Repartos · Gastos y compras manuales</p>
+<p class="hint">*Resultado de control: ventas menos gastos y repartos pagados. No es utilidad contable ni saldo en efectivo; faltan costos e impuestos por conciliar.</p></div>
+<section class="card" id="ukiAnalisisGastos">
+<h2 style="font-size:18px;margin:0 0 6px">💸 ¿En qué se gastó?</h2>
+<p class="hint">Importes pagados por categoría. Los gastos del cierre sin detalle se muestran juntos; no inventamos su concepto.</p>
+<div id="ukiCategoriasGastos" class="owner-chart"><p class="hint">Consultando gastos…</p></div>
+<button type="button" class="soft" data-go="gastos" style="width:100%">Ver todos los gastos y pendientes</button>
+</section>
 <section class="card" id="ukiResumenPorLocal"><h2 style="margin:0 0 7px;font-size:18px">🏪 Cómo va cada local</h2>
 <p class="hint">Ventas, gastos pagados y resultado del período por sucursal o negocio. Los gastos generales sin sucursal permanecen separados.</p>
 <div id="ukiOwnerPorNegocio" class="owner-business-list"><p class="muted">Consultando movimientos…</p></div></section>
@@ -233,14 +263,36 @@ label{color:#66574c}
 <section class="view" id="v-gastos" hidden><div class="card"><div class="eyebrow">GASTOS Y COMPRAS</div><h2>💸 Registrar un gasto</h2><p class="steps">Elige la razón social y el negocio que paga el gasto. Puedes adjuntar su factura aquí mismo.</p>
 <label>Negocio</label><select id="expenseBiz"></select>
 <label>Razón social que paga el gasto</label><select id="expenseRazon"><option value="">Selecciona razón social</option></select>
-<label>Sucursal</label><select id="expenseBranch"></select>
+<label for="expenseScope">¿A dónde corresponde el movimiento?</label>
+<select id="expenseScope"><option value="local">Gasto de un local</option><option value="general">Gasto general / sin sucursal</option></select>
+<div id="expenseBranchWrap"><label for="expenseBranch">Sucursal</label><select id="expenseBranch"></select></div>
 <div class="grid2"><div><label>Fecha</label><input type="date" id="expenseDate"></div><div><label>Monto ($)</label><input type="number" min="0" id="expenseAmount"></div></div>
-<label>Tipo</label><select id="expenseType"><option value="gasto">Gasto operativo</option><option value="compra">Compra de mercadería</option><option value="retiro">Retiro del dueño</option><option value="ingreso_extra">Ingreso extraordinario</option></select>
-<label>Categoría</label><select id="expenseCategory"><option>Mercadería</option><option>Arriendo</option><option>Sueldos</option><option>Agua</option><option>Luz</option><option>Gas</option><option>Internet</option><option>Servicios</option><option>Delivery</option><option>Mantención</option><option>Otros</option></select>
+<label>Tipo</label><select id="expenseType"><option value="gasto">Gasto operativo</option><option value="compra">Compra de mercadería</option><option value="retiro">Retiro del dueño (separado de gastos)</option><option value="ingreso_extra">Ingreso extraordinario (no es venta)</option></select>
+<label>Categoría</label><select id="expenseCategory">
+<optgroup label="Mercadería y operación">
+<option>Mercadería e insumos</option><option>Envases y empaques</option><option>Fletes y repartos</option><option>Aseo y limpieza</option>
+</optgroup><optgroup label="Personal y servicios">
+<option>Sueldos y personal</option><option>Honorarios y contabilidad</option><option>Arriendo</option><option>Luz</option><option>Agua</option><option>Gas</option><option>Internet y telefonía</option>
+</optgroup><optgroup label="Administración y otros">
+<option>Publicidad y marketing</option><option>Software y plataformas</option><option>Mantenciones</option><option>Equipamiento e inversiones</option><option>Impuestos y patentes</option><option>Otros</option>
+</optgroup></select>
+<p class="hint" id="ukiAyudaCategoria">Si tienes factura de compra, regístrala en Compras para no duplicarla aquí.</p>
 <label>Proveedor (opcional)</label><input id="expenseVendor"><label>Concepto</label><textarea id="expenseConcept"></textarea>
 <label style="display:flex;align-items:center;gap:10px"><input type="checkbox" id="expensePending" style="width:20px;min-height:20px;margin:0"> Aún está pendiente de pago</label>
+<label for="expensePayMethod">Medio de pago (si ya está pagado)</label>
+<select id="expensePayMethod"><option value="">No indicado</option></select>
 <label>Vencimiento (si aún está pendiente)</label><input id="expenseDue" type="date"><label>Adjuntar factura o comprobante (opcional)</label><input id="expensePhoto" type="file" accept="image/*,application/pdf">
-<button class="primary" id="saveExpense">Guardar gasto o compra</button></div><div class="card" id="ukiGastosDeCierres"><h2>📖 Gastos del local y otros gastos</h2><p class="hint">Los gastos de los cierres de Uki no se modifican aquí. Los registros manuales se pueden editar o eliminar sin tocar la caja.</p><div id="ukiGastosVisibles"></div></div></section>
+<p class="owner-expense-alert">Antes de guardar, comprueba que no sea el mismo gasto registrado en un cierre de Uki o en Compras. Los retiros personales se registran aparte del resultado operativo.</p>
+<button class="primary" id="saveExpense">Guardar gasto o compra</button></div><div class="card" id="ukiGastosDeCierres"><h2>📖 Gastos del local y otros gastos</h2>
+<p class="hint">Solo lectura para gastos de cierres; los manuales tienen Editar o Eliminar. Elige un período y filtra aquí.</p>
+<div id="ukiGastoPeriodoResumen" class="owner-finance-mini"></div>
+<div class="owner-filter-grid">
+<label for="ukiFiltroGastoTipo">Ver gastos<select id="ukiFiltroGastoTipo"><option value="todos">Todos</option><option value="local">Solo locales</option><option value="general">Solo generales</option></select></label>
+<label for="ukiFiltroGastoEstado">Estado<select id="ukiFiltroGastoEstado"><option value="todos">Pagados y pendientes</option><option value="pagado">Solo pagados</option><option value="pendiente">Solo pendientes</option></select></label>
+<label for="ukiFiltroGastoCategoria">Categoría<select id="ukiFiltroGastoCategoria"><option value="todos">Todas las categorías</option></select></label>
+<label for="ukiFiltroGastoProveedor">Buscar proveedor o concepto<input id="ukiFiltroGastoProveedor" type="search" placeholder="Nombre o detalle"></label>
+</div>
+<div id="ukiGastosVisibles"></div></div></section>
 <section class="view" id="v-facturas" hidden>
 <div class="card" id="purchaseNavigation">
 <div class="eyebrow">ADMINISTRACIÓN GENERAL DE COMPRAS</div>
@@ -364,6 +416,7 @@ const app=initializeApp({apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",authDo
 const auth=getAuth(app),$=id=>document.getElementById(id);
 let cierresConfirmadosUki=[],errorConsultaCierresUki='';
 let resumenManualUki=[],pagosManualesUki=[];
+let vistaGastosActual={manuales:[],cierres:[]};
 function mostrarVentasFinancieras(){
  const host=$('ukiOwnerFinancierasLista');host.replaceChildren();
  const data=unirVentasDuenos({
@@ -542,6 +595,7 @@ function actualizarResumenConCierres(data){
  }
  const gastosManuales=transactions.filter(x=>['gasto','compra','costo_producto'].includes(x.tipo)&&x.estado!=='anulado');
  for(const x of gastosManuales)if(x.estado!=='pendiente')dia(String(x.fecha).slice(0,10)).gastos+=monto(x.monto);
+ pintarCategoriasGastos(gastosManuales,cierresSumables);
  const diario=$('ukiOwnerResumenDiario');diario.replaceChildren();
  if(dias.size){
   const h=document.createElement('strong');h.textContent='📅 Ventas y gastos por fecha';diario.append(h);
@@ -553,52 +607,138 @@ function actualizarResumenConCierres(data){
   }
  }
 
- // Los gastos de cierre pertenecen a la sucursal; los manuales pueden ser locales o generales.
- const gastosLocal=[],gastosGenerales=[];
- for(const x of gastosManuales){
-  const item={
-   fecha:String(x.fecha).slice(0,10),
-   titulo:x.tipo==='compra'?'Compra registrada':'Gasto registrado',
-   importe:monto(x.monto),
-   detalle:businessName(x.negocio_id)+' · '+(x.sucursal_id?branchName(x.sucursal_id):'Sin sucursal')+
-    (x.estado==='pendiente'?' · Pendiente de pago':' · Pagado'),movimiento:x
-  };
-  (x.sucursal_id?gastosLocal:gastosGenerales).push(item);
- }
- for(const x of cierresSumables){
-  if(monto(x.gastos))gastosLocal.push({
-   fecha:x.fecha,titulo:'Gastos del cierre · '+x.sucursal,importe:monto(x.gastos),
-   detalle:'Automático · original protegido en caja Uki'
-  });
-  if(monto(x.delivery))gastosLocal.push({
-   fecha:x.fecha,titulo:'Pago a repartidores · '+x.sucursal,importe:monto(x.delivery),
-   detalle:'Automático · original protegido en caja Uki'
-  });
- }
- const host=$('ukiGastosVisibles');host.replaceChildren();
- const pintarGrupo=(titulo,items)=>{
-  const h=document.createElement('h3');h.textContent=titulo;h.style.margin='18px 0 8px';host.append(h);
-  if(!items.length){
-   const p=document.createElement('p');p.className='hint';
-   p.textContent='Sin registros en estas fechas.';host.append(p);return;
-  }
-  const pagados=items.filter(x=>x.movimiento?.estado!=='pendiente').reduce((n,x)=>n+x.importe,0);
-  const total=document.createElement('p');total.className='hint';
-  total.textContent='Total pagado: '+pesos(pagados)+
-   (items.some(x=>x.movimiento?.estado==='pendiente')?' · Incluye otros pendientes en el detalle':'');
-  host.append(total);
-  for(const x of [...items].sort((a,b)=>b.fecha.localeCompare(a.fecha))){
-   const box=document.createElement('div');box.className='line';
-   const titulo=document.createElement('strong');
-   titulo.textContent=x.fecha+' · '+x.titulo+' · '+pesos(x.importe);
-   const desc=document.createElement('p');desc.className='hint';desc.textContent=x.detalle;
-   box.append(titulo,desc);
-   if(x.movimiento)pintarAccionesManual(box,x.movimiento);
-   host.append(box);
-  }
+ // El reporte se obtiene de las mismas cifras conciliadas, sin insertar gastos duplicados.
+ vistaGastosActual={manuales:gastosManuales,cierres:cierresSumables};
+ pintarGastos(vistaGastosActual);
+}
+
+
+function nombreCategoriaGasto(raw,fuente='manual'){
+ const cat=String(raw||'').trim();
+ if(cat==='Mercadería')return 'Mercadería e insumos';
+ if(cat==='Delivery')return 'Fletes y repartos';
+ if(cat==='Sueldos')return 'Sueldos y personal';
+ if(cat==='Internet')return 'Internet y telefonía';
+ if(cat==='Mantención')return 'Mantenciones';
+ if(cat==='Servicios')return 'Servicios generales';
+ if(cat)return cat;
+ return fuente==='factura'?'Compras y facturas':'Sin categoría';
+}
+function pintarCategoriasGastos(manuales,cierres){
+ const host=$('ukiCategoriasGastos');host.replaceChildren();
+ const totals=new Map();
+ const qty=v=>{const x=Number(v);return Number.isSafeInteger(x)&&x>0?x:0};
+ const sumar=(nombre,cant)=>{
+  if(!qty(cant))return;
+  totals.set(nombre,(totals.get(nombre)||0)+qty(cant));
  };
- pintarGrupo('🏪 Gastos del local',gastosLocal);
- pintarGrupo('📂 Otros gastos / generales',gastosGenerales);
+ for(const m of manuales){
+  if(m.estado==='pendiente'||m.estado==='anulado')continue;
+  sumar(nombreCategoriaGasto(m.categoria,m.fuente),m.monto);
+ }
+ for(const c of cierres){
+  sumar('Gastos del cierre (sin desglose)',c.gastos);
+  sumar('Repartidores pagados',c.delivery);
+ }
+ const all=[...totals].sort((a,b)=>b[1]-a[1]);
+ const total=all.reduce((v,x)=>v+x[1],0);
+ if(!total){
+  const p=document.createElement('p');p.className='hint';p.textContent='Aún no hay gastos pagados en las fechas elegidas.';host.append(p);
+  return;
+ }
+ for(const [name,value] of all){
+  const line=document.createElement('div');line.className='owner-chart-item';
+  const head=document.createElement('div');head.className='owner-chart-label';
+  const a=document.createElement('span');a.textContent=name;
+  const b=document.createElement('b');b.textContent=pesos(value);
+  head.append(a,b);
+  const track=document.createElement('div');track.className='owner-chart-track';
+  const fill=document.createElement('span');fill.className='owner-chart-fill';
+  fill.style.width=(value/total*100).toFixed(2)+'%';
+  track.append(fill);line.append(head,track);
+  const c=document.createElement('div');c.className='owner-chart-sub';
+  c.textContent=(value/total*100).toFixed(1).replace('.',',')+'% de los gastos pagados';
+  line.append(c);host.append(line);
+ }
+ const s=manuales.filter(x=>x.estado!=='pendiente'&&x.estado!=='anulado').reduce((n,x)=>n+qty(x.monto),0);
+ const cierresGastos=cierres.reduce((n,x)=>n+qty(x.gastos),0);
+ const entregas=cierres.reduce((n,x)=>n+qty(x.delivery),0);
+ $('ukiDesgloseGastos').textContent='Gastos y compras registradas: '+pesos(s)+
+  ' · Gastos de cierre: '+pesos(cierresGastos)+
+  ' · Repartidores pagados: '+pesos(entregas);
+}
+function pintarGastos(dato=vistaGastosActual){
+ const host=$('ukiGastosVisibles');host.replaceChildren();
+ const valor=x=>{const n=Number(x);return Number.isSafeInteger(n)&&n>=0?n:0};
+ const all=[];
+ for(const t of dato.manuales){
+  all.push({
+   fecha:String(t.fecha).slice(0,10),categoria:nombreCategoriaGasto(t.categoria,t.fuente),
+   titulo:t.tipo==='compra'?'Compra':'Gasto',
+   importe:valor(t.monto),scope:t.sucursal_id?'local':'general',
+   estado:t.estado==='pendiente'?'pendiente':'pagado',
+   concepto:String(t.concepto||''),proveedor:String(t.proveedor||''),
+   detalle:businessName(t.negocio_id)+' · '+(t.sucursal_id?branchName(t.sucursal_id):'Gasto general')+
+    (t.fuente==='factura'?' · Factura en Compras':' · Manual')+
+    (Object.keys(t.medios||{}).length?' · Pago: '+Object.keys(t.medios).join(', '):''),
+   original:t
+  });
+ }
+ for(const c of dato.cierres){
+  if(valor(c.gastos))all.push({
+   fecha:c.fecha,categoria:'Gastos del cierre (sin desglose)',titulo:'Gastos de caja',
+   importe:valor(c.gastos),scope:'local',estado:'pagado',concepto:'Cierre definitivo de Uki',proveedor:'',
+   detalle:'Uki · '+c.sucursal+' · Automático, solo consulta'
+  });
+  if(valor(c.delivery))all.push({
+   fecha:c.fecha,categoria:'Repartidores pagados',titulo:'Repartidores',
+   importe:valor(c.delivery),scope:'local',estado:'pagado',concepto:'Pago a repartidores',proveedor:'',
+   detalle:'Uki · '+c.sucursal+' · Automático, solo consulta'
+  });
+ }
+ const filtroCategoria=$('ukiFiltroGastoCategoria');
+ const selected=filtroCategoria.value||'todos';
+ const cats=[...new Set(all.map(x=>x.categoria))].sort((a,b)=>a.localeCompare(b,'es'));
+ filtroCategoria.replaceChildren(new Option('Todas las categorías','todos'));
+ cats.forEach(c=>filtroCategoria.add(new Option(c,c)));
+ filtroCategoria.value=cats.includes(selected)?selected:'todos';
+ const estado=$('ukiFiltroGastoEstado').value,scope=$('ukiFiltroGastoTipo').value,
+  nombre=String($('ukiFiltroGastoProveedor').value||'').trim().toLowerCase();
+ const filtered=all.filter(x=>(scope==='todos'||scope===x.scope)&&
+  (estado==='todos'||estado===x.estado)&&
+  (filtroCategoria.value==='todos'||x.categoria===filtroCategoria.value)&&
+  (!nombre||(x.concepto+' '+x.proveedor+' '+x.categoria+' '+x.detalle).toLowerCase().includes(nombre)));
+ const pagados=filtered.filter(x=>x.estado==='pagado').reduce((n,x)=>n+x.importe,0);
+ const pendientes=filtered.filter(x=>x.estado==='pendiente').reduce((n,x)=>n+x.importe,0);
+ const cards=$('ukiGastoPeriodoResumen');cards.replaceChildren();
+ for(const [label,val] of [['Pagados (filtrados)',pagados],['Pendientes (filtrados)',pendientes]]){
+  const card=document.createElement('div'),small=document.createElement('small'),strong=document.createElement('b');
+  small.textContent=label;strong.textContent=pesos(val);card.append(small,strong);cards.append(card);
+ }
+ const grupos=scope==='local'?[['🏪 Gastos del local',filtered]]:
+  scope==='general'?[['📂 Otros gastos y generales',filtered]]:[
+   ['🏪 Gastos del local',filtered.filter(x=>x.scope==='local')],
+   ['📂 Otros gastos y generales',filtered.filter(x=>x.scope==='general')]
+  ];
+ for(const [titulo,items] of grupos){
+  const h=document.createElement('h3');h.textContent=titulo;h.style.margin='17px 0 8px';host.append(h);
+  if(!items.length){const none=document.createElement('p');none.className='hint';
+   none.textContent='Sin gastos con estos filtros.';host.append(none);continue}
+  for(const x of [...items].sort((a,b)=>b.fecha.localeCompare(a.fecha))){
+   const row=document.createElement('div');row.className='line';
+   const name=document.createElement('strong');name.textContent=x.fecha+' · '+x.titulo+' · '+pesos(x.importe);
+   const cat=document.createElement('p');cat.className='hint';
+   cat.textContent=x.categoria+' · '+x.detalle+' · '+(x.estado==='pendiente'?'Pendiente':'Pagado');
+   row.append(name,cat);
+   if(x.concepto||x.proveedor){const extra=document.createElement('p');extra.className='hint';
+    extra.textContent=(x.proveedor?x.proveedor+' · ':'')+x.concepto;row.append(extra)}
+   if(x.original)pintarAccionesManual(row,x.original);
+   host.append(row);
+  }
+ }
+ const nota=document.createElement('p');nota.className='owner-expense-alert';
+ nota.textContent='La factura y el gasto de cierre pueden referirse a la misma compra. Antes de usar estas cifras como utilidad, revisa esos casos; el sistema no descuenta automáticamente gastos sin verificar su coincidencia.';
+ host.append(nota);
 }
 
 // Solo lectura: cierres confirmados, sin modificar movimientos manuales.
@@ -641,6 +781,7 @@ async function cargarCierresUki(desde,hasta){
 
 let session="",businesses=[],branches=[],razones=[],vinculos=[],transactions=[],docs=[],tab='resumen';
 const AM=['Efectivo','Transferencia','Débito','Crédito','Edenred','Junaeb','Uber','Rappi','PedidosYa','Otro'];
+AM.forEach(m=>$('expensePayMethod').add(new Option(m,m)));
 const pesos=n=>'$'+Number(n||0).toLocaleString('es-CL',{maximumFractionDigits:0});
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const today=()=>{const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));return parts.year+'-'+parts.month+'-'+parts.day;};
@@ -713,6 +854,7 @@ async function loadBusinesses(){
  optionsForReason('saleRazon',value('saleBiz'));
  optionsForReason('expenseRazon',value('expenseBiz'));
  $('scopeBusiness').onchange();
+ actualizarAlcanceGasto();
 }
 const payFields=$('paymentFields');
 payFields.innerHTML=AM.map((m,i)=>'<div><label for="pay'+i+'">'+esc(m)+'</label><input id="pay'+i+'" type="number" inputmode="numeric" min="0" step="1" placeholder="0"></div>').join('');
@@ -808,6 +950,27 @@ async function upload(file,b,s,kind,fecha,linked,proveedor){
  const data=await fileData(file);
  return api('guardar_documento',{...data,negocio_id:b,sucursal_id:s||null,tipo:kind,fecha_documento:fecha,movimiento_id:linked||null,proveedor:proveedor||''});
 }
+function actualizarAlcanceGasto(){
+ const general=$('expenseScope').value==='general';
+ $('expenseBranchWrap').hidden=general;
+ if(general)$('expenseBranch').value='';
+ const tipo=$('expenseType').value;
+ $('ukiAyudaCategoria').textContent=
+  tipo==='retiro'?'Los retiros se conservan en el historial, pero no se descuentan como gasto operativo.':
+  tipo==='ingreso_extra'?'Este ingreso extraordinario se registra por separado: no es una venta.':
+  'Si tienes factura, utiliza Compras; no registres la misma compra dos veces.';
+}
+$('expenseScope').onchange=actualizarAlcanceGasto;
+$('expenseType').onchange=actualizarAlcanceGasto;
+$('expensePending').onchange=()=>{
+ const pending=$('expensePending').checked;
+ $('expensePayMethod').disabled=pending;
+ if(pending)$('expensePayMethod').value='';
+};
+for(const id of ['ukiFiltroGastoTipo','ukiFiltroGastoEstado','ukiFiltroGastoCategoria']){
+ $(id).onchange=()=>pintarGastos();
+}
+$('ukiFiltroGastoProveedor').oninput=()=>pintarGastos();
 function syncSelectedBusiness(name){
  const chosen=currentBiz(),branch=currentBranch();
  const map={ventas:['saleBiz','saleBranch'],gastos:['expenseBiz','expenseBranch'],facturas:['docBiz','docBranch']};
@@ -815,6 +978,7 @@ function syncSelectedBusiness(name){
  if(!ids||!chosen||!businesses.some(b=>b.id===chosen))return;
  $(ids[0]).value=chosen;chooseBranch(ids[1],chosen);
  if(branch&&branchesFor(chosen).some(s=>s.id===branch))$(ids[1]).value=branch;
+ if(name==='gastos')actualizarAlcanceGasto();
 }
 function vistaCompras(modo,desplazar=true){
  const form=modo==='registrar';
@@ -826,7 +990,7 @@ function vistaCompras(modo,desplazar=true){
 function switchTab(name){
  tab=name;
  for(const v of document.querySelectorAll('.view'))v.hidden=v.id!=='v-'+name;
- $('filterCard').hidden=!['resumen','negocios'].includes(name);
+ $('filterCard').hidden=!['resumen','negocios','gastos'].includes(name);
  for(const btn of document.querySelectorAll('[data-tab]'))btn.classList.toggle('active',btn.dataset.tab===name);
  syncSelectedBusiness(name);
  window.scrollTo({top:0,behavior:'smooth'});
@@ -899,7 +1063,22 @@ function pintarAccionesManual(box,t){
   branchesFor(t.negocio_id).forEach(x=>suc.add(new Option(x.nombre,x.id)));
   suc.value=t.sucursal_id||'';
   asignacion.append(suc);form.append(asignacion);
-  const mediosInputs=[];
+  const mediosInputs=[],mediosOriginales=Object.keys(t.medios||{}).filter(x=>Number(t.medios[x])>0);
+  let editarMedioGasto=null;
+  if(t.tipo!=='venta'&&t.estado!=='pendiente'){
+   if(mediosOriginales.length>1){
+    const nota=document.createElement('p');nota.className='hint';
+    nota.textContent='Este registro tiene pago mixto. Se conservarán sus medios originales; no cambies el total sin revisarlos.';
+    form.append(nota);
+   }else{
+    const label=document.createElement('label');label.textContent='Medio de pago del gasto';
+    editarMedioGasto=document.createElement('select');
+    editarMedioGasto.add(new Option('Sin indicar',''));
+    AM.forEach(m=>editarMedioGasto.add(new Option(m,m)));
+    editarMedioGasto.value=mediosOriginales[0]||'';
+    label.append(editarMedioGasto);form.append(label);
+   }
+  }
   if(t.tipo==='venta'){
    const nota=document.createElement('p');nota.className='hint';
    nota.textContent='Medios de pago: cuando estén indicados deben sumar el monto vendido.';form.append(nota);
@@ -933,7 +1112,8 @@ function pintarAccionesManual(box,t){
     await api('editar_movimiento',{
      id:t.id,version:t.actualizado_en,fecha:fechaNueva,monto,
      concepto:concepto.value,referencia:referencia.value,sucursal_id:suc.value||null,
-     ...(t.tipo==='venta'?{medios}:{categoria:categoria.value,proveedor:proveedor.value})
+     ...(t.tipo==='venta'?{medios}:{categoria:categoria.value,proveedor:proveedor.value,
+      ...(editarMedioGasto?{medios:editarMedioGasto.value?{[editarMedioGasto.value]:monto}:{}}:{})})
     });
     editor.replaceChildren();await refresh();
     notify('Registro manual modificado con historial.','success');
@@ -1054,15 +1234,35 @@ $('saveSale').onclick=()=>safe('saveSale',async()=>{
  await refresh();return warning;
 });
 $('saveExpense').onclick=()=>safe('saveExpense',async()=>{
- const b=value('expenseBiz'),s=value('expenseBranch')||null,fecha=value('expenseDate'),monto=amount('expenseAmount'),tipo=value('expenseType'),razon_social_id=value('expenseRazon');
+ const b=value('expenseBiz'),fecha=value('expenseDate'),monto=amount('expenseAmount'),
+  tipo=value('expenseType'),razon_social_id=value('expenseRazon');
+ const general=value('expenseScope')==='general',
+  s=general?null:(value('expenseBranch')||null);
  if(!b||!monto)throw Error('Elige el negocio y el importe.');
- if(!razon_social_id)throw Error('Selecciona la razón social que paga este gasto.');
+ if(!general&&!s)throw Error('Selecciona el local o marca Gasto general.');
+ if(!razon_social_id)throw Error('Selecciona la razón social que paga este movimiento.');
+ if(['gasto','compra'].includes(tipo)){
+  const repetido=transactions.some(t=>t.estado!=='anulado'&&
+   ['gasto','compra','costo_producto'].includes(t.tipo)&&
+   String(t.fecha).slice(0,10)===fecha&&String(t.negocio_id)===String(b)&&
+   String(t.sucursal_id||'')===String(s||'')&&Number(t.monto)===monto);
+  if(repetido&&!confirm('Ya hay una compra o gasto por '+pesos(monto)+
+   ' de este negocio en esa fecha. ¿Es un gasto realmente distinto?'))return false;
+ }
+ const resumen=tipo==='retiro'?'retiro del dueño':tipo==='ingreso_extra'?'ingreso extraordinario':
+  tipo==='compra'?'compra':'gasto';
+ if(!confirm('¿Guardar '+resumen+' por '+pesos(monto)+' en '+
+  (general?'gastos generales':branchName(s))+'? Confirma que no está contabilizado en un cierre o factura.'))return false;
  const r=await api('guardar_movimiento',{negocio_id:b,sucursal_id:s,razon_social_id,fecha,monto,tipo,
-  categoria:value('expenseCategory'),proveedor:value('expenseVendor'),concepto:value('expenseConcept'),pendiente:$('expensePending').checked,datos:{vence:value('expenseDue')||null}});
+  categoria:value('expenseCategory'),proveedor:value('expenseVendor'),concepto:value('expenseConcept'),
+  pendiente:$('expensePending').checked,
+  medios:(!$('expensePending').checked&&value('expensePayMethod'))?{[value('expensePayMethod')]:monto}:{},
+  datos:{vence:value('expenseDue')||null}});
  let warning='';
- try{await upload($('expensePhoto').files[0],b,s,'factura',fecha,r.id,value('expenseVendor'));}
- catch(e){warning='El gasto SÍ quedó guardado, pero el comprobante NO: '+e.message;}
- $('expenseAmount').value='';if(!warning)$('expensePhoto').value='';await refresh();return warning;
+ try{await upload($('expensePhoto').files[0],b,s,'comprobante',fecha,r.id,value('expenseVendor'));}
+ catch(e){warning='El movimiento SÍ quedó guardado, pero el comprobante NO: '+e.message;}
+ $('expenseAmount').value='';if(!warning)$('expensePhoto').value='';
+ await refresh();return warning;
 });
 $('saveDoc').onclick=()=>safe('saveDoc',async()=>{
  try{
