@@ -44,7 +44,8 @@ module.exports=async function romoClavesLecturaQA(req,res){
     const identity=await auth.resolveRomoIdentity({
       authorization:req.headers?.authorization,
       db,
-      verifyToken:auth.verifyFirebaseGoogleToken
+      verifyToken:auth.verifyFirebaseGoogleToken,
+      env
     });
     if(!identity)return fail(res,403,'Sin autorización para Romo La Serena');
     const outcome=await reading.readRomoSharedPassProofs({db,identity});
