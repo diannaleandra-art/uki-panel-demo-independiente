@@ -325,7 +325,7 @@ label{color:#66574c}
 <select id="expensePayMethod"><option value="">No indicado</option></select>
 <label>Vencimiento (si aún está pendiente)</label><input id="expenseDue" type="date"><label>Adjuntar factura o comprobante (opcional)</label><input id="expensePhoto" type="file" accept="image/*,application/pdf">
 <p class="owner-expense-alert">Antes de guardar, comprueba que no sea el mismo movimiento registrado en un cierre de Uki o en Compras. Las inversiones, retiros e ingresos extraordinarios se mostrarán separados del resultado operativo.</p>
-<button class="primary" id="saveExpense">Guardar gasto o compra</button></div></details>
+<button class="primary" id="saveExpense">Guardar movimiento</button></div></details>
 <div class="card" id="ukiGastosDeCierres"><h2>📖 Gastos del local y otros gastos</h2>
 <p class="hint">Solo lectura para gastos de cierres; los manuales tienen Editar o Eliminar. Elige un período y filtra aquí.</p>
 <div id="ukiGastoPeriodoResumen" class="owner-finance-mini"></div>
@@ -1073,10 +1073,21 @@ function actualizarAlcanceGasto(){
  const general=$('expenseScope').value==='general';
  $('expenseBranchWrap').hidden=general;
  if(general)$('expenseBranch').value='';
- const tipo=$('expenseType').value;
+ const tipo=$('expenseType').value,cat=$('expenseCategory');
+ const fija=tipo==='inversion_preview'?'Equipamiento e inversiones':
+  tipo==='retiro'?'Retiro de dueño':
+  tipo==='ingreso_extra'?'Ingreso extraordinario':'';
+ cat.disabled=!!fija;
+ if(fija)cat.value=fija;
+ else if(['Equipamiento e inversiones','Retiro de dueño','Ingreso extraordinario'].includes(cat.value))
+  cat.value='Mercadería e insumos';
+ const noPago=tipo==='retiro'||tipo==='ingreso_extra';
+ $('expensePending').disabled=noPago;
+ if(noPago){$('expensePending').checked=false;$('expensePayMethod').disabled=false}
  $('ukiAyudaCategoria').textContent=
-  tipo==='retiro'?'Los retiros se conservan en el historial, pero no se descuentan como gasto operativo.':
-  tipo==='ingreso_extra'?'Este ingreso extraordinario se registra por separado: no es una venta.':
+  tipo==='inversion_preview'?'Se guarda como compra de inversión, separada de los gastos operativos. Si hay factura, no la ingreses otra vez en Compras.':
+  tipo==='retiro'?'Retiro personal: no es gasto del negocio y no reduce el resultado operativo.':
+  tipo==='ingreso_extra'?'Ingreso extraordinario: se registra separado y no se considera venta.':
   'Si tienes factura, utiliza Compras; no registres la misma compra dos veces.';
 }
 $('expenseScope').onchange=actualizarAlcanceGasto;
@@ -1118,11 +1129,16 @@ function switchTab(name){
 }
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
 document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>switchTab(b.dataset.go));
-$('ukiIrNuevoGasto').onclick=()=>{
+function abrirMovimientoSeparado(tipo){
  switchTab('gastos');
  $('ukiFormularioGasto').open=true;
+ $('expenseType').value=tipo;
+ actualizarAlcanceGasto();
  $('ukiFormularioGasto').scrollIntoView({behavior:'smooth',block:'start'});
-};
+}
+$('ukiIrNuevoGasto').onclick=()=>abrirMovimientoSeparado('gasto');
+$('ukiCrearInversion').onclick=()=>abrirMovimientoSeparado('inversion_preview');
+$('ukiCrearRetiro').onclick=()=>abrirMovimientoSeparado('retiro');
 $('showPurchaseForm').onclick=()=>vistaCompras('registrar');
 $('showPurchaseHistory').onclick=()=>vistaCompras('historial');
 $('ukiGoTodasVentas').onclick=()=>{
@@ -1518,7 +1534,9 @@ $('saveSale').onclick=()=>safe('saveSale',async()=>{
 });
 $('saveExpense').onclick=()=>safe('saveExpense',async()=>{
  const b=value('expenseBiz'),fecha=value('expenseDate'),monto=amount('expenseAmount'),
-  tipo=value('expenseType'),razon_social_id=value('expenseRazon');
+  tipoElegido=value('expenseType'),razon_social_id=value('expenseRazon'),
+  tipo=tipoElegido==='inversion_preview'?'compra':tipoElegido,
+  categoria=tipoElegido==='inversion_preview'?'Equipamiento e inversiones':value('expenseCategory');
  const general=value('expenseScope')==='general',
   s=general?null:(value('expenseBranch')||null);
  if(!b||!monto)throw Error('Elige el negocio y el importe.');
@@ -1532,12 +1550,13 @@ $('saveExpense').onclick=()=>safe('saveExpense',async()=>{
   if(repetido&&!confirm('Ya hay una compra o gasto por '+pesos(monto)+
    ' de este negocio en esa fecha. ¿Es un gasto realmente distinto?'))return false;
  }
- const resumen=tipo==='retiro'?'retiro del dueño':tipo==='ingreso_extra'?'ingreso extraordinario':
+ const resumen=tipoElegido==='inversion_preview'?'inversión (no gasto operativo)':
+  tipo==='retiro'?'retiro del dueño':tipo==='ingreso_extra'?'ingreso extraordinario':
   tipo==='compra'?'compra':'gasto';
  if(!confirm('¿Guardar '+resumen+' por '+pesos(monto)+' en '+
   (general?'gastos generales':branchName(s))+'? Confirma que no está contabilizado en un cierre o factura.'))return false;
  const r=await api('guardar_movimiento',{negocio_id:b,sucursal_id:s,razon_social_id,fecha,monto,tipo,
-  categoria:value('expenseCategory'),proveedor:value('expenseVendor'),concepto:value('expenseConcept'),
+  categoria,proveedor:value('expenseVendor'),concepto:value('expenseConcept'),
   pendiente:$('expensePending').checked,
   medios:(!$('expensePending').checked&&value('expensePayMethod'))?{[value('expensePayMethod')]:monto}:{},
   datos:{vence:value('expenseDue')||null}});
