@@ -76,12 +76,18 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 <p class="muted">Al cierre cuenta lo que realmente queda y pulsa <b>Guardar conteo</b> en cada artículo. Cuando llega mercadería, usa <b>Registrar entrada</b>. Solo administración decide Disponible / Agotado en la carta.</p><p id="turnoProgreso" role="status" class="pill">Todavía no hay conteos guardados en este turno.</p></section>
 <div id="items"></div><div style="text-align:center;margin:10px 16px"><button type="button" id="mostrarMas" class="secondary" hidden>Mostrar 12 artículos más</button></div>
 <section class="card"><h2>3. Terminar el turno</h2><p class="muted">Confirma los conteos guardados. Si faltan artículos por revisar, puedes completar el conteo antes de terminar.</p><p id="resumen" class="muted"></p><div id="resumenIndicadores" class="reporte-colores" aria-label="Resumen del inventario"></div><div id="resumenArticulos" class="reporte-lista" aria-label="Artículos que requieren reposición"></div>
-<button id="enviar">Guardar en el panel y compartir por WhatsApp</button>
-<p class="muted">Primero confirma el guardado en el panel. Después podrás compartir el mismo reporte por WhatsApp.</p>
+<button id="enviar">Guardar inventario en el panel</button>
+<p class="muted">Primero guarda la revisión. Después podrás enviar el PDF completo y, por separado, el texto de los productos que hay que comprar.</p>
 <p id="confirmacion" role="status"></p>
  <div id="descargasTurno" class="descargas-turno" hidden>
  <strong>✓ Inventario guardado en el panel</strong>
- <p class="muted">Puedes descargar exactamente esta revisión: existencias, entradas y artículos para pedir.</p>
+ <p class="muted">Dos envíos distintos: el informe completo en PDF y la lista de compras en un mensaje de WhatsApp.</p>
+ <div style="display:grid;grid-template-columns:1fr;gap:9px;margin:12px 0">
+  <button type="button" id="compartirPDFWhatsApp">📄 Compartir PDF por WhatsApp</button>
+  <button type="button" id="enviarComprasTexto" class="secondary">🛒 Enviar lista de compras por WhatsApp (texto)</button>
+ </div>
+ <p class="muted" id="compartirAyuda">En el iPhone, selecciona WhatsApp al compartir el PDF. El mensaje de compras se envía aparte, con las cantidades para pedir.</p>
+ <p class="muted">También puedes descargar los archivos para guardarlos:</p>
  <div class="grid"><button type="button" id="descargarPDF">Descargar PDF</button>
  <button type="button" id="descargarExcel" class="secondary">Excel (.csv)</button></div></div></section>
 </div>
@@ -95,6 +101,7 @@ const isLive=['uki-sushi-inventario.vercel.app','uki-sushi-inventario-diannalean
 const API='/api/inventario-turno-live';
 let branch='',items=[],busy=false,requestId=null,lastSaved=null,reporteFinal=null;
 const entradasSesion=new Map();
+const stockAlAbrir=new Map();
 const status=s=>{$('estado').textContent=s;};
 const elt=(type,text,cls)=>{const e=document.createElement(type);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
 function nombre(){const n=$('nombre').value.trim().replace(/\s+/g,' ');if(n.length<2||n.length>60)throw Error('Escribe el nombre de quien cuenta.');return n;}
@@ -127,6 +134,11 @@ function convertirVista(numero,origen,destino){
  return Math.round(resultado*1000)/1000;
 }
 const formato=(cantidad,unidad)=>Number(cantidad).toLocaleString('es-CL',{maximumFractionDigits:3})+' '+unidad;
+function diferenciaTurno(antes,llego,hay){
+ const datos=[antes,llego,hay];
+ if(datos.some(n=>!Number.isFinite(n)||n<0))return null;
+ return Math.round((antes+llego-hay)*1000)/1000;
+}
 function selectorUnidad(item){
  const sel=elt('select');
  sel.setAttribute('aria-label','Unidad para '+item.name);
@@ -145,7 +157,8 @@ const factura=iniciarFacturaLive({getBranch:()=>branch,getItems:()=>items,
  items=items.map(x=>x.sku===response.item.sku?{...x,...response.item}:x);
  requestId=null;reporteFinal=null;$('descargasTurno').hidden=true;$('confirmacion').textContent='';render();},
  onItemsCreated:created=>{const union=new Map(items.map(i=>[i.sku,i]));
- for(const item of created)union.set(item.sku,item);
+ for(const item of created){union.set(item.sku,item);
+  if(!stockAlAbrir.has(item.sku))stockAlAbrir.set(item.sku,{qty:Number(item.stock_qty)||0,unit:item.stock_unit});}
  items=[...union.values()];requestId=null;reporteFinal=null;$('descargasTurno').hidden=true;render();}
 });
 const setBusy=value=>{
@@ -225,6 +238,16 @@ function render(){
    ' · Mínimo: '+(min>0?formato(min,item.stock_unit||'un'):'sin configurar'),'muted small'));
   const llegada=entradasSesion.get(item.sku)||0;
   if(llegada>0)description.append(elt('p','Llegó en este turno: +'+formato(llegada,item.stock_unit||'un'),'pill small'));
+  const inicio=stockAlAbrir.get(item.sku);
+  if(inicio&&inicio.unit===item.stock_unit&&revisados.has(item.sku)){
+   const diferencia=diferenciaTurno(inicio.qty,llegada,qty);
+   if(diferencia>0)description.append(elt('p','Antes: '+formato(inicio.qty,item.stock_unit)+
+    ' + llegó '+formato(llegada,item.stock_unit)+' − hay '+formato(qty,item.stock_unit)+
+    ' = '+formato(diferencia,item.stock_unit)+' · posible consumo o diferencia de conteo','warn small'));
+   else if(diferencia<0)description.append(elt('p','Antes: '+formato(inicio.qty,item.stock_unit)+
+    ' + llegó '+formato(llegada,item.stock_unit)+' − hay '+formato(qty,item.stock_unit)+
+    ' = '+formato(diferencia,item.stock_unit)+' · revisar entrada o corrección de conteo','warn small'));
+  }
   if(min>0&&qty<=min)description.append(elt('p',min===qty?'Mínimo alcanzado: revisar compra.' :
    'Falta / pedir: '+formato(Math.round((min-qty)*1000)/1000,item.stock_unit||'un'),'warn small'));
   description.append(elt('span',estado==='reponer'?'Para reponer':estado==='bien'?'Existencias suficientes':'Sin mínimo',
@@ -327,7 +350,9 @@ async function abrir(){
  setBusy(true);status('Cargando inventario…');
  try{
   const result=await api('listar');
-  branch=$('branch').value;items=result.items||[];revisados.clear();horaConteos.clear();entradasSesion.clear();visibleLimit=12;requestId=null;lastSaved=null;reporteFinal=null;$('descargasTurno').hidden=true;factura.reset();
+  branch=$('branch').value;items=result.items||[];stockAlAbrir.clear();
+  for(const item of items)stockAlAbrir.set(item.sku,{qty:Number(item.stock_qty)||0,unit:item.stock_unit});
+  revisados.clear();horaConteos.clear();entradasSesion.clear();visibleLimit=12;requestId=null;lastSaved=null;reporteFinal=null;$('descargasTurno').hidden=true;factura.reset();
   $('activo').hidden=false;$('confirmacion').textContent='';
   $('turnoFechaChile').textContent='Inicio del conteo: '+formatoFechaHoraChile(new Date())+' (Chile).';
   $('turnoUltimoRegistro').textContent='Aún no hay artículos guardados en esta sesión.';
@@ -337,8 +362,8 @@ async function abrir(){
  finally{setBusy(false);}
 }
 $('abrir').onclick=abrir;
-$('branch').onchange=()=>{detenerReloj();branch='';items=[];revisados.clear();horaConteos.clear();entradasSesion.clear();visibleLimit=12;lastSaved=null;reporteFinal=null;$('descargasTurno').hidden=true;factura.reset();$('activo').hidden=true;status('');};
-$('codigo').oninput=()=>{if(branch){detenerReloj();branch='';items=[];revisados.clear();horaConteos.clear();entradasSesion.clear();reporteFinal=null;$('descargasTurno').hidden=true;factura.reset();$('activo').hidden=true;}};
+$('branch').onchange=()=>{detenerReloj();branch='';items=[];stockAlAbrir.clear();revisados.clear();horaConteos.clear();entradasSesion.clear();visibleLimit=12;lastSaved=null;reporteFinal=null;$('descargasTurno').hidden=true;factura.reset();$('activo').hidden=true;status('');};
+$('codigo').oninput=()=>{if(branch){detenerReloj();branch='';items=[];stockAlAbrir.clear();revisados.clear();horaConteos.clear();entradasSesion.clear();reporteFinal=null;$('descargasTurno').hidden=true;factura.reset();$('activo').hidden=true;}};
 $('tipo').onchange=()=>{visibleLimit=12;render();};
 $('buscar').oninput=()=>{visibleLimit=12;render();};
 $('estadoLista').onchange=()=>{visibleLimit=12;render();};
@@ -351,6 +376,28 @@ $('descargarExcel').onclick=()=>{
  if(reporteFinal&&window.ukiInventarioExportar)
   window.ukiInventarioExportar.excel(reporteFinal);
 };
+$('compartirPDFWhatsApp').onclick=async()=>{
+ if(!reporteFinal||!window.ukiInventarioExportar)return;
+ const button=$('compartirPDFWhatsApp');button.disabled=true;
+ try{
+  const status=await window.ukiInventarioExportar.compartirPDF(reporteFinal);
+  $('compartirAyuda').textContent=status==='compartido'?
+   '✓ PDF compartido. Para enviarlo a compras, elige WhatsApp en el menú de compartir.':
+   status==='descargado'?
+   'PDF descargado. Puedes adjuntarlo manualmente en WhatsApp.':
+   'No se compartió el PDF. Puedes volver a intentarlo.';
+ }catch(e){$('compartirAyuda').textContent='No se pudo compartir el PDF: '+String(e.message);}
+ finally{button.disabled=false;}
+};
+$('enviarComprasTexto').onclick=()=>{
+ if(!reporteFinal||!window.ukiInventarioExportar)return;
+ const text=window.ukiInventarioExportar.mensajeCompras(reporteFinal);
+ const enlace='https://wa.me/?text='+encodeURIComponent(text);
+ // Apertura directa desde el botón: Safari permite mostrar WhatsApp.
+ const opened=window.open(enlace,'_blank');
+ if(opened)opened.opener=null;
+ else window.location.href=enlace;
+};
 $('enviar').onclick=async()=>{
  if(busy||!branch||branch!==$('branch').value)return;
  const pendientes=items.filter(i=>!revisados.has(i.sku)).length;
@@ -362,16 +409,10 @@ $('enviar').onclick=async()=>{
   if(result.guardado!==true)throw Error('No se confirmó el guardado.');
   const chile=new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',weekday:'long',day:'2-digit',
    month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(result.fecha));
-  $('confirmacion').textContent='✓ Revisión guardada: '+chile+' (Chile). Puedes compartirla.';
   reporteFinal=result.reporte&&Array.isArray(result.reporte.items)?result.reporte:null;
   $('descargasTurno').hidden=!reporteFinal;
-  const texto=reporteFinal&&window.ukiInventarioExportar?
-   window.ukiInventarioExportar.mensaje(reporteFinal):result.mensaje;
-  if(navigator.share){
-   try{await navigator.share({title:'Uki Sushi · Reposición',text:texto});return;}
-   catch(e){if(e?.name==='AbortError')return;}
-  }
-  window.open('https://wa.me/?text='+encodeURIComponent(texto),'_blank','noopener');
+  $('confirmacion').textContent='✓ Revisión guardada: '+chile+' (Chile). '+
+   (reporteFinal?'Elige enviar PDF o mensaje de compras por separado.':'El informe todavía no está disponible para compartir.');
  }catch(e){$('confirmacion').textContent='No se confirmó el envío al panel: '+String(e.message);}
  finally{setBusy(false);}
 };
