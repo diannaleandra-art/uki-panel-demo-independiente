@@ -134,6 +134,11 @@ function convertirVista(numero,origen,destino){
  return Math.round(resultado*1000)/1000;
 }
 const formato=(cantidad,unidad)=>Number(cantidad).toLocaleString('es-CL',{maximumFractionDigits:3})+' '+unidad;
+function diferenciaTurno(antes,llego,hay){
+ const datos=[antes,llego,hay];
+ if(datos.some(n=>!Number.isFinite(n)||n<0))return null;
+ return Math.round((antes+llego-hay)*1000)/1000;
+}
 function selectorUnidad(item){
  const sel=elt('select');
  sel.setAttribute('aria-label','Unidad para '+item.name);
@@ -235,7 +240,7 @@ function render(){
   if(llegada>0)description.append(elt('p','Llegó en este turno: +'+formato(llegada,item.stock_unit||'un'),'pill small'));
   const inicio=stockAlAbrir.get(item.sku);
   if(inicio&&inicio.unit===item.stock_unit&&revisados.has(item.sku)){
-   const diferencia=Math.round((inicio.qty+llegada-qty)*1000)/1000;
+   const diferencia=diferenciaTurno(inicio.qty,llegada,qty);
    if(diferencia>0)description.append(elt('p','Antes: '+formato(inicio.qty,item.stock_unit)+
     ' + llegó '+formato(llegada,item.stock_unit)+' − hay '+formato(qty,item.stock_unit)+
     ' = '+formato(diferencia,item.stock_unit)+' · posible consumo o diferencia de conteo','warn small'));
