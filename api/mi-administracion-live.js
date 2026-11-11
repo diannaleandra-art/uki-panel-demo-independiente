@@ -269,6 +269,96 @@ module.exports=async(req,res)=>{
    body.referencia=cierre.referencia;body.datos=cierre.conceptos||{};
    return fail(res,400,'Confirma el cierre en la vista previa y guárdalo como venta con fuente «cierre».');
   }
+  if(action==='exportar_informes'){
+   // Solo lectura y exclusivamente para una sesión autorizada con Google y PIN.
+   // Nunca se almacena el archivo ni se duplican operaciones financieras.
+   const biz=body.negocio_id||null,sucursal=body.sucursal_id||null;
+   if(biz)await belongs(sql,biz,sucursal);
+   else if(sucursal)return fail(res,400,'Selecciona primero el negocio.');
+   const desde=body.desde,hasta=body.hasta,legal=String(body.razon_social_id||'todos');
+   if(!validDate(desde)||!validDate(hasta)||desde>hasta)
+    return fail(res,400,'Selecciona un período de fechas válido.');
+   if(!['todos','sin_clasificar'].includes(legal)&&!uuid.test(legal))
+    return fail(res,400,'Selecciona una razón social válida.');
+   // Filtros idénticos para datos manuales y facturas. Las compras repartidas
+   // se imputan exclusivamente por el monto asignado a cada sucursal.
+   const p=[biz,sucursal,desde,hasta,legal];
+   const legalWhere=" AND ($5::text='todos' OR ($5::text='sin_clasificar' AND m.razon_social_id IS NULL)"+
+    " OR m.razon_social_id::text=$5)";
+   const alcance=" AND ($1::uuid IS NULL OR m.negocio_id=$1)"+
+    " AND ($2::uuid IS NULL OR m.sucursal_id=$2)";
+   const movimientos=await sql.query(
+    "SELECT m.id,m.tipo,m.fecha::text AS fecha,m.monto,m.categoria,m.concepto,"+
+    "m.proveedor,m.referencia,m.estado,m.fuente,m.medios,m.datos,"+
+    "b.nombre AS negocio,COALESCE(s.nombre,'General') AS sucursal,"+
+    "COALESCE(l.nombre,'Sin clasificar') AS razon_social "+
+    "FROM public.fin_movimientos m JOIN public.fin_negocios b ON b.id=m.negocio_id "+
+    "LEFT JOIN public.fin_sucursales s ON s.id=m.sucursal_id "+
+    "LEFT JOIN public.fin_razones_sociales l ON l.id=m.razon_social_id "+
+    "WHERE m.estado<>'anulado' AND NOT (m.tipo='compra' AND m.fuente='factura')"+
+    alcance+" AND m.fecha BETWEEN $3::date AND $4::date"+legalWhere+
+    " ORDER BY m.fecha DESC,m.creado_en DESC LIMIT 1001",p);
+   const invoicesSql=(pendientes)=>{
+    const where=" WHERE m.tipo='compra' AND m.fuente='factura' "+
+     "AND m.estado"+(pendientes?"='pendiente'":"<>'anulado'")+
+     " AND ($1::uuid IS NULL OR COALESCE(r.negocio_id,m.negocio_id)=$1)"+
+     " AND ($2::uuid IS NULL OR COALESCE(r.sucursal_id,m.sucursal_id)=$2)"+
+     (pendientes?"":" AND m.fecha BETWEEN $3::date AND $4::date")+legalWhere;
+    return "SELECT m.id,m.fecha::text AS fecha,m.monto AS total_factura,"+
+     "COALESCE(r.monto,m.monto) AS monto,m.categoria,m.concepto,m.proveedor,"+
+     "m.referencia,m.estado,m.datos,b.nombre AS negocio,"+
+     "COALESCE(s.nombre,'General') AS sucursal,"+
+     "COALESCE(l.nombre,'Sin clasificar') AS razon_social "+
+     "FROM public.fin_movimientos m LEFT JOIN public.fin_compra_repartos r ON r.compra_id=m.id "+
+     "JOIN public.fin_negocios b ON b.id=COALESCE(r.negocio_id,m.negocio_id) "+
+     "LEFT JOIN public.fin_sucursales s ON s.id=COALESCE(r.sucursal_id,m.sucursal_id) "+
+     "LEFT JOIN public.fin_razones_sociales l ON l.id=m.razon_social_id "+
+     where+" ORDER BY m.fecha DESC,m.creado_en DESC LIMIT 1001";
+   };
+   const manualDueSql="SELECT m.id,m.tipo,m.fecha::text AS fecha,m.monto,m.categoria,"+
+    "m.concepto,m.proveedor,m.referencia,m.estado,m.datos,"+
+    "b.nombre AS negocio,COALESCE(s.nombre,'General') AS sucursal,"+
+    "COALESCE(l.nombre,'Sin clasificar') AS razon_social "+
+    "FROM public.fin_movimientos m JOIN public.fin_negocios b ON b.id=m.negocio_id "+
+    "LEFT JOIN public.fin_sucursales s ON s.id=m.sucursal_id "+
+    "LEFT JOIN public.fin_razones_sociales l ON l.id=m.razon_social_id "+
+    "WHERE m.estado='pendiente' AND m.tipo IN ('gasto','compra') "+
+    "AND m.fuente<>'factura'"+alcance+legalWhere+
+    " ORDER BY m.fecha DESC,m.creado_en DESC LIMIT 1001";
+   const [facturas,pendientesManuales,pendientesFacturas]=await Promise.all([
+    sql.query(invoicesSql(false),p),
+    sql.query(manualDueSql,p),
+    sql.query(invoicesSql(true),p)
+   ]);
+   // Confirmar el nombre en el servidor antes de agregar cierres Uki; una
+   // selección de Romo u otra marca jamás recibe ventas automáticas de Uki.
+   let branch='todos',incluirCierres=true;
+   if(biz){
+    const b=await sql.query('SELECT nombre FROM public.fin_negocios WHERE id=$1',[biz]);
+    incluirCierres=/\\buki\\b/i.test(String(b[0]?.nombre||''));
+   }
+   if(sucursal){
+    const l=await sql.query('SELECT nombre FROM public.fin_sucursales WHERE id=$1',[sucursal]);
+    const nombre=String(l[0]?.nombre||'');
+    branch=/regimiento|arica/i.test(nombre)?'arica':/serena/i.test(nombre)?'serena':'ninguno';
+    if(branch==='ninguno')incluirCierres=false;
+   }
+   // Un filtro por razón social no se puede atribuir sin certeza a un cierre
+   // antiguo que no lleva razón_social_id: se excluye, nunca se asigna por suposición.
+   if(legal!=='todos')incluirCierres=false;
+   const cierres=incluirCierres?await sql.query(
+    "SELECT branch,turno_ref,fecha_operativa::text AS fecha,venta_total,"+
+    "pedidos,medios,gastos_cierre,delivery_por_pagar,propinas,retiros "+
+    "FROM public.fin_uki_cierres_live_v1 WHERE estado='cerrado' "+
+    "AND fecha_operativa BETWEEN $1::date AND $2::date "+
+    "AND ($3='todos' OR branch=$3) ORDER BY fecha_operativa DESC,turno_ref DESC LIMIT 1001",
+    [desde,hasta,branch]):[];
+   if([movimientos,facturas,pendientesManuales,pendientesFacturas,cierres].some(rows=>rows.length>1000))
+    return fail(res,409,'Hay más de 1.000 registros en algún detalle. Filtra por negocio o elige fechas más cortas antes de exportar, para no omitir información.');
+   return ok(res,{desde,hasta,movimientos,facturas,cierres,
+    pendientes:[...pendientesManuales,...pendientesFacturas],
+    nota:'Resultado de control, no utilidad contable. Las facturas podrían coincidir con gastos de cierre: conciliar antes de contabilizar.'});
+  }
   if(action==='listar_movimientos'){
    const b=body.negocio_id||null,s=body.sucursal_id||null;
    if(b)await belongs(sql,b,s);else if(s)return fail(res,400,'Selecciona negocio.');
