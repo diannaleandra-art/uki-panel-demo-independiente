@@ -17,7 +17,7 @@ test('Cada promoción está cerrada de inicio, con su propio precio, estado, edi
   replaceChildren(...a){this.children=[...a]}
  });
  const output=element('div'),search=element('input');
- const state={items:[
+ const state={promocionesHabilitadas:true,items:[
    {sku:'monthly:demo1',kind:'monthly',name:'Promo A',price:7000,available:true,estadoPublicacion:'Publicada'},
    {sku:'monthly:demo2',kind:'monthly',name:'Promo B',price:9000,available:true,estadoPublicacion:'Borrador'}]};
  let edits=0,vis=0;
@@ -38,4 +38,25 @@ test('Se conserva la edición del precio y el manejo por sucursal',()=>{
  assert.match(js,/request\(API,'editar-promocion'/);
  assert.match(js,/request\(API,action,/);
  assert.match(js,/const selectedBranch=branch\(\)/);
+});
+
+test('Categorías tienen espacio propio para crear y asignar, sin mezclarse con promociones',()=>{
+ const fn=cut('function organizarCarta(){','function mount(){');
+ for(const mark of ['ukiCartaAreaCategorias','ukiCategoriaBuscar','ukiCategoriaAsignaciones','ukiCategoriesBox']) {
+  if(mark==='ukiCartaAreaCategorias')assert.match(fn,/\['categorias','🗂 Categorías'/);
+  else assert.ok(fn.includes(mark),'Falta '+mark);
+ }
+ assert.match(fn,/areas\.categorias\.append\(categorySearchLabel,categorySearch,categoryAssignments\)/);
+ assert.match(fn,/move\(\$\('ukiCategoriesBox'\),areas\.categorias\)/);
+ const categoryCode=cut('function renderCategoryAssignments(){','function renderCategories(){');
+ assert.match(categoryCode,/request\(API,'asignar-categoria'/);
+ assert.match(categoryCode,/selected\|\|''/);
+ assert.match(categoryCode,/categoryVisibleLimit/);
+ assert.match(categoryCode,/if\(chosen!==branch\(\)\)return/);
+});
+test('Una sola lista de promociones: el filtro general no ofrece Promos del mes duplicadas',()=>{
+ const source=js.slice(js.indexOf('const pricesPanel='),js.indexOf('window.ukiInventarioPanelHTML='));
+ assert.doesNotMatch(source,/<option value="monthly">Promos del mes<\/option>/);
+ assert.match(js,/areas\.promociones\.append\(crearArea,existentes\)/);
+ assert.match(js,/renderPromoResumen\(\)/);
 });
