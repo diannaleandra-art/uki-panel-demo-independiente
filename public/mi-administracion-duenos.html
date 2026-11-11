@@ -299,6 +299,8 @@ label{color:#66574c}
 <h2>📅 Cuentas por pagar</h2>
 <p class="hint">Aquí aparecen las cuentas que siguen pendientes, aunque sean de meses anteriores. Se muestran por proveedor, negocio y vencimiento; no se crean gastos nuevos.</p>
 <div id="ukiPendientesResumen" class="owner-finance-mini"></div>
+<label for="ukiBuscarCuenta">Buscar pendiente por proveedor o concepto</label>
+<input id="ukiBuscarCuenta" type="search" placeholder="Proveedor, factura, concepto…">
 <div id="ukiPendientesLista"><p class="hint">Consultando cuentas pendientes…</p></div>
 </section>
 <details class="card" id="ukiFormularioGasto"><summary style="cursor:pointer;font-weight:700">＋ Registrar gasto, compra u otro movimiento</summary>
@@ -520,7 +522,8 @@ function mostrarVentasFinancieras(){
 
 // No confundir compras de equipamiento con mercadería o gastos operativos.
 function esMovimientoInversion(x){
- return !!x&&x.tipo==='compra'&&/equipamiento|inversion/i.test(String(x.categoria||''));
+ const cat=String(x?.categoria||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+ return !!x&&x.tipo==='compra'&&/equipamiento|inversion/.test(cat);
 }
 function esGastoOperativo(x){
  return !!x&&['gasto','compra','costo_producto'].includes(x.tipo)&&!esMovimientoInversion(x);
@@ -1229,6 +1232,8 @@ function pintarAlertaPagosInicio(items,total,cantidad,limitado){
  }
  if(limitado)text('p','La lista muestra hasta 250 cuentas; el total incluye todas.','owner-payables-small');
 }
+$('ukiBuscarCuenta').oninput=()=>pintarPendientes(cuentasPendientesActuales,
+ cuentasPendientesActuales.length>=250);
 function pintarResumenPendientes(items,total,cantidad){
  const h=$('ukiPendientesResumen');h.replaceChildren();
  const hoy=today();
@@ -1247,17 +1252,25 @@ function pintarResumenPendientes(items,total,cantidad){
 }
 function pintarPendientes(items,limitado){
  const host=$('ukiPendientesLista');host.replaceChildren();
+ const texto=String($('ukiBuscarCuenta').value||'').trim().toLowerCase();
+ const visibles=texto?items.filter(x=>
+  [x.proveedor,x.concepto,x.referencia,x.categoria,businessName(x.negocio_id),branchName(x.sucursal_id)]
+   .some(y=>String(y||'').toLowerCase().includes(texto))):items;
  if(!items.length){
   const p=document.createElement('p');p.className='hint';
   p.textContent='No hay cuentas pendientes registradas. Las compras pagadas siguen disponibles en Compras.';
   host.append(p);return;
+ }
+ if(texto&&!visibles.length){
+  const p=document.createElement('p');p.className='hint';
+  p.textContent='No hay pendientes con esa búsqueda.';host.append(p);return;
  }
  if(limitado){
   const p=document.createElement('p');p.className='owner-expense-alert';
   p.textContent='Hay más de 250 cuentas pendientes. El total incluye todas; esta lista muestra las primeras 250.';
   host.append(p);
  }
- for(const x of items){
+ for(const x of visibles){
   const card=document.createElement('div');card.className='line';
   const ttl=document.createElement('strong');ttl.textContent=
    (x.proveedor||x.concepto||'Cuenta pendiente')+' · '+pesos(x.monto);
@@ -1365,7 +1378,10 @@ function pintarHistorialMovimiento(contenedor,id){
     const item=document.createElement('div');item.className='owner-audit-item';
     const titulo=document.createElement('b');
     const nombre=({editar:'Modificación',crear:'Registro inicial',anular:'Anulación',
-     pagar:'Pago confirmado',clasificar_razon:'Razón social modificada'})[e.accion]||e.accion||'Movimiento';
+     pagar:'Pago confirmado',clasificar_razon:'Razón social modificada',
+     clasificar_razon_desde_factura:'Razón social modificada en factura',
+     asignar_razon_social_al_registrar:'Razón social asignada',
+     repartir:'Distribución entre locales actualizada'})[e.accion]||e.accion||'Movimiento';
     let cuando='Fecha no disponible';
     try{cuando=new Date(e.creado_en).toLocaleString('es-CL',
       {timeZone:'America/Santiago',dateStyle:'short',timeStyle:'short'})}catch{}
@@ -1396,7 +1412,8 @@ function pintarHistorialMovimiento(contenedor,id){
       e.accion==='anular'?'Registro anulado; no se suma a los totales.':
       e.accion==='pagar'?'Obligación marcada como pagada ('+
        String(info.fecha_pago||'fecha no indicada')+').':
-      e.accion==='clasificar_razon'?'Razón social actualizada con registro de auditoría.':
+      String(e.accion||'').includes('clasificar_razon')?'Razón social actualizada con registro de auditoría.':
+      e.accion==='asignar_razon_social_al_registrar'?'Se asignó una razón social al registrar la factura.':
       'Movimiento registrado en el historial privado.';
      item.append(note);
     }
