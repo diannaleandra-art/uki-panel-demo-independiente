@@ -1703,7 +1703,7 @@ $('ukiPrepararInformes').onclick=async()=>{
  }finally{boton.disabled=false}
 };
 function informeVigente(){
- if(!informeDuenos||claveInformeDuenos!==claveInforme()){
+ if(!session||!auth.currentUser||!informeDuenos||claveInformeDuenos!==claveInforme()){
   limpiarInformes();throw Error('Los filtros cambiaron. Prepara los informes de nuevo.');
  }
  return informeDuenos;
@@ -1760,7 +1760,7 @@ function marcarPeriodoSeleccionado(){
  }
 }
 function show(id){for(const x of ['login','setup','unlock','app'])$(x).hidden=x!==id;$('tabs').hidden=id!=='app';$('exit').hidden=id==='login';}
-function lock(){session='';show('unlock');}
+function lock(){session='';limpiarInformes();show('unlock');}
 async function checkState(){
  if(!auth.currentUser){show('login');notify('Entra con tu cuenta autorizada.');return}
  try{const r=await api('estado');if(r.autorizado){show('app');await loadBusinesses();return}
@@ -1786,7 +1786,7 @@ $('enter').onclick=()=>safe('enter',async()=>{
 });
 $('exit').onclick=async()=>{
  if(session)try{await api('salir')}catch{}
- session='';await signOut(auth);show('login');notify('Acceso privado cerrado.','success');
+ session='';limpiarInformes();await signOut(auth);show('login');notify('Acceso privado cerrado.','success');
 };
 // El fragmento nunca viaja al servidor y se conserva mientras Google completa
 // su inicio de sesión (Safari puede recargar la página durante ese proceso).
@@ -1800,7 +1800,7 @@ if(setupLink){
 $('from').value=today().slice(0,7)+'-01';
 $('histFrom').value=today().slice(0,7)+'-01';
 onAuthStateChanged(auth,user=>{
- if(!user){session='';show('login');}
+ if(!user){session='';limpiarInformes();show('login');}
  if(!session)void checkState();
 });
 </script></body></html>
