@@ -263,7 +263,7 @@ label{color:#66574c}
 <button type="button" id="ukiExportarExcel" disabled>📗 Excel</button>
 <button type="button" id="ukiCompartirInforme" disabled>💬 WhatsApp</button>
 </div>
-<p class="hint">WhatsApp abre un mensaje para que elijas destinatario y decidas si enviarlo. Nadie recibe información automáticamente.</p>
+<p class="hint">En iPhone podrás compartir el PDF desde la hoja de compartir y elegir WhatsApp. Si el dispositivo no admite archivos, se abrirá un resumen en WhatsApp. El envío requiere tu confirmación.</p>
 </details>
 <div class="owner-section-label">Detalle de ventas</div>
 <button id="ukiGoTodasVentas" type="button" class="owner-action-all">📋 Todas las ventas<small>Cierres finales y ventas manuales por fecha y sucursal</small></button>
@@ -1721,9 +1721,9 @@ $('ukiExportarExcel').onclick=()=>{
  try{const r=informeVigente();descargarArchivo(generarXLSX(r),r.nombre+'.xlsx');}
  catch(e){$('ukiInformeEstado').textContent=e.message}
 };
-$('ukiCompartirInforme').onclick=()=>{
- try{compartirWhatsApp(informeVigente())}
- catch(e){$('ukiInformeEstado').textContent=e.message}
+$('ukiCompartirInforme').onclick=async()=>{
+ try{await compartirWhatsApp(informeVigente())}
+ catch(e){if(e.name!=='AbortError')$('ukiInformeEstado').textContent=e.message}
 };
 
 const controlCompras=crearControlCompras({
