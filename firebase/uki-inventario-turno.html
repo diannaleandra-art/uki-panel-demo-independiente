@@ -76,12 +76,18 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 <p class="muted">Al cierre cuenta lo que realmente queda y pulsa <b>Guardar conteo</b> en cada artículo. Cuando llega mercadería, usa <b>Registrar entrada</b>. Solo administración decide Disponible / Agotado en la carta.</p><p id="turnoProgreso" role="status" class="pill">Todavía no hay conteos guardados en este turno.</p></section>
 <div id="items"></div><div style="text-align:center;margin:10px 16px"><button type="button" id="mostrarMas" class="secondary" hidden>Mostrar 12 artículos más</button></div>
 <section class="card"><h2>3. Terminar el turno</h2><p class="muted">Confirma los conteos guardados. Si faltan artículos por revisar, puedes completar el conteo antes de terminar.</p><p id="resumen" class="muted"></p><div id="resumenIndicadores" class="reporte-colores" aria-label="Resumen del inventario"></div><div id="resumenArticulos" class="reporte-lista" aria-label="Artículos que requieren reposición"></div>
-<button id="enviar">Guardar en el panel y compartir por WhatsApp</button>
-<p class="muted">Primero confirma el guardado en el panel. Después podrás compartir el mismo reporte por WhatsApp.</p>
+<button id="enviar">Guardar inventario en el panel</button>
+<p class="muted">Primero guarda la revisión. Después podrás enviar el PDF completo y, por separado, el texto de los productos que hay que comprar.</p>
 <p id="confirmacion" role="status"></p>
  <div id="descargasTurno" class="descargas-turno" hidden>
  <strong>✓ Inventario guardado en el panel</strong>
- <p class="muted">Puedes descargar exactamente esta revisión: existencias, entradas y artículos para pedir.</p>
+ <p class="muted">Dos envíos distintos: el informe completo en PDF y la lista de compras en un mensaje de WhatsApp.</p>
+ <div style="display:grid;grid-template-columns:1fr;gap:9px;margin:12px 0">
+  <button type="button" id="compartirPDFWhatsApp">📄 Compartir PDF por WhatsApp</button>
+  <button type="button" id="enviarComprasTexto" class="secondary">🛒 Enviar lista de compras por WhatsApp (texto)</button>
+ </div>
+ <p class="muted" id="compartirAyuda">En el iPhone, selecciona WhatsApp al compartir el PDF. El mensaje de compras se envía aparte, con las cantidades para pedir.</p>
+ <p class="muted">También puedes descargar los archivos para guardarlos:</p>
  <div class="grid"><button type="button" id="descargarPDF">Descargar PDF</button>
  <button type="button" id="descargarExcel" class="secondary">Excel (.csv)</button></div></div></section>
 </div>
@@ -351,6 +357,27 @@ $('descargarExcel').onclick=()=>{
  if(reporteFinal&&window.ukiInventarioExportar)
   window.ukiInventarioExportar.excel(reporteFinal);
 };
+$('compartirPDFWhatsApp').onclick=async()=>{
+ if(!reporteFinal||!window.ukiInventarioExportar)return;
+ const button=$('compartirPDFWhatsApp');button.disabled=true;
+ try{
+  const status=await window.ukiInventarioExportar.compartirPDF(reporteFinal);
+  $('compartirAyuda').textContent=status==='compartido'?
+   '✓ PDF compartido. Para enviarlo a compras, elige WhatsApp en el menú de compartir.':
+   status==='descargado'?
+   'PDF descargado. Puedes adjuntarlo manualmente en WhatsApp.':
+   'No se compartió el PDF. Puedes volver a intentarlo.';
+ }catch(e){$('compartirAyuda').textContent='No se pudo compartir el PDF: '+String(e.message);}
+ finally{button.disabled=false;}
+};
+$('enviarComprasTexto').onclick=()=>{
+ if(!reporteFinal||!window.ukiInventarioExportar)return;
+ const text=window.ukiInventarioExportar.mensajeCompras(reporteFinal);
+ const enlace='https://wa.me/?text='+encodeURIComponent(text);
+ // Apertura directa desde el botón: Safari permite mostrar WhatsApp.
+ const opened=window.open(enlace,'_blank','noopener');
+ if(!opened)window.location.href=enlace;
+};
 $('enviar').onclick=async()=>{
  if(busy||!branch||branch!==$('branch').value)return;
  const pendientes=items.filter(i=>!revisados.has(i.sku)).length;
@@ -362,16 +389,10 @@ $('enviar').onclick=async()=>{
   if(result.guardado!==true)throw Error('No se confirmó el guardado.');
   const chile=new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',weekday:'long',day:'2-digit',
    month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(result.fecha));
-  $('confirmacion').textContent='✓ Revisión guardada: '+chile+' (Chile). Puedes compartirla.';
   reporteFinal=result.reporte&&Array.isArray(result.reporte.items)?result.reporte:null;
   $('descargasTurno').hidden=!reporteFinal;
-  const texto=reporteFinal&&window.ukiInventarioExportar?
-   window.ukiInventarioExportar.mensaje(reporteFinal):result.mensaje;
-  if(navigator.share){
-   try{await navigator.share({title:'Uki Sushi · Reposición',text:texto});return;}
-   catch(e){if(e?.name==='AbortError')return;}
-  }
-  window.open('https://wa.me/?text='+encodeURIComponent(texto),'_blank','noopener');
+  $('confirmacion').textContent='✓ Revisión guardada: '+chile+' (Chile). '+
+   (reporteFinal?'Elige enviar PDF o mensaje de compras por separado.':'El informe todavía no está disponible para compartir.');
  }catch(e){$('confirmacion').textContent='No se confirmó el envío al panel: '+String(e.message);}
  finally{setBusy(false);}
 };
