@@ -142,13 +142,13 @@ test('no admite JSON con contraseñas o campos no cifrados',async()=>{
  const bad=await invoke(handler,{method:'POST',
   body:{expectedRevision:0,snapshot:{...snapshot(),password:'nunca guardar'}}});
  assert.equal(bad.statusCode,400);
- assert.equal(db.queries.length,1,'Solo consulta rol, nunca escribe un respaldo inválido');
+ assert.equal(db.queries.length,0,'No consulta la tabla ni escribe un respaldo inválido');
 });
 test('trabajador de inventario no puede leer todos los pedidos ni caja',async()=>{
  const db=fakeDb(),handler=handlerFor(baseEnv,db,{
   userId:'inventory_UID',brand:'romo',role:'inventario',branches:['serena']
  });
- assert.equal((await invoke(handler)).statusCode,503);
+ assert.equal((await invoke(handler)).statusCode,403);
  assert.equal((await invoke(handler,{method:'POST',body:{expectedRevision:0,snapshot:snapshot()}})).statusCode,403);
  assert.equal(db.queries.length,0);
 });
