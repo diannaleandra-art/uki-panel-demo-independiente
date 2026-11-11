@@ -181,7 +181,7 @@ test('Panel muestra resumen por sucursal de promociones con acceso a precios exi
  const roots={ukiPromosListaResumen:target,ukiPriceSearch:search,ukiPriceGroup:group,
   ukiPriceList:{style:{},scrollIntoView(){}}};
  const details=[];
- const state={items:[{kind:'monthly',name:'Promo especial QA',price:16000,visible:true},
+ const state={promocionesHabilitadas:true,items:[{kind:'monthly',name:'Promo especial QA',price:16000,visible:true},
   {kind:'classic',name:'Clásico QA',price:8000}],group:'all',query:''};
  vm.runInNewContext(code.slice(a,b)+'\nrenderPromoResumen();',{
   document:{createElement},state,$:id=>roots[id],
