@@ -59,7 +59,8 @@ const pricesPanel=[
  '<details id="ukiPriceAddBox" class="card" style="margin-top:15px">',
  '<summary style="cursor:pointer;font-weight:700">＋ Agregar producto a la carta</summary>',
  '<p class="muted">Aquí agregas un producto para vender, no un ingrediente de inventario. De momento admite pizzas en Regimiento Arica y entradas simples.</p>',
- '<label for="ukiPriceNewKind">Categoría</label><select id="ukiPriceNewKind"><option value="pizza">Pizzas</option><option value="dish">Entradas simples</option></select>',
+ '<label for="ukiPriceNewKind">Tipo de producto</label><select id="ukiPriceNewKind"><option value="pizza">Pizza</option><option value="dish">Entrada simple</option></select>',
+ '<div id="ukiPriceNewCategoryBox" hidden><label for="ukiPriceNewCategory">Categoría que creaste (opcional)</label><select id="ukiPriceNewCategory"><option value="">Sin categoría propia</option></select></div>',
  '<label for="ukiPriceNewName">Nombre</label><input id="ukiPriceNewName" maxlength="100" placeholder="Ej. Pizza Cuatro Quesos">',
  '<label for="ukiPriceNewDesc">Descripción / ingredientes</label><textarea id="ukiPriceNewDesc" maxlength="500" rows="2" placeholder="Ingredientes del producto"></textarea>',
  '<label for="ukiPriceNewAmount">Precio en pesos chilenos</label><input id="ukiPriceNewAmount" type="number" min="1" max="1000000" inputmode="numeric" placeholder="10900">',
@@ -418,8 +419,8 @@ function renderCategoryAssignments(){
  if(!items.length){const none=document.createElement('p');none.className='muted';none.textContent='No hay productos con ese nombre.';list.append(none);return;}
  for(const item of items.slice(0,limit)){
   const row=document.createElement('div');row.className='uki-category-assignment';
-  row.style.cssText='display:grid;grid-template-columns:minmax(0,1fr) minmax(110px,1fr) auto;align-items:center;gap:8px;padding:11px 0;border-bottom:1px solid #ead9cc';
-  const name=document.createElement('strong');name.textContent=item.name;name.style.cssText='font-size:13px;line-height:1.3';
+  row.style.cssText='display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;padding:11px 0;border-bottom:1px solid #ead9cc';
+  const name=document.createElement('strong');name.textContent=item.name;name.style.cssText='font-size:13px;line-height:1.3;grid-column:1/-1';
   const selector=document.createElement('select');selector.setAttribute('aria-label','Categoría para '+item.name);
   selector.style.cssText='min-width:0;width:100%;font-size:13px';
   selector.add(new Option('Sin categoría',''));
@@ -453,6 +454,15 @@ function renderCategoryAssignments(){
 function renderCategories(){
  const box=$('ukiCategoriesBox');if(!box)return;box.hidden=!state.categoriasDescuentosHabilitados;
  const list=$('ukiCategoriesList');if(list)list.textContent='Categorías: '+(state.categorias.map(c=>c.nombre).join(' · ')||'ninguna');
+ const newProductCategory=$('ukiPriceNewCategory'),categoryBox=$('ukiPriceNewCategoryBox');
+ if(categoryBox)categoryBox.hidden=!state.categoriasDescuentosHabilitados;
+ if(newProductCategory){
+  const previous=newProductCategory.value;
+  newProductCategory.replaceChildren(new Option('Sin categoría propia',''));
+  for(const c of state.categorias)newProductCategory.add(new Option(c.nombre,c.slug));
+  newProductCategory.value=state.categorias.some(c=>c.slug===previous)?previous:'';
+  newProductCategory.disabled=!state.categoriasDescuentosHabilitados;
+ }
  renderCategoryAssignments();
 }
 async function crearCategoria(){
@@ -587,6 +597,13 @@ function renderPromoResumen(){
    pill.style.background=estado==='Publicada'?'#e8f5ea':estado==='Borrador'?'#fff0df':'#f1edeb';
    pill.style.color=estado==='Publicada'?'#207344':estado==='Borrador'?'#93551f':'#705b4e';
    status.append(price,pill);
+    const porcentaje=Number(promo.descuentoPorcentaje||0);
+    if(Number.isSafeInteger(porcentaje)&&porcentaje>0&&porcentaje<=99){
+     const offer=document.createElement('span');offer.className='uki-promo-descuento';
+     offer.style.cssText='font-size:13px;font-weight:750;color:#176d48';
+     offer.textContent=porcentaje+'% menos · '+String.fromCharCode(36)+Number(promo.precioFinal||promo.price).toLocaleString('es-CL')+' final';
+     status.append(offer);
+    }
    const hint=document.createElement('span');hint.style.cssText='display:block;margin-top:10px;font-weight:700;color:#945327;font-size:13px';
    hint.textContent='▸ Ver detalles / editar esta promoción';
    head.append(title,status,hint);
@@ -648,19 +665,34 @@ async function loadPrices(force=false){
 async function create(){
  const selectedBranch=branch();
  const kind=$('ukiPriceNewKind').value;
+ const categoriaSlug=state.categoriasDescuentosHabilitados?String($('ukiPriceNewCategory')?.value||''):'';
  const name=$('ukiPriceNewName').value.trim(),description=$('ukiPriceNewDesc').value.trim(),price=Number($('ukiPriceNewAmount').value);
+ if(categoriaSlug&&!state.categorias.some(c=>c.slug===categoriaSlug)){
+  info('ukiPriceMessage','La categoría ya no existe en esta sucursal. Actualiza la lista.');return;
+ }
  if(name.length<2||!Number.isSafeInteger(price)||price<1||price>1000000){
   info('ukiPriceMessage','Escribe un nombre y un precio válido.');return;
  }
  if(state.busy)return;
  state.busy=true;$('ukiPriceCreate').disabled=true;info('ukiPriceMessage','Agregando producto…');
+ let created=false,categoryError='';
  try{
   const result=await request(API,'crear-producto',{item:{kind,group:kind==='pizza'?'pizzas':'entradas',name,description,price}},selectedBranch);
+  created=true;
+  if(categoriaSlug){
+   try{await request(API,'asignar-categoria',{sku:result.item.sku,categoriaSlug},selectedBranch);}
+   catch(e){categoryError=String(e.message||e);}
+  }
   $('ukiPriceNewName').value='';$('ukiPriceNewDesc').value='';$('ukiPriceNewAmount').value='';
+  if($('ukiPriceNewCategory'))$('ukiPriceNewCategory').value='';
   state.busy=false;await loadPrices(true);
-  if(selectedBranch===branch())info('ukiPriceMessage','✓ «'+name+'» agregado a la carta de '+(selectedBranch==='arica'?'Regimiento Arica':'La Serena')+'.');
+  if(selectedBranch===branch())info('ukiPriceMessage',categoryError?
+   '✓ Producto «'+name+'» creado, pero su categoría no se guardó: '+categoryError+'. Asígnala desde Categorías; no vuelvas a agregar el producto.':
+   '✓ «'+name+'» agregado'+(categoriaSlug?' con su categoría':'')+' a la carta de '+(selectedBranch==='arica'?'Regimiento Arica':'La Serena')+'.');
   $('ukiPriceAddBox').open=false;
- }catch(e){info('ukiPriceMessage','No se agregó: '+String(e.message));}
+ }catch(e){info('ukiPriceMessage',created?
+  '✓ El producto se creó, pero no se pudo actualizar la lista. Pulsa Actualizar precios antes de intentar agregarlo otra vez: '+String(e.message||e):
+  'No se agregó: '+String(e.message||e));}
  finally{state.busy=false;$('ukiPriceCreate').disabled=false;}
 }
 async function loadReponer(){
