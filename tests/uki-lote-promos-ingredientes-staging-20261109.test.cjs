@@ -191,8 +191,8 @@ test('Panel muestra resumen por sucursal de promociones con acceso a precios exi
  const cards=target.children.filter(x=>x.tag==='details');
  assert.equal(cards.length,1);
  assert.match(cards[0].children[0].children[0].textContent,/Promo especial QA/);
- assert.match(cards[0].children[0].children[1].children[0].textContent,/16\\.000/);
- assert.match(cards[0].children[0].children[2].textContent,/Ver detalles \\/ editar/);
+ assert.match(cards[0].children[0].children[1].children[0].textContent,/16[.]000/);
+ assert.match(cards[0].children[0].children[2].textContent,/Ver detalles [/] editar/);
  assert.notEqual(cards[0].open,true,'La tarjeta inicia cerrada');
  assert.deepEqual(details,[{name:'Promo especial QA',hideVisibility:true}]);
  assert.equal(cards[0].children[1].children[1].tag,'button','Retirar o restaurar está en el editor individual');
