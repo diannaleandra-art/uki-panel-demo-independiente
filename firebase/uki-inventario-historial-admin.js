@@ -145,24 +145,50 @@ async function request(action,payload={},b=sucursal()){
 }
 function fila(item,action=null){
  const row=document.createElement('div');row.className='uki-mini-item';
+ const estado=filtro(item);row.dataset.estado=estado;
  const left=document.createElement('div');left.className='uki-mini-info';
  const title=document.createElement('strong');title.textContent=item.name;
- const desc=document.createElement('small');const min=Number(item.min_stock_qty)||0;
- desc.textContent='Quedan '+fmt(item.stock_qty)+' '+(item.stock_unit||'un')+
-  ' · '+(min>0?'mínimo '+fmt(min)+' '+(item.stock_unit||'un'):'mínimo sin configurar');
+ title.style.fontSize='15px';
+ const qty=Number(item.stock_qty)||0,min=Number(item.min_stock_qty)||0,unit=item.stock_unit||'un';
+ const desc=document.createElement('small');
+ desc.textContent='Hay '+fmt(qty)+' '+unit+' · Mínimo '+(min>0?fmt(min)+' '+unit:'sin configurar');
  left.append(title,desc);
- const badge=document.createElement('small');
- badge.textContent=filtro(item)==='reponer'?'Reponer':filtro(item)==='bien'?'Bien':'Sin mínimo';
- badge.style.cssText='font-weight:700;color:#855526';
+ const recibido=item.received_qty===null||item.received_qty===undefined?null:Number(item.received_qty);
+ if(recibido!==null&&Number.isFinite(recibido)&&recibido>0){
+  const entrada=document.createElement('small');entrada.textContent='Llegó: +'+fmt(recibido)+' '+unit;
+  entrada.style.cssText='color:#287346;font-weight:800';left.append(entrada);
+ }
+ if(estado==='reponer'){
+  const short=Math.max(0,Math.round((min-qty)*1000)/1000);
+  const need=document.createElement('small');
+  need.textContent=short>0?'Falta / pedir: '+fmt(short)+' '+unit:'Mínimo alcanzado · revisar compra';
+  need.style.cssText='color:#8f520d;font-weight:800';left.append(need);
+ }
+ const badge=document.createElement('span');badge.className='uki-mini-badge '+estado;
+ badge.textContent=estado==='reponer'?'Para reponer':estado==='bien'?'Bien':'Sin mínimo';
  row.append(left,badge);
  if(action)row.append(button(action.text,action.click));
  return row;
+}
+function pintarResumen(id,items){
+ const target=$(id);if(!target)return;
+ target.replaceChildren();
+ const valores=[['reponer','Para reponer'],['bien','Suficientes'],['sinminimo','Sin mínimo']];
+ for(const [status,title] of valores){
+  const number=items.filter(it=>filtro(it)===status).length;
+  const cell=document.createElement('div');cell.className='uki-mini-resumen-item '+status;
+  const n=document.createElement('strong');n.textContent=String(number);
+  const label=document.createElement('small');label.textContent=title;
+  cell.append(n,label);target.append(cell);
+ }
 }
 function renderCurrent(){
  const area=$('ukiMiniFilas');if(!area)return;area.replaceChildren();
  const found=x.items.filter(i=>(x.filter==='todos'||filtro(i)===x.filter)&&
   (!x.query||nombreNormal(i.name).includes(nombreNormal(x.query))))
-  .sort((a,b)=>String(a.name).localeCompare(String(b.name),'es'));
+  .sort((a,b)=>({reponer:0,bien:1,sinminimo:2}[filtro(a)]-({reponer:0,bien:1,sinminimo:2}[filtro(b)]))||
+   String(a.name).localeCompare(String(b.name),'es'));
+ pintarResumen('ukiMiniResumen',x.items);
  for(const item of found.slice(0,x.limit))area.append(fila(item,{text:'Editar',click:()=>edit(item.sku)}));
  if(!found.length)area.textContent='No se encontraron artículos.';
  $('ukiMiniMas').hidden=found.length<=x.limit;
@@ -228,7 +254,8 @@ function renderHistory(){
   const title=document.createElement('strong');title.textContent=fecha(revision.created_at);
   const details=document.createElement('small');const summary=revision.summary||{};
   details.textContent=String(revision.worker_name||'Trabajador')+' · '+(Number(summary.productos)||0)+
-   ' artículos · '+(summary.faltantes?.length||0)+' para reponer';
+   ' artículos · '+(summary.faltantes?.length||0)+' para reponer'+
+  (summary.entradas_verificadas?' · '+(summary.articulos_con_entradas||0)+' con entradas':' · entradas no desglosadas');
   left.append(title,details);row.append(left,button('Ver inventario',()=>void openRevision(revision.id)));
   root.append(row);
  }
@@ -260,9 +287,11 @@ function renderDetail(){
   (!x.detailQuery||nombreNormal(it.name).includes(nombreNormal(x.detailQuery))));
  for(const it of filtered.slice(0,x.detailLimit)){
   target.append(fila({name:it.name,stock_qty:it.stock,
-   stock_unit:it.unit,min_stock_qty:it.minimum}));
+   stock_unit:it.unit,min_stock_qty:it.minimum,received_qty:it.received}));
  }
  if(!filtered.length)target.textContent='Ningún artículo coincide con esta búsqueda.';
+ pintarResumen('ukiDetalleResumen',exports().filas(x.selected).map(it=>({
+  stock_qty:it.stock,min_stock_qty:it.minimum})));
  $('ukiDetalleMas').hidden=filtered.length<=x.detailLimit;
  status('ukiDetalleEstado',filtered.length+' artículos · mostrando '+Math.min(x.detailLimit,filtered.length)+'.');
 }
