@@ -265,7 +265,20 @@ export function generarPDF(informe){
  output+='trailer\n<< /Size '+objs.length+' /Root '+root+' 0 R >>\nstartxref\n'+xref+'\n%%EOF';
  return new Blob([pdfBytes(output)],{type:'application/pdf'});
 }
-export function compartirWhatsApp(informe){
+export async function compartirWhatsApp(informe){
+ // Safari iPhone permite compartir un PDF directamente en WhatsApp.
+ // La usuaria elige destinatario y confirma el envío en la aplicación.
+ if(typeof navigator!=='undefined'&&typeof File==='function'&&
+    typeof navigator.share==='function'&&typeof navigator.canShare==='function'){
+  const archivo=new File([generarPDF(informe)],informe.nombre+'.pdf',{type:'application/pdf'});
+  if(navigator.canShare({files:[archivo]})){
+   await navigator.share({files:[archivo],title:'Mi Administración',
+    text:'Informe financiero privado · '+informe.desde+' al '+informe.hasta});
+   return 'archivo';
+  }
+ }
+ // Si la plataforma no permite compartir archivos, abrir resumen en WhatsApp.
  const url='https://api.whatsapp.com/send?text='+encodeURIComponent(informe.mensaje);
  window.open(url,'_blank','noopener,noreferrer');
+ return 'resumen';
 }
