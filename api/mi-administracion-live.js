@@ -301,10 +301,10 @@ module.exports=async(req,res)=>{
     return fail(res,409,'Este registro no admite edición directa. Las facturas se revisan en Compras.');
    if(new Date(prev.actualizado_en).getTime()!==Date.parse(version))
     return fail(res,409,'Este registro cambió en otra sesión. Actualiza antes de editar.');
-   const medios=prev.tipo==='venta'?checkMethods(body.medios||{}):prev.medios;
-   if(prev.tipo==='venta'&&Object.keys(medios).length&&
-      Object.values(medios).reduce((a,b)=>a+b,0)!==monto)
-    return fail(res,409,'Los medios de pago no cuadran con la venta.');
+   const medios=Object.prototype.hasOwnProperty.call(body,'medios')?
+    checkMethods(body.medios||{}):checkMethods(prev.medios||{});
+   if(Object.keys(medios).length&&Object.values(medios).reduce((a,b)=>a+b,0)!==monto)
+    return fail(res,409,'Los medios de pago deben coincidir con el importe.');
    const concepto=text(body.concepto,240),referencia=text(body.referencia,130);
    const nuevaSucursal=Object.prototype.hasOwnProperty.call(body,'sucursal_id')?(body.sucursal_id||null):undefined;
    if(nuevaSucursal!==undefined)await belongs(sql,prev.negocio_id,nuevaSucursal);
