@@ -149,6 +149,20 @@ label{color:#66574c}
 .owner-expense-alert{font-size:12px;color:#7f5636;line-height:1.5;border-top:1px solid #ebdfd4;padding-top:9px;margin-top:10px}
 #ukiGastosVisibles .line{padding:11px 0;border-bottom:1px solid #eee0d3}
 .owner-payables-mini{display:grid;gap:9px;margin:10px 0}
+.owner-capital-list{border-top:1px solid #eddfd1;margin-top:13px;padding-top:10px}
+.owner-capital-list .hint{line-height:1.5}
+.owner-capital-row{display:flex;align-items:start;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #f1e6dc;font-size:13px}
+.owner-capital-row>span{max-width:60%;overflow-wrap:anywhere}
+.owner-capital-row>b{font-variant-numeric:tabular-nums;text-align:right}
+.owner-audit{margin:10px 0 0;border:1px solid #eadaca;border-radius:12px;background:#fffdf9;padding:8px 12px}
+.owner-audit summary{cursor:pointer;font-size:12px;font-weight:700;color:#80582f}
+.owner-audit-item{border-top:1px solid #eee2d6;margin-top:8px;padding-top:9px;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.owner-audit-item small{display:block;margin-top:3px}
+.owner-audit-diff{margin-top:7px;padding:8px;background:#fff4e9;border-radius:8px}
+.owner-inv-note{font-size:12px;color:#805e45;line-height:1.5;background:#fff9f1;padding:10px;border-radius:10px}
+.owner-finance-card .owner-finance-mini{margin-top:14px}
+.owner-inv-btn{width:100%;margin-top:8px}
+
 .owner-payables-mini .owner-payables-line{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:8px 0;border-bottom:1px solid #f1e6db}
 .owner-payables-mini .owner-payables-line span{color:#735f50;font-size:13px}
 .owner-payables-mini .owner-payables-line strong{font-size:14px;text-align:right}
@@ -218,6 +232,11 @@ label{color:#66574c}
 <div class="metric"><small>Ventas − gastos*</small><b id="m-resultado">$0</b></div>
 <div class="metric"><small>Por pagar · todas las fechas</small><b id="m-pendientes">$0</b></div></div>
 <p class="owner-kpi-detail" id="ukiDesgloseGastos">Gastos de caja · Repartos · Gastos y compras manuales</p>
+<details class="owner-hint-collapsible" id="ukiMovimientosPatrimonialesInicio">
+<summary>💼 Ver inversiones, retiros e ingresos extraordinarios</summary>
+<div id="ukiCapitalMini" class="owner-finance-mini"><p class="hint">Consultando movimientos patrimoniales…</p></div>
+<p class="owner-inv-note">Las inversiones y los retiros se registran por separado. No se descuentan como gasto operativo, aunque sí representan salidas de dinero cuando se pagan.</p>
+</details>
 <p class="hint">*Resultado de control: ventas menos gastos y repartos pagados. No es utilidad contable ni saldo en efectivo; faltan costos e impuestos por conciliar.</p></div>
 <section class="card" id="ukiVencimientosInicio" aria-label="Control de cuentas pendientes">
 <h2 style="font-size:18px;margin:0 0 6px">📅 Cuentas por pagar</h2>
@@ -246,6 +265,7 @@ label{color:#66574c}
 <button id="goRecentMovements" class="soft" type="button" style="margin:12px 0 4px">📖 Ver ventas anteriores y otros movimientos</button>
 <details class="card"><summary>💳 Ver ventas por medio de pago</summary><div id="mediosReport"><p class="muted">Aún sin datos.</p></div></details>
 <div class="card" id="movimientosGeneral"><h2>📖 Últimas ventas, compras y gastos</h2>
+<p class="hint">Cada movimiento manual permite revisar sus modificaciones, fecha y cuenta que realizó el cambio. Los cierres automáticos de Uki son solo consulta.</p>
 <p class="hint">Aquí también aparecen las ventas manuales anteriores, aunque todavía no tengan razón social asignada.</p>
 <div id="recent"></div>
 <details id="ukiOwnerListadoVentas" style="border-top:1px solid var(--line);margin-top:12px;padding-top:6px">
@@ -289,14 +309,14 @@ label{color:#66574c}
 <select id="expenseScope"><option value="local">Gasto de un local</option><option value="general">Gasto general / sin sucursal</option></select>
 <div id="expenseBranchWrap"><label for="expenseBranch">Sucursal</label><select id="expenseBranch"></select></div>
 <div class="grid2"><div><label>Fecha</label><input type="date" id="expenseDate"></div><div><label>Monto ($)</label><input type="number" min="0" id="expenseAmount"></div></div>
-<label>Tipo</label><select id="expenseType"><option value="gasto">Gasto operativo</option><option value="compra">Compra de mercadería</option><option value="retiro">Retiro del dueño (separado de gastos)</option><option value="ingreso_extra">Ingreso extraordinario (no es venta)</option></select>
+<label>Tipo</label><select id="expenseType"><option value="gasto">Gasto operativo</option><option value="compra">Compra de mercadería</option><option value="inversion_preview">Inversión · equipo o remodelación</option><option value="retiro">Retiro del dueño (separado de gastos)</option><option value="ingreso_extra">Ingreso extraordinario (no es venta)</option></select>
 <label>Categoría</label><select id="expenseCategory">
 <optgroup label="Mercadería y operación">
 <option>Mercadería e insumos</option><option>Envases y empaques</option><option>Fletes y repartos</option><option>Aseo y limpieza</option>
 </optgroup><optgroup label="Personal y servicios">
 <option>Sueldos y personal</option><option>Honorarios y contabilidad</option><option>Arriendo</option><option>Luz</option><option>Agua</option><option>Gas</option><option>Internet y telefonía</option>
 </optgroup><optgroup label="Administración y otros">
-<option>Publicidad y marketing</option><option>Software y plataformas</option><option>Mantenciones</option><option>Equipamiento e inversiones</option><option>Impuestos y patentes</option><option>Otros</option>
+<option>Publicidad y marketing</option><option>Software y plataformas</option><option>Mantenciones</option><option>Equipamiento e inversiones</option><option>Impuestos y patentes</option><option>Otros</option><option>Retiro de dueño</option><option>Ingreso extraordinario</option>
 </optgroup></select>
 <p class="hint" id="ukiAyudaCategoria">Si tienes factura de compra, regístrala en Compras para no duplicarla aquí.</p>
 <label>Proveedor (opcional)</label><input id="expenseVendor"><label>Concepto</label><textarea id="expenseConcept"></textarea>
@@ -304,7 +324,7 @@ label{color:#66574c}
 <label for="expensePayMethod">Medio de pago (si ya está pagado)</label>
 <select id="expensePayMethod"><option value="">No indicado</option></select>
 <label>Vencimiento (si aún está pendiente)</label><input id="expenseDue" type="date"><label>Adjuntar factura o comprobante (opcional)</label><input id="expensePhoto" type="file" accept="image/*,application/pdf">
-<p class="owner-expense-alert">Antes de guardar, comprueba que no sea el mismo gasto registrado en un cierre de Uki o en Compras. Los retiros personales se registran aparte del resultado operativo.</p>
+<p class="owner-expense-alert">Antes de guardar, comprueba que no sea el mismo movimiento registrado en un cierre de Uki o en Compras. Las inversiones, retiros e ingresos extraordinarios se mostrarán separados del resultado operativo.</p>
 <button class="primary" id="saveExpense">Guardar gasto o compra</button></div></details>
 <div class="card" id="ukiGastosDeCierres"><h2>📖 Gastos del local y otros gastos</h2>
 <p class="hint">Solo lectura para gastos de cierres; los manuales tienen Editar o Eliminar. Elige un período y filtra aquí.</p>
@@ -315,7 +335,16 @@ label{color:#66574c}
 <label for="ukiFiltroGastoCategoria">Categoría<select id="ukiFiltroGastoCategoria"><option value="todos">Todas las categorías</option></select></label>
 <label for="ukiFiltroGastoProveedor">Buscar proveedor o concepto<input id="ukiFiltroGastoProveedor" type="search" placeholder="Nombre o detalle"></label>
 </div>
-<div id="ukiGastosVisibles"></div></div></section>
+<div id="ukiGastosVisibles"></div></div>
+<section class="card" id="ukiPatrimonioSeparado">
+<div class="eyebrow">MOVIMIENTOS SEPARADOS DEL RESULTADO OPERATIVO</div>
+<h2>💼 Inversiones y retiros de dueños</h2>
+<p class="hint">Aquí se muestran equipamiento, remodelaciones y retiros personales. No se mezclan con los gastos normales ni con las ventas.</p>
+<div id="ukiPatrimonioTotales" class="owner-finance-mini"><p class="hint">Consultando movimientos…</p></div>
+<div id="ukiPatrimonioDetalle" class="owner-capital-list"></div>
+<button type="button" class="soft owner-inv-btn" id="ukiCrearInversion">＋ Registrar inversión</button>
+<button type="button" class="soft owner-inv-btn" id="ukiCrearRetiro">＋ Registrar retiro de dueño</button>
+</section></section>
 <section class="view" id="v-facturas" hidden>
 <div class="card" id="purchaseNavigation">
 <div class="eyebrow">ADMINISTRACIÓN GENERAL DE COMPRAS</div>
@@ -395,6 +424,7 @@ label{color:#66574c}
 </div>
 <div class="card">
 <div class="eyebrow">HISTORIAL FINANCIERO</div><h2>📚 Compras por razón social</h2>
+<p class="owner-inv-note">El total de compras incluye las facturas registradas (pagadas o pendientes). No representa por sí solo dinero que salió de caja. Las facturas compartidas se reparten entre locales sin duplicar el total.</p>
 <p class="hint">Este historial reúne compras de todas las marcas y sucursales. No necesitas elegir un negocio para verlas.</p>
 <label for="histSearch">Buscar en todas las compras</label>
 <input id="histSearch" type="search" placeholder="Proveedor, producto, factura o razón social">
@@ -407,7 +437,7 @@ label{color:#66574c}
 <div><label>Hasta</label><input id="histTo" type="date"></div>
 </div></details><p id="historyStatus" class="hint"></p>
 <div class="metrics">
-<div class="metric"><small>Total de compras</small><b id="purchasesTotal">$0</b></div>
+<div class="metric"><small>Compras registradas</small><b id="purchasesTotal">$0</b></div>
 <div class="metric"><small>Pendiente de pago</small><b id="purchasesDue">$0</b></div>
 <div class="metric"><small>Facturas</small><b id="purchasesCount">0</b></div>
 <div class="metric"><small>Proveedores</small><b id="purchasesSuppliers">0</b></div>
