@@ -415,13 +415,12 @@ function pintarResumenPorNegocio(data,cierresSumables){
  const host=$('ukiOwnerPorNegocio');host.replaceChildren();
  const money=x=>{const n=Number(x);return Number.isSafeInteger(n)&&n>=0?n:0};
  const result=new Map();
- const uki=businesses.find(x=>/\\buki\\b/i.test(String(x.nombre||'')));
  const keyForManual=t=>{
   const biz=businesses.find(x=>String(x.id)===String(t.negocio_id));
   const suc=branches.find(x=>String(x.id)===String(t.sucursal_id));
   const name=String(biz?.nombre||'Negocio');
   const branchName=String(suc?.nombre||'');
-  const isUki=/\\buki\\b/i.test(name);
+  const isUki=/\buki\b/i.test(name);
   if(isUki&&/arica|regimiento/i.test(branchName))return 'uki-arica';
   if(isUki&&/serena/i.test(branchName))return 'uki-serena';
   return 'manual-'+String(t.negocio_id)+'-'+String(t.sucursal_id||'general');
