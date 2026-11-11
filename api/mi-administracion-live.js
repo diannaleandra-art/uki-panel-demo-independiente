@@ -278,13 +278,46 @@ module.exports=async(req,res)=>{
    if(!['todos','sin_clasificar'].includes(legal)&&!uuid.test(legal))
     return fail(res,400,'Razón social de consulta inválida.');
    const r=await sql.query("SELECT id,negocio_id,sucursal_id,razon_social_id,tipo,fecha,monto,medios,"+
-    "categoria,concepto,proveedor,referencia,estado,fuente,datos,creado_en "+
+    "categoria,concepto,proveedor,referencia,estado,fuente,datos,creado_en,actualizado_en "+
     "FROM public.fin_movimientos WHERE ($1::uuid IS NULL OR negocio_id=$1) "+
     "AND ($2::uuid IS NULL OR sucursal_id=$2) AND fecha BETWEEN $3 AND $4 "+
     "AND ($5::text='todos' OR ($5::text='sin_clasificar' AND razon_social_id IS NULL) "+
     "OR razon_social_id::text=$5) ORDER BY fecha DESC,creado_en DESC LIMIT 250",
     [b,s,from,to,legal]);
    return ok(res,{movimientos:r});
+  }
+  if(action==='editar_movimiento'){
+   // Solo edición financiera manual; los cierres automáticos de Uki viven en otra tabla.
+   const id=String(body.id||''),fecha=body.fecha,monto=Number(body.monto);
+   const version=String(body.version||'');
+   if(!uuid.test(id)||!validDate(fecha)||!money(monto)||!/^\\d{4}-\\d{2}-\\d{2}T/.test(version)||
+      !Number.isFinite(Date.parse(version)))
+    return fail(res,400,'Revisa registro, fecha y monto antes de guardar.');
+   const old=await sql.query(
+    'SELECT id,tipo,fuente,estado,fecha::text AS fecha,monto,medios,concepto,referencia,categoria,proveedor,actualizado_en,negocio_id FROM public.fin_movimientos WHERE id=$1',[id]);
+   if(!old.length)return fail(res,404,'No se encontró el registro.');
+   const prev=old[0];
+   if(prev.estado==='anulado'||prev.fuente==='factura')
+    return fail(res,409,'Este registro no admite edición directa. Las facturas se revisan en Compras.');
+   if(new Date(prev.actualizado_en).getTime()!==Date.parse(version))
+    return fail(res,409,'Este registro cambió en otra sesión. Actualiza antes de editar.');
+   const medios=prev.tipo==='venta'?checkMethods(body.medios||{}):prev.medios;
+   if(prev.tipo==='venta'&&Object.keys(medios).length&&
+      Object.values(medios).reduce((a,b)=>a+b,0)!==monto)
+    return fail(res,409,'Los medios de pago no cuadran con la venta.');
+   const concepto=text(body.concepto,240),referencia=text(body.referencia,130);
+   if(prev.fuente==='cierre'&&referencia.length<3)
+    return fail(res,400,'Conserva una referencia para el cierre ingresado manualmente.');
+   const updated=await sql.query(
+    'UPDATE public.fin_movimientos SET fecha=$2,monto=$3,medios=$4::jsonb,concepto=$5,referencia=$6,actualizado_en=now() '+
+    'WHERE id=$1 AND actualizado_en=$7::timestamptz AND estado<>\'anulado\' AND fuente<>\'factura\' RETURNING id',
+    [id,fecha,monto,JSON.stringify(medios),concepto,referencia,version]);
+   if(!updated.length)return fail(res,409,'El registro cambió. Actualiza el panel para revisarlo.');
+   await audit(sql,'movimiento',id,'editar',who,{
+    antes:{fecha:prev.fecha,monto:Number(prev.monto),medios:prev.medios,concepto:prev.concepto,referencia:prev.referencia},
+    despues:{fecha,monto,medios,concepto,referencia}
+   });
+   return ok(res,{actualizado:true});
   }
   if(action==='anular_movimiento'){
    if(!uuid.test(String(body.id||'')))return fail(res,400,'Registro inválido.');
