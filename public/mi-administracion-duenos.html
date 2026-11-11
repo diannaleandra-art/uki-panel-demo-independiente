@@ -590,8 +590,9 @@ function actualizarResumenConCierres(data){
  $('m-ventas').textContent=pesos(ventas);
  $('m-gastos').textContent=pesos(gastos);
  $('m-resultado').textContent=pesos(ventas-gastos);
- // Hasta que se consulte la lista completa se informa el saldo del período.
- $('m-pendientes').textContent=pesos(pendiente);
+ // El indicador corresponde a TODAS las fechas. No mostrar el saldo del
+ // período como si fuera el total histórico mientras se consulta el servidor.
+ $('m-pendientes').textContent='Verificando…';
  $('ukiPeriodoResumen').textContent='Período: '+value('from')+' a '+value('to')+
   ' · Cierres de Uki incluidos: '+cierresSumables.length+
   (data.conflictos?' · '+data.conflictos+' pendiente(s) de conciliación':'');
@@ -1208,6 +1209,7 @@ async function cargarCuentasPendientes(){
   pintarPendientes(cuentasPendientesActuales,!!data.limitado);
  }catch(e){
   $('m-pendientes').textContent='Sin verificar';
+  $('ukiPendientesResumen').replaceChildren();
   $('ukiAlertaPagos').replaceChildren();
   const av=document.createElement('p');av.className='owner-expense-alert';
   av.textContent='No se pudo verificar las cuentas pendientes. Actualiza resultados para volver a comprobarlas.';
