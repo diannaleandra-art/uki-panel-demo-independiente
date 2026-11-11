@@ -86,6 +86,38 @@
   msg.push('','Disponible/Agotado de la carta es manual e independiente del stock.');
   return msg.join('\n');
  }
+ // Solo artículos realmente faltantes, sin cortar la lista como en el resumen general.
+ // Las cantidades son sugerencias hasta el mínimo configurado.
+ function mensajeCompras(report){
+  const f=fechaChile(report.created_at);
+  const faltantes=filas(report).filter(x=>x.minimum>0&&x.toBuy>0)
+   .sort((a,b)=>a.name.localeCompare(b.name,'es'));
+  const msg=['🛒 UKI SUSHI · LISTA PARA COMPRAR',
+   'Sucursal: '+branchName(report.branch),
+   'Fecha: '+f.fecha+' · '+f.hora+' h (Chile)',
+   'Productos que se deben pedir: '+faltantes.length,''];
+  if(!faltantes.length)msg.push('✅ No hay productos para pedir según los mínimos registrados.');
+  else faltantes.forEach((x,i)=>msg.push((i+1)+'. '+x.name+' — PEDIR '+x.toBuy+' '+x.unit+
+   ' (hay '+x.stock+' '+x.unit+'; mínimo '+x.minimum+' '+x.unit+')'));
+  msg.push('','Cantidades sugeridas según el último inventario guardado.');
+  return msg.join('\n');
+ }
+ async function compartirPDF(report){
+  const blob=new Blob([pdf(report)],{type:'application/pdf'});
+  if(typeof File!=='undefined'&&typeof navigator!=='undefined'&&navigator.share){
+   const file=new File([blob],nombreArchivo(report,'pdf'),{type:'application/pdf'});
+   if(!navigator.canShare||navigator.canShare({files:[file]})){
+    try{
+     await navigator.share({files:[file],title:'Uki Sushi · Inventario PDF'});
+     return 'compartido';
+    }catch(e){
+     if(e?.name==='AbortError')return 'cancelado';
+    }
+   }
+  }
+  guardarPDF(report);
+  return 'descargado';
+ }
  const latin=s=>Array.from(String(s)).map(x=>{
   const code=x.codePointAt(0);
   if(code>=32&&code<=255)return x;
@@ -185,5 +217,5 @@
   window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank','noopener');
   return 'texto';
  }
- return {fechaChile,branchName,filas,tabla,csv,pdf,mensaje,nombreArchivo,excel,guardarPDF,whatsapp};
+ return {fechaChile,branchName,filas,tabla,csv,pdf,mensaje,mensajeCompras,nombreArchivo,excel,guardarPDF,compartirPDF,whatsapp};
 });
