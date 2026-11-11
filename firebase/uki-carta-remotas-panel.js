@@ -101,6 +101,28 @@ async function ukiCartaRemotasActualizar(){
  finally{ukiCartaRemotas.busy=false;if(S.vista==='pedidos')render()}
  void ukiCartaConfirmarRespaldados();
 }
+// Comprobación estricta del cierre: no usar una copia antigua de la bandeja.
+// Si no hay red o autorización, NO declarar que faltan cero solicitudes.
+async function ukiCartaRemotasVerificarCierre(){
+ const branch=ukiMesaBranch();
+ if(!S.suc||!branch)throw Error('Selecciona la sucursal antes de revisar el cierre.');
+ const token=await ukiCartaApiSesion();
+ const r=await fetch(UKI_CARTA_REMOTAS_API+'?branch='+encodeURIComponent(branch),{
+  headers:{Authorization:'Bearer '+token},cache:'no-store',signal:AbortSignal.timeout(15000)
+ });
+ const data=await r.json().catch(()=>({}));
+ if(!r.ok||!data.ok||!Array.isArray(data.orders))
+  throw Error(String(data.error||'No se pudo verificar la bandeja de solicitudes de la carta.'));
+ if(branch!==ukiMesaBranch())throw Error('La sucursal cambió durante la comprobación.');
+ const items=data.orders.filter(x=>x.branch===branch);
+ ukiCartaRemotas.rows=items;ukiCartaRemotas.branch=branch;ukiCartaRemotas.used=true;
+ const pendientes=items.filter(x=>x.estado==='pendiente');
+ ukiCartaRemotas.status=pendientes.length+' solicitud(es) pendientes, verificado antes del cierre.';
+ return pendientes.map(x=>({
+  id:String(x.id||''),codigo:String(x.codigo_pedido||''),
+  cliente:String(x.cliente||'')
+ }));
+}
 function ukiCartaRemotaFicha(r){
  const d=ukiWhatsAppDatosDesdeTexto(r.mensaje||'');
  d.codigoCarta=String(r.codigo_pedido||d.codigoCarta||'');
