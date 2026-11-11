@@ -452,40 +452,50 @@ function line(price,ocultarRetiro=false){
 }
 // Resumen de promociones sin controles nuevos de cobro ni publicación.
 function renderPromoResumen(){
- const target=$('ukiPromosListaResumen');if(!target)return;
- target.replaceChildren();
- const query=String($('ukiPromoBuscar')?.value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('es-CL').trim();
- const promos=state.items.filter(item=>item.kind==='monthly'&&(!query||
-  item.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('es-CL').includes(query)));
- const count=document.createElement('p');count.className='mini-help';
- count.textContent=promos.length+' promociones y productos especiales de esta sucursal.';
- target.append(count);
- if(!promos.length){
-  const none=document.createElement('p');none.className='muted';
-  none.textContent='No hay promociones para mostrar todavía.';target.append(none);return;
+  const target=$('ukiPromosListaResumen');if(!target)return;
+  target.replaceChildren();
+  const normalize=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('es-CL');
+  const query=normalize($('ukiPromoBuscar')?.value).trim();
+  const promos=state.items.filter(item=>item.kind==='monthly'&&(!query||normalize(item.name).includes(query)))
+   .sort((a,b)=>a.name.localeCompare(b.name,'es'));
+  const count=document.createElement('p');count.className='mini-help';
+  count.textContent=promos.length+' promociones y productos especiales en esta sucursal.';
+  target.append(count);
+  if(!promos.length){
+   const none=document.createElement('p');none.className='muted';
+   none.textContent='No hay promociones que coincidan con tu búsqueda.';target.append(none);return;
+  }
+  // Cada promoción tiene su propia tarjeta plegada. Los controles existentes
+  // siguen funcionando, pero no aparecen mezclados con la siguiente promoción.
+  for(const promo of promos){
+   const card=document.createElement('details');
+   card.className='uki-promo-edicion-card';
+   card.style.cssText='margin:12px 0;border:1.5px solid #e8d0b9;background:#fffaf6;border-radius:15px;overflow:hidden;box-shadow:0 2px 6px #784d2412';
+   const head=document.createElement('summary');
+   head.style.cssText='display:block;padding:16px;cursor:pointer;list-style:none';
+   const title=document.createElement('strong');title.style.cssText='font-size:16px;display:block;color:#3c2b23;line-height:1.35';
+   title.textContent=promo.name;
+   const status=document.createElement('div');
+   status.style.cssText='display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:9px';
+   const price=document.createElement('span');price.style.cssText='font-weight:750;font-size:16px;color:#834c27';
+   price.textContent=peso(promo.price);
+   const pill=document.createElement('span');pill.style.cssText='padding:4px 10px;border-radius:999px;font-size:12px;font-weight:750';
+   const estado=promo.estadoPublicacion||(promo.visible===false?'Retirada':'Publicada');
+   pill.textContent=estado;
+   pill.style.background=estado==='Publicada'?'#e8f5ea':estado==='Borrador'?'#fff0df':'#f1edeb';
+   pill.style.color=estado==='Publicada'?'#207344':estado==='Borrador'?'#93551f':'#705b4e';
+   status.append(price,pill);
+   const hint=document.createElement('span');hint.style.cssText='display:block;margin-top:10px;font-weight:700;color:#945327;font-size:13px';
+   hint.textContent='▸ Ver detalles / editar esta promoción';
+   head.append(title,status,hint);
+   const body=document.createElement('section');
+   body.style.cssText='padding:4px 14px 16px;border-top:1px solid #ead7c7;background:white';
+   body.append(line(promo,true));
+   const visibility=visibilityControl(promo);
+   visibility.style.marginTop='12px';body.append(visibility);
+   card.append(head,body);target.append(card);
+  }
  }
- for(const promo of promos){
-  const row=document.createElement('div');
-  row.style.cssText='padding:9px 0;border-top:1px solid #ecd7c1;display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap';
-  const label=document.createElement('div');label.style.cssText='flex:1 1 160px;min-width:0';
-  const title=document.createElement('strong');title.style.cssText='font-size:14px;display:block';
-  title.textContent=promo.name;
-  const note=document.createElement('small');note.style.cssText='display:block;margin-top:4px;color:#705d4b';
-  const estado=promo.estadoPublicacion||(promo.visible===false?'Retirada':'Publicada');
-  note.textContent='$'+Number(promo.price||0).toLocaleString('es-CL')+' · '+estado;
-  label.append(title,note);row.append(label);
-  // El detalle y la edición se abren dentro de Promociones, sin navegar a Productos.
-  const detalle=document.createElement('details');
-  detalle.style.cssText='flex:1 0 100%;border-radius:10px;background:#fffaf5;padding:7px 10px;margin-top:4px';
-  const titulo=document.createElement('summary');titulo.textContent='Editar / ver detalles';
-  titulo.style.cssText='font-weight:700;cursor:pointer;color:#88502c';detalle.append(titulo);
-  detalle.append(line(promo,true));
-  row.append(detalle);
-  // Mantener la retirada o restauración visible en la misma lista.
-  row.append(visibilityControl(promo));
-  target.append(row);
- }
-}
 function renderPrices(){
  const target=$('ukiPriceList');if(!target)return;
  target.replaceChildren();
@@ -590,15 +600,23 @@ function organizarCarta(){
  // Mover los controles existentes sin recrear entradas ni manejadores.
  move($('ukiPriceSearch')?.closest('.quick-grid'),areas.productos);
  for(const id of ['ukiPriceReload','ukiPriceMessage','ukiPriceAddBox','ukiPriceList'])move($(id),areas.productos);
- move($('ukiPromoAddBox'),areas.promociones);
- move($('ukiPromosResumen'),areas.promociones);
+ // Promociones en dos bloques independientes, sin cambiar ningún manejador.
+ const crearArea=document.createElement('section');crearArea.id='ukiPromoNuevaZona';
+ crearArea.style.cssText='border:1.5px solid #e2c6ad;border-radius:14px;padding:13px;background:#fff8f0;margin-bottom:15px';
+ const nuevaAyuda=document.createElement('p');nuevaAyuda.className='muted';
+ nuevaAyuda.textContent='Nueva promoción. Abre el formulario solo cuando necesites crear una; las existentes están separadas abajo.';
+ crearArea.append(nuevaAyuda);move($('ukiPromoAddBox'),crearArea);
+ const existentes=document.createElement('section');existentes.id='ukiPromoExistentesZona';
+ existentes.style.cssText='border:1.5px solid #e2c6ad;border-radius:14px;padding:13px;background:#fff;margin-bottom:12px';
+ const listaTitulo=document.createElement('h4');listaTitulo.style.cssText='font-size:17px;color:#783b24;margin:0 0 5px';
+ listaTitulo.textContent='Promociones existentes · Ver o editar';existentes.append(listaTitulo);
  const searchLabel=document.createElement('label');searchLabel.textContent='Buscar promoción por nombre';
  searchLabel.htmlFor='ukiPromoBuscar';
  const search=document.createElement('input');search.id='ukiPromoBuscar';search.type='search';
  search.placeholder='Ej. 60 piezas o Edenred';
  search.addEventListener('input',()=>renderPromoResumen());
- areas.promociones.insertBefore(searchLabel,$('ukiPromoAddBox')||null);
- areas.promociones.insertBefore(search,$('ukiPromoAddBox')||null);
+ existentes.append(searchLabel,search);move($('ukiPromosResumen'),existentes);
+ areas.promociones.append(crearArea,existentes);
  const clean=document.createElement('button');clean.type='button';clean.className='sm';
  clean.textContent='Limpiar búsqueda y categoría';
  clean.addEventListener('click',()=>{
