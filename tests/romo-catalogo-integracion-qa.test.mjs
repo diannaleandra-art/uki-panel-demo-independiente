@@ -13,7 +13,7 @@ const example=()=>({
  productos:[{sku:'romo:gohan',kind:'gohan',name:'Gohan clásico',price:6000,visible:true,available:true}],
  promociones:[{sku:'romo:24',kind:'sushi',name:'24 piezas + korokes',description:'2 rolls y korokes',price:7000,visible:true,
   available:true,pieces:24,rollCount:2,piecesPerRoll:12,sauceCount:1,korokes:2}],
- ingredientes:[{sku:'romo:palta',kind:'vegetal',name:'Palta',price:0,available:true}]
+ ingredientes:[{sku:'romo:palta',kind:'vegetal',name:'Palta',price:0,available:true,visible:true}]
 });
 test('catálogo Romo vacío es explícito y no inventa precios',()=>{
  const empty=normalizeRomoCatalog(emptyRomoCatalog());
