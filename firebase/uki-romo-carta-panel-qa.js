@@ -102,6 +102,10 @@
   if(!row||row.visible!==false)return false;
   return editForm(section,row,'editar');
  }
+ function changeSection(){
+  const form=el('romoQACartaEditor');
+  return form?.dataset.mode==='agregar'?addNew():false;
+ }
  function addNew(){
   if(!cache?.edit||!preview())return false;
   const section=el('romoQAEditorSeccion')?.value||'productos';
@@ -259,7 +263,7 @@
    '<button type="button" class="sm" id="romoQACartaAgregar" hidden onclick="ukiRomoCartaPanelAgregarQA()">＋ Agregar borrador</button>'+
    '<section class="card" id="romoQACartaEditor" hidden>'+
     '<h3>Editar o agregar borrador</h3>'+
-    '<label for="romoQAEditorSeccion">Sección</label><select id="romoQAEditorSeccion">'+
+    '<label for="romoQAEditorSeccion">Sección</label><select id="romoQAEditorSeccion" onchange="ukiRomoCartaPanelCambiarSeccionQA()">'+
      '<option value="productos">Productos</option><option value="promociones">Promociones</option>'+
      '<option value="ingredientes">Ingredientes</option></select>'+
     '<label for="romoQAEditorTipo">Tipo</label><select id="romoQAEditorTipo"></select>'+
@@ -289,5 +293,6 @@
  root.ukiRomoCatalogoRenderQA=renderCatalog;
  root.ukiRomoCartaPanelEditarQA=edit;
  root.ukiRomoCartaPanelAgregarQA=addNew;
+ root.ukiRomoCartaPanelCambiarSeccionQA=changeSection;
  root.ukiRomoCartaPanelGuardarQA=guardar;
 })(window);
