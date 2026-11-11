@@ -217,14 +217,14 @@ function textPdf(s){return String(s??'').replace(/[\u2018\u2019]/g,"'").replace(
  .replace(/[^\x20-\xFF]/g,'?').replace(/([\\()])/g,'\\$1');}
 function pdfBytes(binary){return Uint8Array.from(binary,x=>x.charCodeAt(0)&255);}
 export function generarPDF(informe){
- const paginas=[];let lineas=[],y=787;
- const nuevo=()=>{if(lineas.length)paginas.push(lineas);lineas=[];y=789;
+ const paginas=[];let lineas=[],y=767;
+ const nuevo=()=>{if(lineas.length)paginas.push(lineas);lineas=[];y=767;
   lineas.push('BT /F2 15 Tf 45 807 Td (MI ADMINISTRACION - INFORME PRIVADO) Tj ET');
   lineas.push('BT /F1 9 Tf 45 793 Td ('+textPdf(informe.desde+' a '+informe.hasta)+') Tj ET');
  };
  const escribir=(str,titulo=false)=>{
   if(y<55)nuevo();
-  const safe=textPdf(str).slice(0,113);
+  const safe=textPdf(str.slice(0,108));
   lineas.push('BT /'+(titulo?'F2':'F1')+' '+(titulo?'11':'8')+' Tf 45 '+y+
    ' Td ('+safe+') Tj ET');
   y-=titulo?22:15;
