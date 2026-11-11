@@ -188,14 +188,14 @@ test('Panel muestra resumen por sucursal de promociones con acceso a precios exi
   visibilityControl:()=>createElement('button'),
   line:(item,hideVisibility)=>{details.push({name:item.name,hideVisibility});return createElement('editor')}
  });
- const rows=target.children.filter(x=>x.tag==='div');
- assert.equal(rows.length,1);
- assert.match(rows[0].children[0].children[0].textContent,/Promo especial QA/);
- assert.match(rows[0].children[0].children[1].textContent,/16\.000/);
- assert.equal(rows[0].children[1].tag,'details');
- assert.match(rows[0].children[1].children[0].textContent,/Editar \/ ver detalles/);
+ const cards=target.children.filter(x=>x.tag==='details');
+ assert.equal(cards.length,1);
+ assert.match(cards[0].children[0].children[0].textContent,/Promo especial QA/);
+ assert.match(cards[0].children[0].children[1].children[0].textContent,/16\\.000/);
+ assert.match(cards[0].children[0].children[2].textContent,/Ver detalles \\/ editar/);
+ assert.notEqual(cards[0].open,true,'La tarjeta inicia cerrada');
  assert.deepEqual(details,[{name:'Promo especial QA',hideVisibility:true}]);
- assert.equal(rows[0].children[2].tag,'button','Retirar o restaurar permanece visible');
+ assert.equal(cards[0].children[1].children[1].tag,'button','Retirar o restaurar está en el editor individual');
  const html=fs.readFileSync('firebase/uki-sushi-local.html','utf8');
  assert.match(html,/uki-carta-precios-admin\.js\?v=uki-tres-vistas-qa-20261109/);
 });
@@ -218,7 +218,8 @@ test('QA organización: cada área de carta contiene buscar, agregar y acceso a 
  assert.match(precios,/ukiPromoBuscar/);
  assert.match(precios,/ukiPromoAddBox/);
  assert.match(precios,/ukiPromosResumen/);
- assert.match(precios,/row\.append\(visibilityControl\(promo\)\)/);
+ assert.match(precios,/const visibility=visibilityControl\(promo\)/);
+ assert.match(precios,/body\.append\(visibility\)/);
  assert.match(precios,/Buscar en todas/);
  assert.match(ingredientes,/ukiIngBuscar/);
  assert.match(ingredientes,/ukiCartaAreaIngredientes/);
