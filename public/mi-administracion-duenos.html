@@ -209,7 +209,7 @@ label{color:#66574c}
 <div class="metrics"><div class="metric"><small>Ventas (manuales + cierres)</small><b id="m-ventas">$0</b></div>
 <div class="metric"><small>Gastos y repartos pagados</small><b id="m-gastos">$0</b></div>
 <div class="metric"><small>Ventas − gastos*</small><b id="m-resultado">$0</b></div>
-<div class="metric"><small>Pagos pendientes</small><b id="m-pendientes">$0</b></div></div>
+<div class="metric"><small>Por pagar · todas las fechas</small><b id="m-pendientes">$0</b></div></div>
 <p class="owner-kpi-detail" id="ukiDesgloseGastos">Gastos de caja · Repartos · Gastos y compras manuales</p>
 <p class="hint">*Resultado de control: ventas menos gastos y repartos pagados. No es utilidad contable ni saldo en efectivo; faltan costos e impuestos por conciliar.</p></div>
 <section class="card" id="ukiAnalisisGastos">
@@ -260,7 +260,16 @@ label{color:#66574c}
 <p class="hint">Si tu navegador permite reconocer texto en imágenes, se sugerirán las cifras al elegir una foto. En iPhone también puedes copiar el texto de la foto con Texto en Vivo y pegarlo aquí. Verifica todas las cantidades.</p>
 <details><summary>🧾 Pegar o revisar el texto de un cierre</summary><label>Texto del cierre</label><textarea id="saleRawText" placeholder="Efectivo $120.000&#10;Transferencia $85.000&#10;Débito $145.000&#10;Venta total $350.000"></textarea><button type="button" class="soft" id="interpretClose">Interpretar y completar cifras</button><p id="closeReadResult" class="hint"></p></details>
 <div class="fieldset-title">4 · Confirmar</div><p class="steps">Revisa negocio, fecha, total y medios de pago. No se modificarán los cierres existentes de Uki.</p><button class="primary" id="saveSale">✓ Guardar venta o cierre</button></div></section>
-<section class="view" id="v-gastos" hidden><div class="card"><div class="eyebrow">GASTOS Y COMPRAS</div><h2>💸 Registrar un gasto</h2><p class="steps">Elige la razón social y el negocio que paga el gasto. Puedes adjuntar su factura aquí mismo.</p>
+<section class="view" id="v-gastos" hidden>
+<section class="card" id="ukiCuentasPorPagar">
+<div class="eyebrow">CONTROL DE PAGOS PENDIENTES</div>
+<h2>📅 Cuentas por pagar</h2>
+<p class="hint">Aquí aparecen las cuentas que siguen pendientes, aunque sean de meses anteriores. Se muestran por proveedor, negocio y vencimiento; no se crean gastos nuevos.</p>
+<div id="ukiPendientesResumen" class="owner-finance-mini"></div>
+<div id="ukiPendientesLista"><p class="hint">Consultando cuentas pendientes…</p></div>
+</section>
+<details class="card" id="ukiFormularioGasto"><summary style="cursor:pointer;font-weight:700">＋ Registrar gasto, compra u otro movimiento</summary>
+<div style="margin-top:14px"><div class="eyebrow">GASTOS Y COMPRAS</div><h2>💸 Registrar un gasto</h2><p class="steps">Elige la razón social y el negocio que paga el gasto. Puedes adjuntar su factura aquí mismo.</p>
 <label>Negocio</label><select id="expenseBiz"></select>
 <label>Razón social que paga el gasto</label><select id="expenseRazon"><option value="">Selecciona razón social</option></select>
 <label for="expenseScope">¿A dónde corresponde el movimiento?</label>
@@ -283,7 +292,8 @@ label{color:#66574c}
 <select id="expensePayMethod"><option value="">No indicado</option></select>
 <label>Vencimiento (si aún está pendiente)</label><input id="expenseDue" type="date"><label>Adjuntar factura o comprobante (opcional)</label><input id="expensePhoto" type="file" accept="image/*,application/pdf">
 <p class="owner-expense-alert">Antes de guardar, comprueba que no sea el mismo gasto registrado en un cierre de Uki o en Compras. Los retiros personales se registran aparte del resultado operativo.</p>
-<button class="primary" id="saveExpense">Guardar gasto o compra</button></div><div class="card" id="ukiGastosDeCierres"><h2>📖 Gastos del local y otros gastos</h2>
+<button class="primary" id="saveExpense">Guardar gasto o compra</button></div></details>
+<div class="card" id="ukiGastosDeCierres"><h2>📖 Gastos del local y otros gastos</h2>
 <p class="hint">Solo lectura para gastos de cierres; los manuales tienen Editar o Eliminar. Elige un período y filtra aquí.</p>
 <div id="ukiGastoPeriodoResumen" class="owner-finance-mini"></div>
 <div class="owner-filter-grid">
@@ -416,6 +426,7 @@ const app=initializeApp({apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",authDo
 const auth=getAuth(app),$=id=>document.getElementById(id);
 let cierresConfirmadosUki=[],errorConsultaCierresUki='';
 let resumenManualUki=[],pagosManualesUki=[];
+let cuentasPendientesActuales=[];
 let vistaGastosActual={manuales:[],cierres:[]};
 function mostrarVentasFinancieras(){
  const host=$('ukiOwnerFinancierasLista');host.replaceChildren();
@@ -566,6 +577,7 @@ function actualizarResumenConCierres(data){
  $('m-ventas').textContent=pesos(ventas);
  $('m-gastos').textContent=pesos(gastos);
  $('m-resultado').textContent=pesos(ventas-gastos);
+ // Hasta que se consulte la lista completa se informa el saldo del período.
  $('m-pendientes').textContent=pesos(pendiente);
  $('ukiPeriodoResumen').textContent='Período: '+value('from')+' a '+value('to')+
   ' · Cierres de Uki incluidos: '+cierresSumables.length+
@@ -1030,6 +1042,104 @@ $('goRecentMovements').onclick=()=>{
 };
 function moneyRows(m){return Object.entries(m).filter(([k,v])=>Number(v)>0).map(([k,v])=>'<div class="line row"><span>'+esc(k)+'</span><b>'+pesos(v)+'</b></div>').join('')}
 
+
+function pintarResumenPendientes(items,total,cantidad){
+ const h=$('ukiPendientesResumen');h.replaceChildren();
+ const hoy=today();
+ const vencidos=items.filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(String(x.datos?.vence||''))&&String(x.datos.vence)<hoy);
+ const metric=(label,value)=>{
+  const c=document.createElement('div'),a=document.createElement('small'),b=document.createElement('b');
+  a.textContent=label;b.textContent=value;c.append(a,b);h.append(c);
+ };
+ metric('Total por pagar',pesos(total));
+ metric('Cuentas pendientes',String(cantidad));
+ if(vencidos.length){
+  const p=document.createElement('p');p.className='owner-expense-alert';
+  p.textContent='Hay '+vencidos.length+' cuenta(s) vencida(s) entre las '+items.length+' mostradas. Revisa sus fechas reales de pago.';
+  h.append(p);
+ }
+}
+function pintarPendientes(items,limitado){
+ const host=$('ukiPendientesLista');host.replaceChildren();
+ if(!items.length){
+  const p=document.createElement('p');p.className='hint';
+  p.textContent='No hay cuentas pendientes registradas. Las compras pagadas siguen disponibles en Compras.';
+  host.append(p);return;
+ }
+ if(limitado){
+  const p=document.createElement('p');p.className='owner-expense-alert';
+  p.textContent='Hay más de 250 cuentas pendientes. El total incluye todas; esta lista muestra las primeras 250.';
+  host.append(p);
+ }
+ for(const x of items){
+  const card=document.createElement('div');card.className='line';
+  const ttl=document.createElement('strong');ttl.textContent=
+   (x.proveedor||x.concepto||'Cuenta pendiente')+' · '+pesos(x.monto);
+  const det=document.createElement('p');det.className='hint';
+  det.textContent=businessName(x.negocio_id)+' · '+(x.sucursal_id?branchName(x.sucursal_id):'Administración general')+
+   ' · '+(x.tipo==='compra'?'Compra':'Gasto')+' · '+String(x.fecha).slice(0,10);
+  card.append(ttl,det);
+  const vencimiento=String(x.datos?.vence||'');
+  if(/^\d{4}-\d{2}-\d{2}$/.test(vencimiento)){
+   const d=document.createElement('p');d.className='hint';
+   d.textContent=(vencimiento<today()?'⚠️ Vencida: ':vencimiento===today()?'Vence hoy: ':'Vence: ')+vencimiento;
+   card.append(d);
+  }else{
+   const d=document.createElement('p');d.className='hint';d.textContent='Sin fecha de vencimiento registrada';card.append(d);
+  }
+  const abrir=document.createElement('button');abrir.type='button';abrir.className='soft';
+  abrir.textContent='✓ Registrar pago';
+  const form=document.createElement('div');
+  abrir.onclick=()=>{
+   if(form.childElementCount){form.replaceChildren();return}
+   const etiquetaFecha=document.createElement('label');etiquetaFecha.textContent='Fecha real del pago';
+   const fecha=document.createElement('input');fecha.type='date';fecha.value=today();etiquetaFecha.append(fecha);
+   const etiquetaMedio=document.createElement('label');etiquetaMedio.textContent='¿Cómo se pagó?';
+   const medio=document.createElement('select');medio.add(new Option('Sin indicar',''));
+   AM.forEach(m=>medio.add(new Option(m,m)));etiquetaMedio.append(medio);
+   const confirmButton=document.createElement('button');confirmButton.type='button';
+   confirmButton.className='primary';confirmButton.textContent='Confirmar pago realizado';
+   const cancelButton=document.createElement('button');cancelButton.type='button';
+   cancelButton.className='soft';cancelButton.textContent='Cancelar';
+   cancelButton.onclick=()=>form.replaceChildren();
+   confirmButton.onclick=async()=>{
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha.value)){
+     notify('Selecciona la fecha en que realmente se pagó.','error');return;
+    }
+    if(!confirm('¿Confirmas que YA pagaste '+pesos(x.monto)+' de '+
+       (x.proveedor||x.concepto||businessName(x.negocio_id))+
+       ' el '+fecha.value+'? No se crea un gasto nuevo.'))return;
+    confirmButton.disabled=true;
+    try{
+     await api('marcar_pagado',{id:x.id,fecha_pago:fecha.value,medio_pago:medio.value});
+     await refresh();
+     notify('Cuenta marcada como pagada; se conserva su historial y no se duplica.','success');
+    }catch(e){notify(e.message,'error')}
+    finally{confirmButton.disabled=false}
+   };
+   form.append(etiquetaFecha,etiquetaMedio,confirmButton,cancelButton);
+  };
+  card.append(abrir,form);host.append(card);
+ }
+}
+async function cargarCuentasPendientes(){
+ try{
+  const data=await api('listar_pendientes',{
+   negocio_id:currentBiz()||null,sucursal_id:currentBranch()||null,
+   razon_social_id:value('scopeRazon')||'todos'
+  });
+  cuentasPendientesActuales=data.pendientes||[];
+  $('m-pendientes').textContent=pesos(data.total||0);
+  pintarResumenPendientes(cuentasPendientesActuales,data.total||0,Number(data.cantidad||0));
+  pintarPendientes(cuentasPendientesActuales,!!data.limitado);
+ }catch(e){
+  const h=$('ukiPendientesLista');h.replaceChildren();
+  const p=document.createElement('p');p.className='owner-expense-alert';
+  p.textContent='No se pudieron consultar todas las cuentas pendientes: '+e.message;
+  h.append(p);
+ }
+}
+
 function pintarAccionesManual(box,t){
  if(!t||t.estado==='anulado'||t.fuente==='factura'||box.querySelector('[data-acciones-manuales]'))return;
  const bar=document.createElement('div');bar.dataset.accionesManuales='si';bar.className='row';
@@ -1144,7 +1254,7 @@ function renderRows(){
      '<option value="">Selecciona razón social</option>'+
      choices.map(r=>'<option value="'+esc(r.id)+'"'+(t.razon_social_id===r.id?' selected':'')+'>'+esc(r.nombre)+'</option>').join('')+
      '</select><button class="soft" type="button" data-clasificar="'+esc(t.id)+'">Guardar razón social</button> ':'')+
-   (t.estado==='pendiente'&&['gasto','compra','retiro'].includes(t.tipo)?'<button type="button" data-pagado="'+esc(t.id)+'">Marcar pagado</button> ':'')+
+   (t.estado==='pendiente'&&['gasto','compra'].includes(t.tipo)?'<button type="button" data-pagado="'+esc(t.id)+'">Ver en Cuentas por pagar</button> ':'')+
    (t.estado!=='anulado'&&t.fuente==='factura'?'<button type="button" data-anular="'+esc(t.id)+'">Anular (con confirmación)</button>':'')+
    '</details></div>';
  }).join('')||'<p class="muted">Aún no hay registros financieros.</p>';
@@ -1157,10 +1267,8 @@ function renderRows(){
    notify('Movimiento clasificado sin modificar su importe.','success');}
   catch(e){notify(e.message,'error')}
  });
- $('recent').querySelectorAll('[data-pagado]').forEach(b=>b.onclick=async()=>{
-  if(!confirm('¿Confirmas que esta cuenta fue PAGADA?'))return;
-  try{await api('marcar_pagado',{id:b.dataset.pagado,fecha_pago:today()});await refresh();notify('Pago registrado sin duplicar el gasto.','success');}
-  catch(e){notify(e.message,'error');}
+ $('recent').querySelectorAll('[data-pagado]').forEach(b=>b.onclick=()=>{
+   switchTab('gastos');$('ukiCuentasPorPagar').scrollIntoView({behavior:'smooth',block:'start'});
  });
  $('recent').querySelectorAll('[data-anular]').forEach(b=>b.onclick=async()=>{
   if(!confirm('¿Anular este registro? Se conservará en el historial como anulado y quedará evidencia.'))return;
@@ -1184,6 +1292,7 @@ async function refresh(){
   resumenManualUki=s.resumen||[];pagosManualesUki=s.pagos||[];
   renderRows();notify('Información privada actualizada.','success');
   await cargarCierresUki(value('from'),value('to'));
+  await cargarCuentasPendientes();
  }catch(e){notify(e.message,'error');if(/código privado|sesión|Introduce el código/.test(e.message))lock();}
 }
 async function loadDocs(){

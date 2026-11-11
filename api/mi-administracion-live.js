@@ -286,6 +286,32 @@ module.exports=async(req,res)=>{
     [b,s,from,to,legal]);
    return ok(res,{movimientos:r});
   }
+  if(action==='listar_pendientes'){
+   // Todas las obligaciones aún abiertas (sin restringir al mes consultado).
+   // No altera compras, gastos ni cierres; el acceso privado ya fue validado.
+   const biz=body.negocio_id||null,branch=body.sucursal_id||null;
+   if(biz)await belongs(sql,biz,branch);
+   else if(branch)return fail(res,400,'Selecciona el negocio de la sucursal.');
+   const legal=String(body.razon_social_id||'todos');
+   if(!['todos','sin_clasificar'].includes(legal)&&!uuid.test(legal))
+    return fail(res,400,'Razón social inválida.');
+   const p=[biz,branch,legal],where=
+    " WHERE m.tipo IN ('gasto','compra') AND m.estado='pendiente'"+
+    " AND ($1::uuid IS NULL OR m.negocio_id=$1)"+
+    " AND ($2::uuid IS NULL OR m.sucursal_id=$2)"+
+    " AND ($3::text='todos' OR ($3::text='sin_clasificar' AND m.razon_social_id IS NULL)"+
+    " OR m.razon_social_id::text=$3)";
+   const [rows,tots]=await Promise.all([
+    sql.query("SELECT m.id,m.negocio_id,m.sucursal_id,m.razon_social_id,m.tipo,m.fecha::text AS fecha,"+
+      "m.monto,m.categoria,m.concepto,m.proveedor,m.referencia,m.fuente,m.datos,m.actualizado_en "+
+      "FROM public.fin_movimientos m"+where+
+      " ORDER BY NULLIF(m.datos->>'vence','') ASC NULLS LAST,m.fecha ASC,m.creado_en ASC LIMIT 250",p),
+    sql.query("SELECT COUNT(*)::int AS cantidad,COALESCE(SUM(m.monto),0)::bigint AS total "+
+      "FROM public.fin_movimientos m"+where,p)
+   ]);
+   return ok(res,{pendientes:rows,total:tots[0]?.total||0,
+    cantidad:Number(tots[0]?.cantidad||0),limitado:Number(tots[0]?.cantidad||0)>rows.length});
+  }
   if(action==='editar_movimiento'){
    // Solo edición financiera manual; los cierres automáticos de Uki viven en otra tabla.
    const id=String(body.id||''),fecha=body.fecha,monto=Number(body.monto);
@@ -336,9 +362,19 @@ module.exports=async(req,res)=>{
   if(action==='marcar_pagado'){
    if(!uuid.test(String(body.id||'')))return fail(res,400,'Registro inválido.');
    if(!validDate(body.fecha_pago))return fail(res,400,'Selecciona la fecha real del pago.');
-   const rows=await sql.query("UPDATE public.fin_movimientos SET estado='pagado',datos=coalesce(datos,'{}'::jsonb)||jsonb_build_object('fecha_pago',$2::text),actualizado_en=now() WHERE id=$1 AND tipo IN ('gasto','compra','retiro') AND estado='pendiente' RETURNING id,tipo,monto,fecha,negocio_id",[body.id,body.fecha_pago]);
-   if(!rows.length)return fail(res,409,'Solo se puede pagar un gasto, compra o retiro que esté pendiente.');
-   await audit(sql,'movimiento',body.id,'pagar',who,{antes:'pendiente',despues:'pagado',fecha_pago:validDate(body.fecha_pago)?body.fecha_pago:null});
+   const medio=String(body.medio_pago||'');
+   if(medio&&!PAYMENTS.has(medio))return fail(res,400,'Medio de pago inválido.');
+   // Cambia el estado de la misma obligación; jamás crea un gasto adicional.
+   const rows=await sql.query(
+    "UPDATE public.fin_movimientos SET estado='pagado',"+
+    "datos=coalesce(datos,'{}'::jsonb)||jsonb_build_object('fecha_pago',$2::text,'medio_pago',NULLIF($3::text,'')),"+
+    "medios=CASE WHEN $3::text<>'' THEN jsonb_build_object($3::text,monto) ELSE medios END,"+
+    "actualizado_en=now() WHERE id=$1 AND tipo IN ('gasto','compra','retiro') AND estado='pendiente' "+
+    "RETURNING id,tipo,monto,fecha,negocio_id",
+    [body.id,body.fecha_pago,medio]);
+   if(!rows.length)return fail(res,409,'Solo se puede pagar una cuenta que esté pendiente.');
+   await audit(sql,'movimiento',body.id,'pagar',who,
+     {antes:'pendiente',despues:'pagado',fecha_pago:body.fecha_pago,medio_pago:medio||null});
    return ok(res,{pagado:true});
   }
   if(action==='resumen'){
