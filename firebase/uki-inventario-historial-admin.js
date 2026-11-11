@@ -19,7 +19,21 @@ const panel=[
 '.uki-mini-info strong{display:block;font-size:14px;word-break:break-word}',
 '.uki-mini-info small{display:block;font-size:12px;color:#766252;margin-top:4px}',
 '.uki-mini-action{display:flex;flex-wrap:wrap;gap:7px;margin:11px 0}',
-'.uki-mini-action button{min-height:40px}',
+'.uki-mini-action button{min-height:42px;font-weight:750}',
+'.uki-mini-item[data-estado="reponer"]{background:#fff7e7;border-color:#e9bb7e;border-left:5px solid #d88425}',
+'.uki-mini-item[data-estado="bien"]{background:#f5fcf7;border-color:#c5e2ce;border-left:5px solid #6da37c}',
+'.uki-mini-item[data-estado="sinminimo"]{background:#faf8f5;border-color:#ddd4cb;border-left:5px solid #a49b93}',
+'.uki-mini-badge{display:inline-block;padding:6px 10px;border-radius:99px;font-weight:800;font-size:12px;white-space:nowrap}',
+'.uki-mini-badge.reponer{background:#f9e0bb;color:#89520c}',
+'.uki-mini-badge.bien{background:#d9f2e0;color:#2a7345}',
+'.uki-mini-badge.sinminimo{background:#ebe6e0;color:#6d6259}',
+'.uki-mini-resumen{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}',
+'.uki-mini-resumen-item{border:1px solid #e0d3c9;border-radius:12px;padding:10px 7px;background:#fffaf6}',
+'.uki-mini-resumen-item strong{display:block;font-size:19px;font-variant-numeric:tabular-nums}',
+'.uki-mini-resumen-item small{display:block;font-size:12px;line-height:1.35;color:#6d5b4f}',
+'.uki-mini-resumen-item.reponer{background:#fff2df;border-color:#e8c491;color:#995b15}',
+'.uki-mini-resumen-item.bien{background:#f1faef;border-color:#c5dfbb;color:#407a44}',
+'.uki-mini-resumen-item.sinminimo{background:#f3f0ed;border-color:#d8cfc7;color:#766356}',
 '.uki-mini-manual{margin:14px 0;border:1.5px solid #e4bd91;border-radius:14px;background:#fffcf8;padding:10px 12px}',
 '.uki-mini-manual summary{cursor:pointer;font-size:16px;font-weight:750;color:#824312;padding:7px 2px}',
 '.uki-mini-manual h3{font-size:15px;margin:16px 0 7px;color:#59391c}',
@@ -71,6 +85,7 @@ const panel=[
 '<option value="bien">Con existencias suficientes</option><option value="sinminimo">Sin mínimo configurado</option>',
 '</select></div></div>',
 '<p id="ukiMiniEstado" role="status" class="muted">Consultando…</p>',
+'<div id="ukiMiniResumen" class="uki-mini-resumen" aria-label="Resumen visual de existencias"></div>',
 '<div class="uki-mini-action"><button type="button" id="ukiMiniActualizar" class="sm">Actualizar lista</button>',
 '<button type="button" id="ukiMiniExcel" class="sm">Excel (.csv)</button>',
 '<button type="button" id="ukiMiniPDF" class="sm">PDF</button>',
@@ -104,6 +119,7 @@ const panel=[
 '<option value="todos">Todos</option><option value="reponer">Para reponer</option>',
 '<option value="bien">Suficientes</option><option value="sinminimo">Sin mínimo</option>',
 '</select></div></div>',
+'<div id="ukiDetalleResumen" class="uki-mini-resumen" aria-label="Resumen de la revisión guardada"></div>',
 '<p id="ukiDetalleEstado" role="status" class="muted"></p><div id="ukiDetalleLista" class="uki-mini-list"></div>',
 '<button id="ukiDetalleMas" type="button" class="sm" hidden>Mostrar 15 más</button>',
 '</div></section>'
@@ -265,6 +281,14 @@ async function openRevision(id){
 }
 function mount(){
  oldMount();if(!$('ukiMiniInventario')||!exports())return;
+ // Reordenar solamente contenedores existentes, conservando botones y eventos.
+ const root=$('invRoot');
+ if(root){
+  let anterior=root;
+  for(const id of ['ukiMiniInventario','invAdmin','invNewBox','ukiInvWorkerAccess']){
+   const el=$(id);if(el){anterior.insertAdjacentElement('afterend',el);anterior=el;}
+  }
+ }
  x.branch=sucursal();x.loaded=false;x.loadedAt=null;x.historyLoaded=false;x.selected=null;x.editor=false;
  $('ukiMiniBuscar').oninput=e=>{x.query=e.target.value;x.limit=12;renderCurrent();};
  $('ukiMiniFiltro').onchange=e=>{x.filter=e.target.value;x.limit=12;renderCurrent();};
