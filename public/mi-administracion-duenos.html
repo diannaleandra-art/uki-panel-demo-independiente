@@ -127,6 +127,16 @@ label{color:#66574c}
 .owner-quick .quick-action strong{font-size:13px}
 .owner-quick .quick-action small{font-size:11px}
 #ukiOwnerListadoVentas{scroll-margin-top:115px}
+.owner-period-actions{display:flex;gap:7px;flex-wrap:wrap;margin:5px 0 12px}
+.owner-period-actions button{min-height:38px;padding:8px 12px;border:1px solid #e7d4c0;border-radius:11px;background:#fffaf5;color:#65462c;font-size:13px;font-weight:700}
+.owner-period-actions button[aria-pressed="true"]{border-color:#aa641c;background:#fff0d9;color:#8b4308}
+.owner-business-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+.owner-business-item{background:#fff;border:1px solid #e8d9c9;border-radius:14px;padding:13px;min-width:0}
+.owner-business-item strong{display:block;font-size:14px;margin-bottom:8px}
+.owner-business-item .row{gap:10px;margin:5px 0;font-size:13px}
+.owner-business-item .row span{color:#76695e}
+.owner-business-item .row b{font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.owner-business-item .owner-business-net{border-top:1px solid #eadaca;padding-top:8px;margin-top:8px}
 #ukiOwnerListadoVentas .line{border-bottom:1px solid #eedfd2;padding:9px 0}
 @media(max-width:350px){.owner-branch-grid{grid-template-columns:1fr}.owner-branch-button{min-height:68px}}
 
@@ -168,12 +178,19 @@ label{color:#66574c}
 <div class="card owner-finance-card"><div class="owner-eyebrow">MOVIMIENTOS FINANCIEROS REGISTRADOS</div><h2>📊 Resumen de todos los negocios</h2>
 <p class="owner-finance-note">Los movimientos manuales heredados de la etapa de pruebas deben verificarse antes de contabilizarlos como ventas reales. Los cierres automáticos aparecen por separado y no duplican ingresos.</p>
 <p class="hint" id="ukiPeriodoResumen">Período seleccionado: el mes actual</p>
-<button class="soft" id="ukiAbrirFechas" type="button" style="width:auto;padding:8px 12px;min-height:36px;margin-bottom:12px">📅 Cambiar fechas del resumen</button>
+<div class="owner-period-actions" role="group" aria-label="Período del resumen">
+<button type="button" data-owner-period="hoy">Hoy</button>
+<button type="button" data-owner-period="semana">Últimos 7 días</button>
+<button type="button" data-owner-period="mes">Este mes</button>
+<button type="button" id="ukiAbrirFechas">Elegir fechas</button></div>
 <div class="metrics"><div class="metric"><small>Ventas (manuales + cierres)</small><b id="m-ventas">$0</b></div>
 <div class="metric"><small>Gastos y repartos pagados</small><b id="m-gastos">$0</b></div>
 <div class="metric"><small>Ventas − gastos*</small><b id="m-resultado">$0</b></div>
 <div class="metric"><small>Pagos pendientes</small><b id="m-pendientes">$0</b></div></div>
 <p class="hint">*Resultado preliminar del período: ventas menos gastos pagados y repartos pagados. Las propinas y retiros se muestran aparte; faltan otros costos e impuestos para calcular la utilidad real.</p></div>
+<section class="card" id="ukiResumenPorLocal"><h2 style="margin:0 0 7px;font-size:18px">🏪 Cómo va cada local</h2>
+<p class="hint">Ventas, gastos pagados y resultado del período por sucursal o negocio. Los gastos generales sin sucursal permanecen separados.</p>
+<div id="ukiOwnerPorNegocio" class="owner-business-list"><p class="muted">Consultando movimientos…</p></div></section>
 <div class="owner-section-label">Detalle de ventas</div>
 <button id="ukiGoTodasVentas" type="button" class="owner-action-all">📋 Todas las ventas<small>Cierres finales y ventas manuales por fecha y sucursal</small></button>
 <div class="owner-section-label">Administrar movimientos</div>
@@ -393,6 +410,83 @@ function mostrarVentasFinancieras(){
  actualizarResumenConCierres(data);
 }
 
+
+function pintarResumenPorNegocio(data,cierresSumables){
+ const host=$('ukiOwnerPorNegocio');host.replaceChildren();
+ const money=x=>{const n=Number(x);return Number.isSafeInteger(n)&&n>=0?n:0};
+ const result=new Map();
+ const uki=businesses.find(x=>/\\buki\\b/i.test(String(x.nombre||'')));
+ const keyForManual=t=>{
+  const biz=businesses.find(x=>String(x.id)===String(t.negocio_id));
+  const suc=branches.find(x=>String(x.id)===String(t.sucursal_id));
+  const name=String(biz?.nombre||'Negocio');
+  const branchName=String(suc?.nombre||'');
+  const isUki=/\\buki\\b/i.test(name);
+  if(isUki&&/arica|regimiento/i.test(branchName))return 'uki-arica';
+  if(isUki&&/serena/i.test(branchName))return 'uki-serena';
+  return 'manual-'+String(t.negocio_id)+'-'+String(t.sucursal_id||'general');
+ };
+ const entry=(key,label)=>{
+  if(!result.has(key))result.set(key,{label,venta:0,gastos:0,pendientes:0,cierres:0});
+  return result.get(key);
+ };
+ const labelFor=t=>{
+  const biz=businesses.find(x=>String(x.id)===String(t.negocio_id));
+  const suc=branches.find(x=>String(x.id)===String(t.sucursal_id));
+  return (biz?.nombre||'Negocio')+' · '+(suc?.nombre||'Gastos generales / sin sucursal');
+ };
+ // Usamos las mismas ventas conciliadas del resumen: no se vuelven a registrar.
+ for(const x of cierresSumables){
+  const k=/arica/i.test(x.sucursal)?'uki-arica':'uki-serena';
+  const row=entry(k,'Uki Sushi · '+x.sucursal);
+  row.venta+=money(x.importe);
+  row.gastos+=money(x.gastos)+money(x.delivery);
+  row.cierres++;
+ }
+ const manualIncluded=new Set(data.items.filter(x=>x.tipo==='manual'&&x.estado!=='anulado').map(x=>String(x.id)));
+ for(const t of transactions){
+  if(t.estado==='anulado')continue;
+  const k=keyForManual(t),row=entry(k,k==='uki-arica'?'Uki Sushi · Regimiento Arica':
+   k==='uki-serena'?'Uki Sushi · La Serena':labelFor(t));
+  const amt=money(t.monto);
+  if(t.tipo==='venta'&&manualIncluded.has(String(t.id)))row.venta+=amt;
+  if(['gasto','compra','costo_producto'].includes(t.tipo)){
+   if(t.estado==='pendiente')row.pendientes+=amt;else row.gastos+=amt;
+  }
+ }
+ const entries=[...result.values()].filter(x=>x.venta||x.gastos||x.pendientes);
+ if(!entries.length){
+  const p=document.createElement('p');p.className='hint';p.textContent='Sin movimientos para estas fechas. Puedes elegir otro período.';
+  host.append(p);return;
+ }
+ entries.sort((a,b)=>b.venta-a.venta||a.label.localeCompare(b.label,'es'));
+ const summary=(card,title,value,strong=false)=>{
+  const row=document.createElement('div');row.className='row'+(strong?' owner-business-net':'');
+  row.style.justifyContent='space-between';
+  const a=document.createElement('span');a.textContent=title;
+  const b=document.createElement('b');b.textContent=pesos(value);
+  row.append(a,b);card.append(row);
+ };
+ for(const e of entries){
+  const card=document.createElement('div');card.className='owner-business-item';
+  const name=document.createElement('strong');name.textContent=e.label;card.append(name);
+  summary(card,'Ventas',e.venta);
+  summary(card,'Gastos pagados',e.gastos);
+  summary(card,'Resultado preliminar',e.venta-e.gastos,true);
+  if(e.pendientes)summary(card,'Por pagar',e.pendientes);
+  if(e.cierres){
+   const small=document.createElement('p');small.className='hint';
+   small.textContent=e.cierres+' cierre(s) definitivo(s) de Uki';card.append(small);
+  }
+  host.append(card);
+ }
+ if(transactions.length>=250||cierresConfirmadosUki.length>=250){
+  const p=document.createElement('p');p.className='hint';
+  p.textContent='Consulta limitada a 250 registros por origen. Usa un período menor para asegurar el detalle de todos los locales.';
+  host.append(p);
+ }
+}
+
 function actualizarResumenConCierres(data){
  // Solo lectura: las ventas y gastos de caja se reflejan en el resumen sin
  // guardarse en fin_movimientos ni modificar el cierre original.
@@ -433,6 +527,7 @@ function actualizarResumenConCierres(data){
  for(const x of pagosManualesUki)sumarPago(x.medio,x.total);
  for(const c of cierresSumables)for(const [k,v] of Object.entries(c.medios||{}))sumarPago(k,v);
  renderPayments([...pagos].map(([medio,total])=>({medio,total})));
+ pintarResumenPorNegocio(data,cierresSumables);
  // Desglose diario: una sola entrada por cierre verificado y venta manual.
  const dias=new Map();
  const dia=fecha=>{
@@ -906,6 +1001,7 @@ async function refresh(){
   const params={negocio_id:currentBiz()||null,sucursal_id:currentBranch()||null,razon_social_id:value('scopeRazon')||'todos',desde:value('from'),hasta:value('to')};
   const [s,l]=await Promise.all([api('resumen',params),api('listar_movimientos',params)]);
   transactions=l.movimientos||[];
+  marcarPeriodoSeleccionado();
   resumenManualUki=s.resumen||[];pagosManualesUki=s.pagos||[];
   renderRows();notify('Información privada actualizada.','success');
   await cargarCierresUki(value('from'),value('to'));
@@ -989,10 +1085,31 @@ $('newBiz').onclick=()=>safe('newBiz',async()=>{await api('nuevo_negocio',{nombr
 $('newBranch').onclick=()=>safe('newBranch',async()=>{await api('nueva_sucursal',{negocio_id:value('newBranchBiz'),nombre:value('newBranchName')});$('newBranchName').value='';await loadBusinesses()});
 $('saveCost').onclick=()=>safe('saveCost',async()=>{await api('guardar_costo',{negocio_id:value('costBiz'),nombre:value('costName'),precio_venta:amount('costPrice'),costo_estimado:amount('costAmount'),detalle:value('costDescription')});$('costName').value='';await loadCosts()});
 $('refresh').onclick=()=>void refresh();$('from').onchange=()=>void refresh();$('to').onchange=()=>void refresh();
+const periodoHasta=()=>today();
+const periodoHaceDias=n=>{
+ const fecha=new Date(today()+'T12:00:00Z');
+ fecha.setUTCDate(fecha.getUTCDate()-n);
+ return fecha.toISOString().slice(0,10);
+};
+document.querySelectorAll('[data-owner-period]').forEach(btn=>btn.onclick=()=>{
+ const elegido=btn.dataset.ownerPeriod;
+ $('to').value=periodoHasta();
+ $('from').value=elegido==='hoy'?periodoHasta():
+  elegido==='semana'?periodoHaceDias(6):periodoHasta().slice(0,7)+'-01';
+ void refresh();
+});
 $('ukiAbrirFechas').onclick=()=>{
  switchTab('resumen');$('globalAdvanced').open=true;$('dateFilters').open=true;
  $('filterCard').scrollIntoView({behavior:'smooth',block:'start'});
 };
+function marcarPeriodoSeleccionado(){
+ const desde=value('from'),hasta=value('to'),hoy=today();
+ for(const boton of document.querySelectorAll('[data-owner-period]')){
+  const p=boton.dataset.ownerPeriod,primero=p==='hoy'?hoy:
+   p==='semana'?periodoHaceDias(6):hoy.slice(0,7)+'-01';
+  boton.setAttribute('aria-pressed',String(desde===primero&&hasta===hoy));
+ }
+}
 function show(id){for(const x of ['login','setup','unlock','app'])$(x).hidden=x!==id;$('tabs').hidden=id!=='app';$('exit').hidden=id==='login';}
 function lock(){session='';show('unlock');}
 async function checkState(){
