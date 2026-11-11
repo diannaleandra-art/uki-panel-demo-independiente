@@ -60,3 +60,79 @@ test('Una sola lista de promociones: el filtro general no ofrece Promos del mes 
  assert.match(js,/areas\.promociones\.append\(crearArea,existentes\)/);
  assert.match(js,/renderPromoResumen\(\)/);
 });
+
+test('Se puede seleccionar una categoría propia al agregar un producto, con guardado por sucursal',async()=>{
+ const elements={
+  ukiPriceNewKind:{value:'dish'},ukiPriceNewCategory:{value:'almuerzos'},
+  ukiPriceNewName:{value:'Gohan vegetariano'},ukiPriceNewDesc:{value:'Vegetales frescos'},
+  ukiPriceNewAmount:{value:'6500'},ukiPriceCreate:{disabled:false},ukiPriceAddBox:{open:true}
+ };
+ const calls=[];let message='';
+ const ctx={
+  $:id=>elements[id],branch:()=> 'serena',API:'QA',
+  state:{busy:false,categoriasDescuentosHabilitados:true,categorias:[{slug:'almuerzos'}]},
+  request:async(api,action,params,br)=>{
+   calls.push({action,params,branch:br});
+   return action==='crear-producto'?{item:{sku:'dish:gohan-qa-1'}}:{ok:true};
+  },
+  loadPrices:async()=>{},info:(id,text)=>{message=text}
+ };
+ const create=vm.runInNewContext(cut('async function create(){','async function loadReponer(){')+'\ncreate',ctx);
+ await create();
+ assert.equal(calls.length,2);
+ assert.equal(calls[0].action,'crear-producto');
+ assert.equal(calls[1].action,'asignar-categoria');
+ assert.equal(calls[1].params.categoriaSlug,'almuerzos');
+ assert.equal(calls[1].params.sku,'dish:gohan-qa-1');
+ assert.equal(calls[1].branch,'serena');
+ assert.match(message,/con su categoría/);
+ assert.equal(elements.ukiPriceAddBox.open,false);
+});
+test('Si falla asignar categoría, NO afirma que el producto no se creó',async()=>{
+ const els={ukiPriceNewKind:{value:'dish'},ukiPriceNewCategory:{value:'almuerzos'},
+  ukiPriceNewName:{value:'Gohan QA'},ukiPriceNewDesc:{value:'Vegetales'},
+  ukiPriceNewAmount:{value:'6500'},ukiPriceCreate:{disabled:false},ukiPriceAddBox:{open:true}};
+ let message='',creates=0;
+ const ctx={$:id=>els[id],branch:()=> 'arica',API:'QA',
+  state:{busy:false,categoriasDescuentosHabilitados:true,categorias:[{slug:'almuerzos'}]},
+  request:async(_,action)=>{
+   if(action==='crear-producto'){creates++;return {item:{sku:'dish:qa'}};}
+   throw Error('Categoría temporalmente no disponible');
+  },loadPrices:async()=>{},info:(_,msg)=>{message=msg}};
+ const create=vm.runInNewContext(cut('async function create(){','async function loadReponer(){')+'\ncreate',ctx);
+ await create();
+ assert.equal(creates,1);assert.match(message,/Producto .* creado, pero su categoría no se guardó/);
+ assert.match(message,/no vuelvas a agregar el producto/);
+});
+test('La lista de categorías se carga en el formulario del producto al abrir la sucursal',()=>{
+ const f={ukiCategoriesBox:{hidden:true},ukiCategoriesList:{textContent:''},
+  ukiPriceNewCategoryBox:{hidden:true},
+  ukiPriceNewCategory:{value:'',options:[],disabled:false,
+   replaceChildren(...items){this.options=[...items];this.value=items[0]?.value||'';},
+   add(item){this.options.push(item)}}};
+ let rendered=false;
+ const ctx={$:id=>f[id],Option:function(text,value){return {text,value}},
+  state:{categoriasDescuentosHabilitados:true,categorias:[{slug:'almuerzos',nombre:'Almuerzos'}]},
+  renderCategoryAssignments:()=>{rendered=true}};
+ const render=vm.runInNewContext(cut('function renderCategories(){','async function crearCategoria(){')+'\nrenderCategories',ctx);
+ render();
+ assert.equal(f.ukiPriceNewCategoryBox.hidden,false);
+ assert.deepEqual(f.ukiPriceNewCategory.options.map(x=>x.value),['','almuerzos']);
+ assert.equal(rendered,true);
+});
+test('La tarjeta de promoción muestra porcentaje y precio final sin alterar precio original',()=>{
+ const make=tag=>({tag,style:{},children:[],textContent:'',className:'',append(...x){this.children.push(...x)},replaceChildren(...x){this.children=[...x]}});
+ const target=make('root');
+ const ctx={$:id=>id==='ukiPromosListaResumen'?target:id==='ukiPromoBuscar'?{value:''}:null,
+  document:{createElement:make},state:{promocionesHabilitadas:true,items:[{
+   kind:'monthly',sku:'monthly:promo-72',name:'72 piezas',price:18000,
+   precioOriginal:18000,precioFinal:14400,descuentoPorcentaje:20,visible:true,estadoPublicacion:'Publicada'
+  }]},line:()=>make('div'),visibilityControl:()=>make('button')};
+ vm.runInNewContext(cut('function renderPromoResumen(){','function renderPrices(){')+'\nrenderPromoResumen()',ctx);
+ const card=target.children.find(x=>x.className==='uki-promo-edicion-card');
+ assert.ok(card);
+ const status=card.children[0].children[1];
+ const offer=status.children.find(x=>x.className==='uki-promo-descuento');
+ assert.match(offer.textContent,/20% menos.*14[.]400 final/);
+ assert.match(status.children[0].textContent,/18[.]000/);
+});
