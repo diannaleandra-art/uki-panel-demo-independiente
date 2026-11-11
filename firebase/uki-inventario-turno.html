@@ -97,8 +97,7 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 <script type="module">
 import {iniciarFacturaLive} from './uki-factura-interfaz-live.mjs';
 const $=id=>document.getElementById(id);
-const isQA=['uki-sushi-inventario.vercel.app','uki-sushi-inventario-diannaleandra-7046.vercel.app',
- 'uki-sushi-panel.vercel.app','uki-sushi-panel-diannaleandra-7046.vercel.app'].includes(location.hostname);
+const isQA=['uki-sushi-panel.vercel.app','uki-sushi-panel-diannaleandra-7046.vercel.app'].includes(location.hostname);
 const API='/api/inventario-turno-live';
 let branch='',items=[],busy=false,requestId=null,lastSaved=null,reporteFinal=null;
 const entradasSesion=new Map();
