@@ -47,6 +47,7 @@ export function crearPuenteRomoOperativoQA({
  return Object.freeze({
   disponible,
   async cargar({password}={}){
+   if(!disponible())throw new Error('Operaciones de Romo no habilitadas');
    const result=await request('GET');
    if(result.revision===0){
     if(result.snapshot!==null)throw new Error('Estado inicial de Romo incorrecto');
@@ -60,6 +61,7 @@ export function crearPuenteRomoOperativoQA({
    return Object.freeze({revision:result.revision,estado});
   },
   async guardar({estado,password,revision,snapshotAnterior=null}={}){
+   if(!disponible())throw new Error('Operaciones de Romo no habilitadas');
    if(!Number.isSafeInteger(revision)||revision<0||
       estado?.suc!==ROMO_OPERATIVO_SUCURSAL_QA||
       !validarEstado(estado,ROMO_OPERATIVO_SUCURSAL_QA)||
