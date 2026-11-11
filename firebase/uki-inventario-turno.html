@@ -15,7 +15,37 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
  .reloj-inventario{background:#fff1e0;border:1px solid #eecfa9;border-radius:12px;padding:12px 14px;margin:12px 0}
  .reloj-inventario strong{display:block;margin:5px 0;font-size:18px;color:#6c3c12;font-variant-numeric:tabular-nums;line-height:1.35}
  .reloj-inventario p{margin:6px 0 0}details{margin-top:10px}summary{cursor:pointer;color:#915a2b}footer{text-align:center;color:#826b58;font-size:12px}
-[hidden]{display:none!important}
+
+ .card[data-estado="reponer"]{border:2px solid #d89e54;border-left:6px solid #c57c1a;background:#fffaf2}
+ .card[data-estado="bien"]{border-left:6px solid #6da77e;background:#fcfffb}
+ .card[data-estado="sin-minimo"]{border-left:6px solid #9b948a;background:#fcfbf9}
+ #items>details>summary{display:flex;align-items:center;justify-content:space-between;gap:9px;list-style:none}
+ #items>details>summary::-webkit-details-marker{display:none}
+ #items>details>summary:after{content:"+";font-size:21px;color:#8a552d}
+ #items>details[open]>summary:after{content:"−"}
+ #items>details strong{font-size:17px}
+ .estado-pill{display:inline-block;margin:6px 0;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:800}
+ .estado-pill.reponer{background:#ffdda8;color:#764008}
+ .estado-pill.bien{background:#dff4e5;color:#24633b}
+ .estado-pill.sin-minimo{background:#f0ece6;color:#796a5e}
+ .action-label{font-weight:800;border-top:1px solid #e6d8cc;padding-top:13px;margin:16px 0 6px;color:#744831}
+ #items details details{border:1px solid #e8c7a8;border-radius:12px;background:#fff8f0;padding:12px;margin-top:16px}
+ #items details details>summary{font-weight:800;color:#7b4527}
+ .reporte-colores{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:12px 0}
+ .resumen-indicador{border:1px solid #e5d5c6;border-radius:12px;padding:10px 7px;background:#f9f7f4}
+ .resumen-indicador .valor{display:block;font-size:21px;font-weight:850}
+ .resumen-indicador .detalle{display:block;font-size:12px;line-height:1.35}
+ .resumen-indicador.verde{background:#edf8ef;border-color:#b4d9bd;color:#26683e}
+ .resumen-indicador.naranja{background:#fff0dc;border-color:#e6bd84;color:#87510d}
+ .resumen-indicador.gris{background:#f3f0ec;border-color:#d5c9bf;color:#655449}
+ .reporte-lista{display:grid;gap:7px;margin:10px 0}
+ .reporte-fila{border-left:4px solid #c4822c;border-radius:10px;background:#fff8ed;padding:10px 12px}
+ .reporte-fila strong{display:block;font-size:14px}
+ .reporte-fila small{display:block;font-size:13px;margin-top:3px;color:#7b542c}
+ .descargas-turno{border:1px solid #b6d7b9;border-radius:13px;background:#f1faf3;padding:12px;margin-top:13px}
+ .descargas-turno .grid{margin-top:8px}.descargas-turno button{width:100%;min-height:45px}
+ @media(max-width:430px){.resumen-indicador{padding:8px 5px}.resumen-indicador .detalle{font-size:11px}}
+ [hidden]{display:none!important}
 </style></head>
 <body><header><h1>🍣 Uki Sushi · Inventario</h1><div>Conteo del turno · sin caja, ventas ni cierres</div></header>
 <main>
@@ -45,13 +75,19 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
  </div>
 <p class="muted">Al cierre cuenta lo que realmente queda y pulsa <b>Guardar conteo</b> en cada artículo. Cuando llega mercadería, usa <b>Registrar entrada</b>. Solo administración decide Disponible / Agotado en la carta.</p><p id="turnoProgreso" role="status" class="pill">Todavía no hay conteos guardados en este turno.</p></section>
 <div id="items"></div><div style="text-align:center;margin:10px 16px"><button type="button" id="mostrarMas" class="secondary" hidden>Mostrar 12 artículos más</button></div>
-<section class="card"><h2>3. Terminar el turno</h2><p class="muted">Confirma los conteos guardados. Si faltan artículos por revisar, puedes completar el conteo antes de terminar.</p><p id="resumen" class="muted"></p>
+<section class="card"><h2>3. Terminar el turno</h2><p class="muted">Confirma los conteos guardados. Si faltan artículos por revisar, puedes completar el conteo antes de terminar.</p><p id="resumen" class="muted"></p><div id="resumenIndicadores" class="reporte-colores" aria-label="Resumen del inventario"></div><div id="resumenArticulos" class="reporte-lista" aria-label="Artículos que requieren reposición"></div>
 <button id="enviar">Guardar en el panel y compartir por WhatsApp</button>
 <p class="muted">Primero confirma el guardado en el panel. Después podrás compartir el mismo reporte por WhatsApp.</p>
-<p id="confirmacion" role="status"></p></section>
+<p id="confirmacion" role="status"></p>
+ <div id="descargasTurno" class="descargas-turno" hidden>
+ <strong>✓ Inventario guardado en el panel</strong>
+ <p class="muted">Puedes descargar exactamente esta revisión: existencias, entradas y artículos para pedir.</p>
+ <div class="grid"><button type="button" id="descargarPDF">Descargar PDF</button>
+ <button type="button" id="descargarExcel" class="secondary">Excel (.csv)</button></div></div></section>
 </div>
 <footer>Uki Sushi · Revisión independiente de caja y cierres</footer>
 </main>
+<script src="./uki-inventario-exportar.js"></script>
 <script type="module">
 import {iniciarFacturaLive} from './uki-factura-interfaz-live.mjs';
 const $=id=>document.getElementById(id);
