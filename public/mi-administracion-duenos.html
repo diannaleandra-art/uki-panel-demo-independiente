@@ -1063,7 +1063,22 @@ function pintarAccionesManual(box,t){
   branchesFor(t.negocio_id).forEach(x=>suc.add(new Option(x.nombre,x.id)));
   suc.value=t.sucursal_id||'';
   asignacion.append(suc);form.append(asignacion);
-  const mediosInputs=[];
+  const mediosInputs=[],mediosOriginales=Object.keys(t.medios||{}).filter(x=>Number(t.medios[x])>0);
+  let editarMedioGasto=null;
+  if(t.tipo!=='venta'&&t.estado!=='pendiente'){
+   if(mediosOriginales.length>1){
+    const nota=document.createElement('p');nota.className='hint';
+    nota.textContent='Este registro tiene pago mixto. Se conservarán sus medios originales; no cambies el total sin revisarlos.';
+    form.append(nota);
+   }else{
+    const label=document.createElement('label');label.textContent='Medio de pago del gasto';
+    editarMedioGasto=document.createElement('select');
+    editarMedioGasto.add(new Option('Sin indicar',''));
+    AM.forEach(m=>editarMedioGasto.add(new Option(m,m)));
+    editarMedioGasto.value=mediosOriginales[0]||'';
+    label.append(editarMedioGasto);form.append(label);
+   }
+  }
   if(t.tipo==='venta'){
    const nota=document.createElement('p');nota.className='hint';
    nota.textContent='Medios de pago: cuando estén indicados deben sumar el monto vendido.';form.append(nota);
@@ -1097,7 +1112,8 @@ function pintarAccionesManual(box,t){
     await api('editar_movimiento',{
      id:t.id,version:t.actualizado_en,fecha:fechaNueva,monto,
      concepto:concepto.value,referencia:referencia.value,sucursal_id:suc.value||null,
-     ...(t.tipo==='venta'?{medios}:{categoria:categoria.value,proveedor:proveedor.value})
+     ...(t.tipo==='venta'?{medios}:{categoria:categoria.value,proveedor:proveedor.value,
+      ...(editarMedioGasto?{medios:editarMedioGasto.value?{[editarMedioGasto.value]:monto}:{}}:{})})
     });
     editor.replaceChildren();await refresh();
     notify('Registro manual modificado con historial.','success');
