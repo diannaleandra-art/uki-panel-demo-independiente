@@ -3261,10 +3261,17 @@ function ukiDesglosePagosPorMedio(){
  return grupos;
 }
 function ukiAuditoriaPagosUI(){
+ // Solo lectura: el desglose de pedidos se coteja con la caja, que puede
+ // conservar cobros anteriores cuando una edición quedó sin regularizar.
  const grupos=ukiDesglosePagosPorMedio(),esperado=totales().medios;
- const suma=Array.from(grupos.values()).flat().reduce((n,x)=>n+x.monto,0);
- const montoEsperado=Object.values(esperado).reduce((n,v)=>n+(Number(v)||0),0);
- const coincide=MEDIOS.every(m=>(grupos.get(m)||[]).reduce((n,x)=>n+x.monto,0)===(Number(esperado[m])||0));
+ const totalDesglose=Array.from(grupos.values()).flat().reduce((n,x)=>n+x.monto,0);
+ const totalCaja=Object.values(esperado).reduce((n,v)=>n+(Number(v)||0),0);
+ const diferencias=MEDIOS.map(m=>{
+  const detalle=(grupos.get(m)||[]).reduce((n,x)=>n+x.monto,0);
+  const registrado=Number(esperado[m])||0;
+  return {medio:m,detalle,registrado,diferencia:registrado-detalle};
+ }).filter(x=>x.diferencia!==0);
+ const ajustes=delSucHoy(S.pedidos).filter(p=>p.estado!=="Cancelado"&&!p.esPremio&&ukiCobroPendiente(p));
  const cuerpo=MEDIOS.map(m=>{
   const items=grupos.get(m)||[];
   const monto=items.reduce((n,x)=>n+x.monto,0);
@@ -3274,14 +3281,35 @@ function ukiAuditoriaPagosUI(){
    (items.map(x=>row(x.etiqueta,fmt(x.monto))).join("")||'<p class="muted">Sin movimientos</p>')+
    '</details>';
  }).join("");
+ const detalleDiferencias=diferencias.map(d=>
+  '<div style="padding:8px 0;border-bottom:1px solid var(--line)"><b>'+esc(d.medio)+'</b>'+
+  row("Detalle de pedidos",fmt(d.detalle))+
+  row("Registrado en caja",fmt(d.registrado))+
+  row("Diferencia de caja frente al detalle",(d.diferencia>0?"+":"−")+fmt(Math.abs(d.diferencia)))+
+  '</div>').join("");
+ const ajustesPendientes=ajustes.length?
+  '<details style="padding:10px 0"><summary style="cursor:pointer;font-weight:700">📝 Pedidos con cobros por regularizar · '+ajustes.length+'</summary>'+
+  '<p class="muted">El total de caja conserva el dinero originalmente registrado hasta que se confirme el cobro o la devolución. No confirma movimientos automáticamente.</p>'+
+  ajustes.map(p=>{
+   const saldo=Number(ukiCobroPendiente(p)?.saldo)||0;
+   const detalle=saldo>0?'Por aclarar o devolver':saldo<0?'Por cobrar':'Por conciliar';
+   return row(ukiReferenciaConCarta(p)+' · '+detalle,
+    fmt(Math.abs(saldo)));
+  }).join("")+'</details>':"";
  return '<details class="card" id="ukiDesgloseMediosTurno">'+
-   '<summary style="cursor:pointer;font-weight:700">💳 Pedidos cobrados por medio de pago · '+fmt(suma)+'</summary>'+
-   '<p class="muted">Cada pedido aparece donde ingresó su dinero: efectivo, transferencia, débito y demás medios. Los pagos mixtos se separan por importe; los cobros de otro local NO se suman aquí. Las ventas de apps sin pedido se indican por separado. Los deliverys manuales no son ingresos.</p>'+
-   (coincide&&suma===montoEsperado?
-    '<p class="muted">✅ El desglose coincide con los totales registrados en el panel.</p>':
-    '<p style="color:#a42b19"><b>⚠️ Desglose diferente del total registrado. Revisar pagos antes de cerrar.</b></p>')+
-   (cuerpo||'<p class="muted">Todavía no hay ventas cobradas en este turno.</p>')+
-   row("Total de cobros registrados en Uki",fmt(suma),"final")+
+   '<summary style="cursor:pointer;font-weight:700">💳 Pedidos cobrados por medio de pago · '+fmt(totalDesglose)+'</summary>'+
+   '<p class="muted">El desglose presenta pedidos pagados y ventas manuales de apps. La caja también conserva cobros originales de pedidos con modificaciones pendientes. Los cobros de otros locales y deliverys manuales no son ingresos aquí.</p>'+
+   (diferencias.length===0&&totalDesglose===totalCaja?
+    '<p class="muted">✅ El desglose coincide con lo registrado en caja.</p>':
+    '<p style="color:#a42b19"><b>⚠️ Hay diferencias que revisar antes de cerrar.</b></p>'+
+    '<p class="muted">El aviso no cambia ni corrige dinero. Revisa los medios siguientes y los pedidos con ajustes pendientes.</p>'+
+    '<details open style="padding:10px 0"><summary style="cursor:pointer;font-weight:700">Ver diferencias por medio de pago · '+diferencias.length+'</summary>'+
+    (detalleDiferencias||'<p class="muted">No hay diferencia individual por medio.</p>')+
+    '</details>')+
+   ajustesPendientes+
+   (cuerpo||'<p class="muted">Todavía no hay ventas cobradas desglosadas en este turno.</p>')+
+   row("Total del desglose por pedidos",fmt(totalDesglose),"sub")+
+   row("Total registrado en caja",fmt(totalCaja),"final")+
    '</details>';
 }
 function ukiTimbresTurnoAuditoria(){
