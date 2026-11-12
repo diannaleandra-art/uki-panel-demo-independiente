@@ -128,13 +128,14 @@ test('Categorías tienen lista desplegable, editar, eliminar y agregar o quitar 
  assert.doesNotThrow(()=>new vm.Script(panel));
  for(const label of ['Categorías guardadas','Editar nombre de esta categoría',
   'Guardar nombre','Productos dentro de ','Quitar de esta categoría',
-  'Agregar productos a esta categoría','🗑 Eliminar categoría'])
+  'Agregar productos a esta categoría','✎ Editar producto completo','🗑 Eliminar categoría'])
   assert.ok(panel.includes(label),'Falta '+label);
  for(const action of ['editar-categoria','eliminar-categoria','asignar-categoria'])
   assert.ok(panel.includes("'"+action+"'"),action);
  assert.match(panel,/await loadPrices\(true\)/);
  assert.match(panel,/window\.confirm\('¿Eliminar la categoría/);
  assert.match(panel,/state\.categoriaAbierta=category\.slug/);
+ assert.match(panel,/window\.ukiCartaSeleccion\?\.\('productos'\)/);
  assert.match(server,/if\(action==='editar-categoria'\)/);
  assert.match(server,/if\(action==='eliminar-categoria'\)/);
 });
