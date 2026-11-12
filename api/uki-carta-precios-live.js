@@ -141,6 +141,37 @@ async function guardarCategoria(sql,branch,name,user){
  const rows=await sql.query('INSERT INTO public.uki_carta_categorias_personalizadas_v1(branch,slug,nombre,updated_by) VALUES($1,$2,$3,$4) ON CONFLICT(branch,slug) DO UPDATE SET nombre=excluded.nombre,updated_by=excluded.updated_by,updated_at=NOW() RETURNING slug,nombre',[branch,slug,nombre,user.uid]);
  return rows[0]||null;
 }
+// Renombrar conserva el identificador estable y las asignaciones.
+async function renombrarCategoria(sql,branch,slug,nombre,user){
+ const valido=nombreCategoria(nombre);
+ if(!categoriaValida(slug)||!valido)return null;
+ const rows=await sql.query(
+  `UPDATE public.uki_carta_categorias_personalizadas_v1 c
+   SET nombre=$3,updated_by=$4,updated_at=NOW()
+   WHERE c.branch=$1 AND c.slug=$2
+    AND NOT EXISTS(SELECT 1 FROM public.uki_carta_categorias_personalizadas_v1 otra
+     WHERE otra.branch=$1 AND otra.slug<>$2 AND lower(otra.nombre)=lower($3))
+   RETURNING slug,nombre`,
+  [branch,slug,valido,user.uid]);
+ return rows[0]||null;
+}
+// Borrar categoría desvincula sus productos, sin borrarlos.
+async function eliminarCategoria(sql,branch,slug){
+ if(!categoriaValida(slug))return null;
+ const rows=await sql.query(
+  `WITH enlaces_quitados AS (
+    DELETE FROM public.uki_carta_producto_categoria_v1
+     WHERE branch=$1 AND category_slug=$2 RETURNING sku
+   ), categoria_borrada AS (
+    DELETE FROM public.uki_carta_categorias_personalizadas_v1
+     WHERE branch=$1 AND slug=$2
+      AND (SELECT COUNT(*) FROM enlaces_quitados)>=0
+     RETURNING slug
+   )
+   SELECT slug, (SELECT COUNT(*)::integer FROM enlaces_quitados) AS productos_desvinculados
+   FROM categoria_borrada`,[branch,slug]);
+ return rows[0]||null;
+}
 // El borrado definitivo requiere un producto propio y antes retirado.
 function eliminable(item){
  return Boolean(item&&item.custom===true&&item.visible===false&&
@@ -223,13 +254,29 @@ module.exports=async function(req,res){
    const payload=await listarConMetadatos(sql,branch,false);
    return res.status(200).json({ok:true,branch,...payload,promocionesHabilitadas:promocionesHabilitadas()});
   }
-  if(['crear-categoria','asignar-categoria','guardar-descuento'].includes(action)){
+  if(['crear-categoria','editar-categoria','eliminar-categoria','asignar-categoria','guardar-descuento'].includes(action)){
    if(!categoriasDescuentosHabilitados())return fail(res,503,'Categorías y descuentos todavía no están activados.');
    if(action==='crear-categoria'){
     const item=await guardarCategoria(sql,branch,req.body.nombre,user);
     if(!item)return fail(res,400,'Nombre de categoría inválido');
     if(item.error)return fail(res,409,item.error);
     return res.status(200).json({ok:true,branch,item});
+   }
+   if(action==='editar-categoria'){
+    const slug=String(req.body.categoriaSlug||'');
+    const nombre=nombreCategoria(req.body.nombre);
+    if(!categoriaValida(slug)||!nombre)return fail(res,400,'Revisa el nombre de la categoría (2 a 45 caracteres).');
+    const item=await renombrarCategoria(sql,branch,slug,nombre,user);
+    if(!item)return fail(res,409,'La categoría no existe o el nombre ya está utilizado. Actualiza la lista.');
+    return res.status(200).json({ok:true,branch,item});
+   }
+   if(action==='eliminar-categoria'){
+    const slug=String(req.body.categoriaSlug||'');
+    if(!categoriaValida(slug))return fail(res,400,'Categoría inválida');
+    const item=await eliminarCategoria(sql,branch,slug);
+    if(!item)return fail(res,404,'Categoría no encontrada. Actualiza la lista.');
+    return res.status(200).json({ok:true,branch,item,
+     message:'Categoría eliminada. Los productos quedaron disponibles sin esa categoría.'});
    }
    const sku=String(req.body.sku||'');
    const current=(await listing(sql,branch)).find(i=>i.sku===sku);
@@ -372,4 +419,4 @@ module.exports=async function(req,res){
  }catch(e){console.error('Carta precios',String(e?.code||e?.name||'error').slice(0,60));
   return fail(res,503,'No se pudo completar la operación. Inventario y caja siguen intactos');}
 };
-module.exports._testing={goodPrice,validNew,validPromo,originAllowed,getSKU,listing,modifyPrice,eliminable,eliminarCustom,promocionesHabilitadas,estadoPromocion,categoriasDescuentosHabilitados,listarConMetadatos,guardarCategoria};
+module.exports._testing={goodPrice,validNew,validPromo,originAllowed,getSKU,listing,modifyPrice,eliminable,eliminarCustom,promocionesHabilitadas,estadoPromocion,categoriasDescuentosHabilitados,listarConMetadatos,guardarCategoria,renombrarCategoria,eliminarCategoria};
