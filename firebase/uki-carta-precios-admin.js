@@ -1132,7 +1132,7 @@ function mount(){
  prevMount();if(!$('ukiInvTabs'))return;
  organizarCarta();
  const selectedBranch=branch();
- if(state.branch!==selectedBranch){state.items=[];state.photos={};state.ready=false;state.query='';state.group='all';state.categoryVisibleLimit=18;state.tab='inventario';}
+ if(state.branch!==selectedBranch){state.items=[];state.photos={};state.ready=false;state.query='';state.group='all';state.categoryVisibleLimit=18;state.categoriaAbierta='';state.tab='inventario';}
  state.branch=selectedBranch;
  const scrollOffset=()=>Math.ceil((document.querySelector('header')?.getBoundingClientRect().height||110)+16)+'px';
  document.querySelectorAll('[data-uki-tab]').forEach(btn=>btn.onclick=()=>{
@@ -1159,7 +1159,7 @@ function mount(){
  const invBranch=$('invBranch');
  if(invBranch&&!invBranch.dataset.ukiPrecioObservador){
   invBranch.dataset.ukiPrecioObservador='1';
-  invBranch.addEventListener('change',()=>{state.branch=branch();state.ready=false;state.items=[];
+  invBranch.addEventListener('change',()=>{state.branch=branch();state.ready=false;state.items=[];state.categoriaAbierta='';
    if(state.tab==='precios')void loadPrices(true);
    if(state.tab==='reportes')void loadReponer();
   });
