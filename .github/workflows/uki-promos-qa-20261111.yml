@@ -1,0 +1,20 @@
+name: "Uki Promociones · Tarjetas y edición · QA"
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "firebase/uki-carta-precios-admin.js"
+      - "tests/uki-promos-tarjetas-qa-20261111.test.cjs"
+      - ".github/workflows/uki-promos-qa-20261111.yml"
+permissions:
+  contents: read
+jobs:
+  tarjetas:
+    name: "Separación de promociones y controles"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: node --test tests/uki-promos-tarjetas-qa-20261111.test.cjs tests/uki-lote-promos-ingredientes-staging-20261109.test.cjs tests/uki-categorias-descuentos-v1.test.cjs tests/uki-categorias-descuentos-integrados-qa-20261111.test.cjs

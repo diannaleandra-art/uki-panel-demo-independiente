@@ -3,14 +3,17 @@
 const {randomUUID}=require('node:crypto');
 const {url:dbUrl}=require('../lib/uki-inventario-db-live.cjs');
 const {baseItems}=require('../lib/uki-catalogo-v1.cjs');
+const {nombreCategoria,claveCategoria,descuentoValido,categoriaValida,mostrarDescuento}=require('../lib/uki-categorias-descuentos-v1.cjs');
 const BRANCHES=new Set(['arica','serena']);
 const ALLOWED=new Set(['https://diannaleandra-art.github.io','https://uki-sushi-pedidos.vercel.app']);
 const QA_REF='feature/uki-disponibilidad-manual-live-2026-11-06';
 const QA_REF_ETAPA2='integracion/uki-promociones-ingredientes-seguros-qa-20261109';
 const QA_REF_TIPOS='qa/uki-promos-tipos-producto-20261110';
+const QA_REF_CATALOGO='ui/uki-carta-promociones-categorias-descuentos-qa-20261111';
 const QA_MENU='https://uki-sushi-pedidos-git-feature-uki-dis-eb0d72-diannaleandra-7046.vercel.app';
 const QA_PANEL='https://uki-sushi-inventario-git-feature-uki-34d457-diannaleandra-7046.vercel.app';
-const qa=env=>env.VERCEL_ENV==='preview'&&(env.VERCEL_GIT_COMMIT_REF===QA_REF||(env.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2||env.VERCEL_GIT_COMMIT_REF===QA_REF_TIPOS))&&env.UKI_INVENTARIO_QA_ENABLED==='true';
+const QA_PANEL_CATEGORIAS='https://uki-sushi-inventario-git-ui-uki-carta-5531d1-diannaleandra-7046.vercel.app';
+const qa=env=>env.VERCEL_ENV==='preview'&&(env.VERCEL_GIT_COMMIT_REF===QA_REF||(env.VERCEL_GIT_COMMIT_REF===QA_REF_ETAPA2||env.VERCEL_GIT_COMMIT_REF===QA_REF_TIPOS||env.VERCEL_GIT_COMMIT_REF===QA_REF_CATALOGO))&&env.UKI_INVENTARIO_QA_ENABLED==='true';
 const qaOrigin=(origin,env=process.env)=>qa(env)&&!!env.VERCEL_URL&&origin==='https://'+env.VERCEL_URL;
 // Esta publicación requiere migración aditiva y carta compatible.
 // APAGADO por defecto: el servidor conserva EXACTAMENTE la conducta previa.
@@ -18,10 +21,15 @@ const promocionesHabilitadas=(env=process.env)=>
  env.UKI_PROMOS_VISIBILIDAD_ENABLED==='true'&&
  env.UKI_INGREDIENTES_ARMADO_ENABLED==='true'&&
  (env.VERCEL_ENV==='production'&&env.UKI_INVENTARIO_LIVE_ENABLED==='true'||qa(env));
+// Control de activación: nunca usa categorías ni descuentos si no está lista la base y la carta.
+const categoriasDescuentosHabilitados=(env=process.env)=>
+ env.UKI_CATEGORIAS_DESCUENTOS_ENABLED==='true'&&
+ (env.VERCEL_ENV==='production'&&env.UKI_INVENTARIO_LIVE_ENABLED==='true'||qa(env));
 const qaMenuAllowed=(origin,env=process.env)=>qa(env)&&
  /^https:\/\/uki-sushi-pedidos-[a-z0-9-]+-diannaleandra-7046\.vercel\.app$/.test(origin);
 const originAllowed=(origin,env=process.env)=>ALLOWED.has(origin)||
- (qa(env)&&(qaMenuAllowed(origin,env)||origin===QA_PANEL))||qaOrigin(origin,env);
+ (qa(env)&&(qaMenuAllowed(origin,env)||origin===QA_PANEL||
+  (env.VERCEL_GIT_COMMIT_REF===QA_REF_CATALOGO&&origin===QA_PANEL_CATEGORIAS)))||qaOrigin(origin,env);
 const fail=(res,status,error)=>res.status(status).json({ok:false,error});
 async function authorized(req,env=process.env){
  const token=String(req.headers?.authorization||'').match(/^Bearer ([A-Za-z0-9_.-]+)$/)?.[1];
@@ -99,6 +107,40 @@ async function listing(sql,branch,conPromos=promocionesHabilitadas()){
     sauceCount:Number(x.sauce_count),korokes:Number(x.korokes),payments:x.payments,
     promoType:x.promo_type||'sushi',customizable:x.customizable===true}}))];
 }
+// Metadatos aparte: ninguna categoría toca el tipo o armado del producto.
+async function listarConMetadatos(sql,branch,publico=false,activo=categoriasDescuentosHabilitados()){
+ const items=await listing(sql,branch);
+ if(!activo)return {items,categorias:[],categoriasDescuentosHabilitados:false};
+ const [cats,assigns,discounts]=await Promise.all([
+  sql.query('SELECT slug,nombre FROM public.uki_carta_categorias_personalizadas_v1 WHERE branch=$1 ORDER BY nombre',[branch]),
+  sql.query('SELECT sku,category_slug FROM public.uki_carta_producto_categoria_v1 WHERE branch=$1',[branch]),
+  sql.query('SELECT sku,discount_percent,version FROM public.uki_carta_descuentos_v1 WHERE branch=$1',[branch])
+ ]);
+ const names=new Map(cats.map(r=>[String(r.slug),String(r.nombre)]));
+ const categories=new Map(assigns.map(r=>[String(r.sku),String(r.category_slug)]));
+ const offers=new Map(discounts.map(r=>[String(r.sku),r]));
+ const mapped=items.map(i=>{
+  const slug=categories.get(String(i.sku))||'';
+  const offer=offers.get(String(i.sku));
+  const changed=mostrarDescuento(i,offer);
+  return {...i,
+   // Administración edita el precio ORIGINAL. La carta pública recibe el final.
+   ...(publico?{price:changed.precioFinal||i.price}:{}),
+   precioOriginal:Number(i.price),precioFinal:changed.precioFinal||Number(i.price),
+   descuentoPorcentaje:changed.descuentoPorcentaje||0,
+   descuentoVersion:Number(offer?.version||0),
+   categoriaSlug:slug,categoriaNombre:names.get(slug)||''};
+ });
+ return {items:mapped,categorias:cats,categoriasDescuentosHabilitados:true};
+}
+async function guardarCategoria(sql,branch,name,user){
+ const nombre=nombreCategoria(name),slug=claveCategoria(nombre);
+ if(!nombre||!categoriaValida(slug))return null;
+ const list=await sql.query('SELECT COUNT(*)::integer AS n FROM public.uki_carta_categorias_personalizadas_v1 WHERE branch=$1',[branch]);
+ if(Number(list[0]?.n||0)>=50)return {error:'Máximo 50 categorías por sucursal'};
+ const rows=await sql.query('INSERT INTO public.uki_carta_categorias_personalizadas_v1(branch,slug,nombre,updated_by) VALUES($1,$2,$3,$4) ON CONFLICT(branch,slug) DO UPDATE SET nombre=excluded.nombre,updated_by=excluded.updated_by,updated_at=NOW() RETURNING slug,nombre',[branch,slug,nombre,user.uid]);
+ return rows[0]||null;
+}
 async function modifyPrice(sql,branch,item,price,version,uid){
  if(item.custom){
   if(item.kind==='monthly')
@@ -132,8 +174,10 @@ module.exports=async function(req,res){
    // Incluir visibilidad explícita para que la carta pueda ocultar también
    // promociones originales, sin borrar los pedidos que las utilizaron.
    const nuevos=promocionesHabilitadas();
-   const items=(await listing(sql,branch,nuevos)).filter(i=>nuevos||!i.custom||i.available);
-   return res.status(200).json({ok:true,branch,items,promocionesHabilitadas:nuevos});
+   const payload=await listarConMetadatos(sql,branch,true);
+   const items=payload.items.filter(i=>nuevos||!i.custom||i.available);
+   return res.status(200).json({ok:true,branch,items,promocionesHabilitadas:nuevos,
+    categorias:payload.categorias,categoriasDescuentosHabilitados:payload.categoriasDescuentosHabilitados});
   }
   if(origin!=='https://diannaleandra-art.github.io'&&!(qa(process.env)&&origin===QA_PANEL)&&!qaOrigin(origin))
    return fail(res,403,'Solo administración');
@@ -141,8 +185,56 @@ module.exports=async function(req,res){
   if(!req.body||JSON.stringify(req.body).length>1800)return fail(res,400,'Solicitud inválida');
   const user=await authorized(req).catch(()=>null);if(!user)return fail(res,403,'Solo administración Google autorizada');
   const action=String(req.body.action||'');
-  if(action==='listar')return res.status(200).json({ok:true,branch,
-   items:await listing(sql,branch),promocionesHabilitadas:promocionesHabilitadas()});
+  if(action==='listar'){
+   const payload=await listarConMetadatos(sql,branch,false);
+   return res.status(200).json({ok:true,branch,...payload,promocionesHabilitadas:promocionesHabilitadas()});
+  }
+  if(['crear-categoria','asignar-categoria','guardar-descuento'].includes(action)){
+   if(!categoriasDescuentosHabilitados())return fail(res,503,'Categorías y descuentos todavía no están activados.');
+   if(action==='crear-categoria'){
+    const item=await guardarCategoria(sql,branch,req.body.nombre,user);
+    if(!item)return fail(res,400,'Nombre de categoría inválido');
+    if(item.error)return fail(res,409,item.error);
+    return res.status(200).json({ok:true,branch,item});
+   }
+   const sku=String(req.body.sku||'');
+   const current=(await listing(sql,branch)).find(i=>i.sku===sku);
+   if(!current)return fail(res,404,'Producto no encontrado en esta sucursal');
+   if(action==='asignar-categoria'){
+    const category=String(req.body.categoriaSlug||'');
+    if(category&&!categoriaValida(category))return fail(res,400,'Categoría inválida');
+    if(!category){
+     await sql.query('DELETE FROM public.uki_carta_producto_categoria_v1 WHERE branch=$1 AND sku=$2',[branch,sku]);
+     return res.status(200).json({ok:true,branch,sku,categoriaSlug:''});
+    }
+    const rows=await sql.query(`INSERT INTO public.uki_carta_producto_categoria_v1(branch,sku,category_slug,updated_by)
+     SELECT $1,$2,$3,$4 WHERE EXISTS(SELECT 1 FROM public.uki_carta_categorias_personalizadas_v1 WHERE branch=$1 AND slug=$3)
+     ON CONFLICT(branch,sku) DO UPDATE SET category_slug=excluded.category_slug,updated_by=excluded.updated_by,updated_at=NOW()
+     RETURNING sku,category_slug`,[branch,sku,category,user.uid]);
+    if(!rows.length)return fail(res,404,'Esta categoría ya no existe');
+    return res.status(200).json({ok:true,branch,sku,categoriaSlug:category});
+   }
+   const pct=req.body.porcentaje,expected=req.body.expected_discount_version;
+   if(!descuentoValido(pct)||!Number.isSafeInteger(expected)||expected<0)
+    return fail(res,400,'Descuento inválido. Usa un porcentaje entero entre 0 y 99.');
+   if(pct===0){
+    const rows=await sql.query('DELETE FROM public.uki_carta_descuentos_v1 WHERE branch=$1 AND sku=$2 AND version=$3 RETURNING sku',[branch,sku,expected]);
+    if(!rows.length){
+     const live=await sql.query('SELECT version FROM public.uki_carta_descuentos_v1 WHERE branch=$1 AND sku=$2',[branch,sku]);
+     if(live.length)return fail(res,409,'El descuento cambió. Actualiza la lista.');
+    }
+    return res.status(200).json({ok:true,branch,sku,porcentaje:0,precioFinal:Number(current.price),version:0});
+   }
+   const rows=await sql.query(`INSERT INTO public.uki_carta_descuentos_v1(branch,sku,discount_percent,version,updated_by)
+    SELECT $1,$2,$3,1,$5 WHERE $4=0 OR EXISTS(SELECT 1 FROM public.uki_carta_descuentos_v1 WHERE branch=$1 AND sku=$2 AND version=$4)
+    ON CONFLICT(branch,sku) DO UPDATE SET discount_percent=excluded.discount_percent,version=public.uki_carta_descuentos_v1.version+1,
+     updated_by=excluded.updated_by,updated_at=NOW()
+    WHERE public.uki_carta_descuentos_v1.version=$4
+    RETURNING sku,discount_percent,version`,[branch,sku,pct,expected,user.uid]);
+   if(!rows.length)return fail(res,409,'El descuento cambió. Actualiza la lista.');
+   const offered=mostrarDescuento(current,rows[0]);
+   return res.status(200).json({ok:true,branch,sku,porcentaje:pct,precioFinal:offered.precioFinal,version:rows[0].version});
+  }
   if(!promocionesHabilitadas()&&['crear-promocion','editar-promocion','publicar-promocion'].includes(action))
    return fail(res,503,'Promociones aún no habilitadas: falta publicación conjunta de carta y servidor.');
   if(action==='crear-promocion'){
@@ -236,4 +328,4 @@ module.exports=async function(req,res){
  }catch(e){console.error('Carta precios',String(e?.code||e?.name||'error').slice(0,60));
   return fail(res,503,'No se pudo completar la operación. Inventario y caja siguen intactos');}
 };
-module.exports._testing={goodPrice,validNew,validPromo,originAllowed,getSKU,listing,modifyPrice,promocionesHabilitadas,estadoPromocion};
+module.exports._testing={goodPrice,validNew,validPromo,originAllowed,getSKU,listing,modifyPrice,promocionesHabilitadas,estadoPromocion,categoriasDescuentosHabilitados,listarConMetadatos,guardarCategoria};
