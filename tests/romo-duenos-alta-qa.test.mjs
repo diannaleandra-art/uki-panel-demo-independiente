@@ -154,3 +154,10 @@ test('la API exige origen exacto y solo recibe cuerpo vacío, sin UID ni contras
   }
  });
 });
+
+test('la ruta de alta real usa Neon .query() con placeholders; nunca función SQL sin plantilla',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const source=readFileSync(new URL('../api/romo-duenos-alta-qa.js',import.meta.url),'utf8');
+ assert.match(source,/db=Object\.freeze\(\{query:\(statement,params\)=>sql\.query\(statement,params\)\}\)/);
+ assert.doesNotMatch(source,/=>sql\(statement,params\)/);
+});

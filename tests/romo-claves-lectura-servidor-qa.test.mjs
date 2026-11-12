@@ -96,11 +96,13 @@ test('no existe ninguna función de cambio ni borrado de contraseñas en el mód
 
 test('la misma verificación Google de Uki puede consultar el rol Romo por Neon (sin crear otro login)',async()=>{
  const calls=[];
- const sql=async(statement,params)=>{
-  calls.push({statement,params});
-  if(statement.startsWith('SELECT rol'))return [{rol:'agendador'}];
-  return [{uki_source:'uki:serena',proof:fakeProof()}];
- };
+ const sql=Object.assign(async()=>{throw Error('Nunca invocar sin .query')},{
+  query:async(statement,params)=>{
+   calls.push({statement,params});
+   if(statement.startsWith('SELECT rol'))return [{rol:'agendador'}];
+   return [{uki_source:'uki:serena',proof:fakeProof()}];
+  }
+ });
  const db=adaptarNeonParaClavesRomoQA(sql);
  const roles=await db.query(
   'SELECT rol FROM public.romo_personal_acceso_v1 WHERE auth_uid=$1 AND store_id=$2 AND activo=true LIMIT 1',
@@ -117,7 +119,10 @@ test('la misma verificación Google de Uki puede consultar el rol Romo por Neon 
 
 test('el adaptador de verificación no puede tocar inventario, caja, otros locales ni crear usuarios',async()=>{
  let sent=0;
- const db=adaptarNeonParaClavesRomoQA(async()=>{sent++;return []});
+ const sql=Object.assign(async()=>{throw Error('Nunca invocar sin .query')},{
+  query:async()=>{sent++;return []}
+ });
+ const db=adaptarNeonParaClavesRomoQA(sql);
  for(const [sql,args] of [
   ['SELECT * FROM public.uki_inventario_live',['romo:serena']],
   ['UPDATE public.romo_personal_acceso_v1 SET activo=true',['romo:serena']],
@@ -129,4 +134,12 @@ test('el adaptador de verificación no puede tocar inventario, caja, otros local
  }
  assert.equal(sent,0);
  assert.throws(()=>adaptarNeonParaClavesRomoQA({query(){}}),/Conexión SQL/);
+});
+
+test('el cliente Neon 1.2 instalado tiene método .query parametrizado; el adaptador lo exige',async()=>{
+ const {neon}=await import('@neondatabase/serverless');
+ const sql=neon('postgresql://test:dummy@localhost.invalid/romos_sushi');
+ assert.equal(typeof sql.query,'function');
+ assert.equal(typeof adaptarNeonParaClavesRomoQA(sql).query,'function');
+ assert.throws(()=>adaptarNeonParaClavesRomoQA(async()=>[]),/Conexión SQL Romo requerida/);
 });

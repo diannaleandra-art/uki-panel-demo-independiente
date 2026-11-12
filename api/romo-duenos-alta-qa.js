@@ -33,7 +33,8 @@ module.exports=async function romoDuenosAltaQA(req,res){
   if(!cfg||cfg.origin!==origin)
    return fail(res,503,'Vinculación no configurada');
   const sql=require('@neondatabase/serverless').neon(cfg.databaseUrl);
-  db=Object.freeze({query:(statement,params)=>sql(statement,params)});
+  if(typeof sql.query!=='function')throw Error('Conexión de Romo no segura');
+  db=Object.freeze({query:(statement,params)=>sql.query(statement,params)});
  }catch{return fail(res,503,'La base privada de Romo no está preparada')}
  try{
   const done=await module.enlazarDuenosRomoConGoogleExistenteQA({
