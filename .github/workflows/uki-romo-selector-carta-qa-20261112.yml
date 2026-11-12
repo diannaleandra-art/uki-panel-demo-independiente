@@ -47,6 +47,7 @@ jobs:
             tests/romo-almacenamiento-catalogo-panel-qa.test.mjs \
             tests/romo-almacenamiento-inventario-panel-qa.test.mjs \
             tests/romo-almacenamiento-unico-panel-qa.test.mjs \
+            tests/romo-panel-http-qa.test.mjs \
             tests/romo-carga-catalogo-existente-20261112.test.mjs \
             tests/romo-almacenamiento-operativo-panel-qa.test.mjs \
             tests/uki-local-router-qa.test.mjs \

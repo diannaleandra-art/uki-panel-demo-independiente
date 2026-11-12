@@ -12,6 +12,17 @@ module.exports=async function romoEstadoOperativoQA(req,res){
  res.setHeader('X-Content-Type-Options','nosniff');
  res.setHeader('Vary','Origin');
  const env=process.env;
+ const requestedArea=req.query?.area;
+ const area=requestedArea===undefined?'operativo':requestedArea;
+ if(typeof area!=='string'||!['operativo','catalog','inventory'].includes(area)||
+    (req.query&&Object.keys(req.query).some(key=>key!=='area')))
+  return fail(res,400,'Área de Romo no reconocida');
+ // Las áreas nuevas NO se abren simplemente al activar las operaciones.
+ if(area!=='operativo'&&env.ROMO_PANEL_AREAS_LIVE_ENABLED!=='true')
+  return fail(res,503,'Administración de Romo aún no habilitada');
+ if(area!=='operativo'&&req.method==='POST'&&
+    env.ROMO_PANEL_AREAS_WRITE_LIVE_ENABLED!=='true')
+  return fail(res,503,'Edición de Romo aún no habilitada');
  if(env.VERCEL_ENV!=='production'||env.ROMO_OPERATIVO_LIVE_ENABLED!=='true')
   return fail(res,503,'Romo todavía no está habilitado para operar');
  const actualOrigin=String(req.headers?.origin||'');
@@ -53,6 +64,27 @@ module.exports=async function romoEstadoOperativoQA(req,res){
   });
  }catch{return fail(res,503,'No se pudo comprobar el acceso Romo')}
  if(!identity)return fail(res,403,'Sin autorización para Romo La Serena');
+
+ // Misma API, misma sesión verificada: catálogo e inventario propios de Romo.
+ // Nunca usar endpoints ni almacenes Uki como alternativa.
+ if(area==='catalog'||area==='inventory'){
+  if(req.method==='POST'&&String(req.headers?.['content-type']||'').split(';')[0].trim()!=='application/json')
+   return fail(res,415,'Formulario JSON requerido');
+  try{
+   const panel=await import('../lib/romo-panel-http-qa.mjs');
+   const result=await panel.procesarAreaPanelRomoQA({area,method:req.method,body:req.body,db,identity});
+   return res.status(200).json({ok:true,...result});
+  }catch(error){
+   const msg=String(error?.message||'');
+   if(error?.code==='ROMO_INVENTORY_CONFLICT'||/otro teléfono|otro dispositivo|cambió|desactualizada|actualiza antes de guardar/i.test(msg))
+    return fail(res,409,'Otro equipo modificó Romo; recarga antes de guardar');
+   if(/permiso|autorizaci[oó]n|identidad|rol|dueños/i.test(msg))
+    return fail(res,403,'Sin permiso para modificar esta área de Romo');
+   if(/no reconocido|inválid|obligatori|fuera de|incorrect|debe|no permitid|formulario|sección|sucursal|otro local|no pertenece/i.test(msg))
+    return fail(res,400,'Formulario o local de Romo inválido');
+   return fail(res,503,'No se confirmó la operación de Romo; datos sin cambio confirmado');
+  }
+ }
 
  if(req.method==='GET'){
   try{

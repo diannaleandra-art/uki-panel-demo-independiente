@@ -85,3 +85,10 @@ Se conserva la decisión: un panel Uki, tres locales. Romo La Serena usa la mism
 - **No se creó otra pantalla ni otra contraseña.** `lib/romo-almacenamiento-unico-panel-qa.mjs` reúne los adaptadores ya construidos de estado operativo (pedidos, caja, timbres, cierres), carta completa (productos, ingredientes, promociones y categorías) e inventario exclusivo de Romo.
 - El router del panel rechaza cualquier servicio no contemplado en Romo, no usa los locales Uki como respaldo y aplica roles en cada área.
 - La conexión está validada únicamente con base simulada: todavía NO hay permisos de dueña en Neon, ni catálogo Romo cargado, ni URL de operación activa. NO publicar ni habilitar ventas sin los siguientes pasos completos.
+
+## Enlace interno de las tres áreas · preparación adicional (12 nov 2026)
+- El catálogo de Romo se cargó **una sola vez** en su base Neon como borrador oculto: 7 productos, 3 promociones, 40 ingredientes y 2 categorías. No se modificaron precios; +$500 ya estaba incluido. Las ventas y cartas públicas siguen cerradas.
+- La API operativa existente `api/romo-estado-operativo-qa.js` agrega rutas por `?area=catalog` y `?area=inventory`, sin una función Vercel adicional; utilizan la misma sesión Google verificada, UID/rol privado y `romos_sushi`, nunca la base de Uki.
+- Los accesos a esas áreas requieren **dos banderas nuevas** apagadas por defecto: `ROMO_PANEL_AREAS_LIVE_ENABLED` y `ROMO_PANEL_AREAS_WRITE_LIVE_ENABLED`. También permanece obligatoria `ROMO_OPERATIVO_LIVE_ENABLED` y configuración independiente. Ninguna se habilita ni modifica en esta etapa.
+- Pruebas QA ejercitan lectura, cambio de precio oculto, conflictos de revisiones, inventario separado y rechazo de identidad ajena. Todo con DB ficticia, nunca pedidos de clientes.
+- Pendientes de activación: permisos mínimos del servicio para `romo_catalogo_v1`, dar de alta a la cuenta Google propietaria con token firmado y activar sincronización del panel y carta después de autorización y prueba real. No publicar ni cobrar desde esta rama.
