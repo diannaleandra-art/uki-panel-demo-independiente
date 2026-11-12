@@ -15,6 +15,8 @@ jobs:
           persist-credentials: false
       - name: Revisar sintaxis módulos QA y selector único
         run: |
+          node --check lib/romo-claves-lectura-servidor-qa.mjs
+          node --check api/romo-claves-lectura-qa.js
           node --check lib/uki-local-router-qa.mjs
           node --check lib/romo-almacenamiento-operativo-panel-qa.mjs
           node --check lib/romo-almacenamiento-catalogo-panel-qa.mjs
@@ -27,6 +29,8 @@ jobs:
       - name: Integración Romo y regresión de Uki
         run: |
           node --test \
+            tests/romo-claves-lectura-servidor-qa.test.mjs \
+            tests/romo-claves-lectura-api-cerrada-qa.test.mjs \
             tests/romo-almacenamiento-catalogo-panel-qa.test.mjs \
             tests/romo-almacenamiento-operativo-panel-qa.test.mjs \
             tests/uki-local-router-qa.test.mjs \
