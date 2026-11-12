@@ -407,8 +407,7 @@
       '<figure style="display:inline-block;max-width:44%;margin:6px;vertical-align:top">'+
       '<img loading="lazy" src="'+photoSrc(id)+'" alt="Fotografía original Romo, opción '+id.slice(-1)+'" style="width:100%;border-radius:10px">'+
       '<figcaption>Foto '+id.slice(-1)+'</figcaption></figure>').join('')+'</div></details>'+
-   '<div class="card" id="romoQAInventarioPreparacion"><h3>📦 Inventario · Romo</h3>'+
-    '<p class="muted">Inventario independiente pendiente de conexión. Recibido, existente, diferencia y mínimo para reponer. Sin movimientos de caja.</p></div>'+
+   (root.ukiRomoInventarioPanelHTMLQA?.()||'<div class="card"><p>Inventario Romo en preparación.</p></div>')+
   '</section>';
  }
  root.ukiRomoCartaPanelHTMLQA=vista;

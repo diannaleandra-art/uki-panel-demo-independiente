@@ -79,3 +79,10 @@ Se localizaron valores indicados como acordados en la conversación de noviembre
 También figuran promociones históricas específicas, sujetas a vigencia antes de ofrecerlas: 24 + 2 korokes $7.000, 60 + 3 korokes $16.000 y 72 piezas $18.000. No confundir con la carta regular.
 
 Las imágenes antiguas de menú de julio muestran precios distintos (24 $7.500, 36 $11.500, 48 $14.500, 60 $17.500, 72 $19.500, 84 $22.500, 96 $24.500). No extrapolar cambios ni reemplazar montos aprobados usando esa imagen histórica. Se necesita cotejar con datos comerciales actuales antes de migración. Vista únicamente de revisión privada, sin crear productos en Neon ni habilitar ventas.
+
+## Inventario Romo dentro del mismo panel — simulación de prueba
+- Se añadió \`firebase/uki-romo-inventario-qa.js\` como archivo estático, no como función Serverless nueva (se mantiene límite Hobby).
+- Misma vista Romo: agregar artículo, unidad (unidad/gramos/kilos/mililitros/litros), cantidades recibidas y existentes, mínimo para reponer, marcar disponible/agotado, buscar y quitar.
+- Acepta coma decimal. Muestra diferencia «recibido - hay» y cantidad para reponer «máximo(0,mínimo - hay)».
+- **Solo memoria del navegador, sin persistencia**: no usa Neon, Firebase, Supabase, localStorage, ni exporta movimientos reales. Al actualizar se pierde la simulación. Ninguna acción modifica caja, pedidos, cierres ni inventario Uki.
+- Para guardado real hace falta crear la tabla independiente \`public.romo_inventario_v1\` y habilitar permisos por sucursal con autorización expresa de la dueña, luego pruebas de sincronización de dos teléfonos.
