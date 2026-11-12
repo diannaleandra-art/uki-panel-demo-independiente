@@ -26,7 +26,7 @@ test('inventario sólo en QA de Romo y en el mismo HTML panel; nunca se guarda',
  const {win}=start();
  assert.match(win.ukiRomoInventarioPanelHTMLQA(),/pruebas/);
  assert.equal(win.ukiRomoInventarioQAModelo().sucursal,'romo:serena');
- assert.equal(win.ukiRomoInventarioQAModelo().articulos,0);
+ assert.equal(win.ukiRomoInventarioQAModelo().articulos.length,0);
 });
 test('cantidades con coma, diferencia y reposición sin modificar caja',()=>{
  const {win,nodes}=start();
