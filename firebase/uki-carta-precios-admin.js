@@ -381,7 +381,10 @@ function extraProducto(precio){
  const categoryButton=document.createElement('button');categoryButton.type='button';categoryButton.className='sm';categoryButton.textContent='Guardar categoría';
  categoryButton.onclick=async()=>{if(state.busy)return;state.busy=true;categoryButton.disabled=true;
   try{await request(API,'asignar-categoria',{sku:precio.sku,categoriaSlug:selector.value},state.branch);
-   state.busy=false;await loadPrices(true);info('ukiPriceMessage','✓ Categoría guardada.');
+   const categoria=state.categorias.find(c=>c.slug===selector.value)?.nombre||'Sin categoría';
+   state.busy=false;await loadPrices(true);
+   const message='✓ «'+precio.name+'» guardado en «'+categoria+'».';
+   info('ukiPriceMessage',message);info('ukiCategoriesEstado',message);
   }catch(e){info('ukiPriceMessage','No se guardó la categoría: '+String(e.message))}
   finally{state.busy=false;categoryButton.disabled=false}};
  box.append(categoryButton);
@@ -396,7 +399,12 @@ function extraProducto(precio){
   if(pct.value.trim()===''||!Number.isSafeInteger(n)||n<0||n>99){info('ukiPriceMessage','Ingresa un descuento entero de 0 a 99%.');return;}
   if(state.busy)return;state.busy=true;discountButton.disabled=true;
   try{await request(API,'guardar-descuento',{sku:precio.sku,porcentaje:n,expected_discount_version:Number(precio.descuentoVersion||0)},state.branch);
-   state.busy=false;await loadPrices(true);info('ukiPriceMessage','✓ Descuento guardado. Precio original conservado.');
+   state.busy=false;await loadPrices(true);
+   const original=Number(precio.precioOriginal??precio.price);
+   const final=Math.max(1,Math.round(original*(100-n)/100));
+   info('ukiPriceMessage',n?
+    '✓ «'+precio.name+'»: descuento '+n+'% guardado. Antes '+peso(original)+', ahora '+peso(final)+'.':
+    '✓ «'+precio.name+'»: descuento eliminado. Precio '+peso(original)+'.');
   }catch(e){info('ukiPriceMessage','No se guardó el descuento: '+String(e.message))}
   finally{state.busy=false;discountButton.disabled=false}};
  box.append(discountButton);return box;
@@ -436,10 +444,13 @@ function renderCategoryAssignments(){
    state.busy=true;save.disabled=true;
    try{
     await request(API,'asignar-categoria',{sku:item.sku,categoriaSlug:selector.value},chosen);
+    const categoria=state.categorias.find(c=>c.slug===selector.value)?.nombre||'Sin categoría';
     state.busy=false;
     if(chosen!==branch())return;
     await loadPrices(true);
-    info('ukiPriceMessage','✓ Categoría guardada para '+item.name+' en esta sucursal.');
+    const message='✓ «'+item.name+'» guardado en «'+categoria+'» ('+
+     (chosen==='arica'?'Regimiento Arica':'La Serena')+').';
+    info('ukiCategoriesEstado',message);info('ukiPriceMessage',message);
    }catch(e){info('ukiPriceMessage','No se guardó la categoría: '+String(e.message||e));save.disabled=false;}
    finally{state.busy=false;}
   };
@@ -455,7 +466,8 @@ function renderCategoryAssignments(){
 function renderCategories(){
  const box=$('ukiCategoriesBox');if(!box)return;box.hidden=!state.categoriasDescuentosHabilitados;
  const list=$('ukiCategoriesList');
- if(list){
+ if(list&&typeof list.replaceChildren!=='function')list.textContent='Categorías guardadas: '+state.categorias.map(c=>c.nombre).join(', ');
+ if(list&&typeof list.replaceChildren==='function'){
   list.replaceChildren();
   const h=document.createElement('strong');h.style.cssText='display:block;color:#503225;font-size:16px;margin:7px 0';
   h.textContent='Categorías guardadas ('+state.categorias.length+')';list.append(h);
@@ -582,7 +594,7 @@ function line(price,ocultarRetiro=false){
     await request(API,'editar-producto',{sku:price.sku,expected_version:price.version,
      name:next,description:description.value.trim(),price:amount},state.branch);
     state.busy=false;await loadPrices(true);
-    info('ukiPriceMessage','✓ Producto actualizado.');
+    info('ukiPriceMessage','✓ «'+next+'»: nombre, descripción y precio '+peso(amount)+' guardados.');
    }catch(e){info('ukiPriceMessage','No se guardó: '+String(e.message));}
    finally{state.busy=false;button.disabled=false;}
   };
@@ -601,7 +613,9 @@ function line(price,ocultarRetiro=false){
    if(price.available&&!window.confirm('¿Quitar «'+price.name+'» de la carta de esta sucursal? El historial se conserva.'))return;
    state.busy=true;retire.disabled=true;
    try{await request(API,action,{sku:price.sku,expected_version:price.version},chosen);
-    state.busy=false;await loadPrices(true);info('ukiPriceMessage','✓ Producto actualizado en esta sucursal.');}
+    state.busy=false;await loadPrices(true);
+    info('ukiPriceMessage','✓ «'+price.name+'» '+(price.available?'retirado de':'restaurado en')+
+     ' la carta de esta sucursal.');}
    catch(e){info('ukiPriceMessage','No se modificó: '+String(e.message))}
    finally{state.busy=false;retire.disabled=false;}
   };
