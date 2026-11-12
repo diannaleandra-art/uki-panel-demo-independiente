@@ -9,13 +9,13 @@ const source=fs.readFileSync(path.join(__dirname,'../firebase/uki-romo-carta-pan
 function createDOM(){
  const nodes=new Map();
  const make=tag=>({
-  tagName:tag,children:[],disabled:false,textContent:'',className:'',dataset:{},addEventListener() {},
+  tagName:tag,children:[],disabled:false,textContent:'',className:'',dataset:{},style:{},addEventListener() {},
   appendChild(child){this.children.push(child)},
   append(...children){this.children.push(...children)},
   replaceChildren(...children){this.children=[...children]}
  });
  const document={createElement:make,getElementById(id){return nodes.get(id)||null}};
- for(const id of ['romoQACartaEstado','romoQACartaConsultar','romoQACategoriaproductos','romoQACategoriapromociones','romoQACategoriaingredientes','romoQACartaAgregar','romoQACartaEditor','romoQAEditorEstado','romoQAEditorSeccion','romoQAEditorTipo','romoQAEditorNombre','romoQAEditorDescripcion','romoQAEditorPrecio','romoQAEditorRolls','romoQAEditorPorRoll','romoQAEditorSalsas','romoQAEditorKorokes','romoQAEditorDisponible','romoQAEditorPromoExtras','romoQAEditorFoto','romoQAEditorGuardar'])
+ for(const id of ['romoQACartaEstado','romoQACartaConsultar','romoQACartaAnteriorEstado','romoQACartaAnteriorListado','romoQACategoriaproductos','romoQACategoriapromociones','romoQACategoriaingredientes','romoQACartaAgregar','romoQACartaEditor','romoQAEditorEstado','romoQAEditorSeccion','romoQAEditorTipo','romoQAEditorNombre','romoQAEditorDescripcion','romoQAEditorPrecio','romoQAEditorRolls','romoQAEditorPorRoll','romoQAEditorSalsas','romoQAEditorKorokes','romoQAEditorDisponible','romoQAEditorPromoExtras','romoQAEditorFoto','romoQAEditorGuardar'])
   nodes.set(id,make('div'));
  return {document,nodes};
 }
@@ -93,4 +93,13 @@ test('fotos antiguas son galería QA, no asociación automática',()=>{
  win.ukiRomoCatalogoRenderQA(response);
  const card=nodes.get('romoQACategoriapromociones').children[1];
  assert.equal(card.children.find(x=>x.tagName==='img').src,'./romo-assets/promo-foto-3.jpg');
+});
+
+test('consulta catálogo anterior sólo para revisión, sin copiar precios ni usar POST',async()=>{
+ const {win,nodes}=run();
+ const html=win.ukiRomoCartaPanelHTMLQA();
+ assert.ok(html.includes('Revisar productos de la carta anterior'));
+ assert.equal(await win.ukiRomoCartaAnteriorConsultarQA(),false);
+ assert.match(nodes.get('romoQACartaAnteriorEstado').textContent,/versión privada/i);
+ assert.doesNotMatch(source,/fetch\('\/rest\/v1\/romos_products/);
 });

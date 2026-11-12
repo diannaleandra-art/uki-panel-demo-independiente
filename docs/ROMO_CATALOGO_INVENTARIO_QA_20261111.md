@@ -62,3 +62,9 @@ Esta rama no altera env vars, dominios, datos reales, código de sucursales Uki 
 - Devuelve candidatos para revisión con su precio de origen exacto; NO suma +$500, NO aprueba composición, NO asocia fotos, NO copia filas, NO publica ni vende.
 - No fue posible leer registros reales de Supabase en este turno por error de autenticación del conector. Se conserva 0 filas en el catálogo Neon Romo.
 - Antes de alta: comparar precio de origen con lista aprobada y decidir si la corrección +500 ya fue aplicada, revisar salsas/korokes por promoción y asociar una de las fotos antiguas por SKU.
+
+## Revisión en la pantalla Carta y precios
+- Botón «Revisar productos de la carta anterior» dentro de la vista Romo del mismo panel.
+- Solo carga una vista de precios y estado de los productos existentes cuando la sesión de dueños está autorizada y la API QA tiene conexión real.
+- No añade +$500, no migra, no publica, no entra en caja. Todo queda pendiente de comparación de la carta definitiva.
+- Galería de 4 fotos originales para seleccionar manualmente por promoción con fotoId validado, sin asignación automática.

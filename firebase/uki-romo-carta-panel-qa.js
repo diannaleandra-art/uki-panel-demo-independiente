@@ -7,6 +7,7 @@
 (function initRomoCartaQA(root){
  const STORE='romo:serena';
  const ENDPOINT='/api/romo-catalogo-qa';
+ const LEGACY_ENDPOINT='/api/romo-catalogo-anterior-qa';
  const MAX_ITEMS=300;
  const QA_PROMO_PHOTOS=Object.freeze(['promo-foto-1','promo-foto-2','promo-foto-3','promo-foto-4']);
  const photoSrc=id=>QA_PROMO_PHOTOS.includes(id)?'./romo-assets/'+id+'.jpg':null;
@@ -274,6 +275,56 @@
   try{const updated=await request('GET');renderCatalog(updated);return true}
   catch{return false}
  }
+ async function revisarAnterior(){
+  const status=el('romoQACartaAnteriorEstado');
+  const listing=el('romoQACartaAnteriorListado');
+  if(!status||!listing)return false;
+  if(!preview()){
+   text(status,'La lectura de la carta anterior requiere la versión privada de pruebas de Romo.');
+   return false;
+  }
+  if(loading)return false;
+  loading=true;
+  text(status,'Consultando el catálogo anterior sin modificar productos…');
+  listing.replaceChildren();
+  try{
+   const token=await root.ukiInventarioToken?.();
+   if(!token)throw Error('Inicia sesión con la misma cuenta Google del panel');
+   const ac=new AbortController(),timer=setTimeout(()=>ac.abort(),12000);
+   let response;
+   try{response=await fetch(LEGACY_ENDPOINT,{
+    method:'GET',cache:'no-store',credentials:'omit',
+    headers:{Authorization:'Bearer '+token},signal:ac.signal
+   });}finally{clearTimeout(timer)}
+   const data=await response.json().catch(()=>({}));
+   if(!response.ok||data.ok!==true)throw Error(data.error||'No se pudo consultar la carta anterior');
+   if(data.storeId!==STORE||data.source!=='supabase:romos_products'||
+    !Array.isArray(data.productos)||data.productos.length>100)
+    throw Error('Datos de catálogo anterior no verificables');
+   text(status,'Productos del catálogo anterior: '+data.productos.length+
+    '. El ajuste de $500 no se ha aplicado ni confirmado.');
+   for(const item of data.productos){
+    if(!item||!['promo','extra'].includes(item.kind)||typeof item.name!=='string'||
+     !Number.isSafeInteger(item.precioOriginal)||item.precioOriginal<0||
+     item.importado!==false||item.ajuste500Aplicado!==false)
+     throw Error('El catálogo anterior contiene registros no validados');
+    const row=create('div','card');
+    row.append(create('strong','',item.name),
+      create('p','muted','Precio anterior: '+new Intl.NumberFormat('es-CL',{
+       style:'currency',currency:'CLP',maximumFractionDigits:0
+      }).format(item.precioOriginal)+' · '+item.pieces+' piezas · '+
+       (item.disponibleOrigen?'Disponible en origen':'No disponible en origen')),
+      create('p','mini-help',
+       'Pendiente de revisar aumento de $500, composición y foto. No importado.'));
+    listing.appendChild(row);
+   }
+   return true;
+  }catch(e){
+   text(status,(e?.message||'No se pudo consultar Supabase')+
+    '. Ningún precio fue modificado; no se importaron productos.');
+   return false;
+  }finally{loading=false;}
+ }
  function vista(){
   return '<section class="card" id="romoQACartaPanel" aria-label="Romo Carta y precios en preparación">'+
    '<h2>🧾 Carta y precios · Romo</h2>'+
@@ -284,6 +335,11 @@
    '<div id="romoQACategoriaproductos"></div>'+
    '<div id="romoQACategoriapromociones"></div>'+
    '<div id="romoQACategoriaingredientes"></div>'+
+   '<details class="card" id="romoQAAnterior"><summary style="cursor:pointer;font-weight:700">📋 Revisar productos de la carta anterior</summary>'+
+    '<p class="muted">Consulta segura de productos de Romo: precios originales para revisar. No importa ni cambia valores automáticamente.</p>'+
+    '<button type="button" class="sm" onclick="ukiRomoCartaAnteriorConsultarQA()">Consultar catálogo anterior</button>'+
+    '<p class="muted" id="romoQACartaAnteriorEstado" role="status">Consulta aún no iniciada.</p>'+
+    '<div id="romoQACartaAnteriorListado"></div></details>'+
    '<button type="button" class="sm" id="romoQACartaAgregar" hidden onclick="ukiRomoCartaPanelAgregarQA()">＋ Agregar borrador</button>'+
    '<section class="card" id="romoQACartaEditor" hidden>'+
     '<h3>Editar o agregar borrador</h3>'+
@@ -323,6 +379,7 @@
  root.ukiRomoCartaPanelHTMLQA=vista;
  root.ukiRomoCartaPanelConsultarQA=consultar;
  root.ukiRomoCatalogoRenderQA=renderCatalog;
+ root.ukiRomoCartaAnteriorConsultarQA=revisarAnterior;
  root.ukiRomoCartaPanelEditarQA=edit;
  root.ukiRomoCartaPanelAgregarQA=addNew;
  root.ukiRomoCartaPanelCambiarSeccionQA=changeSection;
