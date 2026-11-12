@@ -27,12 +27,16 @@ export async function comprobarGoogleDuenosRomoQA({
   if(!res.ok)throw new Error('Cuenta Google pendiente de verificación');
   const body=await res.json();
   if(body?.ok!==true||body.storeId!=='romo:serena'||
-     body.googleVerified!==true||body.authorizationGranted!==false)
+     body.googleVerified!==true||body.authorizationGranted!==false||
+     typeof body.ownerRoleActive!=='boolean'||
+     body.requiresRomoRoleEnrollment!==!body.ownerRoleActive)
     throw new Error('Resultado de verificación de Romo no válido');
   return Object.freeze({
     googleVerified:true,
     storeId:'romo:serena',
-    // La comprobación del Google NO activa la cuenta ni los pedidos.
+    ownerRoleActive:body.ownerRoleActive,
+    // Esta comprobación NO concede permisos ni activa ventas.
+    needsRoleEnrollment:!body.ownerRoleActive,
     needsActivation:true
   });
 }
