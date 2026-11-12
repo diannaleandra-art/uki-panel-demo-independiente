@@ -121,3 +121,15 @@ pruebas reales en iPhone ni a habilitación del proyecto**.
 - Solo después, con aprobación expresa adicional, habilitar transacciones comerciales de Romo. Hasta entonces el panel real de Uki se deja intacto.
 
 No volver a implementar contraseña/Google desde cero. El objetivo es dar acceso a la tercera sucursal del MISMO panel y completar la vinculación restante.
+
+
+## 2026-11-12 — Alta dueña Romo, autorización expresamente recibida (solo esa cuenta)
+- La propietaria autorizó vincular **su misma cuenta Google de Uki** como dueña de `romo:serena`, sin habilitar ventas ni cambiar las credenciales Uki.
+- Verificado: Vercel `uki-sushi-inventario` ya contiene las variables protegidas ROMO_DUENOS_GOOGLE_EMAIL y ROMO_PANEL_ALLOWED_ORIGIN (no imprimir sus valores). Neon Romo sigue con 0 dueños activos y sin UID verificado.
+- Se agregó lib/romo-duenos-alta-qa.mjs: usa exclusivamente la firma Firebase de la sesión Google actual, el correo de dueña configurado en servidor y un INSERT condicionado a la tabla de acceso Romo; nunca toma UID, correo, rol ni clave enviados por formulario. Repetir solicitud ya vinculada no duplica la cuenta.
+- Se agregó api/romo-duenos-alta-qa.js: POST con cuerpo JSON vacío y bearer Google, origen exacto, todos los controles apagados por defecto y respuesta sin UID/correo/contraseña. No abre caja, productos, ni pedidos.
+- Requiere un usuario técnico de DB con privilegios mínimos con nombre `romo_owner_linker`, configurado en variable privada ROMO_DUENOS_ALTA_DATABASE_URL, sobre host propio de Romo y base `romos_sushi`. **La cuenta técnica todavía NO fue creada ni se concedieron permisos adicionales.**
+- ROMO_DUENOS_ALTA_EXPLICITA_ENABLED no está habilitado, ruta no está publicada a producción, aún no existe sesión Google firmada recibida en este flujo. Por lo tanto: **la dueña NO está vinculada todavía**.
+- Pruebas QA en tests/romo-duenos-alta-qa.test.mjs; GitHub Action 43295852316 verificó 88/88 pruebas y revisión visual móvil, todas aprobadas.
+- La única manera legítima de obtener el UID es mediante la misma sesión Google autenticada en la interfaz vigente. No inventar ni pedir tokens en el chat. No convertir correo a permiso sin token firmado.
+- **Próximo requisito:** autorización de publicación explícita de una ruta limitada de vinculación en el panel existente, separada de activar ventas. Después podrá completarse el enlace mediante inicio de sesión Google normal de la propietaria y confirmarse con SELECT de tabla Romo. No desplegar modificaciones de Uki, ni habilitar cobros.
