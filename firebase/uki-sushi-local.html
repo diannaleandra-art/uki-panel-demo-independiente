@@ -901,7 +901,7 @@ function vRomoQA(){
    '<button type="button" class="big cta" disabled>＋ Registrar nuevo pedido</button>'+
    '<div class="quick-grid">'+
     [['pedidos','▤','Revisar pedidos'],['inventario','📦','Inventario'],['clientes','✧','Tarjetas'],['caja','▣','Caja, cierres y reportes']].map(x=>
-      '<button type="button" class="quick" onclick="ukiRomoIrQA(\\''+x[0]+'\\')"><b>'+x[1]+'</b> '+x[2]+' <span>›</span></button>').join('')+
+      `<button type="button" class="quick" onclick="ukiRomoIrQA('${x[0]}')"><b>${x[1]}</b> ${x[2]} <span>›</span></button>`).join('')+
    '</div>';
  }
  const found=VISTAS.find(x=>x[0]===ukiRomoVistaQA);
