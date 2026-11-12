@@ -28,3 +28,28 @@ jobs:
             tests/uki-romo-ingreso-clave-qa.test.cjs \
             tests/uki-romo-clave-remota-qa.test.cjs \
             tests/uki-admin-panel-dom.test.cjs
+
+  visual-iphone:
+    needs: integracion
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Preparar navegador aislado
+        run: |
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          npx playwright install chromium
+      - name: Verificar vista Romo a ancho de iPhone y retorno seguro a Uki
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/romo-qa-http.log 2>&1 &
+          node tests/uki-romo-browser-iphone-qa-20261112.mjs
+      - name: Guardar captura sólo de la vista QA
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: romo-panel-carta-iphone-qa
+          path: qa-artifacts/romo-carta-iphone-390.png
+          if-no-files-found: ignore
+          retention-days: 7
