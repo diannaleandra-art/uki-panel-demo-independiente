@@ -141,6 +141,40 @@ async function guardarCategoria(sql,branch,name,user){
  const rows=await sql.query('INSERT INTO public.uki_carta_categorias_personalizadas_v1(branch,slug,nombre,updated_by) VALUES($1,$2,$3,$4) ON CONFLICT(branch,slug) DO UPDATE SET nombre=excluded.nombre,updated_by=excluded.updated_by,updated_at=NOW() RETURNING slug,nombre',[branch,slug,nombre,user.uid]);
  return rows[0]||null;
 }
+// El borrado definitivo requiere un producto propio y antes retirado.
+function eliminable(item){
+ return Boolean(item&&item.custom===true&&item.visible===false&&
+  ['pizza','dish','monthly'].includes(item.kind));
+}
+// Producto y metadatos se borran en UNA sentencia atómica; no toca ventas,
+// pedidos, timbres, caja, inventario o cierres.
+async function eliminarCustom(sql,branch,item,expectedVersion,expectedVisibilityVersion){
+ const esPromo=item.kind==='monthly';
+ const tabla=esPromo?'public.uki_carta_promos_custom_v1':'public.uki_carta_productos_custom_v1';
+ const guard=esPromo?'visible=FALSE':
+  `EXISTS (SELECT 1 FROM public.uki_carta_visibilidad_v1 v
+            WHERE v.branch=$1 AND v.sku=$2 AND v.visible=FALSE AND v.version=$4)`;
+ const query=`WITH eliminado AS (
+  DELETE FROM ${tabla}
+  WHERE branch=$1 AND sku=$2 AND version=$3 AND ${guard}
+  RETURNING sku
+ ), sin_categoria AS (
+  DELETE FROM public.uki_carta_producto_categoria_v1
+  WHERE branch=$1 AND sku IN (SELECT sku FROM eliminado) RETURNING sku
+ ), sin_descuento AS (
+  DELETE FROM public.uki_carta_descuentos_v1
+  WHERE branch=$1 AND sku IN (SELECT sku FROM eliminado) RETURNING sku
+ ), sin_foto AS (
+  DELETE FROM public.uki_carta_fotos_v1
+  WHERE branch=$1 AND sku IN (SELECT sku FROM eliminado) RETURNING sku
+ ), sin_visibilidad AS (
+  DELETE FROM public.uki_carta_visibilidad_v1
+  WHERE branch=$1 AND sku IN (SELECT sku FROM eliminado) RETURNING sku
+ )
+ SELECT sku FROM eliminado`;
+ return sql.query(query,esPromo?[branch,item.sku,expectedVersion]:
+  [branch,item.sku,expectedVersion,expectedVisibilityVersion]);
+}
 async function modifyPrice(sql,branch,item,price,version,uid){
  if(item.custom){
   if(item.kind==='monthly')
@@ -258,11 +292,21 @@ module.exports=async function(req,res){
    [branch,sku,input.kind,input.group,input.name,input.description,input.price,user.uid]);
    return res.status(201).json({ok:true,branch,item:rows[0]});
   }
-  if(!['editar-precio','editar-producto','editar-promocion','publicar-promocion','retirar-producto','restaurar-producto'].includes(action))return fail(res,400,'Acción no permitida');
+  if(!['editar-precio','editar-producto','editar-promocion','publicar-promocion','retirar-producto','restaurar-producto','eliminar-producto'].includes(action))return fail(res,400,'Acción no permitida');
   const sku=String(req.body.sku||''),version=req.body.expected_version;
   if(!Number.isSafeInteger(version)||version<0||!sku||sku.length>120)return fail(res,400,'Actualiza la lista y vuelve a intentar');
   const items=await listing(sql,branch),entry=items.find(x=>x.sku===sku);
   if(!entry)return fail(res,404,'Producto no encontrado');
+  if(action==='eliminar-producto'){
+   if(!categoriasDescuentosHabilitados())return fail(res,503,'Eliminación de productos no habilitada.');
+   if(!eliminable(entry))return fail(res,409,'Solo puedes eliminar definitivamente productos creados desde el panel y previamente retirados.');
+   const visibility=req.body.expected_visibility_version;
+   if(entry.kind!=='monthly'&&(!Number.isSafeInteger(visibility)||visibility!==entry.visibilityVersion))
+    return fail(res,409,'La visibilidad cambió. Actualiza la lista antes de eliminar.');
+   const deleted=await eliminarCustom(sql,branch,entry,version,visibility);
+   if(!deleted.length)return fail(res,409,'El producto cambió o volvió a publicarse. Actualiza la lista.');
+   return res.status(200).json({ok:true,branch,sku,eliminado:true});
+  }
   if(!promocionesHabilitadas()&&(action==='retirar-producto'||action==='restaurar-producto')){
    // Compatibilidad operativa con el panel anterior, sin tabla de visibilidad.
    if(!entry.custom)return fail(res,400,'Los productos originales se controlan con Disponible/Agotado; solo puedes retirar los agregados.');
@@ -328,4 +372,4 @@ module.exports=async function(req,res){
  }catch(e){console.error('Carta precios',String(e?.code||e?.name||'error').slice(0,60));
   return fail(res,503,'No se pudo completar la operación. Inventario y caja siguen intactos');}
 };
-module.exports._testing={goodPrice,validNew,validPromo,originAllowed,getSKU,listing,modifyPrice,promocionesHabilitadas,estadoPromocion,categoriasDescuentosHabilitados,listarConMetadatos,guardarCategoria};
+module.exports._testing={goodPrice,validNew,validPromo,originAllowed,getSKU,listing,modifyPrice,eliminable,eliminarCustom,promocionesHabilitadas,estadoPromocion,categoriasDescuentosHabilitados,listarConMetadatos,guardarCategoria};
