@@ -34,6 +34,9 @@ async function setup(){
   runScripts:'outside-only'
  });
  const w=dom.window,requests=[],downloads=[],shared=[];
+ // El panel real exige abrir primero una sucursal. No caer en Arica por
+ // defecto cuando S.suc es Romo o todavía no se ha elegido un local.
+ w.S={suc:'Uki Regimiento Arica'};
  w.ukiInventarioToken=async()=> 'SIMULADO.NO_ES_GOOGLE.SIN_PERMISOS';
  w.HTMLElement.prototype.scrollIntoView=()=>{};
  w.confirm=()=>true;
