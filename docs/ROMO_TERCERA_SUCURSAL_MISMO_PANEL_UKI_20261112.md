@@ -99,3 +99,10 @@ Se conserva la decisión: un panel Uki, tres locales. Romo La Serena usa la mism
 - Se agrega al mismo editor original un botón SOLO LECTURA por área que muestra datos originales (no simulados) cuando se active la lectura. El botón nunca guarda, cobra, manda timbres ni edita existencias.
 - Los dos locales Uki conservan todas sus funciones, rutas, datos y menús. No se publica la rama QA ni se activa ROMO_PANEL_LECTURA_SOLA_ENABLED.
 - Pendiente de aprobación: habilitar la lectura segura, observar prueba con Google real y conectar POST ediciones/comercial tras regresiones completas y autorización de la propietaria.
+
+## Mismas claves de Uki en dos teléfonos — enlace criptográfico preparado (12 nov 2026)
+- La base Romo ya contiene la tabla exclusiva `romo_clave_compartida_v1` con dos slots permitidos (uki:serena, uki:arica). Sigue vacía hasta que la dueña lo haga desde una sesión autorizada.
+- Se prepara `api/romo-claves-alta-qa.js`, propietario Google verificado + rol dueños en Neon, origen exacto, y un verificador AES-GCM de la clave que previamente desbloqueó un Uki. Nunca acepta contraseña en texto claro, otro rol, otro local, ni sustitución automática de verificadores.
+- Se agrega cliente de enrolamiento `firebase/uki-romo-alta-clave-qa.mjs` APAGADO hasta activación expresamente autorizada; no se incorpora otra pantalla ni se pide clave nueva.
+- No se ejecuta GRANT INSERT en Neon, ni se configura `ROMO_ACCESO_CLAVES_ALTA_LIVE_ENABLED` o URL de activación; ninguna clave se transfirió ni se guardaron datos de Uki.
+- Regresión con DB ficticia: propietario sí, empleado no, duplicados rechazados, cifrado probado, y cero llamadas de red cuando el flujo está apagado.

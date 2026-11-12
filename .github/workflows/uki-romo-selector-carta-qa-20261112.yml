@@ -31,6 +31,9 @@ jobs:
           node --check lib/romo-inventario-modelo-qa.mjs
           node --check lib/romo-panel-carta-interfaz-qa.mjs
           node --check firebase/uki-romo-consulta-qa.mjs
+          node --check lib/romo-claves-alta-qa.mjs
+          node --check api/romo-claves-alta-qa.js
+          node --check firebase/uki-romo-alta-clave-qa.mjs
           node --check api/romo-estado-operativo-qa.js
           node --check firebase/uki-romo-carta-selector-qa.mjs
           node --check firebase/romo-carta-qa/romo-carta-vista-embebida-qa.mjs
@@ -52,6 +55,7 @@ jobs:
             tests/romo-panel-http-qa.test.mjs \
             tests/romo-consulta-panel-qa.test.mjs \
             tests/romo-api-lector-solo-qa.test.mjs \
+            tests/romo-alta-clave-qa.test.mjs \
             tests/romo-carga-catalogo-existente-20261112.test.mjs \
             tests/romo-almacenamiento-operativo-panel-qa.test.mjs \
             tests/uki-local-router-qa.test.mjs \
