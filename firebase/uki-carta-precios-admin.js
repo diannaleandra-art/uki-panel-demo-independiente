@@ -534,6 +534,34 @@ async function crearCategoria(){
  finally{state.busy=false;$('ukiCategoryCreate').disabled=false;}
 }
 
+function eliminarProductoControl(price){
+ if(!state.categoriasDescuentosHabilitados||!price?.custom||
+    price.visible!==false||!['dish','pizza','monthly'].includes(price.kind))return null;
+ const button=document.createElement('button');
+ button.type='button';button.className='sm';
+ button.textContent='🗑 Eliminar definitivamente';
+ button.style.cssText='display:block;margin:12px 0 0;border:1.5px solid #bc6358;color:#98372e;background:#fff5f1;font-weight:800';
+ button.setAttribute('aria-label','Eliminar definitivamente '+price.name+' solo de esta sucursal');
+ button.onclick=async()=>{
+  if(state.busy)return;
+  const selected=state.branch;
+  const local=selected==='arica'?'Regimiento Arica':'La Serena';
+  if(!window.confirm('¿Eliminar DEFINITIVAMENTE «'+price.name+'» de '+local+'?\n\nSe borrará de la lista del panel y de la carta. No se podrá restaurar. Los pedidos, ventas y cierres anteriores se conservan.'))return;
+  state.busy=true;button.disabled=true;
+  try{
+   await request(API,'eliminar-producto',{
+    sku:price.sku,expected_version:price.version,
+    expected_visibility_version:price.visibilityVersion
+   },selected);
+   state.busy=false;
+   if(selected!==branch())return;
+   await loadPrices(true);
+   info('ukiPriceMessage','✓ «'+price.name+'» eliminado definitivamente de la carta y lista de productos de '+local+'. Se conservaron las ventas anteriores.');
+  }catch(e){info('ukiPriceMessage','No se eliminó: '+String(e.message||e))}
+  finally{state.busy=false;button.disabled=false;}
+ };
+ return button;
+}
 function line(price,ocultarRetiro=false){
  const wrap=document.createElement('article');wrap.className='uki-producto-edicion-card';
  wrap.style.cssText='display:flex;flex-direction:column;gap:12px;padding:17px 15px;margin:16px 0 20px;background:#fffdfa;border:1.5px solid #e0b58e;border-left:5px solid #e88434;border-radius:16px;box-shadow:0 5px 15px #70432314;min-width:0;overflow-wrap:anywhere';
@@ -628,7 +656,9 @@ function line(price,ocultarRetiro=false){
   if(!ocultarRetiro){
    const actions=document.createElement('details');actions.style.cssText='width:100%;padding:9px 0;border-top:1px solid #ecd5c1';
    const heading=document.createElement('summary');heading.textContent='Retirar, restaurar o publicar';heading.style.cssText='cursor:pointer;font-size:13px;font-weight:750;color:#84481b';
-   const vis=visibilityControl(price);vis.style.marginTop='11px';actions.append(heading,vis);wrap.append(actions);
+   const vis=visibilityControl(price);vis.style.marginTop='11px';actions.append(heading,vis);
+    const deleteButton=eliminarProductoControl(price);if(deleteButton)actions.append(deleteButton);
+    wrap.append(actions);
   }
  }else if(price.custom){
   // Mantener el retiro/restauración que ya usaba Uki, sin tablas ni APIs nuevas.
