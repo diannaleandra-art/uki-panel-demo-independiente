@@ -68,3 +68,6 @@ Esta rama no altera env vars, dominios, datos reales, código de sucursales Uki 
 - Solo carga una vista de precios y estado de los productos existentes cuando la sesión de dueños está autorizada y la API QA tiene conexión real.
 - No añade +$500, no migra, no publica, no entra en caja. Todo queda pendiente de comparación de la carta definitiva.
 - Galería de 4 fotos originales para seleccionar manualmente por promoción con fotoId validado, sin asignación automática.
+
+## Corrección de límite Vercel Hobby (QA)
+La versión de pruebas excedía las 12 funciones del plan Hobby: 13 archivos `api/*.js`, dos nuevos para Romo. Se consolidó la lectura del catálogo anterior como modo `GET /api/romo-catalogo-qa?origen=anterior` dentro del endpoint único de catálogo Romo; se elimina `api/romo-catalogo-anterior-qa.js` solamente de esta rama. Quedan 12 funciones. No se adquiere Pro, no se toca producción, no se configura ningún secreto nuevo ni se habilita ninguna escritura.

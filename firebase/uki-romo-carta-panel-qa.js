@@ -7,7 +7,7 @@
 (function initRomoCartaQA(root){
  const STORE='romo:serena';
  const ENDPOINT='/api/romo-catalogo-qa';
- const LEGACY_ENDPOINT='/api/romo-catalogo-anterior-qa';
+ const LEGACY_ENDPOINT='/api/romo-catalogo-qa?origen=anterior';
  const MAX_ITEMS=300;
  const QA_PROMO_PHOTOS=Object.freeze(['promo-foto-1','promo-foto-2','promo-foto-3','promo-foto-4']);
  const photoSrc=id=>QA_PROMO_PHOTOS.includes(id)?'./romo-assets/'+id+'.jpg':null;

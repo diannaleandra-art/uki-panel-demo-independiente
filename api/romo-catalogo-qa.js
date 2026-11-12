@@ -37,6 +37,41 @@ function dbConfig(env=process.env){
 }
 const draftsOnly=catalog=>['productos','promociones','ingredientes'].every(k=>
  Array.isArray(catalog[k])&&catalog[k].every(row=>row.visible===false));
+
+const legacyEnabled=(env=process.env)=>enabled(env)&&env.ROMO_IMPORTACION_CATALOGO_QA_ENABLED==='true';
+
+/** Segundo modo del MISMO endpoint para no exceder el límite Hobby 12.
+ * Exige rol dueño ya verificado y nunca escribe a Neon ni a Supabase. */
+async function readLegacyCatalog({res,env,identity}){
+ if(!legacyEnabled(env))return fail(res,503,'Consulta de la carta anterior no habilitada');
+ if(identity.role!=='duenos')return fail(res,403,'Sólo dueños pueden revisar la carta anterior');
+ const key=String(env.ROMO_SUPABASE_CATALOGO_PUBLISHABLE_KEY||'');
+ if(!/^sb_publishable_[A-Za-z0-9_-]{10,200}$/.test(key))
+  return fail(res,503,'Catálogo anterior no configurado');
+ try{
+  const legacy=await import('../lib/romo-catalogo-anterior-lectura-qa.mjs');
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),11000);
+  let response;
+  try{
+   response=await fetch(legacy.legacySupabaseUrl(),{
+    method:'GET',headers:{apikey:key},redirect:'error',
+    credentials:'omit',cache:'no-store',signal:controller.signal
+   });
+  }finally{clearTimeout(timeout);}
+  if(!response.ok)return fail(res,502,'Supabase no entregó productos para revisión');
+  const length=Number(response.headers.get('content-length')||0);
+  if(!Number.isFinite(length)||length>150000)
+   return fail(res,502,'Catálogo anterior demasiado grande');
+  const content=await response.text();
+  if(content.length>150000)return fail(res,502,'Catálogo anterior demasiado grande');
+  const candidates=legacy.legacyRomoCatalogReview(JSON.parse(content));
+  return res.status(200).json({ok:true,...candidates});
+ }catch{
+  return fail(res,503,'No se pudo consultar la carta anterior; no se modificaron precios');
+ }
+}
+
 module.exports=async function romoCatalogoQA(req,res){
  res.setHeader('Cache-Control','private, no-store, max-age=0');
  res.setHeader('X-Content-Type-Options','nosniff');
@@ -72,6 +107,8 @@ module.exports=async function romoCatalogoQA(req,res){
  }).catch(()=>null);
  if(!identity)return fail(res,403,'Sin autorización para Romo La Serena');
  if(req.method==='GET'){
+  if(req.query?.origen==='anterior')return readLegacyCatalog({res,env,identity});
+  if(req.query?.origen!==undefined)return fail(res,400,'Consulta no reconocida');
   try{
    const data=await catalogModule.readRomoCatalog({db:sql,identity});
    return res.status(200).json({ok:true,...data,ventaHabilitada:false,
@@ -101,4 +138,4 @@ module.exports=async function romoCatalogoQA(req,res){
   return fail(res,503,'No se pudo confirmar el guardado de Romo');
  }
 };
-module.exports._testing={enabled,validOrigin,dbConfig,draftsOnly};
+module.exports._testing={enabled,legacyEnabled,validOrigin,dbConfig,draftsOnly};

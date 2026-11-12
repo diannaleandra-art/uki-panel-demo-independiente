@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {legacyRomoCatalogReview,legacySupabaseUrl} from '../lib/romo-catalogo-anterior-lectura-qa.mjs';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url);
-const endpoint=require('../api/romo-catalogo-anterior-qa.js');
+const endpoint=require('../api/romo-catalogo-qa.js');
 function row(o={}){
  return {id:'promo-24',name:'24 piezas',kind:'promo',pieces:24,price:7500,
   available:true,valid_from:null,valid_until:null,sort_order:1,...o};
@@ -43,4 +43,13 @@ test('API preview: por defecto apagada y POST imposible',async()=>{
   await endpoint({method:'POST',headers:{}},res);
   assert.equal(res.code,503);assert.equal(res.body.ok,false);
  }finally{for(const [k,v] of Object.entries(saved)){if(v===undefined)delete process.env[k];else process.env[k]=v}}
+});
+
+test('modo de carta antigua integrado en misma función no se activa en producción',()=>{
+ const active={VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'qa/romo-catalogo-inventario-sin-publicar-20261111',
+  VERCEL_URL:'uki-sushi-inventario-demo.vercel.app',
+  ROMO_CATALOGO_QA_ENABLED:'true',ROMO_IMPORTACION_CATALOGO_QA_ENABLED:'true'};
+ assert.equal(endpoint._testing.legacyEnabled(active),true);
+ assert.equal(endpoint._testing.legacyEnabled({...active,VERCEL_ENV:'production'}),false);
+ assert.equal(endpoint._testing.legacyEnabled({...active,ROMO_IMPORTACION_CATALOGO_QA_ENABLED:'false'}),false);
 });

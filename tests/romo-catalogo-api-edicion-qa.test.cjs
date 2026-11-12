@@ -2,7 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const handler=require('../api/romo-catalogo-qa.js');
-const {enabled,validOrigin,dbConfig,draftsOnly}=handler._testing;
+const {enabled,legacyEnabled,validOrigin,dbConfig,draftsOnly}=handler._testing;
 const branch='qa/romo-catalogo-inventario-sin-publicar-20261111';
 const env={VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:branch,
  ROMO_CATALOGO_QA_ENABLED:'true',VERCEL_URL:'romo-example.vercel.app'};
@@ -45,4 +45,9 @@ test('API rechaza producción y no toca base de datos',async()=>{
   assert.equal(res.code,503);
   assert.match(res.data.error,/pruebas/i);
  }finally{for(const [k,v] of Object.entries(saved)){if(v===undefined)delete process.env[k];else process.env[k]=v}}
+});
+
+test('lectura de carta antigua comparte el endpoint Romo, con bandera separada',()=>{
+ assert.equal(legacyEnabled(env),false);
+ assert.equal(legacyEnabled({...env,ROMO_IMPORTACION_CATALOGO_QA_ENABLED:'true'}),true);
 });
