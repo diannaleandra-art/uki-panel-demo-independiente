@@ -39,7 +39,7 @@
   promociones:['sushi','gohan','combo','otro'],
   ingredientes:['vegetal','proteina','envoltura','salsa','adicional']
  };
- let cache=null,loading=false;
+ let cache=null,loading=false,filtroCarta='';
  const el=id=>root.document?.getElementById(id);
  const text=(node,value)=>{if(node)node.textContent=String(value)};
  const create=(tag,css,textValue)=>{
@@ -81,12 +81,13 @@
    const area=el('romoQACategoria'+key);
    if(!area)continue;
    area.replaceChildren();
-   area.appendChild(create('h3','',title+' ('+sections[key].length+')'));
-   if(!sections[key].length){
+   const visibles=sections[key].filter(row=>row.name.toLowerCase().includes(filtroCarta.toLowerCase()));
+   area.appendChild(create('h3','',title+' ('+visibles.length+' de '+sections[key].length+')'));
+   if(!visibles.length){
     area.appendChild(create('p','muted','Sin registros todavía. No se han copiado datos de Uki.'));
     continue;
    }
-   for(const item of sections[key]){
+   for(const item of visibles){
     const row=create('div','card romo-qa-item');
     row.append(
      create('strong','',item.name),
@@ -125,6 +126,13 @@
   if(editor)editor.hidden=true;
   text(el('romoQACartaEstado'),'Catálogo de Romo consultado (revisión '+response.revision+
    '). '+(canEdit?'Permite guardar borradores, sin publicarlos.':'Lectura únicamente; edición no habilitada.'));
+ }
+ function searchCatalog(value){
+  filtroCarta=String(value||'').slice(0,100);
+  if(!cache)return false;
+  renderCatalog({ok:true,storeId:STORE,revision:cache.revision,
+   catalog:cache.catalog,edicionHabilitada:cache.edit});
+  return true;
  }
  function edit(section,sku){
   if(!cache?.edit||!preview())return false;
@@ -366,6 +374,8 @@
      'independientes de Uki. Sólo borradores hasta completar las pruebas.</p>'+
    '<button type="button" class="sm" id="romoQACartaConsultar" onclick="ukiRomoCartaPanelConsultarQA()">Consultar catálogo Romo</button>'+
    '<p class="muted" id="romoQACartaEstado" role="status">Sin conexión autorizada todavía. No hay operaciones reales.</p>'+
+   '<label for="romoQACartaBuscar">Buscar en productos, promociones e ingredientes</label>'+
+   '<input type="search" id="romoQACartaBuscar" placeholder="Buscar por nombre…" oninput="ukiRomoCartaPanelBuscarQA(this.value)">'+
    '<div id="romoQACategoriaproductos"></div>'+
    '<div id="romoQACategoriapromociones"></div>'+
    '<div id="romoQACategoriaingredientes"></div>'+
@@ -413,6 +423,7 @@
  root.ukiRomoCartaPanelHTMLQA=vista;
  root.ukiRomoCartaPanelConsultarQA=consultar;
  root.ukiRomoCatalogoRenderQA=renderCatalog;
+ root.ukiRomoCartaPanelBuscarQA=searchCatalog;
  root.ukiRomoCartaAnteriorConsultarQA=revisarAnterior;
  root.ukiRomoCartaPanelEditarQA=edit;
  root.ukiRomoCartaPanelAgregarQA=addNew;

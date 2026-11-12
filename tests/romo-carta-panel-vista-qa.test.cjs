@@ -15,7 +15,7 @@ function createDOM(){
   replaceChildren(...children){this.children=[...children]}
  });
  const document={createElement:make,getElementById(id){return nodes.get(id)||null}};
- for(const id of ['romoQACartaEstado','romoQACartaConsultar','romoQACartaAnteriorEstado','romoQACartaAnteriorListado','romoQACategoriaproductos','romoQACategoriapromociones','romoQACategoriaingredientes','romoQACartaAgregar','romoQACartaEditor','romoQAEditorEstado','romoQAEditorSeccion','romoQAEditorTipo','romoQAEditorNombre','romoQAEditorDescripcion','romoQAEditorPrecio','romoQAEditorRolls','romoQAEditorPorRoll','romoQAEditorSalsas','romoQAEditorKorokes','romoQAEditorDisponible','romoQAEditorPromoExtras','romoQAEditorFoto','romoQAEditorGuardar'])
+ for(const id of ['romoQACartaEstado','romoQACartaConsultar','romoQACartaBuscar','romoQACartaAnteriorEstado','romoQACartaAnteriorListado','romoQACategoriaproductos','romoQACategoriapromociones','romoQACategoriaingredientes','romoQACartaAgregar','romoQACartaEditor','romoQAEditorEstado','romoQAEditorSeccion','romoQAEditorTipo','romoQAEditorNombre','romoQAEditorDescripcion','romoQAEditorPrecio','romoQAEditorRolls','romoQAEditorPorRoll','romoQAEditorSalsas','romoQAEditorKorokes','romoQAEditorDisponible','romoQAEditorPromoExtras','romoQAEditorFoto','romoQAEditorGuardar'])
   nodes.set(id,make('div'));
  return {document,nodes};
 }
@@ -114,4 +114,17 @@ test('precios acordados se ven sólo en revisión Romo sin alta ni sumas nuevas'
   assert.ok(html.includes(promo),promo);
  assert.ok(html.includes('No volver a sumar $500'));
  assert.ok(html.includes('No están cargados en Neon ni publicados'));
+});
+
+test('buscar por nombre en Carta y precios sin perder borradores ni cambiar precios',()=>{
+ const {win,nodes}=run();
+ const p=payload();
+ win.ukiRomoCatalogoRenderQA({...p,edicionHabilitada:false});
+ assert.equal(win.ukiRomoCartaPanelBuscarQA('gohan'),true);
+ assert.equal(nodes.get('romoQACategoriaproductos').children.length,2);
+ assert.equal(nodes.get('romoQACategoriapromociones').children.length,2);
+ assert.equal(nodes.get('romoQACategoriapromociones').children[1].textContent,'Sin registros todavía. No se han copiado datos de Uki.');
+ assert.equal(win.ukiRomoCartaPanelBuscarQA(''),true);
+ assert.equal(nodes.get('romoQACategoriapromociones').children[1].children[0].textContent,'Promo 24');
+ assert.match(source,/ROMO_PRECIOS_ACORDADOS_QA=Object.freeze/);
 });

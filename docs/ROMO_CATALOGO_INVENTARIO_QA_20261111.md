@@ -86,3 +86,9 @@ Las imágenes antiguas de menú de julio muestran precios distintos (24 $7.500, 
 - Acepta coma decimal. Muestra diferencia «recibido - hay» y cantidad para reponer «máximo(0,mínimo - hay)».
 - **Solo memoria del navegador, sin persistencia**: no usa Neon, Firebase, Supabase, localStorage, ni exporta movimientos reales. Al actualizar se pierde la simulación. Ninguna acción modifica caja, pedidos, cierres ni inventario Uki.
 - Para guardado real hace falta crear la tabla independiente \`public.romo_inventario_v1\` y habilitar permisos por sucursal con autorización expresa de la dueña, luego pruebas de sincronización de dos teléfonos.
+
+## Lote único de QA — mejoras de interfaz sin publicaciones reales (12 nov 2026)
+- Inventario Romo: editar cantidades y disponibilidad sin duplicar artículos, cancelar edición, confirmación antes de quitar, filtros «todos/por reponer/agotados», lista de reposición de prueba que sólo se muestra en pantalla. Sin WhatsApp, PDF/Excel ni datos reales.
+- Carta y precios: búsqueda por nombre dentro de productos, promociones e ingredientes. La edición sigue en borrador con permiso de dueños, y todos los precios originales permanecen iguales.
+- Seguridad: exactamente el mismo panel, Romo sólo en modo prueba; sin otra función serverless, sin accesos nuevos, sin cambios de claves ni base de datos.
+- Se guarda todo en un commit QA para reducir ejecuciones de Vercel; publicación real por autorización expresa.

@@ -12,7 +12,8 @@ const make=tag=>({
 function start(){
  const ids=['romoQAInventarioLista','romoQAInventarioResumen','romoQAInventarioEstado',
   'romoQAInventarioNombre','romoQAInventarioUnidad','romoQAInventarioRecibido',
-  'romoQAInventarioHay','romoQAInventarioMinimo','romoQAInventarioDisponible','romoQAInventarioBuscar'];
+  'romoQAInventarioHay','romoQAInventarioMinimo','romoQAInventarioDisponible','romoQAInventarioBuscar',
+  'romoQAInventarioAgregar','romoQAInventarioFiltro','romoQAInventarioComprasVista'];
  const nodes=new Map(ids.map(id=>[id,make('div')]));
  const document={createElement:make,getElementById:id=>nodes.get(id)||null};
  const win={document,confirm:()=>true};
@@ -73,4 +74,47 @@ test('buscar, marcar agotado y quitar sólo cambia memoria local de prueba',()=>
  assert.equal(win.ukiRomoInventarioQAModelo().articulos[0].disponible,false);
  assert.equal(win.ukiRomoInventarioQALimpiar(),true);
  assert.equal(win.ukiRomoInventarioQAModelo().articulos.length,0);
+});
+
+test('mismo inventario permite corregir cantidades sin duplicar artículo',()=>{
+ const {win,nodes}=start();
+ nodes.get('romoQAInventarioNombre').value='Palta';
+ nodes.get('romoQAInventarioUnidad').value='kg';
+ nodes.get('romoQAInventarioRecibido').value='10';
+ nodes.get('romoQAInventarioHay').value='4';
+ nodes.get('romoQAInventarioMinimo').value='5';
+ assert.equal(win.ukiRomoInventarioQAAgg(),true);
+ let first=win.ukiRomoInventarioQAModelo().articulos[0];
+ assert.equal(win.ukiRomoInventarioQAEditar(first.id),true);
+ assert.equal(nodes.get('romoQAInventarioAgregar').textContent,'Guardar corrección de prueba');
+ nodes.get('romoQAInventarioHay').value='7,5';
+ assert.equal(win.ukiRomoInventarioQAAgg(),true);
+ const model=win.ukiRomoInventarioQAModelo();
+ assert.equal(model.articulos.length,1);
+ assert.equal(model.articulos[0].hay,7.5);
+ assert.equal(model.articulos[0].reponer,0);
+ assert.equal(win.ukiRomoInventarioQACancelar(),true);
+});
+test('filtros agotados y reponer; lista para compras no manda WhatsApp',()=>{
+ const {win,nodes}=start();
+ const n=nodes.get('romoQAInventarioNombre'),u=nodes.get('romoQAInventarioUnidad'),
+ r=nodes.get('romoQAInventarioRecibido'),hay=nodes.get('romoQAInventarioHay'),
+ min=nodes.get('romoQAInventarioMinimo');
+ n.value='Arroz';u.value='kg';r.value='10';hay.value='3';min.value='8';
+ assert.equal(win.ukiRomoInventarioQAAgg(),true);
+ n.value='Nori';u.value='unidad';r.value='30';hay.value='20';min.value='10';
+ assert.equal(win.ukiRomoInventarioQAAgg(),true);
+ assert.equal(win.ukiRomoInventarioQAFiltro('reponer'),true);
+ assert.equal(nodes.get('romoQAInventarioLista').children.length,1);
+ const lista=win.ukiRomoInventarioQACompras();
+ assert.match(lista,/Arroz: 5 kilos/);
+ assert.doesNotMatch(lista,/Nori/);
+ assert.match(nodes.get('romoQAInventarioComprasVista').textContent,/LISTA DE REPOSICIÓN DE PRUEBA/);
+ const item=win.ukiRomoInventarioQAModelo().articulos[1];
+ win.ukiRomoInventarioQAEditar(item.id);
+ nodes.get('romoQAInventarioDisponible').checked=false;
+ assert.equal(win.ukiRomoInventarioQAAgg(),true);
+ assert.equal(win.ukiRomoInventarioQAFiltro('agotados'),true);
+ assert.equal(nodes.get('romoQAInventarioLista').children.length,1);
+ assert.equal(win.ukiRomoInventarioQAFiltro('otro'),false);
 });
