@@ -12,7 +12,7 @@ const end=main.indexOf('async function salirSuc(){',start);
 assert.ok(start>0&&end>start,'Sección del ingreso único');
 const login=main.slice(start,end);
 
-function harness({serena=false,arica=false,validPassword='ClaveUkiSegura123'}={}){
+function harness({serena=false,arica=false,validPassword='ClaveUkiSegura123',inputPassword='ClaveUkiSegura123'}={}){
  const ROMO='Romo’s Sushi La Serena';
  const entries=new Map();
  if(serena)entries.set('uki_operativo_v1_cifrado_la-serena','cifrado-uki-serena');
@@ -37,7 +37,7 @@ function harness({serena=false,arica=false,validPassword='ClaveUkiSegura123'}={}
    throw Error('Bóveda no válida');
   },
   async entrarDatosSucursal(s,pass){entered.push({s,pass});data.S.suc=s;data.S.pinSuc=null},
-  $:()=>({value:validPassword}),
+  $:()=>({value:inputPassword}),
   render(){},aviso(msg){alerts.push(msg)}
  };
  const context=vm.createContext(data);
