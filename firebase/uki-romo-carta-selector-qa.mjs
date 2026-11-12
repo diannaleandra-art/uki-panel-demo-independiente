@@ -117,6 +117,10 @@ export function montarCartaRomoDesdeSelectorQA({
   change.onclick=()=>host.scrollIntoView?.({behavior:'smooth',block:'start'});
  }
  choose(activeTab);
+ // Misma plantilla original, solo un lector autorizado e independiente.
+ // Los controles de edición de Uki siguen bloqueados en Romo.
+ if(typeof window!=='undefined'&&typeof window.ukiRomoConsultaPrepararQA==='function')
+  window.ukiRomoConsultaPrepararQA({document,storeId:STORE,qaOnly:true});
  const waiting=price.querySelector?.('[role="status"]');
  if(waiting?.textContent?.includes('Preparando vista de solo lectura de Romo'))waiting.remove();
  // El retorno no representa una autorización de Neon, solo un montaje visual.

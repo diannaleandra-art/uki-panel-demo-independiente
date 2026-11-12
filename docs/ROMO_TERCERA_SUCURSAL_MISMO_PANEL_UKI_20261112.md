@@ -92,3 +92,10 @@ Se conserva la decisión: un panel Uki, tres locales. Romo La Serena usa la mism
 - Los accesos a esas áreas requieren **dos banderas nuevas** apagadas por defecto: `ROMO_PANEL_AREAS_LIVE_ENABLED` y `ROMO_PANEL_AREAS_WRITE_LIVE_ENABLED`. También permanece obligatoria `ROMO_OPERATIVO_LIVE_ENABLED` y configuración independiente. Ninguna se habilita ni modifica en esta etapa.
 - Pruebas QA ejercitan lectura, cambio de precio oculto, conflictos de revisiones, inventario separado y rechazo de identidad ajena. Todo con DB ficticia, nunca pedidos de clientes.
 - Pendientes de activación: permisos mínimos del servicio para `romo_catalogo_v1`, dar de alta a la cuenta Google propietaria con token firmado y activar sincronización del panel y carta después de autorización y prueba real. No publicar ni cobrar desde esta rama.
+
+## Consulta autorizada de dueña y datos Romo · 12 nov 2026
+- El UID Google de la dueña ya está registrado como rol activo exclusivamente en romo:serena. No se guardó en el código, solo en Neon; la sesión firmada debe validarse en cada solicitud.
+- Una única API Romo separa la lectura de catálogo e inventario de la activación de operaciones. GET protegido por ROMO_PANEL_LECTURA_SOLA_ENABLED y por token Google firmado, email verificado, rol en Neon, origen exacto y DB privada; por defecto sigue deshabilitado.
+- Se agrega al mismo editor original un botón SOLO LECTURA por área que muestra datos originales (no simulados) cuando se active la lectura. El botón nunca guarda, cobra, manda timbres ni edita existencias.
+- Los dos locales Uki conservan todas sus funciones, rutas, datos y menús. No se publica la rama QA ni se activa ROMO_PANEL_LECTURA_SOLA_ENABLED.
+- Pendiente de aprobación: habilitar la lectura segura, observar prueba con Google real y conectar POST ediciones/comercial tras regresiones completas y autorización de la propietaria.

@@ -281,6 +281,8 @@ body.romo-qa.uki-operativo-bloqueado #nav{pointer-events:auto;opacity:1;user-sel
 body.romo-qa.uki-operativo-bloqueado #app{opacity:1;pointer-events:none}
 /* Solo cambiar pestaña visual en administración, no ejecutar guardados de Uki. */
 body.romo-qa.uki-operativo-bloqueado #app [data-uki-tab]{pointer-events:auto}
+body.romo-qa.uki-operativo-bloqueado #app .romo-consulta-qa{pointer-events:auto;cursor:pointer}
+body.romo-qa.uki-operativo-bloqueado #app .romo-consulta-qa:disabled{pointer-events:none}
 body.romo-qa header{background:#fff!important;color:#171717!important;border-bottom:2px solid #b4232e;box-shadow:0 2px 7px #00000012}
 body.romo-qa nav.app-nav{background:#fff!important;border-color:#e9d5d6}
 body.romo-qa nav.app-nav button.on{background:#b4232e!important;color:#fff!important;border-color:#b4232e!important}
@@ -5909,6 +5911,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 }
 </script>
 <script type="module" src="./uki-romo-clave-remota-qa.mjs"></script>
+<script type="module" src="./uki-romo-consulta-qa.mjs"></script>
 <script type="module" src="./uki-romo-carta-selector-qa.mjs"></script>
 <script type="module" src="./uki-romo-operativo-qa.mjs"></script>
 <script type="module" src="./uki-romo-vinculo-duenos-qa.mjs"></script>

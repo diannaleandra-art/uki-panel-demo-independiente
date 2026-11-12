@@ -17,14 +17,18 @@ module.exports=async function romoEstadoOperativoQA(req,res){
  if(typeof area!=='string'||!['operativo','catalog','inventory'].includes(area)||
     (req.query&&Object.keys(req.query).some(key=>key!=='area')))
   return fail(res,400,'Área de Romo no reconocida');
- // Las áreas nuevas NO se abren simplemente al activar las operaciones.
- if(area!=='operativo'&&env.ROMO_PANEL_AREAS_LIVE_ENABLED!=='true')
-  return fail(res,503,'Administración de Romo aún no habilitada');
- if(area!=='operativo'&&req.method==='POST'&&
+ // Lectura segura independiente de las ventas: requiere un interruptor propio.
+ // Nunca permite POST, ni siquiera con el lector de catálogo autorizado.
+ const readonlyArea=area==='catalog'||area==='inventory';
+ const readonlyRequest=readonlyArea&&['GET','OPTIONS'].includes(req.method)&&
+    env.ROMO_PANEL_LECTURA_SOLA_ENABLED==='true';
+ const normalOperation=env.ROMO_OPERATIVO_LIVE_ENABLED==='true'&&
+    (area==='operativo'||env.ROMO_PANEL_AREAS_LIVE_ENABLED==='true');
+ if(env.VERCEL_ENV!=='production'||(!readonlyRequest&&!normalOperation))
+  return fail(res,503,'Esta sección de Romo todavía no está habilitada');
+ if(readonlyArea&&req.method==='POST'&&
     env.ROMO_PANEL_AREAS_WRITE_LIVE_ENABLED!=='true')
   return fail(res,503,'Edición de Romo aún no habilitada');
- if(env.VERCEL_ENV!=='production'||env.ROMO_OPERATIVO_LIVE_ENABLED!=='true')
-  return fail(res,503,'Romo todavía no está habilitado para operar');
  const actualOrigin=String(req.headers?.origin||'');
  const expectedOrigin=String(env.ROMO_PANEL_ALLOWED_ORIGIN||'');
  if(!/^https:\/\/[^\/\s?#@]+$/.test(expectedOrigin)||
@@ -32,7 +36,7 @@ module.exports=async function romoEstadoOperativoQA(req,res){
   return fail(res,403,'Origen no autorizado');
  res.setHeader('Access-Control-Allow-Origin',expectedOrigin);
  res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type');
- res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');
+ res.setHeader('Access-Control-Allow-Methods',readonlyRequest&&!normalOperation?'GET,OPTIONS':'GET,POST,OPTIONS');
  if(req.method==='OPTIONS')return res.status(204).end();
  if(!['GET','POST'].includes(req.method))return fail(res,405,'Método no permitido');
  if(req.method==='POST'&&
@@ -42,10 +46,16 @@ module.exports=async function romoEstadoOperativoQA(req,res){
  if(!Number.isFinite(size)||size>2800000)
   return fail(res,413,'El respaldo cifrado supera el tamaño permitido');
 
- let store;
- try{store=await import('../lib/romo-estado-operativo-qa.mjs')}
- catch{return fail(res,503,'Módulo Romo no preparado')}
- const config=store.romoOperativoConfig(env);
+ let store,config;
+ try{
+  store=await import('../lib/romo-estado-operativo-qa.mjs');
+  // El lector solo utiliza SELECT con identidad Google validada por servidor.
+  // La configuración normal exige además ventas habilitadas.
+  if(readonlyRequest&&!normalOperation){
+   const lectura=await import('../lib/romo-claves-lectura-servidor-qa.mjs');
+   config=lectura.romoPrivateReadConfig(env);
+  }else config=store.romoOperativoConfig(env);
+ }catch{return fail(res,503,'Módulo Romo no preparado')}
  if(!config)return fail(res,503,'Base exclusiva Romo no configurada');
 
  let db,identityModule;
@@ -68,6 +78,8 @@ module.exports=async function romoEstadoOperativoQA(req,res){
  // Misma API, misma sesión verificada: catálogo e inventario propios de Romo.
  // Nunca usar endpoints ni almacenes Uki como alternativa.
  if(area==='catalog'||area==='inventory'){
+  if(req.method==='POST'&&readonlyRequest)
+   return fail(res,503,'El lector nunca permite guardar');
   if(req.method==='POST'&&String(req.headers?.['content-type']||'').split(';')[0].trim()!=='application/json')
    return fail(res,415,'Formulario JSON requerido');
   try{
