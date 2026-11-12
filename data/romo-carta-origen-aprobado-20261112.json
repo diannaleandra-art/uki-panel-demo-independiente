@@ -1,0 +1,811 @@
+{
+  "source": "Carta Romo aprobada en la rama qa/romo-carta-espejo-uki-20261112 del repositorio uki-sushi-respaldo",
+  "sourcePaths": ["public/romo/model.mjs", "public/romo/monthly.mjs"],
+  "mode": "borrador-oculto-hasta-autorizar-venta",
+  "notes": "Importación inicial SIN sumar 500 nuevamente, sin inventar pizzas ni fotografias. Se deja visible=false hasta enlazar la edición real y verificar fotos.",
+  "catalog": {
+    "storeId": "romo:serena",
+    "brand": "romo",
+    "revision": 1,
+    "categories": [
+      {
+        "slug": "piezas",
+        "nombre": "Piezas de sushi",
+        "version": 1,
+        "visible": true
+      },
+      {
+        "slug": "promociones",
+        "nombre": "Promociones",
+        "version": 1,
+        "visible": true
+      }
+    ],
+    "products": [
+      {
+        "sku": "romo:piezas:24",
+        "name": "Sushi 24 piezas",
+        "description": "2 rolls de 12 piezas, armado personalizado",
+        "kind": "sushi",
+        "group": "piezas",
+        "price": 8000,
+        "available": true,
+        "visible": false,
+        "version": 1,
+        "categoriaSlug": "piezas"
+      },
+      {
+        "sku": "romo:piezas:36",
+        "name": "Sushi 36 piezas",
+        "description": "3 rolls de 12 piezas, armado personalizado",
+        "kind": "sushi",
+        "group": "piezas",
+        "price": 12000,
+        "available": true,
+        "visible": false,
+        "version": 1,
+        "categoriaSlug": "piezas"
+      },
+      {
+        "sku": "romo:piezas:48",
+        "name": "Sushi 48 piezas",
+        "description": "4 rolls de 12 piezas, armado personalizado",
+        "kind": "sushi",
+        "group": "piezas",
+        "price": 16000,
+        "available": true,
+        "visible": false,
+        "version": 1,
+        "categoriaSlug": "piezas"
+      },
+      {
+        "sku": "romo:piezas:60",
+        "name": "Sushi 60 piezas",
+        "description": "5 rolls de 12 piezas, armado personalizado",
+        "kind": "sushi",
+        "group": "piezas",
+        "price": 19000,
+        "available": true,
+        "visible": false,
+        "version": 1,
+        "categoriaSlug": "piezas"
+      },
+      {
+        "sku": "romo:piezas:72",
+        "name": "Sushi 72 piezas",
+        "description": "6 rolls de 12 piezas, armado personalizado",
+        "kind": "sushi",
+        "group": "piezas",
+        "price": 21000,
+        "available": true,
+        "visible": false,
+        "version": 1,
+        "categoriaSlug": "piezas"
+      },
+      {
+        "sku": "romo:piezas:84",
+        "name": "Sushi 84 piezas",
+        "description": "7 rolls de 12 piezas, armado personalizado",
+        "kind": "sushi",
+        "group": "piezas",
+        "price": 24000,
+        "available": true,
+        "visible": false,
+        "version": 1,
+        "categoriaSlug": "piezas"
+      },
+      {
+        "sku": "romo:piezas:96",
+        "name": "Sushi 96 piezas",
+        "description": "8 rolls de 12 piezas, armado personalizado",
+        "kind": "sushi",
+        "group": "piezas",
+        "price": 26000,
+        "available": true,
+        "visible": false,
+        "version": 1,
+        "categoriaSlug": "piezas"
+      }
+    ],
+    "ingredients": [
+      {
+        "sku": "romo:proteina-pollo",
+        "name": "Pollo",
+        "category": "proteina",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll",
+          "burger"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:proteina-kanicama",
+        "name": "Kanicama",
+        "category": "proteina",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll",
+          "burger"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:proteina-berenjena-crispy",
+        "name": "Berenjena crispy",
+        "category": "proteina",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll",
+          "burger"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:proteina-cerdo",
+        "name": "Cerdo",
+        "category": "proteina",
+        "surcharge": 500,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll",
+          "burger"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:proteina-camaron",
+        "name": "Camarón",
+        "category": "proteina",
+        "surcharge": 600,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll",
+          "burger"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:proteina-carne",
+        "name": "Carne",
+        "category": "proteina",
+        "surcharge": 1000,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll",
+          "burger"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:proteina-salmon",
+        "name": "Salmón",
+        "category": "proteina",
+        "surcharge": 1800,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll",
+          "burger"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:proteina-pulpo",
+        "name": "Pulpo",
+        "category": "proteina",
+        "surcharge": 2000,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll",
+          "burger"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:vegetal-cebollin",
+        "name": "Cebollín",
+        "category": "vegetal",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll",
+          "burger",
+          "gohan"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:vegetal-ciboulette",
+        "name": "Ciboulette",
+        "category": "vegetal",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll",
+          "burger",
+          "gohan"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:vegetal-palta",
+        "name": "Palta",
+        "category": "vegetal",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll",
+          "burger",
+          "gohan"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:vegetal-pepino",
+        "name": "Pepino",
+        "category": "vegetal",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll",
+          "burger",
+          "gohan"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:vegetal-pimenton",
+        "name": "Pimentón",
+        "category": "vegetal",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll",
+          "burger",
+          "gohan"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:vegetal-tomate",
+        "name": "Tomate",
+        "category": "vegetal",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll",
+          "burger",
+          "gohan"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:vegetal-aceituna-amarga",
+        "name": "Aceituna amarga",
+        "category": "vegetal",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll",
+          "burger",
+          "gohan"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:vegetal-aceituna-sin-amargo",
+        "name": "Aceituna sin amargo",
+        "category": "vegetal",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll",
+          "burger",
+          "gohan"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:vegetal-choclo",
+        "name": "Choclo",
+        "category": "vegetal",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll",
+          "burger",
+          "gohan"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:vegetal-cilantro",
+        "name": "Cilantro",
+        "category": "vegetal",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll",
+          "burger",
+          "gohan"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:vegetal-cebolla-caramelizada",
+        "name": "Cebolla caramelizada",
+        "category": "vegetal",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll",
+          "burger",
+          "gohan"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:vegetal-champinon",
+        "name": "Champiñón",
+        "category": "vegetal",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll",
+          "burger",
+          "gohan"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:vegetal-pina",
+        "name": "Piña",
+        "category": "vegetal",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll",
+          "burger",
+          "gohan"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:vegetal-palmito",
+        "name": "Palmito",
+        "category": "vegetal",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll",
+          "burger",
+          "gohan"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:envoltura-tempura",
+        "name": "Tempura",
+        "category": "envoltura",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:envoltura-panko",
+        "name": "Panko",
+        "category": "envoltura",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:envoltura-ciboulette",
+        "name": "Ciboulette",
+        "category": "envoltura",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:envoltura-sesamo",
+        "name": "Sésamo",
+        "category": "envoltura",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:envoltura-merken",
+        "name": "Merkén",
+        "category": "envoltura",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:envoltura-pepino",
+        "name": "Pepino",
+        "category": "envoltura",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:envoltura-mixta",
+        "name": "Mixta",
+        "category": "envoltura",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:envoltura-nori",
+        "name": "Nori",
+        "category": "envoltura",
+        "surcharge": 0,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:envoltura-queso",
+        "name": "Queso",
+        "category": "envoltura",
+        "surcharge": 1000,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:envoltura-palta",
+        "name": "Palta",
+        "category": "envoltura",
+        "surcharge": 1000,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:envoltura-queso-mani",
+        "name": "Queso maní",
+        "category": "envoltura",
+        "surcharge": 1300,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:envoltura-queso-ciboulette",
+        "name": "Queso ciboulette",
+        "category": "envoltura",
+        "surcharge": 1300,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:envoltura-queso-sesamo",
+        "name": "Queso sésamo",
+        "category": "envoltura",
+        "surcharge": 1300,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:envoltura-queso-panko",
+        "name": "Queso panko",
+        "category": "envoltura",
+        "surcharge": 1500,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:envoltura-jamon-serrano",
+        "name": "Jamón serrano",
+        "category": "envoltura",
+        "surcharge": 2000,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:envoltura-palta-queso",
+        "name": "Palta queso",
+        "category": "envoltura",
+        "surcharge": 2000,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:envoltura-salmon-ahumado",
+        "name": "Salmón ahumado",
+        "category": "envoltura",
+        "surcharge": 3000,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      },
+      {
+        "sku": "romo:envoltura-salmon-palta",
+        "name": "Salmón palta",
+        "category": "envoltura",
+        "surcharge": 2500,
+        "surfaces": [
+          "classic",
+          "premium",
+          "monthly",
+          "handroll"
+        ],
+        "available": true,
+        "visible": false,
+        "version": 1
+      }
+    ],
+    "promotions": [
+      {
+        "sku": "romo:promocion-romo-24-korokes",
+        "name": "24 piezas + 2 korokes",
+        "description": "",
+        "promoType": "sushi",
+        "rollCount": 2,
+        "piecesPerRoll": 12,
+        "sauceCount": 1,
+        "korokes": 2,
+        "payments": [
+          "efectivo",
+          "transferencia"
+        ],
+        "customizable": true,
+        "price": 7000,
+        "available": true,
+        "visible": false,
+        "version": 1,
+        "categoriaSlug": "promociones"
+      },
+      {
+        "sku": "romo:promocion-romo-60-korokes",
+        "name": "60 piezas + 3 korokes",
+        "description": "",
+        "promoType": "sushi",
+        "rollCount": 5,
+        "piecesPerRoll": 12,
+        "sauceCount": 5,
+        "korokes": 3,
+        "payments": [
+          "efectivo",
+          "transferencia"
+        ],
+        "customizable": true,
+        "price": 16000,
+        "available": true,
+        "visible": false,
+        "version": 1,
+        "categoriaSlug": "promociones"
+      },
+      {
+        "sku": "romo:promocion-romo-72",
+        "name": "72 piezas",
+        "description": "",
+        "promoType": "sushi",
+        "rollCount": 6,
+        "piecesPerRoll": 12,
+        "sauceCount": 5,
+        "korokes": 0,
+        "payments": [
+          "efectivo",
+          "transferencia"
+        ],
+        "customizable": true,
+        "price": 18000,
+        "available": true,
+        "visible": false,
+        "version": 1,
+        "categoriaSlug": "promociones"
+      }
+    ]
+  }
+}
