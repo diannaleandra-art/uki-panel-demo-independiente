@@ -11,75 +11,77 @@ try{
   isMobile:true,hasTouch:true,locale:'es-CL'
  });
  page=await context.newPage();
- // El ensayo no envía nada a Firebase, Neon, WhatsApp ni al inventario Uki.
- await page.route('**/*', route=>{
+ // Nunca consultar Firebase, Neon, apps externas o WhatsApp durante la prueba.
+ await page.route('**/*',route=>{
   const url=route.request().url();
   return url.startsWith(ROOT+'/')?route.continue():route.abort();
  });
  const errors=[];page.on('pageerror',e=>errors.push(String(e.message||e)));
  await page.goto(ROOT+'/firebase/uki-sushi-local.html',{waitUntil:'domcontentloaded'});
- // Abre la vista sólo visualmente, sin afirmar haber autenticado a un usuario.
- // Esta manipulación de fixtures ocurre dentro del navegador de CI aislado.
+ await page.waitForFunction(()=>typeof window.ukiInventarioPanelHTML==='function');
+ // Fixture QA en navegador aislado, NO login de cliente real.
  await page.evaluate(()=>{
-  S.pinSuc=null;
-  S.suc=null;
-  S.romoSeleccionadoQA=true;
-  S.romoIngresadoQA=true;
-  ukiRomoVistaCartaSeleccionadaQA=true;
+  S.pinSuc=null;S.suc=null;
+  S.romoSeleccionadoQA=true;S.romoIngresadoQA=true;
+  ukiRomoVistaQA='inventario';
   render();
  });
- await page.waitForFunction(
-  ()=>!!document.getElementById('romoCartaQAContenido')&&
-    document.getElementById('romoCartaQAContenido').innerHTML.includes('Categorías'),
-  {timeout:12000}
- );
+ await page.waitForFunction(()=>document.querySelector('#ukiInvTabs h2')?.textContent.includes('Administrar Romo’s Sushi'));
  const layout=await page.evaluate(()=>{
-  const host=document.getElementById('ukiPreciosPanel');
-  const area=document.getElementById('romoCartaQAContenido');
-  const buttons=[...document.querySelectorAll('.romo-selector-carta-qa button')];
+  const host=document.getElementById('ukiInvTabs');
+  const area=document.getElementById('ukiPreciosPanel');
+  const buttons=[...document.querySelectorAll('[data-uki-tab]')];
+  const mainNav=[...document.querySelectorAll('#nav button')];
   return {
    width:innerWidth,docWidth:document.documentElement.scrollWidth,
-   host:!!host,area:!!area,buttons:buttons.map(x=>({text:x.textContent.trim(),
-    width:Math.round(x.getBoundingClientRect().width),
-    height:Math.round(x.getBoundingClientRect().height)})),
-   categories:area?.textContent.includes('Categorías'),
-   products:area?.textContent.includes('Productos'),
-   promos:area?.textContent.includes('Promociones'),
-   ingredients:area?.textContent.includes('Ingredientes'),
-   containsDemoData:/Postre Romo QA|Cliente de prueba/.test(area?.textContent||''),
-   onlyQa:/Vista privada de pruebas|No guarda ni publica/.test(document.body.textContent),
-   showingLoading:host?.textContent.includes('Preparando vista de solo lectura de Romo'),
-   liveOrderButton:!!document.querySelector('.romo-qa #ukiPreciosPanel button[type=submit]')
+   host:!!host,area:!!area,
+   menuTitles:buttons.map(x=>x.textContent.trim()),
+   mainNav:mainNav.map(x=>x.getAttribute('aria-label')),
+   buttons:buttons.map(x=>({height:Math.round(x.getBoundingClientRect().height),
+    width:Math.round(x.getBoundingClientRect().width)})),
+   catalogBlocked:!!document.querySelector('#ukiPriceCreate:disabled'),
+   inputBlocked:!!document.querySelector('#ukiPriceSearch:disabled'),
+   photosBlocked:!!document.querySelector('#ukiPromoPhoto:disabled'),
+   noPizza:!document.querySelector('#ukiPromoType option[value="pizza"]'),
+   noFalseData:document.getElementById('ukiPriceMessage')?.textContent.includes('todavía no conectado'),
+   onlyQa:document.body.textContent.includes('No registres operaciones aquí')
   };
  });
  assert.equal(layout.host,true);
  assert.equal(layout.area,true);
- assert.equal(layout.categories,true);
- assert.equal(layout.products,true);
- assert.equal(layout.promos,true);
- assert.equal(layout.ingredients,true);
- assert.equal(layout.containsDemoData,false);
- assert.equal(layout.liveOrderButton,false);
- assert.equal(layout.showingLoading,false,'El aviso provisional debe retirarse al aparecer la carta');
- assert.equal(layout.buttons.length,2);
- assert.ok(layout.buttons.every(x=>x.height>=43),'Botones accesibles en móvil');
+ assert.equal(layout.menuTitles.length,4);
+ assert.equal(layout.mainNav.length,5);
+ assert.ok(layout.menuTitles.some(x=>x.includes('Carta y precios')));
+ assert.ok(layout.menuTitles.some(x=>x.includes('Disponible / Agotado')));
+ assert.ok(layout.menuTitles.some(x=>x.includes('Inventario')));
+ assert.ok(layout.menuTitles.some(x=>x.includes('Revisiones y compras')));
+ for(const key of ['catalogBlocked','inputBlocked','photosBlocked','noPizza','noFalseData','onlyQa'])
+  assert.equal(layout[key],true,key);
+ assert.ok(layout.buttons.every(x=>x.height>=44),'Áreas legibles en iPhone');
  assert.ok(layout.docWidth<=layout.width+2,'Sin scroll horizontal en iPhone');
+ // Navegación del MISMO editor Uki, sin conectar sus acciones comerciales.
+ await page.locator('[data-uki-tab="inventario"]').click();
+ assert.notEqual(await page.locator('#invRoot').evaluate(x=>x.style.display),'none');
+ assert.equal(await page.locator('#ukiPreciosPanel').evaluate(x=>x.style.display),'none');
+ await page.locator('[data-uki-tab="precios"]').click();
+ assert.notEqual(await page.locator('#ukiPreciosPanel').evaluate(x=>x.style.display),'none');
+ assert.equal(await page.locator('#ukiPriceCreate').isDisabled(),true);
  await mkdir('qa-artifacts',{recursive:true});
  await page.screenshot({path:'qa-artifacts/romo-carta-iphone-390.png',fullPage:true});
- // Regresar y comprobar que Romo no dejó su vista dentro de Uki.
+ // Regresar y comprobar que Romo no deja vista ni operaciones en Uki.
  await page.evaluate(()=>{
   ukiVolverAlSelectorLocales();
   pedirPin('Uki La Serena');
  });
  const restored=await page.evaluate(()=>({
-  romoVisible:!!document.getElementById('romoCartaQAContenido'),
-  pin:S.pinSuc,
-  unlocked:S.romoIngresadoQA,
+  romoVisible:!!document.getElementById('ukiInvTabs'),
+  pin:S.pinSuc,unlocked:S.romoIngresadoQA,
   romoSelected:S.romoSeleccionadoQA
  }));
  assert.equal(restored.pin,'Uki La Serena');
  assert.equal(restored.romoVisible,false);
  assert.equal(restored.unlocked,false);
  assert.equal(restored.romoSelected,false);
- console.log(JSON.stringify({result:'MOBILE_QA_OK',layout,restored,criticalErrors:errors.filter(x=>/SyntaxError|ReferenceError.*ukiRomo/i.test(x))}));
+ console.log(JSON.stringify({result:'MOBILE_UKI_TEMPLATE_ROMO_QA_OK',layout,restored,
+  criticalErrors:errors.filter(x=>/SyntaxError|ReferenceError.*ukiRomo/i.test(x))}));
 }finally{await browser.close()}
