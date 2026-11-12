@@ -35,3 +35,12 @@ Rama: qa/romo-carta-vista-selector-20261112
 
 ### Estado de despliegue
 Vercel genera previews automáticamente de esta rama en el proyecto de inventario, cuyo URL NO sirve el HTML del panel único (404 en la ruta del HTML). El trabajo actual está en la rama GitHub QA y NO se publicó como nuevo panel ni se cambió producción.
+
+## Confirmación de arquitectura — agregamos UN local, no otro panel
+- Se incorporó **un registro único `LOCALES_PANEL_QA`** en el mismo código del panel de Uki.
+- Identificadores fijos: `uki:arica`, `uki:serena`, `romo:serena`; no existe `romo:arica`.
+- El selector visible se deriva de ese registro y conserva las dos sucursales históricas de Uki con sus claves y rutas.
+- Romo se registra con estado `preparacion`, su nombre y su dirección Balmaceda 1612. En QA no se habilita escritura, caja, pedidos ni inventario.
+- La comprobación de `storeId` rechaza operar Romo usando el estado `S.suc` históricamente reservado para Uki. El acceso de prueba a Romo se maneja por su selector y contraseña habitual.
+- El menú y la plantilla administrativa permanecen compartidos. No se creó otro repositorio, panel, contraseña ni base de datos en este paso.
+- Siguiente bloque: adaptador de almacenamiento por local con autorización de backend antes de activar operaciones reales. No publicar sin autorización.
