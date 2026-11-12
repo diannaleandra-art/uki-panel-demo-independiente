@@ -1,0 +1,25 @@
+name: Romo · Integración del panel único QA
+on:
+  push:
+    branches:
+      - qa/integracion-panel-unico-romo-serena-20261112
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Pruebas unitarias de aislamiento y acceso sin datos reales
+        run: |
+          node --test \
+            tests/uki-panel-unico-romo-serena-qa.test.cjs \
+            tests/uki-romo-ingreso-clave-qa.test.cjs \
+            tests/uki-romo-operativo-puente-qa.test.mjs \
+            tests/uki-romo-clave-remota-qa.test.cjs \
+            tests/romo-estado-operativo-qa.test.mjs \
+            tests/romo-estado-api-cerrada-qa.test.mjs
