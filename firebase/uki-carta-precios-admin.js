@@ -535,14 +535,15 @@ async function crearCategoria(){
 }
 
 function line(price,ocultarRetiro=false){
- const wrap=document.createElement('div');wrap.className='row';wrap.style.cssText='align-items:center;gap:9px;padding:10px 0;border-bottom:1px solid #eee0d3;flex-wrap:wrap';
- const summary=document.createElement('div');summary.style.flex='1 1 130px';
- const name=document.createElement('b');name.textContent=price.name;
- const sub=document.createElement('small');sub.style.cssText='display:block;color:#756759';
+ const wrap=document.createElement('article');wrap.className='uki-producto-edicion-card';
+ wrap.style.cssText='display:flex;flex-direction:column;gap:12px;padding:17px 15px;margin:16px 0 20px;background:#fffdfa;border:1.5px solid #e0b58e;border-left:5px solid #e88434;border-radius:16px;box-shadow:0 5px 15px #70432314;min-width:0;overflow-wrap:anywhere';
+ const summary=document.createElement('header');summary.style.cssText='padding-bottom:10px;border-bottom:1px solid #f0dfd1';
+ const name=document.createElement('b');name.textContent=price.name;name.style.cssText='display:block;font-size:17px;line-height:1.35;color:#41271a';
+ const sub=document.createElement('small');sub.style.cssText='display:block;color:#756759;margin-top:5px;font-size:12px';
  const esPromo=price.kind==='monthly';
  const estado=esPromo?(price.custom?price.estadoPublicacion:(price.visible===false?'Retirada':'Publicada')):null;
- sub.textContent=(price.group||price.kind)+' · '+peso(price.price)+(esPromo?'': ' · '+
-   (price.visible===false?'Retirado de carta':price.available?'Disponible':'Agotado'));
+ sub.textContent=(price.categoriaNombre||price.group||price.kind)+' · '+
+  (price.visible===false?'Retirado de carta':price.available?'Disponible':'Agotado');
  summary.append(name,sub);
  if(esPromo&&estado){
   const indicador=document.createElement('span');
@@ -555,7 +556,7 @@ function line(price,ocultarRetiro=false){
  }
  const input=document.createElement('input');input.type='number';input.inputMode='numeric';input.min='1';input.max='1000000';
  input.value=String(price.price);input.setAttribute('aria-label','Nuevo precio de '+price.name);
- input.style.cssText='width:115px;max-width:35%;flex:0 0 115px';
+ input.style.cssText='width:100%;max-width:230px;min-width:0;min-height:44px;border:1.5px solid #d5b899;border-radius:10px;padding:9px;font-size:16px';
  const save=document.createElement('button');save.type='button';save.className='sm';save.textContent='Guardar precio';
  save.disabled=state.busy;
  save.onclick=async()=>{
@@ -573,7 +574,29 @@ function line(price,ocultarRetiro=false){
   }catch(e){info('ukiPriceMessage','No se guardó: '+String(e.message));}
   finally{state.busy=false;save.disabled=false;}
  };
- wrap.append(summary,input,save);
+ const priceSection=document.createElement('section');
+ priceSection.className='uki-producto-precio-bloque';
+ priceSection.style.cssText='padding:12px;background:#fff4e9;border:1px solid #f0d8bf;border-radius:12px;display:grid;gap:8px';
+ const discount=Number(price.descuentoPorcentaje||0),original=Number(price.precioOriginal??price.price);
+ const final=Number(price.precioFinal??(discount>0?Math.max(1,Math.round(original*(100-discount)/100)):price.price));
+ const current=document.createElement('strong');
+ current.style.cssText='display:block;color:#85400e;font-size:20px;line-height:1.3';
+ current.textContent='Precio actual: '+peso(final);
+ priceSection.append(current);
+ if(Number.isSafeInteger(discount)&&discount>0&&discount<=99&&original>final){
+  const offer=document.createElement('div');offer.style.cssText='display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:13px';
+  const before=document.createElement('s');before.textContent='Antes '+peso(original);
+  const badge=document.createElement('b');badge.textContent='-'+discount+'% de descuento';
+  badge.style.cssText='padding:4px 8px;background:#d94c30;color:white;border-radius:8px';
+  offer.append(before,badge);priceSection.append(offer);
+ }
+ const priceLabel=document.createElement('label');
+ priceLabel.style.cssText='display:block;font-size:13px;font-weight:700;color:#5f4030';
+ priceLabel.textContent='Editar precio normal ($)';
+ priceLabel.append(input);
+ save.style.cssText='align-self:start;min-height:42px;padding:8px 13px;font-weight:750';
+ priceSection.append(priceLabel,save);
+ wrap.append(summary,priceSection);
  if(state.categoriasDescuentosHabilitados)wrap.append(extraProducto(price));
  if(['monthly','classic','premium','dish','pizza'].includes(price.kind))wrap.append(photoControls(price));
  if(price.custom&&price.kind!=='monthly'){
@@ -602,7 +625,11 @@ function line(price,ocultarRetiro=false){
  }
  if(state.promocionesHabilitadas){
   if(price.kind==='monthly'&&price.custom)wrap.append(promoEditor(price));
-  if(!ocultarRetiro){const vis=visibilityControl(price);vis.style.marginTop='6px';wrap.append(vis);}
+  if(!ocultarRetiro){
+   const actions=document.createElement('details');actions.style.cssText='width:100%;padding:9px 0;border-top:1px solid #ecd5c1';
+   const heading=document.createElement('summary');heading.textContent='Retirar, restaurar o publicar';heading.style.cssText='cursor:pointer;font-size:13px;font-weight:750;color:#84481b';
+   const vis=visibilityControl(price);vis.style.marginTop='11px';actions.append(heading,vis);wrap.append(actions);
+  }
  }else if(price.custom){
   // Mantener el retiro/restauración que ya usaba Uki, sin tablas ni APIs nuevas.
   const retire=document.createElement('button');retire.type='button';retire.className='sm';
