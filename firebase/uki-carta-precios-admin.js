@@ -468,16 +468,22 @@ function renderCategoryAssignments(){
 async function actualizarOrganizacion(action,fields,mensaje){
  if(state.busy)return;
  const selected=state.branch;
+ let guardado=false;
  state.busy=true;
  try{
   await request(API,action,fields,selected);
-  state.busy=false;
+  guardado=true;state.busy=false;
   if(selected!==branch())return;
   await loadPrices(true);
+  if(!state.ready){
+   info('ukiCategoriesEstado','La operación se guardó en el servidor, pero no se pudo actualizar la lista. Pulsa «Actualizar precios», no repitas la operación.');
+   return;
+  }
   info('ukiCategoriesEstado','✓ '+mensaje);
   info('ukiPriceMessage','✓ '+mensaje);
- }catch(e){info('ukiCategoriesEstado','No se guardó: '+String(e.message||e));}
- finally{state.busy=false;}
+ }catch(e){
+  info('ukiCategoriesEstado',(guardado?'La operación se guardó, pero no se pudo confirmar la vista: ':'No se guardó: ')+String(e.message||e));
+ }finally{state.busy=false;}
 }
 function renderCategories(){
  const box=$('ukiCategoriesBox');if(!box)return;
