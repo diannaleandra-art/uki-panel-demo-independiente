@@ -108,7 +108,7 @@ test('cuatro secciones, lista corta e inventario en administración con sucursal
   assert.equal(d.getElementById('ukiMiniInventario').hidden,true);
   assert.match(d.getElementById('ukiHistoriaLista').textContent,/Trabajadora de prueba/);
   assert.ok(requests.some(x=>x.action==='historial'&&x.branch==='arica'));
-  assert.ok(requests.every(x=>x.authorization==='Bearer SIMULADO.NO_ES_GOOGLE.SIN_PERMISOS'));
+  assert.ok(requests.filter(x=>x.action).every(x=>x.authorization==='Bearer SIMULADO.NO_ES_GOOGLE.SIN_PERMISOS'), 'todas las operaciones protegidas deben llevar token; las fotos públicas no requieren autorización');
  }finally{ctx.dom.window.close();}
 });
 test('abrir historial y preparar Excel, PDF y compartir inventario por WhatsApp desde el panel',async()=>{
