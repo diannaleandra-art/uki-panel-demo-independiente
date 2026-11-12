@@ -37,7 +37,7 @@ function harness({serena=false,arica=false,validPassword='ClaveUkiSegura123'}={}
    throw Error('Bóveda no válida');
   },
   async entrarDatosSucursal(s,pass){entered.push({s,pass});data.S.suc=s;data.S.pinSuc=null},
-  $:()=>({value:validPassword}),
+  $:()=>({value:"ClaveUkiSegura123"}),
   render(){},aviso(msg){alerts.push(msg)}
  };
  const context=vm.createContext(data);
