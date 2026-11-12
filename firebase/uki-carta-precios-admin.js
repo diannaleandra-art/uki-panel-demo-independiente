@@ -39,8 +39,8 @@ const pricesPanel=[
  '<div class="card" id="ukiPreciosPanel"><h2>🧾 Carta y precios</h2>',
  '<p class="mini-help">Estos son los productos que vendes, no los artículos del inventario. Los cambios serán independientes por sucursal. Solo administración Google.</p>',
  '<div class="quick-grid"><div><label for="ukiPriceSearch">Buscar producto</label><input id="ukiPriceSearch" type="search" placeholder="Pizza, gohan, 24 piezas…"></div>',
- '<div><label for="ukiPriceGroup">Categoría</label><select id="ukiPriceGroup">',
- '<option value="all">Todas las categorías</option><option value="pizza">Pizzas</option>',
+ '<div><label for="ukiPriceGroup">Filtrar por tipo o categoría</label><select id="ukiPriceGroup">',
+ '<option value="all">Todos los productos</option><option value="pizza">Pizzas</option>',
  '<option value="dish">Entradas, gohan y burgers</option><option value="classic">Promos clásicas</option>',
  '<option value="premium">Premium</option>',
  '<option value="topping">Toppings</option><option value="extra">Salsas adicionales</option></select></div></div>',
@@ -54,7 +54,7 @@ const pricesPanel=[
  '<p class="mini-help">Organiza los productos de esta sucursal sin cambiar su preparación.</p>',
  '<input id="ukiCategoryNewName" maxlength="45" placeholder="Ej. Almuerzos">',
  '<button id="ukiCategoryCreate" class="sm" type="button">Guardar categoría</button>',
- '<p class="mini-help" id="ukiCategoriesList"></p></details>',
+ '<div class="mini-help" id="ukiCategoriesList"></div></details>',
  '<div id="ukiPriceList"></div>',
  '<details id="ukiPriceAddBox" class="card" style="margin-top:15px">',
  '<summary style="cursor:pointer;font-weight:700">＋ Agregar producto a la carta</summary>',
@@ -187,8 +187,9 @@ function reduceImage(file){
  });
 }
 function photoControls(price){
- const wrap=document.createElement('div');wrap.style.cssText='width:100%;border-top:1px dashed #eee0d3;padding-top:8px;margin-top:5px';
- const title=document.createElement('b');title.textContent='📷 Fotografía de la carta';wrap.append(title);
+ const wrap=document.createElement('details');
+ wrap.style.cssText='width:100%;border:1px solid #ead6c4;border-radius:11px;padding:10px;margin-top:6px';
+ const title=document.createElement('summary');title.textContent='📷 Foto · Ver o cambiar';wrap.append(title);
  const current=state.photos[price.sku];
  if(current){
   const img=document.createElement('img');img.src=photoUrl(price.sku)+'&v='+Number(current.version);img.alt='Foto de '+price.name;
@@ -453,7 +454,42 @@ function renderCategoryAssignments(){
 }
 function renderCategories(){
  const box=$('ukiCategoriesBox');if(!box)return;box.hidden=!state.categoriasDescuentosHabilitados;
- const list=$('ukiCategoriesList');if(list)list.textContent='Categorías: '+(state.categorias.map(c=>c.nombre).join(' · ')||'ninguna');
+ const list=$('ukiCategoriesList');
+ if(list){
+  list.replaceChildren();
+  const h=document.createElement('strong');h.style.cssText='display:block;color:#503225;font-size:16px;margin:7px 0';
+  h.textContent='Categorías guardadas ('+state.categorias.length+')';list.append(h);
+  if(!state.categorias.length){const empty=document.createElement('p');empty.className='muted';
+   empty.textContent='Todavía no hay categorías. Crea una y después asigna sus productos.';list.append(empty);}
+  for(const category of state.categorias){
+   const count=state.items.filter(item=>item.categoriaSlug===category.slug).length;
+   const card=document.createElement('div');
+   card.style.cssText='border:1.5px solid #d4c4e6;border-radius:12px;background:#f7f2ff;padding:12px;margin:8px 0;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap';
+   const info=document.createElement('span');
+   const name=document.createElement('strong');name.style.cssText='display:block;color:#573879;font-size:15px';name.textContent=category.nombre;
+   const detail=document.createElement('small');detail.style.cssText='display:block;color:#695a71';
+   detail.textContent=count+' '+(count===1?'producto asignado':'productos asignados');info.append(name,detail);
+   const btn=document.createElement('button');btn.type='button';btn.className='sm';btn.textContent='Ver productos';
+   btn.onclick=()=>{window.ukiCartaSeleccion?.('productos');state.group='propia:'+category.slug;state.query='';
+    if($('ukiPriceSearch'))$('ukiPriceSearch').value='';
+    if($('ukiPriceGroup'))$('ukiPriceGroup').value=state.group;
+    renderPrices();};
+   card.append(info,btn);list.append(card);
+  }
+ }
+ const filter=$('ukiPriceGroup');
+ if(filter){
+  const previous=state.group;
+  filter.querySelectorAll('[data-uki-categoria-propia]').forEach(el=>el.remove());
+  if(state.categoriasDescuentosHabilitados&&state.categorias.length){
+   const group=document.createElement('optgroup');group.label='Categorías creadas';
+   group.dataset.ukiCategoriaPropia='1';
+   for(const c of state.categorias)group.append(new Option(c.nombre,'propia:'+c.slug));
+   filter.append(group);
+  }
+  if([...filter.options].some(o=>o.value===previous))filter.value=previous;
+  else{state.group='all';filter.value='all';}
+ }
  const newProductCategory=$('ukiPriceNewCategory'),categoryBox=$('ukiPriceNewCategoryBox');
  if(categoryBox)categoryBox.hidden=!state.categoriasDescuentosHabilitados;
  if(newProductCategory){
@@ -466,15 +502,26 @@ function renderCategories(){
  renderCategoryAssignments();
 }
 async function crearCategoria(){
- const nombre=$('ukiCategoryNewName').value.trim();
- if(nombre.length<2||nombre.length>45){info('ukiPriceMessage','Escribe una categoría de 2 a 45 caracteres.');return;}
+ const nombre=$('ukiCategoryNewName').value.trim(),chosen=state.branch;
+ const local=chosen==='arica'?'Regimiento Arica':'La Serena';
+ if(nombre.length<2||nombre.length>45){info('ukiCategoriesEstado','Escribe un nombre de 2 a 45 caracteres.');return;}
+ const existing=state.categorias.find(c=>c.nombre.toLocaleLowerCase('es-CL')===nombre.toLocaleLowerCase('es-CL'));
+ if(existing){info('ukiCategoriesEstado','«'+existing.nombre+'» ya existe. Está en la lista de arriba.');return;}
  if(state.busy)return;state.busy=true;$('ukiCategoryCreate').disabled=true;
- try{await request(API,'crear-categoria',{nombre},state.branch);
+ info('ukiCategoriesEstado','Guardando «'+nombre+'»…');
+ try{
+  const result=await request(API,'crear-categoria',{nombre},chosen);
   $('ukiCategoryNewName').value='';state.busy=false;await loadPrices(true);
-  info('ukiPriceMessage','✓ Categoría creada para esta sucursal.');
- }catch(e){info('ukiPriceMessage','No se creó la categoría: '+String(e.message))}
- finally{state.busy=false;$('ukiCategoryCreate').disabled=false}
+  if(chosen!==branch())return;
+  const saved=state.categorias.find(c=>c.slug===result.item?.slug);
+  if(!saved)throw Error('El servidor guardó la categoría, pero no apareció en la lista. Actualiza precios antes de intentar crearla otra vez.');
+  const msg='✓ Categoría «'+saved.nombre+'» guardada en '+local+'. Ya aparece en la lista y en el filtro de Productos.';
+  info('ukiCategoriesEstado',msg);info('ukiPriceMessage',msg);
+  const box=$('ukiCategoriesBox');if(box)box.open=false;
+ }catch(e){info('ukiCategoriesEstado','No se confirmó: '+String(e.message||e))}
+ finally{state.busy=false;$('ukiCategoryCreate').disabled=false;}
 }
+
 function line(price,ocultarRetiro=false){
  const wrap=document.createElement('div');wrap.className='row';wrap.style.cssText='align-items:center;gap:9px;padding:10px 0;border-bottom:1px solid #eee0d3;flex-wrap:wrap';
  const summary=document.createElement('div');summary.style.flex='1 1 130px';
@@ -625,8 +672,10 @@ function renderPrices(){
  const target=$('ukiPriceList');if(!target)return;
  target.replaceChildren();
  const query=state.query.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
- const filtered=state.items.filter(x=>(state.group==='all'?x.kind!=='monthly':x.kind===state.group)&&
-  (!query||(x.name+' '+x.sku).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(query)));
+ const filtered=state.items.filter(x=>(state.group==='all'?x.kind!=='monthly':
+  state.group.startsWith('propia:')?x.categoriaSlug===state.group.slice(7):x.kind===state.group)&&
+  (!query||(x.name+' '+x.sku+' '+(x.categoriaNombre||'')).normalize('NFD')
+   .replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(query)));
  const title=document.createElement('p');title.className='muted';title.textContent=filtered.length+' productos encontrados';target.append(title);
  for(const item of filtered)target.append(line(item));
  if(!filtered.length){
@@ -801,6 +850,12 @@ function organizarCarta(){
  const categoryHelp=document.createElement('p');categoryHelp.className='mini-help';
  categoryHelp.textContent='Crea categorías y asigna productos aquí mismo. No modifica el armado ni los precios. Cada sucursal es independiente.';
  areas.categorias.append(categoryHelp);
+ const estadoCategorias=document.createElement('p');estadoCategorias.id='ukiCategoriesEstado';
+ estadoCategorias.setAttribute('role','status');estadoCategorias.setAttribute('aria-live','polite');
+ estadoCategorias.style.cssText='font-weight:750;color:#246247;margin:8px 0 14px';
+ areas.categorias.append(estadoCategorias);
+ // La lista es independiente del formulario plegable «Crear».
+ move($('ukiCategoriesList'),areas.categorias);
  move($('ukiCategoriesBox'),areas.categorias);
  const categorySearchLabel=document.createElement('label');categorySearchLabel.textContent='Buscar producto para asignar categoría';
  categorySearchLabel.htmlFor='ukiCategoriaBuscar';
