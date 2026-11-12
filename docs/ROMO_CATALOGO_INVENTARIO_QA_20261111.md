@@ -54,3 +54,11 @@ Esta rama no altera env vars, dominios, datos reales, código de sucursales Uki 
 - La edición de esta fase es preparación QA; la pantalla operativa completa idéntica a Uki, la sincronización con la carta comercial y el inventario real siguen pendientes.
 - CI de la rama: 32 pruebas correctas en ejecución `43116042620` (sin red ni datos reales).
 - No se tocaron compras, caja, cierres, timbres ni las dos sucursales de Uki. No se activaron secrets, endpoints, env vars ni ventas.
+
+## Conector de lectura de la carta antigua (solo QA)
+
+- `/api/romo-catalogo-anterior-qa` está desarrollado como lectura segura de `romos_products` (Supabase), sin datos de clientes ni pedidos.
+- Requiere rol dueños verificado en Neon Romo, Google firmado, clave publishable, entorno preview y banderas separadas. TODAS DESACTIVADAS actualmente.
+- Devuelve candidatos para revisión con su precio de origen exacto; NO suma +$500, NO aprueba composición, NO asocia fotos, NO copia filas, NO publica ni vende.
+- No fue posible leer registros reales de Supabase en este turno por error de autenticación del conector. Se conserva 0 filas en el catálogo Neon Romo.
+- Antes de alta: comparar precio de origen con lista aprobada y decidir si la corrección +500 ya fue aplicada, revisar salsas/korokes por promoción y asociar una de las fotos antiguas por SKU.
