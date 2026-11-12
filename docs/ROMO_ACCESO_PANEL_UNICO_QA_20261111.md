@@ -107,3 +107,17 @@ pruebas reales en iPhone ni a habilitación del proyecto**.
 - Para la siguiente etapa se requiere consentimiento específico antes
   de habilitar el endpoint en producción, guardar secretos de Romo o
   dar alta en `romo_personal_acceso_v1`. El acceso sigue sin habilitarse.
+
+
+## Continuación 12 noviembre 2026 — NO rehacer el ingreso
+- Ya existe selector único con Uki Regimiento Arica, Uki La Serena y Romo La Serena.
+- Ya existen acceso del panel Uki, Firebase Google, módulo de verificación remota de claves y base independiente Romo.
+- **No crear otra app, cuenta Google, contraseña, PIN, pantalla de ingreso o servicio duplicado.**
+- Corrección ya implementada: la API de lectura de claves usa el adaptador Neon de consulta adaptarNeonParaClavesRomoQA y solo lee roles / verificadores de Romo.
+- Nueva protección createRomoPassProofAfterUkiUnlockQA: únicamente prepara el verificador cifrado si la contraseña abre la sucursal Uki indicada, para no vincular accidentalmente una contraseña distinta. No guarda ni transmite la contraseña.
+- La batería de prueba de integración se amplió a 64/64 aprobadas; simulación de móvil también aprobada. Revisión: https://github.com/diannaleandra-art/uki-panel-demo-independiente/actions/runs/43292247007
+- El registro real de roles y verificadores de Romo sigue vacío según lectura Neon de hoy. ROMO_PROOFS_ENDPOINT sigue vacío y activación de acceso real sigue deshabilitada.
+- **Próxima acción que sí cambia el estado real (REQUERIR APROBACIÓN EXPRESA):** inscripción segura de la cuenta Google ya existente como dueña y preparación del comprobante cifrado de la contraseña actual desde el propio navegador autorizado; luego configurar secretos/URL y verificar en Safari. No pedir ni copiar claves, tokens ni correo personal en este chat.
+- Solo después, con aprobación expresa adicional, habilitar transacciones comerciales de Romo. Hasta entonces el panel real de Uki se deja intacto.
+
+No volver a implementar contraseña/Google desde cero. El objetivo es dar acceso a la tercera sucursal del MISMO panel y completar la vinculación restante.
