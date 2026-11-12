@@ -44,3 +44,24 @@ Vercel genera previews automáticamente de esta rama en el proyecto de inventari
 - La comprobación de `storeId` rechaza operar Romo usando el estado `S.suc` históricamente reservado para Uki. El acceso de prueba a Romo se maneja por su selector y contraseña habitual.
 - El menú y la plantilla administrativa permanecen compartidos. No se creó otro repositorio, panel, contraseña ni base de datos en este paso.
 - Siguiente bloque: adaptador de almacenamiento por local con autorización de backend antes de activar operaciones reales. No publicar sin autorización.
+
+
+## Continuación — conexiones de datos por sucursal en QA (12-11-2026)
+Sin crear otro panel ni introducir cuentas comerciales:
+- Se agregó lib/uki-local-router-qa.mjs: enrutador basado en los tres storeId; no redirige nunca Romo a Arica o Uki Serena. El modo real permanece desactivado. Pruebas con memoria ficticia y dos teléfonos garantizan aislamiento.
+- Se agregó lib/romo-almacenamiento-operativo-panel-qa.mjs: adaptador privado del estado cifrado ya existente en lib/romo-estado-operativo-qa.mjs. Mantiene misma estructura de Uki para pedidos, caja y timbres, y revisión optimista, pero solo sobre public.romo_estado_operativo_v1 en base Romo inyectada en backend.
+- Se incorporaron los módulos originales aprobados de edición de catálogo de Romo al MISMO repositorio: lib/romo-categorias-descuentos-qa.mjs, lib/romo-editor-carta-compatibilidad-qa.mjs, lib/romo-editor-carta-repositorio-qa.mjs y lib/romo-panel-carta-interfaz-qa.mjs.
+- Se agregó lib/romo-almacenamiento-catalogo-panel-qa.mjs, adaptador para el catálogo Romo con las categorías, promociones, descuentos, protección de versiones y permisos sin usar los endpoints de Uki. No se tocó el editor productivo Uki.
+- Pruebas nuevas en tests/uki-local-router-qa.test.mjs, tests/romo-almacenamiento-operativo-panel-qa.test.mjs y tests/romo-almacenamiento-catalogo-panel-qa.test.mjs.
+- Batería de regresión de integración: 45 pruebas aprobadas, 0 fallidas (ejecución 43289450472):
+  https://github.com/diannaleandra-art/uki-panel-demo-independiente/actions/runs/43289450472
+- Todos los ensayos de base usan inyección de DB ficticia; no se insertó catálogo, pedido ni venta en Neon real.
+
+### Estado NO habilitado
+- Aunque el backend y el enrutador ya pueden hablar entre sí en las pruebas, la conexión de negocio NO está habilitada en el panel usado por el personal.
+- Permanecen apagados los botones de guardar/cobrar y los endpoints reales de Romo, por seguridad. El catálogo real Romo no ha sido cargado ni mostrado.
+- Requiere validar cuenta Google y permisos Neon romos_app_service / usuarios de cada sucursal antes de activar. No tocar credenciales o roles sin aprobación.
+- El inventario propio de Romo y la conexión de fotos/QR, delivery, caja real, timbres y reportes del panel único siguen pendientes de pruebas específicas.
+- Exportación PDF, Excel y WhatsApp de reportes: al final.
+
+Se conserva la decisión: un panel Uki, tres locales. Romo La Serena usa la misma interfaz, con solo colores y datos independientes.
