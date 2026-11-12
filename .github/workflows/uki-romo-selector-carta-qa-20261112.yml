@@ -16,6 +16,7 @@ jobs:
       - name: Revisar sintaxis módulos QA y selector único
         run: |
           node --check lib/uki-local-router-qa.mjs
+          node --check lib/romo-almacenamiento-operativo-panel-qa.mjs
           node --check firebase/uki-romo-carta-selector-qa.mjs
           node --check firebase/romo-carta-qa/romo-carta-vista-embebida-qa.mjs
           node --check firebase/romo-carta-qa/romo-editor-carta-compatibilidad-qa.mjs
@@ -24,6 +25,7 @@ jobs:
       - name: Integración Romo y regresión de Uki
         run: |
           node --test \
+            tests/romo-almacenamiento-operativo-panel-qa.test.mjs \
             tests/uki-local-router-qa.test.mjs \
             tests/uki-romo-carta-selector-movil-qa-20261112.test.mjs \
             tests/uki-panel-unico-romo-serena-qa.test.cjs \
