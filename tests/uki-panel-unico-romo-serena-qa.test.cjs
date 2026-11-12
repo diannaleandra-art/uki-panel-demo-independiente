@@ -14,9 +14,10 @@ test('Uki Regimiento y Uki Serena conservan identificadores y rutas originales',
  assert.match(main,/const ukiMesaBranch=\(\)=>S\.suc===SUCURSALES\[0\]\?'arica':S\.suc===SUCURSALES\[1\]\?'serena':''/);
 });
 test('los tres locales usan un solo selector y UNA función de apertura',()=>{
- assert.match(main,/const SUCURSALES_PANEL_QA=Object\.freeze\(\[\.\.\.SUCURSALES,ROMO_SUCURSAL_QA\]\)/);
+ assert.match(main,/const LOCALES_PANEL_QA=Object\.freeze\(\[/);
+ assert.match(main,/const SUCURSALES_PANEL_QA=Object\.freeze\(LOCALES_PANEL_QA\.map\(local=>local\.nombre\)\)/);
  assert.match(main,/SUCURSALES_PANEL_QA\.map\(s=>/);
- assert.match(main,/if\(!SUCURSALES_PANEL_QA\.includes\(s\)\)return;/);
+ assert.match(main,/if\(!ukiLocalPanelQA\(s\)\)return;/);
  assert.match(main,/function pedirPin\(s\)/);
  assert.match(main,/async function entrarSuc\(\)/);
  assert.match(main,/onclick="entrarSuc\(\)"/);
