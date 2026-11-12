@@ -77,7 +77,7 @@ test('sin contraseña existente de Uki no se crea otra en Romo',async()=>{
  assert.equal(h.entries.size,0);
 });
 test('una contraseña incorrecta no abre Romo',async()=>{
- const h=harness({serena:true,validPassword:'ClaveCorrectaUki2026'});
+ const h=harness({serena:true,inputPassword:'ClaveEquivocada999'});
  await h.testFns.enter();
  assert.equal(h.data.S.romoIngresadoQA,false);
  assert.equal(h.alerts.length,1);
