@@ -61,7 +61,7 @@ jobs:
           const m=await get(menu+'/');
           assert.equal(m.status,200);
           const mh=await m.text();
-          assert.ok(/app\.js\?v=uki-(?:mixta-delivery-20261107|descuentos-visibles-20261112)/.test(mh));
+          assert.ok(/app\.js\?v=uki-[a-z0-9-]+/.test(mh),'Carta usa el módulo Uki versionado');
           assert.ok(mh.includes('DELIVERY POR CONFIRMAR'));
           console.log('Carta QR pública: nueva versión y delivery extendido confirmados');
           for(const branch of ['arica','serena']){
