@@ -10,7 +10,7 @@ const main=panel.match(/<script>([\s\S]*?)<\/script>/)?.[1]||'';
 
 test('Uki Regimiento y Uki Serena conservan identificadores y rutas originales',()=>{
  assert.match(main,/const SUCURSALES=\["Uki Regimiento Arica","Uki La Serena"\]/);
- assert.match(main,/const claveLocal=s=>UKI_LOCAL_PREFIX\+\(SUCURSALES\.indexOf\(s\)===0\?"regimiento":SUCURSALES\.indexOf\(s\)===1\?"la-serena":"desconocida"\)/);
+ assert.match(main,/const claveLocal=s=>UKI_LOCAL_PREFIX\+\(SUCURSALES\.indexOf\(s\)===0\?"regimiento":SUCURSALES\.indexOf\(s\)===1\?"la-serena":s===ROMO_SUCURSAL_QA\?"romo-serena":"desconocida"\)/);
  assert.match(main,/const ukiMesaBranch=\(\)=>S\.suc===SUCURSALES\[0\]\?'arica':S\.suc===SUCURSALES\[1\]\?'serena':''/);
 });
 test('los tres locales usan un solo selector y UNA función de apertura',()=>{
