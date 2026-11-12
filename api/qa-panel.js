@@ -18,7 +18,15 @@ module.exports=async function(req,res){
  // Se admiten únicamente archivos estáticos propios, no archivos de configuración.
  if(!/^[a-z0-9][a-z0-9_-]{0,110}\.(?:html|js|mjs|css|svg|png|jpe?g|webp|ico|gif)$/i.test(file))
   return res.status(404).send('Archivo no encontrado');
- const full=path.resolve(__dirname,'../firebase',file);
+ const ESM_BROWSER=new Set([
+  'uki-particion-local.js','uki-cifrado-bloques.js','uki-sushi-nube.js',
+  'uki-sushi-autoguardado.js','uki-mesas-dispositivo-live.js'
+ ]);
+ // Las fuentes originales ESM se conservan como .txt para que el empaquetador
+ // Node de Vercel NO las transforme a CommonJS (rompía el inicio de sesión).
+ const full=ESM_BROWSER.has(file)?
+  path.resolve(__dirname,'../qa-sources',file+'.txt'):
+  path.resolve(__dirname,'../firebase',file);
  try{
   const data=fs.readFileSync(full);
   res.setHeader('Content-Type',MIME[path.extname(file).toLowerCase()]||'application/octet-stream');
