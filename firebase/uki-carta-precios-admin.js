@@ -1067,7 +1067,14 @@ function organizarCarta(){
  categorySearch.placeholder='Ej. 24 piezas, gohan o promo';
  categorySearch.oninput=()=>{state.categoryVisibleLimit=18;renderCategoryAssignments();};
  const categoryAssignments=document.createElement('div');categoryAssignments.id='ukiCategoriaAsignaciones';
- areas.categorias.append(categorySearchLabel,categorySearch,categoryAssignments);
+ const advanced=document.createElement('details');
+ advanced.id='ukiCategoriaBuscadorGlobal';
+ advanced.style.cssText='border:1px solid #e0cdbb;border-radius:12px;padding:11px;margin-top:15px;background:#fffaf3';
+ const advancedHeading=document.createElement('summary');
+ advancedHeading.textContent='Buscar y asignar entre todos los productos (opcional)';
+ advancedHeading.style.cssText='cursor:pointer;font-weight:750;color:#764225';
+ advanced.append(advancedHeading,categorySearchLabel,categorySearch,categoryAssignments);
+ areas.categorias.append(advanced);
  // Promociones en dos bloques independientes, sin cambiar ningún manejador.
  const crearArea=document.createElement('section');crearArea.id='ukiPromoNuevaZona';
  crearArea.style.cssText='border:1.5px solid #e2c6ad;border-radius:14px;padding:13px;background:#fff8f0;margin-bottom:15px';
