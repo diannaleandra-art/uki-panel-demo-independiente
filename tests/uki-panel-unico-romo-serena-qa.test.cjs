@@ -29,7 +29,10 @@ test('Romo se selecciona sin crear otra contraseña y sin abrir pedidos hasta te
  assert.match(main,/const existe=esRomo\|\|!!localStorage\.getItem\(claveLocal\(S\.pinSuc\)\)/);
  assert.match(main,/if\(esRomo\)\{[\s\S]*?await ukiValidarClaveUkiParaRomoQA\(pass\)/);
  assert.match(main,/await entrarDatosSucursal\(s,pass\);S\.vista="inicio"/);
- assert.match(main,/No registres operaciones aquí/);
+ assert.match(main,/no registres operaciones aquí/);
+ assert.match(main,/const romoAviso=S\.suc===ROMO_SUCURSAL_QA/);
+ assert.match(main,/\$\("app"\)\.innerHTML=msg\+romoAviso\+f\(\)/);
+ assert.doesNotMatch(main,/function vRomoQA\(\)/);
  assert.match(main,/const ROMO_SERENA_QA=Object\.freeze\(\{brand:'romo',branch:'serena'/);
  assert.match(main,/Balmaceda 1612, La Serena/);
  assert.match(panel,/body\.romo-qa #ukiNubeSeccion/);
@@ -63,9 +66,9 @@ test('un solo registro de tres locales: Uki mantiene sus claves y Romo tiene sto
  S.suc='Uki Regimiento Arica';assert.equal(ctx.panelQa.scope(),'uki:arica');
  S.suc='Uki La Serena';assert.equal(ctx.panelQa.scope(),'uki:serena');
  // No abrir las funciones históricas de Uki por colocar un nombre de Romo en S.suc.
- S.suc='Romo’s Sushi La Serena';assert.equal(ctx.panelQa.scope(),null);
+ S.suc='Romo’s Sushi La Serena';assert.equal(ctx.panelQa.scope(),'romo:serena');
  S.suc=null;S.romoSeleccionadoQA=true;S.romoIngresadoQA=false;
  assert.equal(ctx.panelQa.scope(),null);
- S.romoIngresadoQA=true;assert.equal(ctx.panelQa.scope(),'romo:serena');
+ S.romoIngresadoQA=true;assert.equal(ctx.panelQa.scope(),null);
  S.pinSuc='Uki La Serena';assert.equal(ctx.panelQa.scope(),null);
 });
