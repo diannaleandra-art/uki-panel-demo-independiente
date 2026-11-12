@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {FIREBASE_PROJECT} from '../lib/romo-identidad-servidor-qa.mjs';
-import {ownerLinkInspectionEnabled,inspectRomoOwnerGoogle}
+import {ownerLinkInspectionEnabled,inspectRomoOwnerGoogle,inspectRomoOwnerRoleQA}
  from '../lib/romo-duenos-vinculo-qa.mjs';
 import handler from '../api/romo-duenos-vinculo-qa.js';
 
@@ -123,4 +123,54 @@ test('preflight de navegador permite Authorization sin consultar la base de dato
   assert.equal(res.ended,true);
   assert.equal(res.headers['Access-Control-Allow-Origin'],'https://panel.example');
  });
+});
+
+
+test('reconoce si la MISMA cuenta Google ya tiene rol de dueños Romo sin inscribir otra cuenta',async()=>{
+ const calls=[];
+ const db={async query(sql,params){
+  calls.push({sql,params});return [{rol:'duenos'}];
+ }};
+ const status=await inspectRomoOwnerRoleQA({verifiedUid:signedClaims.sub,db});
+ assert.equal(status.storeId,'romo:serena');
+ assert.equal(status.ownerRoleActive,true);
+ assert.equal(status.requiresRomoRoleEnrollment,false);
+ assert.equal(status.authorizationGranted,false);
+ assert.equal(calls.length,1);
+ assert.match(calls[0].sql,/^SELECT rol FROM public\.romo_personal_acceso_v1/);
+ assert.match(calls[0].sql,/activo=true/);
+ assert.deepEqual(calls[0].params,[signedClaims.sub,'romo:serena']);
+ assert.doesNotMatch(JSON.stringify(status),/UID_|@|password|secret/);
+});
+test('si dueña no está inscrita, identifica exactamente el permiso pendiente y NO lo crea',async()=>{
+ for(const rows of [[],[{rol:'inventario'}],[{rol:'agendador'}]]){
+  const calls=[];
+  const db={async query(sql,params){calls.push({sql,params});return rows}};
+  const status=await inspectRomoOwnerRoleQA({verifiedUid:signedClaims.sub,db});
+  assert.equal(status.ownerRoleActive,false);
+  assert.equal(status.requiresRomoRoleEnrollment,true);
+  assert.equal(status.authorizationGranted,false);
+  assert.equal(calls.length,1);
+  assert.ok(calls[0].sql.startsWith('SELECT '));
+ }
+});
+test('no consulta Neon con UID vacío ni devuelve respuesta ante roles corruptos',async()=>{
+ let calls=0;
+ const db={async query(){calls++;return [{rol:'superadmin'}]}};
+ for(const value of [null,'','otro uid!','x'.repeat(130)]){
+  await assert.rejects(inspectRomoOwnerRoleQA({verifiedUid:value,db}),/obligatorias/);
+ }
+ assert.equal(calls,0);
+ await assert.rejects(inspectRomoOwnerRoleQA({
+  verifiedUid:signedClaims.sub,db
+ }),/no es válida/);
+ assert.equal(calls,1);
+});
+test('la ruta existente sigue siendo solo GET para el dueño y jamás inscribe permisos',async()=>{
+ const src=await import('node:fs');
+ const content=src.readFileSync(new URL('../api/romo-duenos-vinculo-qa.js',import.meta.url),'utf8');
+ assert.match(content,/adaptarNeonParaClavesRomoQA/);
+ assert.match(content,/verifiedUid:result\.verifiedUid/);
+ assert.match(content,/ownerRoleActive:role\.ownerRoleActive/);
+ assert.doesNotMatch(content,/INSERT INTO|UPDATE public\.romo_personal|GRANT|CREATE USER/);
 });
