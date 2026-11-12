@@ -25,6 +25,9 @@ export function montarCartaRomoDesdeSelectorQA({
  const container=montarVistaCartaRomoEnPanelUnicoQA({
   document,storeId:STORE,snapshot:null
  });
+ // Se reemplaza la indicación provisional al terminar la carga visual.
+ const waiting=host.querySelector?.('[role="status"]');
+ if(waiting?.textContent?.includes('Preparando vista de solo lectura de Romo'))waiting.remove();
  return Object.freeze({montado:true,soloLectura:true,storeId:STORE,
   mensaje:container?.textContent||''});
 }
