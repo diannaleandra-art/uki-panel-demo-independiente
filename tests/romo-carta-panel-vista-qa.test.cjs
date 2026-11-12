@@ -15,7 +15,7 @@ function createDOM(){
   replaceChildren(...children){this.children=[...children]}
  });
  const document={createElement:make,getElementById(id){return nodes.get(id)||null}};
- for(const id of ['romoQACartaEstado','romoQACartaConsultar','romoQACategoriaproductos','romoQACategoriapromociones','romoQACategoriaingredientes','romoQACartaAgregar','romoQACartaEditor','romoQAEditorEstado','romoQAEditorSeccion','romoQAEditorTipo','romoQAEditorNombre','romoQAEditorDescripcion','romoQAEditorPrecio','romoQAEditorRolls','romoQAEditorPorRoll','romoQAEditorSalsas','romoQAEditorKorokes','romoQAEditorDisponible','romoQAEditorPromoExtras','romoQAEditorGuardar'])
+ for(const id of ['romoQACartaEstado','romoQACartaConsultar','romoQACategoriaproductos','romoQACategoriapromociones','romoQACategoriaingredientes','romoQACartaAgregar','romoQACartaEditor','romoQAEditorEstado','romoQAEditorSeccion','romoQAEditorTipo','romoQAEditorNombre','romoQAEditorDescripcion','romoQAEditorPrecio','romoQAEditorRolls','romoQAEditorPorRoll','romoQAEditorSalsas','romoQAEditorKorokes','romoQAEditorDisponible','romoQAEditorPromoExtras','romoQAEditorFoto','romoQAEditorGuardar'])
   nodes.set(id,make('div'));
  return {document,nodes};
 }
@@ -82,4 +82,15 @@ test('añadir borrador y guardar requiere URL de prueba, dueño y confirmación'
  assert.equal(win.ukiRomoCartaPanelAgregarQA(),false);
  assert.equal(await win.ukiRomoCartaPanelGuardarQA(),false);
  assert.match(nodes.get('romoQAEditorEstado').textContent,/no habilitada/i);
+});
+
+test('fotos antiguas son galería QA, no asociación automática',()=>{
+ const {win,nodes}=run();
+ const html=win.ukiRomoCartaPanelHTMLQA();
+ for(const name of ['promo-foto-1.jpg','promo-foto-2.jpg','promo-foto-3.jpg','promo-foto-4.jpg'])assert.ok(html.includes(name));
+ const response={...payload(),edicionHabilitada:false};
+ response.catalog.promociones[0].photoId='promo-foto-3';
+ win.ukiRomoCatalogoRenderQA(response);
+ const card=nodes.get('romoQACategoriapromociones').children[1];
+ assert.equal(card.children.find(x=>x.tagName==='img').src,'./romo-assets/promo-foto-3.jpg');
 });

@@ -8,6 +8,8 @@
  const STORE='romo:serena';
  const ENDPOINT='/api/romo-catalogo-qa';
  const MAX_ITEMS=300;
+ const QA_PROMO_PHOTOS=Object.freeze(['promo-foto-1','promo-foto-2','promo-foto-3','promo-foto-4']);
+ const photoSrc=id=>QA_PROMO_PHOTOS.includes(id)?'./romo-assets/'+id+'.jpg':null;
  const categories=[
   {key:'productos',title:'Productos'},
   {key:'promociones',title:'Promociones'},
@@ -77,8 +79,17 @@
      row.appendChild(create('p','mini-help',
       'Piezas: '+Number(item.pieces||0)+' · Rolls: '+Number(item.rollCount||0)+
       ' · Salsas: '+Number(item.sauceCount||0)+' · Korokes: '+Number(item.korokes||0)));
-     row.appendChild(create('p','muted',
-      'Fotografía de la promoción: pendiente de verificar. No se publica desde QA.'));
+     row.appendChild(create('p','muted',item.photoId?
+      'Foto original seleccionada para revisión: '+item.photoId+'. No publicada.':
+      'Fotografía aún no seleccionada. No se publica desde QA.'));
+     const photo=photoSrc(item.photoId);
+     if(photo){
+      const img=create('img');
+      img.src=photo;img.alt='Imagen original de Romo asignada para revisión de '+item.name;
+      img.loading='lazy';img.width=160;img.height=110;img.style.maxWidth='100%';
+      img.style.objectFit='cover';img.style.borderRadius='10px';
+      row.appendChild(img);
+     }
     }
     if(canEdit&&item.visible===false){
      const button=create('button','sm','Editar borrador');
@@ -137,6 +148,16 @@
   };
   for(const [id,value] of Object.entries(values)){const field=el(id);if(field)field.value=String(value)}
   const available=el('romoQAEditorDisponible');if(available)available.checked=row.available!==false;
+  const photoPicker=el('romoQAEditorFoto');
+  if(photoPicker){
+   photoPicker.replaceChildren();
+   const first=create('option','', 'Sin foto asignada');first.value='';photoPicker.appendChild(first);
+   for(const photoId of QA_PROMO_PHOTOS){
+    const option=create('option','', 'Foto original '+photoId.slice(-1));
+    option.value=photoId;photoPicker.appendChild(option);
+   }
+   photoPicker.value=QA_PROMO_PHOTOS.includes(row.photoId)?row.photoId:'';
+  }
   const extras=el('romoQAEditorPromoExtras');if(extras)extras.hidden=section!=='promociones';
   text(el('romoQAEditorEstado'),mode==='editar'?'Editando borrador · no aparecerá en la carta pública.':
    'Nuevo borrador · todavía no aparecerá en la carta pública.');
@@ -174,7 +195,10 @@
       ![10,12].includes(per)||!Number.isSafeInteger(sauces)||sauces<0||sauces>20||
       !Number.isSafeInteger(korokes)||korokes<0||korokes>30)
     throw Error('Revisa rolls, piezas, salsas y korokes.');
+   const photoId=String(el('romoQAEditorFoto')?.value||'');
+   if(photoId&&!QA_PROMO_PHOTOS.includes(photoId))throw Error('Selecciona una foto original de Romo');
    const original=cache.catalog.promociones.find(x=>x.sku===sku);
+   if(photoId)row.photoId=photoId;
    Object.assign(row,{pieces:rolls*per,rollCount:rolls,piecesPerRoll:per,
     sauceCount:sauces,korokes,payments:original?.payments||['efectivo','transferencia']});
   }
@@ -279,11 +303,19 @@
        '<option value="12">12</option><option value="10">10</option></select>'+
      '<label for="romoQAEditorSalsas">Salsas incluidas</label><input id="romoQAEditorSalsas" type="number" min="0" max="20">'+
      '<label for="romoQAEditorKorokes">Korokes incluidos</label><input id="romoQAEditorKorokes" type="number" min="0" max="30">'+
-     '<p class="muted">Fotografía: pendiente de comprobar. El borrador NO se publica.</p>'+
+     '<label for="romoQAEditorFoto">Fotografía original de Romo</label>'+
+     '<select id="romoQAEditorFoto"><option value="">Sin foto asignada</option></select>'+
+     '<p class="muted">Selecciona la fotografía correspondiente al producto. Es una propuesta privada; no publica la foto.</p>'+
     '</div>'+
     '<p class="muted" id="romoQAEditorEstado" role="status">Sin modificaciones.</p>'+
     '<button type="button" class="big" id="romoQAEditorGuardar" onclick="ukiRomoCartaPanelGuardarQA()">Guardar borrador privado</button>'+
    '</section>'+
+   '<details class="card" id="romoQAFotosOriginales"><summary style="cursor:pointer;font-weight:700">📷 Ver las cuatro fotos originales de promociones</summary>'+
+    '<p class="muted">Estas fotos proceden de la carta antigua de Romo. No están asociadas a productos hasta verificarlas.</p>'+
+    '<div class="romo-qa-fotos">'+QA_PROMO_PHOTOS.map(id=>
+      '<figure style="display:inline-block;max-width:44%;margin:6px;vertical-align:top">'+
+      '<img loading="lazy" src="'+photoSrc(id)+'" alt="Fotografía original Romo, opción '+id.slice(-1)+'" style="width:100%;border-radius:10px">'+
+      '<figcaption>Foto '+id.slice(-1)+'</figcaption></figure>').join('')+'</div></details>'+
    '<div class="card" id="romoQAInventarioPreparacion"><h3>📦 Inventario · Romo</h3>'+
     '<p class="muted">Inventario independiente pendiente de conexión. Recibido, existente, diferencia y mínimo para reponer. Sin movimientos de caja.</p></div>'+
   '</section>';

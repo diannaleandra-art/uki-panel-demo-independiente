@@ -82,3 +82,13 @@ test('endpoint por defecto cerrado, sin POST ni operaciones contra Neon',async()
   for(const [key,value] of Object.entries(old)){if(value===undefined)delete process.env[key];else process.env[key]=value;}
  }
 });
+
+test('fotografías originales: sólo IDs de Romo, sin rutas o enlaces externos',()=>{
+ const candidate=example();candidate.promociones[0].photoId='promo-foto-2';
+ const normalized=normalizeRomoCatalog(candidate);
+ assert.equal(normalized.promociones[0].photoId,'promo-foto-2');
+ candidate.promociones[0].photoId='../uki-sushi-local.html';
+ assert.throws(()=>normalizeRomoCatalog(candidate),/Fotografía/);
+ candidate.promociones[0].photoId='https://example.org/p.jpg';
+ assert.throws(()=>normalizeRomoCatalog(candidate),/Fotografía/);
+});
