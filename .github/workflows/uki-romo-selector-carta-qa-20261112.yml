@@ -18,6 +18,8 @@ jobs:
           node --check api/romo-duenos-vinculo-qa.js
           node --check lib/romo-duenos-vinculo-qa.mjs
           node --check firebase/uki-romo-vinculo-duenos-qa.mjs
+          node --check lib/romo-duenos-alta-qa.mjs
+          node --check api/romo-duenos-alta-qa.js
           node --check lib/romo-claves-lectura-servidor-qa.mjs
           node --check api/romo-claves-lectura-qa.js
           node --check lib/uki-local-router-qa.mjs
@@ -32,6 +34,7 @@ jobs:
       - name: Integración Romo y regresión de Uki
         run: |
           node --test \
+            tests/romo-duenos-alta-qa.test.mjs \
             tests/romo-duenos-vinculo-qa.test.mjs \
             tests/uki-romo-vinculo-duenos-qa.test.mjs \
             tests/romo-claves-existentes-enrolamiento-qa.test.mjs \
