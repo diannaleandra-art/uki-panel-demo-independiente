@@ -36,10 +36,7 @@
   ],
   "functions": {
     "api/qa-panel.js": {
-      "includeFiles": [
-        "firebase/**",
-        "qa-sources/**"
-      ]
+      "includeFiles": "{firebase/**,qa-sources/**}"
     }
   }
 }
