@@ -1,86 +1,101 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {JSDOM} from 'jsdom';
 import {montarCartaRomoDesdeSelectorQA,ROMO_CARTA_SELECTOR_SOLO_QA}
  from '../firebase/uki-romo-carta-selector-qa.mjs';
 
 const html=readFileSync(new URL('../firebase/uki-sushi-local.html',import.meta.url),'utf8');
 const loader=readFileSync(new URL('../firebase/uki-romo-carta-selector-qa.mjs',import.meta.url),'utf8');
-const view=readFileSync(new URL('../firebase/romo-carta-qa/romo-carta-vista-embebida-qa.mjs',import.meta.url),'utf8');
 function dom(isRomo=true){
- const host={id:'ukiPreciosPanel',children:[],append(node){this.children.push(node)},
- contains(node){return this.children.includes(node)}};
- const root={id:'romoLaSerenaPreparacionQA'};
- const document={
-  body:{classList:{contains:k=>isRomo&&k==='romo-qa'}},
-  getElementById(id){
-   if(id==='ukiPreciosPanel')return host;
-   if(id==='romoLaSerenaPreparacionQA')return root;
-   return host.children.find(x=>x.id===id)||null;
-  },
-  createElement(name){return {nodeName:name,id:'',innerHTML:'',hidden:false}}
- };
- return {document,host};
+ const buttons=['precios','disponibilidad','inventario','reportes'].map(x=>
+  '<button data-uki-tab="'+x+'" type="button"><strong>'+x+'</strong></button>').join('');
+ const sample='<html><body class="'+(isRomo?'romo-qa':'')+'"><main id="app">'+
+  '<section id="romoLaSerenaPreparacionQA"></section>'+
+  '<section id="ukiInvTabs"><h2>Administrar Uki Sushi</h2><div>'+buttons+'</div></section>'+
+  '<section id="ukiAdminViewHeader"><h2 id="ukiAdminCurrentTitle"></h2>'+
+  '<p id="ukiAdminCurrentDescription"></p><button id="ukiAdminCambiar"></button></section>'+
+  '<div id="ukiInvSucursalActiva"></div><div id="ukiInvSucursalActual"></div>'+
+  '<section id="ukiPreciosPanel"><input id="ukiPriceSearch" placeholder="Pizza, gohan, 24 piezas…">'+
+  '<details id="ukiPriceAddBox"><p class="muted">De momento admite pizzas en Regimiento Arica y entradas simples.</p><input id="ukiPriceNewName" placeholder="Ej. Pizza Cuatro Quesos">'+
+  '<select id="ukiPriceNewKind"><option value="pizza">Pizza</option><option value="dish">Gohan</option></select>'+
+  '<button id="ukiPriceCreate">Guardar</button></details><button id="ukiPriceReload">Actualizar</button>'+
+  '<select id="ukiPromoType"><option value="pizza">Pizza</option><option value="sushi">Sushi</option></select>'+
+  '<p id="ukiPriceMessage"></p><div id="ukiPromosListaResumen"></div></section>'+
+  '<section id="ukiCartaDisponibilidad">Disponibilidad</section>'+
+  '<div id="ukiInvSectionHead"></div><div id="invRoot"><button>Modificar inventario</button><p id="invStatus"></p></div>'+
+  '<section id="invAdmin"></section><div id="invNewBox"></div><div id="ukiInvWorkerAccess"></div>'+
+  '<div id="ukiMiniInventario"></div><div id="ukiReponerPanel"><p id="ukiReponerEstado"></p></div>'+
+  '<div id="ukiHistorial"></div><div id="invReportsBox"></div></main></body></html>';
+ return new JSDOM(sample,{url:'https://qa.local/'});
 }
-test('se conserva el mismo selector de 2 Uki y solo Romo Balmaceda',()=>{
+
+test('una sola entrada de sucursal, con mismo menú principal y mismo ingreso Uki',()=>{
  assert.match(html,/const SUCURSALES=\["Uki Regimiento Arica","Uki La Serena"\]/);
  assert.match(html,/const ROMO_SUCURSAL_QA="Romo’s Sushi La Serena"/);
  assert.match(html,/SUCURSALES_PANEL_QA=Object\.freeze\(\[\.\.\.SUCURSALES,ROMO_SUCURSAL_QA\]\)/);
- assert.doesNotMatch(html,/Romo Regimiento Arica/);
- assert.match(html,/Balmaceda 1612/);
-});
-test('Carta y precios se abre desde el ingreso Romo existente sin otro login',()=>{
- assert.match(html,/function ukiRomoAbrirCartaQA\(\)/);
- assert.match(html,/function ukiRomoRegresarInicioQA\(\)/);
- assert.match(html,/onclick="ukiRomoAbrirCartaQA\(\)">Carta y precios/);
- assert.match(html,/id="ukiPreciosPanel" class="romo-qa-precios"/);
- assert.match(html,/S\.romoIngresadoQA\?[\s\S]*?Carta y precios/);
  assert.match(html,/await ukiValidarClaveUkiParaRomoQA\(pass\)/);
- assert.match(html,/window\.ukiRomoCartaQAMontar\?\.\(\)/);
- assert.match(html,/ukiRomoVistaCartaSeleccionadaQA=false;\s*S\.romoSeleccionadoQA=false;/);
- assert.match(html,/ukiRomoVistaCartaSeleccionadaQA=false;\s*S\.pinSuc=null;S\.romoSeleccionadoQA=true;/);
+ assert.match(html,/const handler=romoIngresado\?'ukiRomoIrQA':'ir'/);
+ assert.match(html,/VISTAS\.map\(\(\[k,l,icon\]\)=>/);
+ assert.match(html,/window\.ukiInventarioPanelHTML\?\.\(\)/);
+ assert.doesNotMatch(html,/Romo Regimiento Arica/);
 });
-test('no se conecta Neon ni se alteran pedidos, precios o caja a través del selector QA',()=>{
+test('en Romo, administración usa la misma plantilla de Uki sin montar sus APIs',()=>{
  assert.equal(ROMO_CARTA_SELECTOR_SOLO_QA,true);
- assert.match(html,/src="\.\/uki-romo-carta-selector-qa\.mjs"/);
- assert.match(loader,/snapshot:null/);
- const code=loader.replace(/\/\*[\s\S]*?\*\//g,'').replace(/^\s*\/\/.*$/gm,'');
- assert.doesNotMatch(code,/fetch\(|\.query\(|localStorage|neon\(|indexedDB|uki-carta-precios-live/);
- assert.match(loader,/storeId:STORE/);
- assert.match(view,/No se han creado productos ni promociones ficticios/);
+ assert.match(html,/if\(romoIngresado&&ukiRomoVistaQA==='inventario'\)/);
+ assert.match(loader,/No se monta window\.ukiInventarioMontar/);
+ assert.doesNotMatch(loader.replace(/\/\*[\s\S]*?\*\//g,'').replace(/^\s*\/\/.*$/gm,''),/fetch\(|neon\(|localStorage|indexedDB/);
  assert.match(html,/Aún no están conectados los pedidos, caja, inventario y cierres independientes de Romo/);
 });
-test('vista de Romo entra solo con prueba local confirmada y sólo en la sucursal Romo',()=>{
- const {document,host}=dom();
- assert.deepEqual(montarCartaRomoDesdeSelectorQA({document,qaOnly:true,
-  selectorValido:true,ingresoLocalVerificado:false}).montado,false);
- assert.equal(host.children.length,0);
- const r=montarCartaRomoDesdeSelectorQA({document,qaOnly:true,
+test('al abrir Romo quedan sus productos, clientes y caja bloqueados, sin nombres de Uki',()=>{
+ const d=dom(),document=d.window.document;
+ const result=montarCartaRomoDesdeSelectorQA({document,qaOnly:true,
   selectorValido:true,ingresoLocalVerificado:true});
- assert.equal(r.montado,true);assert.equal(r.soloLectura,true);
- assert.equal(host.children.length,1);
- assert.match(host.children[0].innerHTML,/Carta y precios · Romo’s Sushi La Serena/);
- assert.match(host.children[0].innerHTML,/Categorías/);
- assert.match(host.children[0].innerHTML,/Productos/);
- assert.match(host.children[0].innerHTML,/Promociones/);
- assert.match(host.children[0].innerHTML,/Ingredientes/);
- assert.doesNotMatch(host.children[0].innerHTML,/Guardar|Publicar|Enviar pedido|Pagar ahora/);
+ assert.equal(result.montado,true);
+ assert.equal(result.soloLectura,true);
+ assert.equal(result.storeId,'romo:serena');
+ assert.deepEqual(result.tabs,['precios','disponibilidad','inventario','reportes']);
+ assert.match(document.getElementById('ukiInvTabs').textContent,/Administrar Romo’s Sushi/);
+ assert.match(document.getElementById('ukiInvSucursalActiva').textContent,/Romo’s Sushi La Serena/);
+ assert.equal(document.getElementById('ukiPriceCreate').disabled,true);
+ assert.equal(document.getElementById('ukiPriceReload').disabled,true);
+ assert.equal(document.getElementById('ukiPriceSearch').disabled,true);
+ assert.equal(document.getElementById('ukiPriceNewKind').querySelector('option[value=pizza]'),null);
+ assert.equal(document.getElementById('ukiPromoType').querySelector('option[value=pizza]'),null);
+ assert.match(document.getElementById('ukiPriceMessage').textContent,/Catálogo Romo todavía no conectado/);
+ d.window.close();
 });
-test('ni marca distinta ni vista fuera de Romo montan categorías, aunque existiera el módulo',()=>{
- const {document,host}=dom(false);
- const r=montarCartaRomoDesdeSelectorQA({document,qaOnly:true,
-  selectorValido:true,ingresoLocalVerificado:true});
- assert.equal(r.montado,false);assert.equal(host.children.length,0);
- const d=dom(true);const x=montarCartaRomoDesdeSelectorQA({document:d.document,
-  qaOnly:false,selectorValido:true,ingresoLocalVerificado:true});
- assert.equal(x.montado,false);assert.equal(d.host.children.length,0);
+test('mismos cuatro controles administrativos cambian de área, pero no disparan operaciones',()=>{
+ const d=dom(),document=d.window.document,events=[];
+ d.window.fetch=()=>{events.push('fetch');throw Error('Red prohibida')};
+ montarCartaRomoDesdeSelectorQA({document,qaOnly:true,selectorValido:true,ingresoLocalVerificado:true});
+ const selector=sel=>document.querySelector('[data-uki-tab="'+sel+'"]');
+ selector('inventario').click();
+ assert.equal(document.getElementById('invRoot').style.display,'');
+ assert.equal(document.getElementById('ukiPreciosPanel').style.display,'none');
+ selector('reportes').click();
+ assert.equal(document.getElementById('ukiReponerPanel').style.display,'');
+ assert.equal(document.getElementById('invRoot').style.display,'none');
+ selector('precios').click();
+ assert.equal(document.getElementById('ukiPreciosPanel').style.display,'');
+ assert.equal(selector('precios').getAttribute('aria-pressed'),'true');
+ assert.equal(document.getElementById('ukiPriceCreate').disabled,true);
+ assert.deepEqual(events,[]);
+ d.window.close();
 });
-test('vista móvil mantiene letras oscuras, botones visibles y las áreas Uki intocables',()=>{
+test('Romo jamás monta plantilla en una sucursal Uki ni sin ingreso QA',()=>{
+ for(const [active,entered] of [[false,true],[true,false],[true,true]]){
+  const d=dom(active);
+  const r=montarCartaRomoDesdeSelectorQA({document:d.window.document,qaOnly:true,
+   selectorValido:active,ingresoLocalVerificado:entered});
+  assert.equal(r.montado,active&&entered);
+  d.window.close();
+ }
+});
+test('el panel mantiene la tipografía original y sólo cambia el color del local Romo',()=>{
  assert.match(html,/name="viewport" content="width=device-width/);
  assert.match(html,/body\.romo-qa #romoLaSerenaPreparacionQA\{background:#fff!important;color:#171717!important/);
- assert.match(html,/min-height:44px/);
- assert.match(html,/aria-pressed/);
- assert.match(html,/background:#a8212a!important;color:#fff!important/);
- assert.match(loader,/No crea segundo panel/);
- assert.match(html,/function ukiVolverAlSelectorLocales\(\)/);
+ assert.match(html,/const VISTAS=\[\["inicio","Inicio","⌂"\],\["pedidos","Pedidos","▤"\]/);
+ assert.match(html,/function vRomoQA\(\)/);
+ assert.match(html,/function ukiRomoIrQA\(v\)/);
 });
