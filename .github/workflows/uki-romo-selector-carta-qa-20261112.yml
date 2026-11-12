@@ -25,6 +25,9 @@ jobs:
           node --check lib/uki-local-router-qa.mjs
           node --check lib/romo-almacenamiento-operativo-panel-qa.mjs
           node --check lib/romo-almacenamiento-catalogo-panel-qa.mjs
+          node --check lib/romo-almacenamiento-inventario-panel-qa.mjs
+          node --check lib/romo-inventario-integracion-qa.mjs
+          node --check lib/romo-inventario-modelo-qa.mjs
           node --check lib/romo-panel-carta-interfaz-qa.mjs
           node --check firebase/uki-romo-carta-selector-qa.mjs
           node --check firebase/romo-carta-qa/romo-carta-vista-embebida-qa.mjs
@@ -41,6 +44,7 @@ jobs:
             tests/romo-claves-lectura-servidor-qa.test.mjs \
             tests/romo-claves-lectura-api-cerrada-qa.test.mjs \
             tests/romo-almacenamiento-catalogo-panel-qa.test.mjs \
+            tests/romo-almacenamiento-inventario-panel-qa.test.mjs \
             tests/romo-almacenamiento-operativo-panel-qa.test.mjs \
             tests/uki-local-router-qa.test.mjs \
             tests/uki-romo-carta-selector-movil-qa-20261112.test.mjs \

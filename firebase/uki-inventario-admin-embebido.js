@@ -6,7 +6,8 @@ const U=[['un','Unidades'],['kg','Kilos'],['g','Gramos'],['l','Litros'],['ml','M
 const C=[['ingrediente','Ingrediente'],['envase','Envase'],['otro','Otro insumo']];
 const X={branch:'',items:[],reports:[],selected:'',busy:false,loaded:false};
 const $=id=>document.getElementById(id);
-const panelBranch=()=>typeof S!=='undefined'&&S?.suc==='Uki La Serena'?'serena':'arica';
+const panelBranch=()=>typeof S!=='undefined'&&S?.suc==='Uki La Serena'?'serena':
+ typeof S!=='undefined'&&S?.suc==='Uki Regimiento Arica'?'arica':'';
 function pick(xs){return xs.map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('');}
 function number(raw){const t=String(raw??'').trim();if(!/^\d{1,6}([.,]\d{1,3})?$/.test(t))throw Error('Cantidad inválida: máximo 3 decimales (ej.: 2,5).');const n=Number(t.replace(',','.'));if(n>100000)throw Error('Cantidad fuera de rango.');return n;}
 function panel(){return [
@@ -36,7 +37,8 @@ function panel(){return [
 ].join('');}
 function status(msg){if($('invStatus'))$('invStatus').textContent=msg;}
 async function request(action,data={},branch=X.branch){
- if(branch!==panelBranch())throw Error('Abre la sucursal correspondiente para consultar su inventario.');
+ if(!['arica','serena'].includes(branch)||branch!==panelBranch())
+  throw Error('Abre la sucursal Uki correspondiente para consultar su inventario.');
  const token=await window.ukiInventarioToken?.();
  if(!token)throw Error('Inicia sesión Google en el panel. Solo administración autorizada puede editar inventario.');
  const res=await fetch(API,{method:'POST',mode:'cors',credentials:'omit',cache:'no-store',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({branch,action,...data})});
@@ -115,6 +117,8 @@ async function create(){
 function mount(){
  if(!$('invRoot'))return;
  const active=panelBranch();
+ // No convertir Romo, ni el selector sin local, en Regimiento Arica.
+ if(!active)return;
  if(X.branch!==active){X.items=[];X.reports=[];X.selected='';X.loaded=false;}
  X.branch=active;
  $('invBranch').value=active;

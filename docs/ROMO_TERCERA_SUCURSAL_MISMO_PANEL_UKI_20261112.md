@@ -73,3 +73,10 @@ Se conserva la decisión: un panel Uki, tres locales. Romo La Serena usa la mism
 - El control de bloqueo se mantiene incluso si la prueba se ejecuta en dominio productivo; la navegación superior permite revisar las vistas reales sin hacer operaciones.
 - Los cambios de caja, pedidos, timbres, cierres y ventas siguen bloqueados para Romo hasta completar autenticación, sincronización de Neon propia, manejo de conflictos y la carta pública ya aprobada.
 - No se publica este código en el panel operativo ni se modifica ningún dato de las dos sucursales Uki.
+
+## Inventario Romo enlazado al selector único (fase de integración QA)
+- Se reutilizan los módulos de inventario Romo ya creados en la rama `qa/romo-catalogo-inventario-sin-publicar-20261111`; no se crea una segunda pantalla ni otro PIN.
+- `lib/romo-almacenamiento-inventario-panel-qa.mjs` conecta lectura, agregar, editar, conteos, disponibilidad, reposición y retiro al router de tres sucursales, con `storeId: romo:serena` obligatorio y control de revisiones para dos teléfonos.
+- Unidades compatibles con el inventario actual de Uki (`un`, `porciones`, `kg`, `g`, `l`, `ml`) y unidad de la preparación anterior (`unidad`). El reporte no considera la diferencia como venta.
+- Se corrigió el fallback del inventario histórico de Uki: si no está seleccionada exactamente una sucursal Uki, su gestor ya no interpreta Romo como Arica ni inicia consultas. Las dos sucursales Uki mantienen rutas y datos anteriores.
+- Esta es una conexión interna en la rama de pruebas. **No** está enlazada a los botones reales hasta validar cuenta Google, permisos, datos y sincronización Neon de Romo. No se modificaron existencias de ninguna sucursal ni se publicaron nuevos paneles.
