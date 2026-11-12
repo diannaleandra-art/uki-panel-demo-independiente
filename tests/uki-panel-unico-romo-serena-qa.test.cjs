@@ -31,7 +31,7 @@ test('Romo se selecciona sin crear otra contraseña y sin abrir pedidos hasta te
  assert.match(main,/No registres operaciones aquí/);
  assert.match(main,/const ROMO_SERENA_QA=Object\.freeze\(\{brand:'romo',branch:'serena'/);
  assert.match(main,/Balmaceda 1612, La Serena/);
- assert.match(main,/body\.romo-qa #ukiNubeSeccion/);
+ assert.match(panel,/body\.romo-qa #ukiNubeSeccion/);
 });
 test('la navegación directa Romo usa el mismo formulario que Uki',()=>{
  assert.match(main,/else if\(desdeEnlace==="romo-serena"\)S\.pinSuc=ROMO_SUCURSAL_QA/);
