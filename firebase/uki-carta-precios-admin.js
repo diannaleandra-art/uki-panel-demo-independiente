@@ -580,7 +580,18 @@ function renderCategories(){
      await actualizarOrganizacion('asignar-categoria',{sku:member.sku,categoriaSlug:''},
       '«'+member.name+'» quitado de «'+category.nombre+'». El producto sigue en la carta.');
     };
-    actions.append(move,remove);row.append(title,status,selector,actions);controls.append(row);
+    const edit=document.createElement('button');edit.type='button';edit.className='sm';
+    edit.textContent='✎ Editar producto completo';
+    edit.onclick=()=>{
+     // Abrir el editor ORIGINAL para modificar precio, foto, nombre y estado.
+     window.ukiCartaSeleccion?.('productos');
+     state.group='propia:'+category.slug;state.query=member.name;
+     if($('ukiPriceSearch'))$('ukiPriceSearch').value=member.name;
+     if($('ukiPriceGroup'))$('ukiPriceGroup').value=state.group;
+     renderPrices();
+     $('ukiPriceList')?.scrollIntoView({behavior:'smooth',block:'start'});
+    };
+    actions.append(move,remove,edit);row.append(title,status,selector,actions);controls.append(row);
    }
    const addHeading=document.createElement('h4');addHeading.textContent='Agregar productos a esta categoría';
    addHeading.style.cssText='font-size:14px;margin:12px 0 0;color:#513224';
