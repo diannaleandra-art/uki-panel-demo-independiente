@@ -776,7 +776,7 @@ function ukiVolverAlSelectorLocales(){
 async function ukiValidarClaveUkiParaRomoQA(pass){
  if(typeof pass!=="string"||pass.length<12)throw Error("Contraseña de acceso inválida.");
  if(!globalThis.crypto?.subtle)throw Error("Cifrado no disponible.");
- if(window.ukiRomoClaveRemotaDisponibleQA?.())
+ if(typeof window!=='undefined'&&window.ukiRomoClaveRemotaDisponibleQA?.())
   return window.ukiRomoVerificarClaveRemotaQA(pass);
  const disponibles=SUCURSALES.filter(s=>localStorage.getItem(claveLocal(s))!==null);
  if(!disponibles.length)throw Error("Primero abre Uki en este dispositivo para comprobar la contraseña.");
