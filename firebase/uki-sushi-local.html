@@ -313,7 +313,20 @@ body.romo-qa .romo-qa-precios{background:#fff;color:#171717;font-size:15px;line-
 <script>
 const SUCURSALES=["Uki Regimiento Arica","Uki La Serena"]; // Las dos sucursales operativas existentes: NO ALTERAR
 const ROMO_SUCURSAL_QA="Romo’s Sushi La Serena";
-const SUCURSALES_PANEL_QA=Object.freeze([...SUCURSALES,ROMO_SUCURSAL_QA]); // Mismo selector y formulario
+// Registro ÚNICO del panel: añadimos UN local, no otra aplicación.
+// Las dos sucursales Uki conservan sus nombres y almacenamiento históricos.
+const LOCALES_PANEL_QA=Object.freeze([
+ Object.freeze({storeId:'uki:arica',nombre:SUCURSALES[0],brand:'uki',branch:'arica',estado:'operativo'}),
+ Object.freeze({storeId:'uki:serena',nombre:SUCURSALES[1],brand:'uki',branch:'serena',estado:'operativo'}),
+ Object.freeze({storeId:'romo:serena',nombre:ROMO_SUCURSAL_QA,brand:'romo',branch:'serena',estado:'preparacion'})
+]);
+const SUCURSALES_PANEL_QA=Object.freeze(LOCALES_PANEL_QA.map(local=>local.nombre));
+function ukiLocalPanelQA(nombre){return LOCALES_PANEL_QA.find(local=>local.nombre===nombre)||null;}
+function ukiStoreIdActivoPanelQA(){
+ if(S.suc)return ukiLocalPanelQA(S.suc)?.storeId||null;
+ if(S.romoSeleccionadoQA&&S.romoIngresadoQA&&!S.pinSuc)return 'romo:serena';
+ return null;
+}
 const MEDIOS=["Efectivo","Transferencia","Débito","Edenred","Otros","Uber Eats","PedidosYa","Rappi"];
 const APPS=["Uber Eats","PedidosYa","Rappi"];
 let S={suc:null,pinSuc:null,codigos:{},vista:"inicio",base:18000,pedidos:[],gastos:[],retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",deliveriesManuales:[],ajustesHistoricos:[],borradores:[],solicitudesWhatsApp:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,filtro:"",filtroFecha:"",filtroCliente:""};
@@ -767,7 +780,7 @@ const ROMO_SERENA_QA=Object.freeze({brand:'romo',branch:'serena',nombre:ROMO_SUC
 let ukiRomoVistaQA='inicio';
 let ukiRomoVistaCartaSeleccionadaQA=false;
 if(typeof window!=='undefined')window.ukiRomoCartaQAContexto=()=>Object.freeze({
- storeId:S.romoSeleccionadoQA&&!S.suc&&!S.pinSuc&&ukiRomoVistaQA==='inventario'?'romo:serena':null,
+ storeId:ukiRomoVistaQA==='inventario'&&ukiStoreIdActivoPanelQA()==='romo:serena'?'romo:serena':null,
  localProofOk:S.romoIngresadoQA===true,qaOnly:true
 });
 function ukiRomoIrQA(v){
@@ -806,14 +819,14 @@ async function ukiValidarClaveUkiParaRomoQA(pass){
  throw Error("La contraseña no coincide con las sucursales Uki de este equipo.");
 }
 function pedirPin(s){
- if(!SUCURSALES_PANEL_QA.includes(s))return;
+ if(!ukiLocalPanelQA(s))return;
  ukiRomoVistaQA='inicio';
  ukiRomoVistaCartaSeleccionadaQA=false;
  S.romoSeleccionadoQA=false;S.romoIngresadoQA=false;S.pinSuc=s;render();
 }
 async function entrarSuc(){
  const s=S.pinSuc,pass=$("ukiAccesoClave")?.value||"";
- const esRomo=s===ROMO_SUCURSAL_QA;
+ const esRomo=ukiLocalPanelQA(s)?.storeId==='romo:serena';
  const nueva=!esRomo&&localStorage.getItem(claveLocal(s))===null;
  if(pass.length<12){aviso("Utiliza una clave de al menos 12 caracteres.");return;}
  if(nueva&&pass!==($("ukiAccesoConfirmar")?.value||"")){aviso("Las claves no coinciden.");return;}
