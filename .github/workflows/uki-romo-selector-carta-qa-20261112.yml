@@ -34,6 +34,8 @@ jobs:
           node --check lib/romo-claves-alta-qa.mjs
           node --check api/romo-claves-alta-qa.js
           node --check api/romo-carta-publica-qa.js
+          node --check api/romo-solicitudes-carta-qa.js
+          node --check lib/romo-solicitudes-carta-qa.mjs
           node --check firebase/uki-romo-alta-clave-qa.mjs
           node --check api/romo-estado-operativo-qa.js
           node --check firebase/uki-romo-carta-selector-qa.mjs
@@ -58,6 +60,7 @@ jobs:
             tests/romo-api-lector-solo-qa.test.mjs \
             tests/romo-alta-clave-qa.test.mjs \
             tests/romo-carta-publica-endpoint-qa.test.mjs \
+            tests/romo-solicitudes-carta-qa.test.mjs \
             tests/romo-carga-catalogo-existente-20261112.test.mjs \
             tests/romo-almacenamiento-operativo-panel-qa.test.mjs \
             tests/uki-local-router-qa.test.mjs \

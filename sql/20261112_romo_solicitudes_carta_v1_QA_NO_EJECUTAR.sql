@@ -1,0 +1,29 @@
+-- PREPARACION QA ROMO - NO EJECUTAR SIN AUTORIZACION DE PRODUCCION
+-- Una bandeja independiente y no contable para solicitudes iniciadas por carta.
+-- Ninguna columna habilita pago, venta o timbre sin aceptar en el panel Uki.
+CREATE TABLE IF NOT EXISTS public.romo_solicitudes_carta_v1 (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ store_id text NOT NULL DEFAULT 'romo:serena' CHECK (store_id='romo:serena'),
+ request_key text NOT NULL UNIQUE CHECK (length(request_key) BETWEEN 12 AND 100),
+ codigo_pedido text NOT NULL CHECK (length(codigo_pedido) BETWEEN 3 AND 60),
+ cliente text NOT NULL CHECK (length(cliente) BETWEEN 2 AND 80),
+ telefono text NOT NULL CHECK (length(telefono) BETWEEN 8 AND 24),
+ mensaje text NOT NULL CHECK (length(mensaje) BETWEEN 30 AND 12000),
+ total_indicado integer NOT NULL CHECK (total_indicado BETWEEN 1 AND 1000000),
+ estado text NOT NULL DEFAULT 'pendiente'
+   CHECK (estado IN ('pendiente','aceptada','rechazada')),
+ whatsapp_confirmado boolean NOT NULL DEFAULT false,
+ pedido_interno text,
+ motivo_rechazo text,
+ ip_hash text NOT NULL CHECK (ip_hash ~ '^[0-9a-f]{64}$'),
+ creado_en timestamptz NOT NULL DEFAULT now(),
+ actualizado_en timestamptz NOT NULL DEFAULT now(),
+ CHECK (estado<>'aceptada' OR length(coalesce(pedido_interno,''))>0)
+);
+CREATE INDEX IF NOT EXISTS romo_solicitudes_carta_estado_idx
+ ON public.romo_solicitudes_carta_v1(store_id,estado,creado_en DESC);
+CREATE INDEX IF NOT EXISTS romo_solicitudes_carta_ip_idx
+ ON public.romo_solicitudes_carta_v1(ip_hash,creado_en DESC);
+-- Despues de aprobacion, conceder SOLO lo necesario al rol de servicio
+-- de Romo. Jamas conceder privilegios al rol del inventario o servicio Uki.
+-- No se incluye GRANT para evitar activar la bandeja por accidente.
