@@ -102,3 +102,11 @@ Las imágenes antiguas de menú de julio muestran precios distintos (24 $7.500, 
 - La simulación no se envía automáticamente. Si un teléfono cambia la revisión, el servidor retorna conflicto 409; se requiere revisar antes de reintentar.
 - **Nada fue conectado, habilitado, creado ni escrito en bases reales.** Para dar permiso de guardado pedir autorización expresa a la dueña; antes faltan tabla privada `romo_inventario_v1`, permiso Google/roles y configuración separada segura.
 - Los precios de Romo no se modifican.
+
+## Accesos de Romo igual que Uki (QA; sin registrar credenciales)
+- **Meta:** un solo panel operativo, sucursales Uki Regimiento Arica, Uki La Serena y Romo Sushi La Serena. Cada sucursal sigue aislada en datos, roles, inventario, pedidos y caja.
+- **Dueños/administración:** misma interfaz y cuenta Google del panel Uki; en la entrada de Romo se usa la contraseña habitual sólo para abrir la vista de prueba. El servidor exige también UID activo y rol `duenos` registrado en `romo_personal_acceso_v1`; no se concede acceso real por usar la contraseña de Uki.
+- **Personal de inventario:** idéntico procedimiento visual a Uki (elegir sucursal, nombre, PIN de 6 dígitos), pero el PIN de Romo todavía NO está creado ni se autentica. No copiar automáticamente el hash, PIN ni la sesión de Uki. En Romo no abrir pedidos ni caja por usar el PIN de inventario.
+- **Agendador:** futura misma entrada operacional con autorización propia para Romo; no se heredan datos ni roles de Uki.
+- Se presenta una sección informativa en la vista QA sin campos de introducción de credenciales inactivos ni segundo formulario Google. Se aclaró que la contraseña Uki desbloquea solo vista de prueba, NO datos comerciales.
+- No se cambió ninguna contraseña, ninguna cuenta Firebase, ni se insertaron roles o PINs en Neon. Requiere aprobación adicional antes de habilitar ingresos reales de usuarios.

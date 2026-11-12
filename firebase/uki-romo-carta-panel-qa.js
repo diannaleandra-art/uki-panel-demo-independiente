@@ -367,8 +367,21 @@
     '<p class="muted">Comprobar vigencia, salsas, ingredientes, korokes y fotos antes de publicar.</p>'+
    '</details>';
  }
+ function vistaAccesosRomoQA(){
+  return '<details class="card" id="romoQAIngresosIgualUki">'+
+   '<summary style="cursor:pointer;font-weight:700">🔐 Ingresos · igual que Uki</summary>'+
+   '<p class="muted"><b>Un solo panel:</b> Uki Regimiento Arica, Uki La Serena y Romo La Serena. Cada sucursal mantiene sus registros separados.</p>'+
+   '<p><b>Dueños y administración:</b> misma cuenta Google del panel y contraseña habitual. No se crea otra cuenta ni contraseña para Romo.</p>'+
+   '<p class="muted">Para consultar o guardar datos reales de Romo también será obligatorio tener permiso activo de Romo en el servidor. La contraseña de Uki por sí sola no lo concede.</p>'+
+   '<p><b>Inventario del trabajador:</b> el mismo procedimiento de Uki: elegir Romo La Serena, escribir nombre y usar un código exclusivo de inventario de 6 números.</p>'+
+   '<p class="muted">El código de inventario no abre pedidos, caja ni cierres. Aún no se ha habilitado ni configurado para Romo; no introduzcas códigos de trabajadores en esta pantalla de prueba.</p>'+
+   '<p><b>Agendador:</b> acceso al panel operativo según autorización para esa sucursal, sin acceso automático a otras tiendas.</p>'+
+   '<p role="status" class="muted">Solo preparación de accesos. No se han creado usuarios, cambiado claves ni habilitado sesiones reales de Romo.</p>'+
+   '</details>';
+ }
  function vista(){
   return '<section class="card" id="romoQACartaPanel" aria-label="Romo Carta y precios en preparación">'+
+   vistaAccesosRomoQA()+
    '<h2>🧾 Carta y precios · Romo</h2>'+
    '<p class="muted">Misma administración del panel. Productos, promociones e ingredientes '+
      'independientes de Uki. Sólo borradores hasta completar las pruebas.</p>'+

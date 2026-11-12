@@ -128,3 +128,16 @@ test('buscar por nombre en Carta y precios sin perder borradores ni cambiar prec
  assert.equal(nodes.get('romoQACategoriapromociones').children[1].children[0].textContent,'Promo 24');
  assert.match(source,/ROMO_PRECIOS_ACORDADOS_QA=Object.freeze/);
 });
+
+test('ingresos de Romo usan el mismo procedimiento de Uki sin duplicar cuentas',()=>{
+ const {win}=run();
+ const ui=win.ukiRomoCartaPanelHTMLQA();
+ assert.match(ui,/Ingresos · igual que Uki/);
+ assert.match(ui,/misma cuenta Google del panel y contraseña habitual/);
+ assert.match(ui,/no lo concede/);
+ assert.match(ui,/nombre y usar un código exclusivo de inventario de 6 números/);
+ assert.match(ui,/El código de inventario no abre pedidos, caja ni cierres/);
+ assert.match(ui,/no introduzcas códigos de trabajadores en esta pantalla de prueba/);
+ assert.doesNotMatch(ui,/id="romoNuevoGoogle"|id="romoNuevoPin"/);
+ assert.match(html,/Vista de prueba abierta con la clave habitual de Uki/);
+});
