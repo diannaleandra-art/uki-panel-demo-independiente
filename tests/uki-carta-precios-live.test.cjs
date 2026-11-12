@@ -48,3 +48,59 @@ test('API de precios no altera inventario, caja ni tablas de ventas',()=>{
  assert.match(s,/jwtVerify/);
  assert.doesNotMatch(s,/UPDATE\s+public\.uki_inventario|UPDATE\s+public\.uki_pedidos|UPDATE\s+public\.uki_caja/i);
 });
+
+
+test('Eliminar definitivamente solo productos creados y retirados, nunca originales o activos',()=>{
+ const {eliminable}=api._testing;
+ const propio={sku:'dish:fresas-con-crema-12345678',kind:'dish',custom:true,visible:false};
+ assert.equal(eliminable(propio),true);
+ assert.equal(eliminable({...propio,visible:true}),false);
+ assert.equal(eliminable({...propio,custom:false}),false);
+ assert.equal(eliminable({...propio,kind:'classic'}),false);
+ assert.equal(eliminable({...propio,kind:'premium'}),false);
+ assert.equal(eliminable({...propio,kind:'monthly'}),true);
+ assert.equal(eliminable({...propio,kind:'pizza'}),true);
+});
+
+test('El borrado de un producto del panel es atómico, por sucursal y no modifica ventas',async()=>{
+ const calls=[];
+ const db={query:async(sql,params)=>{calls.push({sql,params});return [{sku:'dish:fresas-con-crema-12345678'}]}};
+ const item={sku:'dish:fresas-con-crema-12345678',kind:'dish',custom:true,visible:false};
+ const deleted=await api._testing.eliminarCustom(db,'arica',item,9,3);
+ assert.equal(deleted[0].sku,item.sku);
+ assert.equal(calls.length,1,'El producto y sus metadatos se limpian en la misma sentencia');
+ assert.deepEqual(calls[0].params,['arica',item.sku,9,3]);
+ const sql=calls[0].sql;
+ assert.match(sql,/DELETE FROM public\.uki_carta_productos_custom_v1/);
+ assert.match(sql,/version=\$3/);
+ assert.match(sql,/v\.visible=FALSE AND v\.version=\$4/);
+ for(const table of ['uki_carta_producto_categoria_v1','uki_carta_descuentos_v1',
+    'uki_carta_fotos_v1','uki_carta_visibilidad_v1'])
+  assert.match(sql,new RegExp('DELETE FROM public\\.'+table));
+ assert.doesNotMatch(sql,/DELETE FROM public\.uki_(?:pedido|venta|caja|cierre|inventario|timbre)/i);
+ assert.match(sql,/WHERE branch=\$1 AND sku IN \(SELECT sku FROM eliminado\)/);
+});
+
+test('Promoción creada como borrador o retirada también puede eliminarse sin alterar pedidos',async()=>{
+ const queries=[];
+ const db={query:async(sql,args)=>{queries.push({sql,args});return [{sku:'monthly:promo-test-12345678'}]}};
+ const item={kind:'monthly',sku:'monthly:promo-test-12345678',custom:true,visible:false};
+ await api._testing.eliminarCustom(db,'serena',item,4,4);
+ assert.match(queries[0].sql,/DELETE FROM public\.uki_carta_promos_custom_v1/);
+ assert.match(queries[0].sql,/visible=FALSE/);
+ assert.deepEqual(queries[0].args,['serena',item.sku,4]);
+});
+
+test('Panel ofrece eliminar definitivamente solo cuando está retirado, exige confirmación',()=>{
+ const source=fs.readFileSync(path.join(__dirname,'../firebase/uki-carta-precios-admin.js'),'utf8');
+ const page=fs.readFileSync(path.join(__dirname,'../firebase/uki-sushi-local.html'),'utf8');
+ assert.match(source,/function eliminarProductoControl\(price\)/);
+ assert.match(source,/price\.visible!==false/);
+ assert.match(source,/price\?\.custom/);
+ assert.match(source,/Eliminar definitivamente/);
+ assert.match(source,/window\.confirm\('¿Eliminar DEFINITIVAMENTE/);
+ assert.match(source,/expected_visibility_version:price\.visibilityVersion/);
+ assert.match(source,/request\(API,'eliminar-producto'/);
+ assert.match(source,/await loadPrices\(true\)/);
+ assert.match(page,/uki-carta-precios-admin\.js/);
+});
