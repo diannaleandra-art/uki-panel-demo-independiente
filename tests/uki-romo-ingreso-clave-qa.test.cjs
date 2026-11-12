@@ -23,6 +23,12 @@ function harness({serena=false,arica=false,validPassword='ClaveUkiSegura123',inp
   SUCURSALES:['Uki Regimiento Arica','Uki La Serena'],
   SUCURSALES_PANEL_QA:['Uki Regimiento Arica','Uki La Serena',ROMO],
   ROMO_SUCURSAL_QA:ROMO,
+  ukiLocalPanelQA(nombre){
+   if(nombre===ROMO)return {storeId:'romo:serena',brand:'romo'};
+   if(nombre==='Uki La Serena')return {storeId:'uki:serena',brand:'uki'};
+   if(nombre==='Uki Regimiento Arica')return {storeId:'uki:arica',brand:'uki'};
+   return null;
+  },
   localStorage:{
    getItem(k){reads.push(k);return entries.get(k)||null},
    setItem(k,v){writes.push([k,v]);entries.set(k,v)}
