@@ -283,6 +283,8 @@ body.romo-qa.uki-operativo-bloqueado #app{opacity:1;pointer-events:none}
 body.romo-qa.uki-operativo-bloqueado #app [data-uki-tab]{pointer-events:auto}
 body.romo-qa.uki-operativo-bloqueado #app .romo-consulta-qa{pointer-events:auto;cursor:pointer}
 body.romo-qa.uki-operativo-bloqueado #app .romo-consulta-qa:disabled{pointer-events:none}
+body.romo-qa.uki-operativo-bloqueado #app .romo-bandeja-qa-button{pointer-events:auto;cursor:pointer}
+body.romo-qa.uki-operativo-bloqueado #app .romo-bandeja-qa-button:disabled{pointer-events:none}
 body.romo-qa header{background:#fff!important;color:#171717!important;border-bottom:2px solid #b4232e;box-shadow:0 2px 7px #00000012}
 body.romo-qa nav.app-nav{background:#fff!important;border-color:#e9d5d6}
 body.romo-qa nav.app-nav button.on{background:#b4232e!important;color:#fff!important;border-color:#b4232e!important}
@@ -776,6 +778,8 @@ function render(){
   // El editor comparte plantilla; nunca montar sus manejadores de Neon Uki.
   if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='inventario')
    window.ukiRomoCartaQAMontar?.();
+  if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='pedidos')
+   window.ukiRomoSolicitudesMontarQA?.();
   ukiRestaurarVistaTrasRender(ukiVistaAnterior);
   ukiUltimaVistaRender=S.vista;ukiUltimaSucursalRender=S.suc;
   guardarEnLocalStorage();
@@ -792,6 +796,11 @@ let ukiRomoVistaCartaSeleccionadaQA=false;
 if(typeof window!=='undefined')window.ukiRomoCartaQAContexto=()=>Object.freeze({
  storeId:S.suc===ROMO_SUCURSAL_QA&&S.vista==='inventario'&&ukiStoreIdActivoPanelQA()==='romo:serena'?'romo:serena':null,
  localProofOk:S.suc===ROMO_SUCURSAL_QA&&S.romoIngresadoQA===true,qaOnly:true
+});
+if(typeof window!=='undefined')window.ukiRomoPedidosQAContexto=()=>Object.freeze({
+ storeId:S.suc===ROMO_SUCURSAL_QA&&S.vista==='pedidos'&&
+   ukiStoreIdActivoPanelQA()==='romo:serena'?'romo:serena':null,
+ sessionVerified:S.suc===ROMO_SUCURSAL_QA&&S.romoIngresadoQA===true,qaOnly:true
 });
 function ukiRomoIrQA(v){
  if(S.suc!==ROMO_SUCURSAL_QA||!S.romoIngresadoQA)return;
@@ -5912,6 +5921,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 </script>
 <script type="module" src="./uki-romo-clave-remota-qa.mjs"></script>
 <script type="module" src="./uki-romo-consulta-qa.mjs"></script>
+<script type="module" src="./uki-romo-solicitudes-panel-qa.mjs"></script>
 <script type="module" src="./uki-romo-carta-selector-qa.mjs"></script>
 <script type="module" src="./uki-romo-operativo-qa.mjs"></script>
 <script type="module" src="./uki-romo-vinculo-duenos-qa.mjs"></script>
