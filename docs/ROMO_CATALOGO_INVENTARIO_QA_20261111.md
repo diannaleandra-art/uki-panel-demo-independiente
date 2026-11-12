@@ -71,3 +71,11 @@ Esta rama no altera env vars, dominios, datos reales, código de sucursales Uki 
 
 ## Corrección de límite Vercel Hobby (QA)
 La versión de pruebas excedía las 12 funciones del plan Hobby: 13 archivos `api/*.js`, dos nuevos para Romo. Se consolidó la lectura del catálogo anterior como modo `GET /api/romo-catalogo-qa?origen=anterior` dentro del endpoint único de catálogo Romo; se elimina `api/romo-catalogo-anterior-qa.js` solamente de esta rama. Quedan 12 funciones. No se adquiere Pro, no se toca producción, no se configura ningún secreto nuevo ni se habilita ninguna escritura.
+
+## Lista de revisión comercial recuperada (NO migrada ni publicada)
+
+Se localizaron valores indicados como acordados en la conversación de noviembre de 2026 (correspondientes a la corrección de «piezas»): carta regular 24 $8.000; 36 $12.000; 48 $16.000; 60 $19.000; 72 $21.000; 84 $24.000; 96 $26.000. El aumento de $500 ya está incluido en esa revisión: NO sumarlo otra vez.
+
+También figuran promociones históricas específicas, sujetas a vigencia antes de ofrecerlas: 24 + 2 korokes $7.000, 60 + 3 korokes $16.000 y 72 piezas $18.000. No confundir con la carta regular.
+
+Las imágenes antiguas de menú de julio muestran precios distintos (24 $7.500, 36 $11.500, 48 $14.500, 60 $17.500, 72 $19.500, 84 $22.500, 96 $24.500). No extrapolar cambios ni reemplazar montos aprobados usando esa imagen histórica. Se necesita cotejar con datos comerciales actuales antes de migración. Vista únicamente de revisión privada, sin crear productos en Neon ni habilitar ventas.

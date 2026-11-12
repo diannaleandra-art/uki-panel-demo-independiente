@@ -11,6 +11,24 @@
  const MAX_ITEMS=300;
  const QA_PROMO_PHOTOS=Object.freeze(['promo-foto-1','promo-foto-2','promo-foto-3','promo-foto-4']);
  const photoSrc=id=>QA_PROMO_PHOTOS.includes(id)?'./romo-assets/'+id+'.jpg':null;
+
+ // Valores acordados previamente para revisión en NOV 2026; no es catálogo vivo.
+ // NO aplicar otra vez incremento de CLP 500 sobre estos montos.
+ const ROMO_PRECIOS_ACORDADOS_QA=Object.freeze([
+  {piezas:24,valor:8000},{piezas:36,valor:12000},{piezas:48,valor:16000},
+  {piezas:60,valor:19000},{piezas:72,valor:21000},{piezas:84,valor:24000},
+  {piezas:96,valor:26000}
+ ]);
+ // Promociones separadas de carta regular y sujetas a vigencia/armado real.
+ const ROMO_PROMOCIONES_HISTORICAS_QA=Object.freeze([
+  {nombre:'24 piezas + 2 korokes',valor:7000},
+  {nombre:'60 piezas + 3 korokes',valor:16000},
+  {nombre:'72 piezas',valor:18000}
+ ]);
+ const pesosRomoQA=value=>new Intl.NumberFormat('es-CL',{
+  style:'currency',currency:'CLP',maximumFractionDigits:0
+ }).format(value);
+
  const categories=[
   {key:'productos',title:'Productos'},
   {key:'promociones',title:'Promociones'},
@@ -325,6 +343,22 @@
    return false;
   }finally{loading=false;}
  }
+ function vistaPreciosAcordadosQA(){
+  const lineas=ROMO_PRECIOS_ACORDADOS_QA.map(p=>
+   '<div style="display:flex;justify-content:space-between;padding:7px 2px;border-bottom:1px solid #e3dfd8">'+
+    '<span>'+p.piezas+' piezas</span><strong>'+pesosRomoQA(p.valor)+'</strong></div>').join('');
+  const promos=ROMO_PROMOCIONES_HISTORICAS_QA.map(p=>
+   '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 2px;border-bottom:1px solid #e3dfd8">'+
+    '<span>'+p.nombre+'</span><strong>'+pesosRomoQA(p.valor)+'</strong></div>').join('');
+  return '<details class="card" id="romoQAPreciosReferencia">'+
+    '<summary style="cursor:pointer;font-weight:700">📋 Precios acordados · revisión privada</summary>'+
+    '<p class="muted">Estos valores se acordaron para Romo en noviembre de 2026 y son referencia para comparar con el catálogo real. No están cargados en Neon ni publicados.</p>'+
+    '<h3>Carta regular por piezas</h3>'+lineas+
+    '<p class="muted">No volver a sumar $500: los precios de esta lista ya corresponden a la revisión más reciente. El menú histórico anterior no coincide en todos los tamaños.</p>'+
+    '<h3>Promociones especiales anteriores</h3>'+promos+
+    '<p class="muted">Comprobar vigencia, salsas, ingredientes, korokes y fotos antes de publicar.</p>'+
+   '</details>';
+ }
  function vista(){
   return '<section class="card" id="romoQACartaPanel" aria-label="Romo Carta y precios en preparación">'+
    '<h2>🧾 Carta y precios · Romo</h2>'+
@@ -335,6 +369,7 @@
    '<div id="romoQACategoriaproductos"></div>'+
    '<div id="romoQACategoriapromociones"></div>'+
    '<div id="romoQACategoriaingredientes"></div>'+
+   vistaPreciosAcordadosQA()+
    '<details class="card" id="romoQAAnterior"><summary style="cursor:pointer;font-weight:700">📋 Revisar productos de la carta anterior</summary>'+
     '<p class="muted">Consulta segura de productos de Romo: precios originales para revisar. No importa ni cambia valores automáticamente.</p>'+
     '<button type="button" class="sm" onclick="ukiRomoCartaAnteriorConsultarQA()">Consultar catálogo anterior</button>'+

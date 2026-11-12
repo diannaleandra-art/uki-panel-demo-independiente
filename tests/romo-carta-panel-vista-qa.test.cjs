@@ -103,3 +103,15 @@ test('consulta catálogo anterior sólo para revisión, sin copiar precios ni us
  assert.match(nodes.get('romoQACartaAnteriorEstado').textContent,/versión privada/i);
  assert.doesNotMatch(source,/fetch\('\/rest\/v1\/romos_products/);
 });
+
+test('precios acordados se ven sólo en revisión Romo sin alta ni sumas nuevas',()=>{
+ const {win}=run();
+ const html=win.ukiRomoCartaPanelHTMLQA();
+ for(const pieces of [24,36,48,60,72,84,96])assert.ok(html.includes(pieces+' piezas'),pieces);
+ for(const prices of ['8.000','12.000','16.000','19.000','21.000','24.000','26.000'])
+  assert.ok(html.includes(prices),prices);
+ for(const promo of ['24 piezas + 2 korokes','60 piezas + 3 korokes','72 piezas'])
+  assert.ok(html.includes(promo),promo);
+ assert.ok(html.includes('No volver a sumar $500'));
+ assert.ok(html.includes('No están cargados en Neon ni publicados'));
+});
