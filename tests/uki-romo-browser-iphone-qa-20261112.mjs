@@ -48,6 +48,7 @@ try{
    ingredients:area?.textContent.includes('Ingredientes'),
    containsDemoData:/Postre Romo QA|Cliente de prueba/.test(area?.textContent||''),
    onlyQa:/Vista privada de pruebas|No guarda ni publica/.test(document.body.textContent),
+   showingLoading:host?.textContent.includes('Preparando vista de solo lectura de Romo'),
    liveOrderButton:!!document.querySelector('.romo-qa #ukiPreciosPanel button[type=submit]')
   };
  });
@@ -59,6 +60,7 @@ try{
  assert.equal(layout.ingredients,true);
  assert.equal(layout.containsDemoData,false);
  assert.equal(layout.liveOrderButton,false);
+ assert.equal(layout.showingLoading,false,'El aviso provisional debe retirarse al aparecer la carta');
  assert.equal(layout.buttons.length,2);
  assert.ok(layout.buttons.every(x=>x.height>=43),'Botones accesibles en móvil');
  assert.ok(layout.docWidth<=layout.width+2,'Sin scroll horizontal en iPhone');
