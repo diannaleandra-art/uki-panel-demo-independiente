@@ -12,7 +12,8 @@ const end=main.indexOf('async function salirSuc(){',start);
 assert.ok(start>0&&end>start,'Sección del ingreso único');
 const login=main.slice(start,end);
 
-function harness({serena=false,arica=false,validPassword='ClaveUkiSegura123',inputPassword='ClaveUkiSegura123'}={}){
+function harness({serena=false,arica=false,validPassword='ClaveUkiSegura123',inputPassword='ClaveUkiSegura123',
+ remoteEnabled=false,remoteState=null,remoteReject=false}={}){
  const ROMO='Romo’s Sushi La Serena';
  const entries=new Map();
  if(serena)entries.set('uki_operativo_v1_cifrado_la-serena','cifrado-uki-serena');
@@ -36,6 +37,16 @@ function harness({serena=false,arica=false,validPassword='ClaveUkiSegura123',inp
    setItem(k,v){writes.push([k,v]);entries.set(k,v)}
   },
   crypto:{subtle:{}},
+  window:{
+   ukiRomoOperativoDisponibleQA:()=>remoteEnabled,
+   async ukiRomoOperativoCargarQA(){
+    if(remoteReject)throw Error('Sin sincronización segura');
+    return {storeId:'romo:serena',revision:1,estado:remoteState};
+   }
+  },
+  ukiClaveBackup:async()=>null,
+  cifrarLocal:async()=>null,
+  validarEstadoSucursal:(estado,suc)=>estado?.suc===suc,
   claveLocal(s){return s==='Uki La Serena'?'uki_operativo_v1_cifrado_la-serena':
    s==='Uki Regimiento Arica'?'uki_operativo_v1_cifrado_regimiento':'desconocida'},
   async abrirLocal(raw,suc,pass){
@@ -108,3 +119,28 @@ test('ningún local ajeno puede ingresar por el selector',()=>{
  assert.equal(h.data.S.pinSuc,h.ROMO);
 });
 test('el panel principal mantiene sintaxis válida',()=>assert.doesNotThrow(()=>new vm.Script(main)));
+
+
+test('al conectar Neon Romo, el MISMO ingreso Uki carga los pedidos de Romo en el motor original',async()=>{
+ const sample={suc:'Romo’s Sushi La Serena',pedidos:[{suc:'Romo’s Sushi La Serena',id:312}],cierres:[],clientes:{}};
+ const h=harness({serena:true,remoteEnabled:true,remoteState:sample});
+ await h.testFns.enter();
+ assert.equal(h.data.S.suc,h.ROMO);
+ assert.equal(h.data.S.pedidos.length,1);
+ assert.equal(h.data.S.pedidos[0].id,312);
+ assert.equal(h.writes.length,0);
+ assert.equal(h.entered.length,0);
+});
+test('si Neon Romo devuelve Uki o falla, no entra ni escribe nada',async()=>{
+ for(const cfg of [
+  {remoteEnabled:true,remoteState:{suc:'Uki La Serena',pedidos:[{id:14}]}},
+  {remoteEnabled:true,remoteReject:true}
+ ]){
+  const h=harness({serena:true,...cfg});
+  await h.testFns.enter();
+  assert.equal(h.data.S.romoIngresadoQA,false);
+  assert.equal(h.data.S.suc,null);
+  assert.equal(h.writes.length,0);
+  assert.equal(h.alerts.length,1);
+ }
+});

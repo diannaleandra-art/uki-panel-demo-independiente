@@ -837,17 +837,31 @@ async function entrarSuc(){
  try{
   if(esRomo){
    await ukiValidarClaveUkiParaRomoQA(pass);
-   // Misma sesión de trabajo que Uki, sin importar ningún pedido de Uki.
-   // Bloqueada hasta que Neon Romo confirme el estado cifrado propio.
+   // Reutiliza abrirLocal, cifrarLocal y derivación de Uki. Nunca lee Neon
+   // de Arica/Serena, ni admite un estado Romo con sucursal equivocada.
+   let remoto=null;
+   if(window.ukiRomoOperativoDisponibleQA?.()){
+    if(typeof window.ukiRomoOperativoCargarQA!=='function')
+      throw Error("No está preparada la conexión privada de Romo");
+    remoto=await window.ukiRomoOperativoCargarQA({
+     password:pass,abrirLocal,cifrarLocal,derivarClave:ukiClaveBackup,
+     validarEstado:validarEstadoSucursal,cryptoProvider:crypto
+    });
+    if(remoto?.storeId!=='romo:serena'||
+       !Number.isSafeInteger(remoto.revision)||
+       (remoto.estado!==null&&!validarEstadoSucursal(remoto.estado,ROMO_SUCURSAL_QA)))
+      throw Error("La información recibida no pertenece a Romo");
+   }
    S={...estadoVacioSucursal(ROMO_SUCURSAL_QA),
-     suc:ROMO_SUCURSAL_QA,pinSuc:null,vista:"inicio",
-     romoSeleccionadoQA:true,romoIngresadoQA:true};
+     ...(remoto?.estado||{}),suc:ROMO_SUCURSAL_QA,
+     pinSuc:null,vista:"inicio",romoSeleccionadoQA:true,romoIngresadoQA:true};
+   // No habilitar la caja hasta tener guardado independiente y confirmado.
    document.body.classList.add("uki-operativo-bloqueado");
   }else{
    await entrarDatosSucursal(s,pass);S.vista="inicio";
   }
   render();
- }catch(e){aviso(esRomo?"No se pudo comprobar tu contraseña habitual de Uki en este equipo.":"Clave incorrecta, datos dañados o cifrado no disponible.");}
+ }catch(e){aviso(esRomo?"No se pudo comprobar la clave o cargar el estado propio de Romo. No se modificó ningún local.":"Clave incorrecta, datos dañados o cifrado no disponible.");}
 }
 async function salirSuc(){
  if(ukiSolicitudWhatsAppActiva)ukiWhatsAppPausarRevision();

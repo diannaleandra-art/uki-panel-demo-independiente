@@ -77,6 +77,55 @@ export function crearPuenteRomoOperativoQA({
   }
  });
 }
+
+/**
+ * Conexión real al MISMO estado de Uki, con almacenamiento Romo separado.
+ * No implementa otro cifrado: INYECTA abrirLocal/cifrarLocal/ukiClaveBackup
+ * del panel actual. No se publica ni habilita la ruta de Neon en esta QA.
+ */
+export function crearCodecRomoDesdeUkiQA({
+ abrirLocal,cifrarLocal,derivarClave,validarEstado,cryptoProvider=globalThis.crypto
+}={}){
+ for(const fn of [abrirLocal,cifrarLocal,derivarClave,validarEstado]){
+  if(typeof fn!=='function')throw Error('Falta una función original del panel Uki');
+ }
+ if(!cryptoProvider?.getRandomValues)throw Error('Cifrado de navegador no disponible');
+ const suc=ROMO_OPERATIVO_SUCURSAL_QA;
+ return Object.freeze({
+  validarEstado:(estado,sucursal)=>sucursal===suc&&estado?.suc===suc&&validarEstado(estado,suc),
+  async descifrar(snapshot,sucursal,password){
+   if(sucursal!==suc||snapshot?.sucursal!==suc)
+    throw Error('No se pueden descifrar datos de Uki como Romo');
+   const result=await abrirLocal(JSON.stringify(snapshot),suc,password);
+   if(!result?.estado||!validarEstado(result.estado,suc))
+    throw Error('El respaldo Romo no pertenece a esta sucursal');
+   return result.estado;
+  },
+  async cifrar(estado,sucursal,password){
+   if(sucursal!==suc||estado?.suc!==suc||!validarEstado(estado,suc)||
+      typeof password!=='string'||password.length<12)
+    throw Error('Estado o clave Romo no válidos');
+   const salt=cryptoProvider.getRandomValues(new Uint8Array(16));
+   const key=await derivarClave(password,salt);
+   const snapshot=await cifrarLocal(estado,suc,key,salt);
+   if(snapshot?.sucursal!==suc)throw Error('El sobre cifrado no corresponde a Romo');
+   return snapshot;
+  }
+ });
+}
+export async function cargarRomoEnMotorUkiQA({password,getGoogleToken,...codecFns}={}){
+ const codec=crearCodecRomoDesdeUkiQA(codecFns);
+ const puente=crearPuenteRomoOperativoQA({
+  ...codec,...(getGoogleToken?{getGoogleToken}:{})
+ });
+ if(!puente.disponible())throw Error('Romo aún no tiene almacenamiento remoto habilitado');
+ const {revision,estado}=await puente.cargar({password});
+ if(!Number.isSafeInteger(revision)||revision<0||
+   (estado!==null&&!codec.validarEstado(estado,ROMO_OPERATIVO_SUCURSAL_QA)))
+  throw Error('La carga del estado de Romo fue rechazada');
+ return Object.freeze({storeId:ROMO_OPERATIVO_ID_QA,revision,estado});
+}
 if(typeof window!=='undefined'){
  window.ukiRomoOperativoDisponibleQA=()=>Boolean(ROMO_OPERATIVO_ENDPOINT_QA);
+ window.ukiRomoOperativoCargarQA=cargarRomoEnMotorUkiQA;
 }

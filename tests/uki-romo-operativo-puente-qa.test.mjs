@@ -62,3 +62,43 @@ test('detectará conflicto 409 y no intenta sobrescribir una versión atrasada',
  assert.match(clientSource,/new RomoGuardarConflictoQA\(\)/);
  assert.match(clientSource,/result\.revision!==revision\+1/);
 });
+
+
+test('el puente reutiliza cifrado local del panel Uki, con Romo como sucursal obligatoria',async()=>{
+ const {crearCodecRomoDesdeUkiQA}=await import('../firebase/uki-romo-operativo-qa.mjs');
+ const calls=[];
+ const source={suc:ROMO_OPERATIVO_SUCURSAL_QA,pedidos:[{suc:ROMO_OPERATIVO_SUCURSAL_QA,id:7}]};
+ const codec=crearCodecRomoDesdeUkiQA({
+  abrirLocal:async(raw,suc,password)=>{calls.push(['abrir',suc,password]);return {estado:source};},
+  cifrarLocal:async(data,suc,key,salt)=>{
+   calls.push(['cifrar',suc,key,salt.length]);
+   return {sucursal:suc,formato:'uki-v813-browser',cifrado:'QA'};
+  },
+  derivarClave:async(password,salt)=>{calls.push(['derivar',password,salt.length]);return 'clave-del-motor';},
+  validarEstado:(data,suc)=>data?.suc===suc,
+  cryptoProvider:{getRandomValues:(arr)=>{arr.fill(7);return arr}}
+ });
+ assert.equal(codec.validarEstado(source,ROMO_OPERATIVO_SUCURSAL_QA),true);
+ assert.equal(codec.validarEstado({...source,suc:'Uki La Serena'},ROMO_OPERATIVO_SUCURSAL_QA),false);
+ const snapshot=await codec.cifrar(source,ROMO_OPERATIVO_SUCURSAL_QA,'ClaveUkiDePrueba123');
+ assert.equal(snapshot.sucursal,ROMO_OPERATIVO_SUCURSAL_QA);
+ assert.deepEqual(await codec.descifrar(snapshot,ROMO_OPERATIVO_SUCURSAL_QA,'ClaveUkiDePrueba123'),source);
+ assert.deepEqual(calls.map(x=>x[0]),['derivar','cifrar','abrir']);
+ await assert.rejects(codec.cifrar({...source,suc:'Uki La Serena'},ROMO_OPERATIVO_SUCURSAL_QA,'ClaveUkiDePrueba123'),/Estado o clave/);
+ await assert.rejects(codec.descifrar({...snapshot,sucursal:'Uki La Serena'},ROMO_OPERATIVO_SUCURSAL_QA,'ClaveUkiDePrueba123'),/No se pueden/);
+});
+test('sin habilitación backend el mismo panel Romo nunca lee Neon ni inventa ventas',async()=>{
+ const {cargarRomoEnMotorUkiQA}=await import('../firebase/uki-romo-operativo-qa.mjs');
+ const calls=[];
+ const source={suc:ROMO_OPERATIVO_SUCURSAL_QA,pedidos:[]};
+ await assert.rejects(cargarRomoEnMotorUkiQA({
+  password:'ClaveUkiDePrueba123',
+  getGoogleToken:async()=>{calls.push('google');return 'token';},
+  abrirLocal:async()=>{calls.push('abrir');return {estado:source}},
+  cifrarLocal:async()=>{calls.push('cifrar');return {}},
+  derivarClave:async()=>{calls.push('derivar');return 'key'},
+  validarEstado:(data,suc)=>data.suc===suc,
+  cryptoProvider:{getRandomValues:a=>a}
+ }),/no tiene almacenamiento remoto habilitado/);
+ assert.deepEqual(calls,[]);
+});
