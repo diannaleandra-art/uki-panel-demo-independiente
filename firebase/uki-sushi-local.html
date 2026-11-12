@@ -279,6 +279,8 @@ body.romo-qa{--bg:#fff;--card:#fff;--ink:#171717;--muted:#4f4f4f;--accent:#b4232
 /* Navegar entre vistas reales sin activar controles comerciales. */
 body.romo-qa.uki-operativo-bloqueado #nav{pointer-events:auto;opacity:1;user-select:auto}
 body.romo-qa.uki-operativo-bloqueado #app{opacity:1;pointer-events:none}
+/* Solo cambiar pestaña visual en administración, no ejecutar guardados de Uki. */
+body.romo-qa.uki-operativo-bloqueado #app [data-uki-tab]{pointer-events:auto}
 body.romo-qa header{background:#fff!important;color:#171717!important;border-bottom:2px solid #b4232e;box-shadow:0 2px 7px #00000012}
 body.romo-qa nav.app-nav{background:#fff!important;border-color:#e9d5d6}
 body.romo-qa nav.app-nav button.on{background:#b4232e!important;color:#fff!important;border-color:#b4232e!important}
