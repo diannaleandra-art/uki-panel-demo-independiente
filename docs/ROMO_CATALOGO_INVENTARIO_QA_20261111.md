@@ -118,3 +118,11 @@ Las imágenes antiguas de menú de julio muestran precios distintos (24 $7.500, 
 - No se incorpora ruta para iniciar sesión como trabajador hasta que existan protección de intentos, permisos de dueño, y autorización de la dueña para crear/activar esos accesos.
 - La tabla de inventario Romo `romo_inventario_v1` ya existe por autorización previa, permanece sin datos.
 - Sin cambios de precios, carta comercial, producción de Uki, pedidos, caja o cierres. Publicación de preview automática es distinta de publicación comercial.
+
+## Verificación tras autorización de tablas (12 noviembre 2026)
+- Se crearon en Neon `romos_sushi` las tablas `public.romo_pin_inventario_v1` y `public.romo_pin_intentos_v1` con autorización explícita. Verificadas: cero filas y privilegios públicos SELECT/INSERT/UPDATE denegados. Sin cambios de datos Uki.
+- El SQL previo queda como referencia histórica y **no se vuelve a ejecutar**.
+- Servicio interno `lib/romo-pin-autorizacion-qa.cjs` sin endpoint: validación de nombre y PIN de seis números, contador global protegido por hash HMAC, bloqueo tras 5 intentos durante 15 minutos y verificación de PIN contra hash PBKDF2 exclusivo Romo.
+- La política global contra fuerza bruta podría bloquear a todos los trabajadores por múltiples errores; debe revisarse antes de activar accesos reales.
+- No se han creado sesiones, tokens ni permisos reales. Tests con datos sintéticos, no códigos de clientes.
+- Para activar posteriormente: autorización de dueña para crear PIN, alta de roles y registro de sesiones auditables; revisión de bloqueos, límites y seguridad antes de habilitar endpoint.

@@ -1,8 +1,11 @@
+-- REGISTRO HISTÓRICO: LAS DOS TABLAS FUERON CREADAS CON AUTORIZACIÓN 12-11-2026.
+-- NO EJECUTAR NUEVAMENTE. Se conserva este SQL solo como documentación y auditoría.
+-- El código PIN real aún no existe; el servicio de ingreso no está habilitado.
 -- PROPUESTA, NO EJECUTAR SIN APROBACIÓN ADICIONAL DE LA DUEÑA.
 -- Misma experiencia que Uki para empleados: nombre + código de 6 números.
 -- No copia ni utiliza códigos o tablas de Uki; datos exclusivos Romo Serena.
 -- La tabla de inventario Romo YA fue autorizada y creada anteriormente.
--- Estas nuevas tablas NO están autorizadas para creación en esta fase.
+-- El usuario ya autorizó la creación de ambas tablas vacías y se verificó: 0 códigos, 0 intentos.
 BEGIN;
 CREATE TABLE public.romo_pin_inventario_v1(
   store_id TEXT PRIMARY KEY CHECK (store_id='romo:serena'),
