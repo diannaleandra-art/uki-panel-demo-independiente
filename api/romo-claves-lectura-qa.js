@@ -33,7 +33,12 @@ module.exports=async function romoClavesLecturaQA(req,res){
   const config=reading.romoClavesReadConfig(env);
   if(!config)return fail(res,503,'Base exclusiva de Romo no configurada');
   let db;
-  try{db=require('@neondatabase/serverless').neon(config.url)}catch{
+  try{
+    const sql=require('@neondatabase/serverless').neon(config.url);
+    // neon(url) entrega una función SQL. La misma identidad Google del panel
+    // necesita db.query para leer roles y verificadores de la clave Uki.
+    db=reading.adaptarNeonParaClavesRomoQA(sql);
+  }catch{
     return fail(res,503,'Base exclusiva de Romo no disponible');
   }
   let auth;
