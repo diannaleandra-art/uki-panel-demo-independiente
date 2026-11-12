@@ -751,7 +751,7 @@ function render(){
 
 const ROMO_SERENA_QA=Object.freeze({brand:'romo',branch:'serena',nombre:ROMO_SUCURSAL_QA,direccion:'Balmaceda 1612, La Serena'});
 let ukiRomoVistaCartaSeleccionadaQA=false;
-window.ukiRomoCartaQAContexto=()=>Object.freeze({
+if(typeof window!=='undefined')window.ukiRomoCartaQAContexto=()=>Object.freeze({
  storeId:S.romoSeleccionadoQA&&!S.suc&&!S.pinSuc&&ukiRomoVistaCartaSeleccionadaQA?'romo:serena':null,
  localProofOk:S.romoIngresadoQA===true,qaOnly:true
 });
@@ -872,7 +872,7 @@ function vInicio(){
  if(!S.suc&&!S.pinSuc&&S.romoSeleccionadoQA){
   return '<section class="card" id="romoLaSerenaPreparacionQA" aria-label="Romo’s Sushi La Serena">'+
    '<h2>Romo’s Sushi · La Serena</h2><p><b>Balmaceda 1612, La Serena</b></p>'+
-   '<p class="aviso" role="status">Vista privada de pruebas. Los pedidos, caja, inventario y cierres de Romo continúan desactivados. No registres operaciones aquí.</p>'+
+   '<p class="aviso" role="status">Ingreso de prueba completado. Aún no están conectados los pedidos, caja, inventario y cierres independientes de Romo. No registres operaciones aquí.</p>'+
    (S.romoIngresadoQA
     ?'<nav class="romo-selector-carta-qa" aria-label="Funciones de Romo en el panel único">'+
       '<button type="button" class="sm" aria-pressed="'+(!ukiRomoVistaCartaSeleccionadaQA)+'" onclick="ukiRomoRegresarInicioQA()">Inicio</button>'+
