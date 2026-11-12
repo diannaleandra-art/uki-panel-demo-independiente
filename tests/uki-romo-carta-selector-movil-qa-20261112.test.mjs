@@ -44,10 +44,11 @@ test('no se conecta Neon ni se alteran pedidos, precios o caja a través del sel
  assert.equal(ROMO_CARTA_SELECTOR_SOLO_QA,true);
  assert.match(html,/src="\.\/uki-romo-carta-selector-qa\.mjs"/);
  assert.match(loader,/snapshot:null/);
- assert.doesNotMatch(loader,/fetch\(|\.query\(|localStorage|neon\(|indexedDB|uki-carta-precios-live/);
+ const code=loader.replace(/\/\*[\s\S]*?\*\//g,'').replace(/^\s*\/\/.*$/gm,'');
+ assert.doesNotMatch(code,/fetch\(|\.query\(|localStorage|neon\(|indexedDB|uki-carta-precios-live/);
  assert.match(loader,/storeId:STORE/);
  assert.match(view,/No se han creado productos ni promociones ficticios/);
- assert.match(html,/Los pedidos, caja, inventario y cierres de Romo continúan desactivados/);
+ assert.match(html,/Aún no están conectados los pedidos, caja, inventario y cierres independientes de Romo/);
 });
 test('vista de Romo entra solo con prueba local confirmada y sólo en la sucursal Romo',()=>{
  const {document,host}=dom();
