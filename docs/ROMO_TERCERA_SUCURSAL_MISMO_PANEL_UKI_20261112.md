@@ -106,3 +106,10 @@ Se conserva la decisión: un panel Uki, tres locales. Romo La Serena usa la mism
 - Se agrega cliente de enrolamiento `firebase/uki-romo-alta-clave-qa.mjs` APAGADO hasta activación expresamente autorizada; no se incorpora otra pantalla ni se pide clave nueva.
 - No se ejecuta GRANT INSERT en Neon, ni se configura `ROMO_ACCESO_CLAVES_ALTA_LIVE_ENABLED` o URL de activación; ninguna clave se transfirió ni se guardaron datos de Uki.
 - Regresión con DB ficticia: propietario sí, empleado no, duplicados rechazados, cifrado probado, y cero llamadas de red cuando el flujo está apagado.
+
+## Fuente única de precios para carta pública Romo — API preparada
+- `api/romo-carta-publica-qa.js`: endpoint GET/OPTIONS de solo lectura con origen exacto, host DB exclusivo de Romo y flag `ROMO_CARTA_PUBLICA_LIVE_ENABLED` apagado por defecto. No concede acceso a pedidos ni aceptará POST.
+- Fuente real: `public.romo_catalogo_v1` mediante `leerCartaPublicaRomoQA`, que devuelve exclusivamente productos, ingredientes y promociones visibles y su descuento calculado, sin cuentas, ventas, inventario ni borradores.
+- Si los productos de Romo continúan ocultos en el panel, esta respuesta será una lista vacía. No se deben publicar las fichas ocultas ni sustituirlas por precios inventados.
+- Falta conectar la carta `uki-sushi-respaldo/public/romo` al endpoint y adaptar SKU `romo:piezas:24` / `romo:promocion-...` al motor original sin cambiar sus funciones. NO se activaron enlaces de pedidos.
+- Ningún cambio de producción, permisos SQL ni variables Vercel en este bloque; QA exclusivamente.
