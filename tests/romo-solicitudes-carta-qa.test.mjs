@@ -16,7 +16,7 @@ function simulated(){
   calls.push({sql,params});
   assert.match(sql,/public\.romo_solicitudes_carta_v1/);
   assert.doesNotMatch(sql,/uki_carta|uki_mesas/);
-  if(sql.startsWith('SELECT id,store_id,codigo_pedido,mensaje,estado FROM ')){
+  if(sql.startsWith('SELECT id,store_id,codigo_pedido,cliente,telefono,mensaje,total_indicado,estado FROM ')){
    const r=rows.get(params[0]);return r?[r]:[];
   }
   if(sql.startsWith('SELECT COUNT(*)'))return [{n:0}];
@@ -64,6 +64,21 @@ test('reutilización de clave distinta causa conflicto, no otro pedido',async()=
  await assert.rejects(ingresarSolicitudRomoQA({db,request:{...order,mensaje:order.mensaje+' extra'},
   ip:'192.0.2.1',salt}),e=>e.code==='ROMO_ORDER_DUPLICATE');
  assert.equal(db.rows.size,1);
+});
+test('la misma clave no puede reutilizarse cambiando monto, cliente ni telefono',async()=>{
+ const db=simulated();
+ await ingresarSolicitudRomoQA({db,request:order,ip:'192.0.2.1',salt});
+ for(const changed of [
+  {...order,totalIndicado:1},
+  {...order,cliente:'Otra Persona'},
+  {...order,telefono:'+56999999999'}
+ ]){
+  await assert.rejects(ingresarSolicitudRomoQA({
+   db,request:changed,ip:'192.0.2.1',salt
+  }),e=>e.code==='ROMO_ORDER_DUPLICATE');
+ }
+ assert.equal(db.rows.size,1);
+ assert.equal(db.calls.filter(x=>x.sql.startsWith('INSERT INTO ')).length,1);
 });
 test('bandeja solo puede leer personal Romo autorizado',async()=>{
  const db=simulated();

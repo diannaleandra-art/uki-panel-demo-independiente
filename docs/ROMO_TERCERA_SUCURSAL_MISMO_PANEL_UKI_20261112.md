@@ -119,3 +119,6 @@ Se prepara la bandeja independiente `public.romo_solicitudes_carta_v1` en SQL **
 
 ## Bandeja en pantalla Pedidos del panel único — QA sin habilitar
 El panel `firebase/uki-sushi-local.html` monta un lector `firebase/uki-romo-solicitudes-panel-qa.mjs` SOLAMENTE cuando está seleccionada Romo y vista Pedidos. Usará la misma sesión Google para leer los tickets de Romo vía API privada, con validación del storeId y presentación por textContent (sin inyección HTML). El botón de lectura permanece desactivado hasta completar migración y publicación; no hay aceptación/rechazo, timbres o caja en este bloque. Las sucursales Uki no cambian.
+
+## Cierre de reintentos de pedidos (QA)
+Se corrigió el contrato de idempotencia: la clave de solicitud no puede reutilizarse con diferente código, mensaje, nombre, WhatsApp o monto. Cada reintento idéntico retorna el mismo ticket. Esta verificación ocurre exclusivamente en Romo, sin caja ni timbre.
