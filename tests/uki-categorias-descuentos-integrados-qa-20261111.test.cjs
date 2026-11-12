@@ -82,3 +82,60 @@ test('El panel de categorías acepta solo su dirección QA y nunca la autoriza e
  assert.equal(originAllowed('https://otro-panel-desconocido.vercel.app',qa),false);
  assert.equal(originAllowed('https://uki-sushi-pedidos-2ztmxhepr-diannaleandra-7046.vercel.app',qa),true);
 });
+
+
+test('Renombrar categoría conserva identificador, sucursal y asignaciones',async()=>{
+ const requests=[];
+ const conn={query:async(sql,values)=>{
+  requests.push({sql,values});
+  return [{slug:'uki-dulce',nombre:'Postres Uki'}];
+ }};
+ const output=await api._testing.renombrarCategoria(conn,'arica','uki-dulce','Postres Uki',{uid:'admin-test'});
+ assert.deepEqual(output,{slug:'uki-dulce',nombre:'Postres Uki'});
+ assert.equal(requests.length,1);
+ assert.deepEqual(requests[0].values,['arica','uki-dulce','Postres Uki','admin-test']);
+ assert.match(requests[0].sql,/UPDATE public\.uki_carta_categorias_personalizadas_v1/);
+ assert.match(requests[0].sql,/c\.branch=\$1 AND c\.slug=\$2/);
+ assert.doesNotMatch(requests[0].sql,/UPDATE public\.uki_carta_producto_categoria_v1/);
+ assert.equal(await api._testing.renombrarCategoria(conn,'arica','?', 'Nombre',{uid:'x'}),null);
+ assert.equal(await api._testing.renombrarCategoria(conn,'arica','uki-dulce', '',{uid:'x'}),null);
+ assert.equal(requests.length,1);
+});
+
+test('Borrar una categoría desvincula productos sin borrarlos, por sucursal',async()=>{
+ const calls=[];
+ const conn={query:async(sql,values)=>{
+  calls.push({sql,values});
+  return [{slug:'uki-dulce',productos_desvinculados:2}];
+ }};
+ const result=await api._testing.eliminarCategoria(conn,'arica','uki-dulce');
+ assert.equal(result.productos_desvinculados,2);
+ assert.equal(calls.length,1);
+ assert.deepEqual(calls[0].values,['arica','uki-dulce']);
+ assert.match(calls[0].sql,/DELETE FROM public\.uki_carta_producto_categoria_v1/);
+ assert.match(calls[0].sql,/DELETE FROM public\.uki_carta_categorias_personalizadas_v1/);
+ assert.match(calls[0].sql,/FROM categoria_borrada/);
+ assert.doesNotMatch(calls[0].sql,/DELETE FROM public\.uki_carta_productos_custom_v1/);
+ assert.doesNotMatch(calls[0].sql,/DELETE FROM public\.uki_carta_items_v1/);
+ assert.doesNotMatch(calls[0].sql,/DELETE FROM public\.uki_(?:pedido|venta|caja|cierre|timbre|inventario)/i);
+ assert.equal(await api._testing.eliminarCategoria(conn,'arica','X inválido'),null);
+ assert.equal(calls.length,1);
+});
+
+test('Categorías tienen lista desplegable, editar, eliminar y agregar o quitar sus productos',()=>{
+ const panel=fs.readFileSync('firebase/uki-carta-precios-admin.js','utf8');
+ const server=fs.readFileSync('api/uki-carta-precios-live.js','utf8');
+ assert.doesNotThrow(()=>new vm.Script(panel));
+ for(const label of ['Categorías guardadas','Editar nombre de esta categoría',
+  'Guardar nombre','Productos dentro de ','Quitar de esta categoría',
+  'Agregar productos a esta categoría','✎ Editar producto completo','🗑 Eliminar categoría'])
+  assert.ok(panel.includes(label),'Falta '+label);
+ for(const action of ['editar-categoria','eliminar-categoria','asignar-categoria'])
+  assert.ok(panel.includes("'"+action+"'"),action);
+ assert.match(panel,/await loadPrices\(true\)/);
+ assert.match(panel,/window\.confirm\('¿Eliminar la categoría/);
+ assert.match(panel,/state\.categoriaAbierta=category\.slug/);
+ assert.match(panel,/window\.ukiCartaSeleccion\?\.\('productos'\)/);
+ assert.match(server,/if\(action==='editar-categoria'\)/);
+ assert.match(server,/if\(action==='eliminar-categoria'\)/);
+});

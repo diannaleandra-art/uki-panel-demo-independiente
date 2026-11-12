@@ -463,30 +463,181 @@ function renderCategoryAssignments(){
   list.append(more);
  }
 }
+// Todas las acciones trabajan sobre la sucursal de la sesión actual.
+// Una asignación o una categoría nunca elimina el producto de la base.
+async function actualizarOrganizacion(action,fields,mensaje){
+ if(state.busy)return;
+ const selected=state.branch;
+ let guardado=false;
+ state.busy=true;
+ try{
+  await request(API,action,fields,selected);
+  guardado=true;state.busy=false;
+  if(selected!==branch())return;
+  await loadPrices(true);
+  if(!state.ready){
+   info('ukiCategoriesEstado','La operación se guardó en el servidor, pero no se pudo actualizar la lista. Pulsa «Actualizar precios», no repitas la operación.');
+   return;
+  }
+  info('ukiCategoriesEstado','✓ '+mensaje);
+  info('ukiPriceMessage','✓ '+mensaje);
+ }catch(e){
+  info('ukiCategoriesEstado',(guardado?'La operación se guardó, pero no se pudo confirmar la vista: ':'No se guardó: ')+String(e.message||e));
+ }finally{state.busy=false;}
+}
 function renderCategories(){
- const box=$('ukiCategoriesBox');if(!box)return;box.hidden=!state.categoriasDescuentosHabilitados;
+ const box=$('ukiCategoriesBox');if(!box)return;
+ box.hidden=!state.categoriasDescuentosHabilitados;
  const list=$('ukiCategoriesList');
  if(list&&typeof list.replaceChildren!=='function')list.textContent='Categorías guardadas: '+state.categorias.map(c=>c.nombre).join(', ');
  if(list&&typeof list.replaceChildren==='function'){
   list.replaceChildren();
-  const h=document.createElement('strong');h.style.cssText='display:block;color:#503225;font-size:16px;margin:7px 0';
-  h.textContent='Categorías guardadas ('+state.categorias.length+')';list.append(h);
-  if(!state.categorias.length){const empty=document.createElement('p');empty.className='muted';
-   empty.textContent='Todavía no hay categorías. Crea una y después asigna sus productos.';list.append(empty);}
+  const h=document.createElement('strong');
+  h.style.cssText='display:block;color:#503225;font-size:16px;margin:7px 0';
+  h.textContent='Categorías guardadas ('+state.categorias.length+')';
+  list.append(h);
+  const help=document.createElement('p');help.className='mini-help';
+  help.textContent='Abre cada categoría para editar su nombre, ver qué contiene, agregar o quitar productos y eliminarla sin borrar sus productos.';
+  list.append(help);
+  if(!state.categorias.length){
+   const empty=document.createElement('p');empty.className='muted';
+   empty.textContent='No hay categorías todavía. Crea una y organiza sus productos.';
+   list.append(empty);
+  }
   for(const category of state.categorias){
-   const count=state.items.filter(item=>item.categoriaSlug===category.slug).length;
-   const card=document.createElement('div');
-   card.style.cssText='border:1.5px solid #d4c4e6;border-radius:12px;background:#f7f2ff;padding:12px;margin:8px 0;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap';
-   const info=document.createElement('span');
-   const name=document.createElement('strong');name.style.cssText='display:block;color:#573879;font-size:15px';name.textContent=category.nombre;
-   const detail=document.createElement('small');detail.style.cssText='display:block;color:#695a71';
-   detail.textContent=count+' '+(count===1?'producto asignado':'productos asignados');info.append(name,detail);
-   const btn=document.createElement('button');btn.type='button';btn.className='sm';btn.textContent='Ver productos';
-   btn.onclick=()=>{window.ukiCartaSeleccion?.('productos');state.group='propia:'+category.slug;state.query='';
-    if($('ukiPriceSearch'))$('ukiPriceSearch').value='';
-    if($('ukiPriceGroup'))$('ukiPriceGroup').value=state.group;
-    renderPrices();};
-   card.append(info,btn);list.append(card);
+   const members=state.items.filter(item=>item.categoriaSlug===category.slug)
+    .sort((a,b)=>a.name.localeCompare(b.name,'es-CL'));
+   const details=document.createElement('details');
+   details.className='uki-admin-categoria-ficha';
+   details.dataset.categorySlug=category.slug;
+   details.open=state.categoriaAbierta===category.slug;
+   details.style.cssText='border:1.5px solid #e4bea3;border-left:5px solid #e88434;border-radius:14px;background:#fffdf8;padding:13px;margin:12px 0;box-shadow:0 3px 10px #74401912';
+   const heading=document.createElement('summary');
+   heading.style.cssText='cursor:pointer;font-size:15px;line-height:1.4;color:#513224;font-weight:800';
+   heading.textContent=category.nombre+' · '+members.length+' '+(members.length===1?'producto':'productos');
+   details.append(heading);
+   details.addEventListener('toggle',()=>{
+    if(details.open)state.categoriaAbierta=category.slug;
+    else if(state.categoriaAbierta===category.slug)state.categoriaAbierta='';
+   });
+   const controls=document.createElement('div');
+   controls.style.cssText='display:grid;gap:10px;padding:13px 0 0';
+   const renameLabel=document.createElement('label');
+   renameLabel.textContent='Editar nombre de esta categoría';
+   renameLabel.style.cssText='font-weight:750;font-size:13px;color:#633b2a';
+   const input=document.createElement('input');
+   input.value=category.nombre;input.maxLength=45;input.type='text';
+   input.setAttribute('aria-label','Nuevo nombre para '+category.nombre);
+   input.style.cssText='display:block;width:100%;box-sizing:border-box;margin:6px 0 0;padding:10px;font-size:16px;border:1px solid #dbbba1;border-radius:10px';
+   const save=document.createElement('button');
+   save.type='button';save.className='sm';save.textContent='Guardar nombre';
+   save.onclick=async()=>{
+    const nuevo=input.value.trim();
+    if(nuevo.length<2||nuevo.length>45){info('ukiCategoriesEstado','El nombre debe tener entre 2 y 45 caracteres.');return;}
+    if(nuevo===category.nombre){info('ukiCategoriesEstado','El nombre no ha cambiado.');return;}
+    state.categoriaAbierta=category.slug;
+    await actualizarOrganizacion('editar-categoria',{categoriaSlug:category.slug,nombre:nuevo},
+      'Categoría «'+category.nombre+'» renombrada a «'+nuevo+'». Los productos siguen asignados.');
+   };
+   renameLabel.append(input);controls.append(renameLabel,save);
+   const sub=document.createElement('h4');sub.textContent='Productos dentro de '+category.nombre;
+   sub.style.cssText='font-size:14px;margin:12px 0 0;color:#513224';
+   controls.append(sub);
+   if(!members.length){
+    const empty=document.createElement('p');empty.className='mini-help';
+    empty.textContent='Esta categoría está vacía. Busca un producto debajo para agregarlo.';
+    controls.append(empty);
+   }
+   for(const member of members){
+    const row=document.createElement('div');
+    row.style.cssText='padding:10px;border:1px solid #ead7c6;border-radius:11px;background:white;display:grid;gap:7px';
+    const title=document.createElement('strong');
+    title.style.cssText='font-size:14px;overflow-wrap:anywhere';
+    title.textContent=member.name+' · '+peso(member.precioFinal??member.price);
+    const status=document.createElement('small');status.style.cssText='color:#796250';
+    status.textContent=member.visible===false?'Retirado de la carta':member.available===false?'Agotado':'Disponible';
+    const selector=document.createElement('select');selector.setAttribute('aria-label','Mover '+member.name+' a otra categoría');
+    selector.add(new Option('Sin categoría',''));
+    for(const cat of state.categorias)selector.add(new Option(cat.nombre,cat.slug));
+    selector.value=category.slug;
+    selector.style.cssText='width:100%;min-height:38px;font-size:14px;border-radius:8px';
+    const actions=document.createElement('div');
+    actions.style.cssText='display:flex;flex-wrap:wrap;gap:7px;align-items:center';
+    const move=document.createElement('button');move.type='button';move.className='sm';
+    move.textContent='Guardar cambio';move.disabled=true;
+    selector.onchange=()=>move.disabled=selector.value===category.slug;
+    move.onclick=async()=>{
+     const target=selector.value;
+     state.categoriaAbierta=category.slug;
+     await actualizarOrganizacion('asignar-categoria',{sku:member.sku,categoriaSlug:target},
+      '«'+member.name+'» '+(target?'asignado a «'+(state.categorias.find(c=>c.slug===target)?.nombre||target)+'».':'sin categoría.'));
+    };
+    const remove=document.createElement('button');remove.type='button';remove.className='sm';
+    remove.textContent='Quitar de esta categoría';
+    remove.style.cssText='border:1px solid #b8755d;color:#903e20';
+    remove.onclick=async()=>{
+     state.categoriaAbierta=category.slug;
+     await actualizarOrganizacion('asignar-categoria',{sku:member.sku,categoriaSlug:''},
+      '«'+member.name+'» quitado de «'+category.nombre+'». El producto sigue en la carta.');
+    };
+    const edit=document.createElement('button');edit.type='button';edit.className='sm';
+    edit.textContent='✎ Editar producto completo';
+    edit.onclick=()=>{
+     // Abrir el editor ORIGINAL para modificar precio, foto, nombre y estado.
+     window.ukiCartaSeleccion?.('productos');
+     state.group='propia:'+category.slug;state.query=member.name;
+     if($('ukiPriceSearch'))$('ukiPriceSearch').value=member.name;
+     if($('ukiPriceGroup'))$('ukiPriceGroup').value=state.group;
+     renderPrices();
+     $('ukiPriceList')?.scrollIntoView({behavior:'smooth',block:'start'});
+    };
+    actions.append(move,remove,edit);row.append(title,status,selector,actions);controls.append(row);
+   }
+   const addHeading=document.createElement('h4');addHeading.textContent='Agregar productos a esta categoría';
+   addHeading.style.cssText='font-size:14px;margin:12px 0 0;color:#513224';
+   const search=document.createElement('input');search.type='search';
+   search.placeholder='Buscar producto por nombre';
+   search.setAttribute('aria-label','Buscar producto para agregar a '+category.nombre);
+   search.style.cssText='width:100%;box-sizing:border-box;padding:11px;font-size:16px;border:1px solid #d5b99d;border-radius:10px';
+   const matches=document.createElement('div');
+   matches.style.cssText='display:grid;gap:6px';
+   const renderMatches=()=>{
+    matches.replaceChildren();
+    const term=search.value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    const results=state.items.filter(item=>item.categoriaSlug!==category.slug&&
+      (!term||(item.name+' '+item.sku).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(term)))
+      .slice(0,8);
+    if(!results.length){const empty=document.createElement('small');empty.textContent='No hay más productos para agregar.';matches.append(empty);}
+    for(const item of results){
+     const line=document.createElement('div');
+     line.style.cssText='display:flex;justify-content:space-between;align-items:center;gap:9px;flex-wrap:wrap;padding:8px;border:1px solid #e8d5c4;border-radius:9px';
+     const label=document.createElement('span');label.style.cssText='font-size:13px;flex:1 1 140px;overflow-wrap:anywhere';
+     const owner=state.categorias.find(c=>c.slug===item.categoriaSlug)?.nombre;
+     label.textContent=item.name+(owner?' · ahora en '+owner:'');
+     const add=document.createElement('button');add.type='button';add.className='sm';add.textContent='＋ Agregar';
+     add.onclick=async()=>{
+      if(owner&&!window.confirm('¿Mover «'+item.name+'» desde «'+owner+'» a «'+category.nombre+'»?'))return;
+      state.categoriaAbierta=category.slug;
+      await actualizarOrganizacion('asignar-categoria',{sku:item.sku,categoriaSlug:category.slug},
+       '«'+item.name+'» agregado a «'+category.nombre+'».');
+     };
+     line.append(label,add);matches.append(line);
+    }
+   };
+   search.oninput=renderMatches;renderMatches();
+   controls.append(addHeading,search,matches);
+   const del=document.createElement('button');del.type='button';del.className='sm';
+   del.textContent='🗑 Eliminar categoría';
+   del.style.cssText='border:1.5px solid #bb685e;color:#9d3d36;background:#fff4f1;margin-top:10px';
+   del.onclick=async()=>{
+    const location=state.branch==='arica'?'Regimiento Arica':'La Serena';
+    if(!window.confirm('¿Eliminar la categoría «'+category.nombre+'» de '+location+'?\n\n'+members.length+
+     ' producto(s) quedarán SIN esta categoría, pero NO se borrarán de la carta, del carrito ni del historial de ventas.'))return;
+    state.categoriaAbierta='';
+    await actualizarOrganizacion('eliminar-categoria',{categoriaSlug:category.slug},
+     'Categoría «'+category.nombre+'» eliminada. Sus productos no se borraron.');
+   };
+   controls.append(del);details.append(controls);list.append(details);
   }
  }
  const filter=$('ukiPriceGroup');
@@ -934,7 +1085,14 @@ function organizarCarta(){
  categorySearch.placeholder='Ej. 24 piezas, gohan o promo';
  categorySearch.oninput=()=>{state.categoryVisibleLimit=18;renderCategoryAssignments();};
  const categoryAssignments=document.createElement('div');categoryAssignments.id='ukiCategoriaAsignaciones';
- areas.categorias.append(categorySearchLabel,categorySearch,categoryAssignments);
+ const advanced=document.createElement('details');
+ advanced.id='ukiCategoriaBuscadorGlobal';
+ advanced.style.cssText='border:1px solid #e0cdbb;border-radius:12px;padding:11px;margin-top:15px;background:#fffaf3';
+ const advancedHeading=document.createElement('summary');
+ advancedHeading.textContent='Buscar y asignar entre todos los productos (opcional)';
+ advancedHeading.style.cssText='cursor:pointer;font-weight:750;color:#764225';
+ advanced.append(advancedHeading,categorySearchLabel,categorySearch,categoryAssignments);
+ areas.categorias.append(advanced);
  // Promociones en dos bloques independientes, sin cambiar ningún manejador.
  const crearArea=document.createElement('section');crearArea.id='ukiPromoNuevaZona';
  crearArea.style.cssText='border:1.5px solid #e2c6ad;border-radius:14px;padding:13px;background:#fff8f0;margin-bottom:15px';
@@ -985,7 +1143,7 @@ function mount(){
  prevMount();if(!$('ukiInvTabs'))return;
  organizarCarta();
  const selectedBranch=branch();
- if(state.branch!==selectedBranch){state.items=[];state.photos={};state.ready=false;state.query='';state.group='all';state.categoryVisibleLimit=18;state.tab='inventario';}
+ if(state.branch!==selectedBranch){state.items=[];state.photos={};state.ready=false;state.query='';state.group='all';state.categoryVisibleLimit=18;state.categoriaAbierta='';state.tab='inventario';}
  state.branch=selectedBranch;
  const scrollOffset=()=>Math.ceil((document.querySelector('header')?.getBoundingClientRect().height||110)+16)+'px';
  document.querySelectorAll('[data-uki-tab]').forEach(btn=>btn.onclick=()=>{
@@ -1012,7 +1170,7 @@ function mount(){
  const invBranch=$('invBranch');
  if(invBranch&&!invBranch.dataset.ukiPrecioObservador){
   invBranch.dataset.ukiPrecioObservador='1';
-  invBranch.addEventListener('change',()=>{state.branch=branch();state.ready=false;state.items=[];
+  invBranch.addEventListener('change',()=>{state.branch=branch();state.ready=false;state.items=[];state.categoriaAbierta='';
    if(state.tab==='precios')void loadPrices(true);
    if(state.tab==='reportes')void loadReponer();
   });

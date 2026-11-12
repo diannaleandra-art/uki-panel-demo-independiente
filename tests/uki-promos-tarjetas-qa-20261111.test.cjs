@@ -46,7 +46,8 @@ test('Categorías tienen espacio propio para crear y asignar, sin mezclarse con 
   if(mark==='ukiCartaAreaCategorias')assert.match(fn,/\['categorias','🗂 Categorías'/);
   else assert.ok(fn.includes(mark),'Falta '+mark);
  }
- assert.match(fn,/areas\.categorias\.append\(categorySearchLabel,categorySearch,categoryAssignments\)/);
+ assert.match(fn,/advanced\.append\(advancedHeading,categorySearchLabel,categorySearch,categoryAssignments\)/);
+ assert.match(fn,/areas\.categorias\.append\(advanced\)/);
  assert.match(fn,/move\(\$\('ukiCategoriesBox'\),areas\.categorias\)/);
  const categoryCode=cut('function renderCategoryAssignments(){','function renderCategories(){');
  assert.match(categoryCode,/request\(API,'asignar-categoria'/);
