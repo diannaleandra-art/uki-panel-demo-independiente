@@ -197,7 +197,7 @@ test('Panel muestra resumen por sucursal de promociones con acceso a precios exi
  assert.deepEqual(details,[{name:'Promo especial QA',hideVisibility:true}]);
  assert.equal(cards[0].children[1].children[1].tag,'button','Retirar o restaurar está en el editor individual');
  const html=fs.readFileSync('firebase/uki-sushi-local.html','utf8');
- assert.match(html,/uki-carta-precios-admin\.js\?v=uki-tres-vistas-qa-20261109/);
+ assert.match(html,/uki-carta-precios-admin\.js\?v=uki-categorias-lista-clara-20261112/);
 });
 
 
@@ -226,7 +226,7 @@ test('QA organización: cada área de carta contiene buscar, agregar y acceso a 
  assert.match(ingredientes,/ukiIngAddPlegable/);
  assert.match(ingredientes,/function renderEditorIngrediente\(item,target\)/);
  assert.match(ingredientes,/request\(remove\?'retirar':'restaurar'/);
- assert.match(html,/uki-carta-precios-admin\.js\?v=uki-tres-vistas-qa-20261109/);
+ assert.match(html,/uki-carta-precios-admin\.js\?v=uki-categorias-lista-clara-20261112/);
  assert.match(html,/uki-armado-ingredientes-admin\.js\?v=uki-tres-vistas-qa-20261109/);
  // Las funciones originales siguen disponibles y fuera de los nuevos filtros.
  for(const text of ['function visibilityControl','function crearPromo','function loadPrices','function renderPrices','function create','function promoEditor'])
