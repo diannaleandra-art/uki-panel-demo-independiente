@@ -1,0 +1,28 @@
+name: Romo en selector real del panel Uki - QA sin ventas
+on:
+  push:
+    branches:
+      - qa/romo-carta-vista-selector-20261112
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  integracion:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Revisar sintaxis módulos QA y selector único
+        run: |
+          node --check firebase/uki-romo-carta-selector-qa.mjs
+          node --check firebase/romo-carta-qa/romo-carta-vista-embebida-qa.mjs
+          node --check firebase/romo-carta-qa/romo-editor-carta-compatibilidad-qa.mjs
+      - name: Integración Romo y regresión de Uki
+        run: |
+          node --test \
+            tests/uki-romo-carta-selector-movil-qa-20261112.test.mjs \
+            tests/uki-panel-unico-romo-serena-qa.test.cjs \
+            tests/uki-romo-ingreso-clave-qa.test.cjs \
+            tests/uki-romo-clave-remota-qa.test.cjs \
+            tests/uki-admin-panel-dom.test.cjs
