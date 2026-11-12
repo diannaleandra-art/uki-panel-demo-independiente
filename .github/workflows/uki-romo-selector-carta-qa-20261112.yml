@@ -18,6 +18,8 @@ jobs:
           node --check firebase/uki-romo-carta-selector-qa.mjs
           node --check firebase/romo-carta-qa/romo-carta-vista-embebida-qa.mjs
           node --check firebase/romo-carta-qa/romo-editor-carta-compatibilidad-qa.mjs
+      - name: Preparar DOM simulado para la regresión del editor existente
+        run: npm install --no-save --ignore-scripts --no-audit --no-fund jsdom@24.1.3
       - name: Integración Romo y regresión de Uki
         run: |
           node --test \
