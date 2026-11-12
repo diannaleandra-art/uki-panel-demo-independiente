@@ -42,3 +42,30 @@ test('código principal del panel conserva sintaxis',()=>{
  assert.ok(main.length>100000);
  assert.doesNotThrow(()=>new vm.Script(main));
 });
+
+
+test('un solo registro de tres locales: Uki mantiene sus claves y Romo tiene storeId propio',()=>{
+ const start=main.indexOf('const ROMO_SUCURSAL_QA=');
+ const end=main.indexOf('const MEDIOS=',start);
+ assert.ok(start>0&&end>start);
+ const source='const SUCURSALES=["Uki Regimiento Arica","Uki La Serena"];\n'+
+  main.slice(start,end)+
+  '\nglobalThis.panelQa={locales:LOCALES_PANEL_QA,seleccionar:ukiLocalPanelQA,scope:ukiStoreIdActivoPanelQA};';
+ const S={suc:null,pinSuc:null,romoSeleccionadoQA:false,romoIngresadoQA:false};
+ const ctx={S};vm.runInNewContext(source,ctx);
+ const locations=ctx.panelQa.locales;
+ assert.equal(locations.length,3);
+ assert.equal(new Set([...locations].map(x=>x.storeId)).size,3);
+ assert.deepEqual([...locations].map(x=>x.storeId),['uki:arica','uki:serena','romo:serena']);
+ assert.deepEqual([...locations].map(x=>x.estado),['operativo','operativo','preparacion']);
+ assert.equal(ctx.panelQa.seleccionar('Romo Regimiento Arica'),null);
+ assert.equal(ctx.panelQa.scope(),null);
+ S.suc='Uki Regimiento Arica';assert.equal(ctx.panelQa.scope(),'uki:arica');
+ S.suc='Uki La Serena';assert.equal(ctx.panelQa.scope(),'uki:serena');
+ // No abrir las funciones históricas de Uki por colocar un nombre de Romo en S.suc.
+ S.suc='Romo’s Sushi La Serena';assert.equal(ctx.panelQa.scope(),null);
+ S.suc=null;S.romoSeleccionadoQA=true;S.romoIngresadoQA=false;
+ assert.equal(ctx.panelQa.scope(),null);
+ S.romoIngresadoQA=true;assert.equal(ctx.panelQa.scope(),'romo:serena');
+ S.pinSuc='Uki La Serena';assert.equal(ctx.panelQa.scope(),null);
+});
