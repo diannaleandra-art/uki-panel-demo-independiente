@@ -10,6 +10,7 @@
     "jose": "6.2.15"
   },
   "scripts": {
-    "test": "node --test tests/inventario-live.test.cjs tests/mi-administracion-informes.test.cjs tests/uki-facturas-ambos-paneles.test.cjs tests/uki-inventario-informe-ordenado.test.cjs"
+    "test": "node --test tests/inventario-live.test.cjs tests/mi-administracion-informes.test.cjs tests/uki-facturas-ambos-paneles.test.cjs tests/uki-inventario-informe-ordenado.test.cjs",
+    "postinstall": "node scripts/stage-panel-qa.cjs"
   }
 }
