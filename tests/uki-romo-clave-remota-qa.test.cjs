@@ -70,6 +70,6 @@ test('la QA conserva el ingreso local de Uki y nunca habilita operaciones de Rom
  const panel=fs.readFileSync(path.resolve(__dirname,'../firebase/uki-sushi-local.html'),'utf8');
  assert.match(panel,/const SUCURSALES=\["Uki Regimiento Arica","Uki La Serena"\]/);
  assert.match(panel,/uki-romo-clave-remota-qa.mjs/);
- assert.match(panel,/if\(window\.ukiRomoClaveRemotaDisponibleQA\?\.\(\)\)/);
+ assert.match(panel,/if\(typeof window!=='undefined'&&window\.ukiRomoClaveRemotaDisponibleQA\?\.\(\)\)/);
  assert.match(panel,/Aún no están conectados los pedidos, caja, inventario y cierres independientes de Romo/);
 });
