@@ -21,9 +21,10 @@ try{
  await page.waitForFunction(()=>typeof window.ukiInventarioPanelHTML==='function');
  // Fixture QA en navegador aislado, NO login de cliente real.
  await page.evaluate(()=>{
-  S.pinSuc=null;S.suc=null;
+  S.pinSuc=null;S.suc=ROMO_SUCURSAL_QA;
   S.romoSeleccionadoQA=true;S.romoIngresadoQA=true;
-  ukiRomoVistaQA='inventario';
+  S.vista='inventario';
+  document.body.classList.add('uki-operativo-bloqueado');
   render();
  });
  await page.waitForFunction(()=>document.querySelector('#ukiInvTabs h2')?.textContent.includes('Administrar Romo’s Sushi'));
@@ -44,7 +45,7 @@ try{
    photosBlocked:!!document.querySelector('#ukiPromoPhoto:disabled'),
    noPizza:!document.querySelector('#ukiPromoType option[value="pizza"]'),
    noFalseData:document.getElementById('ukiPriceMessage')?.textContent.includes('todavía no conectado'),
-   onlyQa:document.body.textContent.includes('No registres operaciones aquí')
+   onlyQa:document.body.textContent.includes('no registres operaciones aquí')
   };
  });
  assert.equal(layout.host,true);
@@ -68,9 +69,27 @@ try{
  assert.equal(await page.locator('#ukiPriceCreate').isDisabled(),true);
  await mkdir('qa-artifacts',{recursive:true});
  await page.screenshot({path:'qa-artifacts/romo-carta-iphone-390.png',fullPage:true});
+ // Las cinco vistas son las originales Uki, y la nube de Romo aún bloqueada.
+ for(const [tab,vista] of [['Inicio','inicio'],['Pedidos','pedidos'],['Nuevo','nuevo'],['Timbres','clientes'],['Caja','caja']]){
+  await page.locator('#nav button[aria-label="'+tab+'"]').click();
+  const state=await page.evaluate(()=>({
+   storeId:ukiStoreIdActivoPanelQA(),suc:S.suc,vista:S.vista,
+   blocked:document.body.classList.contains('uki-operativo-bloqueado'),
+   appDisabled:getComputedStyle(document.getElementById('app')).pointerEvents==='none',
+   navEnabled:getComputedStyle(document.getElementById('nav')).pointerEvents!=='none',
+   content:document.getElementById('app').textContent.trim().length
+  }));
+  assert.equal(state.storeId,'romo:serena');
+  assert.equal(state.suc,'Romo’s Sushi La Serena');
+  assert.equal(state.vista,vista);
+  assert.equal(state.blocked,true);
+  assert.equal(state.appDisabled,true);
+  assert.equal(state.navEnabled,true);
+  assert.ok(state.content>100,'Vista original '+tab+' sin simulación');
+ }
  // Regresar y comprobar que Romo no deja vista ni operaciones en Uki.
  await page.evaluate(()=>{
-  ukiVolverAlSelectorLocales();
+  await salirSuc();
   pedirPin('Uki La Serena');
  });
  const restored=await page.evaluate(()=>({

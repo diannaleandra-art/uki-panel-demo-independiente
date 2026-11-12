@@ -35,17 +35,18 @@ test('una sola entrada de sucursal, con mismo menú principal y mismo ingreso Uk
  assert.match(html,/const ROMO_SUCURSAL_QA="Romo’s Sushi La Serena"/);
  assert.match(html,/SUCURSALES_PANEL_QA=Object\.freeze\(LOCALES_PANEL_QA\.map\(local=>local\.nombre\)\)/);
  assert.match(html,/await ukiValidarClaveUkiParaRomoQA\(pass\)/);
- assert.match(html,/const handler=romoIngresado\?'ukiRomoIrQA':'ir'/);
+ assert.match(html,/ÚNICO motor de navegación/);
  assert.match(html,/VISTAS\.map\(\(\[k,l,icon\]\)=>/);
  assert.match(html,/window\.ukiInventarioPanelHTML\?\.\(\)/);
  assert.doesNotMatch(html,/Romo Regimiento Arica/);
 });
 test('en Romo, administración usa la misma plantilla de Uki sin montar sus APIs',()=>{
  assert.equal(ROMO_CARTA_SELECTOR_SOLO_QA,true);
- assert.match(html,/if\(romoIngresado&&ukiRomoVistaQA==='inventario'\)/);
+ assert.match(html,/if\(S\.suc===ROMO_SUCURSAL_QA&&S\.vista==='inventario'\)/);
  assert.match(loader,/No se monta window\.ukiInventarioMontar/);
  assert.doesNotMatch(loader.replace(/\/\*[\s\S]*?\*\//g,'').replace(/^\s*\/\/.*$/gm,''),/fetch\(|neon\(|localStorage|indexedDB/);
- assert.match(html,/Aún no están conectados los pedidos, caja, inventario y cierres independientes de Romo/);
+ assert.match(html,/Mismas funciones de Uki/);
+ assert.doesNotMatch(html,/function vRomoQA\(\)/);
 });
 test('al abrir Romo quedan sus productos, clientes y caja bloqueados, sin nombres de Uki',()=>{
  const d=dom(),document=d.window.document;
@@ -96,6 +97,6 @@ test('el panel mantiene la tipografía original y sólo cambia el color del loca
  assert.match(html,/name="viewport" content="width=device-width/);
  assert.match(html,/body\.romo-qa #romoLaSerenaPreparacionQA\{background:#fff!important;color:#171717!important/);
  assert.match(html,/const VISTAS=\[\["inicio","Inicio","⌂"\],\["pedidos","Pedidos","▤"\]/);
- assert.match(html,/function vRomoQA\(\)/);
+ assert.match(html,/\$\("app"\)\.innerHTML=msg\+romoAviso\+f\(\)/);
  assert.match(html,/function ukiRomoIrQA\(v\)/);
 });

@@ -20,6 +20,8 @@ function harness({serena=false,arica=false,validPassword='ClaveUkiSegura123',inp
  const reads=[],writes=[],entered=[],alerts=[];
  const data={
   S:{romoSeleccionadoQA:false,romoIngresadoQA:false,suc:null,pinSuc:ROMO},
+  estadoVacioSucursal(suc){return {suc,pedidos:[],cierres:[],clientes:{}}},
+  document:{body:{classList:{add(){}}}},
   SUCURSALES:['Uki Regimiento Arica','Uki La Serena'],
   SUCURSALES_PANEL_QA:['Uki Regimiento Arica','Uki La Serena',ROMO],
   ROMO_SUCURSAL_QA:ROMO,
@@ -63,7 +65,8 @@ test('mismo botón de ingreso Romo acepta contraseña ya existente de Uki La Ser
  await h.testFns.enter();
  assert.equal(h.data.S.romoIngresadoQA,true);
  assert.equal(h.data.S.romoSeleccionadoQA,true);
- assert.equal(h.data.S.suc,null);
+ assert.equal(h.data.S.suc,h.ROMO);
+ assert.equal(h.data.S.vista,'inicio');
  assert.equal(h.data.S.pinSuc,null);
  assert.equal(h.writes.length,0);
  assert.equal(h.entered.length,0,'No abre datos de Uki como Romo');

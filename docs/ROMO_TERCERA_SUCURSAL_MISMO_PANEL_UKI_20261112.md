@@ -65,3 +65,11 @@ Sin crear otro panel ni introducir cuentas comerciales:
 - Exportación PDF, Excel y WhatsApp de reportes: al final.
 
 Se conserva la decisión: un panel Uki, tres locales. Romo La Serena usa la misma interfaz, con solo colores y datos independientes.
+
+## Corrección de integración — motor real de Uki (sin pantallas simuladas)
+- Se eliminó `vRomoQA()`, que solo representaba pantallas. Tras el ingreso, Romo selecciona `S.suc = 'Romo’s Sushi La Serena'` y reutiliza el motor original `S.vista`, `VISTAS`, `ir()`, `vInicio`, `vPedidos`, `vNuevo`, `vClientes` (timbres) y `vCaja`.
+- Se creó la ruta de almacenamiento LOCAL exclusiva `romo-serena` sin cambiar las de Uki, pero **no se autoriza su guardado operativo** ni se habilita Neon Romo. No usarla como reemplazo del respaldo real.
+- El inventario/administración conserva la misma plantilla; no se monta la API del inventario Uki, porque su fallback a Arica provocaría cruces.
+- El control de bloqueo se mantiene incluso si la prueba se ejecuta en dominio productivo; la navegación superior permite revisar las vistas reales sin hacer operaciones.
+- Los cambios de caja, pedidos, timbres, cierres y ventas siguen bloqueados para Romo hasta completar autenticación, sincronización de Neon propia, manejo de conflictos y la carta pública ya aprobada.
+- No se publica este código en el panel operativo ni se modifica ningún dato de las dos sucursales Uki.
