@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {romoClavesReadConfig,readRomoSharedPassProofs}
+import {romoClavesReadConfig,readRomoSharedPassProofs,adaptarNeonParaClavesRomoQA}
   from '../lib/romo-claves-lectura-servidor-qa.mjs';
 
 const owner={userId:'owner_qa',brand:'romo',role:'duenos',branches:['serena']};
@@ -91,4 +91,42 @@ test('rechaza duplicados, nombres de fuente cruzados o prueba corrupta',async()=
 test('no existe ninguna función de cambio ni borrado de contraseñas en el módulo',async()=>{
  const result=await readRomoSharedPassProofs({db:fakeDb(),identity:owner});
  assert.deepEqual(Object.keys(result).sort(),['configured','proofs','storeId']);
+});
+
+
+test('la misma verificación Google de Uki puede consultar el rol Romo por Neon (sin crear otro login)',async()=>{
+ const calls=[];
+ const sql=async(statement,params)=>{
+  calls.push({statement,params});
+  if(statement.startsWith('SELECT rol'))return [{rol:'agendador'}];
+  return [{uki_source:'uki:serena',proof:fakeProof()}];
+ };
+ const db=adaptarNeonParaClavesRomoQA(sql);
+ const roles=await db.query(
+  'SELECT rol FROM public.romo_personal_acceso_v1 WHERE auth_uid=$1 AND store_id=$2 AND activo=true LIMIT 1',
+  ['uid-google-qa','romo:serena']
+ );
+ assert.deepEqual(roles,[{rol:'agendador'}]);
+ const shared=await readRomoSharedPassProofs({db,identity:agendador});
+ assert.equal(shared.configured,true);
+ assert.equal(shared.proofs[0].ukiSource,'uki:serena');
+ assert.equal(calls.length,2);
+ assert.ok(calls.every(x=>x.params.at(-1)==='romo:serena'));
+ assert.equal(JSON.stringify(calls).includes('password'),false);
+});
+
+test('el adaptador de verificación no puede tocar inventario, caja, otros locales ni crear usuarios',async()=>{
+ let sent=0;
+ const db=adaptarNeonParaClavesRomoQA(async()=>{sent++;return []});
+ for(const [sql,args] of [
+  ['SELECT * FROM public.uki_inventario_live',['romo:serena']],
+  ['UPDATE public.romo_personal_acceso_v1 SET activo=true',['romo:serena']],
+  ['SELECT rol FROM public.romo_personal_acceso_v1 WHERE auth_uid=$1 AND store_id=$2 AND activo=true LIMIT 1',['fake','uki:serena']],
+  ['SELECT uki_source,proof FROM public.romo_clave_compartida_v1 WHERE store_id=$1 ORDER BY uki_source LIMIT 3',['uki:arica']],
+  ['SELECT uki_source,proof FROM public.romo_clave_compartida_v1 WHERE store_id=$1 ORDER BY uki_source LIMIT 3',[]]
+ ]){
+  await assert.rejects(db.query(sql,args),/fuera de Romo/);
+ }
+ assert.equal(sent,0);
+ assert.throws(()=>adaptarNeonParaClavesRomoQA({query(){}}),/Conexión SQL/);
 });
