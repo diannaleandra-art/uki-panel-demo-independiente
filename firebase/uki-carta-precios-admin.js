@@ -483,7 +483,8 @@ function renderCategories(){
  const box=$('ukiCategoriesBox');if(!box)return;
  box.hidden=!state.categoriasDescuentosHabilitados;
  const list=$('ukiCategoriesList');
- if(list){
+ if(list&&typeof list.replaceChildren!=='function')list.textContent='Categorías guardadas: '+state.categorias.map(c=>c.nombre).join(', ');
+ if(list&&typeof list.replaceChildren==='function'){
   list.replaceChildren();
   const h=document.createElement('strong');
   h.style.cssText='display:block;color:#503225;font-size:16px;margin:7px 0';
