@@ -323,7 +323,7 @@ const LOCALES_PANEL_QA=Object.freeze([
 const SUCURSALES_PANEL_QA=Object.freeze(LOCALES_PANEL_QA.map(local=>local.nombre));
 function ukiLocalPanelQA(nombre){return LOCALES_PANEL_QA.find(local=>local.nombre===nombre)||null;}
 function ukiStoreIdActivoPanelQA(){
- if(S.suc)return ukiLocalPanelQA(S.suc)?.storeId||null;
+ if(S.suc){const local=ukiLocalPanelQA(S.suc);return local?.brand==='uki'?local.storeId:null;}
  if(S.romoSeleccionadoQA&&S.romoIngresadoQA&&!S.pinSuc)return 'romo:serena';
  return null;
 }
