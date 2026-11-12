@@ -29,6 +29,7 @@ jobs:
       - name: Integración Romo y regresión de Uki
         run: |
           node --test \
+            tests/romo-claves-existentes-enrolamiento-qa.test.mjs \
             tests/romo-claves-lectura-servidor-qa.test.mjs \
             tests/romo-claves-lectura-api-cerrada-qa.test.mjs \
             tests/romo-almacenamiento-catalogo-panel-qa.test.mjs \
