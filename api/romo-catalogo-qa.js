@@ -39,6 +39,10 @@ const draftsOnly=catalog=>['productos','promociones','ingredientes'].every(k=>
  Array.isArray(catalog[k])&&catalog[k].every(row=>row.visible===false));
 
 const legacyEnabled=(env=process.env)=>enabled(env)&&env.ROMO_IMPORTACION_CATALOGO_QA_ENABLED==='true';
+const inventoryEnabled=(env=process.env)=>enabled(env)&&env.ROMO_INVENTARIO_QA_ENABLED==='true';
+const inventoryWriteEnabled=(env=process.env)=>inventoryEnabled(env)&&env.ROMO_INVENTARIO_QA_WRITE_ENABLED==='true';
+const inventoryMode=(query)=>query?.origen==='inventario';
+
 
 /** Segundo modo del MISMO endpoint para no exceder el límite Hobby 12.
  * Exige rol dueño ya verificado y nunca escribe a Neon ni a Supabase. */
@@ -85,8 +89,16 @@ module.exports=async function romoCatalogoQA(req,res){
  res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');
  if(req.method==='OPTIONS')return res.status(204).end();
  if(req.method!=='GET'&&req.method!=='POST')return fail(res,405,'Método no permitido');
- if(req.method==='POST'&&env.ROMO_CATALOGO_QA_WRITE_ENABLED!=='true')
+ if(req.method==='POST'&&inventoryMode(req.query)&&!inventoryWriteEnabled(env))
+  return fail(res,503,'Guardado de inventario Romo no habilitado');
+ if(req.method==='POST'&&!inventoryMode(req.query)&&env.ROMO_CATALOGO_QA_WRITE_ENABLED!=='true')
   return fail(res,503,'Edición de Romo no habilitada');
+ if(req.query?.origen!==undefined&&!['inventario','anterior'].includes(req.query.origen))
+  return fail(res,400,'Consulta no reconocida');
+ if(req.method==='POST'&&req.query?.origen==='anterior')
+  return fail(res,405,'Catálogo anterior solo lectura');
+ if(inventoryMode(req.query)&&!inventoryEnabled(env))
+  return fail(res,503,'Inventario Romo pendiente de habilitación');
  if(req.method==='POST'&&
   String(req.headers?.['content-type']||'').split(';')[0]!=='application/json')
   return fail(res,415,'Solicitud JSON requerida');
@@ -106,6 +118,37 @@ module.exports=async function romoCatalogoQA(req,res){
   verifyToken:identityModule.verifyFirebaseGoogleToken,env
  }).catch(()=>null);
  if(!identity)return fail(res,403,'Sin autorización para Romo La Serena');
+ if(inventoryMode(req.query)){
+  let inventoryModule;
+  try{inventoryModule=await import('../lib/romo-inventario-integracion-qa.mjs')}
+  catch{return fail(res,503,'Inventario de Romo en preparación')}
+  if(req.method==='GET'){
+   try{
+    const state=await inventoryModule.readRomoInventory({db:sql,identity});
+    return res.status(200).json({ok:true,...state,modo:'qa',
+     ventaHabilitada:false,edicionHabilitada:inventoryWriteEnabled(env)});
+   }catch{return fail(res,503,'Tabla o permisos del inventario Romo pendientes')}
+  }
+  const body=req.body;
+  if(!body||typeof body!=='object'||Array.isArray(body)||
+    Object.keys(body).sort().join('|')!=='expectedRevision|inventory'||
+    !Number.isSafeInteger(body.expectedRevision)||body.expectedRevision<0)
+    return fail(res,400,'Formulario o revisión inválidos');
+  if(JSON.stringify(body).length>240000)return fail(res,413,'Inventario demasiado grande');
+  try{
+   const normalized=inventoryModule.normalizeRomoInventory(body.inventory);
+   const stored=await inventoryModule.saveRomoInventory({
+    db:sql,identity,expectedRevision:body.expectedRevision,inventory:normalized
+   });
+   return res.status(200).json({ok:true,...stored,modo:'qa',ventaHabilitada:false});
+  }catch(error){
+   if(error?.code==='ROMO_INVENTORY_CONFLICT')
+    return fail(res,409,'Otro teléfono cambió el inventario: vuelve a cargar antes de guardar');
+   if(/inválid|revisió|exclusiv|permiso|Artículo|Inventario|artículo|cantidad/i.test(String(error?.message||'')))
+    return fail(res,400,'Datos o autorización de inventario no válidos');
+   return fail(res,503,'No se pudo guardar el inventario de Romo');
+  }
+ }
  if(req.method==='GET'){
   if(req.query?.origen==='anterior')return readLegacyCatalog({res,env,identity});
   if(req.query?.origen!==undefined)return fail(res,400,'Consulta no reconocida');
@@ -138,4 +181,5 @@ module.exports=async function romoCatalogoQA(req,res){
   return fail(res,503,'No se pudo confirmar el guardado de Romo');
  }
 };
-module.exports._testing={enabled,legacyEnabled,validOrigin,dbConfig,draftsOnly};
+module.exports._testing={enabled,legacyEnabled,inventoryEnabled,inventoryWriteEnabled,
+ inventoryMode,validOrigin,dbConfig,draftsOnly};

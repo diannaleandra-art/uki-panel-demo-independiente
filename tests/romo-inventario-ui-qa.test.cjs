@@ -13,7 +13,8 @@ function start(){
  const ids=['romoQAInventarioLista','romoQAInventarioResumen','romoQAInventarioEstado',
   'romoQAInventarioNombre','romoQAInventarioUnidad','romoQAInventarioRecibido',
   'romoQAInventarioHay','romoQAInventarioMinimo','romoQAInventarioDisponible','romoQAInventarioBuscar',
-  'romoQAInventarioAgregar','romoQAInventarioFiltro','romoQAInventarioComprasVista'];
+  'romoQAInventarioAgregar','romoQAInventarioFiltro','romoQAInventarioComprasVista',
+  'romoQAInventarioRemotoEstado','romoQAInventarioGuardarRemoto'];
  const nodes=new Map(ids.map(id=>[id,make('div')]));
  const document={createElement:make,getElementById:id=>nodes.get(id)||null};
  const win={document,confirm:()=>true};
@@ -23,7 +24,8 @@ function start(){
 test('inventario sólo en QA de Romo y en el mismo HTML panel; nunca se guarda',()=>{
  assert.match(html,/uki-romo-inventario-qa\.js/);
  assert.match(carta,/ukiRomoInventarioPanelHTMLQA\?\.\(\)/);
- assert.doesNotMatch(js,/(fetch\(|localStorage|sessionStorage|indexedDB|XMLHttpRequest|WebSocket|\.post\()/);
+ assert.doesNotMatch(js,/(localStorage|sessionStorage|indexedDB|XMLHttpRequest|WebSocket)/);
+ assert.match(js,/\/api\/romo-catalogo-qa\?origen=inventario/);
  const {win}=start();
  assert.match(win.ukiRomoInventarioPanelHTMLQA(),/pruebas/);
  assert.equal(win.ukiRomoInventarioQAModelo().sucursal,'romo:serena');
@@ -117,4 +119,24 @@ test('filtros agotados y reponer; lista para compras no manda WhatsApp',()=>{
  assert.equal(win.ukiRomoInventarioQAFiltro('agotados'),true);
  assert.equal(nodes.get('romoQAInventarioLista').children.length,1);
  assert.equal(win.ukiRomoInventarioQAFiltro('otro'),false);
+});
+
+test('sin autorización el inventario remoto queda bloqueado y no modifica simulación',async()=>{
+ const {win,nodes}=start();
+ assert.equal(await win.ukiRomoInventarioQACargarRemoto(),false);
+ assert.match(nodes.get('romoQAInventarioRemotoEstado').textContent,/no está conectado/i);
+ assert.equal(await win.ukiRomoInventarioQAGuardarRemoto(),false);
+ assert.equal(win.ukiRomoInventarioQAModelo().conexionRealCargada,false);
+ assert.equal(win.ukiRomoInventarioQAModelo().revisionRemota,null);
+ assert.equal(win.ukiRomoInventarioQAModelo().articulos.length,0);
+});
+test('botones remotos separan consultar de guardar con autorización explícita',()=>{
+ const {win}=start(),markup=win.ukiRomoInventarioPanelHTMLQA();
+ assert.match(markup,/Consultar inventario protegido/);
+ assert.match(markup,/Guardar cambios en Romo/);
+ assert.match(markup,/id="romoQAInventarioGuardarRemoto"/);
+ assert.match(markup,/disabled id="romoQAInventarioGuardarRemoto"/);
+ assert.match(js,/expectedRevision:remoteRevision/);
+ assert.match(js,/remoteRevision\+1/);
+ assert.match(js,/¿Guardar los cambios de inventario de Romo\?/);
 });

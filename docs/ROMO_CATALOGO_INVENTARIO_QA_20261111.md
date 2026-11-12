@@ -92,3 +92,13 @@ Las imágenes antiguas de menú de julio muestran precios distintos (24 $7.500, 
 - Carta y precios: búsqueda por nombre dentro de productos, promociones e ingredientes. La edición sigue en borrador con permiso de dueños, y todos los precios originales permanecen iguales.
 - Seguridad: exactamente el mismo panel, Romo sólo en modo prueba; sin otra función serverless, sin accesos nuevos, sin cambios de claves ni base de datos.
 - Se guarda todo en un commit QA para reducir ejecuciones de Vercel; publicación real por autorización expresa.
+
+## Lote de conexión futura (sin activación)
+- `GET /api/romo-catalogo-qa?origen=inventario` consulta inventario privado exclusivamente de Romo. `POST` usa revisión CAS para evitar sobrescribir cambios hechos en otro teléfono.
+- Se reutiliza la función Serverless ya existente: NO se añade otra función en Vercel.
+- Banderas independientes APAGADAS: `ROMO_CATALOGO_QA_ENABLED`, `ROMO_INVENTARIO_QA_ENABLED` y, para POST, `ROMO_INVENTARIO_QA_WRITE_ENABLED`. Solo preview en rama QA exacta.
+- Siempre exige token Google firmado y usuario activo con rol de Romo validado contra Neon. Para trabajadores, rol inventario en sucursal Serena; no comparte roles de Uki.
+- La vista incluye botones separados «Consultar inventario protegido» y «Guardar cambios en Romo»; guardar queda deshabilitado hasta lectura autorizada y requiere confirmación.
+- La simulación no se envía automáticamente. Si un teléfono cambia la revisión, el servidor retorna conflicto 409; se requiere revisar antes de reintentar.
+- **Nada fue conectado, habilitado, creado ni escrito en bases reales.** Para dar permiso de guardado pedir autorización expresa a la dueña; antes faltan tabla privada `romo_inventario_v1`, permiso Google/roles y configuración separada segura.
+- Los precios de Romo no se modifican.

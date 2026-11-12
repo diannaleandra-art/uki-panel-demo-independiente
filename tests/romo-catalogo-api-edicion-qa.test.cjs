@@ -51,3 +51,27 @@ test('lectura de carta antigua comparte el endpoint Romo, con bandera separada',
  assert.equal(legacyEnabled(env),false);
  assert.equal(legacyEnabled({...env,ROMO_IMPORTACION_CATALOGO_QA_ENABLED:'true'}),true);
 });
+
+test('nuevo modo inventario aislado usa el mismo endpoint y no activa escrituras',()=>{
+ const {inventoryEnabled,inventoryWriteEnabled,inventoryMode}=handler._testing;
+ const sandbox={...env,ROMO_INVENTARIO_QA_ENABLED:'true'};
+ assert.equal(inventoryEnabled(env),false);
+ assert.equal(inventoryWriteEnabled(sandbox),false);
+ assert.equal(inventoryEnabled(sandbox),true);
+ assert.equal(inventoryWriteEnabled({...sandbox,ROMO_INVENTARIO_QA_WRITE_ENABLED:'true'}),true);
+ assert.equal(inventoryWriteEnabled({...sandbox,ROMO_INVENTARIO_QA_WRITE_ENABLED:'true',VERCEL_ENV:'production'}),false);
+ assert.equal(inventoryMode({origen:'inventario'}),true);
+ assert.equal(inventoryMode({origen:'anterior'}),false);
+});
+test('POST inventario sin bandera de escritura bloquea antes de acceder a base',async()=>{
+ const before={};
+ for(const key of ['VERCEL_ENV','VERCEL_GIT_COMMIT_REF','ROMO_CATALOGO_QA_ENABLED',
+  'ROMO_INVENTARIO_QA_ENABLED','ROMO_INVENTARIO_QA_WRITE_ENABLED','VERCEL_URL'])before[key]=process.env[key];
+ try{
+  Object.assign(process.env,{...env,ROMO_INVENTARIO_QA_ENABLED:'true',ROMO_INVENTARIO_QA_WRITE_ENABLED:'false'});
+  const res=fakeRes();
+  await handler({method:'POST',query:{origen:'inventario'},headers:{host:env.VERCEL_URL,origin:'https://'+env.VERCEL_URL}},res);
+  assert.equal(res.code,503);
+  assert.match(res.data.error,/Guardado de inventario/);
+ }finally{for(const [k,v] of Object.entries(before)){if(v===undefined)delete process.env[k];else process.env[k]=v}}
+});
