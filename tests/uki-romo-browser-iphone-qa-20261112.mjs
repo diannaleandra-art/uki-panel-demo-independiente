@@ -88,7 +88,7 @@ try{
   assert.ok(state.content>100,'Vista original '+tab+' sin simulación');
  }
  // Regresar y comprobar que Romo no deja vista ni operaciones en Uki.
- await page.evaluate(()=>{
+ await page.evaluate(async()=>{
   await salirSuc();
   pedirPin('Uki La Serena');
  });
