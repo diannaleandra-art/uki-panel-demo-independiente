@@ -110,3 +110,11 @@ Las imágenes antiguas de menú de julio muestran precios distintos (24 $7.500, 
 - **Agendador:** futura misma entrada operacional con autorización propia para Romo; no se heredan datos ni roles de Uki.
 - Se presenta una sección informativa en la vista QA sin campos de introducción de credenciales inactivos ni segundo formulario Google. Se aclaró que la contraseña Uki desbloquea solo vista de prueba, NO datos comerciales.
 - No se cambió ninguna contraseña, ninguna cuenta Firebase, ni se insertaron roles o PINs en Neon. Requiere aprobación adicional antes de habilitar ingresos reales de usuarios.
+
+## Avance siguiente: misma entrada que Uki, con roles privados (QA, 12-11-2026)
+- Se conservó la actualización `main` más reciente de Uki, incluyendo tarjetas de productos y descuentos. Solo se trasplantaron las entradas QA de Romo sobre esa base, sin reemplazar `firebase/uki-carta-precios-admin.js` ni operaciones Uki.
+- Se añadió `lib/romo-pin-inventario-qa.cjs` para reproducir el formato de **6 dígitos** y derivación PBKDF2 210.000 iteraciones igual que el inventario Uki. El código de Romo es **independiente**, no se copia ni se intenta leer PIN/hash de Uki. El hash se guarda únicamente en futura tabla exclusiva de Romo.
+- Se preparó `sql/20261112_romo_pin_trabajadores_QA_NO_EJECUTAR.sql`: tablas para código y bloqueo de intentos. **No se ejecutaron** ni crearon PINs ni roles ni trabajadores.
+- No se incorpora ruta para iniciar sesión como trabajador hasta que existan protección de intentos, permisos de dueño, y autorización de la dueña para crear/activar esos accesos.
+- La tabla de inventario Romo `romo_inventario_v1` ya existe por autorización previa, permanece sin datos.
+- Sin cambios de precios, carta comercial, producción de Uki, pedidos, caja o cierres. Publicación de preview automática es distinta de publicación comercial.

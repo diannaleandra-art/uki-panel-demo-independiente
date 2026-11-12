@@ -287,7 +287,7 @@ color:#955115;box-shadow:0 2px 10px rgba(0,0,0,.12);font-weight:800;font-size:19
 <div id="ukiAvisoInterno" class="aviso" style="margin:10px 12px 0;background:#fce8d7;border:1px solid #efb57c;font-weight:600">USO INTERNO · SOLO PERSONAL AUTORIZADO · NO COMPARTIR CON CLIENTES</div><main id="app"><div class="aviso">✅ v8 Timbres - 6 ventas = 12 piezas / 10 ventas = 36 + 2 korokes</div><div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Tarjeta de timbres: 6 ventas = 12 piezas gratis, 10 ventas = 36 piezas + 2 korokes</p><button class="big" onclick="pedirPin('Uki Regimiento Arica')">Uki Regimiento Arica</button><button class="big" onclick="pedirPin('Uki La Serena')">Uki La Serena</button></div><div class="card"><h2>💾 Respaldo para computador</h2><button class="big" onclick="descargarRespaldoCompleto()">💾 Descargar respaldo con tarjetas</button><label class="muted">Cargar respaldo</label><input type="file" accept=".json" onchange="cargarRespaldo(event)"></div></main>
 <script>
 const SUCURSALES=["Uki Regimiento Arica","Uki La Serena"];
-// Único panel: tercera sucursal Romo visible solo en QA, sin operaciones.
+// Romo: tercera sucursal sólo en pruebas, operaciones reales bloqueadas.
 const ROMO_SUCURSAL_QA="Romo’s Sushi La Serena";
 const SUCURSALES_PANEL_QA=Object.freeze([...SUCURSALES,ROMO_SUCURSAL_QA]);
 const MEDIOS=["Efectivo","Transferencia","Débito","Edenred","Otros","Uber Eats","PedidosYa","Rappi"];
@@ -5829,7 +5829,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 <script src="./uki-cierre-detallado.js" defer></script>
 <script src="./uki-inventario-admin-embebido.js" defer></script>
 <script src="./uki-disponibilidad-admin.js" defer></script>
-<script src="./uki-carta-precios-admin.js?v=uki-categorias-descuentos-20261112" defer></script>
+<script src="./uki-carta-precios-admin.js?v=uki-categorias-lista-clara-20261112" defer></script>
 <script src="./uki-armado-ingredientes-admin.js?v=uki-tres-vistas-qa-20261109" defer></script>
 <script src="./uki-inventario-exportar.js" defer></script>
 <script src="./uki-inventario-historial-admin.js" defer></script>
