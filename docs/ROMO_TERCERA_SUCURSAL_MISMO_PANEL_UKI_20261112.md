@@ -80,3 +80,8 @@ Se conserva la decisión: un panel Uki, tres locales. Romo La Serena usa la mism
 - Unidades compatibles con el inventario actual de Uki (`un`, `porciones`, `kg`, `g`, `l`, `ml`) y unidad de la preparación anterior (`unidad`). El reporte no considera la diferencia como venta.
 - Se corrigió el fallback del inventario histórico de Uki: si no está seleccionada exactamente una sucursal Uki, su gestor ya no interpreta Romo como Arica ni inicia consultas. Las dos sucursales Uki mantienen rutas y datos anteriores.
 - Esta es una conexión interna en la rama de pruebas. **No** está enlazada a los botones reales hasta validar cuenta Google, permisos, datos y sincronización Neon de Romo. No se modificaron existencias de ninguna sucursal ni se publicaron nuevos paneles.
+
+## Tres áreas Romo desde el mismo motor de Uki
+- **No se creó otra pantalla ni otra contraseña.** `lib/romo-almacenamiento-unico-panel-qa.mjs` reúne los adaptadores ya construidos de estado operativo (pedidos, caja, timbres, cierres), carta completa (productos, ingredientes, promociones y categorías) e inventario exclusivo de Romo.
+- El router del panel rechaza cualquier servicio no contemplado en Romo, no usa los locales Uki como respaldo y aplica roles en cada área.
+- La conexión está validada únicamente con base simulada: todavía NO hay permisos de dueña en Neon, ni catálogo Romo cargado, ni URL de operación activa. NO publicar ni habilitar ventas sin los siguientes pasos completos.
