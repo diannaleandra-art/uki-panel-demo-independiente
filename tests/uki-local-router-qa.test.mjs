@@ -93,7 +93,7 @@ test('dos dispositivos visualizan el mismo Romo, sin duplicar en los Uki',async(
 test('nunca se acepta un adaptador de otro local como Romo',async()=>{
  const ukiArica=crearMemoriaLocalQA('uki:arica');
  assert.throws(()=>crearRouterAlmacenamientoQA({qaOnly:true,adapters:{'romo:serena':ukiArica}}),/no coincide/);
- assert.throws(()=>crearRouterAlmacenamientoQA({qaOnly:false,adapters:{}}),/solo autorizado/);
+ assert.throws(()=>crearRouterAlmacenamientoQA({qaOnly:false,adapters:{}}),/sólo autorizado|solo autorizado/);
  const rogue={...crearMemoriaLocalQA('romo:serena'),read:async()=>({storeId:'uki:arica',entries:['secreto']})};
  const router=crearRouterAlmacenamientoQA({qaOnly:true,adapters:{'romo:serena':rogue}});
  await assert.rejects(router.execute(request('romo:serena','orders','read')),/otra sucursal/);
