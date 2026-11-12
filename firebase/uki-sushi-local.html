@@ -729,15 +729,20 @@ function render(){
   try{
   document.body.classList.toggle('romo-qa',!!(S.romoSeleccionadoQA&&!S.suc&&!S.pinSuc));
   $("suc").innerHTML=S.suc?`<span>${esc(S.suc)}</span><a href="#" onclick="salirSuc();return false;" class="salir">Salir</a>`:S.romoSeleccionadoQA?(S.romoIngresadoQA?'<span>Romo’s Sushi · La Serena · Balmaceda 1612</span><a href="#" onclick="ukiVolverAlSelectorLocales();return false;" class="salir">Salir</a>':'Romo’s Sushi · La Serena · Balmaceda 1612'):'Selecciona una sucursal para empezar';
-  $("nav").style.display=S.suc?"grid":"none";
+  const romoIngresado=S.romoSeleccionadoQA===true&&S.romoIngresadoQA===true&&!S.suc&&!S.pinSuc;
+  $("nav").style.display=(S.suc||romoIngresado)?"grid":"none";
   ukiAccesosDesplazamiento();
-  $("nav").innerHTML=VISTAS.map(([k,l,icon])=>`<button type="button" class="${S.vista===k?"on":""}" onclick="ir('${k}')" aria-label="${l}" ${S.vista===k?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${l}</span></button>`).join("");
+  $("nav").innerHTML=VISTAS.map(([k,l,icon])=>{
+    const active=romoIngresado?ukiRomoVistaQA:S.vista;
+    const handler=romoIngresado?'ukiRomoIrQA':'ir';
+    return `<button type="button" class="${active===k?"on":""}" onclick="${handler}('${k}')" aria-label="${l}" ${active===k?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${l}</span></button>`;
+  }).join("");
   const f={inicio:vInicio,pedidos:vPedidos,nuevo:vNuevo,clientes:vClientes,caja:vCaja,inventario:()=>window.ukiInventarioPanelHTML?.()||'<div class="card"><p>Preparando inventario…</p></div>'}[S.vista]||vInicio;
   const msg=S.msg?`<div role="status" class="aviso" style="background:#ffece4;color:#7a2c08">${esc(S.msg)}</div>`:"";
   S.msg=null;
-  $("app").innerHTML=msg+f();
-  // Sólo lectura de Romo en la misma entrada del panel, sin APIs Uki.
-  if(ukiRomoVistaCartaSeleccionadaQA&&S.romoSeleccionadoQA&&S.romoIngresadoQA&&!S.suc&&!S.pinSuc)
+  $("app").innerHTML=msg+(romoIngresado?vRomoQA():f());
+  // Romo reutiliza la plantilla de Uki, pero NO sus funciones de guardado.
+  if(romoIngresado&&ukiRomoVistaQA==='inventario')
    window.ukiRomoCartaQAMontar?.();
   ukiRestaurarVistaTrasRender(ukiVistaAnterior);
   ukiUltimaVistaRender=S.vista;ukiUltimaSucursalRender=S.suc;
@@ -750,21 +755,24 @@ function render(){
 }
 
 const ROMO_SERENA_QA=Object.freeze({brand:'romo',branch:'serena',nombre:ROMO_SUCURSAL_QA,direccion:'Balmaceda 1612, La Serena'});
+let ukiRomoVistaQA='inicio';
 let ukiRomoVistaCartaSeleccionadaQA=false;
 if(typeof window!=='undefined')window.ukiRomoCartaQAContexto=()=>Object.freeze({
- storeId:S.romoSeleccionadoQA&&!S.suc&&!S.pinSuc&&ukiRomoVistaCartaSeleccionadaQA?'romo:serena':null,
+ storeId:S.romoSeleccionadoQA&&!S.suc&&!S.pinSuc&&ukiRomoVistaQA==='inventario'?'romo:serena':null,
  localProofOk:S.romoIngresadoQA===true,qaOnly:true
 });
-function ukiRomoAbrirCartaQA(){
+function ukiRomoIrQA(v){
  if(S.suc||S.pinSuc||!S.romoSeleccionadoQA||!S.romoIngresadoQA)return;
- ukiRomoVistaCartaSeleccionadaQA=true;render();
+ if(![...VISTAS.map(x=>x[0]),'inventario'].includes(v))return;
+ ukiRomoVistaQA=v;
+ ukiRomoVistaCartaSeleccionadaQA=v==='inventario';
+ render();
 }
-function ukiRomoRegresarInicioQA(){
- if(S.suc||!S.romoSeleccionadoQA)return;
- ukiRomoVistaCartaSeleccionadaQA=false;render();
-}
+function ukiRomoAbrirCartaQA(){ukiRomoIrQA('inventario');}
+function ukiRomoRegresarInicioQA(){ukiRomoIrQA('inicio');}
 function ukiVolverAlSelectorLocales(){
  if(S.suc)return;
+ ukiRomoVistaQA='inicio';
  ukiRomoVistaCartaSeleccionadaQA=false;
  S.romoSeleccionadoQA=false;S.romoIngresadoQA=false;S.pinSuc=null;render();
 }
@@ -790,6 +798,7 @@ async function ukiValidarClaveUkiParaRomoQA(pass){
 }
 function pedirPin(s){
  if(!SUCURSALES_PANEL_QA.includes(s))return;
+ ukiRomoVistaQA='inicio';
  ukiRomoVistaCartaSeleccionadaQA=false;
  S.romoSeleccionadoQA=false;S.romoIngresadoQA=false;S.pinSuc=s;render();
 }
@@ -802,6 +811,7 @@ async function entrarSuc(){
  try{
   if(esRomo){
    await ukiValidarClaveUkiParaRomoQA(pass);
+   ukiRomoVistaQA='inicio';
    ukiRomoVistaCartaSeleccionadaQA=false;
    S.pinSuc=null;S.romoSeleccionadoQA=true;S.romoIngresadoQA=true;
   }else{
@@ -868,21 +878,48 @@ function ukiAccesosDesplazamiento(){
  bloque.hidden=!S.suc;
 }
 
+// Misma navegación y plantilla administrativa de Uki, tercera sucursal.
+ // Guardas por sucursal se habilitarán solo al tener servicio propio verificado.
+function vRomoQA(){
+ const cab='<section class="card" id="romoLaSerenaPreparacionQA" aria-label="Romo’s Sushi La Serena">'+
+  '<strong>ROMO’S SUSHI · LA SERENA</strong> · Balmaceda 1612'+
+  '<p class="muted" role="status">Ingreso de prueba completado. Aún no están conectados los pedidos, caja, inventario y cierres independientes de Romo. No registres operaciones aquí.</p></section>';
+ if(ukiRomoVistaQA==='inventario'){
+  const original=window.ukiInventarioPanelHTML?.();
+  // Exacta plantilla administrativa de Uki; no montar sus manejadores
+  // porque estos están conectados a Neon Uki y podrían escribir en Arica.
+  return cab+(typeof original==='string'?original:'<div class="card">Administración de Romo en preparación.</div>');
+ }
+ if(ukiRomoVistaQA==='inicio'){
+  return '<div class="welcome"><div class="eyebrow">ROMO’S SUSHI · LA SERENA</div>'+
+   '<h2>Hola, Romo 🍣</h2><p class="muted">Balmaceda 1612</p>'+
+   '<p class="uki-turno-frase">'+esc(ukiFraseDiaria())+'</p></div>'+cab+
+   '<section class="kpis" aria-label="Resumen no conectado">'+
+    ['Venta de hoy','Pedidos','Deliverys repartidor','Efectivo en caja'].map(x=>
+      '<div class="kpi"><span>'+x+'</span><strong>—</strong></div>').join('')+
+   '</section>'+
+   '<button type="button" class="big cta" disabled>＋ Registrar nuevo pedido</button>'+
+   '<div class="quick-grid">'+
+    [['pedidos','▤','Revisar pedidos'],['inventario','📦','Inventario'],['clientes','✧','Tarjetas'],['caja','▣','Caja, cierres y reportes']].map(x=>
+      '<button type="button" class="quick" onclick="ukiRomoIrQA(\\''+x[0]+'\\')"><b>'+x[1]+'</b> '+x[2]+' <span>›</span></button>').join('')+
+   '</div>';
+ }
+ const found=VISTAS.find(x=>x[0]===ukiRomoVistaQA);
+ const name=found?.[1]||'Inicio';
+ // El mismo menú que Uki; nunca afirmar que un cero es una venta real.
+ const subtabs=ukiRomoVistaQA==='caja'
+  ?'<p class="muted">Resumen · Movimientos · Precierre · Cierre definitivo · Historial · Reportes · Caja acumulada</p>':'';
+ return cab+'<div class="section-head"><h2>'+esc(name)+'</h2>'+
+  '<p>La funcionalidad será la misma que Uki, con almacenamiento independiente de Romo.</p></div>'+
+  '<section class="card"><h3>'+esc(name)+' · Romo La Serena</h3>'+subtabs+
+  '<p class="muted">Pendiente de conexión segura. No se consultan ni registran movimientos en esta vista de pruebas.</p>'+
+  '<button class="sm" type="button" disabled>Operaciones desactivadas en QA</button></section>';
+}
 function vInicio(){
  if(!S.suc&&!S.pinSuc&&S.romoSeleccionadoQA){
-  return '<section class="card" id="romoLaSerenaPreparacionQA" aria-label="Romo’s Sushi La Serena">'+
-   '<h2>Romo’s Sushi · La Serena</h2><p><b>Balmaceda 1612, La Serena</b></p>'+
-   '<p class="aviso" role="status">Ingreso de prueba completado. Aún no están conectados los pedidos, caja, inventario y cierres independientes de Romo. No registres operaciones aquí.</p>'+
-   (S.romoIngresadoQA
-    ?'<nav class="romo-selector-carta-qa" aria-label="Funciones de Romo en el panel único">'+
-      '<button type="button" class="sm" aria-pressed="'+(!ukiRomoVistaCartaSeleccionadaQA)+'" onclick="ukiRomoRegresarInicioQA()">Inicio</button>'+
-      '<button type="button" class="sm" aria-pressed="'+ukiRomoVistaCartaSeleccionadaQA+'" onclick="ukiRomoAbrirCartaQA()">Carta y precios</button></nav>'+
-      (ukiRomoVistaCartaSeleccionadaQA
-       ?'<div id="ukiPreciosPanel" class="romo-qa-precios" role="region" aria-label="Carta y precios de Romo">'+
-         '<p role="status">Preparando vista de solo lectura de Romo…</p></div>'
-       :'<p class="muted">Selecciona «Carta y precios» para revisar la organización sin guardar ni publicar.</p>')
-    :'<p class="muted">Completa primero el ingreso de prueba.</p>')+
-   '<button class="sm" type="button" onclick="ukiVolverAlSelectorLocales()">Salir de sucursal</button></section>';
+  if(S.romoIngresadoQA)return vRomoQA();
+  return '<section class="card" id="romoLaSerenaPreparacionQA"><h2>Romo’s Sushi · La Serena</h2>'+
+    '<p class="muted">Completa primero el ingreso de prueba.</p></section>';
  }
  if(S.pinSuc){
  const esRomo=S.pinSuc===ROMO_SUCURSAL_QA;
