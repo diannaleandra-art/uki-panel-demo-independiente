@@ -370,13 +370,21 @@
  function vistaAccesosRomoQA(){
   return '<details class="card" id="romoQAIngresosIgualUki">'+
    '<summary style="cursor:pointer;font-weight:700">🔐 Ingresos · igual que Uki</summary>'+
-   '<p class="muted"><b>Un solo panel:</b> Uki Regimiento Arica, Uki La Serena y Romo La Serena. Cada sucursal mantiene sus registros separados.</p>'+
-   '<p><b>Dueños y administración:</b> misma cuenta Google del panel y contraseña habitual. No se crea otra cuenta ni contraseña para Romo.</p>'+
-   '<p class="muted">Para consultar o guardar datos reales de Romo también será obligatorio tener permiso activo de Romo en el servidor. La contraseña de Uki por sí sola no lo concede.</p>'+
-   '<p><b>Inventario del trabajador:</b> el mismo procedimiento de Uki: elegir Romo La Serena, escribir nombre y usar un código exclusivo de inventario de 6 números.</p>'+
-   '<p class="muted">El código de inventario no abre pedidos, caja ni cierres. Aún no se ha habilitado ni configurado para Romo; no introduzcas códigos de trabajadores en esta pantalla de prueba.</p>'+
-   '<p><b>Agendador:</b> acceso al panel operativo según autorización para esa sucursal, sin acceso automático a otras tiendas.</p>'+
-   '<p role="status" class="muted">Solo preparación de accesos. No se han creado usuarios, cambiado claves ni habilitado sesiones reales de Romo.</p>'+
+   '<p class="muted">Un solo panel: Uki Regimiento Arica, Uki La Serena y Romo La Serena. Los datos, ingresos y permisos de cada sucursal estarán separados.</p>'+
+   '<h3 style="margin-bottom:8px">Quién puede ingresar a Romo</h3>'+
+   '<div class="card" id="romoQAAccesoDuenos"><strong>Dueños y administración</strong>'+
+    '<p class="muted">Se mantiene la misma cuenta Google del panel y contraseña habitual de Uki, sin abrir otra cuenta. Para datos reales se necesita además autorización de Romo: la contraseña de Uki por sí sola no lo concede.</p>'+
+    '<p class="muted"><b>Estado:</b> ingreso real pendiente de permiso privado de dueño.</p></div>'+
+   '<div class="card" id="romoQAAccesoAgendador"><strong>Agendador</strong>'+
+    '<p class="muted">Misma entrada operativa de Uki, con acceso a los pedidos y caja de Romo solo cuando se autorice esa sucursal.</p>'+
+    '<p class="muted"><b>Estado:</b> pendiente de registro y permisos de Romo.</p></div>'+
+   '<div class="card" id="romoQAAccesoInventario"><strong>Trabajador de inventario</strong>'+
+    '<p class="muted">Mismo procedimiento de Uki: elegir sucursal, escribir nombre y usar un código exclusivo de inventario de 6 números.</p>'+
+    '<p class="muted">El código de inventario no abre pedidos, caja ni cierres. No se usa el código de otra sucursal.</p>'+
+    '<p class="muted"><b>Estado:</b> tablas vacías creadas; falta configurar el código con autorización.</p></div>'+
+   '<h3>Antes de activar el ingreso real</h3>'+
+   '<p class="muted">1. Verificar dueño autorizado. 2. Configurar accesos por sucursal. 3. Preparar el código de inventario. 4. Probar sin afectar a Uki.</p>'+
+   '<p role="status" class="muted">Esta pantalla es informativa. No se crean usuarios ni códigos; no introduzcas códigos de trabajadores en esta pantalla de prueba.</p>'+
    '</details>';
  }
  function vista(){

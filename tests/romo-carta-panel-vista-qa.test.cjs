@@ -141,3 +141,14 @@ test('ingresos de Romo usan el mismo procedimiento de Uki sin duplicar cuentas',
  assert.doesNotMatch(ui,/id="romoNuevoGoogle"|id="romoNuevoPin"/);
  assert.match(html,/Vista de prueba abierta con la clave habitual de Uki/);
 });
+
+test('la administración de ingresos muestra tres roles separados, sin pedir claves',()=>{
+ const {win}=run();
+ const ui=win.ukiRomoCartaPanelHTMLQA();
+ for(const key of ['romoQAAccesoDuenos','romoQAAccesoAgendador','romoQAAccesoInventario'])
+  assert.ok(ui.includes(key),key);
+ assert.match(ui,/tablas vacías creadas/);
+ assert.match(ui,/Esta pantalla es informativa/);
+ assert.match(ui,/no se crean usuarios ni códigos/i);
+ assert.doesNotMatch(ui,/id="romoQAClaveNueva"|id="romoQACodigoNuevo"/);
+});

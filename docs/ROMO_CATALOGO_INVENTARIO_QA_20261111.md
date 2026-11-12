@@ -126,3 +126,9 @@ Las imágenes antiguas de menú de julio muestran precios distintos (24 $7.500, 
 - La política global contra fuerza bruta podría bloquear a todos los trabajadores por múltiples errores; debe revisarse antes de activar accesos reales.
 - No se han creado sesiones, tokens ni permisos reales. Tests con datos sintéticos, no códigos de clientes.
 - Para activar posteriormente: autorización de dueña para crear PIN, alta de roles y registro de sesiones auditables; revisión de bloqueos, límites y seguridad antes de habilitar endpoint.
+
+## Organización de acceso preparada (QA, sin credenciales)
+- Dentro del mismo panel se reorganizó «Ingresos · igual que Uki» en tres bloques claros: dueños, agendadores y trabajador de inventario.
+- Cada bloque muestra el procedimiento y su estado pendiente; no hay campos para introducir contraseñas ni PINs nuevos, ni se otorgan permisos por abrir la vista de pruebas.
+- La tabla de código de inventario de Romo y la de intentos ya existen pero siguen vacías. Crear códigos y dar permisos reales necesita una autorización específica posterior.
+- Se conserva sin cambios la carta, precios, inventario operativo, pagos, pedidos y producción de Uki. Esta vista QA no solicita ni almacena credenciales.
