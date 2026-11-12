@@ -33,7 +33,7 @@ function dom(isRomo=true){
 test('una sola entrada de sucursal, con mismo menú principal y mismo ingreso Uki',()=>{
  assert.match(html,/const SUCURSALES=\["Uki Regimiento Arica","Uki La Serena"\]/);
  assert.match(html,/const ROMO_SUCURSAL_QA="Romo’s Sushi La Serena"/);
- assert.match(html,/SUCURSALES_PANEL_QA=Object\.freeze\(\[\.\.\.SUCURSALES,ROMO_SUCURSAL_QA\]\)/);
+ assert.match(html,/SUCURSALES_PANEL_QA=Object\.freeze\(LOCALES_PANEL_QA\.map\(local=>local\.nombre\)\)/);
  assert.match(html,/await ukiValidarClaveUkiParaRomoQA\(pass\)/);
  assert.match(html,/const handler=romoIngresado\?'ukiRomoIrQA':'ir'/);
  assert.match(html,/VISTAS\.map\(\(\[k,l,icon\]\)=>/);
