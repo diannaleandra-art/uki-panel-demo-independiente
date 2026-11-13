@@ -913,7 +913,8 @@ function ukiRomoFormularioMovimientosQA(){
  '<select id="romoMovTipo"><option value="gasto">Gasto</option>'+
  '<option value="retiro">Retiro</option>'+
  '<option value="delivery_manual">Delivery manual a pagar</option>'+
- '<option value="propina_manual">Propina manual</option></select>'+
+ '<option value="propina_manual">Propina manual</option>'+
+ '<option value="pago_repartidor">Pago al repartidor</option></select>'+
  '<label for="romoMovMonto">Importe ($)</label>'+
  '<input id="romoMovMonto" inputmode="numeric" type="number" min="1" step="1">'+
  '<label for="romoMovConcepto">Concepto o motivo</label>'+
@@ -921,7 +922,10 @@ function ukiRomoFormularioMovimientosQA(){
  '<label for="romoMovMedio">Medio de pago (si corresponde)</label>'+
  '<select id="romoMovMedio"><option>Efectivo</option><option>Transferencia</option>'+
  '<option>Débito</option><option>Edenred</option><option>Otros</option></select>'+
- '<details><summary>Datos adicionales de delivery o propina</summary>'+
+ '<details><summary>Datos adicionales de delivery, propina o repartidor</summary>'+
+ '<label for="romoMovTipoSaldo">Pago al repartidor</label>'+
+ '<select id="romoMovTipoSaldo"><option value="dia">Del día</option>'+
+ '<option value="anterior">Abono a saldo anterior</option></select>'+
  '<label for="romoMovCliente">Cliente / repartidor (delivery)</label>'+
  '<input id="romoMovCliente" maxlength="90">'+
  '<label for="romoMovPedido">N.º interno de pedido (propina)</label>'+
@@ -947,7 +951,8 @@ async function ukiRomoGuardarMovimientoDesdeCajaQA(){
  const datos={registradoEn:instante,fechaISO:ahora(),monto,medio,
   concepto,motivo:concepto,cliente:read('romoMovCliente'),
   nota:concepto,pedidoId:Number(read('romoMovPedido')),
-  responsable:read('romoMovResponsable')};
+  responsable:read('romoMovResponsable'),
+  fechaOperativa:romoDiaCajaQA(),tipoSaldo:read('romoMovTipoSaldo')};
  ukiRomoMovimientoGuardandoQA=true;
  try{
   const respuesta=await ukiRomoControlPanelQA.guardarMovimiento({tipo,datos});

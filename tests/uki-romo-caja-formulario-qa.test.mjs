@@ -25,3 +25,11 @@ test('control reutiliza API cifrada con revisión CAS y no usa caja de Uki',()=>
  assert.match(html,/ROMO_PANEL_INTEGRACION_HABILITADA_QA=false/);
  assert.match(html,/uk(i|i)RomoControlPanelQA\.guardarMovimiento/);
 });
+
+test('pago al repartidor distingue día y saldo anterior antes de cierre',()=>{
+ assert.match(html,/option value="pago_repartidor"/);
+ assert.match(html,/id="romoMovTipoSaldo"/);
+ assert.match(html,/option value="anterior"/);
+ assert.match(html,/fechaOperativa:romoDiaCajaQA\(\),tipoSaldo:read\('romoMovTipoSaldo'\)/);
+ assert.match(html,/ROMO_PANEL_MOVIMIENTOS_HABILITADOS_QA=false/);
+});
