@@ -28,7 +28,9 @@ test('Romo se selecciona sin crear otra contraseña y sin abrir pedidos hasta te
  assert.match(main,/const existe=esRomo\|\|!!localStorage\.getItem\(claveLocal\(S\.pinSuc\)\)/);
  assert.match(main,/if\(esRomo\)\{[\s\S]*?await ukiValidarClaveUkiParaRomoQA\(pass\)/);
  assert.match(main,/await entrarDatosSucursal\(s,pass\);S\.vista="inicio"/);
- assert.match(main,/No registres operaciones aquí/);
+ assert.match(main,/Vista informativa de Romo · sin sesión ni acceso a pedidos reales/);
+ assert.match(main,/Ver avance de Romo \(solo lectura\)/);
+ assert.match(main,/S\.romoIngresadoQA=false/);
  assert.match(main,/const ROMO_SERENA_QA=Object\.freeze\(\{brand:'romo',branch:'serena'/);
  assert.match(main,/Balmaceda 1612, La Serena/);
  assert.match(panel,/body\.romo-qa #ukiNubeSeccion/);

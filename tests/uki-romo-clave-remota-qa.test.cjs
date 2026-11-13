@@ -71,5 +71,6 @@ test('la QA conserva el ingreso local de Uki y nunca habilita operaciones de Rom
  assert.match(panel,/const SUCURSALES=\["Uki Regimiento Arica","Uki La Serena"\]/);
  assert.match(panel,/uki-romo-clave-remota-qa.mjs/);
  assert.match(panel,/if\(typeof window!=="undefined"&&window\.ukiRomoClaveRemotaDisponibleQA\?\.\(\)\)/);
- assert.match(panel,/Aún no están conectados los pedidos, caja, inventario y cierres independientes de Romo/);
+ assert.match(panel,/Vista informativa de Romo · sin sesión ni acceso a pedidos reales/);
+ assert.match(panel,/La contraseña de Uki NO puede comprobarse desde este dominio de pruebas/);
 });
