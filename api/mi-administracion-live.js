@@ -134,6 +134,28 @@ module.exports=async(req,res)=>{
    return ok(res,{sesion:token,minutos:30});
   }
   if(!await authorized(sql,req,who))return fail(res,401,'Introduce el código privado para continuar.');
+  if(action==='listar_cierres_romo_qa'){
+   // Esta lectura privada exige el MISMO Google + PIN de Mi Administración,
+   // ya validados arriba; jamás recibe montos ni datos del navegador.
+   // La tabla sólo existe en la rama aislada de Neon hasta liberación final.
+   if(process.env.ROMO_FIN_CIERRES_LECTURA_QA_ENABLED!=='true')
+    return fail(res,503,'La lectura de cierres de Romo sigue en pruebas.');
+   const desde=body.desde,hasta=body.hasta;
+   if(!validDate(desde)||!validDate(hasta)||desde>hasta)
+    return fail(res,400,'Fechas de cierres Romo incorrectas.');
+   const rows=await sql.query(
+    "SELECT store_id,source_key,turno_ref,fecha_operativa::text AS fecha_operativa,"+
+    "venta_total,pedidos,medios,gastos_cierre,delivery_por_pagar,propinas,retiros,"+
+    "caja_chica_inicial,caja_chica_gastos,efectivo_contado,diferencia_efectivo "+
+    "FROM public.fin_romo_cierres_live_v1 WHERE store_id='romo:serena' "+
+    "AND fecha_operativa BETWEEN $1::date AND $2::date "+
+    "ORDER BY fecha_operativa DESC,turno_ref DESC LIMIT 251",
+    [desde,hasta]);
+   if(rows.length>250)
+    return fail(res,409,'Hay más de 250 cierres. Consulta un período menor.');
+   return ok(res,{cierres:rows.map(x=>({...x,estado:'cerrado'})),
+    origen:'romo:serena',soloLectura:true,limite:250});
+  }
   if(action==='locales_operativos_diagnostico_qa'){
    const diag=require('../lib/uki-locales-finanzas-diagnostico-qa.cjs');
    const resultado=await diag.diagnosticarRegistroLocalesQA({

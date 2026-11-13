@@ -31,3 +31,20 @@ Se añadió un registro privado independiente fin_romo_cierres_live_v1, en un sc
 
 ## 13 noviembre 2026 · Vista financiera agrupada de Romo (QA)
 La extensión de presentación del panel de dueños ahora admite cierres Romo separados de Uki, respetando filtros por negocio y sucursal, fecha y razón social. Detecta coincidencia exacta con una venta manual de Romo por referencia y monto, evitando mostrarla dos veces; si difieren, señala conflicto en lugar de sumar. Los totales de cierre se muestran como informativos y no suman nuevos ingresos a fin_movimientos. Falta conectar esta función a la UI real de Mi Administración y a su endpoint autorizado; no se publica en producción.
+
+## 13 noviembre 2026 · Rama real aislada de Neon para cierres Romo
+Se creó **qa-romo-finanzas-cierres-20261113** desde la rama privada de
+Mi Administración (br-cool-shadow-b59fjtyj) y se creó allí únicamente
+fin_romo_cierres_live_v1, sin instalar nada en la rama padre.
+Verificación: 21 cierres históricos Uki en ambas y 0 cierres Romo en
+la nueva rama. La rama padre NO posee la tabla de Romo.
+
+## Consulta privada Romo en Mi Administración (solo QA)
+Se preparó la acción de solo lectura listar_cierres_romo_qa sobre la
+misma API y sesión PIN+Google de Mi Administración; exige además la
+nueva bandera ROMO_FIN_CIERRES_LECTURA_QA_ENABLED, apagada por defecto.
+La vista agrupa los cierres de Romo y las ventas manuales sin duplicarlos,
+manteniendo los cierres Uki intactos. El cliente también conserva su
+interruptor de Romo desactivado. La ruta aún NO está desplegada a
+producción ni asociada a la base aislada. Falta comprobar una sesión real
+autorizada en QA y terminar el registro verificable de cierres.

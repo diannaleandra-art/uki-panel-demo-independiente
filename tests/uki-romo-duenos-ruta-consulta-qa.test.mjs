@@ -1,0 +1,30 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const api=readFileSync(new URL('../api/mi-administracion-live.js',import.meta.url),'utf8');
+const html=readFileSync(new URL('../public/mi-administracion-duenos.html',import.meta.url),'utf8');
+test('solo Google y PIN autorizados pueden entrar en lectura Romo',()=>{
+ const pos=api.indexOf("if(action==='listar_cierres_romo_qa')");
+ const pin=api.indexOf("if(!await authorized(sql,req,who))");
+ assert.ok(pos>pin&&pin>api.indexOf('const who=await google(req)'));
+ assert.match(api,/ROMO_FIN_CIERRES_LECTURA_QA_ENABLED!=='true'/);
+ assert.match(api,/WHERE store_id='romo:serena'/);
+ assert.match(api,/LIMIT 251/);
+});
+test('no habilita escritura ni altera tablas de cierres Uki',()=>{
+ const start=api.indexOf("if(action==='listar_cierres_romo_qa')");
+ const end=api.indexOf("if(action==='locales_operativos_diagnostico_qa')",start);
+ const block=api.slice(start,end);
+ assert.ok(start>=0&&end>start);
+ assert.doesNotMatch(block,/INSERT INTO|UPDATE public|DELETE FROM|fin_uki_cierres_live_v1/);
+ assert.match(block,/soloLectura:true/);
+});
+test('dueños consume misma sesión y mantiene Romo apagado por defecto',()=>{
+ assert.match(html,/const ROMO_FIN_OWNER_READ_QA_ENABLED=false/);
+ assert.match(html,/async function cargarCierresRomoDuenosQA\(desde,hasta\)/);
+ assert.match(html,/await api\('listar_cierres_romo_qa',\{desde,hasta\}\)/);
+ assert.match(html,/let cierresConfirmadosRomoQA=\[\]/);
+ assert.match(html,/unirVentasDuenosConRomoQA\(\{/);
+ assert.match(html,/await cargarCierresUki\(value\('from'\),value\('to'\)\)/);
+ assert.match(html,/await cargarCierresRomoDuenosQA\(value\('from'\),value\('to'\)\)/);
+});

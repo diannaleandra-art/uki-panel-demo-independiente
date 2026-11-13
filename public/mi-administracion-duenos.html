@@ -218,6 +218,7 @@ label{color:#66574c}
   <button class="owner-branch-button" type="button" data-owner-branch="arica"><strong>Regimiento Arica</strong><small id="ukiAutoArica">Sin cierres confirmados en estas fechas</small></button>
   <button class="owner-branch-button" type="button" data-owner-branch="serena"><strong>La Serena</strong><small id="ukiAutoSerena">Sin cierres confirmados en estas fechas</small></button>
  </div>
+ <p class="hint" id="romoOwnerCierresQA">Romo’s Sushi La Serena · cierres financieros en preparación (sin activar ventas).</p>
 </section>
 <div class="card owner-finance-card"><div class="owner-eyebrow">MOVIMIENTOS FINANCIEROS REGISTRADOS</div><h2>📊 Resumen de todos los negocios</h2>
 <details class="owner-hint-collapsible"><summary>ℹ️ Acerca de estos totales</summary><p>Incluyen cierres finales y movimientos manuales. Los registros heredados de pruebas deben verificarse antes de tratarlos como operaciones reales. Si una compra ya figura como gasto de caja, hay que conciliarla para evitar contarla dos veces. Los retiros personales no se consideran gastos operativos.</p></details>
@@ -503,19 +504,22 @@ label{color:#66574c}
 import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
 import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
 import {crearControlCompras} from "./mi-administracion-compras.js?v=general-v5";
-import {unirVentasDuenos} from "./uki-duenos-ventas-unificadas-qa.mjs";
+import {unirVentasDuenosConRomoQA} from "./uki-duenos-ventas-unificadas-qa.mjs";
 import {iniciarLocalesOperativosQA} from "./uki-owner-locales-qa.mjs";
 import {construirInforme,generarXLSX,generarPDF,compartirWhatsApp} from "./mi-administracion-informes.js?v=duenos-reporte-v1";
 const app=initializeApp({apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",appId:"1:1070481165758:web:b8f0f9ff40caf5b8ac7def"});
 const auth=getAuth(app),$=id=>document.getElementById(id);
 let cierresConfirmadosUki=[],errorConsultaCierresUki='';
+let cierresConfirmadosRomoQA=[],errorConsultaCierresRomoQA='';
+const ROMO_FIN_OWNER_READ_QA_ENABLED=false;
 let resumenManualUki=[],pagosManualesUki=[];
 let cuentasPendientesActuales=[],cuentasPendientesLimitadas=false;
 let vistaGastosActual={manuales:[],cierres:[]};
 function mostrarVentasFinancieras(){
  const host=$('ukiOwnerFinancierasLista');host.replaceChildren();
- const data=unirVentasDuenos({
+ const data=unirVentasDuenosConRomoQA({
   movimientos:transactions,cierres:cierresConfirmadosUki,
+  cierresRomo:cierresConfirmadosRomoQA,
   desde:value('from'),hasta:value('to'),negocio_id:currentBiz(),
   sucursal_id:currentBranch(),razon_social_id:value('scopeRazon'),
   negocios:businesses,sucursales:branches
@@ -526,6 +530,11 @@ function mostrarVentasFinancieras(){
  linea(data.manuales+' ventas registradas · '+data.cierresConfirmados+
   ' cierres finales · '+data.coincidencias+' coincidencias verificadas.');
  linea('Los importes de ventas manuales y cierres se muestran juntos, pero NO se suman dos veces.');
+ if(ROMO_FIN_OWNER_READ_QA_ENABLED){
+  linea(data.cierresRomoConfirmados+' cierres finales Romo · '+data.coincidenciasRomo+
+   ' coincidencias manuales · '+data.conflictosRomo+' conflictos.');
+  if(errorConsultaCierresRomoQA)linea(errorConsultaCierresRomoQA);
+ }
  if(data.conflictos)linea(data.conflictos+' referencia(s) con importes distintos. Revisar conciliación.');
  if(errorConsultaCierresUki)linea(errorConsultaCierresUki+' Las ventas manuales siguen disponibles.');
  if(!data.items.length)linea('Sin ventas para estas fechas y filtros.');
@@ -937,6 +946,37 @@ async function cargarCierresUki(desde,hasta){
  if(seq===ukiCierresQAConsulta)mostrarVentasFinancieras();
 }
 
+async function cargarCierresRomoDuenosQA(desde,hasta){
+ const el=$('romoOwnerCierresQA');
+ cierresConfirmadosRomoQA=[];errorConsultaCierresRomoQA='';
+ if(!ROMO_FIN_OWNER_READ_QA_ENABLED){
+  el.textContent='Romo’s Sushi La Serena · cierres en preparación (todavía sin activar).';
+  return;
+ }
+ if(!session||!auth.currentUser)return;
+ el.textContent='Consultando cierres Romo…';
+ try{
+  // El servidor valida de nuevo el token Google, sesión PIN y rango de fecha.
+  const r=await api('listar_cierres_romo_qa',{desde,hasta});
+  if(r.origen!=='romo:serena'||r.soloLectura!==true||!Array.isArray(r.cierres))
+   throw Error('No se confirmó la consulta de Romo');
+  if(!session)return;
+  const seen=new Set();
+  cierresConfirmadosRomoQA=r.cierres.filter(c=>{
+   if(c?.store_id!=='romo:serena'||typeof c.source_key!=='string'||
+      !c.source_key.startsWith('romo:serena|')||seen.has(c.source_key))return false;
+   seen.add(c.source_key);return true;
+  });
+  el.textContent=cierresConfirmadosRomoQA.length?
+   'Romo La Serena · '+cierresConfirmadosRomoQA.length+' cierre(s) confirmados':
+   'Romo La Serena · sin cierres confirmados para estas fechas';
+ }catch(e){
+  cierresConfirmadosRomoQA=[];
+  errorConsultaCierresRomoQA='Cierres Romo no disponibles; no modifica las ventas manuales.';
+  el.textContent=errorConsultaCierresRomoQA;
+ }
+ mostrarVentasFinancieras();
+}
 let session="",businesses=[],branches=[],razones=[],vinculos=[],transactions=[],docs=[],tab='resumen';
 const AM=['Efectivo','Transferencia','Débito','Crédito','Edenred','Junaeb','Uber','Rappi','PedidosYa','Otro'];
 AM.forEach(m=>$('expensePayMethod').add(new Option(m,m)));
@@ -1607,6 +1647,7 @@ async function refresh(){
   resumenManualUki=s.resumen||[];pagosManualesUki=s.pagos||[];
   renderRows();notify('Información privada actualizada.','success');
   await cargarCierresUki(value('from'),value('to'));
+  await cargarCierresRomoDuenosQA(value('from'),value('to'));
   await cargarCuentasPendientes();
  }catch(e){notify(e.message,'error');if(/código privado|sesión|Introduce el código/.test(e.message))lock();}
 }
