@@ -39,3 +39,12 @@ La pestaña Negocios ofrece Crear nueva sucursal desde el mismo formulario opera
 
 ## Vínculo entre la ficha, carta y panel · QA
 El módulo public/uki-locales-motor-qa.mjs convierte la ficha única del dueño en perfiles de carta y panel con el mismo storeId. Para Romo conserva romo:serena y la ruta /romo/; para locales nuevos no inventa catálogo ni caja. El listado privado utiliza esta conexión y las pruebas comprueban que un mensaje de carta Romo prepara el formulario habitual, sin aceptar pagos ni precios por defecto. No se habilita el acceso a los clientes ni se ejecuta ninguna migración.
+
+
+## Puente seguro de identidad visual (QA)
+La ficha privada de Romo se proyecta a ocho campos visuales exclusivamente:
+nombre, dirección, WhatsApp, Instagram, horarios, color, URL del logo y URL de portada.
+Se descartan negocio/sucursal internos, PIN, token Google, sesión financiera, caja,
+inventario y ventas. El dueño puede visualizar estos campos en Mi Administración
+sin publicar ni modificar la carta; el envío externo exacto vía postMessage
+permanece con bandera false y origen fijo. Falta vista externa QA desplegada.

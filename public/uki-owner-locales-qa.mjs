@@ -1,4 +1,5 @@
 import {prepararVinculoLocalQA} from './uki-locales-motor-qa.mjs';
+import {crearMensajeVisualRomoQA} from './uki-locales-puente-visual-qa.mjs';
 /* Agregar local operativo · reutiliza Mi Administración, Google y PIN privados.
  * QA sin publicación. Las fotos del teléfono son SOLO vista previa:
  * la carga definitiva requiere conectar almacenamiento autorizado. */
@@ -39,6 +40,33 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
    try{const p=prepararVinculoLocalQA(record);
     detail.textContent='Carta y panel: '+p.storeId+' · Configurados en borrador, sin ventas';
    }catch{detail.textContent='Borrador · vinculación por revisar · sin ventas';}
+   if(record.store_id==='romo:serena'){
+    const btn=document.createElement('button');
+    btn.type='button';btn.textContent='Ver identidad de carta (prueba)';
+    btn.addEventListener('click',()=>{
+     try{
+      const descriptor=crearMensajeVisualRomoQA(prepararVinculoLocalQA(record));
+      const host=by('ownerLocPreview');host.replaceChildren();
+      const header=document.createElement('strong');
+      header.textContent=descriptor.identidad.nombre;
+      const p=document.createElement('p');p.className='hint';
+      p.textContent=descriptor.identidad.direccion+' · '+descriptor.identidad.horarios+
+       ' · '+(descriptor.identidad.whatsapp||'WhatsApp pendiente');
+      host.append(header,p);host.style.borderLeft='5px solid '+descriptor.identidad.color;
+      for(const url of [descriptor.identidad.logoUrl,descriptor.identidad.portadaUrl]){
+       if(!url)continue;
+       const img=document.createElement('img');img.src=url;
+       img.alt='Vista previa del diseño de Romo';
+       img.style.cssText='width:100%;max-height:180px;object-fit:contain';
+       host.append(img);
+      }
+      const hint=document.createElement('p');hint.className='hint';
+      hint.textContent='Solo vista previa en Administración. No publica ni activa la carta.';
+      host.append(hint);
+     }catch(e){notificar('No se pudo mostrar la ficha de Romo: '+e.message,'error')}
+    });
+    div.append(btn);
+   }
    div.append(title,detail);list.append(div);
   }
  };
