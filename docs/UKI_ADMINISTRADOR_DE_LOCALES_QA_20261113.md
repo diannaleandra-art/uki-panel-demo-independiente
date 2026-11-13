@@ -35,3 +35,7 @@ No se ejecutó migración ni se cambió la producción.
 
 ## Alta de sucursal y ficha en un paso
 La pestaña Negocios ofrece Crear nueva sucursal desde el mismo formulario operativo, sin repetir el registro financiero manual. El servidor prepara ambos registros en una única sentencia SQL y conserva todo como borrador, sin ventas ni QR. No se ejecutó migración ni se activó la bandera privada.
+
+
+## Vínculo entre la ficha, carta y panel · QA
+El módulo public/uki-locales-motor-qa.mjs convierte la ficha única del dueño en perfiles de carta y panel con el mismo storeId. Para Romo conserva romo:serena y la ruta /romo/; para locales nuevos no inventa catálogo ni caja. El listado privado utiliza esta conexión y las pruebas comprueban que un mensaje de carta Romo prepara el formulario habitual, sin aceptar pagos ni precios por defecto. No se habilita el acceso a los clientes ni se ejecuta ninguna migración.

@@ -1,3 +1,4 @@
+import {prepararVinculoLocalQA} from './uki-locales-motor-qa.mjs';
 /* Agregar local operativo · reutiliza Mi Administración, Google y PIN privados.
  * QA sin publicación. Las fotos del teléfono son SOLO vista previa:
  * la carga definitiva requiere conectar almacenamiento autorizado. */
@@ -35,7 +36,9 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
    const div=document.createElement('div');div.className='line';
    const title=document.createElement('strong');title.textContent=record.configuracion?.nombre||'Local';
    const detail=document.createElement('p');detail.className='hint';
-   detail.textContent='Borrador · '+record.store_id+' · Sin ventas y sin publicación';
+   try{const p=prepararVinculoLocalQA(record);
+    detail.textContent='Carta y panel: '+p.storeId+' · Configurados en borrador, sin ventas';
+   }catch{detail.textContent='Borrador · vinculación por revisar · sin ventas';}
    div.append(title,detail);list.append(div);
   }
  };

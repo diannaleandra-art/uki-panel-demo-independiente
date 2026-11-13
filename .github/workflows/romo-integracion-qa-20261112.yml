@@ -28,4 +28,5 @@ jobs:
             tests/uki-romo-guardado-atomico-qa.test.mjs \
             tests/uki-locales-configuracion-qa.test.cjs \
             tests/uki-locales-registro-qa.test.mjs \
-            tests/uki-locales-onboarding-qa.test.cjs
+            tests/uki-locales-onboarding-qa.test.cjs \
+            tests/uki-locales-motor-qa.test.mjs
