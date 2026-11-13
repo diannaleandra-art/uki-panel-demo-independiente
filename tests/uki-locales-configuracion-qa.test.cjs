@@ -43,7 +43,8 @@ test('el panel de dueños conserva la ficha financiera y nuevo borrador separado
  const api=fs.readFileSync(path.join(__dirname,'../api/mi-administracion-live.js'),'utf8');
  assert.match(api,/UKI_LOCALES_OPERATIVOS_QA_ENABLED/);
  assert.match(api,/if\(!await authorized\(sql,req,who\)\)/);
- assert.match(api,/action==='locales_operativos_guardar_qa'/);
+ assert.match(api,/locales_operativos_guardar_qa/);
+ assert.match(api,/locales_operativos_crear_qa/);
  const migration=fs.readFileSync(path.join(__dirname,'../migrations/2026-11-13-registro-locales-duenos-qa.sql'),'utf8');
  assert.match(migration,/UNIQUE REFERENCES public.fin_sucursales/);
  assert.match(migration,/estado='borrador'/);
