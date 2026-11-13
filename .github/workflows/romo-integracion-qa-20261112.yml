@@ -23,4 +23,5 @@ jobs:
             tests/uki-romo-clave-remota-qa.test.cjs \
             tests/romo-estado-operativo-qa.test.mjs \
             tests/romo-estado-api-cerrada-qa.test.mjs \
-            tests/romo-solicitudes-carta-qa.test.mjs
+            tests/romo-solicitudes-carta-qa.test.mjs \
+            tests/uki-romo-recepcion-formulario-qa.test.mjs

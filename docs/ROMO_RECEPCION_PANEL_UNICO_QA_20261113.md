@@ -28,3 +28,10 @@
 - Autorizar acceso de personal Romo con Google, validar misma contraseña Uki y conexión operativa.
 - Probar aceptación simultánea con dos teléfonos reales, pago mixto, caja, historial, timbre, cierre y recuperación.
 - Evaluar/preparar un único lanzamiento autorizado, incluyendo carta pública Romo.
+
+## Continuación: mensaje de carta Romo al formulario vigente de Uki (QA)
+Se agregó un adaptador que conserva las cantidades, productos, instrucciones por roll, salsa, envoltura y el delivery, usando el mismo objeto de datos del formulario vNuevo()/ndGuardar().
+Los precios unitarios quedan en 0 para ser verificados; nunca se inventan desde el total indicado.
+Pago señalado por el cliente no equivale a pagado. Todo sigue apagado por ROMO_PANEL_RECEPCION_HABILITADA_QA=false, sin acceso de personal ni ventas.
+Simulación con dos trabajadores: el primero reserva; el segundo debe recibir conflicto.
+Aún falta conectar el guardado cifrado y la bandeja visibles al formulario real y ensayar desde dos teléfonos antes de activarlo.
