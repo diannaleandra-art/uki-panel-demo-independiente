@@ -118,3 +118,6 @@ El puente del panel ahora reconoce la dirección fija de la API Romo, pero exige
 
 ## Separación estricta del guardado Firebase de Uki y Neon Romo (QA)
 El panel solo ofrece el estado de Uki a window.ukiQAGet y solo acepta restauraciones de Uki en window.ukiQASet. guardarEnLocalStorage termina inmediatamente para Romo. La pantalla de la nube Firebase exige una de las dos SUCURSALES originales y rechaza Romo. El dato Romo solo puede llegar al formulario tras lectura Neon con autorización y cifrado. Los dos locales Uki mantienen su sincronización original sin cambios de lógica. Todo el flujo Romo permanece apagado hasta la activación autorizada.
+
+## Prueba de sintaxis del panel completo (QA)
+Las pruebas ahora compilan mediante el parser de JavaScript el script clásico íntegro de uki-sushi-local.html, que incluye el selector y guardado de Uki y la rama condicional Romo. Además verifican el límite Firebase/localStorage de Uki y la inactividad de Romo. Esto NO sustituye la prueba en navegador real ni habilita la producción.
