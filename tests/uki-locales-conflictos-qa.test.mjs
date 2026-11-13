@@ -27,5 +27,5 @@ test('botón no recarga automáticamente ni permite reintentar con revisión ven
  assert.match(ui,/if\(loading\|\|!puedeGuardar\|\|conflictoPendiente\)return/);
  assert.match(ui,/clasificarErrorFichaQA/);
  assert.match(ui,/by\('ownerLocReloadConflict'\)\.onclick/);
- assert.match(ui,/await consultar\(\)/);
+ assert.match(ui,/await consultar\(\{forzar:true\}\)/);
 });

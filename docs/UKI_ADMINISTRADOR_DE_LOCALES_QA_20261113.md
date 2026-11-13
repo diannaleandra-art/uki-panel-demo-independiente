@@ -100,3 +100,7 @@ Cuando dos teléfonos editan la misma ficha y el guardado del segundo recibe un 
 
 ## Evitar pérdida de formulario por consultas automáticas (QA)
 Una consulta de Negocios o del listado privado no reemplaza los campos del local que el dueño esté modificando. Se compara la versión de formulario cargada con el texto y la selección de fotografías del teléfono. Si hay cambios sin guardar, se conserva todo y se muestra un aviso claro. Después de guardar exitosamente o presionar deliberadamente «Cargar versión actual», la consulta sí puede reemplazar los campos. No activa backend, pedidos ni publicación.
+
+
+## Prueba integral de interfaz (QA)
+Se añadió un recorrido con una pantalla DOM simulada, no un simple análisis estático: abrir la ficha existente de Romo, consultar mientras se escribe, guardar como borrador y comprobar la revisión, simular una actualización desde otro teléfono, rechazar el guardado vencido sin perder texto y recargar solo tras pulsación explícita. La prueba no usa la cuenta Google real ni escribe en Neon; no constituye prueba manual de producción.
