@@ -2,7 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {readFileSync}=require('node:fs');
-const src=readFileSync(new URL('../firebase/uki-carta-remotas-panel.js',import.meta.url),'utf8');
+const src=readFileSync(require('node:path').join(__dirname,'../firebase/uki-carta-remotas-panel.js'),'utf8');
 const a=src.indexOf('function ukiCartaReservaVencidaQA(r){');
 const b=src.indexOf('// Consulta el permiso usando la MISMA sesión autenticada del personal de Pedidos.',a);
 assert.ok(a>0&&b>a);
