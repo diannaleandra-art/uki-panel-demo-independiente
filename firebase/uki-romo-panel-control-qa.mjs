@@ -9,6 +9,7 @@
 import {crearGuardadoRomoDesdeFormularioQA} from './uki-romo-guardado-atomico-qa.mjs';
 import {prepararBorradorRomoDesdeSolicitudQA} from './uki-romo-recepcion-formulario-qa.mjs';
 import {crearGuardadoCajaRomoQA} from './uki-romo-movimientos-atomicos-qa.mjs';
+import {crearGuardadoTurnosRomoQA} from './uki-romo-turnos-atomicos-qa.mjs';
 export const ROMO_PANTALLA_OPERATIVA_HABILITADA_QA=false;
 const SUC='Romo’s Sushi La Serena';
 const requireOk=(condition,message)=>{if(!condition)throw Error(message)};
@@ -68,6 +69,26 @@ export function crearControlRomoMismoPanelQA({
    // No hay efecto de caja, historial ni timbre al seleccionar.
    solicitud=row;
    return prepararBorradorRomoDesdeSolicitudQA(row);
+  },
+  async ejecutarTurno({tipo,datos}={}){
+   verificarSesion();
+   requireOk(!guardando,'Ya hay una operación de Romo en curso');
+   requireOk(typeof cifrarEstado==='function'&&typeof aplicarEstado==='function',
+    'El cifrado de caja no está conectado');
+   requireOk(['apertura','cierre'].includes(tipo),'Acción de turno no válida');
+   guardando=true;
+   try{
+    const worker=crearGuardadoTurnosRomoQA({
+     habilitado:true,servidor:estadoRemoto,cifrarEstado,validarEstado,
+     estadoVisible:()=>estadoVisible(),
+     consultarPendientes:async()=>bandeja.listar(),
+     aplicarConfirmado:async({estado,revision:next})=>{
+      await aplicarEstado({estado,revision:next,soloLectura:false});
+      revision=next;
+     }
+    });
+    return tipo==='apertura'?await worker.abrir(datos):await worker.cerrar(datos);
+   }finally{guardando=false;}
   },
   async guardarMovimiento({tipo,datos}={}){
    verificarSesion();
