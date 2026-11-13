@@ -78,6 +78,145 @@ function listInventory(document,root,result){
  }
  root.append(overview);
 }
+
+/**
+ * Vista ROMO en las LISTAS originales del editor Uki, sin segundo formulario.
+ * No llama a guardar, no cambia estados, no publica borradores.
+ * Los datos proceden solamente de la lectura autenticada y aislada de Romo.
+ */
+export function poblarEditorRomoSoloLecturaQA({document,catalogo,busqueda='',categoria='all',
+ disponibilidadBusqueda='',disponibilidadTipo='all'}={}){
+ if(!document?.body?.classList?.contains('romo-qa')||
+    !document.getElementById('romoLaSerenaPreparacionQA')||
+    !document.getElementById('ukiPriceList')||
+    !document.getElementById('ukiPromosListaResumen'))throw Error('Editor de Romo no está montado');
+ const verified=checked({ok:true,storeId:STORE,area:'catalog',revision:catalogo?.revision,
+  catalog:catalogo,ventasHabilitadas:false},'catalog').catalog;
+ if(verified.brand!=='romo'||[...verified.products,...verified.promotions,...verified.ingredients].some(
+  item=>typeof item.sku!=='string'||!item.sku.startsWith('romo:')||
+    !Number.isSafeInteger(item.version)||item.version<1))
+  throw Error('Catálogo de otra sucursal o datos Romo inválidos');
+ const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+ const matches=(item,search)=>!search||norm(item.name).includes(norm(search));
+ const create=(tag,cls,text)=>{const el=document.createElement(tag);
+  if(cls)el.className=cls;if(text!==undefined)el.textContent=String(text);return el};
+ const status=item=>item.visible===false?'No publicado':item.available===false?'Agotado':'Disponible';
+ const price=item=>money(item.price);
+ const list=document.getElementById('ukiPriceList');
+ const promos=document.getElementById('ukiPromosListaResumen');
+ const visibleItems=[...verified.products,...verified.promotions].filter(item=>
+  matches(item,busqueda)&&(categoria==='all'||(item.categoriaSlug||item.group||'')===categoria));
+ const listFrag=document.createDocumentFragment();
+ for(const item of visibleItems){
+  const card=create('article','card romo-producto-consulta-qa');
+  card.dataset.romoSku=item.sku;card.dataset.readonly='true';
+  card.append(create('strong','',item.name));
+  const detail=create('p','muted',price(item)+' · '+status(item));
+  card.append(detail);
+  if(typeof item.description==='string'&&item.description.trim())
+   card.append(create('p','mini-help',item.description));
+  if(verified.promotions.some(p=>p.sku===item.sku)){
+   const ext=[];
+   if(Number.isInteger(item.rollCount)&&Number.isInteger(item.piecesPerRoll))
+    ext.push((item.rollCount*item.piecesPerRoll)+' piezas');
+   if(Number.isInteger(item.sauceCount))ext.push(item.sauceCount+' salsa(s)');
+   if(Number.isInteger(item.korokes)&&item.korokes>0)ext.push(item.korokes+' korokes');
+   if(ext.length)card.append(create('p','mini-help',ext.join(' · ')));
+  }
+  listFrag.append(card);
+ }
+ if(!visibleItems.length)listFrag.append(create('p','muted',
+  'No hay productos de Romo con ese filtro. Los borradores continúan guardados.'));
+ list.replaceChildren(listFrag);
+ const promosFrag=document.createDocumentFragment();
+ if(!verified.promotions.length)promosFrag.append(create('p','muted','Romo no tiene promociones guardadas.'));
+ for(const item of verified.promotions){
+  const p=create('p','mini-help',item.name+' · '+price(item)+' · '+status(item));
+  promosFrag.append(p);
+ }
+ promos.replaceChildren(promosFrag);
+ const availability=document.getElementById('ukiDispLista');
+ if(availability){
+  const items=[...verified.products,...verified.promotions,...verified.ingredients]
+   .filter(item=>matches(item,disponibilidadBusqueda)&&
+    (disponibilidadTipo==='all'||(disponibilidadTipo==='product'?
+     [...verified.products,...verified.promotions].some(p=>p.sku===item.sku):
+     verified.ingredients.some(p=>p.sku===item.sku))));
+  const frag=document.createDocumentFragment();
+  for(const item of items){
+   const line=create('p','card romo-disponibilidad-consulta-qa',
+    item.name+' · '+status(item)+(Number.isSafeInteger(item.surcharge)&&item.surcharge>0?
+     ' · adicional '+money(item.surcharge):''));
+   line.dataset.romoSku=item.sku;line.dataset.readonly='true';frag.append(line);
+  }
+  if(!items.length)frag.append(create('p','muted','Sin ingredientes o productos con ese filtro.'));
+  availability.replaceChildren(frag);
+ }
+ const availabilityStatus=document.getElementById('ukiDispMensaje');
+ if(availabilityStatus)availabilityStatus.textContent=
+  'Disponibilidad Romo · '+verified.ingredients.length+' ingredientes · solo consulta, sin cambios.';
+ return Object.freeze({storeId:STORE,revision:verified.revision,productos:verified.products.length,
+  promociones:verified.promotions.length,ingredientes:verified.ingredients.length,
+  mostrados:visibleItems.length,soloLectura:true});
+}
+export function montarCatalogoEnEditorRomoQA({document,consultar=()=>consultarRomoSoloLecturaQA({area:'catalog'}),
+ cargarAlAbrir=true}={}){
+ const list=document?.getElementById?.('ukiPriceList'),promos=document?.getElementById?.('ukiPromosListaResumen');
+ const refresh=document?.getElementById?.('ukiPriceReload'),search=document?.getElementById?.('ukiPriceSearch');
+ const group=document?.getElementById?.('ukiPriceGroup');
+ if(!list||!promos||!refresh||!document.body.classList.contains('romo-qa')||
+    !document.getElementById('romoLaSerenaPreparacionQA'))return false;
+ let last=null,busy=false;
+ // Solo consulta y filtros; todos los demás controles de la plantilla siguen bloqueados.
+ refresh.disabled=false;
+ refresh.textContent='Actualizar catálogo Romo';
+ if(search)search.disabled=false;
+ if(group){
+  group.disabled=false;
+  for(const [value,label] of [['piezas','Piezas de sushi Romo'],['promociones','Promociones Romo']]){
+   if(!Array.from(group.options).some(o=>o.value===value)){
+    const opt=document.createElement('option');opt.value=value;opt.textContent=label;group.append(opt);
+   }
+  }
+ }
+ const availabilitySearch=document.getElementById('ukiDispBuscar');
+ const availabilityType=document.getElementById('ukiDispTipo');
+ const availabilityRefresh=document.getElementById('ukiDispRefrescar');
+ for(const n of [availabilitySearch,availabilityType,availabilityRefresh])if(n)n.disabled=false;
+ const status=document.getElementById('ukiPriceMessage');
+ const render=()=>{
+  if(!last)return;
+  if(!list.isConnected||!document.body.classList.contains('romo-qa'))return;
+  poblarEditorRomoSoloLecturaQA({document,catalogo:last,
+   busqueda:search?.value||'',categoria:group?.value||'all',
+   disponibilidadBusqueda:availabilitySearch?.value||'',
+   disponibilidadTipo:availabilityType?.value||'all'});
+ };
+ const load=async()=>{
+  if(busy)return;
+  busy=true;refresh.disabled=true;
+  if(status)status.textContent='Consultando el catálogo independiente de Romo…';
+  try{
+   const response=await consultar();
+   if(!list.isConnected||!document.body.classList.contains('romo-qa'))return;
+   const cat=checked(response,'catalog').catalog;
+   last=cat;render();
+   if(status)status.textContent='Romo La Serena · revisión '+cat.revision+
+    ' · '+cat.products.length+' productos · '+cat.promotions.length+
+    ' promociones · '+cat.ingredients.length+' ingredientes. Solo consulta.';
+  }catch(error){
+   last=null;list.replaceChildren();promos.replaceChildren();
+   if(status)status.textContent=String(error?.message||'Catálogo Romo no disponible');
+  }finally{busy=false;if(list.isConnected)refresh.disabled=false}
+ };
+ refresh.addEventListener('click',()=>void load());
+ for(const n of [search,group,availabilitySearch,availabilityType])
+  n?.addEventListener(n===search||n===availabilitySearch?'input':'change',render);
+ availabilityRefresh?.addEventListener('click',()=>void load());
+ if(cargarAlAbrir)void load();
+ return true;
+}
+
 export function prepararConsultaRomoQA({document,storeId,qaOnly=false}={}){
  if(qaOnly!==true||storeId!==STORE||
   !document?.body?.classList?.contains('romo-qa')||
@@ -112,7 +251,10 @@ export function prepararConsultaRomoQA({document,storeId,qaOnly=false}={}){
    }finally{button.disabled=false}
   });
  };
- setup('catalog','ukiPreciosPanel','romoConsultaResultadosQA');
+ // En el editor completo usar los campos ORIGINALES en lugar de crear
+ // una segunda lista; el montaje reducido de pruebas conserva su consulta.
+ if(!montarCatalogoEnEditorRomoQA({document}))
+  setup('catalog','ukiPreciosPanel','romoConsultaResultadosQA');
  setup('inventory','invRoot','romoConsultaInventarioResultadosQA');
  return true;
 }
