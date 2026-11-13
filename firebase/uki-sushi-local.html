@@ -938,6 +938,31 @@ async function ukiRomoConfirmarTimbrePedidoQA(id){
     String(error?.message||error));
  }finally{ukiRomoTimbreGuardandoQA=false;}
 }
+async function ukiRomoEntregarPedidoQA(id){
+ if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||S.suc!==ROMO_SUCURSAL_QA||
+    !ukiRomoControlPanelQA?.disponible())
+  return aviso('Entregas de Romo siguen en pruebas.');
+ if(ukiRomoTimbreGuardandoQA)return;
+ const p=(S.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&x.id===Number(id));
+ if(!p||p.estado!=='Pendiente'||p.esPremio)
+  return aviso('Solo puedes entregar un pedido pendiente de Romo.');
+ const responsable=String($('romoEntregaResponsableQA-'+p.id)?.value||'').trim();
+ if(responsable.length<2||responsable.length>80)
+  return aviso('Indica el nombre de quien entrega el pedido.');
+ if(!confirm('¿Confirmas que el cliente recibió este pedido de Romo? El pago no se modificará.'))return;
+ ukiRomoTimbreGuardandoQA=true;
+ try{
+  const res=await ukiRomoControlPanelQA.marcarEntregado({
+   pedidoId:p.id,responsable,registradoEn:Date.now()
+  });
+  if(res?.ok!==true)throw Error('Neon no confirmó la entrega');
+  aviso('Pedido entregado, guardado en Romo con responsable e historial.');
+  render();
+ }catch(e){
+  aviso('ENTREGA NO CONFIRMADA en esta pantalla. Revisa Neon e historial antes de repetir: '+
+   String(e?.message||e));
+ }finally{ukiRomoTimbreGuardandoQA=false;}
+}
 function vRomoPedidosConsultaQA(){
  if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||
     S.suc!==ROMO_SUCURSAL_QA)return vInicio();
@@ -969,7 +994,13 @@ function vRomoPedidosConsultaQA(){
     ' · '+fmt((Number(x.cantidad)||0)*(Number(x.precioUnit)||0))+
     (x.detalle?'<p class="muted">'+esc(x.detalle)+'</p>':'')+'</li>').join('')+'</ul>'+
    timbre+
-   '<p class="muted">La edición, cancelación y entrega siguen pendientes de guardado seguro.</p></details>';
+   (p.estado==='Pendiente'?
+     '<div class="card"><h3>Confirmar entrega</h3>'+
+     '<label>Responsable de la entrega</label><input maxlength="80" id="romoEntregaResponsableQA-'+
+     esc(p.id)+'" placeholder="Nombre del trabajador">'+
+     '<button type="button" class="sm" onclick="ukiRomoEntregarPedidoQA('+
+     Number(p.id)+')">Marcar entregado</button></div>':'')+
+   '<p class="muted">La edición y cancelación siguen pendientes de guardado seguro.</p></details>';
  }).join('');
  return '<section class="card"><h2>Pedidos confirmados · Romo La Serena</h2>'+
   '<p class="muted">Solo pedidos confirmados en Neon; para recibir uno nuevo usa la bandeja.</p>'+

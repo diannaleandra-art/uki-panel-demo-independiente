@@ -60,3 +60,12 @@ reitenta; exige revisar pedido/historial. El formulario de alta usa la misma tar
 de Uki con la marca correcta de Romo, sin cambiar los premios ni el mensaje de Uki.
 La edición, la cancelación y la entrega todavía no están disponibles en Romo.
 Los interruptores de Romo y su carta comercial permanecen desactivados.
+
+## 13 noviembre 2026 · Entrega de pedidos confirmados, QA
+La vista de pedidos Romo ahora permite indicar el responsable y marcar Entregado
+solo sobre pedidos Pendientes, conservando caja y medios de pago intactos.
+La misma lógica de Uki exige timbre confirmado en pedidos pagados que lo requieran.
+El guardado usa copia cifrada AES-GCM y revisión CAS en Neon; el historial anota
+responsable y hora. Respuestas inciertas no marcan entregado en la pantalla.
+Esto aún requiere prueba real con cuentas Google autorizadas y dos teléfonos.
+La edición y cancelación continúan pendientes; no se activaron ventas públicas.
