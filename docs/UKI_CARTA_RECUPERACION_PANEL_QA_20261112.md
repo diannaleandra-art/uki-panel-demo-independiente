@@ -21,3 +21,6 @@ No se ha desplegado ni habilitado la función. Antes de publicar, probar en iPho
 ## Panel
 
 En el mismo `firebase/uki-carta-remotas-panel.js`, solo una reserva vencida y con Google de dueña recibe el botón **Recuperar solicitud**. Se pide motivo y confirmación explícita de revisión de caja, historial y otro dispositivo; a continuación se ejecuta PATCH protegido y se actualiza la bandeja. No se añadió pantalla adicional.
+
+## Corrección solicitada: panel normal y personal
+La opción **Recuperar solicitud** se muestra dentro de Pedidos → Carta digital en el panel habitual, al personal autenticado de la sucursal con su acceso existente (Google o QR firmado y activo). No se requiere panel de dueños. Exige nombre del responsable, motivo, verificación de caja/historial y autorización del servidor, dejando UID, fecha y motivo registrados. Esta decisión sustituye la referencia anterior de «solo dueños». Se mantiene únicamente en pruebas y sin publicación comercial.

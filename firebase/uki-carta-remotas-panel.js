@@ -10,12 +10,12 @@ function ukiCartaReservaVencidaQA(r){
  const hasta=Date.parse(r?.reserva_hasta||'');
  return r?.estado==='pendiente'&&r?.en_reserva===true&&Number.isFinite(hasta)&&hasta<Date.now();
 }
-// Consulta de permiso SOLO para el Google dueña. Un equipo QR nunca autoriza
-// esta operación. No altera la bandeja ni la sesión habitual del trabajador.
+// Consulta el permiso usando la MISMA sesión autenticada del personal de Pedidos.
+// QR firmado o Google autorizado de la sucursal; no requiere otra contraseña.
 async function ukiCartaRecuperacionPermisoQA(branch){
  ukiCartaRecuperacionPuedeQA=false;
  let token=null;
- try{token=await window.ukiInventarioToken?.()}catch{return false}
+ try{token=await ukiCartaApiSesion()}catch{return false}
  if(!token)return false;
  try{
   const response=await fetch(UKI_CARTA_REMOTAS_API+'?branch='+encodeURIComponent(branch)+'&modo=recuperacion',{
@@ -120,8 +120,8 @@ async function ukiCartaRemotasActualizar(){
    ukiCartaRemotas.branch=branch;
    ukiCartaRemotas.status=ukiCartaRemotas.rows.filter(x=>x.estado==='pendiente').length+
     ' solicitud(es) pendientes. Comprueba que el WhatsApp del cliente también haya llegado.';
-   // El permiso se consulta únicamente si hay reservas vencidas; nunca se
-   // abre un botón a un trabajador que entra por el QR de su dispositivo.
+   // El permiso solo se consulta si hay reservas vencidas y utiliza la
+   // misma sesión que ya permite recibir pedidos en esta sucursal.
    ukiCartaRecuperacionPuedeQA=false;
    if(ukiCartaRemotas.rows.some(ukiCartaReservaVencidaQA))
     void ukiCartaRecuperacionPermisoQA(branch);
@@ -178,7 +178,7 @@ function ukiCartaRemotaFicha(r){
     'Actualiza la bandeja antes de continuar. No ingreses este pedido de nuevo.'
    )+'</p>'+(
     ukiCartaReservaVencidaQA(r)&&ukiCartaRecuperacionPuedeQA?
-    '<button class="sm uki-accion-recuperar" type="button" onclick="ukiCartaRecuperarReservaQA('+esc(JSON.stringify(r.id))+')">🔓 Recuperar solicitud · solo dueños</button>':''
+    '<button class="sm uki-accion-recuperar" type="button" onclick="ukiCartaRecuperarReservaQA('+esc(JSON.stringify(r.id))+')">🔓 Recuperar solicitud</button>':''
    ):pendiente?'<div class="uki-solicitud-acciones">'+
    '<label class="uki-motivo-rechazo">Motivo del rechazo<select id="ukiCartaMotivo'+esc(r.id)+'" onchange="ukiMotivoRechazoCambio(this)"><option value="">Selecciona un motivo</option>'+
    ['Cliente canceló','Cliente no respondió','Producto no disponible','Otro motivo'].map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('')+'</select></label>'+
@@ -227,7 +227,7 @@ function ukiCartaRemotaAbrir(id){
 async function ukiCartaRecuperarReservaQA(id){
  const branch=ukiMesaBranch();
  if(!ukiCartaRecuperacionPuedeQA||!['arica','serena'].includes(branch))
-  return aviso('Solo la cuenta Google dueña puede recuperar reservas vencidas.');
+  return aviso('Esta sesión o sucursal no puede recuperar reservas vencidas.');
  if(!window.ukiCancelacionNubeLista?.()||S.busy)
   return aviso('Sincroniza la caja y el historial antes de recuperar.');
  await ukiCartaRemotasActualizar();
@@ -236,6 +236,10 @@ async function ukiCartaRecuperarReservaQA(id){
   return aviso('Esta reserva ya cambió o no está vencida. Actualiza Pedidos.');
  if(ukiCartaSolicitudYaRegistrada(r)||ukiCartaPedidoAceptadoEnCaja(r))
   return aviso('Este pedido ya aparece registrado o en historial. No se liberó la reserva.');
+ const nombreResponsable=String(window.prompt('¿Quién recupera Carta #'+r.codigo_pedido+
+  '?\\nEscribe tu nombre para el registro de responsabilidad.','')||'').trim();
+ if(nombreResponsable.length<3||nombreResponsable.length>80)
+  return aviso('La reserva no se modificó: indica tu nombre (3 a 80 caracteres).');
  const motivo=String(window.prompt('¿Por qué necesitas recuperar Carta #'+r.codigo_pedido+
   '?\nEs obligatorio dejar el motivo (mínimo 5 caracteres).','Reserva vencida sin pedido registrado')||'').trim();
  if(motivo.length<5||motivo.length>200)
@@ -244,18 +248,18 @@ async function ukiCartaRecuperarReservaQA(id){
    '\n\nConfirma que revisaste pedidos registrados, historial y caja de ESTA sucursal, y que otro trabajador NO está terminando el pedido.'+
    '\n\nEsto solo libera la reserva. No registra venta, pago ni timbre.'))return;
  try{
-  const token=await window.ukiInventarioToken?.();
-  if(!token)throw Error('Inicia sesión con el Google de dueños.');
+  const token=await ukiCartaApiSesion();
+  if(!token)throw Error('Inicia sesión en Pedidos con tu acceso habitual.');
   const response=await fetch(UKI_CARTA_REMOTAS_API,{
    method:'PATCH',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
-   body:JSON.stringify({branch,id,estado:'recuperar',motivo,confirmoSinPedido:true}),
+   body:JSON.stringify({branch,id,estado:'recuperar',nombreResponsable,motivo,confirmoSinPedido:true}),
    signal:AbortSignal.timeout(15000)
   });
   const data=await response.json().catch(()=>({}));
   if(!response.ok||data.ok!==true||data.id!==id||data.branch!==branch||
      data.estado!=='pendiente'||data.reservaLiberada!==true)
    throw Error(data.error||'La reserva cambió o no fue liberada');
-  aviso('Reserva de Carta #'+r.codigo_pedido+' liberada, con motivo y responsable registrados.');
+  aviso('Reserva de Carta #'+r.codigo_pedido+' liberada por '+nombreResponsable+', con motivo registrado.');
   await ukiCartaRemotasActualizar();
  }catch(error){aviso('No se pudo recuperar la solicitud: '+String(error.message||error))}
 }
