@@ -129,8 +129,13 @@ export function prepararCierreDefinitivoRomoQA(estado,{
   monto:INT(g.monto,'gasto caja chica')
  }));
  const totalCajaChica=gastosChica.reduce((sum,g)=>sum+g.monto,0);
+ const abonos=(caja.pagosRepartidor||[]).map(x=>({
+  id:x.id,medio:String(x.medio||''),monto:INT(x.monto,'pago al repartidor'),
+  tipoSaldo:String(x.tipoSaldo||''),concepto:String(x.concepto||'').slice(0,180)
+ }));
  const detalle={
   turnoId,fechaOperativa,desdeMs:inicio,hastaMs:cierreMs,
+  pagosRepartidor:abonos,
   cajaChica:{inicial:INT(chica.inicial??0,'caja chica inicial'),
    gastos:gastosChica,totalGastos:totalCajaChica},
   pedidos:corte.pedidos.map(x=>({id:x.id,cliente:x.cliente||'',total:x.total,
@@ -178,6 +183,7 @@ export function prepararCierreDefinitivoRomoQA(estado,{
  caja.pagoDeliveryMedioAnterior='Efectivo';
  caja.pagoDeliveryConceptoAnterior='';
  caja.cajaChica={inicial:caja.cajaChica?.inicial??0,gastos:[]};
+ caja.pagosRepartidor=[];
  delete caja.repartidorNombre;
  return Object.freeze({tipo:'cierre',turnoId,cierre,
   totalMedios,efectivoEsperado,efectivoContado:contado,diferencia,

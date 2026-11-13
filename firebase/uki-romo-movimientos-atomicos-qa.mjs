@@ -52,6 +52,47 @@ export function moverCajaRomoCandidatoQA(estado,{tipo,datos}={}){
    nota:String(datos.nota||'').trim().slice(0,240),medio});
   return {tipo,id:b.id};
  }
+ if(tipo==='pago_repartidor'){
+  const fechaOperativa=String(datos.fechaOperativa||'');
+  check(/^\d{4}-\d{2}-\d{2}$/.test(fechaOperativa),'Día operativo inválido');
+  const caja=estado.cajasDiarias?.[SUC+'|'+fechaOperativa];
+  check(caja?.turnoAbierto===true,'Abre primero turno de repartos Romo');
+  const registro=base(estado,datos,'deliveriesManuales');
+  // No es un delivery MANUAL, ni se agrega al arreglo de ventas.
+  const medio=txt(datos.medio,45,'Medio');
+  check(MEDIOS.includes(medio),'Medio de pago a repartidor inválido');
+  const tipoSaldo=String(datos.tipoSaldo||'');
+  check(['dia','anterior'].includes(tipoSaldo),'Indica si es reparto del día o saldo anterior');
+  const cantidad=monto(datos.monto,'pago repartidor');
+  const key=tipoSaldo==='dia'?'pagoDeliveryDia':'pagoDeliveryAnterior';
+  const medKey=tipoSaldo==='dia'?'pagoDeliveryMedioDia':'pagoDeliveryMedioAnterior';
+  const anterior=Number(caja[key])||0;
+  check(Number.isSafeInteger(anterior)&&anterior>=0,'Abono anterior inválido');
+  check(anterior===0||caja[medKey]===medio,
+   'Si cambia el medio, primero concilia el pago anterior');
+  if(tipoSaldo==='dia'){
+   const desde=Number(caja.inicioMs)||0;
+   const porPedido=estado.pedidos.filter(p=>p?.suc===SUC&&
+    p.modalidad==='Delivery'&&p.estado!=='Cancelado'&&!p.esPremio&&
+    (Number(p.registradoEn)||Date.parse(p.fechaISO||''))>=desde)
+    .reduce((sum,p)=>sum+(Number(p.envio)||0),0);
+   const manual=estado.deliveriesManuales.filter(d=>d.suc===SUC&&
+    (Number(d.registradoEn)||Date.parse(d.fechaISO||''))>=desde)
+    .reduce((sum,d)=>sum+(Number(d.monto)||0),0);
+   check(anterior+cantidad<=porPedido+manual,
+    'El pago del día supera los deliverys registrados');
+  }
+  caja[key]=anterior+cantidad;caja[medKey]=medio;
+  const movimiento={...registro,medio,monto:cantidad,tipoSaldo,
+   concepto:String(datos.concepto||'').trim().slice(0,180)};
+  if(!Array.isArray(caja.pagosRepartidor))caja.pagosRepartidor=[];
+  check(!caja.pagosRepartidor.some(x=>x.id===movimiento.id),
+   'Ese abono al repartidor ya existe');
+  caja.pagosRepartidor.push(movimiento);
+  if(tipoSaldo==='anterior')
+   caja.pagoDeliveryConceptoAnterior=txt(datos.concepto,180,'Concepto saldo anterior');
+  return {tipo,id:registro.id,tipoSaldo};
+ }
  if(tipo==='propina_manual'){
   const b=base(estado,datos,'propinas');
   const pedidoId=Number(datos.pedidoId);

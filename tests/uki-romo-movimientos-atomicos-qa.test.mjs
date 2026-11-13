@@ -158,3 +158,38 @@ test('dos teléfonos: solo un movimiento puede confirmar revisión 0',async()=>{
  assert.equal(one.visible().estado.gastos.length,1);
  assert.equal(two.visible().estado.gastos.length,0);
 });
+
+test('pago repartidor se guarda en su turno y no como venta ni delivery manual',()=>{
+ const s=origin();
+ const fechaOperativa='2026-11-13';
+ s.cajasDiarias[SUC+'|'+fechaOperativa]={
+  turnoAbierto:true,inicioMs:ms-10000,pagoDeliveryDia:0,
+  pagoDeliveryAnterior:0,pagoDeliveryMedioDia:'Efectivo',
+  pagoDeliveryMedioAnterior:'Efectivo'
+ };
+ s.pedidos=[{suc:SUC,id:1,registradoEn:ms-1000,
+  modalidad:'Delivery',estado:'Pendiente',envio:2000}];
+ const r=moverCajaRomoCandidatoQA(s,{tipo:'pago_repartidor',
+  datos:{...base,fechaOperativa,medio:'Efectivo',tipoSaldo:'dia',
+   concepto:'Pago turno',monto:1500}});
+ assert.equal(r.tipo,'pago_repartidor');
+ const caja=s.cajasDiarias[SUC+'|'+fechaOperativa];
+ assert.equal(caja.pagoDeliveryDia,1500);
+ assert.equal(caja.pagosRepartidor.length,1);
+ assert.equal(s.deliveriesManuales.length,0);
+ assert.equal(s.pedidos.length,1);
+ assert.throws(()=>moverCajaRomoCandidatoQA(s,{tipo:'pago_repartidor',
+  datos:{...base,registradoEn:ms+1,fechaOperativa,medio:'Efectivo',
+   tipoSaldo:'dia',monto:900}}),/supera los deliverys/);
+});
+test('abono de saldo anterior requiere concepto, no contamina el reparto actual',()=>{
+ const s=origin(),fechaOperativa='2026-11-13';
+ s.cajasDiarias[SUC+'|'+fechaOperativa]={turnoAbierto:true,inicioMs:ms-1000};
+ assert.throws(()=>moverCajaRomoCandidatoQA(s,{tipo:'pago_repartidor',
+  datos:{...base,fechaOperativa,medio:'Efectivo',tipoSaldo:'anterior'}}),/Concepto/);
+ moverCajaRomoCandidatoQA(s,{tipo:'pago_repartidor',
+  datos:{...base,fechaOperativa,medio:'Transferencia',tipoSaldo:'anterior',
+   concepto:'Saldo del día anterior'}});
+ assert.equal(s.cajasDiarias[SUC+'|'+fechaOperativa].pagoDeliveryAnterior,2500);
+ assert.equal(s.cajasDiarias[SUC+'|'+fechaOperativa].pagoDeliveryDia,undefined);
+});
