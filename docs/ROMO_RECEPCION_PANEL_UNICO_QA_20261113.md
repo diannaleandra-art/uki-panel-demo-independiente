@@ -41,3 +41,13 @@ El modulo firebase/uki-romo-guardado-atomico-qa.mjs prepara el estado cifrado de
 Ante un resultado incierto no libera la reserva ni inventa una confirmacion: exige verificar bandeja, caja e historial antes de reintentar.
 La API ahora devuelve el campo branch en el listado, imprescindible para aislar Romo Serena.
 La bandera ROMO_GUARDADO_ATOMICO_HABILITADO_QA=false impide usarlo; sigue faltando enlazar el constructor de ventas, timbres y pagos ya existente del panel y ensayar la interfaz desde dos telefonos.
+
+## 13 noviembre 2026 · Timbre Romo con confirmación cifrada (sólo QA)
+Se agregó un módulo separado que prepara el timbre de un pedido Romo previamente
+confirmado y pagado, exigiendo WhatsApp real abierto, constancia de envío manual,
+responsable y horas. No emite mensajes ni presume envíos. Rechaza timbres
+duplicados y pedidos impagos/entregados/externos. Cambia únicamente una COPIA
+aislada del pedido, cifra y solicita CAS en Neon; ante un error no muestra la
+confirmación ni reintenta. El control del mismo panel ya expone la acción, pero
+el botón y el flujo de WhatsApp del trabajador SIGUEN SIN CONECTAR y la activación
+Romo continúa bloqueada. Uki no fue modificado.

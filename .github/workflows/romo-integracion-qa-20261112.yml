@@ -37,6 +37,7 @@ jobs:
             tests/uki-romo-caja-consulta-qa.test.mjs \
             tests/uki-romo-pedidos-lectura-qa.test.mjs \
             tests/uki-romo-movimientos-atomicos-qa.test.mjs \
+            tests/uki-romo-timbres-atomicos-qa.test.mjs \
             tests/uki-romo-caja-formulario-qa.test.mjs \
             tests/uki-romo-cierre-definitivo-qa.test.mjs \
             tests/uki-romo-cierre-servidor-qa.test.mjs \

@@ -10,6 +10,7 @@ import {crearGuardadoRomoDesdeFormularioQA} from './uki-romo-guardado-atomico-qa
 import {prepararBorradorRomoDesdeSolicitudQA} from './uki-romo-recepcion-formulario-qa.mjs';
 import {crearGuardadoCajaRomoQA} from './uki-romo-movimientos-atomicos-qa.mjs';
 import {crearGuardadoTurnosRomoQA} from './uki-romo-turnos-atomicos-qa.mjs';
+import {crearGuardadoTimbreRomoQA} from './uki-romo-timbres-atomicos-qa.mjs';
 export const ROMO_PANTALLA_OPERATIVA_HABILITADA_QA=false;
 const SUC='Romo’s Sushi La Serena';
 const requireOk=(condition,message)=>{if(!condition)throw Error(message)};
@@ -107,6 +108,25 @@ export function crearControlRomoMismoPanelQA({
     });
     return await worker.guardar({tipo,datos});
    }finally{guardando=false}
+  },
+  async confirmarTimbre({pedidoId,responsable,whatsappAbiertoEn,
+   whatsappConfirmadoEn,envioConfirmado=false}={}){
+   verificarSesion();
+   requireOk(!guardando,'Ya existe una operación de Romo en curso');
+   guardando=true;
+   try{
+    const driver=crearGuardadoTimbreRomoQA({
+     habilitado:true,servidor:estadoRemoto,cifrarEstado,validarEstado,
+     estadoVisible:()=>estadoVisible(),
+     aplicarConfirmado:async({estado,revision:next,cambio})=>{
+      await aplicarEstado({estado,revision:next,cambio,soloLectura:false});
+      revision=next;
+     }
+    });
+    return await driver.confirmar({
+     pedidoId,responsable,whatsappAbiertoEn,whatsappConfirmadoEn,envioConfirmado
+    });
+   }finally{guardando=false;}
   },
   async guardar({draft,contexto,confirmoArmado=false,confirmoImportes=false}={}){
    const visible=verificarSesion();
