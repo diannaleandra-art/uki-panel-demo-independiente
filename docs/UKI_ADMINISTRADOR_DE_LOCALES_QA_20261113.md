@@ -121,3 +121,6 @@ El panel solo ofrece el estado de Uki a window.ukiQAGet y solo acepta restauraci
 
 ## Prueba de sintaxis del panel completo (QA)
 Las pruebas ahora compilan mediante el parser de JavaScript el script clásico íntegro de uki-sushi-local.html, que incluye el selector y guardado de Uki y la rama condicional Romo. Además verifican el límite Firebase/localStorage de Uki y la inactividad de Romo. Esto NO sustituye la prueba en navegador real ni habilita la producción.
+
+## Dos equipos intentando registrar la misma solicitud (simulación QA)
+Se agregó una prueba con dos controladores independientes, dos estados de pantalla y una bandeja de prueba compartida. Ambos abren el estado inicial y seleccionan la misma solicitud; uno confirma y el otro recibe un bloqueo. Se verifican una sola venta, una sola aceptación, revisión 1 y ausencia de timbre o pago presuntos. La prueba no utiliza Neon ni teléfonos reales; la publicación requiere comprobación posterior en navegador con cuentas autorizadas.
