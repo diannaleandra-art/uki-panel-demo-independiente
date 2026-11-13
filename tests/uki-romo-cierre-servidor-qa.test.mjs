@@ -60,7 +60,7 @@ test('sin rol cash.close, sin turno válido o con snapshot en claro se rechaza',
  }));
  assert.equal(calls,0);
 });
-test('el navegador solo transmite turno y sobre cifrado, nunca importes ni contraseña',async()=>{
+test('el navegador transmite solo resumen agregado, turno y cifrado; nunca claves ni clientes',async()=>{
  const sent=[];
  const bridge=crearPuenteRomoOperativoQA({
   habilitado:true,
@@ -74,18 +74,30 @@ test('el navegador solo transmite turno y sobre cifrado, nunca importes ni contr
    })};
   }
  });
+ const resumen={
+  origen:'romo',store_id:'romo:serena',sucursal:'serena',
+  estado:'pendiente_confirmacion_neon',fecha_operativa:'2026-11-13',
+  turno_ref:turnoId,fuente_unica:'romo:serena|'+turnoId,
+  fecha_cierre_ms:1794578400000,venta_total:9000,pedidos:1,
+  medios:{Efectivo:9000},gastos_cierre:0,delivery_por_pagar:0,
+  propinas:0,retiros:0,efectivo_contado:9000,
+  diferencia_efectivo:0,caja_chica_inicial:0,caja_chica_gastos:0
+ };
  const result=await bridge.guardarCierreSobreCifrado({
-  snapshot,revision:1,turnoId
+  snapshot,revision:1,turnoId,resumen
  });
  assert.equal(result.revision,2);
  assert.deepEqual(Object.keys(sent[0]).sort(),
-  ['expectedRevision','operation','snapshot','turnoId'].sort());
+  ['expectedRevision','operation','resumen','snapshot','turnoId'].sort());
  assert(!('password' in sent[0]));
+ assert.deepEqual(sent[0].resumen,resumen);
+ assert.doesNotMatch(JSON.stringify(sent[0].resumen),/cliente|telefono|password|productos/i);
  assert.equal(sent[0].operation,'cierre_definitivo');
 });
 test('el servidor exige bandera de cierre adicional a la de Romo',()=>{
  const api=readFileSync(new URL('../api/romo-estado-operativo-qa.js',import.meta.url),'utf8');
  assert.match(api,/ROMO_CIERRE_DEFINITIVO_LIVE_ENABLED!=='true'/);
- assert.match(api,/esCierre\?await store\.confirmarCierreRomoEnNeonQA/);
- assert.match(api,/operation\|snapshot\|turnoId/);
+ assert.match(api,/ROMO_CIERRE_RECIBO_LIVE_ENABLED!=='true'/);
+ assert.match(api,/esCierre\?await store\.confirmarCierreConConstanciaRomoQA/);
+ assert.match(api,/operation\|resumen\|snapshot\|turnoId/);
 });
