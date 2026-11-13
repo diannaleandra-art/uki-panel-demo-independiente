@@ -914,7 +914,9 @@ function ukiRomoFormularioMovimientosQA(){
  '<option value="retiro">Retiro</option>'+
  '<option value="delivery_manual">Delivery manual a pagar</option>'+
  '<option value="propina_manual">Propina manual</option>'+
- '<option value="pago_repartidor">Pago al repartidor</option></select>'+
+ '<option value="pago_repartidor">Pago al repartidor</option>'+
+ '<option value="caja_chica">Gasto de caja chica</option>'+
+ '<option value="app_manual">Cobro manual de plataforma</option></select>'+
  '<label for="romoMovMonto">Importe ($)</label>'+
  '<input id="romoMovMonto" inputmode="numeric" type="number" min="1" step="1">'+
  '<label for="romoMovConcepto">Concepto o motivo</label>'+
@@ -923,6 +925,9 @@ function ukiRomoFormularioMovimientosQA(){
  '<select id="romoMovMedio"><option>Efectivo</option><option>Transferencia</option>'+
  '<option>Débito</option><option>Edenred</option><option>Otros</option></select>'+
  '<details><summary>Datos adicionales de delivery, propina o repartidor</summary>'+
+ '<label for="romoMovApp">Plataforma (solo para cobro manual)</label>'+
+ '<select id="romoMovApp"><option>Uber Eats</option><option>PedidosYa</option>'+
+ '<option>Rappi</option><option>Otros</option></select>'+
  '<label for="romoMovTipoSaldo">Pago al repartidor</label>'+
  '<select id="romoMovTipoSaldo"><option value="dia">Del día</option>'+
  '<option value="anterior">Abono a saldo anterior</option></select>'+
@@ -952,7 +957,8 @@ async function ukiRomoGuardarMovimientoDesdeCajaQA(){
   concepto,motivo:concepto,cliente:read('romoMovCliente'),
   nota:concepto,pedidoId:Number(read('romoMovPedido')),
   responsable:read('romoMovResponsable'),
-  fechaOperativa:romoDiaCajaQA(),tipoSaldo:read('romoMovTipoSaldo')};
+  fechaOperativa:romoDiaCajaQA(),tipoSaldo:read('romoMovTipoSaldo'),
+  medioApp:read('romoMovApp')};
  ukiRomoMovimientoGuardandoQA=true;
  try{
   const respuesta=await ukiRomoControlPanelQA.guardarMovimiento({tipo,datos});
@@ -987,6 +993,8 @@ function romoFormularioCierreQA(){
    '<label for="romoAbrirResponsable">Responsable</label><input id="romoAbrirResponsable" maxlength="80">'+
    '<label for="romoAbrirBase">Base inicial ($)</label>'+
    '<input id="romoAbrirBase" type="number" min="0" step="1" value="0">'+
+   '<label for="romoAbrirCajaChica">Caja chica inicial ($)</label>'+
+   '<input id="romoAbrirCajaChica" type="number" min="0" step="1" value="0">'+
    '<button type="button" class="big" onclick="romoAbrirTurnoQA()">Confirmar apertura</button></section>';
  }
  return '<section class="card"><h2>Cierre definitivo de Romo</h2>'+
@@ -1014,13 +1022,15 @@ async function romoAbrirTurnoQA(){
   return aviso('La apertura de Romo todavía no está habilitada.');
  const responsable=String($('romoAbrirResponsable')?.value||'').trim();
  const base=Number($('romoAbrirBase')?.value);
- if(responsable.length<2||!Number.isSafeInteger(base)||base<0)
+ const cajaChicaInicial=Number($('romoAbrirCajaChica')?.value);
+ if(responsable.length<2||!Number.isSafeInteger(base)||base<0||
+    !Number.isSafeInteger(cajaChicaInicial)||cajaChicaInicial<0)
   return aviso('Indica responsable y base inicial válida.');
  if(!confirm('¿Abrir el turno con base '+fmt(base)+'?'))return;
  romoCierreOcupadoQA=true;
  try{
   const result=await ukiRomoControlPanelQA.ejecutarTurno({tipo:'apertura',datos:{
-   fechaOperativa:romoDiaCajaQA(),inicioMs:Date.now(),base,responsable
+   fechaOperativa:romoDiaCajaQA(),inicioMs:Date.now(),base,cajaChicaInicial,responsable
   }});
   if(!result?.ok)throw Error('Neon no confirmó la apertura');
   aviso('Turno de Romo abierto en Neon.');render();

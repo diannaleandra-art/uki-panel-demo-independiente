@@ -35,3 +35,9 @@ test('la ruta Uki de cierre original queda preservada y bloquea Romo',()=>{
  assert.match(panel,/if\(S\.suc===ROMO_SUCURSAL_QA\)\{\s*aviso\('Romo aún no tiene caja operativa/);
  assert.match(panel,/const ROMO_PANEL_INTEGRACION_HABILITADA_QA=false/);
 });
+
+test('apertura Romo deja distinguir base de efectivo y caja chica inicial',()=>{
+ assert.match(panel,/id="romoAbrirCajaChica"/);
+ assert.match(panel,/cajaChicaInicial=Number\(\$\('romoAbrirCajaChica'\)\?\.value\)/);
+ assert.match(panel,/base,cajaChicaInicial,responsable/);
+});

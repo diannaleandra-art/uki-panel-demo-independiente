@@ -33,3 +33,11 @@ test('pago al repartidor distingue día y saldo anterior antes de cierre',()=>{
  assert.match(html,/fechaOperativa:romoDiaCajaQA\(\),tipoSaldo:read\('romoMovTipoSaldo'\)/);
  assert.match(html,/ROMO_PANEL_MOVIMIENTOS_HABILITADOS_QA=false/);
 });
+
+test('caja chica y cobros de plataformas figuran en el formulario sin activarse',()=>{
+ assert.match(html,/value="caja_chica"/);
+ assert.match(html,/value="app_manual"/);
+ assert.match(html,/id="romoMovApp"/);
+ assert.match(html,/medioApp:read\('romoMovApp'\)/);
+ assert.match(html,/ROMO_PANEL_MOVIMIENTOS_HABILITADOS_QA=false/);
+});
