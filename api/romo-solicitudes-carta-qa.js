@@ -15,17 +15,19 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
  if(env.VERCEL_ENV!=='production'||
     env.ROMO_CARTA_SOLICITUDES_LIVE_ENABLED!=='true')
   return fail(res,503,'La bandeja de Romo aún no está habilitada');
- const read=req.method==='GET'||req.method==='OPTIONS'&&
-   String(req.headers?.['access-control-request-method']||'').toUpperCase()==='GET';
- const expected=read?staffOrigin:publicOrigin;
+ const staff=req.method==='GET'||req.method==='PATCH'||req.method==='OPTIONS'&&
+   ['GET','PATCH'].includes(String(req.headers?.['access-control-request-method']||'').toUpperCase());
+ const expected=staff?staffOrigin:publicOrigin;
  if(!/^https:\/\/[^\/\s?#@]+$/.test(expected)||origin!==expected)
   return fail(res,403,'Origen no autorizado');
  res.setHeader('Access-Control-Allow-Origin',expected);
  res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type');
- res.setHeader('Access-Control-Allow-Methods',read?'GET,OPTIONS':'POST,OPTIONS');
+ res.setHeader('Access-Control-Allow-Methods',staff?'GET,PATCH,OPTIONS':'POST,OPTIONS');
  if(req.method==='OPTIONS')return res.status(204).end();
- if(!['GET','POST'].includes(req.method))return fail(res,405,'Método no permitido');
- if(req.method==='POST'){
+ if(!['GET','POST','PATCH'].includes(req.method))return fail(res,405,'Método no permitido');
+ if(req.method==='PATCH'&&env.ROMO_CARTA_SOLICITUDES_EDIT_LIVE_ENABLED!=='true')
+  return fail(res,503,'Rechazos de Romo aún deshabilitados');
+ if(req.method==='POST'||req.method==='PATCH'){
   if(String(req.headers?.['content-type']||'').split(';')[0]!=='application/json')
    return fail(res,415,'Se espera JSON');
   if(Number(req.headers?.['content-length']||0)>16000)
@@ -62,6 +64,26 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
    verifyToken:auth.verifyFirebaseGoogleToken,env
   });
   if(!identity)return fail(res,403,'Cuenta Google sin acceso a la bandeja Romo');
+  if(req.method==='PATCH'){
+   const body=req.body;
+   if(!body||typeof body!=='object'||Array.isArray(body)||
+      Object.keys(body).sort().join('|')!=='estado|id|motivo|storeId'||
+      body.storeId!=='romo:serena'||body.estado!=='rechazada')
+    return fail(res,400,'Solo se admite rechazo con motivo de Romo');
+   try{
+    const result=await mod.rechazarSolicitudRomoQA({
+     db,identity,id:body.id,motivo:body.motivo
+    });
+    return res.status(200).json({ok:true,...result});
+   }catch(error){
+    if(error?.code==='ROMO_DECISION_CONFLICT')return fail(res,409,'Solicitud procesada desde otro equipo');
+    if(/motivo|identificador|inválid/i.test(String(error?.message||'')))
+     return fail(res,400,'Identificador y motivo obligatorios');
+    if(/permiso|identidad|sucursal|Romo/i.test(String(error?.message||'')))
+     return fail(res,403,'Sin permiso para rechazar esta solicitud');
+    throw error;
+   }
+  }
   const items=await mod.leerSolicitudesRomoQA({db,identity});
   return res.status(200).json({ok:true,...items});
  }catch{return fail(res,503,'No se pudo completar la consulta de Romo')}

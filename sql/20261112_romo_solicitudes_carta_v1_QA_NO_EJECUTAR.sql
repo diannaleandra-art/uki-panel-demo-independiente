@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS public.romo_solicitudes_carta_v1 (
  whatsapp_confirmado boolean NOT NULL DEFAULT false,
  pedido_interno text,
  motivo_rechazo text,
+ actualizado_por text CHECK (actualizado_por IS NULL OR length(actualizado_por) BETWEEN 3 AND 128),
  ip_hash text NOT NULL CHECK (ip_hash ~ '^[0-9a-f]{64}$'),
  creado_en timestamptz NOT NULL DEFAULT now(),
  actualizado_en timestamptz NOT NULL DEFAULT now(),

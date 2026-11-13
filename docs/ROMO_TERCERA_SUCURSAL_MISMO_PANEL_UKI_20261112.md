@@ -122,3 +122,6 @@ El panel `firebase/uki-sushi-local.html` monta un lector `firebase/uki-romo-soli
 
 ## Cierre de reintentos de pedidos (QA)
 Se corrigió el contrato de idempotencia: la clave de solicitud no puede reutilizarse con diferente código, mensaje, nombre, WhatsApp o monto. Cada reintento idéntico retorna el mismo ticket. Esta verificación ocurre exclusivamente en Romo, sin caja ni timbre.
+
+## Rechazo con motivo y usuario verificado (QA temporal)
+Se agregó un flujo de rechazo a la misma bandeja de Romo, sin duplicar pedidos ni caja. Su API PATCH acepta exclusivamente estado `rechazada`, motivo obligatorio y UUID; la sesión Google firmada + rol activo deben autorizar `orders.reject`. La mutación atómica en Neon solo cambia una solicitud todavía `pendiente`; si otro dispositivo ya la procesó, devuelve conflicto y nunca sobrescribe. Se agrega la columna `actualizado_por` para auditoría de quién rechazó. La bandera independiente `ROMO_CARTA_SOLICITUDES_EDIT_LIVE_ENABLED` sigue apagada. La aceptación permanece cerrada hasta confirmar realmente un pedido interno guardado.

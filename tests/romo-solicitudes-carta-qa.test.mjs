@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {prepararSolicitudRomoQA,hashSolicitanteRomoQA,ingresarSolicitudRomoQA,leerSolicitudesRomoQA}
+import {prepararSolicitudRomoQA,hashSolicitanteRomoQA,ingresarSolicitudRomoQA,leerSolicitudesRomoQA,rechazarSolicitudRomoQA}
  from '../lib/romo-solicitudes-carta-qa.mjs';
 import {readFileSync} from 'node:fs';
 const order={storeId:'romo:serena',key:'solicitudRomo123456',
@@ -10,6 +10,7 @@ const order={storeId:'romo:serena',key:'solicitudRomo123456',
 const salt='solo_prueba_romo_never_live_123456';
 const owner={userId:'owner_fixture',brand:'romo',role:'duenos',branches:['serena']};
 const other={userId:'another_fixture',brand:'uki',role:'duenos',branches:['serena']};
+const fixtureId='00000000-0000-4000-8000-000000000001';
 function simulated(){
  const rows=new Map(),calls=[];
  return {calls,rows,async query(sql,params){
@@ -23,9 +24,16 @@ function simulated(){
   if(sql.startsWith('INSERT INTO ')){
    const [store_id,key,codigo_pedido,cliente,telefono,mensaje,total_indicado,ip_hash]=params;
    if(rows.has(key))return [];
-   rows.set(key,{id:'fixture-id',store_id,codigo_pedido,cliente,telefono,mensaje,
+   rows.set(key,{id:fixtureId,store_id,codigo_pedido,cliente,telefono,mensaje,
     total_indicado,ip_hash,estado:'pendiente',whatsapp_confirmado:false});
-   return [{id:'fixture-id',estado:'pendiente'}];
+   return [{id:fixtureId,estado:'pendiente'}];
+  }
+  if(sql.startsWith('UPDATE public.romo_solicitudes_carta_v1')){
+   const [store,id,motivo,actor]=params;
+   const record=[...rows.values()].find(x=>x.id===id&&x.store_id===store&&x.estado==='pendiente');
+   if(!record)return [];
+   record.estado='rechazada';record.motivo_rechazo=motivo;record.actualizado_por=actor;
+   return [{id,estado:'rechazada',motivo_rechazo:motivo,actualizado_por:actor}];
   }
   if(sql.includes('ORDER BY creado_en DESC LIMIT 100'))
    return [...rows.values()];
@@ -86,6 +94,35 @@ test('bandeja solo puede leer personal Romo autorizado',async()=>{
  assert.equal((await leerSolicitudesRomoQA({db,identity:owner})).orders.length,1);
  await assert.rejects(leerSolicitudesRomoQA({db,identity:other}),/Romo|permiso/);
 });
+test('rechazo exige motivo, identidad Romo y conserva autor de la decisión',async()=>{
+ const db=simulated();
+ await ingresarSolicitudRomoQA({db,request:order,ip:'192.0.2.1',salt});
+ const done=await rechazarSolicitudRomoQA({
+  db,identity:owner,id:fixtureId,motivo:'Cliente solicitó cancelar el pedido'
+ });
+ assert.equal(done.estado,'rechazada');
+ assert.equal(done.actualizadoPor,owner.userId);
+ assert.equal(done.countsAsSale,false);
+ assert.equal(db.rows.get(order.key).motivo_rechazo,'Cliente solicitó cancelar el pedido');
+ assert.equal(db.rows.get(order.key).actualizado_por,owner.userId);
+ await assert.rejects(rechazarSolicitudRomoQA({
+  db,identity:owner,id:fixtureId,motivo:'Otro motivo de rechazo'
+ }),e=>e.code==='ROMO_DECISION_CONFLICT');
+ assert.equal(db.calls.filter(x=>x.sql.startsWith('UPDATE ')).length,2);
+});
+test('sin motivo, con ID ajeno o rol Uki no permite cambiar solicitud',async()=>{
+ const db=simulated();
+ await assert.rejects(rechazarSolicitudRomoQA({
+  db,identity:owner,id:fixtureId,motivo:'no'
+ }),/Motivo/);
+ await assert.rejects(rechazarSolicitudRomoQA({
+  db,identity:owner,id:'arica',motivo:'Pedido rechazado'
+ }),/Identificador/);
+ await assert.rejects(rechazarSolicitudRomoQA({
+  db,identity:other,id:fixtureId,motivo:'Pedido rechazado'
+ }),/Romo|permiso/);
+ assert.equal(db.calls.length,0);
+});
 test('hash usa sal, nunca registra IP directa',()=>{
  const hash=hashSolicitanteRomoQA('192.0.2.1',salt);
  assert.match(hash,/^[0-9a-f]{64}$/);
@@ -97,5 +134,7 @@ test('API cerrada por defecto, JWT obligatorio para GET y POST público solo pen
  assert.match(s,/resolveRomoIdentity/);
  assert.match(s,/ingresarSolicitudRomoQA/);
  assert.match(s,/leerSolicitudesRomoQA/);
+ assert.match(s,/ROMO_CARTA_SOLICITUDES_EDIT_LIVE_ENABLED/);
+ assert.match(s,/rechazarSolicitudRomoQA/);
  assert.doesNotMatch(s,/UPDATE public\.romo_estado_operativo|INSERT INTO public\.uki_/);
 });
