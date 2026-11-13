@@ -88,3 +88,7 @@ El guardado de ficha ya no confía únicamente en el iPhone para preservar logo 
 La consulta y edición requieren siempre el Google + PIN existente; la modificación sigue con la bandera privada apagada.
 La actualización de Neon utiliza CAS sobre negocio_id, sucursal_id, store_id inmutable y revision actual, con estado='borrador'. Dos teléfonos no pueden sobrescribir silenciosamente cambios entre sí.
 Los tests simulan éxito, fallo de revisión, intento de cambiar fotos e intentos de habilitar caja. Sin publicación ni operaciones.
+
+
+## Cambios de ficha y auditoría en una operación (QA)
+La actualización de la ficha y su registro de auditoría se ejecutan en una única sentencia SQL, sin escrituras separadas que puedan quedar inconsistentes. Se registran exclusivamente campos de identidad modificados y sus revisiones, con el actor interno de finanzas. Si la auditoría falla, no se confirma la ficha. El guardado sigue desactivado mientras no se autorice su activación privada; no se publicaron cartas.

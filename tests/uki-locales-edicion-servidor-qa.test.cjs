@@ -71,3 +71,40 @@ test('el API usa guardado protegido, exige sesión de dueños y deja ventas cerr
  const update=api.indexOf("if(['locales_operativos_guardar_qa','locales_operativos_crear_qa'].includes(action))");
  assert(auth>=0&&update>auth);
 });
+
+test('edición y auditoría se guardan en una única sentencia',async()=>{
+ const prepared=prepararEdicionSeguraQA(start);
+ assert.match(prepared.sql,/WITH actualizado AS/);
+ assert.match(prepared.sql,/INSERT INTO public\.fin_auditoria/);
+ assert.match(prepared.sql,/FROM actualizado a RETURNING id/);
+ const captured=[];
+ const db={query:async(sql,args)=>{
+  captured.push(args);
+  return [{id,store_id:'romo:serena',revision:2,estado:'borrador'}];
+ }};
+ await guardarEdicionSeguraQA({db,preparada:prepared,actor:'google-owner-qa'});
+ assert.equal(captured.length,1);
+ assert.equal(captured[0].length,8);
+ assert.deepEqual(JSON.parse(captured[0][6]),{
+  revision:1,campos:{nombre:'Romo’s Sushi La Serena'}
+ });
+ assert.deepEqual(JSON.parse(captured[0][7]),{
+  revision:2,storeId:'romo:serena',campos:{nombre:'Romo La Serena'}
+ });
+});
+test('un error al escribir la auditoría no se presenta como guardado válido',async()=>{
+ let called=0;
+ const db={query:async()=>{called++;throw Error('Fallo auditoría');}};
+ await assert.rejects(
+  guardarEdicionSeguraQA({db,preparada:prepararEdicionSeguraQA(start),actor:'google-owner-qa'}),
+  /Fallo auditoría/);
+ assert.equal(called,1);
+});
+test('el controlador ya no graba una auditoría duplicada',()=>{
+ const code=fs.readFileSync(path.join(__dirname,'../api/mi-administracion-live.js'),'utf8');
+ const p=code.indexOf('cambiado=await seguro.guardarEdicionSeguraQA');
+ assert(p>=0);
+ const next=code.indexOf("if(revision!==0)",p);
+ assert(next>p);
+ assert.doesNotMatch(code.slice(p,next),/await audit\(sql,'local_qa'/);
+});

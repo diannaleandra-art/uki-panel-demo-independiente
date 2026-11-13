@@ -219,9 +219,8 @@ module.exports=async(req,res)=>{
       return fail(res,409,'La ficha cambió desde otro teléfono; revisa antes de guardar.');
      throw e;
     }
-    const changed=[cambiado];
-    await audit(sql,'local_qa',changed[0].id,'editar_borrador',who,{storeId:changed[0].store_id});
-    return ok(res,{local:changed[0]});
+    // Cambio y auditoría se confirmaron atómicamente.
+    return ok(res,{local:cambiado});
    }
    if(revision!==0)return fail(res,409,'No existe un borrador con esa revisión');
    // Un local nuevo es independiente. El existente Romo exige selección
