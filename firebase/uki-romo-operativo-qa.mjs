@@ -11,6 +11,35 @@
 export const ROMO_OPERATIVO_SUCURSAL_QA='Romo’s Sushi La Serena';
 export const ROMO_OPERATIVO_ID_QA='romo:serena';
 const ROMO_OPERATIVO_ENDPOINT_QA='';
+const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+/**
+ * Antes del guardado AES-GCM, comprobar en el estado YA ARMADO del mismo
+ * motor Uki que el pedido interno corresponde a la solicitud reservada.
+ * No enviar cliente, productos ni estado sin cifrar al servidor.
+ * La API verifica persistencia de la revisión; no puede leer AES-GCM.
+ */
+export function validarPedidoGuardadoEnEstadoRomoQA(estado,solicitudCarta){
+ const s=solicitudCarta;
+ if(!s||typeof s!=='object'||Array.isArray(s)||
+    Object.keys(s).sort().join('|')!=='claimToken|pedidoId|requestId'||
+    !UUID.test(s.requestId||'')||!UUID.test(s.claimToken||'')||
+    !/^[0-9]{1,12}$/.test(String(s.pedidoId||'')))
+  throw Error('Vínculo de solicitud Romo no válido');
+ if(!estado||estado.suc!==ROMO_OPERATIVO_SUCURSAL_QA||
+    !Array.isArray(estado.pedidos))
+  throw Error('Estado original de Romo no disponible');
+ const found=estado.pedidos.filter(p=>
+  p&&p.suc===ROMO_OPERATIVO_SUCURSAL_QA&&
+  String(p.id)===String(s.pedidoId)&&
+  String(p.cartaSolicitudRemotaId||'')===s.requestId&&
+  String(p.cartaReservaToken||'')===s.claimToken);
+ if(found.length!==1||!Array.isArray(found[0].productos)||
+    found[0].productos.length===0)
+  throw Error('Primero debes guardar el pedido de esta solicitud en el panel Romo');
+ return Object.freeze({requestId:s.requestId,claimToken:s.claimToken,
+  pedidoId:String(s.pedidoId)});
+}
+
 
 export class RomoGuardarConflictoQA extends Error{
  constructor(){super('Romo cambió en otro teléfono. Recarga antes de guardar.');this.code='REVISION_CONFLICTO';}
@@ -60,19 +89,30 @@ export function crearPuenteRomoOperativoQA({
     throw new Error('El estado recibido no corresponde a Romo');
    return Object.freeze({revision:result.revision,estado});
   },
-  async guardar({estado,password,revision,snapshotAnterior=null}={}){
+  async guardar({estado,password,revision,snapshotAnterior=null,solicitudCarta=null}={}){
    if(!disponible())throw new Error('Operaciones de Romo no habilitadas');
    if(!Number.isSafeInteger(revision)||revision<0||
       estado?.suc!==ROMO_OPERATIVO_SUCURSAL_QA||
       !validarEstado(estado,ROMO_OPERATIVO_SUCURSAL_QA)||
       typeof password!=='string'||password.length<12)
     throw new Error('Estado o contraseña de Romo no válido');
+   const vinculada=solicitudCarta===null?null:
+    validarPedidoGuardadoEnEstadoRomoQA(estado,solicitudCarta);
    const snapshot=await cifrar(estado,ROMO_OPERATIVO_SUCURSAL_QA,password,snapshotAnterior);
    // Nunca enviar texto de contraseñas o pedidos: solo el objeto cifrado.
    if(snapshot?.sucursal!==ROMO_OPERATIVO_SUCURSAL_QA)
     throw new Error('El cifrado recibido no corresponde a Romo');
-   const result=await request('POST',{expectedRevision:revision,snapshot});
+   const payload={expectedRevision:revision,snapshot};
+   if(vinculada)payload.solicitudCarta=vinculada;
+   const result=await request('POST',payload);
    if(result.revision!==revision+1)throw new Error('Revisión guardada incorrecta');
+   if(vinculada){
+    if(typeof result.comprobante!=='string'||result.comprobante.length<70||
+       typeof result.expiresAt!=='number'||!Number.isFinite(result.expiresAt))
+     throw new Error('El estado se guardó pero faltó confirmar el comprobante; no aceptes la solicitud');
+    return Object.freeze({revision:result.revision,snapshot,
+     comprobante:result.comprobante,expiresAt:result.expiresAt});
+   }
    return Object.freeze({revision:result.revision,snapshot});
   }
  });

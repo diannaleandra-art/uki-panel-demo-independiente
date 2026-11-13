@@ -41,6 +41,7 @@ jobs:
           node --check firebase/uki-romo-alta-clave-qa.mjs
           node --check api/romo-estado-operativo-qa.js
           node --check lib/romo-comprobante-guardado-qa.mjs
+          node --check firebase/uki-romo-operativo-qa.mjs
           node --check firebase/uki-romo-carta-selector-qa.mjs
           node --check firebase/romo-carta-qa/romo-carta-vista-embebida-qa.mjs
           node --check firebase/romo-carta-qa/romo-editor-carta-compatibilidad-qa.mjs
@@ -66,6 +67,7 @@ jobs:
             tests/romo-solicitudes-carta-qa.test.mjs \
             tests/romo-reservas-carta-qa.test.mjs \
             tests/romo-comprobante-guardado-qa.test.mjs \
+            tests/romo-guardar-y-enlazar-pedido-qa.test.mjs \
             tests/uki-romo-solicitudes-panel-qa.test.mjs \
             tests/romo-carga-catalogo-existente-20261112.test.mjs \
             tests/romo-almacenamiento-operativo-panel-qa.test.mjs \
