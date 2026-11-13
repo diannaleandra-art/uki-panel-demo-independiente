@@ -78,6 +78,7 @@ jobs:
             tests/uki-local-router-qa.test.mjs \
             tests/uki-romo-carta-selector-movil-qa-20261112.test.mjs \
             tests/uki-panel-unico-romo-serena-qa.test.cjs \
+            tests/uki-carta-recuperacion-panel-qa.test.cjs \
             tests/uki-romo-ingreso-clave-qa.test.cjs \
             tests/uki-romo-clave-remota-qa.test.cjs \
             tests/uki-admin-panel-dom.test.cjs
