@@ -117,3 +117,44 @@ test('guardarSobreCifrado usa Google y una única revisión sin pasar la contras
  const response=await bridge.guardarSobreCifrado({snapshot,revision:2});
  assert.equal(response.revision,3);assert.equal(writes,1);
 });
+
+test('dos teléfonos: solo un movimiento puede confirmar revisión 0',async()=>{
+ const server={revision:0,state:origin(),commits:0};
+ const equipment=()=>{
+  let local={revision:0,estado:origin()};
+  const driver=crearGuardadoCajaRomoQA({
+   habilitado:true,
+   servidor:{
+    disponible:()=>true,
+    guardarSobreCifrado:async({snapshot,revision})=>{
+     if(revision!==server.revision)throw Error('409: otro teléfono ya guardó');
+     server.state=structuredClone(snapshot.estadoSoloPrueba);
+     server.revision++;server.commits++;
+     return {revision:server.revision};
+    }
+   },
+   estadoVisible:()=>local,
+   validarEstado:(s,x)=>s?.suc===x&&Array.isArray(s.gastos),
+   cifrarEstado:async state=>({
+    formato:'uki-v813-browser',sucursal:SUC,
+    estadoSoloPrueba:structuredClone(state)
+   }),
+   aplicarConfirmado:async ({estado,revision})=>{
+    local={estado,revision};
+   }
+  });
+  return {driver,visible:()=>local};
+ };
+ const one=equipment(),two=equipment();
+ await one.driver.guardar({tipo:'gasto',datos:{
+  ...base,concepto:'Aceite',medio:'Efectivo'
+ }});
+ await assert.rejects(two.driver.guardar({tipo:'gasto',datos:{
+  ...base,registradoEn:ms+1,concepto:'Bolsas',medio:'Efectivo'
+ }}),e=>e instanceof RomoMovimientoInciertoQA);
+ assert.equal(server.commits,1);
+ assert.equal(server.revision,1);
+ assert.deepEqual(server.state.gastos.map(x=>x.concepto),['Aceite']);
+ assert.equal(one.visible().estado.gastos.length,1);
+ assert.equal(two.visible().estado.gastos.length,0);
+});
