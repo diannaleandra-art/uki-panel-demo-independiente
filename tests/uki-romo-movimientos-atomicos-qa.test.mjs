@@ -1,0 +1,119 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {moverCajaRomoCandidatoQA,crearGuardadoCajaRomoQA,
+ RomoMovimientoInciertoQA,ROMO_MOVIMIENTOS_CAJA_QA_HABILITADOS}
+ from '../firebase/uki-romo-movimientos-atomicos-qa.mjs';
+import {crearPuenteRomoOperativoQA} from '../firebase/uki-romo-operativo-qa.mjs';
+const SUC='Romo’s Sushi La Serena';
+const ms=1763070000000,fecha='2026-11-13T15:00:00';
+const origin=()=>({suc:SUC,pedidos:[],gastos:[],retiros:[],propinas:[],cierres:[],
+ deliveriesManuales:[],clientes:{},cajasDiarias:{},incidencias:[],
+ nextId:1,nextIncidenciaId:1});
+const base={registradoEn:ms,fechaISO:fecha,monto:2500};
+test('apagado por defecto: no hace consultas ni cambios',async()=>{
+ assert.equal(ROMO_MOVIMIENTOS_CAJA_QA_HABILITADOS,false);
+ let requests=0;
+ const control=crearGuardadoCajaRomoQA({servidor:{disponible:()=>{requests++;return true}}});
+ await assert.rejects(control.guardar({tipo:'gasto',datos:base}),/no habilitados/);
+ assert.equal(requests,0);
+});
+test('formatos de Uki sobre copia para gastos retiros y delivery manual',()=>{
+ for(const [tipo,datos,propiedad] of [
+  ['gasto',{...base,concepto:'Aceite',medio:'Efectivo'},'gastos'],
+  ['retiro',{...base,motivo:'Retiro de caja'},'retiros'],
+  ['delivery_manual',{...base,cliente:'Cliente',nota:'Repartidor',medio:'Efectivo'},'deliveriesManuales']
+ ]){
+  const original=origin(),copia=structuredClone(original);
+  const r=moverCajaRomoCandidatoQA(copia,{tipo,datos});
+  assert.equal(r.id,ms);assert.equal(copia[propiedad].length,1);
+  assert.equal(copia[propiedad][0].suc,SUC);
+  assert.deepEqual(original,origin(),'no se debe cambiar la vista');
+ }
+});
+test('propina manual exige pedido pagado de Romo y no cerrado',()=>{
+ const s=origin();
+ s.pedidos=[{id:8,suc:SUC,pagado:true,estado:'Pendiente',fechaISO:fecha,
+  registradoEn:ms,codigoCarta:'271'}];
+ const datos={...base,registradoEn:ms+1,pedidoId:8,concepto:'Propina local',
+  medio:'Efectivo',responsable:'Encargado QA'};
+ moverCajaRomoCandidatoQA(s,{tipo:'propina_manual',datos});
+ assert.equal(s.propinas[0].origen,'manual');
+ assert.throws(()=>moverCajaRomoCandidatoQA(s,{tipo:'propina_manual',
+  datos:{...datos,registradoEn:ms+2}}),/ya tiene propina/);
+ const closed=origin();closed.pedidos=structuredClone(s.pedidos);
+ closed.cierres=[{suc:SUC,fechaMs:ms+4000}];
+ assert.throws(()=>moverCajaRomoCandidatoQA(closed,{tipo:'propina_manual',datos}),/cierre definitivo/);
+});
+test('montos negativos fechas falsas y sucursales ajenas se rechazan',()=>{
+ for(const [tipo,datos] of [
+  ['gasto',{...base,concepto:'Aceite',medio:'Efectivo',monto:-1}],
+  ['gasto',{...base,concepto:'Aceite',medio:'Rappi'}],
+  ['retiro',{...base,motivo:'Caja',fechaISO:'mañana'}],
+  ['propina_manual',{...base,pedidoId:3,concepto:'Propina',medio:'Efectivo',responsable:'D'}],
+  ['cierre',{...base}]
+ ])assert.throws(()=>moverCajaRomoCandidatoQA(origin(),{tipo,datos}));
+ assert.throws(()=>moverCajaRomoCandidatoQA({...origin(),suc:'Uki La Serena'},
+  {tipo:'gasto',datos:{...base,concepto:'Aceite',medio:'Efectivo'}}));
+});
+const make=(fail=false)=>{
+ let visible={revision:0,estado:origin()},confirmaciones=0;
+ const events=[];
+ const control=crearGuardadoCajaRomoQA({
+  habilitado:true,
+  servidor:{disponible:()=>true,guardarSobreCifrado:async({snapshot,revision})=>{
+   events.push('Neon');assert.equal(revision,0);assert.equal(snapshot.sucursal,SUC);
+   assert.equal(visible.estado.gastos.length,0);
+   if(fail)throw Error('Conexión interrumpida');
+   confirmaciones++;return {revision:1};
+  }},
+  estadoVisible:()=>visible,
+  cifrarEstado:async copia=>{
+   events.push('cifrar');
+   assert.equal(copia.gastos.length,1);
+   return {formato:'uki-v813-browser',sucursal:SUC,cifrado:'prueba'};
+  },
+  validarEstado:(state,suc)=>state?.suc===suc&&Array.isArray(state.gastos),
+  aplicarConfirmado:async ({estado,revision})=>{
+   events.push('mostrar');visible={estado,revision};
+  }
+ });
+ return {control,events,visible:()=>visible,confirmaciones:()=>confirmaciones};
+};
+test('gasto no toca la pantalla antes de Neon y acepta revisión CAS',async()=>{
+ const d=make();
+ const r=await d.control.guardar({tipo:'gasto',
+  datos:{...base,concepto:'Aceite',medio:'Efectivo'}});
+ assert.equal(r.ok,true);assert.equal(r.revision,1);
+ assert.deepEqual(d.events,['cifrar','Neon','mostrar']);
+ assert.equal(d.visible().estado.gastos.length,1);
+ assert.equal(d.confirmaciones(),1);
+});
+test('error incierto deja la pantalla sin gasto, exige conciliación',async()=>{
+ const d=make(true);
+ await assert.rejects(d.control.guardar({tipo:'gasto',
+  datos:{...base,concepto:'Aceite',medio:'Efectivo'}}),
+  e=>e instanceof RomoMovimientoInciertoQA);
+ assert.deepEqual(d.events,['cifrar','Neon']);
+ assert.equal(d.visible().estado.gastos.length,0);
+});
+test('guardarSobreCifrado usa Google y una única revisión sin pasar la contraseña',async()=>{
+ const snapshot={formato:'uki-v813-browser',version:1,sucursal:SUC,
+  salt:'a'.repeat(24),iv:'b'.repeat(16),cifrado:'c'.repeat(40)};
+ let writes=0;
+ const bridge=crearPuenteRomoOperativoQA({
+  habilitado:true,cifrar:async()=>{},descifrar:async()=>{},validarEstado:()=>true,
+  getGoogleToken:async()=>('google_token_'.repeat(7)),
+  fetchFn:async(url,options)=>{
+   writes++;
+   assert.equal(options.method,'POST');
+   const payload=JSON.parse(options.body);
+   assert.deepEqual(payload,{expectedRevision:2,snapshot});
+   assert(!('password' in payload));
+   return {ok:true,status:200,json:async()=>({
+    ok:true,storeId:'romo:serena',revision:3
+   })};
+  }
+ });
+ const response=await bridge.guardarSobreCifrado({snapshot,revision:2});
+ assert.equal(response.revision,3);assert.equal(writes,1);
+});

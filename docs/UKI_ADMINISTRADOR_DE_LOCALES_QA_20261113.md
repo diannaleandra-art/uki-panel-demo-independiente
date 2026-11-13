@@ -132,3 +132,7 @@ Se añadió una vista de caja de Romo solo para consultar cobros confirmados del
 
 ## Pedidos Romo solo consulta hasta que acciones independientes sean transaccionales (QA)
 Se agregó una pantalla de pedidos confirmados sin acciones de cambio de estado, cancelación, entrega ni timbre. La bandeja Romo conserva el botón «Revisar pedido» para tomar solicitudes, pero no se habilitan los controles originales de UIKit sobre estado no guardado en Neon. La navegación de Romo toma su propia ruta antes de la lógica Uki que guarda borradores localmente: pide confirmación para descartar un formulario abierto, sin registrarlo como venta ni guardarlo de forma local. Se conserva intacta la navegación original de ambas sucursales Uki.
+
+
+## Motor de movimientos Romo con cifrado y Neon CAS · QA
+Se preparó el registro de gastos, retiros, delivery manual y propina asociada a pedido con la misma forma de los registros Uki. Cada movimiento se crea únicamente sobre una copia aislada de Romo, se valida, se cifra con la clave de sesión del panel y se confirma mediante revisión CAS en Neon, antes de actualizar la pantalla. La propina exige pedido pagado sin cierre posterior y rechaza duplicados. La API recibe solo el sobre AES-GCM y el token Google, nunca contraseñas. Si la respuesta remota es incierta, NO se presenta un gasto como guardado ni se repite automáticamente. Este motor permanece deshabilitado; los botones aún no están conectados y los cierres definitivos continúan bloqueados.
