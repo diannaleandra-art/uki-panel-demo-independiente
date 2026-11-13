@@ -34,4 +34,5 @@ jobs:
             tests/uki-romo-caja-bloqueada-qa.test.cjs \
             tests/romo-preparacion-integral-qa.test.mjs \
             tests/uki-locales-vinculacion-qa.test.cjs \
-            tests/uki-locales-finanzas-diagnostico-qa.test.cjs
+            tests/uki-locales-finanzas-diagnostico-qa.test.cjs \
+            tests/uki-locales-lectura-qa.test.cjs

@@ -36,6 +36,17 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
   for(const record of drafts){
    const div=document.createElement('div');div.className='line';
    const title=document.createElement('strong');title.textContent=record.configuracion?.nombre||'Local';
+   const view=document.createElement('button');view.type='button';view.textContent='Ver ficha';
+   view.addEventListener('click',()=>{
+    biz.value=record.negocio_id;
+    sync();
+    branch.value=record.sucursal_id;
+    by('ownerLocNewBranchWrap').hidden=true;
+    leerBorradorSeleccionado();
+    by('ownerLocDetails').open=true;
+    by('ownerLocDetails').scrollIntoView?.({behavior:'smooth',block:'start'});
+   });
+   div.append(view);
    const detail=document.createElement('p');detail.className='hint';
    try{const p=prepararVinculoLocalQA(record);
     detail.textContent='Carta y panel: '+p.storeId+' · Configurados en borrador, sin ventas';
@@ -165,17 +176,17 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
    const d=resp.diagnostico||{};
    puedeGuardar=d.registroHabilitado===true;
    save.disabled=!puedeGuardar;
-   if(!d.registroHabilitado){
+   if(!d.lecturaBorradoresHabilitada){
     drafts=[];
-    by('ownerLocStatus').textContent=
-     'Administrador de Locales en preparación. '+(d.siguiente||'No está activado')+
-     '. La vista previa sí está disponible; no se guardó ningún local.';
+    by('ownerLocStatus').textContent='El listado privado no está preparado. '+(d.siguiente||'');
     renderList();
     return;
    }
    const data=await api('locales_operativos_listar_qa');
    drafts=Array.isArray(data.locales)?data.locales:[];
-   by('ownerLocStatus').textContent='Borradores privados disponibles. Ninguno activa caja ni QR.';
+   by('ownerLocStatus').textContent=puedeGuardar?
+    'Fichas privadas disponibles para editar; las ventas siguen bloqueadas.':
+    'Fichas privadas disponibles para consultar. Guardar continúa desactivado.';
   }catch{
    drafts=[];
    puedeGuardar=false;

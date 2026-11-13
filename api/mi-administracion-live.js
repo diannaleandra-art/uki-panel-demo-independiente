@@ -142,7 +142,15 @@ module.exports=async(req,res)=>{
    return ok(res,{diagnostico:resultado});
   }
 
-  if(['locales_operativos_listar_qa','locales_operativos_guardar_qa','locales_operativos_crear_qa'].includes(action)){
+  if(action==='locales_operativos_listar_qa'){
+   // Consultar requiere Google+PIN, pero no activa la edición ni las ventas.
+   const d=await require('../lib/uki-locales-finanzas-diagnostico-qa.cjs')
+    .diagnosticarRegistroLocalesQA({db:sql,habilitado:false});
+   if(!d.lecturaBorradoresHabilitada)return fail(res,503,'Borradores todavía no disponibles');
+   const locales=await require('../lib/uki-locales-lectura-qa.cjs').listQA(sql);
+   return ok(res,{locales,soloLectura:true});
+  }
+  if(['locales_operativos_guardar_qa','locales_operativos_crear_qa'].includes(action)){
    // No se comparte una clave nueva: misma sesión Google + PIN de dueños,
    // validados arriba. Ninguna ruta de este bloque activa locales.
    if(process.env.UKI_LOCALES_OPERATIVOS_QA_ENABLED!=='true')

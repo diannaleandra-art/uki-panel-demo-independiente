@@ -18,6 +18,7 @@ test('diagnóstico privado consulta solo esquema y sin escritura',async()=>{
  assert.equal(result.finanzasComprobadas,true);
  assert.equal(result.tablaBorradoresPreparada,false);
  assert.equal(result.registroHabilitado,false);
+ assert.equal(result.lecturaBorradoresHabilitada,false);
  assert.equal(result.operacionesHabilitadas,false);
  assert.equal(result.publicacionHabilitada,false);
 });
@@ -32,6 +33,8 @@ test('con tabla presente y sin autorización permanece bloqueado',async()=>{
  const r=await diagnosticarRegistroLocalesQA({db,habilitado:false});
  assert.equal(r.registroHabilitado,false);
  assert.equal(r.tablaBorradoresPreparada,true);
+ assert.equal(r.lecturaBorradoresHabilitada,true);
+ assert.equal(r.registroHabilitado,false);
  assert.equal(r.publicacionHabilitada,false);
 });
 test('ni sin datos financieros ni con fallo de conexión declara listo',async()=>{
@@ -52,6 +55,8 @@ test('ruta solo detrás de la sesión financiera Google y PIN, sin secretos púb
  const owner=fs.readFileSync(path.join(__dirname,'../public/uki-owner-locales-qa.mjs'),'utf8');
  assert.match(owner,/locales_operativos_diagnostico_qa/);
  assert.match(owner,/registroHabilitado/);
+ assert.match(owner,/lecturaBorradoresHabilitada/);
+ assert.match(owner,/Ver ficha/);
  assert.match(owner,/if\(loading\|\|!puedeGuardar\)return/);
  assert.match(owner,/save\.disabled=!puedeGuardar/);
  assert.doesNotMatch(owner,/finally\{loading=false;save\.disabled=false/);

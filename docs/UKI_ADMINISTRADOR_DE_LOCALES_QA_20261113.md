@@ -74,3 +74,7 @@ La rama financiera identificada contiene fin_negocios, fin_sucursales, fin_sesio
 - El backend **todavía no está publicado** con estos cambios ni se habilitó `UKI_LOCALES_OPERATIVOS_QA_ENABLED`; guardar desde la interfaz seguirá bloqueado hasta publicación y autorización específicas.
 - Reforzado el alta de sucursales: "Crear nueva" solo acepta una fila realmente nueva. Una sucursal existente nunca se recupera silenciosamente para crear otra ficha operativa.
 - El botón Guardar permanece bloqueado tras fallas de autenticación o diagnóstico. Ninguna venta, carta o QR activados.
+
+
+## Lectura privada de fichas sin habilitar edición (QA)
+Separamos la consulta del guardado del Administrador de Locales. La sesión Google+PIN existente puede listar y abrir fichas usando la tabla preparada, sin habilitar pedidos, caja, timbres ni cambios de datos. La escritura permanece detrás de `UKI_LOCALES_OPERATIVOS_QA_ENABLED`. Al seleccionar «Ver ficha», el sistema carga la información y la revisión guardada, sin duplicar Romo. La consulta devuelve únicamente los campos necesarios y descarta datos internos del auditor. Pendiente despliegue autorizado.
