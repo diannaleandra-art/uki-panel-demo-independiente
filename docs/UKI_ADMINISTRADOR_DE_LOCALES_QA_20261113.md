@@ -147,3 +147,7 @@ La vista Caja del panel único ahora contiene un formulario de movimiento prepar
 - Los pagos mixtos provienen de pedidos ya confirmados y no se duplican. Los cierres guardan detalle e identidad de turno y no reescriben cierres anteriores.
 - Se conservan dos turnos distintos en un mismo día mediante `turnoClave` y su momento real de apertura. Las solicitudes locales pendientes bloquean el cierre; los pedidos sin pagar requieren confirmación específica.
 - **Aún pendiente:** autenticar y comprobar la bandeja remota justo al cerrar y confirmar el snapshot cifrado en Neon con revisión CAS, y conectar la interfaz. La bandera `ROMO_CIERRE_DEFINITIVO_HABILITADO_QA` permanece apagada. No se ha cerrado ninguna caja real ni publicado la carta.
+
+
+## Interfaz de cierre definitivo Romo (QA)
+La misma Caja contiene apertura con responsable/base, cierre con responsable, efectivo contado sin base, observaciones, aceptación de diferencias y pendientes, revisión con resumen y confirmación definitiva separada. La previsualización usa una COPIA del estado y una firma de los datos; la confirmación cifrada rechaza cambios de pantalla o revisión. Solo Neon puede confirmar el cierre y el historial permanece inmutable. `ROMO_PANEL_CIERRE_HABILITADO_QA=false` y `ROMO_CIERRE_DEFINITIVO_LIVE_ENABLED` siguen apagados. Sin despliegue público.
