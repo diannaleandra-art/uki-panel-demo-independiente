@@ -161,12 +161,24 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
  };
  async function consultar(){
   try{
+   const resp=await api('locales_operativos_diagnostico_qa');
+   const d=resp.diagnostico||{};
+   save.disabled=d.registroHabilitado!==true;
+   if(!d.registroHabilitado){
+    drafts=[];
+    by('ownerLocStatus').textContent=
+     'Administrador de Locales en preparación. '+(d.siguiente||'No está activado')+
+     '. La vista previa sí está disponible; no se guardó ningún local.';
+    renderList();
+    return;
+   }
    const data=await api('locales_operativos_listar_qa');
    drafts=Array.isArray(data.locales)?data.locales:[];
    by('ownerLocStatus').textContent='Borradores privados disponibles. Ninguno activa caja ni QR.';
   }catch{
    drafts=[];
-   by('ownerLocStatus').textContent='Configuración operativa todavía desactivada. Puedes preparar y visualizar la ficha en esta prueba.';
+   save.disabled=true;
+   by('ownerLocStatus').textContent='El guardado privado aún no está disponible. Puedes completar la ficha y verla sin publicarla.';
   }
   renderList();
   if(branch.value)leerBorradorSeleccionado();

@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS public.fin_locales_operativos_qa(
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
  negocio_id uuid NOT NULL REFERENCES public.fin_negocios(id),
  sucursal_id uuid NOT NULL UNIQUE REFERENCES public.fin_sucursales(id),
+ CONSTRAINT fin_locales_operativos_sucursal_negocio_fk FOREIGN KEY (sucursal_id,negocio_id) REFERENCES public.fin_sucursales(id,negocio_id),
  store_id text NOT NULL UNIQUE,
  configuracion jsonb NOT NULL,
  estado text NOT NULL DEFAULT 'borrador' CHECK(estado='borrador'),

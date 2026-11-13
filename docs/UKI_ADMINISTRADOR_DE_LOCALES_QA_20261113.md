@@ -60,3 +60,7 @@ Se agregó un diagnóstico de solo lectura para catálogo Romo, personal autoriz
 
 ## No duplicar Romo La Serena
 El formulario privado distingue explícitamente Vincular Romo existente de Crear local nuevo. El servidor requiere la selección exacta y verifica el negocio, sucursal y dirección Balmaceda 1612 antes de usar romo:serena; un local nuevo obtiene local:UUID. La tabla fin_locales_operativos_qa protege la unicidad de store_id y sucursal_id. Estos cambios no se activan hasta comprobar la base financiera privada y obtener autorización de publicación.
+
+
+## Verificación real del esquema financiero, sin ejecutar migraciones
+La rama financiera identificada contiene fin_negocios, fin_sucursales, fin_sesiones, fin_auditoria y cierres existentes. El administrador sólo consulta qué requisitos están disponibles a través de `locales_operativos_diagnostico_qa`, usando la sesión de dueños ya autorizada. La migración preparada añade una clave foránea compuesta `(sucursal_id,negocio_id)` para evitar relacionar un local con un negocio incorrecto. `Guardar borrador` sigue deshabilitado mientras no se compruebe la tabla y la bandera privada. NO se ejecutaron migraciones, NO se publicaron cartas, NO se abrieron ventas.

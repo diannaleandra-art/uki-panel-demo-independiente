@@ -134,6 +134,14 @@ module.exports=async(req,res)=>{
    return ok(res,{sesion:token,minutos:30});
   }
   if(!await authorized(sql,req,who))return fail(res,401,'Introduce el código privado para continuar.');
+  if(action==='locales_operativos_diagnostico_qa'){
+   const diag=require('../lib/uki-locales-finanzas-diagnostico-qa.cjs');
+   const resultado=await diag.diagnosticarRegistroLocalesQA({
+    db:sql,habilitado:process.env.UKI_LOCALES_OPERATIVOS_QA_ENABLED==='true'
+   });
+   return ok(res,{diagnostico:resultado});
+  }
+
   if(['locales_operativos_listar_qa','locales_operativos_guardar_qa','locales_operativos_crear_qa'].includes(action)){
    // No se comparte una clave nueva: misma sesión Google + PIN de dueños,
    // validados arriba. Ninguna ruta de este bloque activa locales.
