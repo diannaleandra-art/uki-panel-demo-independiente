@@ -122,8 +122,17 @@ export function prepararCierreDefinitivoRomoQA(estado,{
   'Existe diferencia de efectivo; confirma y deja su explicación');
  CHECK(diferencia===0||obs.length>=3,
   'Si hay diferencia, indica su motivo en Observaciones');
+ const chica=caja.cajaChica||{inicial:0,gastos:[]};
+ CHECK(Array.isArray(chica.gastos),'Caja chica debe tener desglose');
+ const gastosChica=chica.gastos.map(g=>({
+  id:g.id??null,concepto:String(g.concepto||'').slice(0,180),
+  monto:INT(g.monto,'gasto caja chica')
+ }));
+ const totalCajaChica=gastosChica.reduce((sum,g)=>sum+g.monto,0);
  const detalle={
   turnoId,fechaOperativa,desdeMs:inicio,hastaMs:cierreMs,
+  cajaChica:{inicial:INT(chica.inicial??0,'caja chica inicial'),
+   gastos:gastosChica,totalGastos:totalCajaChica},
   pedidos:corte.pedidos.map(x=>({id:x.id,cliente:x.cliente||'',total:x.total,
    pagado:!!x.pagado,envio:x.envio||0,medio:x.medio||'',estado:x.estado||''})),
   gastos:corte.gastos.map(x=>({...x})),retiros:corte.retiros.map(x=>({...x})),
@@ -151,6 +160,8 @@ export function prepararCierreDefinitivoRomoQA(estado,{
   pagoDeliveryMedio:medioDia,
   pagoDeliveryConceptoAnterior:String(caja.pagoDeliveryConceptoAnterior||'').slice(0,180),
   medios,base:INT(caja.base??0,'base'),
+  cajaChicaInicial:INT(chica.inicial??0,'caja chica inicial'),
+  cajaChicaGastos:totalCajaChica,
   envios:t.deliveryParaRepartidor+t.entregasManualesAConciliar,
   enviosPedidos:t.deliveryParaRepartidor,
   enviosManuales:t.entregasManualesAConciliar,

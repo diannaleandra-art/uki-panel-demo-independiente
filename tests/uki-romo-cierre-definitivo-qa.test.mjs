@@ -120,3 +120,26 @@ test('no muta Uki ni admite registros ajenos ni duplicados de cierre',()=>{
  other.cierres=[{suc,turnoClave:day+'@'+inicio}];
  assert.throws(()=>cerrar(other),/ya tiene cierre/);
 });
+
+test('los gastos de caja chica quedan en el cierre y no se convierten en venta',()=>{
+ const s=nuevo();abrir(s);s.pedidos=[p()];
+ const caja=s.cajasDiarias[suc+'|'+day];
+ caja.cajaChica={inicial:20000,gastos:[{id:12,concepto:'Guantes',monto:1200}]};
+ const r=cerrar(s);
+ assert.equal(r.cierre.venta,9000);
+ assert.equal(r.cierre.cajaChicaInicial,20000);
+ assert.equal(r.cierre.cajaChicaGastos,1200);
+ assert.equal(r.cierre.detalle.cajaChica.gastos.length,1);
+ assert.equal(r.cierre.detalle.cajaChica.gastos[0].concepto,'Guantes');
+ assert.deepEqual(caja.cajaChica.gastos,[]);
+ assert.equal(r.efectivoEsperado,9000);
+});
+test('ingresos manuales de app se cuentan una sola vez como en Uki',()=>{
+ const s=nuevo();abrir(s);
+ s.cajasDiarias[suc+'|'+day].apps={'Uber Eats':3500,Otros:1000};
+ const r=cerrar(s,{efectivoContado:0});
+ assert.equal(r.cierre.venta,4500);
+ assert.equal(r.cierre.medios['Uber Eats'],3500);
+ assert.equal(r.cierre.medios.Otros,1000);
+ assert.equal(r.cierre.efectivo,0);
+});
