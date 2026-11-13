@@ -29,6 +29,9 @@ test('imagen segura, sin cuentas ni URL ajena y sin inventar foto',()=>{
 });
 test('respeta identificadores originales Uki y Romo',()=>{
  assert.equal(storeIdConocido('Uki Sushi','Regimiento Arica'),'uki:arica');
+ const srv=fs.readFileSync(path.join(__dirname,'../api/mi-administracion-live.js'),'utf8');
+ assert.doesNotMatch(srv,/const known=core\.storeIdConocido/);
+ assert.match(srv,/storeId='local:'\+id/);
  assert.equal(storeIdConocido('Uki Sushi','La Serena'),'uki:serena');
  assert.equal(storeIdConocido("Romo's Sushi",'La Serena'),'romo:serena');
  assert.equal(storeIdConocido('Crepe Pop','La Serena'),null);

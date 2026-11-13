@@ -23,3 +23,12 @@ No se copian precios, fotos, pagos, inventario, timbres, clientes, cierres ni pe
 
 ## Siguiente bloque tras esta preparación
 Unificar las adaptaciones Romo sobre el registro; conectar la carta al store_id y el formulario al mismo motor de caja sin rutas hardcodeadas. Probar dos teléfonos y permisos por tienda antes de habilitar una sucursal real. Una única publicación autorizada al final.
+
+
+## QA · Conexión segura de identificadores
+Registro reutilizable: public/uki-locales-registro-qa.mjs.
+Las 3 tiendas ya existentes se conservan: uki:arica, uki:serena y romo:serena.
+Un local nuevo recibe local:UUID exclusivo en vez de identificarse por un nombre parecido.
+Una ficha nueva nunca copia ventas, inventario, caja o clientes, ni habilita carta.
+Romo debe asociarse explícitamente a su identificador existente antes de la activación.
+No se ejecutó migración ni se cambió la producción.

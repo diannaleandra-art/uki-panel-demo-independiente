@@ -19,6 +19,16 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar}){
   const msg=document.createElement('p');msg.className='hint';
   msg.textContent='Uki Regimiento Arica y Uki La Serena mantienen su operación. Romo La Serena sigue en integración; aquí no se vuelven a crear.';
   list.append(msg);
+  for(const [name,status] of [
+   ['Uki Regimiento Arica','Existente · sin cambios'],
+   ['Uki La Serena','Existente · sin cambios'],
+   ['Romo’s Sushi La Serena','Integración en pruebas']
+  ]){
+   const line=document.createElement('div');line.className='line';
+   const h=document.createElement('strong');h.textContent=name;
+   const p=document.createElement('p');p.className='hint';p.textContent=status;
+   line.append(h,p);list.append(line);
+  }
   for(const record of drafts){
    const div=document.createElement('div');div.className='line';
    const title=document.createElement('strong');title.textContent=record.configuracion?.nombre||'Local';

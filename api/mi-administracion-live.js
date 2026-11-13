@@ -178,8 +178,9 @@ module.exports=async(req,res)=>{
     return ok(res,{local:changed[0]});
    }
    if(revision!==0)return fail(res,409,'No existe un borrador con esa revisión');
-   const known=core.storeIdConocido(names[0].negocio,names[0].sucursal);
-   const id=crypto.randomUUID(),storeId=known||'local:'+id;
+   // La similitud de nombre no habilita identidad de tienda existente.
+   // El vínculo de Romo se hará explícito, sin reutilizar datos Uki.
+   const id=crypto.randomUUID(),storeId='local:'+id;
    const created=await sql.query(
     "INSERT INTO public.fin_locales_operativos_qa"+
     " (id,negocio_id,sucursal_id,store_id,configuracion,creado_por,actualizado_por)"+
