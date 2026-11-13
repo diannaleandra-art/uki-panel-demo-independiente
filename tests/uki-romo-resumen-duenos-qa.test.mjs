@@ -71,5 +71,6 @@ test('el guardado de turnos prepara finanzas SOLO después de CAS',async()=>{
  assert.match(src,/const resumenDuenosPendiente=tipo==='cierre'/);
  assert.match(src,/vincularResumenConfirmadoRomoDuenosQA/);
  assert.match(src,/const resumenDuenosQA=tipo==='cierre'/);
- assert.match(src,/estado:'cierre_confirmado'/);
+ assert.match(src,/vincularResumenConfirmadoRomoDuenosQA\(resumenDuenosPendiente,\s*confirmado\)/);
+ assert.doesNotMatch(src,/storeId:'romo:serena',turnoId:resultado.turnoId/);
 });
