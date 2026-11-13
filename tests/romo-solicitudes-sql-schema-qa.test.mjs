@@ -33,6 +33,11 @@ test('Protege claves duplicadas, limites, reserva por sucursal y tasa de solicit
  assert.match(ddl,/request_key text NOT NULL UNIQUE/);
  assert.match(ddl,/store_id,estado,creado_en DESC/);
  assert.match(ddl,/ip_hash,creado_en/);
+ assert.match(ddl,/CHECK \(ip_hash ~ /);
+ assert.match(ddl,/reserva_token_hash='' OR reserva_hasta IS NOT NULL/);
+ assert.match(ddl,/CREATE UNIQUE INDEX IF NOT EXISTS romo_solicitudes_pedido_confirmado_unico_idx/);
+ assert.match(ddl,/WHERE estado='aceptada' AND pedido_interno<>''/);
+ assert.match(receipt,/SET estado='aceptada',pedido_interno=\$4,reserva_token_hash=''/);
  assert.match(ddl,/store_id,reserva_hasta/);
  assert.match(ddl,/estado='pendiente' AND reserva_token_hash<>''/);
 });

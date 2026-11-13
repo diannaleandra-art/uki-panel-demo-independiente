@@ -28,6 +28,7 @@ function fake(){
   }
   if(sql.startsWith("UPDATE public.romo_solicitudes_carta_v1")){
    assert.match(sql,/reserva_token_hash=\$3/);
+  assert.match(sql,/SET estado='aceptada',pedido_interno=\$4,reserva_token_hash=''/);
    assert.match(sql,/estado='pendiente'/);
    assert.match(sql,/EXISTS \(SELECT 1 FROM public\.romo_estado_operativo_v1/);
    assert.deepEqual(args,[id,STORE,hash(claimToken),pedidoId,owner.userId,3]);
