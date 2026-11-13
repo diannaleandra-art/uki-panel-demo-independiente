@@ -4587,6 +4587,12 @@ async function ukiQRPermitirCobroDefinitivo(d){
 }
 async function ndGuardar(){
   if(ukiGuardadoSolicitudEnCurso)return;
+  // Romo no puede guardar por el canal de Uki ni marcar cobros locales:
+  // exigir antes el enlace completo de guardado cifrado y bandeja propia.
+  if(S.suc===ROMO_SUCURSAL_QA&&!window.ukiRomoConfirmacionDisponibleQA?.()){
+   aviso('Romo sigue en preparación: no se registró el pedido ni se sumó a caja. El guardado remoto requiere activación segura.');
+   return;
+  }
   ukiGuardadoSolicitudEnCurso=true;
   try{
   if(ukiQRComprobandoCobro)return;
@@ -4828,7 +4834,7 @@ async function ndGuardar(){
   if(ukiTimbreBorradorConfirmado(D))ukiAnotarTimbreConfirmadoEnPedido(nuevoPedido,D);
   // La solicitud remota NO era venta; la caja la registra solo aquí.
   // Confirmar el estado remoto cuando Firebase verifique el respaldo.
-  if(ukiCartaRemotaActiva){ukiCartaRemotaActiva=null;setTimeout(()=>void ukiCartaConfirmarRespaldados(),1200);}
+  if(ukiCartaRemotaActiva&&S.suc!==ROMO_SUCURSAL_QA){ukiCartaRemotaActiva=null;setTimeout(()=>void ukiCartaConfirmarRespaldados(),1200);}
   ukiWhatsAppMarcarAceptada(nuevoPedido);
   ukiSincronizarPropinaPedido(nuevoPedido);
   if(D.cliente && D.pagado && !D.productosPagadosOtroLocal){
@@ -5924,6 +5930,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 <script type="module" src="./uki-romo-solicitudes-panel-qa.mjs"></script>
 <script type="module" src="./uki-romo-carta-selector-qa.mjs"></script>
 <script type="module" src="./uki-romo-operativo-qa.mjs"></script>
+<script type="module" src="./uki-romo-guardar-confirmar-qa.mjs"></script>
 <script type="module" src="./uki-romo-vinculo-duenos-qa.mjs"></script>
 <script src="./uki-tarjeta-cliente.js" defer></script>
 <script src="./uki-cierre-detallado.js" defer></script>
