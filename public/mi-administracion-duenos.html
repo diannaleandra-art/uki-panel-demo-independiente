@@ -1755,7 +1755,7 @@ $('ukiCompartirInforme').onclick=async()=>{
  catch(e){if(e.name!=='AbortError')$('ukiInformeEstado').textContent=e.message}
 };
 
-const ownerLocalesQA=iniciarLocalesOperativosQA({api,negocios:()=>businesses,sucursales:()=>branches,notificar:notify});
+const ownerLocalesQA=iniciarLocalesOperativosQA({api,negocios:()=>businesses,sucursales:()=>branches,notificar:notify,refrescarNegocios:loadBusinesses});
 const controlCompras=crearControlCompras({
  api,$,esc,fmt:pesos,dateNow:today,businessName,branchName,currentBiz,currentBranch,upload,safe,
  branchesFor,negocios:()=>businesses,mostrarAuditoria:pintarHistorialMovimiento

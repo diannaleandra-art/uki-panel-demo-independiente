@@ -1,7 +1,7 @@
 /* Agregar local operativo · reutiliza Mi Administración, Google y PIN privados.
  * QA sin publicación. Las fotos del teléfono son SOLO vista previa:
  * la carga definitiva requiere conectar almacenamiento autorizado. */
-export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar}){
+export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,refrescarNegocios=async()=>{}}){
  const by=id=>document.getElementById(id),ids=['ownerLocBiz','ownerLocBranch'];
  const biz=by(ids[0]),branch=by(ids[1]),save=by('ownerLocSave'),list=by('ownerLocList');
  let drafts=[],lastRevision=0,loading=false;
@@ -112,9 +112,11 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar}){
     const {sucursal_id,...datosFicha}=ficha;
     const result=await api('locales_operativos_crear_qa',
      {negocio_id:ficha.negocio_id,nombre_sucursal:nombreSucursal,ficha:datosFicha});
-    lastRevision=result.local?.revision||0;
+    await refrescarNegocios();
+    branch.value=result.local?.sucursal_id||'';
+    by('ownerLocNewBranchWrap').hidden=true;
     await consultar();
-    notificar('Nueva sucursal preparada como borrador; no está publicada.','success');
+    notificar('Nueva sucursal preparada y seleccionada. Aún no está publicada.','success');
     return;
    }
    const result=await api('locales_operativos_guardar_qa',{ficha,expectedRevision:lastRevision});
