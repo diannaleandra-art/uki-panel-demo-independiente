@@ -428,8 +428,8 @@ function cambiarModoNuevo(t){modoNuevo=t;render();}
 function aviso(t){S.msg=t;render();window.scrollTo({top:0,behavior:"smooth"});}
 function ir(v){
   if(S.suc===ROMO_SUCURSAL_QA){
-   if(!['inicio','pedidos','nuevo','caja'].includes(v))
-    return aviso('Romo aún no puede modificar caja, clientes, timbres ni inventario.');
+   if(!['inicio','pedidos','nuevo','caja','inventario'].includes(v))
+    return aviso('Esta sección de Romo aún no está conectada.');
    if(v==='nuevo'&&!D.cartaSolicitudRemotaId)
     return aviso('Selecciona una solicitud de Romo en la bandeja de Pedidos.');
    if(S.vista==='nuevo'&&v!=='nuevo'&&D.cartaSolicitudRemotaId){
@@ -735,7 +735,7 @@ function render(){
   $("nav").style.display=S.suc?"grid":"none";
   ukiAccesosDesplazamiento();
   $("nav").innerHTML=VISTAS.map(([k,l,icon])=>`<button type="button" class="${S.vista===k?"on":""}" onclick="ir('${k}')" aria-label="${l}" ${S.vista===k?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${l}</span></button>`).join("");
-  const f={inicio:vInicio,pedidos:()=>S.suc===ROMO_SUCURSAL_QA?vRomoPedidosConsultaQA():vPedidos(),nuevo:vNuevo,clientes:vClientes,caja:()=>S.suc===ROMO_SUCURSAL_QA?vRomoCajaConsultaQA():vCaja(),inventario:()=>window.ukiInventarioPanelHTML?.()||'<div class="card"><p>Preparando inventario…</p></div>'}[S.vista]||vInicio;
+  const f={inicio:vInicio,pedidos:()=>S.suc===ROMO_SUCURSAL_QA?vRomoPedidosConsultaQA():vPedidos(),nuevo:vNuevo,clientes:vClientes,caja:()=>S.suc===ROMO_SUCURSAL_QA?vRomoCajaConsultaQA():vCaja(),inventario:()=>S.suc===ROMO_SUCURSAL_QA?vRomoInventarioQA():window.ukiInventarioPanelHTML?.()||'<div class="card"><p>Preparando inventario…</p></div>'}[S.vista]||vInicio;
   const msg=S.msg?`<div role="status" class="aviso" style="background:#ffece4;color:#7a2c08">${esc(S.msg)}</div>`:"";
   S.msg=null;
   $("app").innerHTML=msg+(S.vista==='pedidos'?ukiRomoBandejaPanelHTML():'')+f();
@@ -1022,6 +1022,154 @@ async function ukiRomoEditarSinPagoQA(id){
   aviso('EDICIÓN NO CONFIRMADA. Revisa Neon e historial antes de repetir: '+
    String(e?.message||e));
  }finally{ukiRomoTimbreGuardandoQA=false;}
+}
+/* Inventario Romo: misma pestaña, almacenamiento propio con revisión CAS Neon.
+ * No ejecutar movimientos hasta activar los endpoints privados de Romo. */
+const ROMO_INVENTARIO_PANEL_HABILITADO_QA=false;
+const ROMO_INVENTARIO_ENDPOINT_QA='https://uki-sushi-inventario.vercel.app/api/romo-inventario-qa';
+let romoInventarioVistaQA={loaded:false,revision:null,items:[],movimientos:[],busy:false};
+function romoInventarioNumeroQA(raw){
+ const t=String(raw??'').trim();
+ if(!/^\d{1,6}([,.]\d{1,3})?$/.test(t))throw Error('Revisa la cantidad: usa hasta 3 decimales');
+ const n=Number(t.replace(',','.'));
+ if(!Number.isFinite(n)||n>100000)throw Error('Cantidad fuera de rango');
+ return n;
+}
+function vRomoInventarioQA(){
+ if(S.suc!==ROMO_SUCURSAL_QA)return '<div class="card">Inventario de otra sucursal</div>';
+ if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||!ROMO_INVENTARIO_PANEL_HABILITADO_QA)
+  return '<section class="card"><h2>Inventario · Romo La Serena</h2>'+
+  '<p class="aviso">Conexión de inventario de Romo en pruebas. No se pueden registrar existencias todavía.</p>'+
+  '<p class="muted">El inventario de Uki se mantiene separado.</p></section>';
+ const t=romoInventarioVistaQA;
+ const items=t.items.filter(x=>x.archived!==true).slice().sort((a,b)=>
+  a.name.localeCompare(b.name,'es'));
+ const events=t.movimientos.slice().reverse().slice(0,30);
+ const itemCards=items.map(x=>{
+  const id=esc(x.sku),label=esc(x.name);
+  return '<details class="card"><summary><b>'+label+'</b> · '+esc(x.stock_qty)+' '+
+   esc(x.stock_unit)+(x.min_stock_qty>0&&x.stock_qty<=x.min_stock_qty?
+   ' · ⚠️ Reponer':'')+(x.available?'':' · No disponible')+'</summary>'+
+   '<p class="muted">Tipo: '+esc(x.kind)+' · Mínimo: '+esc(x.min_stock_qty)+' '+esc(x.stock_unit)+
+   ' · disponibilidad solo de inventario, todavía no de carta pública</p>'+
+   '<label>Conteo actual</label><input id="romoInvConteo-'+id+
+   '" inputmode="decimal" placeholder="Ej. 2,5">'+
+   '<button class="sm" onclick="romoInventarioGuardarAccionQA(\'conteo\',\''+id+
+   '\')">Guardar conteo</button>'+
+   '<label>Mercadería recibida (sumar)</label><input id="romoInvEntrada-'+id+
+   '" inputmode="decimal" placeholder="Ej. 1,5">'+
+   '<button class="sm" onclick="romoInventarioGuardarAccionQA(\'entrada\',\''+id+
+   '\')">Registrar entrada</button>'+
+   '<button class="sm" onclick="romoInventarioGuardarAccionQA(\'disponibilidad\',\''+
+   id+'\')">'+(x.available?'Marcar no disponible':'Marcar disponible')+'</button>'+
+   '<details><summary>Editar ficha (solo dueños)</summary>'+
+   '<label>Nombre</label><input id="romoInvNombre-'+id+'" maxlength="100" value="'+label+'">'+
+   '<label>Mínimo</label><input id="romoInvMin-'+id+'" inputmode="decimal" value="'+
+   esc(x.min_stock_qty)+'">'+
+   '<p class="muted">Tipo y unidad se conservan para no convertir existencias sin revisión.</p>'+
+   '<button class="sm" onclick="romoInventarioGuardarAccionQA(\'editar\',\''+
+   id+'\')">Guardar ficha</button>'+
+   '<button class="sm" onclick="romoInventarioGuardarAccionQA(\'archivar\',\''+
+   id+'\')">Archivar artículo</button></details></details>';
+ }).join('');
+ return '<div class="section-head"><h2>📦 Inventario · Romo La Serena</h2>'+
+   '<p>Existencias y reposición independientes de Uki.</p></div>'+
+   '<div class="card"><p><b>Revisión confirmada:</b> '+esc(t.revision??'Sin cargar')+'</p>'+
+   '<button class="sm ok" onclick="romoInventarioCargarQA()">↻ Actualizar inventario</button>'+
+   (t.busy?'<p class="muted">Guardando, sin modificar la pantalla hasta confirmar Neon…</p>':'')+
+   '</div>'+
+   (!t.loaded?'<div class="card muted">Pulsa Actualizar para consultar el inventario de Romo.</div>':
+    '<section class="card"><h3>Agregar artículo (dueños)</h3>'+
+    '<label>Nombre</label><input id="romoInvNuevoNombre" maxlength="100">'+
+    '<label>Tipo</label><select id="romoInvNuevoTipo"><option value="ingrediente">Ingrediente</option>'+
+    '<option value="envase">Envase</option><option value="otro">Otro insumo</option></select>'+
+    '<label>Unidad</label><select id="romoInvNuevaUnidad"><option value="un">Unidades</option>'+
+    '<option value="kg">Kilos</option><option value="g">Gramos</option>'+
+    '<option value="l">Litros</option><option value="ml">Mililitros</option>'+
+    '<option value="porciones">Porciones</option></select>'+
+    '<label>Existencia inicial</label><input id="romoInvNuevoStock" inputmode="decimal" value="0">'+
+    '<label>Mínimo</label><input id="romoInvNuevoMin" inputmode="decimal" value="0">'+
+    '<button class="sm ok" onclick="romoInventarioGuardarAccionQA(\'alta\')">Agregar artículo</button></section>'+
+    (itemCards||'<div class="card muted">No hay artículos cargados en el inventario de Romo.</div>')+
+    '<details class="card"><summary>Historial de inventario</summary>'+
+    (events.length?events.map(x=>'<p>'+esc(new Intl.DateTimeFormat('es-CL',{
+     timeZone:'America/Santiago',dateStyle:'short',timeStyle:'short'
+    }).format(new Date(x.fechaMs)))+' · '+esc(x.tipo)+' · '+esc(x.sku)+
+    '</p>').join(''):'<p class="muted">Sin movimientos todavía.</p>')+
+    '</details>');
+}
+async function romoInventarioSolicitudQA(method,body){
+ if(!ROMO_INVENTARIO_PANEL_HABILITADO_QA||
+  S.suc!==ROMO_SUCURSAL_QA||!ukiRomoControlPanelQA?.disponible())
+  throw Error('Inventario Romo no habilitado');
+ const token=await window.ukiInventarioToken?.();
+ if(typeof token!=='string'||token.length<30)
+  throw Error('Ingresa con la misma cuenta Google del panel.');
+ const response=await fetch(ROMO_INVENTARIO_ENDPOINT_QA,{
+  method,cache:'no-store',credentials:'omit',
+  headers:{Authorization:'Bearer '+token,...(method==='POST'?
+   {'Content-Type':'application/json'}:{})},
+  ...(method==='POST'?{body:JSON.stringify(body)}:{})
+ });
+ const payload=await response.json().catch(()=>({}));
+ if(!response.ok||payload.ok!==true||payload.storeId!=='romo:serena')
+  throw Error(payload.error||'No se confirmó el inventario de Romo');
+ return payload;
+}
+async function romoInventarioCargarQA(){
+ if(romoInventarioVistaQA.busy)return;
+ romoInventarioVistaQA.busy=true;
+ try{
+  const r=await romoInventarioSolicitudQA('GET');
+  if(!Number.isSafeInteger(r.revision)||!Array.isArray(r.contenido?.items)||
+     !Array.isArray(r.contenido?.movimientos))throw Error('Inventario no válido');
+  romoInventarioVistaQA={loaded:true,revision:r.revision,
+   items:r.contenido.items,movimientos:r.contenido.movimientos,busy:false};
+  render();
+ }catch(e){
+  romoInventarioVistaQA.busy=false;
+  aviso('No se pudo consultar el inventario Romo: '+String(e?.message||e));
+ }
+}
+async function romoInventarioGuardarAccionQA(action,sku=''){
+ const v=romoInventarioVistaQA;
+ if(v.busy||!v.loaded||!Number.isSafeInteger(v.revision))return;
+ let args;
+ try{
+  if(action==='alta'){
+   args={sku:crypto.randomUUID(),name:$('romoInvNuevoNombre')?.value||'',
+    kind:$('romoInvNuevoTipo')?.value,stock_unit:$('romoInvNuevaUnidad')?.value,
+    stock_qty:romoInventarioNumeroQA($('romoInvNuevoStock')?.value),
+    min_stock_qty:romoInventarioNumeroQA($('romoInvNuevoMin')?.value)};
+  }else{
+   const item=v.items.find(x=>x.sku===sku);
+   if(!item)throw Error('Artículo no encontrado: actualiza');
+   args={sku};
+   if(action==='conteo')args.stock_qty=romoInventarioNumeroQA($('romoInvConteo-'+sku)?.value);
+   else if(action==='entrada')args.cantidad=romoInventarioNumeroQA($('romoInvEntrada-'+sku)?.value);
+   else if(action==='disponibilidad')args.available=!item.available;
+   else if(action==='editar'){
+    args.name=$('romoInvNombre-'+sku)?.value;args.kind=item.kind;
+    args.stock_unit=item.stock_unit;
+    args.min_stock_qty=romoInventarioNumeroQA($('romoInvMin-'+sku)?.value);
+   }else if(action==='archivar'){
+    if(!confirm('¿Archivar este artículo de Romo? Conservará su historial.'))return;
+   }else throw Error('Movimiento no disponible');
+  }
+ }catch(e){return aviso(String(e?.message||e))}
+ if(!confirm('¿Guardar este cambio del inventario de Romo?'))return;
+ v.busy=true;
+ try{
+  await romoInventarioSolicitudQA('POST',{
+   expectedRevision:v.revision,action,args
+  });
+  // La vista solo se actualiza leyendo el estado confirmado; no inventar saldos.
+  v.busy=false;
+  await romoInventarioCargarQA();
+ }catch(e){
+  v.busy=false;aviso('No se confirmó el movimiento de inventario. Actualiza antes de repetir: '+
+   String(e?.message||e));
+ }
 }
 function vRomoPedidosConsultaQA(){
  if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||
@@ -1393,6 +1541,7 @@ async function entrarSuc(){
 }
 async function salirSuc(){
  if(S.suc===ROMO_SUCURSAL_QA){
+  romoInventarioVistaQA={loaded:false,revision:null,items:[],movimientos:[],busy:false};
   ukiRomoTimbrePendienteQA=null;
   ukiRomoControlPanelQA?.cerrar();ukiRomoControlPanelQA=null;
   ukiRomoRevisionVisibleQA=null;ukiRomoBandejaVisibleQA=[];
