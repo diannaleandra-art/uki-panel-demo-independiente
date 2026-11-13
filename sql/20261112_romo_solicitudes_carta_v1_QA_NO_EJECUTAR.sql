@@ -25,6 +25,10 @@ CREATE INDEX IF NOT EXISTS romo_solicitudes_carta_estado_idx
  ON public.romo_solicitudes_carta_v1(store_id,estado,creado_en DESC);
 CREATE INDEX IF NOT EXISTS romo_solicitudes_carta_ip_idx
  ON public.romo_solicitudes_carta_v1(ip_hash,creado_en DESC);
+-- El propietario de Romo tiene permisos predeterminados que incluyen escritura.
+-- Revocar explicitamente TODOS los permisos heredados sobre la nueva bandeja.
+-- La posterior activacion exige GRANT minimo y separado, con nueva autorizacion.
+REVOKE ALL PRIVILEGES ON TABLE public.romo_solicitudes_carta_v1 FROM romos_app_service, PUBLIC;
 -- Despues de aprobacion, conceder SOLO lo necesario al rol de servicio
 -- de Romo. Jamas conceder privilegios al rol del inventario o servicio Uki.
 -- No se incluye GRANT para evitar activar la bandeja por accidente.

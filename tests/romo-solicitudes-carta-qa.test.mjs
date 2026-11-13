@@ -128,6 +128,13 @@ test('hash usa sal, nunca registra IP directa',()=>{
  assert.match(hash,/^[0-9a-f]{64}$/);
  assert.notEqual(hash,hashSolicitanteRomoQA('192.0.2.1',salt+'otra'));
 });
+test('migración de bandeja obliga a revocar permisos heredados de Neon',()=>{
+ const src=readFileSync(new URL('../sql/20261112_romo_solicitudes_carta_v1_QA_NO_EJECUTAR.sql',import.meta.url),'utf8');
+ assert.match(src,/REVOKE ALL PRIVILEGES ON TABLE public\.romo_solicitudes_carta_v1 FROM romos_app_service, PUBLIC/);
+ assert.doesNotMatch(src,/^GRANT\s+/mi);
+ assert.match(src,/actualizado_por text CHECK/);
+ assert.doesNotMatch(src,/DROP TABLE|TRUNCATE TABLE/);
+});
 test('API cerrada por defecto, JWT obligatorio para GET y POST público solo pendiente',()=>{
  const s=readFileSync(new URL('../api/romo-solicitudes-carta-qa.js',import.meta.url),'utf8');
  assert.match(s,/ROMO_CARTA_SOLICITUDES_LIVE_ENABLED/);
