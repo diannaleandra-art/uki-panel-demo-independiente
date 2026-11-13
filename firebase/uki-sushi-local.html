@@ -552,9 +552,29 @@ async function abrirLocal(raw,suc,password){
  if(!validarEstadoSucursal(estado,suc))throw Error("Datos incorrectos");
  return {estado,key,salt};
 }
+let romoUltimoEstadoConfirmadoQA=null;
 function guardarEnLocalStorage(){
  if(!S.suc||!claveSesion||sucursalSesion!==S.suc)return Promise.resolve(true);
  const suc=S.suc,key=claveSesion,salt=saltSesion,datos=datosSoloSucursal(),revision=++revisionGuardado;
+ // Romo sincroniza únicamente su estado cifrado en Neon; nunca en Uki.
+ if(suc===ROMO_SUCURSAL_QA&&window.ukiRomoSesionNubeQA?.disponible()){
+  const huella=JSON.stringify(datos);
+  if(huella===romoUltimoEstadoConfirmadoQA)return Promise.resolve(true);
+  colaGuardado=colaGuardado.catch(()=>{}).then(async()=>{
+   if(revision!==revisionGuardado||claveSesion!==key||sucursalSesion!==suc)return true;
+   const session=window.ukiRomoSesionNubeQA;
+   if(!session.resumen().abierta||session.resumen().bloqueada)return false;
+   const saved=await session.guardar({
+    estado:datos,cifrarLocal,validarEstado:validarEstadoSucursal
+   });
+   if(saved?.storeId!=='romo:serena'||!Number.isSafeInteger(saved.revision))
+    throw Error('El guardado cifrado de Romo no fue confirmado');
+   romoUltimoEstadoConfirmadoQA=huella;return true;
+  });
+  return colaGuardado.catch(error=>{
+   console.error('Romo: guardado remoto no confirmado',error);return false;
+  });
+ }
  colaGuardado=colaGuardado.catch(()=>{}).then(async()=>{
   if(revision!==revisionGuardado||claveSesion!==key||sucursalSesion!==suc)return true;
   const paquete=await cifrarLocal(datos,suc,key,salt);
@@ -851,7 +871,17 @@ async function entrarSuc(){
    // Reutiliza abrirLocal, cifrarLocal y derivación de Uki. Nunca lee Neon
    // de Arica/Serena, ni admite un estado Romo con sucursal equivocada.
    let remoto=null;
-   if(window.ukiRomoOperativoDisponibleQA?.()){
+   if(window.ukiRomoSesionNubeQA?.disponible()){
+    remoto=await window.ukiRomoSesionNubeQA.abrir({
+     password:pass,abrirLocal,derivarClave:ukiClaveBackup,
+     validarEstado:validarEstadoSucursal,cryptoProvider:crypto
+    });
+    if(remoto?.storeId!=='romo:serena'||!Number.isSafeInteger(remoto.revision)||
+       (remoto.estado!==null&&!validarEstadoSucursal(remoto.estado,ROMO_SUCURSAL_QA)))
+     throw Error('Nube de otra sucursal');
+    claveSesion=remoto.key;saltSesion=remoto.salt;
+    sucursalSesion=ROMO_SUCURSAL_QA;revisionGuardado++;
+   }else if(window.ukiRomoOperativoDisponibleQA?.()){
     if(typeof window.ukiRomoOperativoCargarQA!=='function')
       throw Error("No está preparada la conexión privada de Romo");
     remoto=await window.ukiRomoOperativoCargarQA({
@@ -866,6 +896,8 @@ async function entrarSuc(){
    S={...estadoVacioSucursal(ROMO_SUCURSAL_QA),
      ...(remoto?.estado||{}),suc:ROMO_SUCURSAL_QA,
      pinSuc:null,vista:"inicio",romoSeleccionadoQA:true,romoIngresadoQA:true};
+   if(window.ukiRomoSesionNubeQA?.disponible())
+    romoUltimoEstadoConfirmadoQA=JSON.stringify(datosSoloSucursal());
    // No habilitar la caja hasta tener guardado independiente y confirmado.
    document.body.classList.add("uki-operativo-bloqueado");
   }else{
@@ -877,6 +909,10 @@ async function entrarSuc(){
 async function salirSuc(){
  if(ukiSolicitudWhatsAppActiva)ukiWhatsAppPausarRevision();
  if(S.suc){const ok=await guardarEnLocalStorage();if(!ok)return;await colaGuardado;}
+ if(S.suc===ROMO_SUCURSAL_QA){
+  window.ukiRomoSesionNubeQA?.cerrar();
+  romoUltimoEstadoConfirmadoQA=null;
+ }
  revisionGuardado++;claveSesion=null;saltSesion=null;sucursalSesion=null;
  cargarDesdeLocalStorage();nuevoDraft();
  if(typeof window.ukiQASessionLeft==="function")window.ukiQASessionLeft();
@@ -4587,10 +4623,20 @@ async function ukiQRPermitirCobroDefinitivo(d){
 }
 async function ndGuardar(){
   if(ukiGuardadoSolicitudEnCurso)return;
+  const romoEstadoAntesGuardarQA=S.suc===ROMO_SUCURSAL_QA?datosSoloSucursal():null;
   // Romo no puede guardar por el canal de Uki ni marcar cobros locales:
   // exigir antes el enlace completo de guardado cifrado y bandeja propia.
   if(S.suc===ROMO_SUCURSAL_QA&&!window.ukiRomoConfirmacionDisponibleQA?.()){
    aviso('Romo sigue en preparación: no se registró el pedido ni se sumó a caja. El guardado remoto requiere activación segura.');
+   return;
+  }
+  // El pedido de carta necesita la reserva remota Romo, nunca Firebase Uki.
+  if(S.suc===ROMO_SUCURSAL_QA&&D.cartaSolicitudRemotaId){
+   aviso('La solicitud de Romo todavía requiere su reserva y confirmación remotas; no se registró venta.');
+   return;
+  }
+  if(S.suc===ROMO_SUCURSAL_QA&&D.editando){
+   aviso('La edición remota de Romo sigue bloqueada hasta validar la sincronización entre teléfonos.');
    return;
   }
   ukiGuardadoSolicitudEnCurso=true;
@@ -4850,6 +4896,26 @@ async function ndGuardar(){
     else aviso(`${ukiReferenciaConCarta(nuevoPedido)} guardado por ${total} · ${cli.nombre} lleva ${ventas}/10 timbres.`+recordatorio);
   } else {
     aviso(`Pedido #${idNuevo} guardado ${total}${D.pagado?"":" · Pendiente de pago"}`);
+  }
+  if(S.suc===ROMO_SUCURSAL_QA){
+   try{
+    await colaGuardado.catch(()=>{});
+    const estadoRomo=datosSoloSucursal();
+    const saved=await window.ukiRomoSesionNubeQA.guardar({
+     estado:estadoRomo,cifrarLocal,validarEstado:validarEstadoSucursal
+    });
+    if(saved?.storeId!=='romo:serena'||!Number.isSafeInteger(saved.revision))
+     throw Error('La nube no confirmó el guardado de Romo');
+    romoUltimoEstadoConfirmadoQA=JSON.stringify(estadoRomo);
+   }catch(error){
+    // Ante respuesta perdida, no reintentar: Neon pudo haber guardado.
+    // Restaurar la vista anterior y exigir nueva carga del estado remoto.
+    window.ukiRomoSesionNubeQA?.cerrar();
+    S={...estadoVacioSucursal(ROMO_SUCURSAL_QA),...romoEstadoAntesGuardarQA,
+     suc:ROMO_SUCURSAL_QA,vista:'nuevo',romoIngresadoQA:true,romoSeleccionadoQA:true};
+    aviso('No se confirmó el pedido de Romo. Sal y vuelve a abrir Romo para conciliar antes de repetir la venta.');
+    render();return;
+   }
   }
   ukiQuitarBorradorActivo();nuevoDraft(); 
   S.vista="pedidos"; render();
@@ -5931,6 +5997,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 <script type="module" src="./uki-romo-carta-selector-qa.mjs"></script>
 <script type="module" src="./uki-romo-operativo-qa.mjs"></script>
 <script type="module" src="./uki-romo-guardar-confirmar-qa.mjs"></script>
+<script type="module" src="./uki-romo-sesion-nube-qa.mjs"></script>
 <script type="module" src="./uki-romo-vinculo-duenos-qa.mjs"></script>
 <script src="./uki-tarjeta-cliente.js" defer></script>
 <script src="./uki-cierre-detallado.js" defer></script>
