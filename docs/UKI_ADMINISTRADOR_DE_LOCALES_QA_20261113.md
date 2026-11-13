@@ -140,3 +140,10 @@ Se preparó el registro de gastos, retiros, delivery manual y propina asociada a
 
 ## Caja Romo: enlace de movimientos al mismo panel (QA)
 La vista Caja del panel único ahora contiene un formulario de movimiento preparado para gasto, retiro, delivery manual y propina manual. Reutiliza el mismo control de Romo y el cifrado de sesión de Uki; primero Neon debe aceptar la revisión para mostrar el movimiento. Con incertidumbre de conexión exige conciliar antes de repetir. Se mantienen APAGADOS los interruptores de integración y de movimientos: no hay botones operativos nuevos para los trabajadores ni se publicaron cambios. El cierre final sigue pendiente, sin permitir caja física ficticia.
+
+
+## Cierre definitivo Romo · Núcleo de turno y conciliación (QA)
+- Nuevo cierre basado en la misma estructura de Uki: apertura del turno con responsable y base registrada, ingresos por medios, pagos externos separados, delivery manual no considerado venta, gastos y retiros, pagos a repartidor y efectivo contado; obliga a explicar faltantes y sobrantes.
+- Los pagos mixtos provienen de pedidos ya confirmados y no se duplican. Los cierres guardan detalle e identidad de turno y no reescriben cierres anteriores.
+- Se conservan dos turnos distintos en un mismo día mediante `turnoClave` y su momento real de apertura. Las solicitudes locales pendientes bloquean el cierre; los pedidos sin pagar requieren confirmación específica.
+- **Aún pendiente:** autenticar y comprobar la bandeja remota justo al cerrar y confirmar el snapshot cifrado en Neon con revisión CAS, y conectar la interfaz. La bandera `ROMO_CIERRE_DEFINITIVO_HABILITADO_QA` permanece apagada. No se ha cerrado ninguna caja real ni publicado la carta.
