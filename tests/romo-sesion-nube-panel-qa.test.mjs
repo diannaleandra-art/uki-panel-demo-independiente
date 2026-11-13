@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {webcrypto} from 'node:crypto';
+import {readFileSync} from 'node:fs';
 import {crearSesionNubeRomoEnPanelQA,ROMO_RUNTIME_HABILITADO_QA}
  from '../firebase/uki-romo-sesion-nube-qa.mjs';
 
@@ -43,7 +44,7 @@ async function openLocal(raw,suc,pass){
  return {estado:JSON.parse(new TextDecoder().decode(bytes)),key,salt};
 }
 function fakeCloud(){
- const state={rev:0,snapshot:null,accepted:0,events:[],lastBody:null,failAfterWrite:false};
+ const state={rev:0,snapshot:null,accepted:0,reserved:null,events:[],lastBody:null,failAfterWrite:false};
  const fetchFn=async(uri,opt)=>{
   assert.ok(uri===BASE+'/api/romo-estado-operativo-qa'||
     uri===BASE+'/api/romo-solicitudes-carta-qa');
@@ -69,6 +70,13 @@ function fakeCloud(){
   assert.equal(opt.method,'PATCH');
   assert.equal(uri,BASE+'/api/romo-solicitudes-carta-qa');
   assert.equal(body.storeId,STORE);
+  if(body.estado==='reservar'){
+   if(state.reserved&&state.reserved!==body.claimToken)return response(409,{ok:false});
+   state.reserved=body.claimToken;
+   assert.equal(body.id,requestId);
+   return response(200,{ok:true,storeId:STORE,id:body.id,estado:'reservada',
+     reservaHasta:'2026-11-13T06:00:00Z',countsAsSale:false});
+  }
   assert.equal(body.estado,'aceptada');
   assert.equal(body.pedidoId,'1234');
   assert.equal(body.id,requestId);
@@ -159,4 +167,39 @@ test('No hay rutas de Uki ni claves en claro en la interfaz remota',()=>{
  assert.doesNotMatch(source,/uki-sushi-pedidos|uki_carta|window\\.localStorage\\.setItem/);
  assert.match(source,/Authorization:'Bearer '/);
  assert.match(source,/credentials:'omit'/);
+});
+
+test('dos teléfonos: un solo token puede reservar; el segundo no guarda otra venta',async()=>{
+ const cloud=fakeCloud(),one=session(cloud),two=session(cloud);
+ await login(one);await login(two);
+ const reserved=await one.reservar({id:requestId,claimToken});
+ assert.equal(reserved.reservada,true);
+ assert.equal(cloud.state.reserved,claimToken);
+ await assert.rejects(two.reservar({id:requestId,
+  claimToken:'00000000-0000-4000-8000-000000000003'}),e=>e.code==='ROMO_CONFLICTO');
+ assert.equal(two.resumen().bloqueada,true);
+ assert.equal(cloud.state.rev,0);
+ assert.equal(cloud.state.accepted,0);
+ assert.deepEqual(cloud.state.events.map(e=>e.method),['GET','GET','PATCH','PATCH']);
+});
+test('no se reserva sin una sesión operativa y un UUID válido',async()=>{
+ const cloud=fakeCloud(),one=session(cloud);
+ await assert.rejects(one.reservar({id:requestId,claimToken}),/no está preparada/);
+ await login(one);
+ await assert.rejects(one.reservar({id:'790',claimToken}),/no está preparada/);
+ assert.equal(cloud.state.events.filter(e=>e.method==='PATCH').length,0);
+});
+test('Guardado Romo solicita reserva central y UNA sola escritura antes de aceptar',()=>{
+ const text=readFileSync(new URL('../firebase/uki-sushi-local.html',import.meta.url),'utf8');
+ const start=text.indexOf('async function ndGuardar(){');
+ const core=text.slice(start,start+24500);
+ assert.match(core,/await window\.ukiRomoSesionNubeQA\.reservar\(/);
+ assert.match(core,/await window\.ukiRomoSesionNubeQA\.guardarYAceptar\(/);
+ assert.match(core,/solicitudRomo.*nuevoPedido\.cartaSolicitudRemotaId/s);
+ assert.match(core,/if\(S\.suc!==ROMO_SUCURSAL_QA&&!window\.ukiCancelacionNubeLista/);
+ const storage=text.slice(text.indexOf('function guardarEnLocalStorage(){'),
+  text.indexOf('function cargarDesdeLocalStorage(){'));
+ assert.match(storage,/suc===ROMO_SUCURSAL_QA&&ukiGuardadoSolicitudEnCurso/);
+ assert.match(storage,/Promise\.resolve\(true\)/);
+ assert.doesNotMatch(core,/await ukiCartaReservarRegistro\(String\(D\.cartaSolicitudRemotaId\),D\.cartaReservaToken\);\s*\n.*if\(S\.suc===ROMO_SUCURSAL_QA\)/);
 });

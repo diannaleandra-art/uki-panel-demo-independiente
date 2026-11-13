@@ -120,6 +120,23 @@ export function crearSesionNubeRomoEnPanelQA({
    return Object.freeze({storeId:STORE,revision,snapshot});
   }finally{inFlight=false}
  };
+ // Reserva central, EXACTAMENTE un teléfono puede continuar la solicitud.
+ // El permiso real y la sucursal se validan otra vez en backend Romo.
+ const reserve=async({id,claimToken}={})=>{
+  guard();
+  // Patrón estándar exacto: versión UUID y variante, sin aceptar claves locales.
+  const standard=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if(!standard.test(id||'')||!standard.test(claimToken||'')||
+     inFlight||key===null||!revisionValid(revision))
+   throw Error('La solicitud o sesión Romo no está preparada');
+  const response=await request(INBOX,'PATCH',{
+   storeId:STORE,estado:'reservar',id,claimToken
+  });
+  if(response.estado!=='reservada'||response.id!==id||response.countsAsSale!==false){
+   blocked=true;throw Error('No se confirmó la reserva exclusiva de Romo');
+  }
+  return Object.freeze({storeId:STORE,id,reservada:true});
+ };
  const confirm=async({storeId,estado,id,claimToken,pedidoId,comprobante}={})=>{
   if(storeId!==STORE||estado!=='aceptada')
    throw Error('Confirmación de otra sucursal no permitida');
@@ -142,7 +159,7 @@ export function crearSesionNubeRomoEnPanelQA({
  };
  const close=()=>{key=null;salt=null;revision=null;blocked=true;};
  return Object.freeze({disponible:available,abrir:open,guardar:save,
-  guardarYAceptar:saveAndAccept,confirmar:confirm,cerrar:close,
+  guardarYAceptar:saveAndAccept,reservar:reserve,confirmar:confirm,cerrar:close,
   resumen:()=>Object.freeze({storeId:STORE,revision,abierta:key!==null,
    bloqueada:blocked,guardando:inFlight})});
 }

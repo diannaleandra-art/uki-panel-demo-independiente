@@ -556,6 +556,10 @@ let romoUltimoEstadoConfirmadoQA=null;
 function guardarEnLocalStorage(){
  if(!S.suc||!claveSesion||sucursalSesion!==S.suc)return Promise.resolve(true);
  const suc=S.suc,key=claveSesion,salt=saltSesion,datos=datosSoloSucursal(),revision=++revisionGuardado;
+ // Durante ndGuardar SOLO el guardado explícito y verificado puede persistir.
+ // Evita que aviso() → render() registre una venta anticipadamente en Neon.
+ if(suc===ROMO_SUCURSAL_QA&&ukiGuardadoSolicitudEnCurso&&
+    window.ukiRomoSesionNubeQA?.disponible())return Promise.resolve(true);
  // Romo sincroniza únicamente su estado cifrado en Neon; nunca en Uki.
  if(suc===ROMO_SUCURSAL_QA&&window.ukiRomoSesionNubeQA?.disponible()){
   const huella=JSON.stringify(datos);
@@ -4673,10 +4677,20 @@ async function ndGuardar(){
    aviso('Romo sigue en preparación: no se registró el pedido ni se sumó a caja. El guardado remoto requiere activación segura.');
    return;
   }
-  // El pedido de carta necesita la reserva remota Romo, nunca Firebase Uki.
+  // Una solicitud Romo exige reserva y aceptación por su servidor.
+  // Ninguna acción se habilita mientras ROMO_RUNTIME_HABILITADO_QA=false.
   if(S.suc===ROMO_SUCURSAL_QA&&D.cartaSolicitudRemotaId){
-   aviso('La solicitud de Romo todavía requiere su reserva y confirmación remotas; no se registró venta.');
-   return;
+   const session=window.ukiRomoSesionNubeQA;
+   if(!session?.disponible()||!session?.resumen().abierta||
+      session?.resumen().bloqueada||typeof session.reservar!=='function'){
+    aviso('La recepción de carta Romo aún no tiene reserva y guardado autorizados. No se registró venta.');
+    return;
+   }
+   if((D.items||[]).some(i=>i?.nombre&&
+      (!Number.isSafeInteger(Number(i.precio))||Number(i.precio)<=0))){
+    aviso('Confirma el precio de cada producto con el catálogo actual de Romo antes de guardar.');
+    return;
+   }
   }
   if(S.suc===ROMO_SUCURSAL_QA&&D.editando){
    aviso('La edición remota de Romo sigue bloqueada hasta validar la sincronización entre teléfonos.');
@@ -4892,21 +4906,25 @@ async function ndGuardar(){
   // incrementamos el contador ni tocamos caja. Sin cambio para pedidos manuales.
   if(D.cartaSolicitudRemotaId){
    if(ukiCartaReservaEnCurso)return;
-   if(!window.ukiCancelacionNubeLista?.()){
+   if(S.suc!==ROMO_SUCURSAL_QA&&!window.ukiCancelacionNubeLista?.()){
     aviso('Sincroniza Firebase antes de registrar esta solicitud. La caja no cambió.');return;
    }
    ukiCartaReservaEnCurso=true;
    try{
     if(!D.cartaReservaToken)D.cartaReservaToken=crypto.randomUUID();
     const firmaAntesReserva=JSON.stringify({sucursal:S.suc,datos:D});
-    await ukiCartaReservarRegistro(String(D.cartaSolicitudRemotaId),D.cartaReservaToken);
+    if(S.suc===ROMO_SUCURSAL_QA){
+     await window.ukiRomoSesionNubeQA.reservar({
+      id:String(D.cartaSolicitudRemotaId),claimToken:D.cartaReservaToken
+     });
+    }else await ukiCartaReservarRegistro(String(D.cartaSolicitudRemotaId),D.cartaReservaToken);
     if(firmaAntesReserva!==JSON.stringify({sucursal:S.suc,datos:D})){
      aviso('La solicitud cambió durante la reserva. No se registró venta; revisa y concilia la solicitud reservada.');return;
     }
     if((S.pedidos||[]).some(p=>p.suc===S.suc&&String(p.cartaSolicitudRemotaId||'')===String(D.cartaSolicitudRemotaId))){
      aviso('Esta solicitud ya tiene un pedido registrado. Abre el registro original; no crees otro.');return;
     }
-    if(!window.ukiCancelacionNubeLista?.()){
+    if(S.suc!==ROMO_SUCURSAL_QA&&!window.ukiCancelacionNubeLista?.()){
      aviso('La solicitud quedó reservada, pero cambió la nube. Recarga y concilia antes de continuar; no crees otro pedido.');return;
     }
    }catch(e){
@@ -4934,22 +4952,39 @@ async function ndGuardar(){
     cli.movimientos.push({tipo:'venta',fecha:new Date().toISOString(),vence:fechaVencimiento(new Date().toISOString()),pedidoId:idNuevo});
     const ventas=ventasValidas(cli);
     const recordatorio=" 📲 Recuerda enviar el timbre al cliente y marcarlo como enviado en Pedidos.";
-    if(ventas===6) aviso(`¡${cli.nombre} llegó a 6 ventas! Puede reclamar 12 piezas gratis 🎁`+recordatorio);
-    else if(ventas===10) aviso(`¡${cli.nombre} llegó a 10 ventas! Puede reclamar 36 piezas + 2 korokes gratis 🎉`+recordatorio);
-    else aviso(`${ukiReferenciaConCarta(nuevoPedido)} guardado por ${total} · ${cli.nombre} lleva ${ventas}/10 timbres.`+recordatorio);
+    if(S.suc!==ROMO_SUCURSAL_QA){
+     if(ventas===6) aviso(`¡${cli.nombre} llegó a 6 ventas! Puede reclamar 12 piezas gratis 🎁`+recordatorio);
+     else if(ventas===10) aviso(`¡${cli.nombre} llegó a 10 ventas! Puede reclamar 36 piezas + 2 korokes gratis 🎉`+recordatorio);
+     else aviso(`${ukiReferenciaConCarta(nuevoPedido)} guardado por ${total} · ${cli.nombre} lleva ${ventas}/10 timbres.`+recordatorio);
+    }
   } else {
-    aviso(`Pedido #${idNuevo} guardado ${total}${D.pagado?"":" · Pendiente de pago"}`);
+    if(S.suc!==ROMO_SUCURSAL_QA)
+     aviso(`Pedido #${idNuevo} guardado ${total}${D.pagado?"":" · Pendiente de pago"}`);
   }
   if(S.suc===ROMO_SUCURSAL_QA){
    try{
     await colaGuardado.catch(()=>{});
     const estadoRomo=datosSoloSucursal();
-    const saved=await window.ukiRomoSesionNubeQA.guardar({
-     estado:estadoRomo,cifrarLocal,validarEstado:validarEstadoSucursal
-    });
-    if(saved?.storeId!=='romo:serena'||!Number.isSafeInteger(saved.revision))
-     throw Error('La nube no confirmó el guardado de Romo');
+    const solicitudRomo=nuevoPedido.cartaSolicitudRemotaId?{
+     requestId:nuevoPedido.cartaSolicitudRemotaId,
+     claimToken:nuevoPedido.cartaReservaToken,
+     pedidoId:String(nuevoPedido.id)
+    }:null;
+    const saved=solicitudRomo?
+     await window.ukiRomoSesionNubeQA.guardarYAceptar({
+      estado:estadoRomo,solicitudCarta:solicitudRomo,
+      cifrarLocal,validarEstado:validarEstadoSucursal
+     }):
+     await window.ukiRomoSesionNubeQA.guardar({
+      estado:estadoRomo,cifrarLocal,validarEstado:validarEstadoSucursal
+     });
+    if(saved?.storeId!=='romo:serena'||!Number.isSafeInteger(saved.revision)||
+       (solicitudRomo&&(saved.aceptada!==true||saved.requiereConciliacion===true)))
+     throw Error('Romo necesita conciliar el pedido guardado y su solicitud');
     romoUltimoEstadoConfirmadoQA=JSON.stringify(estadoRomo);
+    aviso('Pedido de Romo #'+idNuevo+' guardado y confirmado'+
+     (solicitudRomo?' desde la carta':'')+
+     (nuevoPedido.pagado?' · Pago registrado':' · Pendiente de pago'));
    }catch(error){
     // Ante respuesta perdida, no reintentar: Neon pudo haber guardado.
     // Restaurar la vista anterior y exigir nueva carga del estado remoto.
