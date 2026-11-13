@@ -51,3 +51,12 @@ aislada del pedido, cifra y solicita CAS en Neon; ante un error no muestra la
 confirmación ni reintenta. El control del mismo panel ya expone la acción, pero
 el botón y el flujo de WhatsApp del trabajador SIGUEN SIN CONECTAR y la activación
 Romo continúa bloqueada. Uki no fue modificado.
+
+## 13 noviembre 2026 · Timbre enlazado en el mismo panel de Romo (solo QA)
+La vista de pedidos confirmados ahora ofrece nombre del responsable, abrir WhatsApp
+y confirmar el envío manual; el mismo control de Romo llama al guardado cifrado CAS
+en Neon. No atribuye el envío a una pantalla abierta. Ante resultado incierto no
+reitenta; exige revisar pedido/historial. El formulario de alta usa la misma tarjeta
+de Uki con la marca correcta de Romo, sin cambiar los premios ni el mensaje de Uki.
+La edición, la cancelación y la entrega todavía no están disponibles en Romo.
+Los interruptores de Romo y su carta comercial permanecen desactivados.

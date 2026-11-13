@@ -877,15 +877,87 @@ function ukiRomoBandejaPanelHTML(){
 
 
 
+/* Romo: timbre manual del pedido confirmado, dentro del mismo panel.
+ * Abrir WhatsApp NO acredita el envío; Neon debe confirmar la declaración.
+ * Todo permanece bloqueado por ROMO_PANEL_INTEGRACION_HABILITADA_QA=false. */
+let ukiRomoTimbrePendienteQA=null,ukiRomoTimbreGuardandoQA=false;
+function ukiRomoPuedeEnviarTimbreQA(p){
+ return !!(p&&p.suc===ROMO_SUCURSAL_QA&&p.pagado===true&&
+  p.estado!=='Cancelado'&&p.estado!=='Entregado'&&!p.esPremio&&
+  !p.productosPagadosOtroLocal&&!p.timbreEnviadoEn&&
+  ukiNumeroTimbreWhatsApp(p.telefono));
+}
+function ukiRomoAbrirTimbrePedidoQA(id){
+ if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||S.suc!==ROMO_SUCURSAL_QA||
+    !ukiRomoControlPanelQA?.disponible())
+  return aviso('Los timbres de Romo siguen en pruebas.');
+ const p=(S.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&x.id===Number(id));
+ if(!ukiRomoPuedeEnviarTimbreQA(p))
+  return aviso('Este pedido no necesita otro timbre o ya lo tiene confirmado.');
+ const numero=ukiNumeroTimbreWhatsApp(p.telefono);
+ const cli=getCliente(p.cliente,p.codigoCliente,p.telefono);
+ const cantidad=cli?ventasValidas(cli):1;
+ // La ventana se abre directamente al pulsar; no se registra como envío.
+ const apertura=new Date().toISOString();
+ const mensaje=ukiTimbreTextoPedido(p.cliente,cantidad);
+ ukiRomoTimbrePendienteQA={pedidoId:p.id,telefono:numero,apertura};
+ window.open('https://wa.me/'+numero+'?text='+encodeURIComponent(mensaje),
+   '_blank','noopener,noreferrer');
+ aviso('Regresa de WhatsApp y confirma el envío real del timbre de Romo.');
+}
+async function ukiRomoConfirmarTimbrePedidoQA(id){
+ if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||S.suc!==ROMO_SUCURSAL_QA||
+    !ukiRomoControlPanelQA?.disponible())
+  return aviso('El registro de timbres de Romo no está habilitado.');
+ if(ukiRomoTimbreGuardandoQA)return;
+ const p=(S.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&x.id===Number(id));
+ const pendiente=ukiRomoTimbrePendienteQA;
+ if(!ukiRomoPuedeEnviarTimbreQA(p)||!pendiente||
+    pendiente.pedidoId!==p.id||
+    pendiente.telefono!==ukiNumeroTimbreWhatsApp(p.telefono))
+  return aviso('Primero abre el WhatsApp de este mismo pedido; no dupliques timbres.');
+ const responsable=String($('romoTimbreResponsableQA-'+p.id)?.value||'').trim();
+ if(responsable.length<2||responsable.length>80)
+  return aviso('Indica el nombre de quien envió el timbre.');
+ if(!confirm('¿Pulsaste realmente Enviar en WhatsApp para este pedido?'))return;
+ ukiRomoTimbreGuardandoQA=true;
+ // Ante respuesta incierta, no permitir el reintento desde la misma sesión.
+ ukiRomoTimbrePendienteQA=null;
+ try{
+  const respuesta=await ukiRomoControlPanelQA.confirmarTimbre({
+   pedidoId:p.id,responsable,
+   whatsappAbiertoEn:pendiente.apertura,
+   whatsappConfirmadoEn:new Date().toISOString(),
+   envioConfirmado:true
+  });
+  if(respuesta?.ok!==true)throw Error('No confirmado');
+  aviso('Timbre de Romo confirmado por Neon. No es necesario reenviarlo.');
+  render();
+ }catch(error){
+  aviso('No se confirmó el timbre en esta pantalla. Revisa Neon y el historial antes de volver a enviarlo: '+
+    String(error?.message||error));
+ }finally{ukiRomoTimbreGuardandoQA=false;}
+}
 function vRomoPedidosConsultaQA(){
  if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||
     S.suc!==ROMO_SUCURSAL_QA)return vInicio();
- // Los pedidos confirmados de Romo se consultan sin editar estados,
- // cancelar, sumar timbres ni tocar la caja local del navegador.
+ // Solo las solicitudes aceptadas en Neon figuran como pedidos.
  const pedidos=(S.pedidos||[]).filter(p=>p.suc===ROMO_SUCURSAL_QA)
   .slice().reverse().slice(0,75);
  const html=pedidos.map(p=>{
   const productos=Array.isArray(p.productos)?p.productos:[];
+  const timbre=p.timbreEnviadoEn?
+   '<p class="muted">✅ Timbre confirmado '+esc(p.timbreEnviadoEn)+
+   ' · '+esc(p.timbreEnviadoPor||'Responsable sin identificar')+'</p>':
+   ukiRomoPuedeEnviarTimbreQA(p)?
+   '<div class="card"><h3>Timbre de este pedido</h3>'+
+   '<p class="muted">Abre WhatsApp, envía el timbre y confirma. El cobro no cambia.</p>'+
+   '<label>Responsable del envío</label><input maxlength="80" id="romoTimbreResponsableQA-'+
+   esc(p.id)+'" placeholder="Nombre del trabajador">'+
+   '<button type="button" class="sm" onclick="ukiRomoAbrirTimbrePedidoQA('+
+   Number(p.id)+')">Enviar timbre por WhatsApp</button>'+
+   '<button type="button" class="sm" onclick="ukiRomoConfirmarTimbrePedidoQA('+
+   Number(p.id)+')">Confirmar envío real</button></div>':'';
   return '<details class="card" aria-label="Pedido Romo confirmado">'+
    '<summary><b>Turno #'+esc(p.numeroTurno||p.id)+'</b> · '+
    (p.codigoCarta?'Carta #'+esc(p.codigoCarta)+' · ':'')+
@@ -896,11 +968,12 @@ function vRomoPedidosConsultaQA(){
    '<ul>'+productos.map(x=>'<li>'+esc(x.cantidad)+' × '+esc(x.nombre)+
     ' · '+fmt((Number(x.cantidad)||0)*(Number(x.precioUnit)||0))+
     (x.detalle?'<p class="muted">'+esc(x.detalle)+'</p>':'')+'</li>').join('')+'</ul>'+
-   '<p class="muted">Solo consulta · No se puede modificar el pedido todavía.</p></details>';
+   timbre+
+   '<p class="muted">La edición, cancelación y entrega siguen pendientes de guardado seguro.</p></details>';
  }).join('');
  return '<section class="card"><h2>Pedidos confirmados · Romo La Serena</h2>'+
-  '<p class="muted">Sólo los pedidos confirmados en Neon. Para aceptar uno nuevo, utiliza la bandeja superior.</p>'+
-  '<p class="muted">No se pueden cancelar, editar, cambiar a entregado ni emitir timbres hasta conectar su guardado seguro.</p>'+
+  '<p class="muted">Solo pedidos confirmados en Neon; para recibir uno nuevo usa la bandeja.</p>'+
+  '<p class="muted">Los timbres requieren envío manual real y confirmación cifrada; no generan cobros.</p>'+
   '</section>'+(html||'<div class="card muted">Todavía no hay pedidos confirmados de Romo.</div>');
 }
 
@@ -1193,6 +1266,7 @@ async function entrarSuc(){
 }
 async function salirSuc(){
  if(S.suc===ROMO_SUCURSAL_QA){
+  ukiRomoTimbrePendienteQA=null;
   ukiRomoControlPanelQA?.cerrar();ukiRomoControlPanelQA=null;
   ukiRomoRevisionVisibleQA=null;ukiRomoBandejaVisibleQA=[];
  }
@@ -1990,14 +2064,16 @@ function ukiTimbreBorradorConfirmado(d){
 }
 function ukiTimbreTextoPedido(nombre,cantidad){
  const n=Math.min(10,Math.max(0,Number(cantidad)||0));
- return ["🍣 *UKI SUSHI · TARJETA DE TIMBRES*",
+ // Misma mecánica de timbres. La marca Romo solo se usa dentro de Romo.
+ const esRomo=S.suc===ROMO_SUCURSAL_QA;
+ return ["🍣 *"+(esRomo?"ROMO’S SUSHI":"UKI SUSHI")+" · TARJETA DE TIMBRES*",
    "Hola, "+String(nombre||"cliente").trim()+" 👋",
    "Tu compra suma 1 timbre. Tienes *"+n+"/10 timbres* acumulados.",
    "🎁 6 compras = 12 piezas gratis.",
    "🎁 10 compras = 36 piezas + 2 korokes gratis.",
    "Los timbres tienen vigencia de 3 meses desde cada compra.",
    "Sucursal: "+S.suc,
-   "¡Gracias por preferir Uki Sushi!"].join("\n");
+   "¡Gracias por preferir "+(esRomo?"Romo’s Sushi":"Uki Sushi")+"!"].join("\n");
 }
 function ukiAbrirTimbreBorrador(){
  const original=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&p.id===D.editando):null;

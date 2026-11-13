@@ -6,7 +6,11 @@ test('Romo muestra una bandeja y sus pedidos ya confirmados en modo consulta',()
  assert.match(s,/function vRomoPedidosConsultaQA\(\)/);
  assert.match(s,/p\.suc===ROMO_SUCURSAL_QA/);
  assert.match(s,/pedidos:\(\)=>S\.suc===ROMO_SUCURSAL_QA\?vRomoPedidosConsultaQA\(\):vPedidos\(\)/);
- assert.match(s,/No se pueden cancelar, editar, cambiar a entregado ni emitir timbres/);
+ assert.match(s,/La edición, cancelación y entrega siguen pendientes de guardado seguro/);
+ assert.match(s,/function ukiRomoAbrirTimbrePedidoQA\(id\)/);
+ assert.match(s,/async function ukiRomoConfirmarTimbrePedidoQA\(id\)/);
+ assert.match(s,/await ukiRomoControlPanelQA.confirmarTimbre\(/);
+ assert.match(s,/ukiRomoTimbrePendienteQA=null/);
  assert.match(s,/function ukiRomoBandejaPanelHTML\(\)/);
 });
 test('Romo no ejecuta guardado de borradores UIKit al salir de un pedido',()=>{
