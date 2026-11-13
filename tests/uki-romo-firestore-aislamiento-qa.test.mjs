@@ -13,3 +13,9 @@ test('se mantiene el conjunto original de sucursales y Romo solo en selector QA'
  assert.match(s,/const SUCURSALES_PANEL_QA=Object\.freeze\(\[\.\.\.SUCURSALES,ROMO_SUCURSAL_QA\]\)/);
  assert.match(s,/ROMO_PANEL_INTEGRACION_HABILITADA_QA=false/);
 });
+
+test('entrar a Pedidos Romo no dispara solicitudes de carta o QR de Uki',()=>{
+ assert.match(s,/if\(v==="pedidos"&&S\.suc!==ROMO_SUCURSAL_QA&&!ukiMesas\.used/);
+ assert.match(s,/if\(v==='pedidos'&&S\.suc!==ROMO_SUCURSAL_QA\)setTimeout/);
+ assert.match(s,/SUCURSALES\.includes\(S\.suc\)\)void ukiCartaRemotasActualizar/);
+});

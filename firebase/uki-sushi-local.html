@@ -450,9 +450,9 @@ function ir(v){
   render();
   if(v==="inventario")setTimeout(()=>window.ukiInventarioMontar?.(),0);
    if(v==="caja"&&cajaTab==="acumulada")setTimeout(()=>window.ukiCajaAcumuladaMontar?.(),0);
-  if(v==="pedidos"&&!ukiMesas.used&&typeof window.ukiMesasQAToken==="function")
+  if(v==="pedidos"&&S.suc!==ROMO_SUCURSAL_QA&&!ukiMesas.used&&typeof window.ukiMesasQAToken==="function")
     setTimeout(()=>{if(S.vista==="pedidos"&&S.suc)ukiMesaActualizar();},0);
-  if(v==='pedidos')setTimeout(()=>{if(S.vista==='pedidos'&&S.suc)void ukiCartaRemotasActualizar();},0);
+  if(v==='pedidos'&&S.suc!==ROMO_SUCURSAL_QA)setTimeout(()=>{if(S.vista==='pedidos'&&SUCURSALES.includes(S.suc))void ukiCartaRemotasActualizar();},0);
   window.scrollTo({top:0,behavior:"instant"});
 }
 
