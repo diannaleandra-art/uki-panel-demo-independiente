@@ -23,3 +23,5 @@ En Vercel existen nombres de variables de DB, host y origen de Romo, pero las va
 6. Solicitar aprobación expresa y agrupar una publicación controlada del panel y otra de la carta, con revisión de logs y prueba final de cierres.
 
 Nunca publicar un cambio de Romo que altere las dos sucursales productivas Uki o sus QR ya impresos.
+## 13 noviembre 2026 · Adaptador de cierre Romo para dueños (solo QA)
+Se preparó un resumen financiero de Romo a partir del cierre definitivo, con fuente única romo:serena|turnoClave (separada de los cierres Uki). Valida medios de pago contra ventas y separa reparto, gastos, propinas, retiros y caja chica, sin clientes ni pedidos individuales. El motor entrega el resumen SOLO después de CAS confirmado en Neon y lo marca **pendiente de sincronizar en Mi Administración**. El transporte al panel privado, su autorización con PIN de dueños, la persistencia idempotente y las pruebas con dos teléfonos siguen pendientes; no se ha escrito en la base financiera ni se activó Romo.

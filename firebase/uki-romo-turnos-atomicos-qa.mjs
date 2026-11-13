@@ -4,6 +4,7 @@
  */
 import {prepararAperturaTurnoRomoQA,prepararCierreDefinitivoRomoQA}
  from './uki-romo-cierre-definitivo-qa.mjs';
+import {prepararResumenCierreRomoDuenosQA,vincularResumenConfirmadoRomoDuenosQA} from './uki-romo-resumen-duenos-qa.mjs';
 export const ROMO_TURNOS_GUARDADO_HABILITADO_QA=false;
 const SUC='Romo’s Sushi La Serena';
 const check=(x,m)=>{if(!x)throw Error(m)};
@@ -49,6 +50,7 @@ export function crearGuardadoTurnosRomoQA({
      'No se puede cerrar: hay solicitudes de carta pendientes o reservadas');
     resultado=prepararCierreDefinitivoRomoQA(copia,datos);
    }
+   const resumenDuenosPendiente=tipo==='cierre'?prepararResumenCierreRomoDuenosQA(resultado.cierre):null;
    check(validarEstado(copia,SUC),'Cierre generado fuera de Romo');
    const intacto=()=>{
     const ahora=estadoVisible();
@@ -78,8 +80,15 @@ export function crearGuardadoTurnosRomoQA({
     await aplicarConfirmado({estado:copia,revision:confirmado.revision,
      tipo,resultado});
    }catch{throw new RomoTurnoConfirmadoReleerQA()}
+   // Solo se entrega un resumen de Romo tras la confirmación real del turno.
+   // Queda PENDIENTE el transporte privado a Mi Administración.
+   const resumenDuenosQA=tipo==='cierre'?
+    vincularResumenConfirmadoRomoDuenosQA(resumenDuenosPendiente,{
+     ...confirmado,storeId:'romo:serena',turnoId:resultado.turnoId,
+     estado:'cierre_confirmado'
+    }):null;
    return Object.freeze({ok:true,tipo,revision:confirmado.revision,
-    turnoId:resultado.turnoId,resultado});
+    turnoId:resultado.turnoId,resultado,resumenDuenosQA});
   }finally{busy=false}
  }
  return Object.freeze({
