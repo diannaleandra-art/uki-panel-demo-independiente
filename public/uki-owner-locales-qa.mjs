@@ -230,7 +230,7 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
    by('ownerLocStatus').textContent='El guardado privado aún no está disponible. Puedes completar la ficha y verla sin publicarla.';
   }
   renderList();
-  if(branch.value)leerBorradorSeleccionado();
+  if(branch.value&&!conflictoPendiente)leerBorradorSeleccionado();
  }
  sync();renderList();
  return Object.freeze({sync,consultar});

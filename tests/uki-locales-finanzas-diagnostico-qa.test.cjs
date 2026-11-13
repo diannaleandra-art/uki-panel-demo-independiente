@@ -57,7 +57,7 @@ test('ruta solo detrás de la sesión financiera Google y PIN, sin secretos púb
  assert.match(owner,/registroHabilitado/);
  assert.match(owner,/lecturaBorradoresHabilitada/);
  assert.match(owner,/Ver ficha/);
- assert.match(owner,/if\(loading\|\|!puedeGuardar\)return/);
+ assert.match(owner,/if\(loading\|\|!puedeGuardar\|\|conflictoPendiente\)return/);
  assert.match(owner,/save\.disabled=!puedeGuardar/);
  assert.doesNotMatch(owner,/finally\{loading=false;save\.disabled=false/);
 });

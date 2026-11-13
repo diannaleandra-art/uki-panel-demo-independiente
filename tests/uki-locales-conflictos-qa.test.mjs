@@ -24,7 +24,7 @@ test('botón no recarga automáticamente ni permite reintentar con revisión ven
  const html=readFileSync(new URL('../public/mi-administracion-duenos.html',import.meta.url),'utf8');
  assert.match(html,/id="ownerLocReloadConflict"/);
  assert.match(ui,/conflictoPendiente/);
- assert.match(ui,/if\(conflictoPendiente\)return/);
+ assert.match(ui,/if\(loading\|\|!puedeGuardar\|\|conflictoPendiente\)return/);
  assert.match(ui,/clasificarErrorFichaQA/);
  assert.match(ui,/by\('ownerLocReloadConflict'\)\.onclick/);
  assert.match(ui,/await consultar\(\)/);
