@@ -52,3 +52,7 @@ permanece con bandera false y origen fijo. Falta vista externa QA desplegada.
 
 ## Guardia adicional en el guardado de Uki
 Hasta que el guardado atómico Neon de Romo esté conectado, la función ndGuardar() rechaza expresamente S.suc=Romo’s Sushi La Serena. Esto evita ventas locales y duplicados si alguien intenta acceder a la sucursal por otra ruta. Uki Regimiento Arica y Uki La Serena conservan su procedimiento anterior sin cambios.
+
+
+## Diagnóstico único de Romo, sin publicación
+Se agregó un diagnóstico de solo lectura para catálogo Romo, personal autorizado, solicitudes y estado operativo. No sustituye las pruebas reales de dos teléfonos, el enlace final de caja e historial, ni la autorización de dueños. Guardar pedidos y cerrar caja Romo siguen bloqueados en la rama de pruebas hasta completar la confirmación atómica. La base financiera fin_* no se encontró en las bases Neon disponibles; ninguna migración fue ejecutada en una base no verificada.

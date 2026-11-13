@@ -4765,6 +4765,10 @@ async function ndGuardar(){
 }
 let ukiCierreComprobandoSolicitudes=false;
 async function cerrar(){
+  if(S.suc===ROMO_SUCURSAL_QA){
+    aviso('Romo aún no tiene caja operativa habilitada; no se modificó ningún cierre.');
+    return;
+  }
   if(S.busy||ukiCierreComprobandoSolicitudes)return;
   // No permitir cierre si quedó una solicitud local pendiente, incluso de otro día.
   const faltanLocales=()=>((S.solicitudesWhatsApp||[]).filter(
