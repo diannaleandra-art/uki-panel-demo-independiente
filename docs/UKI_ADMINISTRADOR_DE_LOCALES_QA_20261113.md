@@ -48,3 +48,7 @@ Se descartan negocio/sucursal internos, PIN, token Google, sesión financiera, c
 inventario y ventas. El dueño puede visualizar estos campos en Mi Administración
 sin publicar ni modificar la carta; el envío externo exacto vía postMessage
 permanece con bandera false y origen fijo. Falta vista externa QA desplegada.
+
+
+## Guardia adicional en el guardado de Uki
+Hasta que el guardado atómico Neon de Romo esté conectado, la función ndGuardar() rechaza expresamente S.suc=Romo’s Sushi La Serena. Esto evita ventas locales y duplicados si alguien intenta acceder a la sucursal por otra ruta. Uki Regimiento Arica y Uki La Serena conservan su procedimiento anterior sin cambios.

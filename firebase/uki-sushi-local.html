@@ -4494,6 +4494,12 @@ async function ukiQRPermitirCobroDefinitivo(d){
  }
 }
 async function ndGuardar(){
+  // QA Romo: nunca registrar ventas en la caja local de Uki por accidente.
+  // La integración remota exige confirmación atómica en Neon antes de habilitar.
+  if(S.suc===ROMO_SUCURSAL_QA){
+    aviso('Romo sigue en integración. No se registró venta ni se modificó la caja.');
+    return;
+  }
   if(ukiGuardadoSolicitudEnCurso)return;
   ukiGuardadoSolicitudEnCurso=true;
   try{

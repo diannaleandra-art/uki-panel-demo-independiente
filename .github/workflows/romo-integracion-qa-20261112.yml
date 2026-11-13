@@ -30,4 +30,5 @@ jobs:
             tests/uki-locales-registro-qa.test.mjs \
             tests/uki-locales-onboarding-qa.test.cjs \
             tests/uki-locales-motor-qa.test.mjs \
-            tests/uki-locales-puente-visual-qa.test.mjs
+            tests/uki-locales-puente-visual-qa.test.mjs \
+            tests/uki-romo-caja-bloqueada-qa.test.cjs
