@@ -109,13 +109,41 @@ module.exports=async function romoEstadoOperativoQA(req,res){
   }
  }
  const body=req.body;
- if(!body||typeof body!=='object'||Array.isArray(body)||
-    Object.keys(body).sort().join('|')!=='expectedRevision|snapshot')
+ if(!body||typeof body!=='object'||Array.isArray(body))
   return fail(res,400,'Formato de respaldo no válido');
+ const names=Object.keys(body).sort().join('|');
+ const withReceipt=names==='expectedRevision|snapshot|solicitudCarta';
+ if(!withReceipt&&names!=='expectedRevision|snapshot')
+  return fail(res,400,'Formato de respaldo no válido');
+ // El comprobante puede emitirse únicamente DESPUÉS del guardado cifrado.
+ // Es un enlace a una revisión guardada, NO lectura del pedido en AES-GCM.
+ if(withReceipt){
+  const a=body.solicitudCarta;
+  if(env.ROMO_COMPROBANTE_GUARDADO_LIVE_ENABLED!=='true'||
+     typeof env.ROMO_COMPROBANTE_SECRET!=='string'||
+     env.ROMO_COMPROBANTE_SECRET.length<32)
+   return fail(res,503,'Comprobantes de Romo aún inactivos');
+  const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if(!a||typeof a!=='object'||Array.isArray(a)||
+     Object.keys(a).sort().join('|')!=='claimToken|pedidoId|requestId'||
+     !uuid.test(a.requestId||'')||!uuid.test(a.claimToken||'')||
+     !/^[0-9]{1,12}$/.test(a.pedidoId||''))
+   return fail(res,400,'Vínculo de solicitud Romo inválido');
+ }
  try{
   const result=await store.saveRomoOperativeState({
    db,identity,expectedRevision:body.expectedRevision,snapshot:body.snapshot
   });
+  if(withReceipt){
+   const mod=await import('../lib/romo-comprobante-guardado-qa.mjs');
+   const comprobado=await mod.emitirComprobanteRomoQA({
+    db,identity,requestId:body.solicitudCarta.requestId,
+    claimToken:body.solicitudCarta.claimToken,
+    pedidoId:body.solicitudCarta.pedidoId,
+    savedResult:result,secret:env.ROMO_COMPROBANTE_SECRET
+   });
+   return res.status(200).json({ok:true,...result,...comprobado});
+  }
   return res.status(200).json({ok:true,...result});
  }catch(error){
   if(error?.code==='REVISION_CONFLICTO')

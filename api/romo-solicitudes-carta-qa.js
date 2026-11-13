@@ -69,10 +69,34 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
    if(!body||typeof body!=='object'||Array.isArray(body)||
       body.storeId!=='romo:serena')
     return fail(res,400,'Solo solicitudes de Romo La Serena');
-   // Nunca aceptar con un pedidoId aportado por el navegador.
-   // Primero debe existir un pedido realmente guardado en Romo.
-   if(body.estado==='aceptada')
-    return fail(res,503,'Aceptar requiere comprobar el pedido guardado');
+   // Solo aceptar con un comprobante FIRMADO por el servidor tras
+   // guardar una revisión cifrada, nunca solo con un pedidoId del navegador.
+   if(body.estado==='aceptada'){
+    if(env.ROMO_CARTA_ACEPTACION_LIVE_ENABLED!=='true'||
+       env.ROMO_COMPROBANTE_GUARDADO_LIVE_ENABLED!=='true'||
+       typeof env.ROMO_COMPROBANTE_SECRET!=='string'||
+       env.ROMO_COMPROBANTE_SECRET.length<32)
+     return fail(res,503,'La aceptación de Romo aún no está habilitada');
+    if(Object.keys(body).sort().join('|')!=='claimToken|comprobante|estado|id|pedidoId|storeId')
+     return fail(res,400,'Faltan datos de reserva y comprobante');
+    try{
+     const proof=await import('../lib/romo-comprobante-guardado-qa.mjs');
+     const answer=await proof.aceptarConComprobanteRomoQA({
+      db,identity,requestId:body.id,claimToken:body.claimToken,
+      pedidoId:body.pedidoId,comprobante:body.comprobante,
+      secret:env.ROMO_COMPROBANTE_SECRET
+     });
+     return res.status(200).json({ok:true,...answer});
+    }catch(error){
+     if(error?.code==='ROMO_ACEPTACION_CONFLICT')
+      return fail(res,409,'Solicitud atendida por otro teléfono');
+     if(/inválido|no corresponde|no reconocido|sin firma|no legible|Falta comprobante/i.test(String(error?.message||'')))
+      return fail(res,400,'Comprobante Romo inválido');
+     if(/Identidad|permiso|pertenece|rol/i.test(String(error?.message||'')))
+      return fail(res,403,'Sin permiso para aceptar en Romo');
+     return fail(res,409,'No se comprobó el pedido guardado; solicitud sigue pendiente');
+    }
+   }
    const keys=Object.keys(body).sort().join('|');
    if(body.estado==='rechazada'){
     if(keys!=='estado|id|motivo|storeId')
