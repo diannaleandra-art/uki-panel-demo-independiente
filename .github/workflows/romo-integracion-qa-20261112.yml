@@ -11,10 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
-      - name: Pruebas unitarias de aislamiento y acceso sin datos reales
+      - name: Pruebas unitarias de aislamiento, recepción y acceso sin datos reales
         run: |
           node --test \
             tests/uki-panel-unico-romo-serena-qa.test.cjs \
@@ -22,4 +22,5 @@ jobs:
             tests/uki-romo-operativo-puente-qa.test.mjs \
             tests/uki-romo-clave-remota-qa.test.cjs \
             tests/romo-estado-operativo-qa.test.mjs \
-            tests/romo-estado-api-cerrada-qa.test.mjs
+            tests/romo-estado-api-cerrada-qa.test.mjs \
+            tests/romo-solicitudes-carta-qa.test.mjs
