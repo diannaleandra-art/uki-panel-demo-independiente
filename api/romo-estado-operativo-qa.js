@@ -65,15 +65,24 @@ module.exports=async function romoEstadoOperativoQA(req,res){
   }
  }
  const body=req.body;
+ const esCierre=body?.operation==='cierre_definitivo';
+ if(esCierre&&env.ROMO_CIERRE_DEFINITIVO_LIVE_ENABLED!=='true')
+  return fail(res,503,'El cierre definitivo de Romo todavía no está autorizado');
  if(!body||typeof body!=='object'||Array.isArray(body)||
-    Object.keys(body).sort().join('|')!=='expectedRevision|snapshot')
+    Object.keys(body).sort().join('|')!==(esCierre?
+     'expectedRevision|operation|snapshot|turnoId':'expectedRevision|snapshot'))
   return fail(res,400,'Formato de respaldo no válido');
  try{
-  const result=await store.saveRomoOperativeState({
-   db,identity,expectedRevision:body.expectedRevision,snapshot:body.snapshot
-  });
+  const result=esCierre?await store.confirmarCierreRomoEnNeonQA({
+    db,identity,expectedRevision:body.expectedRevision,
+    snapshot:body.snapshot,turnoId:body.turnoId
+   }):await store.saveRomoOperativeState({
+    db,identity,expectedRevision:body.expectedRevision,snapshot:body.snapshot
+   });
   return res.status(200).json({ok:true,...result});
  }catch(error){
+  if(error?.code==='ROMO_CIERRE_PENDIENTES')
+   return fail(res,409,'Quedan solicitudes de la carta por atender; no se cerró la caja');
   if(error?.code==='REVISION_CONFLICTO')
    return fail(res,409,'Romo cambió desde otro equipo. Recarga antes de guardar');
   if(/no es válido|no pertenece|no autorizadas|límite|revisión operativa|supera|El cifrado/.test(String(error?.message||'')))

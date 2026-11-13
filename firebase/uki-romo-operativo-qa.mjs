@@ -61,6 +61,23 @@ export function crearPuenteRomoOperativoQA({
     throw new Error('El estado recibido no corresponde a Romo');
    return Object.freeze({revision:result.revision,estado});
   },
+  async guardarCierreSobreCifrado({snapshot,revision,turnoId}={}){
+   if(!disponible())throw new Error('Romo no está autorizado para cerrar caja');
+   if(!Number.isSafeInteger(revision)||revision<1||
+      typeof turnoId!=='string'||!/^\d{4}-\d{2}-\d{2}@[1-9]\d{12,14}$/.test(turnoId)||
+      snapshot?.formato!=='uki-v813-browser'||snapshot?.version!==1||
+      snapshot?.sucursal!==ROMO_OPERATIVO_SUCURSAL_QA||
+      typeof snapshot?.salt!=='string'||typeof snapshot?.iv!=='string'||
+      typeof snapshot?.cifrado!=='string')
+    throw new Error('Se requiere el estado cifrado del turno Romo');
+   const result=await request('POST',{
+    operation:'cierre_definitivo',expectedRevision:revision,turnoId,snapshot
+   });
+   if(result.revision!==revision+1||result.estado!=='cierre_confirmado'||
+      result.turnoId!==turnoId)
+    throw new Error('No se confirmó el cierre de Romo');
+   return Object.freeze({revision:result.revision,turnoId});
+  },
   async guardarSobreCifrado({snapshot,revision}={}){
    if(!disponible())throw new Error('Operaciones de Romo no habilitadas');
    if(!Number.isSafeInteger(revision)||revision<0||
