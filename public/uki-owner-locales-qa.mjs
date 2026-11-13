@@ -1,5 +1,6 @@
 import {prepararVinculoLocalQA} from './uki-locales-motor-qa.mjs';
 import {crearMensajeVisualRomoQA} from './uki-locales-puente-visual-qa.mjs';
+import {prepararFichaParaGuardarQA} from './uki-locales-edicion-qa.mjs';
 /* Agregar local operativo · reutiliza Mi Administración, Google y PIN privados.
  * QA sin publicación. Las fotos del teléfono son SOLO vista previa:
  * la carga definitiva requiere conectar almacenamiento autorizado. */
@@ -23,11 +24,13 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
   const msg=document.createElement('p');msg.className='hint';
   msg.textContent='Uki Regimiento Arica y Uki La Serena mantienen su operación. Romo La Serena sigue en integración; aquí no se vuelven a crear.';
   list.append(msg);
-  for(const [name,status] of [
-   ['Uki Regimiento Arica','Existente · sin cambios'],
-   ['Uki La Serena','Existente · sin cambios'],
-   ['Romo’s Sushi La Serena','Integración en pruebas']
+  for(const [name,status,storeId] of [
+   ['Uki Regimiento Arica','Existente · sin cambios','uki:arica'],
+   ['Uki La Serena','Existente · sin cambios','uki:serena'],
+   ['Romo’s Sushi La Serena','Integración en pruebas','romo:serena']
   ]){
+   // No repetir Romo cuando su ficha privada ya aparece en la lista.
+   if(drafts.some(r=>r.store_id===storeId))continue;
    const line=document.createElement('div');line.className='line';
    const h=document.createElement('strong');h.textContent=name;
    const p=document.createElement('p');p.className='hint';p.textContent=status;
@@ -81,13 +84,17 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
    div.append(title,detail);list.append(div);
   }
  };
- const valores=()=>({
-  negocio_id:biz.value,sucursal_id:branch.value,
-  nombre:by('ownerLocName').value.trim(),direccion:by('ownerLocAddress').value.trim(),
-  whatsapp:by('ownerLocWhatsApp').value.trim(),instagram:by('ownerLocInstagram').value.trim(),
-  horarios:by('ownerLocSchedule').value.trim(),plantilla:by('ownerLocTemplate').value,
-  color:by('ownerLocColor').value,logoUrl:'',portadaUrl:''
- });
+ const valores=()=>{
+  const formulario={
+   negocio_id:biz.value,sucursal_id:branch.value,
+   nombre:by('ownerLocName').value.trim(),direccion:by('ownerLocAddress').value.trim(),
+   whatsapp:by('ownerLocWhatsApp').value.trim(),instagram:by('ownerLocInstagram').value.trim(),
+   horarios:by('ownerLocSchedule').value.trim(),plantilla:by('ownerLocTemplate').value,
+   color:by('ownerLocColor').value,logoUrl:'',portadaUrl:''
+  };
+  const anterior=drafts.find(x=>x.sucursal_id===branch.value&&x.negocio_id===biz.value);
+  return prepararFichaParaGuardarQA(formulario,anterior);
+ };
  const preview=()=>{
   const f=valores(),host=by('ownerLocPreview');
   host.replaceChildren();
