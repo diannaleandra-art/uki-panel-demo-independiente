@@ -95,6 +95,6 @@ test('inventario no puede ver ni aceptar; el panel oficial Uki no fue alterado',
  const noAccess={...user,role:'inventario'};
  await assert.rejects(reservarSolicitudRomo({db:{query:async()=>[]},identity:noAccess,id:UUID,claimToken:second}));
  const server=readFileSync(new URL('../api/romo-solicitudes-carta-qa.js',import.meta.url),'utf8');
- assert.match(server,/ROMO/);
+ assert.match(server,/method==='POST'\?origin===config\.cartaOrigin/);
  assert.doesNotMatch(server,/uki_carta_solicitudes_live/);
 });

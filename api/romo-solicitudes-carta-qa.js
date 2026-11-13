@@ -14,7 +14,7 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
  if(!config)return fail(res,503,'Recepción Romo todavía no activada');
  const method=String(req.method||''),origin=String(req.headers?.origin||'');
  if(!['GET','POST','PATCH','OPTIONS'].includes(method))return fail(res,405,'Método no permitido');
- const allowed=method==='POST'?config.cartaOrigin:method==='OPTIONS'?
+ const allowed=method==='POST'?origin===config.cartaOrigin:method==='OPTIONS'?
   [config.cartaOrigin,config.panelOrigin].includes(origin):origin===config.panelOrigin;
  if(!allowed||!origin)return fail(res,403,'Origen no autorizado');
  res.setHeader('Access-Control-Allow-Origin',origin);
