@@ -3,6 +3,7 @@
  * iniciadas desde WhatsApp, no venta. Nunca acepta/rechaza o escribe caja.
  * La API exige token Google firmado, rol activo de Romo y base independiente.
  */
+import {prepararBorradorSolicitudRomoQA} from './uki-romo-formulario-solicitud-qa.mjs';
 const STORE='romo:serena';
 const ENDPOINT='https://uki-sushi-inventario.vercel.app/api/romo-solicitudes-carta-qa';
 export const ROMO_PANEL_BANDEJA_HABILITADA_QA=false; // Activa solo con aprobación.
@@ -33,7 +34,10 @@ export async function consultarSolicitudesPendientesRomoQA({
  return Object.freeze({storeId:STORE,orders:body.orders.map(x=>Object.freeze({...x}))});
 }
 export function montarSolicitudesRomoEnPedidosQA({
- document,storeId,sessionVerified=false,qaOnly=false
+ document,storeId,sessionVerified=false,qaOnly=false,
+ enabled=ROMO_PANEL_BANDEJA_HABILITADA_QA,
+ consultar=options=>consultarSolicitudesPendientesRomoQA(options),
+ abrirEnFormulario=item=>globalThis.window?.ukiRomoAbrirSolicitudEnFormularioQA?.(item)
 }={}){
  if(storeId!==STORE||!sessionVerified||!qaOnly||
     !document?.body?.classList?.contains('romo-qa'))
@@ -52,14 +56,14 @@ export function montarSolicitudesRomoEnPedidosQA({
  const btn=document.createElement('button');btn.type='button';
  btn.className='big romo-bandeja-qa-button';
  btn.textContent='Actualizar solicitudes de Romo';
- btn.disabled=!ROMO_PANEL_BANDEJA_HABILITADA_QA;
+ btn.disabled=!enabled;
  section.append(btn);
  const list=document.createElement('div');section.append(list);
  btn.addEventListener('click',async()=>{
   btn.disabled=true;
   status.textContent='Comprobando Google y solicitudes Romo…';
   try{
-   const results=await consultarSolicitudesPendientesRomoQA();
+   const results=await consultar({enabled});
    list.replaceChildren();
    if(!results.orders.length)addLine(document,list,'Sin solicitudes de Romo registradas.');
    for(const item of results.orders){
@@ -71,11 +75,30 @@ export function montarSolicitudesRomoEnPedidosQA({
     addLine(document,card,String(item.mensaje||'').slice(0,12000));
     addLine(document,card,'Total indicado por cliente: $'+Number(item.total_indicado||0).toLocaleString('es-CL')+
      ' · No contabilizado en caja');
+    if(enabled===true&&item.estado==='pendiente'){
+     if(item.en_reserva===true){
+      addLine(document,card,'En revisión en otro equipo. No ingresar el pedido de nuevo.');
+     }else{
+      const action=document.createElement('button');
+      action.type='button';action.className='sm ok romo-aceptar-revisar-qa';
+      action.textContent='✅ Aceptar y revisar';
+      action.addEventListener('click',()=>{
+       try{
+        // La solicitud NO se acepta en el servidor por abrir este formulario.
+        // Solo se prepara el borrador; reserva, guardado y cobro se validan aparte.
+        const borrador=prepararBorradorSolicitudRomoQA(item);
+        const ok=abrirEnFormulario({solicitud:item,borrador});
+        if(ok!==true)status.textContent='No se abrió: comprueba el acceso a Romo y revisa si ya está registrado.';
+       }catch(error){status.textContent=String(error?.message||'No se pudo abrir el pedido de Romo');}
+      });
+      card.append(action);
+     }
+    }
     list.append(card);
    }
    status.textContent=results.orders.length+' solicitudes consultadas. Sin ventas registradas.';
   }catch(e){status.textContent=String(e?.message||'Consulta pendiente')}
-  finally{btn.disabled=!ROMO_PANEL_BANDEJA_HABILITADA_QA}
+  finally{btn.disabled=!enabled}
  });
  const after=document.getElementById('romoLaSerenaPreparacionQA');
  if(after&&after.parentNode===host)after.after(section);else host.prepend(section);

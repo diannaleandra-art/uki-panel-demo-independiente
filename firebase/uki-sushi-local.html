@@ -822,6 +822,49 @@ if(typeof window!=='undefined')window.ukiRomoPedidosQAContexto=()=>Object.freeze
    ukiStoreIdActivoPanelQA()==='romo:serena'?'romo:serena':null,
  sessionVerified:S.suc===ROMO_SUCURSAL_QA&&S.romoIngresadoQA===true,qaOnly:true
 });
+/**
+ * Romo utiliza exactamente el mismo formulario «Nuevo pedido» de Uki.
+ * El click solo prepara un BORRADOR, no reserva ni registra una venta.
+ * El guardado comercial sigue bloqueado hasta E2E y autorización.
+ */
+function ukiRomoAbrirSolicitudEnFormularioQA({solicitud,borrador}={}){
+ const session=window.ukiRomoSesionNubeQA;
+ if(S.suc!==ROMO_SUCURSAL_QA||S.vista!=='pedidos'||!S.romoIngresadoQA||
+    ukiStoreIdActivoPanelQA()!=='romo:serena'||
+    !session?.disponible()||!session?.resumen().abierta||
+    session?.resumen().bloqueada||S.busy||ukiGuardadoSolicitudEnCurso){
+  aviso('Romo no tiene una sesión de pedidos sincronizada y autorizada. No se abrió ni registró la solicitud.');
+  return false;
+ }
+ const uid=String(solicitud?.id||'');
+ if(solicitud?.store_id!=='romo:serena'||solicitud?.estado!=='pendiente'||
+    solicitud.en_reserva===true||!borrador||borrador.cartaSolicitudRemotaId!==uid||
+    borrador.sucursalCarta!==ROMO_SUCURSAL_QA||
+    !Array.isArray(borrador.items)||!borrador.items.length||
+    borrador.items.some(i=>!i?.nombre||i.precio!==0)||
+    (S.pedidos||[]).some(p=>p.suc===S.suc&&
+      String(p.cartaSolicitudRemotaId||'')===uid)||
+    (S.borradores||[]).some(p=>p.suc===S.suc&&
+      String(p.datos?.cartaSolicitudRemotaId||'')===uid)){
+  aviso('Esta solicitud de Romo ya tiene un registro o requiere actualizar la bandeja. No ingreses una venta duplicada.');
+  return false;
+ }
+ if(ukiBorradorTieneContenido()&&!D.editando&&!ukiGuardarBorradorSinVista())return false;
+ const {necesitaRevisarPrecios,confirmoPago,...datosRevisables}=borrador;
+ D={...ukiWhatsAppDatosDesdeTexto(borrador.texto),...datosRevisables,
+    fecha:ahora(),pagado:false,editando:null,cartaReservaToken:'',
+    items:borrador.items.map(i=>({...i}))};
+ D.codigoCliente=ukiCodigoWhatsApp(D.telefono)||D.codigoCliente||'';
+ ukiCartaRemotaActiva=null;ukiSolicitudWhatsAppActiva=null;ukiBorradorActivo=null;
+ modoNuevo='whatsapp';
+ S.vista='nuevo';
+ S.msg='Solicitud de Romo sin cobrar: confirma los productos, sus precios y el delivery. No se acepta hasta guardar en la nube Romo.';
+ render();
+ window.scrollTo?.({top:0,behavior:'instant'});
+ return true;
+}
+if(typeof window!=='undefined')
+ window.ukiRomoAbrirSolicitudEnFormularioQA=ukiRomoAbrirSolicitudEnFormularioQA;
 function ukiRomoIrQA(v){
  if(S.suc!==ROMO_SUCURSAL_QA||!S.romoIngresadoQA)return;
  ir(v);
