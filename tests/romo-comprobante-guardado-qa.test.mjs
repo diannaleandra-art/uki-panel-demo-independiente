@@ -29,8 +29,10 @@ function fake(){
   if(sql.startsWith("UPDATE public.romo_solicitudes_carta_v1")){
    assert.match(sql,/reserva_token_hash=\$3/);
    assert.match(sql,/estado='pendiente'/);
-   assert.deepEqual(args,[id,STORE,hash(claimToken),pedidoId,owner.userId]);
-   if(state.estado!=='pendiente'||state.reserveHash!==args[2])return [];
+   assert.match(sql,/EXISTS \(SELECT 1 FROM public\.romo_estado_operativo_v1/);
+   assert.deepEqual(args,[id,STORE,hash(claimToken),pedidoId,owner.userId,3]);
+   if(state.estado!=='pendiente'||state.reserveHash!==args[2]||
+      state.revision!==args[5]||state.updatedBy!==args[4])return [];
    state.estado='aceptada';state.pedidoInterno=args[3];
    return [{id,estado:'aceptada',pedido_interno:args[3]}];
   }
