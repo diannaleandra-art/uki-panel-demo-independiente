@@ -193,3 +193,30 @@ test('abono de saldo anterior requiere concepto, no contamina el reparto actual'
  assert.equal(s.cajasDiarias[SUC+'|'+fechaOperativa].pagoDeliveryAnterior,2500);
  assert.equal(s.cajasDiarias[SUC+'|'+fechaOperativa].pagoDeliveryDia,undefined);
 });
+
+test('caja chica registra gasto solo si hay base chica disponible',()=>{
+ const s=origin(),dia='2026-11-13',caja={turnoAbierto:true,inicioMs:ms-1000,
+ cajaChica:{inicial:20000,gastos:[]}};
+ s.cajasDiarias[SUC+'|'+dia]=caja;
+ const x=moverCajaRomoCandidatoQA(s,{tipo:'caja_chica',
+  datos:{...base,fechaOperativa:dia,concepto:'Guantes',monto:1500}});
+ assert.equal(x.tipo,'caja_chica');
+ assert.equal(caja.cajaChica.gastos[0].monto,1500);
+ assert.equal(s.gastos.length,0);
+ const antes=structuredClone(caja.cajaChica);
+ assert.throws(()=>moverCajaRomoCandidatoQA(s,{tipo:'caja_chica',
+  datos:{...base,registradoEn:ms+1,fechaOperativa:dia,
+   concepto:'Excesivo',monto:25000}}),/saldo de caja chica/);
+ assert.deepEqual(caja.cajaChica,antes);
+});
+test('cobro manual de plataforma deja trazabilidad sin duplicar',()=>{
+ const s=origin(),dia='2026-11-13';
+ s.cajasDiarias[SUC+'|'+dia]={turnoAbierto:true,inicioMs:ms-1000,apps:{}};
+ const datos={...base,fechaOperativa:dia,concepto:'Ingreso extra plataforma',
+ medioApp:'Uber Eats',monto:3500};
+ moverCajaRomoCandidatoQA(s,{tipo:'app_manual',datos});
+ assert.equal(s.cajasDiarias[SUC+'|'+dia].apps['Uber Eats'],3500);
+ assert.equal(s.cajasDiarias[SUC+'|'+dia].movimientosApps.length,1);
+ assert.throws(()=>moverCajaRomoCandidatoQA(s,{tipo:'app_manual',datos}),/duplicado/);
+ assert.equal(s.cajasDiarias[SUC+'|'+dia].apps['Uber Eats'],3500);
+});

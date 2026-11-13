@@ -38,7 +38,7 @@ const valido=s=>{
 function cajita(s,d){return s.cajasDiarias[SUC+'|'+d]}
 const dentro=(x,inicio,final)=>{const t=fechaReg(x);return t>=inicio&&t<=final};
 export function prepararAperturaTurnoRomoQA(estado,{
- fechaOperativa,inicioMs,base=0,responsable
+ fechaOperativa,inicioMs,base=0,cajaChicaInicial,responsable
 }={}){
  valido(estado);
  CHECK(DIA(fechaOperativa),'Fecha operativa de apertura inválida');
@@ -59,7 +59,8 @@ export function prepararAperturaTurnoRomoQA(estado,{
   pagoDeliveryDia:0,pagoDeliveryAnterior:0,
   pagoDeliveryMedioDia:'Efectivo',pagoDeliveryMedioAnterior:'Efectivo',
   pagoDeliveryConceptoAnterior:'',pagoDelivery:0,
-  cajaChica:{inicial:INT(prev?.cajaChica?.inicial??0,'caja chica'),gastos:[]}
+  cajaChica:{inicial:INT(cajaChicaInicial??prev?.cajaChica?.inicial??0,'caja chica'),gastos:[]},
+  movimientosApps:[],pagosRepartidor:[]
  };
  estado.fechaOperativa=fechaOperativa;
  return Object.freeze({tipo:'apertura',turnoId,fechaOperativa,base:montoBase});
@@ -133,9 +134,13 @@ export function prepararCierreDefinitivoRomoQA(estado,{
   id:x.id,medio:String(x.medio||''),monto:INT(x.monto,'pago al repartidor'),
   tipoSaldo:String(x.tipoSaldo||''),concepto:String(x.concepto||'').slice(0,180)
  }));
+ const appsGuardados=(caja.movimientosApps||[]).map(x=>({
+  id:x.id,medio:String(x.medio||''),concepto:String(x.concepto||'').slice(0,180),
+  monto:INT(x.monto,'cobro plataforma')
+ }));
  const detalle={
   turnoId,fechaOperativa,desdeMs:inicio,hastaMs:cierreMs,
-  pagosRepartidor:abonos,
+  pagosRepartidor:abonos,cobrosManualesPlataformas:appsGuardados,
   cajaChica:{inicial:INT(chica.inicial??0,'caja chica inicial'),
    gastos:gastosChica,totalGastos:totalCajaChica},
   pedidos:corte.pedidos.map(x=>({id:x.id,cliente:x.cliente||'',total:x.total,
@@ -178,7 +183,7 @@ export function prepararCierreDefinitivoRomoQA(estado,{
  // Los datos históricos permanecen; el siguiente turno tendrá otra apertura.
  caja.turnoAbierto=false;caja.desdeMs=cierreMs;
  caja.ultimoCierreTurnoId=turnoId;delete caja.inicioMs;delete caja.turnoId;
- caja.apps={};caja.pagoDeliveryDia=0;caja.pagoDeliveryAnterior=0;
+ caja.apps={};caja.movimientosApps=[];caja.pagoDeliveryDia=0;caja.pagoDeliveryAnterior=0;
  caja.pagoDelivery=0;caja.pagoDeliveryMedioDia='Efectivo';
  caja.pagoDeliveryMedioAnterior='Efectivo';
  caja.pagoDeliveryConceptoAnterior='';

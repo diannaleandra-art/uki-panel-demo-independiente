@@ -95,6 +95,41 @@ export function moverCajaRomoCandidatoQA(estado,{tipo,datos}={}){
   if(tipoSaldo==='anterior')caja.pagoDeliveryConceptoAnterior=concepto;
   return {tipo,id:registro.id,tipoSaldo};
  }
+ if(tipo==='caja_chica'||tipo==='app_manual'){
+  const fechaOperativa=String(datos.fechaOperativa||'');
+  check(/^\d{4}-\d{2}-\d{2}$/.test(fechaOperativa),
+   'Día operativo del movimiento inválido');
+  const caja=estado.cajasDiarias?.[SUC+'|'+fechaOperativa];
+  check(caja?.turnoAbierto===true,'Primero abre el turno Romo');
+  const registro=base(estado,datos,'deliveriesManuales');
+  const importe=monto(datos.monto,tipo);
+  const concepto=txt(datos.concepto,180,'Concepto');
+  if(tipo==='caja_chica'){
+   const chica=caja.cajaChica;
+   check(chica&&Array.isArray(chica.gastos),'No se configuró caja chica');
+   const previo=chica.gastos.reduce((sum,x)=>sum+(Number(x.monto)||0),0);
+   const inicial=Number(chica.inicial)||0;
+   check(Number.isSafeInteger(inicial)&&inicial>=0&&previo+importe<=inicial,
+    'El gasto supera el saldo de caja chica; revisa la apertura');
+   check(!chica.gastos.some(x=>x.id===registro.id),
+    'Gasto de caja chica duplicado');
+   chica.gastos.push({...registro,concepto,monto:importe});
+   return {tipo,id:registro.id};
+  }
+  const plataforma=String(datos.medioApp||'');
+  check(['Uber Eats','PedidosYa','Rappi','Otros'].includes(plataforma),
+   'Plataforma de cobro manual no permitida');
+  const registrados=caja.movimientosApps||[];
+  check(Array.isArray(registrados)&&!registrados.some(x=>x.id===registro.id),
+   'Cobro de plataforma duplicado');
+  const anterior=Number(caja.apps?.[plataforma])||0;
+  check(Number.isSafeInteger(anterior)&&anterior>=0&&
+   Number.isSafeInteger(anterior+importe),'Importe manual no cuadra');
+  caja.apps={...(caja.apps||{}),[plataforma]:anterior+importe};
+  caja.movimientosApps=[...registrados,
+   {...registro,concepto,monto:importe,medio:plataforma}];
+  return {tipo,id:registro.id};
+ }
  if(tipo==='propina_manual'){
   const b=base(estado,datos,'propinas');
   const pedidoId=Number(datos.pedidoId);
