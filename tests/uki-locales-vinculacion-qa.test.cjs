@@ -9,9 +9,9 @@ test('Romo existente se vincula una sola vez al storeId real',()=>{
 });
 test('no vincula Uki ni sucursal ajena o una ubicación nueva',()=>{
  for(const bad of [
-  {...r,negocio:'Uki Sushi'},
-  {...r,sucursal:'Regimiento Arica'},
-  {...r,direccion:'Calle distinta 123'},
+  {...r,solicitud:'romo:serena',negocio:'Uki Sushi'},
+  {...r,solicitud:'romo:serena',sucursal:'Regimiento Arica'},
+  {...r,solicitud:'romo:serena',direccion:'Calle distinta 123'},
   {...r,solicitud:'uki:serena'}]){
   assert.throws(()=>identificarLocalOperativoQA(bad));
  }
