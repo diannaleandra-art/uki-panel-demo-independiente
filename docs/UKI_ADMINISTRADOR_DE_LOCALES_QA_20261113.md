@@ -104,3 +104,7 @@ Una consulta de Negocios o del listado privado no reemplaza los campos del local
 
 ## Prueba integral de interfaz (QA)
 Se añadió un recorrido con una pantalla DOM simulada, no un simple análisis estático: abrir la ficha existente de Romo, consultar mientras se escribe, guardar como borrador y comprobar la revisión, simular una actualización desde otro teléfono, rechazar el guardado vencido sin perder texto y recargar solo tras pulsación explícita. La prueba no usa la cuenta Google real ni escribe en Neon; no constituye prueba manual de producción.
+
+
+## 13 noviembre 2026 · Candidato Romo compatible con pedidos Uki (rama QA)
+Nuevo módulo de pedidos que utiliza en una COPIA aislada de Romo las mismas claves del pedido ndGuardar de Uki: folio y turno, productos con detalle de armado, subtotal, delivery, pagos mixtos, externos y propinas. El historial de cliente y la constancia manual del timbre se preparan en esa copia, sin tocar el estado visible hasta que Neon confirme el guardado atómico. Para marcar Pagado se exige confirmación explícita y los montos mixtos deben cuadrar; las diferencias con el importe indicado por la carta requieren revisión del dueño. El guardado atómico puede usarlo con el proveedor de folio y turno del motor Uki, manteniendo el constructor anterior para no romper pruebas existentes. La bandera de venta permanece apagada y todavía falta conectar la acción al botón operativo del panel. No se publicó ni se escribieron ventas.

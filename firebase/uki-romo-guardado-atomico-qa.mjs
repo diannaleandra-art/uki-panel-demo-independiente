@@ -3,6 +3,7 @@
  * Conserva el estado anterior hasta confirmación de Neon. CERRADO por defecto.
  */
 import {verificarBorradorRomoAntesGuardarQA} from './uki-romo-recepcion-formulario-qa.mjs';
+import {construirCandidatoRomoFormatoUkiQA} from './uki-romo-pedido-formato-qa.mjs';
 export const ROMO_GUARDADO_ATOMICO_HABILITADO_QA=false;
 const SUC='Romo’s Sushi La Serena';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -21,10 +22,17 @@ export class RomoYaGuardadoQA extends Error{
  */
 export function crearGuardadoRomoDesdeFormularioQA({
  habilitado=ROMO_GUARDADO_ATOMICO_HABILITADO_QA,bandeja,
- construirCandidato,cifrarEstado,validarEstado,estadoVisible,aplicarConfirmado,
+ construirCandidato,contextoPedido,cifrarEstado,validarEstado,estadoVisible,aplicarConfirmado,
  nuevoToken=()=>globalThis.crypto.randomUUID()
 }={}){
  const disponible=()=>habilitado===true&&bandeja?.disponible?.()===true;
+ // Conserva el constructor anterior; si el panel proporciona el folio y
+ // turno real de Uki, usa el constructor equivalente para Romo.
+ const preparar=typeof construirCandidato==='function'?construirCandidato:
+  typeof contextoPedido==='function'?
+   async({estado,draft})=>construirCandidatoRomoFormatoUkiQA({
+    estado,draft,contexto:await contextoPedido({estado,draft})
+   }):null;
  let ocupado=false;
  return Object.freeze({
   disponible,
@@ -32,7 +40,7 @@ export function crearGuardadoRomoDesdeFormularioQA({
     confirmoArmado=false,confirmoImportes=false}={}){
    need(disponible(),'Guardado Romo deshabilitado');
    need(!ocupado,'Ya se esta guardando una solicitud');
-   need([construirCandidato,cifrarEstado,validarEstado,estadoVisible,aplicarConfirmado]
+   need([preparar,cifrarEstado,validarEstado,estadoVisible,aplicarConfirmado]
      .every(f=>typeof f==='function'),'Falta conexion del formulario habitual');
    need(solicitud?.estado==='pendiente'&&UUID.test(String(solicitud.id||'')),'Solicitud no pendiente');
    need(Number.isSafeInteger(revision)&&revision>=0,'Revision invalida');
@@ -44,7 +52,7 @@ export function crearGuardadoRomoDesdeFormularioQA({
    ocupado=true;
    try{
     const candidato=clone(original),draftAislado=clone(draft);
-    const created=await construirCandidato({estado:candidato,draft:draftAislado});
+    const created=await preparar({estado:candidato,draft:draftAislado});
     const pedidoId=Number(created?.pedidoId);
     need(Number.isSafeInteger(pedidoId)&&pedidoId>0,'Falta numero de pedido interno');
     need(validarEstado(candidato,SUC),'Estado candidato invalido');
