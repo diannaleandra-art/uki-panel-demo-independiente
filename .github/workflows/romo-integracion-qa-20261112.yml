@@ -42,6 +42,7 @@ jobs:
             tests/uki-romo-entrega-atomica-qa.test.mjs \
             tests/uki-romo-cancelacion-atomica-qa.test.mjs \
             tests/uki-romo-edicion-atomica-qa.test.mjs \
+            tests/uki-romo-inventario-independiente-qa.test.mjs \
             tests/uki-romo-caja-formulario-qa.test.mjs \
             tests/uki-romo-cierre-definitivo-qa.test.mjs \
             tests/uki-romo-cierre-servidor-qa.test.mjs \

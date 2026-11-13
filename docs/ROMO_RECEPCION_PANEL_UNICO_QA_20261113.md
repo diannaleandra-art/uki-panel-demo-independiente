@@ -87,3 +87,7 @@ importes exactos, sin modificar folio, identidad de la solicitud ni caja.
 CAS de Neon y AES-GCM confirman el cambio antes de mostrarlo; en una respuesta
 incierta debe consultarse Neon antes de repetir. La edición de pedidos pagados
 requiere el flujo de conciliación y sigue bloqueada. Uki sin cambios.
+
+## 13 noviembre 2026 · Inventario Romo independiente (QA)
+Backend preparado en la misma aplicación para Romo La Serena usando la tabla romo_inventario_v1 de Neon, con unidades, existencias, mínimos, disponibilidad, conteos, entradas e historial. Solo los dueños pueden editar fichas o archivarlas; el rol inventario puede registrar conteos con Google autorizado. Las escrituras tienen revisión CAS para evitar pisar trabajos desde dos teléfonos. Los datos de Uki no se usan.
+La API exige ROMO_INVENTARIO_LIVE_ENABLED=true y ROMO_OPERATIVO_LIVE_ENABLED=true en producción: ambas siguen sin activarse. Falta conectar el mismo formulario de inventario en el panel y el PIN de trabajador; no es un inventario comercial operativo todavía.
