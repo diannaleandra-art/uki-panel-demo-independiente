@@ -196,19 +196,30 @@ module.exports=async(req,res)=>{
    if(!Number.isSafeInteger(revision)||revision<0)
     return fail(res,400,'Revision de borrador invalida');
    const existing=await sql.query(
-    'SELECT id,revision,store_id FROM public.fin_locales_operativos_qa WHERE sucursal_id=$1',[s]);
+    'SELECT id,revision,store_id,configuracion,estado FROM public.fin_locales_operativos_qa WHERE sucursal_id=$1',[s]);
    if(existing.length){
     const solicitud=String(body.vincularLocalExistente||'');
     if(solicitud&&solicitud!==existing[0].store_id)
      return fail(res,409,'Esta sucursal ya tiene una identidad; no se puede duplicar');
-    if(revision!==Number(existing[0].revision))return fail(res,409,'La ficha cambió; actualiza antes de guardar');
-    const changed=await sql.query(
-     "UPDATE public.fin_locales_operativos_qa SET configuracion=$3::jsonb,"+
-     " revision=revision+1,actualizado_por=$4,actualizado_en=now()"+
-     " WHERE negocio_id=$1 AND sucursal_id=$2 AND revision=$5 AND estado='borrador'"+
-     " RETURNING id,store_id,revision,estado",
-     [b,s,JSON.stringify(config),who.uid,revision]);
-    if(changed.length!==1)return fail(res,409,'Actualiza la ficha antes de guardarla');
+    const seguro=require('../lib/uki-locales-edicion-segura-servidor-qa.cjs');
+    let preparada;
+    try{
+     preparada=seguro.prepararEdicionSeguraQA({
+      existente:existing[0],configuracion:config,negocioId:b,sucursalId:s,revision
+     });
+    }catch(e){
+     if(e instanceof seguro.ConflictoFichaQA)
+      return fail(res,409,'La ficha cambió desde otro teléfono; revisa antes de guardar.');
+     return fail(res,400,String(e.message).slice(0,180));
+    }
+    let cambiado;
+    try{cambiado=await seguro.guardarEdicionSeguraQA({db:sql,preparada,actor:who.uid})}
+    catch(e){
+     if(e instanceof seguro.ConflictoFichaQA)
+      return fail(res,409,'La ficha cambió desde otro teléfono; revisa antes de guardar.');
+     throw e;
+    }
+    const changed=[cambiado];
     await audit(sql,'local_qa',changed[0].id,'editar_borrador',who,{storeId:changed[0].store_id});
     return ok(res,{local:changed[0]});
    }

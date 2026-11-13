@@ -81,3 +81,10 @@ Separamos la consulta del guardado del Administrador de Locales. La sesión Goog
 
 ## Protección visual de edición de fichas (QA)
 Al editar nombre, horario, dirección o color, el formulario conserva los enlaces de logo y portada previamente guardados y validados. La elección de una nueva foto desde el iPhone solo ofrece vista previa hasta instalar almacenamiento autorizado. El listado de tiendas no duplica Romo cuando su ficha se encuentra en la base. Edición sigue bloqueada detrás de la bandera privada y continúa sin publicación comercial.
+
+
+## Guardado seguro del lado del servidor · QA
+El guardado de ficha ya no confía únicamente en el iPhone para preservar logo y portada: consulta configuración original en Neon, conserva URLs previamente guardadas y rechaza reemplazos por enlaces arbitrarios hasta que haya carga segura de imágenes.
+La consulta y edición requieren siempre el Google + PIN existente; la modificación sigue con la bandera privada apagada.
+La actualización de Neon utiliza CAS sobre negocio_id, sucursal_id, store_id inmutable y revision actual, con estado='borrador'. Dos teléfonos no pueden sobrescribir silenciosamente cambios entre sí.
+Los tests simulan éxito, fallo de revisión, intento de cambiar fotos e intentos de habilitar caja. Sin publicación ni operaciones.

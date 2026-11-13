@@ -36,4 +36,5 @@ jobs:
             tests/uki-locales-vinculacion-qa.test.cjs \
             tests/uki-locales-finanzas-diagnostico-qa.test.cjs \
             tests/uki-locales-lectura-qa.test.cjs \
-            tests/uki-locales-edicion-qa.test.mjs
+            tests/uki-locales-edicion-qa.test.mjs \
+            tests/uki-locales-edicion-servidor-qa.test.cjs
