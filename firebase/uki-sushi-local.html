@@ -427,6 +427,19 @@ function cambiarModoNuevo(t){modoNuevo=t;render();}
 
 function aviso(t){S.msg=t;render();window.scrollTo({top:0,behavior:"smooth"});}
 function ir(v){
+  if(S.suc===ROMO_SUCURSAL_QA){
+   if(!['inicio','pedidos','nuevo','caja'].includes(v))
+    return aviso('Romo aún no puede modificar caja, clientes, timbres ni inventario.');
+   if(v==='nuevo'&&!D.cartaSolicitudRemotaId)
+    return aviso('Selecciona una solicitud de Romo en la bandeja de Pedidos.');
+   if(S.vista==='nuevo'&&v!=='nuevo'&&D.cartaSolicitudRemotaId){
+    if(!confirm('Esta solicitud aún no se guardó en Neon. ¿Deseas salir del formulario?'))return;
+    nuevoDraft();
+   }
+   S.vista=v;render();
+   window.scrollTo({top:0,behavior:"instant"});
+   return;
+  }
   if(S.vista==='nuevo'&&v!=='nuevo'&&ukiCartaRemotaActiva)ukiCartaRemotaActiva=null;
   if(S.vista==="nuevo"&&v!=="nuevo"&&S.suc&&ukiSolicitudWhatsAppActiva){
     if(ukiBorradorActivo){
@@ -722,7 +735,7 @@ function render(){
   $("nav").style.display=S.suc?"grid":"none";
   ukiAccesosDesplazamiento();
   $("nav").innerHTML=VISTAS.map(([k,l,icon])=>`<button type="button" class="${S.vista===k?"on":""}" onclick="ir('${k}')" aria-label="${l}" ${S.vista===k?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${l}</span></button>`).join("");
-  const f={inicio:vInicio,pedidos:vPedidos,nuevo:vNuevo,clientes:vClientes,caja:()=>S.suc===ROMO_SUCURSAL_QA?vRomoCajaConsultaQA():vCaja(),inventario:()=>window.ukiInventarioPanelHTML?.()||'<div class="card"><p>Preparando inventario…</p></div>'}[S.vista]||vInicio;
+  const f={inicio:vInicio,pedidos:()=>S.suc===ROMO_SUCURSAL_QA?vRomoPedidosConsultaQA():vPedidos(),nuevo:vNuevo,clientes:vClientes,caja:()=>S.suc===ROMO_SUCURSAL_QA?vRomoCajaConsultaQA():vCaja(),inventario:()=>window.ukiInventarioPanelHTML?.()||'<div class="card"><p>Preparando inventario…</p></div>'}[S.vista]||vInicio;
   const msg=S.msg?`<div role="status" class="aviso" style="background:#ffece4;color:#7a2c08">${esc(S.msg)}</div>`:"";
   S.msg=null;
   $("app").innerHTML=msg+(S.vista==='pedidos'?ukiRomoBandejaPanelHTML():'')+f();
@@ -857,6 +870,34 @@ function ukiRomoBandejaPanelHTML(){
   ).join('')+'</section>';
 }
 
+
+
+function vRomoPedidosConsultaQA(){
+ if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||
+    S.suc!==ROMO_SUCURSAL_QA)return vInicio();
+ // Los pedidos confirmados de Romo se consultan sin editar estados,
+ // cancelar, sumar timbres ni tocar la caja local del navegador.
+ const pedidos=(S.pedidos||[]).filter(p=>p.suc===ROMO_SUCURSAL_QA)
+  .slice().reverse().slice(0,75);
+ const html=pedidos.map(p=>{
+  const productos=Array.isArray(p.productos)?p.productos:[];
+  return '<details class="card" aria-label="Pedido Romo confirmado">'+
+   '<summary><b>Turno #'+esc(p.numeroTurno||p.id)+'</b> · '+
+   (p.codigoCarta?'Carta #'+esc(p.codigoCarta)+' · ':'')+
+   esc(p.cliente||'Cliente')+' · '+esc(p.pagado?'Pagado':'Por cobrar')+'</summary>'+
+   '<p>'+esc(p.modalidad||'Retiro')+' · '+esc(p.estado||'Pendiente')+
+   ' · <b>Total '+fmt(p.total)+'</b></p>'+
+   '<p class="muted">Registrado '+esc(p.fechaISO||'')+'</p>'+
+   '<ul>'+productos.map(x=>'<li>'+esc(x.cantidad)+' × '+esc(x.nombre)+
+    ' · '+fmt((Number(x.cantidad)||0)*(Number(x.precioUnit)||0))+
+    (x.detalle?'<p class="muted">'+esc(x.detalle)+'</p>':'')+'</li>').join('')+'</ul>'+
+   '<p class="muted">Solo consulta · No se puede modificar el pedido todavía.</p></details>';
+ }).join('');
+ return '<section class="card"><h2>Pedidos confirmados · Romo La Serena</h2>'+
+  '<p class="muted">Sólo los pedidos confirmados en Neon. Para aceptar uno nuevo, utiliza la bandeja superior.</p>'+
+  '<p class="muted">No se pueden cancelar, editar, cambiar a entregado ni emitir timbres hasta conectar su guardado seguro.</p>'+
+  '</section>'+(html||'<div class="card muted">Todavía no hay pedidos confirmados de Romo.</div>');
+}
 
 // Vista Romo SOLO LECTURA hasta que gastos, caja y cierres tengan escritura CAS.
 async function ukiRomoResumenRelojQA(){

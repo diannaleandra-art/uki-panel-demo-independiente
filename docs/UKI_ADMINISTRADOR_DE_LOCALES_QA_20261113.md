@@ -128,3 +128,7 @@ Se agregó una prueba con dos controladores independientes, dos estados de panta
 
 ## Caja y cierres Romo · Consulta cerrada, sin escrituras (QA)
 Se añadió una vista de caja de Romo solo para consultar cobros confirmados del estado aislado, con sus pagos mixtos desglosados, delivery que otro local cobró, entregas manuales que NO son ingreso y propinas separadas. No se confunde el importe para repartidor con efectivo de caja. Se muestra historial de cierres que ya figuren en el snapshot confirmado. Gastos, movimientos, retiros, precierre, cierre final e inventario todavía están bloqueados en Romo; no se presenta una caja física final sin conciliación ni se calcula desde solicitudes pendientes. Los controles originales de Uki no cambian. La fuente jamás se modifica al consultar; las pruebas rechazan datos de otra sucursal y medios descuadrados. La publicación sigue apagada.
+
+
+## Pedidos Romo solo consulta hasta que acciones independientes sean transaccionales (QA)
+Se agregó una pantalla de pedidos confirmados sin acciones de cambio de estado, cancelación, entrega ni timbre. La bandeja Romo conserva el botón «Revisar pedido» para tomar solicitudes, pero no se habilitan los controles originales de UIKit sobre estado no guardado en Neon. La navegación de Romo toma su propia ruta antes de la lógica Uki que guarda borradores localmente: pide confirmación para descartar un formulario abierto, sin registrarlo como venta ni guardarlo de forma local. Se conserva intacta la navegación original de ambas sucursales Uki.
