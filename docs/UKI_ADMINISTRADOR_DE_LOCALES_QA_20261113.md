@@ -96,3 +96,7 @@ La actualización de la ficha y su registro de auditoría se ejecutan en una ún
 
 ## Concurrencia visible de edición privada (QA)
 Cuando dos teléfonos editan la misma ficha y el guardado del segundo recibe un conflicto, el formulario no borra lo escrito ni vuelve a enviar cambios con una revisión vencida. Se informa expresamente que no se guardó nada y se muestra «Cargar versión actual» para recargar el borrador solo por decisión del dueño. Este control permanece detrás de la misma sesión privada y bandera de edición, sin publicar carta ni pedidos.
+
+
+## Evitar pérdida de formulario por consultas automáticas (QA)
+Una consulta de Negocios o del listado privado no reemplaza los campos del local que el dueño esté modificando. Se compara la versión de formulario cargada con el texto y la selección de fotografías del teléfono. Si hay cambios sin guardar, se conserva todo y se muestra un aviso claro. Después de guardar exitosamente o presionar deliberadamente «Cargar versión actual», la consulta sí puede reemplazar los campos. No activa backend, pedidos ni publicación.

@@ -2,6 +2,7 @@ import {prepararVinculoLocalQA} from './uki-locales-motor-qa.mjs';
 import {crearMensajeVisualRomoQA} from './uki-locales-puente-visual-qa.mjs';
 import {prepararFichaParaGuardarQA} from './uki-locales-edicion-qa.mjs';
 import {clasificarErrorFichaQA} from './uki-locales-conflictos-qa.mjs';
+import {firmaFormularioLocalQA,permiteRecargaFormularioQA} from './uki-locales-formulario-protegido-qa.mjs';
 /* Agregar local operativo · reutiliza Mi Administración, Google y PIN privados.
  * QA sin publicación. Las fotos del teléfono son SOLO vista previa:
  * la carga definitiva requiere conectar almacenamiento autorizado. */
@@ -9,6 +10,8 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
  const by=id=>document.getElementById(id),ids=['ownerLocBiz','ownerLocBranch'];
  const biz=by(ids[0]),branch=by(ids[1]),save=by('ownerLocSave'),list=by('ownerLocList');
  let drafts=[],lastRevision=0,loading=false,puedeGuardar=false,conflictoPendiente=false;
+ let firmaCargada=null;
+ const firmaActual=()=>firmaFormularioLocalQA(by);
  const setOptions=(select,items,title)=>{
   const previous=select.value;select.replaceChildren(new Option(title,''));
   for(const item of items)select.add(new Option(item.nombre,item.id));
@@ -148,6 +151,8 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
    by('ownerLocTemplate').value='uki-motor';by('ownerLocColor').value='#bc1725';
   }
   preview();
+  // Solo guardar la firma después de cargar una ficha de verdad.
+  firmaCargada=firmaActual();
  };
  biz.addEventListener('change',()=>{limpiarConflicto();sync();leerBorradorSeleccionado();});
  branch.addEventListener('change',()=>{
@@ -159,7 +164,7 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
   if(loading)return;
   // Solo un clic explícito descarta lo no guardado.
   try{
-   await consultar();
+   await consultar({forzar:true});
    if(puedeGuardar||drafts.length){
     limpiarConflicto();
     if(branch.value)leerBorradorSeleccionado();
@@ -186,7 +191,7 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
     await refrescarNegocios();
     branch.value=result.local?.sucursal_id||'';
     by('ownerLocNewBranchWrap').hidden=true;
-    await consultar();
+    await consultar({forzar:true});
     notificar('Nueva sucursal preparada y seleccionada. Aún no está publicada.','success');
     return;
    }
@@ -194,7 +199,7 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
    lastRevision=result.local?.revision||0;
    limpiarConflicto();
    notificar('Ficha guardada como borrador privado. Aún no está publicada.','success');
-   await consultar();
+   await consultar({forzar:true});
   }catch(e){
    const error=clasificarErrorFichaQA(e.message);
    if(error.conflicto){
@@ -206,7 +211,7 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
    notificar(error.mensaje,'error');
   }finally{loading=false;save.disabled=!puedeGuardar||conflictoPendiente;}
  };
- async function consultar(){
+ async function consultar({forzar=false}={}){
   try{
    const resp=await api('locales_operativos_diagnostico_qa');
    const d=resp.diagnostico||{};
@@ -230,7 +235,12 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
    by('ownerLocStatus').textContent='El guardado privado aún no está disponible. Puedes completar la ficha y verla sin publicarla.';
   }
   renderList();
-  if(branch.value&&!conflictoPendiente)leerBorradorSeleccionado();
+  const debeCargar=permiteRecargaFormularioQA({
+   firmaActual:firmaActual(),firmaCargada,conflictoPendiente,forzar
+  });
+  if(branch.value&&debeCargar)leerBorradorSeleccionado();
+  else if(branch.value&&!debeCargar)
+   by('ownerLocStatus').textContent+=' Conservamos los cambios escritos sin guardar; no se reemplazaron.';
  }
  sync();renderList();
  return Object.freeze({sync,consultar});
