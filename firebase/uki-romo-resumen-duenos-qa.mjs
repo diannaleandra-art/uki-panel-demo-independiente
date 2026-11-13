@@ -18,10 +18,11 @@ const amount=(v,n)=>{
 const day=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&
  !Number.isNaN(Date.parse(s+'T12:00:00Z'))&&
  new Date(s+'T12:00:00Z').toISOString().slice(0,10)===s;
-const receiptValue=x=>x&&x.storeId===STORE&&
- x.estado==='cierre_confirmado'&&
+const receiptValue=x=>x&&
  Number.isSafeInteger(x.revision)&&x.revision>=1&&
- typeof x.turnoId==='string';
+ typeof x.turnoId==='string'&&
+ (x.storeId===undefined||x.storeId===STORE)&&
+ (x.estado===undefined||x.estado==='cierre_confirmado');
 export function prepararResumenCierreRomoDuenosQA(cierre){
  ok(cierre?.suc===SUC,'El cierre no pertenece a Romo La Serena');
  const fecha=cierre.fechaOperativa;

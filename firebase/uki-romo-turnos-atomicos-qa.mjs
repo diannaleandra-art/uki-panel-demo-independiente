@@ -83,10 +83,8 @@ export function crearGuardadoTurnosRomoQA({
    // Solo se entrega un resumen de Romo tras la confirmación real del turno.
    // Queda PENDIENTE el transporte privado a Mi Administración.
    const resumenDuenosQA=tipo==='cierre'?
-    vincularResumenConfirmadoRomoDuenosQA(resumenDuenosPendiente,{
-     ...confirmado,storeId:'romo:serena',turnoId:resultado.turnoId,
-     estado:'cierre_confirmado'
-    }):null;
+    vincularResumenConfirmadoRomoDuenosQA(resumenDuenosPendiente,
+     confirmado):null;
    return Object.freeze({ok:true,tipo,revision:confirmado.revision,
     turnoId:resultado.turnoId,resultado,resumenDuenosQA});
   }finally{busy=false}
