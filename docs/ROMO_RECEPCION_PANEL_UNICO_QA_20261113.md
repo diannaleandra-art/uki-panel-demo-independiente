@@ -69,3 +69,11 @@ El guardado usa copia cifrada AES-GCM y revisión CAS en Neon; el historial anot
 responsable y hora. Respuestas inciertas no marcan entregado en la pantalla.
 Esto aún requiere prueba real con cuentas Google autorizadas y dos teléfonos.
 La edición y cancelación continúan pendientes; no se activaron ventas públicas.
+
+## 13 noviembre 2026 · Cancelación segura de pedidos sin pago (QA)
+Se agregó la opción del mismo panel para cancelar únicamente pedidos Pendientes
+que no tengan cobros, pagos externos ni propinas y cuyo turno siga sin cerrar.
+Requiere motivo y responsable; se guarda un evento en historial y la copia se
+confirma cifrada en Neon CAS. No inventa devolución pendiente ni toca caja.
+Los pedidos pagados siguen bloqueados hasta resolver el circuito de reembolsos
+y conciliación. Romo continúa comercialmente desactivado y Uki no se modifica.

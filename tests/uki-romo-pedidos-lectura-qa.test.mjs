@@ -6,7 +6,8 @@ test('Romo muestra una bandeja y sus pedidos ya confirmados en modo consulta',()
  assert.match(s,/function vRomoPedidosConsultaQA\(\)/);
  assert.match(s,/p\.suc===ROMO_SUCURSAL_QA/);
  assert.match(s,/pedidos:\(\)=>S\.suc===ROMO_SUCURSAL_QA\?vRomoPedidosConsultaQA\(\):vPedidos\(\)/);
- assert.match(s,/La edición y cancelación siguen pendientes de guardado seguro/);
+ assert.match(s,/La edición y la cancelación de pedidos pagados requieren conciliación segura/);
+ assert.match(s,/async function ukiRomoCancelarSinPagoQA\(id\)/);
  assert.match(s,/async function ukiRomoEntregarPedidoQA\(id\)/);
  assert.match(s,/function ukiRomoAbrirTimbrePedidoQA\(id\)/);
  assert.match(s,/async function ukiRomoConfirmarTimbrePedidoQA\(id\)/);

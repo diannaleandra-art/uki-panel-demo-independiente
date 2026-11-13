@@ -963,6 +963,33 @@ async function ukiRomoEntregarPedidoQA(id){
    String(e?.message||e));
  }finally{ukiRomoTimbreGuardandoQA=false;}
 }
+async function ukiRomoCancelarSinPagoQA(id){
+ if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||S.suc!==ROMO_SUCURSAL_QA||
+    !ukiRomoControlPanelQA?.disponible())
+  return aviso('Cancelación Romo sigue en pruebas.');
+ if(ukiRomoTimbreGuardandoQA)return;
+ const p=(S.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&x.id===Number(id));
+ if(!p||p.estado!=='Pendiente'||p.pagado===true||
+    p.productosPagadosOtroLocal||p.envioPagadoOtroLocal)
+  return aviso('Los pedidos pagados requieren conciliación antes de cancelar.');
+ const responsable=String($('romoCancelarResponsableQA-'+p.id)?.value||'').trim();
+ const motivo=String($('romoCancelarMotivoQA-'+p.id)?.value||'').trim();
+ if(responsable.length<2||responsable.length>80||motivo.length<4||motivo.length>300)
+  return aviso('Escribe responsable y motivo de cancelación.');
+ if(!confirm('¿Cancelar este pedido SIN PAGO de Romo? No se registrará una devolución.'))return;
+ ukiRomoTimbreGuardandoQA=true;
+ try{
+  const r=await ukiRomoControlPanelQA.cancelarSinPago({
+   pedidoId:p.id,responsable,motivo,registradoEn:Date.now()
+  });
+  if(r?.ok!==true)throw Error('Neon no confirmó la cancelación');
+  aviso('Pedido de Romo cancelado con motivo y responsable, sin devolución ficticia.');
+  render();
+ }catch(e){
+  aviso('CANCELACIÓN NO CONFIRMADA. Revisa Neon e historial antes de repetir: '+
+   String(e?.message||e));
+ }finally{ukiRomoTimbreGuardandoQA=false;}
+}
 function vRomoPedidosConsultaQA(){
  if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||
     S.suc!==ROMO_SUCURSAL_QA)return vInicio();
@@ -1000,7 +1027,13 @@ function vRomoPedidosConsultaQA(){
      esc(p.id)+'" placeholder="Nombre del trabajador">'+
      '<button type="button" class="sm" onclick="ukiRomoEntregarPedidoQA('+
      Number(p.id)+')">Marcar entregado</button></div>':'')+
-   '<p class="muted">La edición y cancelación siguen pendientes de guardado seguro.</p></details>';
+   (p.estado==='Pendiente'&&!p.pagado&&!p.productosPagadosOtroLocal&&!p.envioPagadoOtroLocal?
+    '<details class="card"><summary>Cancelar pedido sin pago</summary>'+
+    '<label>Responsable</label><input id="romoCancelarResponsableQA-'+esc(p.id)+'" maxlength="80">'+
+    '<label>Motivo obligatorio</label><input id="romoCancelarMotivoQA-'+esc(p.id)+'" maxlength="300">'+
+    '<button type="button" class="sm" onclick="ukiRomoCancelarSinPagoQA('+
+    Number(p.id)+')">Cancelar sin pago</button></details>':'')+
+   '<p class="muted">La edición y la cancelación de pedidos pagados requieren conciliación segura.</p></details>';
  }).join('');
  return '<section class="card"><h2>Pedidos confirmados · Romo La Serena</h2>'+
   '<p class="muted">Solo pedidos confirmados en Neon; para recibir uno nuevo usa la bandeja.</p>'+
