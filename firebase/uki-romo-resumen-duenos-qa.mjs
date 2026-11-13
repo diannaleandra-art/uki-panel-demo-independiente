@@ -34,6 +34,12 @@ export function prepararResumenCierreRomoDuenosQA(cierre){
  ok(Number.isSafeInteger(inicio)&&inicio>0&&
   Number.isSafeInteger(cierre.fechaMs)&&cierre.fechaMs>inicio,
   'No se confirmó el momento del cierre');
+ // La fecha operativa se valida contra la apertura LOCAL de Chile,
+ // no contra UTC, para no mover ventas entre días de sucursal.
+ const localStart=new Intl.DateTimeFormat('en-CA',{
+  timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'
+ }).format(new Date(inicio));
+ ok(localStart===fecha,'El turno no comenzó en la fecha operativa declarada');
  const ventas=amount(cierre.venta,'ventas');
  const pedidos=amount(cierre.pedidos,'pedidos');
  ok(pedidos<=10000,'Cantidad de pedidos fuera de rango');
