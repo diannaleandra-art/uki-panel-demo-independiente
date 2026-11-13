@@ -82,15 +82,17 @@ export function moverCajaRomoCandidatoQA(estado,{tipo,datos}={}){
    check(anterior+cantidad<=porPedido+manual,
     'El pago del día supera los deliverys registrados');
   }
-  caja[key]=anterior+cantidad;caja[medKey]=medio;
-  const movimiento={...registro,medio,monto:cantidad,tipoSaldo,
-   concepto:String(datos.concepto||'').trim().slice(0,180)};
-  if(!Array.isArray(caja.pagosRepartidor))caja.pagosRepartidor=[];
-  check(!caja.pagosRepartidor.some(x=>x.id===movimiento.id),
+  const concepto=tipoSaldo==='anterior'?
+   txt(datos.concepto,180,'Concepto saldo anterior'):
+   String(datos.concepto||'').trim().slice(0,180);
+  const movimiento={...registro,medio,monto:cantidad,tipoSaldo,concepto};
+  const abonos=caja.pagosRepartidor||[];
+  check(Array.isArray(abonos)&&!abonos.some(x=>x.id===movimiento.id),
    'Ese abono al repartidor ya existe');
-  caja.pagosRepartidor.push(movimiento);
-  if(tipoSaldo==='anterior')
-   caja.pagoDeliveryConceptoAnterior=txt(datos.concepto,180,'Concepto saldo anterior');
+  // Las validaciones están completas: ahora sí se modifica la COPIA.
+  caja[key]=anterior+cantidad;caja[medKey]=medio;
+  caja.pagosRepartidor=[...abonos,movimiento];
+  if(tipoSaldo==='anterior')caja.pagoDeliveryConceptoAnterior=concepto;
   return {tipo,id:registro.id,tipoSaldo};
  }
  if(tipo==='propina_manual'){
