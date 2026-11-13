@@ -964,6 +964,131 @@ async function ukiRomoResumenRelojQA(){
  if(S.suc!==ROMO_SUCURSAL_QA||!ukiRomoControlPanelQA?.disponible())return;
  render();
 }
+
+/* Cierre definitivo de Romo en el mismo panel; apagado hasta publicar. */
+const ROMO_PANEL_CIERRE_HABILITADO_QA=false;
+let romoCierreOcupadoQA=false,romoCierreRevisadoQA=null;
+function romoDiaCajaQA(){
+ return /^\d{4}-\d{2}-\d{2}$/.test(S.fechaOperativa||'')?
+  S.fechaOperativa:hoyLocal();
+}
+function romoFormularioCierreQA(){
+ if(!ROMO_PANEL_CIERRE_HABILITADO_QA||S.suc!==ROMO_SUCURSAL_QA)return '';
+ const dia=romoDiaCajaQA();
+ const caja=S.cajasDiarias?.[ROMO_SUCURSAL_QA+'|'+dia];
+ if(caja?.turnoAbierto!==true){
+  return '<section class="card"><h2>Abrir turno de Romo</h2>'+
+   '<p class="muted">La base inicial no es una venta y no se suma dos veces.</p>'+
+   '<label for="romoAbrirResponsable">Responsable</label><input id="romoAbrirResponsable" maxlength="80">'+
+   '<label for="romoAbrirBase">Base inicial ($)</label>'+
+   '<input id="romoAbrirBase" type="number" min="0" step="1" value="0">'+
+   '<button type="button" class="big" onclick="romoAbrirTurnoQA()">Confirmar apertura</button></section>';
+ }
+ return '<section class="card"><h2>Cierre definitivo de Romo</h2>'+
+  '<p><b>Turno:</b> '+esc(caja.turnoId||'')+
+  ' · <b>Base inicial:</b> '+fmt(caja.base||0)+'</p>'+
+  '<p class="muted">Cuenta el efectivo del turno, sin incluir la base inicial.</p>'+
+  '<label for="romoCerrarResponsable">Responsable</label>'+
+  '<input id="romoCerrarResponsable" maxlength="80">'+
+  '<label for="romoCerrarContado">Efectivo realmente contado ($, sin base)</label>'+
+  '<input id="romoCerrarContado" type="number" min="0" step="1">'+
+  '<label for="romoCerrarObs">Observaciones / diferencias</label>'+
+  '<textarea id="romoCerrarObs" maxlength="700" rows="3"></textarea>'+
+  '<label><input type="checkbox" id="romoCerrarAceptarDiferencia"> Acepto y expliqué la diferencia de efectivo</label>'+
+  '<label><input type="checkbox" id="romoCerrarAceptarPendientes"> Revisé los pedidos que faltan por pagar</label>'+
+  '<label><input type="checkbox" id="romoCerrarDefinitivo"> Confirmo que es un CIERRE DEFINITIVO, no precierre</label>'+
+  '<button type="button" class="big" onclick="romoRevisarCierreQA()">Revisar cuadre</button>'+
+  '<div id="romoCerrarVistaPrevia" role="status" aria-live="polite"></div>'+
+  '<button type="button" class="big" id="romoCerrarConfirmar" hidden onclick="romoConfirmarCierreQA()">'+
+  'CONFIRMAR CIERRE DEFINITIVO</button></section>';
+}
+async function romoAbrirTurnoQA(){
+ if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||!ROMO_PANEL_CIERRE_HABILITADO_QA||
+    S.suc!==ROMO_SUCURSAL_QA||romoCierreOcupadoQA||
+    !ukiRomoControlPanelQA?.disponible())
+  return aviso('La apertura de Romo todavía no está habilitada.');
+ const responsable=String($('romoAbrirResponsable')?.value||'').trim();
+ const base=Number($('romoAbrirBase')?.value);
+ if(responsable.length<2||!Number.isSafeInteger(base)||base<0)
+  return aviso('Indica responsable y base inicial válida.');
+ if(!confirm('¿Abrir el turno con base '+fmt(base)+'?'))return;
+ romoCierreOcupadoQA=true;
+ try{
+  const result=await ukiRomoControlPanelQA.ejecutarTurno({tipo:'apertura',datos:{
+   fechaOperativa:romoDiaCajaQA(),inicioMs:Date.now(),base,responsable
+  }});
+  if(!result?.ok)throw Error('Neon no confirmó la apertura');
+  aviso('Turno de Romo abierto en Neon.');render();
+ }catch(e){aviso('No se confirmó la apertura. Consulta Neon antes de repetir: '+
+  String(e?.message||e))}
+ finally{romoCierreOcupadoQA=false}
+}
+function romoCierreDatosQA(cierreMs){
+ return {
+  fechaOperativa:romoDiaCajaQA(),cierreMs,
+  responsable:String($('romoCerrarResponsable')?.value||'').trim(),
+  efectivoContado:Number($('romoCerrarContado')?.value),
+  observacion:String($('romoCerrarObs')?.value||'').trim(),
+  aceptarDiferencia:$('romoCerrarAceptarDiferencia')?.checked===true,
+  aceptarPendientesSinPago:$('romoCerrarAceptarPendientes')?.checked===true
+ };
+}
+async function romoRevisarCierreQA(){
+ romoCierreRevisadoQA=null;
+ if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||!ROMO_PANEL_CIERRE_HABILITADO_QA||
+    S.suc!==ROMO_SUCURSAL_QA||romoCierreOcupadoQA||
+    !ukiRomoControlPanelQA?.disponible())
+  return aviso('El cierre de Romo todavía no está habilitado.');
+ if(!$('romoCerrarDefinitivo')?.checked)return aviso('Confirma que no es un precierre.');
+ if(!String($('romoCerrarContado')?.value||'').trim())
+  return aviso('Indica el efectivo contado, incluso si es cero.');
+ const datos=romoCierreDatosQA(Date.now());
+ try{
+  const modulo=await import('./uki-romo-cierre-definitivo-qa.mjs');
+  const copia=JSON.parse(JSON.stringify(datosSoloSucursal()));
+  const resumen=modulo.prepararCierreDefinitivoRomoQA(copia,datos);
+  const firma=JSON.stringify([datosSoloSucursal(),ukiRomoRevisionVisibleQA,datos]);
+  romoCierreRevisadoQA={firma,datos,resumen};
+  const preview=$('romoCerrarVistaPrevia');
+  if(preview)preview.innerHTML='<p><b>Venta:</b> '+fmt(resumen.cierre.venta)+
+   ' · <b>Gastos:</b> '+fmt(resumen.cierre.gastos)+
+   ' · <b>Repartidor:</b> '+fmt(resumen.cierre.pagadoDelivery)+
+   ' · <b>Efectivo esperado:</b> '+fmt(resumen.efectivoEsperado)+
+   ' · <b>Contado:</b> '+fmt(resumen.efectivoContado)+
+   ' · <b>Diferencia:</b> '+fmt(resumen.diferencia)+
+   ' · <b>Pendientes de pago:</b> '+resumen.pendientes+'</p>';
+  if($('romoCerrarConfirmar'))$('romoCerrarConfirmar').hidden=false;
+ }catch(e){
+  if($('romoCerrarConfirmar'))$('romoCerrarConfirmar').hidden=true;
+  aviso('No se puede cerrar sin conciliar: '+String(e?.message||e));
+ }
+}
+async function romoConfirmarCierreQA(){
+ if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||!ROMO_PANEL_CIERRE_HABILITADO_QA||
+    S.suc!==ROMO_SUCURSAL_QA||romoCierreOcupadoQA||
+    !ukiRomoControlPanelQA?.disponible())
+  return aviso('Cierre Romo no habilitado.');
+ const p=romoCierreRevisadoQA;
+ if(!p||!$('romoCerrarDefinitivo')?.checked)
+  return aviso('Primero revisa el cuadro definitivo.');
+ if(JSON.stringify([datosSoloSucursal(),ukiRomoRevisionVisibleQA,
+     romoCierreDatosQA(p.datos.cierreMs)])!==p.firma)
+  return aviso('Cambió la caja o el formulario. Revisa el cierre nuevamente.');
+ if(!confirm('¿CONFIRMAS EL CIERRE DEFINITIVO de Romo La Serena?'))return;
+ romoCierreOcupadoQA=true;
+ try{
+  const result=await ukiRomoControlPanelQA.ejecutarTurno({tipo:'cierre',datos:p.datos});
+  if(result?.ok!==true||result.tipo!=='cierre')
+   throw Error('No se confirmó el cierre');
+  romoCierreRevisadoQA=null;
+  aviso('Cierre confirmado por Neon. Revisa Historial.');render();
+ }catch(e){
+  romoCierreRevisadoQA=null;
+  aviso('CIERRE NO CONFIRMADO EN PANTALLA. Revisa Neon e Historial antes de repetir: '+
+   String(e?.message||e));
+ }finally{romoCierreOcupadoQA=false}
+}
+
 function vRomoCajaConsultaQA(){
  if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||
     S.suc!==ROMO_SUCURSAL_QA)return vInicio();
@@ -996,7 +1121,7 @@ function vRomoCajaConsultaQA(){
     '<p><b>'+esc(c.fecha)+'</b> · Venta '+(c.venta===null?'No indicada':dinero(c.venta))+
     ' · Efectivo '+(c.efectivo===null?'No indicado':dinero(c.efectivo))+'</p>').join(''):
     '<p class="muted">Todavía no hay cierres de Romo registrados.</p>')+
-   '<p class="muted">No modifica cierres ni muestra un efectivo físico final sin conciliación.</p></section>'+ukiRomoFormularioMovimientosQA();
+   '<p class="muted">Historial de cierres confirmados en Neon.</p></section>'+ukiRomoFormularioMovimientosQA()+romoFormularioCierreQA();
  }catch(e){
   return '<section class="card"><h2>Caja Romo</h2><p class="aviso">No es seguro presentar estos totales hasta revisar los registros: '+
    esc(e?.message||e)+'</p></section>';
