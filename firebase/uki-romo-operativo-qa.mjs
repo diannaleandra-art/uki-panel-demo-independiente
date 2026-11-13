@@ -61,6 +61,18 @@ export function crearPuenteRomoOperativoQA({
     throw new Error('El estado recibido no corresponde a Romo');
    return Object.freeze({revision:result.revision,estado});
   },
+  async guardarSobreCifrado({snapshot,revision}={}){
+   if(!disponible())throw new Error('Operaciones de Romo no habilitadas');
+   if(!Number.isSafeInteger(revision)||revision<0||
+      snapshot?.formato!=='uki-v813-browser'||snapshot?.version!==1||
+      snapshot?.sucursal!==ROMO_OPERATIVO_SUCURSAL_QA||
+      typeof snapshot?.salt!=='string'||typeof snapshot?.iv!=='string'||
+      typeof snapshot?.cifrado!=='string')
+    throw new Error('Se necesita el respaldo cifrado propio de Romo');
+   const result=await request('POST',{expectedRevision:revision,snapshot});
+   if(result.revision!==revision+1)throw new Error('Neon confirmó otra revisión');
+   return Object.freeze({revision:result.revision});
+  },
   async guardar({estado,password,revision,snapshotAnterior=null}={}){
    if(!disponible())throw new Error('Operaciones de Romo no habilitadas');
    if(!Number.isSafeInteger(revision)||revision<0||
