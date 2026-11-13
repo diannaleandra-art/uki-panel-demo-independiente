@@ -41,6 +41,7 @@ jobs:
             tests/uki-romo-cierre-servidor-qa.test.mjs \
             tests/uki-romo-turnos-atomicos-qa.test.mjs \
             tests/uki-romo-cierre-interfaz-qa.test.mjs \
+            tests/uki-romo-lanzamiento-seguro-qa.test.mjs \
             tests/uki-locales-configuracion-qa.test.cjs \
             tests/uki-locales-registro-qa.test.mjs \
             tests/uki-locales-onboarding-qa.test.cjs \

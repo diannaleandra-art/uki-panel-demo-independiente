@@ -1,0 +1,25 @@
+# Romo La Serena - Cierre QA y lanzamiento controlado
+
+## Cierre preparado en QA
+Apertura con responsable, base y caja chica; cierre con efectivo contado, diferencia documentada, medios mixtos, ingresos por plataforma, gastos, retiros, propinas y reparto del día/saldos anteriores. Dos turnos de un día son independientes.
+La confirmación requiere bandeja remota comprobada, permiso de cierre por rol Google, snapshot cifrado AES-GCM y revisión CAS en Neon. No se repite automáticamente tras una respuesta incierta.
+
+## Controles apagados
+- ROMO_PANEL_INTEGRACION_HABILITADA_QA=false
+- ROMO_PANEL_MOVIMIENTOS_HABILITADOS_QA=false
+- ROMO_PANEL_CIERRE_HABILITADO_QA=false
+- ROMO_OPERATIVO_CLIENTE_HABILITADO_QA=false
+- ROMO_CIERRE_DEFINITIVO_HABILITADO_QA=false
+- Backend necesita ROMO_OPERATIVO_LIVE_ENABLED y ROMO_CIERRE_DEFINITIVO_LIVE_ENABLED habilitados expresamente.
+- Recepción necesita ROMO_SOLICITUDES_LIVE_ENABLED habilitada expresamente.
+En Vercel existen nombres de variables de DB, host y origen de Romo, pero las variables de activación indicadas no están registradas. No se han publicado estas modificaciones.
+
+## Pendiente antes de abrir la carta al público
+1. Verificar de punta a punta en el navegador con cuenta autorizada: apertura, aceptación, timbre, pagos, movimientos, cierre e historial.
+2. Probar dos teléfonos reales sobre el mismo turno y probar respuesta incierta sin doble cierre.
+3. Confirmar que los cierres Romo entren en Mi Administración de dueños sin doble contabilización. Hoy el estado de Romo se cifra en su propia Neon; no está demostrado el traslado automático de cierres a las finanzas privadas de dueños.
+4. Verificar que edición de pedido, inventario y timbres restantes tengan equivalencia funcional con Uki. Parte de Romo aún es solo consulta.
+5. Validar enlace y QR de carta Romo, precios/promociones, WhatsApp y recepción pública antes de aceptar pedidos.
+6. Solicitar aprobación expresa y agrupar una publicación controlada del panel y otra de la carta, con revisión de logs y prueba final de cierres.
+
+Nunca publicar un cambio de Romo que altere las dos sucursales productivas Uki o sus QR ya impresos.
