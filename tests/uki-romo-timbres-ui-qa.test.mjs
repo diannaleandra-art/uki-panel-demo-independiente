@@ -25,7 +25,7 @@ test('timbre Romo usa su marca sin alterar mecánica Uki',()=>{
  assert.match(t,/10 compras = 36 piezas \+ 2 korokes gratis/);
 });
 test('Romo no permite timbre duplicado ni sin envío real',()=>{
- const a=src.slice(src.indexOf('function ukiRomoAbrirTimbrePedidoQA(id)'),
+ const a=src.slice(src.indexOf('function ukiRomoPuedeEnviarTimbreQA(p)'),
    src.indexOf('function vRomoPedidosConsultaQA(){'));
  assert.match(a,/!p\.timbreEnviadoEn/);
  assert.match(a,/if\(!confirm\('¿Pulsaste realmente Enviar/);
