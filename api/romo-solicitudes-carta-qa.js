@@ -67,15 +67,29 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
   if(req.method==='PATCH'){
    const body=req.body;
    if(!body||typeof body!=='object'||Array.isArray(body)||
-      Object.keys(body).sort().join('|')!=='estado|id|motivo|storeId'||
-      body.storeId!=='romo:serena'||body.estado!=='rechazada')
-    return fail(res,400,'Solo se admite rechazo con motivo de Romo');
+      body.storeId!=='romo:serena')
+    return fail(res,400,'Solo solicitudes de Romo La Serena');
+   // Nunca aceptar con un pedidoId aportado por el navegador.
+   // Primero debe existir un pedido realmente guardado en Romo.
+   if(body.estado==='aceptada')
+    return fail(res,503,'Aceptar requiere comprobar el pedido guardado');
+   const keys=Object.keys(body).sort().join('|');
+   if(body.estado==='rechazada'){
+    if(keys!=='estado|id|motivo|storeId')
+     return fail(res,400,'Motivo de rechazo obligatorio');
+   }else if(['reservar','liberar'].includes(body.estado)){
+    if(keys!=='claimToken|estado|id|storeId')
+     return fail(res,400,'Reserva de Romo incompleta');
+   }else return fail(res,400,'Acción no permitida');
    try{
-    const result=await mod.rechazarSolicitudRomoQA({
-     db,identity,id:body.id,motivo:body.motivo
-    });
+    const result=body.estado==='rechazada'?
+     await mod.rechazarSolicitudRomoQA({db,identity,id:body.id,motivo:body.motivo}):
+     await (await import('../lib/romo-reservas-carta-qa.mjs'))[
+      body.estado==='reservar'?'reservarSolicitudRomoQA':'liberarSolicitudRomoQA'
+     ]({db,identity,id:body.id,claimToken:body.claimToken});
     return res.status(200).json({ok:true,...result});
    }catch(error){
+    if(error?.code==='ROMO_RESERVA_CONFLICT')return fail(res,409,'Solicitud reservada en otro teléfono');
     if(error?.code==='ROMO_DECISION_CONFLICT')return fail(res,409,'Solicitud procesada desde otro equipo');
     if(/motivo|identificador|inválid/i.test(String(error?.message||'')))
      return fail(res,400,'Identificador y motivo obligatorios');
