@@ -75,3 +75,13 @@ test('registros cruzados, pagos inconsistentes y cobros sin local generan error'
   {...source(),pedidos:[base({pagosEnvio:[{medio:'PedidosYa',monto:2000}]})]}
  ])assert.throws(()=>consultarCajaRomoQA(db,{fechaOperativa:day}));
 });
+
+test('el módulo de consulta se carga en el panel sin habilitar caja',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const html=readFileSync(new URL('../firebase/uki-sushi-local.html',import.meta.url),'utf8');
+ assert.match(html,/script type="module" src="\.\/uki-romo-caja-consulta-qa\.mjs"/);
+ assert.match(html,/vRomoCajaConsultaQA\(\)/);
+ assert.match(html,/ROMO_PANEL_INTEGRACION_HABILITADA_QA=false/);
+ assert.match(html,/window\.ukiRomoCajaConsultaQA/);
+});
+

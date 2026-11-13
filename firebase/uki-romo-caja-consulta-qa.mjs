@@ -118,3 +118,6 @@ export function consultarCajaRomoQA(estado,{fechaOperativa}={}){
  return Object.freeze({...result,medios:Object.freeze({...medios}),
   historial:Object.freeze(historial)});
 }
+
+// La vista clasica reutiliza este módulo puro sin darle permisos de escritura.
+if(typeof window!=='undefined')window.ukiRomoCajaConsultaQA=Object.freeze({consultarCajaRomoQA});
