@@ -1,0 +1,91 @@
+/* Agregar local operativo · reutiliza Mi Administración, Google y PIN privados.
+ * QA sin publicación. Las fotos del teléfono son SOLO vista previa:
+ * la carga definitiva requiere conectar almacenamiento autorizado. */
+export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar}){
+ const by=id=>document.getElementById(id),ids=['ownerLocBiz','ownerLocBranch'];
+ const biz=by(ids[0]),branch=by(ids[1]),save=by('ownerLocSave'),list=by('ownerLocList');
+ let drafts=[],lastRevision=0,loading=false;
+ const setOptions=(select,items,title)=>{
+  const previous=select.value;select.replaceChildren(new Option(title,''));
+  for(const item of items)select.add(new Option(item.nombre,item.id));
+  if([...select.options].some(o=>o.value===previous))select.value=previous;
+ };
+ const sync=()=>{
+  setOptions(biz,negocios(),'Selecciona un negocio');
+  setOptions(branch,sucursales().filter(x=>x.negocio_id===biz.value),'Selecciona sucursal');
+ };
+ const renderList=()=>{
+  list.replaceChildren();
+  const msg=document.createElement('p');msg.className='hint';
+  msg.textContent='Uki Regimiento Arica y Uki La Serena mantienen su operación. Romo La Serena sigue en integración; aquí no se vuelven a crear.';
+  list.append(msg);
+  for(const record of drafts){
+   const div=document.createElement('div');div.className='line';
+   const title=document.createElement('strong');title.textContent=record.configuracion?.nombre||'Local';
+   const detail=document.createElement('p');detail.className='hint';
+   detail.textContent='Borrador · '+record.store_id+' · Sin ventas y sin publicación';
+   div.append(title,detail);list.append(div);
+  }
+ };
+ const valores=()=>({
+  negocio_id:biz.value,sucursal_id:branch.value,
+  nombre:by('ownerLocName').value.trim(),direccion:by('ownerLocAddress').value.trim(),
+  whatsapp:by('ownerLocWhatsApp').value.trim(),instagram:by('ownerLocInstagram').value.trim(),
+  horarios:by('ownerLocSchedule').value.trim(),plantilla:by('ownerLocTemplate').value,
+  color:by('ownerLocColor').value,logoUrl:'',portadaUrl:''
+ });
+ const preview=()=>{
+  const f=valores(),host=by('ownerLocPreview');
+  host.replaceChildren();
+  if(!f.negocio_id||!f.sucursal_id||f.nombre.length<3||f.direccion.length<5){
+   host.textContent='Completa negocio, sucursal, nombre y dirección para ver la ficha.';return;
+  }
+  const h=document.createElement('strong');h.textContent=f.nombre;
+  const p=document.createElement('p');p.className='hint';
+  p.textContent=f.direccion+' · '+(f.whatsapp||'WhatsApp pendiente')+
+   ' · '+(f.plantilla==='uki-motor'?'Diseño y funciones Uki sin copiar datos':'Carta vacía, mismas funciones');
+  host.append(h,p);host.style.borderLeft='5px solid '+f.color;
+ };
+ const files=[['ownerLocLogo','ownerLocLogoPreview'],['ownerLocCover','ownerLocCoverPreview']];
+ for(const [field,target] of files){
+  let url=null;
+  by(field).addEventListener('change',()=>{
+   if(url)URL.revokeObjectURL(url);url=null;
+   const f=by(field).files?.[0],el=by(target);el.replaceChildren();
+   if(!f)return;
+   if(!f.type.startsWith('image/')||f.size>6000000){notificar('Usa una imagen de máximo 6 MB.','error');return}
+   url=URL.createObjectURL(f);
+   const img=document.createElement('img');img.src=url;img.alt='Vista previa, todavía no guardada';
+   img.style.cssText='width:100%;max-height:150px;object-fit:contain;border-radius:10px';
+   el.append(img);
+  });
+ }
+ biz.addEventListener('change',sync);
+ by('ownerLocPreviewBtn').onclick=preview;
+ save.onclick=async()=>{
+  if(loading)return;loading=true;save.disabled=true;
+  try{
+   const ficha=valores();
+   if(!ficha.negocio_id||!ficha.sucursal_id||!ficha.nombre||!ficha.direccion)
+    throw Error('Completa negocio, sucursal, nombre y dirección');
+   const result=await api('locales_operativos_guardar_qa',{ficha,expectedRevision:lastRevision});
+   lastRevision=result.local?.revision||0;
+   notificar('Ficha guardada como borrador privado. Aún no está publicada.','success');
+   await consultar();
+  }catch(e){notificar('No se guardó el borrador: '+e.message,'error')}
+  finally{loading=false;save.disabled=false;}
+ };
+ async function consultar(){
+  try{
+   const data=await api('locales_operativos_listar_qa');
+   drafts=Array.isArray(data.locales)?data.locales:[];
+   by('ownerLocStatus').textContent='Borradores privados disponibles. Ninguno activa caja ni QR.';
+  }catch{
+   drafts=[];
+   by('ownerLocStatus').textContent='Configuración operativa todavía desactivada. Puedes preparar y visualizar la ficha en esta prueba.';
+  }
+  renderList();
+ }
+ sync();renderList();
+ return Object.freeze({sync,consultar});
+}

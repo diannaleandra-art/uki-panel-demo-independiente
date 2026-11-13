@@ -134,6 +134,62 @@ module.exports=async(req,res)=>{
    return ok(res,{sesion:token,minutos:30});
   }
   if(!await authorized(sql,req,who))return fail(res,401,'Introduce el código privado para continuar.');
+  if(action==='locales_operativos_listar_qa'||action==='locales_operativos_guardar_qa'){
+   // No se comparte una clave nueva: misma sesión Google + PIN de dueños,
+   // validados arriba. Ninguna ruta de este bloque activa locales.
+   if(process.env.UKI_LOCALES_OPERATIVOS_QA_ENABLED!=='true')
+    return fail(res,503,'Registro de locales todavía no activado');
+   const core=require('../lib/uki-locales-config-qa.cjs');
+   if(action==='locales_operativos_listar_qa'){
+    const rows=await sql.query(
+     "SELECT id,negocio_id,sucursal_id,store_id,configuracion,estado,revision"+
+     " FROM public.fin_locales_operativos_qa ORDER BY actualizado_en DESC LIMIT 100");
+    return ok(res,{locales:rows});
+   }
+   if(!body.ficha||typeof body.ficha!=='object'||Array.isArray(body.ficha))
+    return fail(res,400,'Completa la ficha del local');
+   const b=String(body.ficha.negocio_id||''),s=String(body.ficha.sucursal_id||'');
+   if(!uuid.test(b)||!uuid.test(s))return fail(res,400,'Selecciona negocio y sucursal');
+   await belongs(sql,b,s);
+   const names=await sql.query(
+    "SELECT b.nombre AS negocio, s.nombre AS sucursal FROM public.fin_negocios b"+
+    " JOIN public.fin_sucursales s ON s.negocio_id=b.id"+
+    " WHERE b.id=$1 AND s.id=$2 AND b.activo=true AND s.activo=true LIMIT 1",[b,s]);
+   if(names.length!==1)return fail(res,403,'Sucursal no autorizada');
+   let config;
+   try{config=core.normalizarFichaLocal(body.ficha,{
+    negocios:[{id:b}],sucursales:[{id:s,negocio_id:b}]
+   })}catch(e){return fail(res,400,String(e.message).slice(0,190))}
+   const revision=Number(body.expectedRevision);
+   if(!Number.isSafeInteger(revision)||revision<0)
+    return fail(res,400,'Revision de borrador invalida');
+   const existing=await sql.query(
+    'SELECT id,revision FROM public.fin_locales_operativos_qa WHERE sucursal_id=$1',[s]);
+   if(existing.length){
+    if(revision!==Number(existing[0].revision))return fail(res,409,'La ficha cambió; actualiza antes de guardar');
+    const changed=await sql.query(
+     "UPDATE public.fin_locales_operativos_qa SET configuracion=$3::jsonb,"+
+     " revision=revision+1,actualizado_por=$4,actualizado_en=now()"+
+     " WHERE negocio_id=$1 AND sucursal_id=$2 AND revision=$5 AND estado='borrador'"+
+     " RETURNING id,store_id,revision,estado",
+     [b,s,JSON.stringify(config),who.uid,revision]);
+    if(changed.length!==1)return fail(res,409,'Actualiza la ficha antes de guardarla');
+    await audit(sql,'local_qa',changed[0].id,'editar_borrador',who,{storeId:changed[0].store_id});
+    return ok(res,{local:changed[0]});
+   }
+   if(revision!==0)return fail(res,409,'No existe un borrador con esa revisión');
+   const known=core.storeIdConocido(names[0].negocio,names[0].sucursal);
+   const id=crypto.randomUUID(),storeId=known||'local:'+id;
+   const created=await sql.query(
+    "INSERT INTO public.fin_locales_operativos_qa"+
+    " (id,negocio_id,sucursal_id,store_id,configuracion,creado_por,actualizado_por)"+
+    " VALUES($1,$2,$3,$4,$5::jsonb,$6,$6) ON CONFLICT DO NOTHING"+
+    " RETURNING id,store_id,revision,estado",
+    [id,b,s,storeId,JSON.stringify(config),who.uid]);
+   if(created.length!==1)return fail(res,409,'Ese local ya tiene ficha o identificador; no se duplicó');
+   await audit(sql,'local_qa',created[0].id,'crear_borrador',who,{storeId});
+   return ok(res,{local:created[0]});
+  }
   if(action==='listar_cierres'){
    const desde=validDate(body.desde)?body.desde:'2000-01-01';
    const hasta=validDate(body.hasta)?body.hasta:'2099-12-31';

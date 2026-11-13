@@ -462,6 +462,34 @@ label{color:#66574c}
 <section class="view" id="v-negocios" hidden><div class="card"><div class="eyebrow">ORGANIZACIÓN</div><h2>🏪 Mis negocios y locales</h2><p class="steps">Aquí puedes agregar más negocios, sucursales y costos de sus productos.</p><div id="businessList"></div>
 <details><summary>＋ Agregar negocio</summary><label>Nombre</label><input id="newBizName" placeholder="Ej.: Crepe Pop"><label>Razón social de referencia (opcional)</label><input id="newBizReason"><p class="hint">Para el control contable, registra y vincula la razón social desde Facturas.</p><button class="primary" id="newBiz">Crear negocio</button></details>
 <details><summary>＋ Agregar sucursal</summary><label>Negocio</label><select id="newBranchBiz"></select><label>Nombre de sucursal</label><input id="newBranchName" placeholder="Ej.: La Serena"><button class="primary" id="newBranch">Crear sucursal</button></details></div>
+<div class="card" id="ownerLocalesOperativosQA">
+<div class="eyebrow">SOLO DUEÑOS · PREPARACIÓN</div>
+<h2>🛍️ Crear local con carta y panel</h2>
+<p class="hint">Se reutilizan las funciones ya construidas. Agregar una sucursal en el bloque anterior solo la crea para informes; aquí se prepara su carta y operación sin copiar clientes, pedidos ni ventas.</p>
+<p id="ownerLocStatus" class="hint">Sin activar para ventas. No genera QR ni publica carta.</p>
+<div id="ownerLocList"></div>
+<details id="ownerLocDetails"><summary>＋ Preparar nuevo local</summary>
+<label for="ownerLocBiz">Negocio existente</label><select id="ownerLocBiz"></select>
+<label for="ownerLocBranch">Sucursal existente</label><select id="ownerLocBranch"></select>
+<label for="ownerLocName">Nombre visible</label><input id="ownerLocName" maxlength="90" placeholder="Ej. Romo’s Sushi La Serena">
+<label for="ownerLocAddress">Dirección</label><input id="ownerLocAddress" maxlength="200" placeholder="Calle y número, ciudad">
+<div class="grid2">
+<div><label for="ownerLocWhatsApp">WhatsApp</label><input id="ownerLocWhatsApp" placeholder="+56 9 ..." inputmode="tel"></div>
+<div><label for="ownerLocInstagram">Instagram</label><input id="ownerLocInstagram" placeholder="@cuenta"></div></div>
+<label for="ownerLocSchedule">Horarios</label><input id="ownerLocSchedule" maxlength="180" placeholder="Ej. Lun a dom 10:00–23:00">
+<label for="ownerLocTemplate">Carta base</label><select id="ownerLocTemplate">
+<option value="uki-motor">Mismo diseño y funciones de Uki · sin copiar datos</option>
+<option value="carta-vacia">Carta vacía · mismas funciones</option></select>
+<label for="ownerLocColor">Color principal</label><input id="ownerLocColor" type="color" value="#bc1725" style="height:50px">
+<div class="grid2">
+<div><label for="ownerLocLogo">Logo desde el teléfono</label><input id="ownerLocLogo" type="file" accept="image/*"><div id="ownerLocLogoPreview"></div></div>
+<div><label for="ownerLocCover">Portada desde el teléfono</label><input id="ownerLocCover" type="file" accept="image/*"><div id="ownerLocCoverPreview"></div></div></div>
+<p class="hint">Las imágenes se muestran únicamente como vista previa por ahora; todavía no se suben a la carta ni a un servidor.</p>
+<button type="button" class="soft" id="ownerLocPreviewBtn">Ver ficha</button>
+<div id="ownerLocPreview" class="card" aria-live="polite">Completa los datos para ver la ficha.</div>
+<button type="button" class="primary" id="ownerLocSave">Guardar borrador privado (QA)</button>
+<p class="hint">Guardar borrador no da acceso a trabajadores ni activa ventas, caja, inventario, timbres o QR.</p>
+</details></div>
 <div class="card"><h2>Costos por producto</h2><p class="hint">Para comenzar a calcular márgenes. Los costos no se descuentan automáticamente de las ventas hasta conciliar inventario y compras.</p>
 <label>Negocio</label><select id="costBiz"></select><label>Producto</label><input id="costName" placeholder="Ej.: 24 piezas"><div class="grid2"><div><label>Precio de venta ($)</label><input id="costPrice" type="number" min="0"></div><div><label>Costo estimado ($)</label><input id="costAmount" type="number" min="0"></div></div>
 <label>Detalle de ingredientes</label><textarea id="costDescription"></textarea><button class="primary" id="saveCost">Guardar costo</button>
@@ -474,6 +502,7 @@ import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app
 import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
 import {crearControlCompras} from "./mi-administracion-compras.js?v=general-v5";
 import {unirVentasDuenos} from "./uki-duenos-ventas-unificadas-qa.mjs";
+import {iniciarLocalesOperativosQA} from "./uki-owner-locales-qa.mjs";
 import {construirInforme,generarXLSX,generarPDF,compartirWhatsApp} from "./mi-administracion-informes.js?v=duenos-reporte-v1";
 const app=initializeApp({apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",appId:"1:1070481165758:web:b8f0f9ff40caf5b8ac7def"});
 const auth=getAuth(app),$=id=>document.getElementById(id);
@@ -974,7 +1003,7 @@ function options(){
 }
 async function loadBusinesses(){
  const r=await api('negocios');businesses=r.negocios||[];branches=r.sucursales||[];
- options();$('scopeBusiness').value='';$('scopeBranch').value='';
+ options();ownerLocalesQA.sync();$('scopeBusiness').value='';$('scopeBranch').value='';
  const legal=await controlCompras.cargarRazones();
  razones=legal.razones||[];vinculos=legal.vinculos||[];
  renderBusinessList();scopeReasons();$('scopeRazon').value='todos';
@@ -1122,7 +1151,7 @@ function switchTab(name){
  syncSelectedBusiness(name);
  window.scrollTo({top:0,behavior:'smooth'});
  if(name==='facturas'){vistaCompras('historial',false);void loadDocs();}
- if(name==='negocios')void loadCosts();
+ if(name==='negocios'){void loadCosts();void ownerLocalesQA.consultar();}
 }
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
 document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>switchTab(b.dataset.go));
@@ -1726,6 +1755,7 @@ $('ukiCompartirInforme').onclick=async()=>{
  catch(e){if(e.name!=='AbortError')$('ukiInformeEstado').textContent=e.message}
 };
 
+const ownerLocalesQA=iniciarLocalesOperativosQA({api,negocios:()=>businesses,sucursales:()=>branches,notificar:notify});
 const controlCompras=crearControlCompras({
  api,$,esc,fmt:pesos,dateNow:today,businessName,branchName,currentBiz,currentBranch,upload,safe,
  branchesFor,negocios:()=>businesses,mostrarAuditoria:pintarHistorialMovimiento
