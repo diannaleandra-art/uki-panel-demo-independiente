@@ -39,6 +39,7 @@ jobs:
           node --check lib/romo-solicitudes-carta-qa.mjs
           node --check lib/romo-reservas-carta-qa.mjs
           node --check firebase/uki-romo-solicitudes-panel-qa.mjs
+          node --check tests/uki-romo-solicitudes-enlace-panel-qa.test.mjs
           node --check firebase/uki-romo-alta-clave-qa.mjs
           node --check api/romo-estado-operativo-qa.js
           node --check lib/romo-comprobante-guardado-qa.mjs
@@ -75,6 +76,7 @@ jobs:
             tests/romo-guardar-confirmar-flujo-qa.test.mjs \
             tests/romo-sesion-nube-panel-qa.test.mjs \
             tests/uki-romo-solicitudes-panel-qa.test.mjs \
+            tests/uki-romo-solicitudes-enlace-panel-qa.test.mjs \
             tests/romo-carga-catalogo-existente-20261112.test.mjs \
             tests/romo-almacenamiento-operativo-panel-qa.test.mjs \
             tests/uki-local-router-qa.test.mjs \

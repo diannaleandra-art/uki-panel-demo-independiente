@@ -4,16 +4,17 @@
  * La API exige token Google firmado, rol activo de Romo y base independiente.
  */
 const STORE='romo:serena';
-const ENDPOINT=''; // Abrir solamente tras aprobación y pruebas de bandeja.
+const ENDPOINT='https://uki-sushi-inventario.vercel.app/api/romo-solicitudes-carta-qa';
+export const ROMO_PANEL_BANDEJA_HABILITADA_QA=false; // Activa solo con aprobación.
 const id='romoSolicitudesEnPanelQA';
 function addLine(document,host,text){
  const p=document.createElement('p');p.className='muted';p.textContent=text;host.append(p);
 }
 export async function consultarSolicitudesPendientesRomoQA({
  endpoint=ENDPOINT,getToken=()=>window.ukiInventarioToken?.(),
- fetchFn=globalThis.fetch
+ fetchFn=globalThis.fetch,enabled=ROMO_PANEL_BANDEJA_HABILITADA_QA
 }={}){
- if(!ENDPOINT||endpoint!==ENDPOINT)throw Error('La bandeja de Romo aún no está activada');
+ if(enabled!==true||endpoint!==ENDPOINT)throw Error('La bandeja de Romo aún no está activada');
  if(typeof getToken!=='function'||typeof fetchFn!=='function')
   throw Error('Google de Uki no disponible');
  const token=await getToken();
@@ -51,7 +52,7 @@ export function montarSolicitudesRomoEnPedidosQA({
  const btn=document.createElement('button');btn.type='button';
  btn.className='big romo-bandeja-qa-button';
  btn.textContent='Actualizar solicitudes de Romo';
- btn.disabled=!ENDPOINT;
+ btn.disabled=!ROMO_PANEL_BANDEJA_HABILITADA_QA;
  section.append(btn);
  const list=document.createElement('div');section.append(list);
  btn.addEventListener('click',async()=>{
@@ -74,7 +75,7 @@ export function montarSolicitudesRomoEnPedidosQA({
    }
    status.textContent=results.orders.length+' solicitudes consultadas. Sin ventas registradas.';
   }catch(e){status.textContent=String(e?.message||'Consulta pendiente')}
-  finally{btn.disabled=!ENDPOINT}
+  finally{btn.disabled=!ROMO_PANEL_BANDEJA_HABILITADA_QA}
  });
  const after=document.getElementById('romoLaSerenaPreparacionQA');
  if(after&&after.parentNode===host)after.after(section);else host.prepend(section);
