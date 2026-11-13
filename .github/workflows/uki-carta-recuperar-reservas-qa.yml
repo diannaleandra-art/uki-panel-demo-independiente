@@ -1,0 +1,23 @@
+name: QA - Recuperar reservas vencidas de carta Uki
+on:
+  push:
+    branches:
+      - qa/uki-recuperar-reservas-vencidas-20261112
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  proteger-reservas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verificar sintaxis de recuperación y API actual
+        run: |
+          node --check firebase/uki-carta-remotas-panel.js
+          node --check tests/uki-carta-recuperacion-panel-qa.test.cjs
+          
+      - name: Regresión de vencimiento, Google dueña, auditoría y caja
+        run: node --test tests/uki-carta-recuperacion-panel-qa.test.cjs
