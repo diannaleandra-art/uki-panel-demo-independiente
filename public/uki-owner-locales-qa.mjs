@@ -6,7 +6,7 @@ import {crearMensajeVisualRomoQA} from './uki-locales-puente-visual-qa.mjs';
 export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,refrescarNegocios=async()=>{}}){
  const by=id=>document.getElementById(id),ids=['ownerLocBiz','ownerLocBranch'];
  const biz=by(ids[0]),branch=by(ids[1]),save=by('ownerLocSave'),list=by('ownerLocList');
- let drafts=[],lastRevision=0,loading=false;
+ let drafts=[],lastRevision=0,loading=false,puedeGuardar=false;
  const setOptions=(select,items,title)=>{
   const previous=select.value;select.replaceChildren(new Option(title,''));
   for(const item of items)select.add(new Option(item.nombre,item.id));
@@ -131,7 +131,7 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
  });
  by('ownerLocPreviewBtn').onclick=preview;
  save.onclick=async()=>{
-  if(loading)return;loading=true;save.disabled=true;
+  if(loading||!puedeGuardar)return;loading=true;save.disabled=true;
   try{
    const ficha=valores();
    if(!ficha.negocio_id||(!ficha.sucursal_id&&branch.value!=='__new__')||!ficha.nombre||!ficha.direccion)
@@ -157,13 +157,14 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
    notificar('Ficha guardada como borrador privado. Aún no está publicada.','success');
    await consultar();
   }catch(e){notificar('No se guardó el borrador: '+e.message,'error')}
-  finally{loading=false;save.disabled=false;}
+  finally{loading=false;save.disabled=!puedeGuardar;}
  };
  async function consultar(){
   try{
    const resp=await api('locales_operativos_diagnostico_qa');
    const d=resp.diagnostico||{};
-   save.disabled=d.registroHabilitado!==true;
+   puedeGuardar=d.registroHabilitado===true;
+   save.disabled=!puedeGuardar;
    if(!d.registroHabilitado){
     drafts=[];
     by('ownerLocStatus').textContent=
@@ -177,6 +178,7 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
    by('ownerLocStatus').textContent='Borradores privados disponibles. Ninguno activa caja ni QR.';
   }catch{
    drafts=[];
+   puedeGuardar=false;
    save.disabled=true;
    by('ownerLocStatus').textContent='El guardado privado aún no está disponible. Puedes completar la ficha y verla sin publicarla.';
   }

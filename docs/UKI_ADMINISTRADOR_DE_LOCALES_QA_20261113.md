@@ -64,3 +64,13 @@ El formulario privado distingue explícitamente Vincular Romo existente de Crear
 
 ## Verificación real del esquema financiero, sin ejecutar migraciones
 La rama financiera identificada contiene fin_negocios, fin_sucursales, fin_sesiones, fin_auditoria y cierres existentes. El administrador sólo consulta qué requisitos están disponibles a través de `locales_operativos_diagnostico_qa`, usando la sesión de dueños ya autorizada. La migración preparada añade una clave foránea compuesta `(sucursal_id,negocio_id)` para evitar relacionar un local con un negocio incorrecto. `Guardar borrador` sigue deshabilitado mientras no se compruebe la tabla y la bandera privada. NO se ejecutaron migraciones, NO se publicaron cartas, NO se abrieron ventas.
+
+
+## 13 noviembre 2026 · Migración ejecutada con autorización explícita
+- Se localizó la rama Neon **uki-duenos-finanzas-privadas-20261110** (proyecto Uki, base `neondb`) por su estructura financiera y coincidencia del host permitido en el servidor. No se tocó la rama Neon `production`.
+- Se ejecutó en transacción el CREATE TABLE e índice del archivo `migrations/2026-11-13-registro-locales-duenos-qa.sql`. Verificación: llave compuesta `(sucursal_id,negocio_id)`, unicidad por sucursal y `store_id`, solo `estado=borrador` y `publicado=false`.
+- Se creó únicamente una ficha QA para el **Romo’s Sushi La Serena** ya registrado, con `store_id=romo:serena`, dirección Balmaceda 1612, plantilla Uki, módulos desactivados y sin WhatsApp ni imágenes inventados. No se creó sucursal nueva.
+- Comprobados tras migración: 3 negocios, 5 sucursales y 21 cierres existentes; 1 ficha operativa de borrador.
+- El backend **todavía no está publicado** con estos cambios ni se habilitó `UKI_LOCALES_OPERATIVOS_QA_ENABLED`; guardar desde la interfaz seguirá bloqueado hasta publicación y autorización específicas.
+- Reforzado el alta de sucursales: "Crear nueva" solo acepta una fila realmente nueva. Una sucursal existente nunca se recupera silenciosamente para crear otra ficha operativa.
+- El botón Guardar permanece bloqueado tras fallas de autenticación o diagnóstico. Ninguna venta, carta o QR activados.

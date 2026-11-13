@@ -52,6 +52,9 @@ test('ruta solo detrás de la sesión financiera Google y PIN, sin secretos púb
  const owner=fs.readFileSync(path.join(__dirname,'../public/uki-owner-locales-qa.mjs'),'utf8');
  assert.match(owner,/locales_operativos_diagnostico_qa/);
  assert.match(owner,/registroHabilitado/);
+ assert.match(owner,/if\(loading\|\|!puedeGuardar\)return/);
+ assert.match(owner,/save\.disabled=!puedeGuardar/);
+ assert.doesNotMatch(owner,/finally\{loading=false;save\.disabled=false/);
 });
 test('migración exige relación de sucursal con el mismo negocio',()=>{
  const sql=fs.readFileSync(path.join(__dirname,'../migrations/2026-11-13-registro-locales-duenos-qa.sql'),'utf8');

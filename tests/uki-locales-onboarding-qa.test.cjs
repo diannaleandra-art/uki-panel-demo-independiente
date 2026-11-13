@@ -25,6 +25,9 @@ test('consulta SQL atómica: insertar sucursal y ficha en borrador juntas',()=>{
  assert.match(NEW_LOCAL_SQL,/WITH nueva_sucursal AS/);
  assert.match(NEW_LOCAL_SQL,/creado AS/);
  assert.match(NEW_LOCAL_SQL,/ON CONFLICT DO NOTHING/);
+ assert.match(NEW_LOCAL_SQL,/FROM nueva_sucursal LIMIT 1/);
+ assert.doesNotMatch(NEW_LOCAL_SQL,/SELECT id FROM public\.fin_sucursales/);
+ assert.doesNotMatch(NEW_LOCAL_SQL,/sucursal_valida/);
  assert.match(NEW_LOCAL_SQL,/RETURNING id,sucursal_id,store_id,estado,revision/);
  assert.doesNotMatch(NEW_LOCAL_SQL,/fin_movimientos|fin_uki_cierres|UPDATE public\.fin_locales/);
 });
