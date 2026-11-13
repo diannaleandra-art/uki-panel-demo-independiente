@@ -842,10 +842,15 @@ async function ukiRomoGuardarPedidoQA(){
   if(!confirmoPago)return;
  }
  try{
-  // Se calcula turno de Romo con el motor Uki ANTES de copiar y cifrar.
-  const turno=ukiTurnoFolioActual();
+  // Romo usa un folio calculado SIN crear ni cambiar caja local.
+  // Solo permite pedidos dentro de un turno abierto y confirmado en Neon.
+  const instanteRegistro=Date.now();
+  const {obtenerTurnoRomoFolioQA}=await import('./uki-romo-folio-turno-qa.mjs');
+  const turno=obtenerTurnoRomoFolioQA(datosSoloSucursal(),{
+   fechaOperativa:romoDiaCajaQA(),registradoEn:instanteRegistro
+  });
   const contexto={numeroTurno:turno.numero,turnoClave:turno.clave,
-   registradoEn:Date.now(),confirmoPago,confirmoDiferenciaTotal};
+   registradoEn:instanteRegistro,confirmoPago,confirmoDiferenciaTotal};
   const result=await ukiRomoControlPanelQA.guardar({
    draft:D,contexto,confirmoArmado:true,confirmoImportes:true
   });

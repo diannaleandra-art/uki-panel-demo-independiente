@@ -27,6 +27,7 @@ jobs:
             tests/uki-romo-recepcion-formulario-qa.test.mjs \
             tests/uki-romo-guardado-atomico-qa.test.mjs \
             tests/uki-romo-pedido-formato-qa.test.mjs \
+            tests/uki-romo-folio-turno-qa.test.mjs \
             tests/uki-romo-flujo-completo-qa.test.mjs \
             tests/uki-romo-panel-control-qa.test.mjs \
             tests/uki-romo-panel-mismo-boton-qa.test.mjs \
