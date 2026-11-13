@@ -124,3 +124,7 @@ Las pruebas ahora compilan mediante el parser de JavaScript el script clásico �
 
 ## Dos equipos intentando registrar la misma solicitud (simulación QA)
 Se agregó una prueba con dos controladores independientes, dos estados de pantalla y una bandeja de prueba compartida. Ambos abren el estado inicial y seleccionan la misma solicitud; uno confirma y el otro recibe un bloqueo. Se verifican una sola venta, una sola aceptación, revisión 1 y ausencia de timbre o pago presuntos. La prueba no utiliza Neon ni teléfonos reales; la publicación requiere comprobación posterior en navegador con cuentas autorizadas.
+
+
+## Caja y cierres Romo · Consulta cerrada, sin escrituras (QA)
+Se añadió una vista de caja de Romo solo para consultar cobros confirmados del estado aislado, con sus pagos mixtos desglosados, delivery que otro local cobró, entregas manuales que NO son ingreso y propinas separadas. No se confunde el importe para repartidor con efectivo de caja. Se muestra historial de cierres que ya figuren en el snapshot confirmado. Gastos, movimientos, retiros, precierre, cierre final e inventario todavía están bloqueados en Romo; no se presenta una caja física final sin conciliación ni se calcula desde solicitudes pendientes. Los controles originales de Uki no cambian. La fuente jamás se modifica al consultar; las pruebas rechazan datos de otra sucursal y medios descuadrados. La publicación sigue apagada.
