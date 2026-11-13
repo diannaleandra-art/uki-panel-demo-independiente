@@ -77,3 +77,13 @@ Requiere motivo y responsable; se guarda un evento en historial y la copia se
 confirma cifrada en Neon CAS. No inventa devolución pendiente ni toca caja.
 Los pedidos pagados siguen bloqueados hasta resolver el circuito de reembolsos
 y conciliación. Romo continúa comercialmente desactivado y Uki no se modifica.
+
+## 13 noviembre 2026 · Edición de pedidos pendientes de Romo (QA)
+Se habilitó en código (sin activar comercio) la edición de cantidades, precios,
+detalles de armado y delivery **exclusivamente** cuando el pedido sigue Pendiente,
+no tiene pagos, propinas ni timbre y su turno se mantiene abierto en Neon.
+Se exige motivo y responsable, y se conserva el historial antes/después con
+importes exactos, sin modificar folio, identidad de la solicitud ni caja.
+CAS de Neon y AES-GCM confirman el cambio antes de mostrarlo; en una respuesta
+incierta debe consultarse Neon antes de repetir. La edición de pedidos pagados
+requiere el flujo de conciliación y sigue bloqueada. Uki sin cambios.

@@ -990,6 +990,39 @@ async function ukiRomoCancelarSinPagoQA(id){
    String(e?.message||e));
  }finally{ukiRomoTimbreGuardandoQA=false;}
 }
+async function ukiRomoEditarSinPagoQA(id){
+ if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||S.suc!==ROMO_SUCURSAL_QA||
+    !ukiRomoControlPanelQA?.disponible())
+  return aviso('Edición de Romo sigue en pruebas.');
+ if(ukiRomoTimbreGuardandoQA)return;
+ const p=(S.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&x.id===Number(id));
+ if(!p||p.estado!=='Pendiente'||p.pagado||p.timbreEnviadoEn)
+  return aviso('Solo se puede editar un pedido pendiente y sin pago.');
+ const responsable=String($('romoEditResponsable-'+p.id)?.value||'').trim();
+ const motivo=String($('romoEditMotivo-'+p.id)?.value||'').trim();
+ const envio=Number($('romoEditEnvio-'+p.id)?.value??0);
+ const productos=(p.productos||[]).map((x,i)=>({
+  nombre:String($('romoEditNombre-'+p.id+'-'+i)?.value??''),
+  cantidad:$('romoEditCantidad-'+p.id+'-'+i)?.value,
+  precioUnit:$('romoEditPrecio-'+p.id+'-'+i)?.value,
+  detalle:String($('romoEditDetalle-'+p.id+'-'+i)?.value??'')
+ }));
+ if(responsable.length<2||motivo.length<4||productos.some(x=>!x.nombre.trim()))
+  return aviso('Completa responsable, motivo y productos.');
+ if(!confirm('¿Guardar cambios de este pedido SIN PAGO? Se registrará el historial de diferencias.'))return;
+ ukiRomoTimbreGuardandoQA=true;
+ try{
+  const r=await ukiRomoControlPanelQA.editarSinPago({
+   pedidoId:p.id,responsable,motivo,registradoEn:Date.now(),productos,envio
+  });
+  if(r?.ok!==true)throw Error('Neon no confirmó la edición');
+  aviso('Pedido actualizado con historial y confirmación cifrada de Neon.');
+  render();
+ }catch(e){
+  aviso('EDICIÓN NO CONFIRMADA. Revisa Neon e historial antes de repetir: '+
+   String(e?.message||e));
+ }finally{ukiRomoTimbreGuardandoQA=false;}
+}
 function vRomoPedidosConsultaQA(){
  if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||
     S.suc!==ROMO_SUCURSAL_QA)return vInicio();
@@ -1033,6 +1066,36 @@ function vRomoPedidosConsultaQA(){
     '<label>Motivo obligatorio</label><input id="romoCancelarMotivoQA-'+esc(p.id)+'" maxlength="300">'+
     '<button type="button" class="sm" onclick="ukiRomoCancelarSinPagoQA('+
     Number(p.id)+')">Cancelar sin pago</button></details>':'')+
+   (p.estado==='Pendiente'&&!p.pagado&&!p.productosPagadosOtroLocal&&
+    !p.envioPagadoOtroLocal&&!p.timbreEnviadoEn?
+    '<details class="card"><summary>Editar pedido sin pago</summary>'+
+    '<p class="muted">Solo este turno abierto. Los cambios quedan registrados con responsable.</p>'+
+    (p.productos||[]).map((x,i)=>'<section class="card">'+
+     '<p><b>Producto '+(i+1)+'</b></p>'+
+     '<label>Nombre</label><input id="romoEditNombre-'+Number(p.id)+'-'+i+
+     '" maxlength="100" value="'+esc(x.nombre||'')+'">'+
+     '<label>Cantidad</label><input type="number" min="1" max="100" step="1" id="romoEditCantidad-'+
+     Number(p.id)+'-'+i+'" value="'+esc(x.cantidad)+'">'+
+     '<label>Precio unitario</label><input type="number" min="1" step="1" id="romoEditPrecio-'+
+     Number(p.id)+'-'+i+'" value="'+esc(x.precioUnit)+'">'+
+     '<label>Detalle del armado</label><textarea id="romoEditDetalle-'+
+     Number(p.id)+'-'+i+'" maxlength="12000">'+esc(x.detalle||'')+'</textarea></section>').join('')+
+    '<label>Delivery ($)</label><input type="number" min="0" max="100000" step="1" id="romoEditEnvio-'+
+    Number(p.id)+'" value="'+esc(p.envio||0)+'" '+
+    (p.modalidad==='Delivery'?'':'readonly')+'>'+
+    '<label>Responsable</label><input id="romoEditResponsable-'+Number(p.id)+'" maxlength="80">'+
+    '<label>Motivo obligatorio</label><input id="romoEditMotivo-'+Number(p.id)+'" maxlength="300">'+
+    '<button type="button" class="sm" onclick="ukiRomoEditarSinPagoQA('+
+    Number(p.id)+')">Guardar cambios del pedido</button></details>':'')+
+   (Array.isArray(p.historialCambios)&&p.historialCambios.length?
+    '<details class="card"><summary>Historial de modificaciones ('+p.historialCambios.length+')</summary>'+
+    p.historialCambios.slice().reverse().map(e=>
+     '<p><b>'+esc(e.tipo||'Modificación')+'</b> · '+esc(e.responsable||'')+
+     ' · '+esc(e.fecha||'')+
+     (e.motivo?' · '+esc(e.motivo):'')+
+     (e.anterior?.total!==undefined&&e.nuevo?.total!==undefined?
+      ' · Total anterior: '+fmt(e.anterior.total)+' · Nuevo: '+fmt(e.nuevo.total):'')+
+     '</p>').join('')+'</details>':'')+
    '<p class="muted">La edición y la cancelación de pedidos pagados requieren conciliación segura.</p></details>';
  }).join('');
  return '<section class="card"><h2>Pedidos confirmados · Romo La Serena</h2>'+
