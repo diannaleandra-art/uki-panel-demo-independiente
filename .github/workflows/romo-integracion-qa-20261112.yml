@@ -24,4 +24,5 @@ jobs:
             tests/romo-estado-operativo-qa.test.mjs \
             tests/romo-estado-api-cerrada-qa.test.mjs \
             tests/romo-solicitudes-carta-qa.test.mjs \
-            tests/uki-romo-recepcion-formulario-qa.test.mjs
+            tests/uki-romo-recepcion-formulario-qa.test.mjs \
+            tests/uki-romo-guardado-atomico-qa.test.mjs

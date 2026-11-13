@@ -35,3 +35,9 @@ Los precios unitarios quedan en 0 para ser verificados; nunca se inventan desde 
 Pago señalado por el cliente no equivale a pagado. Todo sigue apagado por ROMO_PANEL_RECEPCION_HABILITADA_QA=false, sin acceso de personal ni ventas.
 Simulación con dos trabajadores: el primero reserva; el segundo debe recibir conflicto.
 Aún falta conectar el guardado cifrado y la bandeja visibles al formulario real y ensayar desde dos teléfonos antes de activarlo.
+
+## Guardado atomicamente confirmado (solo QA, sin activación)
+El modulo firebase/uki-romo-guardado-atomico-qa.mjs prepara el estado cifrado de Romo sobre una COPIA, usa la misma estructura del formulario Uki y SOLO actualiza la pantalla despues de la confirmacion en Neon.
+Ante un resultado incierto no libera la reserva ni inventa una confirmacion: exige verificar bandeja, caja e historial antes de reintentar.
+La API ahora devuelve el campo branch en el listado, imprescindible para aislar Romo Serena.
+La bandera ROMO_GUARDADO_ATOMICO_HABILITADO_QA=false impide usarlo; sigue faltando enlazar el constructor de ventas, timbres y pagos ya existente del panel y ensayar la interfaz desde dos telefonos.
