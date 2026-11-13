@@ -60,7 +60,27 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar}){
    el.append(img);
   });
  }
- biz.addEventListener('change',sync);
+ const leerBorradorSeleccionado=()=>{
+  const existente=drafts.find(x=>x.sucursal_id===branch.value);
+  lastRevision=Number(existente?.revision||0);
+  const config=existente?.configuracion;
+  if(config){
+   const mapping={ownerLocName:'nombre',ownerLocAddress:'direccion',
+    ownerLocWhatsApp:'whatsapp',ownerLocInstagram:'instagram',
+    ownerLocSchedule:'horarios',ownerLocTemplate:'plantilla',ownerLocColor:'color'};
+   for(const [id,field] of Object.entries(mapping))by(id).value=config[field]||'';
+  }else{
+   const nombreSucursal=sucursales().find(x=>x.id===branch.value)?.nombre||'';
+   const nombreNegocio=negocios().find(x=>x.id===biz.value)?.nombre||'';
+   for(const id of ['ownerLocWhatsApp','ownerLocInstagram','ownerLocAddress','ownerLocSchedule'])
+    by(id).value='';
+   by('ownerLocName').value=[nombreNegocio,nombreSucursal].filter(Boolean).join(' · ');
+   by('ownerLocTemplate').value='uki-motor';by('ownerLocColor').value='#bc1725';
+  }
+  preview();
+ };
+ biz.addEventListener('change',()=>{sync();leerBorradorSeleccionado();});
+ branch.addEventListener('change',leerBorradorSeleccionado);
  by('ownerLocPreviewBtn').onclick=preview;
  save.onclick=async()=>{
   if(loading)return;loading=true;save.disabled=true;
@@ -85,6 +105,7 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar}){
    by('ownerLocStatus').textContent='Configuración operativa todavía desactivada. Puedes preparar y visualizar la ficha en esta prueba.';
   }
   renderList();
+  if(branch.value)leerBorradorSeleccionado();
  }
  sync();renderList();
  return Object.freeze({sync,consultar});
