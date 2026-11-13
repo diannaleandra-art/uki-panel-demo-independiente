@@ -899,6 +899,66 @@ function vRomoPedidosConsultaQA(){
   '</section>'+(html||'<div class="card muted">Todavía no hay pedidos confirmados de Romo.</div>');
 }
 
+
+const ROMO_PANEL_MOVIMIENTOS_HABILITADOS_QA=false;
+let ukiRomoMovimientoGuardandoQA=false;
+function ukiRomoFormularioMovimientosQA(){
+ if(!ROMO_PANEL_MOVIMIENTOS_HABILITADOS_QA||
+    S.suc!==ROMO_SUCURSAL_QA)return '';
+ // Mismo panel de Caja; una ficha pequeña en lugar de otro programa.
+ return '<section class="card" aria-label="Registrar movimiento Romo">'+
+ '<h2>Agregar movimiento de Romo</h2>'+
+ '<p class="muted">Confirmaremos la operación en Neon antes de mostrarla.</p>'+
+ '<label for="romoMovTipo">Movimiento</label>'+
+ '<select id="romoMovTipo"><option value="gasto">Gasto</option>'+
+ '<option value="retiro">Retiro</option>'+
+ '<option value="delivery_manual">Delivery manual a pagar</option>'+
+ '<option value="propina_manual">Propina manual</option></select>'+
+ '<label for="romoMovMonto">Importe ($)</label>'+
+ '<input id="romoMovMonto" inputmode="numeric" type="number" min="1" step="1">'+
+ '<label for="romoMovConcepto">Concepto o motivo</label>'+
+ '<input id="romoMovConcepto" maxlength="180" placeholder="Detalle del movimiento">'+
+ '<label for="romoMovMedio">Medio de pago (si corresponde)</label>'+
+ '<select id="romoMovMedio"><option>Efectivo</option><option>Transferencia</option>'+
+ '<option>Débito</option><option>Edenred</option><option>Otros</option></select>'+
+ '<details><summary>Datos adicionales de delivery o propina</summary>'+
+ '<label for="romoMovCliente">Cliente / repartidor (delivery)</label>'+
+ '<input id="romoMovCliente" maxlength="90">'+
+ '<label for="romoMovPedido">N.º interno de pedido (propina)</label>'+
+ '<input id="romoMovPedido" type="number" min="1" step="1" inputmode="numeric">'+
+ '<label for="romoMovResponsable">Responsable (propina)</label>'+
+ '<input id="romoMovResponsable" maxlength="80">'+
+ '</details><button class="big" type="button" onclick="ukiRomoGuardarMovimientoDesdeCajaQA()">'+
+ 'Guardar movimiento Romo</button></section>';
+}
+async function ukiRomoGuardarMovimientoDesdeCajaQA(){
+ if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||
+    !ROMO_PANEL_MOVIMIENTOS_HABILITADOS_QA||
+    S.suc!==ROMO_SUCURSAL_QA||!ukiRomoControlPanelQA?.disponible())
+  return aviso('No se habilitó el registro de movimientos de Romo.');
+ if(ukiRomoMovimientoGuardandoQA)return;
+ const read=id=>String($(id)?.value??'').trim();
+ const tipo=read('romoMovTipo'),monto=Number(read('romoMovMonto'));
+ if(!Number.isSafeInteger(monto)||monto<=0||monto>100000000)
+  return aviso('Ingresa un importe válido.');
+ const concepto=read('romoMovConcepto'),medio=read('romoMovMedio');
+ if(!confirm('¿Registrar '+fmt(monto)+' como '+tipo+' en Romo La Serena?'))return;
+ const instante=Date.now();
+ const datos={registradoEn:instante,fechaISO:ahora(),monto,medio,
+  concepto,motivo:concepto,cliente:read('romoMovCliente'),
+  nota:concepto,pedidoId:Number(read('romoMovPedido')),
+  responsable:read('romoMovResponsable')};
+ ukiRomoMovimientoGuardandoQA=true;
+ try{
+  const respuesta=await ukiRomoControlPanelQA.guardarMovimiento({tipo,datos});
+  if(respuesta?.ok!==true)throw Error('No se confirmó el movimiento');
+  aviso('Movimiento registrado en Romo con revisión confirmada '+respuesta.revision+'.');
+ }catch(error){
+  aviso('El movimiento NO está confirmado en esta pantalla. Revisa Neon, caja e historial antes de repetir: '+
+   String(error?.message||error));
+ }finally{ukiRomoMovimientoGuardandoQA=false}
+}
+
 // Vista Romo SOLO LECTURA hasta que gastos, caja y cierres tengan escritura CAS.
 async function ukiRomoResumenRelojQA(){
  if(S.suc!==ROMO_SUCURSAL_QA||!ukiRomoControlPanelQA?.disponible())return;
@@ -936,7 +996,7 @@ function vRomoCajaConsultaQA(){
     '<p><b>'+esc(c.fecha)+'</b> · Venta '+(c.venta===null?'No indicada':dinero(c.venta))+
     ' · Efectivo '+(c.efectivo===null?'No indicado':dinero(c.efectivo))+'</p>').join(''):
     '<p class="muted">Todavía no hay cierres de Romo registrados.</p>')+
-   '<p class="muted">No modifica cierres ni muestra un efectivo físico final sin conciliación.</p></section>';
+   '<p class="muted">No modifica cierres ni muestra un efectivo físico final sin conciliación.</p></section>'+ukiRomoFormularioMovimientosQA();
  }catch(e){
   return '<section class="card"><h2>Caja Romo</h2><p class="aviso">No es seguro presentar estos totales hasta revisar los registros: '+
    esc(e?.message||e)+'</p></section>';

@@ -136,3 +136,7 @@ Se agregó una pantalla de pedidos confirmados sin acciones de cambio de estado,
 
 ## Motor de movimientos Romo con cifrado y Neon CAS · QA
 Se preparó el registro de gastos, retiros, delivery manual y propina asociada a pedido con la misma forma de los registros Uki. Cada movimiento se crea únicamente sobre una copia aislada de Romo, se valida, se cifra con la clave de sesión del panel y se confirma mediante revisión CAS en Neon, antes de actualizar la pantalla. La propina exige pedido pagado sin cierre posterior y rechaza duplicados. La API recibe solo el sobre AES-GCM y el token Google, nunca contraseñas. Si la respuesta remota es incierta, NO se presenta un gasto como guardado ni se repite automáticamente. Este motor permanece deshabilitado; los botones aún no están conectados y los cierres definitivos continúan bloqueados.
+
+
+## Caja Romo: enlace de movimientos al mismo panel (QA)
+La vista Caja del panel único ahora contiene un formulario de movimiento preparado para gasto, retiro, delivery manual y propina manual. Reutiliza el mismo control de Romo y el cifrado de sesión de Uki; primero Neon debe aceptar la revisión para mostrar el movimiento. Con incertidumbre de conexión exige conciliar antes de repetir. Se mantienen APAGADOS los interruptores de integración y de movimientos: no hay botones operativos nuevos para los trabajadores ni se publicaron cambios. El cierre final sigue pendiente, sin permitir caja física ficticia.

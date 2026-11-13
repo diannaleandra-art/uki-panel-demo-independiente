@@ -36,6 +36,7 @@ jobs:
             tests/uki-romo-caja-consulta-qa.test.mjs \
             tests/uki-romo-pedidos-lectura-qa.test.mjs \
             tests/uki-romo-movimientos-atomicos-qa.test.mjs \
+            tests/uki-romo-caja-formulario-qa.test.mjs \
             tests/uki-locales-configuracion-qa.test.cjs \
             tests/uki-locales-registro-qa.test.mjs \
             tests/uki-locales-onboarding-qa.test.cjs \
