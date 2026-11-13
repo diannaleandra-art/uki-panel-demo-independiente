@@ -754,6 +754,16 @@ function ukiVolverAlSelectorLocales(){
  if(S.suc)return;
  S.romoSeleccionadoQA=false;S.romoIngresadoQA=false;S.pinSuc=null;render();
 }
+/* Vista informativa segura. NO abre sesión, NO confirma clave, NO lee Neon
+ * ni modifica datos de Uki; se muestra solo mientras Romo está inactivo. */
+function ukiRomoVerPreparacionQA(){
+ if(ROMO_PANEL_INTEGRACION_HABILITADA_QA||S.suc)return;
+ S.pinSuc=null;
+ S.romoSeleccionadoQA=true;
+ S.romoIngresadoQA=false;
+ S.vista='inicio';
+ render();
+}
 
 
 /* Romo usa el mismo selector, editor y botón que Uki; se mantiene apagado.
@@ -1607,11 +1617,20 @@ function vInicio(){
  if(!S.suc&&!S.pinSuc&&S.romoSeleccionadoQA){
   return '<section class="card" id="romoLaSerenaPreparacionQA" aria-label="Romo’s Sushi La Serena">'+
    '<h2>Romo’s Sushi · La Serena</h2><p><b>Balmaceda 1612, La Serena</b></p>'+
-   '<p class="aviso" role="status">Ingreso de prueba completado. Aún no están conectados los pedidos, caja, inventario y cierres independientes de Romo. No registres operaciones aquí.</p>'+
+   '<p class="aviso" role="status">Vista informativa de Romo · sin sesión ni acceso a pedidos reales. La contraseña no ha sido comprobada y las operaciones siguen desactivadas.</p>'+
+   '<p class="muted">Preparado en pruebas: pedidos, timbres, entregas, edición sin pago e inventario independiente. Aún falta activar las conexiones operativas y validar cierres y permisos.</p>'+
    '<button class="big" type="button" onclick="ukiVolverAlSelectorLocales()">Salir de sucursal</button></section>';
  }
  if(S.pinSuc){
  const esRomo=S.pinSuc===ROMO_SUCURSAL_QA;
+ if(esRomo&&!ROMO_PANEL_INTEGRACION_HABILITADA_QA){
+  return '<div class="card"><h2>Romo’s Sushi La Serena</h2>'+
+    '<p class="muted">Balmaceda 1612 · Integración en pruebas.</p>'+
+    '<p class="aviso">La contraseña de Uki NO puede comprobarse desde este dominio de pruebas: los datos cifrados originales pertenecen a otra dirección y la verificación remota sigue desactivada.</p>'+
+    '<p class="muted">No cambies tu clave ni la introduzcas aquí. El acceso real se habilitará cuando estén conectados Google, los permisos y Neon de Romo.</p>'+
+    '<button class="big" type="button" onclick="ukiRomoVerPreparacionQA()">Ver avance de Romo (solo lectura)</button>'+
+    '<button class="big" type="button" onclick="ukiVolverAlSelectorLocales()">Volver a las sucursales</button></div>';
+ }
  const existe=esRomo||!!localStorage.getItem(claveLocal(S.pinSuc));
  return '<div class="card"><h2>'+esc(S.pinSuc)+'</h2>'+
   '<p class="muted">'+(esRomo?"Ingresa con la misma contraseña de Uki.":existe?"Escribe la contraseña para abrir tus registros cifrados.":"Crea una clave de al menos 12 caracteres para esta sucursal.")+'</p>'+
