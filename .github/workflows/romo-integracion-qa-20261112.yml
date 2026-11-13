@@ -51,6 +51,7 @@ jobs:
             tests/uki-romo-cierres-duenos-repositorio-qa.test.mjs \
             tests/uki-romo-cierres-unificados-duenos-qa.test.mjs \
             tests/uki-romo-duenos-ruta-consulta-qa.test.mjs \
+            tests/uki-romo-cierre-constancia-qa.test.mjs \
             tests/uki-romo-cierre-servidor-qa.test.mjs \
             tests/uki-romo-turnos-atomicos-qa.test.mjs \
             tests/uki-romo-cierre-interfaz-qa.test.mjs \

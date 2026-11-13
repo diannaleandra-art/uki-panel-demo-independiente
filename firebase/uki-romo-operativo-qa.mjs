@@ -61,7 +61,7 @@ export function crearPuenteRomoOperativoQA({
     throw new Error('El estado recibido no corresponde a Romo');
    return Object.freeze({revision:result.revision,estado});
   },
-  async guardarCierreSobreCifrado({snapshot,revision,turnoId}={}){
+  async guardarCierreSobreCifrado({snapshot,revision,turnoId,resumen}={}){
    if(!disponible())throw new Error('Romo no está autorizado para cerrar caja');
    if(!Number.isSafeInteger(revision)||revision<1||
       typeof turnoId!=='string'||!/^\d{4}-\d{2}-\d{2}@[1-9]\d{12,14}$/.test(turnoId)||
@@ -70,8 +70,11 @@ export function crearPuenteRomoOperativoQA({
       typeof snapshot?.salt!=='string'||typeof snapshot?.iv!=='string'||
       typeof snapshot?.cifrado!=='string')
     throw new Error('Se requiere el estado cifrado del turno Romo');
+   if(resumen?.store_id!=='romo:serena'||resumen?.turno_ref!==turnoId||
+     resumen?.estado!=='pendiente_confirmacion_neon')
+    throw new Error('No se preparó el resumen de cierre Romo');
    const result=await request('POST',{
-    operation:'cierre_definitivo',expectedRevision:revision,turnoId,snapshot
+    operation:'cierre_definitivo',expectedRevision:revision,turnoId,snapshot,resumen
    });
    if(result.revision!==revision+1||result.estado!=='cierre_confirmado'||
       result.turnoId!==turnoId)

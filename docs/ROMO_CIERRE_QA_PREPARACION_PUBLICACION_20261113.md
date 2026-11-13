@@ -48,3 +48,12 @@ manteniendo los cierres Uki intactos. El cliente también conserva su
 interruptor de Romo desactivado. La ruta aún NO está desplegada a
 producción ni asociada a la base aislada. Falta comprobar una sesión real
 autorizada en QA y terminar el registro verificable de cierres.
+
+## 13 noviembre 2026 · Constancia atómica para cierres Romo en QA
+Se preparó una constancia agregada en Neon de Romo en el mismo CAS
+del sobre cifrado, con SHA256, revisión y fuente única por turno.
+Mi Administración debe comprobar esta constancia en Neon Romo antes
+de aceptar un cierre. La bandera ROMO_CIERRE_RECIBO_LIVE_ENABLED
+sigue apagada y el SQL se instalará solo en rama aislada QA.
+El servidor no puede recalcular el contenido AES-GCM sin clave del
+dueño; se requiere conciliación de importes antes de operar.

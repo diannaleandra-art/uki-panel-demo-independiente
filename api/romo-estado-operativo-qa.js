@@ -66,16 +66,17 @@ module.exports=async function romoEstadoOperativoQA(req,res){
  }
  const body=req.body;
  const esCierre=body?.operation==='cierre_definitivo';
- if(esCierre&&env.ROMO_CIERRE_DEFINITIVO_LIVE_ENABLED!=='true')
-  return fail(res,503,'El cierre definitivo de Romo todavía no está autorizado');
+ if(esCierre&&(env.ROMO_CIERRE_DEFINITIVO_LIVE_ENABLED!=='true'||
+  env.ROMO_CIERRE_RECIBO_LIVE_ENABLED!=='true'))
+  return fail(res,503,'Cierre y constancia de Romo todavía no autorizados');
  if(!body||typeof body!=='object'||Array.isArray(body)||
     Object.keys(body).sort().join('|')!==(esCierre?
-     'expectedRevision|operation|snapshot|turnoId':'expectedRevision|snapshot'))
+     'expectedRevision|operation|resumen|snapshot|turnoId':'expectedRevision|snapshot'))
   return fail(res,400,'Formato de respaldo no válido');
  try{
-  const result=esCierre?await store.confirmarCierreRomoEnNeonQA({
+  const result=esCierre?await store.confirmarCierreConConstanciaRomoQA({
     db,identity,expectedRevision:body.expectedRevision,
-    snapshot:body.snapshot,turnoId:body.turnoId
+    snapshot:body.snapshot,turnoId:body.turnoId,resumen:body.resumen
    }):await store.saveRomoOperativeState({
     db,identity,expectedRevision:body.expectedRevision,snapshot:body.snapshot
    });

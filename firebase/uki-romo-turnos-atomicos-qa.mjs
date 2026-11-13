@@ -65,7 +65,8 @@ export function crearGuardadoTurnosRomoQA({
    try{
     confirmado=tipo==='cierre'?
      await servidor.guardarCierreSobreCifrado({
-      snapshot,revision,turnoId:resultado.turnoId
+      snapshot,revision,turnoId:resultado.turnoId,
+      resumen:resumenDuenosPendiente
      }):
      await servidor.guardarSobreCifrado({snapshot,revision});
    }catch{
