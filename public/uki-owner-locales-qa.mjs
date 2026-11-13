@@ -107,6 +107,7 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
   const existente=drafts.find(x=>x.sucursal_id===branch.value);
   lastRevision=Number(existente?.revision||0);
   const config=existente?.configuracion;
+  by('ownerLocExisting').value=existente?.store_id==='romo:serena'?'romo:serena':'';
   if(config){
    const mapping={ownerLocName:'nombre',ownerLocAddress:'direccion',
     ownerLocWhatsApp:'whatsapp',ownerLocInstagram:'instagram',
@@ -136,6 +137,7 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
    if(!ficha.negocio_id||(!ficha.sucursal_id&&branch.value!=='__new__')||!ficha.nombre||!ficha.direccion)
     throw Error('Completa negocio, sucursal, nombre y dirección');
    const nueva=branch.value==='__new__';
+   if(nueva&&by('ownerLocExisting').value)throw Error('No puedes vincular Romo creando otra sucursal');
    if(nueva){
     const nombreSucursal=by('ownerLocNewBranch').value.trim();
     if(nombreSucursal.length<2)throw Error('Escribe el nombre de la nueva sucursal');
@@ -150,7 +152,7 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
     notificar('Nueva sucursal preparada y seleccionada. Aún no está publicada.','success');
     return;
    }
-   const result=await api('locales_operativos_guardar_qa',{ficha,expectedRevision:lastRevision});
+   const result=await api('locales_operativos_guardar_qa',{ficha,expectedRevision:lastRevision,vincularLocalExistente:by('ownerLocExisting').value});
    lastRevision=result.local?.revision||0;
    notificar('Ficha guardada como borrador privado. Aún no está publicada.','success');
    await consultar();

@@ -180,8 +180,11 @@ module.exports=async(req,res)=>{
    if(!Number.isSafeInteger(revision)||revision<0)
     return fail(res,400,'Revision de borrador invalida');
    const existing=await sql.query(
-    'SELECT id,revision FROM public.fin_locales_operativos_qa WHERE sucursal_id=$1',[s]);
+    'SELECT id,revision,store_id FROM public.fin_locales_operativos_qa WHERE sucursal_id=$1',[s]);
    if(existing.length){
+    const solicitud=String(body.vincularLocalExistente||'');
+    if(solicitud&&solicitud!==existing[0].store_id)
+     return fail(res,409,'Esta sucursal ya tiene una identidad; no se puede duplicar');
     if(revision!==Number(existing[0].revision))return fail(res,409,'La ficha cambió; actualiza antes de guardar');
     const changed=await sql.query(
      "UPDATE public.fin_locales_operativos_qa SET configuracion=$3::jsonb,"+
@@ -194,9 +197,17 @@ module.exports=async(req,res)=>{
     return ok(res,{local:changed[0]});
    }
    if(revision!==0)return fail(res,409,'No existe un borrador con esa revisión');
-   // La similitud de nombre no habilita identidad de tienda existente.
-   // El vínculo de Romo se hará explícito, sin reutilizar datos Uki.
-   const id=crypto.randomUUID(),storeId='local:'+id;
+   // Un local nuevo es independiente. El existente Romo exige selección
+   // explícita de dueños + comprobación de negocio, sucursal y dirección.
+   const id=crypto.randomUUID();
+   let storeId;
+   try{
+    storeId=require('../lib/uki-locales-vinculacion-qa.cjs').identificarLocalOperativoQA({
+     solicitud:body.vincularLocalExistente||'',
+     negocio:names[0].negocio,sucursal:names[0].sucursal,
+     direccion:config.direccion,nuevoId:id
+    });
+   }catch(e){return fail(res,409,String(e.message).slice(0,200))}
    const created=await sql.query(
     "INSERT INTO public.fin_locales_operativos_qa"+
     " (id,negocio_id,sucursal_id,store_id,configuracion,creado_por,actualizado_por)"+

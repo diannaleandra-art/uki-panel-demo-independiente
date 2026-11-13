@@ -56,3 +56,7 @@ Hasta que el guardado atómico Neon de Romo esté conectado, la función ndGuard
 
 ## Diagnóstico único de Romo, sin publicación
 Se agregó un diagnóstico de solo lectura para catálogo Romo, personal autorizado, solicitudes y estado operativo. No sustituye las pruebas reales de dos teléfonos, el enlace final de caja e historial, ni la autorización de dueños. Guardar pedidos y cerrar caja Romo siguen bloqueados en la rama de pruebas hasta completar la confirmación atómica. La base financiera fin_* no se encontró en las bases Neon disponibles; ninguna migración fue ejecutada en una base no verificada.
+
+
+## No duplicar Romo La Serena
+El formulario privado distingue explícitamente Vincular Romo existente de Crear local nuevo. El servidor requiere la selección exacta y verifica el negocio, sucursal y dirección Balmaceda 1612 antes de usar romo:serena; un local nuevo obtiene local:UUID. La tabla fin_locales_operativos_qa protege la unicidad de store_id y sucursal_id. Estos cambios no se activan hasta comprobar la base financiera privada y obtener autorización de publicación.
