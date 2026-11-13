@@ -30,6 +30,7 @@ jobs:
             tests/uki-romo-flujo-completo-qa.test.mjs \
             tests/uki-romo-panel-control-qa.test.mjs \
             tests/uki-romo-panel-mismo-boton-qa.test.mjs \
+            tests/uki-romo-firestore-aislamiento-qa.test.mjs \
             tests/uki-locales-configuracion-qa.test.cjs \
             tests/uki-locales-registro-qa.test.mjs \
             tests/uki-locales-onboarding-qa.test.cjs \

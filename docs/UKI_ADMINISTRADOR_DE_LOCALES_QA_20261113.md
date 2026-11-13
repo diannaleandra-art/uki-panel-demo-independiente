@@ -115,3 +115,6 @@ El test tests/uki-romo-flujo-completo-qa.test.mjs usa el parser ya aprobado de l
 
 ## Preparación del endpoint operativo Romo (QA)
 El puente del panel ahora reconoce la dirección fija de la API Romo, pero exige `ROMO_OPERATIVO_CLIENTE_HABILITADO_QA=true`, apagada. El servidor permanece protegido por `ROMO_OPERATIVO_LIVE_ENABLED`, origen y autorización Google. Ni el formulario ni el usuario pueden cambiar el destino, y no se habilitan pedidos. El comportamiento anterior de QA sin acceso remoto se preserva y se prueba expresamente.
+
+## Separación estricta del guardado Firebase de Uki y Neon Romo (QA)
+El panel solo ofrece el estado de Uki a window.ukiQAGet y solo acepta restauraciones de Uki en window.ukiQASet. guardarEnLocalStorage termina inmediatamente para Romo. La pantalla de la nube Firebase exige una de las dos SUCURSALES originales y rechaza Romo. El dato Romo solo puede llegar al formulario tras lectura Neon con autorización y cifrado. Los dos locales Uki mantienen su sincronización original sin cambios de lógica. Todo el flujo Romo permanece apagado hasta la activación autorizada.

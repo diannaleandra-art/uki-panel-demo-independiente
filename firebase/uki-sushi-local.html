@@ -509,6 +509,8 @@ async function abrirLocal(raw,suc,password){
  return {estado,key,salt};
 }
 function guardarEnLocalStorage(){
+ // Firebase y localStorage de Uki nunca escriben la caja independiente de Romo.
+ if(!SUCURSALES.includes(S.suc))return Promise.resolve(true);
  if(!S.suc||!claveSesion||sucursalSesion!==S.suc)return Promise.resolve(true);
  const suc=S.suc,key=claveSesion,salt=saltSesion,datos=datosSoloSucursal(),revision=++revisionGuardado;
  colaGuardado=colaGuardado.catch(()=>{}).then(async()=>{
@@ -5950,9 +5952,9 @@ function vHistorial(){
   }).join("");
 }
 
-window.ukiQAGet=()=>S.suc?{suc:S.suc,estado:datosSoloSucursal()}:null;
+window.ukiQAGet=()=>SUCURSALES.includes(S.suc)?{suc:S.suc,estado:datosSoloSucursal()}:null;
 window.ukiQASet=async(data)=>{
- if(!S.suc||!validarEstadoSucursal(data,S.suc))throw Error("Estado inválido para esta sucursal");
+ if(!SUCURSALES.includes(S.suc)||!validarEstadoSucursal(data,S.suc))throw Error("Estado inválido para esta sucursal");
  const prev=S;S={...estadoVacioSucursal(S.suc),...data,suc:S.suc,vista:"inicio",
    pinSuc:null,codigos:{},busy:false,msg:null,confirmCierre:false};
  const saved=await guardarEnLocalStorage();
@@ -6139,7 +6141,7 @@ window.ukiOperativoActualizar=actualizarBloqueo;
 function contexto(){
  if(!UKI_OPERACION_HABILITADA)throw Error("Versión sin activar: falta aprobar reglas, pruebas y lanzamiento.");
  const x=window.ukiQAGet?.();
- if(!x)throw Error("Abre primero la sucursal correspondiente");
+ if(!x||!SUCURSALES.includes(x.suc))throw Error("Abre una sucursal Uki, no Romo, para utilizar Firebase");
  if(!auth.currentUser)throw Error("Inicia sesión con Google");
  const clave=el("ukiCloudPass").value;
  if(clave.length<12)throw Error("La clave de nube debe tener al menos 12 caracteres");
