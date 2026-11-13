@@ -10,20 +10,21 @@
  */
 export const ROMO_OPERATIVO_SUCURSAL_QA='Romo’s Sushi La Serena';
 export const ROMO_OPERATIVO_ID_QA='romo:serena';
-const ROMO_OPERATIVO_ENDPOINT_QA='';
+const ROMO_OPERATIVO_ENDPOINT_QA='https://uki-sushi-inventario.vercel.app/api/romo-estado-operativo-qa';
+export const ROMO_OPERATIVO_CLIENTE_HABILITADO_QA=false;
 
 export class RomoGuardarConflictoQA extends Error{
  constructor(){super('Romo cambió en otro teléfono. Recarga antes de guardar.');this.code='REVISION_CONFLICTO';}
 }
 export function crearPuenteRomoOperativoQA({
- endpoint=ROMO_OPERATIVO_ENDPOINT_QA,
+ endpoint=ROMO_OPERATIVO_ENDPOINT_QA,habilitado=ROMO_OPERATIVO_CLIENTE_HABILITADO_QA,
  getGoogleToken=()=>window.ukiInventarioToken?.(),
  fetchFn=fetch,
  cifrar,descifrar,validarEstado
 }={}){
  if(typeof cifrar!=='function'||typeof descifrar!=='function'||typeof validarEstado!=='function')
   throw new Error('El cifrado y validación deben provenir del panel Uki existente');
- const disponible=()=>Boolean(ROMO_OPERATIVO_ENDPOINT_QA)&&endpoint===ROMO_OPERATIVO_ENDPOINT_QA;
+ const disponible=()=>habilitado===true&&endpoint===ROMO_OPERATIVO_ENDPOINT_QA;
  const request=async(method,body)=>{
   if(!disponible())throw new Error('Operaciones de Romo no habilitadas');
   const token=await getGoogleToken();
@@ -78,5 +79,5 @@ export function crearPuenteRomoOperativoQA({
  });
 }
 if(typeof window!=='undefined'){
- window.ukiRomoOperativoDisponibleQA=()=>Boolean(ROMO_OPERATIVO_ENDPOINT_QA);
+ window.ukiRomoOperativoDisponibleQA=()=>ROMO_OPERATIVO_CLIENTE_HABILITADO_QA;
 }

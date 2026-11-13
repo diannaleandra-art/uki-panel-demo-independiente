@@ -112,3 +112,6 @@ Nuevo módulo de pedidos que utiliza en una COPIA aislada de Romo las mismas cla
 
 ## QA · Prueba integrada: carta -> formato Uki -> confirmación Neon
 El test tests/uki-romo-flujo-completo-qa.test.mjs usa el parser ya aprobado de la carta, el candidato con formato de Uki, el cifrado simulado y la reserva/confirmación Neon simuladas. Comprueba la secuencia exacta, pagos mixtos, historial, falta de montos confirmados, fallo incierto de nube y requisito de folio del turno. El estado visible y la caja no cambian antes de la aceptación. No es una prueba con datos productivos ni con teléfonos; aún falta conectar los métodos del panel real, cifrado AES-GCM y autenticación en el navegador, y autorizar publicación.
+
+## Preparación del endpoint operativo Romo (QA)
+El puente del panel ahora reconoce la dirección fija de la API Romo, pero exige `ROMO_OPERATIVO_CLIENTE_HABILITADO_QA=true`, apagada. El servidor permanece protegido por `ROMO_OPERATIVO_LIVE_ENABLED`, origen y autorización Google. Ni el formulario ni el usuario pueden cambiar el destino, y no se habilitan pedidos. El comportamiento anterior de QA sin acceso remoto se preserva y se prueba expresamente.

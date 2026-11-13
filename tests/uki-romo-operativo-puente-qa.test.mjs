@@ -47,7 +47,8 @@ test('mismo formato de datos, no un panel distinto para Romo',()=>{
  assert.match(panelSource,/async function cifrarLocal\(datos,suc,key,salt\)/);
  assert.match(panelSource,/async function abrirLocal\(raw,suc,password\)/);
  assert.match(clientSource,/cifrar,descifrar,validarEstado/);
- assert.match(clientSource,/const ROMO_OPERATIVO_ENDPOINT_QA='';/);
+ assert.match(clientSource,/ROMO_OPERATIVO_CLIENTE_HABILITADO_QA=false/);
+ assert.match(clientSource,/const disponible=\(\)=>habilitado===true/);
  assert.match(clientSource,/method,headers:/);
  assert.doesNotMatch(clientSource,/setItem\(|fetch\([^)]*password/);
 });
@@ -55,7 +56,7 @@ test('no manda contraseña ni pedidos en texto abierto; solo snapshot cifrado',(
  assert.match(clientSource,/body:JSON\.stringify\(body\)/);
  assert.match(clientSource,/expectedRevision:revision,snapshot/);
  assert.doesNotMatch(clientSource,/body:JSON\.stringify\(\{[^}]*password/);
- assert.doesNotMatch(clientSource,/const ROMO_OPERATIVO_ENDPOINT_QA='https:/);
+ assert.match(clientSource,/const ROMO_OPERATIVO_ENDPOINT_QA='https:\/\/uki-sushi-inventario\.vercel\.app/);
 });
 test('detectará conflicto 409 y no intenta sobrescribir una versión atrasada',()=>{
  assert.match(clientSource,/response\.status===409/);
