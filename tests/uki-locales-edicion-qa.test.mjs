@@ -29,5 +29,6 @@ test('el administrador conserva imágenes y no repite Romo en lista',()=>{
  const owner=readFileSync(new URL('../public/uki-owner-locales-qa.mjs',import.meta.url),'utf8');
  assert.match(owner,/prepararFichaParaGuardarQA/);
  assert.match(owner,/drafts\.some\(r=>r\.store_id===storeId\)/);
- assert.match(owner,/id="ownerLocLogo"/);
+ const html=readFileSync(new URL('../public/mi-administracion-duenos.html',import.meta.url),'utf8');
+ assert.match(html,/id="ownerLocLogo"/);
 });
