@@ -1,13 +1,14 @@
 import {prepararVinculoLocalQA} from './uki-locales-motor-qa.mjs';
 import {crearMensajeVisualRomoQA} from './uki-locales-puente-visual-qa.mjs';
 import {prepararFichaParaGuardarQA} from './uki-locales-edicion-qa.mjs';
+import {clasificarErrorFichaQA} from './uki-locales-conflictos-qa.mjs';
 /* Agregar local operativo · reutiliza Mi Administración, Google y PIN privados.
  * QA sin publicación. Las fotos del teléfono son SOLO vista previa:
  * la carga definitiva requiere conectar almacenamiento autorizado. */
 export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,refrescarNegocios=async()=>{}}){
  const by=id=>document.getElementById(id),ids=['ownerLocBiz','ownerLocBranch'];
  const biz=by(ids[0]),branch=by(ids[1]),save=by('ownerLocSave'),list=by('ownerLocList');
- let drafts=[],lastRevision=0,loading=false,puedeGuardar=false;
+ let drafts=[],lastRevision=0,loading=false,puedeGuardar=false,conflictoPendiente=false;
  const setOptions=(select,items,title)=>{
   const previous=select.value;select.replaceChildren(new Option(title,''));
   for(const item of items)select.add(new Option(item.nombre,item.id));
@@ -121,6 +122,12 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
    el.append(img);
   });
  }
+ const limpiarConflicto=()=>{
+  conflictoPendiente=false;
+  by('ownerLocReloadConflict').hidden=true;
+  by('ownerLocConflictNotice').textContent='';
+  save.disabled=!puedeGuardar;
+ };
  const leerBorradorSeleccionado=()=>{
   const existente=drafts.find(x=>x.sucursal_id===branch.value);
   lastRevision=Number(existente?.revision||0);
@@ -142,14 +149,27 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
   }
   preview();
  };
- biz.addEventListener('change',()=>{sync();leerBorradorSeleccionado();});
+ biz.addEventListener('change',()=>{limpiarConflicto();sync();leerBorradorSeleccionado();});
  branch.addEventListener('change',()=>{
+  limpiarConflicto();
   by('ownerLocNewBranchWrap').hidden=branch.value!=='__new__';
   leerBorradorSeleccionado();
  });
+ by('ownerLocReloadConflict').onclick=async()=>{
+  if(loading)return;
+  // Solo un clic explícito descarta lo no guardado.
+  try{
+   await consultar();
+   if(puedeGuardar||drafts.length){
+    limpiarConflicto();
+    if(branch.value)leerBorradorSeleccionado();
+    notificar('Versión actual cargada. Puedes revisar los datos antes de editar.','success');
+   }
+  }catch(e){notificar('No se pudo cargar la versión actual: '+e.message,'error')}
+ };
  by('ownerLocPreviewBtn').onclick=preview;
  save.onclick=async()=>{
-  if(loading||!puedeGuardar)return;loading=true;save.disabled=true;
+  if(loading||!puedeGuardar||conflictoPendiente)return;loading=true;save.disabled=true;
   try{
    const ficha=valores();
    if(!ficha.negocio_id||(!ficha.sucursal_id&&branch.value!=='__new__')||!ficha.nombre||!ficha.direccion)
@@ -172,17 +192,26 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar,re
    }
    const result=await api('locales_operativos_guardar_qa',{ficha,expectedRevision:lastRevision,vincularLocalExistente:by('ownerLocExisting').value});
    lastRevision=result.local?.revision||0;
+   limpiarConflicto();
    notificar('Ficha guardada como borrador privado. Aún no está publicada.','success');
    await consultar();
-  }catch(e){notificar('No se guardó el borrador: '+e.message,'error')}
-  finally{loading=false;save.disabled=!puedeGuardar;}
+  }catch(e){
+   const error=clasificarErrorFichaQA(e.message);
+   if(error.conflicto){
+    conflictoPendiente=true;
+    by('ownerLocReloadConflict').hidden=false;
+    by('ownerLocConflictNotice').textContent=error.mensaje;
+    save.disabled=true;
+   }
+   notificar(error.mensaje,'error');
+  }finally{loading=false;save.disabled=!puedeGuardar||conflictoPendiente;}
  };
  async function consultar(){
   try{
    const resp=await api('locales_operativos_diagnostico_qa');
    const d=resp.diagnostico||{};
    puedeGuardar=d.registroHabilitado===true;
-   save.disabled=!puedeGuardar;
+   save.disabled=!puedeGuardar||conflictoPendiente;
    if(!d.lecturaBorradoresHabilitada){
     drafts=[];
     by('ownerLocStatus').textContent='El listado privado no está preparado. '+(d.siguiente||'');

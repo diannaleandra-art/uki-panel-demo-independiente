@@ -92,3 +92,7 @@ Los tests simulan éxito, fallo de revisión, intento de cambiar fotos e intento
 
 ## Cambios de ficha y auditoría en una operación (QA)
 La actualización de la ficha y su registro de auditoría se ejecutan en una única sentencia SQL, sin escrituras separadas que puedan quedar inconsistentes. Se registran exclusivamente campos de identidad modificados y sus revisiones, con el actor interno de finanzas. Si la auditoría falla, no se confirma la ficha. El guardado sigue desactivado mientras no se autorice su activación privada; no se publicaron cartas.
+
+
+## Concurrencia visible de edición privada (QA)
+Cuando dos teléfonos editan la misma ficha y el guardado del segundo recibe un conflicto, el formulario no borra lo escrito ni vuelve a enviar cambios con una revisión vencida. Se informa expresamente que no se guardó nada y se muestra «Cargar versión actual» para recargar el borrador solo por decisión del dueño. Este control permanece detrás de la misma sesión privada y bandera de edición, sin publicar carta ni pedidos.
