@@ -75,3 +75,77 @@ export function unirVentasDuenos({movimientos=[],cierres=[],desde='',hasta='',ne
   totalCierresSoloInformativo:auto.reduce((n,x)=>n+x.importe,0)
  };
 }
+
+/**
+ * Extensión de PRESENTACIÓN QA, no realiza red ni crea movimientos.
+ * Los cierres Romo viven en tabla independiente; no reutilizar filas Uki.
+ * Importes informativos NO se suman automáticamente a las ventas manuales.
+ */
+export function unirVentasDuenosConRomoQA({
+ cierresRomo=[],movimientos=[],cierres=[],desde='',hasta='',
+ negocio_id='',sucursal_id='',razon_social_id='todos',
+ negocios=[],sucursales=[]
+}={}){
+ const base=unirVentasDuenos({movimientos,cierres,desde,hasta,negocio_id,
+  sucursal_id,razon_social_id,negocios,sucursales});
+ const romo=negocios.find(b=>/romo.?s sushi/i.test(n(b?.nombre||'')));
+ // Sin negocio Romo explícito en catálogo no asumir que existe.
+ if(!romo||razon_social_id!=='todos')return {
+  ...base,cierresRomoConfirmados:0,coincidenciasRomo:0,
+  conflictosRomo:0,totalCierresRomoSoloInformativo:0
+ };
+ if(negocio_id&&String(negocio_id)!==String(romo.id))return {
+  ...base,cierresRomoConfirmados:0,coincidenciasRomo:0,
+  conflictosRomo:0,totalCierresRomoSoloInformativo:0
+ };
+ const sucRomo=sucursales.find(s=>String(s?.negocio_id)===String(romo.id)&&
+  /serena/.test(n(s?.nombre||'')));
+ if(!sucRomo||(sucursal_id&&String(sucursal_id)!==String(sucRomo.id)))return {
+  ...base,cierresRomoConfirmados:0,coincidenciasRomo:0,
+  conflictosRomo:0,totalCierresRomoSoloInformativo:0
+ };
+ const vistos=new Set();
+ const auto=(Array.isArray(cierresRomo)?cierresRomo:[]).filter(x=>{
+  if(!x||x.store_id!=='romo:serena'||x.estado&&x.estado!=='cerrado'||
+   !validDay(String(x.fecha_operativa||'').slice(0,10))||
+   !validMoney(x.venta_total)||typeof x.turno_ref!=='string'||
+   !/^\d{4}-\d{2}-\d{2}@[1-9]\d{12,14}$/.test(x.turno_ref)||
+   x.source_key!=='romo:serena|'+x.turno_ref||
+   x.turno_ref.slice(0,10)!==String(x.fecha_operativa).slice(0,10))
+   return false;
+  const fecha=String(x.fecha_operativa).slice(0,10);
+  if((desde&&fecha<desde)||(hasta&&fecha>hasta))return false;
+  if(vistos.has(x.source_key))return false;
+  vistos.add(x.source_key);return true;
+ }).map(x=>({
+  origen:'Cierre final automático · Romo',
+  fecha:String(x.fecha_operativa).slice(0,10),
+  sucursal:'La Serena',nombre:'Romo’s Sushi',
+  importe:Number(x.venta_total),id:x.source_key,ref:x.source_key,
+  tipo:'cierre',confirmado:true,estado:'confirmado',medios:pagos(x),
+  gastos:Number(x.gastos_cierre||0),
+  delivery:Number(x.delivery_por_pagar||0),
+  propinas:Number(x.propinas||0),retiros:Number(x.retiros||0)
+ }));
+ const items=[...base.items],manualesRomo=items.filter(x=>x.tipo==='manual'&&
+  /romo/i.test(n(x.nombre))&&/serena/i.test(n(x.sucursal))&&x.estado!=='anulado');
+ let coincidencias=0,conflictos=0;
+ for(const cierre of auto){
+  const refAlterna=cierre.id.slice('romo:serena|'.length);
+  const manual=manualesRomo.find(x=>{
+   const r=key(x.ref);return r===key(cierre.id)||r===key(refAlterna);
+  });
+  if(manual&&manual.importe===cierre.importe){
+   manual.confirmado=true;
+   manual.origen='Cierre Romo · ya registrado manualmente';
+   coincidencias++;
+  }else{
+   if(manual)conflictos++;
+   items.push(cierre);
+  }
+ }
+ items.sort((a,b)=>b.fecha.localeCompare(a.fecha)||b.id.localeCompare(a.id));
+ return {...base,items,cierresRomoConfirmados:auto.length,
+  coincidenciasRomo:coincidencias,conflictosRomo:conflictos,
+  totalCierresRomoSoloInformativo:auto.reduce((a,x)=>a+x.importe,0)};
+}
