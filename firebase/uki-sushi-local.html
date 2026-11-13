@@ -444,6 +444,8 @@ function ir(v){
     v="caja";
   }
   if(!S.suc&&v!=="inicio")v="inicio";
+  if(S.suc===ROMO_SUCURSAL_QA&&!['inicio','pedidos','nuevo'].includes(v))
+   return aviso('Función Romo pendiente de confirmación central. No se modificó caja ni inventario.');
   S.vista=v;
   render();
   if(v==="inventario")setTimeout(()=>window.ukiInventarioMontar?.(),0);
@@ -721,7 +723,7 @@ function render(){
   const f={inicio:vInicio,pedidos:vPedidos,nuevo:vNuevo,clientes:vClientes,caja:vCaja,inventario:()=>window.ukiInventarioPanelHTML?.()||'<div class="card"><p>Preparando inventario…</p></div>'}[S.vista]||vInicio;
   const msg=S.msg?`<div role="status" class="aviso" style="background:#ffece4;color:#7a2c08">${esc(S.msg)}</div>`:"";
   S.msg=null;
-  $("app").innerHTML=msg+f();
+  $("app").innerHTML=msg+(S.vista==='pedidos'?ukiRomoBandejaPanelHTML():'')+f();
   ukiRestaurarVistaTrasRender(ukiVistaAnterior);
   ukiUltimaVistaRender=S.vista;ukiUltimaSucursalRender=S.suc;
   guardarEnLocalStorage();
@@ -736,6 +738,121 @@ const ROMO_SERENA_QA=Object.freeze({brand:'romo',branch:'serena',nombre:ROMO_SUC
 function ukiVolverAlSelectorLocales(){
  if(S.suc)return;
  S.romoSeleccionadoQA=false;S.romoIngresadoQA=false;S.pinSuc=null;render();
+}
+
+
+/* Romo usa el mismo selector, editor y botón que Uki; se mantiene apagado.
+ * Las operaciones requieren Google, contraseña Uki y Neon Romo separado. */
+const ROMO_PANEL_INTEGRACION_HABILITADA_QA=false;
+let ukiRomoControlPanelQA=null,ukiRomoRevisionVisibleQA=null,ukiRomoBandejaVisibleQA=[];
+async function ukiRomoAbrirEnPanelQA(password){
+ if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA)throw Error('Romo aún está en pruebas');
+ if(S.suc)throw Error('Cierra la sucursal anterior');
+ const google=async()=>window.ukiInventarioToken?.();
+ const token=await google();
+ if(typeof token!=='string'||token.length<30)throw Error('Conecta Google en este panel');
+ let salt=crypto.getRandomValues(new Uint8Array(16));
+ let key=await ukiClaveBackup(password,salt);
+ const [b,r,c]=await Promise.all([
+  import('./uki-romo-operativo-qa.mjs'),
+  import('./uki-romo-recepcion-formulario-qa.mjs'),
+  import('./uki-romo-panel-control-qa.mjs')
+ ]);
+ const remoto=b.crearPuenteRomoOperativoQA({
+  habilitado:true,getGoogleToken:google,validarEstado:validarEstadoSucursal,
+  cifrar:(datos,suc)=>cifrarLocal(datos,suc,key,salt),
+  descifrar:async(snapshot,suc,pass)=>{
+   const abierto=await abrirLocal(JSON.stringify(snapshot),suc,pass);
+   key=abierto.key;salt=abierto.salt;return abierto.estado;
+  }
+ });
+ const bandeja=r.crearBandejaRomoMismoPanelQA({habilitada:true,getGoogleToken:google});
+ const control=c.crearControlRomoMismoPanelQA({
+  habilitado:true,estadoRemoto:remoto,bandeja,
+  obtenerToken:google,validarClave:ukiValidarClaveUkiParaRomoQA,
+  crearInicial:()=>estadoVacioSucursal(ROMO_SUCURSAL_QA),
+  validarEstado:validarEstadoSucursal,
+  cifrarEstado:datos=>cifrarLocal(datos,ROMO_SUCURSAL_QA,key,salt),
+  estadoVisible:()=>({estado:datosSoloSucursal(),revision:ukiRomoRevisionVisibleQA}),
+  aplicarEstado:async({estado,revision})=>{
+   if(!validarEstadoSucursal(estado,ROMO_SUCURSAL_QA))
+    throw Error('Estado ajeno a Romo');
+   S={...estadoVacioSucursal(ROMO_SUCURSAL_QA),...estado,
+    suc:ROMO_SUCURSAL_QA,pinSuc:null,codigos:{},busy:false,
+    vista:'pedidos',msg:null,confirmCierre:false};
+   ukiRomoRevisionVisibleQA=revision;render();
+  }
+ });
+ const abierto=await control.abrir({password});
+ if(!Number.isSafeInteger(abierto.revision))throw Error('Carga Romo incompleta');
+ ukiRomoControlPanelQA=control;ukiRomoBandejaVisibleQA=[];
+ claveSesion=null;saltSesion=null;sucursalSesion=null;revisionGuardado++;
+ nuevoDraft();return true;
+}
+async function ukiRomoActualizarSolicitudesQA(){
+ if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||S.suc!==ROMO_SUCURSAL_QA||
+    !ukiRomoControlPanelQA?.disponible())
+  return aviso('Romo permanece cerrado, sin ventas nuevas.');
+ try{
+  ukiRomoBandejaVisibleQA=await ukiRomoControlPanelQA.listar();render();
+ }catch(e){aviso('No se comprobó la bandeja: '+String(e?.message||e))}
+}
+async function ukiRomoAbrirSolicitudQA(id){
+ if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||S.suc!==ROMO_SUCURSAL_QA||
+    !ukiRomoControlPanelQA?.disponible())return aviso('Romo no está habilitado.');
+ try{
+  D=await ukiRomoControlPanelQA.seleccionar(id);
+  S.vista='nuevo';render();
+ }catch(e){aviso('No se abrió el pedido: '+String(e?.message||e))}
+}
+async function ukiRomoGuardarPedidoQA(){
+ if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||S.suc!==ROMO_SUCURSAL_QA||
+    !ukiRomoControlPanelQA?.disponible())
+  return aviso('Romo sigue en integración; no se registró la venta.');
+ if(!D.cartaSolicitudRemotaId)
+  return aviso('Selecciona primero una solicitud pendiente de Romo.');
+ if(!confirm('¿Verificaste productos, armado y cantidades?'))return;
+ if(!confirm('¿Confirmas precios, delivery y total?'))return;
+ const subtotal=(D.items||[]).filter(x=>x.nombre).reduce(
+  (n,x)=>n+Number(x.cant)*Number(x.precio),0);
+ const envio=D.modalidad==='Delivery'?Number(D.envio):0;
+ let confirmoDiferenciaTotal=false,confirmoPago=false;
+ if(D.romoTotalIndicadoQA!==null&&D.romoTotalIndicadoQA!==undefined&&
+    Number(D.romoTotalIndicadoQA)!==subtotal+envio){
+  confirmoDiferenciaTotal=confirm('El importe difiere de la carta. ¿Se aclaró con el cliente?');
+  if(!confirmoDiferenciaTotal)return;
+ }
+ if(D.pagado){
+  confirmoPago=confirm('¿Se recibió y verificó realmente el pago?');
+  if(!confirmoPago)return;
+ }
+ try{
+  // Se calcula turno de Romo con el motor Uki ANTES de copiar y cifrar.
+  const turno=ukiTurnoFolioActual();
+  const contexto={numeroTurno:turno.numero,turnoClave:turno.clave,
+   registradoEn:Date.now(),confirmoPago,confirmoDiferenciaTotal};
+  const result=await ukiRomoControlPanelQA.guardar({
+   draft:D,contexto,confirmoArmado:true,confirmoImportes:true
+  });
+  if(result.estado!=='aceptada')throw Error('La solicitud no fue confirmada');
+  nuevoDraft();S.vista='pedidos';await ukiRomoActualizarSolicitudesQA();
+ }catch(e){
+  aviso('Revisa bandeja, caja e historial ANTES de reintentar: '+String(e?.message||e));
+ }
+}
+function ukiRomoBandejaPanelHTML(){
+ if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||S.suc!==ROMO_SUCURSAL_QA)return '';
+ return '<section class="card" aria-label="Solicitudes Romo La Serena">'+
+  '<h2>Solicitudes Romo La Serena</h2>'+
+  '<p class="muted">Solo se registra tras confirmación cifrada en Neon.</p>'+
+  '<button type="button" class="sm" onclick="ukiRomoActualizarSolicitudesQA()">Actualizar solicitudes</button>'+
+  ukiRomoBandejaVisibleQA.map(r=>
+   '<div class="line"><b>Carta #'+esc(r.codigo_pedido||'')+'</b> · '+
+   esc(r.cliente||'Cliente')+' · '+esc(r.estado||'')+
+   (r.estado==='pendiente'&&!r.en_reserva?
+    ' <button type="button" class="sm" onclick="ukiRomoAbrirSolicitudQA(&quot;'+
+    esc(r.id)+'&quot;)">Revisar pedido</button>':'')+'</div>'
+  ).join('')+'</section>';
 }
 
 /* Romo utiliza el MISMO selector, campo y botón entrarSuc que Uki.
@@ -769,8 +886,12 @@ async function entrarSuc(){
  if(nueva&&pass!==($("ukiAccesoConfirmar")?.value||"")){aviso("Las claves no coinciden.");return;}
  try{
   if(esRomo){
-   await ukiValidarClaveUkiParaRomoQA(pass);
-   S.pinSuc=null;S.romoSeleccionadoQA=true;S.romoIngresadoQA=true;
+   if(ROMO_PANEL_INTEGRACION_HABILITADA_QA){
+    await ukiRomoAbrirEnPanelQA(pass);
+   }else{
+    await ukiValidarClaveUkiParaRomoQA(pass);
+    S.pinSuc=null;S.romoSeleccionadoQA=true;S.romoIngresadoQA=true;
+   }
   }else{
    await entrarDatosSucursal(s,pass);S.vista="inicio";
   }
@@ -778,6 +899,10 @@ async function entrarSuc(){
  }catch(e){aviso(esRomo?"No se pudo comprobar tu contraseña habitual de Uki en este equipo.":"Clave incorrecta, datos dañados o cifrado no disponible.");}
 }
 async function salirSuc(){
+ if(S.suc===ROMO_SUCURSAL_QA){
+  ukiRomoControlPanelQA?.cerrar();ukiRomoControlPanelQA=null;
+  ukiRomoRevisionVisibleQA=null;ukiRomoBandejaVisibleQA=[];
+ }
  if(ukiSolicitudWhatsAppActiva)ukiWhatsAppPausarRevision();
  if(S.suc){const ok=await guardarEnLocalStorage();if(!ok)return;await colaGuardado;}
  revisionGuardado++;claveSesion=null;saltSesion=null;sucursalSesion=null;
@@ -4497,8 +4622,9 @@ async function ndGuardar(){
   // QA Romo: nunca registrar ventas en la caja local de Uki por accidente.
   // La integración remota exige confirmación atómica en Neon antes de habilitar.
   if(S.suc===ROMO_SUCURSAL_QA){
-    aviso('Romo sigue en integración. No se registró venta ni se modificó la caja.');
-    return;
+    if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA)
+     return aviso('Romo sigue en integración. No se registró venta ni se modificó la caja.');
+    return ukiRomoGuardarPedidoQA();
   }
   if(ukiGuardadoSolicitudEnCurso)return;
   ukiGuardadoSolicitudEnCurso=true;
