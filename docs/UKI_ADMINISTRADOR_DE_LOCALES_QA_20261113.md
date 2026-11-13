@@ -32,3 +32,6 @@ Un local nuevo recibe local:UUID exclusivo en vez de identificarse por un nombre
 Una ficha nueva nunca copia ventas, inventario, caja o clientes, ni habilita carta.
 Romo debe asociarse explícitamente a su identificador existente antes de la activación.
 No se ejecutó migración ni se cambió la producción.
+
+## Alta de sucursal y ficha en un paso
+La pestaña Negocios ofrece Crear nueva sucursal desde el mismo formulario operativo, sin repetir el registro financiero manual. El servidor prepara ambos registros en una única sentencia SQL y conserva todo como borrador, sin ventas ni QR. No se ejecutó migración ni se activó la bandera privada.

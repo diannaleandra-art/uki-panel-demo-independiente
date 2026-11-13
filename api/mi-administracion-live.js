@@ -134,12 +134,28 @@ module.exports=async(req,res)=>{
    return ok(res,{sesion:token,minutos:30});
   }
   if(!await authorized(sql,req,who))return fail(res,401,'Introduce el código privado para continuar.');
-  if(action==='locales_operativos_listar_qa'||action==='locales_operativos_guardar_qa'){
+  if(['locales_operativos_listar_qa','locales_operativos_guardar_qa','locales_operativos_crear_qa'].includes(action)){
    // No se comparte una clave nueva: misma sesión Google + PIN de dueños,
    // validados arriba. Ninguna ruta de este bloque activa locales.
    if(process.env.UKI_LOCALES_OPERATIVOS_QA_ENABLED!=='true')
     return fail(res,503,'Registro de locales todavía no activado');
    const core=require('../lib/uki-locales-config-qa.cjs');
+   if(action==='locales_operativos_crear_qa'){
+    const b=String(body.negocio_id||''),nombre=String(body.nombre_sucursal||'').trim();
+    if(!uuid.test(b)||nombre.length<2||nombre.length>100)return fail(res,400,'Revisa el negocio y la sucursal');
+    await belongs(sql,b,null);
+    const onboarding=require('../lib/uki-locales-onboarding-qa.cjs');
+    let prepared;
+    try{prepared=onboarding.prepararNuevaSucursalQA({
+     ficha:body.ficha,negocioId:b,nombreSucursal:nombre,
+     registroId:crypto.randomUUID(),actor:who.uid
+    })}catch(e){return fail(res,400,String(e.message).slice(0,190))}
+    const rows=await sql.query(onboarding.NEW_LOCAL_SQL,prepared.args);
+    if(rows.length!==1)return fail(res,409,'La sucursal ya existe o tiene una ficha; revísala antes de repetir');
+    await audit(sql,'local_qa',rows[0].id,'crear_sucursal_y_borrador',who,
+     {storeId:rows[0].store_id,sucursalId:rows[0].sucursal_id});
+    return ok(res,{local:rows[0]});
+   }
    if(action==='locales_operativos_listar_qa'){
     const rows=await sql.query(
      "SELECT id,negocio_id,sucursal_id,store_id,configuracion,estado,revision"+

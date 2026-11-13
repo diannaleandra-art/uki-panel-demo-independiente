@@ -13,6 +13,8 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar}){
  const sync=()=>{
   setOptions(biz,negocios(),'Selecciona un negocio');
   setOptions(branch,sucursales().filter(x=>x.negocio_id===biz.value),'Selecciona sucursal');
+  branch.add(new Option('＋ Crear nueva sucursal','__new__'));
+  by('ownerLocNewBranchWrap').hidden=branch.value!=='__new__';
  };
  const renderList=()=>{
   list.replaceChildren();
@@ -47,7 +49,7 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar}){
  const preview=()=>{
   const f=valores(),host=by('ownerLocPreview');
   host.replaceChildren();
-  if(!f.negocio_id||!f.sucursal_id||f.nombre.length<3||f.direccion.length<5){
+  if(!f.negocio_id||(!f.sucursal_id&&branch.value!=='__new__')||f.nombre.length<3||f.direccion.length<5){
    host.textContent='Completa negocio, sucursal, nombre y dirección para ver la ficha.';return;
   }
   const h=document.createElement('strong');h.textContent=f.nombre;
@@ -80,7 +82,8 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar}){
     ownerLocSchedule:'horarios',ownerLocTemplate:'plantilla',ownerLocColor:'color'};
    for(const [id,field] of Object.entries(mapping))by(id).value=config[field]||'';
   }else{
-   const nombreSucursal=sucursales().find(x=>x.id===branch.value)?.nombre||'';
+   const nombreSucursal=branch.value==='__new__'?by('ownerLocNewBranch').value.trim():
+   (sucursales().find(x=>x.id===branch.value)?.nombre||'');
    const nombreNegocio=negocios().find(x=>x.id===biz.value)?.nombre||'';
    for(const id of ['ownerLocWhatsApp','ownerLocInstagram','ownerLocAddress','ownerLocSchedule'])
     by(id).value='';
@@ -90,14 +93,30 @@ export function iniciarLocalesOperativosQA({api,negocios,sucursales,notificar}){
   preview();
  };
  biz.addEventListener('change',()=>{sync();leerBorradorSeleccionado();});
- branch.addEventListener('change',leerBorradorSeleccionado);
+ branch.addEventListener('change',()=>{
+  by('ownerLocNewBranchWrap').hidden=branch.value!=='__new__';
+  leerBorradorSeleccionado();
+ });
  by('ownerLocPreviewBtn').onclick=preview;
  save.onclick=async()=>{
   if(loading)return;loading=true;save.disabled=true;
   try{
    const ficha=valores();
-   if(!ficha.negocio_id||!ficha.sucursal_id||!ficha.nombre||!ficha.direccion)
+   if(!ficha.negocio_id||(!ficha.sucursal_id&&branch.value!=='__new__')||!ficha.nombre||!ficha.direccion)
     throw Error('Completa negocio, sucursal, nombre y dirección');
+   const nueva=branch.value==='__new__';
+   if(nueva){
+    const nombreSucursal=by('ownerLocNewBranch').value.trim();
+    if(nombreSucursal.length<2)throw Error('Escribe el nombre de la nueva sucursal');
+    if(!ficha.negocio_id)throw Error('Selecciona primero el negocio');
+    const {sucursal_id,...datosFicha}=ficha;
+    const result=await api('locales_operativos_crear_qa',
+     {negocio_id:ficha.negocio_id,nombre_sucursal:nombreSucursal,ficha:datosFicha});
+    lastRevision=result.local?.revision||0;
+    await consultar();
+    notificar('Nueva sucursal preparada como borrador; no está publicada.','success');
+    return;
+   }
    const result=await api('locales_operativos_guardar_qa',{ficha,expectedRevision:lastRevision});
    lastRevision=result.local?.revision||0;
    notificar('Ficha guardada como borrador privado. Aún no está publicada.','success');
