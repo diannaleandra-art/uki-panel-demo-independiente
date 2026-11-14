@@ -229,7 +229,7 @@ async function romoPinInventarioCargar(){
 }
 async function romoPinInventarioCrear(){
  const field=$('romoPinInventarioNuevo'),button=$('romoPinInventarioCrear');
- if(!/^\\d{6}$/.test(field?.value||'')){alert('El PIN debe tener exactamente seis números.');return}
+ if(!/^\d{6}$/.test(field?.value||'')){alert('El PIN debe tener exactamente seis números.');return}
  if(!window.confirm('¿Crear este PIN exclusivo para los trabajadores de inventario Romo? No se podrá sobrescribir desde este formulario.'))return;
  button.disabled=true;
  try{await romoPinInventarioGestion('crear-codigo',field.value);
