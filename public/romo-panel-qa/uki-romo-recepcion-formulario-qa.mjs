@@ -22,7 +22,14 @@ export function prepararBorradorRomoDesdeSolicitudQA(row,{
   'Solicitud ajena a la carta Romo La Serena');
  const codigo=clean(row.codigo_pedido,60);
  const numero=clean(t.match(/^\s*N[.º°o\s]*de pedido:\s*(\S+)/mi)?.[1],60);
- requireValid(codigo&&numero===codigo,'Código de carta Romo diferente');
+ // La carta final muestra un número corto y añade una referencia única RS-...
+ // La solicitud Neon se identifica por esa referencia, no por el número corto.
+ // Mantener la lectura de los mensajes antiguos en que ambos coincidían.
+ const referencia=clean(t.match(/^\s*Referencia de carta:\s*(RS-[A-F0-9]{12})\s*$/mi)?.[1],60);
+ requireValid(codigo&&(
+   referencia?(referencia===codigo&&(numero===codigo||/^[0-9]{3}$/.test(numero))):
+   numero===codigo
+ ),'Código de carta Romo diferente');
  const cocina=t.match(/\*COCINA\*([\s\S]*?)\*ENTREGA\*/i)?.[1];
  requireValid(cocina,'No hay detalle de cocina Romo');
  const header=/^\s*\*[−-]\s*(\d{1,3})\s*[×x]\s*([^*\n]{1,100})\*\s*$/gm;
@@ -41,8 +48,10 @@ export function prepararBorradorRomoDesdeSolicitudQA(row,{
  const envio=match?Number(match[1].replace(/\D/g,'')):0;
  const deliveryPendiente=modalidad==='Delivery'&&!match;
  const pago=clean(t.match(/^\s*Pago:\s*([^\n]+)/mi)?.[1],100);
+ // Junaeb no es efectivo: hasta habilitar ese medio explícito en la caja,
+ // se mantiene como Otros y se conserva el texto original para revisión.
  const medio=['Efectivo','Transferencia','Débito','Edenred','Otros'].find(m=>
-  pago.toLowerCase().startsWith(m.toLowerCase()))||'Efectivo';
+  pago.toLowerCase().startsWith(m.toLowerCase()))||'Otros';
  const total=Number(row.total_indicado);
  requireValid(Number.isSafeInteger(total)&&total>=0,'Total Romo incorrecto');
 

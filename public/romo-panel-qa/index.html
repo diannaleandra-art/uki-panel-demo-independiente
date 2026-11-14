@@ -5383,8 +5383,10 @@ async function ukiRomoAceptarSolicitudCartaQA(){
  const nota=diferencia?
    '\nEl cliente indicó '+fmt(solicitud.total_indicado)+
    ' y el total revisado es '+fmt(total)+'. Confirma ese importe con el cliente.':'';
+ const advertenciaMedio=/^junaeb\b/i.test(String(D.romoPagoIndicadoQA||''))?
+   '\nPago informado: Junaeb. Hasta habilitarlo en caja figura como Otros, NO como efectivo.':'';
  if(!window.confirm('ROMO LA SERENA: ¿ya revisaste el armado, el importe total '+fmt(total)+
-   ' y la entrega de la solicitud '+String(solicitud.codigo_pedido||'')+'?'+nota+
+   ' y la entrega de la solicitud '+String(solicitud.codigo_pedido||'')+'?'+nota+advertenciaMedio+
    '\nSe guardará PENDIENTE de pago; aún no es un cobro.'))return;
  ukiRomoSolicitudCartaOcupadaQA=true;
  try{
