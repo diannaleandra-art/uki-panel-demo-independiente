@@ -828,6 +828,11 @@ async function entrarSuc(){
    await ukiValidarClaveUkiParaRomoQA(pass); // La misma clave Uki; nunca otro registro.
    const session=window.ukiRomoSesionRemotaQA;
    if(session?.disponible()){
+    // Romo NO puede iniciar estado real únicamente con una copia local de Uki.
+    // Exigir prueba remota de una clave Uki registrada por dueños previamente.
+    if(!window.ukiRomoClaveRemotaDisponibleQA?.() ||
+       await window.ukiRomoVerificarClaveRemotaQA?.(pass)!==true)
+      throw Error("Primero vincula tu clave habitual como dueños autorizados");
     // Esta ruta queda bloqueada hasta publicar explícitamente API segura y permisos.
     const googleVerificado=!!(await window.ukiInventarioToken?.());
     const unlocked=await session.abrir({
