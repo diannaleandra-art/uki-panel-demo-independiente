@@ -171,12 +171,16 @@ module.exports=async(req,res)=>{
    // Esta lectura privada exige el MISMO Google + PIN de Mi Administración,
    // ya validados arriba; jamás recibe montos ni datos del navegador.
    // La tabla sólo existe en la rama aislada de Neon hasta liberación final.
-   if(process.env.ROMO_FIN_CIERRES_LECTURA_QA_ENABLED!=='true')
-    return fail(res,503,'La lectura de cierres de Romo sigue en pruebas.');
+   const lecturaQA=(await import('../lib/romo-finanzas-sync-qa.mjs'))
+    .configurarLecturaCierresRomoQA(process.env);
+   if(!lecturaQA)return fail(res,503,'La lectura de Romo sigue en pruebas.');
    const desde=body.desde,hasta=body.hasta;
    if(!validDate(desde)||!validDate(hasta)||desde>hasta)
     return fail(res,400,'Fechas de cierres Romo incorrectas.');
-   const rows=await sql.query(
+   // No consultar la base habitual de Mi Administración:
+   // la tabla Romo sólo existe en la rama financiera QA.
+   const dbFinQA=require('@neondatabase/serverless').neon(lecturaQA.financeUrl);
+   const rows=await dbFinQA(
     "SELECT store_id,source_key,turno_ref,fecha_operativa::text AS fecha_operativa,"+
     "venta_total,pedidos,medios,gastos_cierre,delivery_por_pagar,propinas,retiros,"+
     "caja_chica_inicial,caja_chica_gastos,efectivo_contado,diferencia_efectivo "+

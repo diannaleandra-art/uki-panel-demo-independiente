@@ -71,3 +71,12 @@ diferente exige conciliación. Sin datos de clientes, sin cambios a tablas Uki.
 Banderas `ROMO_FIN_SYNC_QA_ENABLED`, `ROMO_FIN_OWNER_SYNC_QA_ENABLED`
 y `ROMO_FIN_OWNER_READ_QA_ENABLED` siguen desactivadas. La ruta está guardada
 en rama GitHub QA, no publicada ni conectada a credenciales.
+
+## 13 noviembre 2026 · Corrección de la ruta privada de lectura
+La acción `listar_cierres_romo_qa` de Mi Administración ya no consulta la
+tabla de Romo contra la base de finanzas habitual. Ahora, solo tras Google
+y PIN de dueños, resuelve el host exacto de la rama aislada `finanzas QA`
+y consulta `fin_romo_cierres_live_v1` allí. La configuración exige
+`ROMO_FIN_CIERRES_LECTURA_QA_ENABLED=true` y la rama esperada.
+Ambos permisos siguen desactivados; no hay ventas nuevas ni consultas
+públicas. Uki continúa usando su ruta y sus datos anteriores.

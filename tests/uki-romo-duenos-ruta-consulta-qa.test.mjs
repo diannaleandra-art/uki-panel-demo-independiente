@@ -7,7 +7,9 @@ test('solo Google y PIN autorizados pueden entrar en lectura Romo',()=>{
  const pos=api.indexOf("if(action==='listar_cierres_romo_qa')");
  const pin=api.indexOf("if(!await authorized(sql,req,who))");
  assert.ok(pos>pin&&pin>api.indexOf('const who=await google(req)'));
- assert.match(api,/ROMO_FIN_CIERRES_LECTURA_QA_ENABLED!=='true'/);
+ assert.match(api,/configurarLecturaCierresRomoQA\(process\.env\)/);
+ assert.match(api,/const dbFinQA=require\('@neondatabase\/serverless'\)\.neon\(lecturaQA\.financeUrl\)/);
+ assert.doesNotMatch(api.slice(pos,api.indexOf("if(action==='locales_operativos_diagnostico_qa')",pos)),/const rows=await sql\.query/);
  assert.match(api,/WHERE store_id='romo:serena'/);
  assert.match(api,/LIMIT 251/);
 });

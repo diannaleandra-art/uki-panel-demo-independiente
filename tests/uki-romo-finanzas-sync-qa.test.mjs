@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {normalizarResumenCierreRomoQA} from '../lib/romo-cierre-constancia-qa.mjs';
 import {configurarSincronizacionRomoQA,sincronizarCierresRomoDuenosQA,
- ROMO_FIN_SYNC_QA_DEFAULT_ENABLED} from '../lib/romo-finanzas-sync-qa.mjs';
+ ROMO_FIN_SYNC_QA_DEFAULT_ENABLED,configurarLecturaCierresRomoQA} from '../lib/romo-finanzas-sync-qa.mjs';
 const start=1794574800000,day='2026-11-13',turno=day+'@'+start;
 const owner={userId:'ownerQA',brand:'romo',role:'duenos',branches:['serena']};
 const data=()=>({
@@ -88,4 +88,22 @@ test('sincronización permanece apagada en servidor y panel',()=>{
  assert.match(api,/sincronizar_cierres_romo_qa/);
  assert.match(api,/configurarSincronizacionRomoQA/);
  assert.match(html,/ROMO_FIN_OWNER_SYNC_QA_ENABLED=false/);
+});
+
+test('la lectura del panel de dueños apunta solo a finanzas QA, nunca a Uki productivo',()=>{
+ const env={VERCEL_ENV:'production',
+  ROMO_FIN_CIERRES_LECTURA_QA_ENABLED:'true',
+  ROMO_FIN_SYNC_QA_BRANCH:'qa/integracion-panel-unico-romo-serena-20261112',
+  ROMO_FIN_QA_DATABASE_URL:'postgres://qa:fake@ep-lucky-band-b5j3itkw.c-7.us-east-2.aws.neon.tech/neondb'};
+ const ok=configurarLecturaCierresRomoQA(env);
+ assert.ok(ok?.soloLectura);
+ assert.match(ok.financeUrl,/ep-lucky-band-b5j3itkw/);
+ for(const testEnv of [
+  {ROMO_FIN_CIERRES_LECTURA_QA_ENABLED:'false'},
+  {VERCEL_ENV:'preview'}, {ROMO_FIN_SYNC_QA_BRANCH:'main'},
+  {ROMO_FIN_QA_DATABASE_URL:'postgres://qa:fake@ep-silent-cloud-b57g2l4g.c-7.us-east-2.aws.neon.tech/neondb'},
+  {ROMO_FIN_QA_DATABASE_URL:'postgres://qa:fake@ep-lucky-band-b5j3itkw.c-7.us-east-2.aws.neon.tech/other'}
+ ]){
+  assert.equal(configurarLecturaCierresRomoQA({...env,...testEnv}),null);
+ }
 });
