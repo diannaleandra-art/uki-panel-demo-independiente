@@ -272,12 +272,14 @@ body.romo-qa #romoLaSerenaPreparacionQA h2{color:#a30e25}
 body.romo-operativo-preparacion #ukiNubeSeccion,
 body.romo-operativo-preparacion #ukiMostrarConfig,
 body.romo-operativo-preparacion #ukiAvisoInterno{display:none!important}
+body.romo-operativo-preparacion #ukiEstadoOperativo{display:none!important}
+body.romo-operativo-preparacion #romoNeonEstadoQA{display:block!important}
 body.romo-operativo-preparacion #ukiPagoPedidoSoloUki{display:none!important}
 </style>
 </head>
 <body>
 <div role="status" style="font:700 14px/1.5 system-ui,sans-serif; padding:13px 16px;background:#171717;color:#fff;border-bottom:4px solid #bb1024;text-align:center">ROMO LA SERENA · PILOTO INTERNO · PEDIDOS Y COBROS CONTROLADOS EN PRUEBAS · NO USAR CON CLIENTES AÚN</div>
-<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.16 · LOCALES</h1><small id="ukiEstadoOperativo" role="status">Nube: desactivada · Abre tu sucursal y carga Firebase</small></header>
+<header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.16 · LOCALES</h1><small id="ukiEstadoOperativo" role="status">Nube: desactivada · Abre tu sucursal y carga Firebase</small><small id="romoNeonEstadoQA" role="status" style="display:none">Romo · verificación Neon pendiente</small></header>
 <nav id="nav" class="app-nav" aria-label="Navegación de Uki Sushi"></nav>
 <section id="ukiNubeSeccion" style="margin:12px;padding:14px;background:#fff0dd;border:2px solid #b55e25;border-radius:14px">
 <b>PANEL INTERNO DE UKI SUSHI · DOS SUCURSALES</b>
@@ -766,6 +768,13 @@ function render(){
   document.body.classList.toggle('romo-qa',!!(S.romoSeleccionadoQA&&!S.suc&&!S.pinSuc));
   document.body.classList.toggle('romo-operativo-preparacion',S.suc===ROMO_SUCURSAL_QA);
   $("suc").innerHTML=S.suc?`<span>${esc(S.suc)}</span><a href="#" onclick="salirSuc();return false;" class="salir">Salir</a>`:S.romoSeleccionadoQA?(S.romoIngresadoQA?'<span>Romo’s Sushi · La Serena · Balmaceda 1612</span><a href="#" onclick="ukiVolverAlSelectorLocales();return false;" class="salir">Salir</a>':'Romo’s Sushi · La Serena · Balmaceda 1612'):'Selecciona una sucursal para empezar';
+  const romoNeon=$("romoNeonEstadoQA");
+  if(romoNeon&&S.suc===ROMO_SUCURSAL_QA){
+   const estadoNeon=window.ukiRomoSesionRemotaQA?.estado?.();
+   romoNeon.textContent=Number.isSafeInteger(estadoNeon?.revision)&&estadoNeon.revision>=1?
+    "Romo · Neon cifrado · última revisión cargada: "+estadoNeon.revision:
+    "Romo · conexión operativa no verificada";
+  }
   $("nav").style.display=S.suc?"grid":"none";
   ukiAccesosDesplazamiento();
   $("nav").innerHTML=(S.suc===ROMO_SUCURSAL_QA?VISTAS.filter(([k])=>['pedidos','nuevo','caja'].includes(k)):VISTAS).map(([k,l,icon])=>`<button type="button" class="${S.vista===k?"on":""}" onclick="ir('${k}')" aria-label="${l}" ${S.vista===k?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${l}</span></button>`).join("");
