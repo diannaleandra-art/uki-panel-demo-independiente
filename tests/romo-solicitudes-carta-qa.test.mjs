@@ -98,3 +98,41 @@ test('inventario no puede ver ni aceptar; el panel oficial Uki no fue alterado',
  assert.match(server,/method==='POST'\?origin===config\.cartaOrigin/);
  assert.doesNotMatch(server,/uki_carta_solicitudes_live/);
 });
+
+test('las reservas de Romo expiran sin convertir solicitudes en ventas',async()=>{
+ const queries=[];
+ const db={query:async(sql,args)=>{
+  queries.push({sql,args});
+  if(sql.startsWith('SELECT id,branch'))return [];
+  if(sql.startsWith('UPDATE '))return [{id:UUID,reserva_hasta:'2026-11-14T04:00:00Z'}];
+  throw Error('Solo lectura y reserva deben tocar solicitudes Romo');
+ }};
+ await listarSolicitudesRomo({db,identity:user});
+ await reservarSolicitudRomo({db,identity:user,id:UUID,claimToken:second});
+ await rechazarSolicitudRomo({db,identity:user,id:UUID,motivo:'Cliente ya no lo necesita'});
+ assert.match(queries[0].sql,/reserva_hasta>now\(\)\) AS en_reserva/);
+ assert.match(queries[1].sql,/reserva_hasta<=now\(\)/);
+ assert.match(queries[1].sql,/estado='pendiente'/);
+ assert.match(queries[2].sql,/reserva_hasta<=now\(\)/);
+ assert.match(queries[2].sql,/reserva_token_hash='',reserva_hasta=NULL/);
+ assert(queries.every(q=>/public\.romo_solicitudes_carta_v1/.test(q.sql)));
+ assert(queries.every(q=>!/public\.(?:uki_|fin_)/.test(q.sql)));
+ assert(queries.every(q=>!/romos?_[a-z]*pagos/i.test(q.sql)));
+});
+test('solo se acepta dentro de la reserva vigente y con el token correcto',async()=>{
+ const queries=[];
+ const db={query:async(q,args)=>{
+  queries.push(q);return [{id:UUID,pedido_interno:'25',revision:Number(args[5])+1}];
+ }};
+ await aceptarYGuardarSolicitudRomo({db,identity:user,id:UUID,claimToken:second,
+  pedidoId:'25',expectedRevision:0,snapshot:snap});
+ await aceptarYGuardarSolicitudRomo({db,identity:user,id:UUID,claimToken:second,
+  pedidoId:'25',expectedRevision:1,snapshot:snap});
+ assert.equal(queries.length,2);
+ for(const sql of queries){
+  assert.match(sql,/reserva_token_hash=\$3 AND reserva_hasta>now\(\) FOR UPDATE/);
+  assert.match(sql,/estado='pendiente'/);
+  assert.match(sql,/WITH selected AS/);
+  assert.match(sql,/accepted AS/);
+ }
+});

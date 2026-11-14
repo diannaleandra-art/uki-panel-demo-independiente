@@ -38,3 +38,6 @@ Se detectó que la clave de Uki no puede verificarse realmente desde otro domini
 
 ## 14-11-2026 · Preparación de inventario en Neon QA
 Se identificó que la API de inventario solo admitía entorno production. Ahora admite un modo **QA** estrictamente limitado a la rama de integración, requiere `ROMO_INVENTARIO_QA_ENABLED=true` además de `ROMO_OPERATIVO_QA_ENABLED=true`, y usa exclusivamente `romoOperativoConfig` para su base y origen aislados. El modo QA queda **apagado** porque la nueva bandera no fue configurada en Vercel. Google y rol se siguen verificando en servidor, la producción conserva sus dos banderas live, y no se tocó ninguna tabla ni inventario Uki. Se añadieron pruebas de acceso y cierre por defecto.
+
+## 14-11-2026 · Recuperación de solicitudes abandonadas
+Se encontró que las reservas de 30 minutos estaban protegidas por token, pero la consulta y el nuevo bloqueo ignoraban la fecha de caducidad. Ahora una **reserva vencida** vuelve a poder seleccionarse para revisión; el rechazo con motivo limpia la reserva vencida, y la aceptación requiere además un token vigente. Reservas vigentes de otro equipo siguen bloqueadas. No se crea venta, timbre ni cobro al vencer el plazo. La recuperación solo funciona si la API Romo QA se habilita y despliega en preview, nunca en la carta pública por sí sola.
