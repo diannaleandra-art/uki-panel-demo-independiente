@@ -847,6 +847,9 @@ async function ukiRomoGoogleEnAccesoQA(){
  }catch(e){aviso('No se pudo conectar Google: '+String(e?.message||e))}
 }
 async function ukiRomoAbrirEnPanelQA(password){
+ // Copia local del segundo campo: nunca se guarda, transmite ni vuelve a leer
+ // después de un render o un cambio de pantalla durante la petición.
+ const confirmacionInicial=String($('ukiRomoConfirmacionClaveQA')?.value||'');
  if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA)throw Error('Romo aún está en pruebas');
  if(S.suc)throw Error('Cierra la sucursal anterior');
  const google=async()=>window.ukiInventarioToken?.();
@@ -878,10 +881,9 @@ async function ukiRomoAbrirEnPanelQA(password){
    return true;
   },
   confirmarClaveInicial:async(pass)=>{
-   // Primera apertura QA: confirmar dos entradas iguales; no verificar ni
-   // copiar la clave de Uki desde otro dominio ni guardarla en Neon.
-   const repetida=String($('ukiRomoConfirmacionClaveQA')?.value||'');
-   return repetida.length>=12&&repetida===pass;
+   // Usar lo escrito ANTES de las consultas asíncronas: render() puede
+   // eliminar el formulario mientras se comprueban Google y Neon.
+   return confirmacionInicial.length>=12&&confirmacionInicial===pass;
   },
   crearInicial:()=>estadoVacioSucursal(ROMO_SUCURSAL_QA),
   validarEstado:validarEstadoSucursal,
@@ -1623,12 +1625,24 @@ function pedirPin(s){
  if(!SUCURSALES_PANEL_QA.includes(s))return;
  S.romoSeleccionadoQA=false;S.romoIngresadoQA=false;S.pinSuc=s;render();
 }
+let ukiRomoAccesoOcupadoQA=false;
 async function entrarSuc(){
- const s=S.pinSuc,pass=$("ukiAccesoClave")?.value||"";
- const esRomo=s===ROMO_SUCURSAL_QA;
+ const s=S.pinSuc,esRomo=s===ROMO_SUCURSAL_QA;
+ // Un doble toque puede terminar una apertura correcta y luego mostrar
+ // un falso error al intentar leer un formulario que el primer render quitó.
+ if(esRomo&&ukiRomoAccesoOcupadoQA)return;
+ const pass=$("ukiAccesoClave")?.value||"";
  const nueva=!esRomo&&localStorage.getItem(claveLocal(s))===null;
  if(pass.length<12){aviso("Utiliza una clave de al menos 12 caracteres.");return;}
  if(nueva&&pass!==($("ukiAccesoConfirmar")?.value||"")){aviso("Las claves no coinciden.");return;}
+ if(esRomo){
+  const repetida=String($('ukiRomoConfirmacionClaveQA')?.value||'');
+  if(repetida&&repetida!==pass){
+   aviso('La confirmación no coincide. Revisa los dos campos antes de abrir Romo.');
+   return;
+  }
+  ukiRomoAccesoOcupadoQA=true;
+ }
  try{
   if(esRomo){
    if(ROMO_PANEL_INTEGRACION_HABILITADA_QA){
@@ -1643,7 +1657,8 @@ async function entrarSuc(){
   render();
  }catch(e){aviso(esRomo?
   'No se abrió la prueba Romo: '+String(e?.message||e):
-  'Clave incorrecta, datos dañados o cifrado no disponible.');}
+  'Clave incorrecta, datos dañados o cifrado no disponible.');
+ }finally{if(esRomo)ukiRomoAccesoOcupadoQA=false;}
 }
 async function salirSuc(){
  if(S.suc===ROMO_SUCURSAL_QA){

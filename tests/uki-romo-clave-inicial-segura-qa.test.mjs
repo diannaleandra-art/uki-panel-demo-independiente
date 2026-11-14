@@ -59,3 +59,14 @@ test('panel usa campo password solo primera apertura y conserva las sucursales U
  assert.match(html,/const SUCURSALES=\["Uki Regimiento Arica","Uki La Serena"\]/);
  assert.match(html,/Esta dirección no puede comprobar la clave contra Uki original/);
 });
+
+test('la primera clave de Romo se captura antes de comenzar las peticiones, no tras render',()=>{
+ const html=readFileSync(new URL('../firebase/uki-sushi-local.html',import.meta.url),'utf8');
+ const inicio=html.indexOf('async function ukiRomoAbrirEnPanelQA(password){');
+ const previo=html.slice(inicio,html.indexOf('const google=async()=>',inicio));
+ assert.match(previo,/const confirmacionInicial=String\(\$\('ukiRomoConfirmacionClaveQA'\)\?\.value\|\|''\)/);
+ const callback=html.slice(html.indexOf('confirmarClaveInicial:async(pass)=>',inicio),
+  html.indexOf('crearInicial:',inicio));
+ assert.match(callback,/confirmacionInicial\.length>=12&&confirmacionInicial===pass/);
+ assert.doesNotMatch(callback,/\$\('ukiRomoConfirmacionClaveQA'\)/);
+});

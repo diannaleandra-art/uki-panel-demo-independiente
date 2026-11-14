@@ -48,6 +48,7 @@ jobs:
             tests/uki-romo-inventario-panel-qa.test.mjs \
             tests/uki-romo-clave-preview-qa.test.mjs \
             tests/uki-romo-clave-inicial-segura-qa.test.mjs \
+            tests/uki-romo-ingreso-doble-toque-qa.test.mjs \
             tests/uki-romo-diagnostico-panel-qa.test.mjs \
             tests/uki-romo-borrador-fecha-prueba-qa.test.mjs \
             tests/uki-romo-caja-formulario-qa.test.mjs \
