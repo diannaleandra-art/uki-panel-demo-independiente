@@ -873,6 +873,14 @@ async function entrarSuc(){
        cifrar:datos=>cifrarLocal(datos,s,key,salt)};
      }
     });
+    // Una caja sin estado inicializado nunca debe activarse por un render
+    // (render() autoguarda). Primer sellado: acción posterior, explícita.
+    if(unlocked.revision===0){
+     session.cerrar();
+     S.pinSuc=null;S.romoSeleccionadoQA=true;S.romoIngresadoQA=false;
+     S.msg="La conexión segura de Romo funciona. La sucursal todavía no tiene caja inicializada; se habilitará mediante un paso de dueños separado. No se guardó ningún movimiento.";
+     render();return;
+    }
     // El MISMO panel y las MISMAS vistas; el servidor sólo entrega datos Romo.
     S={...estadoVacioSucursal(s),...unlocked.estado,
       suc:s,pinSuc:null,vista:"inicio",msg:null,busy:false,confirmCierre:false};

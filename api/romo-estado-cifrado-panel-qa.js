@@ -51,6 +51,11 @@ module.exports=async function romoEstadoCifradoPanelQA(req,res){
  if(!['GET','POST'].includes(req.method))return send(res,405,'Método no permitido');
  if(req.method==='POST'&&process.env.ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED!=='true')
    return send(res,503,'Guardado Romo todavía no habilitado');
+ // La primera inicialización requiere una autorización independiente de
+ // las actualizaciones corrientes; ninguna flag está activada en QA.
+ if(req.method==='POST'&&req.body?.expectedRevision===0&&
+    process.env.ROMO_ESTADO_INICIALIZACION_QA_ENABLED!=='true')
+   return send(res,503,'Inicialización de Romo pendiente de aprobación');
 
  try{
   const neon=require('@neondatabase/serverless').neon(conf.url);

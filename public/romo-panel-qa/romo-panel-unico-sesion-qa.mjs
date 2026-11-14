@@ -89,6 +89,10 @@ export function crearSesionPanelUnicoRomoQA({
   },
   async guardar(estado){
    const current=requireSession();
+   // Evita que render() o navegar por la UI inicialice caja antes de
+   // la autorización manual de dueños para el primer sobre cifrado.
+   if(current.revision===0)
+    throw Error('Primero debes autorizar la inicialización de Romo; no se guardó nada');
    validarDatosRomo(estado,validarEstado);
    const serialized=JSON.stringify(estado);
    if(serialized===current.ultimoEstado)
