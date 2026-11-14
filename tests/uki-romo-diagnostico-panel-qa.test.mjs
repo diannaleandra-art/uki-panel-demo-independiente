@@ -41,3 +41,16 @@ test('Romo diagnostico GET con Google y rol dueños, sin escrituras',()=>{
  assert.doesNotMatch(src,/INSERT INTO|UPDATE public|DELETE FROM|RETURNING snapshot/);
  assert.doesNotMatch(src,/SELECT [^\n]*cliente|SELECT [^\n]*telefono/);
 });
+
+test('selector Romo reutiliza Google y consulta metadatos, sin operar caja',()=>{
+ const html=readFileSync(new URL('../firebase/uki-sushi-local.html',import.meta.url),'utf8');
+ const block=html.slice(html.indexOf('function vInicio(){'),html.indexOf('function vPedidos(){'));
+ assert.match(block,/Entrar con Google para Romo/);
+ assert.match(block,/Comprobar conexión de Romo/);
+ assert.match(html,/window\.ukiRomoGoogleEntrarQA=async/);
+ assert.match(html,/async function ukiRomoConsultarEstadoDiagnosticoQA\(\)/);
+ assert.match(html,/result\.modo!=='solo_lectura'/);
+ assert.match(html,/const ROMO_PANEL_INTEGRACION_HABILITADA_QA=false/);
+ assert.match(html,/const SUCURSALES=\["Uki Regimiento Arica","Uki La Serena"\]/);
+ assert.match(html,/const UKI_OPERACION_HABILITADA=location\.hostname==='diannaleandra-art\.github\.io'/);
+});

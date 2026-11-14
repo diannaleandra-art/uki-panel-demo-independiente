@@ -138,3 +138,12 @@ esté autorizada. La página normal mantiene su endpoint original.
 No se publica un segundo panel y no se habilitan las banderas QA.
 Hace falta autorizar el dominio de Vercel en Firebase y configurar
 las variables privadas en Preview para que el inicio de sesión funcione.
+
+## 14 noviembre 2026 · Verificación operativa Romo desde el mismo panel QA
+Se incorporó al selector una verificación Google de solo lectura que utiliza
+`/api/romo-panel-diagnostico-qa` del proyecto inventario en preview.
+Devuelve únicamente revisión, turnos, solicitudes pendientes y cierres de la
+base Romo QA. No descifra, escribe ni muestra información de clientes.
+La contraseña habitual de Uki sigue sin comprobarse en este dominio;
+por seguridad no se habilitan pedidos ni caja, y se mantienen los flags de
+operación en `false`. Se mantiene sin cambios la producción de Uki.

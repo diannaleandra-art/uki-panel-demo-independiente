@@ -768,6 +768,58 @@ function ukiRomoVerPreparacionQA(){
 
 /* Romo usa el mismo selector, editor y botón que Uki; se mantiene apagado.
  * Las operaciones requieren Google, contraseña Uki y Neon Romo separado. */
+
+// Solo lectura: prueba la base exclusiva de Romo sin modificar cajas Uki.
+const ROMO_PANEL_DIAG_ENDPOINT_QA='https://uki-sushi-inventario-git-qa-integraci-dc8aa9-diannaleandra-7046.vercel.app/api/romo-panel-diagnostico-qa';
+const ROMO_PANEL_DIAG_HOST_QA='uki-sushi-panel-git-qa-integracion-pa-261e5e-diannaleandra-7046.vercel.app';
+function ukiRomoMensajeDiagnosticoQA(mensaje){
+ const out=document.getElementById('romoPanelDiagnosticoEstadoQA');
+ if(out)out.textContent=String(mensaje||'');
+}
+async function ukiRomoEntrarGoogleDiagnosticoQA(){
+ if(location.hostname!==ROMO_PANEL_DIAG_HOST_QA||
+    S.suc||S.pinSuc||!S.romoSeleccionadoQA)return;
+ ukiRomoMensajeDiagnosticoQA('Comprobando Google…');
+ try{
+  if(typeof window.ukiRomoGoogleEntrarQA!=='function')
+   throw Error('Google aún no está disponible en este panel.');
+  await window.ukiRomoGoogleEntrarQA();
+  ukiRomoMensajeDiagnosticoQA('Google conectado. Pulsa «Comprobar conexión de Romo».');
+ }catch{
+  ukiRomoMensajeDiagnosticoQA('No se comprobó Google. Inicia sesión con tu cuenta habitual.');
+ }
+}
+async function ukiRomoConsultarEstadoDiagnosticoQA(){
+ if(location.hostname!==ROMO_PANEL_DIAG_HOST_QA||
+    S.suc||S.pinSuc||!S.romoSeleccionadoQA)return;
+ ukiRomoMensajeDiagnosticoQA('Consultando la base aislada de Romo…');
+ try{
+  const token=await window.ukiInventarioToken?.();
+  if(typeof token!=='string'||token.length<30)
+   throw Error('Primero pulsa «Entrar con Google para Romo».');
+  const response=await fetch(ROMO_PANEL_DIAG_ENDPOINT_QA,{
+   method:'GET',cache:'no-store',credentials:'omit',
+   headers:{Authorization:'Bearer '+token}
+  });
+  const result=await response.json().catch(()=>null);
+  if(!response.ok||result?.ok!==true||result.storeId!=='romo:serena'||
+     result.modo!=='solo_lectura'||result.operacionesHabilitadas!==false)
+   throw Error(result?.error||'No se confirmó acceso a la sucursal.');
+  for(const k of ['revision','turnos','solicitudesPendientes','cierresConfirmados'])
+   if(!Number.isSafeInteger(result[k])||result[k]<0)
+    throw Error('Resultado de Romo incompleto.');
+  ukiRomoMensajeDiagnosticoQA(
+   'Romo conectado · Revisión '+result.revision+
+   ' · Turnos '+result.turnos+
+   ' · Solicitudes pendientes '+result.solicitudesPendientes+
+   ' · Cierres '+result.cierresConfirmados+
+   '. Ningún pedido fue modificado.'
+  );
+ }catch(error){
+  ukiRomoMensajeDiagnosticoQA('Diagnóstico sin confirmar: '+String(error?.message||'Verifica Google.'));
+ }
+}
+
 const ROMO_PANEL_INTEGRACION_HABILITADA_QA=false;
 let ukiRomoControlPanelQA=null,ukiRomoRevisionVisibleQA=null,ukiRomoBandejaVisibleQA=[];
 async function ukiRomoAbrirEnPanelQA(password){
@@ -1618,7 +1670,12 @@ function vInicio(){
   return '<section class="card" id="romoLaSerenaPreparacionQA" aria-label="Romo’s Sushi La Serena">'+
    '<h2>Romo’s Sushi · La Serena</h2><p><b>Balmaceda 1612, La Serena</b></p>'+
    '<p class="aviso" role="status">Vista informativa de Romo · sin sesión ni acceso a pedidos reales. La contraseña no ha sido comprobada y las operaciones siguen desactivadas.</p>'+
-   '<p class="muted">Preparado en pruebas: pedidos, timbres, entregas, edición sin pago e inventario independiente. Aún falta activar las conexiones operativas y validar cierres y permisos.</p>'+
+   '<p class="muted">Preparado en pruebas: pedidos, timbres, entregas, edición sin pago e inventario independiente. Las operaciones reales continúan desactivadas.</p>'+
+   '<div class="card"><h3>Comprobar conexión del panel</h3>'+
+   '<p class="muted">Solo lectura de Romo con Google. Sin introducir tu contraseña Uki.</p>'+
+   '<button class="big" type="button" onclick="ukiRomoEntrarGoogleDiagnosticoQA()">Entrar con Google para Romo</button>'+
+   '<button class="big" type="button" onclick="ukiRomoConsultarEstadoDiagnosticoQA()">Comprobar conexión de Romo</button>'+
+   '<p role="status" id="romoPanelDiagnosticoEstadoQA" class="muted">Sin comprobación operativa todavía.</p></div>'+
    '<button class="big" type="button" onclick="ukiVolverAlSelectorLocales()">Salir de sucursal</button></section>';
  }
  if(S.pinSuc){
@@ -6668,6 +6725,12 @@ const UKI_OPERACION_HABILITADA=location.hostname==='diannaleandra-art.github.io'
 const auth=getAuth(initializeApp(config)),db=getFirestore(auth.app);
 // Para inventario se utiliza esta misma sesión Google, nunca el PIN del trabajador.
 window.ukiInventarioToken=async()=>auth.currentUser?auth.currentUser.getIdToken():null;
+window.ukiRomoGoogleEntrarQA=async()=>{
+ if(location.hostname!=='uki-sushi-panel-git-qa-integracion-pa-261e5e-diannaleandra-7046.vercel.app')
+  throw Error('Ingreso exclusivo de Romo QA');
+ if(!auth.currentUser)await signInWithPopup(auth,new GoogleAuthProvider());
+ return !!auth.currentUser;
+};
 const cloud=crearSnapshotsUki({db,auth,api:{doc,getDocFromServer,writeBatch,runTransaction},
  blocks:{dividirEstado,reunirEstado},
  codec:{nuevaSal,nuevaGeneracion,derivarClave,cifrarBloque,descifrarBloque}});
