@@ -57,3 +57,17 @@ de aceptar un cierre. La bandera ROMO_CIERRE_RECIBO_LIVE_ENABLED
 sigue apagada y el SQL se instalará solo en rama aislada QA.
 El servidor no puede recalcular el contenido AES-GCM sin clave del
 dueño; se requiere conciliación de importes antes de operar.
+
+## 13 noviembre 2026 · Sincronización QA automática tras ingreso dueños
+Se preparó la acción de servidor `sincronizar_cierres_romo_qa` en Mi Administración. Se ejecutaría al
+consultar cierres desde la misma sesión Google y PIN, sólo si las banderas explícitas
+están habilitadas. El servidor comprueba además el rol duenos activo en Neon Romo y
+lee las constancias directamente de la base Romo, sin admitir importes del navegador.
+Solo se admiten dos endpoints **de las ramas de prueba**:
+Neon finanzas QA `ep-lucky-band-b5j3itkw.c-7.us-east-2.aws.neon.tech`
+y Neon Romo QA `ep-gentle-paper-beusxztt.c-9.us-east-2.aws.neon.tech`.
+La escritura es idempotente: turno repetido no vuelve a sumar ventas; monto
+diferente exige conciliación. Sin datos de clientes, sin cambios a tablas Uki.
+Banderas `ROMO_FIN_SYNC_QA_ENABLED`, `ROMO_FIN_OWNER_SYNC_QA_ENABLED`
+y `ROMO_FIN_OWNER_READ_QA_ENABLED` siguen desactivadas. La ruta está guardada
+en rama GitHub QA, no publicada ni conectada a credenciales.

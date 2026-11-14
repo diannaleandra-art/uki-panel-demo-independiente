@@ -76,9 +76,9 @@ test('sin PIN, sin rol dueños o con fecha fuera de rango no consulta nada',asyn
  }
  assert.equal(w.queries.length,0);
 });
-test('la constancia discrepante no entra a Mi Administración',async()=>{
+test('una constancia que no coincide con el turno no entra a Mi Administración',async()=>{
  const w=setup();w.original.resumen={...w.original.resumen,
-  venta_total:10000,medios:{Efectivo:10000}};
+  turno_ref:'otro-turno'};
  await assert.rejects(sincronizarCierresRomoDuenosQA(config(w)));
  assert.equal(w.finRows.size,0);
 });

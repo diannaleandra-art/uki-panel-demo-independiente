@@ -134,6 +134,39 @@ module.exports=async(req,res)=>{
    return ok(res,{sesion:token,minutos:30});
   }
   if(!await authorized(sql,req,who))return fail(res,401,'Introduce el código privado para continuar.');
+  if(action==='sincronizar_cierres_romo_qa'){
+   // Esta acción llega DESPUÉS de validar Google y PIN privado arriba.
+   // No confía en totales/roles enviados por el navegador.
+   const sync=await import('../lib/romo-finanzas-sync-qa.mjs');
+   const qa=sync.configurarSincronizacionRomoQA(process.env);
+   if(!qa)return fail(res,503,'Sincronización Romo no habilitada.');
+   if(!validDate(body.desde)||!validDate(body.hasta))
+    return fail(res,400,'Revisa el período de cierres.');
+   const client=require('@neondatabase/serverless').neon;
+   const dbFinQa=client(qa.financeUrl),dbRomoQa=client(qa.romoUrl);
+   const identityModule=await import('../lib/romo-identidad-servidor-qa.mjs');
+   let identity;
+   try{
+    identity=await identityModule.resolveRomoIdentity({
+     authorization:req.headers.authorization,db:dbRomoQa,
+     verifyToken:identityModule.verifyFirebaseGoogleToken,env:process.env
+    });
+   }catch{return fail(res,503,'No se pudo validar el permiso de Romo.');}
+   if(!identity||identity.role!=='duenos'||identity.userId!==who.uid)
+    return fail(res,403,'Solo dueños autorizados pueden sincronizar Romo.');
+   try{
+    const result=await sync.sincronizarCierresRomoDuenosQA({
+     dbFin:dbFinQa,dbRomo:dbRomoQa,identity,pinVerified:true,
+     desde:body.desde,hasta:body.hasta
+    });
+    return ok(res,{...result,soloQA:true});
+   }catch(error){
+    if(error?.code==='ROMO_CIERRE_DATOS_DIFERENTES'||
+      /constancia|cierre.*diferente|inconsistente/i.test(String(error?.message||'')))
+     return fail(res,409,'Cierre Romo requiere conciliación. No se modificaron cierres Uki.');
+    return fail(res,503,'No se confirmó la sincronización de Romo. Revisa los cierres en Neon.');
+   }
+  }
   if(action==='listar_cierres_romo_qa'){
    // Esta lectura privada exige el MISMO Google + PIN de Mi Administración,
    // ya validados arriba; jamás recibe montos ni datos del navegador.
