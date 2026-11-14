@@ -837,12 +837,12 @@ async function entrarSuc(){
     const googleVerificado=!!(await window.ukiInventarioToken?.());
     const unlocked=await session.abrir({
      googleVerificado,claveUkiVerificada:true,
-     desbloquearSobre:async snapshot=>{
+     abrirCifrado:async snapshot=>{
       const opened=await abrirLocal(JSON.stringify(snapshot),s,pass);
       return {estado:opened.estado,
        cifrar:datos=>cifrarLocal(datos,s,opened.key,opened.salt)};
      },
-     prepararEstadoInicial:async()=>{
+     prepararNuevo:async()=>{
       const salt=crypto.getRandomValues(new Uint8Array(16));
       const key=await ukiClaveBackup(pass,salt);
       return {estado:estadoVacioSucursal(s),
@@ -855,13 +855,13 @@ async function entrarSuc(){
     S.romoSeleccionadoQA=false;S.romoIngresadoQA=true;
    }else{
     // Mantener la pantalla de preparación ya aprobada; NO registrar operaciones.
-    S.pinSuc=null;S.romoSeleccionadoQA=true;S.romoIngresadoQA=true;
+    S.pinSuc=null;S.romoSeleccionadoQA=true;S.romoIngresadoQA=false;
    }
   }else{
    await entrarDatosSucursal(s,pass);S.vista="inicio";
   }
   render();
- }catch(e){aviso(esRomo?"No se pudo comprobar tu contraseña habitual de Uki en este equipo.":"Clave incorrecta, datos dañados o cifrado no disponible.");}
+ }catch(e){aviso(esRomo?"Romo todavía no pudo abrirse. Revisa la cuenta Google, la clave habitual y la conexión independiente. No se guardó ningún movimiento.":"Clave incorrecta, datos dañados o cifrado no disponible.");}
 }
 async function salirSuc(){
  if(ukiSolicitudWhatsAppActiva)ukiWhatsAppPausarRevision();
@@ -926,7 +926,7 @@ function vInicio(){
  if(!S.suc&&!S.pinSuc&&S.romoSeleccionadoQA){
   return '<section class="card" id="romoLaSerenaPreparacionQA" aria-label="Romo’s Sushi La Serena">'+
    '<h2>Romo’s Sushi · La Serena</h2><p><b>Balmaceda 1612, La Serena</b></p>'+
-   '<p class="aviso" role="status">Ingreso de prueba completado. Aún no están conectados los pedidos, caja, inventario y cierres independientes de Romo. No registres operaciones aquí.</p>'+
+   '<p class="aviso" role="status">Acceso de Romo en preparación: todavía no se confirmó la conexión operativa con Neon. No registres pedidos, caja, inventario ni cierres aquí. Uki continúa funcionando por separado.</p>'+
    (window.ukiRomoClaveAltaDisponibleQA?.()?'<details id="romoEnrolamientoQA"><summary>Vincular la contraseña habitual</summary>'+
      '<p class="muted">Solo dueños. Utiliza la clave que ya usas en Uki. Este proceso no cambia tu contraseña.</p>'+
      '<label for="romoClaveUkiOrigenQA">Sucursal de la clave</label>'+
