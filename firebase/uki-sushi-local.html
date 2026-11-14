@@ -1633,6 +1633,54 @@ async function romoConfirmarCierreQA(){
  }finally{romoCierreOcupadoQA=false}
 }
 
+let romoHistorialDesdeQA='',romoHistorialHastaQA='',romoHistorialBusquedaQA='';
+function romoHistorialCambiarFiltroQA(tipo,valor){
+ if(S.suc!==ROMO_SUCURSAL_QA)return;
+ const v=String(valor||'').trim();
+ if(tipo==='desde')romoHistorialDesdeQA=v;
+ else if(tipo==='hasta')romoHistorialHastaQA=v;
+ else if(tipo==='busqueda')romoHistorialBusquedaQA=v.slice(0,120);
+ render();
+}
+function vRomoHistorialQA(fuente){
+ const modulo=window.ukiRomoCajaConsultaQA;
+ if(!modulo?.consultarHistorialRomoQA)
+  return '<section class="card"><h2>Historial · Romo</h2><p>Historial de pedidos aún no disponible.</p></section>';
+ const h=modulo.consultarHistorialRomoQA(fuente,{
+  desde:romoHistorialDesdeQA,hasta:romoHistorialHastaQA,
+  busqueda:romoHistorialBusquedaQA,maxResultados:100
+ });
+ const lista=h.filas.map(p=>'<details class="card">'+
+  '<summary><b>Turno #'+esc(p.turno)+'</b> · '+esc(p.cliente||'Cliente')+
+  (p.codigo?' · Carta #'+esc(p.codigo):'')+' · '+esc(p.estado)+
+  ' · '+(p.pagado?'Pagado':'Por cobrar')+'</summary>'+
+  '<p>'+esc(p.fecha)+' · Total '+fmt(p.total)+
+  (p.whatsappUltimos4?' · WhatsApp terminado en '+esc(p.whatsappUltimos4):'')+'</p>'+
+  '<ul>'+p.productos.map(x=>'<li>'+esc(x.cantidad)+' × '+esc(x.nombre)+
+   ' · '+fmt(x.cantidad*x.precioUnit)+
+   (x.detalle?' · '+esc(x.detalle):'')+'</li>').join('')+'</ul>'+
+  (p.eventos.length?'<details><summary>Modificaciones ('+p.eventos.length+
+   ')</summary>'+p.eventos.map(e=>'<p>'+esc(e.tipo)+' · '+esc(e.responsable)+
+    ' · '+esc(e.fecha)+(e.motivo?' · '+esc(e.motivo):'')+
+    (e.totalAnterior!==null&&e.totalNuevo!==null?
+     ' · Total '+fmt(e.totalAnterior)+' → '+fmt(e.totalNuevo):'')+'</p>').join('')+
+   '</details>':'<p class="muted">Sin modificaciones registradas.</p>')+
+  '</details>').join('');
+ return '<section class="card"><h2>Historial de pedidos · Romo La Serena</h2>'+
+  '<p class="muted">Solo pedidos confirmados del estado cifrado en Neon. Incluye entregados, cancelados y pendientes de jornadas anteriores. No cambia Caja ni ventas.</p>'+
+  '<label for="romoHistorialDesdeQA">Desde</label><input id="romoHistorialDesdeQA" type="date" value="'+
+  esc(romoHistorialDesdeQA)+'" onchange="romoHistorialCambiarFiltroQA(\'desde\',this.value)">'+
+  '<label for="romoHistorialHastaQA">Hasta</label><input id="romoHistorialHastaQA" type="date" value="'+
+  esc(romoHistorialHastaQA)+'" onchange="romoHistorialCambiarFiltroQA(\'hasta\',this.value)">'+
+  '<label for="romoHistorialBusquedaQA">Buscar por nombre, código o WhatsApp</label>'+
+  '<input id="romoHistorialBusquedaQA" maxlength="120" value="'+esc(romoHistorialBusquedaQA)+
+  '" placeholder="Nombre o número del pedido" onchange="romoHistorialCambiarFiltroQA(\'busqueda\',this.value)">'+
+  '<p><b>'+h.encontrados+' pedido(s)</b> · '+h.pagados+' pagados · '+
+  h.pendientes+' por cobrar · '+h.cancelados+' cancelados.</p>'+
+  (h.hayMas?'<p class="aviso">Mostrando los primeros 100. Filtra por fecha o busca el pedido.</p>':'')+
+  (lista||'<p class="muted">No hay pedidos para estos filtros.</p>')+
+  '</section>';
+}
 function vRomoCajaConsultaQA(){
  if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||
     S.suc!==ROMO_SUCURSAL_QA)return vInicio();
@@ -1648,7 +1696,12 @@ function vRomoCajaConsultaQA(){
   const dinero=n=>fmt(n);
   const cajaNeon=fuente.cajasDiarias?.[ROMO_SUCURSAL_QA+'|'+periodo];
   const turnoAbierto=cajaNeon?.turnoAbierto===true;
-  return romoFormularioCierreQA()+'<section class="card"><h2>Caja · Romo La Serena</h2>'+
+  const historialActivo=cajaTab==='historial';
+  const tabs='<div class="card uki-navegacion-caja">'+
+   '<button type="button" class="sm" onclick="cambiarCajaTab(\'resumen\')">Resumen de Caja</button>'+
+   '<button type="button" class="sm" onclick="cambiarCajaTab(\'historial\')">Historial de pedidos</button></div>';
+  if(historialActivo)return tabs+vRomoHistorialQA(fuente);
+  return tabs+romoFormularioCierreQA()+'<section class="card"><h2>Caja · Romo La Serena</h2>'+
    '<p class="muted">Vista de consulta. Jornada '+esc(t.fecha)+
    ' · Lectura del estado de Romo en Neon · Revisión '+esc(ukiRomoRevisionVisibleQA)+'.</p>'+ 
    '<p class="muted">'+(turnoAbierto?'Turno abierto en Romo.':'Sin turno abierto confirmado. Las solicitudes pendientes todavía no son ventas.')+'</p>'+

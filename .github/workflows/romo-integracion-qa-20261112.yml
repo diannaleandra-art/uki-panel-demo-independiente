@@ -37,6 +37,7 @@ jobs:
             tests/uki-romo-preview-ruta-publicada-qa.test.mjs \
             tests/uki-romo-dos-equipos-qa.test.mjs \
             tests/uki-romo-caja-consulta-qa.test.mjs \
+            tests/uki-romo-historial-qa.test.mjs \
             tests/uki-romo-pedidos-lectura-qa.test.mjs \
             tests/uki-romo-movimientos-atomicos-qa.test.mjs \
             tests/uki-romo-timbres-atomicos-qa.test.mjs \

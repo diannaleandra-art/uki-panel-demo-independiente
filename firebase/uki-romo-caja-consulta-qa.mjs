@@ -119,5 +119,74 @@ export function consultarCajaRomoQA(estado,{fechaOperativa}={}){
   historial:Object.freeze(historial)});
 }
 
+
+/** Historial Romo desde el mismo estado cifrado confirmado por Neon.
+ * Solo lectura. NO suma solicitudes en ventas y no lee ni modifica Uki.
+ */
+const histDia=v=>{
+ const t=String(v||'').slice(0,10);
+ return /^\d{4}-\d{2}-\d{2}$/.test(t)&&
+  !Number.isNaN(Date.parse(t+'T12:00:00Z'))?t:'';
+};
+const buscaNormal=s=>String(s??'').normalize('NFD')
+ .replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+export function consultarHistorialRomoQA(estado,{
+ desde='',hasta='',busqueda='',maxResultados=100
+}={}){
+ if(estado?.suc!==SUC||!Array.isArray(estado.pedidos)||!Array.isArray(estado.cierres))
+  err('Historial no corresponde a Romo La Serena');
+ if(!estado.pedidos.every(p=>p?.suc===SUC)||!estado.cierres.every(c=>c?.suc===SUC))
+  err('El historial contiene otra sucursal');
+ if((desde&&!histDia(desde))||(hasta&&!histDia(hasta))||
+    (desde&&hasta&&desde>hasta))err('Revisa el rango de fechas');
+ if(!Number.isSafeInteger(maxResultados)||maxResultados<1||maxResultados>200)
+  err('Límite de resultados inválido');
+ const filtro=buscaNormal(busqueda);
+ if(filtro.length>120)err('Búsqueda demasiado larga');
+ const encontrados=estado.pedidos.filter(p=>{
+  const fecha=histDia(p.fechaOperativa)||histDia(p.fechaISO);
+  if(!fecha||(desde&&fecha<desde)||(hasta&&fecha>hasta))return false;
+  const campos=[p.id,p.numeroTurno,p.codigoCarta,p.codigoCliente,p.cliente,p.telefono];
+  return !filtro||campos.some(v=>buscaNormal(v).includes(filtro));
+ }).slice().sort((a,b)=>(Number(b.registradoEn)||0)-(Number(a.registradoEn)||0)||
+  (Number(b.id)||0)-(Number(a.id)||0));
+ const filas=encontrados.slice(0,maxResultados).map(p=>{
+  const monto=montoHistorial(p.total,'total de pedido');
+  const eventos=Array.isArray(p.historialCambios)?p.historialCambios.slice(-30).map(x=>({
+   tipo:String(x?.tipo||'Modificación').slice(0,80),
+   fecha:String(x?.fecha||'').slice(0,40),
+   responsable:String(x?.responsable||'').slice(0,80),
+   motivo:String(x?.motivo||'').slice(0,300),
+   totalAnterior:Number.isSafeInteger(x?.anterior?.total)?x.anterior.total:null,
+   totalNuevo:Number.isSafeInteger(x?.nuevo?.total)?x.nuevo.total:null
+  })):[];
+  return Object.freeze({
+   id:Number(p.id),turno:Number(p.numeroTurno||p.id),
+   codigo:String(p.codigoCarta||''),cliente:String(p.cliente||''),
+   whatsappUltimos4:String(p.telefono||'').replace(/\D/g,'').slice(-4),
+   fecha:histDia(p.fechaOperativa)||histDia(p.fechaISO),
+   estado:String(p.estado||'Pendiente'),pagado:p.pagado===true,
+   total:monto,productos:Array.isArray(p.productos)?p.productos.map(x=>({
+    nombre:String(x.nombre||''),cantidad:Number(x.cantidad)||0,
+    precioUnit:Number(x.precioUnit)||0,detalle:String(x.detalle||'').slice(0,12000)
+   })):[],
+   eventos:Object.freeze(eventos)
+  });
+ });
+ return Object.freeze({
+  soloLectura:true,encontrados:encontrados.length,
+  mostrados:filas.length,hayMas:encontrados.length>maxResultados,
+  pagados:encontrados.filter(p=>p.pagado===true&&p.estado!=='Cancelado').length,
+  pendientes:encontrados.filter(p=>p.pagado!==true&&p.estado!=='Cancelado').length,
+  cancelados:encontrados.filter(p=>p.estado==='Cancelado').length,
+  filas:Object.freeze(filas)
+ });
+}
+function montoHistorial(value,label){
+ if(!Number.isSafeInteger(Number(value))||Number(value)<0||Number(value)>100000000)
+  err('Importe de '+label+' inválido');
+ return Number(value);
+}
+
 // La vista clasica reutiliza este módulo puro sin darle permisos de escritura.
-if(typeof window!=='undefined')window.ukiRomoCajaConsultaQA=Object.freeze({consultarCajaRomoQA});
+if(typeof window!=='undefined')window.ukiRomoCajaConsultaQA=Object.freeze({consultarCajaRomoQA,consultarHistorialRomoQA});

@@ -28,3 +28,9 @@ La publicación comercial exige nueva autorización.
 - Los pedidos QA-ROMO-001 y cualquier solicitud con código QA-ROMO-* se mantienen BLOQUEADOS para cobros reales, para no convertir pruebas ficticias en ingresos.
 - El panel cuenta con formulario plegado de cobro y medios de pago, solo para pedidos reales pendientes; esta preparación no está desplegada.
 - No se ha probado una transacción real y no está verificada aún la equivalencia total de Romo con Uki.
+
+## Siguiente lote de pruebas (sin publicar): historial Romo separado
+- Preparada consulta de historial de pedidos desde el mismo snapshot Neon Romo, con fechas, nombre/código/WhatsApp, pendientes, cancelados, pagados y cambios auditados.
+- La vista Historial aparece dentro de Caja de Romo; no utiliza ni reescribe el historial de Uki y no suma solicitudes sin confirmar como ventas.
+- Se preservan los comprobantes de cierres de Romo en Resumen de Caja. No hay acceso público, ni carga de otro almacén, ni cambios en Neon.
+- Pendiente validar visualmente solo en prueba integral final; las exportaciones Excel/PDF/WhatsApp continúan pospuestas por petición de la dueña.
