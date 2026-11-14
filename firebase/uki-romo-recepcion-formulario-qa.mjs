@@ -2,7 +2,7 @@
  * Romo La Serena · usar el MISMO editor de Uki (objeto D), sin crear pantalla.
  * QA apagada: no lee ni escribe ventas ni solicitudes hasta autorización.
  */
-const ENDPOINT='https://uki-sushi-inventario.vercel.app/api/romo-solicitudes-carta-qa';
+const ENDPOINT='https://uki-sushi-inventario-git-qa-integraci-dc8aa9-diannaleandra-7046.vercel.app/api/romo-solicitudes-carta-qa';
 const STORE='romo:serena',BRANCH='serena',SUCURSAL='Romo’s Sushi La Serena';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const ROMO_PANEL_RECEPCION_HABILITADA_QA=false;

@@ -820,8 +820,20 @@ async function ukiRomoConsultarEstadoDiagnosticoQA(){
  }
 }
 
-const ROMO_PANEL_INTEGRACION_HABILITADA_QA=false;
+const ROMO_PANEL_INTEGRACION_HABILITADA_QA=location.hostname==='uki-sushi-panel-git-qa-integracion-pa-261e5e-diannaleandra-7046.vercel.app';
 let ukiRomoControlPanelQA=null,ukiRomoRevisionVisibleQA=null,ukiRomoBandejaVisibleQA=[];
+function ukiRomoAccesoPruebasQA(){
+ if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||S.suc)return;
+ S.romoSeleccionadoQA=false;S.pinSuc=ROMO_SUCURSAL_QA;render();
+}
+async function ukiRomoGoogleEnAccesoQA(){
+ if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||S.pinSuc!==ROMO_SUCURSAL_QA)return;
+ try{await window.ukiRomoGoogleEntrarQA?.();
+ const t=await window.ukiInventarioToken?.();
+ if(typeof t!=='string'||t.length<30)throw Error('Google sin confirmar');
+ aviso('Google conectado. La clave habitual cifrará solo los datos de prueba de Romo.');
+ }catch(e){aviso('No se pudo conectar Google: '+String(e?.message||e))}
+}
 async function ukiRomoAbrirEnPanelQA(password){
  if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA)throw Error('Romo aún está en pruebas');
  if(S.suc)throw Error('Cierra la sucursal anterior');
@@ -846,7 +858,13 @@ async function ukiRomoAbrirEnPanelQA(password){
  const bandeja=r.crearBandejaRomoMismoPanelQA({habilitada:true,getGoogleToken:google});
  const control=c.crearControlRomoMismoPanelQA({
   habilitado:true,estadoRemoto:remoto,bandeja,
-  obtenerToken:google,validarClave:ukiValidarClaveUkiParaRomoQA,
+  obtenerToken:google,// En QA Google+Neon verifican permisos; la clave habitual solo cifra
+  // el estado de Romo y NO puede cotejarse con el dominio Uki original.
+  validarClave:async(pass)=>{
+   if(typeof pass!=='string'||pass.length<12||location.hostname!=='uki-sushi-panel-git-qa-integracion-pa-261e5e-diannaleandra-7046.vercel.app')
+    throw Error('Clave de cifrado o dominio de pruebas inválido');
+   return true;
+  },
   crearInicial:()=>estadoVacioSucursal(ROMO_SUCURSAL_QA),
   validarEstado:validarEstadoSucursal,
   cifrarEstado:datos=>cifrarLocal(datos,ROMO_SUCURSAL_QA,key,salt),
@@ -1315,7 +1333,7 @@ function vRomoPedidosConsultaQA(){
 }
 
 
-const ROMO_PANEL_MOVIMIENTOS_HABILITADOS_QA=false;
+const ROMO_PANEL_MOVIMIENTOS_HABILITADOS_QA=location.hostname==='uki-sushi-panel-git-qa-integracion-pa-261e5e-diannaleandra-7046.vercel.app';
 let ukiRomoMovimientoGuardandoQA=false;
 function ukiRomoFormularioMovimientosQA(){
  if(!ROMO_PANEL_MOVIMIENTOS_HABILITADOS_QA||
@@ -1392,7 +1410,7 @@ async function ukiRomoResumenRelojQA(){
 }
 
 /* Cierre definitivo de Romo en el mismo panel; apagado hasta publicar. */
-const ROMO_PANEL_CIERRE_HABILITADO_QA=false;
+const ROMO_PANEL_CIERRE_HABILITADO_QA=location.hostname==='uki-sushi-panel-git-qa-integracion-pa-261e5e-diannaleandra-7046.vercel.app';
 let romoCierreOcupadoQA=false,romoCierreRevisadoQA=null;
 function romoDiaCajaQA(){
  return /^\d{4}-\d{2}-\d{2}$/.test(S.fechaOperativa||'')?
@@ -1599,7 +1617,9 @@ async function entrarSuc(){
    await entrarDatosSucursal(s,pass);S.vista="inicio";
   }
   render();
- }catch(e){aviso(esRomo?"No se pudo comprobar tu contraseña habitual de Uki en este equipo.":"Clave incorrecta, datos dañados o cifrado no disponible.");}
+ }catch(e){aviso(esRomo?
+  'No se abrió la prueba Romo: '+String(e?.message||e):
+  'Clave incorrecta, datos dañados o cifrado no disponible.');}
 }
 async function salirSuc(){
  if(S.suc===ROMO_SUCURSAL_QA){
@@ -1670,7 +1690,7 @@ function vInicio(){
   return '<section class="card" id="romoLaSerenaPreparacionQA" aria-label="Romo’s Sushi La Serena">'+
    '<h2>Romo’s Sushi · La Serena</h2><p><b>Balmaceda 1612, La Serena</b></p>'+
    '<p class="aviso" role="status">Vista informativa de Romo · sin sesión ni acceso a pedidos reales. La contraseña no ha sido comprobada y las operaciones siguen desactivadas.</p>'+
-   '<p class="muted">Preparado en pruebas: pedidos, timbres, entregas, edición sin pago e inventario independiente. Las operaciones reales continúan desactivadas.</p>'+
+   '<p class="muted">Preparado en pruebas: pedidos, timbres, entregas, edición sin pago e inventario independiente. Las operaciones reales continúan desactivadas.</p>'+ (ROMO_PANEL_INTEGRACION_HABILITADA_QA?'<p class="aviso">Modo pruebas · sin pedidos públicos ni conexión con la caja Uki.</p><button class="big" type="button" onclick="ukiRomoAccesoPruebasQA()">Abrir panel operativo de pruebas</button>':'')+
    '<div class="card"><h3>Comprobar conexión del panel</h3>'+
    '<p class="muted">Solo lectura de Romo con Google. Sin introducir tu contraseña Uki.</p>'+
    '<button class="big" type="button" onclick="ukiRomoEntrarGoogleDiagnosticoQA()">Entrar con Google para Romo</button>'+
@@ -1690,7 +1710,8 @@ function vInicio(){
  }
  const existe=esRomo||!!localStorage.getItem(claveLocal(S.pinSuc));
  return '<div class="card"><h2>'+esc(S.pinSuc)+'</h2>'+
-  '<p class="muted">'+(esRomo?"Ingresa con la misma contraseña de Uki.":existe?"Escribe la contraseña para abrir tus registros cifrados.":"Crea una clave de al menos 12 caracteres para esta sucursal.")+'</p>'+
+  '<p class="muted">'+(esRomo?"Solo pruebas: usa tu clave habitual para cifrar Romo; Google valida permisos. Esta dirección no puede comprobar la clave contra Uki original.":existe?"Escribe la contraseña para abrir tus registros cifrados.":"Crea una clave de al menos 12 caracteres para esta sucursal.")+'</p>'+
+  (esRomo?'<p class="aviso">Solo pruebas · Sin pedidos públicos ni caja Uki.</p><button type="button" class="big" onclick="ukiRomoGoogleEnAccesoQA()">Conectar Google de Romo</button>':'')+
   '<label>Contraseña de acceso</label><input id="ukiAccesoClave" type="password" autocomplete="off" placeholder="Mínimo 12 caracteres">'+
   (existe?'':'<label>Repite la contraseña</label><input id="ukiAccesoConfirmar" type="password" autocomplete="off" placeholder="Confirmar contraseña">')+
   '<button class="big" onclick="entrarSuc()">'+(existe?"Abrir sucursal":"Crear acceso")+'</button>'+

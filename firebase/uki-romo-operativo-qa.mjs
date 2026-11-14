@@ -10,7 +10,7 @@
  */
 export const ROMO_OPERATIVO_SUCURSAL_QA='Romo’s Sushi La Serena';
 export const ROMO_OPERATIVO_ID_QA='romo:serena';
-const ROMO_OPERATIVO_ENDPOINT_QA='https://uki-sushi-inventario.vercel.app/api/romo-estado-operativo-qa';
+const ROMO_OPERATIVO_ENDPOINT_QA='https://uki-sushi-inventario-git-qa-integraci-dc8aa9-diannaleandra-7046.vercel.app/api/romo-estado-operativo-qa';
 export const ROMO_OPERATIVO_CLIENTE_HABILITADO_QA=false;
 
 export class RomoGuardarConflictoQA extends Error{
