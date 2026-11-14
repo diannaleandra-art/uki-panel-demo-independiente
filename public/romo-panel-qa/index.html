@@ -821,6 +821,22 @@ async function ukiRomoDarAltaClaveQA(){
   if($("romoUkiRespaldoClaveQA"))$("romoUkiRespaldoClaveQA").value="";
  }
 }
+async function ukiRomoRevisarAccesoSoloLecturaQA(){
+ const input=$("ukiAccesoClave"),password=input?.value||"";
+ if(S.pinSuc!==ROMO_SUCURSAL_QA){aviso("Selecciona Romo La Serena antes de comprobar.");return;}
+ if(password.length<12){aviso("Escribe la contraseña habitual de Uki en el campo superior.");return;}
+ try{
+  if(typeof window.ukiRomoEstadoConexionLecturaQA!=="function")
+   throw Error("Abre la versión actualizada de pruebas de Romo.");
+  const result=await window.ukiRomoEstadoConexionLecturaQA(password);
+  if(result.inicializado===true)
+   aviso("Conexión segura de Romo confirmada: Google, clave y estado cifrado independiente. Pedidos y caja siguen desactivados.");
+  else
+   aviso("Conexión segura de Romo confirmada: Google, clave y base independiente. Todavía no hay caja ni pedidos inicializados. No se guardó ningún movimiento.");
+ }catch(error){
+  aviso(String(error?.message||"No se pudo comprobar la conexión de Romo."));
+ }finally{if(input)input.value="";}
+}
 function pedirPin(s){
  if(!SUCURSALES_PANEL_QA.includes(s))return;
  S.romoSeleccionadoQA=false;S.romoIngresadoQA=false;S.pinSuc=s;render();
@@ -958,6 +974,8 @@ function vInicio(){
   '<label>Contraseña de acceso</label><input id="ukiAccesoClave" type="password" autocomplete="off" placeholder="Mínimo 12 caracteres">'+
   (existe?'':'<label>Repite la contraseña</label><input id="ukiAccesoConfirmar" type="password" autocomplete="off" placeholder="Confirmar contraseña">')+
   '<button class="big" onclick="entrarSuc()">'+(existe?"Abrir sucursal":"Crear acceso")+'</button>'+
+  (esRomo?'<button type="button" class="big" style="background:#382e2a" onclick="ukiRomoRevisarAccesoSoloLecturaQA()">Comprobar conexión de Romo (solo lectura)</button>'+
+   '<p class="muted">Usa la contraseña del campo superior. Esta comprobación no abre caja ni registra pedidos, ventas o inventario.</p>':'')+
   (esRomo?ukiRomoFormularioVinculacionQA():'')+
   '<p class="muted">La clave no se guarda. Si la pierdes, necesitarás un respaldo. El PIN antiguo de 4 números no protege estos registros.</p></div>';
  }
@@ -5943,6 +5961,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 </script>
 <script type="module" src="./uki-romo-clave-remota-qa.mjs"></script>
 <script type="module" src="./uki-romo-operativo-qa.mjs"></script>
+<script type="module" src="./uki-romo-conexion-lectura-qa.mjs"></script>
 <script type="module" src="./uki-romo-integracion-panel-qa.mjs"></script>
 <script type="module" src="./uki-romo-vinculo-duenos-qa.mjs"></script>
 <script src="./uki-tarjeta-cliente.js" defer></script>
