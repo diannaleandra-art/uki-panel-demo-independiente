@@ -177,9 +177,23 @@ module.exports=async(req,res)=>{
    const desde=body.desde,hasta=body.hasta;
    if(!validDate(desde)||!validDate(hasta)||desde>hasta)
     return fail(res,400,'Fechas de cierres Romo incorrectas.');
+   // Además de Google y PIN general, validar el permiso activo
+   // de dueños directamente en Neon Romo QA antes de consultar ventas.
+   const clientQA=require('@neondatabase/serverless').neon;
+   const dbRomoQA=clientQA(lecturaQA.romoUrl);
+   const identityModule=await import('../lib/romo-identidad-servidor-qa.mjs');
+   let romoIdentity;
+   try{
+    romoIdentity=await identityModule.resolveRomoIdentity({
+     authorization:req.headers.authorization,db:dbRomoQA,
+     verifyToken:identityModule.verifyFirebaseGoogleToken,env:process.env
+    });
+   }catch{return fail(res,503,'No se pudo validar el acceso a los cierres Romo.');}
+   if(!romoIdentity||romoIdentity.role!=='duenos'||romoIdentity.userId!==who.uid)
+    return fail(res,403,'Solo dueños de Romo pueden consultar estos cierres.');
    // No consultar la base habitual de Mi Administración:
-   // la tabla Romo sólo existe en la rama financiera QA.
-   const dbFinQA=require('@neondatabase/serverless').neon(lecturaQA.financeUrl);
+   // la tabla Romo solo existe en la rama financiera QA.
+   const dbFinQA=clientQA(lecturaQA.financeUrl);
    const rows=await dbFinQA.query(
     "SELECT store_id,source_key,turno_ref,fecha_operativa::text AS fecha_operativa,"+
     "venta_total,pedidos,medios,gastos_cierre,delivery_por_pagar,propinas,retiros,"+

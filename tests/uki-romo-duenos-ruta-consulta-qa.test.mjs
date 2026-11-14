@@ -8,7 +8,15 @@ test('solo Google y PIN autorizados pueden entrar en lectura Romo',()=>{
  const pin=api.indexOf("if(!await authorized(sql,req,who))");
  assert.ok(pos>pin&&pin>api.indexOf('const who=await google(req)'));
  assert.match(api,/configurarLecturaCierresRomoQA\(process\.env\)/);
- assert.match(api,/const dbFinQA=require\('@neondatabase\/serverless'\)\.neon\(lecturaQA\.financeUrl\)/);
+ assert.match(api,/const dbRomoQA=clientQA\(lecturaQA\.romoUrl\)/);
+ assert.match(api,/resolveRomoIdentity\(\{/);
+ assert.match(api,/romoIdentity\.role!=='duenos'/);
+ assert.match(api,/romoIdentity\.userId!==who\.uid/);
+ assert.match(api,/const dbFinQA=clientQA\(lecturaQA\.financeUrl\)/);
+ const start=api.indexOf("if(action==='listar_cierres_romo_qa')");
+ const role=api.indexOf("romoIdentity.role!=='duenos'",start);
+ const query=api.indexOf("const rows=await dbFinQA.query",start);
+ assert.ok(start>=0&&role>start&&query>role);
  assert.match(api,/const rows=await dbFinQA\.query\(/);
  assert.doesNotMatch(api.slice(pos,api.indexOf("if(action==='locales_operativos_diagnostico_qa')",pos)),/const rows=await sql\.query/);
  assert.match(api,/WHERE store_id='romo:serena'/);

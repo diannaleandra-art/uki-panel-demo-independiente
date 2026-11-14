@@ -89,3 +89,12 @@ La comparación de constancias normaliza también las claves anidadas de
 los medios de pago, evitando rechazos falsos cuando PostgreSQL JSONB
 reordena los campos. Se añadieron pruebas de regresión. Sin cambios a Uki
 ni activación comercial.
+
+## Consulta privada: comprobación del rol de dueños Romo (QA)
+La acción de lectura de cierres exige la misma sesión Google + PIN de
+Mi Administración **y además** verifica el UID activo y rol `duenos` en la
+base independiente Romo QA, con correo de dueños verificado. Solo entonces
+consulta los importes en finanzas QA. Tanto la conexión financiera como la
+de permisos se limitan a los endpoints de las dos ramas QA.
+La lectura continúa desactivada hasta habilitación autorizada;
+no se modifica la producción ni se exponen credenciales nuevas.
