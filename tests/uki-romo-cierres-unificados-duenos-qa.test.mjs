@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {unirVentasDuenos,unirVentasDuenosConRomoQA}
  from '../public/uki-duenos-ventas-unificadas-qa.mjs';
 const negocio=[{id:'r',nombre:"Romo's Sushi"},{id:'u',nombre:'Uki Sushi'}];
