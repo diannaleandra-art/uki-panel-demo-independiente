@@ -12,7 +12,10 @@ module.exports=async function romoEstadoOperativoQA(req,res){
  res.setHeader('X-Content-Type-Options','nosniff');
  res.setHeader('Vary','Origin');
  const env=process.env;
- if(env.VERCEL_ENV!=='production'||env.ROMO_OPERATIVO_LIVE_ENABLED!=='true')
+ const qa=env.VERCEL_ENV==='preview'&&
+  env.VERCEL_GIT_COMMIT_REF==='qa/integracion-panel-unico-romo-serena-20261112'&&
+  env.ROMO_OPERATIVO_QA_ENABLED==='true';
+ if(!qa&&(env.VERCEL_ENV!=='production'||env.ROMO_OPERATIVO_LIVE_ENABLED!=='true'))
   return fail(res,503,'Romo todavía no está habilitado para operar');
  const actualOrigin=String(req.headers?.origin||'');
  const expectedOrigin=String(env.ROMO_PANEL_ALLOWED_ORIGIN||'');
@@ -66,7 +69,9 @@ module.exports=async function romoEstadoOperativoQA(req,res){
  }
  const body=req.body;
  const esCierre=body?.operation==='cierre_definitivo';
- if(esCierre&&(env.ROMO_CIERRE_DEFINITIVO_LIVE_ENABLED!=='true'||
+ if(esCierre&&(qa?
+  env.ROMO_CIERRE_QA_ENABLED!=='true'||env.ROMO_CIERRE_RECIBO_QA_ENABLED!=='true':
+  env.ROMO_CIERRE_DEFINITIVO_LIVE_ENABLED!=='true'||
   env.ROMO_CIERRE_RECIBO_LIVE_ENABLED!=='true'))
   return fail(res,503,'Cierre y constancia de Romo todavía no autorizados');
  if(!body||typeof body!=='object'||Array.isArray(body)||

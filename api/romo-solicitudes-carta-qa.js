@@ -31,6 +31,9 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
  catch{return fail(res,503,'Base independiente Romo no disponible')}
  try{
   if(method==='POST'){
+   // La carta pública NO puede generar pedidos en el entorno de pruebas.
+   // Los pedidos ficticios se preparan únicamente por la administración.
+   if(config.qaOnly)return fail(res,403,'Pedidos públicos de Romo desactivados en QA');
    const ip=String(req.headers?.['x-forwarded-for']||req.socket?.remoteAddress||'').split(',')[0].slice(0,80);
    const ipHash=createHash('sha256').update('romo-carta:'+config.rateSalt+':'+ip).digest('hex');
    const result=await core.registrarSolicitudRomo({db,body:req.body,ipHash});
