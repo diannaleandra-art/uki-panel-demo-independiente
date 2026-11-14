@@ -13,6 +13,14 @@ Fecha: 14-11-2026
 
 ## Seguridad y estado actual
 - La URL del backend `ROMO_OPERATIVO_ENDPOINT_QA` está **vacía**, y la bóveda de `romos_sushi` no se ha habilitado: la pantalla operativa de Romo continúa bloqueada. Sin datos reales ni simulaciones que se confundan con ventas.
+## Comprobaciones de código y permisos — realizadas sin modificar datos
+- La referencia a los 16 scripts de `firebase/uki-sushi-local.html` y las importaciones locales del puente corresponde a archivos existentes en esta rama.
+- El servicio `romos_app_service` tiene **SELECT, INSERT y UPDATE** sobre `romo_estado_operativo_v1`; no tiene DELETE. No se otorgaron ni cambiaron permisos.
+- En `romo_personal_acceso_v1` y `romo_clave_compartida_v1` tiene sólo SELECT. Por eso no puede inscribir la contraseña compartida ni modificar roles por accidente.
+- En `romo_catalogo_v1` tiene sólo SELECT. El editor de carta no puede guardar cambios todavía.
+- En `romo_inventario_v1` tiene SELECT/INSERT/UPDATE/DELETE, pero no está conectado al panel y no se hizo ninguna escritura.
+- Estas son comprobaciones estáticas y consultas de sólo lectura. **No se realizaron las pruebas manuales en iPhone** que exige la propietaria.
+
 - El backend de preparación permanece en la rama Romo `preparacion/integracion-panel-unico-romo-20261114`:
   `replica-uki/panel/api/romo-estado-cifrado-panel-qa.js` y `replica-uki/panel/lib/romo-estado-cifrado-persistencia-qa.mjs`.
 - Requiere verificar la sesión Firebase Google en servidor, la fila de dueños/agendador en Neon Romo y la clave Uki mediante verificadores cifrados de `romo_clave_compartida_v1`, aún vacía.
