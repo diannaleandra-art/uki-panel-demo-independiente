@@ -93,6 +93,7 @@ test('un cierre inválido al final bloquea TODO el lote antes de insertar',async
   resumen:{...row().resumen,
    turno_ref:'2026-11-13@1794582000000',
    fuente_unica:'romo:serena|2026-11-13@1794582000000',
+   fecha_cierre_ms:start+10800000,
    medios:{Efectivo:7000},venta_total:9000}};
  const originalQuery=w.dbRomo.query;
  w.dbRomo.query=async(q,args)=>{
