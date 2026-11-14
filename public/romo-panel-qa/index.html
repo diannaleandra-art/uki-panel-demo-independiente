@@ -766,6 +766,7 @@ function render(){
 const ROMO_SERENA_QA=Object.freeze({brand:'romo',branch:'serena',nombre:ROMO_SUCURSAL_QA,direccion:'Balmaceda 1612, La Serena'});
 function ukiVolverAlSelectorLocales(){
  if(S.suc)return;
+ romoVistaPreliminarQA=null;
  S.romoSeleccionadoQA=false;S.romoIngresadoQA=false;S.pinSuc=null;render();
 }
 
@@ -821,47 +822,118 @@ async function ukiRomoDarAltaClaveQA(){
   if($("romoUkiRespaldoClaveQA"))$("romoUkiRespaldoClaveQA").value="";
  }
 }
+// Esta comprobación trabaja exclusivamente en memoria: sin S.suc,
+// sin guardadoEnLocalStorage ni escrituras a Firebase/Neon.
+async function ukiRomoLeerDatosCifradosQA(password){
+ if(typeof window.ukiRomoEstadoConexionLecturaQA!=="function")
+  throw Error("Abre la versión actualizada de pruebas de Romo.");
+ const check=await window.ukiRomoEstadoConexionLecturaQA(password);
+ if(check.inicializado!==true)
+  throw Error("Romo todavía no tiene copia cifrada; no se realizó ningún cambio.");
+ const token=await window.ukiInventarioToken?.();
+ if(typeof token!=="string"||token.length<30)
+  throw Error("Primero inicia sesión con Google de dueños.");
+ const response=await fetch("/api/romo-estado-cifrado-panel-qa",{
+  method:"GET",headers:{Authorization:"Bearer "+token},cache:"no-store",credentials:"omit"
+ });
+ if(!response.ok){
+  if(response.status===403)throw Error("La cuenta Google no tiene permiso para consultar Romo.");
+  throw Error("La copia cifrada de Romo aún no está disponible para consulta.");
+ }
+ const remote=await response.json();
+ if(remote?.ok!==true||remote.storeId!=="romo:serena"||
+    !Number.isSafeInteger(remote.revision)||remote.revision<1||
+    !remote.snapshot||remote.snapshot.sucursal!==ROMO_SUCURSAL_QA)
+  throw Error("La copia recuperada no corresponde a Romo La Serena.");
+ const opened=await abrirLocal(JSON.stringify(remote.snapshot),ROMO_SUCURSAL_QA,password);
+ const datos=opened.estado;
+ if(!validarEstadoSucursal(datos,ROMO_SUCURSAL_QA)||
+    !Number.isFinite(Number(datos.base))||!Number.isFinite(Number(datos.cajaChica?.inicial)))
+  throw Error("El estado descifrado de Romo no es válido.");
+ return {revision:remote.revision,datos};
+}
 async function ukiRomoRevisarAccesoSoloLecturaQA(){
  const input=$("ukiAccesoClave"),password=input?.value||"";
- if(S.pinSuc!==ROMO_SUCURSAL_QA){aviso("Selecciona Romo La Serena antes de comprobar.");return;}
- if(password.length<12){aviso("Escribe la contraseña habitual de Uki en el campo superior.");return;}
+ if(S.pinSuc!==ROMO_SUCURSAL_QA){aviso("Selecciona Romo La Serena antes de consultar.");return;}
+ if(password.length<12){aviso("Escribe tu contraseña habitual de Uki.");return;}
  try{
-  if(typeof window.ukiRomoEstadoConexionLecturaQA!=="function")
-   throw Error("Abre la versión actualizada de pruebas de Romo.");
-  const check=await window.ukiRomoEstadoConexionLecturaQA(password);
-  if(check.inicializado!==true)
-   throw Error("Romo todavía no tiene su primera copia cifrada. No se realizó ningún cambio.");
-  const token=await window.ukiInventarioToken?.();
-  if(typeof token!=="string"||token.length<30)throw Error("Primero inicia sesión con Google de dueños.");
-  // GET de la bóveda exclusiva Romo. Nunca envía la clave a Vercel.
-  const response=await fetch("/api/romo-estado-cifrado-panel-qa",{
-   method:"GET",headers:{Authorization:"Bearer "+token},cache:"no-store",credentials:"omit"
-  });
-  if(!response.ok){
-   if(response.status===403)throw Error("La cuenta de Google no tiene permiso para consultar los datos de Romo.");
-   throw Error("El estado cifrado de Romo aún no está disponible para consulta.");
-  }
-  const remote=await response.json();
-  if(remote?.ok!==true||remote.storeId!=="romo:serena"||
-     !Number.isSafeInteger(remote.revision)||remote.revision<1||
-     !remote.snapshot||remote.snapshot.sucursal!==ROMO_SUCURSAL_QA)
-   throw Error("La copia de Romo no corresponde a esta sucursal.");
-  const opened=await abrirLocal(JSON.stringify(remote.snapshot),ROMO_SUCURSAL_QA,password);
-  const state=opened.estado;
-  if(!validarEstadoSucursal(state,ROMO_SUCURSAL_QA))
-   throw Error("Los datos descifrados no pertenecen a Romo.");
-  const pedidos=state.pedidos.length,cierres=state.cierres.length;
-  const inicial=Number(state.base),caja=Number(state.cajaChica?.inicial);
-  if(!Number.isFinite(inicial)||!Number.isFinite(caja))
-   throw Error("El estado de caja inicial de Romo no es válido.");
+  const r=await ukiRomoLeerDatosCifradosQA(password);
   aviso("Estado cifrado de Romo recuperado y descifrado correctamente. Revisión "+
-   remote.revision+"; pedidos: "+pedidos+"; cierres: "+cierres+
-   "; base de caja: $"+inicial.toLocaleString("es-CL")+
-   "; caja chica inicial: $"+caja.toLocaleString("es-CL")+
+   r.revision+"; pedidos: "+r.datos.pedidos.length+"; cierres: "+r.datos.cierres.length+
+   "; base de caja: $"+Number(r.datos.base).toLocaleString("es-CL")+
+   "; caja chica inicial: $"+Number(r.datos.cajaChica.inicial).toLocaleString("es-CL")+
    ". Solo consulta: no se guardó ningún movimiento y la operación sigue desactivada.");
- }catch(error){
-  aviso(String(error?.message||"No se pudo consultar el estado de Romo."));
- }finally{if(input)input.value="";}
+ }catch(error){aviso(String(error?.message||"No se pudo consultar el estado de Romo."));}
+ finally{if(input)input.value="";}
+}
+let romoVistaPreliminarQA=null;
+async function ukiRomoAbrirVistaPreliminarQA(){
+ const input=$("ukiAccesoClave"),password=input?.value||"";
+ if(S.pinSuc!==ROMO_SUCURSAL_QA){aviso("Selecciona Romo La Serena antes de abrir la vista.");return;}
+ if(password.length<12){aviso("Escribe tu contraseña habitual de Uki.");return;}
+ try{
+  const r=await ukiRomoLeerDatosCifradosQA(password);
+  // Carta Romo: otro repositorio de datos propio, solo lectura y con permiso Google.
+  let catalogo=null;
+  try{
+   const leector=window.ukiRomoCatalogoLeerQA;
+   if(typeof leector==="function")catalogo=await leector();
+  }catch(_error){catalogo=null;}
+  romoVistaPreliminarQA=Object.freeze({
+   revision:r.revision,
+   pedidos:r.datos.pedidos.length,
+   cierres:r.datos.cierres.length,
+   gastos:r.datos.gastos.length,
+   propinas:r.datos.propinas.length,
+   deliveries:r.datos.deliveriesManuales.length,
+   base:Number(r.datos.base),
+   cajaChica:Number(r.datos.cajaChica.inicial),
+   carta:catalogo?Object.freeze({
+    revision:catalogo.revision,
+    categorias:catalogo.categories.length,
+    productos:catalogo.products.length,
+    ingredientes:catalogo.ingredients.length,
+    promociones:catalogo.promotions.length
+   }):null
+  });
+  // No ingresar a S.suc: el panel Uki tiene render/autoguardado.
+  // La vista usa datos derivados exclusivamente en memoria y no envía POST.
+  S.pinSuc=null;S.romoSeleccionadoQA=true;S.romoIngresadoQA=false;
+  render();
+ }catch(error){aviso(String(error?.message||"No se pudo abrir la vista preliminar."));}
+ finally{if(input)input.value="";}
+}
+function ukiRomoVolverAccesoQA(){
+ romoVistaPreliminarQA=null;
+ S.pinSuc=ROMO_SUCURSAL_QA;S.romoSeleccionadoQA=false;S.romoIngresadoQA=false;
+ render();
+}
+function ukiRomoVistaPreliminarHTMLQA(){
+ const v=romoVistaPreliminarQA;
+ if(!v)return "";
+ const n=value=>esc(String(value));
+ const dinero=value=>"$"+n(Number(value).toLocaleString("es-CL"));
+ const punto=(titulo,valor)=>'<div class="kpi"><span>'+titulo+'</span><strong>'+valor+'</strong></div>';
+ return '<section class="card" id="romoVistaLecturaQA" aria-label="Vista preliminar de Romo en modo consulta">'+
+  '<h2>Romo’s Sushi La Serena</h2>'+
+  '<p><b>Balmaceda 1612, La Serena</b></p>'+
+  '<p class="aviso" role="status">MODO CONSULTA · Sin pedidos, caja ni escrituras habilitadas. Datos cifrados de Romo, revisión '+n(v.revision)+'.</p>'+
+  '<h3>Resumen de Romo</h3><section class="kpis" aria-label="Contadores de Romo">'+
+   punto("Pedidos",n(v.pedidos))+punto("Cierres",n(v.cierres))+
+   punto("Base de caja",dinero(v.base))+punto("Caja chica inicial",dinero(v.cajaChica))+
+  '</section>'+
+  '<h3>Secciones preparadas en el panel único</h3>'+
+  '<div class="card"><b>Pedidos y delivery</b><p class="muted">Pedidos: '+n(v.pedidos)+' · Deliverys manuales: '+n(v.deliveries)+'. Sin edición ni aceptación en esta vista.</p></div>'+
+  '<div class="card"><b>Caja y cierres</b><p class="muted">Gastos: '+n(v.gastos)+' · Propinas: '+n(v.propinas)+' · Cierres: '+n(v.cierres)+'. No se abre caja.</p></div>'+
+  '<div class="card"><b>Carta digital de Romo</b><p class="muted">'+
+   (v.carta?('Catálogo revisión '+n(v.carta.revision)+': '+n(v.carta.categorias)+' categorías, '+
+    n(v.carta.productos)+' productos, '+n(v.carta.ingredientes)+' ingredientes y '+
+    n(v.carta.promociones)+' promociones. Solo lectura.')
+   :'Consulta del catálogo no disponible. No se han cambiado productos, precios ni promociones.')+
+  '</p></div>'+
+  '<div class="card"><b>Inventario y timbres</b><p class="muted">Pendiente conectar sus registros independientes. Esta vista no los modifica ni simula cantidades.</p></div>'+
+  '<button type="button" class="big" onclick="ukiRomoVolverAccesoQA()">Volver al acceso de Romo</button>'+
+  '</section>';
 }
 async function ukiRomoCrearEstadoInicialVacioQA(){
  const input=$("ukiAccesoClave"),password=input?.value||"";
@@ -1025,6 +1097,8 @@ function ukiRomoFormularioVinculacionQA(){
 }
 
 function vInicio(){
+ if(!S.suc&&!S.pinSuc&&S.romoSeleccionadoQA&&romoVistaPreliminarQA)
+  return ukiRomoVistaPreliminarHTMLQA();
  if(!S.suc&&!S.pinSuc&&S.romoSeleccionadoQA){
   return '<section class="card" id="romoLaSerenaPreparacionQA" aria-label="Romo’s Sushi La Serena">'+
    '<h2>Romo’s Sushi · La Serena</h2><p><b>Balmaceda 1612, La Serena</b></p>'+
@@ -1042,6 +1116,8 @@ function vInicio(){
   '<button class="big" onclick="entrarSuc()">'+(existe?"Abrir sucursal":"Crear acceso")+'</button>'+
   (esRomo?'<button type="button" class="big" style="background:#382e2a" onclick="ukiRomoRevisarAccesoSoloLecturaQA()">Consultar estado cifrado de Romo</button>'+
    '<p class="muted">Comprueba la copia ya guardada sin abrir caja, registrar pedidos ni modificar inventario. Usa tu contraseña habitual.</p>'+
+   '<button type="button" class="big" style="background:#ad102b" onclick="ukiRomoAbrirVistaPreliminarQA()">Ver Romo en modo consulta (sin ventas)</button>'+
+   '<p class="muted">Vista preliminar dentro del mismo panel. Muestra los contadores reales cifrados y la carta Romo si está disponible. No permite registrar movimientos.</p>'+
    '<details id="romoCajaInicialDuenosQA" class="card" style="border-color:#c9b19f;background:#fffaf6">'+
    '<summary style="cursor:pointer;font-weight:700">Solo dueños · Preparar estado inicial vacío de Romo</summary>'+
    '<p class="muted">Se crea una sola copia cifrada VACÍA de Romo en su propia base, con caja inicial en $0 y sin ventas, turnos, pedidos, inventario ni cierres. No se abre la operación.</p>'+
