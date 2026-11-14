@@ -1173,6 +1173,25 @@ function vRomoInventarioQA(){
  const events=t.movimientos.slice().reverse().slice(0,30);
  const itemCards=items.map(x=>{
   const id=esc(x.sku),label=esc(x.name);
+  const reporte=t.conciliacion?.soloLectura===true&&
+   t.conciliacion.inventarioRevision===t.revision?t.conciliacion:null;
+  const opcionesCarta=(reporte?.filas||[]).filter(y=>y.estado==='sin_vinculo');
+  const enlaceHTML=x.kind==='ingrediente'&&reporte?
+   '<details><summary>Vincular con carta (solo dueños)</summary>'+
+   (x.carta_sku?
+    '<p><b>Enlace actual:</b> '+esc(x.carta_sku)+'</p>'+
+    '<label>Motivo para desvincular</label><input id="romoInvMotivoEnlace-'+id+
+    '" maxlength="160" placeholder="Ej. ingrediente vinculado incorrectamente">'+
+    '<button type="button" class="sm" onclick="romoInventarioGuardarAccionQA(\'desvincular_carta\',\''+
+     id+'\')">Desvincular ingrediente</button>':
+    '<label>Ingrediente de la carta</label><select id="romoInvSkuCarta-'+id+
+    '"><option value="">Selecciona el ingrediente exacto</option>'+
+    opcionesCarta.map(y=>'<option value="'+esc(y.sku)+'">'+esc(y.nombre)+
+     ' · '+esc(y.sku)+'</option>').join('')+'</select>'+
+    '<button type="button" class="sm" onclick="romoInventarioGuardarAccionQA(\'vincular_carta\',\''+
+     id+'\')">Confirmar vínculo</button>')+
+   '<p class="muted">El vínculo no modifica por sí mismo precios, stock ni disponibilidad en la carta.</p>'+
+   '</details>':'';
   return '<details class="card"><summary><b>'+label+'</b> · '+esc(x.stock_qty)+' '+
    esc(x.stock_unit)+(x.min_stock_qty>0&&x.stock_qty<=x.min_stock_qty?
    ' · ⚠️ Reponer':'')+(x.available?'':' · No disponible')+'</summary>'+
@@ -1188,6 +1207,7 @@ function vRomoInventarioQA(){
    '\')">Registrar entrada</button>'+
    '<button class="sm" onclick="romoInventarioGuardarAccionQA(\'disponibilidad\',\''+
    id+'\')">'+(x.available?'Marcar no disponible':'Marcar disponible')+'</button>'+
+   enlaceHTML+
    '<details><summary>Editar ficha (solo dueños)</summary>'+
    '<label>Nombre</label><input id="romoInvNombre-'+id+'" maxlength="100" value="'+label+'">'+
    '<label>Mínimo</label><input id="romoInvMin-'+id+'" inputmode="decimal" value="'+
@@ -1307,10 +1327,27 @@ async function romoInventarioGuardarAccionQA(action,sku=''){
     args.min_stock_qty=romoInventarioNumeroQA($('romoInvMin-'+sku)?.value);
    }else if(action==='archivar'){
     if(!confirm('¿Archivar este artículo de Romo? Conservará su historial.'))return;
+   }else if(action==='vincular_carta'||action==='desvincular_carta'){
+    const reporte=v.conciliacion;
+    if(!reporte||reporte.soloLectura!==true||reporte.inventarioRevision!==v.revision)
+     throw Error('Actualiza primero la revisión de Carta e Inventario.');
+    args.confirmado=true;
+    if(action==='vincular_carta'){
+     args.carta_sku=String($('romoInvSkuCarta-'+sku)?.value||'');
+     args.catalogoRevision=reporte.catalogoRevision;
+     if(!reporte.filas?.some(y=>y.sku===args.carta_sku&&y.estado==='sin_vinculo'))
+      throw Error('Selecciona un ingrediente de la carta sin vínculo previo.');
+    }else{
+     args.motivo=String($('romoInvMotivoEnlace-'+sku)?.value||'').trim();
+     if(args.motivo.length<4)throw Error('Indica el motivo de desvinculación.');
+    }
    }else throw Error('Movimiento no disponible');
   }
  }catch(e){return aviso(String(e?.message||e))}
- if(!confirm('¿Guardar este cambio del inventario de Romo?'))return;
+ const esEnlace=action==='vincular_carta'||action==='desvincular_carta';
+ if(!confirm(esEnlace?
+  '¿Confirmas el vínculo de ingrediente de Romo? Esto NO cambia precios, stock ni disponibilidad de la carta.':
+  '¿Guardar este cambio del inventario de Romo?'))return;
  v.busy=true;
  try{
   await romoInventarioSolicitudQA('POST',{

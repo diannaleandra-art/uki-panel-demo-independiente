@@ -75,17 +75,25 @@ module.exports=async function romoInventarioQA(req,res){
   Object.keys(body).sort().join('|')!=='action|args|expectedRevision')
   return fail(res,400,'Formulario no válido');
  try{
-  const result=await core.guardarOperacionInventarioRomoQA({
-   db,identity,expectedRevision:body.expectedRevision,
-   action:body.action,args:body.args
-  });
+  // El vínculo entre artículo e ingrediente se realiza SOLO en Romo QA,
+  // con permiso de dueños y confirmación explícita. No cambia la carta.
+  const enlace=body.action==='vincular_carta'||body.action==='desvincular_carta';
+  if(enlace&&mode!=='qa')return fail(res,403,'Vínculo exclusivo de pruebas');
+  const result=enlace?
+   await (await import('../lib/romo-enlace-inventario-carta-qa.mjs'))
+    .guardarVinculoInventarioCartaRomoQA({db,identity,
+     expectedRevision:body.expectedRevision,action:body.action,args:body.args}):
+   await core.guardarOperacionInventarioRomoQA({
+    db,identity,expectedRevision:body.expectedRevision,
+    action:body.action,args:body.args
+   });
   return res.status(200).json({ok:true,...result});
  }catch(error){
   if(error?.code==='REVISION_CONFLICTO')
    return fail(res,409,'Otro equipo modificó inventario; actualiza');
   if(/permiso|identidad|rol/i.test(String(error?.message||'')))
    return fail(res,403,'Sin permiso');
-  if(/inválid|obligatori|existe|archivado|límite|grande|cambios|cantidad|SKU|artículo|Nombre|Entrada/i.test(String(error?.message||'')))
+  if(/inválid|obligatori|existe|archivado|límite|grande|cambios|cantidad|SKU|artículo|Nombre|Entrada|vínculo|ingrediente|confirmación|carta|desvincular|vincular/i.test(String(error?.message||'')))
    return fail(res,400,'Datos de inventario no válidos');
   return fail(res,503,'No se confirmó el movimiento de inventario');
  }

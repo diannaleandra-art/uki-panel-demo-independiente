@@ -45,3 +45,9 @@ La publicación comercial exige nueva autorización.
 - Se preparó diagnóstico **solo lectura** y **solo dueños**, usando las dos tablas de la base Neon Romo de pruebas; muestra enlaces faltantes, posibles coincidencias de nombre (no confirmadas), diferencias de disponibilidad, existencias cero y vínculos duplicados.
 - El código de diagnóstico no cambia cartas, promociones, precios ni inventario. Tampoco guarda relaciones automáticamente, marca indisponibles ni publica pedidos. Los códigos `carta_sku` son opcionales para un futuro vínculo explícito autorizado; no se asignan en este lote.
 - No se ha desplegado este reporte. Mantener el inventario y carta independientes hasta confirmar una correspondencia exacta de ingredientes y pruebas reales.
+
+## Enlaces explícitos Carta–Inventario, solo rama QA (sin publicación)
+- Se agregó preparación de vínculo por SKU desde Inventario de Romo, solo con acceso de dueños y confirmación explícita. No se vincula por nombre automáticamente; las sugerencias siguen siendo informativas.
+- El backend comprueba catálogo vigente y su revisión, verifica que el SKU de carta existe, que el artículo es ingrediente no archivado, que no haya vínculos duplicados y que la revisión de inventario sea actual. Cada cambio se conserva con responsable, fecha, antes y después en el historial de inventario.
+- Desvincular requiere un motivo; no elimina el artículo ni borra el historial. Los cambios de Carta y existencias siguen siendo independientes hasta una fase autorizada de sincronización.
+- Esta función solo funciona en la rama aislada de pruebas, sin activar ventas públicas, sin modificar catálogo ni datos de Uki. Todavía no existe inventario Romo cargado en Neon QA, por lo que la prueba integral de vínculo queda pendiente.
