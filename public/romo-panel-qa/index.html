@@ -828,13 +828,39 @@ async function ukiRomoRevisarAccesoSoloLecturaQA(){
  try{
   if(typeof window.ukiRomoEstadoConexionLecturaQA!=="function")
    throw Error("Abre la versión actualizada de pruebas de Romo.");
-  const result=await window.ukiRomoEstadoConexionLecturaQA(password);
-  if(result.inicializado===true)
-   aviso("Conexión segura de Romo confirmada: Google, clave y estado cifrado independiente. Pedidos y caja siguen desactivados.");
-  else
-   aviso("Conexión segura de Romo confirmada: Google, clave y base independiente. Todavía no hay caja ni pedidos inicializados. No se guardó ningún movimiento.");
+  const check=await window.ukiRomoEstadoConexionLecturaQA(password);
+  if(check.inicializado!==true)
+   throw Error("Romo todavía no tiene su primera copia cifrada. No se realizó ningún cambio.");
+  const token=await window.ukiInventarioToken?.();
+  if(typeof token!=="string"||token.length<30)throw Error("Primero inicia sesión con Google de dueños.");
+  // GET de la bóveda exclusiva Romo. Nunca envía la clave a Vercel.
+  const response=await fetch("/api/romo-estado-cifrado-panel-qa",{
+   method:"GET",headers:{Authorization:"Bearer "+token},cache:"no-store",credentials:"omit"
+  });
+  if(!response.ok){
+   if(response.status===403)throw Error("La cuenta de Google no tiene permiso para consultar los datos de Romo.");
+   throw Error("El estado cifrado de Romo aún no está disponible para consulta.");
+  }
+  const remote=await response.json();
+  if(remote?.ok!==true||remote.storeId!=="romo:serena"||
+     !Number.isSafeInteger(remote.revision)||remote.revision<1||
+     !remote.snapshot||remote.snapshot.sucursal!==ROMO_SUCURSAL_QA)
+   throw Error("La copia de Romo no corresponde a esta sucursal.");
+  const opened=await abrirLocal(JSON.stringify(remote.snapshot),ROMO_SUCURSAL_QA,password);
+  const state=opened.estado;
+  if(!validarEstadoSucursal(state,ROMO_SUCURSAL_QA))
+   throw Error("Los datos descifrados no pertenecen a Romo.");
+  const pedidos=state.pedidos.length,cierres=state.cierres.length;
+  const inicial=Number(state.base),caja=Number(state.cajaChica?.inicial);
+  if(!Number.isFinite(inicial)||!Number.isFinite(caja))
+   throw Error("El estado de caja inicial de Romo no es válido.");
+  aviso("Estado cifrado de Romo recuperado y descifrado correctamente. Revisión "+
+   remote.revision+"; pedidos: "+pedidos+"; cierres: "+cierres+
+   "; base de caja: $"+inicial.toLocaleString("es-CL")+
+   "; caja chica inicial: $"+caja.toLocaleString("es-CL")+
+   ". Solo consulta: no se guardó ningún movimiento y la operación sigue desactivada.");
  }catch(error){
-  aviso(String(error?.message||"No se pudo comprobar la conexión de Romo."));
+  aviso(String(error?.message||"No se pudo consultar el estado de Romo."));
  }finally{if(input)input.value="";}
 }
 async function ukiRomoCrearEstadoInicialVacioQA(){
@@ -1014,8 +1040,8 @@ function vInicio(){
   '<label>Contraseña de acceso</label><input id="ukiAccesoClave" type="password" autocomplete="off" placeholder="Mínimo 12 caracteres">'+
   (existe?'':'<label>Repite la contraseña</label><input id="ukiAccesoConfirmar" type="password" autocomplete="off" placeholder="Confirmar contraseña">')+
   '<button class="big" onclick="entrarSuc()">'+(existe?"Abrir sucursal":"Crear acceso")+'</button>'+
-  (esRomo?'<button type="button" class="big" style="background:#382e2a" onclick="ukiRomoRevisarAccesoSoloLecturaQA()">Comprobar conexión de Romo (solo lectura)</button>'+
-   '<p class="muted">Usa la contraseña del campo superior. Esta comprobación no abre caja ni registra pedidos, ventas o inventario.</p>'+
+  (esRomo?'<button type="button" class="big" style="background:#382e2a" onclick="ukiRomoRevisarAccesoSoloLecturaQA()">Consultar estado cifrado de Romo</button>'+
+   '<p class="muted">Comprueba la copia ya guardada sin abrir caja, registrar pedidos ni modificar inventario. Usa tu contraseña habitual.</p>'+
    '<details id="romoCajaInicialDuenosQA" class="card" style="border-color:#c9b19f;background:#fffaf6">'+
    '<summary style="cursor:pointer;font-weight:700">Solo dueños · Preparar estado inicial vacío de Romo</summary>'+
    '<p class="muted">Se crea una sola copia cifrada VACÍA de Romo en su propia base, con caja inicial en $0 y sin ventas, turnos, pedidos, inventario ni cierres. No se abre la operación.</p>'+
