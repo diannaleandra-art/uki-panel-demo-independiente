@@ -25,13 +25,16 @@ function configuration(env){
   return u.toString();
  };
  const read=validate(env.ROMO_PRIVATE_DATABASE_URL,'romos_app_service');
- const write=validate(env.ROMO_CLAVE_ALTA_PRIVILEGED_DATABASE_URL,'romos_clave_alta_qa_20261114');
+ // La cuenta de servicio de Romo ya tiene INSERT/UPDATE sobre solicitudes y CAS.
+ // La cuenta de alta de clave no tiene permiso INSERT ni acceso al snapshot;
+ // nunca usarla para recibir o aceptar pedidos.
+ const write=read;
  if(!read)return null;
  for(const name of ['UKI_INVENTARIO_LIVE_DATABASE_URL','UKI_INVENTARIO_QA_DATABASE_URL',
                      'UKI_FIN_PRIVATE_DATABASE_URL','UKI_FIN_QA_DATABASE_URL']){
   try{if(new URL(String(env[name]||'')).hostname.toLowerCase()===host)return null}catch{}
  }
- return {origin,carta:urlOk(carta)?carta:null,read,write:write&&write!==read?write:null};
+ return {origin,carta:urlOk(carta)?carta:null,read,write};
 }
 module.exports=async function romoSolicitudesCartaQA(req,res){
  res.setHeader('Cache-Control','private,no-store,max-age=0');
@@ -47,7 +50,8 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
  const panel=(actualOrigin===conf.origin)||
   (method==='GET'&&!actualOrigin&&host===new URL(conf.origin).host.toLowerCase());
  const carta=!!conf.carta&&actualOrigin===conf.carta;
- const allowed=method==='POST'?carta:method==='OPTIONS'?(actualOrigin===conf.origin||carta):panel;
+ const allowed=(method==='POST'||(method==='GET'&&carta))?carta:
+  method==='OPTIONS'?(actualOrigin===conf.origin||carta):panel;
  if(!allowed)return fail(res,403,'Origen no autorizado');
  if(actualOrigin)res.setHeader('Access-Control-Allow-Origin',actualOrigin);
  res.setHeader('Access-Control-Allow-Methods','GET,POST,PATCH,OPTIONS');
@@ -64,11 +68,23 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
  const core=await import('../lib/romo-solicitudes-carta-qa.mjs');
  const {neon}=require('@neondatabase/serverless');
  const reader=neon(conf.read),dbReader={query:(sql,args)=>reader.query(sql,args)};
+ // Estado público mínimo: no entrega solicitudes ni datos de clientes.
+ // Sólo se abre cuando envío y aceptación manual están autorizados.
+ if(method==='GET'&&carta){
+  if(process.env.ROMO_SOLICITUDES_PUBLICO_QA_ENABLED!=='true'||
+     process.env.ROMO_SOLICITUDES_ACEPTACION_QA_ENABLED!=='true')
+   return fail(res,503,'Recepción pública de Romo todavía no habilitada');
+  try{
+   const db=await dbReader.query("SELECT revision FROM public.romo_estado_operativo_v1 WHERE store_id=$1 AND revision>=1 LIMIT 1",[STORE]);
+   if(!db.length)return fail(res,503,'Estado de caja Romo no confirmado');
+   return res.status(200).json({ok:true,enabled:true,storeId:STORE,countsAsSale:false});
+  }catch{return fail(res,503,'Romo no puede confirmar su recepción');}
+ }
  let writer=null;
  if(method!=='GET'){
   if(!conf.write)return fail(res,503,'Escritura aislada de Romo no disponible');
-  const w=neon(conf.write);
-  writer={query:(sql,args)=>w.query(sql,args)};
+  // Es la misma BD exclusivamente Romo, nunca una BD financiera o Uki.
+  writer=dbReader;
  }
  try{
   if(method==='POST'){
