@@ -180,7 +180,7 @@ module.exports=async(req,res)=>{
    // No consultar la base habitual de Mi Administración:
    // la tabla Romo sólo existe en la rama financiera QA.
    const dbFinQA=require('@neondatabase/serverless').neon(lecturaQA.financeUrl);
-   const rows=await dbFinQA(
+   const rows=await dbFinQA.query(
     "SELECT store_id,source_key,turno_ref,fecha_operativa::text AS fecha_operativa,"+
     "venta_total,pedidos,medios,gastos_cierre,delivery_por_pagar,propinas,retiros,"+
     "caja_chica_inicial,caja_chica_gastos,efectivo_contado,diferencia_efectivo "+

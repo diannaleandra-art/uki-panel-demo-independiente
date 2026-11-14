@@ -9,6 +9,7 @@ test('solo Google y PIN autorizados pueden entrar en lectura Romo',()=>{
  assert.ok(pos>pin&&pin>api.indexOf('const who=await google(req)'));
  assert.match(api,/configurarLecturaCierresRomoQA\(process\.env\)/);
  assert.match(api,/const dbFinQA=require\('@neondatabase\/serverless'\)\.neon\(lecturaQA\.financeUrl\)/);
+ assert.match(api,/const rows=await dbFinQA\.query\(/);
  assert.doesNotMatch(api.slice(pos,api.indexOf("if(action==='locales_operativos_diagnostico_qa')",pos)),/const rows=await sql\.query/);
  assert.match(api,/WHERE store_id='romo:serena'/);
  assert.match(api,/LIMIT 251/);
