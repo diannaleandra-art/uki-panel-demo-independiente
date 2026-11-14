@@ -1274,6 +1274,78 @@ async function romoInventarioGuardarAccionQA(action,sku=''){
    String(e?.message||e));
  }
 }
+
+/** Cobro posterior seguro para un pedido Romo por cobrar. Nunca cobra por sí solo. */
+function romoCobroPendienteHTMLQA(p){
+ if(!p||p.pagado!==false||!['Pendiente','Entregado'].includes(p.estado)||
+    p.esPremio||p.productosPagadosOtroLocal||p.envioPagadoOtroLocal)return '';
+ const interno=/^QA-ROMO-/i.test(String(p.codigoCarta||''))||
+  String(p.cliente||'').trim().toUpperCase()==='PRUEBA INTERNA NO CLIENTE';
+ if(interno)return '<p class="muted">Prueba interna: no se permiten cobros ni timbres reales.</p>';
+ const id=Number(p.id);
+ if(!Number.isSafeInteger(id)||id<1)return '';
+ const productos=Number(p.subtotal)||0,envio=p.modalidad==='Delivery'?Number(p.envio)||0:0;
+ const opciones=['Efectivo','Transferencia','Débito','Edenred','Otros','Uber Eats','PedidosYa','Rappi'];
+ const opcionesDelivery=opciones.filter(x=>!['Uber Eats','PedidosYa','Rappi'].includes(x));
+ const selectOpciones=(items)=>items.map(m=>'<option value="'+esc(m)+'">'+esc(m)+'</option>').join('');
+ const selector=(tipo,label,lista,monto)=>monto>0?
+  '<label>'+label+'</label><select id="romoCobro'+tipo+'Medio-'+id+'">'+selectOpciones(lista)+'</select>'+
+  '<details><summary>Dividir '+label.toLowerCase()+' entre dos medios (opcional)</summary>'+
+  '<label><input id="romoCobro'+tipo+'Mixto-'+id+'" type="checkbox"> Confirmar pago mixto</label>'+
+  '<label>Medio 1</label><select id="romoCobro'+tipo+'Medio1-'+id+'">'+selectOpciones(lista)+'</select>'+
+  '<label>Importe 1 ($)</label><input id="romoCobro'+tipo+'Monto1-'+id+'" type="number" min="1" step="1">'+
+  '<label>Medio 2</label><select id="romoCobro'+tipo+'Medio2-'+id+'">'+selectOpciones(lista)+'</select>'+
+  '<label>Importe 2 ($)</label><input id="romoCobro'+tipo+'Monto2-'+id+'" type="number" min="1" step="1">'+
+  '<p class="muted">La suma debe ser exactamente '+fmt(monto)+'.</p></details>':'';
+ return '<details class="card" aria-label="Cobrar pedido Romo pendiente">'+
+  '<summary>Confirmar pago recibido · '+fmt(Number(p.total)||0)+'</summary>'+
+  '<p class="aviso">Marca el pago solo después de verificar que llegó realmente. Nunca lo uses para simular ventas.</p>'+
+  '<label>Responsable del cobro</label><input id="romoCobroResponsable-'+id+'" maxlength="80" placeholder="Nombre del trabajador">'+
+  selector('Productos','Pago de productos · '+fmt(productos),opciones,productos)+
+  selector('Envio','Pago de delivery · '+fmt(envio),opcionesDelivery,envio)+
+  '<label class="check"><input id="romoCobroConfirmado-'+id+'" type="checkbox"> Confirmo que el dinero del pedido fue recibido y verificado realmente</label>'+
+  '<button type="button" class="sm" onclick="ukiRomoConfirmarCobroPendienteQA('+id+')">Registrar pago confirmado en Romo</button></details>';
+}
+async function ukiRomoConfirmarCobroPendienteQA(id){
+ if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||
+  S.suc!==ROMO_SUCURSAL_QA||!ukiRomoControlPanelQA?.disponible())
+  return aviso('El cobro Romo está restringido a su panel privado.');
+ if(ukiRomoTimbreGuardandoQA)return;
+ const p=(S.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&x.id===Number(id));
+ if(!p||p.pagado!==false||!['Pendiente','Entregado'].includes(p.estado)||
+  /^QA-ROMO-/i.test(String(p.codigoCarta||''))||
+  String(p.cliente||'').trim().toUpperCase()==='PRUEBA INTERNA NO CLIENTE')
+  return aviso('El pedido no permite confirmar este cobro.');
+ const responsable=String($('romoCobroResponsable-'+p.id)?.value||'').trim();
+ if(responsable.length<2||responsable.length>80||
+  $('romoCobroConfirmado-'+p.id)?.checked!==true)
+  return aviso('Indica responsable y confirma que recibiste el pago real.');
+ const leerMedio=(tipo)=>String($('romoCobro'+tipo+'Medio-'+p.id)?.value||'Efectivo');
+ const leerMixto=(tipo)=>{
+  if($('romoCobro'+tipo+'Mixto-'+p.id)?.checked!==true)return [];
+  return [1,2].map(n=>({
+   medio:String($('romoCobro'+tipo+'Medio'+n+'-'+p.id)?.value||''),
+   monto:$('romoCobro'+tipo+'Monto'+n+'-'+p.id)?.value
+  }));
+ };
+ if(!confirm('¿Confirmas que recibiste y verificaste REALMENTE '+
+  fmt(Number(p.total)||0)+' de este pedido Romo? Esto quedará en caja e historial.'))
+  return;
+ ukiRomoTimbreGuardandoQA=true;
+ try{
+  const r=await ukiRomoControlPanelQA.confirmarCobroPendiente({
+   pedidoId:p.id,responsable,registradoEn:Date.now(),confirmoRecepcion:true,
+   medioProductos:leerMedio('Productos'),medioEnvio:leerMedio('Envio'),
+   pagosProductos:leerMixto('Productos'),pagosEnvio:leerMixto('Envio')
+  });
+  if(r?.ok!==true)throw Error('Neon no confirmó el cobro');
+  aviso('Cobro guardado en Neon para Romo, con responsable e historial.');
+  render();
+ }catch(e){
+  aviso('COBRO NO CONFIRMADO. Revisa Neon, Caja e Historial antes de repetir: '+
+   String(e?.message||e));
+ }finally{ukiRomoTimbreGuardandoQA=false;}
+}
 function vRomoPedidosConsultaQA(){
  if(!ROMO_PANEL_INTEGRACION_HABILITADA_QA||
     S.suc!==ROMO_SUCURSAL_QA)return vInicio();
@@ -1304,6 +1376,7 @@ function vRomoPedidosConsultaQA(){
    '<ul>'+productos.map(x=>'<li>'+esc(x.cantidad)+' × '+esc(x.nombre)+
     ' · '+fmt((Number(x.cantidad)||0)*(Number(x.precioUnit)||0))+
     (x.detalle?'<p class="muted">'+esc(x.detalle)+'</p>':'')+'</li>').join('')+'</ul>'+
+   romoCobroPendienteHTMLQA(p)+
    timbre+
    (p.estado==='Pendiente'?
      '<div class="card"><h3>Confirmar entrega</h3>'+

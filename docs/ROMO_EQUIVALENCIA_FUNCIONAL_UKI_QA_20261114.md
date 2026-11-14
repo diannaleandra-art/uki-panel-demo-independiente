@@ -22,3 +22,9 @@
 ## Regla de finalización
 No llamar a Romo idéntico a Uki hasta verificar navegación, controles, cierres, timbres, inventario, pagos y administración.
 La publicación comercial exige nueva autorización.
+## Lote QA: cobro de pedido pendiente, sin publicaciones
+- Preparado módulo cifrado CAS de cobros pendientes de Romo, con cobro simple y mixto separado entre productos y delivery y confirmación explícita de pago recibido.
+- El cobro se refleja en Caja e historial solo tras confirmación de Neon, sin tocar las cajas Uki. Se conservan cliente/timbres existentes y la función de historial auxiliar de pedidos pagados.
+- Los pedidos QA-ROMO-001 y cualquier solicitud con código QA-ROMO-* se mantienen BLOQUEADOS para cobros reales, para no convertir pruebas ficticias en ingresos.
+- El panel cuenta con formulario plegado de cobro y medios de pago, solo para pedidos reales pendientes; esta preparación no está desplegada.
+- No se ha probado una transacción real y no está verificada aún la equivalencia total de Romo con Uki.

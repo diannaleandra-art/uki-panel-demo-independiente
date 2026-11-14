@@ -68,7 +68,7 @@ function timbreQA(p,d){
   {tipo:'whatsapp_abierto',fecha:d.timbreAvisoAbiertoEn,responsable},
   {tipo:'declarado_enviado',fecha:d.timbreAvisoConfirmadoEn,responsable}];
 }
-function efectosEnCopia(estado,p,stamp){
+export function efectosEnCopia(estado,p,stamp){
  if(!p.pagado)return;
  if(p.propina>0){
   estado.propinas.push({suc:SUC,id:stamp+p.id,pedidoId:p.id,
