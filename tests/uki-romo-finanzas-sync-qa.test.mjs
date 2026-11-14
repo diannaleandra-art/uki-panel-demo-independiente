@@ -50,7 +50,7 @@ const config=({dbFin,dbRomo})=>({dbFin,dbRomo,identity:owner,pinVerified:true,
  desde:day,hasta:day});
 test('configuración solo admite dos ramas QA exactas, nunca bases productivas',()=>{
  assert.equal(ROMO_FIN_SYNC_QA_DEFAULT_ENABLED,false);
- const common={VERCEL_ENV:'production',ROMO_FIN_SYNC_QA_ENABLED:'true',
+ const common={VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'qa/integracion-panel-unico-romo-serena-20261112',ROMO_FIN_SYNC_QA_ENABLED:'true',
   ROMO_FIN_SYNC_QA_BRANCH:'qa/integracion-panel-unico-romo-serena-20261112',
   ROMO_FIN_QA_DATABASE_URL:'postgres://qa:fake@ep-lucky-band-b5j3itkw.c-7.us-east-2.aws.neon.tech/neondb',
   ROMO_CIERRES_QA_DATABASE_URL:'postgres://qa:fake@ep-gentle-paper-beusxztt.c-9.us-east-2.aws.neon.tech/romos_sushi'};
@@ -58,7 +58,7 @@ test('configuración solo admite dos ramas QA exactas, nunca bases productivas',
  for(const update of [{ROMO_FIN_SYNC_QA_ENABLED:'false'},
   {ROMO_FIN_QA_DATABASE_URL:'postgres://user:fake@ep-silent-cloud-b57g2l4g.c-7.us-east-2.aws.neon.tech/neondb'},
   {ROMO_CIERRES_QA_DATABASE_URL:'postgres://user:fake@ep-damp-sun-beofcvis.c-9.us-east-2.aws.neon.tech/romos_sushi'},
-  {ROMO_FIN_SYNC_QA_BRANCH:'main'},{VERCEL_ENV:'preview'}]){
+  {ROMO_FIN_SYNC_QA_BRANCH:'main'},{VERCEL_ENV:'production'},{VERCEL_GIT_COMMIT_REF:'main'}]){
   assert.equal(configurarSincronizacionRomoQA({...common,...update}),null);
  }
 });
@@ -130,7 +130,7 @@ test('sincronización permanece apagada en servidor y panel',()=>{
 });
 
 test('la lectura del panel de dueños apunta solo a finanzas QA, nunca a Uki productivo',()=>{
- const env={VERCEL_ENV:'production',
+ const env={VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'qa/integracion-panel-unico-romo-serena-20261112',
   ROMO_FIN_CIERRES_LECTURA_QA_ENABLED:'true',
   ROMO_FIN_SYNC_QA_BRANCH:'qa/integracion-panel-unico-romo-serena-20261112',
   ROMO_FIN_QA_DATABASE_URL:'postgres://qa:fake@ep-lucky-band-b5j3itkw.c-7.us-east-2.aws.neon.tech/neondb',
@@ -141,7 +141,7 @@ test('la lectura del panel de dueños apunta solo a finanzas QA, nunca a Uki pro
  assert.match(ok.romoUrl,/ep-gentle-paper-beusxztt/);
  for(const testEnv of [
   {ROMO_FIN_CIERRES_LECTURA_QA_ENABLED:'false'},
-  {VERCEL_ENV:'preview'}, {ROMO_FIN_SYNC_QA_BRANCH:'main'},
+  {VERCEL_ENV:'production'}, {VERCEL_GIT_COMMIT_REF:'main'}, {ROMO_FIN_SYNC_QA_BRANCH:'main'},
   {ROMO_FIN_QA_DATABASE_URL:'postgres://qa:fake@ep-silent-cloud-b57g2l4g.c-7.us-east-2.aws.neon.tech/neondb'},
   {ROMO_FIN_QA_DATABASE_URL:'postgres://qa:fake@ep-lucky-band-b5j3itkw.c-7.us-east-2.aws.neon.tech/other'},
   {ROMO_CIERRES_QA_DATABASE_URL:''},

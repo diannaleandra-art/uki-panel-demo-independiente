@@ -107,3 +107,13 @@ bloquean todo el lote. Solo después verifica cada constancia de nuevo e
 importa los cierres uno por uno con idempotencia. Una modificación concurrente
 podría exigir reintento manual: NO hay transacción única entre dos bases Neon.
 Ninguna bandera operativa se habilitó y no se introdujeron ventas de prueba.
+
+## 13 noviembre 2026 · Bloqueo explícito de entorno de producción
+Se modificaron los dos verificadores de URL de finanzas Romo QA para exigir
+`VERCEL_ENV=preview` y coincidencia exacta de `VERCEL_GIT_COMMIT_REF` con
+`qa/integracion-panel-unico-romo-serena-20261112`, además de los hosts
+Neon QA y las banderas privadas previamente requeridas. Esto impide que
+un despliegue de producción active accidentalmente los conectores de pruebas.
+La API actual de Mi Administración sigue usando autenticación exclusiva de
+producción; para probarla desde la vista previa falta completar el acceso
+privado QA sin modificar el endpoint operativo.
