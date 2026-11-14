@@ -390,6 +390,7 @@ function cajaDelDia(){
   apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",
   base:S.suc===ROMO_SUCURSAL_QA?0:18000,
   cajaChica:{inicial:S.suc===ROMO_SUCURSAL_QA?0:20000,gastos:[]},
+  baseConfirmada:S.suc!==ROMO_SUCURSAL_QA,
   desdeMs:0,inicioMs:Date.now()
  };
  const actual=S.cajasDiarias[key];
@@ -4902,6 +4903,9 @@ async function ukiRomoGuardarOperacionQA(copia,descripcion,orden,vista='pedidos'
 }
 async function ukiRomoConfirmarCobroQA(id){
  if(ukiRomoOperandoPedidoQA||S.suc!==ROMO_SUCURSAL_QA)return;
+ if(cajaDelDia()?.baseConfirmada!==true){
+  aviso('Primero confirma la base real y caja chica de Romo en la pestaña Caja. Aún no se permite registrar cobros.');return;
+ }
  const original=S.pedidos.find(x=>x.suc===S.suc&&x.id===Number(id));
  if(!original||original.estado==='Cancelado'||original.pagado||original.esPremio||
     /^PRUEBA\b/i.test(String(original.cliente||''))){
@@ -4984,6 +4988,8 @@ function ukiRomoMedioSalidaQA(id){
  return medio;
 }
 function ukiRomoCajaDisponibleQA(t,caja){
+ // Una base diaria antigua sin validación NO puede financiar retiros ni pagos.
+ if(caja?.baseConfirmada!==true)return 0;
  const disponible=(Number(caja.base)||0)+(Number(t.efectivoCaja)||0);
  return Number.isSafeInteger(disponible)?disponible:0;
 }
@@ -4995,12 +5001,15 @@ async function ukiRomoGuardarMovimientoQA(tipo){
  try{
   const dia=fechaOperativaActual(),key=ROMO_SUCURSAL_QA+'|'+dia;
   const t=totales(),actual=cajaDelDia(),now=Date.now();
+  if(tipo!=='base'&&actual.baseConfirmada!==true)
+   throw Error('Antes de registrar dinero confirma la base y caja chica REALES de Romo en Caja. Los importes antiguos no están validados.');
   const efectivoDisponible=ukiRomoCajaDisponibleQA(t,actual);
   copia=datosSoloSucursal();
   copia.cajasDiarias=copia.cajasDiarias||{};
   if(!copia.cajasDiarias[key])
    copia.cajasDiarias[key]={apps:{},pagoDelivery:0,pagoDeliveryMedio:'Efectivo',
-    base:0,cajaChica:{inicial:0,gastos:[]},desdeMs:0,inicioMs:now};
+    base:0,cajaChica:{inicial:0,gastos:[]},baseConfirmada:false,
+    desdeMs:0,inicioMs:now};
   const c=copia.cajasDiarias[key];
   if(tipo==='base'){
    if(delSucHoy(S.pedidos).some(p=>p.pagado&&p.estado!=='Cancelado')||
@@ -5010,12 +5019,15 @@ async function ukiRomoGuardarMovimientoQA(tipo){
    }
    const base=ukiRomoMontoCampoQA('romoBaseQA',1000000,true);
    const chica=ukiRomoMontoCampoQA('romoCajaChicaQA',1000000,true);
-   if(Number(c.base)===base&&Number(c.cajaChica?.inicial)===chica){
+   if(c.baseConfirmada===true&&Number(c.base)===base&&Number(c.cajaChica?.inicial)===chica){
     throw Error('Los importes ya están configurados. No se duplicó ningún movimiento.');
    }
    descripcion='Base de caja configurada';resumen=fmt(base)+' de efectivo inicial y '+fmt(chica)+' de caja chica';
    c.base=base;c.cajaChica=c.cajaChica||{inicial:0,gastos:[]};
-   c.cajaChica.inicial=chica;copia.base=base;copia.cajaChica={...copia.cajaChica,inicial:chica};
+   c.cajaChica.inicial=chica;c.baseConfirmada=true;
+   c.baseConfirmadaEn=new Date(now).toISOString();
+   c.baseConfirmadaPor='dueños';
+   copia.base=base;copia.cajaChica={...copia.cajaChica,inicial:chica};
   }else if(tipo==='gasto'){
    const concepto=ukiRomoTextoCampoQA('romoGastoConceptoQA',140,3);
    const monto=ukiRomoMontoCampoQA('romoGastoMontoQA');
@@ -5076,6 +5088,13 @@ async function ukiRomoGuardarMovimientoQA(tipo){
 }
 function ukiRomoCajaConsultaHTMLQA(){
  const t=totales(),caja=cajaDelDia();
+ const baseConfirmada=caja.baseConfirmada===true;
+ const avisoBase=baseConfirmada?
+  '<p class="muted">Base de Romo confirmada por dueños; los movimientos siguientes se registrarán solamente en Neon Romo.</p>':
+  '<div class="card" role="alert" style="border:2px solid #ad3026;background:#fff5f0">'+
+  '<h3>⚠️ Base de caja sin confirmar</h3><p>Los importes mostrados pueden proceder de valores predeterminados de Uki y NO se consideran dinero real de Romo.</p>'+
+  '<p>Antes de cualquier cobro, gasto o retiro, abre «Establecer base del turno» e indica el efectivo y caja chica que existen físicamente. Si no hay dinero inicial, escribe $0 en ambos y confirma.</p>'+
+  '<p><b>Los cobros y movimientos quedan bloqueados hasta confirmar la base.</b> No se ha cambiado ningún saldo automáticamente.</p></div>';
  const medios=ROMO_MEDIOS_COBRO_QA.filter(k=>(t.medios[k]||0)>0);
  const cajaMedios=medios.map(k=>row(k,fmt(t.medios[k]))).join('');
  const opciones=ROMO_MEDIOS_SALIDAS_QA.map(k=>'<option>'+esc(k)+'</option>').join('');
@@ -5090,6 +5109,7 @@ function ukiRomoCajaConsultaHTMLQA(){
  const wrapper=(name,body)=>'<details class="card"><summary><b>'+name+'</b></summary>'+body+'</details>';
  return '<div class="section-head"><h2>Caja · Romo La Serena</h2>'+
   '<p>Turno: '+esc(fechaOperativaActual())+' · movimientos guardados en Neon con confirmación</p></div>'+
+  avisoBase+
   '<section class="kpis">'+
    '<div class="kpi"><span>Venta registrada</span><strong>'+fmt(t.ventaCorregida)+'</strong></div>'+
    '<div class="kpi"><span>Productos sin delivery</span><strong>'+fmt(t.ventaSinDelivery)+'</strong></div>'+
@@ -5097,14 +5117,17 @@ function ukiRomoCajaConsultaHTMLQA(){
    '<div class="kpi"><span>Pendientes de pago</span><strong>'+esc(t.pendientesN)+'</strong></div>'+
   '</section>'+
   '<div class="card"><h2>Resumen de caja</h2>'+
-  row('Base de efectivo declarada',fmt(Number(caja.base)||0))+
-  row('Caja chica inicial declarada',fmt(Number(caja.cajaChica?.inicial)||0))+
+  row(baseConfirmada?'Base de efectivo declarada':'Base SIN CONFIRMAR (valor anterior)',
+    fmt(Number(caja.base)||0))+
+  row(baseConfirmada?'Caja chica inicial declarada':'Caja chica SIN CONFIRMAR (valor anterior)',
+    fmt(Number(caja.cajaChica?.inicial)||0))+
   row('Cobros confirmados',fmt(t.totalMedios))+
   cajaMedios+
   row('Deliverys de pedidos registrados',fmt(t.enviosPedidos))+
   row('Delivery manual a pagar',fmt(t.enviosManuales))+
   row('Repartos pendientes de pagar',fmt(aPagar))+
-  row('Efectivo disponible (base + movimientos)',fmt(ukiRomoCajaDisponibleQA(t,caja)))+
+  row('Efectivo disponible (base + movimientos)',baseConfirmada?
+    fmt(ukiRomoCajaDisponibleQA(t,caja)):'No disponible · base pendiente')+
   row('Gastos',fmt(t.gastosTotal))+
   row('Retiros de efectivo',fmt(delSucHoy(S.retiros).reduce((a,x)=>a+Number(x.monto||0),0)))+
   row('Pagos a repartidor',fmt(t.pagoDelivery))+
@@ -5114,7 +5137,8 @@ function ukiRomoCajaConsultaHTMLQA(){
    '<p class="muted">La base y la caja chica deben reflejar solo el dinero realmente entregado. El valor de Uki no se copia a Romo. Si ves montos heredados, corrígelos aquí con confirmación.</p>'+
    '<label>Efectivo inicial real</label><input id="romoBaseQA" inputmode="numeric" type="number" min="0" max="1000000" value="'+esc(caja.base||0)+'">'+
    '<label>Caja chica inicial real</label><input id="romoCajaChicaQA" inputmode="numeric" type="number" min="0" max="1000000" value="'+esc(caja.cajaChica?.inicial||0)+'">'+
-   '<button class="big" type="button" onclick="ukiRomoGuardarMovimientoQA(\'base\')">Confirmar base de Romo</button>')+
+   '<p class="muted">Estos montos solo se guardan cuando tú confirmas la existencia real del dinero. Un importe predeterminado anterior no constituye ingreso.</p>'+
+   '<button class="big" type="button" onclick="ukiRomoGuardarMovimientoQA(\'base\')">Confirmar base real de Romo</button>')+
   wrapper('🧾 Gastos del local',
    '<label>Concepto</label><input id="romoGastoConceptoQA" maxlength="140" placeholder="Ej: compra de palta">'+
    '<label>Monto exacto</label><input id="romoGastoMontoQA" type="number" inputmode="numeric" min="1">'+
