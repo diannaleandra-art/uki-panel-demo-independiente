@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const s=readFileSync(new URL('../firebase/uki-sushi-local.html',import.meta.url),'utf8');
 test('Romo usa selector, Google, mismo botón Guardar y bandeja en Pedidos',()=>{
- assert.match(s,/ROMO_PANEL_INTEGRACION_HABILITADA_QA=false/);
+ assert.match(s,/ROMO_PANEL_INTEGRACION_HABILITADA_QA=location\.hostname===/);
  assert.match(s,/async function ukiRomoAbrirEnPanelQA\(password\)/);
  assert.match(s,/await ukiRomoAbrirEnPanelQA\(pass\)/);
  assert.match(s,/return ukiRomoGuardarPedidoQA\(\)/);

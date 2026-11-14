@@ -8,7 +8,7 @@ test('Romo continúa protegido hasta aprobación de publicación',()=>{
  const cliente=get('firebase/uki-romo-operativo-qa.mjs');
  const cierre=get('firebase/uki-romo-cierre-definitivo-qa.mjs');
  for(const flag of ['ROMO_PANEL_INTEGRACION_HABILITADA_QA','ROMO_PANEL_MOVIMIENTOS_HABILITADOS_QA','ROMO_PANEL_CIERRE_HABILITADO_QA'])
-  assert(panel.includes('const '+flag+'=false'),flag);
+  assert(panel.includes("const "+flag+"=location.hostname==='uki-sushi-panel-git-qa-integracion-pa-261e5e-diannaleandra-7046.vercel.app'"),flag);
  assert(cliente.includes('ROMO_OPERATIVO_CLIENTE_HABILITADO_QA=false'));
  assert(cierre.includes('ROMO_CIERRE_DEFINITIVO_HABILITADO_QA=false'));
  assert(api.includes("ROMO_CIERRE_DEFINITIVO_LIVE_ENABLED!=='true'"));

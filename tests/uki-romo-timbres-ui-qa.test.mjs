@@ -32,5 +32,5 @@ test('Romo no permite timbre duplicado ni sin envío real',()=>{
  assert.match(a,/whatsappAbiertoEn:pendiente\.apertura/);
  assert.match(a,/envioConfirmado:true/);
  assert.match(a,/ukiRomoTimbrePendienteQA=null/);
- assert.match(src,/const ROMO_PANEL_INTEGRACION_HABILITADA_QA=false/);
+ assert.match(src,/const ROMO_PANEL_INTEGRACION_HABILITADA_QA=location\.hostname===/);
 });

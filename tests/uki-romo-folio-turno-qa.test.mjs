@@ -57,5 +57,5 @@ test('el botón Guardar de Romo usa cálculo puro, no cajaDelDia de Uki',()=>{
  assert.match(guardar,/obtenerTurnoRomoFolioQA\(datosSoloSucursal\(\)/);
  assert.doesNotMatch(guardar,/ukiTurnoFolioActual\(\)/);
  assert.match(guardar,/fechaOperativa:romoDiaCajaQA\(\)/);
- assert.match(html,/const ROMO_PANEL_INTEGRACION_HABILITADA_QA=false/);
+ assert.match(html,/const ROMO_PANEL_INTEGRACION_HABILITADA_QA=location\.hostname===/);
 });

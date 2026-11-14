@@ -28,6 +28,7 @@ function harness({serena=false,arica=false,validPassword='ClaveUkiSegura123'}={}
    setItem(k,v){writes.push([k,v]);entries.set(k,v)}
   },
   crypto:{subtle:{}},
+  location:{hostname:'copia-uki-local.test'},
   claveLocal(s){return s==='Uki La Serena'?'uki_operativo_v1_cifrado_la-serena':
    s==='Uki Regimiento Arica'?'uki_operativo_v1_cifrado_regimiento':'desconocida'},
   async abrirLocal(raw,suc,pass){
@@ -49,7 +50,7 @@ test('no se introdujo segundo formulario de ingreso para Romo',()=>{
  assert.match(main,/onclick="entrarSuc\(\)"/);
  assert.doesNotMatch(main,/ukiEntrarRomoQA\(|ukiAbrirRomoLaSerena\(/);
  assert.match(main,/const existe=esRomo\|\|!!localStorage\.getItem/);
- assert.match(main,/Ingresa con la misma contraseña de Uki/);
+ assert.match(main,/Solo pruebas: usa tu clave habitual para cifrar Romo/);
  assert.doesNotMatch(main,/Romo Regimiento Arica/);
 });
 test('mismo botón de ingreso Romo acepta contraseña ya existente de Uki La Serena',async()=>{

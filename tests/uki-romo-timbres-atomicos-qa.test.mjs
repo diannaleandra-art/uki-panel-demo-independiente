@@ -78,5 +78,5 @@ test('el mismo panel delega el timbre, sin activar las ventas',async()=>{
  assert.match(source,/crearGuardadoTimbreRomoQA/);
  assert.match(source,/async confirmarTimbre\(\{pedidoId,responsable/);
  const html=readFileSync(new URL('../firebase/uki-sushi-local.html',import.meta.url),'utf8');
- assert.match(html,/const ROMO_PANEL_INTEGRACION_HABILITADA_QA=false/);
+ assert.match(html,/const ROMO_PANEL_INTEGRACION_HABILITADA_QA=location\.hostname===/);
 });
