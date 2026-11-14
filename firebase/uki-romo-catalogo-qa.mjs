@@ -3,7 +3,7 @@
  * SOLO LECTURA, no cambia precios. Ruta deliberadamente vacía.
  * La base privada valida Firebase Google y permiso propio de Romo.
  */
-export const ROMO_CATALOGO_ENDPOINT_QA='';
+export const ROMO_CATALOGO_ENDPOINT_QA='/api/romo-catalogo-lectura-qa';
 const STORE='romo:serena';
 export function cartaRomoDisponibleQA(){return Boolean(ROMO_CATALOGO_ENDPOINT_QA)}
 export async function obtenerCartaRomoPanelQA({

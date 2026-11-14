@@ -17,7 +17,7 @@ const enc=new TextEncoder(),dec=new TextDecoder();
 
 // Configuración pendiente de revisión de la dueña, despliegue, permisos y
 // aprobación. No se acepta URL dinámica del usuario ni del querystring.
-const ROMO_PROOFS_ENDPOINT='';
+const ROMO_PROOFS_ENDPOINT='/api/romo-claves-lectura-qa';
 
 function decoded(value,max){
  if(typeof value!=='string'||value.length<4||value.length>max||
@@ -104,7 +104,7 @@ if(typeof window!=='undefined'){
  * La clave habitual se comprueba primero localmente contra la sucursal
  * Uki exacta. Sólo se envía el VERIFICADOR CIFRADO, nunca la contraseña.
  */
-const ROMO_CLAVE_ALTA_ENDPOINT_QA='';
+const ROMO_CLAVE_ALTA_ENDPOINT_QA='/api/romo-clave-alta-duenos-qa';
 export async function crearPruebaClaveHabitualRomoQA({
  password,ukiSource,verificarClaveLocal,cryptoProvider=globalThis.crypto
 }={}){
