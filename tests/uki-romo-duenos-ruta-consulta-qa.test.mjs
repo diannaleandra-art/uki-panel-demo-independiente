@@ -31,7 +31,8 @@ test('no habilita escritura ni altera tablas de cierres Uki',()=>{
  assert.match(block,/soloLectura:true/);
 });
 test('dueños consume misma sesión y mantiene Romo apagado por defecto',()=>{
- assert.match(html,/const ROMO_FIN_OWNER_READ_QA_ENABLED=false/);
+ assert.match(html,/const ROMO_FIN_OWNER_QA_PREVIEW=location\.hostname===/);
+ assert.match(html,/const ROMO_FIN_OWNER_READ_QA_ENABLED=ROMO_FIN_OWNER_QA_PREVIEW/);
  assert.match(html,/async function cargarCierresRomoDuenosQA\(desde,hasta\)/);
  assert.match(html,/await api\('listar_cierres_romo_qa',\{desde,hasta\}\)/);
  assert.match(html,/let cierresConfirmadosRomoQA=\[\]/);
