@@ -387,8 +387,10 @@ function cajaDelDia(){
  S.cajasDiarias=S.cajasDiarias||{};
  const key=S.suc+"|"+fechaOperativaActual();
  if(!S.cajasDiarias[key])S.cajasDiarias[key]={
-  apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",base:18000,
-  cajaChica:{inicial:20000,gastos:[]},desdeMs:0,inicioMs:Date.now()
+  apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",
+  base:S.suc===ROMO_SUCURSAL_QA?0:18000,
+  cajaChica:{inicial:S.suc===ROMO_SUCURSAL_QA?0:20000,gastos:[]},
+  desdeMs:0,inicioMs:Date.now()
  };
  const actual=S.cajasDiarias[key];
  // Un segundo turno del mismo día empieza al volver a abrirlo tras su cierre.
@@ -4876,7 +4878,7 @@ function ukiRomoLeerDistribucionQA(id,tipo,monto){
   throw Error('Los medios de '+tipo+' deben sumar '+fmt(monto));
  return lineas;
 }
-async function ukiRomoGuardarOperacionQA(copia,descripcion,orden){
+async function ukiRomoGuardarOperacionQA(copia,descripcion,orden,vista='pedidos'){
  const session=window.ukiRomoSesionRemotaQA;
  if(!session?.disponible()||S.suc!==ROMO_SUCURSAL_QA)
   throw Error('Abre Romo con tu cuenta de dueños.');
@@ -4887,8 +4889,8 @@ async function ukiRomoGuardarOperacionQA(copia,descripcion,orden){
  const res=await session.guardar(copia);
  if(res?.changed!==true||res.revision!==anterior.revision+1)
   throw Error('No se confirmó una revisión nueva. Verifica antes de volver a intentar.');
- S={...S,...copia,suc:ROMO_SUCURSAL_QA,pinSuc:null,vista:'pedidos',msg:null};
- S.msg=descripcion+' · Pedido #'+orden+' · revisión '+res.revision+'.';
+ S={...S,...copia,suc:ROMO_SUCURSAL_QA,pinSuc:null,vista,msg:null};
+ S.msg=descripcion+(orden===null?'':' · Pedido #'+orden)+' · revisión '+res.revision+'.';
  render();
 }
 async function ukiRomoConfirmarCobroQA(id){
@@ -4956,12 +4958,131 @@ async function ukiRomoCambiarEstadoQA(id,accion){
  }catch(e){aviso('Operación no confirmada. Revisa el pedido antes de repetir. '+String(e.message||e));}
  finally{ukiRomoOperandoPedidoQA=false;}
 }
+
+const ROMO_MEDIOS_SALIDAS_QA=['Efectivo','Transferencia','Débito','Otros'];
+function ukiRomoMontoCampoQA(id,max=10000000,allowZero=false){
+ const value=String($(id)?.value??'').trim(),num=Number(value);
+ if(value===''||!Number.isSafeInteger(num)||num< (allowZero?0:1)||num>max)
+  throw Error('Monto inválido: '+id+'. Debe ser un importe exacto.');
+ return num;
+}
+function ukiRomoTextoCampoQA(id,max=140,min=3){
+ const value=String($(id)?.value||'').trim().replace(/\s+/g,' ');
+ if(value.length<min||value.length>max)throw Error('Completa el concepto o responsable.');
+ return value;
+}
+function ukiRomoMedioSalidaQA(id){
+ const medio=String($(id)?.value||'');
+ if(!ROMO_MEDIOS_SALIDAS_QA.includes(medio))throw Error('Medio de pago no permitido');
+ return medio;
+}
+function ukiRomoCajaDisponibleQA(t,caja){
+ const disponible=(Number(caja.base)||0)+(Number(t.efectivoCaja)||0);
+ return Number.isSafeInteger(disponible)?disponible:0;
+}
+async function ukiRomoGuardarMovimientoQA(tipo){
+ if(ukiRomoOperandoPedidoQA||S.suc!==ROMO_SUCURSAL_QA)return;
+ const session=window.ukiRomoSesionRemotaQA;
+ if(!session?.disponible()){aviso('Abre Romo con Google de dueños antes de registrar.');return;}
+ let copia,descripcion,resumen;
+ try{
+  const dia=fechaOperativaActual(),key=ROMO_SUCURSAL_QA+'|'+dia;
+  const t=totales(),actual=cajaDelDia(),now=Date.now();
+  const efectivoDisponible=ukiRomoCajaDisponibleQA(t,actual);
+  copia=datosSoloSucursal();
+  copia.cajasDiarias=copia.cajasDiarias||{};
+  if(!copia.cajasDiarias[key])
+   copia.cajasDiarias[key]={apps:{},pagoDelivery:0,pagoDeliveryMedio:'Efectivo',
+    base:0,cajaChica:{inicial:0,gastos:[]},desdeMs:0,inicioMs:now};
+  const c=copia.cajasDiarias[key];
+  if(tipo==='base'){
+   if(delSucHoy(S.pedidos).some(p=>p.pagado&&p.estado!=='Cancelado')||
+      delSucHoy(S.gastos).length||delSucHoy(S.retiros).length||
+      Number(t.pagoDelivery)>0){
+    throw Error('La base solo puede establecerse antes del primer cobro o movimiento de caja del turno.');
+   }
+   const base=ukiRomoMontoCampoQA('romoBaseQA',1000000,true);
+   const chica=ukiRomoMontoCampoQA('romoCajaChicaQA',1000000,true);
+   if(Number(c.base)===base&&Number(c.cajaChica?.inicial)===chica){
+    throw Error('Los importes ya están configurados. No se duplicó ningún movimiento.');
+   }
+   descripcion='Base de caja configurada';resumen=fmt(base)+' de efectivo inicial y '+fmt(chica)+' de caja chica';
+   c.base=base;c.cajaChica=c.cajaChica||{inicial:0,gastos:[]};
+   c.cajaChica.inicial=chica;copia.base=base;copia.cajaChica={...copia.cajaChica,inicial:chica};
+  }else if(tipo==='gasto'){
+   const concepto=ukiRomoTextoCampoQA('romoGastoConceptoQA',140,3);
+   const monto=ukiRomoMontoCampoQA('romoGastoMontoQA');
+   const medio=ukiRomoMedioSalidaQA('romoGastoMedioQA');
+   if(medio==='Efectivo'&&monto>efectivoDisponible)
+    throw Error('No hay suficiente efectivo registrado para ese gasto.');
+   const id=now;while(copia.gastos.some(g=>g.id===id))id++;
+   copia.gastos.push({suc:ROMO_SUCURSAL_QA,id,fechaISO:new Date(now).toISOString(),
+    registradoEn:now,concepto,monto,medio});
+   descripcion='Gasto de Romo confirmado';resumen=concepto+' · '+fmt(monto)+' · '+medio;
+  }else if(tipo==='retiro'){
+   const motivo=ukiRomoTextoCampoQA('romoRetiroMotivoQA',140,3);
+   const monto=ukiRomoMontoCampoQA('romoRetiroMontoQA');
+   if(monto>efectivoDisponible)throw Error('No hay efectivo suficiente registrado en Romo.');
+   let id=now;while(copia.retiros.some(g=>g.id===id))id++;
+   copia.retiros.push({suc:ROMO_SUCURSAL_QA,id,fechaISO:new Date(now).toISOString(),
+    registradoEn:now,monto,motivo});
+   descripcion='Retiro de efectivo confirmado';resumen=motivo+' · '+fmt(monto);
+  }else if(tipo==='delivery'){
+   const repartidor=ukiRomoTextoCampoQA('romoRepartidorQA',90,2);
+   const cliente=String($('romoDeliveryClienteQA')?.value||'').trim().slice(0,90);
+   const monto=ukiRomoMontoCampoQA('romoDeliveryMontoQA',4000);
+   let id=now;while(copia.deliveriesManuales.some(d=>d.id===id))id++;
+   copia.deliveriesManuales.push({suc:ROMO_SUCURSAL_QA,id,fechaISO:new Date(now).toISOString(),
+    registradoEn:now,monto,cliente,repartidor,nota:'Reparto a pagar a '+repartidor,
+    medio:'Efectivo'});
+   descripcion='Delivery manual registrado';resumen=fmt(monto)+' a pagar a '+repartidor+' (no es ingreso)';
+  }else if(tipo==='pagoRepartidor'){
+   const repartidor=ukiRomoTextoCampoQA('romoRepartidorPagoQA',90,2);
+   const medio=ukiRomoMedioSalidaQA('romoPagoDeliveryMedioQA');
+   const monto=ukiRomoMontoCampoQA('romoPagoDeliveryMontoQA',1000000);
+   const abonado=Number(c.pagoDeliveryDia)||0;
+   if(!Number.isSafeInteger(abonado)||abonado<0||
+      monto>Math.max(0,Number(t.envios)-abonado))
+    throw Error('El pago supera los repartos pendientes registrados en este turno.');
+   if(medio==='Efectivo'&&monto>efectivoDisponible)
+    throw Error('No hay efectivo suficiente registrado para pagar al repartidor.');
+   c.pagosDeliveryDetalle=c.pagosDeliveryDetalle||[];
+   c.pagosDeliveryDetalle.push({id:now,fechaISO:new Date(now).toISOString(),
+    repartidor,monto,medio});
+   c.pagoDeliveryDia=abonado+monto;
+   c.pagoDeliveryMedioDia=medio;
+   c.pagoDeliveryAnterior=Number(c.pagoDeliveryAnterior)||0;
+   c.pagoDelivery=c.pagoDeliveryDia+c.pagoDeliveryAnterior;
+   c.pagoDeliveryMedio=c.pagoDeliveryMedioDia;
+   descripcion='Pago a repartidor confirmado';resumen=repartidor+' · '+fmt(monto)+' · '+medio;
+  }else throw Error('Operación desconocida');
+ }catch(e){aviso(String(e?.message||'Revisa el formulario de caja.'));return;}
+ if(!window.confirm('ROMO LA SERENA · SOLO DUEÑOS: ¿confirmas que este movimiento YA OCURRIÓ o que esta base es correcta?\n'+
+   resumen+'\nSe guardará únicamente en Romo.'))return;
+ ukiRomoOperandoPedidoQA=true;
+ try{
+  await ukiRomoGuardarOperacionQA(copia,descripcion,null,'caja');
+ }catch(e){
+  aviso('MOVIMIENTO NO CONFIRMADO EN NEON. Revisa Caja al volver a entrar antes de intentarlo de nuevo. '+
+   String(e?.message||e));
+ }finally{ukiRomoOperandoPedidoQA=false;}
+}
 function ukiRomoCajaConsultaHTMLQA(){
- const t=totales();
+ const t=totales(),caja=cajaDelDia();
  const medios=ROMO_MEDIOS_COBRO_QA.filter(k=>(t.medios[k]||0)>0);
  const cajaMedios=medios.map(k=>row(k,fmt(t.medios[k]))).join('');
+ const opciones=ROMO_MEDIOS_SALIDAS_QA.map(k=>'<option>'+esc(k)+'</option>').join('');
+ const detalles=(caja.pagosDeliveryDetalle||[]).map(p=>'<div class="row"><span>'+
+  esc(p.repartidor)+' · '+esc(p.medio)+'</span><b>'+fmt(p.monto)+'</b></div>').join('');
+ const aPagar=Math.max(0,t.envios-(Number(caja.pagoDeliveryDia)||0));
+ const movimientos=delSucHoy(S.gastos).map(g=>'<div class="row"><span>'+esc(g.concepto)+' · '+esc(g.medio)+
+   '</span><b>'+fmt(g.monto)+'</b></div>').join('');
+ const retiros=delSucHoy(S.retiros).map(g=>'<div class="row"><span>'+esc(g.motivo)+'</span><b>'+fmt(g.monto)+'</b></div>').join('');
+ const delivery=delSucHoy(S.deliveriesManuales).map(d=>'<div class="row"><span>'+
+  esc(d.repartidor||'Repartidor')+' · '+esc(d.cliente||'Delivery manual')+'</span><b>'+fmt(d.monto)+'</b></div>').join('');
+ const wrapper=(name,body)=>'<details class="card"><summary><b>'+name+'</b></summary>'+body+'</details>';
  return '<div class="section-head"><h2>Caja · Romo La Serena</h2>'+
-  '<p>Resumen de cobros confirmados · '+esc(fechaOperativaActual())+'</p></div>'+
+  '<p>Turno: '+esc(fechaOperativaActual())+' · movimientos guardados en Neon con confirmación</p></div>'+
   '<section class="kpis">'+
    '<div class="kpi"><span>Venta registrada</span><strong>'+fmt(t.ventaCorregida)+'</strong></div>'+
    '<div class="kpi"><span>Productos sin delivery</span><strong>'+fmt(t.ventaSinDelivery)+'</strong></div>'+
@@ -4969,16 +5090,50 @@ function ukiRomoCajaConsultaHTMLQA(){
    '<div class="kpi"><span>Pendientes de pago</span><strong>'+esc(t.pendientesN)+'</strong></div>'+
   '</section>'+
   '<div class="card"><h2>Resumen de caja</h2>'+
-  row('Base de caja inicial',fmt(Number(S.base)||0))+
+  row('Base de efectivo declarada',fmt(Number(caja.base)||0))+
+  row('Caja chica inicial declarada',fmt(Number(caja.cajaChica?.inicial)||0))+
   row('Cobros confirmados',fmt(t.totalMedios))+
   cajaMedios+
   row('Deliverys de pedidos registrados',fmt(t.enviosPedidos))+
-  row('Delivery cobrado',fmt(t.enviosCobradosUki))+
-  row('Efectivo de cobros',fmt(t.medios.Efectivo||0))+
-  row('Gastos registrados',fmt(t.gastosTotal))+
+  row('Delivery manual a pagar',fmt(t.enviosManuales))+
+  row('Repartos pendientes de pagar',fmt(aPagar))+
+  row('Efectivo disponible (base + movimientos)',fmt(ukiRomoCajaDisponibleQA(t,caja)))+
+  row('Gastos',fmt(t.gastosTotal))+
+  row('Retiros de efectivo',fmt(delSucHoy(S.retiros).reduce((a,x)=>a+Number(x.monto||0),0)))+
   row('Pagos a repartidor',fmt(t.pagoDelivery))+
-  row('Total neto calculado',fmt(t.final),'final')+
-  '<p class="muted">Consulta de importes del turno. Los precierres, cierres y gastos aún no se habilitaron para escritura. No se suman pedidos sin pagar.</p></div>';
+  row('Venta neta (sin base inicial)',fmt(t.final),'final')+
+  '<p class="muted">Los pedidos sin pagar no suman ventas. Los pagos a repartidores solo se descuentan cuando realmente se registran. Todavía no se ejecutan cierres definitivos ni inventario.</p></div>'+
+  wrapper('💵 Establecer base del turno (antes del primer cobro)',
+   '<p class="muted">La base y la caja chica deben reflejar solo el dinero realmente entregado. El valor de Uki no se copia a Romo. Si ves montos heredados, corrígelos aquí con confirmación.</p>'+
+   '<label>Efectivo inicial real</label><input id="romoBaseQA" inputmode="numeric" type="number" min="0" max="1000000" value="'+esc(caja.base||0)+'">'+
+   '<label>Caja chica inicial real</label><input id="romoCajaChicaQA" inputmode="numeric" type="number" min="0" max="1000000" value="'+esc(caja.cajaChica?.inicial||0)+'">'+
+   '<button class="big" type="button" onclick="ukiRomoGuardarMovimientoQA(\'base\')">Confirmar base de Romo</button>')+
+  wrapper('🧾 Gastos del local',
+   '<label>Concepto</label><input id="romoGastoConceptoQA" maxlength="140" placeholder="Ej: compra de palta">'+
+   '<label>Monto exacto</label><input id="romoGastoMontoQA" type="number" inputmode="numeric" min="1">'+
+   '<label>Medio de pago</label><select id="romoGastoMedioQA">'+opciones+'</select>'+
+   '<button class="big" type="button" onclick="ukiRomoGuardarMovimientoQA(\'gasto\')">Registrar gasto confirmado</button>'+
+   (movimientos||'<p class="muted">Sin gastos del turno</p>'))+
+  wrapper('🪙 Retiros de efectivo',
+   '<label>Motivo</label><input id="romoRetiroMotivoQA" maxlength="140" placeholder="Motivo del retiro">'+
+   '<label>Monto</label><input id="romoRetiroMontoQA" type="number" inputmode="numeric" min="1">'+
+   '<button class="big" type="button" onclick="ukiRomoGuardarMovimientoQA(\'retiro\')">Registrar retiro confirmado</button>'+
+   (retiros||'<p class="muted">Sin retiros registrados</p>'))+
+  wrapper('🛵 Deliverys manuales a pagar',
+   '<p class="muted">Se suma al total por pagar al repartidor; no aumenta las ventas.</p>'+
+   '<label>Nombre del repartidor</label><input id="romoRepartidorQA" maxlength="90">'+
+   '<label>Cliente (opcional)</label><input id="romoDeliveryClienteQA" maxlength="90">'+
+   '<label>Valor del reparto</label><input id="romoDeliveryMontoQA" type="number" inputmode="numeric" min="1" max="4000">'+
+   '<button class="big" type="button" onclick="ukiRomoGuardarMovimientoQA(\'delivery\')">Registrar reparto pendiente</button>'+
+   (delivery||'<p class="muted">Sin repartos manuales</p>'))+
+  wrapper('💸 Pago al repartidor',
+   '<p class="muted">Únicamente si ya se entregó el dinero. No se descuenta otra vez como gasto o retiro. Saldo del turno: '+fmt(aPagar)+'</p>'+
+   '<label>Nombre del repartidor</label><input id="romoRepartidorPagoQA" maxlength="90">'+
+   '<label>Monto efectivamente pagado</label><input id="romoPagoDeliveryMontoQA" type="number" inputmode="numeric" min="1">'+
+   '<label>Medio</label><select id="romoPagoDeliveryMedioQA">'+opciones+'</select>'+
+   '<button class="big" type="button" onclick="ukiRomoGuardarMovimientoQA(\'pagoRepartidor\')">Registrar pago al repartidor</button>'+
+   (detalles||'<p class="muted">Todavía no hay pagos de repartidor registrados</p>'))+
+  '<p class="muted">Los precierres, cierres y reportes finales de Romo siguen pendientes de conexión al panel de dueños.</p>';
 }
 
 async function ukiRomoGuardarPedidoPendienteQA(){
