@@ -59,7 +59,7 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
   return fail(res,503,'La aceptación de carta de Romo todavía no está activada');
  if(method!=='GET'&&!String(req.headers?.['content-type']||'').toLowerCase().startsWith('application/json'))
   return fail(res,415,'Se requiere JSON');
- if(method!=='GET'&&JSON.stringify(req.body||{}).length>100000)
+ if(method!=='GET'&&JSON.stringify(req.body||{}).length>2300000)
   return fail(res,413,'Contenido excede el límite');
  const core=await import('../lib/romo-solicitudes-carta-qa.mjs');
  const {neon}=require('@neondatabase/serverless');

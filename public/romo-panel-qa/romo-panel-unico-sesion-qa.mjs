@@ -116,6 +116,36 @@ export function crearSesionPanelUnicoRomoQA({
    current.ultimoEstado=serialized;
    return Object.freeze({ok:true,changed:true,revision:current.revision});
   },
+
+  /** Cifra con la MISMA sesión del panel, pero no envía una escritura.
+   * Se usa para el SQL atómico que acepta carta+pedido simultáneamente.
+   */
+  async prepararSobreAceptacion(estado){
+   const current=requireSession();
+   if(current.revision<1)throw Error('La base Romo aún no tiene estado inicial.');
+   const valid=validarDatosRomo(estado,validarEstado);
+   const revision=current.revision,firma=current.ultimoEstado;
+   const snapshot=await current.cifrar(valid);
+   if(current.revision!==revision||current.ultimoEstado!==firma)
+    throw Error('Romo cambió durante el cifrado; actualiza antes de continuar');
+   if(!hasOwn(snapshot)||snapshot.sucursal!==ROMO_UI_SUCURSAL_QA||
+      snapshot.formato!=='uki-v813-browser'||snapshot.version!==1)
+    throw Error('Sobre de otra sucursal');
+   return Object.freeze({revision,snapshot});
+  },
+  /** Solo llamar TRAS respuesta firmada del servidor con revisión +1.
+   * Si el servidor respondió pero la pantalla se perdió, NO reintentar:
+   * reabrir el estado desde Neon y conciliar.
+   */
+  confirmarSobreAceptado({estado,revision}={}){
+   const current=requireSession();
+   validarDatosRomo(estado,validarEstado);
+   if(!Number.isSafeInteger(revision)||revision!==current.revision+1)
+    throw Error('Revisión del pedido aceptado no confirmada; recarga Romo.');
+   current.revision=revision;
+   current.ultimoEstado=JSON.stringify(estado);
+   return Object.freeze({ok:true,revision});
+  },
   estado(){
    const current=requireSession();
    return Object.freeze({storeId:ROMO_UI_STORE_QA,revision:current.revision,conflicto:current.conflicto});
