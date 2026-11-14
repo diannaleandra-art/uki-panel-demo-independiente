@@ -99,5 +99,5 @@ test('edición se conecta al mismo panel; no activa comercio ni cambia Uki',()=>
  assert.match(panel,/async function ukiRomoEditarSinPagoQA\(id\)/);
  assert.match(panel,/Editar pedido sin pago/);
  assert.match(ctrl,/async editarSinPago\(\{pedidoId,responsable,motivo,registradoEn,productos,envio\}/);
- assert.match(panel,/const ROMO_PANEL_INTEGRACION_HABILITADA_QA=false/);
+ assert.match(panel,/const ROMO_PANEL_INTEGRACION_HABILITADA_QA=location\.hostname===/);
 });

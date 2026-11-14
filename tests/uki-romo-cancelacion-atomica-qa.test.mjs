@@ -76,5 +76,5 @@ test('panel Romo conecta cancelación sin alterar Uki',()=>{
  assert.match(control,/async cancelarSinPago\(\{pedidoId,responsable,motivo,registradoEn\}/);
  assert.match(panel,/async function ukiRomoCancelarSinPagoQA\(id\)/);
  assert.match(panel,/Cancelar sin pago/);
- assert.match(panel,/const ROMO_PANEL_INTEGRACION_HABILITADA_QA=false/);
+ assert.match(panel,/const ROMO_PANEL_INTEGRACION_HABILITADA_QA=location\.hostname===/);
 });

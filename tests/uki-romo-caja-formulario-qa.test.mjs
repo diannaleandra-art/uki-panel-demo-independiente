@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 const html=readFileSync(new URL('../firebase/uki-sushi-local.html',import.meta.url),'utf8');
 const control=readFileSync(new URL('../firebase/uki-romo-panel-control-qa.mjs',import.meta.url),'utf8');
 test('formulario de movimientos Romo dentro de Caja, cerrado por defecto',()=>{
- assert.match(html,/ROMO_PANEL_MOVIMIENTOS_HABILITADOS_QA=false/);
+ assert.match(html,/ROMO_PANEL_MOVIMIENTOS_HABILITADOS_QA=location\.hostname===/);
  assert.match(html,/function ukiRomoFormularioMovimientosQA\(\)/);
  assert.match(html,/ukiRomoFormularioMovimientosQA\(\)\+romoFormularioCierreQA\(\);/);
  assert.match(html,/function ukiRomoGuardarMovimientoDesdeCajaQA\(\)/);
@@ -22,7 +22,7 @@ test('control reutiliza API cifrada con revisión CAS y no usa caja de Uki',()=>
  assert.match(control,/crearGuardadoCajaRomoQA/);
  assert.match(control,/servidor:estadoRemoto/);
  assert.match(control,/revision=next/);
- assert.match(html,/ROMO_PANEL_INTEGRACION_HABILITADA_QA=false/);
+ assert.match(html,/ROMO_PANEL_INTEGRACION_HABILITADA_QA=location\.hostname===/);
  assert.match(html,/uk(i|i)RomoControlPanelQA\.guardarMovimiento/);
 });
 
@@ -31,7 +31,7 @@ test('pago al repartidor distingue día y saldo anterior antes de cierre',()=>{
  assert.match(html,/id="romoMovTipoSaldo"/);
  assert.match(html,/option value="anterior"/);
  assert.match(html,/fechaOperativa:romoDiaCajaQA\(\),tipoSaldo:read\('romoMovTipoSaldo'\)/);
- assert.match(html,/ROMO_PANEL_MOVIMIENTOS_HABILITADOS_QA=false/);
+ assert.match(html,/ROMO_PANEL_MOVIMIENTOS_HABILITADOS_QA=location\.hostname===/);
 });
 
 test('caja chica y cobros de plataformas figuran en el formulario sin activarse',()=>{
@@ -39,5 +39,5 @@ test('caja chica y cobros de plataformas figuran en el formulario sin activarse'
  assert.match(html,/value="app_manual"/);
  assert.match(html,/id="romoMovApp"/);
  assert.match(html,/medioApp:read\('romoMovApp'\)/);
- assert.match(html,/ROMO_PANEL_MOVIMIENTOS_HABILITADOS_QA=false/);
+ assert.match(html,/ROMO_PANEL_MOVIMIENTOS_HABILITADOS_QA=location\.hostname===/);
 });

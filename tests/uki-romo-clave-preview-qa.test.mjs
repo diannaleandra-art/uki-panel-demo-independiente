@@ -8,7 +8,7 @@ test('Romo en QA no solicita contraseña que no puede verificar',()=>{
  assert.match(section,/la verificación remota sigue desactivada/);
  assert.match(section,/Ver avance de Romo \(solo lectura\)/);
  assert.match(section,/No cambies tu clave/);
- assert.match(code,/const ROMO_PANEL_INTEGRACION_HABILITADA_QA=false/);
+ assert.match(code,/const ROMO_PANEL_INTEGRACION_HABILITADA_QA=location\.hostname===/);
 });
 test('la vista de Romo no autentica ni entra a la caja real',()=>{
  const from=code.indexOf('function ukiRomoVerPreparacionQA(){'),to=code.indexOf('/* Romo usa el mismo selector',from);

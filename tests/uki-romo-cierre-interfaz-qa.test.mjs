@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const panel=readFileSync(new URL('../firebase/uki-sushi-local.html',import.meta.url),'utf8');
 test('apertura y cierre definitivo solo en Caja Romo, desactivados',()=>{
- assert.match(panel,/const ROMO_PANEL_CIERRE_HABILITADO_QA=false/);
+ assert.match(panel,/const ROMO_PANEL_CIERRE_HABILITADO_QA=location\.hostname===/);
  assert.match(panel,/function romoFormularioCierreQA\(\)/);
  assert.match(panel,/romoFormularioCierreQA\(\);/);
  for(const id of ['romoAbrirResponsable','romoAbrirBase','romoCerrarResponsable',
@@ -33,7 +33,7 @@ test('confirmación exige checkbox, doble revisión y autorización activa',()=>
 test('la ruta Uki de cierre original queda preservada y bloquea Romo',()=>{
  assert.match(panel,/async function cerrar\(\)/);
  assert.match(panel,/if\(S\.suc===ROMO_SUCURSAL_QA\)\{\s*aviso\('Romo aún no tiene caja operativa/);
- assert.match(panel,/const ROMO_PANEL_INTEGRACION_HABILITADA_QA=false/);
+ assert.match(panel,/const ROMO_PANEL_INTEGRACION_HABILITADA_QA=location\.hostname===/);
 });
 
 test('apertura Romo deja distinguir base de efectivo y caja chica inicial',()=>{

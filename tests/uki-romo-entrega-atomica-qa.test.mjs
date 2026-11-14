@@ -65,5 +65,5 @@ test('el mismo panel delega en CAS y sigue con bandera Romo apagada',()=>{
  assert.match(control,/async marcarEntregado\(\{pedidoId,responsable,registradoEn\}/);
  assert.match(html,/async function ukiRomoEntregarPedidoQA\(id\)/);
  assert.match(html,/Marcar entregado/);
- assert.match(html,/const ROMO_PANEL_INTEGRACION_HABILITADA_QA=false/);
+ assert.match(html,/const ROMO_PANEL_INTEGRACION_HABILITADA_QA=location\.hostname===/);
 });

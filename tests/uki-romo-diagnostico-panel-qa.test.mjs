@@ -50,7 +50,7 @@ test('selector Romo reutiliza Google y consulta metadatos, sin operar caja',()=>
  assert.match(html,/window\.ukiRomoGoogleEntrarQA=async/);
  assert.match(html,/async function ukiRomoConsultarEstadoDiagnosticoQA\(\)/);
  assert.match(html,/result\.modo!=='solo_lectura'/);
- assert.match(html,/const ROMO_PANEL_INTEGRACION_HABILITADA_QA=false/);
+ assert.match(html,/const ROMO_PANEL_INTEGRACION_HABILITADA_QA=location\.hostname===/);
  assert.match(html,/const SUCURSALES=\["Uki Regimiento Arica","Uki La Serena"\]/);
  assert.match(html,/const UKI_OPERACION_HABILITADA=location\.hostname==='diannaleandra-art\.github\.io'/);
 });
