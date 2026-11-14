@@ -32,3 +32,6 @@ Estas comprobaciones no acreditan conexión real desde dos teléfonos ni una caj
 
 ## Condición para publicación comercial posterior
 Primero: conectar autenticación/clave real de Romo, ejecutar operaciones completas en navegador con cuenta autorizada, verificar dos teléfonos y finanzas privadas. Luego validación de los dueños y **otra autorización expresa de lanzamiento**. No interpretar un despliegue de vista previa como publicación comercial.
+
+## 14-11-2026 · Primera clave de Romo protegida (solo QA)
+Se detectó que la clave de Uki no puede verificarse realmente desde otro dominio cuando el estado Romo en Neon está en revisión 0. El acceso a Romo sigue exigiendo Google autorizado en servidor; además la **primera** apertura del estado vacío ahora exige repetir la clave en un segundo campo enmascarado antes de mostrar el panel. No se comunica esa clave a Neon ni se crean ventas; las siguientes aperturas descifran el estado existente y ya no exigen repetirla. Un error de confirmación bloquea el ingreso sin cambios. Esto no constituye verificación cruzada con la contraseña de Uki, que sigue pendiente. Se agregaron pruebas automatizadas, sin activar la carta pública ni alterar la caja Uki.

@@ -19,7 +19,7 @@ const SUC='Romo’s Sushi La Serena';
 const requireOk=(condition,message)=>{if(!condition)throw Error(message)};
 export function crearControlRomoMismoPanelQA({
  habilitado=ROMO_PANTALLA_OPERATIVA_HABILITADA_QA,
- estadoRemoto,bandeja,obtenerToken,validarClave,crearInicial,
+ estadoRemoto,bandeja,obtenerToken,validarClave,confirmarClaveInicial,crearInicial,
  cifrarEstado,validarEstado,estadoVisible,aplicarEstado
 }={}){
  let revision=null,solicitud=null,guardando=false;
@@ -47,10 +47,19 @@ export function crearControlRomoMismoPanelQA({
    const token=await obtenerToken();
    requireOk(typeof token==='string'&&token.length>30,
     'Inicia sesión Google en el mismo panel antes de abrir Romo');
-   await validarClave(password);
+   requireOk(await validarClave(password)!==false,
+    'La validación de clave no fue confirmada');
    const data=await estadoRemoto.cargar({password});
    requireOk(Number.isSafeInteger(data?.revision)&&data.revision>=0,
     'La revisión remota Romo no es válida');
+   // Sin snapshot previo, otro origen NO puede verificar la contraseña Uki.
+   // Una primera clave equivocada cifraría irreversiblemente el estado Romo.
+   if(data.revision===0){
+    requireOk(typeof confirmarClaveInicial==='function',
+     'Primera apertura: falta confirmar la clave de cifrado');
+    requireOk((await confirmarClaveInicial(password))===true,
+     'La confirmación de la clave no coincide. Romo no se abrió');
+   }
    const estado=data.estado??crearInicial();
    requireOk(validarEstado?.(estado,SUC),'Estado no pertenece a Romo La Serena');
    await aplicarEstado({estado,revision:data.revision,soloLectura:false});

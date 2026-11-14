@@ -865,6 +865,12 @@ async function ukiRomoAbrirEnPanelQA(password){
     throw Error('Clave de cifrado o dominio de pruebas inválido');
    return true;
   },
+  confirmarClaveInicial:async(pass)=>{
+   // Primera apertura QA: confirmar dos entradas iguales; no verificar ni
+   // copiar la clave de Uki desde otro dominio ni guardarla en Neon.
+   const repetida=String($('ukiRomoConfirmacionClaveQA')?.value||'');
+   return repetida.length>=12&&repetida===pass;
+  },
   crearInicial:()=>estadoVacioSucursal(ROMO_SUCURSAL_QA),
   validarEstado:validarEstadoSucursal,
   cifrarEstado:datos=>cifrarLocal(datos,ROMO_SUCURSAL_QA,key,salt),
@@ -1716,6 +1722,7 @@ function vInicio(){
   '<p class="muted">'+(esRomo?"Solo pruebas: usa tu clave habitual para cifrar Romo; Google valida permisos. Esta dirección no puede comprobar la clave contra Uki original.":existe?"Escribe la contraseña para abrir tus registros cifrados.":"Crea una clave de al menos 12 caracteres para esta sucursal.")+'</p>'+
   (esRomo?'<p class="aviso">Solo pruebas · Sin pedidos públicos ni caja Uki.</p><button type="button" class="big" onclick="ukiRomoGoogleEnAccesoQA()">Conectar Google de Romo</button>':'')+
   '<label>Contraseña de acceso</label><input id="ukiAccesoClave" type="password" autocomplete="off" placeholder="Mínimo 12 caracteres">'+
+  (esRomo?'<label for="ukiRomoConfirmacionClaveQA">Solo la primera vez: repite la clave para cifrar Romo</label><input id="ukiRomoConfirmacionClaveQA" type="password" autocomplete="off" placeholder="Confirmación para primera apertura"><p class="muted">En este dominio no se puede verificar la contraseña original de Uki; al guardar Romo, la misma clave se usará para descifrarlo posteriormente.</p>':'')+
   (existe?'':'<label>Repite la contraseña</label><input id="ukiAccesoConfirmar" type="password" autocomplete="off" placeholder="Confirmar contraseña">')+
   '<button class="big" onclick="entrarSuc()">'+(existe?"Abrir sucursal":"Crear acceso")+'</button>'+
   '<p class="muted">La clave no se guarda. Si la pierdes, necesitarás un respaldo. El PIN antiguo de 4 números no protege estos registros.</p></div>';

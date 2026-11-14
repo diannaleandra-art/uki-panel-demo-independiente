@@ -18,6 +18,7 @@ function setup({enabled=true,conflict=false}={}){
   habilitado:enabled,
   obtenerToken:async()=>{events.push('google');return 'token_seguro_'.repeat(6)},
   validarClave:async()=>events.push('clave Uki'),
+  confirmarClaveInicial:async()=>true,
   crearInicial:make,
   estadoRemoto:{disponible:()=>true,cargar:async()=>{
    events.push('Neon leer');return {revision:0,estado:null}}},
