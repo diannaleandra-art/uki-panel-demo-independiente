@@ -98,3 +98,12 @@ consulta los importes en finanzas QA. Tanto la conexión financiera como la
 de permisos se limitan a los endpoints de las dos ramas QA.
 La lectura continúa desactivada hasta habilitación autorizada;
 no se modifica la producción ni se exponen credenciales nuevas.
+
+## Validación previa de lotes Romo (solo QA)
+La sincronización ahora valida todas las constancias y compara los cierres
+ya existentes en Mi Administración **antes de realizar ningún INSERT**.
+Un cierre inconsistente o una revisión distinta identificada previamente
+bloquean todo el lote. Solo después verifica cada constancia de nuevo e
+importa los cierres uno por uno con idempotencia. Una modificación concurrente
+podría exigir reintento manual: NO hay transacción única entre dos bases Neon.
+Ninguna bandera operativa se habilitó y no se introdujeron ventas de prueba.

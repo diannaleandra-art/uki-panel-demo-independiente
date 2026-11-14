@@ -28,6 +28,8 @@ const setup=()=>{
  const dbFin={async query(q,args){
   queries.push({type:'fin',q,args});
   assert.match(q,/fin_romo_cierres_live_v1/);
+  if(q.includes('source_key=ANY($2::text[])'))
+   return [...finRows.values()].filter(row=>args[1].includes(row.source_key));
   if(q.startsWith('INSERT ')){
    if(finRows.has(args[1]))return [];
    finRows.set(args[1],{
@@ -81,6 +83,42 @@ test('una constancia que no coincide con el turno no entra a Mi Administración'
   turno_ref:'otro-turno'};
  await assert.rejects(sincronizarCierresRomoDuenosQA(config(w)));
  assert.equal(w.finRows.size,0);
+});
+
+test('un cierre inválido al final bloquea TODO el lote antes de insertar',async()=>{
+ const w=setup(),first=w.original;
+ const later={...row(),
+  source_key:'romo:serena|2026-11-13@1794582000000',
+  turno_ref:'2026-11-13@1794582000000',
+  resumen:{...row().resumen,
+   turno_ref:'2026-11-13@1794582000000',
+   fuente_unica:'romo:serena|2026-11-13@1794582000000',
+   medios:{Efectivo:7000},venta_total:9000}};
+ const originalQuery=w.dbRomo.query;
+ w.dbRomo.query=async(q,args)=>{
+  if(q.includes('BETWEEN'))return [first,later];
+  return originalQuery(q,args);
+ };
+ await assert.rejects(sincronizarCierresRomoDuenosQA(config(w)),
+  /constancia|cuadran/i);
+ assert.equal(w.finRows.size,0);
+ assert.equal(w.queries.filter(x=>x.type==='fin'&&x.q.startsWith('INSERT')).length,0);
+});
+test('un cierre existente incompatible bloquea nuevas importaciones en el lote',async()=>{
+ const w=setup();
+ w.finRows.set(w.original.source_key,{
+  store_id:'romo:serena',source_key:w.original.source_key,
+  turno_ref:w.original.turno_ref,fecha_operativa:day,
+  revision_neon:3,venta_total:8000,medios:{Efectivo:8000},
+  fecha_cierre_ms:start+3600000,pedidos:1,gastos_cierre:500,
+  delivery_por_pagar:2000,propinas:100,retiros:0,
+  caja_chica_inicial:25000,caja_chica_gastos:0,efectivo_contado:9000,
+  diferencia_efectivo:0
+ });
+ await assert.rejects(sincronizarCierresRomoDuenosQA(config(w)),
+  /mismo turno Romo ya existe/i);
+ assert.equal(w.finRows.get(w.original.source_key).venta_total,8000);
+ assert.equal(w.queries.filter(x=>x.type==='fin'&&x.q.startsWith('INSERT')).length,0);
 });
 test('sincronización permanece apagada en servidor y panel',()=>{
  const api=readFileSync(new URL('../api/mi-administracion-live.js',import.meta.url),'utf8');
