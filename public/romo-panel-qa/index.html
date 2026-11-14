@@ -443,7 +443,7 @@ function cambiarModoNuevo(t){if(S.suc===ROMO_SUCURSAL_QA&&t!=='manual'){aviso('R
 function aviso(t){S.msg=t;render();window.scrollTo({top:0,behavior:"smooth"});}
 function ir(v){
   if(S.suc===ROMO_SUCURSAL_QA){
-   if(!['pedidos','nuevo','caja','clientes'].includes(v)){
+   if(!['pedidos','nuevo','caja','clientes','inventario'].includes(v)){
     S.msg='Esta función todavía no tiene guardado seguro en Romo; no se registró nada.';
     S.vista='pedidos';render();return;
    }
@@ -453,7 +453,9 @@ function ir(v){
     nuevoDraft();
    }
    if(v==='nuevo')modoNuevo='manual';
-   S.vista=v;render();return;
+   S.vista=v;render();
+   if(v==='inventario')setTimeout(()=>window.ukiInventarioMontar?.(),0);
+   return;
   }
   if(S.vista==='nuevo'&&v!=='nuevo'&&ukiCartaRemotaActiva)ukiCartaRemotaActiva=null;
   if(S.vista==="nuevo"&&v!=="nuevo"&&S.suc&&ukiSolicitudWhatsAppActiva){
@@ -778,6 +780,10 @@ function render(){
   $("nav").style.display=S.suc?"grid":"none";
   ukiAccesosDesplazamiento();
   $("nav").innerHTML=(S.suc===ROMO_SUCURSAL_QA?VISTAS.filter(([k])=>['pedidos','nuevo','clientes','caja'].includes(k)):VISTAS).map(([k,l,icon])=>`<button type="button" class="${S.vista===k?"on":""}" onclick="ir('${k}')" aria-label="${l}" ${S.vista===k?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${l}</span></button>`).join("");
+  if(S.suc===ROMO_SUCURSAL_QA)
+   $("nav").innerHTML+='<button type="button" class="'+(S.vista==='inventario'?'on':'')+
+    '" onclick="ir(\'inventario\')" aria-label="Inventario" '+(S.vista==='inventario'?'aria-current="page"':'')+
+    '><span class="nav-icon" aria-hidden="true">▦</span><span>Inventario</span></button>';
   const f={inicio:vInicio,pedidos:vPedidos,nuevo:vNuevo,clientes:vClientes,caja:vCaja,inventario:()=>window.ukiInventarioPanelHTML?.()||'<div class="card"><p>Preparando inventario…</p></div>'}[S.vista]||vInicio;
   const msg=S.msg?`<div role="status" class="aviso" style="background:#ffece4;color:#7a2c08">${esc(S.msg)}</div>`:"";
   S.msg=null;

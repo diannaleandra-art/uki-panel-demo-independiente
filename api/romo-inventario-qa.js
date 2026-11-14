@@ -67,7 +67,7 @@ module.exports=async function romoInventarioQA(req,res){
   const body=req.body;
   if(!body||typeof body!=='object'||Array.isArray(body)||
     Object.keys(body).sort().join('|')!=='action|args|expectedRevision'||
-    !['alta','editar','archivar','conteo','entrada','disponibilidad'].includes(body.action)||
+    !['alta','editar','editar_completo','archivar','conteo','entrada','disponibilidad'].includes(body.action)||
     !Number.isSafeInteger(body.expectedRevision)||body.expectedRevision<0||
     !body.args||typeof body.args!=='object'||Array.isArray(body.args))
    return fail(res,400,'Operación de inventario inválida');

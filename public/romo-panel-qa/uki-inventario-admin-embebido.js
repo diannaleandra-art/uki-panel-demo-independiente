@@ -4,9 +4,9 @@
 const API='https://uki-sushi-inventario.vercel.app/api/inventario-turno-live';
 const U=[['un','Unidades'],['kg','Kilos'],['g','Gramos'],['l','Litros'],['ml','Mililitros'],['porciones','Porciones']];
 const C=[['ingrediente','Ingrediente'],['envase','Envase'],['otro','Otro insumo']];
-const X={branch:'',items:[],reports:[],selected:'',busy:false,loaded:false};
+const X={branch:'',items:[],reports:[],selected:'',busy:false,loaded:false,romoRevision:null};
 const $=id=>document.getElementById(id);
-const panelBranch=()=>typeof S!=='undefined'&&S?.suc==='Uki La Serena'?'serena':'arica';
+const panelBranch=()=>typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena'?'romo':typeof S!=='undefined'&&S?.suc==='Uki La Serena'?'serena':'arica';
 function pick(xs){return xs.map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('');}
 function number(raw){const t=String(raw??'').trim();if(!/^\d{1,6}([.,]\d{1,3})?$/.test(t))throw Error('Cantidad inválida: máximo 3 decimales (ej.: 2,5).');const n=Number(t.replace(',','.'));if(n>100000)throw Error('Cantidad fuera de rango.');return n;}
 function panel(){return [
@@ -24,7 +24,9 @@ function panel(){return [
 '<label for="invUnit">Unidad</label><select id="invUnit">'+pick(U)+'</select>',
 '<div class="quick-grid"><div><label for="invStock">Cantidad actual</label><input id="invStock" inputmode="decimal" autocomplete="off"></div>',
 '<div><label for="invMin">Mínimo de reposición</label><input id="invMin" inputmode="decimal" autocomplete="off"></div></div>',
-'<p class="muted">Cambiar unidad no convierte las cantidades; escribe las cifras correctas.</p><button id="invSave" class="big" type="button">Guardar cambios</button></div>',
+'<p class="muted">Cambiar unidad no convierte las cantidades; escribe las cifras correctas.</p><button id="invSave" class="big" type="button">Guardar cambios</button>'+
+'<div id="romoInvOperaciones" hidden><button id="romoInvDisponible" class="sm" type="button">Cambiar disponibilidad</button>'+
+'<button id="romoInvArchivar" class="sm" type="button">Archivar artículo</button></div></div>',
 '<p class="mini-help">Disponible/Agotado sigue siendo manual. El stock nunca lo modifica automáticamente.</p></div>',
 '<div class="card" id="invNewBox" hidden><details><summary style="cursor:pointer;font-weight:700">＋ Agregar insumo al inventario</summary>',
 '<label for="invNewName">Nombre</label><input id="invNewName" maxlength="100"><label for="invNewCat">Categoría</label><select id="invNewCat">'+pick(C)+'</select>',
@@ -36,7 +38,8 @@ function panel(){return [
 ].join('');}
 function status(msg){if($('invStatus'))$('invStatus').textContent=msg;}
 async function request(action,data={},branch=X.branch){
- if(typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena')throw Error('El inventario de Romo se conecta solo a su base propia, no a Uki.');
+ if(typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena')
+  return requestRomo(action,data,branch);
  if(branch!==panelBranch())throw Error('Abre la sucursal correspondiente para consultar su inventario.');
  const token=await window.ukiInventarioToken?.();
  if(!token)throw Error('Inicia sesión Google en el panel. Solo administración autorizada puede editar inventario.');
@@ -45,9 +48,90 @@ async function request(action,data={},branch=X.branch){
  if(!res.ok||!json.ok)throw Error(json.error||'No se pudo consultar el inventario.');
  return json;
 }
+
+async function requestRomo(action,data={},branch=X.branch){
+ if(branch!=='romo'||S?.suc!=='Romo’s Sushi La Serena')
+  throw Error('Romo solo consulta y guarda su propio inventario.');
+ const token=await window.ukiInventarioToken?.();
+ if(typeof token!=='string'||token.length<30)
+  throw Error('Inicia sesión con la cuenta Google autorizada de Romo.');
+ const revision=X.romoRevision;
+ const isRead=action==='articulos'||action==='reportes';
+ let body=null;
+ if(!isRead){
+  if(!Number.isSafeInteger(revision)||revision<0)
+   throw Error('Primero actualiza el inventario de Romo.');
+  const item=data.item;
+  if(action==='crear-articulo'){
+   const sku='r_'+globalThis.crypto.randomUUID().replace(/-/g,'');
+   body={action:'alta',expectedRevision:revision,
+    args:{sku,name:item.name,kind:item.category,stock_unit:item.stock_unit,
+     stock_qty:item.stock_qty,min_stock_qty:item.min_stock_qty,available:true}};
+  }else if(action==='editar-articulo'){
+   const v=X.items.find(x=>x.sku===data.sku);
+   if(!v||v.version!==revision)throw Error('Ficha desactualizada; vuelve a cargar.');
+   body={action:'editar_completo',expectedRevision:revision,
+    args:{sku:v.sku,name:item.name,kind:item.category,stock_unit:item.stock_unit,
+     stock_qty:item.stock_qty,min_stock_qty:item.min_stock_qty}};
+  }else if(action==='romo-archivar'){
+   body={action:'archivar',expectedRevision:revision,args:{sku:data.sku}};
+  }else if(action==='romo-disponibilidad'){
+   body={action:'disponibilidad',expectedRevision:revision,
+    args:{sku:data.sku,available:data.available}};
+  }else throw Error('Operación de inventario no autorizada para Romo.');
+ }
+ const response=await fetch('/api/romo-inventario-qa',{
+  method:isRead?'GET':'POST',credentials:'omit',cache:'no-store',
+  headers:{Authorization:'Bearer '+token,...(isRead?{}:{'Content-Type':'application/json'})},
+  ...(isRead?{}:{body:JSON.stringify(body)})
+ });
+ const dataRomo=await response.json().catch(()=>null);
+ if(!response.ok||dataRomo?.ok!==true||dataRomo.storeId!=='romo:serena'){
+  if(response.status===409)throw Error('Inventario modificado en otro teléfono. Actualiza antes de guardar.');
+  throw Error(dataRomo?.error||'No se confirmó la operación de inventario Romo.');
+ }
+ if(isRead){
+  const version=Number(dataRomo.revision),state=dataRomo.contenido;
+  if(!Number.isSafeInteger(version)||version<0||state?.version!==1||
+     !Array.isArray(state.items)||!Array.isArray(state.movimientos))
+   throw Error('La respuesta de inventario no corresponde a Romo.');
+  X.romoRevision=version;
+  if(action==='articulos')
+   return {items:state.items.filter(v=>!v.archived).map(v=>({
+    ...v,category:v.kind,inventory_only:true,version,available:v.available
+   }))};
+  return {revisiones:state.movimientos.slice().reverse().map(m=>({
+   tipo:m.tipo,sku:m.sku,created_at:new Date(m.fechaMs).toISOString(),
+   worker_name:m.actor,summary:{sinMinimo:0,faltantes:[]}
+  }))};
+ }
+ if(Number(dataRomo.revision)!==revision+1)
+  throw Error('No se confirmó la revisión. Actualiza antes de reintentar.');
+ X.romoRevision=dataRomo.revision;
+ return dataRomo;
+}
+async function romoArticuloOperacion(action){
+ const i=X.items.find(x=>x.sku===X.selected);
+ if(!i||X.busy)return;
+ const isArchive=action==='romo-archivar';
+ if(!window.confirm(isArchive?
+  '¿Archivar «'+i.name+'» del inventario Romo? Sus movimientos históricos permanecen.':
+  '¿Confirmas que «'+i.name+'» estará '+(i.available?'NO disponible':'disponible')+' en Romo?'))return;
+ X.busy=true;status('Guardando exclusivamente en Romo…');
+ try{
+  await requestRomo(action,{sku:i.sku,available:!i.available});
+  X.busy=false;
+  await load();
+  status('✓ Movimiento confirmado en inventario de Romo.');
+ }catch(e){status('No se confirmó. Comprueba antes de repetir: '+String(e.message||e));}
+ finally{X.busy=false}
+}
+
 function selection(){
  const item=X.items.find(v=>v.sku===X.selected);$('invEditor').hidden=!item;if(!item)return;
  $('invName').value=item.name;$('invName').disabled=!item.inventory_only;
+ const romoOps=$('romoInvOperaciones');
+ if(romoOps)romoOps.hidden=X.branch!=='romo';
  $('invCategory').value=item.category||'ingrediente';$('invCategory').disabled=!item.inventory_only;
  $('invUnit').value=item.stock_unit;$('invStock').value=String(item.stock_qty).replace('.',',');$('invMin').value=String(item.min_stock_qty).replace('.',',');
 }
@@ -68,8 +152,11 @@ function reports(){
  for(const r of X.reports.slice(0,20)){
   const d=document.createElement('details');d.className='card';
   const title=document.createElement('summary'),s=r.summary||{},list=s.faltantes||[];
-  title.textContent=(r.worker_name||'Trabajador')+' · '+new Date(r.created_at).toLocaleString('es-CL',{timeZone:'America/Santiago'})+' · '+list.length+' para reponer';d.append(title);
-  let p=document.createElement('p');p.className='muted';p.textContent=(s.sinMinimo||0)+' sin mínimo configurado';d.append(p);
+  title.textContent=X.branch==='romo'?
+   (r.tipo||'Movimiento')+' · '+(r.sku||'Artículo')+' · '+new Date(r.created_at).toLocaleString('es-CL',{timeZone:'America/Santiago'}):
+   (r.worker_name||'Trabajador')+' · '+new Date(r.created_at).toLocaleString('es-CL',{timeZone:'America/Santiago'})+' · '+list.length+' para reponer';d.append(title);
+  let p=document.createElement('p');p.className='muted';p.textContent=X.branch==='romo'?
+    'Registrado por: '+(r.worker_name||'Cuenta autorizada'):(s.sinMinimo||0)+' sin mínimo configurado';d.append(p);
   for(const f of list){p=document.createElement('p');p.textContent=f.nombre+' · comprar '+(f.llevar===0?'al llegar al mínimo':f.llevar+' '+f.unidad);d.append(p);}
   target.append(d);
  }
@@ -81,6 +168,7 @@ async function load(){
   const [a,r]=await Promise.all([request('articulos',{},branch),request('reportes',{},branch)]);
   if(branch!==X.branch)return;
   X.items=a.items||[];X.reports=r.revisiones||[];X.loaded=true;
+  if(branch==='romo'&&$('invReportsBox'))$('invReportsBox').querySelector('h2').textContent='Historial de movimientos · Romo';
   $('invAdmin').hidden=false;$('invNewBox').hidden=false;$('invReportsBox').hidden=false;
   populate();reports();status('✓ '+X.items.length+' artículos · '+X.reports.length+' revisiones consultadas.');
  }catch(e){X.loaded=false;$('invAdmin').hidden=true;$('invNewBox').hidden=true;$('invReportsBox').hidden=true;status(String(e.message||e));}
@@ -92,6 +180,7 @@ async function save(){
   const stock_unit=$('invUnit').value,stock_qty=number($('invStock').value),min_stock_qty=number($('invMin').value);
   if(stock_unit!==i.stock_unit&&!confirm('¿Confirmas que estas cantidades corresponden a '+stock_unit+'? No se convierten automáticamente.'))return;
   params={sku:i.sku,expected_version:i.version};
+  if(X.branch==='romo'&&!confirm('¿Confirmas que las cantidades y datos corresponden al inventario de Romo?'))return;
   if(i.inventory_only)params.item={name:$('invName').value.trim(),category:$('invCategory').value,stock_unit,stock_qty,min_stock_qty};
   else Object.assign(params,{stock_unit,stock_qty,min_stock_qty});
  }catch(e){status(String(e.message));return;}
@@ -116,14 +205,18 @@ async function create(){
 function mount(){
  if(!$('invRoot'))return;
  const active=panelBranch();
- if(X.branch!==active){X.items=[];X.reports=[];X.selected='';X.loaded=false;}
+ if(X.branch!==active){X.items=[];X.reports=[];X.selected='';X.loaded=false;X.romoRevision=null;}
  X.branch=active;
  $('invBranch').value=active;
  $('invBranch').disabled=true;
- $('ukiInvSucursalActual').textContent=active==='serena'?'Uki La Serena':'Uki Regimiento Arica';
+ $('ukiInvSucursalActual').textContent=active==='romo'?'Romo’s Sushi La Serena':
+  active==='serena'?'Uki La Serena':'Uki Regimiento Arica';
+ if($('ukiInvWorkerAccess'))$('ukiInvWorkerAccess').hidden=active==='romo';
  $('invRefresh').onclick=()=>void load();$('invSearch').oninput=populate;
  $('invSelect').onchange=e=>{X.selected=e.target.value;selection();};
  $('invSave').onclick=()=>void save();$('invCreate').onclick=()=>void create();
+ if($('romoInvDisponible'))$('romoInvDisponible').onclick=()=>void romoArticuloOperacion('romo-disponibilidad');
+ if($('romoInvArchivar'))$('romoInvArchivar').onclick=()=>void romoArticuloOperacion('romo-archivar');
  if(X.loaded){$('invAdmin').hidden=false;$('invNewBox').hidden=false;$('invReportsBox').hidden=false;populate();reports();status('Inventario listo.');}
  else void load();
 }
