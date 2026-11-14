@@ -275,7 +275,7 @@ body.romo-operativo-preparacion #ukiAvisoInterno{display:none!important}
 </style>
 </head>
 <body>
-<div role="status" style="font:700 14px/1.5 system-ui,sans-serif; padding:13px 16px;background:#171717;color:#fff;border-bottom:4px solid #bb1024;text-align:center">VISTA DE PRUEBAS · ROMO LA SERENA · NO REGISTRAR PEDIDOS NI CAJA</div>
+<div role="status" style="font:700 14px/1.5 system-ui,sans-serif; padding:13px 16px;background:#171717;color:#fff;border-bottom:4px solid #bb1024;text-align:center">ROMO LA SERENA · PILOTO INTERNO · PEDIDOS Y COBROS CONTROLADOS EN PRUEBAS · NO USAR CON CLIENTES AÚN</div>
 <header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.16 · LOCALES</h1><small id="ukiEstadoOperativo" role="status">Nube: desactivada · Abre tu sucursal y carga Firebase</small></header>
 <nav id="nav" class="app-nav" aria-label="Navegación de Uki Sushi"></nav>
 <section id="ukiNubeSeccion" style="margin:12px;padding:14px;background:#fff0dd;border:2px solid #b55e25;border-radius:14px">
@@ -431,16 +431,23 @@ const CAJA_TABS=[["resumen","Resumen"],["movimientos","Movimientos"],["precierre
 const MOV_TABS=[["gastos","Gastos"],["apps","Apps"],["delivery","Delivery manual"],["repartidor","Pago repartidor"],["propinas","Propinas"],["retiros","Retiros"],["chica","Caja chica"]];
 function cambiarCajaTab(t){cajaTab=t;S.confirmCierre=false;render();if(t==="acumulada")setTimeout(()=>window.ukiCajaAcumuladaMontar?.(),0);window.scrollTo({top:0,behavior:"instant"});}
 function cambiarMovimientoTab(t){movimientoTab=t;render();}
-function cambiarModoNuevo(t){modoNuevo=t;render();}
+function cambiarModoNuevo(t){if(S.suc===ROMO_SUCURSAL_QA&&t!=='manual'){aviso('Romo todavía requiere ingresar el pedido manualmente.');return;}modoNuevo=t;render();}
 
 
 function aviso(t){S.msg=t;render();window.scrollTo({top:0,behavior:"smooth"});}
 function ir(v){
-  // Romo abre primero solo los dos módulos autorizados: bandeja y
-  // formulario manual; no se activan Caja, Clientes, Timbres ni Cierres.
-  if(S.suc===ROMO_SUCURSAL_QA&&!['pedidos','nuevo'].includes(v)){
-   S.vista='pedidos';S.msg='Romo está en apertura controlada: solo pedidos manuales pendientes. Caja, cobros y cierres permanecen bloqueados.';
-   render();return;
+  if(S.suc===ROMO_SUCURSAL_QA){
+   if(!['pedidos','nuevo','caja'].includes(v)){
+    S.msg='Esta función todavía no tiene guardado seguro en Romo; no se registró nada.';
+    S.vista='pedidos';render();return;
+   }
+   if(S.vista==='nuevo'&&v!=='nuevo'){
+    if(ukiBorradorTieneContenido()&&!window.confirm(
+      'Este formulario todavía no se guardó en Romo. ¿Descartarlo y salir?'))return;
+    nuevoDraft();
+   }
+   if(v==='nuevo')modoNuevo='manual';
+   S.vista=v;render();return;
   }
   if(S.vista==='nuevo'&&v!=='nuevo'&&ukiCartaRemotaActiva)ukiCartaRemotaActiva=null;
   if(S.vista==="nuevo"&&v!=="nuevo"&&S.suc&&ukiSolicitudWhatsAppActiva){
@@ -757,7 +764,7 @@ function render(){
   $("suc").innerHTML=S.suc?`<span>${esc(S.suc)}</span><a href="#" onclick="salirSuc();return false;" class="salir">Salir</a>`:S.romoSeleccionadoQA?(S.romoIngresadoQA?'<span>Romo’s Sushi · La Serena · Balmaceda 1612</span><a href="#" onclick="ukiVolverAlSelectorLocales();return false;" class="salir">Salir</a>':'Romo’s Sushi · La Serena · Balmaceda 1612'):'Selecciona una sucursal para empezar';
   $("nav").style.display=S.suc?"grid":"none";
   ukiAccesosDesplazamiento();
-  $("nav").innerHTML=(S.suc===ROMO_SUCURSAL_QA?VISTAS.filter(([k])=>['pedidos','nuevo'].includes(k)):VISTAS).map(([k,l,icon])=>`<button type="button" class="${S.vista===k?"on":""}" onclick="ir('${k}')" aria-label="${l}" ${S.vista===k?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${l}</span></button>`).join("");
+  $("nav").innerHTML=(S.suc===ROMO_SUCURSAL_QA?VISTAS.filter(([k])=>['pedidos','nuevo','caja'].includes(k)):VISTAS).map(([k,l,icon])=>`<button type="button" class="${S.vista===k?"on":""}" onclick="ir('${k}')" aria-label="${l}" ${S.vista===k?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${l}</span></button>`).join("");
   const f={inicio:vInicio,pedidos:vPedidos,nuevo:vNuevo,clientes:vClientes,caja:vCaja,inventario:()=>window.ukiInventarioPanelHTML?.()||'<div class="card"><p>Preparando inventario…</p></div>'}[S.vista]||vInicio;
   const msg=S.msg?`<div role="status" class="aviso" style="background:#ffece4;color:#7a2c08">${esc(S.msg)}</div>`:"";
   S.msg=null;
@@ -1024,6 +1031,7 @@ async function entrarSuc(){
     S={...estadoVacioSucursal(s),...unlocked.estado,
       suc:s,pinSuc:null,vista:"pedidos",msg:null,busy:false,confirmCierre:false};
     S.romoSeleccionadoQA=false;S.romoIngresadoQA=true;
+    modoNuevo='manual';
    }else{
     // Mantener la pantalla de preparación ya aprobada; NO registrar operaciones.
     S.pinSuc=null;S.romoSeleccionadoQA=true;S.romoIngresadoQA=false;
@@ -1035,6 +1043,8 @@ async function entrarSuc(){
  }catch(e){aviso(esRomo?"Romo todavía no pudo abrirse. Revisa la cuenta Google, la clave habitual y la conexión independiente. No se guardó ningún movimiento.":"Clave incorrecta, datos dañados o cifrado no disponible.");}
 }
 async function salirSuc(){
+ if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='nuevo'&&ukiBorradorTieneContenido()&&
+    !window.confirm('Este formulario no está guardado en Romo. ¿Salir y descartarlo?'))return;
  if(ukiSolicitudWhatsAppActiva)ukiWhatsAppPausarRevision();
  if(S.suc){const ok=await guardarEnLocalStorage();if(!ok)return;await colaGuardado;}
  if(S.suc===ROMO_SUCURSAL_QA)window.ukiRomoSesionRemotaQA?.cerrar();
@@ -1995,7 +2005,7 @@ function vNuevo(){
   const pendienteEdicion=!!ukiCobroPendiente(pedidoEdicion);
    const entregaUI=`<label>Tipo de entrega</label><div class="chips">${["Retiro","Delivery","Consumo en local"].map(m=>`<button ${chip(D.modalidad===m)} onclick="setModalidad('${m}')">${m}</button>`).join("")}</div>${D.modalidad==="Consumo en local"?`<label>Mesa o referencia (opcional)</label><input maxlength="50" value="${esc(D.mesaReferencia||"")}" placeholder="Ej: Mesa 2" oninput="D.mesaReferencia=this.value">`:""}${D.modalidad==="Delivery"?`<label>💰 Valor delivery (se suma)</label><input type="number" inputmode="numeric" value="${D.envio||""}" placeholder="Ej: 2000" oninput="setEnvioManual(this.value)"><p class="muted" id="pedidoEnvioAyuda">Delivery seleccionado - ${D.envio||0} se suma al total</p><label>🛵 Kilómetros del recorrido (opcional, no cambia el precio)</label><input id="ukiKmRecorrido" type="text" inputmode="decimal" value="${esc(D.kmRecorrido??"")}" placeholder="Ej: 4,5" onchange="D.kmRecorrido=this.value.trim();render()"><p class="muted">Si el recorrido viene escrito en el mensaje original, el panel también puede leerlo. No modifica el valor del delivery.</p>`:""}`;
   return `<div class="section-head"><h2>${D.editando?`Editar pedido #${D.editando}`:revisandoSolicitud?"Revisar solicitud":"Nuevo pedido"}</h2><p>${D.editando?"Corrige los datos y el medio de pago del pedido existente. Guardar cambios no genera otro pedido ni otro cobro.":revisandoSolicitud?"Solicitud recibida: verifica el detalle y la forma de entrega. Todavía NO es un pedido registrado ni un pago confirmado.":"Completa los datos y guarda el pedido una sola vez."}</p></div>
-  ${ukiVistaBorradores()}
+  ${S.suc===ROMO_SUCURSAL_QA?'<div class="card"><b>Piloto Romo · registro manual</b><p class="muted">El borrador se conserva en pantalla hasta Guardar; solo el botón Guardar confirma la revisión cifrada. Los borradores entre celulares, cobros en Nuevo y recepción automática no están activados.</p></div>':ukiVistaBorradores()}
   <details class="uki-modos-ingreso" ${revisandoSolicitud?'':'open'} style="${D.editando?'display:none;':'margin:10px 0'}"><summary><b>${revisandoSolicitud?'Ver mensaje original':'Opciones de ingreso · WhatsApp o manual'}</b></summary>
    ${revisandoSolicitud?'':`<div class="mode-switch" role="group" aria-label="Modo de ingresar pedido"><button type="button" class="${modoNuevo==='whatsapp'?'selected':''}" onclick="cambiarModoNuevo('whatsapp')">📋 Pegar WhatsApp</button><button type="button" class="${modoNuevo==='manual'?'selected':''}" onclick="cambiarModoNuevo('manual')">✎ Manual</button></div>`}
 
@@ -2003,7 +2013,7 @@ function vNuevo(){
   </details>
   <div class="card"><h2>1 · Cliente y entrega</h2>${modoNuevo==="manual"?`<div class="mini-help"><b>🔢 Número visible: ${esc(ukiFolioBorrador())}</b><p class="muted" style="margin:6px 0 0">${D.editando?"Este número ya pertenece al pedido y no cambiará.":"El sistema asignará el número correlativo definitivo al guardar. No tienes que escribir un código."}</p></div>`:`<div class="mini-help"><b>${esc(ukiFolioBorrador())}</b> · Identificador visible del turno.</div>`}${D.codigoCarta&&esMensajeCartaUki(D.texto||"")?`<div style="padding:10px;background:var(--bg);border-radius:10px"><b>📋 Carta #${esc(D.codigoCarta)}</b><p class="muted" style="margin:5px 0 0">Código original detectado automáticamente desde el pedido de la carta. No se escribe ni se modifica aquí.</p></div>`:modoNuevo!=="manual"?`<label>Código de la carta (solo si existe)</label><input value="${esc(D.codigoCarta||"")}" placeholder="Se detecta al procesar WhatsApp" oninput="D.codigoCarta=this.value.trim()" inputmode="text"><p class="muted">Si el pedido llegó desde la carta digital, pega su mensaje completo para detectar el código automáticamente.</p>`:""}<label>Código del cliente · últimos 4 dígitos del WhatsApp</label><input id="ukiCodigoAuto" value="${esc(ukiCodigoWhatsApp(D.telefono)||D.codigoCliente||"")}" placeholder="Automático al escribir WhatsApp" readonly inputmode="numeric"><p class="muted">Se calcula automáticamente. Para identificarlo y buscarlo usa también su nombre o el WhatsApp completo.</p><label>Fecha y hora</label><input type="datetime-local" value="${D.fecha}" oninput="D.fecha=this.value"><label>Cliente (no se autocompleta con total)</label><input value="${esc(D.cliente)}" placeholder="Ej: Camila Rojas" oninput="D.cliente=this.value">${cli?`<div style="margin-top:8px;padding:8px;background:#fff1e0;border-radius:8px"><b>${esc(cli.nombre)}</b> tiene <b>${ventasCli}/10</b> timbres ${ventasCli>=6?'<span class="tag" style="background:var(--ok);color:#fff">Puede canjear 12 piezas!</span>':''} ${ventasCli>=10?'<span class="tag" style="background:#111;color:#fff">Puede canjear 36+2 korokes!</span>':''}<div class="tarjeta" style="margin-top:6px">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventasCli?'lleno':''} ${i===5||i===9?'premio':''}">${i<ventasCli?'✓':i+1}</div>`).join("")}</div></div>`:"<p class='muted'>Nuevo cliente - empezará con 1 timbre</p>"}<label>📱 WhatsApp / Teléfono</label><input value="${esc(D.telefono)}" placeholder="+56 9 1234 5678" oninput="D.telefono=this.value;D.codigoCliente=ukiCodigoWhatsApp(D.telefono);const cod=document.getElementById('ukiCodigoAuto');if(cod)cod.value=D.codigoCliente" onchange="D.telefono=this.value;render()" inputmode="tel">${entregaUI}</div>
   <div class="card"><h2>2 · Productos y total</h2>${D.items.filter(x=>x.nombre).map((i,k)=>`<div class="row"><span>${i.cant} × ${esc(i.nombre)}${i.det?` <span class="muted">(${esc(i.det)})</span>`:""}</span><b>${fmt(i.cant*i.precio)} <button class="sm" onclick="delItem(${k})">✕</button></b></div>`).join("")||'<p class="muted">Aún no hay productos. Agrégalos abajo.</p>'}<div style="display:grid;grid-template-columns:80px 1fr;gap:8px;margin-top:10px"><div><label>Cant</label><input id="pCant" type="number" value="1" style="text-align:center;font-weight:700"></div><div><label>Precio</label><input id="pPre" type="number" inputmode="numeric" placeholder="14900"></div></div><label>Nombre producto</label><input id="pNom" placeholder="Promo 24 piezas"><label>Detalle</label><input id="pDet" placeholder="sin cebollín"><button class="sm ok" onclick="addItem()">+ Agregar producto</button><div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:10px;border-top:2px solid var(--accent)"><div class="row sub"><span>Subtotal productos</span><b>${fmt(sub)}</b></div><div class="row"><span>Delivery</span><b id="pedidoEnvioVista">${fmt(envio)}</b></div><div class="row"><span>Propina voluntaria</span><b>${fmt(propina)}</b></div><div class="row final"><span>Total a pagar</span><b id="pedidoTotalVista">${fmt(total)}</b></div><div class="row"><span>Este pedido da</span><b>${D.productosPagadosOtroLocal?"Pago registrado en otro local":"⭐ +1 timbre"}</b></div></div></div>
-  ${ukiPropinaUI(sub)}
+  ${S.suc===ROMO_SUCURSAL_QA?'<div class="card"><p class="muted">En Romo, guarda primero el pedido sin pagar. El cobro se confirma después en Pedidos, cuando el dinero haya sido recibido.</p></div>':ukiPropinaUI(sub)}
   <div class="card"><h2>3 · Pago del pedido</h2><p class="muted">Si todavía no han pagado, no marques la confirmación. El pedido quedará registrado por cobrar.</p>
     <div style="padding:12px;margin-bottom:14px;background:var(--bg);border-radius:12px">
       <h3 style="margin:0 0 6px">${D.pagado?"Cobro confirmado en Uki":"Cobro por confirmar en Uki"}</h3>
@@ -3390,6 +3400,7 @@ function totales(){
 
 function vCaja(){
   if(!S.suc)return vInicio();
+  if(S.suc===ROMO_SUCURSAL_QA)return ukiRomoCajaConsultaHTMLQA();
   const active=CAJA_TABS.find(x=>x[0]===cajaTab)||CAJA_TABS[0];
   const content=({resumen:vCajaResumen,movimientos:vMovimientos,precierre:vPrecierreTrabajadores,cierre:vCierre,historial:vHistorialCompacto,semana:vReportes,acumulada:()=>window.ukiCajaAcumuladaVista?.()||'<div class="card">Preparando Caja acumulada en efectivo…</div>'})[active[0]]();
   return `<div class="section-head"><h2>Caja</h2><p>Turno abierto · ${fechaOperativaActual()}</p></div>
@@ -4777,19 +4788,198 @@ async function ukiQRPermitirCobroDefinitivo(d){
  }
 }
 
+
 let ukiRomoGuardandoManualQA=false;
+let ukiRomoFiltroPedidosQA='todos';
+let ukiRomoOperandoPedidoQA=false;
+const ROMO_MEDIOS_COBRO_QA=['Efectivo','Transferencia','Débito','Edenred','Otros'];
+function ukiRomoCambiarFiltroQA(tipo){
+ if(!['todos','pendientes','pagados','entregados','cancelados'].includes(tipo))return;
+ ukiRomoFiltroPedidosQA=tipo;render();
+}
+function ukiRomoCamposCobroQA(p){
+ const id=Number(p.id),sub=Number(p.subtotal)||0,env=p.modalidad==='Delivery'?Number(p.envio)||0:0;
+ const opciones=ROMO_MEDIOS_COBRO_QA.map(m=>'<option value="'+esc(m)+'">'+esc(m)+'</option>').join('');
+ const grupo=(scope,monto,nombre)=>{
+  const clave='romoCobro'+scope+id;
+  return '<div class="card" style="padding:12px"><b>'+nombre+': '+fmt(monto)+'</b>'+
+   '<label>Medio principal</label><select id="'+clave+'Medio1">'+opciones+'</select>'+
+   '<label>Monto principal</label><input id="'+clave+'Monto1" type="number" inputmode="numeric" min="0" step="1" value="'+monto+'">'+
+   '<label>Segundo medio (solo si divides el pago)</label><select id="'+clave+'Medio2"><option value="">Sin segundo medio</option>'+opciones+'</select>'+
+   '<label>Monto segundo medio</label><input id="'+clave+'Monto2" type="number" inputmode="numeric" min="0" step="1" value="0">'+
+   '</div>';
+ };
+ return '<details class="card" style="border-color:#d8b8ab"><summary><b>💳 Confirmar cobro recibido</b></summary>'+
+  '<p class="muted">Solo después de recibir el dinero. Los medios y montos deben sumar el total. Sin cobros simulados.</p>'+
+  grupo('Producto',sub,'Productos')+(env>0?grupo('Envio',env,'Delivery'):'')+
+  '<button type="button" class="big" onclick="ukiRomoConfirmarCobroQA('+id+')">Registrar pago confirmado en Romo</button>'+
+  '</details>';
+}
 function ukiRomoPedidosPendientesHTMLQA(){
- const pedidos=(S.pedidos||[]).filter(p=>p.suc===ROMO_SUCURSAL_QA).slice().reverse();
- return '<div class="section-head"><h2>Pedidos · Romo La Serena</h2><p><b>Registro manual conectado a Neon Romo.</b> Solo pedidos pendientes sin cobrar. Caja, timbres y cierres todavía bloqueados.</p></div>'+
-  '<button class="big" type="button" onclick="nuevoDraft();ir(\'nuevo\')">＋ Nuevo pedido manual</button>'+
-  (pedidos.length?pedidos.map(p=>'<section class="card"><h3>Pedido #'+esc(p.id)+' · '+esc(p.estado)+'</h3>'+
+ const todos=(S.pedidos||[]).filter(p=>p.suc===ROMO_SUCURSAL_QA).slice().reverse();
+ const penden=todos.filter(p=>p.estado!=='Cancelado'&&!p.pagado).length;
+ const pagados=todos.filter(p=>p.estado!=='Cancelado'&&p.pagado).length;
+ const entregados=todos.filter(p=>p.estado==='Entregado').length;
+ const etiquetas=[['todos','Todos ('+todos.length+')'],['pendientes','Por cobrar ('+penden+')'],
+  ['pagados','Pagados ('+pagados+')'],['entregados','Entregados ('+entregados+')'],
+  ['cancelados','Cancelados ('+todos.filter(p=>p.estado==='Cancelado').length+')']];
+ const listado=todos.filter(p=>ukiRomoFiltroPedidosQA==='todos'||
+   ukiRomoFiltroPedidosQA==='pendientes'&&p.estado!=='Cancelado'&&!p.pagado||
+   ukiRomoFiltroPedidosQA==='pagados'&&p.estado!=='Cancelado'&&p.pagado||
+   ukiRomoFiltroPedidosQA==='entregados'&&p.estado==='Entregado'||
+   ukiRomoFiltroPedidosQA==='cancelados'&&p.estado==='Cancelado');
+ const filtros='<div class="card"><b>Pedidos por estado</b><div class="chips">'+
+  etiquetas.map(([k,t])=>'<button type="button" class="chip'+(ukiRomoFiltroPedidosQA===k?' on':'')+
+   '" onclick="ukiRomoCambiarFiltroQA(\''+k+'\')">'+t+'</button>').join('')+'</div></div>';
+ const items=listado.map(p=>{
+  const id=Number(p.id),tst=/^PRUEBA\b/i.test(String(p.cliente||''));
+  const estado=p.estado==='Cancelado'?'Cancelado':p.estado==='Entregado'?'Entregado':p.pagado?'Pagado · por entregar':'Pendiente de pago';
+  const resumen='<section class="card"><h3>Pedido #'+esc(id)+' · '+esc(estado)+'</h3>'+
    '<p><b>'+esc(p.cliente||"Cliente")+'</b> · '+esc(p.modalidad||"Retiro")+' · '+fmt(p.total)+'</p>'+
    '<p class="muted">'+esc(p.fechaISO||"")+' · '+esc(p.telefono||"")+'</p>'+
    '<ul>'+((p.productos||[]).map(x=>'<li>'+esc(x.cantidad)+' × '+esc(x.nombre)+' · '+fmt(x.precioUnit)+
-    (x.detalle?'<p class="muted">'+esc(x.detalle)+'</p>':'')+'</li>').join(''))+'</ul>'+
-   '<p class="muted">Pendiente de pago y confirmación de cocina. No registra venta ni timbre.</p></section>').join(''):
-   '<section class="card"><p>Todavía no hay pedidos manuales guardados en Romo.</p></section>');
+     (x.detalle?'<p class="muted">'+esc(x.detalle)+'</p>':'')+'</li>').join(''))+'</ul>';
+  let acciones='';
+  if(p.estado==='Cancelado'){
+   acciones='<p class="muted">Cancelado · '+esc(p.motivoCancelacion||'Motivo registrado')+'. No suma ventas.</p>';
+  }else if(!p.pagado){
+   acciones=tst?'<p class="muted">Pedido de prueba: cobro real bloqueado.</p>':
+    ukiRomoCamposCobroQA(p)+
+    '<button type="button" class="sm" onclick="ukiRomoCambiarEstadoQA('+id+',\'cancelar\')">Cancelar pedido sin cobro</button>';
+  }else{
+   acciones='<p class="muted">Pago registrado de forma cifrada. No cobres nuevamente.</p>'+
+    (p.estado!=='Entregado'?'<button type="button" class="sm ok" onclick="ukiRomoCambiarEstadoQA('+id+',\'entregar\')">✓ Marcar entregado</button>':'');
+  }
+  return resumen+acciones+'</section>';
+ }).join('');
+ return '<div class="section-head"><h2>Pedidos · Romo La Serena</h2>'+
+  '<p>Pedidos guardados en Neon Romo con confirmación cifrada. Caja y cierres definitivos continúan limitados en este piloto.</p></div>'+
+  '<button class="big" type="button" onclick="nuevoDraft();modoNuevo=\'manual\';ir(\'nuevo\')">＋ Nuevo pedido manual</button>'+
+  filtros+
+  (listado.length?items:'<section class="card"><p>No hay pedidos en este filtro.</p></section>');
 }
+function ukiRomoLeerDistribucionQA(id,tipo,monto){
+ if(monto===0)return [];
+ const k='romoCobro'+tipo+id;
+ const read=part=>{
+  const medio=$(k+'Medio'+part)?.value||'';
+  const montoCampo=$(k+'Monto'+part)?.value;
+  const valor=Number(montoCampo);
+  if(!Number.isSafeInteger(valor)||valor<0)throw Error('Revisa los montos de '+tipo);
+  if(valor>0&&!ROMO_MEDIOS_COBRO_QA.includes(medio))
+   throw Error('Elige un medio válido para '+tipo);
+  return valor>0?{medio,monto:valor}:null;
+ };
+ const lineas=[read(1),read(2)].filter(Boolean);
+ if(!lineas.length||lineas.reduce((n,x)=>n+x.monto,0)!==monto)
+  throw Error('Los medios de '+tipo+' deben sumar '+fmt(monto));
+ return lineas;
+}
+async function ukiRomoGuardarOperacionQA(copia,descripcion,orden){
+ const session=window.ukiRomoSesionRemotaQA;
+ if(!session?.disponible()||S.suc!==ROMO_SUCURSAL_QA)
+  throw Error('Abre Romo con tu cuenta de dueños.');
+ const anterior=session.estado();
+ if(anterior.conflicto)throw Error('La base cambió; sal y vuelve a ingresar para conciliar.');
+ if(!validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
+  throw Error('No se pudo validar el estado independiente de Romo.');
+ const res=await session.guardar(copia);
+ if(res?.changed!==true||res.revision!==anterior.revision+1)
+  throw Error('No se confirmó una revisión nueva. Verifica antes de volver a intentar.');
+ S={...S,...copia,suc:ROMO_SUCURSAL_QA,pinSuc:null,vista:'pedidos',msg:null};
+ S.msg=descripcion+' · Pedido #'+orden+' · revisión '+res.revision+'.';
+ render();
+}
+async function ukiRomoConfirmarCobroQA(id){
+ if(ukiRomoOperandoPedidoQA||S.suc!==ROMO_SUCURSAL_QA)return;
+ const original=S.pedidos.find(x=>x.suc===S.suc&&x.id===Number(id));
+ if(!original||original.estado==='Cancelado'||original.pagado||original.esPremio||
+    /^PRUEBA\b/i.test(String(original.cliente||''))){
+  aviso('Este pedido no admite cobro en el piloto. Revisa su estado.');return;
+ }
+ const sub=Number(original.subtotal),env=original.modalidad==='Delivery'?Number(original.envio):0;
+ if(!Number.isSafeInteger(sub)||sub<1||!Number.isSafeInteger(env)||env<0||
+    !Number.isSafeInteger(Number(original.total))||Number(original.total)!==sub+env){
+  aviso('Los importes originales no coinciden. No se registró pago.');return;
+ }
+ let productos,delivery;
+ try{
+  productos=ukiRomoLeerDistribucionQA(id,'Producto',sub);
+  delivery=ukiRomoLeerDistribucionQA(id,'Envio',env);
+ }catch(e){aviso(String(e.message||e));return;}
+ const p2={...original,
+  medio:productos[0].medio,medioEnvio:delivery[0]?.medio||'Efectivo',
+  pagosProductos:productos.length>1?productos:[],
+  pagosEnvio:delivery.length>1?delivery:[],
+  pagado:true,pagoConfirmadoEn:new Date().toISOString(),pagoConfirmadoPor:'dueños',
+  propina:0,propinaModo:'ninguna',medioPropina:'Efectivo'};
+ const err=ukiErrorDistribucionPago(p2,sub,env);
+ if(err){aviso(err);return;}
+ if(!window.confirm('ROMO LA SERENA: confirma que YA RECIBISTE '+fmt(sub+env)+
+  ' del cliente por los medios indicados. Esto registra el cobro en su caja independiente. ¿Continuar?'))return;
+ ukiRomoOperandoPedidoQA=true;
+ try{
+  const copia=datosSoloSucursal();
+  const i=copia.pedidos.findIndex(p=>p.suc===S.suc&&p.id===Number(id));
+  if(i<0||copia.pedidos[i].pagado)throw Error('El pedido cambió. Vuelve a abrir Romo.');
+  copia.pedidos[i]=p2;
+  await ukiRomoGuardarOperacionQA(copia,'Cobro confirmado',id);
+ }catch(e){
+  aviso('NO SE CONFIRMÓ EL COBRO en Neon. Antes de repetirlo, consulta el pedido. '+String(e.message||e));
+ }finally{ukiRomoOperandoPedidoQA=false;}
+}
+async function ukiRomoCambiarEstadoQA(id,accion){
+ if(ukiRomoOperandoPedidoQA||S.suc!==ROMO_SUCURSAL_QA)return;
+ const p=S.pedidos.find(x=>x.suc===S.suc&&x.id===Number(id));
+ if(!p||p.estado==='Cancelado')return;
+ let motivo='';
+ if(accion==='cancelar'){
+  if(p.pagado){aviso('Un pedido pagado requiere conciliación y devolución. No puede cancelarse aquí.');return;}
+  const valor=window.prompt('Motivo obligatorio para cancelar el pedido #'+id);
+  if(valor===null)return;
+  motivo=String(valor).trim();
+  if(motivo.length<3||motivo.length>300){aviso('Indica un motivo de 3 a 300 caracteres.');return;}
+ }else if(accion==='entregar'){
+  if(!p.pagado||p.estado==='Entregado'){aviso('Solo pedidos pagados y no entregados.');return;}
+ }else return;
+ if(!window.confirm(accion==='cancelar'?'Cancelar el pedido #'+id+' sin registrar pago?':
+   'Confirmas que el pedido #'+id+' ya fue entregado?'))return;
+ ukiRomoOperandoPedidoQA=true;
+ try{
+  const copia=datosSoloSucursal(),i=copia.pedidos.findIndex(x=>x.suc===S.suc&&x.id===Number(id));
+  if(i<0)throw Error('El pedido ya no está disponible.');
+  copia.pedidos[i]={...copia.pedidos[i],estado:accion==='cancelar'?'Cancelado':'Entregado',
+   ...(accion==='cancelar'?{motivoCancelacion:motivo,canceladoEn:new Date().toISOString()}:
+     {entregadoEn:new Date().toISOString()})};
+  await ukiRomoGuardarOperacionQA(copia,accion==='cancelar'?'Pedido cancelado':'Entrega confirmada',id);
+ }catch(e){aviso('Operación no confirmada. Revisa el pedido antes de repetir. '+String(e.message||e));}
+ finally{ukiRomoOperandoPedidoQA=false;}
+}
+function ukiRomoCajaConsultaHTMLQA(){
+ const t=totales();
+ const medios=ROMO_MEDIOS_COBRO_QA.filter(k=>(t.medios[k]||0)>0);
+ const cajaMedios=medios.map(k=>row(k,fmt(t.medios[k]))).join('');
+ return '<div class="section-head"><h2>Caja · Romo La Serena</h2>'+
+  '<p>Resumen de cobros confirmados · '+esc(fechaOperativaActual())+'</p></div>'+
+  '<section class="kpis">'+
+   '<div class="kpi"><span>Venta registrada</span><strong>'+fmt(t.ventaCorregida)+'</strong></div>'+
+   '<div class="kpi"><span>Productos sin delivery</span><strong>'+fmt(t.ventaSinDelivery)+'</strong></div>'+
+   '<div class="kpi"><span>Pedidos pagados</span><strong>'+esc(t.pagadosN)+'</strong></div>'+
+   '<div class="kpi"><span>Pendientes de pago</span><strong>'+esc(t.pendientesN)+'</strong></div>'+
+  '</section>'+
+  '<div class="card"><h2>Resumen de caja</h2>'+
+  row('Base de caja inicial',fmt(Number(S.base)||0))+
+  row('Cobros confirmados',fmt(t.totalMedios))+
+  cajaMedios+
+  row('Deliverys de pedidos registrados',fmt(t.enviosPedidos))+
+  row('Delivery cobrado',fmt(t.enviosCobradosUki))+
+  row('Efectivo de cobros',fmt(t.medios.Efectivo||0))+
+  row('Gastos registrados',fmt(t.gastosTotal))+
+  row('Pagos a repartidor',fmt(t.pagoDelivery))+
+  row('Total neto calculado',fmt(t.final),'final')+
+  '<p class="muted">Consulta de importes del turno. Los precierres, cierres y gastos aún no se habilitaron para escritura. No se suman pedidos sin pagar.</p></div>';
+}
+
 async function ukiRomoGuardarPedidoPendienteQA(){
  if(ukiRomoGuardandoManualQA)return;
  const s=ROMO_SUCURSAL_QA,session=window.ukiRomoSesionRemotaQA;
