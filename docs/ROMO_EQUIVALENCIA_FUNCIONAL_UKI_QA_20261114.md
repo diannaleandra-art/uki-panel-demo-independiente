@@ -39,3 +39,9 @@ La publicación comercial exige nueva autorización.
 - El informe de cierres Romo ahora comprueba el vínculo negocio–razón social real antes de mostrar registros cuando está aplicado un filtro legal.
 - Si el vínculo no existe, los cierres no se atribuyen a ninguna sociedad por nombre o coincidencia. Los filtros de negocio y sucursal siguen operando.
 - Este cambio es de presentación y lectura: no modifica cierres, ventas manuales, sociedades ni movimientos contables. Falta desplegarlo y verificarlo en la prueba integral final.
+
+## Conciliación carta–inventario de Romo · lote QA
+- Los ingredientes del catálogo tienen códigos `romo:categoria-ingrediente`, distintos de los UUID creados en inventario; unir únicamente por nombre sería inseguro.
+- Se preparó diagnóstico **solo lectura** y **solo dueños**, usando las dos tablas de la base Neon Romo de pruebas; muestra enlaces faltantes, posibles coincidencias de nombre (no confirmadas), diferencias de disponibilidad, existencias cero y vínculos duplicados.
+- El código de diagnóstico no cambia cartas, promociones, precios ni inventario. Tampoco guarda relaciones automáticamente, marca indisponibles ni publica pedidos. Los códigos `carta_sku` son opcionales para un futuro vínculo explícito autorizado; no se asignan en este lote.
+- No se ha desplegado este reporte. Mantener el inventario y carta independientes hasta confirmar una correspondencia exacta de ingredientes y pruebas reales.

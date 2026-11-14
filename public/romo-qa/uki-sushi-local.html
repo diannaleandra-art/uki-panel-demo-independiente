@@ -1127,13 +1127,39 @@ async function ukiRomoEditarSinPagoQA(id){
  * No ejecutar movimientos hasta activar los endpoints privados de Romo. */
 const ROMO_INVENTARIO_PANEL_HABILITADO_QA=location.hostname===ROMO_PANEL_DIAG_HOST_QA;
 const ROMO_INVENTARIO_ENDPOINT_QA='https://uki-sushi-inventario-git-qa-integraci-dc8aa9-diannaleandra-7046.vercel.app/api/romo-inventario-qa';
-let romoInventarioVistaQA={loaded:false,revision:null,items:[],movimientos:[],busy:false};
+let romoInventarioVistaQA={loaded:false,revision:null,items:[],movimientos:[],busy:false,conciliacion:null};
 function romoInventarioNumeroQA(raw){
  const t=String(raw??'').trim();
  if(!/^\d{1,6}([,.]\d{1,3})?$/.test(t))throw Error('Revisa la cantidad: usa hasta 3 decimales');
  const n=Number(t.replace(',','.'));
  if(!Number.isFinite(n)||n>100000)throw Error('Cantidad fuera de rango');
  return n;
+}
+/** Vista privada de diferencias: no cambia precios ni disponibilidad. */
+function romoInventarioConciliacionHTMLQA(d){
+ if(!d||d.soloLectura!==true||d.storeId!=='romo:serena')return '';
+ const estados={
+  sin_vinculo:'Sin vincular',
+  vinculo_duplicado:'Vínculo duplicado',
+  archivado:'Inventario archivado',
+  disponibilidad_diferente:'Disponibilidad distinta',
+  sin_stock_revisar:'Revisar existencia 0',
+  coincide:'Coincide'
+ };
+ return '<details class="card"><summary><b>Revisión de carta e inventario · '+
+  esc(d.ingredientes)+' ingredientes</b></summary>'+
+  '<p class="muted">Solo consulta: '+esc(d.sinVinculo)+' sin vincular, '+
+  esc(d.revisar)+' por revisar y '+esc(d.coinciden)+' vinculados que coinciden.</p>'+
+  '<p class="aviso">Una coincidencia por nombre es solo sugerencia. Esto NO cambia la carta, precios, existencias ni disponibilidad pública.</p>'+
+  '<p class="muted">Revisión carta '+esc(d.catalogoRevision)+
+  ' · inventario '+esc(d.inventarioRevision)+'.</p>'+
+  (d.filas||[]).slice(0,100).map(x=>
+   '<div class="row"><span><b>'+esc(x.nombre)+'</b>'+
+   '<p class="muted">'+esc(estados[x.estado]||'Por revisar')+
+   (x.sugerenciaSku?' · Posible artículo de inventario: '+esc(x.sugerenciaSku):'')+
+   '</p></span><span>'+ (x.disponibleCarta?'Carta: disponible':'Carta: no disponible')+
+   '</span></div>').join('')+
+  '</details>';
 }
 function vRomoInventarioQA(){
  if(S.suc!==ROMO_SUCURSAL_QA)return '<div class="card">Inventario de otra sucursal</div>';
@@ -1176,6 +1202,8 @@ function vRomoInventarioQA(){
    '<p>Existencias y reposición independientes de Uki.</p></div>'+
    '<div class="card"><p><b>Revisión confirmada:</b> '+esc(t.revision??'Sin cargar')+'</p>'+
    '<button class="sm ok" onclick="romoInventarioCargarQA()">↻ Actualizar inventario</button>'+
+   (t.loaded?'<button class="sm" onclick="romoInventarioConciliarCartaQA()">Revisar carta e inventario (solo dueños)</button>':'')+
+   romoInventarioConciliacionHTMLQA(t.conciliacion)+
    (t.busy?'<p class="muted">Guardando, sin modificar la pantalla hasta confirmar Neon…</p>':'')+
    '</div>'+
    (!t.loaded?'<div class="card muted">Pulsa Actualizar para consultar el inventario de Romo.</div>':
@@ -1198,17 +1226,20 @@ function vRomoInventarioQA(){
     '</p>').join(''):'<p class="muted">Sin movimientos todavía.</p>')+
     '</details>');
 }
-async function romoInventarioSolicitudQA(method,body){
+async function romoInventarioSolicitudQA(method,body,diagnostico=''){
  if(!ROMO_INVENTARIO_PANEL_HABILITADO_QA||
   !ROMO_PANEL_INTEGRACION_HABILITADA_QA||
   location.hostname!==ROMO_PANEL_DIAG_HOST_QA||
   !ROMO_INVENTARIO_ENDPOINT_QA.startsWith('https://uki-sushi-inventario-git-qa-integraci-dc8aa9-diannaleandra-7046.vercel.app/')||
   S.suc!==ROMO_SUCURSAL_QA||!ukiRomoControlPanelQA?.disponible())
   throw Error('Inventario Romo no habilitado en la vista QA autorizada');
+ if(diagnostico!==''&&(diagnostico!=='carta'||method!=='GET'))
+  throw Error('Diagnóstico inventario no válido');
  const token=await window.ukiInventarioToken?.();
  if(typeof token!=='string'||token.length<30)
   throw Error('Ingresa con la misma cuenta Google del panel.');
- const response=await fetch(ROMO_INVENTARIO_ENDPOINT_QA,{
+ const response=await fetch(ROMO_INVENTARIO_ENDPOINT_QA+
+  (diagnostico==='carta'?'?diagnostico=carta':''),{
   method,cache:'no-store',credentials:'omit',
   headers:{Authorization:'Bearer '+token,...(method==='POST'?
    {'Content-Type':'application/json'}:{})},
@@ -1227,11 +1258,30 @@ async function romoInventarioCargarQA(){
   if(!Number.isSafeInteger(r.revision)||!Array.isArray(r.contenido?.items)||
      !Array.isArray(r.contenido?.movimientos))throw Error('Inventario no válido');
   romoInventarioVistaQA={loaded:true,revision:r.revision,
-   items:r.contenido.items,movimientos:r.contenido.movimientos,busy:false};
+   items:r.contenido.items,movimientos:r.contenido.movimientos,busy:false,
+   conciliacion:null};
   render();
  }catch(e){
   romoInventarioVistaQA.busy=false;
   aviso('No se pudo consultar el inventario Romo: '+String(e?.message||e));
+ }
+}
+async function romoInventarioConciliarCartaQA(){
+ const v=romoInventarioVistaQA;
+ if(S.suc!==ROMO_SUCURSAL_QA||v.busy||!v.loaded)return;
+ v.busy=true;
+ try{
+  const d=await romoInventarioSolicitudQA('GET',null,'carta');
+  if(d.soloLectura!==true||d.storeId!=='romo:serena'||
+   !Number.isSafeInteger(d.inventarioRevision)||!Array.isArray(d.filas)||
+   d.modificaCarta!==false||d.modificaStock!==false)
+   throw Error('El informe de inventario y carta no es válido');
+  v.conciliacion=d;
+  v.busy=false;render();
+ }catch(e){
+  v.busy=false;
+  aviso('No se pudo consultar la conciliación de Romo. No se modificó la carta: '+
+   String(e?.message||e));
  }
 }
 async function romoInventarioGuardarAccionQA(action,sku=''){
@@ -1788,7 +1838,7 @@ async function entrarSuc(){
 }
 async function salirSuc(){
  if(S.suc===ROMO_SUCURSAL_QA){
-  romoInventarioVistaQA={loaded:false,revision:null,items:[],movimientos:[],busy:false};
+  romoInventarioVistaQA={loaded:false,revision:null,items:[],movimientos:[],busy:false,conciliacion:null};
   ukiRomoTimbrePendienteQA=null;
   ukiRomoControlPanelQA?.cerrar();ukiRomoControlPanelQA=null;
   ukiRomoRevisionVisibleQA=null;ukiRomoBandejaVisibleQA=[];

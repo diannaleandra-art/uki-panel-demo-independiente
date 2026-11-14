@@ -52,6 +52,16 @@ module.exports=async function romoInventarioQA(req,res){
  if(!identity)return fail(res,403,'Google sin permiso Romo');
  if(req.method==='GET'){
   try{
+   // Solo QA y dueños pueden consultar diferencias de ingredientes con la carta.
+   // No se usa en producción ni se altera disponibilidad o precios.
+   if(req.query?.diagnostico==='carta'){
+    if(mode!=='qa')return fail(res,403,'Conciliación exclusiva de pruebas');
+    const comparison=await (await import('../lib/romo-inventario-carta-qa.mjs'))
+     .consultarConciliacionInventarioCartaRomoQA({db,identity});
+    return res.status(200).json({ok:true,...comparison});
+   }
+   if(req.query?.diagnostico!==undefined)
+    return fail(res,400,'Consulta de inventario no válida');
    const state=await core.readInventarioRomoQA({db,identity});
    return res.status(200).json({ok:true,...state});
   }catch(error){

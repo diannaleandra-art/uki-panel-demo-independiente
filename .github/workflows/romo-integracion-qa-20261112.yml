@@ -48,6 +48,7 @@ jobs:
             tests/uki-romo-cobro-pendiente-qa.test.mjs \
             tests/uki-romo-cobro-entrega-timbre-qa.test.mjs \
             tests/uki-romo-inventario-independiente-qa.test.mjs \
+            tests/uki-romo-inventario-carta-qa.test.mjs \
             tests/uki-romo-inventario-acceso-preview-qa.test.mjs \
             tests/uki-romo-inventario-panel-qa.test.mjs \
             tests/uki-romo-clave-preview-qa.test.mjs \
