@@ -1,15 +1,27 @@
 
 'use strict';
-/* API inventario Romo: solo Google + rol en la DB separada; apagada por defecto. */
+/* API inventario Romo: solo Google + rol en la DB separada; apagada por defecto.
+ * El modo QA requiere su bandera propia y la rama y entorno exactos.
+ */
+function inventarioModoRomo(env={}){
+ const branch='qa/integracion-panel-unico-romo-serena-20261112';
+ if(env.VERCEL_ENV==='preview'&&env.VERCEL_GIT_COMMIT_REF===branch&&
+    env.ROMO_FIN_SYNC_QA_BRANCH===branch&&
+    env.ROMO_OPERATIVO_QA_ENABLED==='true'&&
+    env.ROMO_INVENTARIO_QA_ENABLED==='true')return 'qa';
+ if(env.VERCEL_ENV==='production'&&
+    env.ROMO_OPERATIVO_LIVE_ENABLED==='true'&&
+    env.ROMO_INVENTARIO_LIVE_ENABLED==='true')return 'production';
+ return null;
+}
 const fail=(r,n,e)=>r.status(n).json({ok:false,error:e});
 module.exports=async function romoInventarioQA(req,res){
  res.setHeader('Cache-Control','private,no-store,max-age=0');
  res.setHeader('X-Content-Type-Options','nosniff');
  res.setHeader('Vary','Origin');
  const env=process.env;
- if(env.VERCEL_ENV!=='production'||env.ROMO_INVENTARIO_LIVE_ENABLED!=='true'||
-  env.ROMO_OPERATIVO_LIVE_ENABLED!=='true')
-  return fail(res,503,'Inventario Romo todavía no autorizado');
+ const mode=inventarioModoRomo(env);
+ if(!mode)return fail(res,503,'Inventario Romo todavía no autorizado');
  const origin=String(req.headers?.origin||'');
  const allowed=String(env.ROMO_PANEL_ALLOWED_ORIGIN||'');
  if(!/^https:\/\/[^\/\s?#@]+$/.test(allowed)||origin!==allowed)
@@ -28,7 +40,7 @@ module.exports=async function romoInventarioQA(req,res){
  try{
   core=await import('../lib/romo-inventario-qa.mjs');
   const cfg=(await import('../lib/romo-estado-operativo-qa.mjs')).romoOperativoConfig(env);
-  if(!cfg)throw Error('Romo no configurado');
+  if(!cfg||cfg.qaOnly!==(mode==='qa'))throw Error('Romo no configurado para este entorno');
   db=require('@neondatabase/serverless').neon(cfg.url);
   identityModule=await import('../lib/romo-identidad-servidor-qa.mjs');
  }catch{return fail(res,503,'Base privada de Romo no disponible')}
@@ -68,3 +80,5 @@ module.exports=async function romoInventarioQA(req,res){
   return fail(res,503,'No se confirmó el movimiento de inventario');
  }
 };
+
+module.exports._testing={inventarioModoRomo};

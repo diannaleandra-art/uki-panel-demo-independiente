@@ -43,6 +43,7 @@ jobs:
             tests/uki-romo-cancelacion-atomica-qa.test.mjs \
             tests/uki-romo-edicion-atomica-qa.test.mjs \
             tests/uki-romo-inventario-independiente-qa.test.mjs \
+            tests/uki-romo-inventario-acceso-preview-qa.test.mjs \
             tests/uki-romo-inventario-panel-qa.test.mjs \
             tests/uki-romo-clave-preview-qa.test.mjs \
             tests/uki-romo-clave-inicial-segura-qa.test.mjs \
