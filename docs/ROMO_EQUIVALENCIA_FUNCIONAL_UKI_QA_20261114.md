@@ -51,3 +51,9 @@ La publicación comercial exige nueva autorización.
 - El backend comprueba catálogo vigente y su revisión, verifica que el SKU de carta existe, que el artículo es ingrediente no archivado, que no haya vínculos duplicados y que la revisión de inventario sea actual. Cada cambio se conserva con responsable, fecha, antes y después en el historial de inventario.
 - Desvincular requiere un motivo; no elimina el artículo ni borra el historial. Los cambios de Carta y existencias siguen siendo independientes hasta una fase autorizada de sincronización.
 - Esta función solo funciona en la rama aislada de pruebas, sin activar ventas públicas, sin modificar catálogo ni datos de Uki. Todavía no existe inventario Romo cargado en Neon QA, por lo que la prueba integral de vínculo queda pendiente.
+
+## Disponibilidad Inventario–Carta Romo · fase QA (sin publicar)
+- Se preparó un cambio **conjunto y atómico** de disponibilidad de un único ingrediente ya vinculado por código exacto; solo dueños autorizados y con confirmación explícita. El botón original de inventario sigue modificando solo Inventario.
+- El backend valida las dos revisiones de Neon, los snapshots completos, la unicidad del vínculo y el estado no archivado. Dos escrituras protegidas se resuelven en una sentencia SQL: ante conflicto se exige actualizar antes de repetir.
+- La carta conserva intactos precios, visibilidad, promociones, productos y demás ingredientes; no se deduce disponibilidad por stock 0 ni se vincula por nombre. El inventario conserva las existencias y registra responsable, fecha y anterior/nuevo.
+- Exclusivo de la rama QA y sin exposición pública; aún no hay artículos reales de inventario Romo en Neon QA. No equivale a sincronización comercial activa ni verifica todos los flujos de Uki.

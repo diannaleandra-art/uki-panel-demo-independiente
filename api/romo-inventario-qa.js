@@ -78,8 +78,13 @@ module.exports=async function romoInventarioQA(req,res){
   // El vínculo entre artículo e ingrediente se realiza SOLO en Romo QA,
   // con permiso de dueños y confirmación explícita. No cambia la carta.
   const enlace=body.action==='vincular_carta'||body.action==='desvincular_carta';
-  if(enlace&&mode!=='qa')return fail(res,403,'Vínculo exclusivo de pruebas');
-  const result=enlace?
+  const disponibilidadCarta=body.action==='disponibilidad_carta';
+  if((enlace||disponibilidadCarta)&&mode!=='qa')
+   return fail(res,403,'Sincronización exclusiva de pruebas');
+  const result=disponibilidadCarta?
+   await (await import('../lib/romo-disponibilidad-carta-qa.mjs'))
+    .guardarDisponibilidadRomoCartaQA({db,identity,
+     expectedRevision:body.expectedRevision,args:body.args}):enlace?
    await (await import('../lib/romo-enlace-inventario-carta-qa.mjs'))
     .guardarVinculoInventarioCartaRomoQA({db,identity,
      expectedRevision:body.expectedRevision,action:body.action,args:body.args}):
@@ -89,11 +94,12 @@ module.exports=async function romoInventarioQA(req,res){
    });
   return res.status(200).json({ok:true,...result});
  }catch(error){
-  if(error?.code==='REVISION_CONFLICTO')
+  if(error?.code==='REVISION_CONFLICTO'||
+     error?.code==='ROMO_DISPONIBILIDAD_CONFLICTO')
    return fail(res,409,'Otro equipo modificó inventario; actualiza');
   if(/permiso|identidad|rol/i.test(String(error?.message||'')))
    return fail(res,403,'Sin permiso');
-  if(/inválid|obligatori|existe|archivado|límite|grande|cambios|cantidad|SKU|artículo|Nombre|Entrada|vínculo|ingrediente|confirmación|carta|desvincular|vincular/i.test(String(error?.message||'')))
+  if(/inválid|obligatori|existe|archivado|límite|grande|cambios|cantidad|SKU|artículo|Nombre|Entrada|vínculo|ingrediente|confirmación|carta|desvincular|vincular|disponibilidad|sincronización|SKU/i.test(String(error?.message||'')))
    return fail(res,400,'Datos de inventario no válidos');
   return fail(res,503,'No se confirmó el movimiento de inventario');
  }
