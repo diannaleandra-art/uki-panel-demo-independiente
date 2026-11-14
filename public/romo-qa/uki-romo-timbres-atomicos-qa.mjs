@@ -6,6 +6,14 @@
 export const ROMO_TIMBRES_ATOMICOS_HABILITADOS_QA=false;
 const SUC='Romo’s Sushi La Serena';
 const check=(ok,msg)=>{if(!ok)throw Error(msg)};
+/** Igual que ukiNumeroTimbreWhatsApp del panel de Uki, sin usar datos externos. */
+export function telefonoTimbreRomoValidoQA(value){
+ const raw=String(value||'').trim(),digits=raw.replace(/\D/g,'');
+ const normal=/^09\d{8}$/.test(digits)?'56'+digits.slice(1):
+  /^9\d{8}$/.test(digits)?'56'+digits:digits;
+ return /^569\d{8}$/.test(normal)||
+  (/^\+/.test(raw)&&/^[1-9]\d{9,14}$/.test(normal));
+}
 const stamp=(value,label)=>{
  const v=String(value||'');
  check(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(v)&&
@@ -36,8 +44,7 @@ export function prepararTimbreRomoQA(estado,{
  // Un pedido entregado antes del cobro igualmente gana su timbre
  // cuando se verifica el pago, sin reabrir caja ni modificar la entrega.
  check(!pedido.productosPagadosOtroLocal,'Ese timbre se gestiona en el local que recibió el pago');
- const telefono=String(pedido.telefono||'').replace(/\D/g,'');
- check(/^\d{8,15}$/.test(telefono),'El pedido no tiene WhatsApp válido');
+ check(telefonoTimbreRomoValidoQA(pedido.telefono),'El pedido no tiene WhatsApp válido');
  check(!pedido.timbreEnviadoEn&&!pedido.timbreEnviadoPor&&
   (!Array.isArray(pedido.timbreEventos)||
    !pedido.timbreEventos.some(x=>x?.tipo==='declarado_enviado')),

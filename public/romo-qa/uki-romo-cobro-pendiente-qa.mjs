@@ -4,6 +4,7 @@
  * No se conecta a cajas Uki, no registra pagos de prueba, ni cobra por sí solo.
  */
 import {efectosEnCopia} from './uki-romo-pedido-formato-qa.mjs';
+import {telefonoTimbreRomoValidoQA} from './uki-romo-timbres-atomicos-qa.mjs';
 export const ROMO_COBRO_PENDIENTE_HABILITADO_QA=false;
 const SUC='Romo’s Sushi La Serena';
 const METODOS=['Efectivo','Transferencia','Débito','Edenred','Otros','Uber Eats','PedidosYa','Rappi'];
@@ -94,7 +95,7 @@ export function prepararCobroPendienteRomoQA(estado,{
  p.pagado=true;p.medio=prod.medio;p.medioEnvio=del.medio;
  // Si el cliente tiene WhatsApp, la entrega y el cierre deben exigir
  // timbre confirmado en el panel, incluso cuando pagó después de la entrega.
- p.timbreReglaObligatoria=/^\d{8,15}$/.test(String(p.telefono||'').replace(/\D/g,''));
+ p.timbreReglaObligatoria=telefonoTimbreRomoValidoQA(p.telefono);
  p.pagosProductos=prod.lineas;p.pagosEnvio=del.lineas;
  p.cobroConfirmadoEn=new Date(stamp).toISOString();
  p.cobroConfirmadoPor=actor;

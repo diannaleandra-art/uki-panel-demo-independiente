@@ -151,3 +151,9 @@ test('al pagar sin teléfono no se inventa WhatsApp ni timbre para el cliente',(
  assert.equal(s.pedidos[0].timbreReglaObligatoria,false);
  assert.deepEqual(s.clientes,{});
 });
+
+test('un teléfono no reconocido por WhatsApp no bloquea artificialmente el cierre',()=>{
+ const s=estado({pedidos:[pedido({telefono:'12345678',codigoCliente:'5678'})]});
+ prepararCobroPendienteRomoQA(s,cobro());
+ assert.equal(s.pedidos[0].timbreReglaObligatoria,false);
+});

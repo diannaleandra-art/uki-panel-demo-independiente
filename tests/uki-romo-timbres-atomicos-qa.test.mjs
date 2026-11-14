@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
- prepararTimbreRomoQA,crearGuardadoTimbreRomoQA,RomoTimbreInciertoQA
+ prepararTimbreRomoQA,crearGuardadoTimbreRomoQA,RomoTimbreInciertoQA,telefonoTimbreRomoValidoQA
 } from '../firebase/uki-romo-timbres-atomicos-qa.mjs';
 const SUC='Romo’s Sushi La Serena';
 const abierto='2026-11-13T19:00:00.000Z';
@@ -88,4 +88,15 @@ test('permite timbre posterior a la entrega si el pago se recibió después',()=
  assert.equal(estado.pedidos[0].estado,'Entregado');
  assert.equal(estado.pedidos[0].timbreEnviadoEn,confirmado);
  assert.throws(()=>prepararTimbreRomoQA(estado,datos()),/ya tiene timbre/);
+});
+
+test('validación de WhatsApp de Romo coincide con el panel Uki para Chile e internacional',()=>{
+ assert.equal(telefonoTimbreRomoValidoQA('9 1111 2222'),true);
+ assert.equal(telefonoTimbreRomoValidoQA('09 1111 2222'),true);
+ assert.equal(telefonoTimbreRomoValidoQA('+56 9 1111 2222'),true);
+ assert.equal(telefonoTimbreRomoValidoQA('+57 300 123 4567'),true);
+ assert.equal(telefonoTimbreRomoValidoQA('12345678'),false);
+ assert.equal(telefonoTimbreRomoValidoQA(''),false);
+ const e=inicial();e.pedidos[0].telefono='12345678';
+ assert.throws(()=>prepararTimbreRomoQA(e,datos()),/WhatsApp válido/);
 });
