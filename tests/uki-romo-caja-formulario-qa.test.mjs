@@ -6,7 +6,7 @@ const control=readFileSync(new URL('../firebase/uki-romo-panel-control-qa.mjs',i
 test('formulario de movimientos Romo dentro de Caja, cerrado por defecto',()=>{
  assert.match(html,/ROMO_PANEL_MOVIMIENTOS_HABILITADOS_QA=location\.hostname===/);
  assert.match(html,/function ukiRomoFormularioMovimientosQA\(\)/);
- assert.match(html,/return romoFormularioCierreQA\(\)\+'<section class="card"><h2>Caja · Romo La Serena/);
+ assert.match(html,/return tabs\+romoFormularioCierreQA\(\)\+'<section class="card"><h2>Caja · Romo La Serena/);
  assert.match(html,/ukiRomoFormularioMovimientosQA\(\);/);
  assert.match(html,/function ukiRomoGuardarMovimientoDesdeCajaQA\(\)/);
  assert.match(html,/guardarMovimiento\(\{tipo,datos\}\)/);

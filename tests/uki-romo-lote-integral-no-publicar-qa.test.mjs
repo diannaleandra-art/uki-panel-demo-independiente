@@ -6,7 +6,7 @@ const panel=file('firebase/uki-sushi-local.html');
 const caja=panel.slice(panel.indexOf('function vRomoCajaConsultaQA(){'),
  panel.indexOf('/* Romo utiliza el MISMO selector'));
 test('Romo muestra abrir turno antes del resumen de caja, sin pedir al iPhone desplazarse hasta el final',()=>{
- assert.match(caja,/return romoFormularioCierreQA\(\)\+'<section class="card"><h2>Caja · Romo La Serena/);
+ assert.match(caja,/return tabs\+romoFormularioCierreQA\(\)\+'<section class="card"><h2>Caja · Romo La Serena/);
  assert.match(caja,/Sin turno abierto confirmado/);
  assert.match(caja,/solicitudes pendientes todavía no son ventas/);
  assert.doesNotMatch(caja,/todavía no.*realizar precierre o cierre definitivo/i);

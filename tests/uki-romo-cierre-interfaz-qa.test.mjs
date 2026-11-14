@@ -5,7 +5,7 @@ const panel=readFileSync(new URL('../firebase/uki-sushi-local.html',import.meta.
 test('apertura y cierre definitivo solo en Caja Romo, desactivados',()=>{
  assert.match(panel,/const ROMO_PANEL_CIERRE_HABILITADO_QA=location\.hostname===/);
  assert.match(panel,/function romoFormularioCierreQA\(\)/);
- assert.match(panel,/return romoFormularioCierreQA\(\)\+'<section class="card"><h2>Caja · Romo La Serena/);
+ assert.match(panel,/return tabs\+romoFormularioCierreQA\(\)\+'<section class="card"><h2>Caja · Romo La Serena/);
  for(const id of ['romoAbrirResponsable','romoAbrirBase','romoCerrarResponsable',
  'romoCerrarContado','romoCerrarObs','romoCerrarDiferencia','romoCerrarPendientes',
  'romoCerrarDefinitivo','romoCerrarConfirmar']){
