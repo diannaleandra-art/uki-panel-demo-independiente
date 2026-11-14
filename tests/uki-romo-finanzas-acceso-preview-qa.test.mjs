@@ -36,7 +36,7 @@ test('previsualización no cambia la autorización de producción de Mi Administ
  assert.equal(envOk({...original,UKI_FIN_PRIVATE_ENABLED:'false'}),false);
 });
 test('preview restringe todas las acciones a acceso, salida y cierres Romo',()=>{
- assert.match(code,/if\\(romoFinancePreview\\(\\)\\)/);
+ assert.match(code,/if\(romoFinancePreview\(\)\)/);
  const from=code.indexOf("const permitidos=new Set(");
  const to=code.indexOf("try{",from);
  const block=code.slice(from,to);
@@ -46,5 +46,5 @@ test('preview restringe todas las acciones a acceso, salida y cierres Romo',()=>
  for(const forbidden of ['guardar_movimiento','guardar_compra_factura','configurar_pin',
   'anular_movimiento','abrir_documento','guardar_costo'])
   assert.ok(!block.includes("'"+forbidden+"'"));
- assert.match(block,/if\\(!permitidos\\.has\\(action\\)\\)/);
+ assert.match(block,/if\(!permitidos\.has\(action\)\)/);
 });
