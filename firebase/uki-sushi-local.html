@@ -265,6 +265,14 @@ color:#955115;box-shadow:0 2px 10px rgba(0,0,0,.12);font-weight:800;font-size:19
  border-radius:10px;background:#fff;color:#b56018;font-size:18px;font-weight:850}
 #app .uki-fecha-flechas span{text-align:center;flex:1}
 </style>
+<style>
+/* Tercera sucursal exclusiva de Romo; caja y nube Uki siguen aisladas. */
+body.romo-qa #romoLaSerenaPreparacionQA{border:2px solid #b01531;box-shadow:0 3px 14px #0001}
+body.romo-qa #romoLaSerenaPreparacionQA h2{color:#a30e25}
+body.romo-operativo-preparacion #ukiNubeSeccion,
+body.romo-operativo-preparacion #ukiMostrarConfig,
+body.romo-operativo-preparacion #ukiAvisoInterno{display:none!important}
+</style>
 </head>
 <body>
 <header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.16 · LOCALES</h1><small id="ukiEstadoOperativo" role="status">Nube: desactivada · Abre tu sucursal y carga Firebase</small></header>
@@ -287,6 +295,9 @@ color:#955115;box-shadow:0 2px 10px rgba(0,0,0,.12);font-weight:800;font-size:19
 <div id="ukiAvisoInterno" class="aviso" style="margin:10px 12px 0;background:#fce8d7;border:1px solid #efb57c;font-weight:600">USO INTERNO · SOLO PERSONAL AUTORIZADO · NO COMPARTIR CON CLIENTES</div><main id="app"><div class="aviso">✅ v8 Timbres - 6 ventas = 12 piezas / 10 ventas = 36 + 2 korokes</div><div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Tarjeta de timbres: 6 ventas = 12 piezas gratis, 10 ventas = 36 piezas + 2 korokes</p><button class="big" onclick="pedirPin('Uki Regimiento Arica')">Uki Regimiento Arica</button><button class="big" onclick="pedirPin('Uki La Serena')">Uki La Serena</button></div><div class="card"><h2>💾 Respaldo para computador</h2><button class="big" onclick="descargarRespaldoCompleto()">💾 Descargar respaldo con tarjetas</button><label class="muted">Cargar respaldo</label><input type="file" accept=".json" onchange="cargarRespaldo(event)"></div></main>
 <script>
 const SUCURSALES=["Uki Regimiento Arica","Uki La Serena"];
+const ROMO_SUCURSAL_QA="Romo’s Sushi La Serena";
+const SUCURSALES_PANEL_QA=Object.freeze([...SUCURSALES,ROMO_SUCURSAL_QA]);
+
 const MEDIOS=["Efectivo","Transferencia","Débito","Edenred","Otros","Uber Eats","PedidosYa","Rappi"];
 const APPS=["Uber Eats","PedidosYa","Rappi"];
 let S={suc:null,pinSuc:null,codigos:{},vista:"inicio",base:18000,pedidos:[],gastos:[],retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",deliveriesManuales:[],ajustesHistoricos:[],borradores:[],solicitudesWhatsApp:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,filtro:"",filtroFecha:"",filtroCliente:""};
@@ -454,7 +465,11 @@ function ir(v){
 /* Cifrado local v8.13: nuevas claves, sin borrar o migrar almacenamientos antiguos. */
 const UKI_LOCAL_PREFIX="uki_operativo_v1_cifrado_";
 const UKI_LOCAL_FORMAT="uki-v813-browser";
-const claveLocal=s=>UKI_LOCAL_PREFIX+(SUCURSALES.indexOf(s)===0?"regimiento":SUCURSALES.indexOf(s)===1?"la-serena":"desconocida");
+const claveLocal=s=>{
+ if(s===ROMO_SUCURSAL_QA)return "romo_operativo_v1_cifrado_la-serena";
+ if(!SUCURSALES.includes(s))throw Error("No se permite guardar un local desconocido");
+ return UKI_LOCAL_PREFIX+(SUCURSALES.indexOf(s)===0?"regimiento":"la-serena");
+};
 let claveSesion=null,sucursalSesion=null,saltSesion=null,colaGuardado=Promise.resolve(),revisionGuardado=0;
 function estadoVacioSucursal(s){
  return {suc:s,pinSuc:null,codigos:{},vista:s?"pedidos":"inicio",base:18000,pedidos:[],gastos:[],
@@ -463,6 +478,7 @@ function estadoVacioSucursal(s){
  incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,
  filtro:"",filtroFecha:"",filtroCliente:""};
 }
+window.ukiRomoValidarEstadoSucursalQA=(...args)=>validarEstadoSucursal(...args);
 function validarEstadoSucursal(datos,suc){
  if(!datos||typeof datos!=="object"||Array.isArray(datos)||datos.suc!==suc)return false;
  for(const c of ["pedidos","gastos","retiros","propinas","cierres","deliveriesManuales","incidencias"]){
@@ -504,6 +520,23 @@ async function abrirLocal(raw,suc,password){
  return {estado,key,salt};
 }
 function guardarEnLocalStorage(){
+ // Romo no puede caer en el respaldo Uki "desconocida" ni en su Firestore.
+ // Este enlace SOLO existe en la copia QA; la API todavía está apagada.
+ if(S.suc===ROMO_SUCURSAL_QA){
+  const session=window.ukiRomoSesionRemotaQA;
+  if(!session?.disponible())return Promise.resolve(false);
+  const datos=datosSoloSucursal(),sucursalGuardada=S.suc;
+  colaGuardado=colaGuardado.catch(()=>{}).then(async()=>{
+   if(S.suc!==sucursalGuardada)return false;
+   await session.guardar(datos); // CAS, sólo ciphertext, base Neon Romo
+   return true;
+  });
+  return colaGuardado.catch(error=>{
+   console.error("Guardado aislado Romo no confirmado",error);
+   alert("Romo no confirmó el guardado. Conserva la sesión abierta y revisa la conexión.");
+   return false;
+  });
+ }
  if(!S.suc||!claveSesion||sucursalSesion!==S.suc)return Promise.resolve(true);
  const suc=S.suc,key=claveSesion,salt=saltSesion,datos=datosSoloSucursal(),revision=++revisionGuardado;
  colaGuardado=colaGuardado.catch(()=>{}).then(async()=>{
@@ -523,6 +556,7 @@ function cargarDesdeLocalStorage(){
  const desdeEnlace=new URLSearchParams(location.search).get("sucursal");
  if(desdeEnlace==="regimiento")S.pinSuc="Uki Regimiento Arica";
  else if(desdeEnlace==="la-serena")S.pinSuc="Uki La Serena";
+ else if(desdeEnlace==="romo-serena")S.pinSuc=ROMO_SUCURSAL_QA;
 }
 async function entrarDatosSucursal(s,password){
  if(!globalThis.crypto?.subtle||!globalThis.crypto?.getRandomValues)throw Error("Cifrado no disponible");
@@ -708,7 +742,9 @@ function render(){
   if(ukiEscribiendoCancelacion()){void guardarEnLocalStorage();return;}
   const ukiVistaAnterior=ukiCapturarVistaAntesRender();
   try{
-  $("suc").innerHTML=S.suc?`<span>${esc(S.suc)}</span><a href="#" onclick="salirSuc();return false;" class="salir">Salir</a>`:"Selecciona una sucursal para empezar";
+  document.body.classList.toggle('romo-qa',!!(S.romoSeleccionadoQA&&!S.suc&&!S.pinSuc));
+  document.body.classList.toggle('romo-operativo-preparacion',S.suc===ROMO_SUCURSAL_QA);
+  $("suc").innerHTML=S.suc?`<span>${esc(S.suc)}</span><a href="#" onclick="salirSuc();return false;" class="salir">Salir</a>`:S.romoSeleccionadoQA?(S.romoIngresadoQA?'<span>Romo’s Sushi · La Serena · Balmaceda 1612</span><a href="#" onclick="ukiVolverAlSelectorLocales();return false;" class="salir">Salir</a>':'Romo’s Sushi · La Serena · Balmaceda 1612'):'Selecciona una sucursal para empezar';
   $("nav").style.display=S.suc?"grid":"none";
   ukiAccesosDesplazamiento();
   $("nav").innerHTML=VISTAS.map(([k,l,icon])=>`<button type="button" class="${S.vista===k?"on":""}" onclick="ir('${k}')" aria-label="${l}" ${S.vista===k?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${l}</span></button>`).join("");
@@ -726,18 +762,106 @@ function render(){
   }
 }
 
-function pedirPin(s){S.pinSuc=s;render();}
+const ROMO_SERENA_QA=Object.freeze({brand:'romo',branch:'serena',nombre:ROMO_SUCURSAL_QA,direccion:'Balmaceda 1612, La Serena'});
+function ukiVolverAlSelectorLocales(){
+ if(S.suc)return;
+ S.romoSeleccionadoQA=false;S.romoIngresadoQA=false;S.pinSuc=null;render();
+}
+
+/* Romo utiliza el MISMO selector, campo y botón entrarSuc que Uki.
+ * Mientras no esté disponible su sincronización aislada, esta QA
+ * comprueba la misma clave Uki SIN crear otra ni abrir ventas de Romo.
+ */
+async function ukiValidarClaveUkiParaRomoQA(pass){
+ if(typeof pass!=="string"||pass.length<12)throw Error("Contraseña de acceso inválida.");
+ if(!globalThis.crypto?.subtle)throw Error("Cifrado no disponible.");
+ if(window.ukiRomoClaveRemotaDisponibleQA?.())
+  return window.ukiRomoVerificarClaveRemotaQA(pass);
+ const disponibles=SUCURSALES.filter(s=>localStorage.getItem(claveLocal(s))!==null);
+ if(!disponibles.length)throw Error("Primero abre Uki en este dispositivo para comprobar la contraseña.");
+ for(const suc of disponibles){
+  try{
+   const result=await abrirLocal(localStorage.getItem(claveLocal(suc)),suc,pass);
+   if(result?.estado?.suc===suc)return true;
+  }catch(_error){/* Sin mostrar ni copiar los datos Uki */}
+ }
+ throw Error("La contraseña no coincide con las sucursales Uki de este equipo.");
+}
+async function ukiRomoDarAltaClaveQA(){
+ const input=$("romoClaveUkiQA"),slot=$("romoClaveUkiOrigenQA")?.value;
+ const password=input?.value||"";
+ if(!window.ukiRomoClaveAltaDisponibleQA?.()){
+  aviso("La vinculación segura todavía no ha sido autorizada");return;
+ }
+ try{
+  await window.ukiRomoRegistrarClaveQA({
+   password,ukiSource:slot,
+   verificarClaveLocal:async (clave,ukiSource)=>{
+    const suc=ukiSource==="uki:serena"?"Uki La Serena":
+              ukiSource==="uki:arica"?"Uki Regimiento Arica":null;
+    if(!suc)throw Error("Sucursal Uki no permitida");
+    const ciphertext=localStorage.getItem(claveLocal(suc));
+    if(!ciphertext)throw Error("Abre primero esa sucursal Uki en este mismo iPhone");
+    const opened=await abrirLocal(ciphertext,suc,clave);
+    return opened?.estado?.suc===suc;
+   }
+  });
+  aviso("Clave habitual de Uki vinculada a Romo");
+ }catch(error){
+  aviso(String(error?.message||"No se pudo registrar el acceso Romo"));
+ }finally{
+  if(input)input.value="";
+ }
+}
+function pedirPin(s){
+ if(!SUCURSALES_PANEL_QA.includes(s))return;
+ S.romoSeleccionadoQA=false;S.romoIngresadoQA=false;S.pinSuc=s;render();
+}
 async function entrarSuc(){
  const s=S.pinSuc,pass=$("ukiAccesoClave")?.value||"";
- const nueva=localStorage.getItem(claveLocal(s))===null;
+ const esRomo=s===ROMO_SUCURSAL_QA;
+ const nueva=!esRomo&&localStorage.getItem(claveLocal(s))===null;
  if(pass.length<12){aviso("Utiliza una clave de al menos 12 caracteres.");return;}
  if(nueva&&pass!==($("ukiAccesoConfirmar")?.value||"")){aviso("Las claves no coinciden.");return;}
- try{await entrarDatosSucursal(s,pass);S.vista="inicio";render();}
- catch(e){aviso("Clave incorrecta, datos dañados o cifrado no disponible.");}
+ try{
+  if(esRomo){
+   await ukiValidarClaveUkiParaRomoQA(pass); // La misma clave Uki; nunca otro registro.
+   const session=window.ukiRomoSesionRemotaQA;
+   if(session?.disponible()){
+    // Esta ruta queda bloqueada hasta publicar explícitamente API segura y permisos.
+    const googleVerificado=!!(await window.ukiInventarioToken?.());
+    const unlocked=await session.abrir({
+     googleVerificado,claveUkiVerificada:true,
+     desbloquearSobre:async snapshot=>{
+      const opened=await abrirLocal(JSON.stringify(snapshot),s,pass);
+      return {estado:opened.estado,
+       cifrar:datos=>cifrarLocal(datos,s,opened.key,opened.salt)};
+     },
+     prepararEstadoInicial:async()=>{
+      const salt=crypto.getRandomValues(new Uint8Array(16));
+      const key=await ukiClaveBackup(pass,salt);
+      return {estado:estadoVacioSucursal(s),
+       cifrar:datos=>cifrarLocal(datos,s,key,salt)};
+     }
+    });
+    // El MISMO panel y las MISMAS vistas; el servidor sólo entrega datos Romo.
+    S={...estadoVacioSucursal(s),...unlocked.estado,
+      suc:s,pinSuc:null,vista:"inicio",msg:null,busy:false,confirmCierre:false};
+    S.romoSeleccionadoQA=false;S.romoIngresadoQA=true;
+   }else{
+    // Mantener la pantalla de preparación ya aprobada; NO registrar operaciones.
+    S.pinSuc=null;S.romoSeleccionadoQA=true;S.romoIngresadoQA=true;
+   }
+  }else{
+   await entrarDatosSucursal(s,pass);S.vista="inicio";
+  }
+  render();
+ }catch(e){aviso(esRomo?"No se pudo comprobar tu contraseña habitual de Uki en este equipo.":"Clave incorrecta, datos dañados o cifrado no disponible.");}
 }
 async function salirSuc(){
  if(ukiSolicitudWhatsAppActiva)ukiWhatsAppPausarRevision();
  if(S.suc){const ok=await guardarEnLocalStorage();if(!ok)return;await colaGuardado;}
+ if(S.suc===ROMO_SUCURSAL_QA)window.ukiRomoSesionRemotaQA?.cerrar();
  revisionGuardado++;claveSesion=null;saltSesion=null;sucursalSesion=null;
  cargarDesdeLocalStorage();nuevoDraft();
  if(typeof window.ukiQASessionLeft==="function")window.ukiQASessionLeft();
@@ -794,19 +918,33 @@ function ukiAccesosDesplazamiento(){
 }
 
 function vInicio(){
-  if(S.pinSuc){
- const existe=!!localStorage.getItem(claveLocal(S.pinSuc));
+ if(!S.suc&&!S.pinSuc&&S.romoSeleccionadoQA){
+  return '<section class="card" id="romoLaSerenaPreparacionQA" aria-label="Romo’s Sushi La Serena">'+
+   '<h2>Romo’s Sushi · La Serena</h2><p><b>Balmaceda 1612, La Serena</b></p>'+
+   '<p class="aviso" role="status">Ingreso de prueba completado. Aún no están conectados los pedidos, caja, inventario y cierres independientes de Romo. No registres operaciones aquí.</p>'+
+   (window.ukiRomoClaveAltaDisponibleQA?.()?'<details id="romoEnrolamientoQA"><summary>Vincular la contraseña habitual</summary>'+
+     '<p class="muted">Solo dueños. Utiliza la clave que ya usas en Uki. Este proceso no cambia tu contraseña.</p>'+
+     '<label for="romoClaveUkiOrigenQA">Sucursal de la clave</label>'+
+     '<select id="romoClaveUkiOrigenQA"><option value="uki:serena">Uki La Serena</option><option value="uki:arica">Uki Regimiento Arica</option></select>'+
+     '<label for="romoClaveUkiQA">Contraseña habitual de esa sucursal</label>'+
+     '<input id="romoClaveUkiQA" type="password" autocomplete="off" placeholder="Clave existente">'+
+     '<button class="big" type="button" onclick="ukiRomoDarAltaClaveQA()">Vincular acceso de Romo</button></details>':'')+
+   '<button class="big" type="button" onclick="ukiVolverAlSelectorLocales()">Salir de sucursal</button></section>';
+ }
+ if(S.pinSuc){
+ const esRomo=S.pinSuc===ROMO_SUCURSAL_QA;
+ const existe=esRomo||!!localStorage.getItem(claveLocal(S.pinSuc));
  return '<div class="card"><h2>'+esc(S.pinSuc)+'</h2>'+
-  '<p class="muted">'+(existe?"Escribe la contraseña para abrir tus registros cifrados.":"Crea una clave de al menos 12 caracteres para esta sucursal.")+'</p>'+
+  '<p class="muted">'+(esRomo?"Ingresa con la misma contraseña de Uki.":existe?"Escribe la contraseña para abrir tus registros cifrados.":"Crea una clave de al menos 12 caracteres para esta sucursal.")+'</p>'+
   '<label>Contraseña de acceso</label><input id="ukiAccesoClave" type="password" autocomplete="off" placeholder="Mínimo 12 caracteres">'+
   (existe?'':'<label>Repite la contraseña</label><input id="ukiAccesoConfirmar" type="password" autocomplete="off" placeholder="Confirmar contraseña">')+
   '<button class="big" onclick="entrarSuc()">'+(existe?"Abrir sucursal":"Crear acceso")+'</button>'+
   '<p class="muted">La clave no se guarda. Si la pierdes, necesitarás un respaldo. El PIN antiguo de 4 números no protege estos registros.</p></div>';
  }
-  if(!S.suc){return `<div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Cada sucursal tendra sus pedidos y timbres independientes.</p>${SUCURSALES.map(s=>`<button class="big" onclick="pedirPin('${s}')">${s}</button>`).join("")}</div><div class="card"><p class="muted"><b>Información de acceso:</b> el enlace web es público, pero Firebase exige la cuenta Google autorizada de Uki Sushi y una clave para descifrar cada sucursal. No compartas las claves con clientes. Los datos permanecen separados entre sucursales.</p></div>`;}
+  if(!S.suc){return `<div class="card"><h2>Selecciona una sucursal</h2><p class="muted">Un solo panel y el mismo procedimiento de ingreso para los tres locales.</p>${SUCURSALES_PANEL_QA.map(s=>`<button class="big" onclick="pedirPin('${s}')">${s}</button>`).join("")}<p class="muted">Romo La Serena está en pruebas; todavía no permite registrar operaciones.</p></div><div class="card"><p class="muted"><b>Información de acceso:</b> se requiere la cuenta Google y la contraseña habitual del panel. Los registros de cada local permanecen separados.</p></div>`;}
 
   const t=totales(),turno=fechaOperativaActual();
-  return `<div class="welcome"><div class="eyebrow">UKI SUSHI · ${esc(S.suc)}</div><h2>Hola, Uki 🍣</h2><p id="ukiFechaHoraInicio" class="muted" style="font-weight:650">${esc(ukiFechaHoraInicio())}</p><p id="ukiFraseDiariaInicio" class="uki-turno-frase">${esc(ukiFraseDiaria())}</p><p class="muted" style="font-size:12px">Jornada operativa: ${esc(turno)} · Continúa hasta su cierre confirmado.</p></div>
+  return `<div class="welcome"><div class="eyebrow">${S.suc===ROMO_SUCURSAL_QA?"ROMO’S SUSHI":"UKI SUSHI"} · ${esc(S.suc)}</div><h2>${S.suc===ROMO_SUCURSAL_QA?"Hola, Romo 🍣":"Hola, Uki 🍣"}</h2><p id="ukiFechaHoraInicio" class="muted" style="font-weight:650">${esc(ukiFechaHoraInicio())}</p><p id="ukiFraseDiariaInicio" class="uki-turno-frase">${esc(ukiFraseDiaria())}</p><p class="muted" style="font-size:12px">Jornada operativa: ${esc(turno)} · Continúa hasta su cierre confirmado.</p></div>
   ${vInicioTrabajador()}
   <section class="kpis" aria-label="Resumen de ventas">
     <div class="kpi"><span>Venta de hoy</span><strong>${fmt(t.totalMedios)}</strong></div>
@@ -5778,6 +5916,10 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
   document.getElementById('app').innerHTML = '<div class="card"><h2>No se puede abrir el panel en este navegador</h2><p>Abre el enlace directamente en Safari. Esta copia no ha borrado tus datos.</p><button class="big" onclick="location.reload()">Reintentar</button></div>';
 }
 </script>
+<script type="module" src="./uki-romo-clave-remota-qa.mjs"></script>
+<script type="module" src="./uki-romo-operativo-qa.mjs"></script>
+<script type="module" src="./uki-romo-integracion-panel-qa.mjs"></script>
+<script type="module" src="./uki-romo-vinculo-duenos-qa.mjs"></script>
 <script src="./uki-tarjeta-cliente.js" defer></script>
 <script src="./uki-cierre-detallado.js" defer></script>
 <script src="./uki-inventario-admin-embebido.js" defer></script>
@@ -5914,6 +6056,12 @@ window.ukiQASessionLeft=()=>{
  el("ukiAutoCheck").checked=false;
 };
 function actualizarPresentacionNube(){
+ if(window.ukiQAGet?.()?.suc==='Romo’s Sushi La Serena'){
+  el("ukiNubeSeccion").hidden=true;
+  el("ukiMostrarConfig").hidden=true;
+  el("ukiAvisoInterno").hidden=true;
+  return;
+ }
  const estado=auto.resumen();
  const haySucursal=!!window.ukiQAGet?.()?.suc;
  const errorMensaje=/error|atenci[oó]n|no se pudo|cancelad/i.test(el("ukiNubeEstado").textContent||"");
@@ -5934,7 +6082,8 @@ el("ukiMostrarConfig").addEventListener("click",()=>{
 const msg=s=>{el("ukiNubeEstado").textContent=s;actualizarPresentacionNube()};
 function actualizarBloqueo(){
  const estado=auto.resumen();
- const permitir=UKI_OPERACION_HABILITADA&&estado.activo&&!estado.bloqueado;
+ const esRomo=window.ukiQAGet?.()?.suc===ROMO_SUCURSAL_QA;
+ const permitir=!esRomo&&UKI_OPERACION_HABILITADA&&estado.activo&&!estado.bloqueado;
  const haySucursal=!!window.ukiQAGet?.()?.suc;
  document.body.classList.toggle("uki-operativo-bloqueado",haySucursal&&!permitir);
  actualizarPresentacionNube();
@@ -5942,12 +6091,13 @@ function actualizarBloqueo(){
 // Cancelación solo al estar completamente sincronizado: ni pendiente ni guardando.
 window.ukiCancelacionNubeLista=()=>{
  const estado=auto.resumen(),contextoLocal=window.ukiQAGet?.();
- return !!(UKI_OPERACION_HABILITADA&&contextoLocal&&estado.activo&&!estado.bloqueado&&
+ return !!(contextoLocal?.suc!==ROMO_SUCURSAL_QA&&UKI_OPERACION_HABILITADA&&contextoLocal&&estado.activo&&!estado.bloqueado&&
    !estado.ocupado&&estado.actualRespaldado===true&&estado.estado==="sincronizado"&&
    estado.sucursal===contextoLocal.suc);
 };
 window.ukiOperativoActualizar=actualizarBloqueo;
 function contexto(){
+ if(window.ukiQAGet?.()?.suc===ROMO_SUCURSAL_QA)throw Error("La nube Uki no se utiliza para Romo");
  if(!UKI_OPERACION_HABILITADA)throw Error("Versión sin activar: falta aprobar reglas, pruebas y lanzamiento.");
  const x=window.ukiQAGet?.();
  if(!x)throw Error("Abre primero la sucursal correspondiente");
