@@ -9,7 +9,8 @@ export const ROMO_PANEL_RECEPCION_HABILITADA_QA=false;
 const requireValid=(test,msg)=>{if(!test)throw Error(msg)};
 const clean=(v,n)=>String(v??'').trim().slice(0,n);
 export function prepararBorradorRomoDesdeSolicitudQA(row,{
- ahora=()=>new Date().toISOString().slice(0,16),
+ // Respetar la hora LOCAL del iPhone: el timestamp UTC se veía 3 h adelantado en Chile.
+ ahora=()=>{const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,16)},
  codigoTelefono=t=>String(t||'').replace(/\D/g,'').slice(-4)
 }={}){
  requireValid(row&&typeof row==='object'&&UUID.test(String(row.id||''))&&
