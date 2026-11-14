@@ -44,5 +44,5 @@ test('panel QA nunca usa localStorage, Firebase o caja de Uki para Romo',()=>{
  assert.match(src,/if\(!SUCURSALES.includes\(S\.suc\)\)return Promise.resolve\(true\)/);
  assert.match(src,/const UKI_OPERACION_HABILITADA=location\.hostname==='diannaleandra-art\.github\.io'/);
  assert.match(src,/const ROMO_PANEL_INTEGRACION_HABILITADA_QA=location\.hostname==='uki-sushi-panel-git-qa-integracion-pa-261e5e-diannaleandra-7046\.vercel\.app'/);
- assert.match(src,/la clave Uki no puede cotejarse/i);
+ assert.match(src,/Esta dirección no puede comprobar la clave contra Uki original/);
 });
