@@ -1550,10 +1550,13 @@ function vRomoCajaConsultaQA(){
    return '<section class="card"><h2>Caja Romo</h2><p>No se pudo verificar la lectura de caja.</p></section>';
   const t=modulo.consultarCajaRomoQA(fuente,{fechaOperativa:periodo});
   const dinero=n=>fmt(n);
-  return '<section class="card"><h2>Caja · Romo La Serena</h2>'+
+  const cajaNeon=fuente.cajasDiarias?.[ROMO_SUCURSAL_QA+'|'+periodo];
+  const turnoAbierto=cajaNeon?.turnoAbierto===true;
+  return romoFormularioCierreQA()+'<section class="card"><h2>Caja · Romo La Serena</h2>'+
    '<p class="muted">Vista de consulta. Jornada '+esc(t.fecha)+
-   ' · Estado confirmado en Neon · Revisión '+esc(ukiRomoRevisionVisibleQA)+'.</p>'+
-   '<p class="aviso">No se pueden agregar gastos, retiros, propinas manuales ni realizar precierre o cierre definitivo todavía.</p>'+
+   ' · Lectura del estado de Romo en Neon · Revisión '+esc(ukiRomoRevisionVisibleQA)+'.</p>'+ 
+   '<p class="muted">'+(turnoAbierto?'Turno abierto en Romo.':'Sin turno abierto confirmado. Las solicitudes pendientes todavía no son ventas.')+'</p>'+
+   '<p class="aviso">Toda apertura, movimiento y cierre requiere confirmación de Neon; si falla, revisa Caja e Historial antes de repetir. Esta vista no cuenta solicitudes sin aceptar como ventas.</p>'+
    row('Pedidos pagados',t.pagados)+row('Pedidos pendientes',t.pendientes)+
    row('Cobros recibidos en Romo',dinero(t.cobrosEnRomo))+
    row('Productos cobrados en otro local',dinero(t.productosCobradosOtroLocal))+
@@ -1569,7 +1572,7 @@ function vRomoCajaConsultaQA(){
     '<p><b>'+esc(c.fecha)+'</b> · Venta '+(c.venta===null?'No indicada':dinero(c.venta))+
     ' · Efectivo '+(c.efectivo===null?'No indicado':dinero(c.efectivo))+'</p>').join(''):
     '<p class="muted">Todavía no hay cierres de Romo registrados.</p>')+
-   '<p class="muted">Historial de cierres confirmados en Neon.</p></section>'+ukiRomoFormularioMovimientosQA()+romoFormularioCierreQA();
+   '<p class="muted">Historial de cierres confirmados en Neon.</p></section>'+ukiRomoFormularioMovimientosQA();
  }catch(e){
   return '<section class="card"><h2>Caja Romo</h2><p class="aviso">No es seguro presentar estos totales hasta revisar los registros: '+
    esc(e?.message||e)+'</p></section>';
