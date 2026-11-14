@@ -117,3 +117,14 @@ un despliegue de producción active accidentalmente los conectores de pruebas.
 La API actual de Mi Administración sigue usando autenticación exclusiva de
 producción; para probarla desde la vista previa falta completar el acceso
 privado QA sin modificar el endpoint operativo.
+
+## Vista previa privada Romo (QA) · Google y PIN existentes
+La API de Mi Administración admite un modo **preview** opcional solo con
+`ROMO_FIN_OWNER_QA_ENABLED=true`, nombre exacto de la rama Vercel y URLs
+exclusivas de la base de finanzas QA. Este modo reusa el PIN ya instalado
+en finanzas y la verificación de Firebase Google, pero restringe las rutas a
+`estado`, `ingresar_pin`, `salir`, `listar_cierres_romo_qa` y
+`sincronizar_cierres_romo_qa`. No permite editar gastos, registrar ventas,
+crear razones sociales o ingresar facturas desde QA. La producción no cambia.
+Banderas/URLs permanecen SIN CONFIGURAR en Vercel; falta una interfaz de
+comprobación para iPhone en QA y autorización antes de activación.

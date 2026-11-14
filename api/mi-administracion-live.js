@@ -16,8 +16,26 @@ const fail=(res,status,msg)=>res.status(status).json({ok:false,error:msg});
 const text=(v,max=150)=>String(v??'').trim().slice(0,max);
 const validDate=d=>typeof d==='string'&&day.test(d)&&!Number.isNaN(Date.parse(d+'T12:00:00Z'))&&new Date(d+'T12:00:00Z').toISOString().slice(0,10)===d;
 const money=n=>Number.isSafeInteger(n)&&n>=0&&n<=1000000000;
-const envOk=(e=process.env)=>e.VERCEL_ENV==='production'&&e.UKI_FIN_PRIVATE_ENABLED==='true';
+// En QA solo habilitamos Google + PIN y consulta/sincronización Romo.
+// Ningún movimiento o factura se puede modificar desde una vista previa.
+const ROMO_FIN_PREVIEW_BRANCH='qa/integracion-panel-unico-romo-serena-20261112';
+const ROMO_FIN_PREVIEW_HOST='ep-lucky-band-b5j3itkw.c-7.us-east-2.aws.neon.tech';
+const romoFinancePreview=(e=process.env)=>
+ e.VERCEL_ENV==='preview'&&
+ e.VERCEL_GIT_COMMIT_REF===ROMO_FIN_PREVIEW_BRANCH&&
+ e.ROMO_FIN_SYNC_QA_BRANCH===ROMO_FIN_PREVIEW_BRANCH&&
+ e.ROMO_FIN_OWNER_QA_ENABLED==='true';
+const envOk=(e=process.env)=>
+ (e.VERCEL_ENV==='production'&&e.UKI_FIN_PRIVATE_ENABLED==='true')||
+ romoFinancePreview(e);
 function dbUrl(e=process.env){
+ if(romoFinancePreview(e)){
+  let url;try{url=new URL(String(e.ROMO_FIN_QA_DATABASE_URL||''))}catch{return null}
+  if(!['postgres:','postgresql:'].includes(url.protocol)||
+   url.hostname!==ROMO_FIN_PREVIEW_HOST||url.pathname!=='/neondb'||
+   !url.username||!url.password||url.searchParams.has('options')||url.hash)return null;
+  return url.toString();
+ }
  if(!envOk(e))return null;
  // Reusar exclusivamente la conexión QA ya habilitada, nunca producción.
  const candidate=e.UKI_FIN_PRIVATE_DATABASE_URL; // Rama privada separada de pedidos.
@@ -98,6 +116,12 @@ module.exports=async(req,res)=>{
  if(!db)return fail(res,503,'Base privada de dueños no configurada.');
  const sql=require('@neondatabase/serverless').neon(db);
  const action=String(body.action||'');
+ if(romoFinancePreview()){
+  const permitidos=new Set(['estado','ingresar_pin','salir',
+   'listar_cierres_romo_qa','sincronizar_cierres_romo_qa']);
+  if(!permitidos.has(action))
+   return fail(res,403,'En pruebas solo se permite consultar los cierres de Romo.');
+ }
  try{
   if(action==='estado'){
    const rows=await sql.query('SELECT 1 FROM public.fin_pin_privado WHERE id=1');
