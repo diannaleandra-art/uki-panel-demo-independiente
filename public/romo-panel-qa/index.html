@@ -837,6 +837,38 @@ async function ukiRomoRevisarAccesoSoloLecturaQA(){
   aviso(String(error?.message||"No se pudo comprobar la conexión de Romo."));
  }finally{if(input)input.value="";}
 }
+async function ukiRomoCrearEstadoInicialVacioQA(){
+ const input=$("ukiAccesoClave"),password=input?.value||"";
+ if(S.pinSuc!==ROMO_SUCURSAL_QA){aviso("Selecciona Romo La Serena antes de preparar.");return;}
+ if(password.length<12){aviso("Escribe primero tu contraseña habitual de Uki.");return;}
+ if(!window.confirm("ROMO LA SERENA · DUEÑOS: ¿Preparar únicamente su estado inicial CIFRADO VACÍO? No se crean ventas, pedidos ni turnos; Uki no se modifica."))return;
+ if(!window.confirm("Confirmación final: se guardará UNA sola vez el estado vacío de Romo con caja inicial en $0. NO quedará habilitado para ventas. ¿Continuar?"))return;
+ try{
+  if(typeof window.ukiRomoEstadoConexionLecturaQA!=="function"||
+     typeof window.ukiRomoInicializarEstadoVacioQA!=="function")
+   throw Error("Esta versión de pruebas todavía no tiene la preparación segura.");
+  const remoto=await window.ukiRomoEstadoConexionLecturaQA(password);
+  if(remoto.inicializado===true)
+   throw Error("Romo ya tiene un estado inicial guardado. No se reemplazó ni duplicó.");
+  if(!globalThis.crypto?.subtle||!globalThis.crypto?.getRandomValues)
+   throw Error("Este navegador no dispone de cifrado seguro.");
+  const suc=ROMO_SUCURSAL_QA;
+  const estado=estadoVacioSucursal(suc);
+  // Sin valores heredados de la caja chica o la base monetaria de Uki.
+  estado.base=0;estado.cajaChica={inicial:0,gastos:[]};estado.vista="inicio";
+  if(!validarEstadoSucursal(estado,suc)||
+     estado.pedidos.length||estado.cierres.length||estado.cajasDiarias&&Object.keys(estado.cajasDiarias).length)
+   throw Error("El estado inicial vacío de Romo no pasó la validación.");
+  const salt=crypto.getRandomValues(new Uint8Array(16));
+  const key=await ukiClaveBackup(password,salt);
+  const snapshot=await cifrarLocal(estado,suc,key,salt);
+  const creado=await window.ukiRomoInicializarEstadoVacioQA({snapshot});
+  if(creado?.revision!==1)throw Error("No se pudo confirmar el estado inicial cifrado.");
+  aviso("Romo tiene estado inicial cifrado propio y vacío (revisión 1). Caja y pedidos reales siguen bloqueados; no se registró ningún movimiento.");
+ }catch(e){
+  aviso(String(e?.message||"No se pudo confirmar la preparación de Romo."));
+ }finally{if(input)input.value="";}
+}
 function pedirPin(s){
  if(!SUCURSALES_PANEL_QA.includes(s))return;
  S.romoSeleccionadoQA=false;S.romoIngresadoQA=false;S.pinSuc=s;render();
@@ -983,7 +1015,11 @@ function vInicio(){
   (existe?'':'<label>Repite la contraseña</label><input id="ukiAccesoConfirmar" type="password" autocomplete="off" placeholder="Confirmar contraseña">')+
   '<button class="big" onclick="entrarSuc()">'+(existe?"Abrir sucursal":"Crear acceso")+'</button>'+
   (esRomo?'<button type="button" class="big" style="background:#382e2a" onclick="ukiRomoRevisarAccesoSoloLecturaQA()">Comprobar conexión de Romo (solo lectura)</button>'+
-   '<p class="muted">Usa la contraseña del campo superior. Esta comprobación no abre caja ni registra pedidos, ventas o inventario.</p>':'')+
+   '<p class="muted">Usa la contraseña del campo superior. Esta comprobación no abre caja ni registra pedidos, ventas o inventario.</p>'+
+   '<details id="romoCajaInicialDuenosQA" class="card" style="border-color:#c9b19f;background:#fffaf6">'+
+   '<summary style="cursor:pointer;font-weight:700">Solo dueños · Preparar estado inicial vacío de Romo</summary>'+
+   '<p class="muted">Se crea una sola copia cifrada VACÍA de Romo en su propia base, con caja inicial en $0 y sin ventas, turnos, pedidos, inventario ni cierres. No se abre la operación.</p>'+
+   '<button type="button" class="big" style="background:#a72c24" onclick="ukiRomoCrearEstadoInicialVacioQA()">Confirmar preparación de Romo (sin ventas)</button></details>':'')+
   (esRomo?ukiRomoFormularioVinculacionQA():'')+
   '<p class="muted">La clave no se guarda. Si la pierdes, necesitarás un respaldo. El PIN antiguo de 4 números no protege estos registros.</p></div>';
  }
@@ -5970,6 +6006,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 <script type="module" src="./uki-romo-clave-remota-qa.mjs"></script>
 <script type="module" src="./uki-romo-operativo-qa.mjs"></script>
 <script type="module" src="./uki-romo-conexion-lectura-qa.mjs"></script>
+<script type="module" src="./uki-romo-inicializacion-vacia-qa.mjs"></script>
 <script type="module" src="./uki-romo-integracion-panel-qa.mjs"></script>
 <script type="module" src="./uki-romo-vinculo-duenos-qa.mjs"></script>
 <script src="./uki-tarjeta-cliente.js" defer></script>
