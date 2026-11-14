@@ -35,3 +35,14 @@ Fecha: 14-11-2026
 5. Con resultados aprobados y autorización explícita, decidir una sola publicación consolidada. No cambiar el QR, los accesos ni el panel operativo de Uki hasta entonces.
 
 No se ejecutaron tests automáticos, migraciones, escrituras SQL ni despliegues mediante este cambio.
+
+## Avance de acceso y carta (14-11-2026)
+
+- **Clave habitual:** se agregó en `firebase/uki-romo-clave-remota-qa.mjs` la creación local de un verificador cifrado PBKDF2/AES-GCM. Antes de crearlo, la clave se verifica contra el archivo cifrado de la **sucursal Uki exacta** que el dueño seleccionó. No se envía la contraseña.
+- **Mismo panel:** `firebase/uki-sushi-local.html` tiene un formulario interno de vinculación que **no aparece** mientras `ROMO_CLAVE_ALTA_ENDPOINT_QA` permanezca vacío.
+- **Lectura de catálogo:** `firebase/uki-romo-catalogo-qa.mjs` prepara la consulta de la carta de Romo sin escrituras; se respeta `categories` y `categoriaSlug` y el archivo no cambia el editor de Uki.
+- Los endpoints del cliente continúan **vacíos y desactivados**; no están configurados ni se han probado manualmente. Los datos de Uki/Neon no se modificaron.
+- El servidor futuro y sus flags de acceso están preparados en la rama privada `preparacion/integracion-panel-unico-romo-20261114` de `romos-sushi-qa.`.
+- Para registrar una clave por primera vez el backend exigirá Google firmado, rol **duenos** y un usuario de BD especial de alta. `romos_app_service` conserva permiso de **sólo lectura** sobre las pruebas cifradas. El alta será de una sola vez, sin reemplazar registros.
+- El catálogo existente en Neon tiene **2 categorías, 7 productos, 40 ingredientes y 3 promociones**, con campos que el editor anterior no contemplaba. Se preparó un lector completo antes de permitir edición para no perder contenido.
+- Quedan pendientes: unir las APIs al panel real, definir con autorización los accesos de BD/secretos, aislar inventario, caja y timbres, y verificar manualmente en Safari antes de publicar.
