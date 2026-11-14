@@ -19,13 +19,15 @@ function config(env){
   }catch{return null}
  };
  const read=parse(env.ROMO_PRIVATE_DATABASE_URL,'romos_app_service');
- const write=parse(env.ROMO_CLAVE_ALTA_PRIVILEGED_DATABASE_URL,'romos_clave_alta_qa_20261114');
+ // Inventario y caja usan la cuenta de servicio ya existente de Romo.
+ // El usuario de alta de claves NO es la credencial de inventario.
+ const write=read;
  if(!read)return null;
  for(const key of ['UKI_INVENTARIO_LIVE_DATABASE_URL','UKI_INVENTARIO_QA_DATABASE_URL',
   'UKI_FIN_PRIVATE_DATABASE_URL','UKI_FIN_QA_DATABASE_URL']){
   try{if(new URL(String(env[key]||'')).hostname.toLowerCase()===host)return null}catch{}
  }
- return {origin,read,write:write&&write!==read?write:null};
+ return {origin,read,write};
 }
 module.exports=async function romoInventarioQA(req,res){
  res.setHeader('Cache-Control','private,no-store,max-age=0');
@@ -71,7 +73,7 @@ module.exports=async function romoInventarioQA(req,res){
     !Number.isSafeInteger(body.expectedRevision)||body.expectedRevision<0||
     !body.args||typeof body.args!=='object'||Array.isArray(body.args))
    return fail(res,400,'Operación de inventario inválida');
-  const sql=neon(conf.write),writer={query:(q,args)=>sql.query(q,args)};
+  const writer=reader; // Solo tabla Romo, con control de revisión en SQL.
   const result=await inv.guardarOperacionInventarioRomoQA({
    db:writer,identity,expectedRevision:body.expectedRevision,
    action:body.action,args:body.args

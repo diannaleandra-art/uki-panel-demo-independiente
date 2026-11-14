@@ -33,17 +33,12 @@ function config(env){
    if(new URL(String(env[key]||'')).hostname.toLowerCase()===host)return null;
   }catch{}
  }
- let writer=null;
- if(env.ROMO_PANEL_PILOTO_MANUAL_QA_ENABLED==='true'&&
-    env.ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED==='true'){
-   try{
-    const u=new URL(String(env.ROMO_CLAVE_ALTA_PRIVILEGED_DATABASE_URL||''));
-    if(['postgres:','postgresql:'].includes(u.protocol)&&
-       u.hostname.toLowerCase()===host&&u.pathname==='/romos_sushi'&&
-       u.username==='romos_clave_alta_qa_20261114'&&u.password&&
-       u.toString()!==uri.toString())writer=u.toString();
-   }catch{}
- }
+ // La credencial de alta de claves carece de permiso sobre el estado cifrado.
+ // Es el servicio de Romo, ya validado contra host y base Romo, quien puede
+ // guardar revisiones CAS. Nunca usar el rol de alta ni una base Uki para ello.
+ const writer=env.ROMO_PANEL_PILOTO_MANUAL_QA_ENABLED==='true'&&
+    env.ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED==='true'&&
+    uri.username==='romos_app_service'?uri.toString():null;
  return {url:uri.toString(),writer,origin};
 }
 
@@ -98,8 +93,7 @@ module.exports=async function romoEstadoCifradoPanelQA(req,res){
   if(JSON.stringify(body).length>2000000)
    return send(res,413,'Paquete demasiado grande');
   // Escritura por rol aislado sin permiso DELETE ni acceso a bases Uki.
-  const neonWriter=require('@neondatabase/serverless').neon(conf.writer);
-  const writerDB={query:(sql,args)=>neonWriter.query(sql,args)};
+  const writerDB=db; // Cuenta Romo de servicio: INSERT/UPDATE sobre su propio estado.
   const saved=await vault.guardarEstadoCifradoRomoQA({
    db:writerDB,identity,expectedRevision:body.expectedRevision,snapshot:body.snapshot
   });
