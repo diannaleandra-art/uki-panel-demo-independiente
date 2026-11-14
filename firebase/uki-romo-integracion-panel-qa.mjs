@@ -5,6 +5,7 @@
  */
 import {crearPuenteRomoOperativoQA} from './uki-romo-operativo-qa.mjs';
 import {crearSesionPanelUnicoRomoQA} from '../lib/romo-panel-unico-sesion-qa.mjs';
+import {cartaRomoDisponibleQA,obtenerCartaRomoPanelQA} from './uki-romo-catalogo-qa.mjs';
 const unsupported=()=>{throw Error('Utiliza únicamente el cifrado de uki-sushi-local.html');};
 const vault=crearPuenteRomoOperativoQA({
  cifrar:unsupported,descifrar:unsupported,validarEstado:()=>false
@@ -19,3 +20,6 @@ const session=crearSesionPanelUnicoRomoQA({
  prepararEstadoInicial:unsupported
 });
 window.ukiRomoSesionRemotaQA=session;
+
+window.ukiRomoCatalogoDisponibleQA=cartaRomoDisponibleQA;
+window.ukiRomoCatalogoLeerQA=()=>obtenerCartaRomoPanelQA();

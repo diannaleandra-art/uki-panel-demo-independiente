@@ -789,6 +789,32 @@ async function ukiValidarClaveUkiParaRomoQA(pass){
  }
  throw Error("La contraseña no coincide con las sucursales Uki de este equipo.");
 }
+async function ukiRomoDarAltaClaveQA(){
+ const input=$("romoClaveUkiQA"),slot=$("romoClaveUkiOrigenQA")?.value;
+ const password=input?.value||"";
+ if(!window.ukiRomoClaveAltaDisponibleQA?.()){
+  aviso("La vinculación segura todavía no ha sido autorizada");return;
+ }
+ try{
+  await window.ukiRomoRegistrarClaveQA({
+   password,ukiSource:slot,
+   verificarClaveLocal:async (clave,ukiSource)=>{
+    const suc=ukiSource==="uki:serena"?"Uki La Serena":
+              ukiSource==="uki:arica"?"Uki Regimiento Arica":null;
+    if(!suc)throw Error("Sucursal Uki no permitida");
+    const ciphertext=localStorage.getItem(claveLocal(suc));
+    if(!ciphertext)throw Error("Abre primero esa sucursal Uki en este mismo iPhone");
+    const opened=await abrirLocal(ciphertext,suc,clave);
+    return opened?.estado?.suc===suc;
+   }
+  });
+  aviso("Clave habitual de Uki vinculada a Romo");
+ }catch(error){
+  aviso(String(error?.message||"No se pudo registrar el acceso Romo"));
+ }finally{
+  if(input)input.value="";
+ }
+}
 function pedirPin(s){
  if(!SUCURSALES_PANEL_QA.includes(s))return;
  S.romoSeleccionadoQA=false;S.romoIngresadoQA=false;S.pinSuc=s;render();
@@ -898,6 +924,13 @@ function vInicio(){
   return '<section class="card" id="romoLaSerenaPreparacionQA" aria-label="Romo’s Sushi La Serena">'+
    '<h2>Romo’s Sushi · La Serena</h2><p><b>Balmaceda 1612, La Serena</b></p>'+
    '<p class="aviso" role="status">Ingreso de prueba completado. Aún no están conectados los pedidos, caja, inventario y cierres independientes de Romo. No registres operaciones aquí.</p>'+
+   (window.ukiRomoClaveAltaDisponibleQA?.()?'<details id="romoEnrolamientoQA"><summary>Vincular la contraseña habitual</summary>'+
+     '<p class="muted">Solo dueños. Utiliza la clave que ya usas en Uki. Este proceso no cambia tu contraseña.</p>'+
+     '<label for="romoClaveUkiOrigenQA">Sucursal de la clave</label>'+
+     '<select id="romoClaveUkiOrigenQA"><option value="uki:serena">Uki La Serena</option><option value="uki:arica">Uki Regimiento Arica</option></select>'+
+     '<label for="romoClaveUkiQA">Contraseña habitual de esa sucursal</label>'+
+     '<input id="romoClaveUkiQA" type="password" autocomplete="off" placeholder="Clave existente">'+
+     '<button class="big" type="button" onclick="ukiRomoDarAltaClaveQA()">Vincular acceso de Romo</button></details>':'')+
    '<button class="big" type="button" onclick="ukiVolverAlSelectorLocales()">Salir de sucursal</button></section>';
  }
  if(S.pinSuc){

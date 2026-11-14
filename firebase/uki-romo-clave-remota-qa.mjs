@@ -96,3 +96,69 @@ if(typeof window!=='undefined'){
  window.ukiRomoClaveRemotaDisponibleQA=()=>!!ROMO_PROOFS_ENDPOINT;
  window.ukiRomoVerificarClaveRemotaQA=pass=>leerYVerificarClaveRomoQA({password:pass});
 }
+
+
+/*
+ * Habilitación inicial EN EL MISMO PANEL (en iPhone).
+ * El backend de alta se habilitaría por la dueña en una fase separada.
+ * La clave habitual se comprueba primero localmente contra la sucursal
+ * Uki exacta. Sólo se envía el VERIFICADOR CIFRADO, nunca la contraseña.
+ */
+const ROMO_CLAVE_ALTA_ENDPOINT_QA='';
+export async function crearPruebaClaveHabitualRomoQA({
+ password,ukiSource,verificarClaveLocal,cryptoProvider=globalThis.crypto
+}={}){
+ if(!SOURCES.has(ukiSource)||typeof verificarClaveLocal!=='function'||
+    typeof password!=='string'||password.length<12||password.length>256)
+  throw Error('Indica una sucursal y su clave actual de Uki');
+ if(await verificarClaveLocal(password,ukiSource)!==true)
+  throw Error('La clave no coincide con la sucursal Uki elegida en este dispositivo');
+ if(!cryptoProvider?.subtle||!cryptoProvider?.getRandomValues)
+  throw Error('Este navegador no dispone de cifrado seguro');
+ const salt=cryptoProvider.getRandomValues(new Uint8Array(16));
+ const iv=cryptoProvider.getRandomValues(new Uint8Array(12));
+ const b64=bytes=>btoa(String.fromCharCode(...new Uint8Array(bytes)));
+ const raw=await cryptoProvider.subtle.importKey(
+  'raw',enc.encode(password),'PBKDF2',false,['deriveKey']);
+ const key=await cryptoProvider.subtle.deriveKey(
+  {name:'PBKDF2',salt,iterations:ITER,hash:'SHA-256'},
+  raw,{name:'AES-GCM',length:256},false,['encrypt']);
+ const ciphertext=await cryptoProvider.subtle.encrypt(
+  {name:'AES-GCM',iv,additionalData:enc.encode(JSON.stringify([FORMAT,STORE,ukiSource]))},
+  key,enc.encode(MAGIC+'|'+ukiSource));
+ const proof=Object.freeze({formato:FORMAT,storeId:STORE,ukiSource,
+  iteraciones:ITER,salt:b64(salt),iv:b64(iv),cifrado:b64(ciphertext)});
+ decodeProof(proof);
+ return proof;
+}
+export async function registrarClaveHabitualRomoQA({
+ password,ukiSource,verificarClaveLocal,
+ endpoint=ROMO_CLAVE_ALTA_ENDPOINT_QA,
+ getGoogleToken=()=>window.ukiInventarioToken?.(),
+ fetchFn=fetch
+}={}){
+ if(!ROMO_CLAVE_ALTA_ENDPOINT_QA||endpoint!==ROMO_CLAVE_ALTA_ENDPOINT_QA)
+  throw Error('El alta de Romo aún no está autorizada');
+ const token=await getGoogleToken();
+ if(typeof token!=='string'||token.length<30)
+  throw Error('Inicia sesión con la cuenta Google de dueños');
+ const proof=await crearPruebaClaveHabitualRomoQA({
+  password,ukiSource,verificarClaveLocal});
+ const response=await fetchFn(endpoint,{
+  method:'POST',
+  headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+  body:JSON.stringify({ukiSource,proof}),
+  cache:'no-store',credentials:'omit'
+ });
+ if(response.status===409)throw Error('Esta sucursal ya tiene una clave registrada');
+ if(!response.ok)throw Error('No se pudo confirmar el alta de Romo');
+ const result=await response.json();
+ if(result?.ok!==true||result.storeId!==STORE||
+    result.ukiSource!==ukiSource||result.created!==true)
+  throw Error('El registro de Romo no fue confirmado');
+ return Object.freeze({ok:true,storeId:STORE,ukiSource});
+}
+if(typeof window!=='undefined'){
+ window.ukiRomoClaveAltaDisponibleQA=()=>!!ROMO_CLAVE_ALTA_ENDPOINT_QA;
+ window.ukiRomoRegistrarClaveQA=args=>registrarClaveHabitualRomoQA(args);
+}
