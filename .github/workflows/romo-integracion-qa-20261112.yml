@@ -33,6 +33,7 @@ jobs:
             tests/uki-romo-panel-mismo-boton-qa.test.mjs \
             tests/uki-romo-firestore-aislamiento-qa.test.mjs \
             tests/uki-romo-script-navegador-qa.test.cjs \
+            tests/uki-romo-preview-ruta-publicada-qa.test.mjs \
             tests/uki-romo-dos-equipos-qa.test.mjs \
             tests/uki-romo-caja-consulta-qa.test.mjs \
             tests/uki-romo-pedidos-lectura-qa.test.mjs \

@@ -47,3 +47,6 @@ El panel de inventario QA apuntaba por error a `https://uki-sushi-inventario.ver
 
 ## 14-11-2026 · Inventario QA habilitable en vista privada
 Vercel `uki-sushi-inventario`: nueva variable encriptada `ROMO_INVENTARIO_QA_ENABLED=true`, exclusivamente en entorno `preview` de la rama QA Romo; producción no fue cambiada. El panel QA ahora expone Inventario solo si el hostname es el alias privado de Romo; el servidor obliga además a Google y permisos de rol y conecta únicamente con la base QA. No activa stock real, ventas ni carta pública. Requiere publicación nueva del frontend y backend para ver el cambio; **pendiente prueba real con dueño autorizado**.
+
+## 14-11-2026 · Ruta publicada del panel QA
+El dominio Vercel sirve public/index.html (Inventario Uki), mientras que firebase/uki-sushi-local.html no estaba expuesto, causando el 404. Se publica copia exacta de vista QA en public/romo-qa/uki-sushi-local.html con los JS/MJS/SVG que necesita el mismo panel, sin reemplazar public/index.html. CI verifica que ambos recursos permanezcan idénticos. Ruta privada: https://uki-sushi-panel-git-qa-integracion-pa-261e5e-diannaleandra-7046.vercel.app/romo-qa/uki-sushi-local.html?sucursal=romo-serena. No habilitar carta comercial ni tocar locales Uki.
