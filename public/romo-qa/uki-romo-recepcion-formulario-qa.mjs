@@ -45,6 +45,18 @@ export function prepararBorradorRomoDesdeSolicitudQA(row,{
   pago.toLowerCase().startsWith(m.toLowerCase()))||'Efectivo';
  const total=Number(row.total_indicado);
  requireValid(Number.isSafeInteger(total)&&total>=0,'Total Romo incorrecto');
+
+ // Precio explícito: solo atribuirlo a UN producto cuando el subtotal
+ // y el delivery concuerdan exactamente con el total de la solicitud Neon.
+ const lineaProductos=t.match(/^\s*Total productos:\s*\$?\s*([\d.,]+)\s*$/mi);
+ const importeProductos=lineaProductos?Number(lineaProductos[1].replace(/\D/g,'')):null;
+ if(items.length===1&&Number.isSafeInteger(importeProductos)&&importeProductos>0&&
+    importeProductos<=100000000&&(!deliveryPendiente||modalidad!=='Delivery')&&
+    total===importeProductos+(modalidad==='Delivery'?envio:0)&&
+    importeProductos%items[0].cant===0){
+   const unitario=importeProductos/items[0].cant;
+   if(Number.isSafeInteger(unitario)&&unitario>0)items[0].precio=unitario;
+ }
  const telefono=clean(row.telefono,30);
  return {texto:t,fecha:ahora(),cliente:clean(row.cliente,60),
   telefono,codigoCarta:codigo,codigoCliente:codigoTelefono(telefono),
