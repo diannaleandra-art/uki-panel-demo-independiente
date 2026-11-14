@@ -731,6 +731,14 @@ function render(){
   const ukiVistaAnterior=ukiCapturarVistaAntesRender();
   try{
   document.body.classList.toggle("romo-qa",!!(S.romoSeleccionadoQA&&!S.suc&&!S.pinSuc));
+  const cabeceraNubeRomo=$("ukiEstadoOperativo");
+  if(cabeceraNubeRomo&&S.suc===ROMO_SUCURSAL_QA){
+   // Los datos de Uki usan Firebase; aquí solo se representa la lectura de Neon Romo.
+   cabeceraNubeRomo.textContent=Number.isSafeInteger(ukiRomoRevisionVisibleQA)?
+    'Romo · Neon: lectura confirmada · revisión '+ukiRomoRevisionVisibleQA+
+     ' · ventas públicas desactivadas':
+    'Romo · Neon: conexión pendiente de verificar';
+  }
   $("suc").innerHTML=S.suc?`<span>${esc(S.suc)}</span><a href="#" onclick="salirSuc();return false;" class="salir">Salir</a>`:S.romoSeleccionadoQA?'<span>Romo’s Sushi · La Serena · Balmaceda 1612</span><a href="#" onclick="ukiVolverAlSelectorLocales();return false;" class="salir">Salir</a>':"Selecciona una sucursal para empezar";
   $("nav").style.display=S.suc?"grid":"none";
   ukiAccesosDesplazamiento();
@@ -1112,7 +1120,7 @@ async function ukiRomoEditarSinPagoQA(id){
 /* Inventario Romo: misma pestaña, almacenamiento propio con revisión CAS Neon.
  * No ejecutar movimientos hasta activar los endpoints privados de Romo. */
 const ROMO_INVENTARIO_PANEL_HABILITADO_QA=false;
-const ROMO_INVENTARIO_ENDPOINT_QA='https://uki-sushi-inventario.vercel.app/api/romo-inventario-qa';
+const ROMO_INVENTARIO_ENDPOINT_QA='https://uki-sushi-inventario-git-qa-integraci-dc8aa9-diannaleandra-7046.vercel.app/api/romo-inventario-qa';
 let romoInventarioVistaQA={loaded:false,revision:null,items:[],movimientos:[],busy:false};
 function romoInventarioNumeroQA(raw){
  const t=String(raw??'').trim();
@@ -1186,8 +1194,11 @@ function vRomoInventarioQA(){
 }
 async function romoInventarioSolicitudQA(method,body){
  if(!ROMO_INVENTARIO_PANEL_HABILITADO_QA||
+  !ROMO_PANEL_INTEGRACION_HABILITADA_QA||
+  location.hostname!==ROMO_PANEL_DIAG_HOST_QA||
+  !ROMO_INVENTARIO_ENDPOINT_QA.startsWith('https://uki-sushi-inventario-git-qa-integraci-dc8aa9-diannaleandra-7046.vercel.app/')||
   S.suc!==ROMO_SUCURSAL_QA||!ukiRomoControlPanelQA?.disponible())
-  throw Error('Inventario Romo no habilitado');
+  throw Error('Inventario Romo no habilitado en la vista QA autorizada');
  const token=await window.ukiInventarioToken?.();
  if(typeof token!=='string'||token.length<30)
   throw Error('Ingresa con la misma cuenta Google del panel.');
