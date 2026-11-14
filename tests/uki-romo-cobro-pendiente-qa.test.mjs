@@ -137,3 +137,17 @@ test('el controlador del panel expone cobro pero no lo habilita públicamente',(
  const backend=readFileSync(new URL('../api/romo-solicitudes-carta-qa.js',import.meta.url),'utf8');
  assert.match(backend,/if\(config\.qaOnly\)return fail\(res,403/);
 });
+
+test('al pagar en Romo con WhatsApp se mantiene timbre obligatorio para entregar o cerrar',()=>{
+ const s=estado();
+ prepararCobroPendienteRomoQA(s,cobro());
+ assert.equal(s.pedidos[0].timbreReglaObligatoria,true);
+ assert.equal(s.pedidos[0].timbreEnviadoEn,undefined);
+});
+test('al pagar sin teléfono no se inventa WhatsApp ni timbre para el cliente',()=>{
+ const s=estado({pedidos:[pedido({telefono:'',codigoCliente:'',cliente:''})]});
+ prepararCobroPendienteRomoQA(s,cobro());
+ assert.equal(s.pedidos[0].pagado,true);
+ assert.equal(s.pedidos[0].timbreReglaObligatoria,false);
+ assert.deepEqual(s.clientes,{});
+});

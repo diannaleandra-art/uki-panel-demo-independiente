@@ -92,6 +92,9 @@ export function prepararCobroPendienteRomoQA(estado,{
  const del=mediosConfirmados({lineas:pagosEnvio,medio:medioEnvio,
   total:envio,permitidos:METODOS_ENVIO,nombre:'delivery'});
  p.pagado=true;p.medio=prod.medio;p.medioEnvio=del.medio;
+ // Si el cliente tiene WhatsApp, la entrega y el cierre deben exigir
+ // timbre confirmado en el panel, incluso cuando pagó después de la entrega.
+ p.timbreReglaObligatoria=/^\d{8,15}$/.test(String(p.telefono||'').replace(/\D/g,''));
  p.pagosProductos=prod.lineas;p.pagosEnvio=del.lineas;
  p.cobroConfirmadoEn=new Date(stamp).toISOString();
  p.cobroConfirmadoPor=actor;

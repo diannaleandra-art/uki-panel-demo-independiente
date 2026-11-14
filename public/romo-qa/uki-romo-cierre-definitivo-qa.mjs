@@ -86,6 +86,13 @@ export function prepararCierreDefinitivoRomoQA(estado,{
  CHECK(!Array.isArray(estado.solicitudesWhatsApp)||
   !estado.solicitudesWhatsApp.some(x=>x.suc===SUC&&x.estado==='pendiente'),
   'Hay solicitudes WhatsApp locales por resolver');
+ // Un cobro posterior mantiene la misma obligación de timbre; no se
+ // permite cerrar el turno con timbres WhatsApp pendientes de enviar.
+ const timbresSinConfirmar=estado.pedidos.some(p=>p?.suc===SUC&&
+  p.turnoClave===turnoId&&p.pagado===true&&p.timbreReglaObligatoria===true&&
+  p.estado!=='Cancelado'&&!p.productosPagadosOtroLocal&&
+  !p.timbreEnviadoEn);
+ CHECK(!timbresSinConfirmar,'Quedan timbres WhatsApp de pedidos pagados sin confirmar');
  const corte={...estado};
  for(const k of ['pedidos','gastos','retiros','propinas','deliveriesManuales']){
   corte[k]=estado[k].filter(x=>dentro(x,inicio,cierreMs))

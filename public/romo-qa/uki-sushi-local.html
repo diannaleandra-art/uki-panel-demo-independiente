@@ -983,7 +983,7 @@ function ukiRomoBandejaPanelHTML(){
 let ukiRomoTimbrePendienteQA=null,ukiRomoTimbreGuardandoQA=false;
 function ukiRomoPuedeEnviarTimbreQA(p){
  return !!(p&&p.suc===ROMO_SUCURSAL_QA&&p.pagado===true&&
-  p.estado!=='Cancelado'&&p.estado!=='Entregado'&&!p.esPremio&&
+  p.estado!=='Cancelado'&&!p.esPremio&&
   !p.productosPagadosOtroLocal&&!p.timbreEnviadoEn&&
   ukiNumeroTimbreWhatsApp(p.telefono));
 }

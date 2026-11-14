@@ -31,9 +31,10 @@ export function prepararTimbreRomoQA(estado,{
  check(envioConfirmado===true,'Confirma el envío real del timbre por WhatsApp');
  const pedido=estado.pedidos.find(p=>p?.id===id&&p.suc===SUC);
  check(pedido,'Pedido Romo no encontrado');
- check(pedido.pagado===true&&pedido.estado!=='Cancelado'&&
-  pedido.estado!=='Entregado'&&!pedido.esPremio,
-  'El pedido debe estar pagado y pendiente de entrega');
+ check(pedido.pagado===true&&pedido.estado!=='Cancelado'&&!pedido.esPremio,
+  'El pedido debe estar pagado y no cancelado');
+ // Un pedido entregado antes del cobro igualmente gana su timbre
+ // cuando se verifica el pago, sin reabrir caja ni modificar la entrega.
  check(!pedido.productosPagadosOtroLocal,'Ese timbre se gestiona en el local que recibió el pago');
  const telefono=String(pedido.telefono||'').replace(/\D/g,'');
  check(/^\d{8,15}$/.test(telefono),'El pedido no tiene WhatsApp válido');

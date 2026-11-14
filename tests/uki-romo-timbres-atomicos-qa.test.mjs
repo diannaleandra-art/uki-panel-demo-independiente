@@ -29,9 +29,9 @@ test('no fabrica timbre ni marca WhatsApp si falta confirmación',()=>{
   whatsappAbiertoEn:'2026-11-13T19:02:00.000Z'}),/Primero abre WhatsApp/);
  assert.equal(JSON.stringify(estado),antes);
 });
-test('rechaza otros locales, impagos, entregados y pagos externos',()=>{
+test('rechaza otros locales, impagos, cancelados y pagos externos',()=>{
  for(const mut of [
-  p=>p.suc='Uki La Serena',p=>p.pagado=false,p=>p.estado='Entregado',
+  p=>p.suc='Uki La Serena',p=>p.pagado=false,p=>p.estado='Cancelado',
   p=>p.productosPagadosOtroLocal=true,p=>p.telefono=''
  ]){
   const estado=inicial();mut(estado.pedidos[0]);
@@ -79,4 +79,13 @@ test('el mismo panel delega el timbre, sin activar las ventas',async()=>{
  assert.match(source,/async confirmarTimbre\(\{pedidoId,responsable/);
  const html=readFileSync(new URL('../firebase/uki-sushi-local.html',import.meta.url),'utf8');
  assert.match(html,/const ROMO_PANEL_INTEGRACION_HABILITADA_QA=location\.hostname===/);
+});
+
+test('permite timbre posterior a la entrega si el pago se recibió después',()=>{
+ const estado=inicial();
+ estado.pedidos[0].estado='Entregado';
+ prepararTimbreRomoQA(estado,datos());
+ assert.equal(estado.pedidos[0].estado,'Entregado');
+ assert.equal(estado.pedidos[0].timbreEnviadoEn,confirmado);
+ assert.throws(()=>prepararTimbreRomoQA(estado,datos()),/ya tiene timbre/);
 });
