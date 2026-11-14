@@ -55,7 +55,10 @@ export function prepararAperturaTurnoRomoQA(estado,{
  CHECK(!estado.cierres.some(x=>x.turnoClave===turnoId),'Turno cerrado anteriormente');
  estado.cajasDiarias[key]={
   ...(prev||{}),turnoId,turnoAbierto:true,inicioMs,desdeMs,
-  base:montoBase,responsableApertura:persona,apps:{},
+  base:montoBase,baseConfirmada:true,
+  baseConfirmadaEn:new Date(inicioMs).toISOString(),
+  baseConfirmadaPor:persona,
+  responsableApertura:persona,apps:{},
   pagoDeliveryDia:0,pagoDeliveryAnterior:0,
   pagoDeliveryMedioDia:'Efectivo',pagoDeliveryMedioAnterior:'Efectivo',
   pagoDeliveryConceptoAnterior:'',pagoDelivery:0,

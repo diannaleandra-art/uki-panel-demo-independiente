@@ -5324,7 +5324,8 @@ function ukiRomoCajaConsultaHTMLQA(){
    '<label>Medio</label><select id="romoPagoDeliveryMedioQA">'+opciones+'</select>'+
    '<button class="big" type="button" onclick="ukiRomoGuardarMovimientoQA(\'pagoRepartidor\')">Registrar pago al repartidor</button>'+
    (detalles||'<p class="muted">Todavía no hay pagos de repartidor registrados</p>'))+
-  '<p class="muted">Los precierres, cierres y reportes finales de Romo siguen pendientes de conexión al panel de dueños.</p>';
+  ukiRomoCierreTurnoHTMLQA()+
+  '<p class="muted">Los precierres por trabajador y la sincronización automática con Mi Administración todavía están pendientes.</p>';
 }
 
 
@@ -5428,6 +5429,141 @@ async function ukiRomoAceptarSolicitudCartaQA(){
   aviso('La aceptación no está confirmada en pantalla. NO repitas ni cobres sin revisar bandeja y Neon: '+
    String(e?.message||e));
  }finally{ukiRomoSolicitudCartaOcupadaQA=false;}
+}
+
+
+/** Apertura, precierre de consulta y cierre: mismo esquema de caja Uki.
+ * Cierre cifra snapshot, emite constancia agregada con CAS e idempotencia.
+ */
+let ukiRomoTurnoOcupadoQA=false;
+function ukiRomoCierreTurnoHTMLQA(){
+ const c=cajaDelDia(),abierto=c.turnoAbierto===true;
+ const t=totales(),dia=fechaOperativaActual();
+ const cierres=(S.cierres||[]).filter(x=>x.suc===ROMO_SUCURSAL_QA)
+  .slice().sort((a,b)=>(Number(b.fechaMs)||0)-(Number(a.fechaMs)||0));
+ return '<details class="card" id="romoTurnosQA">'+
+  '<summary><b>🕒 Turnos, precierre y cierre definitivo · Romo</b></summary>'+
+  '<p class="muted">Mismas reglas de importes de Uki. Cierre definitivo solo dueños, con constancia única en Neon Romo. La sincronización con Mi Administración sigue en preparación.</p>'+
+  (abierto?
+    '<p>Turno abierto: <b>'+esc(c.turnoId||'')+'</b></p>':
+    '<p class="muted">No hay turno abierto de Romo en este día operativo.</p>')+
+  (!abierto?
+   '<div class="card"><h3>Apertura de turno</h3>'+
+   '<label>Responsable</label><input id="romoTurnoResponsableQA" maxlength="80" autocomplete="off" placeholder="Nombre del responsable">'+
+   '<label>Base de efectivo REAL</label><input id="romoTurnoBaseQA" type="number" inputmode="numeric" min="0" value="0">'+
+   '<label>Caja chica inicial REAL</label><input id="romoTurnoChicaQA" type="number" inputmode="numeric" min="0" value="0">'+
+   '<p class="muted">No se toman los importes antiguos de Uki. La base se confirma en la misma apertura.</p>'+
+   '<button type="button" class="big" onclick="ukiRomoAbrirTurnoQA()">Abrir turno en Neon Romo</button></div>':
+   '<div class="card"><h3>Precierre de consulta · no cierra el día</h3>'+
+   row('Venta registrada',fmt(t.totalMedios))+row('Efectivo del turno (sin base)',fmt(t.efectivoCaja))+
+   row('Pagados',String(t.pagadosN))+row('Pendientes de pago',String(t.pendientesN))+
+   row('Repartos a pagar',fmt(t.envios))+row('Gastos',fmt(t.gastosTotal))+
+   '<p class="muted">Este precierre es únicamente una consulta: el registro definitivo por trabajador se habilitará con acceso de personal.</p></div>'+
+   '<div class="card"><h3>🔒 Cierre definitivo del turno</h3>'+
+   '<p class="muted">Requiere conteo físico, revisión de pedidos, timbres y solicitudes. Se guarda una sola vez con su constancia en Neon.</p>'+
+   '<label>Responsable</label><input id="romoCierreResponsableQA" maxlength="80" autocomplete="off">'+
+   '<label>Efectivo contado sin base inicial (pesos)</label><input id="romoCierreContadoQA" type="number" inputmode="numeric" min="0" step="1">'+
+   '<label>Observaciones / motivo de diferencia</label><textarea id="romoCierreObsQA" maxlength="700" rows="2"></textarea>'+
+   '<label><input id="romoCierreAceptoPendientesQA" type="checkbox"> Confirmo el tratamiento de pedidos pendientes de pago</label>'+
+   '<label><input id="romoCierreAceptoDiferenciaQA" type="checkbox"> He revisado y acepto cualquier diferencia de efectivo</label>'+
+   '<button type="button" class="big" onclick="ukiRomoCerrarTurnoQA()">Revisar y cerrar definitivamente</button></div>')+
+  '<div class="card"><h3>Historial de cierres confirmados · '+cierres.length+'</h3>'+
+   (cierres.map(x=>'<div class="row"><span>'+esc(x.fechaOperativa||x.fechaISO||'Fecha')+
+     ' · '+esc(x.resp||'Responsable')+'</span><b>'+fmt(x.venta)+'</b></div>').join('')||
+    '<p class="muted">Todavía no hay cierres confirmados en Romo.</p>')+
+   '</div></details>';
+}
+async function ukiRomoAbrirTurnoQA(){
+ if(ukiRomoTurnoOcupadoQA||S.suc!==ROMO_SUCURSAL_QA)return;
+ const nombre=String($('romoTurnoResponsableQA')?.value||'').trim();
+ let base,chica;
+ try{
+  if(nombre.length<2||nombre.length>80)throw Error('Indica responsable de la apertura');
+  base=ukiRomoMontoCampoQA('romoTurnoBaseQA',1000000,true);
+  chica=ukiRomoMontoCampoQA('romoTurnoChicaQA',1000000,true);
+  if(cajaDelDia().turnoAbierto===true)throw Error('Ya existe un turno abierto.');
+  const t=totales();
+  if(t.totalMedios>0||t.gastosTotal>0||t.retirosTotal>0||t.pagoDelivery>0)
+   throw Error('Existen movimientos previos de caja. Requiere conciliación antes de abrir.');
+ }catch(e){aviso(String(e?.message||e));return}
+ if(!window.confirm('ROMO LA SERENA: abrir turno con efectivo inicial '+fmt(base)+
+   ' y caja chica '+fmt(chica)+'. ¿Confirmas que son valores reales?'))return;
+ ukiRomoTurnoOcupadoQA=true;
+ try{
+  const copia=datosSoloSucursal();
+  const dia=fechaOperativaActual(),inicio=Date.now();
+  const mod=await import('./uki-romo-cierre-definitivo-qa.mjs');
+  const r=mod.prepararAperturaTurnoRomoQA(copia,{
+   fechaOperativa:dia,inicioMs:inicio,base,cajaChicaInicial:chica,responsable:nombre
+  });
+  await ukiRomoGuardarOperacionQA(copia,'Turno abierto '+r.turnoId,null,'caja');
+ }catch(e){
+  aviso('Apertura no confirmada. Revisa Caja antes de repetir. '+String(e?.message||e));
+ }finally{ukiRomoTurnoOcupadoQA=false}
+}
+async function ukiRomoCerrarTurnoQA(){
+ if(ukiRomoTurnoOcupadoQA||S.suc!==ROMO_SUCURSAL_QA)return;
+ const responsable=String($('romoCierreResponsableQA')?.value||'').trim();
+ const observacion=String($('romoCierreObsQA')?.value||'').trim();
+ const contadoTexto=String($('romoCierreContadoQA')?.value||'').trim();
+ const contado=Number(contadoTexto);
+ if(!responsable||responsable.length<2||responsable.length>80||
+    !Number.isSafeInteger(contado)||contadoTexto===''||contado<0||
+    !cajaDelDia().turnoAbierto)
+  return aviso('Revisa responsable, turno abierto y conteo físico obligatorio.');
+ ukiRomoTurnoOcupadoQA=true;
+ try{
+  const session=window.ukiRomoSesionRemotaQA;
+  if(!session?.disponible())throw Error('La sesión Google de Romo no está activa.');
+  const before=session.estado(),copia=datosSoloSucursal();
+  if(before.conflicto)throw Error('La revisión cambió; vuelve a ingresar.');
+  const lib=await import('./uki-romo-cierre-definitivo-qa.mjs');
+  const fecha=fechaOperativaActual();
+  const closing=lib.prepararCierreDefinitivoRomoQA(copia,{
+   fechaOperativa:fecha,cierreMs:Date.now(),responsable,
+   efectivoContado:contado,observacion,
+   aceptarDiferencia:$('romoCierreAceptoDiferenciaQA')?.checked===true,
+   aceptarPendientesSinPago:$('romoCierreAceptoPendientesQA')?.checked===true
+  });
+  const mod=await import('./uki-romo-resumen-duenos-qa.mjs');
+  const resumen=mod.prepararResumenCierreRomoDuenosQA(closing.cierre);
+  const t=totales();
+  const confirma='CIERRE DEFINITIVO · ROMO LA SERENA\n'+
+   'Turno: '+closing.turnoId+'\n'+
+   'Venta cobrada: '+fmt(closing.totalMedios)+'\n'+
+   'Efectivo esperado: '+fmt(closing.efectivoEsperado)+'\n'+
+   'Efectivo contado: '+fmt(contado)+'\n'+
+   'Diferencia: '+fmt(closing.diferencia)+'\n'+
+   'Pedidos pendientes: '+closing.pendientes+'\n'+
+   'Este cierre es definitivo y queda asociado a una constancia única. ¿Continuar?';
+  if(!window.confirm(confirma))return;
+  const packageCifrado=await session.prepararSobreAceptacion(copia);
+  if(packageCifrado.revision!==before.revision)
+   throw Error('La base cambió durante la preparación.');
+  const token=await window.ukiInventarioToken?.();
+  if(typeof token!=='string'||token.length<30)
+   throw Error('No se obtuvo la sesión Google autorizada.');
+  const response=await fetch('/api/romo-cierre-definitivo-qa',{
+   method:'POST',cache:'no-store',credentials:'omit',
+   headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+   body:JSON.stringify({expectedRevision:before.revision,turnoId:closing.turnoId,
+    resumen,snapshot:packageCifrado.snapshot})
+  });
+  const result=await response.json().catch(()=>null);
+  if(!response.ok||result?.ok!==true||result.storeId!=='romo:serena'||
+     result.turnoId!==closing.turnoId||result.revision!==before.revision+1||
+     result.constancia!==true)
+   throw Error(result?.error||'Respuesta de cierre no confirmada');
+  session.confirmarSobreAceptado({estado:copia,revision:result.revision});
+  S={...S,...copia,suc:ROMO_SUCURSAL_QA,pinSuc:null,vista:'caja',msg:null};
+  S.msg='Cierre definitivo Romo '+closing.turnoId+
+   ' y constancia confirmados en Neon · revisión '+result.revision+
+   '. Pendiente sincronización con Mi Administración.';
+  render();
+ }catch(e){
+  aviso('CIERRE NO CONFIRMADO EN LA PANTALLA. NO lo repitas sin consultar Historial y Neon. '+
+   String(e?.message||e));
+ }finally{ukiRomoTurnoOcupadoQA=false}
 }
 
 async function ukiRomoGuardarPedidoPendienteQA(){

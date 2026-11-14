@@ -1,0 +1,7 @@
+# Romo La Serena — apertura y cierre definitivo con constancia única (QA)
+
+Se integra en la misma pantalla Caja: apertura explícita de turno, precierre exclusivamente de consulta y cierre definitivo con arqueo físico. Se usa el módulo de cálculo de cierres recuperado de Uki, con estado exclusivo de Romo. La apertura exige declarar base y caja chica reales; no copia saldos heredados de Uki. La apertura guarda una sola revisión del snapshot cifrado mediante la sesión CAS ya existente.
+
+El cierre prepara un resumen agregado SIN clientes, un snapshot AES-GCM del mismo turno y llama a /api/romo-cierre-definitivo-qa. En el servidor una sola consulta SQL asegura: ninguna solicitud pendiente de carta, revisión CAS vigente, cierre único por turno y constancia atómica en romo_cierres_constancia_v1. El rol de escritura Neon tiene SELECT/INSERT únicamente sobre la tabla de constancias y SELECT/UPDATE sobre el estado operativo. No puede borrar nada. La UI solo muestra el cierre después de confirmar la revisión siguiente. Si no llega respuesta, se instruye revisar Historial y Neon antes de repetir, para no duplicar.
+
+El precierre del trabajador todavía no está conectado a su PIN ni se guarda; se etiqueta claramente como consulta. Los reportes de dueños se PREPARAN pero no sincronizan aún con Mi Administración. La recepción pública de la carta permanece apagada y Uki comercial no cambia. Falta una única comprobación integral manual antes de uso comercial.
