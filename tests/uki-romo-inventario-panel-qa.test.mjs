@@ -34,3 +34,9 @@ test('el inventario QA nunca usa el dominio de producción y exige la vista Romo
  assert.match(s,/Romo · Neon: lectura confirmada · revisión/);
  assert.match(s,/ventas públicas desactivadas/);
 });
+
+test('la nube Firebase de Uki no sobrescribe el estado confirmado de Neon Romo',()=>{
+ assert.match(s,/cabeceraNubeRomo\.dataset\.romoQa='true'/);
+ assert.match(s,/delete cabeceraNubeRomo\.dataset\.romoQa/);
+ assert.match(s,/if\(encabezado\?\.dataset\.romoQa!=='true'\)encabezado\.textContent/);
+});

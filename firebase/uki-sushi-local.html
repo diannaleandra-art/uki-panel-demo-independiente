@@ -734,10 +734,14 @@ function render(){
   const cabeceraNubeRomo=$("ukiEstadoOperativo");
   if(cabeceraNubeRomo&&S.suc===ROMO_SUCURSAL_QA){
    // Los datos de Uki usan Firebase; aquí solo se representa la lectura de Neon Romo.
+   cabeceraNubeRomo.dataset.romoQa='true';
    cabeceraNubeRomo.textContent=Number.isSafeInteger(ukiRomoRevisionVisibleQA)?
     'Romo · Neon: lectura confirmada · revisión '+ukiRomoRevisionVisibleQA+
      ' · ventas públicas desactivadas':
     'Romo · Neon: conexión pendiente de verificar';
+  }else if(cabeceraNubeRomo?.dataset.romoQa==='true'){
+   delete cabeceraNubeRomo.dataset.romoQa;
+   cabeceraNubeRomo.textContent='Nube Uki: comprobar estado de sincronización';
   }
   $("suc").innerHTML=S.suc?`<span>${esc(S.suc)}</span><a href="#" onclick="salirSuc();return false;" class="salir">Salir</a>`:S.romoSeleccionadoQA?'<span>Romo’s Sushi · La Serena · Balmaceda 1612</span><a href="#" onclick="ukiVolverAlSelectorLocales();return false;" class="salir">Salir</a>':"Selecciona una sucursal para empezar";
   $("nav").style.display=S.suc?"grid":"none";
@@ -6832,7 +6836,7 @@ const auto=crearAutoGuardadoOperativo({
    if(status)status.textContent="Nube local: "+estado+
      (rev===null?"":" · revisión "+rev)+(detalle?" · "+detalle:"");
    const encabezado=el("ukiEstadoOperativo");
-   if(encabezado)encabezado.textContent="Nube: "+estado+(rev===null?"":" · revisión "+rev);
+   if(encabezado?.dataset.romoQa!=='true')encabezado.textContent="Nube: "+estado+(rev===null?"":" · revisión "+rev);
    el("ukiSaveQA").disabled=auto.resumen().activo;
    actualizarBloqueo();
    if(estado==='sincronizado')Promise.resolve().then(async()=>{
