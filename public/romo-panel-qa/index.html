@@ -5454,11 +5454,12 @@ function ukiRomoCierreTurnoHTMLQA(){
    '<label>Caja chica inicial REAL</label><input id="romoTurnoChicaQA" type="number" inputmode="numeric" min="0" value="0">'+
    '<p class="muted">No se toman los importes antiguos de Uki. La base se confirma en la misma apertura.</p>'+
    '<button type="button" class="big" onclick="ukiRomoAbrirTurnoQA()">Abrir turno en Neon Romo</button></div>':
-   '<div class="card"><h3>Precierre de consulta · no cierra el día</h3>'+
-   row('Venta registrada',fmt(t.totalMedios))+row('Efectivo del turno (sin base)',fmt(t.efectivoCaja))+
-   row('Pagados',String(t.pagadosN))+row('Pendientes de pago',String(t.pendientesN))+
-   row('Repartos a pagar',fmt(t.envios))+row('Gastos',fmt(t.gastosTotal))+
-   '<p class="muted">Este precierre es únicamente una consulta: el registro definitivo por trabajador se habilitará con acceso de personal.</p></div>'+
+   '<div class="card"><h3>🕒 Precierre del trabajador · NO cierra el día</h3>'+
+   row('Venta del día hasta ahora',fmt(t.totalMedios))+
+   row('Efectivo del día, sin base',fmt(t.efectivoCaja))+
+   row('Pedidos pagados',String(t.pagadosN))+row('Pendientes de pago',String(t.pendientesN))+
+   ukiRomoFormularioPrecierreQA(c,t)+
+   '</div>'+
    '<div class="card"><h3>🔒 Cierre definitivo del turno</h3>'+
    '<p class="muted">Requiere conteo físico, revisión de pedidos, timbres y solicitudes. Se guarda una sola vez con su constancia en Neon.</p>'+
    '<label>Responsable</label><input id="romoCierreResponsableQA" maxlength="80" autocomplete="off">'+
@@ -5473,6 +5474,88 @@ function ukiRomoCierreTurnoHTMLQA(){
     '<p class="muted">Todavía no hay cierres confirmados en Romo.</p>')+
    '</div></details>';
 }
+
+/* Precierre de trabajadores, mismas funciones de fotografía/diferencia de Uki,
+ * persistidas con CAS Neon de Romo. El día sigue abierto.
+ * Hasta disponer de PIN de personal: guarda solamente la cuenta dueños.
+ */
+let ukiRomoPrecierreOcupadoQA=false;
+function ukiRomoFormularioPrecierreQA(c,t){
+ const activo=ukiTurnoTrabajadorVigente(c);
+ const prev=(c.precierres||[]).filter(p=>p?.suc===ROMO_SUCURSAL_QA)
+  .slice().reverse();
+ return (activo?
+   '<p>Trabajador: <b>'+esc(activo.nombre)+'</b> · Inicio: '+esc(new Date(activo.inicioMs).toLocaleString('es-CL'))+'</p>'+
+   '<label>Efectivo físico contado en el turno, sin base ni propinas</label>'+
+   '<input id="romoPrecierreContadoQA" type="number" min="0" step="1" inputmode="numeric" placeholder="Escribe 0 si corresponde">'+
+   '<label>Observaciones</label><textarea id="romoPrecierreObsQA" maxlength="300" rows="2"></textarea>'+
+   '<button type="button" class="big" onclick="ukiRomoGuardarPrecierreQA()">Guardar precierre del trabajador</button>':
+   '<p class="muted">No hay trabajador con turno iniciado. Solo el precierre del trabajador se cierra aquí; Caja seguirá abierta.</p>'+
+   '<label>Nombre del trabajador</label><input id="romoTrabajadorInicioQA" maxlength="60" placeholder="Nombre del trabajador">'+
+   '<button type="button" class="big" onclick="ukiRomoIniciarTurnoTrabajadorQA()">Iniciar turno del trabajador</button>')+
+  '<p class="muted">Solo cuenta de dueños durante integración. El acceso por PIN independiente se conectará después. Cada apertura y precierre debe confirmarse en Neon.</p>'+
+  '<details><summary>Precierres confirmados: '+prev.length+'</summary>'+
+   (prev.map(p=>ukiFilaPrecierre(p)).join('')||'<p class="muted">Sin precierres confirmados en este turno.</p>')+
+   '</details>';
+}
+async function ukiRomoIniciarTurnoTrabajadorQA(){
+ if(ukiRomoPrecierreOcupadoQA||S.suc!==ROMO_SUCURSAL_QA)return;
+ const nombre=String($('romoTrabajadorInicioQA')?.value||'').trim().replace(/\s+/g,' ');
+ if(nombre.length<2||nombre.length>60)return aviso('Indica el nombre del trabajador (2 a 60 caracteres).');
+ const real=cajaDelDia();
+ if(real.turnoAbierto!==true||real.baseConfirmada!==true)
+  return aviso('Primero abre un turno real de caja Romo con base confirmada.');
+ if(ukiTurnoTrabajadorVigente(real))return aviso('El trabajador anterior aún tiene precierre pendiente.');
+ if(!window.confirm('ROMO: ¿iniciar el turno de '+nombre+' sin modificar la caja del día?'))return;
+ ukiRomoPrecierreOcupadoQA=true;
+ try{
+  const copia=datosSoloSucursal(),dia=fechaOperativaActual(),c=copia.cajasDiarias?.[ROMO_SUCURSAL_QA+'|'+dia];
+  if(!c||!c.turnoAbierto||ukiTurnoTrabajadorVigente(c))
+   throw Error('El turno de caja o trabajador cambió.');
+  const base=ukiFotoPrecierre();
+  c.turnoPrecierreAbierto={nombre,inicioMs:Date.now(),fechaOperativa:dia,base};
+  await ukiRomoGuardarOperacionQA(copia,'Inicio de trabajador '+nombre,null,'caja');
+ }catch(e){aviso('No se confirmó inicio de trabajador. No repitas sin revisar Caja. '+String(e?.message||e));}
+ finally{ukiRomoPrecierreOcupadoQA=false;}
+}
+async function ukiRomoGuardarPrecierreQA(){
+ if(ukiRomoPrecierreOcupadoQA||S.suc!==ROMO_SUCURSAL_QA)return;
+ const dia=fechaOperativaActual(),real=cajaDelDia(),abierto=ukiTurnoTrabajadorVigente(real);
+ if(real.turnoAbierto!==true||!abierto||abierto.fechaOperativa!==dia)
+  return aviso('No se encontró turno de trabajador abierto en la caja Romo.');
+ const raw=String($('romoPrecierreContadoQA')?.value??'').trim(),contado=Number(raw);
+ if(raw===''||!Number.isSafeInteger(contado)||contado<0||contado>100000000)
+  return aviso('Escribe el conteo físico exacto, incluido cero.');
+ const obs=String($('romoPrecierreObsQA')?.value||'').trim();
+ if(obs.length>300)return aviso('Observaciones demasiado largas.');
+ let totalesTurno;
+ try{totalesTurno=ukiDiferenciaPrecierre(abierto.base,ukiFotoPrecierre());}
+ catch(e){return aviso(String(e?.message||e));}
+ if(!window.confirm('¿Confirmas el precierre de '+abierto.nombre+' con '+fmt(contado)+
+    ' contados? Esto NO cierra la caja del día.'))return;
+ ukiRomoPrecierreOcupadoQA=true;
+ try{
+  const copia=datosSoloSucursal(),c=copia.cajasDiarias?.[ROMO_SUCURSAL_QA+'|'+dia],
+   vigente=c?.turnoPrecierreAbierto;
+  if(!c?.turnoAbierto||!vigente||vigente.inicioMs!==abierto.inicioMs||
+     (c.precierres||[]).some(p=>p.inicioMs===abierto.inicioMs))
+   throw Error('El turno ya cambió o fue cerrado.');
+  if(!Array.isArray(c.precierres))c.precierres=[];
+  c.precierres.push({
+   suc:ROMO_SUCURSAL_QA,fechaOperativa:dia,
+   nombre:abierto.nombre,inicioMs:abierto.inicioMs,finMs:Date.now(),
+   totales:totalesTurno,efectivoContado:contado,
+   diferenciaEfectivo:contado-totalesTurno.efectivoCaja,
+   observaciones:obs,registradoPor:'dueños',
+   origen:'mismo_panel_uki_romo'
+  });
+  c.turnoPrecierreAbierto=null;
+  await ukiRomoGuardarOperacionQA(copia,'Precierre de '+abierto.nombre+' confirmado; día abierto',null,'caja');
+ }catch(e){
+  aviso('NO se confirmó el precierre. Revisa Caja antes de intentar de nuevo. '+String(e?.message||e));
+ }finally{ukiRomoPrecierreOcupadoQA=false;}
+}
+
 async function ukiRomoAbrirTurnoQA(){
  if(ukiRomoTurnoOcupadoQA||S.suc!==ROMO_SUCURSAL_QA)return;
  const nombre=String($('romoTurnoResponsableQA')?.value||'').trim();
