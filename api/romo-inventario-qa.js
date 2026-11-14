@@ -60,7 +60,11 @@ module.exports=async function romoInventarioQA(req,res){
    authorization:req.headers?.authorization,db:reader,
    verifyToken:auth.verifyFirebaseGoogleToken
   });
-  if(!identity||identity.role!=='duenos')return fail(res,403,'Solo dueños autorizados de Romo');
+  // Mismo reparto de permisos: dueños y agendador pueden gestionar inventario;
+  // personal de inventario puede contar/registrar existencias, pero no editar catálogo.
+  // Las operaciones concretas siguen autorizadas dentro del módulo de inventario.
+  if(!identity||!['duenos','agendador','inventario'].includes(identity.role))
+   return fail(res,403,'Sin permiso de inventario de Romo');
   const inv=await import('../lib/romo-inventario-qa.mjs');
   if(method==='GET'){
    const result=await inv.readInventarioRomoQA({db:reader,identity});

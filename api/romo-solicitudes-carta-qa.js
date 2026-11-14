@@ -101,8 +101,10 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
    authorization:req.headers?.authorization,db:dbReader,
    verifyToken:identityModule.verifyFirebaseGoogleToken
   });
-  if(!identity||identity.role!=='duenos')
-   return fail(res,403,'Solo dueños de Romo pueden acceder a la recepción de pruebas');
+  // El agendador registrado en Neon puede gestionar pedidos, igual que Uki.
+  // El módulo de operaciones verifica por separado lectura, rechazo y aceptación.
+  if(!identity||!['duenos','agendador'].includes(identity.role))
+   return fail(res,403,'Cuenta sin permiso de pedidos de Romo');
   if(method==='GET'){
    const data=await core.listarSolicitudesRomo({db:dbReader,identity});
    return res.status(200).json(data);

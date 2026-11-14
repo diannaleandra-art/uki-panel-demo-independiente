@@ -12,21 +12,19 @@ function config(env){
  const origin=String(env.ROMO_PANEL_ALLOWED_ORIGIN||'');
  const host=String(env.ROMO_PRIVATE_DATABASE_HOST||'').toLowerCase();
  if(!/^https:\/\/[^\/\s?#@]+$/.test(origin)||!/^[a-z0-9.-]+$/.test(host))return null;
- let reader,writer;
- try{
-  reader=new URL(String(env.ROMO_PRIVATE_DATABASE_URL||''));
-  writer=new URL(String(env.ROMO_CLAVE_ALTA_PRIVILEGED_DATABASE_URL||''));
- }catch{return null}
+ let reader;
+ try{reader=new URL(String(env.ROMO_PRIVATE_DATABASE_URL||''))}catch{return null}
  const ok=(x,user)=>['postgres:','postgresql:'].includes(x.protocol)&&
    x.hostname.toLowerCase()===host&&x.pathname==='/romos_sushi'&&
    x.username===user&&!!x.password;
- if(!ok(reader,'romos_app_service')||!ok(writer,'romos_clave_alta_qa_20261114')||
-    writer.toString()===reader.toString())return null;
+ // La cuenta de alta de claves no puede confirmar cierres ni modificar estado.
+ // Romo tiene una cuenta de servicio con UPDATE CAS e INSERT de constancias.
+ if(!ok(reader,'romos_app_service'))return null;
  for(const key of ['UKI_INVENTARIO_LIVE_DATABASE_URL','UKI_INVENTARIO_QA_DATABASE_URL',
   'UKI_FIN_PRIVATE_DATABASE_URL','UKI_FIN_QA_DATABASE_URL']){
   try{if(new URL(String(env[key]||'')).hostname.toLowerCase()===host)return null}catch{}
  }
- return {origin,reader:reader.toString(),writer:writer.toString()};
+ return {origin,reader:reader.toString(),writer:reader.toString()};
 }
 module.exports=async function romoCierreQA(req,res){
  res.setHeader('Cache-Control','private,no-store,max-age=0');
@@ -56,7 +54,7 @@ module.exports=async function romoCierreQA(req,res){
   });
   if(!identity||identity.role!=='duenos')
    return fail(res,403,'Solo dueños de Romo pueden cerrar en pruebas');
-  const write=neon(cfg.writer),dbWriter={query:(sql,args)=>write.query(sql,args)};
+  const dbWriter=dbReader; // Operación atómica y aislada en Neon Romo.
   const cierre=await import('../lib/romo-cierre-constancia-qa.mjs');
   const result=await cierre.confirmarCierreConConstanciaRomoQA({
    db:dbWriter,identity,expectedRevision:body.expectedRevision,

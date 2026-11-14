@@ -76,8 +76,8 @@ module.exports=async function romoEstadoCifradoPanelQA(req,res){
    verifyToken:auth.verifyFirebaseGoogleToken
   });
   if(!identity)return send(res,403,'Sesión o permiso Romo inválidos');
-  if(req.method==='POST'&&identity.role!=='duenos')
-   return send(res,403,'Solo dueños pueden guardar en piloto manual Romo');
+  if(req.method==='POST'&&!['duenos','agendador'].includes(identity.role))
+   return send(res,403,'La sesión no puede guardar caja o pedidos Romo');
   const vault=await import('../lib/romo-estado-cifrado-persistencia-qa.mjs');
   if(req.method==='GET'){
    const result=await vault.leerEstadoCifradoRomoQA({db,identity});
