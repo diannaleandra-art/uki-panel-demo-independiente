@@ -22,6 +22,7 @@ test('dos teléfonos: una sola solicitud y una sola venta confirmada',async()=>{
    habilitado:true,
    obtenerToken:async()=>label.repeat(40),
    validarClave:async password=>assert(password.length>=12),
+   confirmarClaveInicial:async password=>password==='MismaClaveUki2026',
    crearInicial:state,
    estadoRemoto:{
     disponible:()=>true,
