@@ -37,7 +37,8 @@ module.exports=async function romoClaveAltaDuenosQA(req,res){
  res.setHeader('X-Content-Type-Options','nosniff');
  const conf=config(process.env);
  if(!conf)return fail(res,503,'Alta de clave Romo no habilitada');
- if(String(req.headers?.origin||'')!==conf.origin)
+ const {esOrigenAutorizadoRomoQA}=require('../lib/romo-origen-seguro-qa.cjs');
+ if(!esOrigenAutorizadoRomoQA(req,conf.origin))
   return fail(res,403,'Origen no autorizado');
  res.setHeader('Access-Control-Allow-Origin',conf.origin);
  res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type');

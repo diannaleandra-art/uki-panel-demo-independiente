@@ -922,18 +922,22 @@ function ukiAccesosDesplazamiento(){
  bloque.hidden=!S.suc;
 }
 
-function vInicio(){
- if(!S.suc&&!S.pinSuc&&S.romoSeleccionadoQA){
-  return '<section class="card" id="romoLaSerenaPreparacionQA" aria-label="Romo’s Sushi La Serena">'+
-   '<h2>Romo’s Sushi · La Serena</h2><p><b>Balmaceda 1612, La Serena</b></p>'+
-   '<p class="aviso" role="status">Acceso de Romo en preparación: todavía no se confirmó la conexión operativa con Neon. No registres pedidos, caja, inventario ni cierres aquí. Uki continúa funcionando por separado.</p>'+
-   (window.ukiRomoClaveAltaDisponibleQA?.()?'<details id="romoEnrolamientoQA"><summary>Vincular la contraseña habitual</summary>'+
+function ukiRomoFormularioVinculacionQA(){
+ return (window.ukiRomoClaveAltaDisponibleQA?.()?'<details id="romoEnrolamientoQA"><summary>Vincular la contraseña habitual</summary>'+
      '<p class="muted">Solo dueños. Utiliza la clave que ya usas en Uki. Este proceso no cambia tu contraseña.</p>'+
      '<label for="romoClaveUkiOrigenQA">Sucursal de la clave</label>'+
      '<select id="romoClaveUkiOrigenQA"><option value="uki:serena">Uki La Serena</option><option value="uki:arica">Uki Regimiento Arica</option></select>'+
      '<label for="romoClaveUkiQA">Contraseña habitual de esa sucursal</label>'+
      '<input id="romoClaveUkiQA" type="password" autocomplete="off" placeholder="Clave existente">'+
-     '<button class="big" type="button" onclick="ukiRomoDarAltaClaveQA()">Vincular acceso de Romo</button></details>':'')+
+     '<button class="big" type="button" onclick="ukiRomoDarAltaClaveQA()">Vincular acceso de Romo</button></details>':'')
+}
+
+function vInicio(){
+ if(!S.suc&&!S.pinSuc&&S.romoSeleccionadoQA){
+  return '<section class="card" id="romoLaSerenaPreparacionQA" aria-label="Romo’s Sushi La Serena">'+
+   '<h2>Romo’s Sushi · La Serena</h2><p><b>Balmaceda 1612, La Serena</b></p>'+
+   '<p class="aviso" role="status">Acceso de Romo en preparación: todavía no se confirmó la conexión operativa con Neon. No registres pedidos, caja, inventario ni cierres aquí. Uki continúa funcionando por separado.</p>'+
+   ukiRomoFormularioVinculacionQA()+
    '<button class="big" type="button" onclick="ukiVolverAlSelectorLocales()">Salir de sucursal</button></section>';
  }
  if(S.pinSuc){
@@ -944,6 +948,7 @@ function vInicio(){
   '<label>Contraseña de acceso</label><input id="ukiAccesoClave" type="password" autocomplete="off" placeholder="Mínimo 12 caracteres">'+
   (existe?'':'<label>Repite la contraseña</label><input id="ukiAccesoConfirmar" type="password" autocomplete="off" placeholder="Confirmar contraseña">')+
   '<button class="big" onclick="entrarSuc()">'+(existe?"Abrir sucursal":"Crear acceso")+'</button>'+
+  (esRomo?ukiRomoFormularioVinculacionQA():'')+
   '<p class="muted">La clave no se guarda. Si la pierdes, necesitarás un respaldo. El PIN antiguo de 4 números no protege estos registros.</p></div>';
  }
   if(!S.suc){return `<div class="card"><h2>Selecciona una sucursal</h2><p class="muted">Un solo panel y el mismo procedimiento de ingreso para los tres locales.</p>${SUCURSALES_PANEL_QA.map(s=>`<button class="big" onclick="pedirPin('${s}')">${s}</button>`).join("")}<p class="muted">Romo La Serena está en pruebas; todavía no permite registrar operaciones.</p></div><div class="card"><p class="muted"><b>Información de acceso:</b> se requiere la cuenta Google y la contraseña habitual del panel. Los registros de cada local permanecen separados.</p></div>`;}

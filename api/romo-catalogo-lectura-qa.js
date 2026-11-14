@@ -32,7 +32,8 @@ module.exports=async function romoCatalogoLecturaQA(req,res){
  res.setHeader('Vary','Origin');
  const conf=config(process.env);
  if(!conf)return fail(res,503,'Catálogo del panel Romo no habilitado');
- if(String(req.headers?.origin||'')!==conf.origin)
+ const {esOrigenAutorizadoRomoQA}=require('../lib/romo-origen-seguro-qa.cjs');
+ if(!esOrigenAutorizadoRomoQA(req,conf.origin))
   return fail(res,403,'Origen no autorizado');
  res.setHeader('Access-Control-Allow-Origin',conf.origin);
  res.setHeader('Access-Control-Allow-Headers','Authorization');

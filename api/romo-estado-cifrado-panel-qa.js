@@ -42,8 +42,8 @@ module.exports=async function romoEstadoCifradoPanelQA(req,res){
  res.setHeader('X-Content-Type-Options','nosniff');
  const conf=config(process.env);
  if(!conf)return send(res,503,'La conexión de Romo sigue desactivada');
- const origin=String(req.headers?.origin||'');
- if(origin!==conf.origin)return send(res,403,'Origen no autorizado');
+ const {esOrigenAutorizadoRomoQA}=require('../lib/romo-origen-seguro-qa.cjs');
+ if(!esOrigenAutorizadoRomoQA(req,conf.origin))return send(res,403,'Origen no autorizado');
  res.setHeader('Access-Control-Allow-Origin',conf.origin);
  res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');
  res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type');

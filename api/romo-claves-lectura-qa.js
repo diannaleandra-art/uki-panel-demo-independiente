@@ -13,9 +13,9 @@ module.exports=async function romoClavesLecturaQA(req,res){
   res.setHeader('X-Content-Type-Options','nosniff');
   res.setHeader('Vary','Origin');
   const env=process.env;
-  const origin=String(req.headers?.origin||'');
   const configuredOrigin=String(env.ROMO_PANEL_ALLOWED_ORIGIN||'');
-  const isOrigin=/^https:\/\/[^\/\s?#@]+$/.test(configuredOrigin)&&origin===configuredOrigin;
+  const {esOrigenAutorizadoRomoQA}=require('../lib/romo-origen-seguro-qa.cjs');
+  const isOrigin=esOrigenAutorizadoRomoQA(req,configuredOrigin);
   const enabled=env.VERCEL_ENV==='preview'&&
     env.VERCEL_GIT_COMMIT_REF==='preparacion/uki-romo-sobre-main-20261114'&&
     env.ROMO_ACCESO_CLAVES_QA_ENABLED==='true';
