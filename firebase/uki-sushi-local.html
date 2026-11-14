@@ -1123,7 +1123,7 @@ async function ukiRomoEditarSinPagoQA(id){
 }
 /* Inventario Romo: misma pestaña, almacenamiento propio con revisión CAS Neon.
  * No ejecutar movimientos hasta activar los endpoints privados de Romo. */
-const ROMO_INVENTARIO_PANEL_HABILITADO_QA=false;
+const ROMO_INVENTARIO_PANEL_HABILITADO_QA=location.hostname===ROMO_PANEL_DIAG_HOST_QA;
 const ROMO_INVENTARIO_ENDPOINT_QA='https://uki-sushi-inventario-git-qa-integraci-dc8aa9-diannaleandra-7046.vercel.app/api/romo-inventario-qa';
 let romoInventarioVistaQA={loaded:false,revision:null,items:[],movimientos:[],busy:false};
 function romoInventarioNumeroQA(raw){

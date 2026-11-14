@@ -7,7 +7,7 @@ test('Romo usa pestaña Inventario del mismo panel, sin la API de Uki',()=>{
  assert.match(s,/inventario:\(\)=>S\.suc===ROMO_SUCURSAL_QA\?vRomoInventarioQA\(\):window\.ukiInventarioPanelHTML/);
  assert.match(s,/const ROMO_INVENTARIO_ENDPOINT_QA='https:\/\/uki-sushi-inventario-git-qa-integraci-dc8aa9-diannaleandra-7046\.vercel\.app\/api\/romo-inventario-qa'/);
  assert.match(s,/if\(!ROMO_PANEL_INTEGRACION_HABILITADA_QA\|\|!ROMO_INVENTARIO_PANEL_HABILITADO_QA\)/);
- assert.match(s,/const ROMO_INVENTARIO_PANEL_HABILITADO_QA=false/);
+ assert.match(s,/const ROMO_INVENTARIO_PANEL_HABILITADO_QA=location\.hostname===ROMO_PANEL_DIAG_HOST_QA/);
 });
 test('comprobación Google, revisión CAS y estado confirmado antes de mostrar',()=>{
  assert.match(s,/window\.ukiInventarioToken\?\.\(\)/);
@@ -39,4 +39,16 @@ test('la nube Firebase de Uki no sobrescribe el estado confirmado de Neon Romo',
  assert.match(s,/cabeceraNubeRomo\.dataset\.romoQa='true'/);
  assert.match(s,/delete cabeceraNubeRomo\.dataset\.romoQa/);
  assert.match(s,/if\(encabezado\?\.dataset\.romoQa!=='true'\)encabezado\.textContent/);
+});
+
+test('inventario accesible solo en origen privado Romo y con sesión Google',()=>{
+ const guard=s.slice(s.indexOf('async function romoInventarioSolicitudQA('),
+  s.indexOf('async function romoInventarioCargarQA()'));
+ assert.match(guard,/ROMO_INVENTARIO_PANEL_HABILITADO_QA/);
+ assert.match(guard,/ROMO_PANEL_INTEGRACION_HABILITADA_QA/);
+ assert.match(guard,/S\.suc!==ROMO_SUCURSAL_QA/);
+ assert.match(guard,/ukiRomoControlPanelQA\?\.disponible\(\)/);
+ assert.match(guard,/window\.ukiInventarioToken\?\.\(\)/);
+ assert.match(s,/const ROMO_INVENTARIO_PANEL_HABILITADO_QA=location\.hostname===ROMO_PANEL_DIAG_HOST_QA/);
+ assert.match(s,/Inventario · Romo La Serena/);
 });
