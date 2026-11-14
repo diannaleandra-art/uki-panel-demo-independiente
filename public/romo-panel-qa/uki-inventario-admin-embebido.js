@@ -18,6 +18,10 @@ function panel(){return [
 '<div class="card" id="ukiInvWorkerAccess" style="padding:14px"><h3 style="margin:2px 0 5px;font-size:17px">👷 Inventario del trabajador</h3>',
 '<p class="muted" style="margin:5px 0 10px">El trabajador cuenta y recibe mercadería con su código. Sus revisiones se consultan en «Revisiones y compras». No puede ver cierres.</p>',
 '<a href="https://uki-sushi-inventario.vercel.app/" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#fff4e8;color:#8c4708;border:1px solid #edbd85;font-weight:700;text-decoration:none">Abrir acceso del trabajador</a></div>',
+'<section class="card" id="romoInvWorkerAccess" hidden><h3>👷 Inventario del trabajador · Romo</h3><p class="muted">El mismo acceso de seis números que utiliza inventario Uki, pero configurado exclusivamente para Romo. No abre pedidos, caja ni cierres.</p>'+
+'<p id="romoPinInventarioEstado" role="status" class="muted">Verificando configuración…</p>'+
+'<div id="romoPinInventarioAlta" hidden><label>Crear PIN de inventario Romo (seis números)</label><input id="romoPinInventarioNuevo" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="••••••"><button class="sm ok" type="button" id="romoPinInventarioCrear">Crear código de Romo</button></div>'+
+'<a href="/romo-panel-qa/romo-inventario-trabajador.html" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:12px 15px;border-radius:10px;background:#b32133;color:#fff;font-weight:700;text-decoration:none;margin-top:9px">Abrir inventario del trabajador · Romo</a></section>',
 '<div class="card" id="invAdmin" hidden><h2>Existencias y mínimos</h2><label for="invSearch">Buscar artículo</label><input id="invSearch" type="search" autocomplete="off" placeholder="Pollo, palta, aceite…">',
 '<label for="invSelect">Artículo</label><select id="invSelect"></select><div id="invEditor" hidden>',
 '<label for="invName">Nombre</label><input id="invName" maxlength="100"><label for="invCategory">Categoría</label><select id="invCategory">'+pick(C)+'</select>',
@@ -202,6 +206,37 @@ async function create(){
  }catch(e){status('No se agregó: '+String(e.message||e));}
  finally{X.busy=false;if($('invCreate'))$('invCreate').disabled=false;}
 }
+async function romoPinInventarioGestion(action,code){
+ const token=await window.ukiInventarioToken?.();
+ if(typeof token!=='string'||token.length<30)throw Error('Inicia sesión Google como dueño de Romo.');
+ const response=await fetch('/api/romo-pin-inventario-qa',{method:'POST',credentials:'omit',cache:'no-store',
+  headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+  body:JSON.stringify(action==='estado'?{action}:{action,codigo:code})
+ });
+ const value=await response.json().catch(()=>null);
+ if(!response.ok||value?.ok!==true||value?.storeId!=='romo:serena')
+  throw Error(value?.error||'No fue posible confirmar el código de Romo');
+ return value;
+}
+async function romoPinInventarioCargar(){
+ const output=$('romoPinInventarioEstado'),alta=$('romoPinInventarioAlta');
+ if(!output||X.branch!=='romo')return;
+ output.textContent='Consultando acceso de inventario Romo…';
+ try{const v=await romoPinInventarioGestion('estado');
+  output.textContent=v.configurado?'PIN de inventario Romo configurado.':'Todavía no hay PIN de inventario Romo.';
+  alta.hidden=!!v.configurado;
+ }catch(e){output.textContent=String(e?.message||e);alta.hidden=true}
+}
+async function romoPinInventarioCrear(){
+ const field=$('romoPinInventarioNuevo'),button=$('romoPinInventarioCrear');
+ if(!/^\\d{6}$/.test(field?.value||'')){alert('El PIN debe tener exactamente seis números.');return}
+ if(!window.confirm('¿Crear este PIN exclusivo para los trabajadores de inventario Romo? No se podrá sobrescribir desde este formulario.'))return;
+ button.disabled=true;
+ try{await romoPinInventarioGestion('crear-codigo',field.value);
+  field.value='';await romoPinInventarioCargar();
+ }catch(e){alert(String(e?.message||e));}
+ finally{button.disabled=false}
+}
 function mount(){
  if(!$('invRoot'))return;
  const active=panelBranch();
@@ -212,6 +247,11 @@ function mount(){
  $('ukiInvSucursalActual').textContent=active==='romo'?'Romo’s Sushi La Serena':
   active==='serena'?'Uki La Serena':'Uki Regimiento Arica';
  if($('ukiInvWorkerAccess'))$('ukiInvWorkerAccess').hidden=active==='romo';
+ if($('romoInvWorkerAccess'))$('romoInvWorkerAccess').hidden=active!=='romo';
+ if(active==='romo'){
+  $('romoPinInventarioCrear').onclick=()=>void romoPinInventarioCrear();
+  void romoPinInventarioCargar();
+ }
  $('invRefresh').onclick=()=>void load();$('invSearch').oninput=populate;
  $('invSelect').onchange=e=>{X.selected=e.target.value;selection();};
  $('invSave').onclick=()=>void save();$('invCreate').onclick=()=>void create();
