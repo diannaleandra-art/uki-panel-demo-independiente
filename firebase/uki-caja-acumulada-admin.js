@@ -57,6 +57,7 @@ function html(){
  '<p class="muted">Los cierres antiguos no se acumulan sin reconciliar el dinero real. Las correcciones aportan solo la diferencia.</p>';
 }
 async function request(action,extra={},branch=state.branch){
+ if(typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena')throw Error('La caja de Romo es independiente; no se permite consultar ni guardar en Uki.');
  if(branch!==branchFromPanel())throw Error('Abre la sucursal correspondiente para gestionar su caja acumulada.');
  if(!API)throw Error('Servicio de caja acumulada no disponible.');
  const token=await window.ukiInventarioToken?.();

@@ -99,6 +99,7 @@ window.ukiInventarioPanelHTML=()=>nav+prevPanel()+pricesPanel;
 function branch(){const active=$('invBranch')?.value||'';return ['arica','serena'].includes(active)?active:'';}
 function info(id,message){const el=$(id);if(el)el.textContent=message;}
 async function request(api,action,fields={},atBranch=state.branch){
+ if(typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena')throw Error('Carta y precios de Romo no pueden guardar cambios en Uki.');
  // Capturar la sucursal ANTES de esperar el token Google: nunca cruzar precios entre locales.
  if(!['arica','serena'].includes(atBranch))throw Error('Selecciona una sucursal válida.');
  const token=await window.ukiInventarioToken?.();
@@ -154,6 +155,7 @@ function showTab(){
 // Fotos optimizadas: el mismo menú de Uki, sin servicios adicionales.
 function photoUrl(sku,chosen=state.branch){return PHOTO_API+'?branch='+encodeURIComponent(chosen)+'&sku='+encodeURIComponent(sku);}
 async function loadPhotos(chosen){
+ if(typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena')return;
  try{
   const response=await fetch(PHOTO_API+'?branch='+encodeURIComponent(chosen),{cache:'no-store',mode:'cors',credentials:'omit',signal:AbortSignal.timeout(10000)});
   if(!response.ok)return;

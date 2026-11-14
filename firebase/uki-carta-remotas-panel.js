@@ -36,6 +36,7 @@ function ukiCartaRemotasSucursal(){
  return ukiCartaRemotas.branch===branch?ukiCartaRemotas.rows.filter(x=>x.branch===branch):[];
 }
 async function ukiCartaApiSesion(){
+ if(typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena')throw Error('Pedidos Romo requieren su recepción propia; nunca usar la API de Uki.');
  const token=await window.ukiMesasQAToken?.();
  if(!token)throw Error('Este equipo necesita autorización para recibir pedidos. Utiliza la autorización QR existente.');
  return token;

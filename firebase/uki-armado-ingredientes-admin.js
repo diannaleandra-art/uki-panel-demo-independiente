@@ -85,6 +85,7 @@ function getPayload(box){
  return {name,category,surcharge,surfaces:selected,available};
 }
 async function request(action,fields,chosen=branch()){
+ if(typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena')throw Error('Los ingredientes de Romo no se consultan ni modifican en Uki.');
  const token=await window.ukiInventarioToken?.();
  if(!token)throw Error('Accede como administradora con Google para gestionar ingredientes.');
  const r=await fetch(API,{method:'POST',mode:'cors',credentials:'omit',cache:'no-store',
@@ -269,6 +270,7 @@ function renderEditorIngrediente(item,target){
   mode.onchange=()=>syncMode(form);category.onchange=()=>syncCategory(form);syncMode(form);syncCategory(form);wrapper.append(form);target.append(wrapper);
 }
 async function checkAvailability(chosen){
+ if(typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena')return;
  const seq=++state.check;
  const box=get('ukiArmadoIngredientes');if(!box)return;
  // El editor permanece visible aunque falle la conexión. Solo bloqueamos guardar.

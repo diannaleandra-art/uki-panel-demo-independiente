@@ -36,6 +36,7 @@ function panel(){return [
 ].join('');}
 function status(msg){if($('invStatus'))$('invStatus').textContent=msg;}
 async function request(action,data={},branch=X.branch){
+ if(typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena')throw Error('El inventario de Romo se conecta solo a su base propia, no a Uki.');
  if(branch!==panelBranch())throw Error('Abre la sucursal correspondiente para consultar su inventario.');
  const token=await window.ukiInventarioToken?.();
  if(!token)throw Error('Inicia sesión Google en el panel. Solo administración autorizada puede editar inventario.');

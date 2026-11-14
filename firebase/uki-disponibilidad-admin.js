@@ -27,6 +27,7 @@
  function sucursal(){return get('invBranch')?.value||((typeof S!=='undefined'&&S.suc==='Uki La Serena')?'serena':'arica');}
  function info(t){const n=get('ukiDispMensaje');if(n)n.textContent=t;}
  async function call(action,data={},branch=state.branch){
+  if(typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena')throw Error('La disponibilidad de Romo no puede modificarse en Uki.');
   const token=await window.ukiInventarioToken?.();
   if(!token)throw Error('Inicia sesión con Google para administrar la disponibilidad.');
   const r=await fetch(API,{method:'POST',mode:'cors',cache:'no-store',credentials:'omit',
