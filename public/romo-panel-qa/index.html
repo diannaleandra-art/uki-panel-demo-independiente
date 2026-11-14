@@ -3131,9 +3131,16 @@ function ukiPagoDeliveryDesglose(caja){
  const anterior=separado?Math.max(0,caja.pagoDeliveryAnterior):0;
  const medioDia=separado?String(caja.pagoDeliveryMedioDia||'Efectivo'):String(caja.pagoDeliveryMedio||'Efectivo');
  const medioAnterior=String(caja.pagoDeliveryMedioAnterior||'Efectivo');
+ // Romo conserva el medio real de cada pago al repartidor.
+ const detalles=Array.isArray(caja.pagosDeliveryDetalle)?caja.pagosDeliveryDetalle:[];
+ const totalDetallado=detalles.reduce((s,x)=>s+(Number(x.monto)||0),0);
+ const efectivoDetallado=detalles.filter(x=>x.medio==='Efectivo')
+   .reduce((s,x)=>s+(Number(x.monto)||0),0);
+ const efectivoDia=(S.suc===ROMO_SUCURSAL_QA&&detalles.length&&totalDetallado===dia)?
+   efectivoDetallado:(medioDia==='Efectivo'?dia:0);
  return {dia,anterior,total:dia+anterior,medioDia,medioAnterior,
   conceptoAnterior:separado?String(caja.pagoDeliveryConceptoAnterior||''):'',
-  efectivo:(medioDia==='Efectivo'?dia:0)+(medioAnterior==='Efectivo'?anterior:0)};
+  efectivo:efectivoDia+(medioAnterior==='Efectivo'?anterior:0)};
 }
 function savePD(){
  const dia=Number($('pdDia')?.value||0),anterior=Number($('pdAnterior')?.value||0);
