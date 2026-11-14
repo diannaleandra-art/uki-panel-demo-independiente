@@ -84,13 +84,20 @@ export function unirVentasDuenos({movimientos=[],cierres=[],desde='',hasta='',ne
 export function unirVentasDuenosConRomoQA({
  cierresRomo=[],movimientos=[],cierres=[],desde='',hasta='',
  negocio_id='',sucursal_id='',razon_social_id='todos',
- negocios=[],sucursales=[]
+ negocios=[],sucursales=[],vinculos=[]
 }={}){
  const base=unirVentasDuenos({movimientos,cierres,desde,hasta,negocio_id,
   sucursal_id,razon_social_id,negocios,sucursales});
  const romo=negocios.find(b=>/romo.?s sushi/i.test(n(b?.nombre||'')));
- // Sin negocio Romo explícito en catálogo no asumir que existe.
- if(!romo||razon_social_id!=='todos')return {
+ // La razón social se comprueba contra los vínculos de Mi Administración.
+ // Con filtro específico y sin vínculo confirmado, nunca atribuir un
+ // cierre Romo a una empresa por coincidencia de nombre.
+ const filtroRazon=String(razon_social_id||'todos');
+ const vinculado=filtroRazon==='todos'||(
+  romo&&Array.isArray(vinculos)&&vinculos.some(v=>
+   String(v?.negocio_id)===String(romo.id)&&
+   String(v?.razon_social_id)===filtroRazon));
+ if(!romo||!vinculado)return {
   ...base,cierresRomoConfirmados:0,coincidenciasRomo:0,
   conflictosRomo:0,totalCierresRomoSoloInformativo:0
  };

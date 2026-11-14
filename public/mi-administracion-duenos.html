@@ -532,7 +532,7 @@ function mostrarVentasFinancieras(){
   cierresRomo:cierresConfirmadosRomoQA,
   desde:value('from'),hasta:value('to'),negocio_id:currentBiz(),
   sucursal_id:currentBranch(),razon_social_id:value('scopeRazon'),
-  negocios:businesses,sucursales:branches
+  negocios:businesses,sucursales:branches,vinculos
  });
  const linea=(texto,clase='hint')=>{
   const el=document.createElement('p');el.className=clase;el.textContent=texto;host.append(el);

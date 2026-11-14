@@ -34,3 +34,8 @@ La publicación comercial exige nueva autorización.
 - La vista Historial aparece dentro de Caja de Romo; no utiliza ni reescribe el historial de Uki y no suma solicitudes sin confirmar como ventas.
 - Se preservan los comprobantes de cierres de Romo en Resumen de Caja. No hay acceso público, ni carga de otro almacén, ni cambios en Neon.
 - Pendiente validar visualmente solo en prueba integral final; las exportaciones Excel/PDF/WhatsApp continúan pospuestas por petición de la dueña.
+
+## Filtro por razón social en el panel privado de dueños (QA)
+- El informe de cierres Romo ahora comprueba el vínculo negocio–razón social real antes de mostrar registros cuando está aplicado un filtro legal.
+- Si el vínculo no existe, los cierres no se atribuyen a ninguna sociedad por nombre o coincidencia. Los filtros de negocio y sucursal siguen operando.
+- Este cambio es de presentación y lectura: no modifica cierres, ventas manuales, sociedades ni movimientos contables. Falta desplegarlo y verificarlo en la prueba integral final.
