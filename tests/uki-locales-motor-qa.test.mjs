@@ -36,7 +36,7 @@ test('datos ajenos o ventas habilitadas bloqueadas',()=>{
  assert.throws(()=>prepararVinculoLocalQA({...record(),configuracion:{...configuracion,modulos:{...modulos,caja:true}}}));
  assert.throws(()=>validarVinculoRomoQA({...prepararVinculoLocalQA(record()),puedePublicar:true}));
 });
-test('configuración Romo identifica pedido recibido sin inventar pagos ni precios',()=>{
+test('configuración Romo recupera precio explícito sin inventar cobro',()=>{
  const v=prepararVinculoLocalQA(record());
  const mensaje=['*ROMO’S SUSHI*','N.º de pedido: 271',
  'Sucursal: Romo’s Sushi La Serena','*COCINA*',
@@ -48,7 +48,7 @@ test('configuración Romo identifica pedido recibido sin inventar pagos ni preci
  });
  assert.equal(v.panel.sucursal,pedido.sucursalCarta);
  assert.equal(pedido.items.length,1);
- assert.equal(pedido.items[0].precio,0);
+ assert.equal(pedido.items[0].precio,7000);
  assert.equal(pedido.pagado,false);
  assert.equal(pedido.cartaSolicitudRemotaId,id);
 });
