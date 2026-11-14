@@ -219,6 +219,12 @@ label{color:#66574c}
   <button class="owner-branch-button" type="button" data-owner-branch="serena"><strong>La Serena</strong><small id="ukiAutoSerena">Sin cierres confirmados en estas fechas</small></button>
  </div>
 </section>
+ <section class="card" id="romoCierresPrivadosQA" aria-label="Cierres Romo en pruebas">
+ <h2>🍣 Romo La Serena · cierres confirmados</h2>
+ <p class="hint">Consulta privada de constancias registradas en Neon Romo. Estas cifras todavía <b>no se suman</b> a ventas ni a los indicadores de Uki hasta validar la importación financiera.</p>
+ <p id="romoCierresEstadoQA" role="status" class="hint">Consulta pendiente de sesión privada.</p>
+ <div id="romoCierresFilasQA" class="owner-business-list"></div>
+ </section>
 <div class="card owner-finance-card"><div class="owner-eyebrow">MOVIMIENTOS FINANCIEROS REGISTRADOS</div><h2>📊 Resumen de todos los negocios</h2>
 <details class="owner-hint-collapsible"><summary>ℹ️ Acerca de estos totales</summary><p>Incluyen cierres finales y movimientos manuales. Los registros heredados de pruebas deben verificarse antes de tratarlos como operaciones reales. Si una compra ya figura como gasto de caja, hay que conciliarla para evitar contarla dos veces. Los retiros personales no se consideran gastos operativos.</p></details>
 <p class="hint" id="ukiPeriodoResumen">Período seleccionado: el mes actual</p>
@@ -869,9 +875,60 @@ function pintarGastos(dato=vistaGastosActual){
 }
 
 // Solo lectura: cierres confirmados, sin modificar movimientos manuales.
+
+// Romo en Mi Administración · SOLO LECTURA en rama Preview.
+// Usa la misma sesión Google y PIN que esta administración.
+// Nunca suma cierres Romo a Uki ni a ventas manuales todavía.
+let romoCierresSeqQA=0;
+async function cargarCierresRomoQA(desde,hasta){
+ const state=$('romoCierresEstadoQA'),host=$('romoCierresFilasQA');
+ if(!state||!host||!session||!auth.currentUser)return;
+ const seq=++romoCierresSeqQA;
+ state.textContent='Consultando constancias de cierre de Romo…';
+ host.replaceChildren();
+ try{
+  const bearer=await auth.currentUser.getIdToken();
+  const response=await fetch('/api/romo-cierres-duenos-consulta-qa',{
+   method:'POST',cache:'no-store',credentials:'omit',
+   headers:{Authorization:'Bearer '+bearer,'Content-Type':'application/json',
+    'X-Fin-Session':session},
+   body:JSON.stringify({desde,hasta})
+  });
+  const data=await response.json().catch(()=>null);
+  if(!response.ok||data?.ok!==true||data.storeId!=='romo:serena'||
+     !Array.isArray(data.cierres)||data.cierres.length>100)
+   throw Error(data?.error||'La consulta privada Romo no está disponible.');
+  if(seq!==romoCierresSeqQA||!session)return;
+  state.textContent=data.cierres.length+
+   ' cierre(s) confirmado(s) en Neon Romo · pendientes de incorporación contable.';
+  if(!data.cierres.length){
+   const p=document.createElement('p');p.className='hint';
+   p.textContent='Aún no existen cierres Romo confirmados en este período.';
+   host.append(p);return;
+  }
+  for(const c of data.cierres){
+   const node=document.createElement('div');node.className='owner-business-item';
+   const title=document.createElement('strong');
+   title.textContent='Romo La Serena · '+c.fecha_operativa+' · turno '+c.turno_ref;
+   const p=document.createElement('p');p.className='hint';
+   p.textContent='Ventas: '+pesos(c.venta_total)+' · Pedidos: '+c.pedidos+
+    ' · Gastos: '+pesos(c.gastos_cierre)+
+    ' · Repartidores: '+pesos(c.delivery_por_pagar)+
+    ' · Revisión confirmada en Neon: '+c.revision_neon;
+   const note=document.createElement('p');note.className='hint';
+   note.textContent='Constancia verificada; no sumada a ventas ni contabilizada.';
+   node.append(title,p,note);host.append(node);
+  }
+ }catch(e){
+  if(seq!==romoCierresSeqQA)return;
+  state.textContent=String(e?.message||'No se pudo verificar Romo');
+ }
+}
+
 const UKI_DUENOS_CIERRES_URL='https://uki-sushi-inventario.vercel.app/api/mi-administracion-live';
 let ukiCierresQAConsulta=0;
 async function cargarCierresUki(desde,hasta){
+ if(session&&auth.currentUser)void cargarCierresRomoQA(desde,hasta);
  const seq=++ukiCierresQAConsulta,arica=$('ukiAutoArica'),serena=$('ukiAutoSerena');
  if(!session||!auth.currentUser)return;
  arica.textContent=serena.textContent='Consultando cierres…';
@@ -1760,7 +1817,9 @@ function marcarPeriodoSeleccionado(){
  }
 }
 function show(id){for(const x of ['login','setup','unlock','app'])$(x).hidden=x!==id;$('tabs').hidden=id!=='app';$('exit').hidden=id==='login';}
-function lock(){session='';limpiarInformes();show('unlock');}
+function lock(){session='';romoCierresSeqQA++;if($('romoCierresFilasQA'))$('romoCierresFilasQA').replaceChildren();
+ if($('romoCierresEstadoQA'))$('romoCierresEstadoQA').textContent='Acceso privado cerrado.';
+ limpiarInformes();show('unlock');}
 async function checkState(){
  if(!auth.currentUser){show('login');notify('Entra con tu cuenta autorizada.');return}
  try{const r=await api('estado');if(r.autorizado){show('app');await loadBusinesses();return}
