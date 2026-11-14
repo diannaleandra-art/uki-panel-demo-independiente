@@ -150,9 +150,20 @@ export async function registrarClaveHabitualRomoQA({
   body:JSON.stringify({ukiSource,proof}),
   cache:'no-store',credentials:'omit'
  });
+ const result=await response.json().catch(()=>null);
  if(response.status===409)throw Error('Esta sucursal ya tiene una clave registrada');
- if(!response.ok)throw Error('No se pudo confirmar el alta de Romo');
- const result=await response.json();
+ if(!response.ok){
+  const diagnostic=typeof result?.diagnostic==='string'&&/^R(?:400|403|405|409|415|503)-[A-Z]$/.test(result.diagnostic)
+    ? result.diagnostic : 'HTTP-'+response.status;
+  const reason=response.status===403
+    ? 'La cuenta Google o el enlace de pruebas no tiene permiso para Romo'
+    :response.status===503
+    ? 'No se pudo completar la conexión segura de Romo'
+    :response.status===400
+    ? 'La prueba cifrada de acceso no fue aceptada'
+    : 'No se pudo confirmar el alta de Romo';
+  throw Error(reason+' (código '+diagnostic+')');
+ }
  if(result?.ok!==true||result.storeId!==STORE||
     result.ukiSource!==ukiSource||result.created!==true)
   throw Error('El registro de Romo no fue confirmado');

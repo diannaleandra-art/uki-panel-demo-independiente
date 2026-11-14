@@ -7,7 +7,7 @@
  */
 const STORE='romo:serena';
 const BRANCH='preparacion/uki-romo-sobre-main-20261114';
-const fail=(res,code,msg)=>res.status(code).json({ok:false,error:msg});
+const fail=(res,code,msg,diagnostic)=>res.status(code).json({ok:false,error:msg,diagnostic});
 function config(env){
  if(env.VERCEL_ENV!=='preview'||env.VERCEL_GIT_COMMIT_REF!==BRANCH||
     env.ROMO_CLAVE_ALTA_QA_ENABLED!=='true'||
@@ -36,22 +36,23 @@ module.exports=async function romoClaveAltaDuenosQA(req,res){
  res.setHeader('Vary','Origin');
  res.setHeader('X-Content-Type-Options','nosniff');
  const conf=config(process.env);
- if(!conf)return fail(res,503,'Alta de clave Romo no habilitada');
+ if(!conf)return fail(res,503,'Alta de clave Romo no habilitada','R503-C');
  const {esOrigenAutorizadoRomoQA}=require('../lib/romo-origen-seguro-qa.cjs');
  if(!esOrigenAutorizadoRomoQA(req,conf.origin))
-  return fail(res,403,'Origen no autorizado');
+  return fail(res,403,'Origen no autorizado','R403-O');
  res.setHeader('Access-Control-Allow-Origin',conf.origin);
  res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type');
  res.setHeader('Access-Control-Allow-Methods','POST,OPTIONS');
  if(req.method==='OPTIONS')return res.status(204).end();
- if(req.method!=='POST')return fail(res,405,'Método no permitido');
+ if(req.method!=='POST')return fail(res,405,'Método no permitido','R405-M');
  if(String(req.headers?.['content-type']||'').split(';')[0]!=='application/json')
-  return fail(res,415,'Formato no permitido');
+  return fail(res,415,'Formato no permitido','R415-F');
  const body=req.body;
  if(!body||typeof body!=='object'||Array.isArray(body)||
    Object.keys(body).some(k=>!['ukiSource','proof'].includes(k))||
    JSON.stringify(body).length>1500)
-  return fail(res,400,'Prueba cifrada inválida');
+  return fail(res,400,'Prueba cifrada inválida','R400-P');
+ let phase='validacion';
  try{
   const validator=await import('../lib/romo-clave-compartida-qa.mjs');
   const proof=body.proof;
@@ -59,8 +60,10 @@ module.exports=async function romoClaveAltaDuenosQA(req,res){
   if(body.ukiSource!==checked.slot||proof.storeId!==STORE)
    return fail(res,400,'Sucursal de origen inválida');
 
+  phase='conexion';
   const neon=require('@neondatabase/serverless').neon;
   const reader=neon(conf.reader),writer=neon(conf.writer);
+  phase='identidad';
   const auth=await import('../lib/romo-identidad-servidor-qa.mjs');
   const identity=await auth.resolveRomoIdentity({
    authorization:req.headers?.authorization,
@@ -68,20 +71,26 @@ module.exports=async function romoClaveAltaDuenosQA(req,res){
    verifyToken:auth.verifyFirebaseGoogleToken
   });
   if(!identity||identity.role!=='duenos')
-   return fail(res,403,'Solo dueños autorizados pueden registrar claves');
+   return fail(res,403,'Solo dueños autorizados pueden registrar claves','R403-D');
+  phase='escritura';
   const rows=await writer.query(
    'INSERT INTO public.romo_clave_compartida_v1(store_id,uki_source,proof,updated_by) '+
-   'VALUES($1,$2,$3::jsonb,$4) ON CONFLICT(store_id,uki_source) '+
+   // DO NOTHING sin lista de columnas: no exige SELECT sobre store_id al rol limitado.
+   'VALUES($1,$2,$3::jsonb,$4) ON CONFLICT '+
    'DO NOTHING RETURNING uki_source',
    [STORE,checked.slot,JSON.stringify(proof),identity.userId]
   );
   if(!Array.isArray(rows)||rows.length===0)
-   return fail(res,409,'La clave de ese local ya está registrada');
+   return fail(res,409,'La clave de ese local ya está registrada','R409-K');
   if(rows.length!==1||rows[0].uki_source!==checked.slot)
    throw Error('Escritura inesperada');
   return res.status(201).json({ok:true,storeId:STORE,ukiSource:checked.slot,created:true});
- }catch{
-  return fail(res,503,'Registro de clave Romo no disponible');
+ }catch(e){
+  // Solo fase y SQLSTATE; jamás contraseña, token, archivo, correo ni mensaje SQL.
+  const sqlstate=typeof e?.code==='string'&&/^[0-9A-Z]{5}$/.test(e.code)?e.code:'NO_SQLSTATE';
+  console.error('[romo-clave-alta-qa] rechazo',{fase:phase,sqlstate});
+  const diagnostic=phase==='identidad'?'R503-I':phase==='escritura'?'R503-E':phase==='conexion'?'R503-N':'R503-V';
+  return fail(res,503,'Registro de clave Romo no disponible',diagnostic);
  }
 };
 module.exports._internalQA={config};
