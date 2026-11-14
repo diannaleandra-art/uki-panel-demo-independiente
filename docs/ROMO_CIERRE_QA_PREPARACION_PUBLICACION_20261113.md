@@ -80,3 +80,12 @@ y consulta `fin_romo_cierres_live_v1` allí. La configuración exige
 `ROMO_FIN_CIERRES_LECTURA_QA_ENABLED=true` y la rama esperada.
 Ambos permisos siguen desactivados; no hay ventas nuevas ni consultas
 públicas. Uki continúa usando su ruta y sus datos anteriores.
+
+## Validación de duplicados y JSONB (rama QA)
+El registro financiero de Romo ahora exige revisión de Neon idéntica
+además de turno e importes para reconocer una importación repetida. Una
+revisión distinta se marca para conciliación y nunca sobrescribe el cierre.
+La comparación de constancias normaliza también las claves anidadas de
+los medios de pago, evitando rechazos falsos cuando PostgreSQL JSONB
+reordena los campos. Se añadieron pruebas de regresión. Sin cambios a Uki
+ni activación comercial.

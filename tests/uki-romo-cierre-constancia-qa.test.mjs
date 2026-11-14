@@ -55,6 +55,19 @@ test('finanzas rechaza alteración de monto o revisión sin Neon',async()=>{
   {...good,venta_total:10000,medios:{Efectivo:10000}}])
    await assert.rejects(consultarConstanciaRomoQA({dbRomo,resumen:bad}));
 });
+test('una constancia PostgreSQL jsonb con medios reordenados sigue siendo equivalente',async()=>{
+ const p=normalizarResumenCierreRomoQA({
+  ...data(),venta_total:9000,
+  medios:{Transferencia:4000,Efectivo:5000}
+ },T);
+ const stored={...p,medios:{Efectivo:5000,Transferencia:4000}};
+ const dbRomo={async query(){
+  return [{store_id:'romo:serena',source_key:p.fuente_unica,
+   turno_ref:T,revision_neon:3,resumen:stored}];
+ }};
+ const payload={...p,estado:'confirmado_en_romo_pendiente_de_sincronizar_duenos',revision_neon:3};
+ assert.equal((await consultarConstanciaRomoQA({dbRomo,resumen:payload})).verificada,true);
+});
 test('la operación sigue bloqueada sin flags en el API de Romo',()=>{
  const src=readFileSync(new URL('../api/romo-estado-operativo-qa.js',import.meta.url),'utf8');
  assert.match(src,/ROMO_CIERRE_RECIBO_LIVE_ENABLED/);

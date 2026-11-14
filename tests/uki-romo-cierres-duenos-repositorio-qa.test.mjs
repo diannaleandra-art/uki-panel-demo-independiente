@@ -90,6 +90,24 @@ test('duplicado con distinto monto queda bloqueado, sin sobrescribir',async()=>{
  assert.equal(db.rows.size,1);
  assert.equal(db.rows.get(sample().fuente_unica).venta_total,9000);
 });
+test('una revisión Neon distinta nunca se acepta como duplicado del mismo turno',async()=>{
+ const db=mock(),dbRomo=romoReceipts(),config={
+  db,dbRomo,identity,privateOwnerSessionVerified:true,resumen:sample()
+ };
+ await guardarCierreRomoDuenosQA(config);
+ const priorQuery=dbRomo.query;
+ dbRomo.query=async(q,args)=>{
+  const rows=await priorQuery(q,args);
+  return rows.map(row=>({...row,revision_neon:4}));
+ };
+ // Igual fecha, montos, medios y clave de turno: cambia SOLO revisión.
+ // La constancia ahora coincide con revisión 4, pero finanzas guarda 3.
+ await assert.rejects(guardarCierreRomoDuenosQA({
+  ...config,resumen:{...sample(),revision_neon:4}
+ }),e=>e instanceof RomoCierreDuplicadoDiferenteQA);
+ assert.equal(db.rows.size,1);
+ assert.equal(db.rows.get(sample().fuente_unica).revision_neon,3);
+});
 test('ni trabajador ni persona sin sesión de dueños puede importar',async()=>{
  const db=mock();
  await assert.rejects(guardarCierreRomoDuenosQA({
