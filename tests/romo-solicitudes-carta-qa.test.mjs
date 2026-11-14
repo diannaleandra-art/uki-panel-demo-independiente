@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {
- romoSolicitudesConfig,validarSolicitudRomo,registrarSolicitudRomo,
+ romoSolicitudesConfig,validarSolicitudRomo,registrarSolicitudRomo,listarSolicitudesRomo,
  reservarSolicitudRomo,liberarSolicitudRomo,rechazarSolicitudRomo,aceptarYGuardarSolicitudRomo
 } from '../lib/romo-solicitudes-carta-qa.mjs';
 const STORE='romo:serena';
