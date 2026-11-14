@@ -33,7 +33,18 @@ function config(env){
    if(new URL(String(env[key]||'')).hostname.toLowerCase()===host)return null;
   }catch{}
  }
- return {url:uri.toString(),origin};
+ let writer=null;
+ if(env.ROMO_PANEL_PILOTO_MANUAL_QA_ENABLED==='true'&&
+    env.ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED==='true'){
+   try{
+    const u=new URL(String(env.ROMO_CLAVE_ALTA_PRIVILEGED_DATABASE_URL||''));
+    if(['postgres:','postgresql:'].includes(u.protocol)&&
+       u.hostname.toLowerCase()===host&&u.pathname==='/romos_sushi'&&
+       u.username==='romos_clave_alta_qa_20261114'&&u.password&&
+       u.toString()!==uri.toString())writer=u.toString();
+   }catch{}
+ }
+ return {url:uri.toString(),writer,origin};
 }
 
 module.exports=async function romoEstadoCifradoPanelQA(req,res){
@@ -49,8 +60,10 @@ module.exports=async function romoEstadoCifradoPanelQA(req,res){
  res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type');
  if(req.method==='OPTIONS')return res.status(204).end();
  if(!['GET','POST'].includes(req.method))return send(res,405,'Método no permitido');
- if(req.method==='POST'&&process.env.ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED!=='true')
-   return send(res,503,'Guardado Romo todavía no habilitado');
+ if(req.method==='POST'&&(
+    process.env.ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED!=='true'||
+    process.env.ROMO_PANEL_PILOTO_MANUAL_QA_ENABLED!=='true'||!conf.writer))
+   return send(res,503,'Guardado manual Romo todavía no habilitado');
  // La primera inicialización requiere una autorización independiente de
  // las actualizaciones corrientes; ninguna flag está activada en QA.
  if(req.method==='POST'&&req.body?.expectedRevision===0&&
@@ -68,6 +81,8 @@ module.exports=async function romoEstadoCifradoPanelQA(req,res){
    verifyToken:auth.verifyFirebaseGoogleToken
   });
   if(!identity)return send(res,403,'Sesión o permiso Romo inválidos');
+  if(req.method==='POST'&&identity.role!=='duenos')
+   return send(res,403,'Solo dueños pueden guardar en piloto manual Romo');
   const vault=await import('../lib/romo-estado-cifrado-persistencia-qa.mjs');
   if(req.method==='GET'){
    const result=await vault.leerEstadoCifradoRomoQA({db,identity});
@@ -77,13 +92,16 @@ module.exports=async function romoEstadoCifradoPanelQA(req,res){
    return send(res,415,'Se requiere JSON');
   const body=req.body;
   if(!body||typeof body!=='object'||Array.isArray(body)||
-     body.storeId && body.storeId!==STORE||
-     !Number.isSafeInteger(body.expectedRevision))
-   return send(res,400,'Contenido inválido');
+     Object.keys(body).sort().join('|')!=='expectedRevision|snapshot'||
+     !Number.isSafeInteger(body.expectedRevision)||body.expectedRevision<1)
+   return send(res,400,'Solo actualizaciones de estado previamente inicializado');
   if(JSON.stringify(body).length>2000000)
    return send(res,413,'Paquete demasiado grande');
+  // Escritura por rol aislado sin permiso DELETE ni acceso a bases Uki.
+  const neonWriter=require('@neondatabase/serverless').neon(conf.writer);
+  const writerDB={query:(sql,args)=>neonWriter.query(sql,args)};
   const saved=await vault.guardarEstadoCifradoRomoQA({
-   db,identity,expectedRevision:body.expectedRevision,snapshot:body.snapshot
+   db:writerDB,identity,expectedRevision:body.expectedRevision,snapshot:body.snapshot
   });
   return res.status(200).json(saved);
  }catch(error){

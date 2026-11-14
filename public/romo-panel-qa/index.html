@@ -436,6 +436,12 @@ function cambiarModoNuevo(t){modoNuevo=t;render();}
 
 function aviso(t){S.msg=t;render();window.scrollTo({top:0,behavior:"smooth"});}
 function ir(v){
+  // Romo abre primero solo los dos módulos autorizados: bandeja y
+  // formulario manual; no se activan Caja, Clientes, Timbres ni Cierres.
+  if(S.suc===ROMO_SUCURSAL_QA&&!['pedidos','nuevo'].includes(v)){
+   S.vista='pedidos';S.msg='Romo está en apertura controlada: solo pedidos manuales pendientes. Caja, cobros y cierres permanecen bloqueados.';
+   render();return;
+  }
   if(S.vista==='nuevo'&&v!=='nuevo'&&ukiCartaRemotaActiva)ukiCartaRemotaActiva=null;
   if(S.vista==="nuevo"&&v!=="nuevo"&&S.suc&&ukiSolicitudWhatsAppActiva){
     if(ukiBorradorActivo){
@@ -524,6 +530,9 @@ function guardarEnLocalStorage(){
  // Romo no puede caer en el respaldo Uki "desconocida" ni en su Firestore.
  // Este enlace SOLO existe en la copia QA; la API todavía está apagada.
  if(S.suc===ROMO_SUCURSAL_QA){
+  // Piloto: render y navegación no escriben nada. SOLO Guardar pedido
+  // confirmado invoca el CAS cifrado de Neon.
+  return Promise.resolve(true);
   const session=window.ukiRomoSesionRemotaQA;
   if(!session?.disponible())return Promise.resolve(false);
   const datos=datosSoloSucursal(),sucursalGuardada=S.suc;
@@ -748,7 +757,7 @@ function render(){
   $("suc").innerHTML=S.suc?`<span>${esc(S.suc)}</span><a href="#" onclick="salirSuc();return false;" class="salir">Salir</a>`:S.romoSeleccionadoQA?(S.romoIngresadoQA?'<span>Romo’s Sushi · La Serena · Balmaceda 1612</span><a href="#" onclick="ukiVolverAlSelectorLocales();return false;" class="salir">Salir</a>':'Romo’s Sushi · La Serena · Balmaceda 1612'):'Selecciona una sucursal para empezar';
   $("nav").style.display=S.suc?"grid":"none";
   ukiAccesosDesplazamiento();
-  $("nav").innerHTML=VISTAS.map(([k,l,icon])=>`<button type="button" class="${S.vista===k?"on":""}" onclick="ir('${k}')" aria-label="${l}" ${S.vista===k?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${l}</span></button>`).join("");
+  $("nav").innerHTML=(S.suc===ROMO_SUCURSAL_QA?VISTAS.filter(([k])=>['pedidos','nuevo'].includes(k)):VISTAS).map(([k,l,icon])=>`<button type="button" class="${S.vista===k?"on":""}" onclick="ir('${k}')" aria-label="${l}" ${S.vista===k?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${l}</span></button>`).join("");
   const f={inicio:vInicio,pedidos:vPedidos,nuevo:vNuevo,clientes:vClientes,caja:vCaja,inventario:()=>window.ukiInventarioPanelHTML?.()||'<div class="card"><p>Preparando inventario…</p></div>'}[S.vista]||vInicio;
   const msg=S.msg?`<div role="status" class="aviso" style="background:#ffece4;color:#7a2c08">${esc(S.msg)}</div>`:"";
   S.msg=null;
@@ -1013,7 +1022,7 @@ async function entrarSuc(){
     }
     // El MISMO panel y las MISMAS vistas; el servidor sólo entrega datos Romo.
     S={...estadoVacioSucursal(s),...unlocked.estado,
-      suc:s,pinSuc:null,vista:"inicio",msg:null,busy:false,confirmCierre:false};
+      suc:s,pinSuc:null,vista:"pedidos",msg:null,busy:false,confirmCierre:false};
     S.romoSeleccionadoQA=false;S.romoIngresadoQA=true;
    }else{
     // Mantener la pantalla de preparación ya aprobada; NO registrar operaciones.
@@ -4471,6 +4480,7 @@ setInterval(()=>{if(ukiMesas.used&&!ukiMesas.busy&&S.suc&&S.vista==='pedidos')uk
 
 function vPedidos(){
   if(!S.suc) return vInicio();
+  if(S.suc===ROMO_SUCURSAL_QA)return ukiRomoPedidosPendientesHTMLQA();
   const fechaTurno=fechaOperativaActual();
   const pedidos=pedidosSuc();
   const buscando=!!(filtroCodigoCarta||filtroDiaPedidos);
@@ -4766,7 +4776,100 @@ async function ukiQRPermitirCobroDefinitivo(d){
   return false;
  }
 }
+
+let ukiRomoGuardandoManualQA=false;
+function ukiRomoPedidosPendientesHTMLQA(){
+ const pedidos=(S.pedidos||[]).filter(p=>p.suc===ROMO_SUCURSAL_QA).slice().reverse();
+ return '<div class="section-head"><h2>Pedidos · Romo La Serena</h2><p><b>Registro manual conectado a Neon Romo.</b> Solo pedidos pendientes sin cobrar. Caja, timbres y cierres todavía bloqueados.</p></div>'+
+  '<button class="big" type="button" onclick="nuevoDraft();ir(\'nuevo\')">＋ Nuevo pedido manual</button>'+
+  (pedidos.length?pedidos.map(p=>'<section class="card"><h3>Pedido #'+esc(p.id)+' · '+esc(p.estado)+'</h3>'+
+   '<p><b>'+esc(p.cliente||"Cliente")+'</b> · '+esc(p.modalidad||"Retiro")+' · '+fmt(p.total)+'</p>'+
+   '<p class="muted">'+esc(p.fechaISO||"")+' · '+esc(p.telefono||"")+'</p>'+
+   '<ul>'+((p.productos||[]).map(x=>'<li>'+esc(x.cantidad)+' × '+esc(x.nombre)+' · '+fmt(x.precioUnit)+
+    (x.detalle?'<p class="muted">'+esc(x.detalle)+'</p>':'')+'</li>').join(''))+'</ul>'+
+   '<p class="muted">Pendiente de pago y confirmación de cocina. No registra venta ni timbre.</p></section>').join(''):
+   '<section class="card"><p>Todavía no hay pedidos manuales guardados en Romo.</p></section>');
+}
+async function ukiRomoGuardarPedidoPendienteQA(){
+ if(ukiRomoGuardandoManualQA)return;
+ const s=ROMO_SUCURSAL_QA,session=window.ukiRomoSesionRemotaQA;
+ if(S.suc!==s||S.vista!=='nuevo'||!session?.disponible()){
+  aviso('Abre Romo con Google y contraseña habitual antes de registrar.');return;
+ }
+ if(D.editando||D.pagado||D.cartaSolicitudRemotaId||D.cartaReservaToken||
+    (D.qrSolicitudes||[]).length||D.productosPagadosOtroLocal||
+    D.envioPagadoOtroLocal||D.mixtoProductos||D.mixtoEnvio||
+    D.propinaModo!=='ninguna'||D.propinaPersonalizada&&Number(D.propinaPersonalizada)>0){
+  aviso('Piloto Romo: solo pedidos nuevos pendientes, sin cobros ni otros movimientos.');return;
+ }
+ if(!['Retiro','Delivery','Consumo en local'].includes(D.modalidad)||
+    !String(D.cliente||'').trim()||String(D.cliente).length>80||
+    !['Efectivo','Transferencia','Débito','Edenred','Otros'].includes(D.medio)){
+  aviso('Completa cliente, modalidad y medio de pago previsto.');return;
+ }
+ const items=(D.items||[]).filter(x=>String(x?.nombre||'').trim());
+ if(!items.length||items.length>50||items.some(x=>
+  !Number.isSafeInteger(Number(x.cant))||Number(x.cant)<1||Number(x.cant)>100||
+  !Number.isSafeInteger(Number(x.precio))||Number(x.precio)<1||Number(x.precio)>1000000||
+  String(x.nombre).length>180||String(x.det||'').length>900)){
+  aviso('Revisa productos, cantidades y precios: deben ser montos confirmados.');return;
+ }
+ const envio=D.modalidad==='Delivery'?Number(D.envio):0;
+ if(!Number.isSafeInteger(envio)||envio<0||envio>4000||
+    D.modalidad==='Delivery'&&envio===0){
+  aviso('Confirma manualmente el valor de delivery antes de guardar el pedido.');return;
+ }
+ const subtotal=items.reduce((sum,x)=>sum+Number(x.cant)*Number(x.precio),0);
+ const total=subtotal+envio;
+ if(!Number.isSafeInteger(total)||total<=0||total>3000000){
+  aviso('El total no es válido. Comprueba los precios.');return;
+ }
+ if(D.codigoCarta&&S.pedidos.some(p=>p.codigoCarta===D.codigoCarta)){
+  aviso('Ese código de pedido ya está registrado en Romo. Revisa la bandeja.');return;
+ }
+ if(!window.confirm('Romo La Serena: guardar este pedido PENDIENTE por '+fmt(total)+
+  ' en su base independiente. No se registra pago. ¿Confirmar?'))return;
+ ukiRomoGuardandoManualQA=true;
+ try{
+  const expected=session.estado();
+  if(expected.conflicto===true)throw Error('Hay un conflicto. Sal y vuelve a abrir Romo antes de continuar.');
+  const clone=datosSoloSucursal();
+  clone.vista='pedidos';
+  const {numero,clave}=ukiTurnoFolioActual();
+  const pedido={
+   id:clone.nextId,numeroTurno:numero,turnoClave:clave,
+   suc:s,fechaISO:D.fecha||ahora(),registradoEn:Date.now(),
+   cliente:String(D.cliente).trim(),telefono:String(D.telefono||'').trim(),
+   codigoCliente:ukiCodigoWhatsApp(D.telefono)||"",
+   codigoCarta:String(D.codigoCarta||"").trim(),
+   cartaSolicitudRemotaId:"",cartaReservaToken:"",qrSolicitudes:[],
+   sucursalCarta:"",mesaReferencia:D.modalidad==='Consumo en local'?String(D.mesaReferencia||'').trim():"",
+   modalidad:D.modalidad,envio,kmRecorrido:String(D.kmRecorrido||''),
+   medio:D.medio,medioEnvio:D.medioEnvio||'Efectivo',
+   pagado:false,estado:'Pendiente',
+   productos:items.map(x=>({nombre:String(x.nombre).trim(),
+    cantidad:Number(x.cant),precioUnit:Number(x.precio),detalle:String(x.det||'')})),
+   subtotal,total,propina:0,propinaModo:'ninguna',medioPropina:'Efectivo',
+   textoOriginal:String(D.texto||'').slice(0,12000),esPremio:false
+  };
+  clone.nextId++;
+  clone.pedidos.push(pedido);
+  if(!validarEstadoSucursal(clone,s))throw Error('La información de Romo no pasó la validación.');
+  // No actualizar S.pedidos hasta obtener nueva revisión desde Neon.
+  const saved=await session.guardar(clone);
+  if(saved?.changed!==true||saved.revision!==expected.revision+1)
+   throw Error('El servidor no confirmó la revisión del pedido; conserva este formulario.');
+  S={...S,...clone,suc:s,pinSuc:null,msg:null,vista:'pedidos'};
+  nuevoDraft();
+  S.msg='Pedido #'+pedido.id+' guardado en Neon Romo · pendiente de pago. Revisión '+saved.revision+'.';
+  render();
+ }catch(e){
+  aviso('NO SE CONFIRMÓ el guardado de Romo. No repitas el pedido sin revisar desde otro acceso. '+String(e?.message||e));
+ }finally{ukiRomoGuardandoManualQA=false;}
+}
+
 async function ndGuardar(){
+  if(S.suc===ROMO_SUCURSAL_QA)return ukiRomoGuardarPedidoPendienteQA();
   if(ukiGuardadoSolicitudEnCurso)return;
   ukiGuardadoSolicitudEnCurso=true;
   try{
