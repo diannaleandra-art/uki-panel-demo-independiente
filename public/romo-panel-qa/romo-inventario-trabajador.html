@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive"><title>Romo’s Sushi · Inventario trabajador</title>
+<style>
+:root{font-family:system-ui,-apple-system,sans-serif;background:#fff;color:#1b1b1b}
+*{box-sizing:border-box}body{margin:0;padding-bottom:50px}
+header{background:#151515;color:white;padding:22px 17px;border-bottom:5px solid #c71932}
+header h1{font-size:23px;margin:0 0 5px}main{max-width:680px;margin:auto;padding:16px}
+.card{background:#fff;border:1px solid #d8d8d8;border-radius:16px;padding:17px;margin-bottom:14px}
+h2{font-size:19px;margin:0 0 12px}label{display:block;font-weight:700;margin:12px 0 5px}
+input,select{width:100%;font:inherit;padding:12px;border:1px solid #bbb;border-radius:9px;background:#fff;color:#111}
+button,.button{font:700 15px system-ui;background:#bb2334;color:#fff;border:0;border-radius:10px;padding:12px;min-height:44px;cursor:pointer}
+button:disabled{opacity:.5}.secondary{background:#222}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.muted{font-size:14px;color:#666}.green{color:#175b36}.warn{color:#a11e25}
+.stock{border-left:5px solid #c71932}.stock.ok{border-left-color:#358356}
+small{color:#666}#state{min-height:22px}[hidden]{display:none!important}
+footer{font-size:12px;color:#666;text-align:center;margin:20px}
+@media(max-width:380px){.grid{grid-template-columns:1fr}}
+</style></head>
+<body><header><h1>🍣 Romo’s Sushi · Inventario</h1><div>Balmaceda 1612 · La Serena · trabajador</div></header>
+<main>
+<section class="card"><h2>1. Abrir inventario</h2>
+<p class="muted">Mismo procedimiento de Uki, con existencias exclusivas de Romo. No abre pedidos, caja ni cierres.</p>
+<label>Nombre del trabajador</label><input id="name" maxlength="60" autocomplete="name" placeholder="Nombre de quien cuenta">
+<label>PIN de inventario Romo (6 números)</label><input id="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="••••••">
+<button id="open" type="button">Abrir inventario</button><p id="state" role="status" class="muted"></p>
+</section>
+<div id="active" hidden>
+<section class="card"><h2>2. Revisar existencias</h2>
+<div class="grid"><input id="search" type="search" placeholder="Buscar pollo, palta…"><select id="filter" aria-label="Filtrar artículos">
+<option value="todo">Todos</option><option value="pendiente">Sin contar</option><option value="contado">Contados</option><option value="reponer">Para reponer</option></select></div>
+<p class="muted">Guarda cada conteo o entrada por separado. Cada movimiento queda confirmado en Neon Romo y registrado con el responsable.</p>
+<p id="progress" role="status"></p></section>
+<div id="items"></div>
+<section class="card"><h2>3. Terminar revisión</h2>
+<p id="summary" class="muted">No hay registros en esta sesión.</p>
+<button id="finish" type="button">Guardar revisión en el panel</button>
+<p id="saved" role="status"></p>
+<div id="reports" hidden>
+<p class="green">✓ Revisión registrada en el inventario Romo.</p>
+<div class="grid"><button id="share" type="button">📄 Compartir PDF por WhatsApp</button><button id="pdf" class="secondary" type="button">Descargar PDF</button>
+<button id="csv" class="secondary" type="button">Excel (.csv)</button><button id="buy" type="button">Enviar lista de compras</button></div>
+<p id="shareNote" class="muted">En iPhone, selecciona WhatsApp al compartir el PDF.</p>
+</div></section></div>
+<footer>Romo’s Sushi · Inventario independiente de caja y ventas</footer>
+</main>
+<script src="./romo-inventario-exportar.js"></script>
+<script>
+'use strict';
+const $=id=>document.getElementById(id),STORE='romo:serena';
+let revision=null,items=[],busy=false,report=null,closed=false;
+const counted=new Set(),arrived=new Map(),original=new Map();
+const show=x=>{ $('state').textContent=x; };
+const validQty=x=>{const str=String(x||'').trim();
+ if(!/^\d{1,6}(?:[.,]\d{1,3})?$/.test(str))throw Error('Cantidad inválida: escribe un número con máximo tres decimales');
+ const n=Number(str.replace(',','.'));if(n>100000)throw Error('Cantidad demasiado alta');return n;};
+const html=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>Number(n).toLocaleString('es-CL',{maximumFractionDigits:3});
+function lock(on){busy=on;for(const id of ['open','finish'])$(id).disabled=on;
+ document.querySelectorAll('[data-save]').forEach(x=>x.disabled=on);}
+async function api(action,extra={}){
+ const name=$('name').value.trim().replace(/\s+/g,' '),code=$('pin').value;
+ if(name.length<2||name.length>60||!/^\d{6}$/.test(code))throw Error('Escribe el nombre y PIN válido');
+ const response=await fetch('/api/romo-pin-inventario-qa',{
+  method:'POST',cache:'no-store',credentials:'omit',headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({action,worker_name:name,codigo:code,...extra}),signal:AbortSignal.timeout(20000)
+ });
+ const v=await response.json().catch(()=>null);
+ if(!response.ok||v?.ok!==true||v.storeId!==STORE)
+  throw Error(v?.error||'No se confirmó la operación con Romo');
+ return v;
+}
+async function reload(){
+ const v=await api('listar');
+ if(!Number.isSafeInteger(Number(v.revision))||v.contenido?.version!==1||
+  !Array.isArray(v.contenido.items))throw Error('El servidor no devolvió el inventario Romo');
+ revision=Number(v.revision);items=v.contenido.items.filter(x=>!x.archived);
+ render();
+}
+function summary(){
+ const faltantes=items.filter(x=>x.min_stock_qty>0&&x.stock_qty<=x.min_stock_qty).length;
+ $('summary').textContent='Artículos: '+items.length+' · Contados en este turno: '+counted.size+
+  ' · Con entradas: '+arrived.size+' · Para reponer: '+faltantes;
+ $('progress').textContent='Guardados en esta sesión: '+counted.size+' de '+items.length+'.';
+}
+function render(){
+ const query=$('search').value.trim().toLowerCase(),filter=$('filter').value,host=$('items');
+ const filtered=items.filter(x=>x.name.toLowerCase().includes(query)&&(
+  filter==='todo'||filter==='pendiente'&&!counted.has(x.sku)||
+  filter==='contado'&&counted.has(x.sku)||
+  filter==='reponer'&&x.min_stock_qty>0&&x.stock_qty<=x.min_stock_qty));
+ host.innerHTML=filtered.map(item=>{
+  const needs=item.min_stock_qty>0&&item.stock_qty<=item.min_stock_qty,
+   falta=Math.max(0,Math.round((item.min_stock_qty-item.stock_qty)*1000)/1000);
+  return '<section class="card stock '+(needs?'':'ok')+'" data-sku="'+html(item.sku)+'">'+
+   '<h3>'+html(item.name)+'</h3><p>Hay: <b>'+money(item.stock_qty)+' '+html(item.stock_unit)+
+   '</b> · Mínimo: '+money(item.min_stock_qty)+' '+html(item.stock_unit)+'</p>'+
+   (needs?'<p class="warn">Para reponer · faltan '+money(falta)+' '+html(item.stock_unit)+'</p>':
+    '<p class="green">Sin faltantes según el mínimo</p>')+
+   '<div class="grid"><div><label>Lo que hay</label><input data-qty="conteo" type="text" inputmode="decimal" value="'+html(item.stock_qty)+'">'+
+   '<button type="button" data-save="conteo">Guardar conteo</button></div>'+
+   '<div><label>Lo que llegó</label><input data-qty="entrada" type="text" inputmode="decimal" placeholder="Cantidad recibida">'+
+   '<button type="button" data-save="entrada">Registrar entrada</button></div></div>'+
+   (counted.has(item.sku)?'<p class="green">✓ Conteo guardado en este turno</p>':'')+
+   '</section>';
+ }).join('')||'<div class="card">No hay artículos que coincidan con el filtro. Si el inventario está vacío, el dueño debe agregar artículos desde el panel.</div>';
+ host.querySelectorAll('[data-save]').forEach(b=>{b.disabled=busy;b.onclick=()=>void save(b)});
+ summary();
+}
+async function save(button){
+ if(busy||closed)return;
+ const row=button.closest('[data-sku]'),sku=row.dataset.sku,action=button.dataset.save;
+ const input=row.querySelector('[data-qty="'+action+'"]');
+ let amount;try{amount=validQty(input.value);if(action==='entrada'&&amount===0)throw Error('La entrada debe ser mayor que cero');}
+ catch(e){show(e.message);return}
+ lock(true);show('Guardando '+action+' en Neon Romo…');
+ try{
+  const out=await api(action,{sku,cantidad:amount,expectedRevision:revision});
+  if(out.revision!==revision+1)throw Error('Neon no confirmó la revisión esperada. Actualiza antes de repetir.');
+  revision=out.revision;
+  if(action==='conteo')counted.add(sku);
+  else arrived.set(sku,Math.round(((arrived.get(sku)||0)+amount)*1000)/1000);
+  await reload();
+  show('✓ Movimiento confirmado. Inventario de Romo actualizado.');
+ }catch(e){show('No se confirmó. Revisa el inventario antes de reintentar: '+e.message)}
+ finally{lock(false);render()}
+}
+$('open').onclick=async()=>{
+ if(busy)return;lock(true);show('Comprobando PIN e inventario Romo…');
+ try{await reload();$('active').hidden=false;$('name').readOnly=true;
+  $('open').disabled=true;show('✓ Inventario exclusivo Romo abierto.');
+ }catch(e){show(e.message)}finally{lock(false);if(!$('active').hidden)$('open').disabled=true}
+};
+$('search').oninput=render;$('filter').onchange=render;
+$('finish').onclick=async()=>{
+ if(busy||closed)return;
+ const remaining=items.filter(x=>!counted.has(x.sku)).length;
+ if(remaining&&!confirm('Faltan '+remaining+' artículos por contar. ¿Guardar una revisión parcial?'))return;
+ lock(true);$('saved').textContent='Guardando cierre de revisión en Romo…';
+ try{
+  const out=await api('finalizar',{expectedRevision:revision,contados:counted.size,entradas:arrived.size});
+  if(out.revision!==revision+1)throw Error('Revisión no confirmada en Neon');
+  revision=out.revision;await reload();closed=true;
+  report={branch:'romo',worker_name:$('name').value.trim(),created_at:new Date().toISOString(),
+   summary:{entradas_periodo:arrived.size},items:items.map(x=>({...x,
+    received_qty:arrived.has(x.sku)?arrived.get(x.sku):null}))};
+  $('saved').textContent='✓ Revisión registrada. Ahora puedes compartir PDF y descargar Excel.';
+  $('reports').hidden=false;$('finish').disabled=true;show('Revisión guardada · Romo');
+ }catch(e){$('saved').textContent='No se confirmó el registro de la revisión: '+e.message}
+ finally{lock(false);if(closed)$('finish').disabled=true}
+};
+$('share').onclick=async()=>{if(!report)return;try{
+ const r=await window.ukiInventarioExportar.compartirPDF(report);
+ $('shareNote').textContent=r==='compartido'?'PDF compartido. Elige WhatsApp.':r==='descargado'?'PDF descargado para adjuntar en WhatsApp.':'No se compartió el PDF.';
+ }catch(e){$('shareNote').textContent='Error al compartir: '+e.message}};
+$('pdf').onclick=()=>{if(report)window.ukiInventarioExportar.guardarPDF(report)};
+$('csv').onclick=()=>{if(report)window.ukiInventarioExportar.excel(report)};
+$('buy').onclick=()=>{if(!report)return;
+ const text=window.ukiInventarioExportar.mensajeCompras(report);
+ const w=window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank');if(w)w.opener=null;};
+</script></body></html>
