@@ -4,7 +4,7 @@
 const API='https://uki-sushi-inventario.vercel.app/api/inventario-turno-live';
 const U=[['un','Unidades'],['kg','Kilos'],['g','Gramos'],['l','Litros'],['ml','Mililitros'],['porciones','Porciones']];
 const C=[['ingrediente','Ingrediente'],['envase','Envase'],['otro','Otro insumo']];
-const X={branch:'',items:[],reports:[],selected:'',busy:false,loaded:false,romoRevision:null};
+const X={branch:'',items:[],reports:[],selected:'',busy:false,loaded:false,romoRevision:null,romoPlantilla:[]};
 const $=id=>document.getElementById(id);
 const panelBranch=()=>typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena'?'romo':typeof S!=='undefined'&&S?.suc==='Uki La Serena'?'serena':'arica';
 function pick(xs){return xs.map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('');}
@@ -32,6 +32,10 @@ function panel(){return [
 '<div id="romoInvOperaciones" hidden><button id="romoInvDisponible" class="sm" type="button">Cambiar disponibilidad</button>'+
 '<button id="romoInvArchivar" class="sm" type="button">Archivar artículo</button></div></div>',
 '<p class="mini-help">Disponible/Agotado sigue siendo manual. El stock nunca lo modifica automáticamente.</p></div>',
+'<div class="card" id="romoInvBootstrap" hidden><h3>📦 Preparar inventario de Romo</h3>'+
+'<p class="muted">Copia solo los nombres y unidades de los artículos existentes en Uki Regimiento Arica. <b>Las cantidades y los mínimos se dejan en cero</b>; ningún movimiento ni dinero de Uki se copia. Aparecerán como no disponibles hasta revisar el stock real.</p>'+
+'<details><summary>Revisar lista de artículos antes de copiar</summary><ul id="romoInvPlantillaLista"></ul></details>'+
+'<button id="romoInvPlantillaCargar" type="button" class="big">Copiar lista inicial sin existencias</button><p id="romoInvPlantillaEstado" role="status" class="muted"></p></div>',
 '<div class="card" id="invNewBox" hidden><details><summary style="cursor:pointer;font-weight:700">＋ Agregar insumo al inventario</summary>',
 '<label for="invNewName">Nombre</label><input id="invNewName" maxlength="100"><label for="invNewCat">Categoría</label><select id="invNewCat">'+pick(C)+'</select>',
 '<label for="invNewUnit">Unidad</label><select id="invNewUnit">'+pick(U)+'</select>',
@@ -77,6 +81,8 @@ async function requestRomo(action,data={},branch=X.branch){
    body={action:'editar_completo',expectedRevision:revision,
     args:{sku:v.sku,name:item.name,kind:item.category,stock_unit:item.stock_unit,
      stock_qty:item.stock_qty,min_stock_qty:item.min_stock_qty}};
+  }else if(action==='importar-base'){
+   body={action:'importar_base',expectedRevision:revision,args:{source:'uki_arica_nombres'}};
   }else if(action==='romo-archivar'){
    body={action:'archivar',expectedRevision:revision,args:{sku:data.sku}};
   }else if(action==='romo-disponibilidad'){
@@ -100,10 +106,11 @@ async function requestRomo(action,data={},branch=X.branch){
      !Array.isArray(state.items)||!Array.isArray(state.movimientos))
    throw Error('La respuesta de inventario no corresponde a Romo.');
   X.romoRevision=version;
-  if(action==='articulos')
+  if(action==='articulos'){
+   X.romoPlantilla=Array.isArray(dataRomo.plantilla_base)?dataRomo.plantilla_base:[];
    return {items:state.items.filter(v=>!v.archived).map(v=>({
     ...v,category:v.kind,inventory_only:true,version,available:v.available
-   }))};
+   }))};}
   return {revisiones:state.movimientos.slice().reverse().map(m=>({
    tipo:m.tipo,sku:m.sku,created_at:new Date(m.fechaMs).toISOString(),
    worker_name:m.actor,summary:{sinMinimo:0,faltantes:[]}
@@ -172,6 +179,16 @@ async function load(){
   const [a,r]=await Promise.all([request('articulos',{},branch),request('reportes',{},branch)]);
   if(branch!==X.branch)return;
   X.items=a.items||[];X.reports=r.revisiones||[];X.loaded=true;
+  const box=$('romoInvBootstrap');
+  if(box){
+   box.hidden=branch!=='romo'||X.items.length!==0||!X.romoPlantilla.length;
+   if(!box.hidden){
+    const list=$('romoInvPlantillaLista');
+    list.replaceChildren(...X.romoPlantilla.map(item=>{
+     const li=document.createElement('li');li.textContent=item.name+' · '+item.unit;return li;
+    }));
+   }
+  }
   if(branch==='romo'&&$('invReportsBox'))$('invReportsBox').querySelector('h2').textContent='Historial de movimientos · Romo';
   $('invAdmin').hidden=false;$('invNewBox').hidden=false;$('invReportsBox').hidden=false;
   populate();reports();status('✓ '+X.items.length+' artículos · '+X.reports.length+' revisiones consultadas.');
@@ -205,6 +222,20 @@ async function create(){
   X.busy=false;await load();status('✓ Artículo «'+item.name+'» agregado solo al inventario.');
  }catch(e){status('No se agregó: '+String(e.message||e));}
  finally{X.busy=false;if($('invCreate'))$('invCreate').disabled=false;}
+}
+async function romoInicializarInventarioPlantilla(){
+ const button=$('romoInvPlantillaCargar'),output=$('romoInvPlantillaEstado');
+ if(X.branch!=='romo'||X.busy||X.items.length||!X.romoPlantilla.length)return;
+ if(!window.confirm('¿Copiar '+X.romoPlantilla.length+
+  ' nombres y unidades desde Uki Regimiento Arica? Romo empezará con cantidades y mínimos en 0 y sin productos disponibles. No se copiarán existencias ni movimientos.'))return;
+ X.busy=true;button.disabled=true;output.textContent='Preparando artículos solo para Romo…';
+ try{
+  const result=await requestRomo('importar-base');
+  if(result.change?.tipo!=='importar_base')throw Error('La importación no fue confirmada; revisa antes de repetir.');
+  X.busy=false;await load();
+  status('✓ Lista base creada para Romo. Ahora revisa existencias y mínimos con el trabajador.');
+ }catch(e){output.textContent='No se confirmó la importación: '+String(e.message||e)}
+ finally{X.busy=false;if(button.isConnected)button.disabled=false}
 }
 async function romoPinInventarioGestion(action,code){
  const token=await window.ukiInventarioToken?.();
@@ -240,7 +271,7 @@ async function romoPinInventarioCrear(){
 function mount(){
  if(!$('invRoot'))return;
  const active=panelBranch();
- if(X.branch!==active){X.items=[];X.reports=[];X.selected='';X.loaded=false;X.romoRevision=null;}
+ if(X.branch!==active){X.items=[];X.reports=[];X.selected='';X.loaded=false;X.romoRevision=null;X.romoPlantilla=[];}
  X.branch=active;
  $('invBranch').value=active;
  $('invBranch').disabled=true;
@@ -253,6 +284,7 @@ function mount(){
   void romoPinInventarioCargar();
  }
  $('invRefresh').onclick=()=>void load();$('invSearch').oninput=populate;
+ if($('romoInvPlantillaCargar'))$('romoInvPlantillaCargar').onclick=()=>void romoInicializarInventarioPlantilla();
  $('invSelect').onchange=e=>{X.selected=e.target.value;selection();};
  $('invSave').onclick=()=>void save();$('invCreate').onclick=()=>void create();
  if($('romoInvDisponible'))$('romoInvDisponible').onclick=()=>void romoArticuloOperacion('romo-disponibilidad');

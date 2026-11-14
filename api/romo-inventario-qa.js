@@ -68,15 +68,21 @@ module.exports=async function romoInventarioQA(req,res){
   const inv=await import('../lib/romo-inventario-qa.mjs');
   if(method==='GET'){
    const result=await inv.readInventarioRomoQA({db:reader,identity});
-   return res.status(200).json({ok:true,...result});
+   const plantilla=identity.role==='duenos'?
+    (await import('../lib/romo-inventario-plantilla-base-qa.mjs')).ROMO_INVENTARIO_BASE_QA.map(
+      x=>({name:x.name,unit:x.unit})
+    ):undefined;
+   return res.status(200).json({ok:true,...result,plantilla_base:plantilla});
   }
   const body=req.body;
   if(!body||typeof body!=='object'||Array.isArray(body)||
     Object.keys(body).sort().join('|')!=='action|args|expectedRevision'||
-    !['alta','editar','editar_completo','archivar','conteo','entrada','disponibilidad'].includes(body.action)||
+    !['alta','editar','editar_completo','archivar','conteo','entrada','disponibilidad','importar_base'].includes(body.action)||
     !Number.isSafeInteger(body.expectedRevision)||body.expectedRevision<0||
     !body.args||typeof body.args!=='object'||Array.isArray(body.args))
    return fail(res,400,'Operación de inventario inválida');
+  if(body.action==='importar_base'&&identity.role!=='duenos')
+   return fail(res,403,'Solo dueños pueden importar la lista inicial de Romo');
   const writer=reader; // Solo tabla Romo, con control de revisión en SQL.
   const result=await inv.guardarOperacionInventarioRomoQA({
    db:writer,identity,expectedRevision:body.expectedRevision,
