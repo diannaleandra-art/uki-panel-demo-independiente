@@ -193,6 +193,13 @@ label{color:#66574c}
 <div class="grid2"><div><label>Nuevo PIN de 6 números</label><input id="newpin" type="password" inputmode="numeric" pattern="[0-9]{6}" autocomplete="new-password" maxlength="6"></div><div><label>Repite el PIN</label><input id="againpin" type="password" inputmode="numeric" maxlength="6"></div></div><button class="primary" id="configure">Crear acceso privado</button></section>
 <section id="unlock" class="card" hidden><h2>Tu código privado</h2><label>PIN de 6 números</label><input id="pin" type="password" inputmode="numeric" pattern="[0-9]{6}" autocomplete="off" maxlength="6"><button class="primary" id="enter">Abrir Mi Administración</button><p class="hint">La sesión privada caduca después de 30 minutos. No afecta el acceso normal de Uki.</p></section>
 <section id="app" hidden>
+<section id="romoQaTester" class="card" hidden>
+ <h2>Verificación privada · Romo La Serena</h2>
+ <p class="muted">Solo pruebas. Se reutilizan Google y el PIN de dueños; no permite pedidos, ventas ni gastos reales.</p>
+ <button class="primary" id="romoQaCheck" type="button">Verificar conexión y cierres</button>
+ <button id="romoQaSync" type="button">Sincronizar cierres de prueba</button>
+ <p id="romoQaResult" role="status" aria-live="polite">Aún no se ha comprobado la conexión.</p>
+</section>
 <section id="filterCard" class="card">
 <div class="row"><strong>🏢 Todos nuestros negocios</strong><span class="pill">Solo dueños</span></div>
 <p class="hint">Vista general compartida por los dueños. Los filtros son opcionales y no necesitas cambiar de acceso para ver otros locales.</p>
@@ -511,7 +518,9 @@ const app=initializeApp({apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",authDo
 const auth=getAuth(app),$=id=>document.getElementById(id);
 let cierresConfirmadosUki=[],errorConsultaCierresUki='';
 let cierresConfirmadosRomoQA=[],errorConsultaCierresRomoQA='';
-const ROMO_FIN_OWNER_READ_QA_ENABLED=false;
+const ROMO_FIN_OWNER_QA_PREVIEW=location.hostname===
+ 'uki-sushi-inventario-git-qa-integraci-dc8aa9-diannaleandra-7046.vercel.app';
+const ROMO_FIN_OWNER_READ_QA_ENABLED=ROMO_FIN_OWNER_QA_PREVIEW;
 const ROMO_FIN_OWNER_SYNC_QA_ENABLED=false;
 let resumenManualUki=[],pagosManualesUki=[];
 let cuentasPendientesActuales=[],cuentasPendientesLimitadas=false;
@@ -992,7 +1001,10 @@ const notify=(msg,type='')=>{$('notice').textContent=msg;$('notice').className=t
 async function api(action,fields={}){
  if(!auth.currentUser)throw Error('Primero inicia Google.');
  const bearer=await auth.currentUser.getIdToken();
- const response=await fetch('https://uki-sushi-inventario.vercel.app/api/mi-administracion-live',{method:'POST',cache:'no-store',credentials:'omit',
+ const endpoint=ROMO_FIN_OWNER_QA_PREVIEW?
+  location.origin+'/api/mi-administracion-live':
+  'https://uki-sushi-inventario.vercel.app/api/mi-administracion-live';
+ const response=await fetch(endpoint,{method:'POST',cache:'no-store',credentials:'omit',
   headers:{Authorization:'Bearer '+bearer,'Content-Type':'application/json','X-Fin-Session':session},
   body:JSON.stringify({action,...fields})});
  const data=await response.json().catch(()=>({error:'Respuesta inválida del servidor.'}));
@@ -1837,11 +1849,23 @@ function marcarPeriodoSeleccionado(){
   boton.setAttribute('aria-pressed',String(desde===primero&&hasta===hoy));
  }
 }
-function show(id){for(const x of ['login','setup','unlock','app'])$(x).hidden=x!==id;$('tabs').hidden=id!=='app';$('exit').hidden=id==='login';}
+function show(id){for(const x of ['login','setup','unlock','app'])$(x).hidden=x!==id;$('tabs').hidden=id!=='app'||ROMO_FIN_OWNER_QA_PREVIEW;$('exit').hidden=id==='login';}
+function mostrarRomoQaPreview(){
+ if(!ROMO_FIN_OWNER_QA_PREVIEW)return;
+ const app=$('app');
+ for(const child of app.children){
+  if(child.id==='romoQaTester'){child.hidden=false;child.style.display='block';}
+  else child.style.display='none';
+ }
+ $('romoQaResult').textContent='Cuenta autorizada y PIN aceptado. Comprueba la consulta de cierres.';
+}
 function lock(){session='';limpiarInformes();show('unlock');}
 async function checkState(){
  if(!auth.currentUser){show('login');notify('Entra con tu cuenta autorizada.');return}
- try{const r=await api('estado');if(r.autorizado){show('app');await loadBusinesses();return}
+ try{const r=await api('estado');if(r.autorizado){
+  show('app');
+  if(ROMO_FIN_OWNER_QA_PREVIEW){mostrarRomoQaPreview();return}
+  await loadBusinesses();return}
  show(r.pin_configurado?'unlock':'setup');notify(r.pin_configurado?'Escribe el PIN privado.':'Configura el PIN de dueños una única vez.');
  }catch(e){show('login');notify(e.message,'error')}
 }
@@ -1860,7 +1884,36 @@ $('configure').onclick=()=>safe('configure',async()=>{
 });
 $('enter').onclick=()=>safe('enter',async()=>{
  const r=await api('ingresar_pin',{pin:value('pin')});session=r.sesion;$('pin').value='';
- show('app');await loadBusinesses();switchTab('resumen');
+ show('app');
+ if(ROMO_FIN_OWNER_QA_PREVIEW){mostrarRomoQaPreview();return}
+ await loadBusinesses();switchTab('resumen');
+});
+$('romoQaCheck').onclick=()=>safe('romoQaCheck',async()=>{
+ if(!ROMO_FIN_OWNER_QA_PREVIEW)return;
+ $('romoQaResult').textContent='Consultando Neon QA con Google y PIN…';
+ const day=today();
+ try{
+  const x=await api('listar_cierres_romo_qa',{desde:day,hasta:day});
+  if(x.origen!=='romo:serena'||x.soloLectura!==true||!Array.isArray(x.cierres))
+   throw Error('Respuesta de cierre no verificada');
+  $('romoQaResult').textContent='Conexión privada confirmada. Cierres Romo en QA hoy: '+x.cierres.length+'. No se han creado ventas.';
+ }catch(e){
+  $('romoQaResult').textContent='Pendiente de conexión QA: '+e.message;
+ }
+});
+$('romoQaSync').onclick=()=>safe('romoQaSync',async()=>{
+ if(!ROMO_FIN_OWNER_QA_PREVIEW)return;
+ const fecha=today();
+ if(!window.confirm('Solo para las bases QA de Romo. ¿Comprobar la sincronización de cierres de prueba de hoy?'))return;
+ $('romoQaResult').textContent='Comprobando sincronización segura…';
+ try{
+  const r=await api('sincronizar_cierres_romo_qa',{desde:fecha,hasta:fecha});
+  if(r.origen!=='romo:serena'||r.soloQA!==true||r.sinModificarUki!==true)
+   throw Error('Sin confirmación de aislamiento de la sincronización');
+  $('romoQaResult').textContent='QA comprobada: '+r.revisados+' cierres revisados, '+r.importados+' importados, '+r.existentes+' ya existentes. Uki intacto.';
+ }catch(e){
+  $('romoQaResult').textContent='Sincronización QA aún no habilitada: '+e.message;
+ }
 });
 $('exit').onclick=async()=>{
  if(session)try{await api('salir')}catch{}

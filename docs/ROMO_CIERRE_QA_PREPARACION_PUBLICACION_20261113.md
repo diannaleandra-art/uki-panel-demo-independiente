@@ -128,3 +128,13 @@ en finanzas y la verificación de Firebase Google, pero restringe las rutas a
 crear razones sociales o ingresar facturas desde QA. La producción no cambia.
 Banderas/URLs permanecen SIN CONFIGURAR en Vercel; falta una interfaz de
 comprobación para iPhone en QA y autorización antes de activación.
+
+## Comprobación desde el mismo panel de dueños (QA)
+En el alias fijo de vista previa de la integración, la propia página
+`mi-administracion-duenos.html` reutiliza los formularios Google y PIN
+existentes, pero muestra únicamente una tarjeta de verificación para
+consultar cierres Romo y ejecutar la sincronización en bases QA cuando
+esté autorizada. La página normal mantiene su endpoint original.
+No se publica un segundo panel y no se habilitan las banderas QA.
+Hace falta autorizar el dominio de Vercel en Firebase y configurar
+las variables privadas en Preview para que el inicio de sesión funcione.

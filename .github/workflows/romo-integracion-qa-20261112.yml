@@ -54,6 +54,7 @@ jobs:
             tests/uki-romo-cierre-constancia-qa.test.mjs \
             tests/uki-romo-finanzas-sync-qa.test.mjs \
             tests/uki-romo-finanzas-acceso-preview-qa.test.mjs \
+            tests/uki-romo-finanzas-interfaz-preview-qa.test.mjs \
             tests/uki-romo-cierre-servidor-qa.test.mjs \
             tests/uki-romo-turnos-atomicos-qa.test.mjs \
             tests/uki-romo-cierre-interfaz-qa.test.mjs \
