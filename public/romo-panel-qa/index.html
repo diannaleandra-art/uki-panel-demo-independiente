@@ -1053,6 +1053,7 @@ async function entrarSuc(){
    await entrarDatosSucursal(s,pass);S.vista="inicio";
   }
   render();
+  if(esRomo&&S.suc===ROMO_SUCURSAL_QA)void ukiRomoActualizarSolicitudesCartaQA();
  }catch(e){aviso(esRomo?"Romo todavía no pudo abrirse. Revisa la cuenta Google, la clave habitual y la conexión independiente. No se guardó ningún movimiento.":"Clave incorrecta, datos dañados o cifrado no disponible.");}
 }
 async function salirSuc(){
@@ -1060,7 +1061,7 @@ async function salirSuc(){
     !window.confirm('Este formulario no está guardado en Romo. ¿Salir y descartarlo?'))return;
  if(ukiSolicitudWhatsAppActiva)ukiWhatsAppPausarRevision();
  if(S.suc){const ok=await guardarEnLocalStorage();if(!ok)return;await colaGuardado;}
- if(S.suc===ROMO_SUCURSAL_QA)window.ukiRomoSesionRemotaQA?.cerrar();
+ if(S.suc===ROMO_SUCURSAL_QA){window.ukiRomoSesionRemotaQA?.cerrar();ukiRomoSolicitudesCartaQA=null;ukiRomoSolicitudesAvisoQA='';}
  revisionGuardado++;claveSesion=null;saltSesion=null;sucursalSesion=null;
  cargarDesdeLocalStorage();nuevoDraft();
  if(typeof window.ukiQASessionLeft==="function")window.ukiQASessionLeft();
@@ -4835,6 +4836,66 @@ function ukiRomoCamposCobroQA(p){
   '<button type="button" class="big" onclick="ukiRomoConfirmarCobroQA('+id+')">Registrar pago confirmado en Romo</button>'+
   '</details>';
 }
+
+/** Recepción real de solicitudes (NO ventas) en la misma bandeja de Uki/Romo.
+ * Solo lectura en esta etapa. Ninguna solicitud se marca aceptada por render.
+ */
+let ukiRomoSolicitudesCartaQA=null;
+let ukiRomoSolicitudesAvisoQA='';
+let ukiRomoSolicitudesActualizandoQA=false;
+async function ukiRomoActualizarSolicitudesCartaQA(){
+ if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoSolicitudesActualizandoQA)return;
+ ukiRomoSolicitudesActualizandoQA=true;
+ ukiRomoSolicitudesAvisoQA='Consultando solicitudes propias de Romo…';
+ try{
+  const token=await window.ukiInventarioToken?.();
+  if(typeof token!=='string'||token.length<30)
+   throw Error('Inicia sesión Google para consultar la bandeja de Romo.');
+  const response=await fetch('/api/romo-solicitudes-carta-qa',{
+   method:'GET',headers:{Authorization:'Bearer '+token},credentials:'omit',cache:'no-store'
+  });
+  const data=await response.json().catch(()=>null);
+  if(!response.ok||data?.ok!==true||data?.storeId!=='romo:serena'||
+     data?.branch!=='serena'||!Array.isArray(data.orders))
+   throw Error(response.status===503?
+    'La recepción desde la carta aún no está activada para público.':
+    'No se pudo cargar la bandeja de solicitudes de Romo.');
+  const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if(data.orders.length>100||data.orders.some(o=>
+    !UUID.test(String(o.id||''))||o.branch!=='serena'||
+    !['pendiente','aceptada','rechazada'].includes(o.estado)))
+   throw Error('Bandeja no pertenece a Romo La Serena.');
+  ukiRomoSolicitudesCartaQA=data.orders;
+  const count=data.orders.filter(o=>o.estado==='pendiente').length;
+  ukiRomoSolicitudesAvisoQA=count?
+   count+' solicitud(es) pendiente(s) de la carta. No cuentan como venta hasta ser aceptadas.':
+   'Sin solicitudes pendientes. La carta pública todavía no recibe pedidos por esta integración.';
+ }catch(e){
+  ukiRomoSolicitudesAvisoQA=String(e?.message||'No se confirmó la lectura de la bandeja');
+ }finally{
+  ukiRomoSolicitudesActualizandoQA=false;
+  if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='pedidos')render();
+ }
+}
+function ukiRomoSolicitudesHTMLQA(){
+ const rows=Array.isArray(ukiRomoSolicitudesCartaQA)?ukiRomoSolicitudesCartaQA:[];
+ const pending=rows.filter(o=>o.estado==='pendiente');
+ return '<details class="card" id="romoSolicitudesCartaQA">'+
+  '<summary><b>📱 Solicitudes de la carta · '+pending.length+' pendiente(s)</b></summary>'+
+  '<p class="muted">Misma bandeja de pedidos; consultas separadas de Romo. Una solicitud aún no es venta ni pago y aquí todavía no se acepta automáticamente.</p>'+
+  '<button type="button" class="sm" onclick="ukiRomoActualizarSolicitudesCartaQA()">Actualizar solicitudes</button>'+
+  '<p role="status" class="muted">'+esc(ukiRomoSolicitudesAvisoQA||
+   'Consulta de recepción todavía no realizada')+'</p>'+
+  (pending.length?pending.map(o=>
+   '<div class="card"><b>'+esc(String(o.codigo_pedido||''))+' · '+
+   esc(String(o.cliente||''))+'</b>'+
+   '<p class="muted">'+esc(String(o.creado_en||''))+' · Total indicado: '+
+    fmt(Number(o.total_indicado)||0)+'</p>'+
+   '<p class="muted">Pendiente de aceptación y revisión de armado. No se registra como venta.</p>'+
+   '</div>').join(''):'<p class="muted">Sin solicitudes pendientes en esta consulta.</p>')+
+  '</details>';
+}
+
 function ukiRomoPedidosPendientesHTMLQA(){
  const todos=(S.pedidos||[]).filter(p=>p.suc===ROMO_SUCURSAL_QA).slice().reverse();
  const penden=todos.filter(p=>p.estado!=='Cancelado'&&!p.pagado).length;
@@ -4876,6 +4937,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
   '<p>Pedidos guardados en Neon Romo con confirmación cifrada. Caja y cierres definitivos continúan limitados en este piloto.</p></div>'+
   '<button class="big" type="button" onclick="nuevoDraft();modoNuevo=\'manual\';ir(\'nuevo\')">＋ Nuevo pedido manual</button>'+
   filtros+
+  ukiRomoSolicitudesHTMLQA()+
   (listado.length?items:'<section class="card"><p>No hay pedidos en este filtro.</p></section>');
 }
 function ukiRomoLeerDistribucionQA(id,tipo,monto){
