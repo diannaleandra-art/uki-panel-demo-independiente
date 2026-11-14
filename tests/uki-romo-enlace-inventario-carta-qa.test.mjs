@@ -187,7 +187,8 @@ test('cambio de revisión de catálogo entre lectura y guardado se rechaza',asyn
 });
 test('ruta de inventario restringe enlaces a QA, Google y permiso de dueños',()=>{
  const api=readFileSync(new URL('../api/romo-inventario-qa.js',import.meta.url),'utf8');
- assert.match(api,/if\(enlace&&mode!=='qa'\)return fail\(res,403/);
+ assert.match(api,/if\(\(enlace\|\|disponibilidadCarta\)&&mode!=='qa'\)/);
+ assert.match(api,/const disponibilidadCarta=body\.action==='disponibilidad_carta'/);
  assert.match(api,/guardarVinculoInventarioCartaRomoQA/);
  assert.match(api,/resolveRomoIdentity/);
  assert.match(api,/ROMO_INVENTARIO_QA_ENABLED==='true'/);
