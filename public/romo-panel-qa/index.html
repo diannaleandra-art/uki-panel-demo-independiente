@@ -5015,7 +5015,7 @@ async function ukiRomoGuardarMovimientoQA(tipo){
    const medio=ukiRomoMedioSalidaQA('romoGastoMedioQA');
    if(medio==='Efectivo'&&monto>efectivoDisponible)
     throw Error('No hay suficiente efectivo registrado para ese gasto.');
-   const id=now;while(copia.gastos.some(g=>g.id===id))id++;
+   let id=now;while(copia.gastos.some(g=>g.id===id))id++;
    copia.gastos.push({suc:ROMO_SUCURSAL_QA,id,fechaISO:new Date(now).toISOString(),
     registradoEn:now,concepto,monto,medio});
    descripcion='Gasto de Romo confirmado';resumen=concepto+' · '+fmt(monto)+' · '+medio;
