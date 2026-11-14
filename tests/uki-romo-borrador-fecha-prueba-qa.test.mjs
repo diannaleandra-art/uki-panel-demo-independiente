@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {prepararBorradorRomoDesdeSolicitudQA} from '../firebase/uki-romo-recepcion-formulario-qa.mjs';
 const panel=readFileSync(new URL('../firebase/uki-sushi-local.html',import.meta.url),'utf8');
-const rx=/^N\.\s*de pedido:\s*(\S+)/mi;
+const pedido=readFileSync(new URL('../firebase/uki-romo-pedido-formato-qa.mjs',import.meta.url),'utf8');
 const msg=[
  '*ROMO’S SUSHI*','N.º de pedido: QA-ROMO-001',
  'Sucursal: Romo’s Sushi La Serena','*COCINA*','*− 1 × 24 piezas*',
@@ -26,7 +26,7 @@ test('borrador de Romo conserva la fecha local de Chile (no UTC)',()=>{
   assert.equal(draft.telefono,'');
   assert.equal(draft.pagado,false);
   assert.equal(draft.envio,2000);
-  assert.equal(rx.exec(msg)?.[1],draft.codigoCarta);
+  assert.equal(draft.codigoCarta,'QA-ROMO-001');
  }finally{
   if(prev===undefined)delete process.env.TZ;else process.env.TZ=prev;
  }
@@ -36,5 +36,5 @@ test('pantalla marca QA-ROMO-001 sin timbre ni WhatsApp',()=>{
  assert.match(panel,/D\.codigoCarta==='QA-ROMO-001'/);
  assert.match(panel,/PRUEBA INTERNA · Sin cliente real ni timbre/);
  assert.match(panel,/romoPedidoDemoQA\?"Prueba interna · sin timbre"/);
- assert.match(panel,/if\(!p\.pagado\|\|p\.productosPagadosOtroLocal\|\|tel\.length<8\)return/);
+ assert.match(pedido,/if\(!p\.pagado\|\|p\.productosPagadosOtroLocal\|\|tel\.length<8\)return/);
 });
