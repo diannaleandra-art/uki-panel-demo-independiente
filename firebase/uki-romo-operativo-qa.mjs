@@ -46,6 +46,38 @@ export function crearPuenteRomoOperativoQA({
  };
  return Object.freeze({
   disponible,
+  /**
+   * Adaptador nuevo para el MISMO cifrado AES-GCM ya usado por Uki.
+   * Devuelve el sobre tal cual, sin enviarlo al almacenamiento Uki.
+   * La aplicación padre lo descifra con la clave actual en el navegador.
+   */
+  async cargarSobre(){
+   const result=await request('GET');
+   if(result.revision===0&&result.snapshot!==null)
+    throw new Error('Estado inicial cifrado de Romo inválido');
+   if(result.revision>0&&(
+       !result.snapshot||result.snapshot.sucursal!==ROMO_OPERATIVO_SUCURSAL_QA||
+       result.snapshot.formato!=='uki-v813-browser'||result.snapshot.version!==1))
+    throw new Error('La respuesta no corresponde a Romo La Serena');
+   return Object.freeze({revision:result.revision,snapshot:result.snapshot??null});
+  },
+  /**
+   * Sólo sobre cifrado válido, jamás contraseñas, objeto de pedidos claro,
+   * localStorage de Uki ni modificaciones a la nube Firebase de Uki.
+   */
+  async guardarSobre({expectedRevision,snapshot}={}){
+   if(!Number.isSafeInteger(expectedRevision)||expectedRevision<0)
+    throw new Error('Revisión de Romo obligatoria');
+   if(!snapshot||typeof snapshot!=='object'||Array.isArray(snapshot)||
+      snapshot.sucursal!==ROMO_OPERATIVO_SUCURSAL_QA||
+      snapshot.formato!=='uki-v813-browser'||snapshot.version!==1||
+      typeof snapshot.cifrado!=='string'||!snapshot.cifrado)
+    throw new Error('Paquete cifrado Romo inválido');
+   const result=await request('POST',{expectedRevision,snapshot});
+   if(result.revision!==expectedRevision+1)
+    throw new Error('No se confirmó la revisión guardada de Romo');
+   return Object.freeze({revision:result.revision});
+  },
   async cargar({password}={}){
    if(!disponible())throw new Error('Operaciones de Romo no habilitadas');
    const result=await request('GET');

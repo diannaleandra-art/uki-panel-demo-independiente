@@ -272,6 +272,9 @@ body.romo-qa #romoLaSerenaPreparacionQA h2{color:#8d141e}
 body.romo-qa #romoIngresoFormularioQA{border:2px solid #a7272c;box-shadow:0 3px 16px rgba(127,16,22,.12)}
 body.romo-qa #romoIngresoFormularioQA h2{color:#8d141e}
 body.romo-qa #romoIngresoFormularioQA .big{background:#9d1824;color:#fff;border-color:#9d1824}
+body.romo-operativo-preparacion #ukiNubeSeccion,
+body.romo-operativo-preparacion #ukiMostrarConfig,
+body.romo-operativo-preparacion #ukiAvisoInterno{display:none!important}
 </style>
 </head>
 <body>
@@ -464,7 +467,11 @@ function ir(v){
 /* Cifrado local v8.13: nuevas claves, sin borrar o migrar almacenamientos antiguos. */
 const UKI_LOCAL_PREFIX="uki_operativo_v1_cifrado_";
 const UKI_LOCAL_FORMAT="uki-v813-browser";
-const claveLocal=s=>UKI_LOCAL_PREFIX+(SUCURSALES.indexOf(s)===0?"regimiento":SUCURSALES.indexOf(s)===1?"la-serena":"desconocida");
+const claveLocal=s=>{
+ if(s===ROMO_SUCURSAL_QA)return "romo_operativo_v1_cifrado_la-serena";
+ if(!SUCURSALES.includes(s))throw Error("No se permite guardar un local desconocido");
+ return UKI_LOCAL_PREFIX+(SUCURSALES.indexOf(s)===0?"regimiento":"la-serena");
+};
 let claveSesion=null,sucursalSesion=null,saltSesion=null,colaGuardado=Promise.resolve(),revisionGuardado=0;
 function estadoVacioSucursal(s){
  return {suc:s,pinSuc:null,codigos:{},vista:s?"pedidos":"inicio",base:18000,pedidos:[],gastos:[],
@@ -473,6 +480,7 @@ function estadoVacioSucursal(s){
  incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,
  filtro:"",filtroFecha:"",filtroCliente:""};
 }
+window.ukiRomoValidarEstadoSucursalQA= (...args)=>validarEstadoSucursal(...args);
 function validarEstadoSucursal(datos,suc){
  if(!datos||typeof datos!=="object"||Array.isArray(datos)||datos.suc!==suc)return false;
  for(const c of ["pedidos","gastos","retiros","propinas","cierres","deliveriesManuales","incidencias"]){
@@ -514,6 +522,23 @@ async function abrirLocal(raw,suc,password){
  return {estado,key,salt};
 }
 function guardarEnLocalStorage(){
+ // Romo no puede caer en el respaldo Uki "desconocida" ni en su Firestore.
+ // Este enlace SOLO existe en la copia QA; la API todavía está apagada.
+ if(S.suc===ROMO_SUCURSAL_QA){
+  const session=window.ukiRomoSesionRemotaQA;
+  if(!session?.disponible())return Promise.resolve(false);
+  const datos=datosSoloSucursal(),sucursalGuardada=S.suc;
+  colaGuardado=colaGuardado.catch(()=>{}).then(async()=>{
+   if(S.suc!==sucursalGuardada)return false;
+   await session.guardar(datos); // CAS, sólo ciphertext, base Neon Romo
+   return true;
+  });
+  return colaGuardado.catch(error=>{
+   console.error("Guardado aislado Romo no confirmado",error);
+   alert("Romo no confirmó el guardado. Conserva la sesión abierta y revisa la conexión.");
+   return false;
+  });
+ }
  if(!S.suc||!claveSesion||sucursalSesion!==S.suc)return Promise.resolve(true);
  const suc=S.suc,key=claveSesion,salt=saltSesion,datos=datosSoloSucursal(),revision=++revisionGuardado;
  colaGuardado=colaGuardado.catch(()=>{}).then(async()=>{
@@ -720,6 +745,7 @@ function render(){
   const ukiVistaAnterior=ukiCapturarVistaAntesRender();
   try{
   document.body.classList.toggle('romo-qa',!!(S.romoSeleccionadoQA&&!S.suc&&!S.pinSuc));
+  document.body.classList.toggle('romo-operativo-preparacion',S.suc===ROMO_SUCURSAL_QA);
   $("suc").innerHTML=S.suc?`<span>${esc(S.suc)}</span><a href="#" onclick="salirSuc();return false;" class="salir">Salir</a>`:S.romoSeleccionadoQA?(S.romoIngresadoQA?'<span>Romo’s Sushi · La Serena · Balmaceda 1612</span><a href="#" onclick="ukiVolverAlSelectorLocales();return false;" class="salir">Salir</a>':'Romo’s Sushi · La Serena · Balmaceda 1612'):'Selecciona una sucursal para empezar';
   $("nav").style.display=S.suc?"grid":"none";
   ukiAccesosDesplazamiento();
@@ -775,8 +801,33 @@ async function entrarSuc(){
  if(nueva&&pass!==($("ukiAccesoConfirmar")?.value||"")){aviso("Las claves no coinciden.");return;}
  try{
   if(esRomo){
-   await ukiValidarClaveUkiParaRomoQA(pass);
-   S.pinSuc=null;S.romoSeleccionadoQA=true;S.romoIngresadoQA=true;
+   await ukiValidarClaveUkiParaRomoQA(pass); // La misma clave Uki; nunca otro registro.
+   const session=window.ukiRomoSesionRemotaQA;
+   if(session?.disponible()){
+    // Esta ruta queda bloqueada hasta publicar explícitamente API segura y permisos.
+    const googleVerificado=!!(await window.ukiInventarioToken?.());
+    const unlocked=await session.abrir({
+     googleVerificado,claveUkiVerificada:true,
+     desbloquearSobre:async snapshot=>{
+      const opened=await abrirLocal(JSON.stringify(snapshot),s,pass);
+      return {estado:opened.estado,
+       cifrar:datos=>cifrarLocal(datos,s,opened.key,opened.salt)};
+     },
+     prepararEstadoInicial:async()=>{
+      const salt=crypto.getRandomValues(new Uint8Array(16));
+      const key=await ukiClaveBackup(pass,salt);
+      return {estado:estadoVacioSucursal(s),
+       cifrar:datos=>cifrarLocal(datos,s,key,salt)};
+     }
+    });
+    // El MISMO panel y las MISMAS vistas; el servidor sólo entrega datos Romo.
+    S={...estadoVacioSucursal(s),...unlocked.estado,
+      suc:s,pinSuc:null,vista:"inicio",msg:null,busy:false,confirmCierre:false};
+    S.romoSeleccionadoQA=false;S.romoIngresadoQA=true;
+   }else{
+    // Mantener la pantalla de preparación ya aprobada; NO registrar operaciones.
+    S.pinSuc=null;S.romoSeleccionadoQA=true;S.romoIngresadoQA=true;
+   }
   }else{
    await entrarDatosSucursal(s,pass);S.vista="inicio";
   }
@@ -786,6 +837,7 @@ async function entrarSuc(){
 async function salirSuc(){
  if(ukiSolicitudWhatsAppActiva)ukiWhatsAppPausarRevision();
  if(S.suc){const ok=await guardarEnLocalStorage();if(!ok)return;await colaGuardado;}
+ if(S.suc===ROMO_SUCURSAL_QA)window.ukiRomoSesionRemotaQA?.cerrar();
  revisionGuardado++;claveSesion=null;saltSesion=null;sucursalSesion=null;
  cargarDesdeLocalStorage();nuevoDraft();
  if(typeof window.ukiQASessionLeft==="function")window.ukiQASessionLeft();
@@ -861,7 +913,7 @@ function vInicio(){
   if(!S.suc){return `<div class="card"><h2>Selecciona una sucursal</h2><p class="muted">Un solo panel y el mismo procedimiento de ingreso para los tres locales.</p>${SUCURSALES_PANEL_QA.map(s=>`<button class="big" onclick="pedirPin('${s}')">${s}</button>`).join("")}<p class="muted">Romo La Serena está en pruebas; todavía no permite registrar operaciones.</p></div><div class="card"><p class="muted"><b>Información de acceso:</b> se requiere la cuenta Google y la contraseña habitual del panel. Los registros de cada local permanecen separados.</p></div>`;}
 
   const t=totales(),turno=fechaOperativaActual();
-  return `<div class="welcome"><div class="eyebrow">UKI SUSHI · ${esc(S.suc)}</div><h2>Hola, Uki 🍣</h2><p id="ukiFechaHoraInicio" class="muted" style="font-weight:650">${esc(ukiFechaHoraInicio())}</p><p id="ukiFraseDiariaInicio" class="uki-turno-frase">${esc(ukiFraseDiaria())}</p><p class="muted" style="font-size:12px">Jornada operativa: ${esc(turno)} · Continúa hasta su cierre confirmado.</p></div>
+  return `<div class="welcome"><div class="eyebrow">${S.suc===ROMO_SUCURSAL_QA?"ROMO’S SUSHI":"UKI SUSHI"} · ${esc(S.suc)}</div><h2>${S.suc===ROMO_SUCURSAL_QA?"Hola, Romo 🍣":"Hola, Uki 🍣"}</h2><p id="ukiFechaHoraInicio" class="muted" style="font-weight:650">${esc(ukiFechaHoraInicio())}</p><p id="ukiFraseDiariaInicio" class="uki-turno-frase">${esc(ukiFraseDiaria())}</p><p class="muted" style="font-size:12px">Jornada operativa: ${esc(turno)} · Continúa hasta su cierre confirmado.</p></div>
   ${vInicioTrabajador()}
   <section class="kpis" aria-label="Resumen de ventas">
     <div class="kpi"><span>Venta de hoy</span><strong>${fmt(t.totalMedios)}</strong></div>
@@ -5835,6 +5887,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 </script>
 <script type="module" src="./uki-romo-clave-remota-qa.mjs"></script>
 <script type="module" src="./uki-romo-operativo-qa.mjs"></script>
+<script type="module" src="./uki-romo-integracion-panel-qa.mjs"></script>
 <script type="module" src="./uki-romo-vinculo-duenos-qa.mjs"></script>
 <script src="./uki-tarjeta-cliente.js" defer></script>
 <script src="./uki-cierre-detallado.js" defer></script>
@@ -5971,6 +6024,12 @@ window.ukiQASessionLeft=()=>{
  el("ukiAutoCheck").checked=false;
 };
 function actualizarPresentacionNube(){
+ if(window.ukiQAGet?.()?.suc==='Romo’s Sushi La Serena'){
+  el("ukiNubeSeccion").hidden=true;
+  el("ukiMostrarConfig").hidden=true;
+  el("ukiAvisoInterno").hidden=true;
+  return;
+ }
  const estado=auto.resumen();
  const haySucursal=!!window.ukiQAGet?.()?.suc;
  const errorMensaje=/error|atenci[oó]n|no se pudo|cancelad/i.test(el("ukiNubeEstado").textContent||"");
@@ -5991,7 +6050,9 @@ el("ukiMostrarConfig").addEventListener("click",()=>{
 const msg=s=>{el("ukiNubeEstado").textContent=s;actualizarPresentacionNube()};
 function actualizarBloqueo(){
  const estado=auto.resumen();
- const permitir=UKI_OPERACION_HABILITADA&&estado.activo&&!estado.bloqueado;
+ const esRomo=window.ukiQAGet?.()?.suc==='Romo’s Sushi La Serena';
+ // Nunca permitir caja/pedidos en QA hasta revisar TODOS los módulos de la UI.
+ const permitir=!esRomo&&UKI_OPERACION_HABILITADA&&estado.activo&&!estado.bloqueado;
  const haySucursal=!!window.ukiQAGet?.()?.suc;
  document.body.classList.toggle("uki-operativo-bloqueado",haySucursal&&!permitir);
  actualizarPresentacionNube();
@@ -5999,12 +6060,13 @@ function actualizarBloqueo(){
 // Cancelación solo al estar completamente sincronizado: ni pendiente ni guardando.
 window.ukiCancelacionNubeLista=()=>{
  const estado=auto.resumen(),contextoLocal=window.ukiQAGet?.();
- return !!(UKI_OPERACION_HABILITADA&&contextoLocal&&estado.activo&&!estado.bloqueado&&
+ return !!(contextoLocal?.suc!=='Romo’s Sushi La Serena'&&UKI_OPERACION_HABILITADA&&contextoLocal&&estado.activo&&!estado.bloqueado&&
    !estado.ocupado&&estado.actualRespaldado===true&&estado.estado==="sincronizado"&&
    estado.sucursal===contextoLocal.suc);
 };
 window.ukiOperativoActualizar=actualizarBloqueo;
 function contexto(){
+ if(window.ukiQAGet?.()?.suc==='Romo’s Sushi La Serena')throw Error("La nube Uki no se utiliza para Romo");
  if(!UKI_OPERACION_HABILITADA)throw Error("Versión sin activar: falta aprobar reglas, pruebas y lanzamiento.");
  const x=window.ukiQAGet?.();
  if(!x)throw Error("Abre primero la sucursal correspondiente");
