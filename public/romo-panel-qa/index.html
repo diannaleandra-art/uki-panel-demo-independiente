@@ -5715,10 +5715,29 @@ async function ukiRomoExportarCajaQA(tipo,formato){
  }
  const all=(S.cierres||[]).filter(x=>x.suc===ROMO_SUCURSAL_QA);
  if(!all.length){window.alert('Romo todavía no tiene cierres definitivos para exportar.');return;}
- const period=tipo==='semana'?window.ukiControlTurnos?.rangoSemana?.(
-  semanaConsulta||ukiRomoFechaSemanaCajaQA||fechaOperativaActual()):null;
- if(tipo==='semana'&&!period){
-  window.alert('Selecciona primero una semana válida.');return;
+ // La exportación del informe usa el mismo período día/semana/mes
+ // que vReportes() del Uki oficial. 'semana' es el identificador heredado
+ // del botón y no fuerza a cambiar el período seleccionado.
+ let period=null;
+ if(tipo==='semana'){
+  const fecha=semanaConsulta||fechaOperativaActual();
+  const referencia=new Date(fecha+'T12:00:00');
+  const iso=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),
+   String(d.getDate()).padStart(2,'0')].join('-');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)||
+     !Number.isFinite(referencia.getTime())||iso(referencia)!==fecha){
+   window.alert('Selecciona una fecha válida en Reportes de Romo.');return;
+  }
+  if(reportesPeriodo==='dia')period={desde:fecha,hasta:fecha};
+  else if(reportesPeriodo==='mes'){
+   period={desde:iso(new Date(referencia.getFullYear(),referencia.getMonth(),1)),
+    hasta:iso(new Date(referencia.getFullYear(),referencia.getMonth()+1,0))};
+  }else if(reportesPeriodo==='semana'){
+   period=window.ukiControlTurnos?.rangoSemana?.(fecha)||null;
+  }
+  if(!period){
+   window.alert('No se pudo confirmar el período de Reportes.');return;
+  }
  }
  const selected=all.filter(x=>!period||String(x.fechaOperativa||'')>=period.desde&&
   String(x.fechaOperativa||'')<=period.hasta);
@@ -5820,8 +5839,8 @@ function ukiRomoCajaSemanaHTMLQA(){
  // Se reutiliza vReportes() oficial: dia, semana, mes y propinas.
  // Las acciones heredadas de correccion no deben guardar sin CAS Neon Romo.
  return '<div class="card"><details>'+
-   '<summary><b>Exportar cierres semanales · Romo</b></summary>'+
-   '<p class="muted">La semana corresponde a la fecha seleccionada abajo. Solo cierres guardados en Neon Romo.</p>'+
+   '<summary><b>Exportar cierres del período seleccionado · Romo</b></summary>'+
+   '<p class="muted">La descarga corresponde al día, semana o mes elegido en el reporte oficial de abajo. Solo cierres guardados en Neon Romo.</p>'+
    '<button type="button" class="sm ok" onclick="ukiRomoExportarCajaQA(\'semana\',\'csv\')">📊 Excel (CSV)</button>'+
    '<button type="button" class="sm" onclick="ukiRomoExportarCajaQA(\'semana\',\'pdf\')">📄 Imprimir / Guardar PDF</button>'+
    '</details></div>'+vReportes();
