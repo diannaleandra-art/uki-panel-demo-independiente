@@ -275,6 +275,19 @@ body.romo-operativo-preparacion #ukiAvisoInterno{display:none!important}
 body.romo-operativo-preparacion #ukiEstadoOperativo{display:none!important}
 body.romo-operativo-preparacion #romoNeonEstadoQA{display:block!important}
 body.romo-operativo-preparacion #ukiPagoPedidoSoloUki{display:none!important}
+body.romo-operativo-preparacion{
+ --bg:#fbf9f9;--card:#fff;--ink:#1d1919;--muted:#6f6465;
+ --accent:#b31830;--accent-dark:#8e1026;--ok:#951329;--line:#e7dadd;
+}
+body.romo-operativo-preparacion header{background:#fff;color:#1d1919;border-bottom:3px solid #aa1630}
+body.romo-operativo-preparacion header a.salir{color:#8e1026;background:#f9eeee}
+body.romo-operativo-preparacion .chip.on,
+body.romo-operativo-preparacion nav button.on,
+body.romo-operativo-preparacion .uki-navegacion-caja button.selected,
+body.romo-operativo-preparacion .uki-navegacion-movimientos button.selected{
+ background:#b31830!important;color:#fff!important;border-color:#b31830!important
+}
+body.romo-operativo-preparacion button.big:not([disabled]){background:#b31830!important;color:#fff}
 </style>
 </head>
 <body>
@@ -776,6 +789,9 @@ function render(){
   try{
   document.body.classList.toggle('romo-qa',!!(S.romoSeleccionadoQA&&!S.suc&&!S.pinSuc));
   document.body.classList.toggle('romo-operativo-preparacion',S.suc===ROMO_SUCURSAL_QA);
+  const tituloPanel=document.querySelector('header h1');
+  if(tituloPanel)tituloPanel.textContent=S.suc===ROMO_SUCURSAL_QA?
+   'Romo’s Sushi · Panel v8.16 · La Serena':'Uki Sushi · Panel v8.16 · LOCALES';
   $("suc").innerHTML=S.suc?`<span>${esc(S.suc)}</span><a href="#" onclick="salirSuc();return false;" class="salir">Salir</a>`:S.romoSeleccionadoQA?(S.romoIngresadoQA?'<span>Romo’s Sushi · La Serena · Balmaceda 1612</span><a href="#" onclick="ukiVolverAlSelectorLocales();return false;" class="salir">Salir</a>':'Romo’s Sushi · La Serena · Balmaceda 1612'):'Selecciona una sucursal para empezar';
   const romoNeon=$("romoNeonEstadoQA");
   if(romoNeon&&S.suc===ROMO_SUCURSAL_QA){
@@ -6558,6 +6574,12 @@ async function ukiRomoGuardarPedidoPendienteQA(){
  const total=subtotal+envio;
  if(!Number.isSafeInteger(total)||total<=0||total>3000000){
   aviso('El total no es válido. Comprueba los precios.');return;
+ }
+ const remotas=Array.isArray(ukiRomoSolicitudesCartaQA)?ukiRomoSolicitudesCartaQA:[];
+ if(D.codigoCarta&&remotas.some(r=>r.branch==='serena'&&
+    ['pendiente','aceptada'].includes(r.estado)&&
+    String(r.codigo_pedido||'').trim().toLowerCase()===String(D.codigoCarta).trim().toLowerCase())){
+  aviso('Este código ya existe en la bandeja de la carta Romo. Revísalo allí para evitar duplicados.');return;
  }
  if(D.codigoCarta&&S.pedidos.some(p=>p.codigoCarta===D.codigoCarta)){
   aviso('Ese código de pedido ya está registrado en Romo. Revisa la bandeja.');return;
