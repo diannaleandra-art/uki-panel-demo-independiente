@@ -5068,6 +5068,7 @@ function ukiRomoCamposCobroQA(p){
  return '<details class="card" style="border-color:#d8b8ab"><summary><b>💳 Confirmar cobro recibido</b></summary>'+
   '<p class="muted">Solo después de recibir el dinero. Los medios y montos deben sumar el total. Sin cobros simulados.</p>'+
   grupo('Producto',sub,'Productos')+(env>0?grupo('Envio',env,'Delivery'):'')+
+  '<label>Responsable que recibió el pago</label><input id="romoCobroResponsable'+id+'" maxlength="80" autocomplete="off" placeholder="Nombre de quien confirma el cobro">'+
   '<button type="button" class="big" onclick="ukiRomoConfirmarCobroQA('+id+')">Registrar pago confirmado en Romo</button>'+
   '</details>';
 }
@@ -5851,51 +5852,57 @@ async function ukiRomoGuardarOperacionQA(copia,descripcion,orden,vista='pedidos'
  render();
 }
 async function ukiRomoConfirmarCobroQA(id){
- if(ukiRomoOperandoPedidoQA||S.suc!==ROMO_SUCURSAL_QA)return;
- if(cajaDelDia()?.baseConfirmada!==true){
-  aviso('Primero confirma la base real y caja chica de Romo en la pestaña Caja. Aún no se permite registrar cobros.');return;
- }
- const original=S.pedidos.find(x=>x.suc===S.suc&&x.id===Number(id));
- if(!original||original.estado==='Cancelado'||original.pagado||original.esPremio||
-    /^PRUEBA\b/i.test(String(original.cliente||''))){
-  aviso('Este pedido no admite cobro en el piloto. Revisa su estado.');return;
+ if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA)return;
+ const pedidoId=Number(id);
+ const original=(S.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&x.id===pedidoId);
+ if(!original||!['Pendiente','Entregado'].includes(original.estado)||
+    original.pagado||original.esPremio||/^PRUEBA\b/i.test(String(original.cliente||''))){
+  aviso('El pedido no permite registrar otro cobro.');return;
  }
  if(ukiCierreConfirmadoPedido(original)){
-  aviso('Este pedido pertenece a un cierre definitivo. No se puede cobrar desde la caja abierta.');return;
+  aviso('El pedido pertenece a un turno cerrado. No se registró pago.');return;
  }
- const sub=Number(original.subtotal),env=original.modalidad==='Delivery'?Number(original.envio):0;
+ const caja=S.cajasDiarias?.[ROMO_SUCURSAL_QA+'|'+
+  String(original.turnoClave||'').slice(0,10)];
+ if(!caja?.turnoAbierto||caja.baseConfirmada!==true||
+    caja.turnoId!==original.turnoClave){
+  aviso('La caja y base real del turno de este pedido deben estar abiertas y confirmadas.');return;
+ }
+ const responsable=String(document.getElementById('romoCobroResponsable'+pedidoId)?.value||'').trim();
+ if(responsable.length<2||responsable.length>80){
+  aviso('Indica el responsable del cobro recibido.');return;
+ }
+ const sub=Number(original.subtotal);
+ const env=original.modalidad==='Delivery'?Number(original.envio):0;
  if(!Number.isSafeInteger(sub)||sub<1||!Number.isSafeInteger(env)||env<0||
     !Number.isSafeInteger(Number(original.total))||Number(original.total)!==sub+env){
-  aviso('Los importes originales no coinciden. No se registró pago.');return;
+  aviso('El importe original no cuadra. No se registró ningún pago.');return;
  }
  let productos,delivery;
  try{
-  productos=ukiRomoLeerDistribucionQA(id,'Producto',sub);
-  delivery=ukiRomoLeerDistribucionQA(id,'Envio',env);
- }catch(e){aviso(String(e.message||e));return;}
- const p2={...original,
-  medio:productos[0].medio,medioEnvio:delivery[0]?.medio||'Efectivo',
+  productos=ukiRomoLeerDistribucionQA(pedidoId,'Producto',sub);
+  delivery=ukiRomoLeerDistribucionQA(pedidoId,'Envio',env);
+ }catch(e){aviso(String(e?.message||e));return;}
+ const datos={
+  pedidoId,responsable,registradoEn:Date.now(),confirmoRecepcion:true,
+  medioProductos:productos[0].medio,medioEnvio:delivery[0]?.medio||'Efectivo',
   pagosProductos:productos.length>1?productos:[],
-  pagosEnvio:delivery.length>1?delivery:[],
-  pagado:true,pagoConfirmadoEn:new Date().toISOString(),pagoConfirmadoPor:'dueños',
-  propina:0,propinaModo:'ninguna',medioPropina:'Efectivo'};
- const err=ukiErrorDistribucionPago(p2,sub,env);
- if(err){aviso(err);return;}
- if(!window.confirm('ROMO LA SERENA: confirma que YA RECIBISTE '+fmt(sub+env)+
-  ' del cliente por los medios indicados. Esto registra el cobro en su caja independiente. ¿Continuar?'))return;
+  pagosEnvio:delivery.length>1?delivery:[]
+ };
+ if(!window.confirm('ROMO LA SERENA · ¿Confirmas que YA RECIBISTE '+fmt(sub+env)+
+   ' por los medios indicados? Responsable: '+responsable+
+   '. Este cobro real se guardará una sola vez en Neon Romo.'))return;
  ukiRomoOperandoPedidoQA=true;
  try{
   const copia=datosSoloSucursal();
-  const i=copia.pedidos.findIndex(p=>p.suc===S.suc&&p.id===Number(id));
-  if(i<0||copia.pedidos[i].pagado)throw Error('El pedido cambió. Vuelve a abrir Romo.');
-  copia.pedidos[i]=p2;
-  // Igual que Uki: cobro y movimiento de timbre ganados en UN MISMO CAS.
-  const fidelidad=await import('./uki-romo-pedido-formato-qa.mjs');
-  fidelidad.efectosEnCopia(copia,p2,Date.now());
-  if(ukiNumeroTimbreWhatsApp(p2.telefono))copia.pedidos[i].timbreReglaObligatoria=true;
-  await ukiRomoGuardarOperacionQA(copia,'Cobro y timbre ganado confirmados',id);
+  const mod=await import('./uki-romo-cobro-pendiente-qa.mjs');
+  mod.prepararCobroPendienteRomoQA(copia,datos);
+  if(!validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
+   throw Error('La copia de cobro no pertenece a Romo.');
+  await ukiRomoGuardarOperacionQA(copia,'Cobro auditado y timbre ganado confirmados',pedidoId);
  }catch(e){
-  aviso('NO SE CONFIRMÓ EL COBRO en Neon. Antes de repetirlo, consulta el pedido. '+String(e.message||e));
+  aviso('NO SE CONFIRMÓ el cobro en Neon. Antes de repetir, revisa Pedidos, Caja e Historial: '+
+   String(e?.message||e));
  }finally{ukiRomoOperandoPedidoQA=false;}
 }
 async function ukiRomoCambiarEstadoQA(id,accion){
