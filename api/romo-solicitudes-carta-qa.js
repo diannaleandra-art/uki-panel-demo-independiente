@@ -1,4 +1,5 @@
 'use strict';
+const {entornoPanelRomoAutorizado}=require('../lib/romo-entorno-panel.cjs');
 /**
  * Ruta única de recepción de carta de Romo La Serena. Recupera el motor
  * existente de solicitudes sin reabrir la antigua rama QA ni tocar Uki.
@@ -6,12 +7,11 @@
  * banderas DIFERENTES. Por defecto solo se permite GET en Preview.
  */
 const {createHash}=require('node:crypto');
-const BRANCH='preparacion/uki-romo-sobre-main-20261114';
 const STORE='romo:serena';
 const fail=(r,n,msg)=>r.status(n).json({ok:false,storeId:STORE,error:msg});
 const urlOk=v=>/^https:\/\/[a-z0-9.-]+$/i.test(v)&&!String(v).includes('..');
 function configuration(env){
- if(env.VERCEL_ENV!=='preview'||env.VERCEL_GIT_COMMIT_REF!==BRANCH||
+ if(!entornoPanelRomoAutorizado(env)||
     env.ROMO_SOLICITUDES_LECTURA_QA_ENABLED!=='true')return null;
  const origin=String(env.ROMO_PANEL_ALLOWED_ORIGIN||'');
  const carta=String(env.ROMO_CARTA_ALLOWED_ORIGIN||'');

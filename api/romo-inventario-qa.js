@@ -1,11 +1,11 @@
 'use strict';
+const {entornoPanelRomoAutorizado}=require('../lib/romo-entorno-panel.cjs');
 // Inventario exclusivo Romo, API del mismo proyecto que el panel Uki.
 // Nunca comparte el almacén ni autenticación de inventario de Uki.
-const BRANCH='preparacion/uki-romo-sobre-main-20261114';
 const STORE='romo:serena';
 const fail=(r,n,s)=>r.status(n).json({ok:false,storeId:STORE,error:s});
 function config(env){
- if(env.VERCEL_ENV!=='preview'||env.VERCEL_GIT_COMMIT_REF!==BRANCH||
+ if(!entornoPanelRomoAutorizado(env)||
    env.ROMO_INVENTARIO_LECTURA_QA_ENABLED!=='true')return null;
  const origin=String(env.ROMO_PANEL_ALLOWED_ORIGIN||'');
  const host=String(env.ROMO_PRIVATE_DATABASE_HOST||'').toLowerCase();

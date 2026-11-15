@@ -1,18 +1,18 @@
 'use strict';
+const {entornoPanelRomoAutorizado}=require('../lib/romo-entorno-panel.cjs');
 /**
- * Cierres Romo para Mi Administración (SOLO LECTURA, Preview).
+ * Cierres Romo para Mi Administración (SOLO LECTURA).
  * Exige Google con rol de dueños en Neon Romo Y PIN privado vigente
  * validado por la API existente de Mi Administración. Nunca modifica
  * fin_movimientos ni mezcla las ventas con Uki.
  */
-const BRANCH='preparacion/uki-romo-sobre-main-20261114';
 const STORE='romo:serena';
 const FIN_URL='https://uki-sushi-inventario.vercel.app/api/mi-administracion-live';
 const fail=(r,n,msg)=>r.status(n).json({ok:false,storeId:STORE,error:msg});
 const day=d=>typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d)&&
  !Number.isNaN(Date.parse(d+'T12:00:00Z'))&&new Date(d+'T12:00:00Z').toISOString().slice(0,10)===d;
 function configure(env){
- if(env.VERCEL_ENV!=='preview'||env.VERCEL_GIT_COMMIT_REF!==BRANCH||
+ if(!entornoPanelRomoAutorizado(env)||
     env.ROMO_CIERRES_DUENOS_LECTURA_QA_ENABLED!=='true')return null;
  const host=String(env.ROMO_PRIVATE_DATABASE_HOST||'').toLowerCase();
  const urlText=String(env.ROMO_PRIVATE_DATABASE_URL||'');

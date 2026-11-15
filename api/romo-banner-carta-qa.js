@@ -1,11 +1,12 @@
 'use strict';
+const {entornoPanelRomoAutorizado}=require('../lib/romo-entorno-panel.cjs');
 // Banners publicitarios de la carta Romo: aislados de pedidos, caja, precios y SKU.
 // GET público únicamente desde la carta; cambios solo dueños Google en panel.
-const STORE='romo:serena',BRANCH='preparacion/uki-romo-sobre-main-20261114';
+const STORE='romo:serena';
 const err=(res,status,message)=>res.status(status).json({ok:false,storeId:STORE,error:message});
 const originValid=x=>/^https:\/\/[a-z0-9.-]+$/i.test(x)&&!x.includes('..');
 function config(env){
- if(env.VERCEL_ENV!=='preview'||env.VERCEL_GIT_COMMIT_REF!==BRANCH||
+ if(!entornoPanelRomoAutorizado(env)||
     env.ROMO_CATALOGO_LECTURA_QA_ENABLED!=='true')return null;
  const origin=String(env.ROMO_PANEL_ALLOWED_ORIGIN||'');
  const carta=String(env.ROMO_CARTA_ALLOWED_ORIGIN||'');

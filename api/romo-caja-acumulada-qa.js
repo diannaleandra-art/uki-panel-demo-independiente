@@ -1,17 +1,17 @@
 'use strict';
+const {entornoPanelRomoAutorizado}=require('../lib/romo-entorno-panel.cjs');
 /**
  * Caja acumulada exclusiva de Romo La Serena.
  * PREVIEW cerrada por defecto. No consulta Uki ni finanzas comerciales.
  * Todas las escrituras requieren Google dueño real + flag separada y una
  * transacción atómica en la BD romos_sushi.
  */
-const BRANCH='preparacion/uki-romo-sobre-main-20261114';
 const STORE='romo:serena';
 const fail=(res,status,error)=>res.status(status).json({ok:false,storeId:STORE,error});
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CLOSE_KEY=/^romo:serena\|\d{4}-\d{2}-\d{2}@[1-9]\d{12,14}$/;
 function config(env){
- if(env.VERCEL_ENV!=='preview'||env.VERCEL_GIT_COMMIT_REF!==BRANCH||
+ if(!entornoPanelRomoAutorizado(env)||
    env.ROMO_CAJA_ACUMULADA_LECTURA_QA_ENABLED!=='true')return null;
  const host=String(env.ROMO_PRIVATE_DATABASE_HOST||'').toLowerCase();
  const origin=String(env.ROMO_PANEL_ALLOWED_ORIGIN||'');

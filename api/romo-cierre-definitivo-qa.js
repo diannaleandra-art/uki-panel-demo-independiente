@@ -1,13 +1,13 @@
 'use strict';
+const {entornoPanelRomoAutorizado}=require('../lib/romo-entorno-panel.cjs');
 /**
  * Cierre Romo QA: actualización cifrada + constancia única en una sentencia SQL.
  * Nunca recibe datos de clientes en claro ni toca la base comercial de Uki.
  */
-const BRANCH='preparacion/uki-romo-sobre-main-20261114';
 const STORE='romo:serena';
 const fail=(res,status,msg)=>res.status(status).json({ok:false,storeId:STORE,error:msg});
 function config(env){
- if(env.VERCEL_ENV!=='preview'||env.VERCEL_GIT_COMMIT_REF!==BRANCH||
+ if(!entornoPanelRomoAutorizado(env)||
     env.ROMO_CIERRE_QA_ENABLED!=='true')return null;
  const origin=String(env.ROMO_PANEL_ALLOWED_ORIGIN||'');
  const host=String(env.ROMO_PRIVATE_DATABASE_HOST||'').toLowerCase();

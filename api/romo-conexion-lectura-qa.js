@@ -1,18 +1,18 @@
 'use strict';
+const {entornoPanelRomoAutorizado}=require('../lib/romo-entorno-panel.cjs');
 /**
  * Romo La Serena: diagnóstico de conexión exclusivamente de LECTURA.
  * No abre caja, no retorna el snapshot cifrado y jamás escribe en Neon.
- * Disponible solo en la rama de prueba autorizada por dueños.
+ * Disponible en Preview autorizado o producción activada explícitamente.
  */
 const STORE='romo:serena';
-const BRANCH='preparacion/uki-romo-sobre-main-20261114';
 const reply=(res,status,error)=>res.status(status).json({ok:false,error});
 const OTHER_DATABASES=[
  'UKI_INVENTARIO_LIVE_DATABASE_URL','UKI_INVENTARIO_QA_DATABASE_URL',
  'UKI_FIN_PRIVATE_DATABASE_URL','UKI_FIN_QA_DATABASE_URL'
 ];
 function config(env){
- if(env.VERCEL_ENV!=='preview'||env.VERCEL_GIT_COMMIT_REF!==BRANCH||
+ if(!entornoPanelRomoAutorizado(env)||
    env.ROMO_CONEXION_LECTURA_QA_ENABLED!=='true')return null;
  const origin=String(env.ROMO_PANEL_ALLOWED_ORIGIN||'');
  const host=String(env.ROMO_PRIVATE_DATABASE_HOST||'').toLowerCase();

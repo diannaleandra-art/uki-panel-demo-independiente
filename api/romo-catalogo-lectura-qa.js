@@ -1,13 +1,13 @@
 'use strict';
+const {entornoPanelRomoAutorizado}=require('../lib/romo-entorno-panel.cjs');
 /**
  * Futuro GET del catálogo real de Romo para el MISMO panel Uki.
  * Sin POST/PUT/DELETE. No activo: preview, rama y flag explícitos.
  */
 const STORE='romo:serena';
-const BRANCH='preparacion/uki-romo-sobre-main-20261114';
 const fail=(res,status,msg)=>res.status(status).json({ok:false,error:msg});
 function config(env){
- if(env.VERCEL_ENV!=='preview'||env.VERCEL_GIT_COMMIT_REF!==BRANCH||
+ if(!entornoPanelRomoAutorizado(env)||
    env.ROMO_CATALOGO_LECTURA_QA_ENABLED!=='true')return null;
  const origin=String(env.ROMO_PANEL_ALLOWED_ORIGIN||'');
  const expected=String(env.ROMO_PRIVATE_DATABASE_HOST||'').toLowerCase();

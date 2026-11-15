@@ -67,11 +67,15 @@
     '<p>Motivo: '+e(x.motivo||"Sin registrar")+'</p>'+
     '<p>Antes: '+fmt(Number(x.anterior?.total)||0)+
     ' · Después: '+fmt(Number(x.nuevo?.total)||0)+'</p>'+
-    '<details><summary>Ver productos antes y después</summary>'+
+    '<p>Delivery antes: '+fmt(Number(x.anterior?.envio)||0)+
+    ' · Después: '+fmt(Number(x.nuevo?.envio)||0)+'</p>'+
+    '<details><summary>Ver productos e ingredientes antes y después</summary>'+
     '<p>Antes: '+e((x.anterior?.productos||[]).map(z=>
-     z.cantidad+'× '+z.nombre+' ($'+z.precioUnit+')').join(" | "))+'</p>'+
+     z.cantidad+'× '+z.nombre+' ($'+z.precioUnit+')'+
+     (z.detalle?' · '+z.detalle:'')).join(" | "))+'</p>'+
     '<p>Después: '+e((x.nuevo?.productos||[]).map(z=>
-     z.cantidad+'× '+z.nombre+' ($'+z.precioUnit+')').join(" | "))+'</p>'+
+     z.cantidad+'× '+z.nombre+' ($'+z.precioUnit+')'+
+     (z.detalle?' · '+z.detalle:'')).join(" | "))+'</p>'+
     '</details></div>'
    ).join("")+'</details>';
  }

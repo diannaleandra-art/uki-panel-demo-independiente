@@ -1,13 +1,13 @@
 'use strict';
+const {entornoPanelRomoAutorizado}=require('../lib/romo-entorno-panel.cjs');
 /**
  * API futura del MISMO panel Uki para Romo La Serena.
- * Sólo copia de preparación, NO desplegada. Inactiva por defecto;
- * nunca disponible en Production ni desde la carta pública.
+ * Conexión privada del panel, inactiva por defecto;
+ * Producción requiere activación explícita; la carta no accede al estado privado.
  * Usa la misma sesión Firebase Google, permisos propios Neon Romo y
  * la bóveda AES-GCM del panel. Sin claves ni datos de Uki.
  */
 const STORE='romo:serena';
-const BRANCH='preparacion/uki-romo-sobre-main-20261114';
 const send=(res,code,message)=>res.status(code).json({ok:false,storeId:STORE,error:message});
 const URI_NAMES=[
  'UKI_INVENTARIO_LIVE_DATABASE_URL','UKI_INVENTARIO_QA_DATABASE_URL',
@@ -15,7 +15,7 @@ const URI_NAMES=[
 ];
 
 function config(env){
- if(env.VERCEL_ENV!=='preview'||env.VERCEL_GIT_COMMIT_REF!==BRANCH||
+ if(!entornoPanelRomoAutorizado(env)||
     env.ROMO_ESTADO_CIFRADO_QA_ENABLED!=='true')
    return null;
  const origin=String(env.ROMO_PANEL_ALLOWED_ORIGIN||'');

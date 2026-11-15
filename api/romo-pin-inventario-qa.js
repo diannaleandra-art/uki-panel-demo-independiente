@@ -1,13 +1,14 @@
 'use strict';
+const {entornoPanelRomoAutorizado}=require('../lib/romo-entorno-panel.cjs');
 // Mismo servicio de inventario del proyecto Uki. Alcance exclusivo Romo.
 // El PIN del trabajador NO concede sesión Google, acceso a pedidos ni caja.
 const {createHmac}=require('node:crypto');
 const pin=require('../lib/uki-inventario-pin-live.cjs');
-const STORE='romo:serena',BRANCH='preparacion/uki-romo-sobre-main-20261114';
+const STORE='romo:serena';
 const fail=(r,n,s)=>r.status(n).json({ok:false,storeId:STORE,error:s});
 const reject=x=>!x||typeof x!=='object'||Array.isArray(x);
 function configuration(env){
- if(env.VERCEL_ENV!=='preview'||env.VERCEL_GIT_COMMIT_REF!==BRANCH||
+ if(!entornoPanelRomoAutorizado(env)||
   env.ROMO_PIN_INVENTARIO_QA_ENABLED!=='true'||
   env.ROMO_INVENTARIO_LECTURA_QA_ENABLED!=='true')return null;
  const origin=String(env.ROMO_PANEL_ALLOWED_ORIGIN||'');
