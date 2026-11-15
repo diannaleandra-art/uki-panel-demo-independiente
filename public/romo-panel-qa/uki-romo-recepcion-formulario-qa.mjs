@@ -65,13 +65,26 @@ export function prepararBorradorRomoDesdeSolicitudQA(row,{
  // y el delivery concuerdan exactamente con el total de la solicitud Neon.
  const lineaProductos=t.match(/^\s*Total productos:\s*\$?\s*([\d.,]+)\s*$/mi);
  const importeProductos=lineaProductos?Number(lineaProductos[1].replace(/\D/g,'')):null;
- if(items.length===1&&Number.isSafeInteger(importeProductos)&&importeProductos>0&&
-    importeProductos<=100000000&&(!deliveryPendiente||modalidad!=='Delivery')&&
-    total===importeProductos+(modalidad==='Delivery'?envio:0)&&
-    importeProductos%items[0].cant===0){
+ // Cada artículo procede del catálogo validado en servidor, pero solo se
+ // asigna su precio si coincide la suma de TODAS las líneas con la solicitud.
+ // Si un formato antiguo no trae importes por artículo, se exige revisión manual.
+ const totalCuadra=Number.isSafeInteger(importeProductos)&&importeProductos>0&&
+  importeProductos<=100000000&&
+  total===importeProductos+(modalidad==='Delivery'?envio:0);
+ if(totalCuadra){
+  const importes=items.map(x=>{
+   const m=x.det.match(/^Importe línea:\s*\$?\s*([\d.,]+)\s*$/mi);
+   return m?Number(m[1].replace(/\D/g,'')):null;
+  });
+  if(importes.every((v,i)=>Number.isSafeInteger(v)&&v>0&&v%items[i].cant===0)&&
+     importes.reduce((t,v)=>t+v,0)===importeProductos){
+   items.forEach((x,i)=>{x.precio=importes[i]/x.cant;});
+  }else if(items.length===1&&importeProductos%items[0].cant===0){
    const unitario=importeProductos/items[0].cant;
    if(Number.isSafeInteger(unitario)&&unitario>0)items[0].precio=unitario;
+  }
  }
+
  const telefono=clean(row.telefono,30);
  return {texto:t,fecha:ahora(),cliente:clean(row.cliente,60),
   telefono,codigoCarta:codigo,codigoCliente:codigoTelefono(telefono),
