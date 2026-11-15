@@ -5427,7 +5427,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
    '<div class="row final"><span>Total del pedido</span><b>'+fmt(p.total)+'</b></div>'+
    '<p class="muted"><b>Pago:</b> '+(p.pagado?'Confirmado':'Pendiente')+
    ' · '+esc(p.medio||'Sin medio registrado')+
-   (p.pagado&&p.cobroConfirmadoPor?' · Responsable: '+esc(p.cobroConfirmadoPor):'')+'</p>'+
+   (p.pagado&&(p.cobroConfirmadoPor||p.pagoConfirmadoPor)?' · Responsable: '+esc(p.cobroConfirmadoPor||p.pagoConfirmadoPor):'')+'</p>'+
    (Array.isArray(p.pagosProductos)&&p.pagosProductos.length>1?
     '<p class="muted"><b>Pago mixto productos:</b> '+
     p.pagosProductos.map(x=>esc(x.medio)+' '+fmt(x.monto)).join(' + ')+'</p>':'')+
@@ -5474,7 +5474,8 @@ function ukiRomoPedidosPendientesHTMLQA(){
      '<button type="button" class="sm ok" onclick="ukiRomoCambiarEstadoQA('+id+
       ',\'entregar\')">✓ Marcar entregado</button>':'');
   }
-  const historial=(p.historialCambios||[]).slice(-30).reverse().map(h=>
+  const historial=(Array.isArray(p.historialCambios)?p.historialCambios:[])
+   .filter(h=>h&&typeof h==='object').slice(-30).reverse().map(h=>
    '<p class="muted"><b>'+esc(h.fecha||'Fecha sin registrar')+'</b> · '+
    esc(({edicion_pedido_sin_pago:'Edición',cobro_pendiente:'Cobro',
      entrega_confirmada:'Entrega',cancelacion:'Cancelación'}[h.tipo]||h.tipo||'Movimiento'))+
