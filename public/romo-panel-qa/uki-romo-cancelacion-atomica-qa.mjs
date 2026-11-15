@@ -15,12 +15,14 @@ export class RomoCancelacionConfirmadaReleerQA extends Error{
   this.code='ROMO_CANCELACION_CONFIRMADA_RECARGAR';}
 }
 export function prepararCancelacionRomoQA(estado,{
- pedidoId,responsable,motivo,registradoEn
+ pedidoId,responsable,motivo,categoria='',registradoEn
 }={}){
  if(estado?.suc!==SUC||!Array.isArray(estado.pedidos)||
     !Array.isArray(estado.cierres)||!Array.isArray(estado.propinas))
   fail('El estado no pertenece a Romo La Serena');
  const id=Number(pedidoId),actor=String(responsable||'').trim(),razon=String(motivo||'').trim();
+ const quien=String(categoria||'').trim().toLowerCase();
+ if(quien&&!['cliente','local'].includes(quien))fail('Indica si canceló el cliente o el local');
  if(!Number.isSafeInteger(id)||id<1)fail('Número de pedido inválido');
  if(actor.length<2||actor.length>80)fail('Indica quién cancela el pedido');
  if(razon.length<4||razon.length>300)fail('Motivo de cancelación obligatorio');
@@ -42,10 +44,12 @@ export function prepararCancelacionRomoQA(estado,{
   fail('Historial del pedido inválido');
  const momento=new Date(registradoEn).toISOString();
  pedido.estado='Cancelado';
- pedido.canceladoEn=momento;pedido.canceladoPor=actor;pedido.motivoCancelacion=razon;
+ pedido.canceladoEn=momento;pedido.canceladoPor=actor;
+ pedido.motivoCancelacion=quien||razon;
+ pedido.motivoDetalleCancelacion=razon;
  // En un pedido sin pago no inventamos una devolución pendiente ni movemos dinero.
  pedido.historialCambios=[...(pedido.historialCambios||[]),{
-  tipo:'cancelacion',fecha:momento,responsable:actor,motivo:razon,
+  tipo:'cancelacion',fecha:momento,responsable:actor,categoria:quien||null,motivo:razon,
   anterior:'Pendiente',nuevo:'Cancelado'
  }].slice(-100);
  return Object.freeze({pedidoId:id,estado:'Cancelado',responsable:actor,motivo:razon});
