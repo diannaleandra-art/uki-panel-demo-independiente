@@ -2861,7 +2861,9 @@ function fichaHistorial(cli){
     +'<div class="row"><span>Total productos</span><b>'+fmt(compras.reduce((n,p)=>n+(+p.subtotal||0),0))+'</b></div>'
     +'<div class="row"><span>Reclamos</span><b>'+inc.length+'</b></div>'
     +'<div class="row"><span>Premios canjeados</span><b>'+canjes.length+'</b></div>'
-    +'<p class="muted">Solo registros guardados en este navegador. Historial exclusivo de esta sucursal.</p>'
+    +(S.suc===ROMO_SUCURSAL_QA
+      ?'<p class="muted">Historial de esta sucursal recuperado de la copia cifrada confirmada en Neon.</p>'
+      :'<p class="muted">Solo registros guardados en este navegador. Historial exclusivo de esta sucursal.</p>')
     +(codigos.size>1?'<p style="color:#9b3e00"><b>Atención:</b> este nombre aparece con distintos códigos. El historial está separado, pero los timbres antiguos siguen agrupados por nombre.</p>':'')
     +(secciones||'<p class="muted">No hay pedidos asociados en este dispositivo.</p>')
     +(canjes.length?'<details class="inner-details"><summary>Ver canjes ('+canjes.length+')</summary>'
@@ -4840,7 +4842,8 @@ let ukiRomoOperandoPedidoQA=false;
 function ukiRomoOperacionesEnCursoQA(){
  return ukiRomoOperandoPedidoQA||ukiRomoGuardandoManualQA||
   ukiRomoSolicitudCartaOcupadaQA||ukiRomoTurnoOcupadoQA||
-  ukiRomoPrecierreOcupadoQA;
+  ukiRomoPrecierreOcupadoQA||ukiRomoTimbreBusyQA||
+  ukiRomoClienteGuardandoQA;
 }
 const ROMO_MEDIOS_COBRO_QA=['Efectivo','Transferencia','Débito','Edenred','Otros'];
 function ukiRomoCambiarFiltroQA(tipo){
@@ -5024,6 +5027,112 @@ function ukiRomoPedidosPendientesHTMLQA(){
   (listado.length?items:'<section class="card"><p>No hay pedidos en este filtro.</p></section>');
 }
 
+// Fichas de Clientes del mismo panel Uki; sólo datos del estado Neon Romo.
+// No se generan timbres a partir de visualizaciones ni se canjean premios aquí.
+let ukiRomoClienteGuardandoQA=false;
+function ukiRomoFiltrarClientesQA(valor){
+ const q=ukiTextoBusqueda(valor);
+ document.querySelectorAll('.romo-cliente-card').forEach(card=>{
+  card.hidden=!ukiTextoBusqueda(card.getAttribute('data-buscar')).includes(q);
+ });
+}
+function ukiRomoTarjetasClientesHTMLQA(){
+ const clientes=ukiTarjetasAgrupadas().sort((a,b)=>
+  ukiUltimaCompraClienteMs(b)-ukiUltimaCompraClienteMs(a)||
+  ventasValidas(b)-ventasValidas(a));
+ const cards=clientes.map(cli=>{
+  const key=String(cli._ukiClave||'');
+  const keyJs=esc(JSON.stringify(key));
+  const n=ventasValidas(cli),puede6=n>=6&&!cli.canje6,puede10=n>=10;
+  const buscar=esc([cli.nombre,cli.telefono,ukiCodigoClienteVisible(cli),key]
+   .filter(Boolean).join(' '));
+  const sellos=Array.from({length:10},(_,i)=>
+   '<span class="timbre '+(i<n?'lleno':'')+' '+(i===5||i===9?'premio':'')+'">'+
+    (i<n?'✓':i+1)+'</span>').join('');
+  return '<section class="card romo-cliente-card" data-buscar="'+buscar+'">'+
+   '<h3>'+esc(cli.nombre||'Cliente')+
+    ' <span class="tag">🎫 '+esc(n)+'/10 timbres</span></h3>'+
+   '<p class="muted">WhatsApp: '+esc(cli.telefono||'Sin registrar')+
+    ' · Código: '+esc(ukiCodigoClienteVisible(cli)||'Sin código')+'</p>'+
+   '<p class="muted">'+esc(cli.pedidos||0)+' compras · Productos '+fmt(cli.gastado||0)+
+    ' · Última '+esc(cli.ultimo||'Sin fecha')+'</p>'+
+   '<div class="tarjeta">'+sellos+'</div>'+
+   (puede10?'<p><b>🎁 Premio de 10 compras disponible. Canje todavía no integrado en Romo.</b></p>':
+     puede6?'<p><b>🎁 Premio de 6 compras disponible. Canje todavía no integrado en Romo.</b></p>':'')+
+   '<details class="inner-details" data-romo-cliente="'+esc(key)+'">'+
+    '<summary><b>👤 Completar o editar datos del cliente</b></summary>'+
+    '<p class="muted">No se cambia el historial, los pedidos ni los timbres; la edición espera confirmación cifrada de Neon.</p>'+
+    '<label>Nombre y apellido</label>'+
+    '<input data-romo-cliente-campo="nombre" maxlength="90" value="'+esc(cli.nombre||'')+'">'+
+    '<label>WhatsApp (opcional)</label>'+
+    '<input data-romo-cliente-campo="telefono" maxlength="30" type="tel" inputmode="tel" value="'+esc(cli.telefono||'')+'">'+
+    '<label>Código cliente · 4 dígitos</label>'+
+    '<input data-romo-cliente-campo="codigo" maxlength="4" inputmode="numeric" value="'+
+      esc(ukiCodigoClienteVisible(cli)||'')+'">'+
+    '<button class="sm ok" type="button" onclick="ukiRomoGuardarDatosClienteQA('+
+      keyJs+',this)">Guardar datos en Romo</button>'+
+   '</details>'+fichaHistorial(cli)+'</section>';
+ }).join('');
+ return '<section class="card"><h2>⭐ Clientes y tarjetas · Romo</h2>'+
+  '<p class="muted">Misma búsqueda e historial de Uki. Sólo clientes de Romo y movimientos ya confirmados.</p>'+
+  '<label for="romoBuscarClientesQA">Buscar por nombre, WhatsApp o código del cliente</label>'+
+  '<input id="romoBuscarClientesQA" type="search" autocomplete="off" placeholder="Nombre, celular o últimos 4 números" '+
+   'oninput="ukiRomoFiltrarClientesQA(this.value)">'+
+  '<p class="muted">'+clientes.length+' tarjeta(s) guardadas.</p></section>'+
+  (cards||'<div class="card">No hay tarjetas guardadas en Neon Romo. No se crean clientes desde esta consulta.</div>');
+}
+async function ukiRomoGuardarDatosClienteQA(key,boton){
+ if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoOperacionesEnCursoQA())return;
+ const session=window.ukiRomoSesionRemotaQA;
+ if(!session?.disponible())return window.alert('Primero abre la sesión autorizada de Romo.');
+ const editor=boton?.closest('details[data-romo-cliente]');
+ if(!editor||editor.getAttribute('data-romo-cliente')!==key||
+  !Object.prototype.hasOwnProperty.call(S.clientes||{},key))
+  return window.alert('No se encontró la tarjeta original. Recarga Romo.');
+ const nombre=String(editor.querySelector('[data-romo-cliente-campo="nombre"]')?.value||'')
+  .trim().replace(/\s+/g,' ');
+ const telefono=String(editor.querySelector('[data-romo-cliente-campo="telefono"]')?.value||'').trim();
+ const codigoManual=String(editor.querySelector('[data-romo-cliente-campo="codigo"]')?.value||'').trim();
+ if(nombre.length<2||nombre.length>90||telefono.length>30||
+    !ukiWhatsAppClienteValido(telefono)||
+    (codigoManual&&!/^\d{4}$/.test(codigoManual)))
+  return window.alert('Comprueba nombre, WhatsApp y código (4 números). No se guardó.');
+ const numero=ukiTelefonoNormalizado(telefono);
+ const codigo=numero.length>=8?numero.slice(-4):codigoManual;
+ const previo=S.clientes[key];
+ const duplicado=Object.entries(S.clientes||{}).find(([k,c])=>k!==key&&
+  (numero.length>=8?ukiTelefonoNormalizado(c.telefono)===numero:
+   !ukiTelefonoNormalizado(c.telefono)&&ukiTextoBusqueda(c.nombre)===ukiTextoBusqueda(nombre)&&
+   String(c.codigoCliente||'').trim()===codigo));
+ if(duplicado&&ukiTelefonoNormalizado(previo.telefono)!==numero)
+  return window.alert('Otra tarjeta ya tiene estos datos. Revisa antes de unir historiales.');
+ const antes={nombre:previo.nombre||'',telefono:previo.telefono||'',
+  codigoCliente:previo.codigoCliente||''};
+ if(ukiTextoBusqueda(antes.nombre)===ukiTextoBusqueda(nombre)&&
+  ukiTelefonoNormalizado(antes.telefono)===numero&&String(antes.codigoCliente)===codigo)
+  return window.alert('Los datos ya están actualizados. No se realizó ningún cambio.');
+ ukiRomoClienteGuardandoQA=true;
+ try{
+  const copia=datosSoloSucursal(),cli=copia.clientes?.[key];
+  if(!cli||JSON.stringify({nombre:cli.nombre||'',telefono:cli.telefono||'',
+     codigoCliente:cli.codigoCliente||''})!==JSON.stringify(antes))
+   throw Error('La tarjeta cambió mientras la editabas; vuelve a cargar.');
+  if(!Array.isArray(cli.identidadesAnteriores))cli.identidadesAnteriores=[];
+  if(!cli.identidadesAnteriores.some(x=>x.nombre===antes.nombre&&
+      x.telefono===antes.telefono&&x.codigoCliente===antes.codigoCliente))
+   cli.identidadesAnteriores.push(antes);
+  cli.identidadesAnteriores=cli.identidadesAnteriores.slice(-30);
+  cli.nombre=nombre;cli.telefono=telefono;cli.codigoCliente=codigo;
+  cli.datosActualizadosEn=new Date().toISOString();
+  // Única vía de escritura: CAS sobre la copia Romo. Éxito tras revisión +1.
+  await ukiRomoGuardarOperacionQA(copia,'Cliente confirmado en Neon Romo',null,'clientes');
+ }catch(error){
+  // No borrar el formulario al fallar ni aparentar un guardado correcto.
+  window.alert('NO se confirmó la edición del cliente en Romo. Revisa antes de repetir: '+
+   String(error?.message||error));
+ }finally{ukiRomoClienteGuardandoQA=false;}
+}
+
 /* Mismo panel y mismo estado cifrado Romo; WhatsApp solo tras clic.
  * La confirmación del envío no duplica el movimiento de compra.
  */
@@ -5038,6 +5147,8 @@ function ukiRomoTimbresPanelQA(){
   '<p>Los timbres se acumulan al confirmar el pago, como en Uki. El envío por WhatsApp requiere confirmación manual.</p></div>'+
   '<section class="kpis"><div class="kpi"><span>Compras pagadas</span><strong>'+pagados.length+'</strong></div>'+
   '<div class="kpi"><span>Por enviar</span><strong>'+pendientes.length+'</strong></div></section>'+
+  ukiRomoTarjetasClientesHTMLQA()+
+  '<details class="card"><summary><b>📲 Timbres por pedido · '+pagados.length+' compras</b></summary>'+
   (pagados.map(p=>{
    const contado=ukiTimbreMovimientoRegistrado(p),tel=ukiNumeroTimbreWhatsApp(p.telefono);
    const cli=getCliente(p.cliente,p.codigoCliente,p.telefono),n=cli?ventasValidas(cli):0;
@@ -5052,7 +5163,8 @@ function ukiRomoTimbresPanelQA(){
      (ukiRomoWAAbiertosQA.has(Number(p.id))?
       '<button type="button" class="sm" onclick="ukiRomoConfirmarTimbreQA('+Number(p.id)+')">Confirmar envío realizado</button>':'')
      :'')+'</section>';
-  }).join('')||'<div class="card">Todavía no hay compras pagadas en Romo.</div>');
+  }).join('')||'<div class="card">Todavía no hay compras pagadas en Romo.</div>')+
+  '</details>';
 }
 function ukiRomoAbrirTimbreQA(id){
  if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoTimbreBusyQA)return;
