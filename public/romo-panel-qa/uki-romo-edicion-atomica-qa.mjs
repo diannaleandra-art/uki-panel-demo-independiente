@@ -56,9 +56,11 @@ export function prepararEdicionPendienteRomoQA(estado,{
   Array.isArray(productos)&&productos.length>0&&productos.length<=80,
   'El pedido debe tener entre 1 y 80 productos');
  const usados=new Set();
- const nuevos=productos.map((x)=>{
-  // No copiar la identidad de la línea siguiente al retirar un producto.
-  const origen=x?.origenIndice;
+ const nuevos=productos.map((x,i)=>{
+  // Los llamadores oficiales antiguos sin origenIndice usan el índice original.
+  // Las filas agregadas desde la interfaz sí marcan origenIndice:null.
+  // Así se conserva compatibilidad con guardados ya validados.
+  const origen=Object.hasOwn(x||{},'origenIndice')?x.origenIndice:i;
   check(origen===null||Number.isSafeInteger(origen)&&origen>=0&&origen<antiguos.length,
    'Origen de producto inválido');
   if(origen!==null){
