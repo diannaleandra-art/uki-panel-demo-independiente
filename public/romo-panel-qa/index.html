@@ -5327,8 +5327,7 @@ function ukiRomoTimbresPanelQA(){
  const clientes=todos.filter(cli=>buscar?
    ukiBusquedaPorDatos(buscar,[cli.nombre,cli.telefono,
     ukiCodigoClienteVisible(cli),cli.codigoCliente,cli._ukiClave]):
-   (cli.movimientos||[]).some(m=>m.tipo==='venta'&&
-     ukiFechaTimbreCalendario(m)===fecha));
+   (cli.movimientos||[]).some(m=>ukiFechaTimbreCalendario(m)===fecha));
  const movimientosDelDia=clientes.flatMap(cli=>(cli.movimientos||[])
   .filter(m=>m.tipo==='venta'&&ukiFechaTimbreCalendario(m)===fecha)
   .map(m=>({cliente:cli,pedido:(S.pedidos||[]).find(p=>
@@ -5367,6 +5366,8 @@ function ukiRomoTimbresPanelQA(){
    '<div class="kpi"><span>Premios 10</span><strong>'+
     clientes.filter(cli=>ventasValidas(cli)>=10).length+'</strong></div>'+
   '</div>'+
+  '<p class="muted">Timbres ganados el '+esc(fecha)+': '+movimientosDelDia.length+
+   ' · Pendientes de enviar por WhatsApp: '+pendientesDelDia+'. Confirmar envío no vuelve a registrar la compra.</p>'+
   '<button type="button" class="sm" onclick="verDiaTimbres(&quot;&quot;)">Ver timbres de hoy</button>'+
   '<details class="card"><summary><b>📅 Consultar por fecha</b></summary>'+
    '<label for="ukiRomoTimbresDiaQA">Seleccionar día</label>'+
