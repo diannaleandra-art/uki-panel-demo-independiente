@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<title>Romo’s Sushi · Precierre del trabajador</title>
+<style>
+:root{font-family:system-ui,-apple-system,sans-serif;color:#181818;background:#f6f5f4}
+*{box-sizing:border-box}body{margin:0;padding-bottom:40px}header{background:#141414;
+ color:white;padding:24px 17px;border-bottom:5px solid #ce2038}
+main{padding:16px;max-width:580px;margin:auto}
+h1{font-size:24px;margin:0 0 6px}h2{font-size:20px;margin:0 0 8px}
+.card{background:#fff;padding:18px;border:1px solid #dedede;border-radius:14px;margin:0 0 14px}
+label{display:block;font-weight:700;margin:16px 0 6px}
+input,textarea{font:inherit;width:100%;border:1px solid #bbb;border-radius:9px;
+ padding:12px;min-height:45px;background:white;color:#111}
+button{font:700 16px system-ui;background:#bd1937;color:white;padding:14px;
+ width:100%;border:0;border-radius:10px;min-height:48px;margin-top:18px}
+button:disabled{opacity:.5}.muted{font-size:14px;color:#666;line-height:1.5}
+#status{white-space:pre-wrap;line-height:1.5}#status[data-error=true]{color:#ad1224}
+small{font-size:13px;color:#626262}footer{text-align:center;color:#6c6c6c;font-size:12px}
+</style></head><body>
+<header><h1>🍣 ROMO’S SUSHI</h1><div>Precierre del trabajador · La Serena</div></header>
+<main>
+<section class="card">
+<h2>Entregar conteo de tu turno</h2>
+<p class="muted">Este formulario solo envía el efectivo que contaste y tus observaciones. No registra un cobro ni cierra la Caja del día. El dueño lo revisará en el panel.</p>
+<label for="worker">Nombre del trabajador</label>
+<input id="worker" autocomplete="name" maxlength="60" placeholder="Nombre de quien entrega">
+<label for="pin">PIN de precierre (6 números)</label>
+<input id="pin" type="password" inputmode="numeric" autocomplete="off"
+ maxlength="6" pattern="[0-9]{6}" placeholder="••••••">
+<small>Es distinto del PIN de inventario. Debe entregártelo la administración.</small>
+<label for="turno">Referencia del turno</label>
+<input id="turno" autocomplete="off" maxlength="44" placeholder="Fecha y código entregado por el dueño">
+<small>Se completa automáticamente si abriste el enlace que te enviaron.</small>
+<label for="contado">Efectivo físicamente contado, sin base ni propinas (CLP)</label>
+<input id="contado" inputmode="numeric" type="number" min="0" max="100000000" step="1"
+ placeholder="Escribe 0 si no hay efectivo">
+<label for="obs">Observaciones (opcional)</label>
+<textarea id="obs" maxlength="300" rows="3" placeholder="Diferencias, devoluciones o aclaraciones"></textarea>
+<button type="button" id="send">Enviar conteo al dueño</button>
+<p id="status" role="status" aria-live="polite" class="muted"></p>
+</section>
+<section class="card">
+<p class="muted"><b>Importante:</b> enviar un conteo no significa que haya sido aprobado. No vuelvas a registrarlo si el panel te indica que ya se recibió; consulta al dueño si necesitas corregirlo.</p>
+</section>
+<footer>Romo’s Sushi · Sin acceso a pedidos, ventas ni Caja acumulada</footer>
+</main>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const UUID=()=>crypto.randomUUID();
+const REF=/^(\d{4}-\d{2}-\d{2})@([1-9]\d{12,14})$/;
+const params=new URLSearchParams(location.search),initial=params.get('turno');
+if(typeof initial==='string'&&initial.length<=44&&REF.test(initial))$('turno').value=initial;
+let pendingId=null,busy=false,completed=false;
+const message=(value,error=false)=>{
+ const node=$('status');node.textContent=value;node.dataset.error=String(error);
+};
+$('send').addEventListener('click',async()=>{
+ if(busy||completed)return;
+ const turno=$('turno').value.trim(),match=turno.match(REF);
+ const worker=$('worker').value.trim().replace(/\s+/g,' ');
+ const raw=$('contado').value.trim(),count=Number(raw);
+ const pin=$('pin').value;
+ if(!match||!/^\d{6}$/.test(pin)||worker.length<2||worker.length>60||
+    raw===''||!Number.isSafeInteger(count)||count<0||count>100000000){
+  message('Revisa nombre, PIN, referencia y dinero contado. Escribe 0 cuando corresponda.',true);
+  return;
+ }
+ const obs=$('obs').value.trim();
+ if(obs.length>300){message('Observaciones demasiado largas.',true);return;}
+ const dia=match[1],inicio=Number(match[2]);
+ if(!Number.isSafeInteger(inicio)||new Date(dia+'T12:00:00Z').toISOString().slice(0,10)!==dia){
+  message('La referencia del turno no es válida.',true);return;
+ }
+ if(!confirm('¿Confirmas que contaste físicamente $'+count.toLocaleString('es-CL')+
+     ' y deseas enviar el conteo a revisión? No cierra Caja.'))return;
+ if(!pendingId)pendingId=UUID();
+ busy=true;$('send').disabled=true;message('Guardando el conteo para revisión…');
+ try{
+  const response=await fetch('/api/romo-precierre-trabajador-qa',{
+   method:'POST',cache:'no-store',credentials:'omit',
+   headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({
+    action:'enviar',codigo:pin,id:pendingId,turno_ref:turno,
+    fecha_operativa:dia,inicio_ms:inicio,trabajador:worker,
+    efectivo_contado:count,observaciones:obs
+   })
+  });
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok||data?.ok!==true||data.storeId!=='romo:serena'||
+    typeof data.id!=='string'||data.id!==pendingId)
+   throw Error(String(data.error||'No se confirmó el envío'));
+  completed=true;$('pin').value='';
+  message('✓ Conteo recibido. Código de confirmación: '+data.id+
+   '\nEl dueño debe revisarlo y confirmar el precierre desde el panel. La Caja continúa abierta.');
+ }catch(e){
+  message('No se confirmó el envío: '+String(e.message||e)+
+   '\nSi la conexión se interrumpió, revisa con el dueño antes de volver a intentar.',true);
+ }finally{busy=false;$('send').disabled=completed;}
+});
+</script></body></html>
