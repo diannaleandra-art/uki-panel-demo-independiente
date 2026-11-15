@@ -5126,7 +5126,11 @@ function ukiRomoSolicitudesHTMLQA(){
   [o.cliente,o.telefono,o.codigo_pedido,o.id,o.mensaje]));
  const filtro=ukiRomoFiltroPedidosQA;
  if(!['todos','por-confirmar'].includes(filtro))return '';
- if(!pending.length&&filtro!=='por-confirmar')return '';
+ if(!pending.length&&filtro!=='por-confirmar')return '<details class="card uki-carta-estado-compacto">'+
+  '<summary>📲 Carta digital · Ver estado de recepción</summary>'+
+  '<button type="button" class="sm" onclick="ukiRomoActualizarSolicitudesCartaQA()">Actualizar solicitudes</button>'+
+  '<p role="status" class="muted">'+esc(ukiRomoSolicitudesAvisoQA||
+   'Consulta de recepción aún no realizada')+'</p></details>';
  const status='<div class="uki-carta-estado-compacto" style="margin:10px 0">'+
   '<button type="button" class="sm" onclick="ukiRomoActualizarSolicitudesCartaQA()">Actualizar solicitudes</button>'+
   '<p role="status" class="muted">'+esc(ukiRomoSolicitudesAvisoQA||
@@ -5433,7 +5437,8 @@ function ukiRomoPedidosPendientesHTMLQA(){
   o.branch==='serena'&&!(S.pedidos||[]).some(p=>p.suc===ROMO_SUCURSAL_QA&&
    (p.cartaSolicitudRemotaId===o.id||p.codigoCarta===o.codigo_pedido)));
  const buscarSolicitud=String(ukiRomoBusquedaPedidosQA||'').trim();
- const pendientesVisibles=pendientesSolicitudes.filter(o=>!buscarSolicitud||
+ const pendientesVisibles=(ukiRomoVistaPedidosQA==='operacion'?
+  pendientesSolicitudes:[]).filter(o=>!buscarSolicitud||
   ukiBusquedaPorDatos(buscarSolicitud,
    [o.cliente,o.telefono,o.codigo_pedido,o.id,o.mensaje]));
  const etiquetas=[['todos','Todos ('+(visibles.length+pendientesVisibles.length)+')'],
@@ -5453,7 +5458,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
  const anteriores=todos.filter(p=>!enOperacion(p)).length;
  const nav='<div class="card"><b>🗂️ Pedidos de Romo</b>'+
   '<div class="chips">'+
-   [['operacion','Operación ('+todos.filter(enOperacion).length+')'],
+   [['operacion','Operación ('+(todos.filter(enOperacion).length+pendientesSolicitudes.length)+')'],
     ['historial','Historial ('+anteriores+')'],
     ['todos','Todos ('+todos.length+')']].map(([v,t])=>
      '<button type="button" class="chip'+(ukiRomoVistaPedidosQA===v?' on':'')+
