@@ -5679,8 +5679,8 @@ function ukiRomoPedidosPendientesHTMLQA(){
   const rows=mesaAgrupada.get(m)||[];
   rows.push(p);mesaAgrupada.set(m,rows);
  }
- const mesasHTML='<details class="card" id="romoMesasCuentasQA">'+
-  '<summary><b>🍽 Mesas con pedidos registrados · '+mesaAgrupada.size+'</b></summary>'+
+ const mesasHTML='<details class="card" id="romoMesasCuentasQA" style="border:1px solid var(--accent);padding:12px 16px">'+
+  '<summary style="cursor:pointer;font-weight:700;font-size:17px;padding:3px 0;line-height:1.5">🍽 Pedidos de mesas · '+mesaAgrupada.size+'</summary>'+
   '<p class="muted">Consulta desde los pedidos confirmados de Romo. No contiene solicitudes QR pendientes; no crea ni cobra cuentas.</p>'+
   ([...mesaAgrupada.entries()].sort(([a],[b])=>a-b).map(([numero,ps])=>
    '<div class="card" style="padding:12px;margin-top:10px"><b>Mesa '+numero+'</b>'+
@@ -5827,16 +5827,50 @@ function ukiRomoPedidosPendientesHTMLQA(){
     historial+'</details>':'')+
    '</div></details>';
  }).join('');;
+ const fechaVista=ukiRomoFechaPedidosQA||fechaActual;
+ const fechaHTML='<div class="uki-fecha-flechas" role="group" aria-label="Cambiar fecha de pedidos">'+
+  '<button type="button" aria-label="Pedidos del día anterior" onclick="ukiRomoMoverDiaPedidosQA(-1)">⏪</button>'+
+  '<span>📅 '+esc(fechaVista)+' · '+(ukiRomoFechaPedidosQA?'Archivo':'Turno actual')+'</span>'+
+  '<button type="button" aria-label="Pedidos del día siguiente" onclick="ukiRomoMoverDiaPedidosQA(1)">⏩</button></div>'+
+  (ukiRomoFechaPedidosQA||ukiRomoTurnoPedidosQA||ukiRomoVistaPedidosQA!=='operacion'?
+   '<button type="button" class="sm" onclick="ukiRomoLimpiarFiltrosPedidosQA()">← Volver al turno abierto</button>':'');
+ const erroresRomo=(S.incidencias||[]).filter(x=>x.suc===ROMO_SUCURSAL_QA);
+ const erroresPendientes=erroresRomo.filter(x=>x.estado!=='Resuelto').length;
+ const erroresFiltrados=erroresRomo.filter(x=>{
+  if(!ukiRomoFechaIncidenciasQA)return true;
+  const date=Date.parse(String(x.fecha||x.fechaISO||''));
+  return Number.isFinite(date)&&ukiFechaCalendarioChile(date)===ukiRomoFechaIncidenciasQA;
+ }).slice().reverse();
+ const bloqueIncidencias='<details class="card uki-bloque-incidencias">'+
+  '<summary style="cursor:pointer"><b>⚠️ Errores e incidencias</b> · '+erroresPendientes+' pendientes</summary>'+
+  '<label for="romoDiaIncidenciasQA">Buscar errores por día de reporte</label>'+
+  '<input id="romoDiaIncidenciasQA" type="date" value="'+esc(ukiRomoFechaIncidenciasQA)+
+   '" onchange="ukiRomoElegirFechaIncidenciasQA(this.value)">'+
+  '<p class="muted">Los reportes se conservan aunque se cierre la caja del día.</p>'+
+  (erroresFiltrados.map(x=>'<div class="card" style="padding:12px;margin:8px 0">'+
+    '<b>Pedido '+esc(String(x.codigoCarta||x.pedidoId||'Sin folio'))+'</b>'+
+    '<p class="muted">'+esc(String(x.fecha||''))+' · '+esc(String(x.estado||'Pendiente'))+'</p>'+
+    '<p>'+esc(String(x.problema||x.descripcion||'Sin detalle'))+'</p>'+
+    (x.solucion?'<p><b>Solución:</b> '+esc(String(x.solucion))+'</p>':'')+'</div>').join('')||
+   '<p class="muted">No hay errores para esta búsqueda.</p>')+
+  '</details>';
+ const otrasVistas='<details class="card uki-bloque-archivo">'+
+  '<summary>📚 Más consultas de pedidos y turnos de Romo</summary>'+nav+selectorTurno+'</details>';
+ const titulo=ukiRomoBusquedaPedidosQA?'Resultados de búsqueda':
+  ukiRomoFechaPedidosQA?'Pedidos del turno '+ukiRomoFechaPedidosQA:
+  'Pedidos del turno abierto · '+fechaActual;
  return '<div class="section-head"><h2>Pedidos</h2>'+
-  '<p>Romo La Serena · '+todos.length+' pedido(s) registrado(s) · '+
-   pendientesSolicitudes.length+' solicitud(es) por confirmar. '+
-   'Pendientes sin cobrar hasta la aceptación y verificación manual.</p></div>'+
+  '<p>'+esc(titulo)+' · '+base.length+' registrados · '+pagados+' pagados · '+
+   pendientesSolicitudes.length+' solicitudes pendientes · '+enCurso+' en atención o por finalizar</p></div>'+
   ukiRomoSolicitudesHTMLQA()+
-  '<button class="big cta" type="button" onclick="nuevoDraft();modoNuevo=\'manual\';ir(\'nuevo\')">＋ Nuevo pedido</button>'+
-  nav+(ukiRomoVistaPedidosQA==='operacion'?mesasHTML+ukiRomoBorradoresResumenQA():'')+
-  buscar+selectorTurno+filtros+
-  (listado.length?items:(['por-confirmar','rechazados'].includes(ukiRomoFiltroPedidosQA)?'':'<section class="card"><p>No se encontraron pedidos registrados para los filtros seleccionados.</p></section>'))+
-  archivo+(ukiRomoVistaPedidosQA!=='operacion'?auditoriaHTML:'')+rechazos;
+  (ukiRomoVistaPedidosQA==='operacion'?ukiRomoBorradoresResumenQA():'')+
+  '<button class="big cta" type="button" onclick="nuevoDraft();modoNuevo=&quot;manual&quot;;ir(&quot;nuevo&quot;)">＋ Nuevo pedido</button>'+
+  filtros+
+  (ukiRomoVistaPedidosQA==='operacion'&&['todos','por-confirmar'].includes(ukiRomoFiltroPedidosQA)?mesasHTML:'')+
+  fechaHTML+buscar+bloqueIncidencias+
+  (listado.length?items:(['por-confirmar','rechazados'].includes(ukiRomoFiltroPedidosQA)?'':
+   '<section class="card"><p>No hay pedidos en esta categoría. Selecciona «Todos» para verlos.</p></section>'))+
+  archivo+otrasVistas+(ukiRomoVistaPedidosQA!=='operacion'?auditoriaHTML:'')+rechazos;
 }
 
 // Fichas de Clientes del mismo panel Uki; sólo datos del estado Neon Romo.
