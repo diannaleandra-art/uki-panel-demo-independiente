@@ -470,7 +470,7 @@ function ir(v){
    if(S.vista==='nuevo'&&v!=='nuevo'){
     if(ukiBorradorTieneContenido()&&!window.confirm(
       'Este formulario todavía no se guardó en Romo. ¿Descartarlo y salir?'))return;
-    nuevoDraft();
+    nuevoDraft();ukiRomoBorradorActivoQA=null;
    }
    if(v==='nuevo')modoNuevo='manual';
    S.vista=v;render();
@@ -1862,6 +1862,8 @@ function leerTextoD(){
     if(medio){D.medio=medio;D.medioEnvio=medio;}
     D.pagado=false;render();return;
    }
+   // El pegado libre de Romo no suma productos de otro mensaje anterior.
+   D.items=[];D.envio=0;
   }
 
   if(esMensajeCartaUki(t)){
