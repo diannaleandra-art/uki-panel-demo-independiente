@@ -7080,6 +7080,7 @@ function ukiVAgregarPedidoOlvidado(){
 }
 function ukiVHistorialCorreccionesCierre(c){
  const ajustes=ukiOlvidosCierre(c);
+ const marcaLocal=S.suc===ROMO_SUCURSAL_QA?'Romo':'Uki';
  if(!ajustes.length)return "";
  const total=ajustes.reduce((a,x)=>a+(Number(x.total)||0),0);
  const local=ajustes.reduce((a,x)=>a+(Number(x.recibidoUki)||0),0);
@@ -7089,7 +7090,7 @@ function ukiVHistorialCorreccionesCierre(c){
   '<b>Corrección #'+x.id+(x.codigoCarta?' · Carta #'+esc(x.codigoCarta):'')+'</b> · '+esc(x.cliente||"Sin nombre")+
   '<p class="muted">'+esc(x.fechaPedido)+' · '+esc(x.detalle)+' · '+esc(x.modalidad)+'</p>'+
   row("Total del pedido",fmt(x.total))+
-  row("Cobrado en Uki",fmt(x.recibidoUki))+
+  row("Cobrado en "+marcaLocal,fmt(x.recibidoUki))+
   row("Cobrado en "+(x.localExterno||"otro local"),fmt(x.recibidoOtroLocal))+
   (x.modalidad==="Delivery"?row("Delivery para conciliar con repartidor",fmt(x.repartoRealizado?x.envio:0)):"")+
   '<p class="muted">Registrado por '+esc(x.responsable)+' · Motivo: '+esc(x.motivo)+'</p></div>').join("");
@@ -7100,8 +7101,8 @@ function ukiVHistorialCorreccionesCierre(c){
   row("Cobros registrados en Uki (ajuste)",fmt(local))+
   row("Cobros registrados en otros locales",fmt(externo))+
   row("Delivery adicional por conciliar",fmt(reparto))+
-  row("Venta del cierre original en Uki",fmt(c.venta||0))+
-  row("Venta en Uki + ajustes posteriores (informativo)",fmt((Number(c.venta)||0)+local),"final")+
+  row("Venta del cierre original en "+marcaLocal,fmt(c.venta||0))+
+  row("Venta en "+marcaLocal+" + ajustes posteriores (informativo)",fmt((Number(c.venta)||0)+local),"final")+
   '<p class="muted">El efectivo físico contado y los totales históricos originales NO se cambian.</p>'+items+'</details>';
 }
 

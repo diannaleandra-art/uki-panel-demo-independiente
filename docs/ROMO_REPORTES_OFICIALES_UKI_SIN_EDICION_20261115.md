@@ -11,3 +11,6 @@ Romo la había sustituido en Caja por una pantalla reducida de resumen semanal. 
 Los controles `ukiVRectificarCierre()` y `ukiAccionesHistorial()` del informe heredado pueden depender del almacenamiento Uki y no están confirmados como escritura CAS Neon en Romo. Para **Romo solamente**, en este informe se sustituyen por un aviso informativo hasta homologar sus operaciones. Los informes y los ajustes históricos quedan visibles en modo consulta. Las funciones de las dos sucursales Uki siguen idénticas.
 
 No se crean pedidos ni movimientos, no se habilitan funciones nuevas, no se despliega producción. Los resultados operativos requieren recorrido manual en iPhone y cierre real validado.
+
+## Terminología por sucursal
+El informe oficial mostraba en el historial las palabras «Cobrado en Uki» y «Venta en Uki». Al consultar Romo ahora presenta «Romo» en esas etiquetas, manteniendo los importes y reglas originales. Uki Regimiento y Uki La Serena conservan los textos originales sin alterar los cálculos.
