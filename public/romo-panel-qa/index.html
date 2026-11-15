@@ -1076,7 +1076,12 @@ async function salirSuc(){
     !window.confirm('Este formulario no está guardado en Romo. ¿Salir y descartarlo?'))return;
  if(ukiSolicitudWhatsAppActiva)ukiWhatsAppPausarRevision();
  if(S.suc){const ok=await guardarEnLocalStorage();if(!ok)return;await colaGuardado;}
- if(S.suc===ROMO_SUCURSAL_QA){window.ukiRomoSesionRemotaQA?.cerrar();ukiRomoSolicitudesCartaQA=null;ukiRomoSolicitudesAvisoQA='';ukiRomoWAAbiertosQA.clear();}
+ if(S.suc===ROMO_SUCURSAL_QA){
+  try{window.ukiRomoSesionRemotaQA?.cerrar();}
+  catch(e){aviso(String(e?.message||e));return;}
+  ukiRomoSolicitudesCartaQA=null;ukiRomoSolicitudesAvisoQA='';
+  ukiRomoWAAbiertosQA.clear();
+ }
  revisionGuardado++;claveSesion=null;saltSesion=null;sucursalSesion=null;
  cargarDesdeLocalStorage();nuevoDraft();
  if(typeof window.ukiQASessionLeft==="function")window.ukiQASessionLeft();
@@ -7119,6 +7124,9 @@ function vHistorial(){
 
 window.ukiQAGet=()=>S.suc?{suc:S.suc,estado:datosSoloSucursal()}:null;
 window.ukiQASet=async(data)=>{
+ // La restauración Firebase/local de Uki NUNCA confirma ni sustituye Neon Romo.
+ if(S.suc===ROMO_SUCURSAL_QA)
+  throw Error("Romo solo admite cambios confirmados mediante su revisión cifrada de Neon.");
  if(!S.suc||!validarEstadoSucursal(data,S.suc))throw Error("Estado inválido para esta sucursal");
  const prev=S;S={...estadoVacioSucursal(S.suc),...data,suc:S.suc,vista:"inicio",
    pinSuc:null,codigos:{},busy:false,msg:null,confirmCierre:false};

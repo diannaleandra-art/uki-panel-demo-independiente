@@ -60,7 +60,7 @@ export function crearSesionPanelUnicoRomoQA({
     !vault||typeof vault.cargarSobre!=='function'||typeof vault.guardarSobre!=='function'||
     typeof vault.disponible!=='function')
   throw Error('Faltan los conectores del panel existente');
- let sesion=null;
+ let sesion=null,guardadoEnCurso=false;
  const disponible=()=>vault.disponible()===true;
  function requireSession(){
   if(!sesion)throw Error('Abre Romo con Google y su clave habitual antes de operar');
@@ -88,6 +88,10 @@ export function crearSesionPanelUnicoRomoQA({
    return Object.freeze({revision:remote.revision,estado});
   },
   async guardar(estado){
+   // Un teléfono no puede solapar dos escrituras con la misma revisión CAS.
+   if(guardadoEnCurso)throw Error('Romo ya está guardando. Verifica el resultado antes de repetir.');
+   guardadoEnCurso=true;
+   try{
    const current=requireSession();
    // Evita que render() o navegar por la UI inicialice caja antes de
    // la autorización manual de dueños para el primer sobre cifrado.
@@ -115,6 +119,7 @@ export function crearSesionPanelUnicoRomoQA({
    current.revision=result.revision;
    current.ultimoEstado=serialized;
    return Object.freeze({ok:true,changed:true,revision:current.revision});
+   }finally{guardadoEnCurso=false;}
   },
 
   /** Cifra con la MISMA sesión del panel, pero no envía una escritura.
@@ -150,7 +155,10 @@ export function crearSesionPanelUnicoRomoQA({
    const current=requireSession();
    return Object.freeze({storeId:ROMO_UI_STORE_QA,revision:current.revision,conflicto:current.conflicto});
   },
-  cerrar(){sesion=null;}
+  cerrar(){
+   if(guardadoEnCurso)throw Error('El guardado de Romo todavía no terminó. No se cerró la sesión.');
+   sesion=null;
+  }
  });
 }
 export const ROMO_PANEL_UNICO_SESION_QA_NO_OPERATIVA=true;
