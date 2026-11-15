@@ -4978,6 +4978,7 @@ let ukiRomoFiltroPedidosQA='todos';
 // Filtros visuales exclusivos de Romo. NO se guardan ni reescriben pedidos.
 let ukiRomoVistaPedidosQA='operacion';
 let ukiRomoFechaPedidosQA='';
+let ukiRomoFechaIncidenciasQA='';
 let ukiRomoTurnoPedidosQA='';
 let ukiRomoBusquedaPedidosQA='';
 function ukiRomoFechaPedidoQA(p){
@@ -5013,6 +5014,26 @@ function ukiRomoElegirFechaPedidosQA(fecha){
  ukiRomoVistaPedidosQA=dia?'todos':'operacion';
  ukiRomoFiltroPedidosQA='todos';
  render();
+}
+// Flechas de fecha idénticas a Uki: cambian únicamente la vista, jamás
+// la fecha operativa de caja o los pedidos almacenados de Romo.
+function ukiRomoMoverDiaPedidosQA(delta){
+ if(S.suc!==ROMO_SUCURSAL_QA||![-1,1].includes(delta))return;
+ const actual=fechaOperativaActual();
+ const fecha=ukiRomoFechaPedidosQA||actual;
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha))return;
+ const f=new Date(fecha+'T12:00:00Z');
+ if(!Number.isFinite(f.getTime()))return;
+ f.setUTCDate(f.getUTCDate()+delta);
+ const siguiente=f.toISOString().slice(0,10);
+ if(siguiente>actual)return;
+ if(siguiente===actual)ukiRomoLimpiarFiltrosPedidosQA();
+ else ukiRomoElegirFechaPedidosQA(siguiente);
+}
+function ukiRomoElegirFechaIncidenciasQA(valor){
+ const fecha=String(valor||'');
+ if(fecha&&!/^\d{4}-\d{2}-\d{2}$/.test(fecha))return;
+ ukiRomoFechaIncidenciasQA=fecha;render();
 }
 function ukiRomoBuscarTodosPedidosQA(){
  ukiRomoVistaPedidosQA='todos';
