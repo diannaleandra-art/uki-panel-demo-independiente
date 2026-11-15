@@ -60,7 +60,7 @@
  // No crea saldos ni los modifica. PIN de inventario NO permite acceder.
  let leyendoLibroQA=false;
  async function consultarLibro(){
-  if(leyendoLibroQA||window.S?.suc!==LOCAL)return;
+  if(leyendoLibroQA||window.ukiQAGet?.()?.suc!==LOCAL)return;
   const session=window.ukiRomoSesionRemotaQA,st=session?.estado?.();
   if(!session?.disponible?.()||st?.conflicto||
      !Number.isSafeInteger(st?.revision)||st.revision<1)return;
@@ -86,7 +86,7 @@
     return data;
    };
    const [cuentas,movs]=await Promise.all([request('saldo'),request('movimientos')]);
-   if(window.S?.suc!==LOCAL||session.estado()?.revision!==st.revision)
+   if(window.ukiQAGet?.()?.suc!==LOCAL||session.estado()?.revision!==st.revision)
     throw Error('La sesión cambió durante la consulta; vuelve a ingresar.');
    const cuenta=cuentas.cuenta,rows=movs.movimientos;
    if(!cuenta||cuenta.store_id!=='romo:serena'||typeof cuenta.initialized!=='boolean'||
