@@ -77,6 +77,41 @@ function cell(value){
  if(value===null||value===undefined)return '';
  return typeof value==='number'?String(value):csvText(value);
 }
+export function crearMensajeCierreRomoQA({cierres,turnoId,revision}={}){
+ check(Array.isArray(cierres)&&cierres.length<=30000,
+  'Historial de Romo no disponible');
+ check(Number.isSafeInteger(revision)&&revision>=1,'Revisión de Neon no confirmada');
+ check(typeof turnoId==='string'&&/^\d{4}-\d{2}-\d{2}@[1-9]\d{12,14}$/.test(turnoId),
+  'Falta identificar el turno confirmado');
+ const reads=cierres.map(readClose);
+ check(reads.length===new Set(reads.map(c=>c.turno)).size,
+  'Hay cierres duplicados; requiere conciliación');
+ const x=reads.find(c=>c.turno===turnoId);
+ check(!!x,'El cierre indicado no existe en esta sucursal');
+ const paid=METHODS.filter(k=>x.medios[k]>0).map(k=>
+  '• '+k+': '+renderAmount(x.medios[k]));
+ return [
+  '🍣 *ROMO’S SUSHI · CIERRE DEFINITIVO*',
+  '*Sucursal:* La Serena',
+  '*Día operativo:* '+x.fecha,
+  '*Turno:* '+x.turno,
+  '*Responsable:* '+(x.responsable||'Sin indicar'),
+  '*Pedidos:* '+x.pedidos,
+  '*Venta cobrada:* '+renderAmount(x.venta),
+  '*MEDIOS DE PAGO*',...(paid.length?paid:['Sin cobros por medio']),
+  '*Venta sin delivery:* '+renderAmount(x.ventaSinDelivery),
+  '*Gastos:* '+renderAmount(x.gastos),
+  '*Pago repartidor:* '+renderAmount(x.repartidor),
+  '*Propinas registradas:* '+renderAmount(x.propinas),
+  '*Retiros:* '+renderAmount(x.retiros),
+  '*Efectivo esperado:* '+renderAmount(x.efectivoEsperado),
+  '*Efectivo contado:* '+renderAmount(x.efectivoContado),
+  '*Diferencia:* '+renderAmount(x.diferencia),
+  '*Resultado del cierre:* '+renderAmount(x.resultado),
+  'Confirmado en el estado cifrado Romo, revisión '+revision+'.',
+  'Pendiente de conciliación en Mi Administración.'
+ ].join('\n');
+}
 export function crearReporteCierresRomoQA({cierres,desde='',hasta='',revision}={}){
  check(Array.isArray(cierres)&&cierres.length<=30000,
   'El historial no está disponible');

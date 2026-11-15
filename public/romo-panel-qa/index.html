@@ -5676,6 +5676,40 @@ async function ukiRomoExportarCajaQA(tipo,formato){
  }
 }
 
+// Compartir voluntariamente el cierre ya confirmado. Jamás crea un pago,
+// modifica el estado, marca "enviado" ni toca Mi Administración.
+async function ukiRomoCompartirCierreQA(turnoId){
+ if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoOperacionesEnCursoQA())return;
+ const session=window.ukiRomoSesionRemotaQA,st=session?.estado?.();
+ if(!session?.disponible()||st?.conflicto||
+    !Number.isSafeInteger(st?.revision)||st.revision<1){
+  window.alert('Abre primero el estado confirmado de Romo antes de compartir.');return;
+ }
+ const id=String(turnoId||'');
+ if(!/^\d{4}-\d{2}-\d{2}@[1-9]\d{12,14}$/.test(id))return;
+ // Se crea la pestaña en el clic para no activar el bloqueo emergente de Safari.
+ const ventana=window.open('','_blank');
+ try{
+  const lib=await import('./uki-romo-exportar-cierres-qa.mjs');
+  if(S.suc!==ROMO_SUCURSAL_QA||session.estado()?.revision!==st.revision)
+   throw Error('La sesión de Romo cambió. Vuelve a revisar Historial.');
+  const mensaje=lib.crearMensajeCierreRomoQA({
+   cierres:S.cierres,turnoId:id,revision:st.revision
+  });
+  const destino='https://wa.me/?text='+encodeURIComponent(mensaje);
+  if(ventana&&!ventana.closed){
+   ventana.opener=null;
+   ventana.location.replace(destino);
+  }else{
+   if(!window.confirm('Safari bloqueó la pestaña. ¿Abrir WhatsApp en esta misma pantalla?'))return;
+   window.location.assign(destino);
+  }
+  // El usuario debe pulsar "Enviar" dentro de WhatsApp.
+ }catch(error){
+  if(ventana&&!ventana.closed)ventana.close();
+  window.alert('No se preparó el resumen. Revisa cierres y Neon: '+String(error?.message||error));
+ }
+}
 function ukiRomoCajaHistorialHTMLQA(){
  const cierres=(S.cierres||[]).filter(x=>x?.suc===ROMO_SUCURSAL_QA)
   .slice().sort((a,b)=>(Number(b.fechaMs)||Date.parse(b.fechaISO||'')||0)-
@@ -5695,6 +5729,8 @@ function ukiRomoCajaHistorialHTMLQA(){
    row('Pago a repartidor',segura('delivery'))+
    row('Propinas',segura('propinas'))+
    (medios?'<details><summary>Medios de cobro</summary>'+medios+'</details>':'')+
+   '<p><button type="button" class="sm" onclick="ukiRomoCompartirCierreQA(\''+
+   esc(String(x.turnoClave||''))+'\')">📲 Abrir resumen en WhatsApp</button></p>'+
    '</details>';
  }).join('');
  return '<div class="section-head"><h2>Historial de cierres · Romo</h2></div>'+
