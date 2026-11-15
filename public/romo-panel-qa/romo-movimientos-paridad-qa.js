@@ -119,6 +119,10 @@ window.romoMovimientosGuardarQA=async function(tipo){
    descripcion='Venta manual de '+datos.medioApp+' · '+dinero(datos.monto);
   }else if(tipo==='propina_manual'){
    const p=elegirPedido();
+   if(Number(p.propina||0)>0||(S.propinas||[]).some(x=>x.suc===SUC&&Number(x.pedidoId)===Number(p.id)))
+    throw Error('Este pedido ya tiene propina; no se debe duplicar.');
+   if(typeof ukiCierreConfirmadoPedido==='function'&&ukiCierreConfirmadoPedido(p))
+    throw Error('El pedido pertenece a un cierre definitivo. No se altera un cierre anterior.');
    datos.pedidoId=p.id;
    datos.concepto=texto('romoPropinaConceptoParidad');
    datos.medio=String(document.getElementById('romoPropinaMedioParidad')?.value||'');
