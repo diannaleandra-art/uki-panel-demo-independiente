@@ -5212,10 +5212,12 @@ function ukiRomoFiltrarClientesQA(valor){
   card.hidden=!ukiTextoBusqueda(card.getAttribute('data-buscar')).includes(q);
  });
 }
-function ukiRomoTarjetasClientesHTMLQA(){
- const clientes=ukiTarjetasAgrupadas().sort((a,b)=>
+function ukiRomoTarjetasClientesHTMLQA(visibleQA){
+ const fuente=Array.isArray(visibleQA)?visibleQA:ukiTarjetasAgrupadas();
+ const clientes=fuente.slice().sort((a,b)=>
   ukiUltimaCompraClienteMs(b)-ukiUltimaCompraClienteMs(a)||
   ventasValidas(b)-ventasValidas(a));
+
  const cards=clientes.map(cli=>{
   const key=String(cli._ukiClave||'');
   const keyJs=esc(JSON.stringify(key));
@@ -5252,8 +5254,10 @@ function ukiRomoTarjetasClientesHTMLQA(){
  return '<section class="card"><h2>⭐ Clientes y tarjetas · Romo</h2>'+
   '<p class="muted">Misma búsqueda e historial de Uki. Sólo clientes de Romo y movimientos ya confirmados.</p>'+
   '<label for="romoBuscarClientesQA">Buscar por nombre, WhatsApp o código del cliente</label>'+
-  '<input id="romoBuscarClientesQA" type="search" autocomplete="off" placeholder="Nombre, celular o últimos 4 números" '+
-   'oninput="ukiRomoFiltrarClientesQA(this.value)">'+
+  '<input id="romoBuscarClientesQA" type="search" autocomplete="off" value="'+esc(S.filtroCliente||'')+'" placeholder="Nombre, celular o últimos 4 números" '+
+   'oninput="S.filtroCliente=this.value;ukiRomoFiltrarClientesQA(this.value)" '+
+   'onkeydown="if(event.key===\'Enter\'){event.preventDefault();S.filtroCliente=this.value;render()}">'+
+  '<button type="button" class="sm ok" onclick="S.filtroCliente=document.getElementById(\'romoBuscarClientesQA\').value;render()">Buscar en todos los días</button>'+
   '<p class="muted">'+clientes.length+' tarjeta(s) guardadas.</p></section>'+
   (cards||'<div class="card">No hay tarjetas guardadas en Neon Romo. No se crean clientes desde esta consulta.</div>');
 }
@@ -5315,31 +5319,98 @@ async function ukiRomoGuardarDatosClienteQA(key,boton){
 const ukiRomoWAAbiertosQA=new Map();
 let ukiRomoTimbreBusyQA=false;
 function ukiRomoTimbresPanelQA(){
+ // Misma consulta por fecha y búsqueda global de Uki oficial.
+ // Nunca registra compras, canjes o timbres por el solo hecho de renderizar.
+ const fecha=filtroFechaTimbres||ukiFechaCalendarioChile(Date.now());
+ const buscar=String(S.filtroCliente||'').trim();
+ const todos=ukiTarjetasAgrupadas();
+ const clientes=todos.filter(cli=>buscar?
+   ukiBusquedaPorDatos(buscar,[cli.nombre,cli.telefono,
+    ukiCodigoClienteVisible(cli),cli.codigoCliente,cli._ukiClave]):
+   (cli.movimientos||[]).some(m=>m.tipo==='venta'&&
+     ukiFechaTimbreCalendario(m)===fecha));
+ const movimientosDelDia=clientes.flatMap(cli=>(cli.movimientos||[])
+  .filter(m=>m.tipo==='venta'&&ukiFechaTimbreCalendario(m)===fecha)
+  .map(m=>({cliente:cli,pedido:(S.pedidos||[]).find(p=>
+    p.suc===ROMO_SUCURSAL_QA&&Number(p.id)===Number(m.pedidoId))||null,
+    registroMs:ukiRegistroTimbreMs(m)})))
+  .sort((a,b)=>b.registroMs-a.registroMs);
+ const pendientesDelDia=movimientosDelDia.filter(m=>m.pedido&&
+   !m.pedido.timbreEnviadoEn&&ukiNumeroTimbreWhatsApp(m.pedido.telefono)).length;
+ const sinMovimiento=(S.pedidos||[]).filter(p=>p.suc===ROMO_SUCURSAL_QA&&
+   p.pagado&&p.estado!=='Cancelado'&&!p.esPremio&&!p.productosPagadosOtroLocal&&
+   ukiFechaCalendarioChile(fechaRegistroMs(p))===fecha&&!ukiTimbreMovimientoRegistrado(p));
  const pagados=(S.pedidos||[]).filter(p=>p.suc===ROMO_SUCURSAL_QA&&p.pagado&&
-   p.estado!=='Cancelado'&&!p.esPremio&&!p.productosPagadosOtroLocal)
-  .slice().reverse();
- const pendientes=pagados.filter(p=>!p.timbreEnviadoEn&&!!ukiNumeroTimbreWhatsApp(p.telefono));
- return '<div class="section-head"><h2>Timbres · Romo La Serena</h2>'+
-  '<p>Los timbres se acumulan al confirmar el pago, como en Uki. El envío por WhatsApp requiere confirmación manual.</p></div>'+
-  '<section class="kpis"><div class="kpi"><span>Compras pagadas</span><strong>'+pagados.length+'</strong></div>'+
-  '<div class="kpi"><span>Por enviar</span><strong>'+pendientes.length+'</strong></div></section>'+
-  ukiRomoTarjetasClientesHTMLQA()+
-  '<details class="card"><summary><b>📲 Timbres por pedido · '+pagados.length+' compras</b></summary>'+
+   p.estado!=='Cancelado'&&!p.esPremio&&!p.productosPagadosOtroLocal&&
+   (buscar?ukiBusquedaPorDatos(buscar,[p.cliente,p.telefono,p.codigoCliente,
+       p.codigoCarta,p.id]):ukiFechaCalendarioChile(fechaRegistroMs(p))===fecha))
+  .slice().sort((a,b)=>fechaRegistroMs(b)-fechaRegistroMs(a)||
+   (Number(b.id)||0)-(Number(a.id)||0));
+ const dias=new Map(),hoy=ukiFechaCalendarioChile(Date.now());
+ for(const cli of todos){
+  for(const movimiento of cli.movimientos||[]){
+   if(movimiento.tipo!=='venta')continue;
+   const dia=ukiFechaTimbreCalendario(movimiento);
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(dia)||dia===hoy)continue;
+   if(!dias.has(dia))dias.set(dia,new Set());
+   dias.get(dia).add(String(cli._ukiClave||cli.nombre||''));
+  }
+ }
+ const anteriores=[...dias.entries()].sort(([a],[b])=>b.localeCompare(a));
+ const resumen='<section class="card"><h2>⭐ Timbres de Romo La Serena</h2>'+
+  '<p class="muted">Igual que Uki: los timbres nacen de compras pagadas; abrir WhatsApp no equivale a enviarlo. La confirmación se guarda en Neon Romo.</p>'+
+  '<b>'+(buscar?'Resultados de búsqueda en todos los días':filtroFechaTimbres?
+    'Timbres del '+esc(fecha):'Timbres de hoy · '+esc(fecha))+'</b>'+
+  '<div class="kpis">'+
+   '<div class="kpi"><span>Clientes del día</span><strong>'+clientes.length+'</strong></div>'+
+   '<div class="kpi"><span>Timbres ganados</span><strong>'+movimientosDelDia.length+'</strong></div>'+
+   '<div class="kpi"><span>Premios 10</span><strong>'+
+    clientes.filter(cli=>ventasValidas(cli)>=10).length+'</strong></div>'+
+  '</div>'+
+  '<button type="button" class="sm" onclick="verDiaTimbres(&quot;&quot;)">Ver timbres de hoy</button>'+
+  '<details class="card"><summary><b>📅 Consultar por fecha</b></summary>'+
+   '<label for="ukiRomoTimbresDiaQA">Seleccionar día</label>'+
+   '<input id="ukiRomoTimbresDiaQA" type="date" value="'+
+    esc(filtroFechaTimbres)+'" onchange="verDiaTimbres(this.value)">'+
+  '</details>'+
+  '<details class="card"><summary><b>📚 Días anteriores · '+anteriores.length+'</b></summary>'+
+   (anteriores.slice(0,30).map(([dia,personas])=>
+    '<button class="sm" type="button" onclick="verDiaTimbres(\''+esc(dia)+
+    '\')">'+esc(dia)+' · '+personas.size+' cliente(s)</button>').join('')||
+    '<p class="muted">Sin movimientos de timbres en fechas anteriores.</p>')+
+   (anteriores.length>30?'<p class="muted">Utiliza el calendario para días más antiguos.</p>':'')+
+  '</details>'+
+  (sinMovimiento.length?'<details class="card"><summary><b>⚠️ Pedidos pagados sin timbre del día · '+
+    sinMovimiento.length+'</b></summary>'+
+    '<p class="muted">Revisar identidad y cobro. Esta consulta NO genera timbres.</p>'+
+    sinMovimiento.map(p=>'<p>'+esc(ukiReferenciaConCarta(p))+' · '+
+      esc(p.cliente||'Cliente sin nombre')+'</p>').join('')+'</details>':'')+
+  '</section>';
+ return '<div class="section-head"><h2>Clientes y timbres · Romo</h2></div>'+
+  resumen+ukiRomoTarjetasClientesHTMLQA(clientes)+
+  '<details class="card"><summary><b>📲 Timbres por pedido · '+pagados.length+
+   ' compra(s) pagada(s)</b></summary>'+
   (pagados.map(p=>{
-   const contado=ukiTimbreMovimientoRegistrado(p),tel=ukiNumeroTimbreWhatsApp(p.telefono);
-   const cli=getCliente(p.cliente,p.codigoCliente,p.telefono),n=cli?ventasValidas(cli):0;
+   const contado=ukiTimbreMovimientoRegistrado(p),
+    tel=ukiNumeroTimbreWhatsApp(p.telefono);
+   const cli=getCliente(p.cliente,p.codigoCliente,p.telefono),
+    n=cli?ventasValidas(cli):0;
    const estado=p.timbreEnviadoEn?'✅ Timbre enviado · '+esc(p.timbreEnviadoPor||'Personal'):
     !contado?'Revisar movimiento de timbre antes de enviar':
     !tel?'Sin WhatsApp válido':'Pendiente de enviar';
-   return '<section class="card"><h3>Pedido #'+esc(p.id)+' · '+esc(p.cliente||'Cliente')+'</h3>'+
-    '<p>'+esc(p.telefono||'Sin número')+' · Timbres vigentes: <b>'+esc(n)+'/10</b></p>'+
+   return '<section class="card"><h3>Pedido #'+esc(p.id)+' · '+
+     esc(p.cliente||'Cliente')+'</h3>'+
+    '<p>'+esc(p.telefono||'Sin número')+
+     ' · Timbres vigentes: <b>'+esc(n)+'/10</b></p>'+
     '<p class="muted">'+estado+'</p>'+
     ((!p.timbreEnviadoEn&&contado&&tel)?
-     '<button type="button" class="sm ok" onclick="ukiRomoAbrirTimbreQA('+Number(p.id)+')">Abrir WhatsApp</button>'+
+     '<button type="button" class="sm ok" onclick="ukiRomoAbrirTimbreQA('+
+     Number(p.id)+')">Abrir WhatsApp</button>'+
      (ukiRomoWAAbiertosQA.has(Number(p.id))?
-      '<button type="button" class="sm" onclick="ukiRomoConfirmarTimbreQA('+Number(p.id)+')">Confirmar envío realizado</button>':'')
+      '<button type="button" class="sm" onclick="ukiRomoConfirmarTimbreQA('+
+      Number(p.id)+')">Confirmar envío realizado</button>':'')
      :'')+'</section>';
-  }).join('')||'<div class="card">Todavía no hay compras pagadas en Romo.</div>')+
+  }).join('')||'<div class="card">Sin compras pagadas para esta consulta.</div>')+
   '</details>';
 }
 function ukiRomoAbrirTimbreQA(id){
