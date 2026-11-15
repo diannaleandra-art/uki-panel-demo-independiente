@@ -6080,6 +6080,27 @@ async function ukiRomoCerrarTurnoQA(){
   if(!session?.disponible())throw Error('La sesión Google de Romo no está activa.');
   const before=session.estado(),copia=datosSoloSucursal();
   if(before.conflicto)throw Error('La revisión cambió; vuelve a ingresar.');
+  // Verificación inicial de bandeja en servidor. La aceptación y el cierre
+  // se comprueban otra vez de forma atómica por Neon para evitar carreras.
+  const token=await window.ukiInventarioToken?.();
+  if(typeof token!=='string'||token.length<30)
+   throw Error('No se obtuvo sesión Google autorizada para revisar las solicitudes.');
+  const pendientesRespuesta=await fetch('/api/romo-solicitudes-carta-qa',{
+   method:'GET',cache:'no-store',credentials:'omit',
+   headers:{Authorization:'Bearer '+token},
+   signal:AbortSignal.timeout(15000)
+  });
+  const pendientesDatos=await pendientesRespuesta.json().catch(()=>null);
+  if(!pendientesRespuesta.ok||pendientesDatos?.ok!==true||
+     pendientesDatos.storeId!=='romo:serena'||pendientesDatos.branch!=='serena'||
+     !Array.isArray(pendientesDatos.orders))
+   throw Error('No fue posible confirmar la bandeja real de Romo. El cierre sigue bloqueado.');
+  if(pendientesDatos.orders.some(x=>x?.branch!=='serena'||
+     !['pendiente','aceptada','rechazada'].includes(x.estado)))
+   throw Error('Bandeja de solicitudes inválida; no se permite cerrar.');
+  const sinResolver=pendientesDatos.orders.filter(x=>x.estado==='pendiente');
+  if(sinResolver.length)
+   throw Error('Hay '+sinResolver.length+' solicitud(es) de carta pendientes. Acéptalas o recházalas antes de cerrar.');
   const lib=await import('./uki-romo-cierre-definitivo-qa.mjs');
   const fecha=fechaOperativaActual();
   const closing=lib.prepararCierreDefinitivoRomoQA(copia,{
@@ -6103,9 +6124,8 @@ async function ukiRomoCerrarTurnoQA(){
   const packageCifrado=await session.prepararSobreAceptacion(copia);
   if(packageCifrado.revision!==before.revision)
    throw Error('La base cambió durante la preparación.');
-  const token=await window.ukiInventarioToken?.();
-  if(typeof token!=='string'||token.length<30)
-   throw Error('No se obtuvo la sesión Google autorizada.');
+  // Reutilizar el token de la verificación inmediata anterior. El servidor
+  // vuelve a autenticar y comprobar pendientes al confirmar el cierre.
   const response=await fetch('/api/romo-cierre-definitivo-qa',{
    method:'POST',cache:'no-store',credentials:'omit',
    headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},

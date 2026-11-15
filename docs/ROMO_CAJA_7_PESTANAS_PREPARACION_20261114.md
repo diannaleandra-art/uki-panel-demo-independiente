@@ -6,7 +6,7 @@ Se reutilizó el mismo `CAJA_TABS` de Uki: Resumen, Movimientos, Precierre traba
 
 - **Resumen y Movimientos:** se separó la vista existente de Romo; los formularios y procedimientos cifrados/CAS ya preparados se conservan sin reimplementarlos.
 - **Precierre:** conecta el formulario existente si hay un turno abierto y base confirmada. No se concede autorización financiera al PIN de inventario.
-- **Cierre:** mantiene la apertura/cierre y constancia de Neon Romo ya existentes, con sus controles. Hasta prueba manual no se declara homologado.
+- **Cierre:** mantiene la apertura/cierre y constancia de Neon Romo ya existentes. Antes de preparar un cierre se consulta la bandeja real con Google; solicitudes pendientes, fallos de lectura o falta de permisos bloquean el cierre. La operación atómica del servidor vuelve a comprobar pendientes para evitar carreras. Hasta prueba manual no se declara homologado.
 - **Historial:** consulta exclusivamente `S.cierres` de Romo, muestra medios, efectivo, gastos y reparto sin editar ni inventar cierres.
 - **Reportes:** utiliza la función oficial de resumen semanal sobre los cierres definitivos de Romo exclusivamente, no incluye solicitudes de carta ni precierres.
 - **Acumulada:** muestra estado no conciliado, sin cálculo ficticio ni llamada a la API de Uki. Pendiente servicio exclusivo de Romo y reconciliación.
