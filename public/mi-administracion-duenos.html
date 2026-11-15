@@ -219,6 +219,13 @@ label{color:#66574c}
   <button class="owner-branch-button" type="button" data-owner-branch="serena"><strong>La Serena</strong><small id="ukiAutoSerena">Sin cierres confirmados en estas fechas</small></button>
  </div>
 </section>
+<section class="card" id="romoCierresPrivadosQA" aria-label="Cierres Romo La Serena">
+ <h2>🍣 Romo’s Sushi La Serena · cierres definitivos</h2>
+ <p class="hint">Consulta privada de las constancias confirmadas en Neon Romo. Mismo acceso Google y PIN de dueños. <b>Informativo: aún no se suma a ventas generales ni a movimientos manuales.</b></p>
+ <p class="hint" role="status" id="romoCierresEstadoQA">Inicia sesión privada para consultar los cierres.</p>
+ <button class="soft" id="romoCierresActualizarQA" type="button" onclick="void cargarCierresRomoQA($('from').value,$('to').value)">Actualizar cierres de Romo</button>
+ <div class="owner-business-list" id="romoCierresFilasQA"></div>
+</section>
 <div class="card owner-finance-card"><div class="owner-eyebrow">MOVIMIENTOS FINANCIEROS REGISTRADOS</div><h2>📊 Resumen de todos los negocios</h2>
 <details class="owner-hint-collapsible"><summary>ℹ️ Acerca de estos totales</summary><p>Incluyen cierres finales y movimientos manuales. Los registros heredados de pruebas deben verificarse antes de tratarlos como operaciones reales. Si una compra ya figura como gasto de caja, hay que conciliarla para evitar contarla dos veces. Los retiros personales no se consideran gastos operativos.</p></details>
 <p class="hint" id="ukiPeriodoResumen">Período seleccionado: el mes actual</p>
@@ -869,9 +876,68 @@ function pintarGastos(dato=vistaGastosActual){
 }
 
 // Solo lectura: cierres confirmados, sin modificar movimientos manuales.
+// Romo se obtiene de Neon aislado a través de la misma sesión Google + PIN.
+// JAMÁS se añade a cierresConfirmadosUki, fin_movimientos ni a ventas manuales.
+const ROMO_CIERRES_PRIVADOS_URL=
+ 'https://uki-sushi-inventario-git-preparacion-c0b0e9-diannaleandra-7046.vercel.app/api/romo-cierres-duenos-consulta-qa';
+let romoCierresPrivadosSecuencia=0;
+async function cargarCierresRomoQA(desde,hasta){
+ const estado=$('romoCierresEstadoQA'),host=$('romoCierresFilasQA');
+ if(!estado||!host)return;
+ if(!session||!auth.currentUser){
+  estado.textContent='Inicia sesión Google y PIN de Mi Administración para ver Romo.';
+  host.replaceChildren();return;
+ }
+ const n=++romoCierresPrivadosSecuencia;
+ estado.textContent='Consultando cierres confirmados de Romo…';
+ host.replaceChildren();
+ try{
+  const token=await auth.currentUser.getIdToken();
+  const response=await fetch(ROMO_CIERRES_PRIVADOS_URL,{
+   method:'POST',cache:'no-store',credentials:'omit',
+   headers:{Authorization:'Bearer '+token,'Content-Type':'application/json',
+    'X-Fin-Session':session},
+   body:JSON.stringify({desde,hasta})
+  });
+  const info=await response.json().catch(()=>null);
+  if(!response.ok||info?.ok!==true||info.storeId!=='romo:serena'||
+     !Array.isArray(info.cierres)||info.cierres.length>100)
+   throw Error(info?.error||'La consulta de Romo todavía no está disponible.');
+  if(n!==romoCierresPrivadosSecuencia||!session)return;
+  const seen=new Set();
+  const rows=info.cierres.filter(c=>{
+   if(!c||typeof c.turno_ref!=='string'||seen.has(c.turno_ref)||
+      !Number.isSafeInteger(Number(c.venta_total))||
+      !Number.isSafeInteger(Number(c.pedidos)))return false;
+   seen.add(c.turno_ref);return true;
+  });
+  const sum=rows.reduce((total,c)=>total+Number(c.venta_total),0);
+  estado.textContent=rows.length?
+   rows.length+' cierre(s) Romo confirmados · '+pesos(sum)+' (solo informativo; NO sumado a ventas)':
+   'No hay cierres definitivos confirmados de Romo para estas fechas.';
+  rows.forEach(c=>{
+   const card=document.createElement('div');card.className='owner-business-item';
+   const name=document.createElement('strong');
+   name.textContent='Romo La Serena · '+c.fecha_operativa+' · '+c.turno_ref;
+   const detail=document.createElement('p');detail.className='hint';
+   detail.textContent='Venta: '+pesos(c.venta_total)+' · Pedidos: '+c.pedidos+
+    ' · Gastos: '+pesos(c.gastos_cierre)+
+    ' · Delivery por pagar: '+pesos(c.delivery_por_pagar)+
+    ' · Propinas: '+pesos(c.propinas)+
+    ' · Revisión Neon: '+c.revision_neon;
+   const note=document.createElement('p');note.className='hint';
+   note.textContent='Cierre validado en Romo. No incluido en ingresos ni sumado dos veces.';
+   card.append(name,detail,note);host.append(card);
+  });
+ }catch(error){
+  if(n!==romoCierresPrivadosSecuencia)return;
+  estado.textContent='No se pudo verificar Romo: '+String(error?.message||'Consulta no disponible.');
+ }
+}
 const UKI_DUENOS_CIERRES_URL='https://uki-sushi-inventario.vercel.app/api/mi-administracion-live';
 let ukiCierresQAConsulta=0;
 async function cargarCierresUki(desde,hasta){
+ if(session&&auth.currentUser)void cargarCierresRomoQA(desde,hasta);
  const seq=++ukiCierresQAConsulta,arica=$('ukiAutoArica'),serena=$('ukiAutoSerena');
  if(!session||!auth.currentUser)return;
  arica.textContent=serena.textContent='Consultando cierres…';
