@@ -6055,6 +6055,8 @@ function ukiRomoFormularioPrecierreQA(c,t){
   .slice().reverse();
  return (activo?
    '<p>Trabajador: <b>'+esc(activo.nombre)+'</b> · Inicio: '+esc(new Date(activo.inicioMs).toLocaleString('es-CL'))+'</p>'+
+   '<p class="muted"><b>Referencia para el trabajador:</b> '+esc(activo.fechaOperativa+'@'+activo.inicioMs)+'</p>'+
+   '<button type="button" class="sm" onclick="window.ukiRomoPrecierreDuenosQA?.shareLink?.()">📲 Compartir enlace de precierre al trabajador</button>'+
    '<label>Efectivo físico contado en el turno, sin base ni propinas</label>'+
    '<input id="romoPrecierreContadoQA" type="number" min="0" step="1" inputmode="numeric" placeholder="Escribe 0 si corresponde">'+
    '<label>Observaciones</label><textarea id="romoPrecierreObsQA" maxlength="300" rows="2"></textarea>'+
@@ -6063,7 +6065,16 @@ function ukiRomoFormularioPrecierreQA(c,t){
    '<p class="muted">No hay trabajador con turno iniciado. Solo el precierre del trabajador se cierra aquí; Caja seguirá abierta.</p>'+
    '<label>Nombre del trabajador</label><input id="romoTrabajadorInicioQA" maxlength="60" placeholder="Nombre del trabajador">'+
    '<button type="button" class="big" onclick="ukiRomoIniciarTurnoTrabajadorQA()">Iniciar turno del trabajador</button>')+
-  '<p class="muted">Solo cuenta de dueños durante integración. El acceso por PIN independiente se conectará después. Cada apertura y precierre debe confirmarse en Neon.</p>'+
+  '<details class="card"><summary><b>🔐 PIN y recepciones de precierre del trabajador</b></summary>'+
+   '<p class="muted">El PIN de precierre es independiente del inventario y no permite ver ventas ni cerrar Caja. El envío del trabajador requiere confirmación manual del dueño.</p>'+
+   '<label for="romoPrecierrePinCrearQA">Configurar PIN exclusivo (solo una vez, 6 números)</label>'+
+   '<input id="romoPrecierrePinCrearQA" type="password" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="Seis números, distinto al inventario">'+
+   '<button type="button" class="sm" onclick="window.ukiRomoPrecierreDuenosQA?.crearPin?.()">Configurar PIN de precierre</button>'+
+   '<button type="button" class="sm" onclick="window.ukiRomoPrecierreDuenosQA?.estadoPin?.()">Consultar si el PIN está configurado</button>'+
+   '<button type="button" class="sm ok" onclick="window.ukiRomoPrecierreDuenosQA?.verEnvios?.()">📥 Ver conteos enviados para revisión</button>'+
+   '<p id="romoPersonalPrecierreStatusQA" class="muted" role="status"></p>'+
+   '<div id="romoPersonalPrecierreListadoQA"></div></details>'+
+  '<p class="muted">El dueño confirma el precierre por la revisión cifrada de Neon. El trabajador no obtiene permisos de Caja, pagos ni pedidos.</p>'+
   '<button type="button" class="sm ok" onclick="ukiExportarPrecierres()">📊 Excel de precierres de Romo</button>'+
   '<details><summary>Precierres confirmados: '+prev.length+'</summary>'+
    (prev.map(p=>ukiFilaPrecierre(p)).join('')||'<p class="muted">Sin precierres confirmados en este turno.</p>')+
@@ -6099,6 +6110,11 @@ async function ukiRomoGuardarPrecierreQA(){
   return aviso('Escribe el conteo físico exacto, incluido cero.');
  const obs=String($('romoPrecierreObsQA')?.value||'').trim();
  if(obs.length>300)return aviso('Observaciones demasiado largas.');
+ const enviado=window.ukiRomoPrecierreDuenosQA?.seleccion?.()||null;
+ if(enviado&&(enviado.inicioMs!==abierto.inicioMs||
+   enviado.fecha!==dia||enviado.nombre!==abierto.nombre||
+   enviado.efectivoContado!==contado||enviado.observaciones!==obs))
+  return aviso('El envío ya no coincide. Actualiza la bandeja antes de guardar.');
  let totalesTurno;
  try{totalesTurno=ukiDiferenciaPrecierre(abierto.base,ukiFotoPrecierre());}
  catch(e){return aviso(String(e?.message||e));}
@@ -6117,11 +6133,20 @@ async function ukiRomoGuardarPrecierreQA(){
    nombre:abierto.nombre,inicioMs:abierto.inicioMs,finMs:Date.now(),
    totales:totalesTurno,efectivoContado:contado,
    diferenciaEfectivo:contado-totalesTurno.efectivoCaja,
-   observaciones:obs,registradoPor:'dueños',
+   observaciones:obs,registradoPor:enviado?'trabajador_PIN_y_duenos':'dueños',
+   solicitudId:enviado?.id||null,
    origen:'mismo_panel_uki_romo'
   });
   c.turnoPrecierreAbierto=null;
   await ukiRomoGuardarOperacionQA(copia,'Precierre de '+abierto.nombre+' confirmado; día abierto',null,'caja');
+  if(enviado){
+   try{
+    const revision=window.ukiRomoSesionRemotaQA?.estado?.()?.revision;
+    await window.ukiRomoPrecierreDuenosQA?.conciliar?.(enviado,revision);
+   }catch(error){
+    aviso('Precierre guardado en Neon; la recepción quedó por conciliar. Puedes marcarla desde el historial sin duplicar el precierre. '+String(error?.message||error));
+   }
+  }
  }catch(e){
   aviso('NO se confirmó el precierre. Revisa Caja antes de intentar de nuevo. '+String(e?.message||e));
  }finally{ukiRomoPrecierreOcupadoQA=false;}
@@ -7643,6 +7668,7 @@ function vHistorial(){
 }
 
 window.ukiQAGet=()=>S.suc?{suc:S.suc,estado:datosSoloSucursal()}:null;
+window.ukiRomoFechaOperativaPrecierreQA=()=>S.suc===ROMO_SUCURSAL_QA?fechaOperativaActual():null;
 window.ukiQASet=async(data)=>{
  // La restauración Firebase/local de Uki NUNCA confirma ni sustituye Neon Romo.
  if(S.suc===ROMO_SUCURSAL_QA)
@@ -7954,6 +7980,7 @@ el("ukiAutoCheck").addEventListener("change",()=>{
  vigilarRevisiones(contextoLocal.suc);
 });
 </script>
+<script src="/romo-panel-qa/romo-precierre-duenos-qa.js?v=20261115a" defer></script>
 <script src="/romo-panel-qa/romo-caja-acumulada-conciliacion-qa.js?v=20261115a" defer></script>
 <script src="/romo-panel-qa/romo-edicion-en-panel-qa.js?v=20261114c" defer></script>
 <script src="/romo-panel-qa/romo-banner-admin.js?v=20261114b" defer></script></body></html>
