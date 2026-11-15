@@ -443,7 +443,7 @@ function cambiarModoNuevo(t){if(S.suc===ROMO_SUCURSAL_QA&&t!=='manual'){aviso('R
 function aviso(t){S.msg=t;render();window.scrollTo({top:0,behavior:"smooth"});}
 function ir(v){
   if(S.suc===ROMO_SUCURSAL_QA){
-   if(!['pedidos','nuevo','caja','clientes','inventario'].includes(v)){
+   if(!['pedidos','nuevo','caja','clientes','inventario','promos'].includes(v)){
     S.msg='Esta función todavía no tiene guardado seguro en Romo; no se registró nada.';
     S.vista='pedidos';render();return;
    }
@@ -783,11 +783,20 @@ function render(){
   if(S.suc===ROMO_SUCURSAL_QA)
    $("nav").innerHTML+='<button type="button" class="'+(S.vista==='inventario'?'on':'')+
     '" onclick="ir(\'inventario\')" aria-label="Inventario" '+(S.vista==='inventario'?'aria-current="page"':'')+
-    '><span class="nav-icon" aria-hidden="true">▦</span><span>Inventario</span></button>';
-  const f={inicio:vInicio,pedidos:vPedidos,nuevo:vNuevo,clientes:vClientes,caja:vCaja,inventario:()=>window.ukiInventarioPanelHTML?.()||'<div class="card"><p>Preparando inventario…</p></div>'}[S.vista]||vInicio;
+    '><span class="nav-icon" aria-hidden="true">▦</span><span>Inventario</span></button>'+
+    '<button type="button" class="'+(S.vista==='promos'?'on':'')+
+    '" onclick="ir(\'promos\')" aria-label="Promociones" '+(S.vista==='promos'?'aria-current="page"':'')+
+    '><span class="nav-icon" aria-hidden="true">▣</span><span>Promos</span></button>';
+  const f={inicio:vInicio,pedidos:vPedidos,nuevo:vNuevo,clientes:vClientes,caja:vCaja,
+   inventario:()=>window.ukiInventarioPanelHTML?.()||'<div class="card"><p>Preparando inventario…</p></div>',
+   promos:()=>S.suc===ROMO_SUCURSAL_QA?
+     (window.ukiRomoBannerAdminHTML?.()||'<div class="card">Cargando promociones de Romo…</div>'):vInicio()
+  }[S.vista]||vInicio;
   const msg=S.msg?`<div role="status" class="aviso" style="background:#ffece4;color:#7a2c08">${esc(S.msg)}</div>`:"";
   S.msg=null;
   $("app").innerHTML=msg+f();
+  if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='promos')
+   setTimeout(()=>{if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='promos')window.ukiRomoBannerAdminMount?.()},0);
   ukiRestaurarVistaTrasRender(ukiVistaAnterior);
   ukiUltimaVistaRender=S.vista;ukiUltimaSucursalRender=S.suc;
   guardarEnLocalStorage();
@@ -7398,4 +7407,4 @@ el("ukiAutoCheck").addEventListener("change",()=>{
  vigilarRevisiones(contextoLocal.suc);
 });
 </script>
-</body></html>
+<script src="/romo-panel-qa/romo-banner-admin.js?v=20261114b" defer></script></body></html>
