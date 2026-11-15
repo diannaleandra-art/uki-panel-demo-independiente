@@ -78,7 +78,7 @@ BEGIN
   THEN RAISE EXCEPTION 'Falta referencia de cierre único'; END IF;
  ELSE
   IF p_source_key IS NOT NULL OR p_amount IS NULL OR
-     p_amount<CASE WHEN p_action='inicializar' THEN 0 ELSE 1 END OR
+     p_amount < (CASE WHEN p_action='inicializar' THEN 0 ELSE 1 END) OR
      p_amount>100000000
   THEN RAISE EXCEPTION 'Importe o referencia inválidos'; END IF;
  END IF;
@@ -90,8 +90,8 @@ BEGIN
  SELECT * INTO prev FROM public.romo_caja_acum_movimientos_v1
  WHERE store_id='romo:serena' AND op_key=p_op_key;
  IF FOUND THEN
-  IF prev.tipo<>CASE p_action WHEN 'inicializar' THEN 'apertura'
-      WHEN 'sincronizar_cierre' THEN 'cierre' ELSE p_action END
+  IF prev.tipo <> (CASE p_action WHEN 'inicializar' THEN 'apertura'
+      WHEN 'sincronizar_cierre' THEN 'cierre' ELSE p_action END)
     OR prev.source_key IS DISTINCT FROM p_source_key
     OR (p_action<>'sincronizar_cierre' AND abs(prev.monto)<>p_amount)
     OR prev.responsable<>btrim(p_responsable) OR
