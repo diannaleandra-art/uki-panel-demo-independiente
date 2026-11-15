@@ -24,7 +24,7 @@ export class RomoEdicionConfirmadaReleerQA extends Error{
   this.code='ROMO_EDICION_CONFIRMADA_RECARGAR';}
 }
 export function prepararEdicionPendienteRomoQA(estado,{
- pedidoId,responsable,motivo,registradoEn,productos,envio
+ pedidoId,responsable,motivo,registradoEn,productos,envio,mesaReferencia
 }={}){
  check(estado?.suc===SUC&&Array.isArray(estado.pedidos)&&
   Array.isArray(estado.cierres)&&Array.isArray(estado.propinas)&&
@@ -85,13 +85,35 @@ export function prepararEdicionPendienteRomoQA(estado,{
   integer(envio,0,0,'Sin delivery');
  const total=subtotal+envioNuevo;
  check(Number.isSafeInteger(total)&&total<=3000000,'Total fuera de rango');
- const previo={productos:structuredClone(antiguos),subtotal:p.subtotal,envio:p.envio,total:p.total};
- const proximo={productos:structuredClone(nuevos),subtotal,envio:envioNuevo,total};
+ // Igual que Uki: la referencia de mesa es una propiedad del pedido,
+ // jamás un nuevo pedido, un cobro o una ronda QR.
+ let mesaNueva=String(p.mesaReferencia||'').trim();
+ if(mesaReferencia!==undefined){
+  const solicitada=String(mesaReferencia??'').trim();
+  if(p.modalidad!=='Consumo en local'){
+   check(!solicitada,'Una entrega o retiro no puede trasladarse a una mesa');
+  }else{
+   const m=solicitada.match(/^(?:mesa\s*)?(\d{1,2})$/i);
+   const n=m?Number(m[1]):0;
+   check(n>=1&&n<=50,'La mesa debe estar entre 1 y 50');
+   mesaNueva='Mesa '+n;
+   if(mesaNueva!==String(p.mesaReferencia||'').trim()){
+    check(!(p.qrSolicitudes||[]).length&&!p.cartaSolicitudRemotaId,
+     'No se puede cambiar la mesa de una solicitud QR sin conciliar sus rondas');
+   }
+  }
+ }
+
+ const previo={productos:structuredClone(antiguos),subtotal:p.subtotal,envio:p.envio,total:p.total,
+  mesaReferencia:p.mesaReferencia||''};
+ const proximo={productos:structuredClone(nuevos),subtotal,envio:envioNuevo,total,
+  mesaReferencia:mesaNueva};
  check(JSON.stringify(previo)!==JSON.stringify(proximo),
   'No hay cambios para guardar');
  check(p.historialCambios===undefined||Array.isArray(p.historialCambios),
   'Historial de cambios inválido');
  p.productos=nuevos;p.subtotal=subtotal;p.envio=envioNuevo;p.total=total;
+ if(mesaReferencia!==undefined&&p.modalidad==='Consumo en local')p.mesaReferencia=mesaNueva;
  const fechaISO=new Date(registradoEn).toISOString();
  const evento={tipo:'edicion_pedido_sin_pago',fecha:fechaISO,responsable:actor,
   motivo:razon,anterior:previo,nuevo:proximo};
