@@ -172,7 +172,7 @@ BEGIN
  RETURN jsonb_build_object('ok',true,'duplicate',false,
   'balance',next_balance,'initialized',true,'movimiento',mov.id,
   'source_key',p_source_key,'importe',delta);
-END $$;
+END; $;
 
 -- El actor debe proceder SIEMPRE del token Google verificado en la API.
 -- Conceder lectura/ejecución al servicio, NUNCA escritura SQL directa.
