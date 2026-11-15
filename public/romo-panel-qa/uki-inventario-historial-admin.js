@@ -125,7 +125,8 @@ const panel=[
 '</div></section>'
 ].join('');
 window.ukiInventarioPanelHTML=()=>oldHTML()+panel;
-const sucursal=()=>String($('invBranch')?.value||'arica');
+// No confundir Romo con la sucursal Regimiento Arica.
+const sucursal=()=>typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena'?'romo':String($('invBranch')?.value||'');
 const status=(id,s)=>{if($(id))$(id).textContent=s;};
 const filtro=item=>{
  const min=Number(item.min_stock_qty)||0,qty=Number(item.stock_qty)||0;
@@ -134,6 +135,8 @@ const filtro=item=>{
 const nombreNormal=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 const nombreSucursal=b=>exports().branchName(b);
 async function request(action,payload={},b=sucursal()){
+ if(b==='romo')throw Error('Para Romo consulta sus artículos y movimientos en Neon Romo. El historial heredado de Uki todavía no está sincronizado.');
+ if(!['arica','serena'].includes(b))throw Error('Sucursal de inventario no reconocida.');
  const token=await window.ukiInventarioToken?.();
  if(!token)throw Error('Inicia sesión Google en el panel para consultar.');
  const r=await fetch(API,{method:'POST',mode:'cors',cache:'no-store',credentials:'omit',
@@ -309,7 +312,14 @@ async function openRevision(id){
  }catch(e){status('ukiHistoriaEstado','No se pudo abrir el inventario: '+String(e.message||e));}
 }
 function mount(){
- oldMount();if(!$('ukiMiniInventario')||!exports())return;
+ oldMount();
+ if(sucursal()==='romo'){
+  for(const id of ['ukiMiniInventario','ukiHistorial']){
+   const section=$(id);if(section)section.hidden=true;
+  }
+  return;
+ }
+ if(!$('ukiMiniInventario')||!exports())return;
  // Reordenar solamente contenedores existentes, conservando botones y eventos.
  const root=$('invRoot');
  if(root){
