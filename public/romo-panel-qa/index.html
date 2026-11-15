@@ -5418,6 +5418,35 @@ function ukiRomoPedidosPendientesHTMLQA(){
    '<p class="muted">No hay pedidos de mesa manuales pendientes de cobro o entrega.</p>')+
    '<p class="muted">El QR de Uki no se reutiliza para Romo. La recepción QR de Romo sigue pendiente de conectar y comprobar.</p>'+
   '</details>';
+ // Historial único de correcciones, entregas, cobros y cancelaciones confirmados.
+ // Solo lectura: nunca reabre un turno ni restaura una caja.
+ const eventosAuditados=todos.flatMap(p=>(Array.isArray(p.historialCambios)?
+   p.historialCambios:[]).filter(ev=>ev&&typeof ev==='object'&&ev.fecha)
+  .map(ev=>({p,ev})))
+  .sort((a,b)=>String(b.ev.fecha).localeCompare(String(a.ev.fecha)));
+ const auditoriaHTML=eventosAuditados.length?
+  '<details class="card" id="romoAuditoriaPedidosQA"><summary><b>📝 Historial de cambios de pedidos · '+
+   eventosAuditados.length+'</b></summary>'+
+   '<p class="muted">Solo consulta. Se conserva responsable, motivo, fecha, importes anteriores y posteriores cuando existen. No se modifica ningún cierre desde aquí.</p>'+
+   eventosAuditados.slice(0,80).map(({p,ev})=>
+    '<div class="card" style="padding:11px">'+
+    '<b>'+esc(ukiReferenciaConCarta(p))+' · '+
+     esc(({edicion_pedido_sin_pago:'Edición pendiente',entrega_confirmada:'Entrega',
+        cobro_pendiente:'Cobro confirmado',cancelacion:'Cancelación'}[ev.tipo]||ev.tipo||'Cambio'))+
+    '</b>'+
+    '<p class="muted">Fecha: '+esc(String(ev.fecha))+
+    ' · Responsable: '+esc(ev.responsable||'No indicado en el registro original')+'</p>'+
+    (ev.motivo?'<p class="muted">Motivo: '+esc(ev.motivo)+'</p>':'')+
+    (ev.anterior&&ev.nuevo&&Number.isFinite(Number(ev.anterior.total))&&
+     Number.isFinite(Number(ev.nuevo.total))?
+     '<p class="muted">Total anterior: '+fmt(ev.anterior.total)+
+      ' · Total nuevo: '+fmt(ev.nuevo.total)+'</p>':'')+
+    (ukiCierreConfirmadoPedido(p)?
+     '<p class="muted">🔒 Turno cerrado · Corregir requiere autorización de dueños.</p>':'')+
+    '</div>').join('')+
+   (eventosAuditados.length>80?
+    '<p class="muted">Se muestran las 80 modificaciones más recientes. Las anteriores siguen guardadas en cada pedido.</p>':'')+
+   '</details>':'';
  const items=listado.map(p=>{
   const id=Number(p.id),tst=/^PRUEBA\b/i.test(String(p.cliente||''));
   const cerrado=!!ukiCierreConfirmadoPedido(p);
@@ -5527,7 +5556,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
   nav+(ukiRomoVistaPedidosQA==='operacion'?mesasHTML+ukiRomoBorradoresResumenQA()+ukiRomoSolicitudesHTMLQA():'')+
   buscar+selectorTurno+filtros+
   (listado.length?items:'<section class="card"><p>No se encontraron pedidos para los filtros seleccionados.</p></section>')+
-  archivo+rechazos;
+  archivo+(ukiRomoVistaPedidosQA!=='operacion'?auditoriaHTML:'')+rechazos;
 }
 
 // Fichas de Clientes del mismo panel Uki; sólo datos del estado Neon Romo.
