@@ -5392,38 +5392,99 @@ function ukiRomoPedidosPendientesHTMLQA(){
   '</details>');
  const items=listado.map(p=>{
   const id=Number(p.id),tst=/^PRUEBA\b/i.test(String(p.cliente||''));
-  const estado=p.estado==='Cancelado'?'Cancelado':p.estado==='Entregado'?'Entregado':p.pagado?'Pagado · por entregar':'Pendiente de pago';
+  const cerrado=!!ukiCierreConfirmadoPedido(p);
+  const estado=p.estado==='Cancelado'?'Cancelado':
+   p.estado==='Entregado'?(p.pagado?'✓ Entregado':'Entregado · por cobrar'):
+   p.pagado?'✓ Pagado · por entregar':'$ Por cobrar';
   const entrega=p.modalidad==='Delivery'?ukiRomoDetalleEntregaCartaHTMLQA(p.textoOriginal,{compacto:true}):'';
-  const resumen='<section class="card romo-pedido-card" data-buscar="'+
-   esc([p.id,p.cliente,p.telefono,p.codigoCarta,p.codigoCliente,p.modalidad].join(' ').toLocaleLowerCase('es-CL'))+
-   '"><h3>Pedido #'+esc(id)+' · '+esc(estado)+'</h3>'+
-   '<p><b>'+esc(p.cliente||"Cliente")+'</b> · '+esc(p.modalidad||"Retiro")+' · '+fmt(p.total)+'</p>'+
+  const clase=p.estado==='Cancelado'?'uki-pedido-cancelado':
+   p.esPremio?'uki-pedido-premio':
+   p.estado==='Entregado'&&p.pagado?'uki-pedido-entregado':
+   p.pagado?'uki-pedido-pagado':'uki-pedido-cobrar';
+  const resumen='<details class="card order-card romo-pedido-card '+clase+'" data-buscar="'+
+   esc([p.id,p.cliente,p.telefono,p.codigoCarta,p.codigoCliente,p.modalidad,p.mesaReferencia]
+    .join(' ').toLocaleLowerCase('es-CL'))+'">'+
+   '<summary><div class="order-head"><div><b>'+esc(ukiReferenciaConCarta(p))+
+   ' · '+esc(p.cliente||'Sin nombre')+'</b>'+
+   '<span class="muted">'+esc(fechaTxt(p.fechaISO))+' · '+esc(p.modalidad||'Retiro')+
+   (p.mesaReferencia?' · Mesa: '+esc(p.mesaReferencia):'')+
+   (ukiCodigoClienteVisible(p)?' · Código: '+esc(ukiCodigoClienteVisible(p)):'')+
+   '</span></div><div class="order-right"><strong>'+fmt(p.total)+'</strong>'+
+   '<small class="uki-estado-badge">'+esc(estado)+'</small></div></div></summary>'+
+   '<div class="order-body">'+
+   '<p class="muted"><b>Turno:</b> '+esc(p.turnoClave||'No identificado')+
+   ' · <b>WhatsApp:</b> '+esc(p.telefono||'Sin número')+'</p>'+
    (p.modalidad==='Consumo en local'?
-    '<p class="muted"><b>Mesa:</b> '+esc(p.mesaReferencia||'Sin número registrado')+
-    ' · Consulta del pedido, no conexión a la cuenta QR.</p>':'')+
-   '<p class="muted">'+esc(p.fechaISO||"")+' · '+esc(p.telefono||"")+'</p>'+
-   '<ul>'+((p.productos||[]).map(x=>'<li>'+esc(x.cantidad)+' × '+esc(x.nombre)+' · '+fmt(x.precioUnit)+
-     (x.detalle?'<p class="muted">'+esc(x.detalle)+'</p>':'')+'</li>').join(''))+'</ul>';
+    '<p class="muted">Pedido de mesa registrado · La integración QR se valida por separado.</p>':'')+
+   ((p.productos||[]).map(x=>
+    '<div class="row"><span>'+esc(x.cantidad)+' × '+esc(x.nombre)+
+    (x.detalle?' · '+esc(x.detalle):'')+'</span><b>'+fmt(Number(x.cantidad)*Number(x.precioUnit))+
+    '</b></div>').join(''))+
+   '<div class="row"><span>Subtotal productos</span><b>'+fmt(p.subtotal)+'</b></div>'+
+   (p.modalidad==='Delivery'?
+    '<div class="row"><span>Delivery · '+esc(ukiKmTexto(p))+'</span><b>'+fmt(p.envio)+'</b></div>':'')+
+   '<div class="row final"><span>Total del pedido</span><b>'+fmt(p.total)+'</b></div>'+
+   '<p class="muted"><b>Pago:</b> '+(p.pagado?'Confirmado':'Pendiente')+
+   ' · '+esc(p.medio||'Sin medio registrado')+
+   (p.pagado&&p.cobroConfirmadoPor?' · Responsable: '+esc(p.cobroConfirmadoPor):'')+'</p>'+
+   (Array.isArray(p.pagosProductos)&&p.pagosProductos.length>1?
+    '<p class="muted"><b>Pago mixto productos:</b> '+
+    p.pagosProductos.map(x=>esc(x.medio)+' '+fmt(x.monto)).join(' + ')+'</p>':'')+
+   (Array.isArray(p.pagosEnvio)&&p.pagosEnvio.length>1?
+    '<p class="muted"><b>Pago mixto delivery:</b> '+
+    p.pagosEnvio.map(x=>esc(x.medio)+' '+fmt(x.monto)).join(' + ')+'</p>':'')+
+   (p.entregadoEn?'<p class="muted">Entregado: '+esc(fechaTxt(p.entregadoEn))+
+    (p.entregadoPor?' · '+esc(p.entregadoPor):'')+'</p>':'')+
+   (p.timbreReglaObligatoria?'<p class="muted">Timbre WhatsApp: '+
+    (p.timbreEnviadoEn?'Confirmado · '+esc(fechaTxt(p.timbreEnviadoEn)):'Pendiente de enviar')+
+    '</p>':'')+
+   (p.textoOriginal?'<details class="inner-details"><summary>📲 Ver WhatsApp original</summary>'+
+    '<p style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(p.textoOriginal)+'</p></details>':'')+
+   '<button type="button" class="sm" onclick="copiarComanda('+id+')">Copiar comanda</button>';
   let acciones='';
   if(p.estado==='Cancelado'){
-   acciones='<p class="muted">Cancelado · '+esc(p.motivoCancelacion||'Motivo registrado')+'. No suma ventas.</p>';
-  }else if(ukiCierreConfirmadoPedido(p)){
-   // Una ficha de cierre definitivo es solo lectura; no mostrar botones que ya no aplican.
-   acciones='<p class="muted">🔒 Turno cerrado · Solo consulta. Rectificaciones con autorización de dueños.</p>';
+   acciones='<p class="muted">Cancelado · '+esc(p.motivoDetalleCancelacion||p.motivoCancelacion||'Motivo registrado')+
+    (p.canceladoPor?' · Responsable: '+esc(p.canceladoPor):'')+'</p>';
+  }else if(cerrado){
+   acciones='<p class="muted">🔒 Turno cerrado · Solo consulta. No se altera un cierre histórico.</p>';
   }else if(!p.pagado){
-   acciones=tst?'<p class="muted">Pedido de prueba: cobro real bloqueado.</p>':
+   acciones=(tst?'<p class="muted">Pedido de prueba: movimientos comerciales bloqueados.</p>':
     ukiRomoCamposCobroQA(p)+
-    (window.ukiRomoEditorPedidoQA?.(p)||'')+
-    '<button type="button" class="sm" onclick="ukiRomoCambiarEstadoQA('+id+',\'cancelar\')">Cancelar pedido sin cobro</button>';
+    (window.ukiRomoEditorPedidoQA?.(p)||''))+
+    (p.estado==='Pendiente'&&!tst?
+    '<details class="inner-details"><summary>❌ Cancelar pedido sin cobro</summary>'+
+    '<label>¿Quién canceló?</label><select id="romoCancelarTipo'+id+'">'+
+    '<option value="">Selecciona</option><option value="cliente">Cliente</option>'+
+    '<option value="local">Local</option></select>'+
+    '<label>Motivo obligatorio</label><textarea id="romoCancelarDetalle'+id+
+    '" rows="2" maxlength="300" placeholder="Describe por qué se cancela"></textarea>'+
+    '<label>Responsable del registro</label><input id="romoCancelarResponsable'+id+
+    '" maxlength="80" autocomplete="off">'+
+    '<button type="button" class="sm" onclick="ukiRomoCambiarEstadoQA('+id+
+    ',\'cancelar\')">Confirmar cancelación</button></details>':'')+
+    (p.estado==='Pendiente'&&!tst?
+     '<button type="button" class="sm ok" onclick="ukiRomoCambiarEstadoQA('+id+
+     ',\'entregar\')">✓ Marcar entregado (sin cambiar pago)</button>':'');
   }else{
-   acciones='<p class="muted">Pago registrado de forma cifrada. No cobres nuevamente.</p>'+
+   acciones='<p class="muted">Pago guardado en Romo. No se realiza otro cobro.</p>'+
     (p.timbreReglaObligatoria&&!p.timbreEnviadoEn?
      '<button type="button" class="sm" onclick="ir(\'clientes\')">🎫 Timbre pendiente</button>':'')+
-    (p.estado!=='Entregado'?'<button type="button" class="sm ok" onclick="ukiRomoCambiarEstadoQA('+id+',\'entregar\')">✓ Marcar entregado</button>':'');
+    (p.estado==='Pendiente'&&!tst?
+     '<button type="button" class="sm ok" onclick="ukiRomoCambiarEstadoQA('+id+
+      ',\'entregar\')">✓ Marcar entregado</button>':'');
   }
+  const historial=(p.historialCambios||[]).slice(-30).reverse().map(h=>
+   '<p class="muted"><b>'+esc(h.fecha||'Fecha sin registrar')+'</b> · '+
+   esc(({edicion_pedido_sin_pago:'Edición',cobro_pendiente:'Cobro',
+     entrega_confirmada:'Entrega',cancelacion:'Cancelación'}[h.tipo]||h.tipo||'Movimiento'))+
+   (h.responsable?' · '+esc(h.responsable):'')+
+   (h.motivo?' · '+esc(h.motivo):'')+'</p>').join('');
   return resumen+entrega+acciones+
-   (window.ukiRomoHistorialEdicionQA?.(p)||'')+'</section>';
- }).join('');
+   (window.ukiRomoHistorialEdicionQA?.(p)||'')+
+   (historial?'<details class="inner-details"><summary>🕘 Historial completo del pedido</summary>'+
+    historial+'</details>':'')+
+   '</div></details>';
+ }).join('');;
  return '<div class="section-head"><h2>Pedidos · Romo La Serena</h2>'+
   '<p>Registros confirmados en la base cifrada de Romo. Los filtros y el historial son solo de consulta.</p></div>'+
   '<button class="big" type="button" onclick="nuevoDraft();modoNuevo=\'manual\';ir(\'nuevo\')">＋ Nuevo pedido</button>'+
