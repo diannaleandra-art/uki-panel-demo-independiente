@@ -14,9 +14,9 @@ Fecha: 14-11-2026. Alcance: inspección directa del código oficial de Uki, de l
 
 - 320 declaraciones de funciones del panel oficial están presentes en la réplica Romo.
 - 296 funciones tienen su cuerpo textual idéntico en la comparación por límites de función; 24 fueron modificadas o rodeadas por conexiones Romo.
-- Los **13 módulos complementarios** del panel oficial se encuentran en Romo: 7 tienen blobs idénticos; 6 contienen adaptaciones.
-- Módulos idénticos: `uki-tarjeta-cliente.js`, `uki-cierre-detallado.js`, `uki-inventario-exportar.js`, `uki-inventario-historial-admin.js`, `uki-factura-inventario-admin-panel.js`, `uki-caja-acumulada-exportar.js`, `uki-control-turnos.js`.
-- Módulos adaptados: `uki-inventario-admin-embebido.js`, `uki-disponibilidad-admin.js`, `uki-carta-precios-admin.js`, `uki-armado-ingredientes-admin.js`, `uki-caja-acumulada-admin.js`, `uki-carta-remotas-panel.js`.
+- Los **13 módulos complementarios** del panel oficial se encuentran en Romo: 6 son idénticos en contenido; 7 contienen adaptaciones.
+- Módulos idénticos: `uki-tarjeta-cliente.js`, `uki-cierre-detallado.js`, `uki-inventario-exportar.js`, `uki-factura-inventario-admin-panel.js`, `uki-caja-acumulada-exportar.js`, `uki-control-turnos.js`.
+- Módulos adaptados: `uki-inventario-admin-embebido.js`, `uki-inventario-historial-admin.js`, `uki-disponibilidad-admin.js`, `uki-carta-precios-admin.js`, `uki-armado-ingredientes-admin.js`, `uki-caja-acumulada-admin.js`, `uki-carta-remotas-panel.js`.
 - **Presencia de código no acredita igualdad operativa**, porque existen desvíos de navegación, guardado y autorización.
 
 ## 3. Matriz completa por áreas de la versión oficial
