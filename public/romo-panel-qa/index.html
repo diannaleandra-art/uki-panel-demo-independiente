@@ -5803,10 +5803,9 @@ function ukiRomoCajaPestanasQA(){
   tab==='cierre'?ukiRomoCajaConsultaHTMLQA('turnos'):
   tab==='historial'?ukiRomoCajaHistorialHTMLQA():
   tab==='semana'?ukiRomoCajaSemanaHTMLQA():
-  '<div class="section-head"><h2>Caja acumulada en efectivo · Romo</h2></div>'+
-   '<div class="card"><p><b>Conciliación pendiente.</b></p>'+
-   '<p class="muted">La Caja acumulada oficial todavía no tiene servicio independiente para Romo. No se presenta un saldo aproximado ni se consultan los datos de Uki.</p>'+
-   '<p class="muted">Los cierres confirmados pueden revisarse en Historial. Falta conciliar saldos anteriores, retiros y correcciones autorizadas antes de activar la acumulada.</p></div>';
+  (window.ukiRomoCajaAcumuladaConciliacionQA?.render?.(
+    datosSoloSucursal(),window.ukiRomoSesionRemotaQA)||
+   '<div class="card">Consulta de conciliación de Romo todavía no disponible.</div>');
  return barra+vista;
 }
 
@@ -7955,5 +7954,6 @@ el("ukiAutoCheck").addEventListener("change",()=>{
  vigilarRevisiones(contextoLocal.suc);
 });
 </script>
+<script src="/romo-panel-qa/romo-caja-acumulada-conciliacion-qa.js?v=20261115a" defer></script>
 <script src="/romo-panel-qa/romo-edicion-en-panel-qa.js?v=20261114c" defer></script>
 <script src="/romo-panel-qa/romo-banner-admin.js?v=20261114b" defer></script></body></html>
