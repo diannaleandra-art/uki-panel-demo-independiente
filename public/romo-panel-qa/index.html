@@ -3645,7 +3645,7 @@ function vReportes(){
      row("Deliverys",fmt(c.envios||0))+row("Pago a repartidor",fmt(c.pagadoDelivery??c.delivery??0))+
      row("Resultado final",fmt(c.final||0),"final")+
      row("Propinas (aparte)",fmt(c.propinas||0))+
-     ukiAccionesHistorial(original)+ukiVHistorialCorreccionesCierre(original)+ukiVCorreccionesPedidoCierre(original)+ukiVRectificarCierre(original)+
+     (S.suc===ROMO_SUCURSAL_QA?'<p class="muted">El historial está en consulta; no se pueden registrar correcciones sin guardado confirmado en Neon Romo.</p>':ukiAccionesHistorial(original)+ukiVRectificarCierre(original))+ukiVHistorialCorreccionesCierre(original)+ukiVCorreccionesPedidoCierre(original)+
      '</details>';
  }).join("");
  return fechas+resumen+ukiReportePropinasPeriodoUI()+medios+dias+detalles;
@@ -5644,7 +5644,7 @@ async function ukiRomoExportarCajaQA(tipo,formato){
  const all=(S.cierres||[]).filter(x=>x.suc===ROMO_SUCURSAL_QA);
  if(!all.length){window.alert('Romo todavía no tiene cierres definitivos para exportar.');return;}
  const period=tipo==='semana'?window.ukiControlTurnos?.rangoSemana?.(
-  ukiRomoFechaSemanaCajaQA||fechaOperativaActual()):null;
+  semanaConsulta||ukiRomoFechaSemanaCajaQA||fechaOperativaActual()):null;
  if(tipo==='semana'&&!period){
   window.alert('Selecciona primero una semana válida.');return;
  }
@@ -5745,32 +5745,14 @@ function ukiRomoCajaHistorialHTMLQA(){
   '<p class="muted">Exportación CSV compatible con Excel y vista imprimible para PDF. Verificar manualmente en iPhone. Sin contabilización en Mi Administración.</p>';
 }
 function ukiRomoCajaSemanaHTMLQA(){
- const fecha=ukiRomoFechaSemanaCajaQA||fechaOperativaActual();
- const resumen=window.ukiControlTurnos?.resumenSemana?.(
-  (S.cierres||[]).filter(x=>x?.suc===ROMO_SUCURSAL_QA),
-  ROMO_SUCURSAL_QA,fecha);
- if(!resumen)return '<div class="card">No se pudo consultar este rango sin cambiar registros.</div>';
- const medios=Object.entries(resumen.medios||{}).filter(([,v])=>v>0)
-  .map(([k,v])=>row(k,fmt(v))).join('');
- return '<div class="section-head"><h2>Reporte semanal · Romo</h2></div>'+
-  '<div class="card"><p class="muted">Solo cierres definitivos guardados; de lunes a domingo. No cuenta precierres ni solicitudes.</p>'+
-  '<label for="romoCajaSemanaQA">Seleccionar una fecha de la semana</label>'+
-  '<input id="romoCajaSemanaQA" type="date" value="'+esc(fecha)+
-   '" onchange="ukiRomoCambiarSemanaCajaQA(this.value)">'+
-  '<h3>Semana '+esc(resumen.desde)+' al '+esc(resumen.hasta)+'</h3>'+
-  (resumen.cierres?
-   '<p><button type="button" class="sm ok" onclick="ukiRomoExportarCajaQA(\'semana\',\'csv\')">📊 Excel (CSV)</button>'+
-   '<button type="button" class="sm" onclick="ukiRomoExportarCajaQA(\'semana\',\'pdf\')">📄 Imprimir / Guardar PDF</button></p>':'')+
-  row('Cierres',resumen.cierres)+
-  row('Pedidos',resumen.pedidos)+
-  row('Ventas',fmt(resumen.ventas))+
-  row('Venta sin delivery',fmt(resumen.ventasSinDelivery))+
-  row('Gastos',fmt(resumen.gastos))+
-  row('Pago a repartidores',fmt(resumen.repartidor))+
-  row('Propinas registradas',fmt(resumen.propinas))+
-  row('Resultado registrado',fmt(resumen.resultado),'final')+
-  (medios?'<details><summary>Ver medios de cobro</summary>'+medios+'</details>':'')+
-  '</div>';
+ // Se reutiliza vReportes() oficial: dia, semana, mes y propinas.
+ // Las acciones heredadas de correccion no deben guardar sin CAS Neon Romo.
+ return '<div class="card"><details>'+
+   '<summary><b>Exportar cierres semanales · Romo</b></summary>'+
+   '<p class="muted">La semana corresponde a la fecha seleccionada abajo. Solo cierres guardados en Neon Romo.</p>'+
+   '<button type="button" class="sm ok" onclick="ukiRomoExportarCajaQA(\'semana\',\'csv\')">📊 Excel (CSV)</button>'+
+   '<button type="button" class="sm" onclick="ukiRomoExportarCajaQA(\'semana\',\'pdf\')">📄 Imprimir / Guardar PDF</button>'+
+   '</details></div>'+vReportes();
 }
 function ukiRomoCajaPrecierreHTMLQA(){
  const key=ROMO_SUCURSAL_QA+'|'+fechaOperativaActual();
