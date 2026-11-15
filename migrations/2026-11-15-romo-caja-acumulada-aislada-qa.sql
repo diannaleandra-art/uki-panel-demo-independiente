@@ -179,8 +179,14 @@ END; $$;
 REVOKE ALL ON TABLE public.romo_caja_acum_cuenta_v1,
  public.romo_caja_acum_movimientos_v1,public.romo_caja_acum_cierres_v1
  FROM PUBLIC;
+-- El propietario tiene privilegios predeterminados que pueden conceder
+-- INSERT/UPDATE/DELETE a roles de aplicación. Revocarlos explícitamente:
+-- ni la cuenta de servicio ni el alta de PIN deben escribir tablas directamente.
+REVOKE ALL ON TABLE public.romo_caja_acum_cuenta_v1,
+ public.romo_caja_acum_movimientos_v1,public.romo_caja_acum_cierres_v1
+ FROM romos_app_service,romos_clave_alta_qa_20261114;
 REVOKE ALL ON FUNCTION public.romo_caja_acum_aplicar_v1(
- text,bigint,uuid,text,text,text,text) FROM PUBLIC;
+ text,bigint,uuid,text,text,text,text) FROM PUBLIC,romos_clave_alta_qa_20261114;
 GRANT SELECT ON TABLE public.romo_caja_acum_cuenta_v1,
  public.romo_caja_acum_movimientos_v1,public.romo_caja_acum_cierres_v1
  TO romos_app_service;

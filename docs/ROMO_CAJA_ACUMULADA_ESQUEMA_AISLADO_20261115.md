@@ -30,3 +30,6 @@ La migración debe revisarse y aplicarse primero por los dueños/autorizado sobr
 
 ## Panel de consulta aislado
 La sección \`Caja acumulada\` del panel Romo ofrece un botón **Consultar saldo real e historial · Solo dueños**. Lee \`saldo\` y \`movimientos\` desde el endpoint privado al hacer clic, exige el mismo Google autorizado y comprueba sucursal y revisión. Los datos se muestran sin alterar el estado de Caja, y si el endpoint no está habilitado o la tabla todavía no existe se informa la falla sin inventar valores. No hay botones de inicializar, gastar, retirar o acreditar cierres: estos deben esperar autorización y comprobación manual.
+
+## Corrección de privilegios por defecto
+La validación en una rama temporal de la BD Romo reveló que el propietario otorgaba por defecto permisos de inserción, actualización y borrado a `romos_app_service` y permisos de lectura al rol de alta de clave. La migración revoca explícitamente **todos** los permisos de tabla a ambos roles, concede a `romos_app_service` solamente `SELECT` y `EXECUTE` del procedimiento SQL, y niega la ejecución al rol de alta. El dueño de la base conserva la propiedad. Este cambio solo afecta las tres tablas **nuevas** de acumulada, no las tablas operativas anteriores.
