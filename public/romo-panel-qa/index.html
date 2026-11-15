@@ -443,6 +443,10 @@ function cambiarModoNuevo(t){if(S.suc===ROMO_SUCURSAL_QA&&t!=='manual'){aviso('R
 function aviso(t){S.msg=t;render();window.scrollTo({top:0,behavior:"smooth"});}
 function ir(v){
   if(S.suc===ROMO_SUCURSAL_QA){
+   if(ukiRomoOperacionesEnCursoQA()){
+    window.alert('Romo está confirmando una operación. No cambies de pantalla hasta revisar su resultado.');
+    return;
+   }
    if(!['pedidos','nuevo','caja','clientes','inventario','promos'].includes(v)){
     S.msg='Esta función todavía no tiene guardado seguro en Romo; no se registró nada.';
     S.vista='pedidos';render();return;
@@ -1059,6 +1063,10 @@ async function entrarSuc(){
  }catch(e){aviso(esRomo?"Romo todavía no pudo abrirse. Revisa la cuenta Google, la clave habitual y la conexión independiente. No se guardó ningún movimiento.":"Clave incorrecta, datos dañados o cifrado no disponible.");}
 }
 async function salirSuc(){
+ if(S.suc===ROMO_SUCURSAL_QA&&ukiRomoOperacionesEnCursoQA()){
+  window.alert('Romo tiene una operación pendiente de confirmación. No se cerró la sesión.');
+  return;
+ }
  if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='nuevo'&&ukiBorradorTieneContenido()&&
     !window.confirm('Este formulario no está guardado en Romo. ¿Salir y descartarlo?'))return;
  if(ukiSolicitudWhatsAppActiva)ukiWhatsAppPausarRevision();
@@ -4827,6 +4835,13 @@ async function ukiQRPermitirCobroDefinitivo(d){
 let ukiRomoGuardandoManualQA=false;
 let ukiRomoFiltroPedidosQA='todos';
 let ukiRomoOperandoPedidoQA=false;
+// En la copia Romo bloquea salir/navegar mientras una acción explícita
+// todavía espera confirmación de Neon. No cambia la navegación de Uki.
+function ukiRomoOperacionesEnCursoQA(){
+ return ukiRomoOperandoPedidoQA||ukiRomoGuardandoManualQA||
+  ukiRomoSolicitudCartaOcupadaQA||ukiRomoTurnoOcupadoQA||
+  ukiRomoPrecierreOcupadoQA;
+}
 const ROMO_MEDIOS_COBRO_QA=['Efectivo','Transferencia','Débito','Edenred','Otros'];
 function ukiRomoCambiarFiltroQA(tipo){
  if(!['todos','pendientes','pagados','entregados','cancelados'].includes(tipo))return;

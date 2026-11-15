@@ -6,7 +6,7 @@ Reutilizar el mismo panel de Uki con tercera sucursal Romo (`romo:serena`), mant
 
 ## Cambios agrupados
 1. Se eliminó el retorno de éxito ficticio del autoguardado general Romo y el código inalcanzable que le seguía. Navegar y renderizar nunca son una operación comercial guardada.
-2. El cierre de sesión de Romo deja de depender del autoguardado Uki, mantiene la confirmación para descartar borrador y respeta el bloqueo de guardado CAS en curso.
+2. El cierre de sesión de Romo deja de depender del autoguardado Uki, mantiene la confirmación para descartar borrador y respeta el bloqueo de guardado CAS en curso. La navegación y la salida se bloquean mientras hay una operación explícita pendiente de confirmación.
 3. Ambos adaptadores de sesión Romo tratan los errores de escritura o respuesta CAS inesperada como resultado incierto: bloquean la misma sesión y exigen reabrir y conciliar.
 4. Solo el adaptador que dispone de aceptación atómica (`public/romo-panel-qa/romo-panel-unico-sesion-qa.mjs`) reserva la revisión durante la preparación de una aceptación de carta o cierre, hasta su confirmación; impide que otra escritura compita sobre el mismo estado.
 
