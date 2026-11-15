@@ -5627,6 +5627,55 @@ function ukiRomoCambiarSemanaCajaQA(value){
  ukiRomoFechaSemanaCajaQA=dia;
  render();
 }
+// Exportar exclusivamente cierres cifrados ya presentes en el estado Romo.
+// CSV para Excel; imprimir/guardar como PDF requiere acción manual en Safari.
+async function ukiRomoExportarCajaQA(tipo,formato){
+ if(S.suc!==ROMO_SUCURSAL_QA||!['historial','semana'].includes(tipo)||
+    !['csv','pdf'].includes(formato))return;
+ if(ukiRomoOperacionesEnCursoQA()){
+  window.alert('Termina primero el movimiento o cierre de Romo.');return;
+ }
+ const session=window.ukiRomoSesionRemotaQA;
+ const st=session?.estado?.();
+ if(!session?.disponible()||st?.conflicto||
+    !Number.isSafeInteger(st?.revision)||st.revision<1){
+  window.alert('Primero abre la versión cifrada confirmada de Neon Romo.');return;
+ }
+ const all=(S.cierres||[]).filter(x=>x.suc===ROMO_SUCURSAL_QA);
+ if(!all.length){window.alert('Romo todavía no tiene cierres definitivos para exportar.');return;}
+ const period=tipo==='semana'?window.ukiControlTurnos?.rangoSemana?.(
+  ukiRomoFechaSemanaCajaQA||fechaOperativaActual()):null;
+ if(tipo==='semana'&&!period){
+  window.alert('Selecciona primero una semana válida.');return;
+ }
+ const selected=all.filter(x=>!period||String(x.fechaOperativa||'')>=period.desde&&
+  String(x.fechaOperativa||'')<=period.hasta);
+ if(!selected.length){window.alert('Sin cierres definitivos en el rango elegido.');return;}
+ // Abrir una pestaña por interacción directa antes de importar el módulo:
+ // iOS Safari bloquea ventanas abiertas después de una operación asíncrona.
+ const pdfWindow=formato==='pdf'?window.open('','_blank'):null;
+ if(formato==='pdf'&&!pdfWindow){
+  window.alert('Safari bloqueó la vista PDF. Permite la ventana emergente e inténtalo de nuevo.');return;
+ }
+ try{
+  if(pdfWindow)pdfWindow.opener=null;
+  const lib=await import('./uki-romo-exportar-cierres-qa.mjs');
+  const out=lib.crearReporteCierresRomoQA({
+   cierres:S.cierres,desde:period?.desde||'',hasta:period?.hasta||'',revision:st.revision
+  });
+  if(formato==='csv'){
+   descargarTextoArchivo(out.filename+'.csv',out.csv,'text/csv;charset=utf-8');
+  }else{
+   pdfWindow.document.open();
+   pdfWindow.document.write(out.html);
+   pdfWindow.document.close();
+  }
+ }catch(e){
+  if(pdfWindow&&!pdfWindow.closed)pdfWindow.close();
+  window.alert('No se generó el reporte. Revisa cierres y revisión Neon: '+String(e?.message||e));
+ }
+}
+
 function ukiRomoCajaHistorialHTMLQA(){
  const cierres=(S.cierres||[]).filter(x=>x?.suc===ROMO_SUCURSAL_QA)
   .slice().sort((a,b)=>(Number(b.fechaMs)||Date.parse(b.fechaISO||'')||0)-
@@ -5650,10 +5699,14 @@ function ukiRomoCajaHistorialHTMLQA(){
  }).join('');
  return '<div class="section-head"><h2>Historial de cierres · Romo</h2></div>'+
   '<p class="muted">Solo cierres definitivos registrados. No se agregan solicitudes pendientes, precierres ni ventas de otros locales.</p>'+
-  '<section class="card"><b>'+cierres.length+' cierre(s) en el historial de Romo</b></section>'+
+  '<section class="card"><b>'+cierres.length+' cierre(s) en el historial de Romo</b>'+ 
+  (cierres.length?
+   '<p><button type="button" class="sm ok" onclick="ukiRomoExportarCajaQA(\'historial\',\'csv\')">📊 Excel (CSV)</button>'+
+   '<button type="button" class="sm" onclick="ukiRomoExportarCajaQA(\'historial\',\'pdf\')">📄 Imprimir / Guardar PDF</button></p>':'')+
+   '</section>'+
   (items||'<div class="card">Todavía no hay cierres definitivos confirmados en el estado Romo.</div>')+
   (cierres.length>50?'<p class="muted">Se muestran los últimos 50 cierres; los anteriores permanecen en la base cifrada.</p>':'')+
-  '<p class="muted">Exportación PDF/Excel e incorporación a Mi Administración pendientes de homologar.</p>';
+  '<p class="muted">Exportación CSV compatible con Excel y vista imprimible para PDF. Verificar manualmente en iPhone. Sin contabilización en Mi Administración.</p>';
 }
 function ukiRomoCajaSemanaHTMLQA(){
  const fecha=ukiRomoFechaSemanaCajaQA||fechaOperativaActual();
@@ -5669,6 +5722,9 @@ function ukiRomoCajaSemanaHTMLQA(){
   '<input id="romoCajaSemanaQA" type="date" value="'+esc(fecha)+
    '" onchange="ukiRomoCambiarSemanaCajaQA(this.value)">'+
   '<h3>Semana '+esc(resumen.desde)+' al '+esc(resumen.hasta)+'</h3>'+
+  (resumen.cierres?
+   '<p><button type="button" class="sm ok" onclick="ukiRomoExportarCajaQA(\'semana\',\'csv\')">📊 Excel (CSV)</button>'+
+   '<button type="button" class="sm" onclick="ukiRomoExportarCajaQA(\'semana\',\'pdf\')">📄 Imprimir / Guardar PDF</button></p>':'')+
   row('Cierres',resumen.cierres)+
   row('Pedidos',resumen.pedidos)+
   row('Ventas',fmt(resumen.ventas))+
