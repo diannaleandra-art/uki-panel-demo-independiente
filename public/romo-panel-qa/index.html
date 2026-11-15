@@ -4846,6 +4846,7 @@ async function ukiQRPermitirCobroDefinitivo(d){
 
 
 let ukiRomoGuardandoManualQA=false;
+let ukiRomoCanjeEnCursoQA=false;
 let ukiRomoFiltroPedidosQA='todos';
 // Filtros visuales exclusivos de Romo. NO se guardan ni reescriben pedidos.
 let ukiRomoVistaPedidosQA='operacion';
@@ -4918,7 +4919,7 @@ function ukiRomoOperacionesEnCursoQA(){
  return ukiRomoOperandoPedidoQA||ukiRomoGuardandoManualQA||
   ukiRomoSolicitudCartaOcupadaQA||ukiRomoTurnoOcupadoQA||
   ukiRomoPrecierreOcupadoQA||ukiRomoTimbreBusyQA||
-  ukiRomoClienteGuardandoQA;
+  ukiRomoClienteGuardandoQA||ukiRomoCanjeEnCursoQA;
 }
 const ROMO_MEDIOS_COBRO_QA=['Efectivo','Transferencia','Débito','Edenred','Otros'];
 function ukiRomoCambiarFiltroQA(tipo){
@@ -5235,8 +5236,12 @@ function ukiRomoTarjetasClientesHTMLQA(visibleQA){
    '<p class="muted">'+esc(cli.pedidos||0)+' compras · Productos '+fmt(cli.gastado||0)+
     ' · Última '+esc(cli.ultimo||'Sin fecha')+'</p>'+
    '<div class="tarjeta">'+sellos+'</div>'+
-   (puede10?'<p><b>🎁 Premio de 10 compras disponible. Canje todavía no integrado en Romo.</b></p>':
-     puede6?'<p><b>🎁 Premio de 6 compras disponible. Canje todavía no integrado en Romo.</b></p>':'')+
+   (puede10?'<p><b>🎁 Premio de 10 compras disponible</b></p>'+
+     '<button type="button" class="sm ok" onclick="ukiRomoCanjearPremioQA('+
+       keyJs+',10)">Canjear 36 piezas + 2 korokes</button>':
+     puede6?'<p><b>🎁 Premio de 6 compras disponible</b></p>'+
+       '<button type="button" class="sm ok" onclick="ukiRomoCanjearPremioQA('+
+       keyJs+',6)">Canjear 12 piezas</button>':'')+
    '<details class="inner-details" data-romo-cliente="'+esc(key)+'">'+
     '<summary><b>👤 Completar o editar datos del cliente</b></summary>'+
     '<p class="muted">No se cambia el historial, los pedidos ni los timbres; la edición espera confirmación cifrada de Neon.</p>'+
@@ -5318,6 +5323,71 @@ async function ukiRomoGuardarDatosClienteQA(key,boton){
  */
 const ukiRomoWAAbiertosQA=new Map();
 let ukiRomoTimbreBusyQA=false;
+async function ukiRomoCanjearPremioQA(key,tipo){
+ if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoOperacionesEnCursoQA())return;
+ if(![6,10].includes(tipo)||typeof key!=='string'||key.length>240)return;
+ const session=window.ukiRomoSesionRemotaQA;
+ const st=session?.estado?.();
+ if(!session?.disponible?.()||st?.conflicto||
+    !Number.isSafeInteger(st?.revision)||st.revision<1)
+  return aviso('Primero abre la sesión autorizada de Neon Romo.');
+ const original=S.clientes?.[key],cli=ukiVistaCliente(key);
+ if(!original||!cli)return aviso('No se encontró la tarjeta original del cliente.');
+ const n=ventasValidas(cli);
+ if(n<tipo||tipo===6&&cli.canje6)
+  return aviso('El premio de esta tarjeta no está disponible o ya fue canjeado.');
+ const dia=fechaOperativaActual(),caja=S.cajasDiarias?.[ROMO_SUCURSAL_QA+'|'+dia];
+ if(!caja?.turnoAbierto||caja.baseConfirmada!==true||
+    typeof caja.turnoId!=='string')
+  return aviso('Para entregar el premio debe estar abierto el turno de Caja de Romo.');
+ const premio=tipo===6?'12 piezas':'36 piezas + 2 korokes';
+ if(!window.confirm('ROMO LA SERENA: ¿confirmas el canje de '+premio+
+     ' GRATIS para '+String(cli.nombre||'el cliente')+
+     '? Tiene '+n+'/10 timbres. Esta confirmación registra también el pedido de premio en Neon.'))
+  return;
+ ukiRomoCanjeEnCursoQA=true;
+ try{
+  const ahoraMs=Date.now(),fechaISO=new Date(ahoraMs).toISOString();
+  const expected=session.estado();
+  if(expected?.conflicto||expected.revision!==st.revision)
+   throw Error('La base cambió. Revisa la tarjeta antes de repetir.');
+  const copia=datosSoloSucursal(),target=copia.clientes?.[key];
+  const vigente=copia.cajasDiarias?.[ROMO_SUCURSAL_QA+'|'+dia];
+  if(!target||!vigente?.turnoAbierto||vigente.baseConfirmada!==true||
+     vigente.turnoId!==caja.turnoId)
+   throw Error('El cliente o su turno cambiaron; no se registró el premio.');
+  if(!Array.isArray(target.movimientos))
+   throw Error('Falta historial de timbres; requiere conciliación del cliente.');
+  if(!Number.isSafeInteger(copia.nextId)||copia.nextId<1||
+     copia.pedidos.some(p=>p.suc===ROMO_SUCURSAL_QA&&p.id===copia.nextId))
+   throw Error('El folio interno no está disponible.');
+  // Mismas reglas de canjes del Uki oficial. La venta del premio siempre es $0.
+  target.movimientos.push({tipo:tipo===6?'canje6':'canje10',fecha:fechaISO,vence:null});
+  if(tipo===6)target.canje6=true;
+  else{target.ventas=0;target.canje6=false;target.canje10=false;}
+  const pedido={
+   id:copia.nextId++,suc:ROMO_SUCURSAL_QA,fechaISO,registradoEn:ahoraMs,
+   turnoClave:vigente.turnoId,
+   cliente:cli.nombre,telefono:cli.telefono||'',codigoCliente:cli.codigoCliente||'',
+   modalidad:'Retiro',envio:0,medio:tipo===6?'Canje 6 ventas':'Canje 10 ventas',
+   medioEnvio:'Efectivo',pagado:true,estado:'Entregado',
+   productos:[{nombre:tipo===6?'PREMIO 12 piezas - Canje 6 ventas':
+    'PREMIO 36 piezas + 2 korokes - Canje 10 ventas',
+    cantidad:1,precioUnit:0,detalle:tipo===6?'Gratis por tarjeta 6 timbres':
+     'Gratis por tarjeta 10 timbres'}],
+   total:0,subtotal:0,textoOriginal:'Canje premio '+tipo+' ventas - '+cli.nombre,
+   esPremio:true,turnoPremioSinVenta:true
+  };
+  copia.pedidos.push(pedido);
+  if(!validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
+   throw Error('El canje no pasó la verificación de la sucursal Romo.');
+  await ukiRomoGuardarOperacionQA(copia,'Canje de '+premio+' sin cobro',pedido.id,'clientes');
+ }catch(e){
+  aviso('El canje NO se pudo confirmar. Revisa Neon y la tarjeta antes de repetir. '+
+   String(e?.message||e));
+ }finally{ukiRomoCanjeEnCursoQA=false;}
+}
+
 function ukiRomoTimbresPanelQA(){
  // Misma consulta por fecha y búsqueda global de Uki oficial.
  // Nunca registra compras, canjes o timbres por el solo hecho de renderizar.
