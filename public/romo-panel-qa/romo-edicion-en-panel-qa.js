@@ -31,7 +31,7 @@
    '<div data-romo-productos="1">'+productos+'</div>'+
    '<button type="button" class="sm" onclick="ukiRomoAgregarLineaPendienteQA('+id+')">＋ Agregar otro producto</button>'+
    (p.modalidad==="Delivery"?
-    '<label>Delivery confirmado</label><input id="romoEditarEnvio'+id+'" type="number" min="0" max="100000" step="1" value="'+e(p.envio||0)+'">':"")+
+    '<label>Delivery confirmado</label><input id="romoEditarEnvio'+id+'" type="number" min="1" max="4000" step="1" value="'+e(p.envio||0)+'">':"")+
    '<label>Responsable obligatorio</label><input id="romoEditarResponsable'+id+'" maxlength="80">'+
    '<label>Motivo obligatorio del cambio</label><textarea id="romoEditarMotivo'+id+'" maxlength="300" rows="2"></textarea>'+
    '<button type="button" class="sm ok" onclick="ukiRomoGuardarEdicionPendienteQA('+id+')">Guardar cambio en Neon Romo</button></details>';

@@ -81,10 +81,10 @@ export function prepararEdicionPendienteRomoQA(estado,{
  check(Number.isSafeInteger(subtotal)&&subtotal>0&&subtotal<=100000000,
   'El subtotal no es válido');
  const envioNuevo=p.modalidad==='Delivery'?
-  integer(envio,0,100000,'Delivery'):
+  integer(envio,1,4000,'Delivery'):
   integer(envio,0,0,'Sin delivery');
  const total=subtotal+envioNuevo;
- check(Number.isSafeInteger(total)&&total<=100000000,'Total fuera de rango');
+ check(Number.isSafeInteger(total)&&total<=3000000,'Total fuera de rango');
  const previo={productos:structuredClone(antiguos),subtotal:p.subtotal,envio:p.envio,total:p.total};
  const proximo={productos:structuredClone(nuevos),subtotal,envio:envioNuevo,total};
  check(JSON.stringify(previo)!==JSON.stringify(proximo),
