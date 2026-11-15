@@ -4918,6 +4918,14 @@ function ukiRomoSolicitudesHTMLQA(){
  * y en Pedidos, sin inventar distancia, geolocalización ni costo de envío.
  * Todos los datos siguen en el mensaje original de la solicitud cifrada.
  */
+function ukiRomoFiltrarPedidosVisiblesQA(value){
+ const normalize=x=>String(x||'').normalize('NFD')
+  .replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('es-CL').trim();
+ const query=normalize(value);
+ document.querySelectorAll('.romo-pedido-card').forEach(card=>{
+  card.hidden=!normalize(card.getAttribute('data-buscar')).includes(query);
+ });
+}
 function ukiRomoDetalleEntregaCartaHTMLQA(texto,{compacto=false}={}){
  const raw=String(texto||'').replace(/\r\n?/g,'\n');
  const line=label=>{
@@ -4927,6 +4935,7 @@ function ukiRomoDetalleEntregaCartaHTMLQA(texto,{compacto=false}={}){
  const direccion=line('Dirección'),recibe=line('Recibe'),ubicacion=line('Ubicación');
  if(!direccion&&!recibe)return '';
  const quote=line('Delivery');
+ const km=line('Recorrido por calles');
  const pagoDelivery=line('Pago delivery');
  let map='';
  try{
@@ -4941,11 +4950,12 @@ function ukiRomoDetalleEntregaCartaHTMLQA(texto,{compacto=false}={}){
  const children=(recibe?'<p><b>Recibe:</b> '+esc(recibe)+'</p>':'')+
   (direccion?'<p><b>Dirección:</b> '+esc(direccion)+'</p>':'')+
   (pagoDelivery?'<p><b>Pago del reparto solicitado:</b> '+esc(pagoDelivery)+'</p>':'')+
-  (quote?'<p class="muted">'+esc(quote)+'</p>':'')+map;
+  (quote?'<p class="muted"><b>Delivery:</b> '+esc(quote)+'</p>':'')+
+  (km?'<p><b>Recorrido:</b> '+esc(km)+'</p>':'')+map;
  return '<div class="card" style="border-left:5px solid #b32133;'+
   (compacto?'margin:10px 0;padding:10px;':'')+'">'+
   '<b>🛵 Datos de entrega recibidos desde la carta</b>'+children+
-  (!compacto?'<p class="muted"><b>Importante:</b> cotiza y confirma el delivery con el cliente antes de aceptar. No está cobrado.</p>':'')+
+  (!compacto?'<p class="muted"><b>Importante:</b> revisa el recorrido y valor calculados por Uki antes de aceptar. No está cobrado.</p>':'')+
   '</div>';
 }
 function ukiRomoPedidosPendientesHTMLQA(){
@@ -4961,6 +4971,9 @@ function ukiRomoPedidosPendientesHTMLQA(){
    ukiRomoFiltroPedidosQA==='pagados'&&p.estado!=='Cancelado'&&p.pagado||
    ukiRomoFiltroPedidosQA==='entregados'&&p.estado==='Entregado'||
    ukiRomoFiltroPedidosQA==='cancelados'&&p.estado==='Cancelado');
+ const buscar='<div class="card"><label for="romoBuscarPedidoQA"><b>Buscar pedidos de Romo</b></label>'+
+  '<input id="romoBuscarPedidoQA" type="search" placeholder="Nombre, WhatsApp, código o número" '+
+  'oninput="ukiRomoFiltrarPedidosVisiblesQA(this.value)" autocomplete="off"></div>';
  const filtros='<div class="card"><b>Pedidos por estado</b><div class="chips">'+
   etiquetas.map(([k,t])=>'<button type="button" class="chip'+(ukiRomoFiltroPedidosQA===k?' on':'')+
    '" onclick="ukiRomoCambiarFiltroQA(\''+k+'\')">'+t+'</button>').join('')+'</div></div>';
@@ -4968,7 +4981,9 @@ function ukiRomoPedidosPendientesHTMLQA(){
   const id=Number(p.id),tst=/^PRUEBA\b/i.test(String(p.cliente||''));
   const estado=p.estado==='Cancelado'?'Cancelado':p.estado==='Entregado'?'Entregado':p.pagado?'Pagado · por entregar':'Pendiente de pago';
   const entrega=p.modalidad==='Delivery'?ukiRomoDetalleEntregaCartaHTMLQA(p.textoOriginal,{compacto:true}):'';
-  const resumen='<section class="card"><h3>Pedido #'+esc(id)+' · '+esc(estado)+'</h3>'+
+  const resumen='<section class="card romo-pedido-card" data-buscar="'+
+   esc([p.id,p.cliente,p.telefono,p.codigoCarta,p.codigoCliente,p.modalidad].join(' ').toLocaleLowerCase('es-CL'))+
+   '"><h3>Pedido #'+esc(id)+' · '+esc(estado)+'</h3>'+
    '<p><b>'+esc(p.cliente||"Cliente")+'</b> · '+esc(p.modalidad||"Retiro")+' · '+fmt(p.total)+'</p>'+
    '<p class="muted">'+esc(p.fechaISO||"")+' · '+esc(p.telefono||"")+'</p>'+
    '<ul>'+((p.productos||[]).map(x=>'<li>'+esc(x.cantidad)+' × '+esc(x.nombre)+' · '+fmt(x.precioUnit)+
@@ -4991,7 +5006,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
  return '<div class="section-head"><h2>Pedidos · Romo La Serena</h2>'+
   '<p>Pedidos guardados en Neon Romo con confirmación cifrada. Caja y cierres definitivos continúan limitados en este piloto.</p></div>'+
   '<button class="big" type="button" onclick="nuevoDraft();modoNuevo=\'manual\';ir(\'nuevo\')">＋ Nuevo pedido manual</button>'+
-  filtros+
+  filtros+buscar+
   ukiRomoSolicitudesHTMLQA()+
   (listado.length?items:'<section class="card"><p>No hay pedidos en este filtro.</p></section>');
 }
@@ -5355,6 +5370,7 @@ function ukiRomoCajaConsultaHTMLQA(){
    '<label>Monto</label><input id="romoRetiroMontoQA" type="number" inputmode="numeric" min="1">'+
    '<button class="big" type="button" onclick="ukiRomoGuardarMovimientoQA(\'retiro\')">Registrar retiro confirmado</button>'+
    (retiros||'<p class="muted">Sin retiros registrados</p>'))+
+  ukiDesgloseDeliverysTurno(t)+
   wrapper('🛵 Deliverys manuales a pagar',
    '<p class="muted">Se suma al total por pagar al repartidor; no aumenta las ventas.</p>'+
    '<label>Nombre del repartidor</label><input id="romoRepartidorQA" maxlength="90">'+

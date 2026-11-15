@@ -47,11 +47,17 @@ export function prepararBorradorRomoDesdeSolicitudQA(row,{
  const match=t.match(/^\s*Delivery:\s*\$?\s*([\d.,]+)/mi);
  const envio=match?Number(match[1].replace(/\D/g,'')):0;
  const deliveryPendiente=modalidad==='Delivery'&&!match;
+ // Distancia validada por el mismo motor de Uki, no recalculada en el panel.
+ const kmTexto=t.match(/^\s*Recorrido por calles:\s*(\d{1,2}(?:[.,]\d{1,3})?)\s*km\s*$/mi)?.[1]||'';
+ const kmRecorrido=modalidad==='Delivery'?kmTexto.replace(',','.'):'';
  const pago=clean(t.match(/^\s*Pago:\s*([^\n]+)/mi)?.[1],100);
+ const pagoDelivery=clean(t.match(/^\s*Pago delivery:\s*([^\n]+)/mi)?.[1],100);
  // Junaeb no es efectivo: hasta habilitar ese medio explícito en la caja,
  // se mantiene como Otros y se conserva el texto original para revisión.
  const medio=['Efectivo','Transferencia','Débito','Edenred','Otros'].find(m=>
   pago.toLowerCase().startsWith(m.toLowerCase()))||'Otros';
+ const medioEnvio=['Efectivo','Transferencia','Débito','Edenred','Otros'].find(m=>
+  pagoDelivery.toLowerCase().startsWith(m.toLowerCase()))||medio;
  const total=Number(row.total_indicado);
  requireValid(Number.isSafeInteger(total)&&total>=0,'Total Romo incorrecto');
 
@@ -70,14 +76,15 @@ export function prepararBorradorRomoDesdeSolicitudQA(row,{
  return {texto:t,fecha:ahora(),cliente:clean(row.cliente,60),
   telefono,codigoCarta:codigo,codigoCliente:codigoTelefono(telefono),
   qrSolicitudes:[],sucursalCarta:SUCURSAL,mesaReferencia:'',
-  modalidad,envio,kmRecorrido:'',medio,medioEnvio:medio,pagado:false,items,
+  modalidad,envio,kmRecorrido,medio,medioEnvio,pagado:false,items,
   mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],
   productosPagadosOtroLocal:false,montoProductosOtroLocal:'',
   envioPagadoOtroLocal:false,montoEnvioOtroLocal:'',localPagoExterno:'',
   propinaModo:'ninguna',propinaPersonalizada:'',medioPropina:'Efectivo',
   editando:null,cartaSolicitudRemotaId:row.id,
   romoDeliveryPendienteQA:deliveryPendiente,
-  romoTotalIndicadoQA:total,romoPagoIndicadoQA:pago};
+  romoTotalIndicadoQA:total,romoPagoIndicadoQA:pago,
+  romoPagoEnvioIndicadoQA:pagoDelivery};
 }
 export function verificarBorradorRomoAntesGuardarQA(d,{
  solicitudId,confirmoArmado=false,confirmoImportes=false
