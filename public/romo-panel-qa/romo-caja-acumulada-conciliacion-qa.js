@@ -56,6 +56,83 @@
    pendientes:resultados.filter(x=>!x.valid).length,
    resultados};
  }
+ // Consulta exclusivamente la API privada de Romo y solo con rol dueño.
+ // No crea saldos ni los modifica. PIN de inventario NO permite acceder.
+ let leyendoLibroQA=false;
+ async function consultarLibro(){
+  if(leyendoLibroQA||window.S?.suc!==LOCAL)return;
+  const session=window.ukiRomoSesionRemotaQA,st=session?.estado?.();
+  if(!session?.disponible?.()||st?.conflicto||
+     !Number.isSafeInteger(st?.revision)||st.revision<1)return;
+  const root=document.getElementById('romoAcumuladaLibroRealQA');
+  const button=document.getElementById('romoAcumuladaConsultarQA');
+  if(!root)return;
+  leyendoLibroQA=true;
+  if(button)button.disabled=true;
+  root.textContent='Consultando libro privado de Romo, sin modificar saldo…';
+  try{
+   const token=await window.ukiInventarioToken?.();
+   if(typeof token!=='string'||token.length<30)
+    throw Error('Sin cuenta Google autorizada.');
+   const request=async action=>{
+    const resp=await fetch('/api/romo-caja-acumulada-qa',{
+     method:'POST',cache:'no-store',credentials:'omit',
+     headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+     body:JSON.stringify({action})
+    });
+    const data=await resp.json().catch(()=>null);
+    if(!resp.ok||data?.ok!==true||data.storeId!=='romo:serena'||data.soloRomo!==true)
+     throw Error(String(data?.error||'No se pudo consultar Neon Romo').slice(0,180));
+    return data;
+   };
+   const [cuentas,movs]=await Promise.all([request('saldo'),request('movimientos')]);
+   if(window.S?.suc!==LOCAL||session.estado()?.revision!==st.revision)
+    throw Error('La sesión cambió durante la consulta; vuelve a ingresar.');
+   const cuenta=cuentas.cuenta,rows=movs.movimientos;
+   if(!cuenta||cuenta.store_id!=='romo:serena'||typeof cuenta.initialized!=='boolean'||
+      !Array.isArray(rows)||rows.length>250||
+      rows.some(x=>!x||!['apertura','entrada','gasto','retiro','cierre'].includes(x.tipo)))
+    throw Error('El historial del libro no coincide con el formato de Romo.');
+   const bal=Number(cuenta.balance);
+   if(!Number.isSafeInteger(bal)||bal<0||bal>1e9)
+    throw Error('Saldo no válido; requiere conciliación.');
+   const target=document.getElementById('romoAcumuladaLibroRealQA');
+   if(!target)return;
+   target.replaceChildren();
+   const titulo=document.createElement('p');
+   titulo.textContent=cuenta.initialized?
+    'Saldo confirmado en el libro Romo: '+fmt(bal):
+    'Libro Romo sin inicializar. Debes contar y confirmar el efectivo real.';
+   const nota=document.createElement('p');
+   nota.className='muted';
+   nota.textContent='Solo consulta. Movimientos visibles: '+rows.length+
+    ' (máximo los últimos 250). No modifica pedidos ni cierre del día.';
+   target.append(titulo,nota);
+   for(const x of rows.slice(0,30)){
+    const amount=Number(x.monto),saldo=Number(x.saldo_resultante);
+    if(!Number.isSafeInteger(amount)||!Number.isSafeInteger(saldo))continue;
+    const line=document.createElement('p');
+    line.className='muted';
+    line.textContent=String(x.tipo)+' · '+fmt(amount)+
+     ' · Saldo: '+fmt(saldo)+' · '+String(x.concepto||'').slice(0,140)+
+     ' · '+String(x.responsable||'').slice(0,80);
+    target.append(line);
+   }
+   if(rows.length>30){
+    const more=document.createElement('p');
+    more.className='muted';more.textContent='Historial completo sujeto a exportación y conciliación.';
+    target.append(more);
+   }
+  }catch(e){
+   const target=document.getElementById('romoAcumuladaLibroRealQA');
+   if(target)target.textContent='Consulta sin confirmar: '+String(e.message||e)+
+    '. No se cambió el saldo.';
+  }finally{
+   leyendoLibroQA=false;
+   const btn=document.getElementById('romoAcumuladaConsultarQA');
+   if(btn)btn.disabled=false;
+  }
+ }
  function render(estado,session){
   const s=session?.estado?.();
   const ready=session?.disponible?.()===true&&s?.conflicto!==true&&
@@ -82,11 +159,13 @@
    '<section class="kpis"><div class="kpi"><span>Cierres examinados</span><strong>'+rep.total+'</strong></div>'+
    '<div class="kpi"><span>Arqueo coincidente (sin acreditar)</span><strong>'+rep.revisables+'</strong></div>'+
    '<div class="kpi"><span>Por conciliar</span><strong>'+rep.pendientes+'</strong></div></section>'+
-   '<div class="card"><p><b>Saldo disponible: todavía no establecido.</b></p>'+
-   '<p class="muted">Falta registrar en Neon Romo el conteo físico inicial y los movimientos posteriores con clave única. Solo entonces podrán incorporarse cierres posteriores, una vez, con arqueo y permisos verificados.</p>'+
+   '<div class="card"><p><b>Saldo disponible: consulta privada pendiente.</b></p>'+
+   '<p class="muted">Un saldo solo existe si el libro exclusivo de Neon Romo tiene un conteo inicial confirmado. Un cierre con arqueo coincidente no equivale a dinero acreditado.</p>'+
+   '<button id="romoAcumuladaConsultarQA" type="button" class="sm" onclick="window.ukiRomoCajaAcumuladaConciliacionQA.consultarLibro()">Consultar saldo real e historial · Solo dueños</button>'+
+   '<div id="romoAcumuladaLibroRealQA" role="status" class="muted">No se ha consultado el libro privado en esta sesión.</div>'+
    '<p class="muted">Última revisión cifrada cargada: '+s.revision+'. Esta comprobación no reemplaza el conteo físico.</p></div>'+
    (list||'<div class="card">Todavía no hay cierres definitivos en el estado cifrado Romo.</div>')+
    (all.length>50?'<p class="muted">Se muestran los 50 últimos cierres; los demás continúan en la base.</p>':'');
  }
- window.ukiRomoCajaAcumuladaConciliacionQA=Object.freeze({render,clasificarCierres});
+ window.ukiRomoCajaAcumuladaConciliacionQA=Object.freeze({render,clasificarCierres,consultarLibro});
 })();
