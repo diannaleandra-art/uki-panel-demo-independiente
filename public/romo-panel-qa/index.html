@@ -5113,6 +5113,16 @@ async function ukiRomoActualizarSolicitudesCartaQA(){
   if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='pedidos')render();
  }
 }
+// Misma cadencia de revisión que la bandeja oficial de Uki (45 s).
+// Solo GET del local Romo; nunca acepta solicitudes ni modifica caja por refrescar.
+setInterval(()=>{
+ if(S.suc!==ROMO_SUCURSAL_QA||S.vista!=='pedidos'||
+    !Array.isArray(ukiRomoSolicitudesCartaQA)||
+    ukiRomoSolicitudesActualizandoQA||
+    ukiRomoOperacionesEnCursoQA()||
+    !window.ukiRomoSesionRemotaQA?.disponible())return;
+ void ukiRomoActualizarSolicitudesCartaQA();
+},45000);
 function ukiRomoSolicitudesHTMLQA(){
  // Presentación de la ficha oficial de Uki. Solo datos aislados de Neon Romo.
  // Dibujar esta pantalla NO acepta, cobra, modifica caja ni genera timbres.
