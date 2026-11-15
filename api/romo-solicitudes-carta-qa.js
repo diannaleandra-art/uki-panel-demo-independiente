@@ -98,6 +98,10 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
  // Estado público mínimo: no entrega solicitudes ni datos de clientes.
  // Sólo se abre cuando envío y aceptación manual están autorizados.
  if(method==='GET'&&carta){
+  // No anunciar que Netlify puede recibir pedidos si su firma privada falta.
+  if(actualOrigin===conf.netlifyCarta&&
+     String(process.env.ROMO_NETLIFY_RELAY_SECRET||'').length<32)
+   return fail(res,503,'Firma privada de Netlify sin configurar');
   if(process.env.ROMO_SOLICITUDES_PUBLICO_QA_ENABLED!=='true'||
      process.env.ROMO_SOLICITUDES_ACEPTACION_QA_ENABLED!=='true')
    return fail(res,503,'Recepción pública de Romo todavía no habilitada');
