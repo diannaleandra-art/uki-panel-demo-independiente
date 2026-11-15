@@ -31,3 +31,13 @@ Revisión del diff y de sintaxis. No se ejecutaron pruebas automáticas ni se cr
 Este paquete resuelve la divergencia de Mi Administración y prepara las conexiones para producción; no acredita paridad completa con Uki. Permanecen pendientes el catálogo CRUD sobre la fuente real, las rectificaciones de pedidos pagados y la incorporación contable de cierres. La carta pública es otro proyecto y su conexión no se modifica automáticamente al publicar este repositorio.
 
 La usuaria hará la publicación. No promover la rama entera sin completar la configuración y revisión manual.
+
+## Origen adicional de carta Vercel (15-11-2026)
+
+- Carta Romo ya alojada en Vercel, proyecto `uki-sushi-carta-prueba`. No es necesario trasladar ni rehacer la carta desde Netlify.
+- Origen comercial de carta `https://uki-sushi-carta-prueba.vercel.app` preservado tal cual en `ROMO_CARTA_ALLOWED_ORIGIN` del panel Romo, sin modificación.
+- Alias estable de carta revisión `https://uki-sushi-carta-prueba-git-preparacio-654ffd-diannaleandra-7046.vercel.app`, commit `0169e255`. Se agregó el valor de esta URL en `ROMO_CARTA_PREVIEW_ALLOWED_ORIGIN` en el Preview de panel únicamente.
+- El segundo origen estará autorizado **solo** cuando `ROMO_CARTA_PREVIEW_QA_ENABLED=true` y `VERCEL_ENV=preview`. Esa bandera permanece **ausente/apagada**; la vista previa no permite pedidos todavía.
+- Vista previa del panel Vercel con cambio `74d21820`, alias `https://uki-sushi-inventario-git-preparacion-c0b0e9-diannaleandra-7046.vercel.app`, estado READY.
+- Para prueba real manual: autorizar el origen temporal del Preview y comprobar en iPhone solicitud pendiente idempotente, aceptación CAS, persistencia, caja, pago y cierre. La carta consulta disponibilidad con GET antes de POST; no convierte solicitudes pendientes en ventas.
+- No alterar rama `main`, carta comercial, bases Uki ni habilitar solicitudes de QA sin personal disponible en el panel.
