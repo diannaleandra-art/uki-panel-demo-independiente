@@ -5178,17 +5178,7 @@ function ukiRomoSolicitudesHTMLQA(){
    '</section>';
  }
  if(!['todos','por-confirmar'].includes(ukiRomoFiltroPedidosQA))return '';
- if(!pending.length&&ukiRomoFiltroPedidosQA!=='por-confirmar')
-  return '<details class="card uki-carta-estado-compacto">'+
-   '<summary>📲 Carta digital · Ver estado de recepción</summary>'+
-   '<button type="button" class="sm" onclick="ukiRomoActualizarSolicitudesCartaQA()">Actualizar solicitudes</button>'+
-   '<p role="status" class="muted">'+esc(ukiRomoSolicitudesAvisoQA||
-    'Consulta de recepción aún no realizada')+'</p></details>';
- const status='<details class="uki-carta-estado-compacto" style="margin:8px 0">'+
-  '<summary>📲 Carta digital · Ver estado</summary>'+
-  '<button type="button" class="sm" onclick="ukiRomoActualizarSolicitudesCartaQA()">Actualizar solicitudes</button>'+
-  '<p role="status" class="muted">'+esc(ukiRomoSolicitudesAvisoQA||
-   'Consulta de recepción aún no realizada')+'</p></details>';
+ if(!pending.length&&ukiRomoFiltroPedidosQA!=='por-confirmar')return '';
  const cards=visibles.map(o=>{
   const id=String(o.id||'');
   const codigo=String(o.codigo_pedido||'');
@@ -5244,7 +5234,7 @@ function ukiRomoSolicitudesHTMLQA(){
   (visibles.length?cards:
    '<p class="muted">'+(query?'Ninguna solicitud coincide con la búsqueda.':
     'Sin solicitudes por confirmar en esta consulta.')+'</p>')+
-  status+'</section>';
+  '</section>';
 }
 async function ukiRomoRechazarSolicitudCartaQA(id){
  if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoSolicitudCartaOcupadaQA)return;
@@ -5589,25 +5579,31 @@ function ukiRomoPedidosPendientesHTMLQA(){
      '" onclick="ukiRomoCambiarVistaPedidosQA(\''+v+'\')">'+t+'</button>').join('')+
    '</div><p class="muted">'+enCurso+
    ' pedido(s) sin cobrar o sin entregar siguen visibles en Operación aunque sean anteriores. Los pedidos archivados no se borran.</p></div>';
- const buscar='<div class="card"><label for="romoBuscarPedidoQA"><b>Buscar por cliente, teléfono, código o folio</b></label>'+
+ const buscar='<details class="card uki-bloque-busqueda" '+
+  (ukiRomoBusquedaPedidosQA||ukiRomoFechaPedidosQA?'open':'')+'>'+
+  '<summary style="cursor:pointer"><b>🔎 Buscar por nombre, WhatsApp, código del cliente, pedido o fecha</b></summary>'+
+  '<div style="margin-top:12px">'+
+  '<label for="romoBuscarPedidoQA">Nombre, últimos 4 del WhatsApp, celular completo o número del pedido</label>'+
   '<input id="romoBuscarPedidoQA" type="search" maxlength="120" value="'+
-   esc(ukiRomoBusquedaPedidosQA)+'" placeholder="Nombre, WhatsApp, código o número" '+
-   'oninput="ukiRomoFiltrarPedidosVisiblesQA(this.value)" autocomplete="off" '+
-   'onkeydown="if(event.key===\'Enter\'){event.preventDefault();ukiRomoBuscarTodosPedidosQA()}">'+
-  '<button type="button" class="sm ok" onclick="ukiRomoBuscarTodosPedidosQA()">Buscar en todos los días</button>'+
-  '<button type="button" class="sm" onclick="ukiRomoLimpiarFiltrosPedidosQA()">Limpiar filtros</button>'+
-  '<label for="romoFechaPedidoQA">Consultar fecha de operación</label>'+
+   esc(ukiRomoBusquedaPedidosQA)+'" placeholder="Ej: Camila, 5678 o 56912345678" '+
+   'inputmode="text" oninput="ukiRomoFiltrarPedidosVisiblesQA(this.value)" autocomplete="off">'+
+  '<button type="button" class="sm ok" onclick="ukiRomoBuscarTodosPedidosQA()">Buscar pedidos</button>'+
+  '<button type="button" class="sm" onclick="ukiRomoLimpiarFiltrosPedidosQA()">Ver turno abierto</button>'+
+  '<label for="romoFechaPedidoQA">Fecha del pedido o turno</label>'+
   '<input id="romoFechaPedidoQA" type="date" value="'+esc(ukiRomoFechaPedidosQA)+
    '" onchange="ukiRomoElegirFechaPedidosQA(this.value)">'+
-  (ukiRomoFechaPedidosQA?'<p class="muted">Mostrando pedidos del '+esc(ukiRomoFechaPedidosQA)+
-   '. No se cambió la fecha real de ningún pedido.</p>':'')+'</div>';
+  '<p class="muted">Las fechas anteriores se conservan en el historial por turno.</p></div>'+
+  '</details>';
  const turnos=new Map();
  for(const pedido of todos){
   const key=String(pedido.turnoClave||'');
   if(!/^\d{4}-\d{2}-\d{2}@\d+$/.test(key))continue;
   turnos.set(key,(turnos.get(key)||0)+1);
  }
- const selectorTurno='<div class="card"><label for="romoTurnoPedidoQA"><b>Consultar turno registrado</b></label>'+
+ const selectorTurno='<details class="card uki-bloque-archivo" '+
+  (ukiRomoTurnoPedidosQA?'open':'')+'>'+
+  '<summary><b>📚 Consultar turno registrado</b></summary>'+
+  '<div style="padding-top:10px"><label for="romoTurnoPedidoQA">Elegir turno</label>'+
   '<select id="romoTurnoPedidoQA" onchange="ukiRomoElegirTurnoPedidosQA(this.value)">'+
   '<option value="">Todos los turnos (sin filtro)</option>'+
   [...turnos.entries()].sort(([a],[b])=>b.localeCompare(a)).map(([key,n])=>{
@@ -5620,7 +5616,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
    return '<option value="'+esc(key)+'" '+
     (ukiRomoTurnoPedidosQA===key?'selected':'')+'>'+esc(titulo)+'</option>';
   }).join('')+'</select>'+
-  '<p class="muted">Cada turno mantiene su folio original; este filtro no modifica la caja.</p></div>';
+  '<p class="muted">Este filtro solo consulta el turno; no modifica la caja.</p></div></details>';
  const filtros='<div class="card uki-filtros-pedidos uki-bloque-filtros">'+
   '<div class="row" style="align-items:center"><h2 style="margin:0;font-size:15px">Pedidos por estado</h2>'+
   '<span class="muted" style="font-size:12px">'+listado.length+' a la vista</span></div>'+
@@ -5636,8 +5632,16 @@ function ukiRomoPedidosPendientesHTMLQA(){
    (ukiRomoFiltroPedidosQA===k?' on':'')+
    '" onclick="ukiRomoCambiarFiltroQA(\''+k+'\')">'+esc(t)+'</button>').join('')+
   '</div></details>'+
+  '<details class="uki-carta-estado-compacto" style="margin-top:8px">'+
+  '<summary>📲 Carta digital · '+esc(Array.isArray(ukiRomoSolicitudesCartaQA)?
+   pendientesSolicitudes.length+' solicitud(es) pendientes. Comprueba que el WhatsApp del cliente también haya llegado.':
+   'Recepción pendiente de consulta')+' · Ver estado</summary>'+
+  '<button type="button" class="sm" onclick="ukiRomoActualizarSolicitudesCartaQA()">Actualizar solicitudes</button>'+
+  '<p role="status" class="muted">'+esc(ukiRomoSolicitudesAvisoQA||
+   'Las solicitudes rechazadas no suman a ventas, caja ni timbres.')+'</p></details>'+
   '<p class="muted uki-contador-pedidos">'+
-   numeroCategoria(ukiRomoFiltroPedidosQA)+' registro(s) en este filtro</p></div>';
+   numeroCategoria(ukiRomoFiltroPedidosQA)+' registro(s) en «'+
+   esc((UKI_CATEGORIAS_PEDIDOS.find(([k])=>k===ukiRomoFiltroPedidosQA)||[])[1]||'Todos')+'»</p></div>';
  const dias=new Map();
  for(const p of todos){
   const fecha=ukiRomoFechaPedidoQA(p);
