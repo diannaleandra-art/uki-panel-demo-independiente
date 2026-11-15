@@ -34,7 +34,10 @@ function configuration(env){
                      'UKI_FIN_PRIVATE_DATABASE_URL','UKI_FIN_QA_DATABASE_URL']){
   try{if(new URL(String(env[name]||'')).hostname.toLowerCase()===host)return null}catch{}
  }
- return {origin,carta:urlOk(carta)?carta:null,read,write};
+ return {origin,carta:urlOk(carta)?carta:null,
+  netlifyCarta:env.ROMO_NETLIFY_BRIDGE_QA_ENABLED==='true'?
+   'https://romos-sushi-qa-privado.netlify.app':null,
+  read,write};
 }
 module.exports=async function romoSolicitudesCartaQA(req,res){
  res.setHeader('Cache-Control','private,no-store,max-age=0');
@@ -49,7 +52,8 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
  // Solo GET puede proceder de la misma página sin header Origin.
  const panel=(actualOrigin===conf.origin)||
   (method==='GET'&&!actualOrigin&&host===new URL(conf.origin).host.toLowerCase());
- const carta=!!conf.carta&&actualOrigin===conf.carta;
+ const carta=(!!conf.carta&&actualOrigin===conf.carta)||
+  (!!conf.netlifyCarta&&actualOrigin===conf.netlifyCarta);
  const allowed=(method==='POST'||(method==='GET'&&carta))?carta:
   method==='OPTIONS'?(actualOrigin===conf.origin||carta):panel;
  if(!allowed)return fail(res,403,'Origen no autorizado');
