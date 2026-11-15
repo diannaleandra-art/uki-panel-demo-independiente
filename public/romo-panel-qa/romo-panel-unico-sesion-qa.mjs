@@ -60,7 +60,7 @@ export function crearSesionPanelUnicoRomoQA({
     !vault||typeof vault.cargarSobre!=='function'||typeof vault.guardarSobre!=='function'||
     typeof vault.disponible!=='function')
   throw Error('Faltan los conectores del panel existente');
- let sesion=null,guardadoEnCurso=false;
+ let sesion=null,guardadoEnCurso=false,operacionAtomicaPendiente=false;
  const disponible=()=>vault.disponible()===true;
  function requireSession(){
   if(!sesion)throw Error('Abre Romo con Google y su clave habitual antes de operar');
@@ -89,7 +89,7 @@ export function crearSesionPanelUnicoRomoQA({
   },
   async guardar(estado){
    // Un teléfono no puede solapar dos escrituras con la misma revisión CAS.
-   if(guardadoEnCurso)throw Error('Romo ya está guardando. Verifica el resultado antes de repetir.');
+   if(guardadoEnCurso||operacionAtomicaPendiente)throw Error('Romo tiene una operación pendiente. Consulta Neon antes de intentar otra.');
    guardadoEnCurso=true;
    try{
    const current=requireSession();
@@ -109,13 +109,15 @@ export function crearSesionPanelUnicoRomoQA({
    try{
     result=await vault.guardarSobre({expectedRevision:current.revision,snapshot});
    }catch(error){
-    // Un conflicto no se puede resolver sobrescribiendo la revisión.
-    if(error?.code==='REVISION_CONFLICTO'||/conflicto|cambió|recarga/i.test(String(error?.message||'')))
-      current.conflicto=true;
-    throw error;
+    // Un corte de red puede ocultar un guardado que Neon sí aceptó.
+    // No repetir operaciones comerciales hasta reabrir y consultar la revisión.
+    current.conflicto=true;
+    throw Error('Guardado Romo de resultado incierto. Reabre y revisa Neon, pedidos e historial antes de repetir.');
    }
-   if(!Number.isSafeInteger(result?.revision)||result.revision!==current.revision+1)
-    throw Error('Romo no confirmó el guardado; conserva la sesión abierta');
+   if(!Number.isSafeInteger(result?.revision)||result.revision!==current.revision+1){
+    current.conflicto=true;
+    throw Error('Neon no confirmó la revisión esperada. Reabre Romo y concilia antes de repetir.');
+   }
    current.revision=result.revision;
    current.ultimoEstado=serialized;
    return Object.freeze({ok:true,changed:true,revision:current.revision});
@@ -126,7 +128,11 @@ export function crearSesionPanelUnicoRomoQA({
    * Se usa para el SQL atómico que acepta carta+pedido simultáneamente.
    */
   async prepararSobreAceptacion(estado){
+   if(guardadoEnCurso||operacionAtomicaPendiente)
+    throw Error('Hay una operación pendiente. Revisa Neon antes de repetir.');
    const current=requireSession();
+   operacionAtomicaPendiente=true;
+   try{
    if(current.revision<1)throw Error('La base Romo aún no tiene estado inicial.');
    const valid=validarDatosRomo(estado,validarEstado);
    const revision=current.revision,firma=current.ultimoEstado;
@@ -137,18 +143,22 @@ export function crearSesionPanelUnicoRomoQA({
       snapshot.formato!=='uki-v813-browser'||snapshot.version!==1)
     throw Error('Sobre de otra sucursal');
    return Object.freeze({revision,snapshot});
+   }catch(error){operacionAtomicaPendiente=false;throw error;}
   },
   /** Solo llamar TRAS respuesta firmada del servidor con revisión +1.
    * Si el servidor respondió pero la pantalla se perdió, NO reintentar:
    * reabrir el estado desde Neon y conciliar.
    */
   confirmarSobreAceptado({estado,revision}={}){
+   if(!operacionAtomicaPendiente)
+    throw Error('No hay una operación atómica esperando confirmación.');
    const current=requireSession();
    validarDatosRomo(estado,validarEstado);
    if(!Number.isSafeInteger(revision)||revision!==current.revision+1)
     throw Error('Revisión del pedido aceptado no confirmada; recarga Romo.');
    current.revision=revision;
    current.ultimoEstado=JSON.stringify(estado);
+   operacionAtomicaPendiente=false;
    return Object.freeze({ok:true,revision});
   },
   estado(){
@@ -158,6 +168,7 @@ export function crearSesionPanelUnicoRomoQA({
   cerrar(){
    if(guardadoEnCurso)throw Error('El guardado de Romo todavía no terminó. No se cerró la sesión.');
    sesion=null;
+   operacionAtomicaPendiente=false;
   }
  });
 }
