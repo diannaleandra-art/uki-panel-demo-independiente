@@ -2085,7 +2085,7 @@ function vNuevo(){
   const pendienteEdicion=!!ukiCobroPendiente(pedidoEdicion);
    const entregaUI=`<label>Tipo de entrega</label><div class="chips">${["Retiro","Delivery","Consumo en local"].map(m=>`<button ${chip(D.modalidad===m)} onclick="setModalidad('${m}')">${m}</button>`).join("")}</div>${S.suc===ROMO_SUCURSAL_QA&&revisandoSolicitud?ukiRomoDetalleEntregaCartaHTMLQA(D.texto):""}${D.modalidad==="Consumo en local"?`<label>Mesa o referencia (opcional)</label><input maxlength="50" value="${esc(D.mesaReferencia||"")}" placeholder="Ej: Mesa 2" oninput="D.mesaReferencia=this.value">`:""}${D.modalidad==="Delivery"?`<label>💰 Valor delivery (se suma)</label><input type="number" inputmode="numeric" value="${D.envio||""}" placeholder="Ej: 2000" oninput="setEnvioManual(this.value)"><p class="muted" id="pedidoEnvioAyuda">Delivery seleccionado - ${D.envio||0} se suma al total</p><label>🛵 Kilómetros del recorrido (opcional, no cambia el precio)</label><input id="ukiKmRecorrido" type="text" inputmode="decimal" value="${esc(D.kmRecorrido??"")}" placeholder="Ej: 4,5" onchange="D.kmRecorrido=this.value.trim();render()"><p class="muted">Si el recorrido viene escrito en el mensaje original, el panel también puede leerlo. No modifica el valor del delivery.</p>`:""}`;
   return `<div class="section-head"><h2>${D.editando?`Editar pedido #${D.editando}`:revisandoSolicitud?"Revisar solicitud":"Nuevo pedido"}</h2><p>${D.editando?"Corrige los datos y el medio de pago del pedido existente. Guardar cambios no genera otro pedido ni otro cobro.":revisandoSolicitud?"Solicitud recibida: verifica el detalle y la forma de entrega. Todavía NO es un pedido registrado ni un pago confirmado.":"Completa los datos y guarda el pedido una sola vez."}</p></div>
-  ${S.suc===ROMO_SUCURSAL_QA?'<div class="card"><b>Romo · pedido manual o por WhatsApp</b><p class="muted">Pega el mensaje y revisa productos, precios, entrega y delivery. El pedido se guarda por cobrar, sin registrar pago. El guardado exige confirmación cifrada de Neon Romo; los borradores entre dispositivos aún no están habilitados.</p></div>'+ukiRomoBorradoresVistaQA():ukiVistaBorradores()}
+  ${S.suc===ROMO_SUCURSAL_QA?'<div class="card"><b>Romo · pedido manual o por WhatsApp</b><p class="muted">Pega el mensaje y revisa productos, precios, entrega y delivery. El pedido se guarda por cobrar, sin registrar pago. El guardado exige confirmación cifrada de Neon Romo; los pedidos en espera quedan guardados de forma cifrada exclusivamente en Romo.</p></div>'+ukiRomoBorradoresVistaQA():ukiVistaBorradores()}
   <details class="uki-modos-ingreso" ${revisandoSolicitud?'':'open'} style="${D.editando?'display:none;':'margin:10px 0'}"><summary><b>${revisandoSolicitud?'Ver mensaje original':'Opciones de ingreso · WhatsApp o manual'}</b></summary>
    ${revisandoSolicitud?'':`<div class="mode-switch" role="group" aria-label="Modo de ingresar pedido"><button type="button" class="${modoNuevo==='whatsapp'?'selected':''}" onclick="cambiarModoNuevo('whatsapp')">📋 Pegar WhatsApp</button><button type="button" class="${modoNuevo==='manual'?'selected':''}" onclick="cambiarModoNuevo('manual')">✎ Manual</button></div>`}
 
@@ -5165,7 +5165,8 @@ async function ukiRomoGuardarBorradorQA(){
   if(index<0)copia.borradores.push(borrador);
   else copia.borradores[index]=borrador;
   await ukiRomoGuardarOperacionQA(copia,'Borrador en espera confirmado en Neon',null,'pedidos');
-  ukiRomoBorradorActivoQA=null;nuevoDraft();
+  ukiRomoBorradorActivoQA=null;nuevoDraft();modoNuevo='manual';
+  S.vista='nuevo';render();
  }catch(e){aviso('No se confirmó el borrador. No repitas sin revisar: '+String(e.message||e));}
  finally{ukiRomoBorradorGuardandoQA=false;}
 }
