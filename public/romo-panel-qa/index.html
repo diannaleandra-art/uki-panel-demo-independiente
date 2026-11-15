@@ -435,7 +435,18 @@ let movimientoTab="gastos";
 let modoNuevo="whatsapp";
 const CAJA_TABS=[["resumen","Resumen"],["movimientos","Movimientos"],["precierre","Precierre trabajador"],["cierre","Cierre definitivo"],["historial","Historial"],["semana","Reportes"],["acumulada","Caja acumulada en efectivo"]];
 const MOV_TABS=[["gastos","Gastos"],["apps","Apps"],["delivery","Delivery manual"],["repartidor","Pago repartidor"],["propinas","Propinas"],["retiros","Retiros"],["chica","Caja chica"]];
-function cambiarCajaTab(t){cajaTab=t;S.confirmCierre=false;render();if(t==="acumulada")setTimeout(()=>window.ukiCajaAcumuladaMontar?.(),0);window.scrollTo({top:0,behavior:"instant"});}
+function cambiarCajaTab(t){
+ if(!CAJA_TABS.some(([k])=>k===t))return;
+ if(S.suc===ROMO_SUCURSAL_QA&&ukiRomoOperacionesEnCursoQA()){
+  window.alert('Romo está confirmando una operación. Revisa el resultado antes de cambiar de sección de Caja.');
+  return;
+ }
+ cajaTab=t;S.confirmCierre=false;render();
+ // La caja acumulada de Uki tiene otra base: nunca montarla dentro de Romo.
+ if(t==="acumulada"&&S.suc!==ROMO_SUCURSAL_QA)
+  setTimeout(()=>window.ukiCajaAcumuladaMontar?.(),0);
+ window.scrollTo({top:0,behavior:"instant"});
+}
 function cambiarMovimientoTab(t){movimientoTab=t;render();}
 function cambiarModoNuevo(t){if(S.suc===ROMO_SUCURSAL_QA&&t!=='manual'){aviso('Romo todavía requiere ingresar el pedido manualmente.');return;}modoNuevo=t;render();}
 
@@ -3445,7 +3456,7 @@ function totales(){
 
 function vCaja(){
   if(!S.suc)return vInicio();
-  if(S.suc===ROMO_SUCURSAL_QA)return ukiRomoCajaConsultaHTMLQA();
+  if(S.suc===ROMO_SUCURSAL_QA)return ukiRomoCajaPestanasQA();
   const active=CAJA_TABS.find(x=>x[0]===cajaTab)||CAJA_TABS[0];
   const content=({resumen:vCajaResumen,movimientos:vMovimientos,precierre:vPrecierreTrabajadores,cierre:vCierre,historial:vHistorialCompacto,semana:vReportes,acumulada:()=>window.ukiCajaAcumuladaVista?.()||'<div class="card">Preparando Caja acumulada en efectivo…</div>'})[active[0]]();
   return `<div class="section-head"><h2>Caja</h2><p>Turno abierto · ${fechaOperativaActual()}</p></div>
@@ -5602,7 +5613,112 @@ async function ukiRomoGuardarMovimientoQA(tipo){
    String(e?.message||e));
  }finally{ukiRomoOperandoPedidoQA=false;}
 }
-function ukiRomoCajaConsultaHTMLQA(){
+// Las siete pestañas son las mismas del panel oficial Uki.
+// NO se conecta la Caja acumulada Uki ni se inventan totales de cierres
+// faltantes. Cierres e historial se leen exclusivamente del estado Romo.
+let ukiRomoFechaSemanaCajaQA='';
+function ukiRomoCambiarSemanaCajaQA(value){
+ const dia=String(value||'');
+ if(dia){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(dia))return;
+  const fecha=new Date(dia+'T12:00:00Z');
+  if(!Number.isFinite(fecha.getTime())||fecha.toISOString().slice(0,10)!==dia)return;
+ }
+ ukiRomoFechaSemanaCajaQA=dia;
+ render();
+}
+function ukiRomoCajaHistorialHTMLQA(){
+ const cierres=(S.cierres||[]).filter(x=>x?.suc===ROMO_SUCURSAL_QA)
+  .slice().sort((a,b)=>(Number(b.fechaMs)||Date.parse(b.fechaISO||'')||0)-
+   (Number(a.fechaMs)||Date.parse(a.fechaISO||'')||0));
+ const items=cierres.slice(0,50).map(x=>{
+  const segura=(k)=>Number.isSafeInteger(x[k])&&x[k]>=0?fmt(x[k]):'No conciliado';
+  const medios=Object.entries(x.medios||{}).filter(([,m])=>
+   Number.isSafeInteger(m)&&m>0).map(([k,m])=>row(k,fmt(m))).join('');
+  return '<details class="card"><summary><b>🔒 '+
+   esc(x.fechaOperativa||x.fechaISO||'Fecha sin registrar')+
+   ' · '+esc(x.resp||'Responsable pendiente')+
+   ' · '+esc(x.turnoClave||'Sin identificador')+'</b></summary>'+
+   '<p class="muted">Cierre existente en el estado cifrado de Romo; solo lectura. No autoriza rectificaciones.</p>'+
+   row('Venta confirmada',segura('venta'))+
+   row('Efectivo contado',segura('efectivoContado'))+
+   row('Gastos',segura('gastos'))+
+   row('Pago a repartidor',segura('delivery'))+
+   row('Propinas',segura('propinas'))+
+   (medios?'<details><summary>Medios de cobro</summary>'+medios+'</details>':'')+
+   '</details>';
+ }).join('');
+ return '<div class="section-head"><h2>Historial de cierres · Romo</h2></div>'+
+  '<p class="muted">Solo cierres definitivos registrados. No se agregan solicitudes pendientes, precierres ni ventas de otros locales.</p>'+
+  '<section class="card"><b>'+cierres.length+' cierre(s) en el historial de Romo</b></section>'+
+  (items||'<div class="card">Todavía no hay cierres definitivos confirmados en el estado Romo.</div>')+
+  (cierres.length>50?'<p class="muted">Se muestran los últimos 50 cierres; los anteriores permanecen en la base cifrada.</p>':'')+
+  '<p class="muted">Exportación PDF/Excel e incorporación a Mi Administración pendientes de homologar.</p>';
+}
+function ukiRomoCajaSemanaHTMLQA(){
+ const fecha=ukiRomoFechaSemanaCajaQA||fechaOperativaActual();
+ const resumen=window.ukiControlTurnos?.resumenSemana?.(
+  (S.cierres||[]).filter(x=>x?.suc===ROMO_SUCURSAL_QA),
+  ROMO_SUCURSAL_QA,fecha);
+ if(!resumen)return '<div class="card">No se pudo consultar este rango sin cambiar registros.</div>';
+ const medios=Object.entries(resumen.medios||{}).filter(([,v])=>v>0)
+  .map(([k,v])=>row(k,fmt(v))).join('');
+ return '<div class="section-head"><h2>Reporte semanal · Romo</h2></div>'+
+  '<div class="card"><p class="muted">Solo cierres definitivos guardados; de lunes a domingo. No cuenta precierres ni solicitudes.</p>'+
+  '<label for="romoCajaSemanaQA">Seleccionar una fecha de la semana</label>'+
+  '<input id="romoCajaSemanaQA" type="date" value="'+esc(fecha)+
+   '" onchange="ukiRomoCambiarSemanaCajaQA(this.value)">'+
+  '<h3>Semana '+esc(resumen.desde)+' al '+esc(resumen.hasta)+'</h3>'+
+  row('Cierres',resumen.cierres)+
+  row('Pedidos',resumen.pedidos)+
+  row('Ventas',fmt(resumen.ventas))+
+  row('Venta sin delivery',fmt(resumen.ventasSinDelivery))+
+  row('Gastos',fmt(resumen.gastos))+
+  row('Pago a repartidores',fmt(resumen.repartidor))+
+  row('Propinas registradas',fmt(resumen.propinas))+
+  row('Resultado registrado',fmt(resumen.resultado),'final')+
+  (medios?'<details><summary>Ver medios de cobro</summary>'+medios+'</details>':'')+
+  '</div>';
+}
+function ukiRomoCajaPrecierreHTMLQA(){
+ const key=ROMO_SUCURSAL_QA+'|'+fechaOperativaActual();
+ const caja=S.cajasDiarias?.[key];
+ if(!caja?.turnoAbierto||caja.baseConfirmada!==true)
+  return '<div class="card"><h2>Precierre del trabajador</h2>'+
+   '<p class="muted">No hay turno abierto y base confirmada. Primero abre Caja desde Cierre definitivo, con la cuenta autorizada.</p></div>';
+ const total=totales();
+ return '<div class="section-head"><h2>Precierre del trabajador · Romo</h2></div>'+
+  '<div class="card"><p class="muted">Fotografía del turno en curso. Un precierre no cierra Caja ni suma otra venta.</p>'+
+  row('Cobros registrados',fmt(total.totalMedios))+
+  row('Pedidos pagados',total.pagadosN)+
+  row('Pendientes de pago',total.pendientesN)+
+  ukiRomoFormularioPrecierreQA(caja,total)+'</div>';
+}
+function ukiRomoCajaPestanasQA(){
+ const tab=(CAJA_TABS.find(([k])=>k===cajaTab)||CAJA_TABS[0])[0];
+ const barra='<div class="card uki-navegacion-compacta uki-navegacion-caja">'+
+  '<label for="romoCajaIrA"><b>Ir a una sección de Caja</b></label>'+
+  '<select id="romoCajaIrA" onchange="cambiarCajaTab(this.value)">'+
+  CAJA_TABS.map(([k,l])=>'<option value="'+esc(k)+'"'+
+   (k===tab?' selected':'')+'>'+esc(l)+'</option>').join('')+'</select>'+
+  '<div class="sub-tabs" role="group" aria-label="Secciones de Caja Romo">'+
+  CAJA_TABS.map(([k,l])=>'<button type="button" class="'+
+   (tab===k?'selected':'')+'" onclick="cambiarCajaTab(\''+k+'\')">'+
+   esc(l)+'</button>').join('')+'</div></div>';
+ const vista=tab==='resumen'?ukiRomoCajaConsultaHTMLQA('resumen'):
+  tab==='movimientos'?ukiRomoCajaConsultaHTMLQA('movimientos'):
+  tab==='precierre'?ukiRomoCajaPrecierreHTMLQA():
+  tab==='cierre'?ukiRomoCajaConsultaHTMLQA('turnos'):
+  tab==='historial'?ukiRomoCajaHistorialHTMLQA():
+  tab==='semana'?ukiRomoCajaSemanaHTMLQA():
+  '<div class="section-head"><h2>Caja acumulada en efectivo · Romo</h2></div>'+
+   '<div class="card"><p><b>Conciliación pendiente.</b></p>'+
+   '<p class="muted">La Caja acumulada oficial todavía no tiene servicio independiente para Romo. No se presenta un saldo aproximado ni se consultan los datos de Uki.</p>'+
+   '<p class="muted">Los cierres confirmados pueden revisarse en Historial. Falta conciliar saldos anteriores, retiros y correcciones autorizadas antes de activar la acumulada.</p></div>';
+ return barra+vista;
+}
+
+function ukiRomoCajaConsultaHTMLQA(seccion='resumen'){
  const t=totales(),caja=cajaDelDia();
  const baseConfirmada=caja.baseConfirmada===true;
  const avisoBase=baseConfirmada?
@@ -5623,7 +5739,7 @@ function ukiRomoCajaConsultaHTMLQA(){
  const delivery=delSucHoy(S.deliveriesManuales).map(d=>'<div class="row"><span>'+
   esc(d.repartidor||'Repartidor')+' · '+esc(d.cliente||'Delivery manual')+'</span><b>'+fmt(d.monto)+'</b></div>').join('');
  const wrapper=(name,body)=>'<details class="card"><summary><b>'+name+'</b></summary>'+body+'</details>';
- return '<div class="section-head"><h2>Caja · Romo La Serena</h2>'+
+ const resumenHtml='<div class="section-head"><h2>Caja · Romo La Serena</h2>'+
   '<p>Turno: '+esc(fechaOperativaActual())+' · movimientos guardados en Neon con confirmación</p></div>'+
   avisoBase+
   '<section class="kpis">'+
@@ -5648,7 +5764,8 @@ function ukiRomoCajaConsultaHTMLQA(){
   row('Retiros de efectivo',fmt(delSucHoy(S.retiros).reduce((a,x)=>a+Number(x.monto||0),0)))+
   row('Pagos a repartidor',fmt(t.pagoDelivery))+
   row('Venta neta (sin base inicial)',fmt(t.final),'final')+
-  '<p class="muted">Los pedidos sin pagar no suman ventas. Los pagos a repartidores solo se descuentan cuando realmente se registran. Todavía no se ejecutan cierres definitivos ni inventario.</p></div>'+
+  '<p class="muted">Los pedidos sin pagar no suman ventas. Los pagos a repartidores solo se descuentan cuando realmente se registran. El cierre definitivo debe generar su constancia propia en Neon.</p></div>';
+ const movimientosHtml=
   wrapper('💵 Establecer base del turno (antes del primer cobro)',
    '<p class="muted">La base y la caja chica deben reflejar solo el dinero realmente entregado. El valor de Uki no se copia a Romo. Si ves montos heredados, corrígelos aquí con confirmación.</p>'+
    '<label>Efectivo inicial real</label><input id="romoBaseQA" inputmode="numeric" type="number" min="0" max="1000000" value="'+esc(caja.base||0)+'">'+
@@ -5680,9 +5797,11 @@ function ukiRomoCajaConsultaHTMLQA(){
    '<label>Monto efectivamente pagado</label><input id="romoPagoDeliveryMontoQA" type="number" inputmode="numeric" min="1">'+
    '<label>Medio</label><select id="romoPagoDeliveryMedioQA">'+opciones+'</select>'+
    '<button class="big" type="button" onclick="ukiRomoGuardarMovimientoQA(\'pagoRepartidor\')">Registrar pago al repartidor</button>'+
-   (detalles||'<p class="muted">Todavía no hay pagos de repartidor registrados</p>'))+
-  ukiRomoCierreTurnoHTMLQA()+
-  '<p class="muted">Los precierres por trabajador y la sincronización automática con Mi Administración todavía están pendientes.</p>';
+   (detalles||'<p class="muted">Todavía no hay pagos de repartidor registrados</p>'));
+ const turnosHtml=ukiRomoCierreTurnoHTMLQA()+
+  '<p class="muted">El precierre desde cuenta de dueños está preparado; falta habilitar el acceso limitado del trabajador. Mi Administración todavía no contabiliza automáticamente estos cierres.</p>';
+ return seccion==='movimientos'?movimientosHtml:
+  seccion==='turnos'?turnosHtml:resumenHtml;
 }
 
 
