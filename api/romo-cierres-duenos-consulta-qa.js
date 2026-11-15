@@ -30,10 +30,16 @@ module.exports=async function consultaCierresQA(req,res){
  res.setHeader('X-Content-Type-Options','nosniff');
  const config=configure(process.env);
  if(!config)return fail(res,503,'Cierres Romo privados aún no habilitados');
- if(req.method!=='POST')return fail(res,405,'Método no permitido');
+ if(!['POST','OPTIONS'].includes(req.method))return fail(res,405,'Método no permitido');
  const requestOrigin=String(req.headers?.origin||'');
- if(requestOrigin!==config.origin)return fail(res,403,'Origen no autorizado');
- res.setHeader('Access-Control-Allow-Origin',config.origin);
+ // La misma administración de Uki puede consultar Romo en modo lectura.
+ // Nunca admite otros orígenes ni permite mutaciones financieras.
+ const origins=new Set([config.origin,'https://uki-sushi-inventario.vercel.app']);
+ if(!origins.has(requestOrigin))return fail(res,403,'Origen no autorizado');
+ res.setHeader('Access-Control-Allow-Origin',requestOrigin);
+ res.setHeader('Access-Control-Allow-Methods','POST,OPTIONS');
+ res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type,X-Fin-Session');
+ if(req.method==='OPTIONS')return res.status(204).end();
  if(String(req.headers?.['content-type']||'').split(';')[0]!=='application/json')
   return fail(res,415,'Se requiere JSON');
  const body=req.body;
@@ -82,7 +88,8 @@ module.exports=async function consultaCierresQA(req,res){
    return {turno_ref:row.turno_ref,fecha_operativa:row.fecha_operativa,
     revision_neon:Number(row.revision_neon),venta_total:raw.venta_total,
     pedidos:raw.pedidos,gastos_cierre:raw.gastos_cierre,
-    delivery_por_pagar:raw.delivery_por_pagar};
+    delivery_por_pagar:raw.delivery_por_pagar,
+    propinas:raw.propinas,medios:raw.medios};
   });
   return res.status(200).json({ok:true,storeId:STORE,cierres,soloLectura:true,
    incluidoEnContabilidad:false});

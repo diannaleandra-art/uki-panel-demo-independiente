@@ -1397,8 +1397,9 @@ function ukiExportarPrecierres(){
      p.diferenciaEfectivo===null?"":p.diferenciaEfectivo,p.observaciones||"",Number(t.propinas)||0,Number(t.propinasEfectivo)||0];
  })];
  const csv="\uFEFF"+lineas.map(line=>line.map(csvSeguro).join(";")).join("\n");
- descargarTextoArchivo("uki-precierres-"+(S.suc===SUCURSALES[0]?"regimiento":"serena")+
-   "-"+hoyLocal()+".csv",csv,"text/csv;charset=utf-8");
+ const archivo=S.suc===ROMO_SUCURSAL_QA?'romo-precierres-serena':
+  'uki-precierres-'+(S.suc===SUCURSALES[0]?'regimiento':'serena');
+ descargarTextoArchivo(archivo+'-'+hoyLocal()+'.csv',csv,'text/csv;charset=utf-8');
 }
 
 function setModalidad(modalidad){
@@ -5552,11 +5553,13 @@ function ukiRomoFormularioPrecierreQA(c,t){
    '<label>Efectivo físico contado en el turno, sin base ni propinas</label>'+
    '<input id="romoPrecierreContadoQA" type="number" min="0" step="1" inputmode="numeric" placeholder="Escribe 0 si corresponde">'+
    '<label>Observaciones</label><textarea id="romoPrecierreObsQA" maxlength="300" rows="2"></textarea>'+
+   '<p class="muted">La propina en efectivo se registra aparte, como en Uki. El precierre no cierra la caja ni genera venta.</p>'+
    '<button type="button" class="big" onclick="ukiRomoGuardarPrecierreQA()">Guardar precierre del trabajador</button>':
    '<p class="muted">No hay trabajador con turno iniciado. Solo el precierre del trabajador se cierra aquí; Caja seguirá abierta.</p>'+
    '<label>Nombre del trabajador</label><input id="romoTrabajadorInicioQA" maxlength="60" placeholder="Nombre del trabajador">'+
    '<button type="button" class="big" onclick="ukiRomoIniciarTurnoTrabajadorQA()">Iniciar turno del trabajador</button>')+
   '<p class="muted">Solo cuenta de dueños durante integración. El acceso por PIN independiente se conectará después. Cada apertura y precierre debe confirmarse en Neon.</p>'+
+  '<button type="button" class="sm ok" onclick="ukiExportarPrecierres()">📊 Excel de precierres de Romo</button>'+
   '<details><summary>Precierres confirmados: '+prev.length+'</summary>'+
    (prev.map(p=>ukiFilaPrecierre(p)).join('')||'<p class="muted">Sin precierres confirmados en este turno.</p>')+
    '</details>';
