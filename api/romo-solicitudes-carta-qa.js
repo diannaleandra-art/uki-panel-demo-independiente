@@ -6,10 +6,30 @@ const {entornoPanelRomoAutorizado}=require('../lib/romo-entorno-panel.cjs');
  * GET privado de lectura, PATCH aceptación atómica y POST público tienen
  * banderas DIFERENTES. Por defecto solo se permite GET en Preview.
  */
-const {createHash}=require('node:crypto');
+const {createHash,createHmac,timingSafeEqual}=require('node:crypto');
 const STORE='romo:serena';
 const fail=(r,n,msg)=>r.status(n).json({ok:false,storeId:STORE,error:msg});
 const urlOk=v=>/^https:\/\/[a-z0-9.-]+$/i.test(v)&&!String(v).includes('..');
+
+/** Acepta pedidos enviados por Netlify solo si el servidor conoce la clave.
+ * No reemplaza el acceso Google del personal ni habilita ventas automáticas.
+ * Desactiva inmediatamente si la clave falta o si la petición es antigua.
+ */
+function confirmarFirmaNetlifyQA(req,env){
+ const secret=String(env.ROMO_NETLIFY_RELAY_SECRET||'');
+ if(secret.length<32)return false;
+ const sentAt=String(req.headers?.['x-romo-relay-time']||'');
+ if(!/^\d{13}$/.test(sentAt))return false;
+ const parsed=Number(sentAt);
+ if(!Number.isSafeInteger(parsed)||Math.abs(Date.now()-parsed)>180000)return false;
+ const signature=String(req.headers?.['x-romo-relay-signature']||'');
+ if(!/^[0-9a-f]{64}$/i.test(signature))return false;
+ const actual=Buffer.from(signature.toLowerCase(),'hex');
+ const payload=JSON.stringify(req.body||{});
+ const expected=createHmac('sha256',secret)
+   .update(sentAt+'\n'+payload,'utf8').digest();
+ return actual.length===expected.length&&timingSafeEqual(actual,expected);
+}
 function configuration(env){
  if(!entornoPanelRomoAutorizado(env)||
     env.ROMO_SOLICITUDES_LECTURA_QA_ENABLED!=='true')return null;
@@ -69,6 +89,9 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
   return fail(res,415,'Se requiere JSON');
  if(method!=='GET'&&JSON.stringify(req.body||{}).length>2300000)
   return fail(res,413,'Contenido excede el límite');
+ if(method==='POST'&&actualOrigin===conf.netlifyCarta&&
+    !confirmarFirmaNetlifyQA(req,process.env))
+  return fail(res,403,'Firma de servidor Romo no autorizada');
  const core=await import('../lib/romo-solicitudes-carta-qa.mjs');
  const {neon}=require('@neondatabase/serverless');
  const reader=neon(conf.read),dbReader={query:(sql,args)=>reader.query(sql,args)};
@@ -138,4 +161,4 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
     code===429?'Demasiadas solicitudes. Contacta por WhatsApp.':'Datos de solicitud inválidos.');
  }
 };
-module.exports._internalQA={configuration};
+module.exports._internalQA={configuration,confirmarFirmaNetlifyQA};
