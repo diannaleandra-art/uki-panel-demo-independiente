@@ -53,15 +53,26 @@ export function prepararEdicionPendienteRomoQA(estado,{
   'Solo editar dentro del turno Romo abierto y confirmado');
  const antiguos=p.productos;
  check(Array.isArray(antiguos)&&antiguos.length>0&&antiguos.length<=80&&
-  Array.isArray(productos)&&productos.length===antiguos.length,
-  'Revisa todos los productos; no se permite omitir ninguno');
- const nuevos=productos.map((x,i)=>({
-  ...antiguos[i],
-  nombre:text(x?.nombre,100,'Nombre del producto obligatorio'),
-  cantidad:integer(x?.cantidad,1,100,'Cantidad del producto'),
-  precioUnit:integer(x?.precioUnit,1,1000000,'Precio unitario'),
-  detalle:String(x?.detalle??'').trim().slice(0,12000)
- }));
+  Array.isArray(productos)&&productos.length>0&&productos.length<=80,
+  'El pedido debe tener entre 1 y 80 productos');
+ const usados=new Set();
+ const nuevos=productos.map((x)=>{
+  // No copiar la identidad de la línea siguiente al retirar un producto.
+  const origen=x?.origenIndice;
+  check(origen===null||Number.isSafeInteger(origen)&&origen>=0&&origen<antiguos.length,
+   'Origen de producto inválido');
+  if(origen!==null){
+   check(!usados.has(origen),'No puede repetirse una línea original del pedido');
+   usados.add(origen);
+  }
+  return {
+   ...(origen===null?{}:antiguos[origen]),
+   nombre:text(x?.nombre,100,'Nombre del producto obligatorio'),
+   cantidad:integer(x?.cantidad,1,100,'Cantidad del producto'),
+   precioUnit:integer(x?.precioUnit,1,1000000,'Precio unitario'),
+   detalle:String(x?.detalle??'').trim().slice(0,12000)
+  };
+ });
  check(productos.every(x=>String(x?.detalle??'').length<=12000),
   'Detalle de armado demasiado largo');
  const subtotal=nuevos.reduce((s,x)=>s+x.cantidad*x.precioUnit,0);

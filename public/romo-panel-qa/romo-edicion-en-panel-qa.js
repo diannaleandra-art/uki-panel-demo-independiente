@@ -5,28 +5,56 @@
  "use strict";
  const SUC="Romo’s Sushi La Serena";
  const e=(x)=>esc(x);
+ function filaProductoHTML(x,indice){
+  // Una fila conserva su origen: quitarla no hereda metadatos de otra línea.
+  const origen=Number.isSafeInteger(indice)&&indice>=0?indice:-1;
+  return '<div class="card" data-romo-linea="1" data-romo-origen="'+origen+
+   '" style="padding:10px">'+
+   '<p><b>Producto del pedido</b></p>'+
+   '<label>Nombre</label><input data-romo-campo="nombre" maxlength="100" value="'+e(x?.nombre||'')+'">'+
+   '<label>Cantidad</label><input data-romo-campo="cantidad" type="number" min="1" max="100" step="1" value="'+e(x?.cantidad??1)+'">'+
+   '<label>Precio unitario</label><input data-romo-campo="precio" type="number" min="1" max="1000000" step="1" value="'+e(x?.precioUnit??'')+'">'+
+   '<label>Ingredientes / detalles</label><textarea data-romo-campo="detalle" rows="2" maxlength="12000">'+e(x?.detalle||'')+'</textarea>'+
+   '<button type="button" class="sm" onclick="ukiRomoQuitarLineaPendienteQA(this)">Quitar este producto</button>'+
+   '</div>';
+ }
  function editor(p){
   if(!p||p.suc!==SUC||p.estado!=="Pendiente"||p.pagado||
      p.esPremio||p.productosPagadosOtroLocal||p.envioPagadoOtroLocal||
      p.timbreEnviadoEn||p.timbreEnviadoPor)return "";
   const id=Number(p.id);
   if(!Number.isSafeInteger(id)||id<1)return "";
-  const productos=(p.productos||[]).map((x,i)=>
-   '<div class="card" style="padding:10px">'+
-   '<p><b>Producto '+e(i+1)+'</b></p>'+
-   '<label>Nombre</label><input id="romoEditarNombre'+id+'_'+i+'" maxlength="100" value="'+e(x.nombre||"")+'">'+
-   '<label>Cantidad</label><input id="romoEditarCantidad'+id+'_'+i+'" type="number" min="1" max="100" step="1" value="'+e(x.cantidad)+'">'+
-   '<label>Precio unitario</label><input id="romoEditarPrecio'+id+'_'+i+'" type="number" min="1" max="1000000" step="1" value="'+e(x.precioUnit)+'">'+
-   '<label>Ingredientes / detalles</label><textarea id="romoEditarDetalle'+id+'_'+i+'" rows="2" maxlength="12000">'+e(x.detalle||"")+'</textarea></div>'
-  ).join("");
+  const productos=(p.productos||[]).map((x,i)=>filaProductoHTML(x,i)).join("");
   return '<details class="inner-details" id="romoEditarPedido'+id+'">'+
    '<summary><b>✏️ Editar pedido pendiente</b></summary>'+
-   '<p class="muted">Requiere turno original abierto; no modifica caja, folio, timbre ni un pedido pagado. Conserva la misma cantidad de líneas de producto.</p>'+
-   productos+
-   (p.modalidad==="Delivery"?'<label>Delivery confirmado</label><input id="romoEditarEnvio'+id+'" type="number" min="0" max="100000" step="1" value="'+e(p.envio||0)+'">':"")+
+   '<p class="muted">Igual que el editor de productos Uki: puedes cambiar cantidades, precios, agregar o quitar líneas. Solo antes del pago y con el turno abierto. No modifica caja, folio ni timbres.</p>'+
+   '<div data-romo-productos="1">'+productos+'</div>'+
+   '<button type="button" class="sm" onclick="ukiRomoAgregarLineaPendienteQA('+id+')">＋ Agregar otro producto</button>'+
+   (p.modalidad==="Delivery"?
+    '<label>Delivery confirmado</label><input id="romoEditarEnvio'+id+'" type="number" min="0" max="100000" step="1" value="'+e(p.envio||0)+'">':"")+
    '<label>Responsable obligatorio</label><input id="romoEditarResponsable'+id+'" maxlength="80">'+
    '<label>Motivo obligatorio del cambio</label><textarea id="romoEditarMotivo'+id+'" maxlength="300" rows="2"></textarea>'+
    '<button type="button" class="sm ok" onclick="ukiRomoGuardarEdicionPendienteQA('+id+')">Guardar cambio en Neon Romo</button></details>';
+ }
+ function agregarLinea(id){
+  if(S.suc!==SUC||ukiRomoOperacionesEnCursoQA())return;
+  const node=document.getElementById('romoEditarPedido'+Number(id));
+  const cont=node?.querySelector('[data-romo-productos]');
+  if(!cont)return;
+  if(cont.querySelectorAll('[data-romo-linea]').length>=80)
+   return window.alert('Máximo 80 productos por pedido.');
+  cont.insertAdjacentHTML('beforeend',filaProductoHTML({nombre:'',cantidad:1,precioUnit:'',detalle:''},-1));
+  const all=cont.querySelectorAll('[data-romo-linea] [data-romo-campo="nombre"]');
+  all[all.length-1]?.focus();
+ }
+ function quitarLinea(boton){
+  if(S.suc!==SUC||ukiRomoOperacionesEnCursoQA())return;
+  const fila=boton?.closest('[data-romo-linea]');
+  const lista=fila?.parentElement;
+  if(!fila||!lista||!lista.closest('details[id^="romoEditarPedido"]'))return;
+  if(lista.querySelectorAll('[data-romo-linea]').length<=1)
+   return window.alert('El pedido debe conservar al menos un producto.');
+  fila.remove();
  }
  function historial(p){
   const eventos=Array.isArray(p?.historialCambios)?p.historialCambios.filter(x=>
@@ -57,12 +85,19 @@
   const motivo=String(document.getElementById("romoEditarMotivo"+pedidoId)?.value||"").trim();
   if(responsable.length<2||responsable.length>80||motivo.length<4||motivo.length>300)
    return window.alert("Completa responsable y motivo del cambio.");
-  const productos=(p.productos||[]).map((item,i)=>({
-   nombre:String(document.getElementById("romoEditarNombre"+pedidoId+"_"+i)?.value||"").trim(),
-   cantidad:document.getElementById("romoEditarCantidad"+pedidoId+"_"+i)?.value,
-   precioUnit:document.getElementById("romoEditarPrecio"+pedidoId+"_"+i)?.value,
-   detalle:String(document.getElementById("romoEditarDetalle"+pedidoId+"_"+i)?.value||"").trim()
-  }));
+  const filas=Array.from(node.querySelectorAll('[data-romo-productos] [data-romo-linea]'));
+  if(!filas.length||filas.length>80)return window.alert('Revisa la cantidad de productos.');
+  const productos=filas.map(fila=>{
+   const origen=Number(fila.dataset.romoOrigen);
+   const get=campo=>fila.querySelector('[data-romo-campo="'+campo+'"]')?.value;
+   return {
+    origenIndice:Number.isSafeInteger(origen)&&origen>=0?origen:null,
+    nombre:String(get('nombre')||'').trim(),
+    cantidad:get('cantidad'),
+    precioUnit:get('precio'),
+    detalle:String(get('detalle')||'').trim()
+   };
+  });
   const envio=p.modalidad==="Delivery"?
    document.getElementById("romoEditarEnvio"+pedidoId)?.value:0;
   if(!window.confirm("¿Confirmas modificar el pedido #"+pedidoId+
@@ -84,4 +119,6 @@
  window.ukiRomoEditorPedidoQA=editor;
  window.ukiRomoHistorialEdicionQA=historial;
  window.ukiRomoGuardarEdicionPendienteQA=guardar;
+ window.ukiRomoAgregarLineaPendienteQA=agregarLinea;
+ window.ukiRomoQuitarLineaPendienteQA=quitarLinea;
 })();
