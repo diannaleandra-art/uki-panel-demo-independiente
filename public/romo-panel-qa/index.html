@@ -5114,8 +5114,8 @@ async function ukiRomoActualizarSolicitudesCartaQA(){
  }
 }
 function ukiRomoSolicitudesHTMLQA(){
- // Las solicitudes Neon de Romo aparecen en la MISMA bandeja de Pedidos, como Uki.
- // Sólo se muestra información; renderizar NUNCA registra ventas, pagos ni timbres.
+ // Presentación de la ficha oficial de Uki. Solo datos aislados de Neon Romo.
+ // Dibujar esta pantalla NO acepta, cobra, modifica caja ni genera timbres.
  if(ukiRomoVistaPedidosQA!=='operacion')return '';
  const rows=Array.isArray(ukiRomoSolicitudesCartaQA)?ukiRomoSolicitudesCartaQA:[];
  const pending=rows.filter(o=>o&&o.estado==='pendiente'&&o.branch==='serena'&&
@@ -5124,48 +5124,109 @@ function ukiRomoSolicitudesHTMLQA(){
  const query=String(ukiRomoBusquedaPedidosQA||'').trim();
  const visibles=pending.filter(o=>!query||ukiBusquedaPorDatos(query,
   [o.cliente,o.telefono,o.codigo_pedido,o.id,o.mensaje]));
- const filtro=ukiRomoFiltroPedidosQA;
- if(!['todos','por-confirmar'].includes(filtro))return '';
- if(!pending.length&&filtro!=='por-confirmar')return '<details class="card uki-carta-estado-compacto">'+
-  '<summary>📲 Carta digital · Ver estado de recepción</summary>'+
+ if(!['todos','por-confirmar'].includes(ukiRomoFiltroPedidosQA))return '';
+ if(!pending.length&&ukiRomoFiltroPedidosQA!=='por-confirmar')
+  return '<details class="card uki-carta-estado-compacto">'+
+   '<summary>📲 Carta digital · Ver estado de recepción</summary>'+
+   '<button type="button" class="sm" onclick="ukiRomoActualizarSolicitudesCartaQA()">Actualizar solicitudes</button>'+
+   '<p role="status" class="muted">'+esc(ukiRomoSolicitudesAvisoQA||
+    'Consulta de recepción aún no realizada')+'</p></details>';
+ const status='<details class="uki-carta-estado-compacto" style="margin:8px 0">'+
+  '<summary>📲 Carta digital · Ver estado</summary>'+
   '<button type="button" class="sm" onclick="ukiRomoActualizarSolicitudesCartaQA()">Actualizar solicitudes</button>'+
   '<p role="status" class="muted">'+esc(ukiRomoSolicitudesAvisoQA||
    'Consulta de recepción aún no realizada')+'</p></details>';
- const status='<div class="uki-carta-estado-compacto" style="margin:10px 0">'+
-  '<button type="button" class="sm" onclick="ukiRomoActualizarSolicitudesCartaQA()">Actualizar solicitudes</button>'+
-  '<p role="status" class="muted">'+esc(ukiRomoSolicitudesAvisoQA||
-   'Consulta de recepción aún no realizada')+'</p></div>';
  const cards=visibles.map(o=>{
   const id=String(o.id||'');
   const codigo=String(o.codigo_pedido||'');
-  const cliente=String(o.cliente||'Sin nombre');
+  const nombre=String(o.cliente||'Sin nombre');
   const telefono=String(o.telefono||'');
   const detalle=String(o.mensaje||'');
-  const buscar=[codigo,cliente,telefono,detalle].join(' ');
-  return '<article class="card order-card uki-carta-solicitud-urgente romo-solicitud-card" '+
-   'data-buscar="'+esc(buscar)+'">'+
-   '<p><b>📲 Carta digital · Solicitud por confirmar</b></p>'+
-   '<h3>'+esc(codigo)+' · '+esc(cliente)+'</h3>'+
-   '<p class="muted">Recibida: '+esc(String(o.creado_en||'Sin fecha'))+
-    ' · Total indicado: <b>'+fmt(Number(o.total_indicado)||0)+'</b></p>'+
-   (telefono?'<p class="muted">WhatsApp: '+esc(telefono)+'</p>':'')+
-   (detalle?'<details class="inner-details"><summary>Ver pedido e ingredientes recibidos</summary>'+
-    '<p style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(detalle)+'</p></details>':'')+
-   '<p class="muted">Revisa el armado y los importes. Todavía no es venta, cobro ni timbre.</p>'+
-   '<button type="button" class="sm ok" onclick="ukiRomoPrepararSolicitudCartaQA(\''+
-    esc(id)+'\')">Revisar pedido recibido</button>'+
-   '</article>';
+  const reservado=o.en_reserva===true;
+  const ms=Date.parse(String(o.creado_en||''));
+  const fecha=Number.isFinite(ms)?new Date(ms).toLocaleString('es-CL',{
+   timeZone:'America/Santiago',day:'2-digit',month:'2-digit',year:'numeric',
+   hour:'2-digit',minute:'2-digit'}):'Fecha por confirmar';
+  const codigoCliente=ukiCodigoWhatsApp(telefono)||'sin número';
+  const buscar=[codigo,nombre,telefono,detalle].join(' ');
+  return '<div class="card order-card uki-carta-compacta romo-solicitud-card" data-buscar="'+
+   esc(buscar)+'">'+
+   '<p class="muted"><b>📲 Carta normal · Por confirmar</b></p>'+
+   '<p class="muted uki-whatsapp-check">Verifica el mensaje en WhatsApp antes de aceptarlo.</p>'+
+   '<div class="row"><b style="overflow-wrap:anywhere">Carta #'+esc(codigo)+'</b>'+
+    '<strong style="white-space:nowrap">'+fmt(Number(o.total_indicado)||0)+'</strong></div>'+
+   '<p><b>Cliente:</b> '+esc(nombre)+' · <b>Código cliente:</b> '+esc(codigoCliente)+'</p>'+
+   '<p><b>WhatsApp:</b> '+esc(telefono||'Número por confirmar')+'</p>'+
+   '<p class="muted"><b>Recibido:</b> '+esc(fecha)+
+    ' · Romo La Serena · Por confirmar</p>'+
+   '<details class="inner-details"><summary>Ver productos y mensaje original</summary>'+
+   '<p style="white-space:pre-wrap;overflow-wrap:anywhere">'+
+    esc(detalle||'No llegó un texto de armado; revisa antes de aceptar.')+
+    '</p></details>'+
+   (reservado?'<p class="muted"><b>En revisión en otro equipo.</b> '+
+    'Actualiza la bandeja antes de continuar; no dupliques el pedido.</p>':
+    '<div class="uki-solicitud-acciones">'+
+    '<label class="uki-motivo-rechazo">Motivo del rechazo'+
+    '<select id="ukiRomoMotivo'+esc(id)+'" onchange="ukiMotivoRechazoCambio(this)">'+
+    '<option value="">Selecciona un motivo</option>'+
+    ['Cliente canceló','Cliente no respondió','Producto no disponible','Otro motivo'].map(m=>
+     '<option value="'+esc(m)+'">'+esc(m)+'</option>').join('')+
+    '</select></label>'+
+    '<button class="sm uki-accion-rechazar" type="button" disabled '+
+    'onclick="ukiRomoRechazarSolicitudCartaQA(\''+esc(id)+'\')">'+
+    '✕ Rechazar solicitud</button>'+
+    '<div class="uki-separador-acciones" aria-hidden="true">o, si vas a preparar el pedido</div>'+
+    '<button class="sm ok uki-accion-aceptar" type="button" '+
+    'onclick="ukiRomoPrepararSolicitudCartaQA(\''+esc(id)+'\')">'+
+    '✅ Aceptar y revisar</button></div>')+
+   '<p class="muted">La aceptación efectiva ocurre solo al guardar el pedido en Neon Romo; '+
+    'aquí no se genera venta, cobro ni timbre.</p></div>';
  }).join('');
  return '<section class="uki-urgentes-carta" id="romoSolicitudesCartaQA" '+
   'aria-label="Solicitudes nuevas por confirmar">'+
   '<div class="uki-urgentes-titulo">🔔 '+pending.length+
   ' solicitud(es) por confirmar</div>'+
-  '<p class="uki-urgentes-subtitulo">Solicitudes de la carta en la bandeja de Pedidos de Romo. '+
-   'Se aceptan solo tras verificar el detalle y guardar en Neon Romo.</p>'+
-  status+(visibles.length?cards:
+  '<p class="uki-urgentes-subtitulo">Revisa el WhatsApp recibido y acepta o rechaza. '+
+   'No se suman a ventas, caja ni timbres hasta registrar el pedido.</p>'+
+  (visibles.length?cards:
    '<p class="muted">'+(query?'Ninguna solicitud coincide con la búsqueda.':
-     'No hay solicitudes pendientes en esta consulta.')+'</p>')+
-  '</section>';
+    'Sin solicitudes por confirmar en esta consulta.')+'</p>')+
+  status+'</section>';
+}
+async function ukiRomoRechazarSolicitudCartaQA(id){
+ if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoSolicitudCartaOcupadaQA)return;
+ const row=(ukiRomoSolicitudesCartaQA||[]).find(x=>x.id===id&&
+  x.estado==='pendiente'&&x.branch==='serena');
+ if(!row){aviso('La solicitud cambió. Actualiza la bandeja antes de rechazar.');return;}
+ if(row.en_reserva===true){
+  aviso('La solicitud se está revisando en otro equipo. No se rechazó.');return;
+ }
+ const select=document.getElementById('ukiRomoMotivo'+id);
+ const motivo=String(select?.value||'').trim();
+ const razones=['Cliente canceló','Cliente no respondió','Producto no disponible','Otro motivo'];
+ if(!razones.includes(motivo)){
+  aviso('Selecciona primero el motivo obligatorio del rechazo.');return;
+ }
+ if(!window.confirm('¿Rechazar la solicitud '+String(row.codigo_pedido||'')+
+  ' de Romo La Serena? Motivo: '+motivo+
+  '. No generará pedido, cobro ni timbre.'))return;
+ ukiRomoSolicitudCartaOcupadaQA=true;
+ try{
+  const mod=await import('./uki-romo-recepcion-formulario-qa.mjs');
+  const bandeja=mod.crearBandejaRomoMismoPanelQA({
+   habilitada:true,getGoogleToken:()=>window.ukiInventarioToken?.()
+  });
+  if(!bandeja.disponible())throw Error('Recepción Romo sin autorización');
+  const result=await bandeja.rechazar(id,motivo);
+  if(result?.estado!=='rechazada'||result.storeId!=='romo:serena')
+   throw Error('El rechazo no fue confirmado por la sucursal Romo');
+  ukiRomoSolicitudesAvisoQA='Solicitud '+String(row.codigo_pedido||'')+
+   ' rechazada con motivo, sin registrar venta.';
+  await ukiRomoActualizarSolicitudesCartaQA();
+ }catch(e){
+  aviso('No se confirmó el rechazo en Neon Romo. Actualiza y comprueba antes de reintentar: '+
+   String(e?.message||e));
+ }finally{ukiRomoSolicitudCartaOcupadaQA=false;}
 }
 /**
  * Delivery de carta Romo: exponer la dirección original en el mismo editor
@@ -6584,8 +6645,9 @@ function ukiRomoCajaConsultaHTMLQA(seccion='resumen'){
 let ukiRomoSolicitudCartaOcupadaQA=false;
 async function ukiRomoPrepararSolicitudCartaQA(id){
  if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoSolicitudCartaOcupadaQA)return;
- const row=(ukiRomoSolicitudesCartaQA||[]).find(x=>x.id===id&&x.estado==='pendiente');
+ const row=(ukiRomoSolicitudesCartaQA||[]).find(x=>x.id===id&&x.estado==='pendiente'&&x.branch==='serena');
  if(!row){aviso('La solicitud cambió. Actualiza la bandeja antes de aceptarla.');return;}
+ if(row.en_reserva===true){aviso('Solicitud en revisión en otro equipo. Actualiza antes de continuar.');return;}
  if(S.pedidos.some(p=>p.suc===S.suc&&
      (p.cartaSolicitudRemotaId===id||p.codigoCarta===row.codigo_pedido))){
   aviso('Esta solicitud ya tiene un pedido registrado; no se duplicó.');return;
