@@ -5838,34 +5838,72 @@ async function ukiRomoConfirmarCobroQA(id){
  }finally{ukiRomoOperandoPedidoQA=false;}
 }
 async function ukiRomoCambiarEstadoQA(id,accion){
- if(ukiRomoOperandoPedidoQA||S.suc!==ROMO_SUCURSAL_QA)return;
- const p=S.pedidos.find(x=>x.suc===S.suc&&x.id===Number(id));
- if(!p||p.estado==='Cancelado')return;
+ if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA)return;
+ const pedidoId=Number(id);
+ const p=(S.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&x.id===pedidoId);
+ if(!p||p.esPremio||p.estado==='Cancelado')return;
  if(ukiCierreConfirmadoPedido(p)){
-  aviso('Pedido de turno cerrado: usa el historial y la autorización de dueños para cualquier rectificación.');return;
+  aviso('Pedido de turno cerrado. No se puede modificar desde Pedidos.');return;
  }
- let motivo='';
+ const sesion=window.ukiRomoSesionRemotaQA;
+ if(!sesion?.disponible?.()||sesion.estado().conflicto){
+  aviso('Romo necesita conexión cifrada vigente. Reabre y revisa Neon.');return;
+ }
+ let responsable='',motivo='',categoria='';
  if(accion==='cancelar'){
-  if(p.pagado){aviso('Un pedido pagado requiere conciliación y devolución. No puede cancelarse aquí.');return;}
-  const valor=window.prompt('Motivo obligatorio para cancelar el pedido #'+id);
-  if(valor===null)return;
-  motivo=String(valor).trim();
-  if(motivo.length<3||motivo.length>300){aviso('Indica un motivo de 3 a 300 caracteres.');return;}
+  if(p.estado!=='Pendiente'||p.pagado){
+   aviso('Pedido con pago o entrega: requiere conciliación, no se canceló.');return;
+  }
+  categoria=String(document.getElementById('romoCancelarTipo'+pedidoId)?.value||'');
+  motivo=String(document.getElementById('romoCancelarDetalle'+pedidoId)?.value||'').trim();
+  responsable=String(document.getElementById('romoCancelarResponsable'+pedidoId)?.value||'').trim();
+  if(!['cliente','local'].includes(categoria)||motivo.length<4||motivo.length>300||
+     responsable.length<2||responsable.length>80){
+   aviso('Indica quién canceló, motivo de 4 a 300 caracteres y responsable.');return;
+  }
  }else if(accion==='entregar'){
-  if(!p.pagado||p.estado==='Entregado'){aviso('Solo pedidos pagados y no entregados.');return;}
+  if(p.estado!=='Pendiente'){
+   aviso('Solo puede confirmarse la entrega de un pedido pendiente.');return;
+  }
+  if(p.pagado&&p.timbreReglaObligatoria&&
+    ukiNumeroTimbreWhatsApp(p.telefono)&&!p.timbreEnviadoEn){
+   aviso('Primero envía y confirma el timbre WhatsApp de este pedido.');return;
+  }
+  const sugerido=String(ukiTimbreResponsableActual?.()||'');
+  responsable=String(window.prompt('¿Quién confirma la entrega del pedido #'+pedidoId+'?',
+    sugerido==='Sin turno identificado'?'':sugerido)||'').trim();
+  if(responsable.length<2||responsable.length>80){
+   aviso('Para entregar, identifica al responsable. No se guardó nada.');return;
+  }
  }else return;
- if(!window.confirm(accion==='cancelar'?'Cancelar el pedido #'+id+' sin registrar pago?':
-   'Confirmas que el pedido #'+id+' ya fue entregado?'))return;
+ const mensaje=accion==='cancelar'?
+  '¿Cancelar el pedido #'+pedidoId+'? '+motivo+
+   ' No se registra cobro ni devolución.':
+  '¿Confirmas que el cliente YA recibió el pedido #'+pedidoId+
+   '? No se registra ni modifica ningún pago.';
+ if(!window.confirm(mensaje))return;
  ukiRomoOperandoPedidoQA=true;
  try{
-  const copia=datosSoloSucursal(),i=copia.pedidos.findIndex(x=>x.suc===S.suc&&x.id===Number(id));
-  if(i<0)throw Error('El pedido ya no está disponible.');
-  copia.pedidos[i]={...copia.pedidos[i],estado:accion==='cancelar'?'Cancelado':'Entregado',
-   ...(accion==='cancelar'?{motivoCancelacion:motivo,canceladoEn:new Date().toISOString()}:
-     {entregadoEn:new Date().toISOString()})};
-  await ukiRomoGuardarOperacionQA(copia,accion==='cancelar'?'Pedido cancelado':'Entrega confirmada',id);
- }catch(e){aviso('Operación no confirmada. Revisa el pedido antes de repetir. '+String(e.message||e));}
- finally{ukiRomoOperandoPedidoQA=false;}
+  const copia=datosSoloSucursal();
+  const ahoraMs=Date.now();
+  if(accion==='cancelar'){
+   const mod=await import('./uki-romo-cancelacion-atomica-qa.mjs');
+   mod.prepararCancelacionRomoQA(copia,{
+    pedidoId,responsable,motivo,categoria,registradoEn:ahoraMs
+   });
+  }else{
+   const mod=await import('./uki-romo-entrega-atomica-qa.mjs');
+   mod.prepararEntregaRomoQA(copia,{
+    pedidoId,responsable,registradoEn:ahoraMs
+   });
+  }
+  await ukiRomoGuardarOperacionQA(copia,
+   accion==='cancelar'?'Cancelación auditada confirmada':'Entrega auditada confirmada',
+   pedidoId);
+ }catch(e){
+  aviso('No se confirmó '+(accion==='cancelar'?'la cancelación':'la entrega')+
+   '. Revisa el estado en Neon antes de repetir: '+String(e?.message||e));
+ }finally{ukiRomoOperandoPedidoQA=false;}
 }
 
 const ROMO_MEDIOS_SALIDAS_QA=['Efectivo','Transferencia','Débito','Otros'];
