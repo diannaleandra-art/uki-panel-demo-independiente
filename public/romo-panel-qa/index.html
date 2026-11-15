@@ -5050,7 +5050,7 @@ function ukiRomoOperacionesEnCursoQA(){
 }
 const ROMO_MEDIOS_COBRO_QA=['Efectivo','Transferencia','Débito','Edenred','Otros'];
 function ukiRomoCambiarFiltroQA(tipo){
- if(!['todos','pendientes','pagados','entregados','cancelados','mesas'].includes(tipo))return;
+ if(!['todos','por-confirmar','pendientes','pagados','entregados','cancelados','mesas'].includes(tipo))return;
  ukiRomoFiltroPedidosQA=tipo;render();
 }
 function ukiRomoCamposCobroQA(p){
@@ -5114,25 +5114,55 @@ async function ukiRomoActualizarSolicitudesCartaQA(){
  }
 }
 function ukiRomoSolicitudesHTMLQA(){
+ // Las solicitudes Neon de Romo aparecen en la MISMA bandeja de Pedidos, como Uki.
+ // Sólo se muestra información; renderizar NUNCA registra ventas, pagos ni timbres.
+ if(ukiRomoVistaPedidosQA!=='operacion')return '';
  const rows=Array.isArray(ukiRomoSolicitudesCartaQA)?ukiRomoSolicitudesCartaQA:[];
- const pending=rows.filter(o=>o.estado==='pendiente');
- return '<details class="card" id="romoSolicitudesCartaQA">'+
-  '<summary><b>📱 Solicitudes de la carta · '+pending.length+' pendiente(s)</b></summary>'+
-  '<p class="muted">Misma bandeja de pedidos; consultas separadas de Romo. Una solicitud aún no es venta ni pago y aquí todavía no se acepta automáticamente.</p>'+
+ const pending=rows.filter(o=>o&&o.estado==='pendiente'&&o.branch==='serena'&&
+  !(S.pedidos||[]).some(p=>p.suc===ROMO_SUCURSAL_QA&&
+   (p.cartaSolicitudRemotaId===o.id||p.codigoCarta===o.codigo_pedido)));
+ const query=String(ukiRomoBusquedaPedidosQA||'').trim();
+ const visibles=pending.filter(o=>!query||ukiBusquedaPorDatos(query,
+  [o.cliente,o.telefono,o.codigo_pedido,o.id,o.mensaje]));
+ const filtro=ukiRomoFiltroPedidosQA;
+ if(!['todos','por-confirmar'].includes(filtro))return '';
+ if(!pending.length&&filtro!=='por-confirmar')return '';
+ const status='<div class="uki-carta-estado-compacto" style="margin:10px 0">'+
   '<button type="button" class="sm" onclick="ukiRomoActualizarSolicitudesCartaQA()">Actualizar solicitudes</button>'+
   '<p role="status" class="muted">'+esc(ukiRomoSolicitudesAvisoQA||
-   'Consulta de recepción todavía no realizada')+'</p>'+
-  (pending.length?pending.map(o=>
-   '<div class="card"><b>'+esc(String(o.codigo_pedido||''))+' · '+
-   esc(String(o.cliente||''))+'</b>'+
-   '<p class="muted">'+esc(String(o.creado_en||''))+' · Total indicado: '+
-    fmt(Number(o.total_indicado)||0)+'</p>'+
-   '<p class="muted">Pendiente de aceptación y revisión de armado. No se registra como venta.</p>'+
-   '<button type="button" class="sm" onclick="ukiRomoPrepararSolicitudCartaQA(\''+esc(String(o.id))+'\')">Preparar con formulario de Uki</button>'+
-   '</div>').join(''):'<p class="muted">Sin solicitudes pendientes en esta consulta.</p>')+
-  '</details>';
+   'Consulta de recepción aún no realizada')+'</p></div>';
+ const cards=visibles.map(o=>{
+  const id=String(o.id||'');
+  const codigo=String(o.codigo_pedido||'');
+  const cliente=String(o.cliente||'Sin nombre');
+  const telefono=String(o.telefono||'');
+  const detalle=String(o.mensaje||'');
+  const buscar=[codigo,cliente,telefono,detalle].join(' ');
+  return '<article class="card order-card uki-carta-solicitud-urgente romo-solicitud-card" '+
+   'data-buscar="'+esc(buscar)+'">'+
+   '<p><b>📲 Carta digital · Solicitud por confirmar</b></p>'+
+   '<h3>'+esc(codigo)+' · '+esc(cliente)+'</h3>'+
+   '<p class="muted">Recibida: '+esc(String(o.creado_en||'Sin fecha'))+
+    ' · Total indicado: <b>'+fmt(Number(o.total_indicado)||0)+'</b></p>'+
+   (telefono?'<p class="muted">WhatsApp: '+esc(telefono)+'</p>':'')+
+   (detalle?'<details class="inner-details"><summary>Ver pedido e ingredientes recibidos</summary>'+
+    '<p style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(detalle)+'</p></details>':'')+
+   '<p class="muted">Revisa el armado y los importes. Todavía no es venta, cobro ni timbre.</p>'+
+   '<button type="button" class="sm ok" onclick="ukiRomoPrepararSolicitudCartaQA(\''+
+    esc(id)+'\')">Revisar pedido recibido</button>'+
+   '</article>';
+ }).join('');
+ return '<section class="uki-urgentes-carta" id="romoSolicitudesCartaQA" '+
+  'aria-label="Solicitudes nuevas por confirmar">'+
+  '<div class="uki-urgentes-titulo">🔔 '+pending.length+
+  ' solicitud(es) por confirmar</div>'+
+  '<p class="uki-urgentes-subtitulo">Solicitudes de la carta en la bandeja de Pedidos de Romo. '+
+   'Se aceptan solo tras verificar el detalle y guardar en Neon Romo.</p>'+
+  status+(visibles.length?cards:
+   '<p class="muted">'+(query?'Ninguna solicitud coincide con la búsqueda.':
+     'No hay solicitudes pendientes en esta consulta.')+'</p>')+
+  '</section>';
 }
-
 /**
  * Delivery de carta Romo: exponer la dirección original en el mismo editor
  * y en Pedidos, sin inventar distancia, geolocalización ni costo de envío.
@@ -5143,7 +5173,7 @@ function ukiRomoFiltrarPedidosVisiblesQA(value){
  const normalize=x=>String(x||'').normalize('NFD')
   .replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('es-CL').trim();
  const query=normalize(ukiRomoBusquedaPedidosQA);
- document.querySelectorAll('.romo-pedido-card').forEach(card=>{
+ document.querySelectorAll('.romo-pedido-card,.romo-solicitud-card').forEach(card=>{
   card.hidden=!normalize(card.getAttribute('data-buscar')).includes(query);
  });
 }
@@ -5398,7 +5428,16 @@ function ukiRomoPedidosPendientesHTMLQA(){
  const entregados=visibles.filter(p=>p.estado==='Entregado').length;
  const cancelados=visibles.filter(p=>p.estado==='Cancelado').length;
  const mesas=visibles.filter(p=>p.modalidad==='Consumo en local').length;
- const etiquetas=[['todos','Todos ('+visibles.length+')'],
+ const pendientesSolicitudes=(Array.isArray(ukiRomoSolicitudesCartaQA)?
+  ukiRomoSolicitudesCartaQA:[]).filter(o=>o&&o.estado==='pendiente'&&
+  o.branch==='serena'&&!(S.pedidos||[]).some(p=>p.suc===ROMO_SUCURSAL_QA&&
+   (p.cartaSolicitudRemotaId===o.id||p.codigoCarta===o.codigo_pedido)));
+ const buscarSolicitud=String(ukiRomoBusquedaPedidosQA||'').trim();
+ const pendientesVisibles=pendientesSolicitudes.filter(o=>!buscarSolicitud||
+  ukiBusquedaPorDatos(buscarSolicitud,
+   [o.cliente,o.telefono,o.codigo_pedido,o.id,o.mensaje]));
+ const etiquetas=[['todos','Todos ('+(visibles.length+pendientesVisibles.length)+')'],
+  ['por-confirmar','Solicitudes por confirmar ('+pendientesVisibles.length+')'],
   ['pendientes','Por cobrar ('+penden+')'],
   ['pagados','Pagados ('+pagados+')'],
   ['entregados','Entregados ('+entregados+')'],
@@ -5643,12 +5682,15 @@ function ukiRomoPedidosPendientesHTMLQA(){
     historial+'</details>':'')+
    '</div></details>';
  }).join('');;
- return '<div class="section-head"><h2>Pedidos · Romo La Serena</h2>'+
-  '<p>Registros confirmados en la base cifrada de Romo. Los filtros y el historial son solo de consulta.</p></div>'+
-  '<button class="big" type="button" onclick="nuevoDraft();modoNuevo=\'manual\';ir(\'nuevo\')">＋ Nuevo pedido</button>'+
-  nav+(ukiRomoVistaPedidosQA==='operacion'?mesasHTML+ukiRomoBorradoresResumenQA()+ukiRomoSolicitudesHTMLQA():'')+
+ return '<div class="section-head"><h2>Pedidos</h2>'+
+  '<p>Romo La Serena · '+todos.length+' pedido(s) registrado(s) · '+
+   pendientesSolicitudes.length+' solicitud(es) por confirmar. '+
+   'Pendientes sin cobrar hasta la aceptación y verificación manual.</p></div>'+
+  ukiRomoSolicitudesHTMLQA()+
+  '<button class="big cta" type="button" onclick="nuevoDraft();modoNuevo=\'manual\';ir(\'nuevo\')">＋ Nuevo pedido</button>'+
+  nav+(ukiRomoVistaPedidosQA==='operacion'?mesasHTML+ukiRomoBorradoresResumenQA():'')+
   buscar+selectorTurno+filtros+
-  (listado.length?items:'<section class="card"><p>No se encontraron pedidos para los filtros seleccionados.</p></section>')+
+  (listado.length?items:(ukiRomoFiltroPedidosQA==='por-confirmar'?'':'<section class="card"><p>No se encontraron pedidos registrados para los filtros seleccionados.</p></section>'))+
   archivo+(ukiRomoVistaPedidosQA!=='operacion'?auditoriaHTML:'')+rechazos;
 }
 
