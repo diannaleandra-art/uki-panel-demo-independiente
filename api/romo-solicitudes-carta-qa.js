@@ -54,7 +54,13 @@ function configuration(env){
                      'UKI_FIN_PRIVATE_DATABASE_URL','UKI_FIN_QA_DATABASE_URL']){
   try{if(new URL(String(env[name]||'')).hostname.toLowerCase()===host)return null}catch{}
  }
+ // Segunda dirección de la carta, exclusivamente para el preview manual de Romo.
+ // Inactiva por defecto. Nunca cambia el origen de la carta comercial ni las API Uki.
+ const cartaPreview=String(env.ROMO_CARTA_PREVIEW_ALLOWED_ORIGIN||'');
  return {origin,carta:urlOk(carta)?carta:null,
+  cartaPreview:env.VERCEL_ENV==='preview'&&
+   env.ROMO_CARTA_PREVIEW_QA_ENABLED==='true'&&urlOk(cartaPreview)?
+   cartaPreview:null,
   netlifyCarta:env.ROMO_NETLIFY_BRIDGE_QA_ENABLED==='true'?
    'https://romos-sushi-qa-privado.netlify.app':null,
   read,write};
@@ -73,6 +79,7 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
  const panel=(actualOrigin===conf.origin)||
   (method==='GET'&&!actualOrigin&&host===new URL(conf.origin).host.toLowerCase());
  const carta=(!!conf.carta&&actualOrigin===conf.carta)||
+  (!!conf.cartaPreview&&actualOrigin===conf.cartaPreview)||
   (!!conf.netlifyCarta&&actualOrigin===conf.netlifyCarta);
  const allowed=(method==='POST'||(method==='GET'&&carta))?carta:
   method==='OPTIONS'?(actualOrigin===conf.origin||carta):panel;
