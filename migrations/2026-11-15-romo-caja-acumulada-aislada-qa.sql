@@ -95,7 +95,8 @@ BEGIN
     OR prev.source_key IS DISTINCT FROM p_source_key
     OR (p_action<>'sincronizar_cierre' AND abs(prev.monto)<>p_amount)
     OR prev.responsable<>btrim(p_responsable) OR
-    prev.actor_uid<>btrim(p_actor_uid)
+    prev.actor_uid<>btrim(p_actor_uid) OR
+    prev.concepto<>btrim(p_concept)
   THEN RAISE EXCEPTION 'Clave idempotente reutilizada con otros datos'; END IF;
   RETURN jsonb_build_object('ok',true,'duplicate',true,
      'balance',a.balance,'initialized',a.initialized,'movimiento',prev.id);
