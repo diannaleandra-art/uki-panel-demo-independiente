@@ -5281,6 +5281,99 @@ async function ukiRomoEliminarBorradorQA(id){
  finally{ukiRomoBorradorGuardandoQA=false;}
 }
 
+// Incidencias del pedido, función aprobada de Uki y guardado exclusivo en Neon Romo.
+function ukiRomoIncidenciasPedidoQA(p){
+ const id=Number(p.id);
+ if(!Number.isSafeInteger(id)||id<1)return '';
+ const lista=(S.incidencias||[]).filter(x=>x.suc===ROMO_SUCURSAL_QA&&x.pedidoId===id);
+ return '<details class="inner-details"><summary>⚠️ Errores e incidencias · '+lista.length+'</summary>'+
+  '<p class="muted">Registra lo ocurrido y cómo se solucionó. No cambia el pago ni el cierre de Caja.</p>'+
+  lista.slice().reverse().map(x=>
+   '<div class="card" style="padding:11px">'+
+   '<b>#'+esc(x.id)+' · '+esc(x.estado||'Pendiente')+'</b>'+
+   '<p class="muted">'+esc(x.fecha||'')+
+    (x.responsable?' · '+esc(x.responsable):'')+'</p>'+
+   '<p>'+esc(x.problema||'Sin descripción')+'</p>'+
+   (x.solucion?'<p class="muted">Solución: '+esc(x.solucion)+'</p>':'')+
+   (x.estado!=='Resuelto'?
+    '<label>Solución aplicada</label><textarea id="romoIncSolucion'+Number(x.id)+
+    '" rows="2" maxlength="1000"></textarea>'+
+    '<label>Responsable de la solución</label><input id="romoIncResp'+Number(x.id)+
+    '" maxlength="80">'+
+    '<button type="button" class="sm ok" onclick="ukiRomoIncidenciaAccionQA('+
+     Number(x.id)+',\'resolver\')">Confirmar solución en Neon</button>':'')+
+   '</div>').join('')+
+  '<label>¿Qué ocurrió?</label><textarea id="romoIncProblema'+id+
+   '" rows="2" maxlength="1000" placeholder="Ej.: faltó una salsa"></textarea>'+
+  '<label>Solución (opcional)</label><textarea id="romoIncSolucionNueva'+id+
+   '" rows="2" maxlength="1000" placeholder="Ej.: reposición enviada"></textarea>'+
+  '<label>Responsable que registra</label><input id="romoIncAutor'+id+
+   '" maxlength="80" autocomplete="off">'+
+  '<button type="button" class="sm ok" onclick="ukiRomoIncidenciaAccionQA('+
+   id+',\'crear\')">Guardar incidencia en Neon Romo</button></details>';
+}
+async function ukiRomoIncidenciaAccionQA(id,accion){
+ if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoOperacionesEnCursoQA()||
+    !['crear','resolver'].includes(accion))return;
+ const n=Number(id),esNueva=accion==='crear';
+ if(!Number.isSafeInteger(n)||n<1)return;
+ const previo=esNueva?
+  (S.pedidos||[]).find(p=>p.suc===ROMO_SUCURSAL_QA&&p.id===n):
+  (S.incidencias||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&x.id===n);
+ if(!previo||(esNueva?false:previo.estado==='Resuelto')){
+  aviso('El registro cambió; vuelve a revisar Neon.');return;
+ }
+ const get=k=>String(document.getElementById(k)?.value||'').trim();
+ const problema=esNueva?get('romoIncProblema'+n):'';
+ const solucion=get((esNueva?'romoIncSolucionNueva':'romoIncSolucion')+n);
+ const responsable=get((esNueva?'romoIncAutor':'romoIncResp')+n);
+ if(responsable.length<2||responsable.length>80||
+   (esNueva&&(problema.length<4||problema.length>1000))||
+   (!esNueva&&(solucion.length<4||solucion.length>1000))||
+   solucion.length>1000){
+  aviso('Completa el problema/solución y el responsable (de 2 a 80 caracteres).');return;
+ }
+ const sesion=window.ukiRomoSesionRemotaQA;
+ if(!sesion?.disponible?.()||sesion.estado()?.conflicto){
+  aviso('Abre el estado cifrado de Romo antes de registrar.');return;
+ }
+ if(!window.confirm((esNueva?'¿Registrar la incidencia?':'¿Confirmas que la solución YA se realizó?')+
+   ' No cambia importes ni caja.'))return;
+ ukiRomoOperandoPedidoQA=true;
+ try{
+  const copia=datosSoloSucursal(),ahora=new Date().toISOString();
+  if(!Array.isArray(copia.incidencias))throw Error('Historial de incidencias no disponible');
+  if(esNueva){
+   if(!copia.pedidos.some(p=>p.suc===ROMO_SUCURSAL_QA&&p.id===n))
+    throw Error('El pedido dejó de existir');
+   const next=copia.nextIncidenciaId;
+   if(!Number.isSafeInteger(next)||next<1||copia.incidencias.some(x=>x.id===next))
+    throw Error('El correlativo de incidencias necesita conciliación');
+   copia.incidencias.push({
+    id:next,suc:ROMO_SUCURSAL_QA,pedidoId:n,
+    codigoCarta:String(previo.codigoCarta||''),
+    fecha:ahora,problema,solucion,
+    estado:solucion?'Resuelto':'Pendiente',responsable,
+    ...(solucion?{resueltoEn:ahora,resueltoPor:responsable}:{})
+   });
+   copia.nextIncidenciaId=next+1;
+  }else{
+   const registro=copia.incidencias.find(x=>x.suc===ROMO_SUCURSAL_QA&&x.id===n);
+   if(!registro||registro.estado==='Resuelto')
+    throw Error('La incidencia ya fue resuelta o dejó de existir');
+   registro.solucion=solucion;registro.estado='Resuelto';
+   registro.resueltoEn=ahora;registro.resueltoPor=responsable;
+  }
+  if(!validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
+   throw Error('Los datos de la incidencia no superaron la validación Romo');
+  await ukiRomoGuardarOperacionQA(copia,
+   esNueva?'Incidencia de pedido registrada':'Incidencia resuelta',
+   esNueva?n:Number(previo.pedidoId),'pedidos');
+ }catch(e){
+  aviso('No se confirmó el registro. Revisa Neon antes de repetir: '+
+   String(e?.message||e));
+ }finally{ukiRomoOperandoPedidoQA=false;}
+}
 function ukiRomoPedidosPendientesHTMLQA(){
  // Se leen únicamente registros ya cargados de la sucursal Romo.
  // No se usa fechaTurnoRegistro(), que puede inicializar caja por render.
@@ -5497,7 +5590,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
     '</p>':'')+
    (p.textoOriginal?'<details class="inner-details"><summary>📲 Ver WhatsApp original</summary>'+
     '<p style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(p.textoOriginal)+'</p></details>':'')+
-   '<button type="button" class="sm" onclick="copiarComanda('+id+')">Copiar comanda</button>';
+   '<button type="button" class="sm" onclick="copiarComanda('+id+')">Copiar comanda</button>'+ukiRomoIncidenciasPedidoQA(p);
   let acciones='';
   if(p.estado==='Cancelado'){
    acciones='<p class="muted">Cancelado · '+esc(p.motivoDetalleCancelacion||p.motivoCancelacion||'Motivo registrado')+
