@@ -5124,6 +5124,28 @@ function ukiRomoSolicitudesHTMLQA(){
  const query=String(ukiRomoBusquedaPedidosQA||'').trim();
  const visibles=pending.filter(o=>!query||ukiBusquedaPorDatos(query,
   [o.cliente,o.telefono,o.codigo_pedido,o.id,o.mensaje]));
+ if(ukiRomoFiltroPedidosQA==='rechazados'){
+  const hoy=fechaOperativaActual();
+  const rechazadas=rows.filter(o=>o&&o.branch==='serena'&&o.estado==='rechazada'&&
+   Number.isFinite(Date.parse(String(o.creado_en||'')))&&
+   ukiFechaCalendarioChile(Date.parse(String(o.creado_en||'')))===hoy&&
+   (!query||ukiBusquedaPorDatos(query,
+    [o.cliente,o.telefono,o.codigo_pedido,o.id,o.mensaje])));
+  return '<section class="card uki-bloque-filtros">'+
+   '<h3>Rechazados de este día · '+rechazadas.length+'</h3>'+
+   '<p class="muted">Solo solicitudes de la carta Romo; no son pedidos, cobros ni timbres.</p>'+
+   (rechazadas.map(o=>'<div class="card order-card uki-carta-compacta">'+
+     '<p class="muted"><b>✕ Carta normal · Rechazado</b></p>'+
+     '<div class="row"><b>Carta #'+esc(String(o.codigo_pedido||''))+'</b>'+
+     '<strong>'+fmt(Number(o.total_indicado)||0)+'</strong></div>'+
+     '<p>Cliente: '+esc(String(o.cliente||'Sin nombre'))+
+      ' · Motivo: '+esc(String(o.motivo_rechazo||'No informado'))+'</p>'+
+     '<details class="inner-details"><summary>Ver mensaje original del rechazo</summary>'+
+     '<p style="white-space:pre-wrap;overflow-wrap:anywhere">'+
+      esc(String(o.mensaje||''))+'</p></details></div>').join('')||
+    '<p class="muted">No hay rechazos para esta fecha y filtro.</p>')+
+   '</section>';
+ }
  if(!['todos','por-confirmar'].includes(ukiRomoFiltroPedidosQA))return '';
  if(!pending.length&&ukiRomoFiltroPedidosQA!=='por-confirmar')
   return '<details class="card uki-carta-estado-compacto">'+
@@ -5504,7 +5526,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
    [o.cliente,o.telefono,o.codigo_pedido,o.id,o.mensaje]));
  // Filtros con los MISMOS nombres y categorías del panel Uki.
  const erroresPedidos=new Set((S.incidencias||[])
-  .filter(x=>x.suc===ROMO_SUCURSAL_QA&&x.estado!=='Resuelto')
+  .filter(x=>x.suc===ROMO_SUCURSAL_QA)
   .map(x=>x.pedidoId));
  const coincide=(p,tipo)=>tipo==='mesas'?p.modalidad==='Consumo en local':
   ukiCoincideCategoriaPedido(p,tipo,erroresPedidos);
