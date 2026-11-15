@@ -20,3 +20,9 @@ Ubicación: \`migrations/2026-11-15-romo-caja-acumulada-aislada-qa.sql\`.
 4. Completar rectificaciones, trabajadores y la importación financiera idempotente de Mi Administración antes de equiparar funcionalidades con Uki.
 
 No publicar este lote como operación financiera terminada.
+
+
+## API de solo Romo (sin habilitar)
+El endpoint \`api/romo-caja-acumulada-qa.js\` exige rama Preview exacta, origen permitido, host/base \`romos_sushi\`, cuenta \`romos_app_service\`, token Google con rol \`duenos\` y \`ROMO_CAJA_ACUMULADA_LECTURA_QA_ENABLED=true\`. Las consultas son \`saldo\` y \`movimientos\`. Para escribir se requiere **además** la bandera separada \`ROMO_CAJA_ACUMULADA_ESCRITURA_QA_ENABLED=true\`; está ausente/no configurada en esta preparación.
+Las operaciones de escritura permitidas son \`inicializar\`, \`entrada\`, \`gasto\`, \`retiro\` y \`sincronizar_cierre\`. El servidor impone \`op_key\` UUID, nombre responsable, concepto, importes y \`source_key\` validada; la función SQL guarda/rechaza todo de forma atómica. El trabajador de inventario y el agendador **no tienen permiso**. No se entregan datos de clientes ni se conecta el libro de Uki.
+La migración debe revisarse y aplicarse primero por los dueños/autorizado sobre la base existente Romo. La interfaz de escritura y las pruebas manuales aún no están habilitadas.

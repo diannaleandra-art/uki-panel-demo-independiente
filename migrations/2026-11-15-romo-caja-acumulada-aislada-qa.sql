@@ -118,11 +118,11 @@ BEGIN
    FOR SHARE;
   IF NOT FOUND OR receipt.turno_ref IS NULL OR
      p_source_key<>'romo:serena|'||receipt.turno_ref OR
-     receipt.resumen->>'turno_ref'<>receipt.turno_ref OR
-     receipt.resumen->>'fecha_operativa'<>receipt.fecha_operativa::text OR
-     receipt.resumen->>'fuente_unica'<>p_source_key OR
-     receipt.resumen->>'estado'<>'pendiente_confirmacion_neon' OR
-     receipt.revision_neon<1
+     coalesce(receipt.resumen->>'turno_ref','')<>receipt.turno_ref OR
+     coalesce(receipt.resumen->>'fecha_operativa','')<>receipt.fecha_operativa::text OR
+     coalesce(receipt.resumen->>'fuente_unica','')<>p_source_key OR
+     coalesce(receipt.resumen->>'estado','')<>'pendiente_confirmacion_neon' OR
+     receipt.revision_neon IS NULL OR receipt.revision_neon<1
   THEN RAISE EXCEPTION 'Constancia Romo no verificable'; END IF;
   IF jsonb_typeof(receipt.resumen->'efectivo_contado')<>'number' OR
      jsonb_typeof(receipt.resumen->'diferencia_efectivo')<>'number' OR
