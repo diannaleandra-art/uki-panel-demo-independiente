@@ -5469,7 +5469,14 @@ function ukiRomoPedidosPendientesHTMLQA(){
   }else{
    acciones='<p class="muted">Pago guardado en Romo. No se realiza otro cobro.</p>'+
     (p.timbreReglaObligatoria&&!p.timbreEnviadoEn?
-     '<button type="button" class="sm" onclick="ir(\'clientes\')">🎫 Timbre pendiente</button>':'')+
+     (ukiTimbreMovimientoRegistrado(p)&&ukiNumeroTimbreWhatsApp(p.telefono)?
+      '<div class="card" style="padding:12px"><b>🎫 Timbre por enviar</b>'+
+      '<p class="muted">Abre WhatsApp y confirma el envío solamente después de pulsar Enviar. No se suma otro timbre.</p>'+
+      '<button type="button" class="sm ok" onclick="ukiRomoAbrirTimbreQA('+id+')">📲 Enviar timbre</button>'+
+      (ukiRomoWAAbiertosQA.has(id)?'<button type="button" class="sm" onclick="ukiRomoConfirmarTimbreQA('+id+')">✓ Confirmar que lo envié</button>':'')+
+      '</div>':
+      '<p class="muted">🎫 Timbre pendiente · Revisa el WhatsApp o el registro del cliente antes de enviar.</p>'):
+     p.timbreEnviadoEn?'<p class="muted">✅ Timbre enviado. No volver a compartir por correcciones.</p>':'')+
     (p.estado==='Pendiente'&&!tst?
      '<button type="button" class="sm ok" onclick="ukiRomoCambiarEstadoQA('+id+
       ',\'entregar\')">✓ Marcar entregado</button>':'');
@@ -5723,12 +5730,12 @@ function ukiRomoTimbresPanelQA(){
   '<b>'+(buscar?'Resultados de búsqueda en todos los días':filtroFechaTimbres?
     'Timbres del '+esc(fecha):'Timbres de hoy · '+esc(fecha))+'</b>'+
   '<div class="kpis">'+
-   '<div class="kpi"><span>Clientes del día</span><strong>'+clientes.length+'</strong></div>'+
+   '<div class="kpi"><span>'+(buscar?'Clientes encontrados':'Clientes del día')+'</span><strong>'+clientes.length+'</strong></div>'+
    '<div class="kpi"><span>Timbres ganados</span><strong>'+movimientosDelDia.length+'</strong></div>'+
    '<div class="kpi"><span>Premios 10</span><strong>'+
     clientes.filter(cli=>ventasValidas(cli)>=10).length+'</strong></div>'+
   '</div>'+
-  '<p class="muted">Timbres ganados el '+esc(fecha)+': '+movimientosDelDia.length+
+  '<p class="muted">'+(buscar?'Timbres encontrados en todos los días: ':'Timbres ganados el '+esc(fecha)+': ')+movimientosDelDia.length+
    ' · Pendientes de enviar por WhatsApp: '+pendientesDelDia+'. Confirmar envío no vuelve a registrar la compra.</p>'+
   '<button type="button" class="sm" onclick="verDiaTimbres(&quot;&quot;)">Ver timbres de hoy</button>'+
   '<details class="card"><summary><b>📅 Consultar por fecha</b></summary>'+
