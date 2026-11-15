@@ -26,6 +26,12 @@ export function prepararEntregaRomoQA(estado,{pedidoId,responsable,registradoEn}
  const pedido=estado.pedidos.find(x=>x?.suc===SUC&&x.id===id);
  if(!pedido||pedido.estado!=='Pendiente'||pedido.esPremio)
   fail('Solo se puede entregar un pedido pendiente de Romo');
+ if(!Array.isArray(estado.cierres)||!estado.cajasDiarias||
+    typeof estado.cajasDiarias!=='object'||
+    typeof pedido.turnoClave!=='string'||pedido.turnoClave.length<8)
+  fail('No se identifica el turno original de Romo');
+ if(estado.cierres.some(c=>c?.suc===SUC&&c.turnoClave===pedido.turnoClave))
+  fail('No se modifica un pedido después del cierre definitivo de su turno');
  const numero=String(pedido.telefono||'').replace(/\D/g,'');
  if(pedido.timbreReglaObligatoria===true&&pedido.pagado===true&&
     numero.length>=8&&!pedido.timbreEnviadoEn)
