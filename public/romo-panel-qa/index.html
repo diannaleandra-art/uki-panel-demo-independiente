@@ -4839,6 +4839,7 @@ let ukiRomoFiltroPedidosQA='todos';
 // Filtros visuales exclusivos de Romo. NO se guardan ni reescriben pedidos.
 let ukiRomoVistaPedidosQA='operacion';
 let ukiRomoFechaPedidosQA='';
+let ukiRomoTurnoPedidosQA='';
 let ukiRomoBusquedaPedidosQA='';
 function ukiRomoFechaPedidoQA(p){
  const valida=x=>/^\d{4}-\d{2}-\d{2}$/.test(x);
@@ -4857,13 +4858,18 @@ function ukiRomoCambiarVistaPedidosQA(vista){
  if(!['operacion','historial','todos'].includes(vista))return;
  ukiRomoVistaPedidosQA=vista;
  ukiRomoFechaPedidosQA='';
+ ukiRomoTurnoPedidosQA='';
  ukiRomoFiltroPedidosQA='todos';
  render();
 }
 function ukiRomoElegirFechaPedidosQA(fecha){
  const dia=String(fecha||'');
  if(dia&&!/^\d{4}-\d{2}-\d{2}$/.test(dia))return;
- if(dia&&new Date(dia+'T12:00:00Z').toISOString().slice(0,10)!==dia)return;
+ if(dia){
+  const fechaReal=new Date(dia+'T12:00:00Z');
+  if(!Number.isFinite(fechaReal.getTime())||fechaReal.toISOString().slice(0,10)!==dia)return;
+ }
+ ukiRomoTurnoPedidosQA='';
  ukiRomoFechaPedidosQA=dia;
  ukiRomoVistaPedidosQA=dia?'todos':'operacion';
  ukiRomoFiltroPedidosQA='todos';
@@ -4872,12 +4878,24 @@ function ukiRomoElegirFechaPedidosQA(fecha){
 function ukiRomoBuscarTodosPedidosQA(){
  ukiRomoVistaPedidosQA='todos';
  ukiRomoFechaPedidosQA='';
+ ukiRomoTurnoPedidosQA='';
+ ukiRomoFiltroPedidosQA='todos';
+ render();
+}
+function ukiRomoElegirTurnoPedidosQA(valor){
+ const turno=String(valor||'');
+ if(turno&&!(S.pedidos||[]).some(p=>p.suc===ROMO_SUCURSAL_QA&&
+    String(p.turnoClave||'')===turno))return;
+ ukiRomoTurnoPedidosQA=turno;
+ ukiRomoFechaPedidosQA='';
+ ukiRomoVistaPedidosQA=turno?'todos':'operacion';
  ukiRomoFiltroPedidosQA='todos';
  render();
 }
 function ukiRomoLimpiarFiltrosPedidosQA(){
  ukiRomoVistaPedidosQA='operacion';
  ukiRomoFechaPedidosQA='';
+ ukiRomoTurnoPedidosQA='';
  ukiRomoBusquedaPedidosQA='';
  ukiRomoFiltroPedidosQA='todos';
  render();
@@ -4893,7 +4911,7 @@ function ukiRomoOperacionesEnCursoQA(){
 }
 const ROMO_MEDIOS_COBRO_QA=['Efectivo','Transferencia','Débito','Edenred','Otros'];
 function ukiRomoCambiarFiltroQA(tipo){
- if(!['todos','pendientes','pagados','entregados','cancelados'].includes(tipo))return;
+ if(!['todos','pendientes','pagados','entregados','cancelados','mesas'].includes(tipo))return;
  ukiRomoFiltroPedidosQA=tipo;render();
 }
 function ukiRomoCamposCobroQA(p){
@@ -5032,6 +5050,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
   ukiRomoFechaPedidoQA(p)===fechaActual;
  const base=todos.filter(p=>{
   const fecha=ukiRomoFechaPedidoQA(p);
+  if(ukiRomoTurnoPedidosQA)return String(p.turnoClave||'')===ukiRomoTurnoPedidosQA;
   if(ukiRomoFechaPedidosQA)return fecha===ukiRomoFechaPedidosQA;
   if(ukiRomoVistaPedidosQA==='operacion')return enOperacion(p);
   if(ukiRomoVistaPedidosQA==='historial')return !enOperacion(p);
@@ -5043,16 +5062,19 @@ function ukiRomoPedidosPendientesHTMLQA(){
  const pagados=visibles.filter(p=>p.estado!=='Cancelado'&&p.pagado).length;
  const entregados=visibles.filter(p=>p.estado==='Entregado').length;
  const cancelados=visibles.filter(p=>p.estado==='Cancelado').length;
+ const mesas=visibles.filter(p=>p.modalidad==='Consumo en local').length;
  const etiquetas=[['todos','Todos ('+visibles.length+')'],
   ['pendientes','Por cobrar ('+penden+')'],
   ['pagados','Pagados ('+pagados+')'],
   ['entregados','Entregados ('+entregados+')'],
-  ['cancelados','Cancelados ('+cancelados+')']];
+  ['cancelados','Cancelados ('+cancelados+')'],
+  ['mesas','Pedidos de mesa ('+mesas+')']];
  const listado=visibles.filter(p=>ukiRomoFiltroPedidosQA==='todos'||
    ukiRomoFiltroPedidosQA==='pendientes'&&p.estado!=='Cancelado'&&!p.pagado||
    ukiRomoFiltroPedidosQA==='pagados'&&p.estado!=='Cancelado'&&p.pagado||
    ukiRomoFiltroPedidosQA==='entregados'&&p.estado==='Entregado'||
-   ukiRomoFiltroPedidosQA==='cancelados'&&p.estado==='Cancelado');
+   ukiRomoFiltroPedidosQA==='cancelados'&&p.estado==='Cancelado'||
+   ukiRomoFiltroPedidosQA==='mesas'&&p.modalidad==='Consumo en local');
  const enCurso=todos.filter(ukiRomoPedidoPendienteQA).length;
  const anteriores=todos.filter(p=>!enOperacion(p)).length;
  const nav='<div class="card"><b>🗂️ Pedidos de Romo</b>'+
@@ -5076,7 +5098,27 @@ function ukiRomoPedidosPendientesHTMLQA(){
    '" onchange="ukiRomoElegirFechaPedidosQA(this.value)">'+
   (ukiRomoFechaPedidosQA?'<p class="muted">Mostrando pedidos del '+esc(ukiRomoFechaPedidosQA)+
    '. No se cambió la fecha real de ningún pedido.</p>':'')+'</div>';
- const filtros='<div class="card"><b>Filtrar por estado</b><div class="chips">'+
+ const turnos=new Map();
+ for(const pedido of todos){
+  const key=String(pedido.turnoClave||'');
+  if(!/^\d{4}-\d{2}-\d{2}@\d+$/.test(key))continue;
+  turnos.set(key,(turnos.get(key)||0)+1);
+ }
+ const selectorTurno='<div class="card"><label for="romoTurnoPedidoQA"><b>Consultar turno registrado</b></label>'+
+  '<select id="romoTurnoPedidoQA" onchange="ukiRomoElegirTurnoPedidosQA(this.value)">'+
+  '<option value="">Todos los turnos (sin filtro)</option>'+
+  [...turnos.entries()].sort(([a],[b])=>b.localeCompare(a)).map(([key,n])=>{
+   const timestamp=Number(key.split('@')[1]);
+   const hora=timestamp>1e12&&timestamp<1e14?
+    new Date(timestamp).toLocaleTimeString('es-CL',{
+     timeZone:'America/Santiago',hour:'2-digit',minute:'2-digit'}):'';
+   const titulo=key.slice(0,10)+(hora?' · apertura '+hora:' · referencia '+key.slice(11))+
+    ' · '+n+' pedido(s)';
+   return '<option value="'+esc(key)+'" '+
+    (ukiRomoTurnoPedidosQA===key?'selected':'')+'>'+esc(titulo)+'</option>';
+  }).join('')+'</select>'+
+  '<p class="muted">Cada turno mantiene su folio original; este filtro no modifica la caja.</p></div>';
+ const filtros='<div class="card"><b>Filtrar por estado o modalidad</b><div class="chips">'+
   etiquetas.map(([k,t])=>'<button type="button" class="chip'+
    (ukiRomoFiltroPedidosQA===k?' on':'')+
    '" onclick="ukiRomoCambiarFiltroQA(\''+k+'\')">'+t+'</button>').join('')+
@@ -5115,12 +5157,18 @@ function ukiRomoPedidosPendientesHTMLQA(){
    esc([p.id,p.cliente,p.telefono,p.codigoCarta,p.codigoCliente,p.modalidad].join(' ').toLocaleLowerCase('es-CL'))+
    '"><h3>Pedido #'+esc(id)+' · '+esc(estado)+'</h3>'+
    '<p><b>'+esc(p.cliente||"Cliente")+'</b> · '+esc(p.modalidad||"Retiro")+' · '+fmt(p.total)+'</p>'+
+   (p.modalidad==='Consumo en local'?
+    '<p class="muted"><b>Mesa:</b> '+esc(p.mesaReferencia||'Sin número registrado')+
+    ' · Consulta del pedido, no conexión a la cuenta QR.</p>':'')+
    '<p class="muted">'+esc(p.fechaISO||"")+' · '+esc(p.telefono||"")+'</p>'+
    '<ul>'+((p.productos||[]).map(x=>'<li>'+esc(x.cantidad)+' × '+esc(x.nombre)+' · '+fmt(x.precioUnit)+
      (x.detalle?'<p class="muted">'+esc(x.detalle)+'</p>':'')+'</li>').join(''))+'</ul>';
   let acciones='';
   if(p.estado==='Cancelado'){
    acciones='<p class="muted">Cancelado · '+esc(p.motivoCancelacion||'Motivo registrado')+'. No suma ventas.</p>';
+  }else if(ukiCierreConfirmadoPedido(p)){
+   // Una ficha de cierre definitivo es solo lectura; no mostrar botones que ya no aplican.
+   acciones='<p class="muted">🔒 Turno cerrado · Solo consulta. Rectificaciones con autorización de dueños.</p>';
   }else if(!p.pagado){
    acciones=tst?'<p class="muted">Pedido de prueba: cobro real bloqueado.</p>':
     ukiRomoCamposCobroQA(p)+
@@ -5138,7 +5186,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
  return '<div class="section-head"><h2>Pedidos · Romo La Serena</h2>'+
   '<p>Registros confirmados en la base cifrada de Romo. Los filtros y el historial son solo de consulta.</p></div>'+
   '<button class="big" type="button" onclick="nuevoDraft();modoNuevo=\'manual\';ir(\'nuevo\')">＋ Nuevo pedido manual</button>'+
-  nav+buscar+filtros+
+  nav+buscar+selectorTurno+filtros+
   (ukiRomoVistaPedidosQA==='operacion'?ukiRomoSolicitudesHTMLQA():'')+
   (listado.length?items:'<section class="card"><p>No se encontraron pedidos para los filtros seleccionados.</p></section>')+
   archivo+rechazos;
