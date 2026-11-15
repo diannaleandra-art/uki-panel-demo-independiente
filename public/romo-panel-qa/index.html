@@ -2083,7 +2083,7 @@ function vNuevo(){
   const pendienteEdicion=!!ukiCobroPendiente(pedidoEdicion);
    const entregaUI=`<label>Tipo de entrega</label><div class="chips">${["Retiro","Delivery","Consumo en local"].map(m=>`<button ${chip(D.modalidad===m)} onclick="setModalidad('${m}')">${m}</button>`).join("")}</div>${S.suc===ROMO_SUCURSAL_QA&&revisandoSolicitud?ukiRomoDetalleEntregaCartaHTMLQA(D.texto):""}${D.modalidad==="Consumo en local"?`<label>Mesa o referencia (opcional)</label><input maxlength="50" value="${esc(D.mesaReferencia||"")}" placeholder="Ej: Mesa 2" oninput="D.mesaReferencia=this.value">`:""}${D.modalidad==="Delivery"?`<label>💰 Valor delivery (se suma)</label><input type="number" inputmode="numeric" value="${D.envio||""}" placeholder="Ej: 2000" oninput="setEnvioManual(this.value)"><p class="muted" id="pedidoEnvioAyuda">Delivery seleccionado - ${D.envio||0} se suma al total</p><label>🛵 Kilómetros del recorrido (opcional, no cambia el precio)</label><input id="ukiKmRecorrido" type="text" inputmode="decimal" value="${esc(D.kmRecorrido??"")}" placeholder="Ej: 4,5" onchange="D.kmRecorrido=this.value.trim();render()"><p class="muted">Si el recorrido viene escrito en el mensaje original, el panel también puede leerlo. No modifica el valor del delivery.</p>`:""}`;
   return `<div class="section-head"><h2>${D.editando?`Editar pedido #${D.editando}`:revisandoSolicitud?"Revisar solicitud":"Nuevo pedido"}</h2><p>${D.editando?"Corrige los datos y el medio de pago del pedido existente. Guardar cambios no genera otro pedido ni otro cobro.":revisandoSolicitud?"Solicitud recibida: verifica el detalle y la forma de entrega. Todavía NO es un pedido registrado ni un pago confirmado.":"Completa los datos y guarda el pedido una sola vez."}</p></div>
-  ${S.suc===ROMO_SUCURSAL_QA?'<div class="card"><b>Romo · pedido manual o por WhatsApp</b><p class="muted">Pega el mensaje y revisa productos, precios, entrega y delivery. El pedido se guarda por cobrar, sin registrar pago. El guardado exige confirmación cifrada de Neon Romo; los borradores entre dispositivos aún no están habilitados.</p></div>':ukiVistaBorradores()}
+  ${S.suc===ROMO_SUCURSAL_QA?'<div class="card"><b>Romo · pedido manual o por WhatsApp</b><p class="muted">Pega el mensaje y revisa productos, precios, entrega y delivery. El pedido se guarda por cobrar, sin registrar pago. El guardado exige confirmación cifrada de Neon Romo; los borradores entre dispositivos aún no están habilitados.</p></div>'+ukiRomoBorradoresVistaQA():ukiVistaBorradores()}
   <details class="uki-modos-ingreso" ${revisandoSolicitud?'':'open'} style="${D.editando?'display:none;':'margin:10px 0'}"><summary><b>${revisandoSolicitud?'Ver mensaje original':'Opciones de ingreso · WhatsApp o manual'}</b></summary>
    ${revisandoSolicitud?'':`<div class="mode-switch" role="group" aria-label="Modo de ingresar pedido"><button type="button" class="${modoNuevo==='whatsapp'?'selected':''}" onclick="cambiarModoNuevo('whatsapp')">📋 Pegar WhatsApp</button><button type="button" class="${modoNuevo==='manual'?'selected':''}" onclick="cambiarModoNuevo('manual')">✎ Manual</button></div>`}
 
@@ -4948,7 +4948,7 @@ let ukiRomoOperandoPedidoQA=false;
 // En la copia Romo bloquea salir/navegar mientras una acción explícita
 // todavía espera confirmación de Neon. No cambia la navegación de Uki.
 function ukiRomoOperacionesEnCursoQA(){
- return ukiRomoOperandoPedidoQA||ukiRomoGuardandoManualQA||
+ return ukiRomoOperandoPedidoQA||ukiRomoBorradorGuardandoQA||ukiRomoGuardandoManualQA||
   ukiRomoSolicitudCartaOcupadaQA||ukiRomoTurnoOcupadoQA||
   ukiRomoPrecierreOcupadoQA||ukiRomoTimbreBusyQA||
   ukiRomoClienteGuardandoQA||ukiRomoCanjeEnCursoQA;
@@ -5083,6 +5083,107 @@ function ukiRomoDetalleEntregaCartaHTMLQA(texto,{compacto=false}={}){
   (!compacto?'<p class="muted"><b>Importante:</b> revisa el recorrido y valor calculados por Uki antes de aceptar. No está cobrado.</p>':'')+
   '</div>';
 }
+// Romo conserva el "pedido en espera" oficial de Uki con estado cifrado CAS.
+let ukiRomoBorradorGuardandoQA=false;
+let ukiRomoBorradorActivoQA=null;
+function ukiRomoBorradoresListaQA(){
+ return (S.borradores||[]).filter(b=>b?.suc===ROMO_SUCURSAL_QA)
+  .slice().sort((a,b)=>(b.actualizadoEn||0)-(a.actualizadoEn||0));
+}
+function ukiRomoBorradoresResumenQA(){
+ const bs=ukiRomoBorradoresListaQA();
+ if(!bs.length)return '';
+ return '<details class="card"><summary><b>⏸ En atención · '+bs.length+
+  '</b> pedido(s) sin terminar</summary>'+
+  '<p class="muted">Borradores cifrados exclusivos de Romo. No son pedidos ni ventas.</p>'+
+  bs.map(b=>'<p><b>'+esc(String(b.datos?.cliente||b.datos?.mesaReferencia||'Sin nombre'))+
+   '</b> · '+esc(String(b.datos?.modalidad||'Retiro'))+
+   ' <button type="button" class="sm ok" onclick="ukiRomoRetomarBorradorQA('+
+   esc(JSON.stringify(b.id))+')">Continuar</button></p>').join('')+'</details>';
+}
+function ukiRomoBorradoresVistaQA(){
+ const bs=ukiRomoBorradoresListaQA();
+ return '<div class="card uki-formulario-en-espera"><h2>⏸ Dejar en espera y atender otro</h2>'+
+  '<p class="muted">Sin venta ni cobro. Máximo 12 borradores cifrados por sucursal.</p>'+
+  '<button type="button" class="sm ok" onclick="ukiRomoGuardarBorradorQA()">'+
+  (ukiRomoBorradorActivoQA?'Guardar cambios y abrir otro':'Guardar en espera y abrir otro')+'</button>'+
+  (bs.length?'<details style="margin-top:12px"><summary><b>En atención · '+bs.length+'</b></summary>'+
+   bs.map(b=>'<p><b>'+
+    esc(String(b.datos?.cliente||b.datos?.mesaReferencia||'Pedido sin nombre'))+
+    '</b> · '+esc(String(b.datos?.modalidad||'Retiro'))+
+    ' <button class="sm ok" type="button" onclick="ukiRomoRetomarBorradorQA('+
+    esc(JSON.stringify(b.id))+')">Continuar</button> '+
+    '<button class="sm" type="button" onclick="ukiRomoEliminarBorradorQA('+
+    esc(JSON.stringify(b.id))+')">Eliminar</button></p>').join('')+
+   '</details>':'')+'</div>';
+}
+function ukiRomoRetomarBorradorQA(id){
+ if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoOperacionesEnCursoQA())return;
+ const b=ukiRomoBorradoresListaQA().find(x=>x.id===id);
+ if(!b||!b.datos||typeof b.datos!=='object'||b.datos.editando||
+    b.datos.cartaSolicitudRemotaId){
+  aviso('No se pudo reabrir el borrador. No se modificó el pedido.');return;
+ }
+ if(S.vista==='nuevo'&&ukiBorradorTieneContenido()&&!window.confirm(
+  'El pedido actual todavía no está guardado. ¿Descartarlo para continuar el que está en espera?'))return;
+ D=JSON.parse(JSON.stringify(b.datos));
+ modoNuevo=b.modo==='whatsapp'?'whatsapp':'manual';
+ ukiRomoBorradorActivoQA=id;
+ S.vista='nuevo';render();
+}
+async function ukiRomoGuardarBorradorQA(){
+ if(S.suc!==ROMO_SUCURSAL_QA||S.vista!=='nuevo'||ukiRomoOperacionesEnCursoQA())return;
+ if(D.editando||D.cartaSolicitudRemotaId||D.cartaReservaToken||
+   (D.qrSolicitudes||[]).length||D.pagado){
+  aviso('Solo se guardan pedidos en espera sin pago ni solicitud reservada.');return;
+ }
+ if(!ukiBorradorTieneContenido()){aviso('Primero completa parte del pedido para guardarlo en espera.');return;}
+ if(String(D.texto||'').length>12000||(D.items||[]).length>50||
+   /^\s*\*?\s*UKI\s+SUSHI\b/im.test(String(D.texto||''))){
+  aviso('El texto no corresponde a un borrador seguro de Romo.');return;
+ }
+ const sesion=window.ukiRomoSesionRemotaQA;
+ if(!sesion?.disponible?.()||sesion.estado().conflicto){
+  aviso('Reabre Romo y comprueba su conexión cifrada antes de guardar.');return;
+ }
+ ukiRomoBorradorGuardandoQA=true;
+ try{
+  const copia=datosSoloSucursal(),ahoraMs=Date.now();
+  copia.borradores=Array.isArray(copia.borradores)?copia.borradores:[];
+  const index=ukiRomoBorradorActivoQA?copia.borradores.findIndex(x=>
+   x.suc===ROMO_SUCURSAL_QA&&x.id===ukiRomoBorradorActivoQA):-1;
+  if(ukiRomoBorradorActivoQA&&index<0)throw Error('Este borrador cambió o ya fue eliminado.');
+  if(index<0&&copia.borradores.filter(x=>x.suc===ROMO_SUCURSAL_QA).length>=12)
+   throw Error('Máximo 12 pedidos en espera. Termina uno antes de agregar otro.');
+  const previo=index>=0?copia.borradores[index]:null;
+  const borrador={id:previo?.id||'b-romo-'+crypto.randomUUID(),
+   suc:ROMO_SUCURSAL_QA,creadoEn:previo?.creadoEn||ahoraMs,
+   actualizadoEn:ahoraMs,modo:modoNuevo==='whatsapp'?'whatsapp':'manual',
+   datos:JSON.parse(JSON.stringify(D))};
+  if(index<0)copia.borradores.push(borrador);
+  else copia.borradores[index]=borrador;
+  await ukiRomoGuardarOperacionQA(copia,'Borrador en espera confirmado en Neon',null,'pedidos');
+  ukiRomoBorradorActivoQA=null;nuevoDraft();
+ }catch(e){aviso('No se confirmó el borrador. No repitas sin revisar: '+String(e.message||e));}
+ finally{ukiRomoBorradorGuardandoQA=false;}
+}
+async function ukiRomoEliminarBorradorQA(id){
+ if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoOperacionesEnCursoQA())return;
+ const b=ukiRomoBorradoresListaQA().find(x=>x.id===id);
+ if(!b)return aviso('El borrador ya no está disponible.');
+ if(!window.confirm('¿Eliminar este pedido en espera de Romo? No afecta pedidos ni Caja.'))return;
+ ukiRomoBorradorGuardandoQA=true;
+ try{
+  const copia=datosSoloSucursal(),antes=(copia.borradores||[]).length;
+  copia.borradores=copia.borradores.filter(x=>!(x.suc===ROMO_SUCURSAL_QA&&x.id===id));
+  if(copia.borradores.length!==antes-1)throw Error('El borrador cambió. Actualiza antes de eliminar.');
+  await ukiRomoGuardarOperacionQA(copia,'Borrador eliminado sin venta',null,
+   ukiRomoBorradorActivoQA===id?'pedidos':S.vista);
+  if(ukiRomoBorradorActivoQA===id){ukiRomoBorradorActivoQA=null;nuevoDraft();}
+ }catch(e){aviso('No se confirmó la eliminación. Revisa antes de repetir: '+String(e.message||e));}
+ finally{ukiRomoBorradorGuardandoQA=false;}
+}
+
 function ukiRomoPedidosPendientesHTMLQA(){
  // Se leen únicamente registros ya cargados de la sucursal Romo.
  // No se usa fechaTurnoRegistro(), que puede inicializar caja por render.
@@ -5230,7 +5331,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
  return '<div class="section-head"><h2>Pedidos · Romo La Serena</h2>'+
   '<p>Registros confirmados en la base cifrada de Romo. Los filtros y el historial son solo de consulta.</p></div>'+
   '<button class="big" type="button" onclick="nuevoDraft();modoNuevo=\'manual\';ir(\'nuevo\')">＋ Nuevo pedido</button>'+
-  nav+(ukiRomoVistaPedidosQA==='operacion'?ukiRomoSolicitudesHTMLQA():'')+
+  nav+(ukiRomoVistaPedidosQA==='operacion'?ukiRomoBorradoresResumenQA()+ukiRomoSolicitudesHTMLQA():'')+
   buscar+selectorTurno+filtros+
   (listado.length?items:'<section class="card"><p>No se encontraron pedidos para los filtros seleccionados.</p></section>')+
   archivo+rechazos;
@@ -6467,6 +6568,12 @@ async function ukiRomoGuardarPedidoPendienteQA(){
   const clone=datosSoloSucursal();
   clone.vista='pedidos';
   const {numero,clave}=ukiTurnoFolioActual();
+  // Un borrador se elimina solamente dentro del mismo estado que crea su pedido.
+  if(ukiRomoBorradorActivoQA){
+   const j=(clone.borradores||[]).findIndex(b=>b.suc===s&&b.id===ukiRomoBorradorActivoQA);
+   if(j<0)throw Error('El borrador ya no existe. Revisa antes de crear un pedido nuevo.');
+   clone.borradores.splice(j,1);
+  }
   const pedido={
    id:clone.nextId,numeroTurno:numero,turnoClave:clave,
    suc:s,fechaISO:D.fecha||ahora(),registradoEn:Date.now(),
@@ -6491,7 +6598,7 @@ async function ukiRomoGuardarPedidoPendienteQA(){
   if(saved?.changed!==true||saved.revision!==expected.revision+1)
    throw Error('El servidor no confirmó la revisión del pedido; conserva este formulario.');
   S={...S,...clone,suc:s,pinSuc:null,msg:null,vista:'pedidos'};
-  nuevoDraft();
+  nuevoDraft();ukiRomoBorradorActivoQA=null;
   S.msg='Pedido #'+pedido.id+' guardado en Neon Romo · pendiente de pago. Revisión '+saved.revision+'.';
   render();
  }catch(e){
