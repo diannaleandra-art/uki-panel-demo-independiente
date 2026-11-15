@@ -79,13 +79,24 @@ module.exports=async function consultaCierresQA(req,res){
   if(!Array.isArray(rows)||rows.length>100)
    return fail(res,409,'Reduce el rango para ver todos los cierres');
   const check=await import('../lib/romo-cierre-constancia-qa.mjs');
+  const vistos=new Set();
   const cierres=rows.map(row=>{
    const raw=typeof row.resumen==='string'?JSON.parse(row.resumen):row.resumen;
    const summary={...raw,estado:'confirmado_en_romo_pendiente_de_sincronizar_duenos',
     revision_neon:Number(row.revision_neon)};
    if(!check.constanciaResumenCoincideRomoQA({...row,store_id:STORE},summary))
     throw Error('Constancia inconsistente de Romo');
-   return {turno_ref:row.turno_ref,fecha_operativa:row.fecha_operativa,
+   // source_key ya fue cotejada con la constancia real de Neon. Exponerla
+   // solo al dueño autenticado permite deduplicación futura por turno,
+   // SIN incorporar ni modificar todavía movimientos en Mi Administración.
+   if(typeof row.source_key!=='string'||
+      row.source_key!=='romo:serena|'+row.turno_ref||
+      vistos.has(row.source_key))
+    throw Error('Constancia Romo con identificador duplicado o inválido');
+   vistos.add(row.source_key);
+   return {source_key:row.source_key,
+    estado_contable:'pendiente_incorporacion',
+    turno_ref:row.turno_ref,fecha_operativa:row.fecha_operativa,
     revision_neon:Number(row.revision_neon),venta_total:raw.venta_total,
     pedidos:raw.pedidos,gastos_cierre:raw.gastos_cierre,
     delivery_por_pagar:raw.delivery_por_pagar,
