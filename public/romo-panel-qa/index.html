@@ -5391,6 +5391,33 @@ function ukiRomoPedidosPendientesHTMLQA(){
    ' · '+esc(String(o.cliente||''))+
    ' · '+esc(String(o.creado_en||''))+'</p>').join('')+
   '</details>');
+ // Vista de mesas (misma zona de Pedidos que Uki), sin llamar a los QR de Uki.
+ // La suma es informativa y procede SOLO de pedidos registrados en Neon Romo.
+ const mesaAgrupada=new Map();
+ for(const p of todos){
+  if(p.modalidad!=='Consumo en local'||p.estado==='Cancelado'||p.esPremio||
+     (p.pagado&&p.estado==='Entregado'))continue;
+  const m=ukiMesaNumeroReferencia(p.mesaReferencia);
+  if(!m)continue;
+  const rows=mesaAgrupada.get(m)||[];
+  rows.push(p);mesaAgrupada.set(m,rows);
+ }
+ const mesasHTML='<details class="card" id="romoMesasCuentasQA">'+
+  '<summary><b>🍽 Mesas con pedidos registrados · '+mesaAgrupada.size+'</b></summary>'+
+  '<p class="muted">Consulta desde los pedidos confirmados de Romo. No contiene solicitudes QR pendientes; no crea ni cobra cuentas.</p>'+
+  ([...mesaAgrupada.entries()].sort(([a],[b])=>a-b).map(([numero,ps])=>
+   '<div class="card" style="padding:12px;margin-top:10px"><b>Mesa '+numero+'</b>'+
+   '<p class="muted">'+ps.length+' pedido(s) registrados · '+
+   ps.filter(p=>!p.pagado).length+' sin cobrar</p>'+
+   '<p><b>Total de pedidos visibles: '+
+    fmt(ps.reduce((t,p)=>t+(Number(p.total)||0),0))+'</b></p>'+
+   ps.map(p=>'<p class="muted">'+esc(ukiReferenciaConCarta(p))+
+    ' · '+esc(p.cliente||'Sin nombre')+' · '+fmt(p.total)+
+    ' · '+(p.pagado?'Pagado':'Por cobrar')+'</p>').join('')+
+   '</div>').join('')||
+   '<p class="muted">No hay pedidos de mesa manuales pendientes de cobro o entrega.</p>')+
+   '<p class="muted">El QR de Uki no se reutiliza para Romo. La recepción QR de Romo sigue pendiente de conectar y comprobar.</p>'+
+  '</details>';
  const items=listado.map(p=>{
   const id=Number(p.id),tst=/^PRUEBA\b/i.test(String(p.cliente||''));
   const cerrado=!!ukiCierreConfirmadoPedido(p);
@@ -5497,7 +5524,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
  return '<div class="section-head"><h2>Pedidos · Romo La Serena</h2>'+
   '<p>Registros confirmados en la base cifrada de Romo. Los filtros y el historial son solo de consulta.</p></div>'+
   '<button class="big" type="button" onclick="nuevoDraft();modoNuevo=\'manual\';ir(\'nuevo\')">＋ Nuevo pedido</button>'+
-  nav+(ukiRomoVistaPedidosQA==='operacion'?ukiRomoBorradoresResumenQA()+ukiRomoSolicitudesHTMLQA():'')+
+  nav+(ukiRomoVistaPedidosQA==='operacion'?mesasHTML+ukiRomoBorradoresResumenQA()+ukiRomoSolicitudesHTMLQA():'')+
   buscar+selectorTurno+filtros+
   (listado.length?items:'<section class="card"><p>No se encontraron pedidos para los filtros seleccionados.</p></section>')+
   archivo+rechazos;
