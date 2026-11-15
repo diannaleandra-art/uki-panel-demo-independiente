@@ -30,6 +30,11 @@
    '<p class="muted">Igual que el editor de productos Uki: puedes cambiar cantidades, precios, agregar o quitar líneas. Solo antes del pago y con el turno abierto. No modifica caja, folio ni timbres.</p>'+
    '<div data-romo-productos="1">'+productos+'</div>'+
    '<button type="button" class="sm" onclick="ukiRomoAgregarLineaPendienteQA('+id+')">＋ Agregar otro producto</button>'+
+   (p.modalidad==="Consumo en local"?
+    '<label>Mesa de atención (1 a 50)</label><input id="romoEditarMesa'+id+
+    '" type="text" inputmode="numeric" maxlength="10" placeholder="Mesa 4" value="'+
+    e(p.mesaReferencia||'')+'">'+
+    '<p class="muted">Solo mesa manual sin QR vinculado. El historial conserva el cambio.</p>':'')+
    (p.modalidad==="Delivery"?
     '<label>Delivery confirmado</label><input id="romoEditarEnvio'+id+'" type="number" min="1" max="4000" step="1" value="'+e(p.envio||0)+'">':"")+
    '<label>Responsable obligatorio</label><input id="romoEditarResponsable'+id+'" maxlength="80">'+
@@ -69,6 +74,9 @@
     ' · Después: '+fmt(Number(x.nuevo?.total)||0)+'</p>'+
     '<p>Delivery antes: '+fmt(Number(x.anterior?.envio)||0)+
     ' · Después: '+fmt(Number(x.nuevo?.envio)||0)+'</p>'+
+    (x.anterior?.mesaReferencia!==undefined||x.nuevo?.mesaReferencia!==undefined?
+     '<p>Mesa antes: '+e(x.anterior?.mesaReferencia||'Sin mesa')+
+     ' · Después: '+e(x.nuevo?.mesaReferencia||'Sin mesa')+'</p>':'')+
     '<details><summary>Ver productos e ingredientes antes y después</summary>'+
     '<p>Antes: '+e((x.anterior?.productos||[]).map(z=>
      z.cantidad+'× '+z.nombre+' ($'+z.precioUnit+')'+
@@ -104,6 +112,8 @@
   });
   const envio=p.modalidad==="Delivery"?
    document.getElementById("romoEditarEnvio"+pedidoId)?.value:0;
+  const mesaReferencia=p.modalidad==="Consumo en local"?
+   document.getElementById("romoEditarMesa"+pedidoId)?.value:undefined;
   if(!window.confirm("¿Confirmas modificar el pedido #"+pedidoId+
     "? Debe guardarse en Neon Romo y quedará registrado el responsable."))return;
   ukiRomoOperandoPedidoQA=true;
@@ -111,7 +121,7 @@
    const copia=datosSoloSucursal();
    const mod=await import("./uki-romo-edicion-atomica-qa.mjs");
    const res=mod.prepararEdicionPendienteRomoQA(copia,{
-    pedidoId,responsable,motivo,registradoEn:Date.now(),productos,envio
+    pedidoId,responsable,motivo,registradoEn:Date.now(),productos,envio,mesaReferencia
    });
    if(res.pedidoId!==pedidoId)throw Error("La edición no coincide con el pedido.");
    await ukiRomoGuardarOperacionQA(copia,"Edición auditada guardada",pedidoId,"pedidos");
