@@ -5010,6 +5010,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
   }else if(!p.pagado){
    acciones=tst?'<p class="muted">Pedido de prueba: cobro real bloqueado.</p>':
     ukiRomoCamposCobroQA(p)+
+    (window.ukiRomoEditorPedidoQA?.(p)||'')+
     '<button type="button" class="sm" onclick="ukiRomoCambiarEstadoQA('+id+',\'cancelar\')">Cancelar pedido sin cobro</button>';
   }else{
    acciones='<p class="muted">Pago registrado de forma cifrada. No cobres nuevamente.</p>'+
@@ -5017,7 +5018,8 @@ function ukiRomoPedidosPendientesHTMLQA(){
      '<button type="button" class="sm" onclick="ir(\'clientes\')">🎫 Timbre pendiente</button>':'')+
     (p.estado!=='Entregado'?'<button type="button" class="sm ok" onclick="ukiRomoCambiarEstadoQA('+id+',\'entregar\')">✓ Marcar entregado</button>':'');
   }
-  return resumen+entrega+acciones+'</section>';
+  return resumen+entrega+acciones+
+   (window.ukiRomoHistorialEdicionQA?.(p)||'')+'</section>';
  }).join('');
  return '<div class="section-head"><h2>Pedidos · Romo La Serena</h2>'+
   '<p>Pedidos guardados en Neon Romo con confirmación cifrada. Caja y cierres definitivos continúan limitados en este piloto.</p></div>'+
@@ -7553,4 +7555,5 @@ el("ukiAutoCheck").addEventListener("change",()=>{
  vigilarRevisiones(contextoLocal.suc);
 });
 </script>
+<script src="/romo-panel-qa/romo-edicion-en-panel-qa.js?v=20261114c" defer></script>
 <script src="/romo-panel-qa/romo-banner-admin.js?v=20261114b" defer></script></body></html>
