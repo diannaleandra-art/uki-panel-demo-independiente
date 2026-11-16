@@ -82,7 +82,21 @@ export function rectificacionesConfirmadasDeTurnoQA(estado,turnoId){
 }
 
 function etiquetaDia(p){
- const dia=String(p?.fechaOperativa||p?.fechaISO||'').slice(0,10);
+ const fijada=String(p?.fechaOperativa||'');
+ if(/^\d{4}-\d{2}-\d{2}$/.test(fijada))return fijada;
+ // El día de caja corresponde al TURNO original, nunca a la fecha UTC del ISO.
+ const turno=String(p?.turnoClave||'');
+ if(/^\d{4}-\d{2}-\d{2}@[1-9]\d{12,14}$/.test(turno))return turno.slice(0,10);
+ const iso=String(p?.fechaISO||'');
+ if(/^\d{4}-\d{2}-\d{2}$/.test(iso))return iso;
+ const t=Number(p?.registradoEn);
+ const ms=Number.isSafeInteger(t)&&t>0?t:Date.parse(iso);
+ if(!Number.isFinite(ms)||ms<=0)return '';
+ const partes=new Intl.DateTimeFormat('es-CL',{
+  timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'
+ }).formatToParts(new Date(ms));
+ const obtener=tipo=>partes.find(x=>x.type===tipo)?.value||'';
+ const dia=[obtener('year'),obtener('month'),obtener('day')].join('-');
  return /^\d{4}-\d{2}-\d{2}$/.test(dia)?dia:'';
 }
 /**
@@ -145,7 +159,10 @@ export function consultarCajaRomoQA(estado,{fechaOperativa}={}){
     result.productosCobradosRomo+result.deliveryCobradoRomo)
   err('La suma de medios no corresponde al dinero recibido en Romo');
  for(const p of estado.propinas){
-  if(etiquetaDia(p)===fecha)result.propinasRegistradas+=monto(p.monto,'propina');
+  // La propina de un pedido sigue la jornada de ese pedido, aun si el ISO cruza medianoche.
+  const pedido=estado.pedidos.find(x=>x.suc===SUC&&x.id===p.pedidoId);
+  if((pedido?etiquetaDia(pedido):etiquetaDia(p))===fecha)
+   result.propinasRegistradas+=monto(p.monto,'propina');
  }
  for(const d of estado.deliveriesManuales){
   if(etiquetaDia(d)===fecha){
