@@ -1,7 +1,5 @@
 import {clasificarCorreccionPagadaRomoQA} from './uki-romo-edicion-pagada-qa.mjs';
 import {calcularDiferenciaPagadaRomoQA} from './uki-romo-diferencias-financieras-qa.mjs';
-const __romoTipos={clasificarCorreccionPagadaRomoQA};
-const __romoDiferencias={calcularDiferenciaPagadaRomoQA};
 /**
  * Romo La Serena: reutilizar el formulario de PROPINA MANUAL oficial Uki.
  * Recibe una COPIA de estado; sin escritura directa. Solo el CAS Neon
@@ -121,6 +119,10 @@ export function prepararCorreccionPropinaPagadaRomoQA(estado,{
  assert(registradas.length===1&&registradas[0].origen==='pedido',
   'La propina debe tener un único registro original del pedido; la propina manual se corrige aparte');
  const registro=registradas[0],original=Number(p.propina);
+ const tiempoOriginal=Number(registro.registradoEn)||Date.parse(registro.fechaISO||'');
+ assert(Number.isSafeInteger(tiempoOriginal)&&tiempoOriginal>=caja.inicioMs&&
+  tiempoOriginal<=registradoEn,
+  'La propina original no corresponde al turno abierto');
  assert(Number.isSafeInteger(original)&&original>0&&original<=1000000&&
   registro.monto===original&&MEDIOS.includes(registro.medio)&&
   n(p.medioPropina||'Efectivo')===registro.medio,
@@ -136,8 +138,6 @@ export function prepararCorreccionPropinaPagadaRomoQA(estado,{
   MEDIOS.includes(medioNuevo),'Monto o medio de propina no permitido');
  // El formulario de Uki admite correcciones del pedido completo, pero ESTE
  // botón solo permite la propina; otras diferencias conservan su bloqueo.
- const {clasificarCorreccionPagadaRomoQA}=__romoTipos;
- const {calcularDiferenciaPagadaRomoQA}=__romoDiferencias;
  const clas=clasificarCorreccionPagadaRomoQA(p,draft);
  assert(clas.cambios.length===0&&clas.protegidos.length===1&&
   clas.protegidos[0]==='propina','Hay otros cambios en la venta pagada; no se guardó la propina');
@@ -256,6 +256,10 @@ export function prepararCorreccionPropinaManualRomoQA(estado,{
  assert(registros.length===1&&registros[0].origen==='manual',
   'No hay una propina manual única para corregir');
  const previo=registros[0];
+ const tiempoAnterior=Number(previo.registradoEn)||Date.parse(previo.fechaISO||'');
+ assert(Number.isSafeInteger(tiempoAnterior)&&tiempoAnterior>=caja.inicioMs&&
+  tiempoAnterior<=registradoEn,
+  'La propina manual original pertenece a otro turno');
  assert(Number.isSafeInteger(previo.monto)&&previo.monto>=0&&
   MEDIOS.includes(previo.medio)&&
   estado.propinas.filter(x=>String(x.id)===String(previo.id)).length===1,
