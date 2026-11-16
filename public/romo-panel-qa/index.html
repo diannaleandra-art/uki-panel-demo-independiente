@@ -7060,6 +7060,161 @@ function ukiRomoRevisionPostCierreHistorialQA(c){
  * Rectificación postcierre de Uki: misma sección de Historial, Romo solo.
  * Prepara una solicitud auditada, no un cierre v2 ni un cobro automático.
  */
+
+/**
+ * Mismo apartado Historial y mismo formulario de "pedido olvidado" de Uki.
+ * En Romo, la propuesta solo audita un pago declarado: el recibo versionado
+ * y conciliación con otro local se confirman aparte antes de contabilizar.
+ */
+function ukiRomoCambiarModalidadOlvidoQA(i){
+ const prefix='romoOlvidoCierre'+i;
+ const delivery=$(prefix+'Modalidad')?.value==='Delivery';
+ if($(prefix+'EnvioBloque'))$(prefix+'EnvioBloque').style.display=delivery?'block':'none';
+ if($(prefix+'DeliveryLocalBloque'))$(prefix+'DeliveryLocalBloque').style.display=delivery?'block':'none';
+}
+function ukiRomoPedidoOlvidadoHistorialHTMLQA(c){
+ if(c?.suc!==ROMO_SUCURSAL_QA)return '';
+ const indice=(S.cierres||[]).indexOf(c),turno=String(c.turnoClave||'');
+ if(indice<0||!turno)return '';
+ const olvidos=(S.ajustesHistoricos||[]).filter(a=>
+  a?.suc===ROMO_SUCURSAL_QA&&
+  a.tipo==='pedido_olvidado_romo_pendiente'&&a.turnoClave===turno);
+ const original=Number(c.venta)||0;
+ if(olvidos.length){
+  const total=olvidos.reduce((n,a)=>n+(Number(a.total)||0),0);
+  const local=olvidos.reduce((n,a)=>n+(Number(a.recibidoLocal)||0),0);
+  const externo=olvidos.reduce((n,a)=>n+(Number(a.recibidoOtroLocal)||0),0);
+  const reparto=olvidos.reduce((n,a)=>n+(a.repartoRealizado?(Number(a.envio)||0):0),0);
+  return '<details class="inner-details"><summary>📝 Pedido olvidado del cierre · pendiente de conciliación</summary>'+
+   '<p class="muted">Adaptado del Historial oficial de Uki. El cierre original, efectivo contado, PDF y dinero del turno actual siguen INTACTOS. Esto es una solicitud pendiente, NO una venta o cierre nuevo.</p>'+
+   row('Pedidos olvidados pendientes',olvidos.length)+
+   row('Valor total declarado',fmt(total))+
+   row('Cobrado en Romo por conciliar',fmt(local))+
+   row('Cobrado en otro local por conciliar',fmt(externo))+
+   row('Delivery de repartidor por conciliar',fmt(reparto))+
+   row('Venta original de este cierre',fmt(original))+
+   row('Original + cobro Romo (vista previa, NO emitida)',fmt(original+local))+
+   olvidos.map(a=>'<div class="card" style="padding:10px">'+
+    '<b>Solicitud #'+esc(a.id)+(a.codigoCarta?' · Carta #'+esc(a.codigoCarta):'')+'</b>'+
+    '<p class="muted">'+esc(a.fechaPedido||'Sin fecha')+
+    ' · '+esc(a.modalidad||'')+'</p>'+
+    '<p>'+esc(a.detalle||'Productos no detallados')+'</p>'+
+    row('Cobrado en Romo',fmt(a.recibidoLocal))+
+    row('Cobrado en '+esc(a.localExterno||'otro local'),fmt(a.recibidoOtroLocal))+
+    '<p class="muted">Registrado por '+esc(a.responsable||'Sin responsable')+
+    ' · Motivo: '+esc(a.motivo||'Sin motivo')+'</p>'+
+    '</div>').join('')+
+   '<p class="muted">Para contabilizar o reenviar un cierre rectificado falta confirmar el dinero y emitir su constancia versionada. No se paga al repartidor automáticamente.</p>'+
+   '</details>';
+ }
+ const prefix='romoOlvidoCierre'+indice;
+ const field=(id,label,type='text',placeholder='')=>
+  '<label for="'+prefix+id+'">'+label+'</label><input id="'+prefix+id+
+  '" type="'+type+'" '+(type==='number'?'inputmode="numeric" min="0" step="1" ':'')+
+  (placeholder?'placeholder="'+esc(placeholder)+'" ':'')+'>';
+ const med=ROMO_MEDIOS_DELIVERY_QA.map(m=>'<option value="'+esc(m)+'">'+
+  esc(m)+'</option>').join('');
+ const fecha=String(c.fechaOperativa||'');
+ return '<details class="inner-details"><summary>➕ Agregar pedido olvidado de un turno cerrado</summary>'+
+  '<p class="muted">El mismo procedimiento de Uki, con registro protegido en Romo. No reabre Caja ni suma otra venta; primero queda pendiente de conciliación.</p>'+
+  '<p class="muted"><b>Turno original:</b> '+esc(turno)+'</p>'+
+  '<label>Fecha y hora original del pedido</label>'+
+  '<input id="'+prefix+'Fecha" type="datetime-local" value="'+esc(fecha)+'T12:00">'+
+  field('Carta','Código de carta si lo tiene (opcional)','text','Ej: 011')+
+  field('Cliente','Nombre del cliente (opcional)','text','Cliente')+
+  field('Detalle','Productos del pedido','text','Ej: 2 handrolls')+
+  '<label>Entrega</label><select id="'+prefix+'Modalidad" onchange="ukiRomoCambiarModalidadOlvidoQA('+indice+')">'+
+  '<option>Retiro</option><option>Delivery</option><option>Consumo en local</option></select>'+
+  field('Productos','Total productos ($)','number','7000')+
+  '<div id="'+prefix+'EnvioBloque" style="display:none">'+
+  field('Envio','Valor delivery ($)','number','2000')+
+  '<label class="check"><input type="checkbox" id="'+prefix+'Repartido">'+
+  ' Delivery realmente realizado por repartidor de Romo</label></div>'+
+  field('Local','Monto cobrado en Romo ($)','number','0 si todo se pagó en otro local')+
+  '<div id="'+prefix+'DeliveryLocalBloque" style="display:none">'+
+  field('DeliveryLocal','Del monto cobrado en Romo, cuánto era delivery ($)','number','0')+'</div>'+
+  '<label>Medio recibido en Romo (si cobró)</label>'+
+  '<select id="'+prefix+'Medio">'+med+'</select>'+
+  field('Externo','Local que cobró el resto (si corresponde)','text','Nombre del local')+
+  '<label class="check"><input type="checkbox" id="'+prefix+'Pagado">'+
+  ' Pago completo ya confirmado</label>'+
+  field('Responsable','Responsable de la corrección','text','Nombre de quien registra')+
+  field('Motivo','Motivo obligatorio','text','Por qué se omitió el pedido')+
+  '<p class="muted">No agrega un pedido al turno actual ni altera el cierre o el pago del repartidor. La venta del cierre rectificado solo se confirma con una conciliación posterior.</p>'+
+  '<button type="button" class="sm ok" onclick="ukiRomoGuardarPedidoOlvidadoQA('+indice+
+  ')">Guardar solicitud pendiente (NO contabilizar)</button></details>';
+}
+
+async function ukiRomoGuardarPedidoOlvidadoQA(indice){
+ if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoOperacionesEnCursoQA())return;
+ const cierre=ukiCierreHistoricoPorIndice(indice);
+ if(!cierre?.turnoClave||cierre.suc!==ROMO_SUCURSAL_QA)
+  return aviso('No existe un cierre original único de Romo.');
+ const prefix='romoOlvidoCierre'+indice;
+ const val=k=>String($(prefix+k)?.value??'').trim();
+ const number=k=>{
+  const raw=val(k),n=Number(raw);
+  if(!raw||!Number.isSafeInteger(n)||n<0||n>100000000)
+   throw Error('Revisa el importe de '+k);
+  return n;
+ };
+ let opts;
+ try{
+  const modalidad=val('Modalidad');
+  opts={
+   turnoClave:cierre.turnoClave,fechaPedido:val('Fecha'),
+   codigoCarta:val('Carta'),cliente:val('Cliente'),
+   detalle:val('Detalle'),modalidad,
+   subtotal:number('Productos'),
+   envio:modalidad==='Delivery'?number('Envio'):0,
+   recibidoLocal:number('Local'),
+   deliveryCobradoLocal:modalidad==='Delivery'?number('DeliveryLocal'):0,
+   medioLocal:val('Medio'),localExterno:val('Externo'),
+   repartoRealizado:modalidad==='Delivery'&&$(prefix+'Repartido')?.checked===true,
+   pagoCompletoConfirmado:$(prefix+'Pagado')?.checked===true,
+   responsable:val('Responsable'),motivo:val('Motivo'),
+   registradoEn:Date.now()
+  };
+ }catch(e){aviso(String(e?.message||e));return;}
+ const sesion=window.ukiRomoSesionRemotaQA;
+ let antes;
+ try{
+  if(!sesion?.disponible?.())throw Error('Abre la sesión Google de Romo');
+  antes=sesion.estado();
+  if(antes?.conflicto||!Number.isSafeInteger(antes?.revision)||antes.revision<1)
+   throw Error('La revisión Neon no está confirmada');
+ }catch(e){aviso(String(e?.message||e));return;}
+ const firma=JSON.stringify(cierre),copia=datosSoloSucursal();
+ ukiRomoAclaracionGuardandoQA=true;
+ try{
+  const lib=await import('./uki-romo-pedido-olvidado-qa.mjs');
+  const preview=lib.prepararPedidoOlvidadoRomoQA(copia,opts);
+  if(preview.noEsVentaNueva!==true||preview.noAlteraCierreOriginal!==true||
+    preview.noMueveCaja!==true||!validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
+   throw Error('No se pudo proteger el cierre original de Romo');
+  const confirma='ROMO · Pedido olvidado del cierre '+cierre.fechaOperativa+
+   '\nPedido: '+opts.detalle+' · '+opts.modalidad+
+   '\nTotal: '+fmt(preview.total)+
+   '\nCobrado en Romo (a conciliar): '+fmt(preview.recibidoLocal)+
+   '\nCobrado en otro local: '+fmt(preview.recibidoOtroLocal)+
+   '\nDelivery por conciliar: '+fmt(preview.deliveryPendiente)+
+   '\nSolo registrarás una solicitud PENDIENTE; no se modificará el dinero ni se generará otra venta.'+
+   '\nResponsable: '+opts.responsable+'\nMotivo: '+opts.motivo+
+   '\n¿Guardar la solicitud pendiente?';
+  if(!window.confirm(confirma))return;
+  if(!sesion.disponible()||sesion.estado()?.conflicto||
+    sesion.estado()?.revision!==antes.revision||
+    JSON.stringify(ukiCierreHistoricoPorIndice(indice))!==firma)
+   throw Error('El cierre o la sesión cambiaron: recarga antes de guardar');
+  await ukiRomoGuardarOperacionQA(copia,
+   'Pedido olvidado: solicitud pendiente de conciliación, sin venta adicional',null,'caja');
+  cajaTab='historial';render();
+ }catch(e){
+  aviso('No se confirmó el pedido olvidado en Neon. Antes de repetir, revisa Historial: '+
+   String(e?.message||e));
+ }finally{ukiRomoAclaracionGuardandoQA=false;}
+}
+
 function ukiRomoVistaPropuestaRectificacionQA(c){
  if(c?.suc!==ROMO_SUCURSAL_QA)return '';
  const i=(S.cierres||[]).indexOf(c),turno=String(c.turnoClave||'');
@@ -7385,6 +7540,7 @@ function ukiRomoCajaHistorialHTMLQA(){
    row('Propinas aparte',valor('propinas'))+
    (compartir?'<p>'+compartir+'</p>':'')+
    ukiVRectificarCierre(x)+
+   ukiRomoPedidoOlvidadoHistorialHTMLQA(x)+
    ukiRomoVistaPropuestaRectificacionQA(x)+
    ukiRomoRevisionPostCierreHistorialQA(x)+
    '<p class="muted">La aclaración NO modifica dinero. Las rectificaciones de pedidos olvidados requieren conciliación.</p>'+
