@@ -362,6 +362,12 @@ body.romo-operativo-preparacion #app .uki-timbre-obligatorio{
  background:#fdf6f6!important;border-color:#b31830!important
 }
 body.romo-operativo-preparacion #app .uki-responsable-edicion{border-color:#bf8f9a!important}
+/* La modalidad de entrega siempre visible al recibir una solicitud Romo. */
+body.romo-operativo-preparacion #app .romo-modalidad-visible{
+ display:inline-block;max-width:100%;padding:7px 11px;margin:5px 0 7px;
+ border:1px solid #bc8995;border-radius:9px;background:#faf2f4;color:#8b142b;
+ font-size:14px;line-height:1.4
+}
 body.romo-operativo-preparacion #app .uki-urgentes-carta .card button.sm.ok{
  background:#ae1630!important;border-color:#ae1630!important
 }
@@ -5144,6 +5150,17 @@ setInterval(()=>{
     !window.ukiRomoSesionRemotaQA?.disponible())return;
  void ukiRomoActualizarSolicitudesCartaQA();
 },45000);
+// El tipo de entrega viene del texto original firmado por la carta Romo.
+// No asumir Retiro si falta la cabecera: eso podría ocultar un Delivery.
+function ukiRomoModalidadSolicitudQA(mensaje){
+ const t=String(mensaje||'').replace(/\r\n?/g,'\n');
+ const e=t.match(/(?:^|\n)\s*\*ENTREGA\*\s*\n\s*([^\n]*)/i);
+ const linea=String(e?.[1]||'').trim();
+ if(/^delivery\b/i.test(linea))return 'Delivery';
+ if(/^retiro\b/i.test(linea))return 'Retiro';
+ if(/^consumo\b/i.test(linea))return 'Consumo en local';
+ return 'Modalidad por confirmar';
+}
 function ukiRomoSolicitudesHTMLQA(){
  // Presentación de la ficha oficial de Uki. Solo datos aislados de Neon Romo.
  // Dibujar esta pantalla NO acepta, cobra, modifica caja ni genera timbres.
@@ -5170,6 +5187,7 @@ function ukiRomoSolicitudesHTMLQA(){
      '<div class="row"><b>Carta #'+esc(String(o.codigo_pedido||''))+'</b>'+
      '<strong>'+fmt(Number(o.total_indicado)||0)+'</strong></div>'+
      '<p>Cliente: '+esc(String(o.cliente||'Sin nombre'))+
+      ' · Modalidad: <b>'+esc(ukiRomoModalidadSolicitudQA(o.mensaje))+'</b>'+
       ' · Motivo: '+esc(String(o.motivo_rechazo||'No informado'))+'</p>'+
      '<details class="inner-details"><summary>Ver mensaje original del rechazo</summary>'+
      '<p style="white-space:pre-wrap;overflow-wrap:anywhere">'+
@@ -5180,6 +5198,7 @@ function ukiRomoSolicitudesHTMLQA(){
  if(!['todos','por-confirmar'].includes(ukiRomoFiltroPedidosQA))return '';
  if(!pending.length&&ukiRomoFiltroPedidosQA!=='por-confirmar')return '';
  const cards=visibles.map(o=>{
+  const modalidad=ukiRomoModalidadSolicitudQA(o.mensaje);
   const id=String(o.id||'');
   const codigo=String(o.codigo_pedido||'');
   const nombre=String(o.cliente||'Sin nombre');
@@ -5200,8 +5219,9 @@ function ukiRomoSolicitudesHTMLQA(){
     '<strong style="white-space:nowrap">'+fmt(Number(o.total_indicado)||0)+'</strong></div>'+
    '<p><b>Cliente:</b> '+esc(nombre)+' · <b>Código cliente:</b> '+esc(codigoCliente)+'</p>'+
    '<p><b>WhatsApp:</b> '+esc(telefono||'Número por confirmar')+'</p>'+
+   '<p class="romo-modalidad-visible"><b>Modalidad: '+esc(modalidad)+'</b></p>'+
    '<p class="muted"><b>Recibido:</b> '+esc(fecha)+
-    ' · Romo La Serena · Por confirmar</p>'+
+    ' · '+esc(modalidad)+' · Romo La Serena · Por confirmar</p>'+
    '<details class="inner-details"><summary>Ver productos y mensaje original</summary>'+
    '<p style="white-space:pre-wrap;overflow-wrap:anywhere">'+
     esc(detalle||'No llegó un texto de armado; revisa antes de aceptar.')+
