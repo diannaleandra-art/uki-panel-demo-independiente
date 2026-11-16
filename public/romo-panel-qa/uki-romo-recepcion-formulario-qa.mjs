@@ -106,15 +106,28 @@ export function verificarBorradorRomoAntesGuardarQA(d,{
   d.cartaSolicitudRemotaId===solicitudId,'Formulario no vinculado a esta solicitud');
  requireValid(confirmoArmado===true&&confirmoImportes===true,
   'Verifica armado e importes antes de guardar');
+ // Mismas validaciones de cantidades y pesos que en la revisión manual
+ // del panel; no aceptar datos inconsistentes desde un borrador reutilizado.
  const items=Array.isArray(d.items)?d.items.filter(x=>clean(x?.nombre,100)):[];
  requireValid(items.length>0&&items.length<=80,'Faltan productos');
- for(const p of items)requireValid(Number.isSafeInteger(Number(p.cant))&&Number(p.cant)>0&&
-  Number.isSafeInteger(Number(p.precio))&&Number(p.precio)>0,'Falta verificar precio o cantidad');
+ for(const p of items)requireValid(Number.isSafeInteger(Number(p.cant))&&
+  Number(p.cant)>=1&&Number(p.cant)<=100&&
+  Number.isSafeInteger(Number(p.precio))&&
+  Number(p.precio)>=1&&Number(p.precio)<=1000000&&
+  String(p.nombre||'').trim().length<=100&&
+  String(p.det||'').length<=900,'Cantidad, precio o armado inválido');
  requireValid(['Retiro','Delivery','Consumo en local'].includes(d.modalidad),'Entrega inválida');
- requireValid(!d.romoDeliveryPendienteQA||d.modalidad!=='Delivery'||
-  (Number.isSafeInteger(Number(d.envio))&&Number(d.envio)>0),'Confirma delivery');
- return {solicitudId,subtotal:items.reduce((n,p)=>n+Number(p.cant)*Number(p.precio),0),
-  envio:d.modalidad==='Delivery'?Number(d.envio):0,pagado:!!d.pagado};
+ requireValid(d.pagado!==true&&!d.mixtoProductos&&!d.mixtoEnvio&&
+  !d.productosPagadosOtroLocal&&!d.envioPagadoOtroLocal&&
+  (d.propinaModo||'ninguna')==='ninguna',
+  'Primero registrar la solicitud pendiente, sin cobrar ni generar propina');
+ const envio=d.modalidad==='Delivery'?Number(d.envio):0;
+ requireValid(Number.isSafeInteger(envio)&&envio>=0&&envio<=4000&&
+  (d.modalidad!=='Delivery'||envio>0),'Confirma el delivery de Romo');
+ const subtotal=items.reduce((n,p)=>n+Number(p.cant)*Number(p.precio),0);
+ requireValid(Number.isSafeInteger(subtotal)&&subtotal>0&&subtotal+envio<=3000000,
+  'Los productos y el delivery no cuadran');
+ return {solicitudId,subtotal,envio,pagado:false};
 }
 export function crearBandejaRomoMismoPanelQA({
  endpoint=ENDPOINT,habilitada=ROMO_PANEL_RECEPCION_HABILITADA_QA,
