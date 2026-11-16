@@ -7,6 +7,7 @@
 const SUC='Romo’s Sushi La Serena';
 const MODES=new Set(['Retiro','Delivery','Consumo en local']);
 const PAYMENTS=new Set(['Efectivo','Transferencia','Débito','Edenred','Otros','Uber Eats','PedidosYa','Rappi']);
+const DELIVERY_PAYMENTS=new Set(['Efectivo','Transferencia','Débito','Edenred','Otros']);
 const BAD=/^Pedido WhatsApp \(revisar detalle\)$/i;
 const CLIENTE_MAX=80;
 const int=x=>Number.isSafeInteger(x);
@@ -63,8 +64,10 @@ export function prepararEdicionPendienteRomoQA({
    !BAD.test(cliente)&&!BAD.test(String(draft.texto||'')),
    'Revisa el cliente y conserva el código original del pedido');
  required(MODES.has(draft.modalidad)&&PAYMENTS.has(draft.medio)&&
-   PAYMENTS.has(draft.medioEnvio||'Efectivo'),
-   'Modalidad o medio de pago no permitido');
+   DELIVERY_PAYMENTS.has(draft.medioEnvio||'Efectivo'),
+   'Modalidad o medio de pago no permitido; las apps no pagan delivery');
+ required(String(draft.mesaReferencia||'').trim().length<=100,
+   'La referencia de mesa es demasiado larga');
  const mesa=draft.modalidad==='Consumo en local'
   ?text(draft.mesaReferencia,100):'';
  const envio=draft.modalidad==='Delivery'?Number(draft.envio):0;
