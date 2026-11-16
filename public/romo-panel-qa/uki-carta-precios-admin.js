@@ -95,7 +95,11 @@ const pricesPanel=[
  '<p class="mini-help">Los faltantes no marcan productos como Agotados. La disponibilidad se cambia manualmente.</p>',
  '</div>'
 ].join('');
-window.ukiInventarioPanelHTML=()=>nav+prevPanel()+pricesPanel;
+window.ukiInventarioPanelHTML=()=>{
+ const esRomo=typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena';
+ return (esRomo?nav.replace('Administrar Uki Sushi','Administrar Romo Sushi'):nav)
+  +prevPanel()+pricesPanel;
+};
 function branch(){const active=$('invBranch')?.value||'';return ['arica','serena'].includes(active)?active:'';}
 function info(id,message){const el=$(id);if(el)el.textContent=message;}
 async function request(api,action,fields={},atBranch=state.branch){
@@ -114,7 +118,8 @@ async function request(api,action,fields={},atBranch=state.branch){
 function showTab(){
  const selected=menu.find(([id])=>id===state.tab)||menu[2];
  state.tab=selected[0];
- info('ukiInvSucursalActiva','Sucursal actual: '+(branch()==='serena'?'Uki La Serena':'Uki Regimiento Arica')+'. Para cambiar de local, utiliza «Salir».');
+ const esRomo=typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena';
+ info('ukiInvSucursalActiva','Sucursal actual: '+(esRomo?'Romo’s Sushi La Serena':branch()==='serena'?'Uki La Serena':'Uki Regimiento Arica')+'. Para cambiar de local, utiliza «Salir».');
  info('ukiAdminCurrentTitle',selected[1]);
  info('ukiAdminCurrentDescription',selected[2]);
  for(const [id,label] of menu){
@@ -149,7 +154,14 @@ function showTab(){
   // El historial nace oculto; restaurar su visibilidad al elegir reportes.
   if(id==='ukiHistorial')element.hidden=!visible;
  }
- if(state.tab==='precios'&&!state.ready)void loadPrices();
+ if(state.tab==='precios'&&esRomo){
+  const container=$('ukiPreciosPanel');
+  if(container){
+   if(typeof window.romoMontarCartaEditorSeguroQA==='function')
+    window.romoMontarCartaEditorSeguroQA({container,storeId:'romo:serena'});
+   else container.textContent='Carta y precios Romo: editor no habilitado todavía. Ningún dato se modificó.';
+  }
+ }else if(state.tab==='precios'&&!state.ready)void loadPrices();
  if(state.tab==='reportes')void loadReponer();
 }
 // Fotos optimizadas: el mismo menú de Uki, sin servicios adicionales.
