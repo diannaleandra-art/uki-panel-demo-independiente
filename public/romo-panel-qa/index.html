@@ -6992,6 +6992,39 @@ async function ukiRomoCompartirCierreQA(turnoId){
   window.alert('No se preparó el resumen. Revisa cierres y Neon: '+String(error?.message||error));
  }
 }
+/**
+ * Misma distinción de Uki: las aclaraciones NO son rectificaciones de
+ * dinero. Solo consulta de anotaciones históricas ya guardadas de Romo.
+ * Jamás recalcula el cierre, ni crea ventas, ni sincroniza Mi Administración.
+ */
+function ukiRomoRevisionPostCierreHistorialQA(c){
+ if(c?.suc!==ROMO_SUCURSAL_QA)return '';
+ const turno=String(c.turnoClave||''),fecha=String(c.fechaOperativa||'');
+ const cierreMs=Number(c.fechaMs);
+ const anotaciones=(Array.isArray(S.ajustesHistoricos)?S.ajustesHistoricos:[])
+  .filter(a=>a?.suc===ROMO_SUCURSAL_QA&&
+    (String(a.turnoClave||'')===turno||
+     Number.isSafeInteger(cierreMs)&&cierreMs>0&&Number(a.cierreMs)===cierreMs&&
+      String(a.fechaOperativa||'')===fecha));
+ const cambios=anotaciones.filter(a=>
+  a.tipo==='pedido_corregido'||a.tipo==='pedido_olvidado');
+ if(!cambios.length&&!c.rectificacion)return '';
+ const seguros=cambios.map(a=>
+  '<p class="muted"><b>'+esc(a.tipo==='pedido_olvidado'?
+   'Pedido olvidado':'Pedido corregido')+'</b>'+
+   ' · '+esc(a.fechaISO||'Sin fecha de ajuste')+
+   (a.pedidoId?' · Pedido #'+esc(a.pedidoId):'')+
+   (a.responsable?' · '+esc(a.responsable):'')+
+   (a.motivo||a.nota?' · '+esc(a.motivo||a.nota):'')+
+   '</p>').join('');
+ return '<details class="inner-details"><summary>📝 Revisar ajustes monetarios posteriores al cierre'+
+  ' · '+(cambios.length||1)+'</summary>'+
+  '<p class="muted">Consulta histórica. El cierre original, su PDF, la caja acumulada y las ventas importadas NO se han recalculado. Estas referencias requieren conciliación financiera antes de generar otra versión de cierre o incorporarse a Mi Administración.</p>'+
+  seguros+
+  (c.rectificacion?'<p class="muted">Existe una referencia a cierre rectificado: comprobar versión, importes y constancia Neon antes de usarla en reportes.</p>':'')+
+  '</details>';
+}
+
 function ukiRomoCajaHistorialHTMLQA(){
  // Misma navegación histórica de Uki, solo cierres cifrados de Romo.
  const todos=(S.cierres||[]).filter(x=>x?.suc===ROMO_SUCURSAL_QA);
@@ -7051,6 +7084,7 @@ function ukiRomoCajaHistorialHTMLQA(){
    row('Propinas aparte',valor('propinas'))+
    (compartir?'<p>'+compartir+'</p>':'')+
    ukiVRectificarCierre(x)+
+   ukiRomoRevisionPostCierreHistorialQA(x)+
    '<p class="muted">La aclaración NO modifica dinero. Las rectificaciones de pedidos olvidados requieren conciliación.</p>'+
    '</details>';
  }).join('');
