@@ -62,27 +62,8 @@ module.exports=async function romoCartaCambiosPublicosQA(req,res){
     if(!Array.isArray(rows)||rows.length>1)throw Error('Estado de ediciones no confirmado');
     const lib=await import('../lib/romo-carta-ediciones-seguras-qa.mjs');
     const vista=lib.vistaEdicionesRomoQA(base,rows[0]||null);
-    const byBase=new Map(base.products.map(p=>[p.sku,p]));
-    const changes=[];
-    for(const actual of vista.products){
-      const previo=byBase.get(actual.sku);
-      if(!previo)throw Error('Producto inesperado en cambios Romo');
-      const edit={sku:actual.sku,kind:actual.kind,
-        id:actual.sourceId,basePrice:previo.price,baseName:previo.name};
-      let changed=false;
-      for(const key of ['price','available','name','description','categoriaSlug']){
-        if(actual[key]!==previo[key]){
-          edit[key]=actual[key];changed=true;
-        }
-      }
-      if(changed)changes.push(edit);
-    }
-    return res.status(200).json({
-      ok:true,storeId:STORE,readOnly:true,revision:vista.revision,
-      baseSha256:vista.baseSha256,baseCount:base.products.length,
-      changes,
-      status:'qa_solo_lectura_no_habilita_pedidos'
-    });
+    const feed=await import('../lib/romo-carta-feed-cotizacion-qa.mjs');
+    return res.status(200).json(feed.construirFeedRomoQA(base,vista));
   }catch(e){
     console.error('Cambios públicos Romo no confirmados',String(e?.message||e));
     return fail(res,503,'No es posible confirmar los precios de Romo');
