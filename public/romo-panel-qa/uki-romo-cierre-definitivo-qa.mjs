@@ -236,6 +236,24 @@ export function prepararCierreDefinitivoRomoQA(estado,{
  }
  const totalMedios=Object.values(medios).reduce((a,b)=>a+b,0);
  const sum=(rows)=>rows.reduce((a,x)=>a+INT(x.monto,'movimiento'),0);
+ const rectificacionesPostCierre=t.rectificacionesPostCierre||
+  {neto:0,efectivo:0,movimientos:0,porMedio:{}};
+ // El dinero de otro cierre NO es venta de este turno. El recibo v2
+ // se guarda atómicamente antes en Neon; aquí afecta solo al efectivo y
+ // resultado real de Caja, con desglose aparte en el comprobante.
+ CHECK(Number.isSafeInteger(rectificacionesPostCierre.neto)&&
+  Number.isSafeInteger(rectificacionesPostCierre.efectivo),
+  'Las rectificaciones confirmadas no coinciden con la Caja');
+ const rectificacionesDetalle=(estado.ajustesHistoricos||[]).filter(a=>
+  a?.suc===SUC&&a.tipo==='rectificacion_monetaria_confirmada'&&
+  a.turnoMovimiento===turnoId).map(a=>({
+   fuenteOriginal:a.fuenteOriginal,
+   fuenteRectificacion:a.fuenteRectificacion,
+   pedidoId:a.pedidoId,medio:a.medio,delta:a.delta,
+   version:2,confirmadoEn:a.confirmadoEn
+  }));
+ CHECK(rectificacionesDetalle.length===rectificacionesPostCierre.movimientos,
+  'El historial de ajustes del turno no coincide');
  const gastos=sum(corte.gastos),gastosEf=sum(corte.gastos.filter(x=>x.medio==='Efectivo'));
  const retiros=sum(corte.retiros);
  const propinas=sum(corte.propinas);
@@ -251,7 +269,8 @@ export function prepararCierreDefinitivoRomoQA(estado,{
  const pagoDelivery=pagoDeliveryDia+pagoDeliveryAnterior;
  const pagoEfectivo=(medioDia==='Efectivo'?pagoDeliveryDia:0)+
   (medioAnterior==='Efectivo'?pagoDeliveryAnterior:0);
- const efectivoEsperado=medios.Efectivo-gastosEf-retiros-pagoEfectivo;
+ const efectivoEsperado=medios.Efectivo+rectificacionesPostCierre.efectivo-
+  gastosEf-retiros-pagoEfectivo;
  const contado=INT(efectivoContado,'efectivo contado');
  const diferencia=contado-efectivoEsperado;
  CHECK(diferencia===0||aceptarDiferencia===true,
@@ -283,6 +302,9 @@ export function prepararCierreDefinitivoRomoQA(estado,{
   gastos:corte.gastos.map(x=>({...x})),retiros:corte.retiros.map(x=>({...x})),
   propinas:corte.propinas.map(x=>({...x})),
   deliveriesManuales:corte.deliveriesManuales.map(x=>({...x})),
+  rectificacionesPostCierre:rectificacionesDetalle,
+  rectificacionesPostCierreNeto:rectificacionesPostCierre.neto,
+  rectificacionesPostCierreEfectivo:rectificacionesPostCierre.efectivo,
   pagoRepartidor:{dia:pagoDeliveryDia,anterior:pagoDeliveryAnterior,
    medioDia,medioAnterior}
  };
@@ -296,7 +318,10 @@ export function prepararCierreDefinitivoRomoQA(estado,{
   saldoDiferenciasPendientesAlCerrar:0,
   ventaCorregida:totalMedios,venta:totalMedios,
   ventaSinDelivery:totalMedios-t.deliveryCobradoRomo,
-  gastos,delivery:pagoDelivery,final:totalMedios-gastos-pagoDelivery,
+  rectificacionesPostCierre:rectificacionesPostCierre.neto,
+  rectificacionesPostCierreEfectivo:rectificacionesPostCierre.efectivo,
+  gastos,delivery:pagoDelivery,
+  final:totalMedios-gastos-pagoDelivery+rectificacionesPostCierre.neto,
   efectivo:efectivoEsperado,propinas,
   pedidos:t.pedidosRegistrados-t.pedidosCancelados,
   efectivoCobrado:medios.Efectivo,gastosEf,retiros,
