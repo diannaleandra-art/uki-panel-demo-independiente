@@ -108,3 +108,18 @@ Se confirmó desde el código que `public/romo-panel-qa/uki-inventario-admin-emb
 - **No se aplicaron cambios en Neon, pedidos, inventarios ni producción de ninguno de los dos locales.** Es código preparado en GitHub, sin prueba manual todavía. El módulo de reporte no debe anunciarse como certificado hasta abrir Romo en el panel, actualizar inventario y revisar el cálculo con el teléfono.
 
 Resto pendiente: carta completa CRUD, fotos, ingredientes/promociones, roles y operaciones de caja/cierre con fidelidad Uki, pruebas manuales, y publicación conjunta sobre los proyectos Romo propios.
+
+
+## Cotejo completo de cocina y pedido antes de WhatsApp
+16-11-2026 — avance guardado SIN despliegue ni operaciones de prueba.
+
+- `replica-uki/carta/public/candidata/model.mjs` exporta `renderCocinaRomoQA` reutilizando la función de redacción original para cocina. **Sin alterar el precio o el diseño aprobado**.
+- `replica-uki/carta/api/romo-cotizacion-servidor-qa.js`: el cotizador privado genera la comanda desde cada producto estructurado, sus rolls, ingredientes, cantidades, topping y extra; luego sustituye **solo el importe por línea** por el cálculo efectivo de revisión auditada. Adapta nombres de productos compatibles, preservando el armado. Devuelve `cocinaLineas` de servidor junto al desglose monetario.
+- `lib/romo-cotizacion-servidor-qa.mjs`: comprueba que existe una línea de cocina por producto, con límites de tamaño, antes de aceptar la cotización; admite la respuesta de combos extensos dentro del tamaño autorizado.
+- `lib/romo-solicitudes-carta-qa.mjs`: antes de INSERT se contrasta la sección exacta `*COCINA*` del mensaje del cliente con la redacción canónica del cotizador. Solo se permiten observaciones al final; se valida además el tipo de entrega, la URL del punto de reparto si es delivery, el medio de pago y los importes por línea/subtotal/total. Si hay diferencias, el pedido **no se registra como pendiente**.
+- `replica-uki/carta/public/candidata/app.js`: elimina el `href` de WhatsApp anticipado en el resumen (ahora `#`). El botón solo navega a WhatsApp después de registrar la solicitud `pendiente` en Neon Romo. Se evita el acceso mediante menú contextual al mensaje de WhatsApp antes de esa confirmación.
+- `api/romo-solicitudes-carta-qa.js`: el estado de recepción pública `enabled:true` exige también que el cotizador servidor-servidor esté configurado (origen HTTPS de Romo y secreto), además de las banderas de aceptación y revisión de catálogo.
+
+**Conservación:** `uki-panel-demo-independiente/main` y los locales oficiales Uki no se han modificado. Sin pedidos, precios, caja, timbres, compras, pagos o cierres grabados en este bloque. Las modificaciones solo están en las ramas preparatorias Romo.
+
+**Falta antes de habilitar pedidos reales:** revisar la carga de las 40 entradas, el arranque protegido, la inicialización expresa de catálogo por dueños, las credenciales/roles/orígenes de proyectos Romo independientes y efectuar las pruebas comerciales **manuales** de cada familia de productos y entrega en el iPhone. No publicar únicamente este parche: se mantiene el lanzamiento conjunto.
