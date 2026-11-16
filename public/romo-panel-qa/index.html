@@ -7079,6 +7079,25 @@ function ukiRomoPedidoOlvidadoHistorialHTMLQA(c){
  const olvidos=(S.ajustesHistoricos||[]).filter(a=>
   a?.suc===ROMO_SUCURSAL_QA&&
   a.tipo==='pedido_olvidado_romo_pendiente'&&a.turnoClave===turno);
+ const confirmados=(S.ajustesHistoricos||[]).filter(a=>
+  a?.suc===ROMO_SUCURSAL_QA&&
+  a.tipo==='pedido_olvidado_romo_confirmado'&&a.turnoClave===turno)
+  .sort((a,b)=>a.versionConfirmada-b.versionConfirmada);
+ const historialConfirmado=!confirmados.length?'':('<details class="inner-details">'+
+  '<summary>📄 Cierres rectificados por pedidos olvidados · '+
+  confirmados.length+' versión(es)</summary>'+
+  '<p class="muted">Se conserva el cierre original y sus importes físicos. Los cobros históricos NO son ingresos del turno actual. Cada versión está enlazada a la anterior en Neon y el reparto sigue pendiente de conciliar por separado.</p>'+
+  row('Venta del cierre original',fmt(Number(c.venta)||0))+
+  confirmados.map(x=>'<div class="card" style="padding:10px">'+
+   '<b>Versión v'+esc(x.versionConfirmada)+' · Solicitud #'+esc(x.id)+'</b>'+
+   row('Venta histórica anterior',fmt(x.ventaAnterior))+
+   row('Cobrado históricamente en Romo',fmt(x.recibidoLocal))+
+   row('Cobrado por otro local',fmt(x.recibidoOtroLocal))+
+   row('Venta histórica rectificada en Romo',fmt(x.ventaRectificada))+
+   row('Delivery del repartidor todavía a conciliar',
+    fmt(x.repartoRealizado?x.envio:0))+
+   '<p><button type="button" class="sm ok" onclick="ukiRomoVerConstanciaOlvidoQA('+Number(x.id)+')">Consultar constancia v'+esc(x.versionConfirmada)+' / PDF</button></p>'+
+   '</div>').join('')+'</details>');
  const ajusteMonetario=(S.ajustesHistoricos||[]).some(a=>
   a?.suc===ROMO_SUCURSAL_QA&&a.turnoClave===turno&&
   ['rectificacion_monetaria_pendiente','rectificacion_monetaria_confirmada'].includes(a.tipo));
@@ -7088,7 +7107,7 @@ function ukiRomoPedidoOlvidadoHistorialHTMLQA(c){
   const local=olvidos.reduce((n,a)=>n+(Number(a.recibidoLocal)||0),0);
   const externo=olvidos.reduce((n,a)=>n+(Number(a.recibidoOtroLocal)||0),0);
   const reparto=olvidos.reduce((n,a)=>n+(a.repartoRealizado?(Number(a.envio)||0):0),0);
-  return '<details class="inner-details"><summary>📝 Pedido olvidado del cierre · pendiente de conciliación</summary>'+
+  return historialConfirmado+'<details class="inner-details"><summary>📝 Pedido olvidado del cierre · pendiente de conciliación</summary>'+
    '<p class="muted">Adaptado del Historial oficial de Uki. El cierre original, efectivo contado, PDF y dinero del turno actual siguen INTACTOS. Esto es una solicitud pendiente, NO una venta o cierre nuevo.</p>'+
    row('Pedidos olvidados pendientes',olvidos.length)+
    row('Valor total declarado',fmt(total))+
@@ -7110,11 +7129,12 @@ function ukiRomoPedidoOlvidadoHistorialHTMLQA(c){
     row('Delivery cobrado en otro local',fmt(a.deliveryCobradoOtroLocal))+
     '<p class="muted">Registrado por '+esc(a.responsable||'Sin responsable')+
     ' · Motivo: '+esc(a.motivo||'Sin motivo')+'</p>'+
+    '<p><button type="button" class="sm ok" onclick="ukiRomoConfirmarOlvidoQA('+Number(a.id)+')">Conciliar pago histórico y emitir constancia v'+esc(a.versionPropuesta)+'</button></p>'+
     '</div>').join('')+
    '<p class="muted">Para contabilizar o reenviar un cierre rectificado falta confirmar el dinero y emitir su constancia versionada. No se paga al repartidor automáticamente.</p>'+
    '</details>';
  }
- if(ajusteMonetario)return '<p class="muted">Este cierre tiene una rectificación monetaria pendiente o confirmada. Revísala antes de agregar un pedido olvidado.</p>';
+ if(ajusteMonetario)return historialConfirmado+'<p class="muted">Este cierre tiene una rectificación monetaria pendiente o confirmada. Revísala antes de agregar un pedido olvidado.</p>';
  const prefix='romoOlvidoCierre'+indice;
  const field=(id,label,type='text',placeholder='')=>
   '<label for="'+prefix+id+'">'+label+'</label><input id="'+prefix+id+
@@ -7123,7 +7143,7 @@ function ukiRomoPedidoOlvidadoHistorialHTMLQA(c){
  const med=ROMO_MEDIOS_DELIVERY_QA.map(m=>'<option value="'+esc(m)+'">'+
   esc(m)+'</option>').join('');
  const fecha=String(c.fechaOperativa||'');
- return '<details class="inner-details"><summary>➕ Agregar pedido olvidado de un turno cerrado</summary>'+
+ return historialConfirmado+'<details class="inner-details"><summary>➕ Agregar pedido olvidado de un turno cerrado</summary>'+
   '<p class="muted">El mismo procedimiento de Uki, con registro protegido en Romo. No reabre Caja ni suma otra venta; primero queda pendiente de conciliación.</p>'+
   '<p class="muted"><b>Turno original:</b> '+esc(turno)+'</p>'+
   '<label>Fecha y hora original del pedido</label>'+
@@ -7151,6 +7171,179 @@ function ukiRomoPedidoOlvidadoHistorialHTMLQA(c){
   '<p class="muted">No agrega un pedido al turno actual ni altera el cierre o el pago del repartidor. La venta del cierre rectificado solo se confirma con una conciliación posterior.</p>'+
   '<button type="button" class="sm ok" onclick="ukiRomoGuardarPedidoOlvidadoQA('+indice+
   ')">Guardar solicitud pendiente (NO contabilizar)</button></details>';
+}
+
+
+/**
+ * El pago del pedido omitido YA existía al cierre anterior.
+ * No abrir caja, no crear otro pedido, no sumar ingresos al turno actual.
+ * Confirmar exige recibo versionado y estado cifrado, ambos en el mismo SQL.
+ */
+async function ukiRomoConfirmarOlvidoQA(solicitudId){
+ if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoOperacionesEnCursoQA())return;
+ const a=(S.ajustesHistoricos||[]).find(x=>x?.suc===ROMO_SUCURSAL_QA&&
+  x.id===Number(solicitudId)&&x.tipo==='pedido_olvidado_romo_pendiente'&&
+  x.estado==='pendiente_conciliacion');
+ if(!a)return aviso('Esta solicitud ya no está pendiente. Consulta Historial de Romo.');
+ const sesion=window.ukiRomoSesionRemotaQA;
+ let revision;
+ try{
+  if(!sesion?.disponible?.())throw Error('Sesión Google de dueños no disponible');
+  revision=sesion.estado();
+  if(revision?.conflicto||!Number.isSafeInteger(revision?.revision)||
+   revision.revision<1)throw Error('La revisión cifrada de Neon no es válida');
+ }catch(e){aviso(String(e?.message||e));return;}
+ const responsable=String(window.prompt(
+  'Dueño/a que autoriza la conciliación del pedido olvidado:', '')||'').trim();
+ if(responsable.length<2||responsable.length>80)
+  return aviso('Responsable dueño obligatorio.');
+ const motivoConfirmacion=String(window.prompt(
+  'Motivo y comprobaciones del pago que ya se recibió en el cierre anterior:', '')||'').trim();
+ if(motivoConfirmacion.length<4||motivoConfirmacion.length>300)
+  return aviso('Indica el motivo de conciliación del pago histórico.');
+ const referenciaPagoLocal=Number(a.recibidoLocal)>0?
+  String(window.prompt('Referencia del pago YA recibido en Romo (sin datos personales):','')||'').trim():'';
+ if(Number(a.recibidoLocal)>0&&
+  (referenciaPagoLocal.length<4||referenciaPagoLocal.length>150))
+  return aviso('Verifica el comprobante del dinero realmente recibido en Romo.');
+ const referenciaPagoExterno=Number(a.recibidoOtroLocal)>0?
+  String(window.prompt('Confirmación del dinero YA recibido en el otro local (referencia o comprobante):','')||'').trim():'';
+ if(Number(a.recibidoOtroLocal)>0&&
+  (referenciaPagoExterno.length<4||referenciaPagoExterno.length>150))
+  return aviso('Confirma la recepción del pago en el otro local.');
+ if(!window.confirm('ROMO · Cierre '+a.fechaOperativa+
+  '\nPedido olvidado #'+a.id+' · versión v'+a.versionPropuesta+
+  '\nTotal histórico: '+fmt(a.total)+
+  '\nCobrado ANTES en Romo: '+fmt(a.recibidoLocal)+
+  '\nCobrado ANTES en otro local: '+fmt(a.recibidoOtroLocal)+
+  '\nDelivery por conciliar: '+fmt(a.repartoRealizado?a.envio:0)+
+  '\nEl pago DEBE haberse verificado en comprobantes anteriores.'+
+  '\nEste paso NO recibe ni devuelve dinero, NO añade venta al turno actual y NO paga al repartidor.'+
+  '\nConservará el cierre original y emitirá una constancia histórica nueva.'+
+  '\n¿Autorizas el guardado único en Neon?'))return;
+ const firma=JSON.stringify(a),cierre=(S.cierres||[]).find(c=>
+  c.suc===ROMO_SUCURSAL_QA&&c.turnoClave===a.turnoClave);
+ const firmaCierre=JSON.stringify(cierre),copia=datosSoloSucursal();
+ ukiRomoAclaracionGuardandoQA=true;
+ try{
+  const mod=await import('./uki-romo-confirmar-olvido-qa.mjs');
+  const plan=mod.prepararConfirmacionOlvidoRomoQA(copia,{
+   solicitudId:Number(solicitudId),responsable,motivoConfirmacion,
+   referenciaPagoLocal,referenciaPagoExterno,
+   pagoHistoricoVerificado:true,autorizaDuenos:true,registradoEn:Date.now()
+  });
+  if(plan.sinMovimientoNuevo!==true||plan.sinVentaTurnoActual!==true||
+    plan.noModificaOriginal!==true||!validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
+   throw Error('El ajuste modificaría el cierre original o Caja');
+  if(!sesion.disponible()||sesion.estado()?.conflicto||
+   sesion.estado()?.revision!==revision.revision||
+   JSON.stringify((S.ajustesHistoricos||[]).find(x=>x.id===Number(solicitudId)))!==firma||
+   JSON.stringify((S.cierres||[]).find(c=>c.turnoClave===a.turnoClave))!==firmaCierre)
+   throw Error('El cierre o el pedido olvidado cambiaron antes de confirmar');
+  const paquete=await sesion.prepararSobreAceptacion(copia);
+  if(paquete.revision!==revision.revision)
+   throw Error('La revisión cambió durante el cifrado');
+  const token=await window.ukiInventarioToken?.();
+  if(typeof token!=='string'||token.length<30)
+   throw Error('No se obtuvo sesión Google autorizada de dueños');
+  const response=await fetch('/api/romo-pedidos-olvidados-qa',{
+   method:'POST',cache:'no-store',credentials:'omit',
+   headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+   body:JSON.stringify({action:'confirmar',
+    expectedRevision:paquete.revision,snapshot:paquete.snapshot,
+    resumen:plan.resumen}),
+   signal:AbortSignal.timeout(20000)
+  });
+  const result=await response.json().catch(()=>null);
+  if(!response.ok||result?.ok!==true||
+    result.confirmado!==true||result.storeId!=='romo:serena'||
+    result.fuenteVersion!==plan.fuenteRectificacion||
+    result.version!==plan.version||result.solicitudId!==plan.solicitudId||
+    result.revision!==revision.revision+1)
+   throw Error(result?.error||'No se confirmó una constancia inmutable en Neon');
+  sesion.confirmarSobreAceptado({estado:copia,revision:result.revision});
+  S={...S,...copia,suc:ROMO_SUCURSAL_QA,pinSuc:null,vista:'caja',
+   msg:'Pedido olvidado confirmado como versión '+result.version+
+    ' del cierre original · Neon revisión '+result.revision};
+  cajaTab='historial';render();
+ }catch(e){
+  aviso('Resultado NO confirmado localmente. Reabre Romo y consulta la constancia en Neon ANTES de reintentar: '+
+   String(e?.message||e));
+ }finally{ukiRomoAclaracionGuardandoQA=false;}
+}
+
+/** Imprimir/Guardar PDF solo con el recibo real y la cadena verificable. */
+async function ukiRomoVerConstanciaOlvidoQA(solicitudId){
+ if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoOperacionesEnCursoQA())return;
+ const a=(S.ajustesHistoricos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&
+  x.id===Number(solicitudId)&&x.tipo==='pedido_olvidado_romo_confirmado'&&
+  x.reciboVerificadoEnNeon===true);
+ if(!a)return aviso('El pedido aún no tiene constancia versionada confirmada.');
+ const win=window.open('','_blank');
+ if(!win)return aviso('Permite la ventana de PDF de Safari y vuelve a pulsar.');
+ try{
+  win.opener=null;
+  const token=await window.ukiInventarioToken?.();
+  if(typeof token!=='string'||token.length<30)
+   throw Error('Abre sesión Google de dueños');
+  const response=await fetch('/api/romo-pedidos-olvidados-qa',{
+   method:'POST',cache:'no-store',credentials:'omit',
+   headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+   body:JSON.stringify({action:'consultar',fuenteOriginal:a.fuenteOriginal,
+    version:a.versionConfirmada}),
+   signal:AbortSignal.timeout(15000)
+  });
+  const data=await response.json().catch(()=>null);
+  const r=data?.recibo;
+  if(!response.ok||data?.ok!==true||data.encontrado!==true||
+   data.fuenteVersion!==a.fuenteRectificacion||
+   data.version!==a.versionConfirmada||
+   r?.solicitud_id!==a.id||r.recibido_local!==a.recibidoLocal||
+   r.recibido_otro_local!==a.recibidoOtroLocal)
+   throw Error(data?.error||'El comprobante no coincide con el Historial');
+  const campo=(k,v)=>'<tr><th>'+esc(k)+'</th><td>'+esc(String(v))+'</td></tr>';
+  const documento=[
+   ['Sucursal','Romo Sushi La Serena'],
+   ['Cierre original',r.fuente_original],
+   ['Versión anterior',r.fuente_previa],
+   ['Cierre rectificado',r.fuente_unica],
+   ['Versión',r.version],['Pedido omitido / folio interno',r.solicitud_id],
+   ['Fecha original del pedido',r.fecha_pedido],
+   ['Modalidad',r.modalidad],['Productos',fmt(r.productos)],
+   ['Delivery',fmt(r.delivery)],['Valor del pedido',fmt(r.total)],
+   ['Cobrado históricamente en Romo',fmt(r.recibido_local)],
+   ['Medio local',r.medio_local||'No cobrado aquí'],
+   ['Cobrado en otro local',fmt(r.recibido_otro_local)],
+   ['Otro local',r.local_externo||'Ninguno'],
+   ['Repartidor por conciliar',fmt(r.delivery_repartidor_por_conciliar)],
+   ['Venta del cierre original',fmt(r.venta_original)],
+   ['Venta de la versión anterior',fmt(r.venta_previa)],
+   ['Venta histórica rectificada',fmt(r.venta_rectificada)],
+   ['Responsable',r.responsable],['Motivo',r.motivo],
+   ['Comprobante Romo',r.referencia_local||'No corresponde'],
+   ['Comprobante externo',r.referencia_externa||'No corresponde']
+  ].map(([k,v])=>campo(k,v)).join('');
+  const anteriores=Array.isArray(data.versiones)?
+    data.versiones.map(v=>campo('v'+v.version+' · venta histórica',
+      fmt(v.ventaRectificada))).join(''):'';
+  win.document.open();
+  win.document.write('<!doctype html><html lang="es"><head>'+
+   '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
+   '<title>Romo · Pedido olvidado v'+esc(r.version)+'</title>'+
+   '<style>body{font:14px system-ui;padding:20px;color:#222;max-width:820px;margin:auto}'+
+   'table{width:100%;border-collapse:collapse}th,td{padding:8px;border-bottom:1px solid #ccc;text-align:left}'+
+   'th{width:44%}button{padding:12px}@media print{button{display:none}}</style></head><body>'+
+   '<button onclick="window.print()">Imprimir / Guardar PDF</button>'+
+   '<h1>ROMO SUSHI · Cierre histórico rectificado</h1>'+
+   '<p>Pedido olvidado incorporado solo al informe histórico. El cierre físico original y sus comprobantes se mantienen íntegros. No se registra nuevamente dinero ni pago al repartidor.</p>'+
+   '<table>'+documento+anteriores+'</table>'+
+   '<p>Constancia de Neon Romo verificada. La importación a Mi Administración permanece separada y pendiente de autorización.</p>'+
+   '</body></html>');
+  win.document.close();
+ }catch(e){
+  if(win&&!win.closed)win.close();
+  aviso('No se verificó el PDF del pedido olvidado en Neon: '+String(e?.message||e));
+ }
 }
 
 async function ukiRomoGuardarPedidoOlvidadoQA(indice){
