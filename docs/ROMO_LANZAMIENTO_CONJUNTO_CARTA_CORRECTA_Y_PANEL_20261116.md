@@ -29,3 +29,26 @@ Fecha: 2026-11-16. No publicado.
 - Trabajar por bloques y reunirlos en commits sin despliegues intermedios. Una sola publicación conjunta después de completar y validar los bloques.
 
 Estado: IMPLEMENTACIÓN PARCIAL, NO LISTA PARA VENTAS A CLIENTES.
+
+## Verificación directa de ambos catálogos — 16-11-2026
+Consultas de solo lectura a Neon proyecto `romos-sushi-la-serena` (BD `romos_sushi`) y Supabase proyecto `romos-sushi` (tabla `public.romos_products`). Sin modificaciones de datos ni publicaciones.
+
+| Promoción | Carta aprobada, `candidata/model.mjs` y Neon Romo | Supabase antiguo |
+| --- | ---: | ---: |
+| 24 piezas | $8.000 | $7.500 |
+| 36 piezas | $12.000 | $11.500 |
+| 48 piezas | $16.000 | $14.500 |
+| 60 piezas | $19.000 | $17.500 |
+| 72 piezas | $21.000 | $19.500 |
+| 84 piezas | $24.000 | $22.500 |
+| 96 piezas | $26.000 | $24.500 |
+
+- Neon `romo_catalogo_v1`: revisión 1; 7 productos, 2 categorías, 40 ingredientes y 3 promociones. Es el registro actual del panel, no el catálogo completo.
+- Supabase `public.romos_products`: 12 registros, 7 promociones y 5 extras; es el origen de la portada antigua y NO debe copiarse sobre la carta aprobada.
+- La carta realmente aprobada usa `replica-uki/carta/public/candidata/model.mjs`, `catalog.mjs` y `monthly.mjs`, además de su estructura de armado. Por ello los siete precios iguales de Neon NO prueban que esté sincronizada la carta completa.
+- NO modificar precios ni sobrescribir registros. La futura edición desde el panel debe leer y guardar la fuente efectiva de la carta aprobada, con permiso de la dueña, revisión concurrente, historial y verificación manual del resultado público.
+- Mantener el bloqueo existente que impide que `uki-carta-precios-admin.js` guarde desde la sucursal Romo contra la API oficial de Uki. No señalar la edición de Romo como completa hasta que el circuito de escritura esté conectado y validado.
+- El enlace de recepción en `candidata/app.js` aún apunta al endpoint de un preview de panel Uki/Romo; reemplazarlo por un destino exclusivo de Romo al preparar la publicación conjunta y mantener la recepción pública desactivada mientras tanto.
+- Próximo trabajo de implementación: definir un único catálogo efectivo para carta y panel Romo; mapear todas las categorías, promociones, extras, ingredientes y productos SIN recortar ni recrear el menú; conectar guardado autorizado, comprobar que la carta refleja los cambios, y únicamente entonces completar el lote con caja, cierres y Mi Administración.
+
+**Regla de publicación preservada:** esta actualización es exclusivamente documental en la rama de preparación; no se despliega, no toca `main` ni activa ventas.
