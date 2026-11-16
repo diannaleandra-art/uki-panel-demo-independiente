@@ -117,3 +117,10 @@ En `diannaleandra-art/romos-sushi-qa.` / `preparacion/romo-carta-neon-panel-2026
 **Verificación independiente:** no se crearon las tablas `romo_carta_ediciones_v1` ni `romo_carta_ediciones_auditoria_v1` en Neon Romo. El proyecto Vercel `uki-sushi-inventario` mantiene como producción el commit `3274dbc1`; ningún paso de esta preparación fue promovido desde este chat a producción. El despliegue de otros proveedores no se ha comprobado aquí. No se generaron pedidos, ventas ni pagos de prueba.
 
 **Próximo trabajo exacto:** adaptar la interfaz de la carta aprobada para emplear la vista efectiva en todos los cálculos/visibilidades; fijar revisión y verificarla al confirmar; después probar con la propietaria operaciones manuales reales con Romo todavía no comercialmente activo. Mantener la publicación conjunta como único lanzamiento.
+
+
+### Corrección comprobada de etiqueta de salsas adicionales
+- En el `app.js` aprobado de Romo se encontró un texto de armado `$600 c/u` fijado manualmente, incompatible con `extraSaucePrices` de `model.mjs` (Soya $500, Teriyaki $500, Wasabi $500, Jengibre $400).
+- Corregido en `replica-uki/carta/public/candidata/app.js`, rama de preparación `preparacion/romo-carta-neon-panel-20261115`: el texto ahora utiliza `money(extraSaucePrices[extra.name])`, el mismo origen que `quote()`.
+- Se preservan todos los importes aprobados, recargos y reglas de armado. **No se ha publicado ni comprobado visualmente desde el iPhone**.
+- La preparación del puente carta-panel de esta sesión continúa sin conectar `index.html` a los módulos QA y conserva las banderas de escritura/lectura desactivadas; falta comprobar disponibilidad y revisión al confirmar la orden.
