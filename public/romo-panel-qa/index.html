@@ -7046,9 +7046,12 @@ function ukiRomoVistaPropuestaRectificacionQA(c){
     esc(x.clase==='devolucion'?'Devolución':'Cobro adicional')+
     ' · '+fmt(x.monto)+' · '+esc(x.medio)+
     '<p class="muted">Comprobante original: '+fmt(x.antes?.venta)+
-    ' · Vista previa propuesta (NO emitida): '+fmt(x.propuesta?.venta)+
+    ' · Total propuesto: '+fmt(x.propuesta?.venta)+
     ' · Diferencia: '+fmt(x.delta)+'</p>'+
     ' · Responsable: '+esc(x.responsable||'Sin identificar')+
+    (x.estado==='confirmada'?
+     '<p><button type="button" class="sm ok" onclick="ukiRomoVerRectificacionConfirmadaQA('+Number(x.id)+')">Consultar comprobante v2 / PDF</button></p>':
+     '<p><button type="button" class="sm ok" onclick="ukiRomoConfirmarRectificacionQA('+Number(x.id)+')">Confirmar dinero YA movido y generar constancia v2</button></p>')+
     ' · '+esc(x.fechaISO||'Sin fecha')+
     '</p>').join('')+
    '<p class="muted">Este registro NO modifica la venta ni el cierre original. No es un nuevo recibo válido para Mi Administración. La versión corregida requiere conciliación y aprobación de dueños.</p></details>';
@@ -7076,6 +7079,163 @@ function ukiRomoVistaPropuestaRectificacionQA(c){
   ')">Guardar solicitud pendiente (NO contabilizar)</button>'+
   '</details>';
 }
+
+/**
+ * Confirmación manual de dinero YA recibido o devuelto, una sola vez por
+ * cierre. CAS cifrado y constancia v2 se ejecutan ATÓMICAMENTE en Neon.
+ * Nunca usar el guardado normal de estado para un movimiento monetario.
+ */
+async function ukiRomoConfirmarRectificacionQA(solicitudId){
+ if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoOperacionesEnCursoQA())return;
+ const a=(S.ajustesHistoricos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&
+  x.id===Number(solicitudId)&&x.tipo==='rectificacion_monetaria_pendiente');
+ if(!a||a.estado!=='pendiente_conciliacion')
+  return aviso('Esta solicitud no está pendiente. Consulta el Historial y Neon.');
+ const caja=cajaDelDia();
+ if(caja?.baseConfirmada!==true||caja?.turnoAbierto!==true||
+    !caja.turnoId||caja.turnoId===a.turnoClave)
+  return aviso('Antes de conciliar debes abrir la caja del turno actual con su base real confirmada.');
+ // La caja actual debe tener efectivo suficiente para devolver en efectivo.
+ if(a.clase==='devolucion'&&a.medio==='Efectivo'&&
+    ukiRomoCajaDisponibleQA(totales(),caja)<Number(a.monto)){
+  aviso('El efectivo del turno actual no alcanza para esta devolución. Verifica primero Caja.');return;
+ }
+ const sesion=window.ukiRomoSesionRemotaQA;
+ const before=sesion?.estado?.();
+ if(!sesion?.disponible?.()||before?.conflicto||
+    !Number.isSafeInteger(before?.revision)||before.revision<1)
+  return aviso('Requiere sesión Neon vigente de dueños de Romo.');
+ const quien=String(window.prompt('Nombre de quien confirmó el movimiento REAL:', '')||'').trim();
+ if(quien.length<2||quien.length>80)return aviso('Identifica al responsable.');
+ const motivo=String(window.prompt('Motivo de conciliación de esta diferencia:', '')||'').trim();
+ if(motivo.length<4||motivo.length>300)return aviso('Escribe el motivo de conciliación.');
+ const referencia=String(window.prompt(
+  'Referencia del movimiento ya realizado (número de transferencia/comprobante o detalle del efectivo entregado):','')||'').trim();
+ if(referencia.length<4||referencia.length>150)
+  return aviso('Identifica el comprobante o deja el detalle del efectivo realmente movido.');
+ const mensaje=a.clase==='devolucion'?'YA DEVOLVISTE':'YA RECIBISTE';
+ if(!window.confirm('ROMO · Rectificación de cierre anterior\n'+
+  'Pedido #'+a.pedidoId+' · '+mensaje+' '+fmt(a.monto)+' por '+a.medio+
+  '\nEl dinero debe haberse movido realmente ANTES de confirmar.'+
+  '\nSe guardará un recibo versionado v2, sin alterar el original.'+
+  '\nEl movimiento pertenecerá a la caja ACTUAL, como ajuste de cierre anterior.'+
+  '\nNo se creará otro pedido ni se sumará otra venta.'+
+  '\n¿Confirmas que ya ocurrió?'))return;
+ const firma=JSON.stringify(a),current=JSON.stringify(caja),
+  copia=datosSoloSucursal();
+ ukiRomoAclaracionGuardandoQA=true;
+ let preparado=false;
+ try{
+  const mod=await import('./uki-romo-rectificacion-confirmada-qa.mjs');
+  const plan=mod.prepararConfirmacionRectificacionRomoQA(copia,{
+   solicitudId:Number(solicitudId),responsable:quien,
+   motivoMovimiento:motivo,referenciaMovimiento:referencia,
+   confirmoMovimientoReal:true,fechaMs:Date.now()
+  });
+  if(!plan.sinNuevaVenta||!plan.sinModificarCierreOriginal||
+      !validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
+   throw Error('La conciliación alteraría ventas o caja de otra sucursal');
+  if(!sesion.disponible()||sesion.estado()?.conflicto||
+     sesion.estado()?.revision!==before.revision||
+     JSON.stringify((S.ajustesHistoricos||[]).find(x=>x.id===Number(solicitudId)))!==firma||
+     JSON.stringify(cajaDelDia())!==current)
+   throw Error('La sesión o los datos de Caja cambiaron antes de la confirmación');
+  const paquete=await sesion.prepararSobreAceptacion(copia);preparado=true;
+  if(paquete.revision!==before.revision)throw Error('La revisión cambió al cifrar la operación');
+  const token=await window.ukiInventarioToken?.();
+  if(typeof token!=='string'||token.length<30)
+   throw Error('No se verificó la cuenta Google de dueños');
+  const response=await fetch('/api/romo-rectificacion-cierre-v2-qa',{
+   method:'POST',cache:'no-store',credentials:'omit',
+   headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+   body:JSON.stringify({action:'confirmar',expectedRevision:paquete.revision,
+    snapshot:paquete.snapshot,resumen:plan.resumen}),
+   signal:AbortSignal.timeout(20000)
+  });
+  const result=await response.json().catch(()=>null);
+  if(!response.ok||result?.ok!==true||
+    result.storeId!=='romo:serena'||result.confirmado!==true||
+    result.fuenteRectificacion!==plan.resumen.fuente_unica||
+    result.revision!==before.revision+1)
+   throw Error(result?.error||'No se recibió constancia v2 verificable');
+  sesion.confirmarSobreAceptado({estado:copia,revision:result.revision});
+  preparado=false;
+  S={...S,...copia,suc:ROMO_SUCURSAL_QA,pinSuc:null,vista:'caja',
+     msg:'Rectificación v2 confirmada · '+result.fuenteRectificacion};
+  cajaTab='historial';render();
+ }catch(error){
+  aviso('NO asumas que quedó conciliada: '+String(error?.message||error)+
+   '. Consulta el comprobante en Neon y recarga Romo antes de intentar otra vez.');
+ }finally{
+  ukiRomoAclaracionGuardandoQA=false;
+  // Ante respuesta incierta, no reintentar en esta sesión cifrada.
+  // El adaptador solo libera la operación al reabrir Romo.
+ }
+}
+/** Consulta el recibo v2 desde Neon, NUNCA desde una cifra simulada en UI.
+ * Safari: abrir ventana al pulsar, antes del fetch asincrónico. */
+async function ukiRomoVerRectificacionConfirmadaQA(solicitudId){
+ if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoOperacionesEnCursoQA())return;
+ const a=(S.ajustesHistoricos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&
+  x.id===Number(solicitudId)&&x.estado==='confirmada'&&
+  x.tipo==='rectificacion_monetaria_confirmada');
+ if(!a)return aviso('Primero confirma la rectificación en Neon.');
+ const win=window.open('','_blank');
+ if(!win){aviso('Safari bloqueó la hoja del comprobante; habilita la ventana.');return}
+ try{
+  win.opener=null;
+  const token=await window.ukiInventarioToken?.();
+  if(typeof token!=='string'||token.length<30)throw Error('Inicia Google de dueños');
+  const response=await fetch('/api/romo-rectificacion-cierre-v2-qa',{
+   method:'POST',cache:'no-store',credentials:'omit',
+   headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+   body:JSON.stringify({action:'consultar',fuenteOriginal:a.fuenteOriginal}),
+   signal:AbortSignal.timeout(15000)
+  });
+  const data=await response.json().catch(()=>null);
+  const r=data?.comprobante;
+  if(!response.ok||data?.ok!==true||data?.encontrado!==true||
+     data.fuenteRectificacion!==a.fuenteRectificacion||
+     !r||r.monto!==a.monto||r.delta!==a.delta||
+     r.pedido_id!==a.pedidoId||r.version!==2)
+   throw Error(data?.error||'El recibo v2 no coincide con Historial');
+  const item=(etiqueta,valor)=>'<tr><th>'+esc(etiqueta)+'</th><td>'+
+   esc(String(valor))+'</td></tr>';
+  const tabla=[
+   ['Origen','Romo Sushi La Serena'],
+   ['Cierre original',r.fuente_original],
+   ['Comprobante rectificado',r.fuente_unica],
+   ['Versión',r.version],
+   ['Pedido original',r.pedido_id],
+   ['Tipo',r.clase==='devolucion'?'Devolución':'Cobro adicional'],
+   ['Medio',r.medio],
+   ['Diferencia',fmt(r.delta)],
+   ['Total del cierre original',fmt(r.venta_original)],
+   ['Total rectificado informativo',fmt(r.venta_rectificada)],
+   ['Turno del movimiento real',r.turno_movimiento],
+   ['Responsable',r.responsable],
+   ['Motivo',r.motivo],
+   ['Referencia',r.referencia],
+   ['Revisión Neon',data.revision]
+  ].map(([label,value])=>item(label,value)).join('');
+  win.document.open();win.document.write('<!doctype html><html lang="es"><head>'+
+   '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
+   '<title>Rectificación v2 · Romo Sushi</title>'+
+   '<style>body{font:15px system-ui;max-width:760px;margin:auto;padding:25px;color:#222}'+
+   'table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #ccc;padding:10px;text-align:left}'+
+   'th{width:42%}button{padding:12px}@media print{button{display:none}}</style></head><body>'+
+   '<button onclick="window.print()">Imprimir / Guardar PDF</button>'+
+   '<h1>ROMO SUSHI · Cierre rectificado v2</h1>'+
+   '<p>Rectificación monetaria auditada. El comprobante original permanece archivado y NO se creó una segunda venta.</p>'+
+   '<table>'+tabla+'</table>'+
+   '<p>Este documento NO confirma importación a Mi Administración ni altera el efectivo contado del cierre original.</p>'+
+   '</body></html>');win.document.close();
+ }catch(error){
+  if(win&&!win.closed)win.close();
+  aviso('No se pudo verificar el recibo rectificado en Neon: '+String(error?.message||error));
+ }
+}
+
 async function ukiRomoSolicitarRectificacionPostcierreQA(i){
  if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoOperacionesEnCursoQA())return;
  const cierre=ukiCierreHistoricoPorIndice(i);
