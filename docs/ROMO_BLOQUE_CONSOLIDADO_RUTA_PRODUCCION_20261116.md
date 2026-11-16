@@ -62,3 +62,16 @@ Revisión de código real contra los procedimientos ya preparados, solo en rama 
 - **Puertas de seguridad:** mantener inactivos `ROMO_SOLICITUDES_PUBLICO_QA_ENABLED` y las escrituras públicas/cobros/cierres hasta instalar y verificar de manera autorizada el esquema Neon principal, confirmar la fuente correcta del catálogo de la carta (no la antigua Supabase `romos_products`) y verificar permisos del trabajador. La API de recepción/cotización de la carta contiene comprobaciones específicas `VERCEL_ENV==='preview'` y nombre de la rama: no funcionarán automáticamente en producción; revisar el control de origen y aprobación comercial antes de pasar a un dominio público.
 - **Lanzamiento agrupado pendiente:** crear los dos proyectos Vercel mediante el propietario o una conexión con permisos reales; enlazar únicamente código Romo; cargar secretos nuevos de forma privada; verificar carta y panel bajo protección; ejecutar recorrido MANUAL real de pedido → solicitud → aceptación → pago → timbre → entrega → precierre → cierre → historial y Mi Administración. No crear ventas ni cierres sintéticos. No asignar dominios públicos ni quitar protección hasta comprobación/consentimiento final.
 - **Protección constatada:** la producción Uki permanece en `main` `3274dbc1b66b676663b74d74ae40f84d251b3ee9`, sin promoción de la rama Romo. Las migraciones nuevas de rectificación solo están instaladas en Neon QA, NO en la base Romo principal.
+
+## Corrección por captura de Vercel de la propietaria — 16-11-2026
+
+La propietaria mostró captura del dashboard Vercel del equipo `diannaleandra-7046` donde aparecen explícitamente **dos proyectos de Romo existentes**:
+
+- **`romos-sushi-carta`** (dominio mostrado `romos-sushi-carta.vercel.app`).
+- **`romos-sushi-carta-qa`** (dominio mostrado `romos-sushi-carta-qa.vercel.app`).
+
+Esto **corrige la afirmación previa** de que no existe ningún proyecto Vercel de Romo. La conexión Vercel utilizada por el asistente solo devuelve cuatro proyectos `uki-*`, y al buscar los dos Romo devuelve `404`; por tanto **la conexión no está mostrando todos los proyectos que la propietaria ve**. La causa exacta (autorización, token, ámbito o sincronización) no está verificada. No inferir que los proyectos no existan ni pedir que se creen nuevamente.
+
+**Cambio obligatorio de plan:** reutilizar `romos-sushi-carta` como primer candidato de despliegue de la carta y `romos-sushi-carta-qa` para QA, sujetos a verificar desde su configuración GitHub (repo/rama), Root Directory `replica-uki/carta`, variables y despliegue actual; **NO crear una tercera carta**. Verificar si hay ya un panel Romo independiente en los proyectos no visibles antes de intentar crearlo. No tocar `uki-*`, desplegar ni mover DNS para compensar la discrepancia.
+
+**Siguiente verificación visual mínima por la propietaria:** abrir `romos-sushi-carta` → Settings → General (Root Directory) y Git (repositorio/rama). Esta verificación no da acceso a secretos. El código continúa en las ramas de preparación, con recepción pública cerrada y sin movimientos de dinero.
