@@ -146,7 +146,8 @@ export function prepararConfirmacionOlvidoRomoQA(estado,{
   repartoConciliado:false
  };
  estado.ajustesHistoricos[estado.ajustesHistoricos.indexOf(a)]=next;
- const idReferencia=JSON.stringify([a.claveOlvido,a.id,a.turnoClave]);
+ // La constancia SQL no contiene nombres de clientes ni texto del producto.
+ const idReferencia=STORE+'|'+turno+'|'+solicitudId;
  const resumen={
   origen:'romo',store_id:STORE,tipo:'pedido_olvidado',
   fuente_original:STORE+'|'+turno,
