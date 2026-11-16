@@ -63,13 +63,23 @@
       wrap.append(field);form.append(wrap);return field;
     }
     const name=input('Nombre',p.name,'input',100);
+    if(['classic','premium','extra'].includes(p.kind)){
+      name.disabled=true;
+      name.title='El nombre de este tipo de producto depende del armado aprobado';
+    }
     const price=input('Precio en pesos',p.price,'input',10);
     price.type='number';price.min='1';price.max='1000000';price.step='1';
     const desc=input('Descripción',p.description||'','textarea',500);
+    if(['classic','premium','topping','extra'].includes(p.kind)){
+      desc.disabled=true;
+      desc.title='Esta descripción todavía no está vinculada a la carta pública';
+    }
     const categoryWrap=el('label','Categoría'),category=el('select');
     for(const c of state.current.categories||[])
       category.add(new Option(c.nombre,c.slug));
     category.value=p.categoriaSlug;
+    category.disabled=true;
+    category.title='La organización de categorías requiere el editor completo de Uki';
     category.style.cssText='display:block;width:100%;padding:10px;border:1px solid #aaa;border-radius:9px';
     categoryWrap.append(category);form.append(categoryWrap);
     const availableWrap=el('label'),available=el('input');
