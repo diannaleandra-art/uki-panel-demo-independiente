@@ -177,6 +177,14 @@ export function prepararCierreDefinitivoRomoQA(estado,{
   'La identidad del turno no coincide');
  CHECK(!estado.cierres.some(c=>c.turnoClave===turnoId),
   'Este turno ya tiene cierre definitivo; consulta Historial');
+ // Una discrepancia de dinero aún sin devolver/cobrar no puede pasar a un
+ // cierre definitivo ni borrarse por cambiar de turno. No basta aceptar una
+ // diferencia de efectivo: el pedido debe quedar conciliado por separado.
+ const ajustesAbiertos=estado.pedidos.filter(p=>p?.suc===SUC&&
+  p.turnoClave===turnoId&&p.ajusteCobroPendiente!=null);
+ CHECK(ajustesAbiertos.length===0,
+  'Hay '+ajustesAbiertos.length+
+  ' pedido(s) con diferencias de cobro sin conciliar. Revísalos en Pedidos y Caja antes del cierre.');
  CHECK(!Array.isArray(estado.solicitudesWhatsApp)||
   !estado.solicitudesWhatsApp.some(x=>x.suc===SUC&&x.estado==='pendiente'),
   'Hay solicitudes WhatsApp locales por resolver');
