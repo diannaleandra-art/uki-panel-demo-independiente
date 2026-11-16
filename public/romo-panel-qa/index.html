@@ -2309,7 +2309,7 @@ function vNuevo(){
     '<div class="card" style="border-color:#ad102b"><b>Revisar diferencias de caja · solo consulta</b>'+
     '<p class="muted">Compara importes y medios registrados con los cambios escritos. No genera cobros, devoluciones ni autoriza editar una venta pagada.</p>'+
     '<button type="button" class="sm" onclick="ukiRomoVistaDiferenciasPagoQA()">Ver diferencias sin guardar</button>'+
-    '<button type="button" class="sm" onclick="ukiRomoConfirmarMedioRealQA()">Corregir medio realmente recibido</button>'+
+    '<button type="button" class="sm" onclick="ukiRomoConfirmarMedioRealQA()">Corregir medio realmente recibido</button>'+ '<button type="button" class="sm" onclick="ukiRomoGuardarDiferenciaPrecioQA()">Guardar corrección de precio pendiente</button>'+ '<p class="muted">Este ajuste modifica solo precios unitarios de los mismos productos. No declara devolución ni cobro adicional: la diferencia debe conciliarse luego en el pedido antes del cierre.</p>'+ '+
     '<p class="muted">Este segundo botón solo admite cambiar la clasificación del medio REAL que se cobró, con venta, delivery y propina intactos. Para cobrar o devolver diferencias utiliza la conciliación correspondiente.</p>'+
     '<p id="romoRevisionDiferenciasPagadasQA" role="status" class="muted" style="white-space:pre-wrap"></p></div>':''}
    <button class="big" onclick="ndGuardar()" ${ukiTimbreObligatorioGuardar(D,pedidoEdicion)&&!ukiTimbreBorradorConfirmado(D)?'disabled title="Primero confirma el envío del timbre"':''}>${D.editando?`💾 Guardar cambios #${D.editando}`:D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición (no cancela el pedido)</button><p class="muted">Para cancelar el pedido, guarda primero cualquier corrección de pago. Luego vuelve a Pedidos, abre Ver detalle y selecciona ❌ Cancelar pedido. Si hay una devolución, regularízala primero.</p>`:""}`;
@@ -7756,6 +7756,74 @@ async function ukiRomoVistaDiferenciasPagoQA(){
  * registrada. No cobra, no devuelve y no cambia importes ni propinas.
  * Se hace en el mismo formulario Uki y con el mismo CAS Neon Romo.
  */
+
+/** La edición pagada de Uki registra diferencia PENDIENTE antes de mover caja.
+ * Romo conserva el mismo pedido, formulario, timbres, productos y CAS propio. */
+async function ukiRomoGuardarDiferenciaPrecioQA(){
+ if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA||
+    S.vista!=='nuevo'||!D.editando)return;
+ const id=Number(D.editando),p=(S.pedidos||[]).find(x=>
+  x.suc===ROMO_SUCURSAL_QA&&x.id===id);
+ if(!p?.pagado||p.estado==='Cancelado'||p.ajusteCobroPendiente||
+    ukiCierreConfirmadoPedido(p)){
+  aviso('Solo se permite una corrección de precio de un pedido pagado y sin diferencia anterior.');return;
+ }
+ const caja=S.cajasDiarias?.[ROMO_SUCURSAL_QA+'|'+
+  String(p.turnoClave||'').slice(0,10)];
+ if(caja?.turnoAbierto!==true||caja.baseConfirmada!==true||
+    caja.turnoId!==p.turnoClave){
+  aviso('La caja del pedido debe estar abierta y su base confirmada.');return;
+ }
+ const responsable=String(D.responsableEdicion||'').trim();
+ if(responsable.length<2||responsable.length>80){
+  aviso('Identifica a quien corrige el precio del pedido ya pagado.');return;
+ }
+ const sesion=window.ukiRomoSesionRemotaQA;
+ if(!sesion?.disponible?.()||sesion.estado()?.conflicto){
+  aviso('Reabre Romo con la sesión Google y revisión Neon vigentes.');return;
+ }
+ const firma=JSON.stringify(D),base=sesion.estado(),pedidoFirma=JSON.stringify(p);
+ let bloqueando=false;
+ try{
+  const mod=await import('./uki-romo-diferencias-financieras-qa.mjs');
+  if(sesion.estado()?.revision!==base.revision||
+     JSON.stringify(D)!==firma||
+     JSON.stringify((S.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&x.id===id))!==pedidoFirma)
+   throw Error('El pedido o formulario cambiaron antes de preparar el ajuste');
+  const copia=datosSoloSucursal();
+  const resultado=mod.prepararDiferenciaPrecioPagadoRomoQA({
+   estado:copia,pedidoId:id,draft:D,responsable,foto:ukiFotoCorreccionPedido,
+   mediosProductos:ROMO_MEDIOS_COBRO_QA,mediosDelivery:ROMO_MEDIOS_DELIVERY_QA,
+   turnoCerrado:!!ukiCierreConfirmadoPedido(p),
+   registradoEn:Date.now()
+  });
+  if(resultado.ajustePendiente!==true||resultado.noRegistraCobro!==true||
+     !validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
+   throw Error('No se pudo confirmar el ajuste pendiente con Neon Romo');
+  const mensaje=resultado.saldoPendiente>0?'POR DEVOLVER ':'POR COBRAR ';
+  if(!window.confirm('ROMO · Pedido #'+id+'\n'+
+    'Se corregirá el precio del MISMO pedido y quedará '+mensaje+
+    fmt(Math.abs(resultado.saldoPendiente))+' PENDIENTE.'+
+    '\nNO se efectuará automáticamente ningún cobro ni devolución.'+
+    '\nEl turno NO podrá cerrarse hasta conciliar ese dinero REAL por cada medio.'+
+    '\nResponsable: '+responsable+'\n¿Guardar la diferencia pendiente?'))return;
+  if(!sesion.disponible()||sesion.estado()?.conflicto||
+     sesion.estado()?.revision!==base.revision||JSON.stringify(D)!==firma||
+     JSON.stringify((S.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&x.id===id))!==pedidoFirma)
+   throw Error('La caja, el pedido o el formulario cambiaron antes de guardar');
+  ukiRomoGuardandoManualQA=true;bloqueando=true;
+  await ukiRomoGuardarOperacionQA(copia,
+   'Precio corregido con diferencia pendiente; sin recibir ni devolver dinero',
+   id,'pedidos');
+  nuevoDraft();
+ }catch(error){
+  aviso('NO se confirmó la corrección de precio en Neon. Revisa la venta y Caja antes de repetir: '+
+   String(error?.message||error));
+ }finally{
+  if(bloqueando)ukiRomoGuardandoManualQA=false;
+ }
+}
+
 async function ukiRomoConfirmarMedioRealQA(){
  if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA||
     S.vista!=='nuevo'||!D.editando)return;
