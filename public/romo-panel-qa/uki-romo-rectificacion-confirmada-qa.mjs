@@ -106,15 +106,15 @@ export function prepararConfirmacionRectificacionRomoQA(estado,{
  // No sumar a ventas del turno actual. Libro separado por source_key.
  const fuente=STORE+'|'+turno+'|v2',folioOriginal=STORE+'|'+turno;
  const nueva={...a,tipo:'rectificacion_monetaria_confirmada',
-  estado:'confirmada_en_romo_pendiente_constancia',
+  estado:'confirmada',
   esSoloPropuesta:false,dineroRegistrado:true,
-  requiereConciliacion:false,requiereConstanciaVersionada:true,
+  requiereConciliacion:false,requiereConstanciaVersionada:false,
   fuenteRectificacion:fuente,fechaConciliacionISO:new Date(fechaMs).toISOString(),
   confirmadoEn:fechaMs,aprobadoPor:quien,
   motivoMovimiento:detalle,referenciaMovimiento:ref,
   turnoMovimiento:actual,fechaOperativaMovimiento:vigente,
   noEsVentaNueva:true,
-  ...{versionConfirmada:2}
+  constanciaVersionada:true,versionConfirmada:2
  };
  const index=estado.ajustesHistoricos.indexOf(a);
  estado.ajustesHistoricos[index]=nueva;
