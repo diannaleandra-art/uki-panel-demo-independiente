@@ -243,3 +243,14 @@ Se comprobó que `totales()` y los medios de caja oficiales ya leen `medio`, `me
 **Límite esencial:** se puede conciliar solamente un ajusteCobroPendiente legítimo YA existente. La edición financiera de pedidos pagados aún NO crea automáticamente ese ajuste en Romo y sigue bloqueada; tampoco está homologada la modificación de propinas, el efecto en caja acumulada, las rectificaciones postcierre y Mi Administración. Antes de habilitarlo falta conectar esa creación desde el formulario de Uki, mantener timbres e historial, revisar el efecto contable y hacer pruebas MANUALES con pedido real controlado.
 
 **No despliegue:** no alterar Uki main, producción, datos reales ni banderas comerciales. Conservar la única publicación conjunta de carta y panel tras aprobación manual.
+
+
+### Creación del ajuste pendiente desde corrección de precio (subconjunto seguro)
+
+- En el mismo archivo existente de comparación public/romo-panel-qa/uki-romo-diferencias-financieras-qa.mjs se incorporó prepararDiferenciaPrecioPagadoRomoQA, usando el clasificador y comparador oficial reutilizados. Solo permite corregir **precios unitarios de artículos existentes**, sin agregar/quitar productos, cambiar cantidades, armado, cliente, WhatsApp, medio, delivery, QR, timbres, importe de propina ni pagos en otra sucursal.
+- El cambio exige que el pedido siga pagado, con turno y base real abiertos, sin cierre ni ajuste previo, identificando quién corrigió. Los pagos mixtos deben recalcularse exactamente por los mismos medios originales; no se registran cobros adicionales antes de que el dinero exista.
+- El mismo formulario de edición muestra «Guardar corrección de precio pendiente». Tras confirmación manual y CAS Neon Romo, conserva el mismo folio e historial, actualiza la venta corregida y establece ajusteCobroPendiente con la clasificación de dinero cobrado originalmente. El cierre permanece bloqueado mientras la diferencia no se regularice.
+- La ficha de pedido ofrece después la conciliación de dinero ya movido por medio; al confirmarse en Neon se elimina solo el ajuste pendiente y queda rastro de antes/después, responsable e importes. No crea timbres, pedidos ni una segunda venta.
+- Se comprobó exclusivamente sintaxis de los módulos y del script clásico HTML, referencias y conexiones del mismo formulario, **sin ejecutar pruebas de operaciones comerciales, cambios Neon ni despliegue**.
+
+**Aún NO abarcado:** cambio de cantidad, agregado/retiro de productos pagados, cambio de modalidad, descuento por pieza, devolución de propina registrada, retribución de fidelidad, correcciones posteriores a un cierre, caja acumulada y cierre definitivo sincronizado a Mi Administración. Estos requieren revisión aparte del código oficial y prueba manual real con la propietaria. No dar por finalizada la paridad de Caja hasta entonces.
