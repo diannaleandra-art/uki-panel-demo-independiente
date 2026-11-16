@@ -37,10 +37,17 @@ export function prepararResumenCierreRomoDuenosQA(cierre){
   'No se confirmó el momento del cierre');
  // La fecha operativa se valida contra la apertura LOCAL de Chile,
  // no contra UTC, para no mover ventas entre días de sucursal.
- const localStart=new Intl.DateTimeFormat('en-CA',{
+ const partesInicio=new Intl.DateTimeFormat('en-GB',{
   timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'
- }).format(new Date(inicio));
- ok(localStart===fecha,'El turno no comenzó en la fecha operativa declarada');
+ }).formatToParts(new Date(inicio));
+ const parte=k=>partesInicio.find(x=>x.type===k)?.value||'';
+ const diaInicio=[parte('year'),parte('month'),parte('day')].join('-');
+ const anterior=new Date(diaInicio+'T12:00:00Z');
+ anterior.setUTCDate(anterior.getUTCDate()-1);
+ // La apertura Romo admite la jornada de ayer al operar después de medianoche.
+ // El recibo debe usar la MISMA regla; no cambiar la fecha de ventas.
+ ok(fecha===diaInicio||fecha===anterior.toISOString().slice(0,10),
+  'El turno no corresponde a la jornada operativa declarada');
  const ventas=amount(cierre.venta,'ventas');
  const pedidos=amount(cierre.pedidos,'pedidos');
  ok(pedidos<=10000,'Cantidad de pedidos fuera de rango');
