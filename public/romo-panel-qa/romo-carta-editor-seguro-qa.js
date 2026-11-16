@@ -167,6 +167,11 @@
          result.products.length<40||!Array.isArray(result.categories))
         throw Error('El catálogo no incluye todos los productos aprobados');
       state.current=result;
+      const initialize=$(state.root,'[data-romo-initialize]');
+      if(initialize){
+        initialize.hidden=result.revision!==0;
+        initialize.style.display=result.revision===0?'block':'none';
+      }
       const category=$(state.root,'[data-romo-carta-category]');
       const before=category.value;
       clear(category);category.add(new Option('Todas las categorías',''));
@@ -210,11 +215,36 @@
     const refresh=el('button','Actualizar carta de Romo');
     refresh.type='button';refresh.onclick=reload;
     refresh.style.cssText='margin:10px 0;padding:10px;border:1px solid #999;border-radius:9px;background:white';
+    const initialize=el('button','Confirmar versión inicial de la carta');
+    initialize.type='button';
+    initialize.hidden=true;
+    initialize.style.cssText='display:block;margin:8px 0;padding:11px;border-radius:9px;background:#191919;color:white;font-weight:700';
+    initialize.onclick=async()=>{
+      if(state.busy||state.current?.revision!==0||!state.current?.baseSha256)return;
+      if(!window.confirm('¿Confirmas la carta actual de Romo como versión inicial sin cambiar precios ni productos? Esta acción registra tu cuenta y fecha.'))return;
+      state.busy=true;initialize.disabled=true;
+      status('Registrando versión inicial sin cambiar productos…');
+      try{
+        const saved=await request('POST',{
+          action:'initialize',expectedRevision:0,
+          baseSha256:state.current.baseSha256,
+          motivo:'Confirmación manual de la carta aprobada de Romo'
+        });
+        if(saved.inicializado!==true||saved.revision!==1||
+           saved.sinCambiarPrecios!==true||saved.auditado!==true)
+          throw Error('No se confirmó la inicialización');
+        state.busy=false;
+        await reload();
+      }catch(error){
+        status('No se confirmó la versión inicial. '+String(error?.message||error));
+      }finally{state.busy=false;initialize.disabled=false;}
+    };
+    initialize.dataset.romoInitialize='1';
     const list=el('div');list.dataset.romoCartaList='1';
     const form=el('div');form.dataset.romoCartaForm='1';
     form.style.cssText='margin-top:15px;padding-top:12px;border-top:2px solid #b71622';
     search.oninput=renderList;category.onchange=renderList;
-    container.replaceChildren(heading,help,statusP,filter,refresh,list,form);
+    container.replaceChildren(heading,help,statusP,filter,refresh,initialize,list,form);
     void reload();
     return true;
   };
