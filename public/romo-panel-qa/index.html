@@ -3796,7 +3796,10 @@ function vReportes(){
      row("Deliverys",fmt(c.envios||0))+row("Pago a repartidor",fmt(c.pagadoDelivery??c.delivery??0))+
      row("Resultado final",fmt(c.final||0),"final")+
      row("Propinas (aparte)",fmt(c.propinas||0))+
-     (S.suc===ROMO_SUCURSAL_QA?'<p class="muted">El historial está en consulta; no se pueden registrar correcciones sin guardado confirmado en Neon Romo.</p>':ukiAccionesHistorial(original)+ukiVRectificarCierre(original))+ukiVHistorialCorreccionesCierre(original)+ukiVCorreccionesPedidoCierre(original)+
+     (S.suc===ROMO_SUCURSAL_QA?ukiVRectificarCierre(original)+
+    '<p class="muted">Solo aclaraciones no financieras; ajustes monetarios postcierre aún no disponibles.</p>':
+    ukiAccionesHistorial(original)+ukiVRectificarCierre(original))+
+   ukiVHistorialCorreccionesCierre(original)+ukiVCorreccionesPedidoCierre(original)+
      '</details>';
  }).join("");
  return fechas+resumen+ukiReportePropinasPeriodoUI()+medios+dias+detalles;
@@ -5085,13 +5088,15 @@ function ukiRomoLimpiarFiltrosPedidosQA(){
  render();
 }
 let ukiRomoOperandoPedidoQA=false;
+let ukiRomoAclaracionGuardandoQA=false;
 // En la copia Romo bloquea salir/navegar mientras una acción explícita
 // todavía espera confirmación de Neon. No cambia la navegación de Uki.
 function ukiRomoOperacionesEnCursoQA(){
  return ukiRomoOperandoPedidoQA||ukiRomoBorradorGuardandoQA||ukiRomoGuardandoManualQA||
   ukiRomoSolicitudCartaOcupadaQA||ukiRomoTurnoOcupadoQA||
   ukiRomoPrecierreOcupadoQA||ukiRomoTimbreBusyQA||
-  ukiRomoClienteGuardandoQA||ukiRomoCanjeEnCursoQA;
+  ukiRomoClienteGuardandoQA||ukiRomoCanjeEnCursoQA||
+  ukiRomoAclaracionGuardandoQA;
 }
 // Mismos ocho medios de cobro de Uki; las apps no pueden pagar un delivery.
 const ROMO_MEDIOS_COBRO_QA=['Efectivo','Transferencia','Débito','Edenred','Otros','Uber Eats','PedidosYa','Rappi'];
@@ -6754,7 +6759,8 @@ async function ukiRomoExportarCajaQA(tipo,formato){
   if(pdfWindow)pdfWindow.opener=null;
   const lib=await import('./uki-romo-exportar-cierres-qa.mjs');
   const out=lib.crearReporteCierresRomoQA({
-   cierres:S.cierres,desde:period?.desde||'',hasta:period?.hasta||'',
+   cierres:S.cierres,ajustesHistoricos:S.ajustesHistoricos||[],
+   desde:period?.desde||'',hasta:period?.hasta||'',
    turnosPermitidos:tipo==='historial'?selected.map(x=>x.turnoClave):null,
    revision:st.revision
   });
@@ -6789,7 +6795,8 @@ async function ukiRomoCompartirCierreQA(turnoId){
   if(S.suc!==ROMO_SUCURSAL_QA||session.estado()?.revision!==st.revision)
    throw Error('La sesión de Romo cambió. Vuelve a revisar Historial.');
   const mensaje=lib.crearMensajeCierreRomoQA({
-   cierres:S.cierres,turnoId:id,revision:st.revision
+   cierres:S.cierres,turnoId:id,revision:st.revision,
+   ajustesHistoricos:S.ajustesHistoricos||[]
   });
   const destino='https://wa.me/?text='+encodeURIComponent(mensaje);
   if(ventana&&!ventana.closed){
@@ -6863,7 +6870,8 @@ function ukiRomoCajaHistorialHTMLQA(){
    row('Total final',valor('final'),'final')+
    row('Propinas aparte',valor('propinas'))+
    (compartir?'<p>'+compartir+'</p>':'')+
-   '<p class="muted">Rectificaciones de cierres todavía no habilitadas: deben quedar auditadas en Neon Romo.</p>'+
+   ukiVRectificarCierre(x)+
+   '<p class="muted">La aclaración NO modifica dinero. Las rectificaciones de pedidos olvidados requieren conciliación.</p>'+
    '</details>';
  }).join('');
  return '<div class="section-head"><h2>Historial de cierres · Romo</h2></div>'+
@@ -8612,7 +8620,39 @@ function ukiCorreccionesRegistradasCierre(c){
  const ms=fechaCierreMs(c);
  return (S.ajustesHistoricos||[]).filter(a=>a.suc===S.suc&&a.tipo==="cierre_aclarado"&&a.cierreMs===ms);
 }
+async function ukiRomoRegistrarCorreccionCierreQA(indice){
+ if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoOperacionesEnCursoQA())return;
+ const cierre=ukiCierreHistoricoPorIndice(indice);
+ if(!cierre?.turnoClave)return aviso('No existe un cierre Romo confirmado.');
+ const pref='ukiCorCierre'+indice;
+ const leer=(campo,n)=>String($(pref+campo)?.value||'').trim().slice(0,n);
+ const dato=leer('Dato',100),correcto=leer('Correcto',200),
+  responsable=leer('Responsable',100),motivo=leer('Motivo',300);
+ if(!dato||!correcto||!responsable||!motivo)
+  return aviso('Completa dato, valor correcto, responsable y motivo.');
+ const sesion=window.ukiRomoSesionRemotaQA;
+ if(!sesion?.disponible?.()||sesion.estado()?.conflicto)
+  return aviso('Primero confirma la sesión de Romo en Neon.');
+ if(!window.confirm('Esta aclaración quedará en el historial y aparecerá en el cierre al compartirlo. El total y efectivo originales NO cambiarán. ¿Confirmas?'))return;
+ ukiRomoAclaracionGuardandoQA=true;
+ try{
+  const copia=datosSoloSucursal();
+  const lib=await import('./uki-romo-aclaraciones-cierre-qa.mjs');
+  lib.prepararAclaracionCierreRomoQA(copia,{
+   turnoClave:cierre.turnoClave,dato,correcto,responsable,motivo,
+   registradoEn:Date.now()
+  });
+  if(!validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
+   throw Error('Se detectaron datos de otra sucursal.');
+  await ukiRomoGuardarOperacionQA(copia,'Aclaración auditada (totales intactos)',null,'caja');
+  cajaTab='historial';render();
+ }catch(e){
+  aviso('La aclaración NO SE CONFIRMÓ en Neon. Revisa Historial antes de repetir: '+
+   String(e?.message||e));
+ }finally{ukiRomoAclaracionGuardandoQA=false;}
+}
 function ukiRegistrarCorreccionCierre(i){
+ if(S.suc===ROMO_SUCURSAL_QA){void ukiRomoRegistrarCorreccionCierreQA(i);return;}
  const c=ukiCierreHistoricoPorIndice(i);
  if(!c){aviso("No se encontró el cierre de esta sucursal.");return;}
  const pref="ukiCorCierre"+i;
