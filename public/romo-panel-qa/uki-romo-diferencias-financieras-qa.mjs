@@ -1,3 +1,4 @@
+import {clasificarCorreccionPagadaRomoQA} from './uki-romo-edicion-pagada-qa.mjs';
 /**
  * Romo — cálculo SOLO DE CONSULTA previo a corregir un pedido pagado.
  * Reutiliza las reglas de monto del formulario oficial de Uki:
@@ -146,4 +147,81 @@ export function calcularDiferenciaPagadaRomoQA(p,d,{
   bloqueado:true,
   mensaje:'Comparación informativa. No confirma dinero, no genera pagos ni permite guardar cambios financieros.'
  });
+}
+
+
+/**
+ * Rectifica exclusivamente el MEDIO DE COBRO que realmente fue recibido,
+ * sin volver a cobrar, sin cambiar importe, productos, reparto o propina.
+ * Prepara una COPIA de Romo; únicamente el CAS cifrado la hace definitiva.
+ */
+export function prepararRectificacionMediosRomoQA({
+ estado,pedidoId,draft,responsable,foto,mediosProductos,mediosDelivery,
+ turnoCerrado=false,registradoEn=Date.now(),fechaISO=new Date(registradoEn).toISOString()
+}={}){
+ if(!obj(estado)||estado.suc!==SUC||!Array.isArray(estado.pedidos)||
+    !Array.isArray(estado.cierres)||!Array.isArray(estado.propinas)||
+    !obj(estado.clientes)||!obj(estado.cajasDiarias)||
+    !Number.isSafeInteger(pedidoId)||pedidoId<=0||typeof foto!=='function')
+  err('Falta el estado propio de Romo o la auditoría aprobada');
+ const encontrados=estado.pedidos.filter(p=>p?.suc===SUC&&p.id===pedidoId);
+ if(encontrados.length!==1)err('El pedido ya no existe o se duplicó');
+ const previo=encontrados[0],turno=String(previo.turnoClave||'');
+ const caja=estado.cajasDiarias[SUC+'|'+turno.slice(0,10)];
+ if(!previo.pagado||previo.estado==='Cancelado'||previo.esPremio||
+    previo.productosPagadosOtroLocal||previo.envioPagadoOtroLocal||
+    previo.ajusteCobroPendiente||turnoCerrado||
+    (Array.isArray(previo.qrSolicitudes)&&previo.qrSolicitudes.length)||
+    !turno||caja?.turnoAbierto!==true||caja.baseConfirmada!==true||
+    caja.turnoId!==turno||
+    estado.cierres.some(c=>c?.suc===SUC&&c.turnoClave===turno))
+  err('Solo pedidos pagados del turno abierto, sin QR ni ajustes anteriores');
+ const actor=String(responsable||'').trim();
+ if(actor.length<2||actor.length>80||
+    !Number.isSafeInteger(registradoEn)||registradoEn<=0||
+    !Number.isFinite(Date.parse(fechaISO))||draft?.editando!==pedidoId)
+  err('Responsable o formulario de corrección no válido');
+ const prev=clasificarCorreccionPagadaRomoQA(previo,draft);
+ const mediosEditables=new Set([
+  'medio de productos','medio de delivery',
+  'pagos mixtos de productos','pagos mixtos de delivery',
+  'modo de pagos mixtos'
+ ]);
+ if(prev.cambios.length||!prev.protegidos.length||
+    prev.protegidos.some(k=>!mediosEditables.has(k)))
+  err('Se detectaron otros cambios; solo se admite corregir medios realmente recibidos');
+ const plan=calcularDiferenciaPagadaRomoQA(previo,draft,{
+  mediosProductos,mediosDelivery
+ });
+ if(plan.saldoTeorico!==0||
+    plan.original.productos!==plan.propuesto.productos||
+    plan.original.delivery!==plan.propuesto.delivery||
+    plan.original.propina!==plan.propuesto.propina||
+    plan.propina.medioAnterior!==plan.propina.medioPropuesto||
+    !plan.diferencias.some(x=>x.diferencia!==0))
+  err('El cobro original debe conservar el importe y propina exactos');
+ // Reutilizar la validación de medios del comparador. No hay pago nuevo.
+ const prod=toLines(draft,'productos',plan.original.productos,mediosProductos,true);
+ const del=toLines(draft,'delivery',plan.original.delivery,mediosDelivery,true);
+ const nuevo={...previo,medio:prod[0]?.medio||'Efectivo',
+  medioEnvio:del[0]?.medio||'Efectivo',
+  pagosProductos:draft.mixtoProductos?prod.map(x=>({...x})):[],
+  pagosEnvio:draft.mixtoEnvio?del.map(x=>({...x})):[]
+ };
+ const antes=foto(previo),despues=foto(nuevo);
+ if(JSON.stringify(antes)===JSON.stringify(despues))
+  err('No cambió la forma de pago registrada');
+ const ev={tipo:'medio_cobro_corregido_sin_nuevo_pago',
+  responsable:actor,fecha:fechaISO,registradoEn,
+  motivo:'Corrección del medio recibido, sin cobro ni devolución',
+  anterior:antes,nuevo:despues,diferenciaMedios:plan.diferencias};
+ nuevo.historialCambios=[...(Array.isArray(previo.historialCambios)?
+  previo.historialCambios:[]),ev].slice(-100);
+ nuevo.correccionesTurno=[...(Array.isArray(previo.correccionesTurno)?
+  previo.correccionesTurno:[]),
+  {tipo:ev.tipo,fechaISO,registradoEn,responsable:actor,
+   nota:ev.motivo,antes,despues,saldoPendiente:0}];
+ estado.pedidos[estado.pedidos.indexOf(previo)]=nuevo;
+ return Object.freeze({pedidoId,soloClasificacion:true,noRegistraCobro:true,
+  ventaIntacta:true,diferencias:plan.diferencias});
 }
