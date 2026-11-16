@@ -7091,13 +7091,19 @@ async function ukiRomoSolicitarRectificacionPostcierreQA(i){
   !rawMonto||!Number.isSafeInteger(monto)||monto<=0||
   responsable.length<2||responsable.length>80||
   motivo.length<4||motivo.length>300){
-  aviso('Indica folio, importe real, responsable y motivo de la rectificación.');return;
+  aviso('Indica folio, monto de la diferencia, responsable y motivo de la rectificación.');return;
  }
  const sesion=window.ukiRomoSesionRemotaQA;
- if(!sesion?.disponible?.()||sesion.estado()?.conflicto){
-  aviso('Esta revisión requiere la sesión autorizada de dueños de Romo en Neon.');return;
+ let revision;
+ try{
+  if(!sesion?.disponible?.())throw Error('Sin conexión');
+  revision=sesion.estado();
+  if(revision?.conflicto||!Number.isSafeInteger(revision?.revision)||
+    revision.revision<1)throw Error('Sesión sin revisión válida');
+ }catch{
+  aviso('Esta revisión requiere iniciar sesión autorizada de dueños de Romo en Neon.');return;
  }
- const revision=sesion.estado(),firma=JSON.stringify(cierre),copia=datosSoloSucursal();
+ const firma=JSON.stringify(cierre),copia=datosSoloSucursal();
  try{
   const mod=await import('./uki-romo-aclaraciones-cierre-qa.mjs');
   if(sesion.estado()?.revision!==revision.revision)throw Error('Cambió la revisión Neon');
