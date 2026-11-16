@@ -7045,6 +7045,9 @@ function ukiRomoVistaPropuestaRectificacionQA(c){
     '</b> · Pedido #'+esc(x.pedidoId)+' · '+
     esc(x.clase==='devolucion'?'Devolución':'Cobro adicional')+
     ' · '+fmt(x.monto)+' · '+esc(x.medio)+
+    '<p class="muted">Comprobante original: '+fmt(x.antes?.venta)+
+    ' · Vista previa propuesta (NO emitida): '+fmt(x.propuesta?.venta)+
+    ' · Diferencia: '+fmt(x.delta)+'</p>'+
     ' · Responsable: '+esc(x.responsable||'Sin identificar')+
     ' · '+esc(x.fechaISO||'Sin fecha')+
     '</p>').join('')+
