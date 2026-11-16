@@ -323,3 +323,17 @@ No inventar porcentaje global ni fecha de entrega: hay módulos codificados pero
 - Revisadas sintaxis JS del panel, módulos y API. Sin pruebas comerciales ni cobros ficticios. Vercel producción de Uki sigue en main 3274dbc1b66b676663b74d74ae40f84d251b3ee9.
 
 **NO declarar bloque 1 terminado todavía:** falta habilitar/validar migración bajo control, comprobar manualmente con dinero real y usuario dueño, resolver nuevas versiones v3+, pedidos olvidados del cierre y conciliaciones de delivery/otros locales. Mi Administración importará deltas por separado en bloque 3, no se habilitó. Mantener la sola publicación conjunta de Romo y no tocar Uki.
+## Bloque 1 · Pedido olvidado de turno cerrado replicado desde Uki (preparación)
+
+16-11-2026. En la rama exclusiva de preparación de Romo, SIN publicar, SIN pruebas comerciales, SIN migraciones ni nuevos movimientos de dinero.
+
+- Se reabrió el código exacto del formulario y del informe de pedidos olvidados de Uki oficial (firebase/uki-sushi-local.html, funciones ukiAjustePedidoOlvidado, ukiVAgregarPedidoOlvidado, ukiOlvidosCierre y ukiCierreInformeVigente).
+- En public/romo-panel-qa/uki-romo-pedido-olvidado-qa.mjs se replicó el desglose aprobado: turno y fecha/hora original, código carta opcional, cliente, detalle, retiro/delivery/consumo, subtotal, envío, dinero recibido en Romo, delivery cobrado en Romo, medio, dinero recibido en otro local, repartidor realizó reparto, confirmación de pago completo, responsable y motivo.
+- Se calculan y validan separadamente productos y delivery cobrados en cada local. El reparto realizado queda marcado para conciliar, NUNCA como pagado al repartidor. Se rechazan montos inconsistentes, fechas fuera del turno, código carta repetido, reintento exacto, y solicitudes simultáneas con una rectificación financiera del mismo cierre.
+- En public/romo-panel-qa/index.html se conectó el formulario completo directamente dentro del Historial de cierres existente y el guardado CAS cifrado de Neon Romo. No se crea otro pedido en S.pedidos, no se reabre Caja, ni se altera venta, cierre definitivo original, PDF, efectivo contado, propinas o Mi Administración.
+- Diferencia transitoria necesaria: el ajuste permanece con tipo pedido_olvidado_romo_pendiente y estado pendiente_conciliacion, no usa aun el tipo financiero confirmado pedido_olvidado de Uki. Esto evita que la función heredada ukiCierreInformeVigente sume una venta antes de existir constancia y reconciliación Romo. El Historial muestra vista previa separando original, total omitido, cobro local, cobro externo y reparto pendiente; la vista NO constituye versión v2/v3 ni sustituye comprobantes.
+- También se agregó un bloqueo recíproco en public/romo-panel-qa/uki-romo-aclaraciones-cierre-qa.mjs: una rectificación monetaria no puede abrirse sobre un cierre con pedido olvidado sin conciliar.
+
+**FALTA para dar este caso por terminado:** confirmar con constancia versionada e idempotente en Neon el pedido omitido (incluido cobro de otro local), preparar el informe rectificado definitivo, vincularlo al turno real del movimiento sin duplicar ventas ni repartos y verificarlo MANUALMENTE con la dueña. La versión v2 anterior solo soporta diferencia sobre venta ya registrada y NO debe reutilizarse para pedido omitido.
+
+El resto de los bloques y la publicación conjunta siguen como antes. No declaramos terminado el bloque 1 ni modificamos la versión main de Uki.
