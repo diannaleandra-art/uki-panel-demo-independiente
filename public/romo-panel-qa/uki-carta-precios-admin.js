@@ -100,10 +100,11 @@ window.ukiInventarioPanelHTML=()=>{
  return (esRomo?nav.replace('Administrar Uki Sushi','Administrar Romo Sushi'):nav)
   +prevPanel()+pricesPanel;
 };
+function esSucursalRomoQA(){return typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena';}
 function branch(){const active=$('invBranch')?.value||'';return ['arica','serena'].includes(active)?active:'';}
 function info(id,message){const el=$(id);if(el)el.textContent=message;}
 async function request(api,action,fields={},atBranch=state.branch){
- if(typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena')throw Error('Carta y precios de Romo no pueden guardar cambios en Uki.');
+ if(esSucursalRomoQA())throw Error('Carta y precios de Romo no pueden guardar cambios en Uki.');
  // Capturar la sucursal ANTES de esperar el token Google: nunca cruzar precios entre locales.
  if(!['arica','serena'].includes(atBranch))throw Error('Selecciona una sucursal válida.');
  const token=await window.ukiInventarioToken?.();
@@ -162,12 +163,15 @@ function showTab(){
    else container.textContent='Carta y precios Romo: editor no habilitado todavía. Ningún dato se modificó.';
   }
  }else if(state.tab==='precios'&&!state.ready)void loadPrices();
- if(state.tab==='reportes')void loadReponer();
+ if(state.tab==='reportes'){
+  if(esRomo)info('ukiReponerEstado','Reportes de Romo: pendiente de conexión exclusiva. No se consultarán datos de Uki.');
+  else void loadReponer();
+ }
 }
 // Fotos optimizadas: el mismo menú de Uki, sin servicios adicionales.
 function photoUrl(sku,chosen=state.branch){return PHOTO_API+'?branch='+encodeURIComponent(chosen)+'&sku='+encodeURIComponent(sku);}
 async function loadPhotos(chosen){
- if(typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena')return;
+ if(esSucursalRomoQA())return;
  try{
   const response=await fetch(PHOTO_API+'?branch='+encodeURIComponent(chosen),{cache:'no-store',mode:'cors',credentials:'omit',signal:AbortSignal.timeout(10000)});
   if(!response.ok)return;
@@ -925,6 +929,10 @@ function renderPrices(){
  }
 }
 async function loadPrices(force=false){
+ if(esSucursalRomoQA()){
+  info('ukiPriceMessage','Carta de Romo: los precios se consultan exclusivamente en su propio catálogo.');
+  return;
+ }
  if(state.busy)return;
  state.branch=branch();const selected=state.branch;
  info('ukiPriceMessage','Cargando carta de '+(selected==='arica'?'Regimiento Arica':'La Serena')+'…');
@@ -981,6 +989,10 @@ async function create(){
  finally{state.busy=false;$('ukiPriceCreate').disabled=false;}
 }
 async function loadReponer(){
+ if(esSucursalRomoQA()){
+  info('ukiReponerEstado','Faltantes de Romo: consultar exclusivamente su inventario. No se consultarán existencias de Uki.');
+  return;
+ }
  const selected=branch();state.branch=selected;
  info('ukiReponerEstado','Consultando faltantes…');
  try{
@@ -1185,8 +1197,14 @@ function mount(){
  if(invBranch&&!invBranch.dataset.ukiPrecioObservador){
   invBranch.dataset.ukiPrecioObservador='1';
   invBranch.addEventListener('change',()=>{state.branch=branch();state.ready=false;state.items=[];state.categoriaAbierta='';
-   if(state.tab==='precios')void loadPrices(true);
-   if(state.tab==='reportes')void loadReponer();
+   if(state.tab==='precios'){
+    if(esSucursalRomoQA())showTab();
+    else void loadPrices(true);
+   }
+   if(state.tab==='reportes'){
+    if(esSucursalRomoQA())info('ukiReponerEstado','Reportes de Romo: conexión independiente pendiente.');
+    else void loadReponer();
+   }
   });
  }
  showTab();
