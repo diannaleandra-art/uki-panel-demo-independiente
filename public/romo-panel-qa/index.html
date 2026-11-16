@@ -77,6 +77,39 @@ button.sm.ok{background:var(--accent);border-color:var(--accent);color:#fff}
 .uki-solicitud-acciones button.uki-accion-aceptar{min-height:45px}
 </style>
 <style id="uki-operativo-seguridad">body.uki-operativo-bloqueado #app, body.uki-operativo-bloqueado #nav{pointer-events:none;opacity:.4;user-select:none}</style>
+<style id="romo-estilo-oficial-oscuro-qa">
+/* Romo usa negro y rojo; estas reglas NO afectan las sucursales Uki. */
+body.romo-operativo-preparacion,
+body.romo-acceso-qa,
+body.romo-qa {
+  --bg:#f9f7f7;--card:#ffffff;--ink:#191719;--muted:#685e60;
+  --accent:#bb1729;--accent-dark:#8e0d1a;--ok:#b71628;
+  --line:#ebd9dd;
+}
+body.romo-operativo-preparacion header,
+body.romo-acceso-qa header,
+body.romo-qa header{
+  background:linear-gradient(135deg,#171719,#8e0e20)!important;
+  color:#fff!important;box-shadow:0 2px 8px rgba(70,0,16,.22)!important;
+}
+body.romo-operativo-preparacion #nav button.on{
+  background:#b51627!important;border-color:#b51627!important;color:white!important;
+}
+body.romo-operativo-preparacion #ukiInvTabButtons button[aria-pressed="true"]{
+  border-color:#b51627!important;background:#fff0f2!important;
+  box-shadow:inset 0 0 0 1px #b51627!important;
+}
+body.romo-operativo-preparacion #ukiAdminViewHeader{
+  border-left-color:#b51627!important;
+}
+body.romo-operativo-preparacion .aviso,
+body.romo-operativo-preparacion .uki-urgentes-carta{
+  border-color:#d89aa4!important;
+}
+body.romo-operativo-preparacion button:focus-visible{
+  outline-color:#b51627!important;
+}
+</style>
 
 <style id="uki-v88-layout">
 :root{--bg:#fcf9f5;--card:#fff;--ink:#30251f;--muted:#87776b;--accent:#ef820e;--accent-dark:#b65d00;--line:#eee5dc}
