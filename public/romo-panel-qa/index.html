@@ -5080,15 +5080,18 @@ function ukiRomoOperacionesEnCursoQA(){
   ukiRomoPrecierreOcupadoQA||ukiRomoTimbreBusyQA||
   ukiRomoClienteGuardandoQA||ukiRomoCanjeEnCursoQA;
 }
-const ROMO_MEDIOS_COBRO_QA=['Efectivo','Transferencia','Débito','Edenred','Otros'];
+// Mismos ocho medios de cobro de Uki; las apps no pueden pagar un delivery.
+const ROMO_MEDIOS_COBRO_QA=['Efectivo','Transferencia','Débito','Edenred','Otros','Uber Eats','PedidosYa','Rappi'];
+const ROMO_MEDIOS_DELIVERY_QA=ROMO_MEDIOS_COBRO_QA.filter(x=>!['Uber Eats','PedidosYa','Rappi'].includes(x));
 function ukiRomoCambiarFiltroQA(tipo){
  if(!UKI_CATEGORIAS_PEDIDOS.some(([id])=>id===tipo)&&tipo!=='mesas')return;
  ukiRomoFiltroPedidosQA=tipo;render();
 }
 function ukiRomoCamposCobroQA(p){
  const id=Number(p.id),sub=Number(p.subtotal)||0,env=p.modalidad==='Delivery'?Number(p.envio)||0:0;
- const opciones=ROMO_MEDIOS_COBRO_QA.map(m=>'<option value="'+esc(m)+'">'+esc(m)+'</option>').join('');
  const grupo=(scope,monto,nombre)=>{
+  const opciones=(scope==='Envio'?ROMO_MEDIOS_DELIVERY_QA:ROMO_MEDIOS_COBRO_QA)
+   .map(m=>'<option value="'+esc(m)+'">'+esc(m)+'</option>').join('');
   const clave='romoCobro'+scope+id;
   return '<div class="card" style="padding:12px"><b>'+nombre+': '+fmt(monto)+'</b>'+
    '<label>Medio principal</label><select id="'+clave+'Medio1">'+opciones+'</select>'+
@@ -5163,7 +5166,18 @@ async function ukiRomoActualizarSolicitudesCartaQA(){
   ukiRomoSolicitudesAvisoQA=String(e?.message||'No se confirmó la lectura de la bandeja');
  }finally{
   ukiRomoSolicitudesActualizandoQA=false;
-  if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='pedidos')render();
+  if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='pedidos'){
+   // Una lectura periódica NO debe borrar un cobro o edición que se está escribiendo.
+   // El GET se conserva, pero se aplaza el render mientras la ficha esté abierta.
+   const fichaAbierta=!!document.querySelector('.romo-pedido-card[open]');
+   const rechazoIniciado=[...document.querySelectorAll('.romo-solicitud-card select')]
+    .some(sel=>String(sel.value||'').trim().length>0);
+   if(fichaAbierta||rechazoIniciado){
+    const estado=document.getElementById('romoSolicitudesEstadoQA');
+    if(estado)estado.textContent=ukiRomoSolicitudesAvisoQA+
+     ' · Para conservar los datos escritos, la ficha abierta no se actualizó automáticamente.';
+   }else render();
+  }
  }
 }
 // Misma cadencia de revisión que la bandeja oficial de Uki (45 s).
@@ -5823,7 +5837,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
    pendientesSolicitudes.length+' solicitud(es) pendientes. Comprueba que el WhatsApp del cliente también haya llegado.':
    'Recepción pendiente de consulta')+' · Ver estado</summary>'+
   '<button type="button" class="sm" onclick="ukiRomoActualizarSolicitudesCartaQA()">Actualizar solicitudes</button>'+
-  '<p role="status" class="muted">'+esc(ukiRomoSolicitudesAvisoQA||
+  '<p id="romoSolicitudesEstadoQA" role="status" class="muted">'+esc(ukiRomoSolicitudesAvisoQA||
    'Las solicitudes rechazadas no suman a ventas, caja ni timbres.')+'</p></details>'+
   '<p class="muted uki-contador-pedidos">'+
    numeroCategoria(ukiRomoFiltroPedidosQA)+' registro(s) en «'+
@@ -6393,7 +6407,9 @@ function ukiRomoLeerDistribucionQA(id,tipo,monto){
   const montoCampo=$(k+'Monto'+part)?.value;
   const valor=Number(montoCampo);
   if(!Number.isSafeInteger(valor)||valor<0)throw Error('Revisa los montos de '+tipo);
-  if(valor>0&&!ROMO_MEDIOS_COBRO_QA.includes(medio))
+  const validos=tipo==='Envio'?ROMO_MEDIOS_DELIVERY_QA:
+   tipo==='Producto'?ROMO_MEDIOS_COBRO_QA:[];
+  if(valor>0&&!validos.includes(medio))
    throw Error('Elige un medio válido para '+tipo);
   return valor>0?{medio,monto:valor}:null;
  };
