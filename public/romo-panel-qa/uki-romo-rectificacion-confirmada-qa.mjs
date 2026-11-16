@@ -97,12 +97,11 @@ export function prepararConfirmacionRectificacionRomoQA(estado,{
   caja.turnoId===vigente+'@'+caja.inicioMs&&
   !estado.cierres.some(x=>x.turnoClave===actual),
   'Abre y confirma la caja real del turno en el que se concilia');
- // La fecha de confirmación no puede referirse a otro día local chileno.
- const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Santiago',
-  day:'2-digit',month:'2-digit',year:'numeric'}).formatToParts(new Date(fechaMs));
- const part=k=>parts.find(x=>x.type===k)?.value;
- need(part('year')+'-'+part('month')+'-'+part('day')===vigente,
-  'La conciliación pertenece a otra fecha operativa chilena');
+ // Uki permite turnos que atraviesan medianoche. Se conserva la
+ // FECHA OPERATIVA del turno abierto, no la fecha civil del pago.
+ need(fechaMs-caja.inicioMs<=36*60*60*1000&&
+  caja.inicioMs>=c.fechaMs,
+  'La caja del movimiento no corresponde al turno posterior al cierre');
  // No sumar a ventas del turno actual. Libro separado por source_key.
  const fuente=STORE+'|'+turno+'|v2',folioOriginal=STORE+'|'+turno;
  const nueva={...a,tipo:'rectificacion_monetaria_confirmada',
