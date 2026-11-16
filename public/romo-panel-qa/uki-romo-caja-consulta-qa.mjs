@@ -208,7 +208,8 @@ export function consultarHistorialRomoQA(estado,{
  const filtro=buscaNormal(busqueda);
  if(filtro.length>120)err('Búsqueda demasiado larga');
  const encontrados=estado.pedidos.filter(p=>{
-  const fecha=histDia(p.fechaOperativa)||histDia(p.fechaISO);
+  // Filtrar por el mismo día operativo que la Caja y su turno.
+  const fecha=histDia(etiquetaDia(p));
   if(!fecha||(desde&&fecha<desde)||(hasta&&fecha>hasta))return false;
   const campos=[p.id,p.numeroTurno,p.codigoCarta,p.codigoCliente,p.cliente,p.telefono];
   return !filtro||campos.some(v=>buscaNormal(v).includes(filtro));
@@ -228,7 +229,7 @@ export function consultarHistorialRomoQA(estado,{
    id:Number(p.id),turno:Number(p.numeroTurno||p.id),
    codigo:String(p.codigoCarta||''),cliente:String(p.cliente||''),
    whatsappUltimos4:String(p.telefono||'').replace(/\D/g,'').slice(-4),
-   fecha:histDia(p.fechaOperativa)||histDia(p.fechaISO),
+   fecha:histDia(etiquetaDia(p)),
    estado:String(p.estado||'Pendiente'),pagado:p.pagado===true,
    total:monto,productos:Array.isArray(p.productos)?p.productos.map(x=>({
     nombre:String(x.nombre||''),cantidad:Number(x.cantidad)||0,
