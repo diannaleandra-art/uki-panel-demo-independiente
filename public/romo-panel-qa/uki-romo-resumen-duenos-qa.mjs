@@ -65,6 +65,30 @@ export function prepararResumenCierreRomoDuenosQA(cierre){
   'La diferencia requiere un motivo registrado');
  // La venta ya contiene los cobros a clientes. Ni reparto, ni propinas,
  // ni gastos, ni caja chica son ingresos adicionales.
+
+ // Las rectificaciones de otros cierres son dinero de ESTE turno pero no
+ // ventas. Referenciarlas para que el backend exija sus recibos v2 en Neon.
+ const ajustesV2=(cierre.detalle?.rectificacionesPostCierre||[]);
+ ok(Array.isArray(ajustesV2)&&ajustesV2.length<=200,
+  'Demasiados ajustes de cierres anteriores');
+ const fuentesV2=new Set();
+ const referenciaV2=ajustesV2.map(a=>{
+  ok(typeof a.fuenteOriginal==='string'&&
+    /^romo:serena\|\d{4}-\d{2}-\d{2}@[1-9]\d{12,14}$/.test(a.fuenteOriginal)&&
+    a.fuenteRectificacion===a.fuenteOriginal+'|v2'&&
+    a.version===2&&!fuentesV2.has(a.fuenteRectificacion)&&
+    METHODS.has(a.medio)&&Number.isSafeInteger(a.delta)&&
+    a.delta!==0&&Math.abs(a.delta)<=100000000,
+   'Referencia del recibo v2 inválida o duplicada');
+  fuentesV2.add(a.fuenteRectificacion);
+  return {fuente:a.fuenteRectificacion,delta:a.delta,medio:a.medio};
+ }).sort((a,b)=>a.fuente.localeCompare(b.fuente));
+ const sumaV2=referenciaV2.reduce((n,x)=>n+x.delta,0);
+ const efectivoV2=referenciaV2.filter(x=>x.medio==='Efectivo')
+  .reduce((n,x)=>n+x.delta,0);
+ ok(sumaV2===(cierre.rectificacionesPostCierre||0)&&
+  efectivoV2===(cierre.rectificacionesPostCierreEfectivo||0),
+  'Los ajustes v2 no cuadran con la Caja');
  const dat={
   origen:'romo',store_id:STORE,sucursal:'serena',fecha_operativa:fecha,
   turno_ref:turno,fecha_cierre_ms:cierre.fechaMs,
@@ -74,7 +98,9 @@ export function prepararResumenCierreRomoDuenosQA(cierre){
   efectivo_contado:contado,diferencia_efectivo:diferencia,
   caja_chica_inicial:amount(cierre.cajaChicaInicial??0,'caja chica inicial'),
   caja_chica_gastos:amount(cierre.cajaChicaGastos??0,'caja chica gastos'),
-  estado:'pendiente_confirmacion_neon'
+  estado:'pendiente_confirmacion_neon',
+  ...(referenciaV2.length?{ajustes_v2:referenciaV2,
+    ajustes_v2_total:sumaV2,ajustes_v2_efectivo:efectivoV2}:{})
  };
  return Object.freeze(dat);
 }
