@@ -134,13 +134,22 @@ export function prepararPedidoOlvidadoRomoQA(estado,{
  // Sin código, detectar reintento idéntico antes de incrementar nextId.
  const clave=[turnoClave,fechaPedido,normal(text),normal(customer),
   modalidad,productos,delivery,enRomo,medioLocal,normal(origen)].join('|');
- check(!ajustes.some(x=>
-  x?.suc===SUC&&x.tipo==='pedido_olvidado_romo_pendiente'&&
+ check(!ajustes.some(x=>x?.suc===SUC&&
+  ['pedido_olvidado_romo_pendiente','pedido_olvidado_romo_confirmado'].includes(x.tipo)&&
   x.claveOlvido===clave),'El pedido omitido ya figura en Historial');
- // Solo UNA solicitud pendiente por cierre: ningún recibo v3 fue aún aprobado.
+ // Se permite una versión adicional SOLO cuando todas las previas
+ // están confirmadas con constancia. Una propuesta pendiente bloquea.
+ const confirmados=ajustes.filter(x=>sameTurn(x,turnoClave,c.fechaMs)&&
+  x.tipo==='pedido_olvidado_romo_confirmado');
  check(!ajustes.some(x=>sameTurn(x,turnoClave,c.fechaMs)&&
-  ['pedido_olvidado_romo_pendiente','pedido_olvidado_romo_confirmado'].includes(x.tipo)),
-  'Ya existe un pedido olvidado pendiente de conciliar en este cierre');
+  x.tipo==='pedido_olvidado_romo_pendiente'),
+  'Existe un pedido olvidado pendiente de conciliar en este cierre');
+ const versiones=confirmados.map(x=>x.versionConfirmada).sort((a,b)=>a-b);
+ check(versiones.length<=30&&versiones.every((v,i)=>
+  v===i+2&&confirmados.some(x=>x.versionConfirmada===v&&
+    x.constanciaVersionada===true&&x.reciboVerificadoEnNeon===true)),
+  'Las versiones anteriores no están completas o no se confirmaron en Neon');
+ const version=versiones.length+2;
  const item={
   id:estado.nextId++,suc:SUC,
   tipo:'pedido_olvidado_romo_pendiente',estado:'pendiente_conciliacion',
@@ -157,7 +166,7 @@ export function prepararPedidoOlvidadoRomoQA(estado,{
   medioLocal:enRomo?medioLocal:null,localExterno:origen,
   repartoRealizado,responsable:actor,motivo:reason,
   claveOlvido:clave,
-  versionPropuesta:2,comprobanteOriginalConservado:true,
+  versionPropuesta:version,comprobanteOriginalConservado:true,
   soloPropuesta:true,dineroRegistrado:false,
   repartoConciliado:false,
   requiereConstanciaVersionada:true,
@@ -166,7 +175,7 @@ export function prepararPedidoOlvidadoRomoQA(estado,{
  if(!Array.isArray(estado.ajustesHistoricos))estado.ajustesHistoricos=[];
  estado.ajustesHistoricos.push(item);
  return Object.freeze({id:item.id,turnoClave,fechaOperativa:dia,
-  tipo:item.tipo,estado:item.estado,total,recibidoLocal:enRomo,
+  tipo:item.tipo,estado:item.estado,versionPropuesta:version,total,recibidoLocal:enRomo,
   recibidoOtroLocal:externo,
   deliveryPendiente:repartoRealizado?delivery:0,
   noEsVentaNueva:true,noAlteraCierreOriginal:true,
