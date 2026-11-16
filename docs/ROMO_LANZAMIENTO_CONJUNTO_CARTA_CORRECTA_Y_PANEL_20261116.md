@@ -52,3 +52,23 @@ Consultas de solo lectura a Neon proyecto `romos-sushi-la-serena` (BD `romos_sus
 - Próximo trabajo de implementación: definir un único catálogo efectivo para carta y panel Romo; mapear todas las categorías, promociones, extras, ingredientes y productos SIN recortar ni recrear el menú; conectar guardado autorizado, comprobar que la carta refleja los cambios, y únicamente entonces completar el lote con caja, cierres y Mi Administración.
 
 **Regla de publicación preservada:** esta actualización es exclusivamente documental en la rama de preparación; no se despliega, no toca `main` ni activa ventas.
+
+
+## Bloque preparado de contrato completo de carta y comparador privado
+Fecha 2026-11-16. **Código en ramas de preparación, no desplegado, no probado con operaciones comerciales**.
+
+### Carta aprobada de Romo (repositorio `romos-sushi-qa.`)
+- Nuevo contrato solo lectura `replica-uki/carta/lib/romo-catalogo-aprobado-qa.mjs`: obtiene los productos directamente de los módulos aprobados `model.mjs`, `monthly.mjs` y `catalog.mjs`. No se basa en los 12 registros antiguos de Supabase ni en el documento incompleto de 7 productos Neon.
+- Conjunto previsto a partir de los módulos de la carta: 7 promos clásicas, 8 premium, 3 elementos del módulo mensual (incluyendo handroll), 12 platos/gohan/burger, 6 toppings y 4 adicionales de salsa: **40 entradas de venta**. Propuesta de clasificación para la futura interfaz: 9 categorías. Las fotos, conteos de rolls, salsas, beneficios y medios de pago ya definidos en la carta permanecen en su módulo original.
+- El contrato también enumera vegetales, proteínas, envolturas y salsas con sus contextos. NO fija un único recargo universal: un ingrediente puede tener precios diferentes en clásico, premium, mensual o burger.
+- Endpoint `replica-uki/carta/api/romo-catalogo-aprobado-qa.js` GET únicamente; desactivado por defecto. Requiere Preview de la rama correcta, `ROMO_CATALOGO_APROBADO_QA_ENABLED=true` y el origen específico del panel autorizado. No realiza escrituras ni habilita pedidos.
+
+### Panel Romo (repositorio `uki-panel-demo-independiente`)
+- Comparador puro `lib/romo-catalogo-paridad-aprobada-qa.mjs`: reconoce como equivalentes verificables solo las siete promociones clásicas `classic:NN` de la carta frente a `romo:piezas:NN` de Neon. NO empareja por similitud de texto el resto de productos y no decide altas, bajas ni precios.
+- Endpoint privado `api/romo-catalogo-paridad-qa.js`: exclusivo de dueños autenticados por Google/roles Neon, consulta ambas fuentes, no guarda. Requiere `ROMO_CATALOGO_PARIDAD_QA_ENABLED=true` en Preview y `ROMO_CARTA_CATALOGO_QA_ORIGIN` del proyecto de carta correcto; por defecto no está habilitado.
+- Faltan implementación y validación de las escrituras efectivas en la misma fuente que consume la carta, el historial/auditoría de ediciones, la integración del editor completo y la prueba manual de cambios visibles al cliente. **No anunciar el CRUD ni la sincronización como terminados**.
+- Nunca activar los endpoints antes de aislar la carta y el panel en proyectos Romo, confirmar los orígenes, permisos y variables, y planificar la publicación conjunta.
+- No se alteraron recetas, armado, ventas, pagos, timbres, registros comerciales, datos Uki, ni se aplicaron migraciones en Neon/Supabase.
+
+### Próxima intervención
+Una capa única de edición de Romo que, con autorización de dueños y control de revisión concurrente, permita administrar categorías, productos, promociones, extras y precios a partir de la carta aprobada. Confirmar que una edición queda reflejada tanto en carta como en panel; impedir confirmaciones falsas. Completar junto con los pendientes de caja, trabajadores y Mi Administración antes de la publicación conjunta.
