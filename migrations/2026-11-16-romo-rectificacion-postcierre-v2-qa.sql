@@ -128,10 +128,10 @@ BEGIN
     (clase='cobro_adicional' AND delta<>importe) OR
     venta_original+delta<>venta_nueva OR venta_nueva<0 OR
     mov_ms<=fecha_cierre OR mov_ms<inicio_ms OR
+    inicio_ms<fecha_cierre OR mov_ms-inicio_ms>129600000 OR
     to_timestamp(mov_ms/1000.0)>now()+interval '20 minutes' OR
     fecha_mov::text<>left(turno_mov,10) OR
-    (to_timestamp(inicio_ms/1000.0) AT TIME ZONE 'America/Santiago')::date<>fecha_mov OR
-    (to_timestamp(mov_ms/1000.0) AT TIME ZONE 'America/Santiago')::date<>fecha_mov THEN
+    (to_timestamp(inicio_ms/1000.0) AT TIME ZONE 'America/Santiago')::date<>fecha_mov THEN
   RAISE EXCEPTION 'El importe o el turno real del movimiento no concuerdan';
  END IF;
 
