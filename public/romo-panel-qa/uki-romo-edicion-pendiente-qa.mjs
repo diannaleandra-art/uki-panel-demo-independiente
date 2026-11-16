@@ -57,7 +57,8 @@ export function prepararEdicionPendienteRomoQA({
  const cliente=text(draft.cliente,CLIENTE_MAX);
  const telefono=text(draft.telefono,30);
  const codigo=text(draft.codigoCarta,80);
- required(cliente.length>=2&&
+ required(cliente.length>=2&&String(draft.cliente||'').trim().length<=CLIENTE_MAX&&
+   String(draft.telefono||'').trim().length<=30&&
    codigo===String(previo.codigoCarta||'')&&
    !BAD.test(cliente)&&!BAD.test(String(draft.texto||'')),
    'Revisa el cliente y conserva el código original del pedido');
@@ -76,7 +77,8 @@ export function prepararEdicionPendienteRomoQA({
   const nombre=text(p.nombre,180);
   const cantidad=Number(p.cant),unitario=Number(p.precio);
   const detalle=String(p.det||'');
-  required(nombre&&!BAD.test(nombre)&&int(cantidad)&&cantidad>0&&cantidad<=100&&
+  required(nombre&&String(p.nombre||'').trim().length<=180&&
+    !BAD.test(nombre)&&int(cantidad)&&cantidad>0&&cantidad<=100&&
     int(unitario)&&unitario>=1&&unitario<=1000000&&detalle.length<=900,
     'Revisa cantidades, importes y armado de cada producto');
   return {nombre,cantidad,precioUnit:unitario,detalle};
@@ -93,18 +95,25 @@ export function prepararEdicionPendienteRomoQA({
    mesaReferencia:mesa,envio,
    kmRecorrido:draft.modalidad==='Delivery'?text(draft.kmRecorrido,30):'',
    medio:draft.medio,medioEnvio:draft.medioEnvio||'Efectivo',
-   productos,subtotal,total,
-   // Las ventas y pagos del pedido original permanecen intactos.
-   pagado:false,propina:0,estado:'Pendiente'
+   productos,subtotal,total
+   // Las ventas, estados y pagos del pedido original permanecen intactos.
  };
  const antes=foto(previo),despues=foto(nuevo);
  required(JSON.stringify(antes)!==JSON.stringify(despues),
    'No hay cambios para guardar');
  nuevo.correccionesTurno=[
    ...(Array.isArray(previo.correccionesTurno)?previo.correccionesTurno:[]),
-   {tipo:'edicion_pendiente_sin_cobro',fechaISO:ahoraISO,
+   {tipo:'edicion_pedido_sin_pago',fechaISO:ahoraISO,
     registradoEn,responsable:autor,antes,despues,
     nota:'Edición desde el formulario oficial de Uki, sin pago'}
+ ];
+ // La bandeja de Romo ya utiliza historialCambios; no crear otra pantalla.
+ // Este único evento corresponde a la misma corrección auditada arriba.
+ nuevo.historialCambios=[
+   ...(Array.isArray(previo.historialCambios)?previo.historialCambios:[]),
+   {tipo:'edicion_pedido_sin_pago',fecha:ahoraISO,
+    responsable:autor,anterior:antes,nuevo:despues,
+    motivo:'Edición pendiente, sin cobro',registradoEn}
  ];
  const pos=estado.pedidos.indexOf(previo);
  estado.pedidos[pos]=nuevo;
