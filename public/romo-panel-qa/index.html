@@ -6030,8 +6030,9 @@ function ukiRomoPedidosPendientesHTMLQA(){
    acciones=(tst?'<p class="muted">Pedido de prueba: movimientos comerciales bloqueados.</p>':
     ukiRomoCamposCobroQA(p)+
     (window.ukiRomoEditorPedidoQA?.(p)||''))+
-    (p.estado==='Pendiente'&&!tst?
+    (p.estado==='Pendiente'?
     '<details class="inner-details"><summary>❌ Cancelar pedido sin cobro</summary>'+
+    (tst?'<p class="muted">Pedido de prueba sin pago: puedes cancelarlo con motivo y responsable, conservando su historial. No se realizará ningún cobro, entrega ni devolución.</p>':'')+
     '<label>¿Quién canceló?</label><select id="romoCancelarTipo'+id+'">'+
     '<option value="">Selecciona</option><option value="cliente">Cliente</option>'+
     '<option value="local">Local</option></select>'+
