@@ -362,12 +362,6 @@ body.romo-operativo-preparacion #app .uki-timbre-obligatorio{
  background:#fdf6f6!important;border-color:#b31830!important
 }
 body.romo-operativo-preparacion #app .uki-responsable-edicion{border-color:#bf8f9a!important}
-/* La modalidad de entrega siempre visible al recibir una solicitud Romo. */
-body.romo-operativo-preparacion #app .romo-modalidad-visible{
- display:inline-block;max-width:100%;padding:7px 11px;margin:5px 0 7px;
- border:1px solid #bc8995;border-radius:9px;background:#faf2f4;color:#8b142b;
- font-size:14px;line-height:1.4
-}
 body.romo-operativo-preparacion #app .uki-urgentes-carta .card button.sm.ok{
  background:#ae1630!important;border-color:#ae1630!important
 }
@@ -1842,18 +1836,26 @@ function ukiWhatsAppFicha(s,pendiente){
  const d=s.datos||{},productos=(d.items||[]).filter(x=>x.nombre);
  const subtotal=productos.reduce((a,p)=>a+Number(p.cant||0)*Number(p.precio||0),0);
  const total=subtotal+(d.modalidad==='Delivery'?Number(d.envio||0):0);
+ // Uki mantiene su cálculo original. En Romo solo mostramos el importe
+ // INDICADO por la solicitud Neon, sin validar precios ni generar un cobro.
+ const montoIndicado=s.romoSolicitudQA===true&&
+  Number.isSafeInteger(Number(s.totalIndicado))&&Number(s.totalIndicado)>=0?
+  Number(s.totalIndicado):null;
  const code=ukiWhatsAppIdentificador(s);
  const phone=String(s.telefono||d.telefono||'').trim();
  const four=ukiCodigoWhatsApp(phone)||s.codigoCliente||'';
  return '<div style="padding:13px 0;border-bottom:1px solid var(--line)">'+
   '<div class="row"><b style="overflow-wrap:anywhere">'+esc(code)+'</b>'+
-    '<strong style="white-space:nowrap">'+(total>0?fmt(total):'Monto por revisar')+'</strong></div>'+
+    '<strong style="white-space:nowrap">'+
+     (montoIndicado!==null?fmt(montoIndicado):total>0?fmt(total):'Monto por revisar')+
+    '</strong></div>'+
   '<p style="margin:5px 0"><b>Cliente:</b> '+esc(s.cliente||'Sin identificar')+
     ' · <b>Código cliente:</b> '+esc(four||'sin número')+'</p>'+
   '<p style="margin:5px 0"><b>WhatsApp:</b> '+esc(phone||'Número por confirmar')+'</p>'+ 
   '<p class="muted" style="margin:4px 0"><b>Recibido:</b> '+esc(s.fechaISO||'Fecha por confirmar')+'</p>'+
   '<p class="muted" style="margin:5px 0">'+esc(s.suc)+' · '+esc(d.modalidad||'Retiro')+
-   ' · '+esc(productos.length)+' producto(s)'+(s.estado==='rechazada'?' · Rechazada: '+esc(s.motivo||''):s.estado==='aceptada'?' · Pedido interno #'+esc(s.pedidoId||''):' · Por confirmar')+'</p>'+
+   ' · Origen: Carta digital'+
+   (s.romoSolicitudQA===true?' · Importe indicado por el cliente':' · '+esc(productos.length)+' producto(s)')+(s.estado==='rechazada'?' · Rechazada: '+esc(s.motivo||''):s.estado==='aceptada'?' · Pedido interno #'+esc(s.pedidoId||''):' · Por confirmar')+'</p>'+
   '<details class="inner-details"><summary>'+(
    s.estado==='rechazada'?'Ver detalle del rechazo · productos y mensaje original':
    'Ver productos y mensaje original')+'</summary>'+
@@ -5211,21 +5213,23 @@ function ukiRomoSolicitudesHTMLQA(){
    hour:'2-digit',minute:'2-digit'}):'Fecha por confirmar';
   const codigoCliente=ukiCodigoWhatsApp(telefono)||'sin número';
   const buscar=[codigo,nombre,telefono,detalle].join(' ');
+  // La MISMA ficha que usa Uki para las solicitudes. Al tratarse de Romo
+  // solo cambia el adaptador: se indica modalidad y total recibido del Neon.
+  const datos=ukiWhatsAppDatosDesdeTexto(detalle);
+  datos.modalidad=modalidad;
+  datos.texto=detalle;
+  datos.items=[]; // El mensaje sin validar no asigna precios unitarios inventados.
+  const solicitudComoUki={
+   id,codigoCarta:codigo,cliente:nombre,telefono,
+   suc:ROMO_SUCURSAL_QA,estado:'pendiente',
+   codigoCliente,fechaISO:fecha,datos,
+   romoSolicitudQA:true,totalIndicado:Number(o.total_indicado)
+  };
   return '<div class="card order-card uki-carta-compacta romo-solicitud-card" data-buscar="'+
    esc(buscar)+'">'+
    '<p class="muted"><b>📲 Carta normal · Por confirmar</b></p>'+
    '<p class="muted uki-whatsapp-check">Verifica el mensaje en WhatsApp antes de aceptarlo.</p>'+
-   '<div class="row"><b style="overflow-wrap:anywhere">Carta #'+esc(codigo)+'</b>'+
-    '<strong style="white-space:nowrap">'+fmt(Number(o.total_indicado)||0)+'</strong></div>'+
-   '<p><b>Cliente:</b> '+esc(nombre)+' · <b>Código cliente:</b> '+esc(codigoCliente)+'</p>'+
-   '<p><b>WhatsApp:</b> '+esc(telefono||'Número por confirmar')+'</p>'+
-   '<p class="romo-modalidad-visible"><b>Modalidad: '+esc(modalidad)+'</b></p>'+
-   '<p class="muted"><b>Recibido:</b> '+esc(fecha)+
-    ' · '+esc(modalidad)+' · Romo La Serena · Por confirmar</p>'+
-   '<details class="inner-details"><summary>Ver productos y mensaje original</summary>'+
-   '<p style="white-space:pre-wrap;overflow-wrap:anywhere">'+
-    esc(detalle||'No llegó un texto de armado; revisa antes de aceptar.')+
-    '</p></details>'+
+   ukiWhatsAppFicha(solicitudComoUki,false)+
    (reservado?'<p class="muted"><b>En revisión en otro equipo.</b> '+
     'Actualiza la bandeja antes de continuar; no dupliques el pedido.</p>':
     '<div class="uki-solicitud-acciones">'+
@@ -5761,6 +5765,8 @@ function ukiRomoPedidosPendientesHTMLQA(){
    '<summary><div class="order-head"><div><b>'+esc(ukiReferenciaConCarta(p))+
    ' · '+esc(p.cliente||'Sin nombre')+'</b>'+
    '<span class="muted">'+esc(fechaTxt(p.fechaISO))+' · '+esc(p.modalidad||'Retiro')+
+   ' · Origen: '+esc(ukiOrigenPedido(p))+
+   (p.modalidad==='Delivery'?' · 🛵 '+esc(ukiKmTexto(p)):'')+
    (p.mesaReferencia?' · Mesa: '+esc(p.mesaReferencia):'')+
    (ukiCodigoClienteVisible(p)?' · Código: '+esc(ukiCodigoClienteVisible(p)):'')+
    '</span></div><div class="order-right"><strong>'+fmt(p.total)+'</strong>'+
