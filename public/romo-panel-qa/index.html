@@ -6062,6 +6062,9 @@ function ukiRomoPedidosPendientesHTMLQA(){
   }else if(!p.pagado){
    acciones=(tst?'<p class="muted">Pedido de prueba: movimientos comerciales bloqueados.</p>':
     ukiRomoCamposCobroQA(p)+
+    (p.estado==='Pendiente'&&
+     (!Array.isArray(p.qrSolicitudes)||p.qrSolicitudes.length===0)?
+      '<button type="button" class="sm ok" onclick="editarPedido('+id+')">✏️ Editar pedido pendiente</button>':'')+
     (window.ukiRomoEditorPedidoQA?.(p)||''))+
     (p.estado==='Pendiente'?
     '<details class="inner-details"><summary>❌ Cancelar pedido sin cobro</summary>'+
