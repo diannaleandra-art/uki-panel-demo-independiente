@@ -81,3 +81,16 @@ La inspección documentada en `AUDITORIA_PARIDAD_UKI_OFICIAL_ROMO_20261114.md` m
 - Los módulos de Caja (7 movimientos, precierre/cierre, pagos mixtos, caja acumulada y ajustes) y Mi Administración siguen con los bloqueos descritos en la auditoría oficial; no activarlos artificialmente. Los códigos QA de apoyo no sustituyen las acciones reales de Uki.
 
 **Regla:** sin cambio a `main` Uki, sin producción Romo, sin modificar el inventario/caja/pedidos reales y sin pruebas automáticas. Un solo lanzamiento Romo cuando el conjunto quede verificado manualmente.
+
+
+## Corrección de imágenes reales de Romo — 16-11-2026
+La propietaria comprobó en iPhone que la carta aprobada desplegada el 15-11-2026 mostraba signos de imagen rota «?» dentro de las tarjetas de piezas 24/36/48/60/72/84/etc. y en el retrato grande «Tabla real de rolls Romo’s Sushi, vista completa».
+
+Se inspeccionó el código exacto de la carta en `diannaleandra-art/romos-sushi-qa.`, rama `preparacion/romo-carta-neon-panel-20261115`, no se sustituyó por la antigua:
+- **Causa confirmada:** `app.js` usaba rutas relativas `assets/roll-selector.svg` y `assets/rolls-premium-luz.jpg`, que se resolvían desde `/`; los archivos están realmente en `/candidata/assets/`.
+- `replica-uki/carta/public/candidata/app.js` ahora utiliza rutas absolutas `/candidata/assets/…` para ícono de selección, foto grande, gohan, burger y foto de promo sushi burger. La foto grande dispone de respaldo de fotografía de palta y se oculta si ni ésta carga. Las fotos dinámicas no dejan iconos rotos.
+- `replica-uki/carta/public/index.html` corrigió las **6** rutas de `data-photo` en la galería ampliable, que también apuntaban a la carpeta equivocada, y oculta imágenes fallidas sin borrar secciones ni alterar valores comerciales.
+- Se comprobó leyendo el directorio de GitHub que **los 10 nombres de recursos** citados realmente están presentes en `public/candidata/assets/`. No quedaron en `app.js` rutas literales `'assets/…` ni en `index.html` `data-photo="assets/…`.
+- Se conservaron el diseño aprobado negro y rojo, la carta de 40 productos, el armado, los precios, el carrito, el cálculo de delivery y el objetivo de un solo lanzamiento. **No se desplegó esta corrección**; debe confirmarse visualmente en la siguiente publicación conjunta y en el iPhone.
+
+Los enlaces de Vercel vistos por la propietaria siguen mostrando la versión de ayer hasta que se publique la actualización; no afirmar que los signos ya desaparecieron en esos enlaces. La aceptación manual de pedidos y los otros pendientes de paridad oficial Uki siguen bajo los mismos bloqueos.
