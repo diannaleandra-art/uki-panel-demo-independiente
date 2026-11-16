@@ -110,7 +110,8 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
      String(process.env.ROMO_NETLIFY_RELAY_SECRET||'').length<32)
    return fail(res,503,'Firma privada de Netlify sin configurar');
   if(process.env.ROMO_SOLICITUDES_PUBLICO_QA_ENABLED!=='true'||
-     process.env.ROMO_SOLICITUDES_ACEPTACION_QA_ENABLED!=='true')
+     process.env.ROMO_SOLICITUDES_ACEPTACION_QA_ENABLED!=='true'||
+     process.env.ROMO_COTIZADOR_PROXY_QA_ENABLED!=='true')
    return fail(res,503,'Recepción pública de Romo todavía no habilitada');
   try{
    const db=await dbReader.query("SELECT revision FROM public.romo_estado_operativo_v1 WHERE store_id=$1 AND revision>=1 LIMIT 1",[STORE]);
@@ -131,7 +132,13 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
    const ip=String(req.headers?.['x-forwarded-for']||req.socket?.remoteAddress||'')
     .split(',')[0].slice(0,100);
    const ipHash=createHash('sha256').update('romo-carta:'+salt+':'+ip).digest('hex');
-   const result=await core.registrarSolicitudRomo({db:writer,body:req.body,ipHash});
+   // El backend vuelve a leer Neon Romo y recalcula cada importe en el
+   // modelo oficial de la carta. Una respuesta sin confirmar NO registra pedido.
+   const quote=await import('../lib/romo-cotizacion-servidor-qa.mjs');
+   const result=await core.registrarSolicitudRomo({
+     db:writer,body:req.body,ipHash,
+     cotizador:args=>quote.cotizarSolicitudRomoServidorQA(args)
+   });
    return res.status(result.repetido?200:201).json(result);
   }
   const identityModule=await import('../lib/romo-identidad-servidor-qa.mjs');
