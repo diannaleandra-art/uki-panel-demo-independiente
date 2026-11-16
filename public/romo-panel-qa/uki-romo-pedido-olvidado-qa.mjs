@@ -95,6 +95,13 @@ export function prepararPedidoOlvidadoRomoQA(estado,{
  check(deliveryRomo<=delivery&&deliveryRomo<=enRomo&&
   enRomo-deliveryRomo<=productos,
   'El delivery no coincide con el pago a Romo');
+ const deliveryExterno=delivery-deliveryRomo;
+ const productosLocal=enRomo-deliveryRomo;
+ const productosExterno=externo-deliveryExterno;
+ check(productosLocal>=0&&productosExterno>=0&&
+  productosLocal+productosExterno===productos&&
+  deliveryRomo+deliveryExterno===delivery,
+  'No cuadran productos y delivery entre ambos locales');
  const origen=str(localExterno,'Local que cobró el resto',80);
  check(externo===0||origen.length>0,
   'Debes identificar el otro local que recibió el resto');
@@ -143,7 +150,10 @@ export function prepararPedidoOlvidadoRomoQA(estado,{
   codigoCarta:code,cliente:customer,detalle:text,modalidad,
   subtotal:productos,envio:delivery,total,pagado:true,
   recibidoLocal:enRomo,recibidoOtroLocal:externo,
+  productosCobradosLocal:productosLocal,
+  productosCobradosOtroLocal:productosExterno,
   deliveryCobradoLocal:deliveryRomo,
+  deliveryCobradoOtroLocal:deliveryExterno,
   medioLocal:enRomo?medioLocal:null,localExterno:origen,
   repartoRealizado,responsable:actor,motivo:reason,
   claveOlvido:clave,
