@@ -7079,6 +7079,9 @@ function ukiRomoPedidoOlvidadoHistorialHTMLQA(c){
  const olvidos=(S.ajustesHistoricos||[]).filter(a=>
   a?.suc===ROMO_SUCURSAL_QA&&
   a.tipo==='pedido_olvidado_romo_pendiente'&&a.turnoClave===turno);
+ const ajusteMonetario=(S.ajustesHistoricos||[]).some(a=>
+  a?.suc===ROMO_SUCURSAL_QA&&a.turnoClave===turno&&
+  ['rectificacion_monetaria_pendiente','rectificacion_monetaria_confirmada'].includes(a.tipo));
  const original=Number(c.venta)||0;
  if(olvidos.length){
   const total=olvidos.reduce((n,a)=>n+(Number(a.total)||0),0);
@@ -7107,6 +7110,7 @@ function ukiRomoPedidoOlvidadoHistorialHTMLQA(c){
    '<p class="muted">Para contabilizar o reenviar un cierre rectificado falta confirmar el dinero y emitir su constancia versionada. No se paga al repartidor automáticamente.</p>'+
    '</details>';
  }
+ if(ajusteMonetario)return '<p class="muted">Este cierre tiene una rectificación monetaria pendiente o confirmada. Revísala antes de agregar un pedido olvidado.</p>';
  const prefix='romoOlvidoCierre'+indice;
  const field=(id,label,type='text',placeholder='')=>
   '<label for="'+prefix+id+'">'+label+'</label><input id="'+prefix+id+
@@ -7241,6 +7245,11 @@ function ukiRomoVistaPropuestaRectificacionQA(c){
     '</div>').join('')+
    '<p class="muted">El cierre original y sus importes siguen intactos. Una solicitud pendiente no mueve dinero; el recibo v2 confirmado se consulta en Neon. Mi Administración NO ha importado la diferencia.</p></details>';
  }
+ if((S.ajustesHistoricos||[]).some(a=>
+  a?.suc===ROMO_SUCURSAL_QA&&a.turnoClave===turno&&
+  ['pedido_olvidado','pedido_olvidado_romo_pendiente',
+   'pedido_olvidado_romo_confirmado'].includes(a.tipo)))
+  return '<p class="muted">Hay un pedido olvidado sin conciliar en este cierre. No se mezclarán ambas rectificaciones.</p>';
  const prefix='romoRectCierre'+i;
  const medios=ROMO_MEDIOS_COBRO_QA.filter(x=>
   !['Uber Eats','PedidosYa','Rappi'].includes(x));
