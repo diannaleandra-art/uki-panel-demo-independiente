@@ -151,6 +151,8 @@ export function prepararAperturaTurnoRomoQA(estado,{
   pagoDeliveryMedioDia:'Efectivo',pagoDeliveryMedioAnterior:'Efectivo',
   pagoDeliveryConceptoAnterior:'',pagoDelivery:0,
   cajaChica:{inicial:montoCajaChica,gastos:[]},
+  // Inicio limpio para la siguiente apertura: no heredar trabajador anterior.
+  turnoPrecierreAbierto:null,
   movimientosApps:[],pagosRepartidor:[]
  };
  estado.fechaOperativa=fechaOperativa;
@@ -340,6 +342,9 @@ export function prepararCierreDefinitivoRomoQA(estado,{
   productosCobradosOtroLocal:t.productosCobradosOtroLocal
  };
  estado.cierres.push(cierre);
+ // Igual que Uki: cerrar Caja termina el indicador del trabajador,
+ // sin fabricar precierre. Se conservan los precierres confirmados.
+ caja.turnoPrecierreAbierto=null;
  // Los datos históricos permanecen; el siguiente turno tendrá otra apertura.
  caja.turnoAbierto=false;caja.desdeMs=cierreMs;
  caja.ultimoCierreTurnoId=turnoId;delete caja.inicioMs;delete caja.turnoId;
