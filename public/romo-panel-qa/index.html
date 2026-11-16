@@ -553,7 +553,13 @@ function ir(v){
     window.alert('Romo está confirmando una operación. No cambies de pantalla hasta revisar su resultado.');
     return;
    }
-   if(!['pedidos','nuevo','caja','clientes','inventario','promos'].includes(v)){
+   // Mismos accesos desde Inicio que Uki; rutas de Caja usan SOLO la caja Romo.
+   if(['registros','precierre','cierre','historial'].includes(v)){
+    cajaTab=({registros:'movimientos',precierre:'precierre',
+     cierre:'cierre',historial:'historial'})[v];
+    v='caja';
+   }
+   if(!['inicio','pedidos','nuevo','caja','clientes','inventario','promos'].includes(v)){
     S.msg='Esta función todavía no tiene guardado seguro en Romo; no se registró nada.';
     S.vista='pedidos';render();return;
    }
@@ -879,7 +885,7 @@ function render(){
   }
   $("nav").style.display=S.suc?"grid":"none";
   ukiAccesosDesplazamiento();
-  $("nav").innerHTML=(S.suc===ROMO_SUCURSAL_QA?VISTAS.filter(([k])=>['pedidos','nuevo','clientes','caja'].includes(k)):VISTAS).map(([k,l,icon])=>`<button type="button" class="${S.vista===k?"on":""}" onclick="ir('${k}')" aria-label="${l}" ${S.vista===k?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${l}</span></button>`).join("");
+  $("nav").innerHTML=(S.suc===ROMO_SUCURSAL_QA?VISTAS.filter(([k])=>['inicio','pedidos','nuevo','clientes','caja'].includes(k)):VISTAS).map(([k,l,icon])=>`<button type="button" class="${S.vista===k?"on":""}" onclick="ir('${k}')" aria-label="${l}" ${S.vista===k?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${l}</span></button>`).join("");
   if(S.suc===ROMO_SUCURSAL_QA)
    $("nav").innerHTML+='<button type="button" class="'+(S.vista==='inventario'?'on':'')+
     '" onclick="ir(\'inventario\')" aria-label="Inventario" '+(S.vista==='inventario'?'aria-current="page"':'')+
@@ -1157,7 +1163,7 @@ async function entrarSuc(){
     }
     // El MISMO panel y las MISMAS vistas; el servidor sólo entrega datos Romo.
     S={...estadoVacioSucursal(s),...unlocked.estado,
-      suc:s,pinSuc:null,vista:"pedidos",msg:null,busy:false,confirmCierre:false};
+      suc:s,pinSuc:null,vista:"inicio",msg:null,busy:false,confirmCierre:false};
     S.romoSeleccionadoQA=false;S.romoIngresadoQA=true;
     modoNuevo='manual';
    }else{
@@ -1444,6 +1450,13 @@ function ukiFilaPrecierre(p){
    (p.observaciones?'<p class="muted">'+esc(p.observaciones)+'</p>':"")+'</div>';
 }
 function vInicioTrabajador(){
+ if(S.suc===ROMO_SUCURSAL_QA){
+  const caja=cajaDelDia();
+  if(caja?.turnoAbierto!==true||caja?.baseConfirmada!==true)
+   return '<div class="card uki-turno-card"><h2>🕒 Iniciar turno de trabajador</h2>'+
+    '<p class="muted">Abre primero el turno y confirma la base real de Romo desde Caja. Después registra aquí el nombre del trabajador, como en Uki.</p>'+
+    '<button class="big" onclick="ir(\'cierre\')">Ir a apertura de Caja</button></div>';
+ }
  const abierto=ukiTurnoTrabajadorVigente();
  if(abierto){
    const fechaInicio=new Date(abierto.inicioMs).toLocaleString("es-CL",{dateStyle:"short",timeStyle:"short"});
@@ -1454,8 +1467,8 @@ function vInicioTrabajador(){
  }
  return '<div class="card uki-turno-card"><h2>🕒 Iniciar turno de trabajador</h2>'+
    '<p class="muted">Al comenzar, registra el nombre. El precierre se hace después desde Caja.</p>'+
-   '<label>Nombre del trabajador</label><input id="ukiTrabajador" maxlength="60" placeholder="Nombre del trabajador">'+
-   '<button class="big" onclick="ukiIniciarPrecierre()">Iniciar turno</button>'+
+   '<label>Nombre del trabajador</label><input id="'+(S.suc===ROMO_SUCURSAL_QA?'romoTrabajadorInicioQA':'ukiTrabajador')+'" maxlength="60" placeholder="Nombre del trabajador">'+
+   '<button class="big" onclick="'+(S.suc===ROMO_SUCURSAL_QA?'ukiRomoIniciarTurnoTrabajadorQA()':'ukiIniciarPrecierre()')+'">Iniciar turno</button>'+
    '</div>';
 }
 function vPrecierreTrabajadores(){
@@ -7133,9 +7146,8 @@ function ukiRomoFormularioPrecierreQA(c,t){
    '<label>Observaciones</label><textarea id="romoPrecierreObsQA" maxlength="300" rows="2"></textarea>'+
    '<p class="muted">La propina en efectivo se registra aparte, como en Uki. El precierre no cierra la caja ni genera venta.</p>'+
    '<button type="button" class="big" onclick="ukiRomoGuardarPrecierreQA()">Guardar precierre del trabajador</button>':
-   '<p class="muted">No hay trabajador con turno iniciado. Solo el precierre del trabajador se cierra aquí; Caja seguirá abierta.</p>'+
-   '<label>Nombre del trabajador</label><input id="romoTrabajadorInicioQA" maxlength="60" placeholder="Nombre del trabajador">'+
-   '<button type="button" class="big" onclick="ukiRomoIniciarTurnoTrabajadorQA()">Iniciar turno del trabajador</button>')+
+   '<p class="muted">No hay trabajador con turno iniciado. Igual que en Uki, inicia el turno desde Inicio; el precierre se registra aquí, sin cerrar Caja.</p>'+
+   '<button type="button" class="big" onclick="ir(\'inicio\')">Ir a Inicio para comenzar turno</button>')+
   '<p class="muted">Solo cuenta de dueños durante integración. El acceso por PIN independiente se conectará después. Cada apertura y precierre debe confirmarse en Neon.</p>'+
   '<button type="button" class="sm ok" onclick="ukiExportarPrecierres()">📊 Excel de precierres de Romo</button>'+
   '<details><summary>Precierres confirmados: '+prev.length+'</summary>'+
@@ -7158,7 +7170,7 @@ async function ukiRomoIniciarTurnoTrabajadorQA(){
    throw Error('El turno de caja o trabajador cambió.');
   const base=ukiFotoPrecierre();
   c.turnoPrecierreAbierto={nombre,inicioMs:Date.now(),fechaOperativa:dia,base};
-  await ukiRomoGuardarOperacionQA(copia,'Inicio de trabajador '+nombre,null,'caja');
+  await ukiRomoGuardarOperacionQA(copia,'Inicio de trabajador '+nombre,null,'inicio');
  }catch(e){aviso('No se confirmó inicio de trabajador. No repitas sin revisar Caja. '+String(e?.message||e));}
  finally{ukiRomoPrecierreOcupadoQA=false;}
 }
