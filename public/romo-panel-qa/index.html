@@ -7103,7 +7103,11 @@ function ukiRomoPedidoOlvidadoHistorialHTMLQA(c){
     ' · '+esc(a.modalidad||'')+'</p>'+
     '<p>'+esc(a.detalle||'Productos no detallados')+'</p>'+
     row('Cobrado en Romo',fmt(a.recibidoLocal))+
+    row('Productos cobrados en Romo',fmt(a.productosCobradosLocal))+
+    row('Delivery cobrado en Romo',fmt(a.deliveryCobradoLocal))+
     row('Cobrado en '+esc(a.localExterno||'otro local'),fmt(a.recibidoOtroLocal))+
+    row('Productos cobrados en otro local',fmt(a.productosCobradosOtroLocal))+
+    row('Delivery cobrado en otro local',fmt(a.deliveryCobradoOtroLocal))+
     '<p class="muted">Registrado por '+esc(a.responsable||'Sin responsable')+
     ' · Motivo: '+esc(a.motivo||'Sin motivo')+'</p>'+
     '</div>').join('')+
