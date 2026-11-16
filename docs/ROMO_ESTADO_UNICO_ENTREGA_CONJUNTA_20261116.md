@@ -210,3 +210,21 @@ Se comprobó que `totales()` y los medios de caja oficiales ya leen `medio`, `me
 - Se comprobó **sintaxis estática** del módulo y del nuevo controlador, un único botón/handler, validación de medio oficial, cotejo de venta intacta y uso del guardado CAS; no se ejecutaron casos comerciales porque la dueña pidió pruebas manuales.
 
 **Aún pendiente:** devolución de importes, cobros adicionales, reducción de cantidades de pedidos pagados, cambio de propina con caja, cuadratura de efectivo físico y rectificaciones posteriores al cierre; deben exigir evidencia del movimiento ya realizado, autorización, diario de conciliación y revisión final antes de activar. No anunciar paridad completa de Caja ni publicar sin probar manualmente.
+
+
+## Cierre bloqueado ante diferencias y propina manual con CAS
+16-11-2026 — todo preparado **solo en la rama de integración Romo**, sin operaciones comerciales de prueba, sin cobrar, sin modificar Uki oficial ni actualizar registros de negocio.
+
+**Cierre definitivo:**
+- `public/romo-panel-qa/uki-romo-cierre-definitivo-qa.mjs` ahora verifica, además de timbres y pendientes WhatsApp, que **ningún pedido de ese turno** tenga `ajusteCobroPendiente` distinto de null. Si lo hay, impide el cierre antes de escribirlo; seleccionar «Acepto diferencia de efectivo» **no omite** esta condición. Un importe a devolver/recibir requiere confirmación y conciliación propia.
+- `public/romo-panel-qa/index.html` muestra el número de pedidos por conciliar, sus folios y deshabilita el botón de cierre mientras existan. `ukiRomoCerrarTurnoQA()` repite el bloqueo antes de consultar la bandeja de pedidos. El bloqueo determinante está en la función pura del cierre.
+- **No se alteran los importes**, el número de pedidos, el historial ni las reglas de la caja oficial de Uki.
+
+**Propinas manuales:**
+- Se comprobó que el formulario oficial de Uki `vRegistros()` incluye «Propinas (aparte de ventas)» con **número de pedido, concepto, importe y medio**. No se rehizo ese diseño. En `ukiRomoCajaConsultaHTMLQA('movimientos')`, se recupera la **misma tarjeta** de `vRegistros()` (índice 5, igual que en el selector oficial `vMovimientos()`).
+- Para Romo, `addPropina()` dirige al controlador propio `ukiRomoAgregarPropinaManualQA()` antes de la vía local de Uki; para Uki se conserva su funcionamiento exacto. Romo no permite `quitarPropina` directo sin auditoría.
+- `public/romo-panel-qa/uki-romo-propina-manual-qa.mjs` prepara una **copia** del estado Romo. Exige cuenta dueños con sesión Neon, identificación inequívoca del pedido (Carta o Interno), pago confirmado, turno original abierto/base declarada, no QR, no cierre, no premio/cancelación y **ninguna propina ya registrada** para ese pedido. Solo admite los medios oficiales permitidos, importe real de 1 a 10.000.000, concepto, responsable y confirmación expresa de que YA se recibió el dinero.
+- El guardado solo se hace por `ukiRomoGuardarOperacionQA` (CAS cifrado); incorpora una fila `origen:'manual'` en `S.propinas` después de la confirmación, **no modifica ventas, productos, delivery, fidelidad ni timbres**. El importe queda aparte de las ventas para el reporte del turno. No se ejecutó ningún registro de propina.
+- Se comprobó la **sintaxis** de los módulos de cierre/propinas y del script clásico del panel, más los bloqueos de duplicados y las rutas de CAS. No se han realizado pruebas comerciales, que permanecen manuales.
+
+**Aún falta para paridad completa:** conciliación de cobros adicionales, devolución real y ajuste de propinas de pedidos pagados con diferencia, incluida autorización dueños postcierre e integración de cierre definitivo con Mi Administración. Mantenerlos **bloqueados** hasta completarlos.
