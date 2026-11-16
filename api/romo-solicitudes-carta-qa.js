@@ -113,6 +113,12 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
      process.env.ROMO_SOLICITUDES_ACEPTACION_QA_ENABLED!=='true'||
      process.env.ROMO_COTIZADOR_PROXY_QA_ENABLED!=='true')
    return fail(res,503,'Recepción pública de Romo todavía no habilitada');
+  // No anunciar que ya se reciben pedidos si falta URL o secreto del
+  // cotizador privado; de lo contrario el cliente enviaría a un destino
+  // que no puede comprobar los importes y su comanda.
+  const quoteReady=await import('../lib/romo-cotizacion-servidor-qa.mjs');
+  if(!quoteReady.configurarCotizadorRomoQA(process.env))
+   return fail(res,503,'Romo todavía no puede validar precios en el servidor');
   try{
    const db=await dbReader.query("SELECT revision FROM public.romo_estado_operativo_v1 WHERE store_id=$1 AND revision>=1 LIMIT 1",[STORE]);
    if(!db.length)return fail(res,503,'Estado de caja Romo no confirmado');
