@@ -97,10 +97,12 @@ export function prepararPropuestaRectificacionMonetariaCierreRomoQA(estado,{
   'Indica el pedido original que se rectificará');
  need(!cierre.rectificacion&&
   !estado.ajustesHistoricos.some(a=>
-   a?.suc===SUC&&a.tipo==='pedido_olvidado'&&
+   a?.suc===SUC&&
+   ['pedido_olvidado','pedido_olvidado_romo_pendiente',
+    'pedido_olvidado_romo_confirmado'].includes(a.tipo)&&
    (a.turnoClave===turnoClave||
     Number(a.cierreMs)===cierre.fechaMs)),
-  'El cierre ya tiene un ajuste histórico: primero conciliá su versión');
+  'El cierre ya tiene un pedido olvidado por conciliar: primero revisa su versión');
  const pedidos=estado.pedidos.filter(p=>p.id===pedidoId&&p.turnoClave===turnoClave);
  need(pedidos.length===1,'El pedido debe pertenecer únicamente al turno cerrado');
  const p=pedidos[0];
