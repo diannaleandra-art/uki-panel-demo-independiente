@@ -95,6 +95,12 @@ export function prepararPropuestaRectificacionMonetariaCierreRomoQA(estado,{
   'La propuesta debe registrarse después del cierre original');
  need(Number.isSafeInteger(pedidoId)&&pedidoId>0,
   'Indica el pedido original que se rectificará');
+ need(!cierre.rectificacion&&
+  !estado.ajustesHistoricos.some(a=>
+   a?.suc===SUC&&a.tipo==='pedido_olvidado'&&
+   (a.turnoClave===turnoClave||
+    Number(a.cierreMs)===cierre.fechaMs)),
+  'El cierre ya tiene un ajuste histórico: primero conciliá su versión');
  const pedidos=estado.pedidos.filter(p=>p.id===pedidoId&&p.turnoClave===turnoClave);
  need(pedidos.length===1,'El pedido debe pertenecer únicamente al turno cerrado');
  const p=pedidos[0];
@@ -114,6 +120,10 @@ export function prepararPropuestaRectificacionMonetariaCierreRomoQA(estado,{
   entero(p.envio??0,100000000,'delivery')>=0&&
   entero(p.propina??0,100000000,'propina')>=0,
   'No se verificó la separación de productos, delivery y propina');
+ need(Number.isSafeInteger(p.total)&&p.total===
+  montoOriginalProductos+(p.modalidad==='Delivery'?Number(p.envio||0):0)+
+  Number(p.propina||0),
+  'El total original no cuadra con productos, delivery y propina');
  need(['devolucion','cobro_adicional'].includes(clase),
   'La rectificación debe ser devolución o cobro adicional real');
  need(METODOS_RECTIFICACION.has(medio),
@@ -129,6 +139,11 @@ export function prepararPropuestaRectificacionMonetariaCierreRomoQA(estado,{
   ]);
   need(mediosPedido.has(medio),
    'La devolución debe asociarse a un medio con cobro original de productos');
+  const porMedio=Array.isArray(p.pagosProductos)&&p.pagosProductos.length?
+   p.pagosProductos.filter(x=>x.medio===medio).reduce((n,x)=>n+Number(x.monto||0),0):
+   montoOriginalProductos;
+  need(Number.isSafeInteger(porMedio)&&porMedio>0&&importe<=porMedio,
+   'La devolución supera lo realmente cobrado en ese medio por el pedido');
  }
  const medios=cierre.medios;
  need(medios&&typeof medios==='object'&&!Array.isArray(medios)&&
