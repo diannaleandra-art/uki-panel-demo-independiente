@@ -93,7 +93,8 @@ function resumenOlvidosConfirmadosRomoQA(ajustes,cierre){
   a.turnoClave===cierre.turno).sort((a,b)=>a.versionConfirmada-b.versionConfirmada);
  if(!rows.length)return Object.freeze({count:0,local:0,externo:0,
   productosLocal:0,productosExterno:0,deliveryLocal:0,deliveryExterno:0,
-  ultimo:cierre.venta,version:1,repartoPendiente:0});
+  ultimo:cierre.venta,version:1,repartoPendiente:0,
+  pedidosHistoricos:cierre.pedidos,resultadoHistorico:cierre.resultado});
  let venta=cierre.venta,local=0,externo=0,repartoPendiente=0;
  let productosLocal=0,productosExterno=0,deliveryLocal=0,deliveryExterno=0;
  const ids=new Set(),codes=new Set();
@@ -139,9 +140,15 @@ function resumenOlvidosConfirmadosRomoQA(ajustes,cierre){
   productosExterno+deliveryExterno===externo&&
   Number.isSafeInteger(venta)&&venta<=1000000000,
   'El total histórico de los medios no cuadra');
+ check(Number.isSafeInteger(cierre.pedidos)&&cierre.pedidos>=0&&
+  cierre.pedidos+rows.length<=10000,'Pedidos históricos no cuadran');
+ const resultadoHistorico=cierre.resultado===null?null:cierre.resultado+local;
+ if(resultadoHistorico!==null)check(Number.isSafeInteger(resultadoHistorico)&&
+  Math.abs(resultadoHistorico)<=1000000000,'Resultado histórico fuera de rango');
  return Object.freeze({count:rows.length,local,externo,
   productosLocal,productosExterno,deliveryLocal,deliveryExterno,
-  ultimo:venta,version:rows.length+1,repartoPendiente});
+  ultimo:venta,version:rows.length+1,repartoPendiente,
+  pedidosHistoricos:cierre.pedidos+rows.length,resultadoHistorico});
 }
 
 const textoNota=a=>a.dato+' → '+a.correcto+' · '+a.responsable+
@@ -202,6 +209,7 @@ export function crearMensajeCierreRomoQA({cierres,turnoId,revision,ajustesHistor
    '*PEDIDOS OLVIDADOS · INFORME HISTÓRICO RECTIFICADO*',
    '*Versión vigente:* v'+olvidos.version,
    '*Pedidos omitidos confirmados:* '+olvidos.count,
+   '*Pedidos históricos rectificados:* '+olvidos.pedidosHistoricos,
    '*Cobrado en Romo antes (no volver a ingresar):* '+renderAmount(olvidos.local),
    '*Cobrado en otro local:* '+renderAmount(olvidos.externo),
    '*Productos cobrados en Romo:* '+renderAmount(olvidos.productosLocal),
@@ -209,6 +217,7 @@ export function crearMensajeCierreRomoQA({cierres,turnoId,revision,ajustesHistor
    '*Productos cobrados en otros locales:* '+renderAmount(olvidos.productosExterno),
    '*Delivery cobrado en otros locales:* '+renderAmount(olvidos.deliveryExterno),
    '*Venta histórica rectificada Romo (informativa):* '+renderAmount(olvidos.ultimo),
+   '*Resultado histórico rectificado (informativo):* '+renderAmount(olvidos.resultadoHistorico),
    '*Delivery repartidor por conciliar:* '+renderAmount(olvidos.repartoPendiente),
    'El cierre físico original y su venta del turno permanecen intactos. Consulta el comprobante versionado en Neon.'
   ]:[]),
@@ -244,25 +253,29 @@ export function crearReporteCierresRomoQA({cierres,desde='',hasta='',revision,tu
  check(filtered.length>0,'Todavía no hay cierres definitivos para este período');
  const csv='\uFEFF'+[[...HEADERS,'Aclaraciones posteriores',
   'Version histórica vigente','Pedidos olvidados confirmados',
+  'Pedidos históricos rectificados',
   'Cobro histórico local añadido CLP','Cobro histórico en otros locales CLP',
   'Productos cobrado Romo CLP','Delivery cobrado Romo CLP',
   'Productos cobrado otros locales CLP','Delivery cobrado otros locales CLP',
-  'Venta histórica rectificada Romo CLP','Reparto histórico por conciliar CLP'].map(csvText).join(';'),
+  'Venta histórica rectificada Romo CLP','Resultado histórico rectificado CLP',
+  'Reparto histórico por conciliar CLP'].map(csvText).join(';'),
   ...filtered.map(x=>{const h=resumenOlvidosConfirmadosRomoQA(ajustesHistoricos,x);
    return [...vals(x),notasCierre(ajustesHistoricos,x).map(textoNota).join(' | '),
-    'v'+h.version,h.count,h.local,h.externo,
+    'v'+h.version,h.count,h.pedidosHistoricos,h.local,h.externo,
     h.productosLocal,h.deliveryLocal,h.productosExterno,h.deliveryExterno,
-    h.ultimo,h.repartoPendiente]
+    h.ultimo,h.resultadoHistorico,h.repartoPendiente]
     .map(cell).join(';');})].join('\r\n');
  const title=desde&&hasta?'Reporte de cierres · '+desde+' al '+hasta:'Historial de cierres';
  const filename='romo-serena-cierres-'+(desde&&hasta?desde+'-a-'+hasta:'historial')+
   '-revision-'+revision;
  const table='<table><thead><tr><th>Fecha / turno</th><th>Venta</th>'+
-  '<th>Gastos</th><th>Repartidor</th><th>Ajustes v2</th><th>Contado</th><th>Diferencia</th><th>Venta histórica rectificada*</th></tr></thead><tbody>'+
+  '<th>Gastos</th><th>Repartidor</th><th>Ajustes v2</th><th>Contado</th><th>Diferencia</th><th>Pedidos históricos rectificados*</th><th>Venta histórica rectificada*</th><th>Resultado histórico*</th></tr></thead><tbody>'+
   filtered.map(x=>'<tr><td>'+escapeHtml(x.fecha)+
    '<small>'+escapeHtml(x.turno)+'</small></td>'+
    [x.venta,x.gastos,x.repartidor,x.ajustesPostCierre,x.efectivoContado,x.diferencia,
-    resumenOlvidosConfirmadosRomoQA(ajustesHistoricos,x).ultimo].map(n=>
+    resumenOlvidosConfirmadosRomoQA(ajustesHistoricos,x).pedidosHistoricos,
+    resumenOlvidosConfirmadosRomoQA(ajustesHistoricos,x).ultimo,
+    resumenOlvidosConfirmadosRomoQA(ajustesHistoricos,x).resultadoHistorico].map(n=>
     '<td>'+escapeHtml(renderAmount(n))+'</td>').join('')+'</tr>').join('')+
   '</tbody></table>';
  const olvidosHTML=filtered.map(x=>({
