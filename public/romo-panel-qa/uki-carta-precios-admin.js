@@ -1016,7 +1016,7 @@ async function loadReponer(){
   }
   const search=document.createElement('input');search.type='search';
   search.placeholder='Buscar producto para reponer';search.setAttribute('aria-label','Buscar artículo para reponer');
-  search.style.cssText='width:100%;padding:12px;border:1px solid #ddc7b3;border-radius:12px;margin:8px 0 12px';
+  search.style.cssText='width:100%;padding:12px;border:1px solid '+(romo?'#bf8b96':'#ddc7b3')+';border-radius:12px;margin:8px 0 12px';
   const listing=document.createElement('div'),more=document.createElement('button');
   more.type='button';more.className='sm';more.textContent='Mostrar 15 más';
   more.style.cssText='margin:12px 0;width:100%';
@@ -1027,20 +1027,20 @@ async function loadReponer(){
    const fmt=n=>Number(n).toLocaleString('es-CL',{maximumFractionDigits:3});
    const unit=p.stock_unit||'un';
    const card=document.createElement('div');
-   card.style.cssText='border:1px solid #e8cba9;border-left:5px solid #d0812f;border-radius:12px;background:#fffbf5;padding:12px;margin:9px 0';
-   const name=document.createElement('strong');name.style.cssText='display:block;font-size:15px;color:#57361c';
+   card.style.cssText=romo?'border:1px solid #e1bcc5;border-left:5px solid #ba1d30;border-radius:12px;background:#fffafb;padding:12px;margin:9px 0':'border:1px solid #e8cba9;border-left:5px solid #d0812f;border-radius:12px;background:#fffbf5;padding:12px;margin:9px 0';
+   const name=document.createElement('strong');name.style.cssText='display:block;font-size:15px;color:'+(romo?'#251b1e':'#57361c');
    name.textContent=p.name;
    const figures=document.createElement('div');
    figures.style.cssText='display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:9px';
    for(const [label,value,bg] of [
     ['Hay',fmt(p.stock_qty)+' '+unit,'#f6f3ef'],
     ['Mínimo',fmt(p.min_stock_qty)+' '+unit,'#f6f3ef'],
-    ['Pedir',amount>0?fmt(amount)+' '+unit:'Revisar','#fff0d7']
+    ['Pedir',amount>0?fmt(amount)+' '+unit:'Revisar',romo?'#fdecef':'#fff0d7']
    ]){
     const cell=document.createElement('div');cell.style.cssText='padding:8px 5px;border-radius:9px;background:'+bg+';min-width:0';
-    const heading=document.createElement('small');heading.style.cssText='display:block;font-size:11px;color:#835935';
+    const heading=document.createElement('small');heading.style.cssText='display:block;font-size:11px;color:'+(romo?'#7f2435':'#835935');
     heading.textContent=label;const val=document.createElement('b');
-    val.style.cssText='display:block;overflow-wrap:anywhere;font-size:13px;color:#633c1d';
+    val.style.cssText='display:block;overflow-wrap:anywhere;font-size:13px;color:'+(romo?'#241a1d':'#633c1d');
     val.textContent=value;cell.append(heading,val);figures.append(cell);
    }
    card.append(name,figures);return card;
@@ -1056,7 +1056,7 @@ async function loadReponer(){
    for(const [title,group] of buckets){
     if(!group.length||left<=0)continue;
     const h=document.createElement('h4');h.textContent=title+' ('+group.length+')';
-    h.style.cssText='margin:13px 0 7px;color:#78451a;font-size:15px';listing.append(h);
+    h.style.cssText='margin:13px 0 7px;color:'+(romo?'#a51b30':'#78451a')+';font-size:15px';listing.append(h);
     for(const p of group.slice(0,left))listing.append(itemCard(p));
     left-=Math.min(group.length,left);
    }
