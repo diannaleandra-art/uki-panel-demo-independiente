@@ -309,3 +309,17 @@ No inventar porcentaje global ni fecha de entrega: hay módulos codificados pero
 4. Revisión exclusivamente MANUAL desde iPhone de pagos mixtos, duplicados, efectivo acumulado, autorizaciones y fecha operativa; no ejecutar migración SQL ni activar escritura pública antes de aprobar.
 
 **Estado real:** propuesta auditable guardada en GitHub; sin publicación, sin recibo financiero confirmado ni dinero movido.
+
+## Bloque 1 · Avance nuevo programación de recibo v2, cierre y arqueo (16-11-2026)
+
+**Rama:** preparacion/uki-romo-sobre-main-20261114. Estado NO PUBLICADO, NO validado comercialmente. Fuente ampliada: docs/ROMO_BLOQUE_1_RECTIFICACIONES_V2_20261116.md.
+
+- Se desarrolló la confirmación de una rectificación v2 de una venta ya pagada desde el Historial Romo, con responsable, motivo y referencia de dinero que realmente se recibió/devolvió. La propuesta no contabiliza dinero hasta confirmarse.
+- La confirmación utiliza un endpoint privado, Google dueño, guardado atómico de sobre cifrado CAS y constancia v2 en nueva tabla separada. Referencia el original, mantiene SHA/versión y rechaza duplicación. Las banderas de lectura y escritura de rectificaciones siguen APAGADAS.
+- La migración SQL migrations/2026-11-16-romo-rectificacion-postcierre-v2-qa.sql SOLO está en GitHub: verificación SELECT en Neon real confirmó que la tabla romo_rectificaciones_cierre_v2 NO existe. No ejecutar hasta revisión y autorización.
+- El Historial consulta recibo v2 real para imprimir PDF; no usa montos provisionales. El informe v2 conserva la venta original y muestra el ajuste separado.
+- El movimiento pertenece al turno ACTUAL con base y apertura confirmadas, no al turno original. Caja, cierre, CSV, PDF y WhatsApp muestran neto v2 separado del ingreso por sushi; el efectivo esperado incorpora la diferencia de efectivo realmente confirmada.
+- Seguridad: el cierre del turno actual consulta las constancias v2 de Neon y rechaza importes inexistentes, duplicados o que no cuadren con lo declarado. La compatibilidad con cierres originales sin ajustes v2 se conserva.
+- Revisadas sintaxis JS del panel, módulos y API. Sin pruebas comerciales ni cobros ficticios. Vercel producción de Uki sigue en main 3274dbc1b66b676663b74d74ae40f84d251b3ee9.
+
+**NO declarar bloque 1 terminado todavía:** falta habilitar/validar migración bajo control, comprobar manualmente con dinero real y usuario dueño, resolver nuevas versiones v3+, pedidos olvidados del cierre y conciliaciones de delivery/otros locales. Mi Administración importará deltas por separado en bloque 3, no se habilitó. Mantener la sola publicación conjunta de Romo y no tocar Uki.
