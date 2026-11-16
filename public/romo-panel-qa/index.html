@@ -7070,8 +7070,8 @@ function ukiRomoVistaPropuestaRectificacionQA(c){
  if(existentes.length){
   return '<details class="inner-details"><summary>📝 Rectificación financiera · '+
    existentes.length+' registro(s)</summary>'+
-   existentes.map(x=>'<p class="muted"><b>'+
-    (x.estado==='pendiente_conciliacion'?'Pendiente de conciliar':'Requiere comprobar constancia')+
+   existentes.map(x=>'<div class="card" style="padding:10px"><b>'+
+    (x.estado==='pendiente_conciliacion'?'Pendiente de conciliar':'Constancia v2: consultar Neon')+
     '</b> · Pedido #'+esc(x.pedidoId)+' · '+
     esc(x.clase==='devolucion'?'Devolución':'Cobro adicional')+
     ' · '+fmt(x.monto)+' · '+esc(x.medio)+
@@ -7083,8 +7083,8 @@ function ukiRomoVistaPropuestaRectificacionQA(c){
      '<p><button type="button" class="sm ok" onclick="ukiRomoVerRectificacionConfirmadaQA('+Number(x.id)+')">Consultar comprobante v2 / PDF</button></p>':
      '<p><button type="button" class="sm ok" onclick="ukiRomoConfirmarRectificacionQA('+Number(x.id)+')">Confirmar dinero YA movido y generar constancia v2</button></p>')+
     ' · '+esc(x.fechaISO||'Sin fecha')+
-    '</p>').join('')+
-   '<p class="muted">Este registro NO modifica la venta ni el cierre original. No es un nuevo recibo válido para Mi Administración. La versión corregida requiere conciliación y aprobación de dueños.</p></details>';
+    '</div>').join('')+
+   '<p class="muted">El cierre original y sus importes siguen intactos. Una solicitud pendiente no mueve dinero; el recibo v2 confirmado se consulta en Neon. Mi Administración NO ha importado la diferencia.</p></details>';
  }
  const prefix='romoRectCierre'+i;
  const medios=ROMO_MEDIOS_COBRO_QA.filter(x=>
