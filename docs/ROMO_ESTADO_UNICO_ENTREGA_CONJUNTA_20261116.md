@@ -274,3 +274,18 @@ Se comprobó que `totales()` y los medios de caja oficiales ya leen `medio`, `me
 - La publicación de carta y panel continúa unificada, con revisión manual de punta a punta. NO cambiar Uki main ni activar nuevos endpoints/banderas.
 
 **Comprobación de esta etapa:** lectura de fuentes y sintaxis estática del script del panel y módulos de propina/cierre; no se ejecutaron pruebas de pagos/cobros, no se escribieron registros de Neon y no se desplegó una versión comercial.
+
+
+## Revisión del historial postcierre y pendientes reales antes de publicación
+16-11-2026 — rama de preparación exclusiva Romo, sin despliegue comercial ni escrituras en Neon.
+
+**Avance concreto:** en public/romo-panel-qa/index.html, el Historial existente de cierres Romo distingue ahora las **aclaraciones** del cierre (ya disponibles, solo notas) de los **ajustes monetarios posteriores** (pedidos olvidados o corregidos). La consulta muestra únicamente registros que ya existieran, asociados al mismo turno/fecha; no crea una nueva operación, no recalcula cifras del cierre original, no actualiza el PDF previamente guardado, no toca Caja acumulada ni importa otra venta. Queda señalado cuando exista referencia a rectificación sin conciliación; se revisaron las anclas del formulario y la sintaxis del script en el mismo panel.
+
+**La implementación sigue incompleta en cinco bloques:**
+1. Rectificaciones con dinero postcierre y versiones de comprobante realmente conciliadas — solo aclaración y advertencia histórica preparadas.
+2. Caja acumulada — esquema y lectura protegidos, sin inicialización ni transferencias reales ni aprobación del saldo de origen; analizar propinas, base y reparto.
+3. Mi Administración — lectura y preconciliación preparadas; conectar importación idempotente de cierre con validación de origen/versión, sin sumar dos veces ventas, y definir cómo reportar las rectificaciones.
+4. Carta correcta/panel — fuente de catálogo definitiva, publicación en Root Directory correcto, recepción y paridad pendiente (incluidos inventario, timbres, clientes, QR y sucursales).
+5. Verificación comercial manual de la ruta completa con la propietaria, después publicación conjunta de carta y panel Romo sin modificar Uki oficial.
+
+No inventar porcentaje global ni fecha de entrega: hay módulos codificados pero no validados punta a punta. Requiere revisión integral antes de declararlos terminados o activar banderas públicas.
