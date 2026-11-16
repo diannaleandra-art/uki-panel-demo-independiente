@@ -5800,6 +5800,108 @@ async function ukiRomoIncidenciaAccionQA(id,accion){
    String(e?.message||e));
  }finally{ukiRomoOperandoPedidoQA=false;}
 }
+
+/**
+ * Misma regularización de diferencias de Uki: se presenta en la ficha
+ * del pedido, no como otra venta ni pantalla nueva. Romo no guarda en Uki.
+ */
+function ukiRomoDiferenciaPendienteHTMLQA(p,cerrado,esPrueba){
+ const q=p?.ajusteCobroPendiente;
+ if(!q)return '';
+ if(q.estado!=='pendiente'||!Number.isSafeInteger(q.saldo)||!q.saldo)
+  return '<div class="card" role="alert"><b>⚠️ Diferencia de caja sin conciliar</b>'+
+   '<p class="muted">La referencia de cobro necesita revisión manual antes del cierre.</p></div>';
+ const devolver=q.saldo>0;
+ const titulo=devolver?'Por devolver al cliente':'Por cobrar al cliente';
+ const autorizado=p.pagado&&p.estado!=='Cancelado'&&!p.esPremio&&!cerrado&&!esPrueba&&
+  !p.productosPagadosOtroLocal&&!p.envioPagadoOtroLocal&&
+  !(Array.isArray(p.qrSolicitudes)&&p.qrSolicitudes.length);
+ return '<div class="card" style="border-left:3px solid #ad102b">'+
+  '<b>⚠️ '+titulo+': '+fmt(Math.abs(q.saldo))+'</b>'+
+  '<p class="muted">El importe sigue pendiente de conciliación. Ni una devolución ni un cobro ocurren por pulsar un botón. Se verificará cada medio registrado y el dinero realmente entregado o recibido.</p>'+
+  (autorizado?
+   '<button type="button" class="sm ok" onclick="ukiRomoConciliarDiferenciaRealQA('+Number(p.id)+')">'+
+   (devolver?'Confirmar devolución ya realizada':'Confirmar cobro adicional ya recibido')+
+   '</button>':
+   '<p class="muted">Movimiento bloqueado: revisar caja abierta, solicitud QR, otros locales o cierre histórico.</p>')+
+  '</div>';
+}
+async function ukiRomoConciliarDiferenciaRealQA(id){
+ if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA)return;
+ const pedidoId=Number(id),p=(S.pedidos||[]).find(x=>
+  x.suc===ROMO_SUCURSAL_QA&&x.id===pedidoId);
+ if(!p?.pagado||!p.ajusteCobroPendiente||ukiCierreConfirmadoPedido(p)){
+  aviso('Solo se concilian diferencias existentes del turno abierto.');return;
+ }
+ const sesion=window.ukiRomoSesionRemotaQA;
+ if(!sesion?.disponible?.()||sesion.estado()?.conflicto){
+  aviso('Abre Romo con Google de dueños y la revisión confirmada de Neon.');return;
+ }
+ const caja=S.cajasDiarias?.[ROMO_SUCURSAL_QA+'|'+
+  String(p.turnoClave||'').slice(0,10)];
+ if(caja?.turnoAbierto!==true||caja.baseConfirmada!==true||
+    caja.turnoId!==p.turnoClave){
+  aviso('La caja original debe estar abierta y con base real confirmada.');return;
+ }
+ const autor=String(window.prompt(
+  '¿Quién verificó físicamente la devolución o cobro adicional de Romo?', '')||'').trim();
+ if(autor.length<2||autor.length>80){
+  aviso('El responsable es obligatorio; no se guardó dinero ni movimientos.');return;
+ }
+ const base=sesion.estado(),firma=JSON.stringify(p);
+ let bloqueando=false;
+ try{
+  const mod=await import('./uki-romo-conciliacion-real-qa.mjs');
+  if(sesion.estado()?.revision!==base.revision||
+     JSON.stringify((S.pedidos||[]).find(x=>
+      x.suc===ROMO_SUCURSAL_QA&&x.id===pedidoId))!==firma)
+   throw Error('El pedido cambió durante la revisión');
+  const copia=datosSoloSucursal();
+  const plan=mod.revisarConciliacionRealRomoQA(copia,pedidoId,{
+   mediosProductos:ROMO_MEDIOS_COBRO_QA,
+   mediosDelivery:ROMO_MEDIOS_DELIVERY_QA,
+   turnoCerrado:!!ukiCierreConfirmadoPedido(p)
+  });
+  const confirmaciones=[];
+  for(const movimiento of plan.movimientos){
+   const mensaje=movimiento.accion==='devolucion'?
+    '¿Confirmas que YA DEVOLVISTE '+fmt(movimiento.monto)+' por '+movimiento.medio+'?':
+    '¿Confirmas que YA RECIBISTE '+fmt(movimiento.monto)+' por '+movimiento.medio+'?';
+   if(!window.confirm('ROMO · Pedido #'+pedidoId+'\n'+mensaje+
+     '\nEl sistema NO mueve dinero ni repite el cobro. Si no ocurrió realmente, presiona Cancelar.')){
+    return;
+   }
+   confirmaciones.push({...movimiento,confirmado:true});
+  }
+  if(!sesion.disponible()||sesion.estado()?.conflicto||
+     sesion.estado()?.revision!==base.revision||
+     JSON.stringify((S.pedidos||[]).find(x=>
+      x.suc===ROMO_SUCURSAL_QA&&x.id===pedidoId))!==firma)
+   throw Error('Neon o el pedido cambiaron antes de confirmar el movimiento');
+  ukiRomoOperandoPedidoQA=true;bloqueando=true;
+  const resultado=mod.prepararConciliacionRealRomoQA(copia,{
+   pedidoId,mediosProductos:ROMO_MEDIOS_COBRO_QA,
+   mediosDelivery:ROMO_MEDIOS_DELIVERY_QA,
+   turnoCerrado:!!ukiCierreConfirmadoPedido(p),
+   responsable:autor,confirmaciones,confirmoMovimientoReal:true,
+   registradoEn:Date.now(),fechaISO:new Date().toISOString(),
+   foto:ukiFotoCorreccionPedido
+  });
+  if(resultado.conciliado!==true||resultado.noCreaCobro!==true||
+     resultado.ventaSinDuplicar!==true||
+     !validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
+   throw Error('No se autorizó la conciliación independiente');
+  await ukiRomoGuardarOperacionQA(copia,
+   'Diferencia real conciliada por medio y responsable; sin segundo cobro',
+   pedidoId,'pedidos');
+ }catch(e){
+  aviso('NO se confirmó la conciliación en Neon. Revisa Pedido, Caja e Historial antes de repetir: '+
+   String(e?.message||e));
+ }finally{
+  if(bloqueando)ukiRomoOperandoPedidoQA=false;
+ }
+}
+
 function ukiRomoPedidosPendientesHTMLQA(){
  // Se leen únicamente registros ya cargados de la sucursal Romo.
  // No se usa fechaTurnoRegistro(), que puede inicializar caja por render.
@@ -6117,7 +6219,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
      entrega_confirmada:'Entrega',cancelacion:'Cancelación'}[h.tipo]||h.tipo||'Movimiento'))+
    (h.responsable?' · '+esc(h.responsable):'')+
    (h.motivo?' · '+esc(h.motivo):'')+'</p>').join('');
-  return resumen+entrega+acciones+
+  return resumen+entrega+ukiRomoDiferenciaPendienteHTMLQA(p,cerrado,tst)+acciones+
    (window.ukiRomoHistorialEdicionQA?.(p)||'')+
    (historial?'<details class="inner-details"><summary>🕘 Historial completo del pedido</summary>'+
     historial+'</details>':'')+
