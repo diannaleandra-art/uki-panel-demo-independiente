@@ -31,3 +31,13 @@ Las aclaraciones de datos del cierre son notas SIN movimiento financiero. Los pe
 7. Confirmar que Mi Administración no ha sumado de nuevo la venta y que ambas sucursales Uki están intactas.
 
 **ESTADO REAL: núcleo de rectificación v2 preparado; falta ejecutar migración autorizada, homologar los demás tipos y completar pruebas manuales. Bloque 1 NO se declara terminado aún.**
+
+## Complemento: pedidos olvidados y comprobantes sucesivos preparados
+
+La limitación escrita anteriormente ("no soporta versiones v3+ ni pedidos olvidados") se refiere únicamente al mecanismo de **devolución/cobro adicional de una venta ya registrada**. Ese mecanismo sigue limitado a v2.
+
+En **otra secuencia específica de pedidos olvidados**, ahora se preparó un circuito aparte v2–v32, que añade el importe histórico realmente cobrado por Romo y mantiene el cobro externo y delivery de repartidor como conceptos diferenciados, conservando los cierres originales. Ver `public/romo-panel-qa/uki-romo-confirmar-olvido-qa.mjs`, `lib/romo-olvidos-constancias-qa.mjs`, `api/romo-pedidos-olvidados-qa.js`, `migrations/2026-11-16-romo-pedidos-olvidados-versiones-qa.sql`.
+
+Estos archivos **no se han desplegado, ni se ha ejecutado su migración ni autorizado movimiento comercial**. El guardado encriptado/versionado es programación preparada, no éxito bancario ni validación de la dueña. En pedidos olvidados se confirma dinero que ocurrió **antes del cierre original**, nunca se vuelve a recibir en la Caja actual. Se bloqueó la ruta heredada de Uki que no guardaba mediante CAS de Romo.
+
+Pendiente antes de marcar finalizado: validación manual del circuito, origen externo y reparto no duplicado, permisos de dueños, comprobantes reales, errores de conexión, autorización segura de migración y reporte de ajustes a Mi Administración sin reimportar la venta original.
