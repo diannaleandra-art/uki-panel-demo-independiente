@@ -6916,6 +6916,73 @@ function ukiRomoCambiarSemanaCajaQA(value){
 }
 // Exportar exclusivamente cierres cifrados ya presentes en el estado Romo.
 // CSV para Excel; imprimir/guardar como PDF requiere acción manual en Safari.
+/**
+ * Antes de exportar cierres históricos RECTIFICADOS en Romo, comprobar en
+ * Neon cada recibo inmutable; nunca confiar solo en el indicador de la
+ * copia cifrada del navegador. No accede a Uki ni escribe en el servidor.
+ * Para un cierre sin olvidos confirmados, no requiere la tabla opcional.
+ */
+async function ukiRomoValidarCadenasOlvidosAntesDeReportarQA(cierres,revision){
+ if(S.suc!==ROMO_SUCURSAL_QA||!Array.isArray(cierres)||
+    !Number.isSafeInteger(revision)||revision<1)
+  throw Error('Estado o selección de Romo inválidos');
+ const turnos=new Set(cierres.map(c=>c?.turnoClave));
+ const grouped=new Map();
+ for(const a of S.ajustesHistoricos||[]){
+  if(a?.suc!==ROMO_SUCURSAL_QA)throw Error('Los ajustes mezclan sucursales');
+  if(a.tipo!=='pedido_olvidado_romo_confirmado'||
+      !turnos.has(a.turnoClave))continue;
+  if(!grouped.has(a.turnoClave))grouped.set(a.turnoClave,[]);
+  grouped.get(a.turnoClave).push(a);
+ }
+ if(!grouped.size)return true;
+ if(grouped.size>60)throw Error('Selecciona un período menor para comprobar las constancias');
+ const sesion=window.ukiRomoSesionRemotaQA;
+ if(!sesion?.disponible?.()||sesion.estado()?.conflicto||
+    sesion.estado()?.revision!==revision)
+  throw Error('Debes abrir el estado confirmado de Neon Romo');
+ const token=await window.ukiInventarioToken?.();
+ if(typeof token!=='string'||token.length<30)
+  throw Error('La validación de cierres versionados requiere Google de dueños');
+ for(const [turno,filas] of grouped){
+  const ordered=filas.slice().sort((a,b)=>a.versionConfirmada-b.versionConfirmada);
+  if(ordered.length>31||ordered.some((a,i)=>
+    a.versionConfirmada!==i+2||
+    a.reciboVerificadoEnNeon!==true||
+    a.constanciaVersionada!==true||
+    a.fuenteOriginal!=='romo:serena|'+turno||
+    a.fuenteRectificacion!=='romo:serena|'+turno+'|v'+(i+2)))
+   throw Error('La secuencia histórica no concuerda antes del reporte');
+  const res=await fetch('/api/romo-pedidos-olvidados-qa',{
+   method:'POST',cache:'no-store',credentials:'omit',
+   headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+   body:JSON.stringify({action:'consultar',fuenteOriginal:'romo:serena|'+turno,
+    version:ordered.length+1}),
+   signal:AbortSignal.timeout(15000)
+  });
+  const data=await res.json().catch(()=>null);
+  if(!res.ok||data?.ok!==true||data.encontrado!==true||
+    data.fuenteOriginal!=='romo:serena|'+turno||
+    data.version!==ordered.length+1||
+    !Array.isArray(data.versiones)||data.versiones.length!==ordered.length)
+   throw Error(data?.error||'El cierre no tiene todas sus constancias en Neon');
+  for(let i=0;i<ordered.length;i++){
+   const a=ordered[i],v=data.versiones[i];
+   if(!v||v.version!==a.versionConfirmada||
+      v.fuente!==a.fuenteRectificacion||
+      v.solicitudId!==a.id||
+      v.ventaRectificada!==a.ventaRectificada||
+      v.recibidoLocal!==a.recibidoLocal||
+      v.recibidoOtroLocal!==a.recibidoOtroLocal)
+    throw Error('Una versión de cierre difiere de su constancia real');
+  }
+ }
+ if(S.suc!==ROMO_SUCURSAL_QA||!sesion.disponible()||
+    sesion.estado()?.conflicto||sesion.estado()?.revision!==revision)
+  throw Error('La revisión Neon cambió durante la comprobación');
+ return true;
+}
+
 async function ukiRomoExportarCajaQA(tipo,formato){
  if(S.suc!==ROMO_SUCURSAL_QA||!['historial','semana'].includes(tipo)||
     !['csv','pdf'].includes(formato))return;
@@ -6967,6 +7034,7 @@ async function ukiRomoExportarCajaQA(tipo,formato){
  }
  try{
   if(pdfWindow)pdfWindow.opener=null;
+  await ukiRomoValidarCadenasOlvidosAntesDeReportarQA(selected,st.revision);
   const lib=await import('./uki-romo-exportar-cierres-qa.mjs');
   const out=lib.crearReporteCierresRomoQA({
    cierres:S.cierres,ajustesHistoricos:S.ajustesHistoricos||[],
@@ -7001,6 +7069,10 @@ async function ukiRomoCompartirCierreQA(turnoId){
  // Se crea la pestaña en el clic para no activar el bloqueo emergente de Safari.
  const ventana=window.open('','_blank');
  try{
+  const original=(S.cierres||[]).find(c=>
+   c.suc===ROMO_SUCURSAL_QA&&c.turnoClave===id);
+  if(!original)throw Error('Cierre original no encontrado');
+  await ukiRomoValidarCadenasOlvidosAntesDeReportarQA([original],st.revision);
   const lib=await import('./uki-romo-exportar-cierres-qa.mjs');
   if(S.suc!==ROMO_SUCURSAL_QA||session.estado()?.revision!==st.revision)
    throw Error('La sesión de Romo cambió. Vuelve a revisar Historial.');
