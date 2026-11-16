@@ -192,6 +192,9 @@ async function load(){
   if(branch==='romo'&&$('invReportsBox'))$('invReportsBox').querySelector('h2').textContent='Historial de movimientos · Romo';
   $('invAdmin').hidden=false;$('invNewBox').hidden=false;$('invReportsBox').hidden=false;
   populate();reports();status('✓ '+X.items.length+' artículos · '+X.reports.length+' revisiones consultadas.');
+  // Solo lectura de los faltantes de la MISMA sucursal Romo. No copia
+  // existencias de Uki ni escribe datos; refresca el panel al terminar.
+  if(branch==='romo')window.romoActualizarFaltantesQA?.();
  }catch(e){X.loaded=false;$('invAdmin').hidden=true;$('invNewBox').hidden=true;$('invReportsBox').hidden=true;status(String(e.message||e));}
  finally{X.busy=false;if($('invRefresh'))$('invRefresh').disabled=false;}
 }
@@ -292,5 +295,14 @@ function mount(){
  if(X.loaded){$('invAdmin').hidden=false;$('invNewBox').hidden=false;$('invReportsBox').hidden=false;populate();reports();status('Inventario listo.');}
  else void load();
 }
+// Lectura local, sin token nuevo ni acceso a otras sucursales.
+window.romoInventarioFaltantesSoloLecturaQA=function(){
+ if(X.branch!=='romo'||S?.suc!=='Romo’s Sushi La Serena'||!X.loaded)return null;
+ return Object.freeze({storeId:'romo:serena',revision:X.romoRevision,
+   items:X.items.filter(v=>v.archived!==true).map(v=>Object.freeze({
+     sku:String(v.sku),name:String(v.name),stock_unit:String(v.stock_unit||'un'),
+     stock_qty:Number(v.stock_qty)||0,min_stock_qty:Number(v.min_stock_qty)||0
+   }))});
+};
 window.ukiInventarioPanelHTML=panel;window.ukiInventarioMontar=mount;
 })();
