@@ -200,3 +200,106 @@ export function prepararCorreccionPropinaPagadaRomoQA(estado,{
   medioNuevo,diferencia,accion:evento.accion,
   mismaPropina:true,noEsVenta:true,noCreaCobro:true});
 }
+
+
+/**
+ * Mismo formulario de propinas de Caja Uki: rectificar una propina MANUAL
+ * ya guardada sin eliminarla ni insertar otra. Mantiene venta y timbres.
+ * Nunca envía dinero; requiere confirmación de movimiento ocurrido.
+ */
+export function prepararCorreccionPropinaManualRomoQA(estado,{
+ referencia,monto,medio,concepto,responsable,motivo,
+ confirmacionReal=false,registradoEn=Date.now(),
+ fechaISO=new Date(registradoEn).toISOString(),foto
+}={}){
+ assert(estado?.suc===SUC&&Array.isArray(estado.pedidos)&&
+  Array.isArray(estado.propinas)&&Array.isArray(estado.cierres)&&
+  estado.cajasDiarias&&typeof estado.cajasDiarias==='object'&&
+  estado.pedidos.every(x=>x?.suc===SUC)&&estado.propinas.every(x=>x?.suc===SUC),
+  'Solo puede corregirse una propina de Romo La Serena');
+ assert(Number.isSafeInteger(registradoEn)&&registradoEn>0&&
+  Number.isFinite(Date.parse(fechaISO))&&typeof foto==='function',
+  'Fecha o auditoría no válida');
+ const actor=n(responsable),reason=n(motivo);
+ assert(actor.length>=2&&actor.length<=80&&
+  reason.length>=4&&reason.length<=250,
+  'Responsable y motivo de la corrección obligatorios');
+ assert(Number.isSafeInteger(monto)&&monto>=0&&monto<=1000000&&
+  MEDIOS.includes(medio)&&n(concepto).length>=3&&n(concepto).length<=150,
+  'Propina corregida, medio o concepto no permitido');
+ const text=n(referencia);
+ assert(text.length>0&&text.length<=80,'Escribe el mismo folio de la propina original');
+ const prefCarta=/^carta\b/i.test(text),prefInterno=/^(?:interno|pedido\s+interno)\b/i.test(text);
+ const ref=text.replace(/^(?:carta|pedido\s+interno|interno)\s*#?\s*/i,'')
+  .replace(/^#/,'').trim();
+ assert(ref.length>0&&ref.length<=60,'Folio inválido');
+ const pedidos=estado.pedidos.filter(p=>
+  prefCarta?String(p.codigoCarta||'')===ref:
+  prefInterno?String(p.id)===ref:
+  String(p.id)===ref||String(p.codigoCarta||'')===ref);
+ assert(pedidos.length===1,'No se identificó un pedido único de Romo');
+ const p=pedidos[0],turno=String(p.turnoClave||'');
+ const caja=estado.cajasDiarias[SUC+'|'+turno.slice(0,10)];
+ assert(p.pagado===true&&p.estado!=='Cancelado'&&!p.esPremio&&
+  !/^PRUEBA\b/i.test(n(p.cliente))&&!p.ajusteCobroPendiente&&
+  !p.productosPagadosOtroLocal&&!p.envioPagadoOtroLocal&&
+  !(Array.isArray(p.qrSolicitudes)&&p.qrSolicitudes.length),
+  'Solo pedidos pagados reales sin otro ajuste ni QR');
+ assert(turno&&caja?.turnoAbierto===true&&caja.baseConfirmada===true&&
+  caja.turnoId===turno&&Number.isSafeInteger(caja.inicioMs)&&
+  registradoEn>caja.inicioMs&&!estado.cierres.some(c=>
+   c.suc===SUC&&c.turnoClave===turno),
+  'Turno cerrado o sin base confirmada; no modificar propina');
+ assert(!Number(p.propina||0),
+  'Existe propina dentro del pedido: utiliza su formulario original');
+ const registros=estado.propinas.filter(x=>Number(x.pedidoId)===Number(p.id));
+ assert(registros.length===1&&registros[0].origen==='manual',
+  'No hay una propina manual única para corregir');
+ const previo=registros[0];
+ assert(Number.isSafeInteger(previo.monto)&&previo.monto>=0&&
+  MEDIOS.includes(previo.medio)&&
+  estado.propinas.filter(x=>String(x.id)===String(previo.id)).length===1,
+  'El registro anterior es ambiguo o no válido');
+ const diferencia=monto-previo.monto;
+ const cambioMedio=medio!==previo.medio;
+ assert(diferencia!==0||cambioMedio||n(concepto)!==n(previo.concepto),
+  'No hay corrección de propina para guardar');
+ assert(diferencia===0||!cambioMedio,
+  'No cambies importe y medio a la vez: primero confirma un movimiento y después corrige la clasificación');
+ assert(confirmacionReal===true,
+  'Antes de guardar verifica que el dinero se movió de verdad o que la clasificación es correcta');
+ const antes=foto(p);
+ const antesPropina={id:previo.id,monto:previo.monto,medio:previo.medio,
+  concepto:previo.concepto,registradoEn:previo.registradoEn,fechaISO:previo.fechaISO};
+ const despuesPropina={...antesPropina,monto,medio,concepto:n(concepto)};
+ const movimiento={
+  tipo:'correccion_propina_manual',fecha:fechaISO,fechaISO,registradoEn,
+  responsable:actor,motivo:reason,
+  accion:diferencia>0?'propina_adicional_recibida':
+   diferencia<0?'devolucion_propina_realizada':
+   cambioMedio?'rectificacion_medio_propina':'rectificacion_concepto_propina',
+  montoAnterior:previo.monto,montoNuevo:monto,
+  medioAnterior:previo.medio,medioNuevo:medio,diferencia,
+  anterior:antesPropina,nuevo:despuesPropina,
+  confirmacionReal:true
+ };
+ const nuevaFila={...previo,monto,medio,concepto:n(concepto),
+  historialCorrecciones:[...(Array.isArray(previo.historialCorrecciones)?
+   previo.historialCorrecciones:[]),movimiento]};
+ const nuevoPedido={...p,
+  historialCambios:[...(Array.isArray(p.historialCambios)?p.historialCambios:[]),
+   {...movimiento,anterior:antes,nuevo:foto(p)}],
+  correccionesTurno:[...(Array.isArray(p.correccionesTurno)?p.correccionesTurno:[]),
+   {tipo:movimiento.tipo,accion:movimiento.accion,fechaISO,registradoEn,
+    responsable:actor,nota:reason,montoAnterior:previo.monto,montoNuevo:monto,
+    medioAnterior:previo.medio,medioNuevo:medio,diferencia,
+    antes,despues:foto(p),saldoPendiente:0}]
+ };
+ // MISMO pedido y MISMA propina. Fecha original no cambia; reporte recalcula.
+ estado.pedidos[estado.pedidos.indexOf(p)]=nuevoPedido;
+ estado.propinas[estado.propinas.indexOf(previo)]=nuevaFila;
+ return Object.freeze({pedidoId:p.id,registroId:previo.id,
+  montoAnterior:previo.monto,montoNuevo:monto,medioAnterior:previo.medio,
+  medioNuevo:medio,diferencia,accion:movimiento.accion,
+  mismaPropina:true,noEsVenta:true,noCreaCobro:true});
+}
