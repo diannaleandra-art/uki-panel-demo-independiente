@@ -7,8 +7,6 @@
  */
 export const ROMO_DIFERENCIAS_SOLO_LECTURA_QA=true;
 const SUC='Romo’s Sushi La Serena';
-const MEDIOS=['Efectivo','Transferencia','Débito','Edenred','Otros','Uber Eats','PedidosYa','Rappi'];
-const APP=new Set(['Uber Eats','PedidosYa','Rappi']);
 const err=x=>{throw Error(x)};
 const obj=x=>x&&typeof x==='object'&&!Array.isArray(x);
 const amount=(x,label,max=3000000)=>{
@@ -42,8 +40,8 @@ const toLines=(item,kind,total,medios,forDraft=false)=>{
  if(!medios.includes(medio))err('Selecciona un medio permitido para '+kind);
  return [{medio,monto:total}];
 };
-const group=rows=>{
- const ret=Object.fromEntries(MEDIOS.map(k=>[k,0]));
+const group=(rows,medios)=>{
+ const ret=Object.fromEntries(medios.map(k=>[k,0]));
  for(const p of rows)ret[p.medio]+=p.monto;
  return ret;
 };
@@ -68,7 +66,17 @@ function propinaDraft(d,subtotal){
  err('Modo de propina desconocido');
 }
 /** La salida es un plan comparativo, NO prueba de dinero efectivamente movido. */
-export function calcularDiferenciaPagadaRomoQA(p,d){
+export function calcularDiferenciaPagadaRomoQA(p,d,{
+ mediosProductos,mediosDelivery
+}={}){
+ // Una única fuente de medios permitidos: las constantes ya existentes
+ // de la bandeja operativa Romo, NO una lista comercial alternativa.
+ if(!Array.isArray(mediosProductos)||!Array.isArray(mediosDelivery)||
+    !mediosProductos.length||!mediosDelivery.length||
+    new Set(mediosProductos).size!==mediosProductos.length||
+    new Set(mediosDelivery).size!==mediosDelivery.length||
+    !mediosDelivery.every(m=>mediosProductos.includes(m)))
+   err('Faltan medios autorizados de la sucursal Romo');
  if(!obj(p)||p.suc!==SUC||p.pagado!==true||p.esPremio||p.estado==='Cancelado'||
    !obj(d)||Number(d.editando)!==Number(p.id))
   err('Selecciona un pedido pagado de Romo');
@@ -95,8 +103,8 @@ export function calcularDiferenciaPagadaRomoQA(p,d){
  const despuesTotal=despuesSub+despuesEnv+despuesTip;
  if(!Number.isSafeInteger(despuesTotal)||despuesTotal>3000000)
   err('El nuevo total no es válido');
- const productosPerm=MEDIOS;
- const deliveryPerm=MEDIOS.filter(x=>!APP.has(x));
+ const productosPerm=mediosProductos;
+ const deliveryPerm=mediosDelivery;
  const oldSale=[
   ...toLines(p,'productos',antesSub,productosPerm),
   ...toLines(p,'delivery',antesEnv,deliveryPerm)
@@ -105,8 +113,8 @@ export function calcularDiferenciaPagadaRomoQA(p,d){
   ...toLines(d,'productos',despuesSub,productosPerm,true),
   ...toLines(d,'delivery',despuesEnv,deliveryPerm,true)
  ];
- const oldBy=group(oldSale),newBy=group(newSale);
- const diferencias=MEDIOS.map(m=>({
+ const oldBy=group(oldSale,productosPerm),newBy=group(newSale,productosPerm);
+ const diferencias=productosPerm.map(m=>({
    medio:m,registrado:oldBy[m],propuesto:newBy[m],diferencia:newBy[m]-oldBy[m]
  })).filter(x=>x.registrado||x.propuesto||x.diferencia);
  const viejaPropina=antesTip?String(p.medioPropina||'Efectivo'):'';
