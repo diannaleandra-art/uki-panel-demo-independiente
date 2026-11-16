@@ -163,10 +163,7 @@ function showTab(){
    else container.textContent='Carta y precios Romo: editor no habilitado todavía. Ningún dato se modificó.';
   }
  }else if(state.tab==='precios'&&!state.ready)void loadPrices();
- if(state.tab==='reportes'){
-  if(esRomo)info('ukiReponerEstado','Reportes de Romo: pendiente de conexión exclusiva. No se consultarán datos de Uki.');
-  else void loadReponer();
- }
+ if(state.tab==='reportes')void loadReponer();
 }
 // Fotos optimizadas: el mismo menú de Uki, sin servicios adicionales.
 function photoUrl(sku,chosen=state.branch){return PHOTO_API+'?branch='+encodeURIComponent(chosen)+'&sku='+encodeURIComponent(sku);}
@@ -989,15 +986,19 @@ async function create(){
  finally{state.busy=false;$('ukiPriceCreate').disabled=false;}
 }
 async function loadReponer(){
- if(esSucursalRomoQA()){
-  info('ukiReponerEstado','Faltantes de Romo: consultar exclusivamente su inventario. No se consultarán existencias de Uki.');
-  return;
- }
- const selected=branch();state.branch=selected;
- info('ukiReponerEstado','Consultando faltantes…');
+ const romo=esSucursalRomoQA();
+ const selected=branch();if(!romo)state.branch=selected;
+ info('ukiReponerEstado',romo?'Consultando faltantes propios de Romo…':'Consultando faltantes…');
  try{
-  const data=await request(STOCK_API,'articulos',{},selected);
-  if(selected!==branch())return;
+  const data=romo?window.romoInventarioFaltantesSoloLecturaQA?.():
+    await request(STOCK_API,'articulos',{},selected);
+  if(romo){
+    if(!data||data.storeId!=='romo:serena'||!Array.isArray(data.items)){
+      info('ukiReponerEstado','Inventario de Romo aún sin cargar: abre Inventario y pulsa Actualizar para consultar los faltantes.');
+      $('ukiReponerListado')?.replaceChildren();
+      return;
+    }
+  }else if(selected!==branch())return;
   const all=data.items||[],configured=all.filter(i=>Number(i.min_stock_qty)>0);
   const short=configured.filter(i=>Number(i.stock_qty)<=Number(i.min_stock_qty))
    .sort((a,b)=>a.name.localeCompare(b.name,'es'));
@@ -1201,13 +1202,13 @@ function mount(){
     if(esSucursalRomoQA())showTab();
     else void loadPrices(true);
    }
-   if(state.tab==='reportes'){
-    if(esSucursalRomoQA())info('ukiReponerEstado','Reportes de Romo: conexión independiente pendiente.');
-    else void loadReponer();
-   }
+   if(state.tab==='reportes')void loadReponer();
   });
  }
  showTab();
 }
 window.ukiInventarioMontar=mount;
+window.romoActualizarFaltantesQA=()=>{
+ if(esSucursalRomoQA()&&state.tab==='reportes')void loadReponer();
+};
 })();
