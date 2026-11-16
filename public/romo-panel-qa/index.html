@@ -3425,6 +3425,7 @@ function savePD(){
  render();
 }
 function addPropina(){
+ if(S.suc===ROMO_SUCURSAL_QA)return void ukiRomoAgregarPropinaManualQA();
  const m=Number(String($("prMon")?.value||"").trim());
  const med=String($("prMed")?.value||"").trim();
  const refTexto=String($("prPed")?.value||"").trim();
@@ -3458,7 +3459,11 @@ function addPropina(){
   concepto,origen:"manual",responsable:ukiTimbreResponsableActual()});
  render();aviso("✅ Propina manual vinculada al pedido "+ukiReferenciaConCarta(p)+". No se sumó como venta.");
 }
-function quitarPropina(id){const x=S.propinas.find(x=>x.id===id&&x.suc===S.suc);if(x?.pedidoId){aviso("Esta propina pertenece a un pedido. Corrige el pedido para evitar descuadres.");return;}S.propinas=S.propinas.filter(x=>x.id!==id);render();}
+function quitarPropina(id){
+ if(S.suc===ROMO_SUCURSAL_QA){
+  aviso('Las propinas de Romo no se eliminan desde esta pantalla. Requieren corrección auditada de caja.');return;
+ }
+ const x=S.propinas.find(x=>x.id===id&&x.suc===S.suc);if(x?.pedidoId){aviso("Esta propina pertenece a un pedido. Corrige el pedido para evitar descuadres.");return;}S.propinas=S.propinas.filter(x=>x.id!==id);render();}
 function addRetiro(){const m=parseInt($("reMon").value)||0; const mot=$("reMot").value.trim(); if(!m){aviso("Monto retiro");return;} S.retiros.push({suc:S.suc,id:Date.now(),fechaISO:ahora(),registradoEn:Date.now(),monto:m,motivo:mot}); $("reMon").value=""; $("reMot").value=""; render();}
 function quitarRetiro(id){S.retiros=S.retiros.filter(x=>x.id!==id);render();}
 function addCC(){const m=parseInt($("ccMon").value)||0; const con=$("ccCon").value.trim(); if(!m){aviso("Monto caja chica");return;} cajaDelDia().cajaChica.gastos.push({id:Date.now(),monto:m,concepto:con}); $("ccMon").value=""; $("ccCon").value=""; render();}
@@ -6998,6 +7003,60 @@ function ukiRomoCajaPestanasQA(){
  return barra+vista;
 }
 
+/** La tarjeta aprobada de propinas de Uki se usa sin clonarla ni rehacerla. */
+function ukiRomoTarjetaPropinaUkiQA(){
+ const temp=document.createElement('div');
+ temp.innerHTML=vRegistros();
+ return temp.children[5]?.outerHTML||
+  '<div class="card">No se pudo cargar el formulario oficial de propinas. Reabre Caja.</div>';
+}
+async function ukiRomoAgregarPropinaManualQA(){
+ if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA)return;
+ const session=window.ukiRomoSesionRemotaQA;
+ if(!session?.disponible?.()||session.estado()?.conflicto){
+  aviso('Abre Romo con Google de dueños y revisión actualizada de Neon.');return;
+ }
+ const referencia=String($('prPed')?.value||'').trim();
+ const concepto=String($('prCon')?.value||'').trim();
+ const raw=String($('prMon')?.value??'').trim(),monto=Number(raw);
+ const medio=String($('prMed')?.value||'');
+ if(raw===''||!Number.isSafeInteger(monto)||monto<1){
+  aviso('Escribe el monto realmente recibido.');return;
+ }
+ const responsable=String(window.prompt(
+  '¿Quién recibió físicamente esta propina en Romo La Serena?', '')||'').trim();
+ if(responsable.length<2||responsable.length>80){
+  aviso('Indica el responsable real del registro.');return;
+ }
+ try{
+  const base=session.estado(),copia=datosSoloSucursal();
+  const mod=await import('./uki-romo-propina-manual-qa.mjs');
+  if(!session.disponible()||session.estado()?.revision!==base.revision)
+   throw Error('El inventario de caja cambió. Revisa antes de guardar.');
+  const result=mod.prepararPropinaManualRomoQA(copia,{
+   referencia,monto,concepto,medio,responsable,registradoEn:Date.now(),
+   confirmarRecibida:true
+  });
+  if(result.noEsVenta!==true||result.propinaUnica!==true||
+     !validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
+   throw Error('No fue posible validar una propina única de Romo');
+  if(!window.confirm('ROMO LA SERENA · Pedido #'+result.pedidoId+
+    '\n¿Confirmas que YA recibiste realmente '+fmt(result.monto)+
+    ' de propina por '+result.medio+'?\nConcepto: '+result.concepto+
+    '\nResponsable: '+responsable+
+    '\nSe registrará SOLO en Propinas y no como venta.'))return;
+  ukiRomoOperandoPedidoQA=true;
+  if(session.estado()?.revision!==base.revision||!session.disponible()||
+     session.estado()?.conflicto)
+   throw Error('La revisión cambió durante la confirmación');
+  await ukiRomoGuardarOperacionQA(copia,
+   'Propina manual recibida y auditada, sin venta',result.pedidoId,'caja');
+ }catch(error){
+  aviso('No se confirmó la propina en Neon. Comprueba el pedido y Caja antes de repetir: '+
+   String(error?.message||error));
+ }finally{ukiRomoOperandoPedidoQA=false;}
+}
+
 function ukiRomoCajaConsultaHTMLQA(seccion='resumen'){
  const t=totales(),caja=cajaDelDia();
  const baseConfirmada=caja.baseConfirmada===true;
@@ -7077,7 +7136,10 @@ function ukiRomoCajaConsultaHTMLQA(seccion='resumen'){
    '<label>Monto efectivamente pagado</label><input id="romoPagoDeliveryMontoQA" type="number" inputmode="numeric" min="1">'+
    '<label>Medio</label><select id="romoPagoDeliveryMedioQA">'+opciones+'</select>'+
    '<button class="big" type="button" onclick="ukiRomoGuardarMovimientoQA(\'pagoRepartidor\')">Registrar pago al repartidor</button>'+
-   (detalles||'<p class="muted">Todavía no hay pagos de repartidor registrados</p>'));
+   (detalles||'<p class="muted">Todavía no hay pagos de repartidor registrados</p>'))+
+  wrapper('💝 Propinas de pedidos · mismo formulario Uki',
+   '<p class="muted">Solo propinas realmente recibidas del turno abierto, sin duplicarlas. Guarda con confirmación exclusiva en Neon Romo. No se suman a ventas.</p>'+
+   ukiRomoTarjetaPropinaUkiQA());
  const turnosHtml=ukiRomoCierreTurnoHTMLQA()+
   '<p class="muted">El precierre desde cuenta de dueños está preparado; falta habilitar el acceso limitado del trabajador. Mi Administración todavía no contabiliza automáticamente estos cierres.</p>';
  return seccion==='movimientos'?(window.romoMovimientosParidadQA?.(movimientosHtml)||movimientosHtml):
