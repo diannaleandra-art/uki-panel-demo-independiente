@@ -179,3 +179,20 @@ Se implementó el siguiente SUBCONJUNTO seguro sin crear otra pantalla:
 **Pendiente real, NO resuelto:** correcciones de precio, cantidad, productos, propinas, pagos mixtos, cambios de cliente y diferencias de caja en pedidos YA PAGADOS. Antes de ofrecerlos en el mismo formulario habrá que usar la conciliación de efectivo/medios oficial de Uki, confirmación real de devolución/cobro, rectificación postcierre con autorización de dueños, historial de fidelización y CAS atómico Neon. No añadir otra caja ni una segunda bandeja. No activar las operaciones hasta la revisión manual de punta a punta.
 
 No hubo cambios en `main` Uki ni en los registros de pagos, carta o caja. No se realizaron pruebas de venta ni una publicación.
+
+
+## Conciliación de ventas pagadas: comparación por medios, sin escribir caja
+16-11-2026. Código único preparado en `preparacion/uki-romo-sobre-main-20261114`, sin despliegue, sin pruebas de caja, sin movimientos reales.
+
+**Hallazgo:** el panel de Romo ya tenía confirmado el **registro real de pagos mixtos** de productos y delivery por `ukiRomoConfirmarCobroQA()`, `ukiRomoLeerDistribucionQA()` y `uki-romo-cobro-pendiente-qa.mjs`, con CAS Neon y auditoría. No debe duplicarse ni reescribirse ese cobro. Lo pendiente es la **corrección de un pedido que YA estaba pagado**: Uki utiliza `ukiPagoModificado()`, `ukiCobrosRealesMedios()`, `ukiPrepararAjusteCobro()` y la gestión de propinas y timbres, pero Romo todavía carece de conciliación completa antes de modificar la venta.
+
+Se añadió únicamente un **cotejo de solo lectura en el formulario oficial**:
+- `public/romo-panel-qa/uki-romo-diferencias-financieras-qa.mjs`: calcula el total registrado vs la propuesta sin mutar el objeto `p` ni `D`, verifica subtotal de productos y reparto, medios individuales/mixtos, propina separada, diferencia global y por medio. **Recibe** los medios oficiales `ROMO_MEDIOS_COBRO_QA` y `ROMO_MEDIOS_DELIVERY_QA` del panel; no mantiene otra lista ni permite apps para delivery.
+- `public/romo-panel-qa/index.html`: en la misma pantalla `vNuevo()`, solo si `D.editando` y pedido pagado, aparece «Ver diferencias sin guardar», con desglose por método. `ukiRomoVistaDiferenciasPagoQA()` exige sesión autorizada vigente, turno abierto, base confirmada, ningún cierre y formulario sin cambios durante la lectura. Muestra los resultados solo con `textContent`, sin generar cobros.
+- No habilita `ndGuardar` para correcciones de efectivo, transferencia, tarjeta, pagos mixtos, productos, reparto o propinas. El clasificador de `uki-romo-edicion-pagada-qa.mjs` sigue permitiendo **solo** referencias administrativas sin modificar dinero.
+- **Exclusiones deliberadas:** cuentas QR, pagos en otra sucursal, pedidos con saldo de ajuste previo, cambios de modalidad o estado a no pagado, registros fuera de rango y cierres. Requieren una conciliación específica para no generar dobles cobros ni cierres incorrectos.
+- No se escribe ninguna diferencia como si fuera un pago recibido o devolución realizada. No se actualizan caja, clientes, timbres, pedidos, cierres ni `Mi Administración` por pulsar este botón.
+
+**Siguiente implementación real:** conectar las rectificaciones financieras pagadas con un registro independiente y auditado de `recibido / devolución ya realizada / pendiente por cobrar`, conciliación de cada medio, propinas y caja acumulada con CAS, y la posterior rectificación de cierres (solo con dueños); después validar manualmente desde la carta hasta el cierre. Hasta entonces queda bloqueada la modificación financiera.
+
+**Estado:** solo rama preparación. Mantener Uki oficial, carta aprobada y datos de Romo sin alteraciones.
