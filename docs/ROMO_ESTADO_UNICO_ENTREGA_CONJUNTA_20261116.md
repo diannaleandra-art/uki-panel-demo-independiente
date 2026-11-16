@@ -196,3 +196,17 @@ Se añadió únicamente un **cotejo de solo lectura en el formulario oficial**:
 **Siguiente implementación real:** conectar las rectificaciones financieras pagadas con un registro independiente y auditado de `recibido / devolución ya realizada / pendiente por cobrar`, conciliación de cada medio, propinas y caja acumulada con CAS, y la posterior rectificación de cierres (solo con dueños); después validar manualmente desde la carta hasta el cierre. Hasta entonces queda bloqueada la modificación financiera.
 
 **Estado:** solo rama preparación. Mantener Uki oficial, carta aprobada y datos de Romo sin alteraciones.
+
+
+## Corrección del medio de pago ya recibido — sin duplicar cobros
+16-11-2026 — **implementado solo en la rama de preparación, sin publicar ni ejecutar ningún cobro o devolución**.
+
+Se comprobó que `totales()` y los medios de caja oficiales ya leen `medio`, `medioEnvio`, `pagosProductos` y `pagosEnvio` de cada pedido pagado. Por tanto no se crea una caja ni una tabla paralela de ingresos: si se registró por error como «Efectivo» lo que realmente se había recibido por «Débito» o transferencia, la corrección adecuada es rectificar **la clasificación del cobro original**, sin registrar otro cobro.
+
+- `public/romo-panel-qa/uki-romo-diferencias-financieras-qa.mjs` añade `prepararRectificacionMediosRomoQA` en el módulo **ya creado** para comparar diferencias. Reutiliza `clasificarCorreccionPagadaRomoQA`, el comparador de pagos mixtos existente y las listas de medios del panel. Solo admite cambios de medio individual o mixto si **subtotal, delivery, total y propina son idénticos** y no cambian cliente, WhatsApp, fecha, productos, armado, localidad ni otros campos.
+- Exige pedido pagado de Romo, turno original abierto y base confirmada, sin QR, premios, cierre, cobro en otra sucursal ni diferencias previas; identifica responsable. Guarda el antes/después en `correccionesTurno` y `historialCambios` del **mismo pedido**, no altera el número, ni genera cobro nuevo, devolución, propina nueva o timbre.
+- `public/romo-panel-qa/index.html` añade en la **pantalla oficial de edición de Uki reutilizada** el botón «Corregir medio realmente recibido». Muestra los importes anteriores y propuestos por medio, exige confirmación humana de que ese fue el medio **que efectivamente cobró el negocio**, y aplica únicamente mediante `ukiRomoGuardarOperacionQA` y su revisión CAS cifrada Neon. Ante falla indica revisar Caja y el pedido antes de repetir.
+- `Ver diferencias sin guardar` permanece como consulta sin movimiento. El botón principal `Guardar cambios` continúa bloqueando importes/prod/propinas que requieran conciliación; la nueva corrección está claramente limitada a **reclasificar cómo se cobró dinero que YA se recibió**.
+- Se comprobó **sintaxis estática** del módulo y del nuevo controlador, un único botón/handler, validación de medio oficial, cotejo de venta intacta y uso del guardado CAS; no se ejecutaron casos comerciales porque la dueña pidió pruebas manuales.
+
+**Aún pendiente:** devolución de importes, cobros adicionales, reducción de cantidades de pedidos pagados, cambio de propina con caja, cuadratura de efectivo físico y rectificaciones posteriores al cierre; deben exigir evidencia del movimiento ya realizado, autorización, diario de conciliación y revisión final antes de activar. No anunciar paridad completa de Caja ni publicar sin probar manualmente.
