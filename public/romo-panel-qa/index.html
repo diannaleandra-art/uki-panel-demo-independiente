@@ -7256,6 +7256,9 @@ async function ukiRomoAvanzarJornadaSinCajaQA(){
 function ukiRomoCierreTurnoHTMLQA(){
  const c=cajaDelDia(),abierto=c.turnoAbierto===true;
  const t=totales(),dia=fechaOperativaActual();
+ const ajustesSinConciliar=(S.pedidos||[]).filter(p=>
+  p?.suc===ROMO_SUCURSAL_QA&&p.turnoClave===c.turnoId&&
+  p.ajusteCobroPendiente!=null);
  const cierres=(S.cierres||[]).filter(x=>x.suc===ROMO_SUCURSAL_QA)
   .slice().sort((a,b)=>(Number(b.fechaMs)||0)-(Number(a.fechaMs)||0));
  return '<details class="card" id="romoTurnosQA">'+
@@ -7287,12 +7290,20 @@ function ukiRomoCierreTurnoHTMLQA(){
    '</div>'+
    '<div class="card"><h3>🔒 Cierre definitivo del turno</h3>'+
    '<p class="muted">Requiere conteo físico, revisión de pedidos, timbres y solicitudes. Se guarda una sola vez con su constancia en Neon.</p>'+
+   (ajustesSinConciliar.length?
+    '<div class="card" role="alert" style="border:2px solid #b21b38;background:#fff7f8">'+
+    '<b>⚠️ Cierre bloqueado · '+ajustesSinConciliar.length+
+    ' pedido(s) con diferencias de dinero por conciliar</b>'+
+    '<p>Revisa cada cobro o devolución realmente efectuada en Pedidos y Caja. Aceptar una diferencia del conteo NO regulariza estos pedidos.</p>'+
+    '<p class="muted">Pedidos: '+ajustesSinConciliar.map(p=>esc(String(p.id))).join(', ')+'</p></div>':'')+
    '<label>Responsable</label><input id="romoCierreResponsableQA" maxlength="80" autocomplete="off">'+
    '<label>Efectivo contado sin base inicial (pesos)</label><input id="romoCierreContadoQA" type="number" inputmode="numeric" min="0" step="1">'+
    '<label>Observaciones / motivo de diferencia</label><textarea id="romoCierreObsQA" maxlength="700" rows="2"></textarea>'+
    '<label><input id="romoCierreAceptoPendientesQA" type="checkbox"> Confirmo el tratamiento de pedidos pendientes de pago</label>'+
    '<label><input id="romoCierreAceptoDiferenciaQA" type="checkbox"> He revisado y acepto cualquier diferencia de efectivo</label>'+
-   '<button type="button" class="big" onclick="ukiRomoCerrarTurnoQA()">Revisar y cerrar definitivamente</button></div>')+
+   '<button type="button" class="big" onclick="ukiRomoCerrarTurnoQA()"'+
+    (ajustesSinConciliar.length?' disabled title="Concilia primero los pedidos con ajustes pendientes"':'')+
+    '>Revisar y cerrar definitivamente</button></div>')+
   '<div class="card"><h3>Historial de cierres confirmados · '+cierres.length+'</h3>'+
    (cierres.map(x=>'<div class="row"><span>'+esc(x.fechaOperativa||x.fechaISO||'Fecha')+
      ' · '+esc(x.resp||'Responsable')+'</span><b>'+fmt(x.venta)+'</b></div>').join('')||
@@ -7412,6 +7423,13 @@ async function ukiRomoAbrirTurnoQA(){
 }
 async function ukiRomoCerrarTurnoQA(){
  if(ukiRomoTurnoOcupadoQA||S.suc!==ROMO_SUCURSAL_QA)return;
+ const cajaInicial=cajaDelDia();
+ const pendientes=(S.pedidos||[]).filter(p=>p?.suc===ROMO_SUCURSAL_QA&&
+  p.turnoClave===cajaInicial.turnoId&&p.ajusteCobroPendiente!=null);
+ if(pendientes.length){
+  aviso('Cierre bloqueado: hay '+pendientes.length+
+   ' pedido(s) con ajustes de cobro pendientes. Deben conciliarse con dinero real.');return;
+ }
  const responsable=String($('romoCierreResponsableQA')?.value||'').trim();
  const observacion=String($('romoCierreObsQA')?.value||'').trim();
  const contadoTexto=String($('romoCierreContadoQA')?.value||'').trim();
