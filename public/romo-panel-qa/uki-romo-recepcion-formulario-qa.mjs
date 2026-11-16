@@ -172,6 +172,18 @@ export function crearBandejaRomoMismoPanelQA({
    requireValid(UUID.test(String(claimToken||'')),'Reserva inválida');
    return act('liberar',{id,claimToken});
   },
+  async recuperar(id,nombreResponsable,motivo){
+   requireValid(typeof nombreResponsable==='string'&&nombreResponsable.trim().length>=3&&
+     nombreResponsable.trim().length<=80&&typeof motivo==='string'&&
+     motivo.trim().length>=5&&motivo.trim().length<=200,
+     'Indica quién recupera y por qué, después de revisar pedido, caja e historial');
+   const data=await act('recuperar',{id,
+     nombreResponsable:clean(nombreResponsable,80),
+     motivo:clean(motivo,200),confirmoSinPedido:true});
+   requireValid(data.estado==='pendiente'&&data.reservaLiberada===true&&
+     data.branch===BRANCH&&data.id===id,'La recuperación no fue confirmada');
+   return data;
+  },
   async rechazar(id,motivo){
    requireValid(typeof motivo==='string'&&motivo.trim(),'Motivo obligatorio');
    return act('rechazada',{id,motivo:clean(motivo,200)});

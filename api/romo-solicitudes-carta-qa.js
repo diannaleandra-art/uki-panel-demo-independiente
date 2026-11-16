@@ -152,6 +152,7 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
    return fail(res,400,'Acción inválida');
   const allowedFields=action==='aceptada'?
    ['claimToken','estado','expectedRevision','id','pedidoId','snapshot']:
+   action==='recuperar'?['confirmoSinPedido','estado','id','motivo','nombreResponsable']:
    action==='rechazada'?['estado','id','motivo']:
    (action==='reservar'||action==='liberar')?['claimToken','estado','id']:[];
   if(!allowedFields.length||Object.keys(body).sort().join('|')!==allowedFields.sort().join('|'))
@@ -159,6 +160,7 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
   const args={db:writer,identity,...body};
   const result=action==='reservar'?await core.reservarSolicitudRomo(args):
    action==='liberar'?await core.liberarSolicitudRomo(args):
+   action==='recuperar'?await core.recuperarReservaRomo(args):
    action==='rechazada'?await core.rechazarSolicitudRomo(args):
    await core.aceptarYGuardarSolicitudRomo(args);
   return res.status(200).json(result);

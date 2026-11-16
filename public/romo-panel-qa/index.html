@@ -5111,9 +5111,14 @@ function ukiRomoCamposCobroQA(p){
 let ukiRomoSolicitudesCartaQA=null;
 let ukiRomoSolicitudesAvisoQA='';
 let ukiRomoSolicitudesActualizandoQA=false;
+let ukiRomoSolicitudesLecturaOkQA=false;
+let ukiRomoReservaDesfaseServidorQA=0;
+let ukiRomoReservaAudioQA=null;
+const ukiRomoReservaAlertasQA=new Set();
 async function ukiRomoActualizarSolicitudesCartaQA(){
  if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoSolicitudesActualizandoQA)return;
  ukiRomoSolicitudesActualizandoQA=true;
+ ukiRomoSolicitudesLecturaOkQA=false;
  ukiRomoSolicitudesAvisoQA='Consultando solicitudes propias de Romo…';
  try{
   const token=await window.ukiInventarioToken?.();
@@ -5133,6 +5138,8 @@ async function ukiRomoActualizarSolicitudesCartaQA(){
     !UUID.test(String(o.id||''))||o.branch!=='serena'||
     !['pendiente','aceptada','rechazada'].includes(o.estado)))
    throw Error('Bandeja no pertenece a Romo La Serena.');
+  const tiempoServidor=Date.parse(String(data.ahoraServidor||''));
+  if(Number.isFinite(tiempoServidor))ukiRomoReservaDesfaseServidorQA=tiempoServidor-Date.now();
   // Usar el MISMO parser de recepción que abre el formulario de Uki en Romo.
   // Es SOLO lectura: jamás asignar precios inventados ni crear pedidos al consultar.
   let interpretarSolicitud=null;
@@ -5147,6 +5154,7 @@ async function ukiRomoActualizarSolicitudesCartaQA(){
     return {...o,vistaProductosQA:vista.items};
    }catch{return o;} // Mensaje antiguo: conservar texto, no inventar productos.
   });
+  ukiRomoSolicitudesLecturaOkQA=true;
   const count=data.orders.filter(o=>o.estado==='pendiente').length;
   ukiRomoSolicitudesAvisoQA=count?
    count+' solicitud(es) pendiente(s) de la carta. No cuentan como venta hasta ser aceptadas.':
@@ -5168,6 +5176,135 @@ setInterval(()=>{
     !window.ukiRomoSesionRemotaQA?.disponible())return;
  void ukiRomoActualizarSolicitudesCartaQA();
 },45000);
+// Réplica del contador aprobado en Uki. Solo informa: nunca libera una reserva.
+function ukiRomoReservaAhoraQA(){return Date.now()+ukiRomoReservaDesfaseServidorQA;}
+function ukiRomoReservaVencidaQA(o){
+ const fin=Date.parse(String(o?.reserva_hasta||''));
+ return o?.estado==='pendiente'&&o?.en_reserva===true&&
+  Number.isFinite(fin)&&fin<=ukiRomoReservaAhoraQA();
+}
+function ukiRomoReservaFormatoQA(segundos){
+ const n=Math.max(0,Math.ceil(segundos));
+ return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0');
+}
+function ukiRomoReservaMensajeQA(segundos){
+ if(segundos<=0)return 'Reserva vencida. Verifica pedidos, caja e historial antes de recuperar.';
+ if(segundos<=60)return '¡Urgente! Falta 1 minuto para vencer.';
+ if(segundos<=300)return '¡Atención! Faltan 5 minutos para vencer.';
+ if(segundos<=600)return 'Quedan menos de 10 minutos.';
+ if(segundos<=900)return 'Quedan menos de 15 minutos.';
+ if(segundos<=1800)return 'Recordatorio: quedan menos de 30 minutos.';
+ return 'Esta reserva protege contra el registro duplicado de la solicitud.';
+}
+function ukiRomoReservaContadorHTMLQA(o){
+ const fin=Date.parse(String(o?.reserva_hasta||''));
+ if(!Number.isFinite(fin))return '<p class="muted">Reserva activa. Actualiza antes de continuar.</p>';
+ const segundos=(fin-ukiRomoReservaAhoraQA())/1000;
+ return '<div class="romo-reserva-contador" data-romo-reserva-id="'+esc(String(o.id||''))+
+  '" data-romo-reserva-fin="'+esc(String(o.reserva_hasta))+
+  '" style="margin:9px 0;padding:10px;border:1px solid #ddd;border-radius:10px">'+
+  '<p style="margin:0 0 5px"><b>⏱ Reserva de seguridad: <span data-romo-reloj-tiempo>'+
+  ukiRomoReservaFormatoQA(segundos)+'</span></b></p>'+
+  '<p class="muted" data-romo-reloj-aviso>'+esc(ukiRomoReservaMensajeQA(segundos))+'</p>'+
+  '<button type="button" class="sm" onclick="ukiRomoReservaActivarAudioQA()">Activar aviso sonoro</button></div>';
+}
+async function ukiRomoReservaActivarAudioQA(){
+ try{
+  const Audio=window.AudioContext||window.webkitAudioContext;
+  if(!Audio){aviso('El equipo no permite sonido, pero el contador sigue activo.');return;}
+  if(!ukiRomoReservaAudioQA)ukiRomoReservaAudioQA=new Audio();
+  await ukiRomoReservaAudioQA.resume();
+  if(ukiRomoReservaAudioQA.state!=='running')throw Error('Audio restringido');
+  document.querySelectorAll('.romo-reserva-contador button').forEach(b=>{
+   b.disabled=true;b.textContent='Avisos sonoros activos';
+  });
+ }catch{aviso('El navegador no permitió el sonido; los avisos visuales siguen activos.');}
+}
+function ukiRomoReservaTonoQA(){
+ const ctx=ukiRomoReservaAudioQA;
+ if(!ctx||ctx.state!=='running')return;
+ try{
+  const osc=ctx.createOscillator(),vol=ctx.createGain();
+  osc.frequency.value=880;osc.type='sine';
+  vol.gain.setValueAtTime(0.0001,ctx.currentTime);
+  vol.gain.exponentialRampToValueAtTime(0.12,ctx.currentTime+0.02);
+  vol.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+0.35);
+  osc.connect(vol);vol.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+0.36);
+ }catch{}
+}
+function ukiRomoReservaActualizarRelojesQA(){
+ if(S.suc!==ROMO_SUCURSAL_QA||S.vista!=='pedidos')return;
+ document.querySelectorAll('.romo-reserva-contador[data-romo-reserva-fin]').forEach(el=>{
+  const fin=Date.parse(el.dataset.romoReservaFin||'');
+  if(!Number.isFinite(fin))return;
+  const seg=(fin-ukiRomoReservaAhoraQA())/1000;
+  const tiempo=el.querySelector('[data-romo-reloj-tiempo]');
+  const avisoReloj=el.querySelector('[data-romo-reloj-aviso]');
+  if(tiempo){
+   tiempo.textContent=ukiRomoReservaFormatoQA(seg);
+   tiempo.style.color=seg<=0?'#a22929':seg<=300?'#ba3024':seg<=900?'#a75c08':'#226644';
+  }
+  if(avisoReloj)avisoReloj.textContent=ukiRomoReservaMensajeQA(seg);
+  const fase=seg<=0?'vencida':seg<=60?'1m':seg<=300?'5m':'normal';
+  if(fase!=='normal'){
+   const clave=String(el.dataset.romoReservaId)+'|'+String(fin)+'|'+fase;
+   if(!ukiRomoReservaAlertasQA.has(clave)){
+    ukiRomoReservaAlertasQA.add(clave);
+    if(document.visibilityState==='visible')ukiRomoReservaTonoQA();
+   }
+  }
+ });
+}
+setInterval(ukiRomoReservaActualizarRelojesQA,1000);
+/** Dueños: recuperación manual y auditada; no acepta pedidos ni cobra. */
+async function ukiRomoRecuperarReservaQA(id){
+ if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoOperacionesEnCursoQA())return;
+ if(!window.ukiRomoSesionRemotaQA?.disponible()){
+  aviso('Abre la sesión de Romo antes de recuperar una reserva.');return;
+ }
+ // Verificar una nueva lectura del servidor. Nunca confiar en una ficha vieja.
+ await ukiRomoActualizarSolicitudesCartaQA();
+ const row=ukiRomoSolicitudesLecturaOkQA&&
+  (ukiRomoSolicitudesCartaQA||[]).find(x=>x.id===id&&x.branch==='serena');
+ if(!row||!ukiRomoReservaVencidaQA(row)){
+  aviso('La reserva cambió o no está vencida. No se liberó.');return;
+ }
+ const registrado=(S.pedidos||[]).some(p=>p.suc===ROMO_SUCURSAL_QA&&
+  (String(p.cartaSolicitudRemotaId||'')===id||
+   (String(p.codigoCarta||'')===String(row.codigo_pedido||'')&&
+    ukiTelefonoNormalizado(p.telefono).length>=8&&
+    ukiTelefonoNormalizado(p.telefono)===ukiTelefonoNormalizado(row.telefono))));
+ if(registrado||String(D.cartaSolicitudRemotaId||'')===id){
+  aviso('Este pedido ya aparece registrado o está en preparación. No se liberó la reserva.');return;
+ }
+ const responsable=String(window.prompt('¿Quién recupera la solicitud Romo #'+row.codigo_pedido+
+  '? Escribe nombre y apellido.','')||'').trim();
+ if(responsable.length<3||responsable.length>80){
+  aviso('Indica el responsable (3 a 80 caracteres).');return;
+ }
+ const motivo=String(window.prompt('Motivo obligatorio para recuperar la reserva vencida:',
+  'Reserva vencida sin pedido registrado')||'').trim();
+ if(motivo.length<5||motivo.length>200){
+  aviso('Indica motivo (5 a 200 caracteres).');return;
+ }
+ if(!window.confirm('RECUPERAR RESERVA ROMO #'+row.codigo_pedido+
+  '\n\nConfirma que revisaste pedidos, historial y caja de Romo La Serena y que nadie está terminando este pedido.'+
+  '\n\nSolo libera la reserva; no acepta, cobra ni genera timbres.'))return;
+ ukiRomoSolicitudCartaOcupadaQA=true;
+ try{
+  const mod=await import('./uki-romo-recepcion-formulario-qa.mjs');
+  const bandeja=mod.crearBandejaRomoMismoPanelQA({
+   habilitada:true,getGoogleToken:()=>window.ukiInventarioToken?.()
+  });
+  await bandeja.recuperar(id,responsable,motivo);
+  ukiRomoSolicitudesAvisoQA='Reserva vencida recuperada por '+responsable+
+   ', con motivo registrado; no se generó pedido ni venta.';
+  await ukiRomoActualizarSolicitudesCartaQA();
+ }catch(error){
+  aviso('No se confirmó la recuperación. No repitas sin verificar: '+
+   String(error?.message||error));
+ }finally{ukiRomoSolicitudCartaOcupadaQA=false;}
+}
 // El tipo de entrega viene del texto original firmado por la carta Romo.
 // No asumir Retiro si falta la cabecera: eso podría ocultar un Delivery.
 function ukiRomoModalidadSolicitudQA(mensaje){
@@ -5246,8 +5383,17 @@ function ukiRomoSolicitudesHTMLQA(){
    '<p class="muted"><b>📲 Carta normal · Por confirmar</b></p>'+
    '<p class="muted uki-whatsapp-check">Verifica el mensaje en WhatsApp antes de aceptarlo.</p>'+
    ukiWhatsAppFicha(solicitudComoUki,false)+
-   (reservado?'<p class="muted"><b>En revisión en otro equipo.</b> '+
-    'Actualiza la bandeja antes de continuar; no dupliques el pedido.</p>':
+   (reservado?ukiRomoReservaContadorHTMLQA(o)+
+    '<p class="muted"><b>'+(
+     ukiRomoReservaVencidaQA(o)?'Reserva vencida.':'En revisión en otro equipo.'
+    )+'</b> '+(
+     ukiRomoReservaVencidaQA(o)?
+      'La reserva no se libera sola. Verifica pedidos, caja e historial.':
+      'Actualiza la bandeja antes de continuar; no dupliques el pedido.'
+    )+'</p>'+
+    (ukiRomoReservaVencidaQA(o)?
+     '<button class="sm uki-accion-recuperar" type="button" onclick="ukiRomoRecuperarReservaQA(\''+
+      esc(id)+'\')">🔓 Recuperar reserva vencida (dueños)</button>':''):
     '<div class="uki-solicitud-acciones">'+
     '<label class="uki-motivo-rechazo">Motivo del rechazo'+
     '<select id="ukiRomoMotivo'+esc(id)+'" onchange="ukiMotivoRechazoCambio(this)">'+
