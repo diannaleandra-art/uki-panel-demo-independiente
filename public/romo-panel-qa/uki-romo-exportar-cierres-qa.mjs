@@ -92,8 +92,10 @@ function resumenOlvidosConfirmadosRomoQA(ajustes,cierre){
   a.tipo==='pedido_olvidado_romo_confirmado'&&
   a.turnoClave===cierre.turno).sort((a,b)=>a.versionConfirmada-b.versionConfirmada);
  if(!rows.length)return Object.freeze({count:0,local:0,externo:0,
+  productosLocal:0,productosExterno:0,deliveryLocal:0,deliveryExterno:0,
   ultimo:cierre.venta,version:1,repartoPendiente:0});
  let venta=cierre.venta,local=0,externo=0,repartoPendiente=0;
+ let productosLocal=0,productosExterno=0,deliveryLocal=0,deliveryExterno=0;
  const ids=new Set(),codes=new Set();
  for(let i=0;i<rows.length;i++){
   const a=rows[i],version=i+2,ref='romo:serena|'+cierre.turno+'|v'+version;
@@ -109,18 +111,36 @@ function resumenOlvidosConfirmadosRomoQA(ajustes,cierre){
    Number.isSafeInteger(a.ventaAnterior)&&a.ventaAnterior===venta&&
    Number.isSafeInteger(a.ventaRectificada)&&
    a.ventaRectificada===venta+a.recibidoLocal&&
-   Number.isSafeInteger(a.envio)&&a.envio>=0,
-   'Falta verificar una constancia histórica o una versión de pedido olvidado');
+   Number.isSafeInteger(a.envio)&&a.envio>=0&&
+   Number.isSafeInteger(a.subtotal)&&a.subtotal>0&&
+   Number.isSafeInteger(a.productosCobradosLocal)&&a.productosCobradosLocal>=0&&
+   Number.isSafeInteger(a.productosCobradosOtroLocal)&&a.productosCobradosOtroLocal>=0&&
+   Number.isSafeInteger(a.deliveryCobradoLocal)&&a.deliveryCobradoLocal>=0&&
+   Number.isSafeInteger(a.deliveryCobradoOtroLocal)&&a.deliveryCobradoOtroLocal>=0&&
+   a.productosCobradosLocal+a.productosCobradosOtroLocal===a.subtotal&&
+   a.deliveryCobradoLocal+a.deliveryCobradoOtroLocal===a.envio&&
+   a.productosCobradosLocal+a.deliveryCobradoLocal===a.recibidoLocal&&
+   a.productosCobradosOtroLocal+a.deliveryCobradoOtroLocal===a.recibidoOtroLocal,
+   'Falta verificar una constancia histórica o hay productos/delivery mezclados entre locales');
   if(a.codigoCarta){
    const code=String(a.codigoCarta).trim().toLowerCase();
    check(!codes.has(code),'Código de carta repetido en cierres rectificados');
    codes.add(code);
   }
   ids.add(a.id);local+=a.recibidoLocal;externo+=a.recibidoOtroLocal;
+  productosLocal+=a.productosCobradosLocal;
+  productosExterno+=a.productosCobradosOtroLocal;
+  deliveryLocal+=a.deliveryCobradoLocal;
+  deliveryExterno+=a.deliveryCobradoOtroLocal;
   if(a.repartoRealizado===true)repartoPendiente+=a.envio;
   venta=a.ventaRectificada;
  }
+ check(productosLocal+deliveryLocal===local&&
+  productosExterno+deliveryExterno===externo&&
+  Number.isSafeInteger(venta)&&venta<=1000000000,
+  'El total histórico de los medios no cuadra');
  return Object.freeze({count:rows.length,local,externo,
+  productosLocal,productosExterno,deliveryLocal,deliveryExterno,
   ultimo:venta,version:rows.length+1,repartoPendiente});
 }
 
@@ -184,6 +204,10 @@ export function crearMensajeCierreRomoQA({cierres,turnoId,revision,ajustesHistor
    '*Pedidos omitidos confirmados:* '+olvidos.count,
    '*Cobrado en Romo antes (no volver a ingresar):* '+renderAmount(olvidos.local),
    '*Cobrado en otro local:* '+renderAmount(olvidos.externo),
+   '*Productos cobrados en Romo:* '+renderAmount(olvidos.productosLocal),
+   '*Delivery cobrado en Romo:* '+renderAmount(olvidos.deliveryLocal),
+   '*Productos cobrados en otros locales:* '+renderAmount(olvidos.productosExterno),
+   '*Delivery cobrado en otros locales:* '+renderAmount(olvidos.deliveryExterno),
    '*Venta histórica rectificada Romo (informativa):* '+renderAmount(olvidos.ultimo),
    '*Delivery repartidor por conciliar:* '+renderAmount(olvidos.repartoPendiente),
    'El cierre físico original y su venta del turno permanecen intactos. Consulta el comprobante versionado en Neon.'
@@ -221,10 +245,14 @@ export function crearReporteCierresRomoQA({cierres,desde='',hasta='',revision,tu
  const csv='\uFEFF'+[[...HEADERS,'Aclaraciones posteriores',
   'Version histórica vigente','Pedidos olvidados confirmados',
   'Cobro histórico local añadido CLP','Cobro histórico en otros locales CLP',
+  'Productos cobrado Romo CLP','Delivery cobrado Romo CLP',
+  'Productos cobrado otros locales CLP','Delivery cobrado otros locales CLP',
   'Venta histórica rectificada Romo CLP','Reparto histórico por conciliar CLP'].map(csvText).join(';'),
   ...filtered.map(x=>{const h=resumenOlvidosConfirmadosRomoQA(ajustesHistoricos,x);
    return [...vals(x),notasCierre(ajustesHistoricos,x).map(textoNota).join(' | '),
-    'v'+h.version,h.count,h.local,h.externo,h.ultimo,h.repartoPendiente]
+    'v'+h.version,h.count,h.local,h.externo,
+    h.productosLocal,h.deliveryLocal,h.productosExterno,h.deliveryExterno,
+    h.ultimo,h.repartoPendiente]
     .map(cell).join(';');})].join('\r\n');
  const title=desde&&hasta?'Reporte de cierres · '+desde+' al '+hasta:'Historial de cierres';
  const filename='romo-serena-cierres-'+(desde&&hasta?desde+'-a-'+hasta:'historial')+
@@ -255,7 +283,7 @@ export function crearReporteCierresRomoQA({cierres,desde='',hasta='',revision,tu
    ' Estado cifrado Neon Romo, revisión '+revision+'.</p>'+
   '<p>Este documento no acredita sincronización con Mi Administración. '+
    'No incluye pedidos pendientes ni precierres.</p>'+
-  '<p>*La venta histórica rectificada es informativa y se muestra solo si la versión ya consta en Historial como confirmada y ligada al original. Los cobros externos y el reparto no se vuelven a cargar como ventas ni como pagos.</p>'+
+  '<p>*La venta histórica rectificada es informativa y procede del Historial cifrado, no de una nueva consulta a las constancias. Cada recibo original y versionado se debe verificar desde la opción del Historial. Los cobros externos y el reparto NO se vuelven a cargar como ventas ni como pagos.</p>'+
   table+'<h3>Aclaraciones posteriores (importes del cierre sin cambios)</h3>'+
   (filtered.map(x=>{const notas=notasCierre(ajustesHistoricos,x);
    return notas.length?'<h4>'+escapeHtml(x.fecha+' · '+x.turno)+'</h4><ul>'+
