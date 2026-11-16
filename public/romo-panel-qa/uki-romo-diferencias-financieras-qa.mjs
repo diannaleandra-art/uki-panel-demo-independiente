@@ -225,3 +225,125 @@ export function prepararRectificacionMediosRomoQA({
  return Object.freeze({pedidoId,soloClasificacion:true,noRegistraCobro:true,
   ventaIntacta:true,diferencias:plan.diferencias});
 }
+
+
+/**
+ * Subconjunto prudente de la edición PAGADA oficial de Uki:
+ * modificar ÚNICAMENTE el precio unitario de productos ya existentes.
+ * Conservar cantidades, artículos, cliente, timbres, propina y delivery.
+ * No registra cobro/devolución ni declara dinero recibido. Solo deja un
+ * ajusteCobroPendiente con el dinero REAL anterior, cerrado por separado.
+ */
+export function prepararDiferenciaPrecioPagadoRomoQA({
+ estado,pedidoId,draft,responsable,foto,mediosProductos,mediosDelivery,
+ turnoCerrado=false,registradoEn=Date.now(),fechaISO=new Date(registradoEn).toISOString()
+}={}){
+ if(!obj(estado)||estado.suc!==SUC||!Array.isArray(estado.pedidos)||
+    !Array.isArray(estado.cierres)||!obj(estado.cajasDiarias)||
+    !Array.isArray(estado.propinas)||!Number.isSafeInteger(pedidoId)||
+    pedidoId<=0||typeof foto!=='function')
+  err('Estado independiente o auditoría Romo inválidos');
+ const list=estado.pedidos.filter(p=>p?.suc===SUC&&p.id===pedidoId);
+ if(list.length!==1||estado.pedidos.some(p=>p?.suc!==SUC))
+  err('Pedido de Romo inexistente, duplicado o mezclado con Uki');
+ const p=list[0],turno=String(p.turnoClave||'');
+ const caja=estado.cajasDiarias[SUC+'|'+turno.slice(0,10)];
+ if(p.pagado!==true||p.estado==='Cancelado'||p.esPremio||
+    /^PRUEBA\b/i.test(String(p.cliente||''))||p.ajusteCobroPendiente||
+    p.productosPagadosOtroLocal||p.envioPagadoOtroLocal||
+    (Array.isArray(p.qrSolicitudes)&&p.qrSolicitudes.length)||
+    turnoCerrado||!turno||caja?.turnoAbierto!==true||
+    caja.baseConfirmada!==true||caja.turnoId!==turno||
+    estado.cierres.some(c=>c?.suc===SUC&&c.turnoClave===turno))
+  err('Solo venta real pagada del turno original abierto, sin otro ajuste, QR ni cierre');
+ const actor=String(responsable||'').trim();
+ if(actor.length<2||actor.length>80||!Number.isSafeInteger(registradoEn)||
+    registradoEn<=0||!Number.isFinite(Date.parse(fechaISO))||
+    Number(draft?.editando)!==pedidoId)
+  err('Responsable, fecha o formulario incorrecto');
+ if(!Array.isArray(p.productos)||p.productos.length===0||
+    !Array.isArray(draft.items)||draft.items.length!==p.productos.length)
+  err('No es posible agregar o retirar productos en este ajuste de precio');
+ const precios=draft.items.map((x,i)=>{
+  const old=p.productos[i];
+  if(String(x.nombre||'')!==String(old.nombre||'')||
+     Number(x.cant)!==Number(old.cantidad)||
+     String(x.det||'')!==String(old.detalle||''))
+   err('Solo cambia el precio: los productos, cantidades y armado deben quedar intactos');
+  const precio=amount(x.precio,'precio nuevo',1000000);
+  if(precio===0)err('El precio debe ser mayor a cero');
+  return precio;
+ });
+ if(!precios.some((precio,i)=>precio!==Number(p.productos[i].precioUnit)))
+  err('No se modificó ningún precio');
+ const clas=clasificarCorreccionPagadaRomoQA(p,draft);
+ const proteccionAceptada=new Set([
+  'armado, productos, cantidades o precios','total o subtotal',
+  'pagos mixtos de productos'
+ ]);
+ if(clas.cambios.length||
+    clas.protegidos.some(v=>!proteccionAceptada.has(v)))
+  err('La corrección incluye cliente, medio, reparto, propina u otros datos protegidos: '+
+   clas.protegidos.filter(v=>!proteccionAceptada.has(v)).join(', '));
+ // El método de pago no se reclasifica aquí; eso tiene la corrección
+ // oficial de medio realmente recibido. Mixtos pueden redistribuir
+ // sus importes, conservando exactamente los medios originales.
+ const prevMix=Array.isArray(p.pagosProductos)&&p.pagosProductos.length>0;
+ if(prevMix!==Boolean(draft.mixtoProductos)||
+    (Array.isArray(p.pagosEnvio)&&p.pagosEnvio.length>0)!==Boolean(draft.mixtoEnvio)||
+    String(p.medio||'Efectivo')!==String(draft.medio||'Efectivo')||
+    String(p.medioEnvio||'Efectivo')!==String(draft.medioEnvio||'Efectivo'))
+  err('Primero corrige por separado el medio de pago original');
+ const plan=calcularDiferenciaPagadaRomoQA(p,draft,{mediosProductos,mediosDelivery});
+ if(plan.original.delivery!==plan.propuesto.delivery||
+    plan.original.propina!==plan.propuesto.propina||
+    plan.propina.medioAnterior!==plan.propina.medioPropuesto||
+    plan.original.productos===plan.propuesto.productos||
+    plan.saldoTeorico!==plan.propuesto.productos-plan.original.productos)
+  err('El ajuste debe cambiar solo el importe de los productos, no propinas ni reparto');
+ const distribucion=toLines(draft,'productos',plan.propuesto.productos,mediosProductos,true);
+ const anterior=toLines(p,'productos',plan.original.productos,mediosProductos);
+ if(prevMix){
+  const mediosAnteriores=[...new Set(anterior.map(x=>x.medio))].sort();
+  const mediosNuevos=[...new Set(distribucion.map(x=>x.medio))].sort();
+  if(JSON.stringify(mediosAnteriores)!==JSON.stringify(mediosNuevos))
+   err('El ajuste mixto conserva los mismos medios ya utilizados');
+ }
+ // Los importes realmente cobrados ANTES del ajuste se congelan como en
+ // Uki. Una venta corregida no equivale a una devolución hecha.
+ const recibido=Object.fromEntries(plan.diferencias
+  .filter(x=>x.registrado>0).map(x=>[x.medio,x.registrado]));
+ const saldo=-plan.saldoTeorico;
+ if(!Number.isSafeInteger(saldo)||saldo===0||Math.abs(saldo)>3000000)
+  err('Diferencia inválida; no se generó una devolución o cobro');
+ const antes=foto(p);
+ const nuevo={...p,
+  productos:p.productos.map((x,i)=>({...x,precioUnit:precios[i]})),
+  subtotal:plan.propuesto.productos,
+  total:plan.propuesto.total,
+  pagosProductos:prevMix?distribucion.map(x=>({...x})):[]
+ };
+ nuevo.ajusteCobroPendiente={
+  estado:'pendiente',recibido,saldo,fechaISO
+ };
+ const despues=foto(nuevo);
+ const ev={
+  tipo:'correccion_precio_pagado_pendiente',
+  responsable:actor,fecha:fechaISO,fechaISO,registradoEn,
+  motivo:'Importe corregido sin recibir ni devolver todavía dinero',
+  saldoPendiente:saldo,
+  recibidoOriginal:{...recibido},
+  diferenciaMedios:plan.diferencias,
+  anterior:antes,nuevo:despues
+ };
+ nuevo.historialCambios=[...(Array.isArray(p.historialCambios)?p.historialCambios:[]),ev];
+ nuevo.correccionesTurno=[...(Array.isArray(p.correccionesTurno)?p.correccionesTurno:[]),
+  {tipo:ev.tipo,accion:'ajuste_financiero_pendiente',
+   fechaISO,registradoEn,responsable:actor,nota:ev.motivo,
+   antes,despues,recibidoOriginal:{...recibido},
+   diferenciaMedios:plan.diferencias,saldoPendiente:saldo}];
+ estado.pedidos[estado.pedidos.indexOf(p)]=nuevo;
+ return Object.freeze({pedidoId,ajustePendiente:true,ventaConNuevoImporte:true,
+  noRegistraCobro:true,saldoPendiente:saldo,
+  diferencias:Object.freeze(plan.diferencias.map(x=>Object.freeze({...x})))});
+}
