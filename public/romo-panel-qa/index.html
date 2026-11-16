@@ -2309,7 +2309,9 @@ function vNuevo(){
     '<div class="card" style="border-color:#ad102b"><b>Revisar diferencias de caja · solo consulta</b>'+
     '<p class="muted">Compara importes y medios registrados con los cambios escritos. No genera cobros, devoluciones ni autoriza editar una venta pagada.</p>'+
     '<button type="button" class="sm" onclick="ukiRomoVistaDiferenciasPagoQA()">Ver diferencias sin guardar</button>'+
-    '<button type="button" class="sm" onclick="ukiRomoConfirmarMedioRealQA()">Corregir medio realmente recibido</button>'+ '<button type="button" class="sm" onclick="ukiRomoGuardarDiferenciaPrecioQA()">Guardar corrección de precio pendiente</button>'+ '<p class="muted">Este ajuste modifica solo precios unitarios de los mismos productos. No declara devolución ni cobro adicional: la diferencia debe conciliarse luego en el pedido antes del cierre.</p>'+
+    '<button type="button" class="sm" onclick="ukiRomoConfirmarMedioRealQA()">Corregir medio realmente recibido</button>'+ '<button type="button" class="sm" onclick="ukiRomoGuardarDiferenciaPrecioQA()">Guardar corrección de precio pendiente</button>'+
+    (Number(pedidoEdicion?.propina)>0?'<button type="button" class="sm" onclick="ukiRomoCorregirPropinaPagadaQA()">Corregir propina ya registrada del pedido</button>':'')+
+ '<p class="muted">Este ajuste modifica solo precios unitarios de los mismos productos. No declara devolución ni cobro adicional: la diferencia debe conciliarse luego en el pedido antes del cierre.</p>'+
     '<p class="muted">La corrección del medio realmente recibido conserva la venta, el delivery y la propina intactos. El ajuste de precio deja la diferencia pendiente para conciliarla después.</p>'+
     '<p id="romoRevisionDiferenciasPagadasQA" role="status" class="muted" style="white-space:pre-wrap"></p></div>':''}
    <button class="big" onclick="ndGuardar()" ${ukiTimbreObligatorioGuardar(D,pedidoEdicion)&&!ukiTimbreBorradorConfirmado(D)?'disabled title="Primero confirma el envío del timbre"':''}>${D.editando?`💾 Guardar cambios #${D.editando}`:D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición (no cancela el pedido)</button><p class="muted">Para cancelar el pedido, guarda primero cualquier corrección de pago. Luego vuelve a Pedidos, abre Ver detalle y selecciona ❌ Cancelar pedido. Si hay una devolución, regularízala primero.</p>`:""}`;
@@ -7844,6 +7846,93 @@ async function ukiRomoVistaDiferenciasPagoQA(){
 
 /** La edición pagada de Uki registra diferencia PENDIENTE antes de mover caja.
  * Romo conserva el mismo pedido, formulario, timbres, productos y CAS propio. */
+
+/**
+ * Mismo formulario de propina opcional de Uki para un pedido YA pagado.
+ * Mantiene venta/productos/reparto/timbres y rectifica una única propina.
+ */
+async function ukiRomoCorregirPropinaPagadaQA(){
+ if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA||
+    S.vista!=='nuevo'||!D.editando)return;
+ const id=Number(D.editando),p=(S.pedidos||[]).find(x=>
+  x.suc===ROMO_SUCURSAL_QA&&x.id===id);
+ if(!p?.pagado||p.estado==='Cancelado'||!Number(p.propina)||
+    p.ajusteCobroPendiente||ukiCierreConfirmadoPedido(p)){
+  aviso('Solo se corrige una propina ya registrada de un pedido pagado con caja abierta.');return;
+ }
+ const caja=S.cajasDiarias?.[ROMO_SUCURSAL_QA+'|'+
+  String(p.turnoClave||'').slice(0,10)];
+ if(caja?.turnoAbierto!==true||caja.baseConfirmada!==true||
+    caja.turnoId!==p.turnoClave){
+  aviso('No se confirmó la caja original del pedido.');return;
+ }
+ const actor=String(D.responsableEdicion||'').trim();
+ if(actor.length<2||actor.length>80){
+  aviso('Identifica a quien realizó la corrección de la propina.');return;
+ }
+ const motivo=String(window.prompt(
+  '¿Cuál es el motivo de corregir esta propina ya registrada?', '')||'').trim();
+ if(motivo.length<4||motivo.length>250){
+  aviso('Escribe un motivo concreto antes de modificar la propina.');return;
+ }
+ const sesion=window.ukiRomoSesionRemotaQA;
+ if(!sesion?.disponible?.()||sesion.estado()?.conflicto){
+  aviso('Reabre Romo con tu cuenta Google y revisión Neon.');return;
+ }
+ const nuevoImporte=ukiMontoPropina(D,Number(p.subtotal)),
+  nuevoMedio=String(D.medioPropina||'Efectivo'),anterior=Number(p.propina),
+  delta=nuevoImporte-anterior;
+ if(!Number.isSafeInteger(nuevoImporte)||nuevoImporte<0||
+    nuevoImporte>1000000){
+  aviso('La propina corregida no tiene un importe válido.');return;
+ }
+ const real=(S.propinas||[]).filter(x=>x.suc===ROMO_SUCURSAL_QA&&
+  Number(x.pedidoId)===id);
+ if(real.length!==1||real[0].origen!=='pedido'){
+  aviso('No existe una única propina del pedido: las propinas manuales se corrigen desde Caja.');return;
+ }
+ if(delta!==0&&nuevoMedio!==real[0].medio){
+  aviso('No cambies medio e importe a la vez. Corrige primero uno y luego el otro.');return;
+ }
+ const texto=delta>0?'¿Confirmas que YA RECIBISTE '+fmt(delta)+
+  ' adicionales por '+nuevoMedio+'?':
+  delta<0?'¿Confirmas que YA DEVOLVISTE '+fmt(-delta)+' por '+nuevoMedio+'?':
+  '¿Confirmas que verificaste el medio realmente recibido: '+nuevoMedio+'?';
+ if(!window.confirm('ROMO · Pedido #'+id+'\n'+texto+
+  '\nPropina anterior: '+fmt(anterior)+' ('+real[0].medio+')'+
+  '\nPropina corregida: '+fmt(nuevoImporte)+' ('+nuevoMedio+')'+
+  '\nNo se modifica ningún producto ni se genera una segunda propina.'+
+  '\nResponsable: '+actor+'\nMotivo: '+motivo))return;
+ const base=sesion.estado(),firma=JSON.stringify(D),
+  firmaPedido=JSON.stringify(p),firmaTip=JSON.stringify(real[0]),
+  copia=datosSoloSucursal();
+ ukiRomoGuardandoManualQA=true;
+ try{
+  const mod=await import('./uki-romo-propina-manual-qa.mjs');
+  if(!sesion.disponible()||sesion.estado()?.conflicto||
+     sesion.estado()?.revision!==base.revision||JSON.stringify(D)!==firma||
+     JSON.stringify((S.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&x.id===id))!==firmaPedido||
+     JSON.stringify((S.propinas||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&x.id===real[0].id))!==firmaTip)
+   throw Error('El pedido o la propina cambiaron antes de guardar');
+  const result=mod.prepararCorreccionPropinaPagadaRomoQA(copia,{
+   pedidoId:id,draft:D,responsable:actor,motivo,confirmacionReal:true,
+   foto:ukiFotoCorreccionPedido,mediosProductos:ROMO_MEDIOS_COBRO_QA,
+   mediosDelivery:ROMO_MEDIOS_DELIVERY_QA,
+   turnoCerrado:!!ukiCierreConfirmadoPedido(p),
+   registradoEn:Date.now()
+  });
+  if(result.mismaPropina!==true||result.noEsVenta!==true||
+     result.noCreaCobro!==true||!validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
+   throw Error('No se conservó el registro original de la propina');
+  await ukiRomoGuardarOperacionQA(copia,
+   'Propina existente corregida y auditada sin crear otra venta',id,'pedidos');
+  nuevoDraft();
+ }catch(e){
+  aviso('No se confirmó la propina en Neon. Revisa primero Caja, pedido e historial antes de reintentar: '+
+   String(e?.message||e));
+ }finally{ukiRomoGuardandoManualQA=false;}
+}
+
 async function ukiRomoGuardarDiferenciaPrecioQA(){
  if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA||
     S.vista!=='nuevo'||!D.editando)return;
