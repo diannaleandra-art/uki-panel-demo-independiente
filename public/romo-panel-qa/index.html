@@ -4025,7 +4025,7 @@ function vRegistros(){
   ${row("Pagado por repartos del día",fmt(t.pagoDeliveryDia))}
   ${row("Pagado de saldos anteriores",fmt(t.pagoDeliveryAnterior))}
   ${row("Total pagado desde caja",fmt(t.pagoDelivery),"sub")}</div>
-  <div class="card"><h2>💝 Propinas (aparte de ventas)</h2><p class="muted">Solo registra aquí una propina manual que no exista ya en el pedido. Requiere identificarlo para evitar duplicarla.</p><label>Número de pedido · obligatorio</label><input id="prPed" inputmode="text" placeholder="Ej: Carta 457 o Interno 244"><p class="muted">Si dos pedidos tienen el mismo número visible, especifica Carta o Interno para evitar confusiones.</p><label>Concepto · obligatorio</label><input id="prCon" maxlength="150" placeholder="Ej: Propina entregada en efectivo"><label>Monto ($)</label><input id="prMon" type="number" min="1" step="1" inputmode="numeric" placeholder="Ej: 2000"><label>Medio</label><select id="prMed">${MEDIOS.filter(m=>!APPS.includes(m)).map(m=>`<option>${m}</option>`).join("")}</select><button class="big" onclick="addPropina()">+ Registrar propina manual</button>${propinas.map(p=>`<div class="row"><span>${esc(p.concepto||"Propina anterior sin concepto")} · ${esc(p.pedidoId?("Pedido #"+p.pedidoId):"Pedido no vinculado (anterior)")} · ${esc(p.medio)}</span><b>${fmt(p.monto)} ${!p.pedidoId?`<button class="sm" onclick="quitarPropina(${p.id})">✕</button>`:""}</b></div>`).join("")||"<p class='muted'>Sin propinas</p>"}${ukiReportePropinasPeriodoUI()}</div>
+  <div class="card"><h2>💝 Propinas (aparte de ventas)</h2><p class="muted">Solo registra aquí una propina manual que no exista ya en el pedido. Requiere identificarlo para evitar duplicarla.</p><label>Número de pedido · obligatorio</label><input id="prPed" inputmode="text" placeholder="Ej: Carta 457 o Interno 244"><p class="muted">Si dos pedidos tienen el mismo número visible, especifica Carta o Interno para evitar confusiones.</p><label>Concepto · obligatorio</label><input id="prCon" maxlength="150" placeholder="Ej: Propina entregada en efectivo"><label>Monto ($)</label><input id="prMon" type="number" min="1" step="1" inputmode="numeric" placeholder="Ej: 2000"><label>Medio</label><select id="prMed">${MEDIOS.filter(m=>!APPS.includes(m)).map(m=>`<option>${m}</option>`).join("")}</select><button class="big" onclick="addPropina()">+ Registrar propina manual</button>${S.suc===ROMO_SUCURSAL_QA?'<button type="button" class="sm" onclick="ukiRomoCorregirPropinaManualQA()">Corregir propina ya registrada</button><p class="muted">Usa el mismo folio, el nuevo monto, concepto y medio. Solo se corrige una propina existente, con motivo y responsable, sin crear otra.</p>':''}${propinas.map(p=>`<div class="row"><span>${esc(p.concepto||"Propina anterior sin concepto")} · ${esc(p.pedidoId?("Pedido #"+p.pedidoId):"Pedido no vinculado (anterior)")} · ${esc(p.medio)}</span><b>${fmt(p.monto)} ${!p.pedidoId?`<button class="sm" onclick="quitarPropina(${p.id})">✕</button>`:""}</b></div>`).join("")||"<p class='muted'>Sin propinas</p>"}${ukiReportePropinasPeriodoUI()}</div>
   <div class="card"><h2>Retiros de efectivo</h2><label>Monto</label><input id="reMon" type="number" inputmode="numeric"><label>Motivo</label><input id="reMot" placeholder="Ej: Compra"><button class="big" onclick="addRetiro()">+ Agregar retiro</button>${retiros.map(r=>`<div class="row"><span>${esc(r.motivo||"Retiro")}</span><b>${fmt(r.monto)} <button class="sm" onclick="quitarRetiro(${r.id})">✕</button></b></div>`).join("")||"<p class='muted'>Sin retiros</p>"}</div>
   <div class="card"><h2>Caja chica</h2><label>Inicial</label><input type="number" value="${caja.cajaChica.inicial}" onchange="cajaDelDia().cajaChica.inicial=Math.max(0,parseInt(this.value)||0);render()" inputmode="numeric"><label>Concepto</label><input id="ccCon" placeholder="Detergente"><label>Monto</label><input id="ccMon" type="number" inputmode="numeric"><button class="big" onclick="addCC()">+ Agregar gasto caja chica</button>${caja.cajaChica.gastos.map(g=>`<div class="row"><span>${esc(g.concepto)}</span><b>${fmt(g.monto)} <button class="sm" onclick="quitarCC(${g.id})">✕</button></b></div>`).join("")||"<p class='muted'>Sin gastos</p>"}${row("Saldo caja chica",fmt(caja.cajaChica.inicial - caja.cajaChica.gastos.reduce((a,g)=>a+g.monto,0)),"sub")}</div>`;
 }
@@ -7156,6 +7156,91 @@ async function ukiRomoAgregarPropinaManualQA(){
  }catch(error){
   aviso('No se confirmó la propina en Neon. Comprueba el pedido y Caja antes de repetir: '+
    String(error?.message||error));
+ }finally{ukiRomoOperandoPedidoQA=false;}
+}
+
+
+/**
+ * Reutiliza exclusivamente la tarjeta PROPINA MANUAL de Caja Uki.
+ * Una corrección cambia una sola fila original, con historial y CAS Neon.
+ */
+async function ukiRomoCorregirPropinaManualQA(){
+ if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA)return;
+ const sesion=window.ukiRomoSesionRemotaQA;
+ if(!sesion?.disponible?.()||sesion.estado()?.conflicto){
+  aviso('Abre Caja de Romo con Google de dueños y su revisión actual de Neon.');return;
+ }
+ const referencia=String($('prPed')?.value||'').trim(),
+  concepto=String($('prCon')?.value||'').trim(),
+  textoMonto=String($('prMon')?.value??'').trim(),
+  monto=Number(textoMonto),medio=String($('prMed')?.value||'');
+ if(!referencia||!concepto||textoMonto===''||
+    !Number.isSafeInteger(monto)||monto<0||monto>1000000){
+  aviso('Completa folio, concepto y monto real de la propina a corregir.');return;
+ }
+ const ref=referencia.replace(/^(?:carta|pedido\s+interno|interno)\s*#?\s*/i,'')
+  .replace(/^#/,'').trim();
+ const prefCarta=/^carta\b/i.test(referencia);
+ const prefInterno=/^(?:interno|pedido\s+interno)\b/i.test(referencia);
+ const pedidos=(S.pedidos||[]).filter(p=>p.suc===ROMO_SUCURSAL_QA&&
+  (prefCarta?String(p.codigoCarta||'')===ref:
+   prefInterno?String(p.id)===ref:
+   String(p.id)===ref||String(p.codigoCarta||'')===ref));
+ if(pedidos.length!==1){
+  aviso('El folio no identifica exactamente un pedido de Romo.');return;
+ }
+ const p=pedidos[0];
+ const tips=(S.propinas||[]).filter(x=>x.suc===ROMO_SUCURSAL_QA&&
+   Number(x.pedidoId)===Number(p.id));
+ if(tips.length!==1||tips[0].origen!=='manual'){
+  aviso('Este pedido no tiene una única propina manual para corregir. No se agregará otra.');return;
+ }
+ const original=tips[0],diferencia=monto-Number(original.monto);
+ if(diferencia!==0&&medio!==original.medio){
+  aviso('Primero corrige el monto por el medio original; el medio puede rectificarse después.');return;
+ }
+ const responsable=String(window.prompt(
+  '¿Quién está corrigiendo esta propina ya registrada?', '')||'').trim();
+ if(responsable.length<2||responsable.length>80){
+  aviso('Es obligatorio identificar al responsable de la corrección.');return;
+ }
+ const motivo=String(window.prompt(
+  'Motivo de la corrección de la propina (obligatorio):', '')||'').trim();
+ if(motivo.length<4||motivo.length>250){
+  aviso('El motivo debe describir por qué se corrige el registro.');return;
+ }
+ const accion=diferencia>0?'¿Confirmas que YA RECIBISTE '+fmt(diferencia)+
+  ' adicionales por '+medio+'?':
+  diferencia<0?'¿Confirmas que YA DEVOLVISTE '+fmt(-diferencia)+
+  ' por '+medio+'?':
+  medio!==original.medio?'¿Confirmas que el medio que REALMENTE recibió la propina fue '+medio+'?':
+  '¿Confirmas que el concepto de esta propina debe corregirse?';
+ if(!window.confirm('ROMO · Pedido #'+p.id+'\n'+accion+
+  '\nPropina registrada: '+fmt(original.monto)+' ('+original.medio+')'+
+  '\nPropina corregida: '+fmt(monto)+' ('+medio+')'+
+  '\nNo se mueve dinero desde el sistema ni se genera otra propina.'+
+  '\nResponsable: '+responsable+'\nMotivo: '+motivo))return;
+ const base=sesion.estado(),firma=JSON.stringify(p),
+  firmaTip=JSON.stringify(original),copia=datosSoloSucursal();
+ ukiRomoOperandoPedidoQA=true;
+ try{
+  const mod=await import('./uki-romo-propina-manual-qa.mjs');
+  if(!sesion.disponible()||sesion.estado()?.conflicto||
+     sesion.estado()?.revision!==base.revision||
+     JSON.stringify((S.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&x.id===p.id))!==firma||
+     JSON.stringify((S.propinas||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&x.id===original.id))!==firmaTip)
+   throw Error('El pedido o la caja cambiaron antes de la corrección');
+  const result=mod.prepararCorreccionPropinaManualRomoQA(copia,{
+   referencia,monto,medio,concepto,responsable,motivo,registradoEn:Date.now(),
+   confirmacionReal:true,foto:ukiFotoCorreccionPedido
+  });
+  if(result.mismaPropina!==true||result.noEsVenta!==true||
+     result.noCreaCobro!==true||!validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
+   throw Error('La corrección no conservó el mismo registro de propina');
+  await ukiRomoGuardarOperacionQA(copia,'Propina manual existente corregida y auditada, sin venta',p.id,'caja');
+ }catch(e){
+  aviso('NO se confirmó la corrección de propina en Neon. Revisa primero Caja e Historial antes de repetir: '+
+   String(e?.message||e));
  }finally{ukiRomoOperandoPedidoQA=false;}
 }
 
