@@ -112,7 +112,7 @@ export function crearMensajeCierreRomoQA({cierres,turnoId,revision}={}){
   'Pendiente de conciliación en Mi Administración.'
  ].join('\n');
 }
-export function crearReporteCierresRomoQA({cierres,desde='',hasta='',revision}={}){
+export function crearReporteCierresRomoQA({cierres,desde='',hasta='',revision,turnosPermitidos=null}={}){
  check(Array.isArray(cierres)&&cierres.length<=30000,
   'El historial no está disponible');
  check((!desde||day(desde))&&(!hasta||day(hasta))&&
@@ -125,7 +125,15 @@ export function crearReporteCierresRomoQA({cierres,desde='',hasta='',revision}={
   check(!ids.has(x.turno),'Hay dos cierres del mismo turno; concilia antes de exportar');
   ids.add(x.turno);
  }
- const filtered=read.filter(x=>(!desde||x.fecha>=desde)&&(!hasta||x.fecha<=hasta))
+ check(turnosPermitidos===null||Array.isArray(turnosPermitidos)&&
+  turnosPermitidos.length<=read.length&&
+  turnosPermitidos.every(x=>typeof x==='string'&&
+   /^\d{4}-\d{2}-\d{2}@[1-9]\d{12,14}$/.test(x))&&
+  new Set(turnosPermitidos).size===turnosPermitidos.length,
+  'Filtro de turnos inválido');
+ const permitidos=turnosPermitidos===null?null:new Set(turnosPermitidos);
+ const filtered=read.filter(x=>(!desde||x.fecha>=desde)&&(!hasta||x.fecha<=hasta)&&
+  (permitidos===null||permitidos.has(x.turno)))
   .sort((a,b)=>b.turno.localeCompare(a.turno));
  check(filtered.length>0,'Todavía no hay cierres definitivos para este período');
  const csv='\uFEFF'+[HEADERS.map(csvText).join(';'),

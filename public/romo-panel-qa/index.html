@@ -6739,8 +6739,10 @@ async function ukiRomoExportarCajaQA(tipo,formato){
    window.alert('No se pudo confirmar el período de Reportes.');return;
   }
  }
- const selected=all.filter(x=>!period||String(x.fechaOperativa||'')>=period.desde&&
-  String(x.fechaOperativa||'')<=period.hasta);
+ const selected=tipo==='historial'?
+  ukiCierresFiltradosHistorial().filter(x=>x.suc===ROMO_SUCURSAL_QA):
+  all.filter(x=>!period||String(x.fechaOperativa||'')>=period.desde&&
+   String(x.fechaOperativa||'')<=period.hasta);
  if(!selected.length){window.alert('Sin cierres definitivos en el rango elegido.');return;}
  // Abrir una pestaña por interacción directa antes de importar el módulo:
  // iOS Safari bloquea ventanas abiertas después de una operación asíncrona.
@@ -6752,7 +6754,9 @@ async function ukiRomoExportarCajaQA(tipo,formato){
   if(pdfWindow)pdfWindow.opener=null;
   const lib=await import('./uki-romo-exportar-cierres-qa.mjs');
   const out=lib.crearReporteCierresRomoQA({
-   cierres:S.cierres,desde:period?.desde||'',hasta:period?.hasta||'',revision:st.revision
+   cierres:S.cierres,desde:period?.desde||'',hasta:period?.hasta||'',
+   turnosPermitidos:tipo==='historial'?selected.map(x=>x.turnoClave):null,
+   revision:st.revision
   });
   if(formato==='csv'){
    descargarTextoArchivo(out.filename+'.csv',out.csv,'text/csv;charset=utf-8');
@@ -6802,38 +6806,71 @@ async function ukiRomoCompartirCierreQA(turnoId){
  }
 }
 function ukiRomoCajaHistorialHTMLQA(){
- const cierres=(S.cierres||[]).filter(x=>x?.suc===ROMO_SUCURSAL_QA)
+ // Misma navegación histórica de Uki, solo cierres cifrados de Romo.
+ const todos=(S.cierres||[]).filter(x=>x?.suc===ROMO_SUCURSAL_QA);
+ const cierres=ukiCierresFiltradosHistorial().filter(x=>x?.suc===ROMO_SUCURSAL_QA)
   .slice().sort((a,b)=>(Number(b.fechaMs)||Date.parse(b.fechaISO||'')||0)-
-   (Number(a.fechaMs)||Date.parse(a.fechaISO||'')||0));
- const items=cierres.slice(0,50).map(x=>{
-  const segura=(k)=>Number.isSafeInteger(x[k])&&x[k]>=0?fmt(x[k]):'No conciliado';
-  const medios=Object.entries(x.medios||{}).filter(([,m])=>
-   Number.isSafeInteger(m)&&m>0).map(([k,m])=>row(k,fmt(m))).join('');
-  return '<details class="card"><summary><b>🔒 '+
-   esc(x.fechaOperativa||x.fechaISO||'Fecha sin registrar')+
-   ' · '+esc(x.resp||'Responsable pendiente')+
-   ' · '+esc(x.turnoClave||'Sin identificador')+'</b></summary>'+
-   '<p class="muted">Cierre existente en el estado cifrado de Romo; solo lectura. No autoriza rectificaciones.</p>'+
-   row('Venta confirmada',segura('venta'))+
-   row('Efectivo contado',segura('efectivoContado'))+
-   row('Gastos',segura('gastos'))+
-   row('Pago a repartidor',segura('delivery'))+
-   row('Propinas',segura('propinas'))+
-   (medios?'<details><summary>Medios de cobro</summary>'+medios+'</details>':'')+
-   '<p><button type="button" class="sm" onclick="ukiRomoCompartirCierreQA(\''+
-   esc(String(x.turnoClave||''))+'\')">📲 Abrir resumen en WhatsApp</button></p>'+
+    (Number(a.fechaMs)||Date.parse(a.fechaISO||'')||0));
+ const busqueda='<div class="card"><h2>Buscar por día</h2>'+
+  '<label>Texto (ej: 29-10)</label>'+
+  '<input id="romoHistorialFiltroTexto" maxlength="120" placeholder="Ej: 29-10" value="'+
+  esc(S.filtro||'')+'" oninput="S.filtro=this.value" '+
+  'onkeydown="if(event.key===\'Enter\'){event.preventDefault();render()}">'+
+  '<button class="sm ok" type="button" onclick="S.filtro=document.getElementById(\'romoHistorialFiltroTexto\').value;render()">Buscar</button>'+
+  '<label>Calendario</label><input type="date" value="'+esc(S.filtroFecha||'')+
+  '" onchange="S.filtroFecha=this.value;S.filtro=\'\';render()">'+
+  '<div class="uki-fecha-flechas" role="group" aria-label="Cambiar fecha de cierres">'+
+  '<button type="button" aria-label="Cierre anterior" onclick="ukiMoverDiaCierres(-1)">⏪</button>'+
+  '<span>📅 '+esc(S.filtroFecha||fechaOperativaActual())+'</span>'+
+  '<button type="button" aria-label="Cierre siguiente" onclick="ukiMoverDiaCierres(1)">⏩</button></div>'+
+  row('Cierres totales',todos.length)+row('Cierres mostrados',cierres.length)+
+  '<p class="muted">Cada cierre conserva su hora y responsable. Los precierres se muestran aparte, como en Uki.</p>'+
+  '<button type="button" class="sm" onclick="S.filtro=\'\';S.filtroFecha=\'\';render()">Limpiar</button>'+
+  (cierres.length?'<p><button type="button" class="sm ok" onclick="ukiRomoExportarCajaQA(\'historial\',\'csv\')">📊 Excel historial</button>'+
+  '<button type="button" class="sm" onclick="ukiRomoExportarCajaQA(\'historial\',\'pdf\')">📄 PDF · Guardar o compartir</button></p>':'')+
+  '<p class="muted">Estas descargas respetan los filtros y no incluyen pedidos sin pagar, precierres ni el turno abierto.</p></div>';
+ const registros=cierres.slice(0,100).map(x=>{
+  const valor=k=>Number.isSafeInteger(x[k])?fmt(x[k]):'No conciliado';
+  const medios=Object.entries(x.medios||{}).filter(([,n])=>Number.isSafeInteger(n)&&n>0)
+   .map(([k,n])=>row(k,fmt(n))).join('');
+  const gastos=Array.isArray(x.detalle?.gastos)?x.detalle.gastos:[];
+  const turno=String(x.turnoClave||'');
+  const compartir=/^\d{4}-\d{2}-\d{2}@[1-9]\d{12,14}$/.test(turno)?
+   '<button class="sm ok" type="button" onclick="ukiRomoCompartirCierreQA(\''+
+   esc(turno)+'\')">📲 Compartir WhatsApp</button>':'';
+  return '<details class="card history-entry"><summary><b>'+
+   esc(x.fechaOperativa||x.fechaISO||'Sin fecha')+' · '+
+   esc(x.resp||'Sin responsable')+' · '+valor('venta')+'</b></summary>'+
+   '<p class="muted">Hora de cierre: '+esc(x.fechaISO||x.fecha||'Sin hora')+
+   ' · Turno: '+esc(turno||'Sin identificador')+'</p>'+
+   row('Pedidos',Number.isSafeInteger(x.pedidos)?x.pedidos:'No conciliado')+
+   '<details><summary><b>💳 Desglose de pagos</b></summary>'+
+   (medios||'<p class="muted">Sin desglose.</p>')+'</details>'+
+   row('Venta total con delivery',valor('venta'),'sub')+
+   row('Venta sin delivery',valor('ventaSinDelivery'))+
+   row('Deliverys de pedidos',valor('enviosPedidos'))+
+   row('Deliverys manuales',valor('enviosManuales'))+
+   row('Pago repartidor',valor('pagadoDelivery'))+
+   row('Efectivo cobrado',valor('efectivoCobrado'))+
+   row('Gastos',valor('gastos'))+
+   (gastos.length?'<details><summary>Gastos individualizados · '+gastos.length+'</summary>'+
+    gastos.map(g=>row(String(g.concepto||'Gasto')+' · '+String(g.medio||'Sin medio'),
+    Number.isSafeInteger(g.monto)?fmt(g.monto):'No conciliado')).join('')+'</details>':'')+
+   row('Retiros',valor('retiros'))+
+   row('Efectivo esperado sin base',valor('efectivo'))+
+   row('Efectivo contado sin base',valor('efectivoContado'))+
+   row('Diferencia de efectivo',valor('diferenciaEfectivo'))+
+   row('Total final',valor('final'),'final')+
+   row('Propinas aparte',valor('propinas'))+
+   (compartir?'<p>'+compartir+'</p>':'')+
+   '<p class="muted">Rectificaciones de cierres todavía no habilitadas: deben quedar auditadas en Neon Romo.</p>'+
    '</details>';
  }).join('');
  return '<div class="section-head"><h2>Historial de cierres · Romo</h2></div>'+
-  '<p class="muted">Solo cierres definitivos registrados. No se agregan solicitudes pendientes, precierres ni ventas de otros locales.</p>'+
-  '<section class="card"><b>'+cierres.length+' cierre(s) en el historial de Romo</b>'+ 
-  (cierres.length?
-   '<p><button type="button" class="sm ok" onclick="ukiRomoExportarCajaQA(\'historial\',\'csv\')">📊 Excel (CSV)</button>'+
-   '<button type="button" class="sm" onclick="ukiRomoExportarCajaQA(\'historial\',\'pdf\')">📄 Imprimir / Guardar PDF</button></p>':'')+
-   '</section>'+
-  (items||'<div class="card">Todavía no hay cierres definitivos confirmados en el estado Romo.</div>')+
-  (cierres.length>50?'<p class="muted">Se muestran los últimos 50 cierres; los anteriores permanecen en la base cifrada.</p>':'')+
-  '<p class="muted">Exportación CSV compatible con Excel y vista imprimible para PDF. Verificar manualmente en iPhone. Sin contabilización en Mi Administración.</p>';
+  vHistorialPrecierres()+busqueda+
+  (registros||'<div class="card">Sin cierres definitivos para esta búsqueda.</div>')+
+  (cierres.length>100?'<p class="muted">Se muestran 100 cierres; la descarga incluye los cierres coincidentes restantes.</p>':'')+
+  '<p class="muted">Mi Administración sigue pendiente de sincronización; no se duplican ventas.</p>';
 }
 function ukiRomoCajaSemanaHTMLQA(){
  // Se reutiliza vReportes() oficial: dia, semana, mes y propinas.
