@@ -6815,6 +6815,12 @@ async function ukiRomoGuardarMovimientoQA(tipo){
  try{
   const dia=fechaOperativaActual(),key=ROMO_SUCURSAL_QA+'|'+dia;
   const t=totales(),actual=cajaDelDia(),now=Date.now();
+  // Las salidas y repartos no se pueden registrar tras cerrar el turno.
+  if(tipo!=='base'&&actual.turnoAbierto!==true)
+   throw Error('El turno de Romo no está abierto. Abre Caja antes de registrar movimientos.');
+  if(tipo==='base'&&actual.turnoAbierto!==true&&
+    (S.cierres||[]).some(x=>x.suc===ROMO_SUCURSAL_QA&&x.fechaOperativa===dia))
+   throw Error('Este día ya tiene un cierre: abre el siguiente turno antes de ajustar la base.');
   if(tipo!=='base'&&actual.baseConfirmada!==true)
    throw Error('Antes de registrar dinero confirma la base y caja chica REALES de Romo en Caja. Los importes antiguos no están validados.');
   const efectivoDisponible=ukiRomoCajaDisponibleQA(t,actual);
@@ -6850,7 +6856,7 @@ async function ukiRomoGuardarMovimientoQA(tipo){
     throw Error('No hay suficiente efectivo registrado para ese gasto.');
    let id=now;while(copia.gastos.some(g=>g.id===id))id++;
    copia.gastos.push({suc:ROMO_SUCURSAL_QA,id,fechaISO:new Date(now).toISOString(),
-    registradoEn:now,concepto,monto,medio});
+    registradoEn:now,fechaOperativa:dia,concepto,monto,medio});
    descripcion='Gasto de Romo confirmado';resumen=concepto+' · '+fmt(monto)+' · '+medio;
   }else if(tipo==='retiro'){
    const motivo=ukiRomoTextoCampoQA('romoRetiroMotivoQA',140,3);
@@ -6858,7 +6864,7 @@ async function ukiRomoGuardarMovimientoQA(tipo){
    if(monto>efectivoDisponible)throw Error('No hay efectivo suficiente registrado en Romo.');
    let id=now;while(copia.retiros.some(g=>g.id===id))id++;
    copia.retiros.push({suc:ROMO_SUCURSAL_QA,id,fechaISO:new Date(now).toISOString(),
-    registradoEn:now,monto,motivo});
+    registradoEn:now,fechaOperativa:dia,monto,motivo});
    descripcion='Retiro de efectivo confirmado';resumen=motivo+' · '+fmt(monto);
   }else if(tipo==='delivery'){
    const repartidor=ukiRomoTextoCampoQA('romoRepartidorQA',90,2);
@@ -6866,7 +6872,7 @@ async function ukiRomoGuardarMovimientoQA(tipo){
    const monto=ukiRomoMontoCampoQA('romoDeliveryMontoQA',4000);
    let id=now;while(copia.deliveriesManuales.some(d=>d.id===id))id++;
    copia.deliveriesManuales.push({suc:ROMO_SUCURSAL_QA,id,fechaISO:new Date(now).toISOString(),
-    registradoEn:now,monto,cliente,repartidor,nota:'Reparto a pagar a '+repartidor,
+    registradoEn:now,fechaOperativa:dia,monto,cliente,repartidor,nota:'Reparto a pagar a '+repartidor,
     medio:'Efectivo'});
    descripcion='Delivery manual registrado';resumen=fmt(monto)+' a pagar a '+repartidor+' (no es ingreso)';
   }else if(tipo==='pagoRepartidor'){
