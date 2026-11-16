@@ -218,7 +218,7 @@
     const initialize=el('button','Confirmar versión inicial de la carta');
     initialize.type='button';
     initialize.hidden=true;
-    initialize.style.cssText='display:block;margin:8px 0;padding:11px;border-radius:9px;background:#191919;color:white;font-weight:700';
+    initialize.style.cssText='display:none;margin:8px 0;padding:11px;border-radius:9px;background:#191919;color:white;font-weight:700';
     initialize.onclick=async()=>{
       if(state.busy||state.current?.revision!==0||!state.current?.baseSha256)return;
       if(!window.confirm('¿Confirmas la carta actual de Romo como versión inicial sin cambiar precios ni productos? Esta acción registra tu cuenta y fecha.'))return;
