@@ -228,3 +228,18 @@ Se comprobó que `totales()` y los medios de caja oficiales ya leen `medio`, `me
 - Se comprobó la **sintaxis** de los módulos de cierre/propinas y del script clásico del panel, más los bloqueos de duplicados y las rutas de CAS. No se han realizado pruebas comerciales, que permanecen manuales.
 
 **Aún falta para paridad completa:** conciliación de cobros adicionales, devolución real y ajuste de propinas de pedidos pagados con diferencia, incluida autorización dueños postcierre e integración de cierre definitivo con Mi Administración. Mantenerlos **bloqueados** hasta completarlos.
+
+
+## Conciliación auditada de diferencias pendientes por medio — continuidad 16-11-2026
+
+**Realizado únicamente en rama de preparación Romo; sin publicar, sin pagos de prueba ni cambios de registros comerciales.**
+
+- Se reutiliza el mecanismo de Uki ajusteCobroPendiente dentro de la ficha existente de Pedidos Romo. No se crea otra pantalla, caja, pedido, cobro ni timbre.
+- El módulo public/romo-panel-qa/uki-romo-conciliacion-real-qa.mjs revisa que el pedido sea pagado y propio de Romo, con turno y base abiertos y sin cierre, QR, premio, cancelación o cobros en otro local. Comprueba productos, delivery, propina separada, medios individuales/mixtos, saldo pendiente y dinero anterior real por medio.
+- Para cada medio identifica el importe concreto ya devuelto o ya recibido. Exige confirmación humana separada de cada movimiento, responsable y fecha.
+- La ficha en public/romo-panel-qa/index.html muestra la diferencia y utiliza la sesión existente de Romo, revisión CAS cifrada de Neon y validación de la copia aislada. Solo tras confirmación del servidor se elimina la diferencia pendiente. Guarda importes, medios, responsable, antes/después e historial sin recortar registros anteriores.
+- El cierre definitivo sigue bloqueando pedidos con ajusteCobroPendiente. La lectura de Caja vuelve a calcular la distribución del mismo pedido tras el guardado, sin registrar otra venta.
+
+**Límite esencial:** se puede conciliar solamente un ajusteCobroPendiente legítimo YA existente. La edición financiera de pedidos pagados aún NO crea automáticamente ese ajuste en Romo y sigue bloqueada; tampoco está homologada la modificación de propinas, el efecto en caja acumulada, las rectificaciones postcierre y Mi Administración. Antes de habilitarlo falta conectar esa creación desde el formulario de Uki, mantener timbres e historial, revisar el efecto contable y hacer pruebas MANUALES con pedido real controlado.
+
+**No despliegue:** no alterar Uki main, producción, datos reales ni banderas comerciales. Conservar la única publicación conjunta de carta y panel tras aprobación manual.
