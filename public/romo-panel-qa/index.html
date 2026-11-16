@@ -2305,6 +2305,11 @@ function vNuevo(){
     '<p class="muted">La diferencia del cobro quedará registrada automáticamente; editar no declara una devolución.</p>':''}
    ${S.suc===ROMO_SUCURSAL_QA?'':ukiPasoTimbreAntesDeGuardar(pedidoEdicion)}
    ${D.editando?'<div class="card"><h2>Responsable de la corrección</h2><p><b>✍️ SOLO CUANDO MODIFICAS UN PEDIDO EXISTENTE</b></p><label for="ukiResponsableEdicion"><b>¿Quién está haciendo este cambio? · Obligatorio</b></label><input id="ukiResponsableEdicion" maxlength="80" autocomplete="off" placeholder="Nombre de quien corrige" value="'+esc(D.responsableEdicion||"")+'" oninput="D.responsableEdicion=this.value"><p class="muted">El nombre, la fecha y el detalle del cambio quedarán en el historial del pedido. En el primer registro NO es necesario este nombre.</p></div>':''}
+   ${S.suc===ROMO_SUCURSAL_QA&&D.editando&&pedidoEdicion?.pagado?
+    '<div class="card" style="border-color:#ad102b"><b>Revisar diferencias de caja · solo consulta</b>'+
+    '<p class="muted">Compara importes y medios registrados con los cambios escritos. No genera cobros, devoluciones ni autoriza editar una venta pagada.</p>'+
+    '<button type="button" class="sm" onclick="ukiRomoVistaDiferenciasPagoQA()">Ver diferencias sin guardar</button>'+
+    '<p id="romoRevisionDiferenciasPagadasQA" role="status" class="muted" style="white-space:pre-wrap"></p></div>':''}
    <button class="big" onclick="ndGuardar()" ${ukiTimbreObligatorioGuardar(D,pedidoEdicion)&&!ukiTimbreBorradorConfirmado(D)?'disabled title="Primero confirma el envío del timbre"':''}>${D.editando?`💾 Guardar cambios #${D.editando}`:D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición (no cancela el pedido)</button><p class="muted">Para cancelar el pedido, guarda primero cualquier corrección de pago. Luego vuelve a Pedidos, abre Ver detalle y selecciona ❌ Cancelar pedido. Si hay una devolución, regularízala primero.</p>`:""}`;
 }
 
@@ -7499,6 +7504,59 @@ async function ukiRomoCerrarTurnoQA(){
  * pedido YA PAGADO. Nunca edita importes, medios, productos, clientes,
  * timbres o caja; esos casos siguen bloqueados hasta conciliación.
  */
+/**
+ * Muestra la diferencia TEÓRICA entre cobro registrado y edición propuesta,
+ * en la misma pantalla Uki. NO guarda ni registra movimientos de caja.
+ */
+async function ukiRomoVistaDiferenciasPagoQA(){
+ const out=document.getElementById('romoRevisionDiferenciasPagadasQA');
+ if(!out||S.suc!==ROMO_SUCURSAL_QA||S.vista!=='nuevo'||!D.editando)return;
+ out.textContent='Comparando importes del pedido registrado…';
+ const id=Number(D.editando),p=(S.pedidos||[]).find(x=>
+   x.suc===ROMO_SUCURSAL_QA&&x.id===id);
+ if(!p?.pagado||!window.ukiRomoSesionRemotaQA?.disponible?.()){
+  out.textContent='Abre Romo con tu sesión autorizada y el pedido pagado original.';
+  return;
+ }
+ if(ukiCierreConfirmadoPedido(p)){
+  out.textContent='Turno cerrado. No calcular ajustes sobre un cierre anterior desde este formulario.';
+  return;
+ }
+ const snapshot=JSON.stringify(D);
+ try{
+  const mod=await import('./uki-romo-diferencias-financieras-qa.mjs');
+  if(snapshot!==JSON.stringify(D))throw Error('El formulario cambió durante la consulta');
+  const plan=mod.calcularDiferenciaPagadaRomoQA(p,D);
+  const money=x=>fmt(x);
+  const lineas=[
+   'Pedido #'+id+' · SOLO CONSULTA, NO COBRO',
+   'Registrado: productos '+money(plan.original.productos)+
+    ', delivery '+money(plan.original.delivery)+
+    ', propina '+money(plan.original.propina),
+   'Propuesto: productos '+money(plan.propuesto.productos)+
+    ', delivery '+money(plan.propuesto.delivery)+
+    ', propina '+money(plan.propuesto.propina),
+   'Diferencia teórica total: '+(plan.saldoTeorico>=0?'+':'')+
+    money(plan.saldoTeorico),
+   ...plan.diferencias.map(x=>x.medio+': registrado '+money(x.registrado)+
+     ' · propuesto '+money(x.propuesto)+
+     ' · diferencia '+(x.diferencia>=0?'+':'')+money(x.diferencia)),
+   'Propina: diferencia '+(plan.propina.diferencia>=0?'+':'')+
+    money(plan.propina.diferencia)+
+    ' · '+(plan.propina.medioAnterior||'Sin medio previo')+
+    ' → '+(plan.propina.medioPropuesto||'Sin medio propuesto'),
+   plan.requiereConciliacion?
+    'REQUIERE CONCILIACIÓN: confirma con caja y comprobantes lo realmente recibido o devuelto.':
+    'No hay diferencia monetaria. Otros datos protegidos siguen sujetos a validación.',
+   'Este resumen NO autoriza registrar el cambio financiero.'
+  ];
+  out.textContent=lineas.join('\n');
+ }catch(error){
+  out.textContent='No se pudo elaborar una diferencia segura: '+
+    String(error?.message||error)+
+    '\nNo se modificó ningún pedido, medio de pago ni propina.';
+ }
+}
 async function ukiRomoCorregirReferenciaPagadaQA(){
  if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA||
     S.vista!=='nuevo'||!D.editando)return;
