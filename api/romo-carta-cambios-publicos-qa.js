@@ -21,7 +21,7 @@ function config(env){
   catch{return null;}
   if(!['postgres:','postgresql:'].includes(url.protocol)||
      url.hostname.toLowerCase()!==host||url.pathname!=='/romos_sushi'||
-     !url.username||!url.password||url.hash)return null;
+     url.username!=='romos_app_service'||!url.password||url.hash)return null;
   for(const k of ['UKI_INVENTARIO_LIVE_DATABASE_URL',
     'UKI_INVENTARIO_QA_DATABASE_URL','UKI_FIN_PRIVATE_DATABASE_URL',
     'UKI_FIN_QA_DATABASE_URL']){
