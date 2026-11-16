@@ -7227,7 +7227,7 @@ async function ukiRomoConfirmarOlvidoQA(solicitudId){
  ukiRomoAclaracionGuardandoQA=true;
  try{
   const mod=await import('./uki-romo-confirmar-olvido-qa.mjs');
-  const plan=mod.prepararConfirmacionOlvidoRomoQA(copia,{
+  const plan=await mod.prepararConfirmacionOlvidoRomoQA(copia,{
    solicitudId:Number(solicitudId),responsable,motivoConfirmacion,
    referenciaPagoLocal,referenciaPagoExterno,
    pagoHistoricoVerificado:true,autorizaDuenos:true,registradoEn:Date.now()
