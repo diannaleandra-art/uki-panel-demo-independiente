@@ -155,7 +155,7 @@ export function prepararConciliacionRealRomoQA(estado,{
   ajusteAnterior:original,movimientos,anterior:antes,nuevo:despues
  };
  pedido.historialCambios=[...(Array.isArray(pedido.historialCambios)?
-  pedido.historialCambios:[]),evento].slice(-100);
+  pedido.historialCambios:[]),evento];
  pedido.correccionesTurno=[...(Array.isArray(pedido.correccionesTurno)?
   pedido.correccionesTurno:[]),
   {tipo:evento.tipo,accion:evento.accion,fechaISO,registradoEn,
