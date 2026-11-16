@@ -163,3 +163,19 @@ Corrección sin duplicar pantallas:
 - Se restringe la edición de pagos ya confirmados, pedidos entregados y turnos cerrados: requieren procedimiento contable específico, no permitir un cambio simple sin conciliación.
 
 **Aún pendiente**: completar y validar manualmente edición de pedidos pagados, correcciones de caja, QR y cuentas de mesa, pagos mixtos y propinas desde el flujo íntegro oficial de Uki. El cambio anterior NO acredita paridad global de Pedidos ni cierre ni ventas. No se activaron endpoints de producción.
+
+
+## Rectificación administrativa de pedidos pagados, sin alterar caja
+16-11-2026. Estado: **solo código de preparación, NO publicado y NO verificado mediante operaciones comerciales.**
+
+Se contrastó directamente la edición oficial de Uki (`ndGuardar`, `ukiPagoModificado`, `ukiCobroPendiente`, `ukiPrepararAjusteCobro`, `ukiFotoCorreccionPedido`) con los cobros de Romo (`ukiRomoConfirmarCobroQA`, `ukiRomoLeerDistribucionQA`, `ukiRomoGuardarOperacionQA`). Uki ajusta, al editar una venta pagada, caja, medios efectivamente recibidos, diferencias pendientes, propinas y tarjeta de timbres. Romo todavía NO replica íntegramente esas transacciones. No es seguro permitir reescritura del total antes de completar esa conciliación y su identidad/persistencia Neon.
+
+Se implementó el siguiente SUBCONJUNTO seguro sin crear otra pantalla:
+- `public/romo-panel-qa/index.html`: la ficha de un pedido pagado sin QR ni cierre ofrece «Corregir referencia (sin alterar cobros)» y reutiliza `editarPedido(id)` y `vNuevo()` aprobados de Uki. `ndGuardar()` deriva los pedidos pagados a `ukiRomoCorregirReferenciaPagadaQA()`; requiere sesión válida, revisión Neon sin conflicto, **turno abierto y base confirmada**, responsable y confirmación manual.
+- `public/romo-panel-qa/uki-romo-edicion-pagada-qa.mjs`: clasificador puro y preparación de la copia. **Solo** se pueden corregir la referencia de mesa (consumo en local) o kilómetros informativos (delivery). Comprueba que sigan invariables importe total, subtotal, productos, cantidades, armado, cliente, WhatsApp, fecha, código de carta, origen, estado pagado, medios, pagos mixtos, propina, reparto, QR, pagos entre locales y ajustes. Nunca genera ventas, pagos, timbres ni cobros adicionales. Rechaza cancelados, premios, QR, diferencias pendientes o cierre.
+- El antes y después quedan en `correccionesTurno` e `historialCambios`, sin modificar ingresos ni cierres. La persistencia queda supeditada a la revisión CAS de `ukiRomoGuardarOperacionQA`; el panel se actualiza únicamente después de la confirmación Neon.
+- `vNuevo()` informa de forma explícita al operar sobre una venta pagada qué datos se pueden corregir y que las modificaciones financieras quedan bloqueadas.
+
+**Pendiente real, NO resuelto:** correcciones de precio, cantidad, productos, propinas, pagos mixtos, cambios de cliente y diferencias de caja en pedidos YA PAGADOS. Antes de ofrecerlos en el mismo formulario habrá que usar la conciliación de efectivo/medios oficial de Uki, confirmación real de devolución/cobro, rectificación postcierre con autorización de dueños, historial de fidelización y CAS atómico Neon. No añadir otra caja ni una segunda bandeja. No activar las operaciones hasta la revisión manual de punta a punta.
+
+No hubo cambios en `main` Uki ni en los registros de pagos, carta o caja. No se realizaron pruebas de venta ni una publicación.
