@@ -2259,7 +2259,7 @@ function vNuevo(){
   const deltaEdicion=pedidoEdicion?.pagado?Number(pedidoEdicion.total||0)-total:0;
   const pendienteEdicion=!!ukiCobroPendiente(pedidoEdicion);
    const entregaUI=`<label>Tipo de entrega</label><div class="chips">${["Retiro","Delivery","Consumo en local"].map(m=>`<button ${chip(D.modalidad===m)} onclick="setModalidad('${m}')">${m}</button>`).join("")}</div>${S.suc===ROMO_SUCURSAL_QA&&revisandoSolicitud?ukiRomoDetalleEntregaCartaHTMLQA(D.texto):""}${D.modalidad==="Consumo en local"?`<label>Mesa o referencia (opcional)</label><input maxlength="50" value="${esc(D.mesaReferencia||"")}" placeholder="Ej: Mesa 2" oninput="D.mesaReferencia=this.value">`:""}${D.modalidad==="Delivery"?`<label>💰 Valor delivery (se suma)</label><input type="number" inputmode="numeric" value="${D.envio||""}" placeholder="Ej: 2000" oninput="setEnvioManual(this.value)"><p class="muted" id="pedidoEnvioAyuda">Delivery seleccionado - ${D.envio||0} se suma al total</p><label>🛵 Kilómetros del recorrido (opcional, no cambia el precio)</label><input id="ukiKmRecorrido" type="text" inputmode="decimal" value="${esc(D.kmRecorrido??"")}" placeholder="Ej: 4,5" onchange="D.kmRecorrido=this.value.trim();render()"><p class="muted">Si el recorrido viene escrito en el mensaje original, el panel también puede leerlo. No modifica el valor del delivery.</p>`:""}`;
-  return `<div class="section-head"><h2>${D.editando?`Editar pedido #${D.editando}`:revisandoSolicitud?"Revisar solicitud":"Nuevo pedido"}</h2><p>${D.editando?"Corrige los datos y el medio de pago del pedido existente. Guardar cambios no genera otro pedido ni otro cobro.":revisandoSolicitud?"Solicitud recibida: verifica el detalle y la forma de entrega. Todavía NO es un pedido registrado ni un pago confirmado.":"Completa los datos y guarda el pedido una sola vez."}</p></div>
+  return `<div class="section-head"><h2>${D.editando?`Editar pedido #${D.editando}`:revisandoSolicitud?"Revisar solicitud":"Nuevo pedido"}</h2><p>${D.editando&&pedidoEdicion?.pagado?"Romo: un pedido pagado solo permite corregir referencia de mesa o recorrido informativo, sin tocar importes, armado, cliente, timbres ni caja. Otras correcciones requieren conciliación financiera.":D.editando?"Corrige el pedido pendiente existente. No se registra otro pedido ni otro cobro.":revisandoSolicitud?"Solicitud recibida: verifica el detalle y la entrega; todavía NO es venta ni pago.":"Completa los datos y guarda el pedido una sola vez."}</p></div>
   ${S.suc===ROMO_SUCURSAL_QA?'<div class="card"><b>Romo · pedido manual o por WhatsApp</b><p class="muted">Pega el mensaje y revisa productos, precios, entrega y delivery. El pedido se guarda por cobrar, sin registrar pago. El guardado exige confirmación cifrada de Neon Romo; los pedidos en espera quedan guardados de forma cifrada exclusivamente en Romo.</p></div>'+ukiRomoBorradoresVistaQA():ukiVistaBorradores()}
   <details class="uki-modos-ingreso" ${revisandoSolicitud?'':'open'} style="${D.editando?'display:none;':'margin:10px 0'}"><summary><b>${revisandoSolicitud?'Ver mensaje original':'Opciones de ingreso · WhatsApp o manual'}</b></summary>
    ${revisandoSolicitud?'':`<div class="mode-switch" role="group" aria-label="Modo de ingresar pedido"><button type="button" class="${modoNuevo==='whatsapp'?'selected':''}" onclick="cambiarModoNuevo('whatsapp')">📋 Pegar WhatsApp</button><button type="button" class="${modoNuevo==='manual'?'selected':''}" onclick="cambiarModoNuevo('manual')">✎ Manual</button></div>`}
@@ -6083,6 +6083,8 @@ function ukiRomoPedidosPendientesHTMLQA(){
      ',\'entregar\')">✓ Marcar entregado (sin cambiar pago)</button>':'');
   }else{
    acciones='<p class="muted">Pago guardado en Romo. No se realiza otro cobro.</p>'+
+    (!tst&&(!Array.isArray(p.qrSolicitudes)||p.qrSolicitudes.length===0)?
+      '<button type="button" class="sm" onclick="editarPedido('+id+')">✏️ Corregir referencia (sin alterar cobros)</button>':'')+
     (p.timbreReglaObligatoria&&!p.timbreEnviadoEn?
      (ukiTimbreMovimientoRegistrado(p)&&ukiNumeroTimbreWhatsApp(p.telefono)?
       '<div class="card" style="padding:12px"><b>🎫 Timbre por enviar</b>'+
@@ -7492,6 +7494,70 @@ async function ukiRomoCerrarTurnoQA(){
  * FASE 1: pendientes sin cobro ni QR, preservando el turno y la auditoría.
  * Los pagos, cierres y rectificaciones requieren su procedimiento propio.
  */
+/**
+ * Reutiliza la misma pantalla Uki para correcciones administrativas de un
+ * pedido YA PAGADO. Nunca edita importes, medios, productos, clientes,
+ * timbres o caja; esos casos siguen bloqueados hasta conciliación.
+ */
+async function ukiRomoCorregirReferenciaPagadaQA(){
+ if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA||
+    S.vista!=='nuevo'||!D.editando)return;
+ const id=Number(D.editando),p=(S.pedidos||[]).find(x=>
+   x.suc===ROMO_SUCURSAL_QA&&x.id===id);
+ if(!p||!p.pagado||p.estado==='Cancelado'||ukiCierreConfirmadoPedido(p)){
+  aviso('Esta corrección no puede modificar pedidos sin pago o con cierre confirmado.');return;
+ }
+ const caja=S.cajasDiarias?.[ROMO_SUCURSAL_QA+'|'+
+  String(p.turnoClave||'').slice(0,10)];
+ if(caja?.turnoAbierto!==true||caja.baseConfirmada!==true||
+    caja.turnoId!==p.turnoClave){
+  aviso('Solo se corrigen referencias administrativas de pedidos pagados del turno abierto y con base confirmada.');return;
+ }
+ const responsable=String(D.responsableEdicion||'').trim();
+ if(responsable.length<2||responsable.length>80){
+  aviso('Identifica quién modifica el pedido.');return;
+ }
+ if(!window.ukiRomoSesionRemotaQA?.disponible?.()){
+  aviso('Abre la sesión autorizada de Romo para revisar Neon.');return;
+ }
+ const firma=JSON.stringify(D),snapshot=datosSoloSucursal();
+ let preparado;
+ try{
+  const helper=await import('./uki-romo-edicion-pagada-qa.mjs');
+  const anterior=(snapshot.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&x.id===id);
+  if(!anterior)throw Error('El pedido ya no existe');
+  const revisar=helper.clasificarCorreccionPagadaRomoQA(anterior,D);
+  if(revisar.protegidos.length)
+   throw Error('Se detectaron cambios financieros o de cliente: '+
+     revisar.protegidos.join(', ')+'. No se guardó nada.');
+  if(!revisar.permitida)throw Error('No hay cambios de referencia para guardar');
+  if(!window.confirm('ROMO LA SERENA: ¿Confirmas corregir solamente '+
+      revisar.cambios.join(' y ')+' del pedido pagado #'+id+
+      '? No se modificará dinero, cliente, timbres ni cierre.\nResponsable: '+
+      responsable))return;
+  ukiRomoGuardandoManualQA=true;
+  const session=window.ukiRomoSesionRemotaQA,base=session.estado();
+  if(base.conflicto||firma!==JSON.stringify(D))
+   throw Error('Revisión o formulario cambiado');
+  preparado=helper.prepararRectificacionInformativaRomoQA({
+    estado:snapshot,pedidoId:id,draft:D,responsable,
+    foto:ukiFotoCorreccionPedido,
+    turnoCerrado:!!ukiCierreConfirmadoPedido(p)
+  });
+  if(preparado.ventaIntacta!==true||!validarEstadoSucursal(snapshot,ROMO_SUCURSAL_QA))
+    throw Error('La modificación no está aislada de caja');
+  if(session.estado().revision!==base.revision||
+     firma!==JSON.stringify(D))
+    throw Error('El pedido cambió mientras se revisaba');
+  await ukiRomoGuardarOperacionQA(snapshot,
+    'Referencia de pedido pagado corregida sin alterar cobros',id,'pedidos');
+  nuevoDraft();
+ }catch(error){
+  aviso('No se confirmó la referencia pagada en Neon. Revisa el pedido antes de repetir. '+
+    String(error?.message||error));
+ }finally{ukiRomoGuardandoManualQA=false;}
+}
+
 async function ukiRomoEditarPedidoPendienteQA(){
  if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA||
     S.vista!=='nuevo'||!D.editando)return;
@@ -7642,7 +7708,8 @@ async function ukiRomoGuardarPedidoPendienteQA(){
 async function ndGuardar(){
   if(S.suc===ROMO_SUCURSAL_QA)
    return D.editando?
-    ukiRomoEditarPedidoPendienteQA():
+    ((S.pedidos||[]).find(p=>p.suc===ROMO_SUCURSAL_QA&&p.id===Number(D.editando))?.pagado?
+      ukiRomoCorregirReferenciaPagadaQA():ukiRomoEditarPedidoPendienteQA()):
     (D.cartaSolicitudRemotaId?
      ukiRomoAceptarSolicitudCartaQA():ukiRomoGuardarPedidoPendienteQA());
   if(ukiGuardadoSolicitudEnCurso)return;
