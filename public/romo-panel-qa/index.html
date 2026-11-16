@@ -2309,6 +2309,8 @@ function vNuevo(){
     '<div class="card" style="border-color:#ad102b"><b>Revisar diferencias de caja · solo consulta</b>'+
     '<p class="muted">Compara importes y medios registrados con los cambios escritos. No genera cobros, devoluciones ni autoriza editar una venta pagada.</p>'+
     '<button type="button" class="sm" onclick="ukiRomoVistaDiferenciasPagoQA()">Ver diferencias sin guardar</button>'+
+    '<button type="button" class="sm" onclick="ukiRomoConfirmarMedioRealQA()">Corregir medio realmente recibido</button>'+
+    '<p class="muted">Este segundo botón solo admite cambiar la clasificación del medio REAL que se cobró, con venta, delivery y propina intactos. Para cobrar o devolver diferencias utiliza la conciliación correspondiente.</p>'+
     '<p id="romoRevisionDiferenciasPagadasQA" role="status" class="muted" style="white-space:pre-wrap"></p></div>':''}
    <button class="big" onclick="ndGuardar()" ${ukiTimbreObligatorioGuardar(D,pedidoEdicion)&&!ukiTimbreBorradorConfirmado(D)?'disabled title="Primero confirma el envío del timbre"':''}>${D.editando?`💾 Guardar cambios #${D.editando}`:D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición (no cancela el pedido)</button><p class="muted">Para cancelar el pedido, guarda primero cualquier corrección de pago. Luego vuelve a Pedidos, abre Ver detalle y selecciona ❌ Cancelar pedido. Si hay una devolución, regularízala primero.</p>`:""}`;
 }
@@ -7567,6 +7569,70 @@ async function ukiRomoVistaDiferenciasPagoQA(){
     '\nNo se modificó ningún pedido, medio de pago ni propina.';
  }
 }
+/**
+ * Corrige el medio que EFECTIVAMENTE recibió el pago de una venta ya
+ * registrada. No cobra, no devuelve y no cambia importes ni propinas.
+ * Se hace en el mismo formulario Uki y con el mismo CAS Neon Romo.
+ */
+async function ukiRomoConfirmarMedioRealQA(){
+ if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA||
+    S.vista!=='nuevo'||!D.editando)return;
+ const id=Number(D.editando),p=(S.pedidos||[]).find(x=>
+  x.suc===ROMO_SUCURSAL_QA&&x.id===id);
+ if(!p?.pagado||p.estado==='Cancelado'||ukiCierreConfirmadoPedido(p)){
+  aviso('Solo se corrige el medio de pagos del turno abierto, sin cierre.');return;
+ }
+ const caja=S.cajasDiarias?.[ROMO_SUCURSAL_QA+'|'+
+  String(p.turnoClave||'').slice(0,10)];
+ if(caja?.turnoAbierto!==true||caja.baseConfirmada!==true||
+    caja.turnoId!==p.turnoClave){
+  aviso('La caja original debe estar abierta y con base confirmada.');return;
+ }
+ const responsable=String(D.responsableEdicion||'').trim();
+ if(responsable.length<2||responsable.length>80){
+  aviso('Identifica a quien verificó el medio realmente recibido.');return;
+ }
+ const session=window.ukiRomoSesionRemotaQA;
+ if(!session?.disponible?.()||session.estado()?.conflicto){
+  aviso('Reabre la sesión de Romo y consulta su revisión antes de corregir.');return;
+ }
+ const firma=JSON.stringify(D),base=session.estado();
+ let copia;
+ try{
+  const mod=await import('./uki-romo-diferencias-financieras-qa.mjs');
+  if(firma!==JSON.stringify(D)||!session.disponible()||
+     session.estado()?.revision!==base.revision)
+   throw Error('El pedido o el formulario cambiaron antes de la revisión');
+  copia=datosSoloSucursal();
+  const correction=mod.prepararRectificacionMediosRomoQA({
+   estado:copia,pedidoId:id,draft:D,responsable,foto:ukiFotoCorreccionPedido,
+   mediosProductos:ROMO_MEDIOS_COBRO_QA,
+   mediosDelivery:ROMO_MEDIOS_DELIVERY_QA,
+   turnoCerrado:!!ukiCierreConfirmadoPedido(p)
+  });
+  if(correction.noRegistraCobro!==true||correction.ventaIntacta!==true||
+     !validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
+   throw Error('No se confirmó la clasificación aislada de medios');
+  const lineas=correction.diferencias.filter(x=>x.diferencia!==0)
+   .map(x=>x.medio+': '+fmt(x.registrado)+' → '+fmt(x.propuesto)).join('\n');
+  if(!window.confirm('ROMO · Pedido pagado #'+id+
+   '\n¿Confirmas que verificaste cuál fue el medio que REALMENTE recibió el dinero?'+
+   '\n'+lineas+'\nLa venta, propina y total NO cambian. No se cobra ni devuelve dinero.'+
+   '\nResponsable: '+responsable+
+   '\nSe corregirá la distribución contable de la caja de Romo en Neon.'))return;
+  ukiRomoGuardandoManualQA=true;
+  if(firma!==JSON.stringify(D)||session.estado()?.revision!==base.revision||
+     !session.disponible()||session.estado()?.conflicto)
+   throw Error('La sesión o el formulario cambiaron antes de guardar');
+  await ukiRomoGuardarOperacionQA(copia,
+   'Medio realmente recibido corregido; sin nuevo cobro',id,'pedidos');
+  nuevoDraft();
+ }catch(error){
+  aviso('NO se confirmó la corrección del medio en Neon. Revisa Caja y el pedido antes de repetir. '+
+   String(error?.message||error));
+ }finally{ukiRomoGuardandoManualQA=false;}
+}
+
 async function ukiRomoCorregirReferenciaPagadaQA(){
  if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA||
     S.vista!=='nuevo'||!D.editando)return;
