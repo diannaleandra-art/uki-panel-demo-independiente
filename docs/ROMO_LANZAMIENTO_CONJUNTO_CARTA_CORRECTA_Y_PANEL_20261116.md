@@ -92,3 +92,10 @@ Fecha 2026-11-16. **PREPARADO EN GITHUB, NO HABILITADO Y SIN PUBLICACIÓN**.
 6. La vista del editor NO se monta ni configura en Vercel hasta completar el circuito de lectura pública y acordar la publicación de carta y panel juntos; no gastar publicaciones intermedias.
 
 **Siguiente bloque exacto:** preparar la lectura pública de alteraciones del catálogo desde el entorno exclusivo Romo y la aplicación controlada al modelo de carta (incluyendo salsas y extras sin mutar valores inmutables); luego homologar categorías CRUD, fotos, ingredientes y armado con las funciones oficiales Uki. Después, cobros/caja/cierres/administración y pruebas reales manuales antes de activar clientes.
+
+
+### Proyección pública de cambios para la carta correcta
+- Nuevo `api/romo-carta-cambios-publicos-qa.js` (solo GET, en Preview, inactivo por defecto por `ROMO_CARTA_CAMBIOS_PUBLICOS_QA_ENABLED`). Genera una proyección pública exclusivamente de modificaciones de catálogo, sin exponer el usuario que las guardó ni el motivo de auditoría.
+- Consulta la base aprobada y el documento independiente con el mismo hash; se niega a contestar si cambió la carta base o hay inconsistencia. No modifica la carta ni acepta pedidos.
+- **Aún no se ha conectado la aplicación de cambios del lado del cliente**: editar en Neon NO equivale a actualizar `candidata/model.mjs`, `monthly.mjs` o `catalog.mjs`. El modelo aprobado conserva campos inmutables (p. ej. salsas adicionales); antes de habilitar cualquier edición habrá que garantizar su aplicación real en el precio, el total de cada producto, carrito, comanda y medios de pago. En caso de fallo de lectura al habilitar clientes, la venta debe bloquearse, no mostrar un precio antiguo como confirmado.
+- La capa de Vercel independiente de Romo y las rutas correctas de la carta aún requieren preparación y validación en entorno aislado. Ninguna bandera ni variable nueva se ha activado.
