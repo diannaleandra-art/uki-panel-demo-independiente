@@ -123,3 +123,7 @@ Resto pendiente: carta completa CRUD, fotos, ingredientes/promociones, roles y o
 **Conservación:** `uki-panel-demo-independiente/main` y los locales oficiales Uki no se han modificado. Sin pedidos, precios, caja, timbres, compras, pagos o cierres grabados en este bloque. Las modificaciones solo están en las ramas preparatorias Romo.
 
 **Falta antes de habilitar pedidos reales:** revisar la carga de las 40 entradas, el arranque protegido, la inicialización expresa de catálogo por dueños, las credenciales/roles/orígenes de proyectos Romo independientes y efectuar las pruebas comerciales **manuales** de cada familia de productos y entrega en el iPhone. No publicar únicamente este parche: se mantiene el lanzamiento conjunto.
+
+
+## Bloque de integridad: revisión inicial del catálogo obligatoria
+16-11-2026. En la rama de preparación del panel de Romo, **sin despliegue ni movimientos en Neon**, `lib/romo-carta-ediciones-seguras-qa.mjs` rechaza ahora explícitamente cualquier edición de producto mientras `romo_carta_ediciones_v1` no tenga una revisión inicial confirmada (revisión 1+). La primera revisión únicamente la puede crear la propietaria con el botón de inicialización manual que no cambia precios ni disponibilidad, guardando responsable/motivo y registro en auditoría. `public/romo-panel-qa/romo-carta-editor-seguro-qa.js` deshabilita el botón Guardar durante la revisión 0 y explica la causa. Se conservó el carácter exclusivo de Romo (no escribe en Uki).
