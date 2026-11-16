@@ -75,8 +75,12 @@ module.exports=async function romoCartaEdicionesSegurasQA(req,res){
     return fail(res,400,'Solicitud de edición inválida');
   if(method==='POST'){
     const keys=Object.keys(req.body).sort().join('|');
-    if(keys!==['baseSha256','expectedRevision','motivo','patch','sku'].sort().join('|'))
+    const edition=['baseSha256','expectedRevision','motivo','patch','sku'].sort().join('|');
+    const begin=['action','baseSha256','expectedRevision','motivo'].sort().join('|');
+    if(keys!==edition&&keys!==begin)
       return fail(res,400,'Campos adicionales no permitidos');
+    if(keys===begin&&(req.body.action!=='initialize'||req.body.expectedRevision!==0))
+      return fail(res,400,'Inicialización de Romo no autorizada');
   }
   try{
     const sql=require('@neondatabase/serverless').neon(conf.database);
@@ -92,6 +96,12 @@ module.exports=async function romoCartaEdicionesSegurasQA(req,res){
     const lib=await import('../lib/romo-carta-ediciones-seguras-qa.mjs');
     if(method==='GET'){
       const result=await lib.leerEdicionesRomoQA({db,carta,identity});
+      return res.status(200).json(result);
+    }
+    if(req.body.action==='initialize'){
+      const result=await lib.inicializarCatalogoRomoQA({
+        db,carta,identity,baseSha256:req.body.baseSha256,motivo:req.body.motivo
+      });
       return res.status(200).json(result);
     }
     const result=await lib.guardarEdicionRomoQA({
