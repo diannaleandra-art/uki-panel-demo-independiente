@@ -72,3 +72,23 @@ Fecha 2026-11-16. **Código en ramas de preparación, no desplegado, no probado 
 
 ### Próxima intervención
 Una capa única de edición de Romo que, con autorización de dueños y control de revisión concurrente, permita administrar categorías, productos, promociones, extras y precios a partir de la carta aprobada. Confirmar que una edición queda reflejada tanto en carta como en panel; impedir confirmaciones falsas. Completar junto con los pendientes de caja, trabajadores y Mi Administración antes de la publicación conjunta.
+
+
+## Bloque siguiente: edición segura como cambios sobre la carta aprobada
+Fecha 2026-11-16. **PREPARADO EN GITHUB, NO HABILITADO Y SIN PUBLICACIÓN**.
+
+### Archivos agregados en rama `preparacion/uki-romo-sobre-main-20261114`
+- `sql/romo_carta_ediciones_seguras_preparacion_20261116.sql`: migración todavía **NO ejecutada**, crea un único documento independiente de cambios sobre la carta y una bitácora de auditoría; NO reemplaza `romo_catalogo_v1`, no toca pedidos/caja ni datos Uki.
+- `lib/romo-carta-ediciones-seguras-qa.mjs`: calcula huella de la carta completa aprobada, exige 40+ entradas de venta, valida categorías/SKU/precio/disponibilidad/nombre/descripción, conserva solo modificaciones del producto elegido. Edición exclusiva de dueños con revisión esperada; primera escritura o actualización CAS y asiento de auditoría unidos en una sentencia SQL, con rechazo de conflictos.
+- `api/romo-carta-ediciones-seguras-qa.js`: GET y POST privados con token Google verificado y rol dueño de Neon Romo; consulta únicamente la carta aprobada desde un origen permitido; guardado solo en Neon Romo de su propia base; responde error sin declarar éxito ante fallos. `ROMO_CARTA_EDICIONES_QA_ENABLED` queda APAGADA por defecto y exige Preview de rama Romo.
+- `public/romo-panel-qa/romo-carta-editor-seguro-qa.js`: interfaz móvil negra/roja para localizar, filtrar y editar los 40 productos; responsable vía sesión Google, motivo obligatorio, mensaje explícito tras guardar y comprobación manual. **Todavía NO está importada ni montada en el panel oficial**.
+
+### Reglas importantes
+1. Ninguna tabla migrada o dato financiero modificado; no hay producto guardado desde este nuevo código, ni venta, QR, timbre o cobro generado. La versión de producción Uki permanece en `main` y no debe recibir este bloque.
+2. El catálogo aprobado en código sigue siendo la referencia de precios y recetas; el registro nuevo solo conserva alteraciones acotadas. Se bloquean cambios sobre productos desconocidos o sobre una carta cuyo contenido base cambió.
+3. Este bloque **NO constituye aún una conexión funcional de editor a carta pública**. Falta endpoint de lectura pública aislado para Romo, reflejar ediciones en `model.mjs`/`monthly.mjs`/`catalog.mjs` antes de permitir compra, habilitar creación y eliminación de categorías/productos con registro, fotos, ingredientes y promociones completas, y verificar a mano desde iPhone.
+4. Debe distinguirse «guardado en Neon Romo con auditoría» de «cambio visible y seguro para clientes». El guardado jamás debe afirmar publicidad o sincronización sin verificación.
+5. La migración SQL requiere revisión de respaldo, ejecución autorizada en la única base `romos_sushi`, configuración del servicio del proyecto exclusivo Romo y comprobación manual de lectura/escritura. No ejecutarla por iniciativa del despliegue.
+6. La vista del editor NO se monta ni configura en Vercel hasta completar el circuito de lectura pública y acordar la publicación de carta y panel juntos; no gastar publicaciones intermedias.
+
+**Siguiente bloque exacto:** preparar la lectura pública de alteraciones del catálogo desde el entorno exclusivo Romo y la aplicación controlada al modelo de carta (incluyendo salsas y extras sin mutar valores inmutables); luego homologar categorías CRUD, fotos, ingredientes y armado con las funciones oficiales Uki. Después, cobros/caja/cierres/administración y pruebas reales manuales antes de activar clientes.
