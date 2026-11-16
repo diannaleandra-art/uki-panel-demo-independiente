@@ -59,3 +59,25 @@ La inspección documentada en `AUDITORIA_PARIDAD_UKI_OFICIAL_ROMO_20261114.md` m
 - [ ] Hacer respaldo y aprobar la **publicación conjunta** una sola vez cuando todos los puntos anteriores funcionen.
 
 **Estado final actual: código de integración avanzado, pero paridad funcional y seguridad comercial NO certificadas. No activar recepción pública hasta completar lo anterior.**
+
+
+## Avance posterior: stock visible, rutas coincidentes y aislamiento de producción
+16 de noviembre de 2026 — **guardado únicamente en las ramas de preparación, sin publicación ni pruebas de operaciones**.
+
+### Carta Romo (repositorio `diannaleandra-art/romos-sushi-qa.`)
+- `romo-guardia-catalogo-qa.mjs`: la vista aprobada expone a la interfaz la consulta de disponibilidad por SKU, siempre detrás del prearranque auditado.
+- `app.js`: señala «Agotado temporalmente» y desactiva la acción de sumar promociones clásicas/premium, handrolls, mensuales, platos, toppings y salsas adicionales cuando la revisión del panel indique no disponible. También valida agregar un topping asociado a otra promo (ruta que antes omitía la guardia), los aumentos de cantidad desde el carrito y la selección de salsas extras en el armado. Corregida la frase premium «Más Uki» por «Más Romo».
+- `romo-inicio-catalogo-qa.mjs`: no abre el armado comercial si no existe revisión 1 o posterior firmada desde el panel de dueños. La revisión 0 de catálogo se puede CONSULTAR desde el editor, pero no vender.
+- `api/romo-cotizacion-servidor-qa.js`: usa exactamente las mismas fuentes OSRM y contingencia Valhalla del endpoint oficial `api/route.js`, y redondea los kilómetros a 5 decimales antes de calcular delivery. Si el recorrido no coincide con el valor del navegador, el pedido se rechaza: no cobra otro valor ni cambia el pedido.
+
+### Panel Romo / aislamiento
+- `lib/romo-entorno-panel.cjs`: el único guard de producción exclusivo de Romo no permitirá activación con origen `uki-sushi-inventario.vercel.app` ni rama `main`. Requerirá `ROMO_PANEL_ISOLATED_PROJECT=romo-sushi-panel`, origen HTTPS explícito Romo y `ROMO_PANEL_PRODUCTION_ENABLED=true`. **No se activó ninguna bandera**. Otros endpoints nuevos siguen específicamente limitados a Preview: antes de producir se deberá extender el mismo cierre de alcance a TODOS ellos y comprobar la conexión.
+- La edición de carta, caja e inventario aún no se ha probado visual o funcionalmente de extremo a extremo. El estado de producción no cambia por estos archivos.
+
+### Limitaciones a resolver antes de dar paridad por terminada
+- El stock agotado se indica en la carta nueva cuando carga la revisión; páginas abiertas con revisión anterior quedan protegidas en el envío, pero no se refrescan en vivo sin recarga.
+- El sistema de categorías, productos nuevos, ingredientes, fotos, descuentos y promociones con configuración continúa NO equivalente a todo el CRUD de Uki. No fingir que `romo_carta_ediciones_v1` cubra esos cambios; solo precio, disponibilidad y campos compatibles existentes.
+- La recepción de nuevas solicitudes está condicionada a un cotizador de servidor y a revisión 1+, aún sin validación manual. Cambios en medios de pago, delivery en efectivo, caja, timbres y cierres siguen sujetos a conciliación real.
+- Los módulos de Caja (7 movimientos, precierre/cierre, pagos mixtos, caja acumulada y ajustes) y Mi Administración siguen con los bloqueos descritos en la auditoría oficial; no activarlos artificialmente. Los códigos QA de apoyo no sustituyen las acciones reales de Uki.
+
+**Regla:** sin cambio a `main` Uki, sin producción Romo, sin modificar el inventario/caja/pedidos reales y sin pruebas automáticas. Un solo lanzamiento Romo cuando el conjunto quede verificado manualmente.
