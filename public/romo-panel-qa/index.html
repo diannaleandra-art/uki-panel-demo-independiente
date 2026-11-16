@@ -7533,7 +7533,10 @@ async function ukiRomoVistaDiferenciasPagoQA(){
      S.vista!=='nuevo'||!session.disponible()||
      session.estado()?.conflicto)
    throw Error('La sesión o el formulario cambiaron durante la consulta');
-  const plan=mod.calcularDiferenciaPagadaRomoQA(p,D);
+  const plan=mod.calcularDiferenciaPagadaRomoQA(p,D,{
+    mediosProductos:ROMO_MEDIOS_COBRO_QA,
+    mediosDelivery:ROMO_MEDIOS_DELIVERY_QA
+  });
   const money=x=>fmt(x);
   const lineas=[
    'Pedido #'+id+' · SOLO CONSULTA, NO COBRO',
