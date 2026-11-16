@@ -37,12 +37,94 @@ const valido=s=>{
 };
 function cajita(s,d){return s.cajasDiarias[SUC+'|'+d]}
 const dentro=(x,inicio,final)=>{const t=fechaReg(x);return t>=inicio&&t<=final};
+
+/**
+ * Excepción administrativa para una jornada antigua SIN caja ABIERTA ni dinero.
+ * Permite continuar con la fecha real tras cancelar manualmente los pedidos
+ * no cobrados. Conserva todos los registros y añade una nota auditada.
+ * No crea cierres ficticios, dinero o nuevas ventas.
+ */
+export function prepararAvanceJornadaSinCajaRomoQA(estado,{
+ fechaNueva,responsable,motivo,registradoEn
+}={}){
+ valido(estado);
+ CHECK(Array.isArray(estado.incidencias)&&
+  Array.isArray(estado.ajustesHistoricos)&&
+  Number.isSafeInteger(estado.nextId)&&estado.nextId>=1,
+  'El historial de Romo necesita revisión');
+ const anterior=String(estado.fechaOperativa||'');
+ CHECK(DIA(anterior)&&DIA(fechaNueva)&&fechaNueva>anterior,
+  'La jornada no está atrasada o la nueva fecha es incorrecta');
+ CHECK(Number.isSafeInteger(registradoEn)&&registradoEn>0,
+  'Fecha de revisión inválida');
+ const partes=new Intl.DateTimeFormat('en-GB',{
+  timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'
+ }).formatToParts(new Date(registradoEn));
+ const parte=k=>partes.find(x=>x.type===k)?.value;
+ const fechaChile=parte('year')+'-'+parte('month')+'-'+parte('day');
+ CHECK(fechaNueva===fechaChile,'Solo puede abrirse la jornada real de Chile');
+ const actor=TXT(responsable,80,'Responsable de regularización');
+ const detalle=TXT(motivo,300,'Motivo de regularización');
+ CHECK(!Object.entries(estado.cajasDiarias).some(([k,c])=>
+  k.startsWith(SUC+'|')&&c?.turnoAbierto===true),
+  'Hay caja abierta; requiere cierre y conciliación, no avance de fecha');
+ const caja=estado.cajasDiarias[SUC+'|'+anterior];
+ if(caja){
+  const tiene=(arr)=>Array.isArray(arr)&&arr.length>0;
+  CHECK(caja.baseConfirmada!==true&&
+    !Number(caja.pagoDelivery)&&!Number(caja.pagoDeliveryDia)&&
+    !Number(caja.pagoDeliveryAnterior)&&
+    !Object.values(caja.apps||{}).some(x=>Number(x)>0)&&
+    !tiene(caja.pagosRepartidor)&&!tiene(caja.pagosDeliveryDetalle)&&
+    !tiene(caja.movimientosApps)&&
+    !tiene(caja.cajaChica?.gastos)&&!tiene(caja.precierres)&&
+    !caja.turnoPrecierreAbierto,
+    'La jornada anterior contiene caja, reparto o precierre; requiere conciliar');
+ }
+ CHECK(!estado.cierres.some(c=>c.suc===SUC&&
+    c.fechaOperativa===anterior),
+  'La jornada anterior tiene cierres; consulta Historial antes de continuar');
+ const pedidoDia=p=>p?.suc===SUC&&(
+  String(p.fechaOperativa||'')===anterior||
+  String(p.turnoClave||'').slice(0,10)===anterior);
+ CHECK(!estado.pedidos.some(p=>pedidoDia(p)&&
+  (p.estado!=='Cancelado'||p.pagado===true||
+   (Array.isArray(p.pagosProductos)&&p.pagosProductos.length>0)||
+   (Array.isArray(p.pagosEnvio)&&p.pagosEnvio.length>0))),
+  'Quedan pedidos antiguos sin cancelar o con dinero; revisa Pedidos primero');
+ const movimientoDia=x=>x?.suc===SUC&&
+  (String(x.fechaOperativa||'')===anterior||
+   String(x.fechaISO||'').slice(0,10)===anterior);
+ CHECK(!['gastos','retiros','propinas','deliveriesManuales'].some(k=>
+   estado[k].some(movimientoDia)),
+  'Se encontraron movimientos de dinero; la jornada debe conciliarse');
+ CHECK(!estado.solicitudesWhatsApp?.some(x=>x.suc===SUC&&x.estado==='pendiente'),
+  'Quedan solicitudes pendientes por resolver');
+ estado.ajustesHistoricos.push({
+  suc:SUC,id:estado.nextId++,tipo:'jornada_regularizada_sin_caja',
+  fechaAnterior:anterior,fechaNueva,responsable:actor,motivo:detalle,
+  registradoEn,fechaISO:new Date(registradoEn).toISOString()
+ });
+ estado.fechaOperativa=fechaNueva;
+ return Object.freeze({tipo:'jornada_regularizada_sin_caja',
+  fechaAnterior:anterior,fechaNueva,responsable:actor});
+}
 export function prepararAperturaTurnoRomoQA(estado,{
  fechaOperativa,inicioMs,base,cajaChicaInicial,responsable
 }={}){
  valido(estado);
  CHECK(DIA(fechaOperativa),'Fecha operativa de apertura inválida');
  CHECK(Number.isSafeInteger(inicioMs)&&inicioMs>0,'Momento de apertura inválido');
+ const hoyPartes=new Intl.DateTimeFormat('en-GB',{
+  timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'
+ }).formatToParts(new Date(inicioMs));
+ const parte=k=>hoyPartes.find(x=>x.type===k)?.value;
+ const hoy=parte('year')+'-'+parte('month')+'-'+parte('day');
+ const ayer=new Date(hoy+'T12:00:00Z');
+ ayer.setUTCDate(ayer.getUTCDate()-1);
+ const diaAyer=ayer.toISOString().slice(0,10);
+ CHECK(fechaOperativa===hoy||fechaOperativa===diaAyer,
+  'Esta jornada es demasiado antigua. Revisa los pedidos y usa la regularización manual antes de abrir caja');
  const persona=TXT(responsable,80,'Responsable de apertura');
  // Los dos montos pueden ser cero, pero ambos deben haberse ingresado.
  // No asumir $0 ni copiar una caja chica anterior sin arqueo físico.

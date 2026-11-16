@@ -7162,6 +7162,52 @@ async function ukiRomoAceptarSolicitudCartaQA(){
  * Cierre cifra snapshot, emite constancia agregada con CAS e idempotencia.
  */
 let ukiRomoTurnoOcupadoQA=false;
+async function ukiRomoAvanzarJornadaSinCajaQA(){
+ if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoOperacionesEnCursoQA())return;
+ const anterior=fechaOperativaActual(),nueva=hoyLocal();
+ if(anterior>=nueva)return aviso('La jornada ya está al día.');
+ const responsable=String(document.getElementById('romoAvanceJornadaRespQA')?.value||'').trim();
+ const motivo=String(document.getElementById('romoAvanceJornadaMotivoQA')?.value||'').trim();
+ if(responsable.length<2||motivo.length<2)
+  return aviso('Escribe el responsable y explica por qué no hubo cierre de caja.');
+ if(!window.confirm('¿Avanzar la jornada de '+anterior+' a '+nueva+
+  ' SIN inventar un cierre? Esto solo es posible si no hubo caja, ventas ni pedidos pendientes; conservará el historial completo.'))return;
+ ukiRomoTurnoOcupadoQA=true;
+ try{
+  const sesion=window.ukiRomoSesionRemotaQA;
+  if(!sesion?.disponible?.()||sesion.estado().conflicto)
+   throw Error('Reabre Romo y comprueba su revisión Neon.');
+  const token=await window.ukiInventarioToken?.();
+  if(typeof token!=='string'||token.length<30)
+   throw Error('Se requiere Google de dueños activo.');
+  // Confirmar también en servidor las solicitudes de carta no visibles
+  // en la copia cifrada antes de avanzar la jornada.
+  const response=await fetch('/api/romo-solicitudes-carta-qa',{
+   headers:{Authorization:'Bearer '+token},
+   cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(15000)
+  });
+  const data=await response.json().catch(()=>null);
+  if(!response.ok||data?.ok!==true||data.storeId!=='romo:serena'||
+    data.branch!=='serena'||!Array.isArray(data.orders))
+   throw Error('No se pudo revisar la bandeja real; no se modificó la fecha.');
+  if(data.orders.some(o=>o.branch!=='serena'||
+    !['pendiente','aceptada','rechazada'].includes(o.estado)))
+   throw Error('Hay datos de otra sucursal o estado desconocido.');
+  if(data.orders.some(o=>o.estado==='pendiente'))
+   throw Error('Hay solicitudes de la carta pendientes: resuélvelas primero.');
+  const copia=datosSoloSucursal();
+  const mod=await import('./uki-romo-cierre-definitivo-qa.mjs');
+  mod.prepararAvanceJornadaSinCajaRomoQA(copia,{
+   fechaNueva:nueva,responsable,motivo,registradoEn:Date.now()
+  });
+  if(!validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
+   throw Error('No se confirmó el estado exclusivo de Romo.');
+  await ukiRomoGuardarOperacionQA(copia,'Jornada regularizada sin caja y con auditoría',null,'caja');
+ }catch(e){
+  aviso('No se avanzó la jornada. Revisa lo pendiente antes de repetir: '+
+   String(e?.message||e));
+ }finally{ukiRomoTurnoOcupadoQA=false;}
+}
 function ukiRomoCierreTurnoHTMLQA(){
  const c=cajaDelDia(),abierto=c.turnoAbierto===true;
  const t=totales(),dia=fechaOperativaActual();
@@ -7170,6 +7216,14 @@ function ukiRomoCierreTurnoHTMLQA(){
  return '<details class="card" id="romoTurnosQA">'+
   '<summary><b>🕒 Turnos, precierre y cierre definitivo · Romo</b></summary>'+
   '<p class="muted">Mismas reglas de importes de Uki. Cierre definitivo solo dueños, con constancia única en Neon Romo. La sincronización con Mi Administración sigue en preparación.</p>'+
+  (!abierto&&dia<hoyLocal()?
+   '<div class="card" role="alert" style="border:2px solid #ac1e39"><h3>⚠️ Jornada anterior sin cierre</h3>'+
+   '<p>Fecha guardada: <b>'+esc(dia)+'</b>. Fecha de hoy: <b>'+esc(hoyLocal())+'</b>. No abras una caja de un día anterior.</p>'+
+   '<p>Si el día anterior solo tuvo pedidos de prueba sin cobrar, cancélalos manualmente. Cuando no quede ninguna caja, solicitud ni dinero por conciliar, podrás pasar al día actual, conservando el historial.</p>'+
+   '<label>Responsable</label><input id="romoAvanceJornadaRespQA" maxlength="80" autocomplete="off">'+
+   '<label>Motivo</label><textarea id="romoAvanceJornadaMotivoQA" maxlength="300" rows="2" placeholder="Ej.: Jornada de preparación sin caja real ni ventas"></textarea>'+
+   '<button type="button" class="sm" onclick="ukiRomoAvanzarJornadaSinCajaQA()">Revisar y avanzar jornada sin caja</button>'+
+   '<p class="muted">Se comprobará también la bandeja real de la carta. Ante cualquier duda o movimiento, se bloquea el cambio.</p></div>':'')+
   (abierto?
     '<p>Turno abierto: <b>'+esc(c.turnoId||'')+'</b></p>':
     '<p class="muted">No hay turno abierto de Romo en este día operativo.</p>')+
