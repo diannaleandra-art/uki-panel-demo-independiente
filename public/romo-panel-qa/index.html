@@ -7483,6 +7483,63 @@ async function ukiRomoCerrarTurnoQA(){
  }finally{ukiRomoTurnoOcupadoQA=false}
 }
 
+/**
+ * Misma pantalla de editarPedido() y vNuevo() de Uki; únicamente la
+ * persistencia usa una copia cifrada Romo con CAS (sin escribir en Uki).
+ * FASE 1: pendientes sin cobro ni QR, preservando el turno y la auditoría.
+ * Los pagos, cierres y rectificaciones requieren su procedimiento propio.
+ */
+async function ukiRomoEditarPedidoPendienteQA(){
+ if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA||
+    S.vista!=='nuevo'||!D.editando)return;
+ const id=Number(D.editando);
+ const original=(S.pedidos||[]).find(p=>p.suc===ROMO_SUCURSAL_QA&&p.id===id);
+ if(!original){
+  aviso('El pedido original ya no está disponible. Actualiza antes de editar.');return;
+ }
+ if(original.pagado||original.estado!=='Pendiente'||
+    ukiCierreConfirmadoPedido(original)){
+  aviso('Este pedido ya fue cobrado, entregado o cerrado. Requiere la corrección financiera autorizada; no se modificó.');return;
+ }
+ const responsable=String(D.responsableEdicion||'').trim();
+ if(responsable.length<2||responsable.length>80){
+  aviso('Escribe quién realiza la modificación del pedido.');return;
+ }
+ if(!window.ukiRomoSesionRemotaQA?.disponible?.()){
+  aviso('Reabre Romo con tu acceso Google autorizado antes de guardar.');return;
+ }
+ const firma=JSON.stringify(D);
+ if(!window.confirm('¿Guardar la edición del pedido #'+id+
+   ' SIN registrar un cobro ni alterar timbres, caja o historial de cierre?\n'+
+   'Responsable: '+responsable+'\nLos cambios se auditarán en Neon Romo.'))return;
+ ukiRomoGuardandoManualQA=true;
+ try{
+  const session=window.ukiRomoSesionRemotaQA;
+  const base=session.estado();
+  if(base.conflicto===true)throw Error('El estado de Romo presenta un conflicto. Actualiza antes de editar.');
+  const module=await import('./uki-romo-edicion-pendiente-qa.mjs');
+  if(firma!==JSON.stringify(D)||!session.disponible()||
+     session.estado().revision!==base.revision)
+    throw Error('El formulario o el estado cambiaron antes de guardar');
+  const copia=datosSoloSucursal();
+  const resultado=module.prepararEdicionPendienteRomoQA({
+   estado:copia,pedidoId:id,draft:D,responsable,
+   foto:ukiFotoCorreccionPedido,
+   turnoCerrado:!!ukiCierreConfirmadoPedido(original),
+   codigoWhatsApp:ukiCodigoWhatsApp
+  });
+  if(resultado.sinCobro!==true||resultado.pedidoId!==id||
+     copia.pedidos.length!==(S.pedidos||[]).length||
+     !validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
+    throw Error('La edición no conserva el pedido original de Romo');
+  await ukiRomoGuardarOperacionQA(copia,'Edición pendiente auditada, sin cobro',id,'pedidos');
+  nuevoDraft();
+ }catch(error){
+  aviso('No se confirmó la edición en Neon. Revisa el pedido antes de intentarlo otra vez. '+
+    String(error?.message||error));
+ }finally{ukiRomoGuardandoManualQA=false;}
+}
+
 async function ukiRomoGuardarPedidoPendienteQA(){
  if(ukiRomoGuardandoManualQA)return;
  const s=ROMO_SUCURSAL_QA,session=window.ukiRomoSesionRemotaQA;
@@ -7581,8 +7638,10 @@ async function ukiRomoGuardarPedidoPendienteQA(){
 
 async function ndGuardar(){
   if(S.suc===ROMO_SUCURSAL_QA)
-   return D.cartaSolicitudRemotaId?
-    ukiRomoAceptarSolicitudCartaQA():ukiRomoGuardarPedidoPendienteQA();
+   return D.editando?
+    ukiRomoEditarPedidoPendienteQA():
+    (D.cartaSolicitudRemotaId?
+     ukiRomoAceptarSolicitudCartaQA():ukiRomoGuardarPedidoPendienteQA());
   if(ukiGuardadoSolicitudEnCurso)return;
   ukiGuardadoSolicitudEnCurso=true;
   try{
