@@ -41,3 +41,12 @@ En **otra secuencia específica de pedidos olvidados**, ahora se preparó un cir
 Estos archivos **no se han desplegado, ni se ha ejecutado su migración ni autorizado movimiento comercial**. El guardado encriptado/versionado es programación preparada, no éxito bancario ni validación de la dueña. En pedidos olvidados se confirma dinero que ocurrió **antes del cierre original**, nunca se vuelve a recibir en la Caja actual. Se bloqueó la ruta heredada de Uki que no guardaba mediante CAS de Romo.
 
 Pendiente antes de marcar finalizado: validación manual del circuito, origen externo y reparto no duplicado, permisos de dueños, comprobantes reales, errores de conexión, autorización segura de migración y reporte de ajustes a Mi Administración sin reimportar la venta original.
+
+## Validación estructural en Neon QA — 16-11-2026
+
+- Se saneó `migrations/2026-11-16-romo-pedidos-olvidados-versiones-qa.sql` (una única transacción, tabla y función, SHA-256 completo); commit `9ee5c919` en la misma rama de preparación.
+- Se instalaron **solo en la rama Neon preexistente de prepublicación** `br-gentle-wave-be71bcpa` del proyecto `round-cell-98681740` las dos migraciones de cierres rectificados: pedidos olvidados versionados y rectificación monetaria v2. PostgreSQL aceptó ambas.
+- En esa rama se comprobaron las dos tablas, claves únicas, relaciones con cierre original, funciones SECURITY DEFINER y permisos: el servicio `romos_app_service` puede consultar las constancias y ejecutar las funciones, pero no insertar filas de constancia directamente; las funciones no dan EXECUTE a PUBLIC.
+- Verificación posterior en QA: **0 constancias rectificadas y 0 cierres originales**, sin transacciones comerciales ni pruebas automáticas de dinero. La rama antigua de QA `br-lingering-scene-berkq3k0` usa una clave de cierre diferente: el primer intento falló y quedó sin migraciones; no utilizarla para certificar compatibilidad con la base actual.
+- **La base principal `romos_sushi` permanece sin ambas tablas nuevas**, y su esquema sí coincide con el de la rama de prepublicación usada. No se cambió producción Uki ni se hicieron despliegues. Las banderas de recepción/escritura permanecen apagadas.
+- **Pendiente para cierre definitivo:** instalación en base principal con aprobación explícita, validación de permisos y recorridos manuales con cierres reales, conciliación de las versiones, caja, reportes y publicación agrupada. Pasar el SQL en QA no equivale a haber probado flujos comerciales.
