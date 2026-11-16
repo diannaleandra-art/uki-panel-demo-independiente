@@ -55,6 +55,10 @@ function readClose(c){
   gastos:amount(c.gastos,'gastos',{optional:true}),
   repartidor:amount(c.pagadoDelivery,'repartidor',{optional:true}),
   propinas:amount(c.propinas,'propinas',{optional:true}),
+  ajustesPostCierre:amount(c.rectificacionesPostCierre??0,
+   'ajustes de cierres anteriores',{signed:true}),
+  ajustesEfectivo:amount(c.rectificacionesPostCierreEfectivo??0,
+   'efectivo de ajustes anteriores',{signed:true}),
   retiros:amount(c.retiros,'retiros',{optional:true}),
   efectivoEsperado:amount(c.efectivo,'efectivo esperado',{optional:true,signed:true}),
   efectivoContado:amount(c.efectivoContado,'efectivo contado',{optional:true}),
@@ -83,12 +87,14 @@ const HEADERS=['Sucursal','Día operativo','Turno original','Fecha de cierre','R
  'Pedidos','Venta total CLP',...METHODS.map(x=>x+' CLP'),
  'Venta sin delivery CLP','Gastos CLP','Pago repartidor CLP',
  'Propinas CLP','Retiros CLP','Efectivo esperado CLP',
- 'Efectivo contado CLP','Diferencia CLP','Resultado CLP'];
+ 'Efectivo contado CLP','Diferencia CLP','Ajustes de cierres anteriores CLP',
+ 'Ajustes en efectivo CLP','Resultado CLP'];
 function vals(x){
  return [x.suc,x.fecha,x.turno,x.cerradoEn,x.responsable,
   x.pedidos,x.venta,...METHODS.map(k=>x.medios[k]),
   x.ventaSinDelivery,x.gastos,x.repartidor,x.propinas,x.retiros,
-  x.efectivoEsperado,x.efectivoContado,x.diferencia,x.resultado];
+  x.efectivoEsperado,x.efectivoContado,x.diferencia,
+  x.ajustesPostCierre,x.ajustesEfectivo,x.resultado];
 }
 function cell(value){
  if(value===null||value===undefined)return '';
@@ -125,6 +131,8 @@ export function crearMensajeCierreRomoQA({cierres,turnoId,revision,ajustesHistor
   '*Efectivo esperado:* '+renderAmount(x.efectivoEsperado),
   '*Efectivo contado:* '+renderAmount(x.efectivoContado),
   '*Diferencia:* '+renderAmount(x.diferencia),
+  '*Ajustes v2 de cierres anteriores (NO venta):* '+renderAmount(x.ajustesPostCierre),
+  '*De esos ajustes, efectivo:* '+renderAmount(x.ajustesEfectivo),
   '*Resultado del cierre:* '+renderAmount(x.resultado),
   ...(notas.length?['*ACLARACIONES POSTERIORES · SIN CAMBIAR IMPORTES*',
    ...notas.map((n,i)=>(i+1)+'. '+textoNota(n).replace(/[\r\n*_]+/g,' '))]:[]),
@@ -163,10 +171,10 @@ export function crearReporteCierresRomoQA({cierres,desde='',hasta='',revision,tu
  const filename='romo-serena-cierres-'+(desde&&hasta?desde+'-a-'+hasta:'historial')+
   '-revision-'+revision;
  const table='<table><thead><tr><th>Fecha / turno</th><th>Venta</th>'+
-  '<th>Gastos</th><th>Repartidor</th><th>Contado</th><th>Diferencia</th></tr></thead><tbody>'+
+  '<th>Gastos</th><th>Repartidor</th><th>Ajustes v2</th><th>Contado</th><th>Diferencia</th></tr></thead><tbody>'+
   filtered.map(x=>'<tr><td>'+escapeHtml(x.fecha)+
    '<small>'+escapeHtml(x.turno)+'</small></td>'+
-   [x.venta,x.gastos,x.repartidor,x.efectivoContado,x.diferencia].map(n=>
+   [x.venta,x.gastos,x.repartidor,x.ajustesPostCierre,x.efectivoContado,x.diferencia].map(n=>
     '<td>'+escapeHtml(renderAmount(n))+'</td>').join('')+'</tr>').join('')+
   '</tbody></table>';
  const html='<!doctype html><html lang="es"><head><meta charset="UTF-8">'+
