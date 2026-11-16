@@ -5,7 +5,6 @@
  * Puro: prepara una copia; el CAS Neon lo efectúa el panel al confirmar.
  */
 const SUC='Romo’s Sushi La Serena';
-const clone=x=>JSON.parse(JSON.stringify(x));
 const fail=message=>{throw new Error(message);};
 const equal=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 const n=x=>Number(x)||0;
@@ -32,6 +31,7 @@ export function clasificarCorreccionPagadaRomoQA(previo,draft){
   ['WhatsApp',t(previo.telefono),t(draft.telefono)],
   ['código carta',t(previo.codigoCarta),t(draft.codigoCarta)],
   ['código cliente',t(previo.codigoCliente),t(draft.codigoCliente)],
+  ['sucursal origen de la carta',t(previo.sucursalCarta),t(draft.sucursalCarta)],
   ['fecha original',t(previo.fechaISO),t(draft.fecha)],
   ['modalidad',t(previo.modalidad),t(draft.modalidad)],
   ['medio de productos',t(previo.medio||'Efectivo'),t(draft.medio||'Efectivo')],
@@ -77,6 +77,8 @@ export function clasificarCorreccionPagadaRomoQA(previo,draft){
   protegidos.push('referencia fuera de mesa');
  if(previo.modalidad!=='Delivery'&&km!==t(previo.kmRecorrido))
   protegidos.push('recorrido fuera de delivery');
+ if(!!draft.ajusteCajaRegularizado||draft.cartaSolicitudRemotaId||draft.cartaReservaToken)
+  protegidos.push('conciliación o solicitud comercial');
  const cambios=[];
  if(referencia!==t(previo.mesaReferencia))cambios.push('referencia de mesa');
  if(km!==t(previo.kmRecorrido))cambios.push('recorrido informativo');
