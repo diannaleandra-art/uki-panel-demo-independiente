@@ -195,6 +195,32 @@ export function prepararCierreDefinitivoRomoQA(estado,{
   p.estado!=='Cancelado'&&!p.productosPagadosOtroLocal&&
   !p.timbreEnviadoEn);
  CHECK(!timbresSinConfirmar,'Quedan timbres WhatsApp de pedidos pagados sin confirmar');
+
+ // Reutilizar exactamente UNA fila de la propina original (pedido o manual).
+ // Un ajuste confirmado de propina modifica esa fila, no añade otra.
+ const mediosPropina=['Efectivo','Transferencia','Débito','Edenred','Otros'];
+ for(const pedido of estado.pedidos.filter(p=>p.suc===SUC&&p.turnoClave===turnoId)){
+  const vinculadas=estado.propinas.filter(x=>x.pedidoId===pedido.id&&x.suc===SUC);
+  CHECK(vinculadas.length<=1,
+   'El pedido #'+pedido.id+' tiene propinas duplicadas: corrige antes del cierre');
+  const tip=vinculadas[0],importe=INT(pedido.propina??0,'propina del pedido');
+  if(tip){
+   CHECK(pedido.pagado===true&&pedido.estado!=='Cancelado'&&!pedido.esPremio,
+    'Existe propina en un pedido no cobrado, cancelado o premio');
+   CHECK(['pedido','manual'].includes(tip.origen)&&
+    mediosPropina.includes(tip.medio)&&
+    INT(tip.monto,'importe de propina')>=0&&
+    fechaReg(tip)>=inicio&&fechaReg(tip)<=cierreMs,
+    'Propina no conciliada con el turno o su medio de pago');
+   if(tip.origen==='pedido'){
+    CHECK(tip.monto===importe&&
+     tip.medio===String(pedido.medioPropina||'Efectivo'),
+     'La propina del pedido y su registro de Caja no coinciden');
+   }else CHECK(importe===0,
+    'El pedido tiene simultáneamente propina propia y manual');
+  }else CHECK(importe===0,
+   'Falta en Caja la propina ya registrada en el pedido #'+pedido.id);
+ }
  const corte={...estado};
  for(const k of ['pedidos','gastos','retiros','propinas','deliveriesManuales']){
   corte[k]=estado[k].filter(x=>dentro(x,inicio,cierreMs))
