@@ -148,3 +148,18 @@ Resto pendiente: carta completa CRUD, fotos, ingredientes/promociones, roles y o
 
 ## Bloque de integridad: revisión inicial del catálogo obligatoria
 16-11-2026. En la rama de preparación del panel de Romo, **sin despliegue ni movimientos en Neon**, `lib/romo-carta-ediciones-seguras-qa.mjs` rechaza ahora explícitamente cualquier edición de producto mientras `romo_carta_ediciones_v1` no tenga una revisión inicial confirmada (revisión 1+). La primera revisión únicamente la puede crear la propietaria con el botón de inicialización manual que no cambia precios ni disponibilidad, guardando responsable/motivo y registro en auditoría. `public/romo-panel-qa/romo-carta-editor-seguro-qa.js` deshabilita el botón Guardar durante la revisión 0 y explica la causa. Se conservó el carácter exclusivo de Romo (no escribe en Uki).
+
+
+## Paridad de Pedidos: edición pendiente sin cobro
+16-11-2026 — **implementado en código de preparación, aún sin publicar ni comprobar en iPhone**.
+
+Se detectó un bloqueo concreto: el formulario oficial `editarPedido(id)` ya estaba copiado de Uki, pero `ndGuardar()` en Romo siempre lo enviaba a la vía de **crear pedido nuevo** (`ukiRomoGuardarPedidoPendienteQA`) que rechazaba `D.editando`. Además la bandeja Romo mostraba un editor opcional `window.ukiRomoEditorPedidoQA` sin implementación, por lo que no abría el mismo formulario.
+
+Corrección sin duplicar pantallas:
+- `public/romo-panel-qa/index.html`: la misma tarjeta de Pedidos Romo contiene ahora «Editar pedido pendiente», que abre **`editarPedido(id)` del formulario Uki ya existente**; `ndGuardar()` distingue `D.editando` y dirige a `ukiRomoEditarPedidoPendienteQA()` antes de las rutas de aceptación y nuevo pedido.
+- `public/romo-panel-qa/uki-romo-edicion-pendiente-qa.mjs`: módulo puro que toma una copia aislada `datosSoloSucursal()`, compara el pedido existente, valida identidad del responsable, modalidad, WhatsApp, productos reales, cantidades e importes; **no usa un pedido nuevo ni altera su ID, turno o solicitud**. Solo permite pendientes no pagados y sin QR, cobros externos, propinas ni cierres; mantiene el estado previo de pago. Rechaza totales incorrectos, códigos cambiados y aplicaciones como medio de pago del delivery.
+- Al confirmar manualmente, `ukiRomoGuardarOperacionQA` reutiliza el CAS cifrado Neon Romo. **S.pedidos solo cambia después de confirmación del servidor**. Un fallo deja el formulario sin aparentar éxito.
+- Se conserva el historial compatible con `correccionesTurno` del formato oficial y `historialCambios` de la bandeja actual, ambos representan **una misma corrección**, con responsable, fecha, foto antes/después, sin cobro/timbre nuevo.
+- Se restringe la edición de pagos ya confirmados, pedidos entregados y turnos cerrados: requieren procedimiento contable específico, no permitir un cambio simple sin conciliación.
+
+**Aún pendiente**: completar y validar manualmente edición de pedidos pagados, correcciones de caja, QR y cuentas de mesa, pagos mixtos y propinas desde el flujo íntegro oficial de Uki. El cambio anterior NO acredita paridad global de Pedidos ni cierre ni ventas. No se activaron endpoints de producción.
