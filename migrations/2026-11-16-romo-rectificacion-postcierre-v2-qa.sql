@@ -68,6 +68,7 @@ DECLARE
  fecha_cierre bigint;mov_ms bigint;inicio_ms bigint;
  revision_nueva bigint;
  fecha_mov date;
+ existe_olvido boolean;
 BEGIN
  IF current_database()<>'romos_sushi' OR
    p_expected_revision IS NULL OR p_expected_revision<1 OR
@@ -148,6 +149,16 @@ BEGIN
    (o.resumen->>'fecha_cierre_ms')::bigint<>fecha_cierre OR
    (o.resumen->>'venta_total')::bigint<>venta_original THEN
   RAISE EXCEPTION 'La constancia original no respalda la rectificación';
+ END IF;
+ -- Un pedido omitido ya versionado NO puede abrir otra rama v2 sobre
+ -- el mismo cierre: comparten la secuencia y cambiarían la venta histórica.
+ IF to_regclass('public.romo_pedidos_olvidados_versiones_v1') IS NOT NULL THEN
+  EXECUTE 'SELECT EXISTS(SELECT 1 FROM public.romo_pedidos_olvidados_versiones_v1 '||
+   'WHERE store_id=$1 AND fuente_original=$2)' INTO existe_olvido
+   USING 'romo:serena',k;
+  IF existe_olvido THEN
+   RAISE EXCEPTION 'El cierre tiene una cadena de pedidos olvidados incompatibles';
+  END IF;
  END IF;
  IF EXISTS(SELECT 1 FROM public.romo_rectificaciones_cierre_v2
     WHERE store_id='romo:serena' AND fuente_original=k) THEN
