@@ -41,3 +41,13 @@
 - Prueba MANUAL de una operación comercial real completa, con registro único de cierre y posible importación financiera solo cuando esté conciliada.
 
 Estado: **auditoría y código en preparación, SIN despliegue de este bloque**.
+
+## Continuación del control de Caja y fecha operativa — 16-11-2026
+
+Revisión de código real contra los procedimientos ya preparados, solo en rama `preparacion/uki-romo-sobre-main-20261114`, sin despliegue y sin afectar main Uki.
+
+- Corregida la ruta activa `ukiRomoGuardarMovimientoQA` en `public/romo-panel-qa/index.html`: los movimientos que no son configuración inicial de base requieren `turnoAbierto===true` además de `baseConfirmada===true`. No permitir guardar gastos, retiros, delivery manual o pago a repartidor sin jornada abierta. La base anterior no se puede ajustar después de un cierre definitivo sin abrir el siguiente turno. Commit `6c8f16f324565149be0a35dd54b79e8b6e28519e`.
+- Gastos, retiros y entregas manuales nuevos conservan explícitamente `fechaOperativa` del turno para que no migren al día siguiente por el ISO UTC.
+- `public/romo-panel-qa/uki-romo-caja-consulta-qa.mjs`: la consulta de caja prioriza fecha operativa, luego `turnoClave` del pedido y, como respaldo, fecha/hora en `America/Santiago`; las propinas vinculadas siguen la jornada del pedido. No reescribe movimientos ni cambia ventas históricas. Commit `d8b7997e1cf212f4e55bd4ebfd1e1192410405d2`.
+- Seguimos **sin pruebas manuales** de cobro, apertura, precierre, cierre ni gastos de un turno real. Las correcciones son de código; no equivalen a certificación funcional. Todo debe comprobarse en la revisión presencial de Romo antes de publicar el conjunto.
+- Las migraciones de rectificación ya se verificaron en la rama aislada Neon `br-gentle-wave-be71bcpa`; siguen sin instalarse en la base principal ni activar banderas comerciales. No contar esos recibos como operaciones reales.
