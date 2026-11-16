@@ -7092,8 +7092,8 @@ function ukiRomoCierreTurnoHTMLQA(){
   (!abierto?
    '<div class="card"><h3>Apertura de turno</h3>'+
    '<label>Responsable</label><input id="romoTurnoResponsableQA" maxlength="80" autocomplete="off" placeholder="Nombre del responsable">'+
-   '<label>Base de efectivo REAL</label><input id="romoTurnoBaseQA" type="number" inputmode="numeric" min="0" value="0">'+
-   '<label>Caja chica inicial REAL</label><input id="romoTurnoChicaQA" type="number" inputmode="numeric" min="0" value="0">'+
+   '<label>Base de efectivo REAL</label><input id="romoTurnoBaseQA" type="number" inputmode="numeric" min="0" step="1" placeholder="Escribe 0 si realmente no hay efectivo">'+
+   '<label>Caja chica inicial REAL</label><input id="romoTurnoChicaQA" type="number" inputmode="numeric" min="0" step="1" placeholder="Escribe 0 si realmente no hay caja chica">'+
    '<p class="muted">No se toman los importes antiguos de Uki. La base se confirma en la misma apertura.</p>'+
    '<button type="button" class="big" onclick="ukiRomoAbrirTurnoQA()">Abrir turno en Neon Romo</button></div>':
    '<div class="card"><h3>🕒 Precierre del trabajador · NO cierra el día</h3>'+

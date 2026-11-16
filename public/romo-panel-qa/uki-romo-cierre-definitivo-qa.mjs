@@ -38,13 +38,19 @@ const valido=s=>{
 function cajita(s,d){return s.cajasDiarias[SUC+'|'+d]}
 const dentro=(x,inicio,final)=>{const t=fechaReg(x);return t>=inicio&&t<=final};
 export function prepararAperturaTurnoRomoQA(estado,{
- fechaOperativa,inicioMs,base=0,cajaChicaInicial,responsable
+ fechaOperativa,inicioMs,base,cajaChicaInicial,responsable
 }={}){
  valido(estado);
  CHECK(DIA(fechaOperativa),'Fecha operativa de apertura inválida');
  CHECK(Number.isSafeInteger(inicioMs)&&inicioMs>0,'Momento de apertura inválido');
  const persona=TXT(responsable,80,'Responsable de apertura');
+ // Los dos montos pueden ser cero, pero ambos deben haberse ingresado.
+ // No asumir $0 ni copiar una caja chica anterior sin arqueo físico.
+ CHECK(base!==undefined&&base!==null&&base!==''&&
+  cajaChicaInicial!==undefined&&cajaChicaInicial!==null&&cajaChicaInicial!=='',
+  'Confirma expresamente base y caja chica reales antes de abrir');
  const montoBase=INT(base,'base del turno');
+ const montoCajaChica=INT(cajaChicaInicial,'caja chica');
  CHECK(!Object.entries(estado.cajasDiarias).some(([k,c])=>
   k.startsWith(SUC+'|')&&c?.turnoAbierto===true),'Ya hay un turno Romo abierto');
  const key=SUC+'|'+fechaOperativa,prev=estado.cajasDiarias[key];
@@ -62,7 +68,7 @@ export function prepararAperturaTurnoRomoQA(estado,{
   pagoDeliveryDia:0,pagoDeliveryAnterior:0,
   pagoDeliveryMedioDia:'Efectivo',pagoDeliveryMedioAnterior:'Efectivo',
   pagoDeliveryConceptoAnterior:'',pagoDelivery:0,
-  cajaChica:{inicial:INT(cajaChicaInicial??prev?.cajaChica?.inicial??0,'caja chica'),gastos:[]},
+  cajaChica:{inicial:montoCajaChica,gastos:[]},
   movimientosApps:[],pagosRepartidor:[]
  };
  estado.fechaOperativa=fechaOperativa;
@@ -79,8 +85,11 @@ export function prepararCierreDefinitivoRomoQA(estado,{
  const obs=String(observacion??'').trim();
  CHECK(obs.length<=700,'Observación demasiado larga');
  const caja=cajita(estado,fechaOperativa);
- CHECK(caja?.turnoAbierto===true&&Number.isSafeInteger(caja.inicioMs),
-  'Abre primero un turno Romo confirmado en Neon');
+ CHECK(caja?.turnoAbierto===true&&caja.baseConfirmada===true&&
+   Number.isSafeInteger(caja.inicioMs),
+  'Abre primero un turno Romo con base real confirmada en Neon');
+ INT(caja.base,'base del turno confirmado');
+ INT(caja.cajaChica?.inicial,'caja chica confirmada');
  const inicio=caja.inicioMs,turnoId=fechaOperativa+'@'+inicio;
  CHECK(inicio<cierreMs&&caja.turnoId===turnoId,
   'La identidad del turno no coincide');
