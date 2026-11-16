@@ -1872,7 +1872,9 @@ function ukiWhatsAppFicha(s,pendiente){
    '<p style="margin:6px 0"><b>Pago indicado:</b> '+esc(d.medio||'No indicado')+' (no cobrado por esta solicitud)</p>'+
    '<p style="margin:6px 0;font-size:12px">No se registró como pedido, venta, cobro ni timbre de fidelidad.</p></div>':'')+
   '<b>Productos solicitados</b>'+
-  (productos.map(p=>'<p>'+esc(p.cant||1)+' × '+esc(p.nombre)+' · '+fmt((p.cant||1)*(p.precio||0))+
+  (productos.map(p=>'<p>'+esc(p.cant||1)+' × '+esc(p.nombre)+' · '+
+   (s.romoSolicitudQA===true&&(!Number.isSafeInteger(Number(p.precio))||Number(p.precio)<=0)?
+    'Precio por revisar':fmt((p.cant||1)*(p.precio||0)))+
    (p.det?' · '+esc(p.det):'')+'</p>').join('')||
    '<p class="muted">Productos pendientes de revisar</p>')+
   '<b>Mensaje original de WhatsApp</b>'+
@@ -5131,7 +5133,20 @@ async function ukiRomoActualizarSolicitudesCartaQA(){
     !UUID.test(String(o.id||''))||o.branch!=='serena'||
     !['pendiente','aceptada','rechazada'].includes(o.estado)))
    throw Error('Bandeja no pertenece a Romo La Serena.');
-  ukiRomoSolicitudesCartaQA=data.orders;
+  // Usar el MISMO parser de recepción que abre el formulario de Uki en Romo.
+  // Es SOLO lectura: jamás asignar precios inventados ni crear pedidos al consultar.
+  let interpretarSolicitud=null;
+  try{
+   const parser=await import('./uki-romo-recepcion-formulario-qa.mjs');
+   interpretarSolicitud=parser.prepararBorradorRomoDesdeSolicitudQA;
+  }catch{}
+  ukiRomoSolicitudesCartaQA=data.orders.map(o=>{
+   if(o.estado!=='pendiente'||typeof interpretarSolicitud!=='function')return o;
+   try{
+    const vista=interpretarSolicitud(o);
+    return {...o,vistaProductosQA:vista.items};
+   }catch{return o;} // Mensaje antiguo: conservar texto, no inventar productos.
+  });
   const count=data.orders.filter(o=>o.estado==='pendiente').length;
   ukiRomoSolicitudesAvisoQA=count?
    count+' solicitud(es) pendiente(s) de la carta. No cuentan como venta hasta ser aceptadas.':
@@ -5219,7 +5234,7 @@ function ukiRomoSolicitudesHTMLQA(){
   const datos=ukiWhatsAppDatosDesdeTexto(detalle);
   datos.modalidad=modalidad;
   datos.texto=detalle;
-  datos.items=[]; // El mensaje sin validar no asigna precios unitarios inventados.
+  datos.items=Array.isArray(o.vistaProductosQA)?o.vistaProductosQA:[]; // Sin inventar importes.
   const solicitudComoUki={
    id,codigoCarta:codigo,cliente:nombre,telefono,
    suc:ROMO_SUCURSAL_QA,estado:'pendiente',
@@ -6792,6 +6807,10 @@ async function ukiRomoPrepararSolicitudCartaQA(id){
      (p.cartaSolicitudRemotaId===id||p.codigoCarta===row.codigo_pedido))){
   aviso('Esta solicitud ya tiene un pedido registrado; no se duplicó.');return;
  }
+ // Igual que Uki: NO sustituir un pedido que ya se está preparando.
+ if(D.editando||ukiRomoBorradorActivoQA||ukiBorradorTieneContenido()){
+  aviso('Hay otro pedido en preparación. Guárdalo en espera o descártalo explícitamente antes de abrir esta solicitud. No se perdió el armado.');return;
+ }
  ukiRomoSolicitudCartaOcupadaQA=true;
  try{
   const lib=await import('./uki-romo-recepcion-formulario-qa.mjs');
@@ -6819,16 +6838,24 @@ async function ukiRomoAceptarSolicitudCartaQA(){
   aviso('Primero acepta el pedido pendiente, sin cobrar ni generar timbre.');return;
  }
  const pedido=(D.items||[]).filter(x=>String(x?.nombre||'').trim());
- if(!pedido.length||pedido.some(x=>!Number.isSafeInteger(Number(x.precio))||Number(x.precio)<=0)){
-  aviso('Verifica todos los precios unitarios del armado antes de aceptar.');return;
+ if(!pedido.length||pedido.length>80||pedido.some(x=>
+    !Number.isSafeInteger(Number(x.cant))||Number(x.cant)<1||Number(x.cant)>100||
+    !Number.isSafeInteger(Number(x.precio))||Number(x.precio)<1||Number(x.precio)>1000000||
+    String(x.nombre||'').trim().length>100||String(x.det||'').length>900)){
+  aviso('Revisa productos, cantidades y precios del pedido antes de aceptar.');return;
  }
- if(D.modalidad==='Delivery'&&(!Number.isSafeInteger(Number(D.envio))||Number(D.envio)<=0)){
-  aviso('Confirma primero el delivery con la sucursal.');return;
+ if(!['Retiro','Delivery','Consumo en local'].includes(D.modalidad)){
+  aviso('Confirma si es Delivery, Retiro o Consumo en local.');return;
+ }
+ const envio=D.modalidad==='Delivery'?Number(D.envio):0;
+ if(!Number.isSafeInteger(envio)||envio<0||envio>4000||
+    (D.modalidad==='Delivery'&&envio===0)){
+  aviso('Confirma el delivery dentro de la tarifa aprobada; máximo $4.000.');return;
  }
  const subtotal=pedido.reduce((sum,x)=>sum+Number(x.cant)*Number(x.precio),0);
- const total=subtotal+(D.modalidad==='Delivery'?Number(D.envio):0);
- if(!Number.isSafeInteger(total)||total<=0||total>100000000){
-  aviso('Los totales del pedido no son válidos.');return;
+ const total=subtotal+envio;
+ if(!Number.isSafeInteger(total)||total<=0||total>3000000){
+  aviso('El total no cuadra; comprueba cantidades, precios y envío.');return;
  }
  const diferencia=total!==Number(solicitud.total_indicado);
  const nota=diferencia?
