@@ -7025,6 +7025,108 @@ function ukiRomoRevisionPostCierreHistorialQA(c){
   '</details>';
 }
 
+
+/**
+ * Rectificación postcierre de Uki: misma sección de Historial, Romo solo.
+ * Prepara una solicitud auditada, no un cierre v2 ni un cobro automático.
+ */
+function ukiRomoVistaPropuestaRectificacionQA(c){
+ if(c?.suc!==ROMO_SUCURSAL_QA)return '';
+ const i=(S.cierres||[]).indexOf(c),turno=String(c.turnoClave||'');
+ if(i<0||!turno)return '';
+ const existentes=(S.ajustesHistoricos||[]).filter(x=>
+  x?.suc===ROMO_SUCURSAL_QA&&x.turnoClave===turno&&
+  ['rectificacion_monetaria_pendiente','rectificacion_monetaria_confirmada'].includes(x.tipo));
+ if(existentes.length){
+  return '<details class="inner-details"><summary>📝 Rectificación financiera · '+
+   existentes.length+' registro(s)</summary>'+
+   existentes.map(x=>'<p class="muted"><b>'+
+    (x.estado==='pendiente_conciliacion'?'Pendiente de conciliar':'Requiere comprobar constancia')+
+    '</b> · Pedido #'+esc(x.pedidoId)+' · '+
+    esc(x.clase==='devolucion'?'Devolución':'Cobro adicional')+
+    ' · '+fmt(x.monto)+' · '+esc(x.medio)+
+    ' · Responsable: '+esc(x.responsable||'Sin identificar')+
+    ' · '+esc(x.fechaISO||'Sin fecha')+
+    '</p>').join('')+
+   '<p class="muted">Este registro NO modifica la venta ni el cierre original. No es un nuevo recibo válido para Mi Administración. La versión corregida requiere conciliación y aprobación de dueños.</p></details>';
+ }
+ const prefix='romoRectCierre'+i;
+ const medios=ROMO_MEDIOS_COBRO_QA.filter(x=>
+  !['Uber Eats','PedidosYa','Rappi'].includes(x));
+ return '<details class="inner-details"><summary>✏️ Rectificación financiera después del cierre · preparar</summary>'+
+  '<p class="muted">Para diferencias reales de un pedido ya pagado. La solicitud NO mueve dinero, no abre Caja, no agrega otra venta ni cambia el cierre original. Requiere conciliación posterior y aprobación de dueños.</p>'+
+  '<label>Folio interno del pedido ya cerrado</label>'+
+  '<input id="'+prefix+'Pedido" type="number" min="1" step="1" inputmode="numeric" placeholder="Número de pedido">'+
+  '<label>Tipo de diferencia</label><select id="'+prefix+'Clase">'+
+  '<option value="devolucion">Devolución de productos</option>'+
+  '<option value="cobro_adicional">Cobro adicional de productos</option></select>'+
+  '<label>Medio al que corresponde la diferencia</label>'+
+  '<select id="'+prefix+'Medio">'+
+  medios.map(m=>'<option value="'+esc(m)+'">'+esc(m)+'</option>').join('')+'</select>'+
+  '<label>Monto de la diferencia ($)</label>'+
+  '<input id="'+prefix+'Monto" type="number" min="1" step="1" inputmode="numeric">'+
+  '<label>Responsable de la revisión</label>'+
+  '<input id="'+prefix+'Responsable" maxlength="80" autocomplete="off">'+
+  '<label>Motivo obligatorio</label>'+
+  '<textarea id="'+prefix+'Motivo" rows="2" maxlength="300" placeholder="Por qué ocurrió la diferencia"></textarea>'+
+  '<button type="button" class="sm ok" onclick="ukiRomoSolicitarRectificacionPostcierreQA('+i+
+  ')">Guardar solicitud pendiente (NO contabilizar)</button>'+
+  '</details>';
+}
+async function ukiRomoSolicitarRectificacionPostcierreQA(i){
+ if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoOperacionesEnCursoQA())return;
+ const cierre=ukiCierreHistoricoPorIndice(i);
+ if(!cierre||cierre.suc!==ROMO_SUCURSAL_QA||!cierre.turnoClave){
+  aviso('El cierre de Romo no está disponible para revisión.');return;
+ }
+ const prefix='romoRectCierre'+i;
+ const leer=campo=>String($(prefix+campo)?.value??'').trim();
+ const folio=leer('Pedido'),pedidoId=Number(folio),
+  clase=leer('Clase'),medio=leer('Medio'),rawMonto=leer('Monto'),
+  monto=Number(rawMonto),responsable=leer('Responsable'),motivo=leer('Motivo');
+ if(!folio||!Number.isSafeInteger(pedidoId)||pedidoId<=0||
+  !rawMonto||!Number.isSafeInteger(monto)||monto<=0||
+  responsable.length<2||responsable.length>80||
+  motivo.length<4||motivo.length>300){
+  aviso('Indica folio, importe real, responsable y motivo de la rectificación.');return;
+ }
+ const sesion=window.ukiRomoSesionRemotaQA;
+ if(!sesion?.disponible?.()||sesion.estado()?.conflicto){
+  aviso('Esta revisión requiere la sesión autorizada de dueños de Romo en Neon.');return;
+ }
+ const revision=sesion.estado(),firma=JSON.stringify(cierre),copia=datosSoloSucursal();
+ try{
+  const mod=await import('./uki-romo-aclaraciones-cierre-qa.mjs');
+  if(sesion.estado()?.revision!==revision.revision)throw Error('Cambió la revisión Neon');
+  const resultado=mod.prepararPropuestaRectificacionMonetariaCierreRomoQA(copia,{
+   turnoClave:cierre.turnoClave,pedidoId,clase,medio,monto,
+   responsable,motivo,registradoEn:Date.now()
+  });
+  if(resultado.esSoloPropuesta!==true||resultado.sinMovimientoDeCaja!==true||
+   resultado.comprobanteOriginalConservado!==true||
+   !validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
+   throw Error('No se verificó la conservación del cierre original');
+  const accion=clase==='devolucion'?'devolución':'cobro adicional';
+  if(!window.confirm('ROMO · Cierre '+cierre.fechaOperativa+
+   '\nPedido #'+pedidoId+' · '+accion+' '+fmt(monto)+' · '+medio+
+   '\nSe guardará SOLO una solicitud pendiente de conciliación.'+
+   '\nNo modifica el cierre, su PDF, la Caja acumulada ni Mi Administración.'+
+   '\nResponsable: '+responsable+'\nMotivo: '+motivo+
+   '\n¿Registrar esta solicitud?'))return;
+  if(!sesion.disponible()||sesion.estado()?.conflicto||
+   sesion.estado()?.revision!==revision.revision||
+   JSON.stringify(ukiCierreHistoricoPorIndice(i))!==firma)
+   throw Error('Cierre o sesión cambiaron: vuelve a revisarlos');
+  ukiRomoAclaracionGuardandoQA=true;
+  await ukiRomoGuardarOperacionQA(copia,
+   'Solicitud de rectificación postcierre pendiente, sin cobro ni nueva venta',null,'caja');
+  cajaTab='historial';render();
+ }catch(e){
+  aviso('NO se confirmó esta solicitud en Neon. Revisa Historial antes de repetir: '+
+   String(e?.message||e));
+ }finally{ukiRomoAclaracionGuardandoQA=false;}
+}
+
 function ukiRomoCajaHistorialHTMLQA(){
  // Misma navegación histórica de Uki, solo cierres cifrados de Romo.
  const todos=(S.cierres||[]).filter(x=>x?.suc===ROMO_SUCURSAL_QA);
@@ -7084,6 +7186,7 @@ function ukiRomoCajaHistorialHTMLQA(){
    row('Propinas aparte',valor('propinas'))+
    (compartir?'<p>'+compartir+'</p>':'')+
    ukiVRectificarCierre(x)+
+   ukiRomoVistaPropuestaRectificacionQA(x)+
    ukiRomoRevisionPostCierreHistorialQA(x)+
    '<p class="muted">La aclaración NO modifica dinero. Las rectificaciones de pedidos olvidados requieren conciliación.</p>'+
    '</details>';
