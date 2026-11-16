@@ -31,12 +31,12 @@ Fecha: 14-11-2026. Alcance: inspección directa del código oficial de Uki, de l
 | Clientes, código y búsqueda; timbres, acumulación y envío WhatsApp | **No equivalente** | `vClientes` devuelve `ukiRomoTimbresPanelQA`, pantalla simplificada, no toda la ficha oficial. |
 | Cobro de pedidos, pagos mixtos, Edenred, delivery pagado aparte, propinas | Parcial | Hay cobro aislado y desglose; el ingreso manual Romo bloquea múltiples operaciones del `ndGuardar` oficial. Propinas adicionales no están homologadas en el cobro Romo. |
 | Delivery por ruta y tarifas de Uki | Aprobado visualmente; ingreso parcial | Usuaria confirmó en carta cálculo por calles; envío de km/tarifa y su lectura se añadieron a integración. Falta confirmar ruta completa de pedido a caja. |
-| Caja: Resumen | Parcial | `vCaja` devuelve `ukiRomoCajaConsultaHTMLQA`, no la vista oficial. |
+| Caja: Resumen | Parcial | `vCaja` Romo devuelve `ukiRomoCajaPestanasQA`, que ya conserva los nombres de las siete pestañas oficiales. El contenido y los guardados siguen siendo propios de Romo y requieren homologación real. |
 | Caja: Movimientos — gastos, apps, delivery manual, repartidor, propinas, retiros, caja chica | **No equivalente** | El panel oficial tiene **siete tipos** de movimientos; Romo usa botones y guardados específicos que no exponen todo el flujo oficial. |
 | Caja: Precierre del trabajador | Parcial | Existe con fotografía/diferencias y exportación; el guardado aún depende de sesión de dueños, no de acceso independiente del trabajador. |
 | Caja: Cierre definitivo | Parcial | Protocolo CAS/constancia separado; falta recorrido manual real y paridad de cierres/rectificaciones/compartir. |
-| Caja: Historial y descarga PDF/Excel | **No equivalente** | Funciones heredadas presentes pero la caja Romo sustituye el conjunto oficial de pestañas; falta habilitar sobre estado persistido y revisado. |
-| Caja: Reportes semanales y por fecha | **No equivalente** | `vReportes` está copiado, pero `vCaja` Romo no lo presenta. |
+| Caja: Historial y descarga PDF/Excel | Parcial | La pestaña de Historial sí aparece en la navegación Romo; falta comprobar que las exportaciones, filtros y conciliaciones sean idénticos a Uki sobre datos Neon. |
+| Caja: Reportes semanales y por fecha | Parcial | El menú de Romo incluye `semana` y usa `ukiRomoCajaSemanaHTMLQA`, no el `vReportes` oficial. Comprobar cálculos, fechas y exportaciones. |
 | Caja: Acumulada en efectivo | **No equivalente** | El módulo `uki-caja-acumulada-admin.js` rechaza expresamente consultas Romo a la API Uki; falta servicio Romo equivalente. |
 | Inventario administración por sucursal (CRUD, mínimos, faltantes, historial) | Parcial avanzado | Inventario Romo aislado, lista importada de nombres y unidades sin existencias; módulo Romo propio. Falta validar manualmente equivalencia de todas las operaciones con la versión oficial. |
 | Inventario trabajador PIN de 6 dígitos, conteo, entradas, PDF/Excel/WhatsApp | Disponible; sujeto a comprobación manual integral | PIN propio Romo configurado; no autoriza caja ni cierres. |
@@ -51,11 +51,11 @@ Fecha: 14-11-2026. Alcance: inspección directa del código oficial de Uki, de l
 
 ## 4. Bloqueos de código exactos a resolver
 
-1. `vCaja` devuelve inmediatamente `ukiRomoCajaConsultaHTMLQA()` para Romo. El menú oficial de Caja tiene **7 pestañas** (`resumen`, `movimientos`, `precierre`, `cierre`, `historial`, `semana`, `acumulada`); Romo no usa ese menú completo.
+1. `vCaja` ya deriva a `ukiRomoCajaPestanasQA()` en Romo, con las **7 pestañas** del menú oficial (`resumen`, `movimientos`, `precierre`, `cierre`, `historial`, `semana`, `acumulada`), pero no reutiliza todas sus operaciones. Debe verificarse el contenido y persistencia equivalente de cada pestaña.
 2. `vPedidos` devuelve `ukiRomoPedidosPendientesHTMLQA()`: evita parte del historial, filtros, gestión avanzada y componentes del procedimiento oficial.
 3. `vClientes` devuelve `ukiRomoTimbresPanelQA()`: no muestra la misma ficha completa de clientes y timbres.
 4. `ir` restringe navegación Romo a `pedidos`, `nuevo`, `caja`, `clientes`, `inventario`, `promos`, y `render` además filtra la navegación oficial.
-5. `cambiarModoNuevo` impide modalidades de ingreso de pedidos diferentes de `manual` en Romo.
+5. `cambiarModoNuevo` admite `manual` y `whatsapp` en Romo, pero el `ndGuardar` específico de Romo sigue sin homologar todos los casos de la vía WhatsApp ni las modalidades de pago/edición del Uki oficial.
 6. `ndGuardar` usa ingreso especializado y limita edición/mixtos/timbres en Romo, en lugar de preservar todas las funciones del flujo Uki.
 7. `guardarEnLocalStorage` retorna `Promise.resolve(true)` de inmediato para Romo: la porción posterior de autoguardado es **inalcanzable**. Es deliberadamente un control de aislamiento, pero hace inseguro habilitar funciones de Uki sin reescribir sus operaciones para guardar y esperar el CAS Neon Romo.
 8. `uki-carta-precios-admin.js`, `uki-armado-ingredientes-admin.js`, `uki-disponibilidad-admin.js`, `uki-caja-acumulada-admin.js` y `uki-carta-remotas-panel.js` tienen bloqueos Romo explícitos, necesarios para no modificar datos Uki, pero que aún no poseen sus equivalentes completos en Romo.
@@ -106,3 +106,35 @@ Las cifras pueden variar luego de nuevas operaciones manuales. No se han creado 
 - Recepción: componentes inspirados exactamente en `firebase/uki-carta-remotas-panel.js`: «Carta normal · Por confirmar», motivo obligatorio de rechazo, botones «Aceptar y revisar» y «Rechazar solicitud». No se cambió el sistema de guardado: sigue siendo manual y transaccional en Romo. No se aceptaron, rechazaron ni cobraron las dos solicitudes existentes.
 - **Pendientes no resueltos**: falta comprobar visualmente con usuaria la nueva versión; las acciones reales de aceptación, rechazo y caja no se han probado; **QR de Romo no se ha conectado** (la lista de mesas de Romo muestra únicamente pedidos de mesa ya registrados); Inicio y menú inferior de Romo no son idénticos a Uki, y el flujo completo de caja, clientes, timbres, inventario y finanzas aún exige auditoría de paridad y comprobaciones manuales. No declarar equivalencia terminada.
 - Entorno Preview aislado; `ROMO_CARTA_PREVIEW_QA_ENABLED=false` continúa desactivado hasta validar la recepción y controles. Ningún cambio a `main` Uki ni al sitio de producción.
+
+## Paquete acumulado SIN PUBLICAR — 15 noviembre 2026
+
+**Objetivo acordado:** agrupar todo el trabajo en GitHub y evitar un despliegue por corrección. Base de comparación: `firebase/uki-sushi-local.html` en `main`, la carta replicada `replica-uki/carta/public/index.html` en Romo y las capturas de Uki Regimiento Arica suministradas por la usuaria. El sistema oficial de Uki se conserva intacto.
+
+### Cambios ya incorporados a la rama de preparación (no desplegados por este paquete)
+
+- `public/romo-panel-qa/index.html`: en la consulta GET de solicitudes, invoca **solo para lectura** el mismo parser de `uki-romo-recepcion-formulario-qa.mjs` que se usa al preparar la solicitud. Las fichas oficiales de Uki pueden mostrar nombres/cantidades/armados, conservando **«Precio por revisar»** cuando el mensaje no trae valor unitario verificable. El total indicado por la solicitud sigue siendo informativo; jamás se convierte en cobro.
+- `public/romo-panel-qa/index.html`: antes de abrir una solicitud, protege un borrador o un pedido en edición; no sobrescribe el formulario sin guardar. Al aceptar exige cantidades enteras entre 1 y 100, precios unitarios enteros, modalidad válida y delivery real confirmado con tope $4.000, total coherente y confirmación manual. Conserva guardado pendiente, sin pagos ni timbres.
+- `public/romo-panel-qa/uki-romo-recepcion-formulario-qa.mjs`: segunda validación en el módulo transaccional con los mismos límites de cantidades, precios, importe y entrega. Las solicitudes rechazadas no se cuentan en caja.
+- El diseño de Pedidos ya preparado sigue la referencia visual de Uki con mismo orden de bloques, filtros y fichas originales; **eso no implica equivalencia completa** del motor de guardado, ni habilita QR.
+
+### Estado real por subsistema (no confundir con funcionamiento verificado)
+
+| Bloque | Lo que existe hoy | Lo que falta antes de declarar paridad |
+|---|---|---|
+| Carta → panel | Carta Vercel replicada, solicitudes Neon Romo aisladas, GET/POST QA y fichas de Uki | Prueba manual completa del editor y aceptación, conciliación sin duplicados, publicación definitiva de carta correcta |
+| Pedidos | Bandeja con filtros/fechas/estados; formularios de revisión; borradores Romo Neon; operaciones CAS para guardar, cobrar, entregar y cancelar | Edición avanzada y rectificaciones con mismo procedimiento Uki, recepción y estados manuales validados, QR mesas y flujo completo WhatsApp |
+| Clientes y timbres | Búsqueda, fichas, registro al pagar y confirmación de envío con Neon | Paridad total de historial, canjes, filtros, duplicados y permisos de clientes contra Uki |
+| Caja | Siete pestañas visibles sobre funciones propias de Romo; resúmenes, movimientos, precierre, cierre, historial y semana con rutas Neon | Confirmación manual de cada operación, roles de trabajadores, exportaciones, correcciones posteriores a cierre, caja acumulada y conciliación fina |
+| Inventario | Acceso PIN independiente y datos aislados por sucursal | Comprobación manual de entradas/salidas, mínimos, faltantes, PDF/Excel y alcance del trabajador |
+| Carta administrable | Banner/piezas visuales independientes | CRUD de categorías, precios, descuentos, disponibilidad, ingredientes, productos y fotos propios sin reutilizar endpoints Uki |
+| Mi Administración | Consulta informativa de cierres Romo | Integración contable idempotente de cierres definitivos, facturas, gastos, proveedores, utilidades y permisos |
+
+### Orden de un único paquete de publicación
+
+1. Completar en GitHub el bloque de **pedidos y guardado**, sin tocar `main` ni habilitar recepción QA de nuevo.
+2. Completar **caja, cierre, timbres y roles** usando la misma lógica que Uki pero almacenamiento CAS Neon Romo; conservar pruebas exclusivamente manuales.
+3. Revisar **inventario, catálogo administrable, QR y Mi Administración**; no activar funcionalidades sin persistencia segura.
+4. Realizar revisión estática y preparar **una sola publicación de revisión** cuando el bloque esté listo. Solo entonces pedir una prueba manual de pedido real → aceptación → cobro → entrega → cierre, sin pedidos sintéticos ni operaciones automáticas.
+
+**Control vigente:** `ROMO_CARTA_PREVIEW_QA_ENABLED=false` para el enlace de revisión de Romo. Las dos solicitudes antiguas deben permanecer sin aceptar salvo intervención manual autorizada. La lectura GET puede continuar para revisarlas sin crear caja. No publicar automáticamente por esta nota ni por estas correcciones.
