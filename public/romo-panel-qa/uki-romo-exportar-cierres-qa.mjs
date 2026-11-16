@@ -81,6 +81,49 @@ function notasCierre(ajustes,c){
  return todos.filter(a=>a.turnoClave===c.turno&&a.cierreMs===c.fechaMs)
   .sort((a,b)=>a.registradoEn-b.registradoEn);
 }
+/**
+ * Informe histórico rectificado, igual que Uki, pero SOLO si el panel
+ * recuperó las constancias versionadas confirmadas en Neon. Nunca reescribe
+ * ni sustituye las cifras de cierre físico original en CSV/PDF/WhatsApp.
+ */
+function resumenOlvidosConfirmadosRomoQA(ajustes,cierre){
+ check(Array.isArray(ajustes)&&ajustes.length<=30000,'Historial inválido');
+ const rows=ajustes.filter(a=>a?.suc===SUC&&
+  a.tipo==='pedido_olvidado_romo_confirmado'&&
+  a.turnoClave===cierre.turno).sort((a,b)=>a.versionConfirmada-b.versionConfirmada);
+ if(!rows.length)return Object.freeze({count:0,local:0,externo:0,
+  ultimo:cierre.venta,version:1,repartoPendiente:0});
+ let venta=cierre.venta,local=0,externo=0,repartoPendiente=0;
+ const ids=new Set(),codes=new Set();
+ for(let i=0;i<rows.length;i++){
+  const a=rows[i],version=i+2,ref='romo:serena|'+cierre.turno+'|v'+version;
+  check(Number.isSafeInteger(a.id)&&!ids.has(a.id)&&
+   a.versionConfirmada===version&&a.versionPropuesta===version&&
+   a.constanciaVersionada===true&&a.reciboVerificadoEnNeon===true&&
+   a.fuenteRectificacion===ref&&
+   a.fuenteOriginal==='romo:serena|'+cierre.turno&&
+   a.comprobanteOriginalConservado===true&&
+   Number.isSafeInteger(a.recibidoLocal)&&a.recibidoLocal>=0&&
+   Number.isSafeInteger(a.recibidoOtroLocal)&&a.recibidoOtroLocal>=0&&
+   Number.isSafeInteger(a.total)&&a.total===a.recibidoLocal+a.recibidoOtroLocal&&
+   Number.isSafeInteger(a.ventaAnterior)&&a.ventaAnterior===venta&&
+   Number.isSafeInteger(a.ventaRectificada)&&
+   a.ventaRectificada===venta+a.recibidoLocal&&
+   Number.isSafeInteger(a.envio)&&a.envio>=0,
+   'Falta verificar una constancia histórica o una versión de pedido olvidado');
+  if(a.codigoCarta){
+   const code=String(a.codigoCarta).trim().toLowerCase();
+   check(!codes.has(code),'Código de carta repetido en cierres rectificados');
+   codes.add(code);
+  }
+  ids.add(a.id);local+=a.recibidoLocal;externo+=a.recibidoOtroLocal;
+  if(a.repartoRealizado===true)repartoPendiente+=a.envio;
+  venta=a.ventaRectificada;
+ }
+ return Object.freeze({count:rows.length,local,externo,
+  ultimo:venta,version:rows.length+1,repartoPendiente});
+}
+
 const textoNota=a=>a.dato+' → '+a.correcto+' · '+a.responsable+
  ' · '+a.motivo+' · '+new Date(a.registradoEn).toLocaleString('es-CL');
 const HEADERS=['Sucursal','Día operativo','Turno original','Fecha de cierre','Responsable',
@@ -112,6 +155,7 @@ export function crearMensajeCierreRomoQA({cierres,turnoId,revision,ajustesHistor
  const x=reads.find(c=>c.turno===turnoId);
  check(!!x,'El cierre indicado no existe en esta sucursal');
  const notas=notasCierre(ajustesHistoricos,x);
+ const olvidos=resumenOlvidosConfirmadosRomoQA(ajustesHistoricos,x);
  const paid=METHODS.filter(k=>x.medios[k]>0).map(k=>
   '• '+k+': '+renderAmount(x.medios[k]));
  return [
@@ -134,6 +178,16 @@ export function crearMensajeCierreRomoQA({cierres,turnoId,revision,ajustesHistor
   '*Ajustes v2 de cierres anteriores (NO venta):* '+renderAmount(x.ajustesPostCierre),
   '*De esos ajustes, efectivo:* '+renderAmount(x.ajustesEfectivo),
   '*Resultado del cierre:* '+renderAmount(x.resultado),
+  ...(olvidos.count?[
+   '*PEDIDOS OLVIDADOS · INFORME HISTÓRICO RECTIFICADO*',
+   '*Versión vigente:* v'+olvidos.version,
+   '*Pedidos omitidos confirmados:* '+olvidos.count,
+   '*Cobrado en Romo antes (no volver a ingresar):* '+renderAmount(olvidos.local),
+   '*Cobrado en otro local:* '+renderAmount(olvidos.externo),
+   '*Venta histórica rectificada Romo (informativa):* '+renderAmount(olvidos.ultimo),
+   '*Delivery repartidor por conciliar:* '+renderAmount(olvidos.repartoPendiente),
+   'El cierre físico original y su venta del turno permanecen intactos. Consulta el comprobante versionado en Neon.'
+  ]:[]),
   ...(notas.length?['*ACLARACIONES POSTERIORES · SIN CAMBIAR IMPORTES*',
    ...notas.map((n,i)=>(i+1)+'. '+textoNota(n).replace(/[\r\n*_]+/g,' '))]:[]),
   'Confirmado en el estado cifrado Romo, revisión '+revision+'.',
@@ -164,17 +218,23 @@ export function crearReporteCierresRomoQA({cierres,desde='',hasta='',revision,tu
   (permitidos===null||permitidos.has(x.turno)))
   .sort((a,b)=>b.turno.localeCompare(a.turno));
  check(filtered.length>0,'Todavía no hay cierres definitivos para este período');
- const csv='\uFEFF'+[[...HEADERS,'Aclaraciones posteriores'].map(csvText).join(';'),
-  ...filtered.map(x=>[...vals(x),notasCierre(ajustesHistoricos,x)
-   .map(textoNota).join(' | ')].map(cell).join(';'))].join('\r\n');
+ const csv='\uFEFF'+[[...HEADERS,'Aclaraciones posteriores',
+  'Version histórica vigente','Pedidos olvidados confirmados',
+  'Cobro histórico local añadido CLP','Cobro histórico en otros locales CLP',
+  'Venta histórica rectificada Romo CLP','Reparto histórico por conciliar CLP'].map(csvText).join(';'),
+  ...filtered.map(x=>{const h=resumenOlvidosConfirmadosRomoQA(ajustesHistoricos,x);
+   return [...vals(x),notasCierre(ajustesHistoricos,x).map(textoNota).join(' | '),
+    'v'+h.version,h.count,h.local,h.externo,h.ultimo,h.repartoPendiente]
+    .map(cell).join(';');})].join('\r\n');
  const title=desde&&hasta?'Reporte de cierres · '+desde+' al '+hasta:'Historial de cierres';
  const filename='romo-serena-cierres-'+(desde&&hasta?desde+'-a-'+hasta:'historial')+
   '-revision-'+revision;
  const table='<table><thead><tr><th>Fecha / turno</th><th>Venta</th>'+
-  '<th>Gastos</th><th>Repartidor</th><th>Ajustes v2</th><th>Contado</th><th>Diferencia</th></tr></thead><tbody>'+
+  '<th>Gastos</th><th>Repartidor</th><th>Ajustes v2</th><th>Contado</th><th>Diferencia</th><th>Venta histórica rectificada*</th></tr></thead><tbody>'+
   filtered.map(x=>'<tr><td>'+escapeHtml(x.fecha)+
    '<small>'+escapeHtml(x.turno)+'</small></td>'+
-   [x.venta,x.gastos,x.repartidor,x.ajustesPostCierre,x.efectivoContado,x.diferencia].map(n=>
+   [x.venta,x.gastos,x.repartidor,x.ajustesPostCierre,x.efectivoContado,x.diferencia,
+    resumenOlvidosConfirmadosRomoQA(ajustesHistoricos,x).ultimo].map(n=>
     '<td>'+escapeHtml(renderAmount(n))+'</td>').join('')+'</tr>').join('')+
   '</tbody></table>';
  const html='<!doctype html><html lang="es"><head><meta charset="UTF-8">'+
@@ -195,6 +255,7 @@ export function crearReporteCierresRomoQA({cierres,desde='',hasta='',revision,tu
    ' Estado cifrado Neon Romo, revisión '+revision+'.</p>'+
   '<p>Este documento no acredita sincronización con Mi Administración. '+
    'No incluye pedidos pendientes ni precierres.</p>'+
+  '<p>*La venta histórica rectificada es informativa y se muestra solo si la versión ya consta en Historial como confirmada y ligada al original. Los cobros externos y el reparto no se vuelven a cargar como ventas ni como pagos.</p>'+
   table+'<h3>Aclaraciones posteriores (importes del cierre sin cambios)</h3>'+
   (filtered.map(x=>{const notas=notasCierre(ajustesHistoricos,x);
    return notas.length?'<h4>'+escapeHtml(x.fecha+' · '+x.turno)+'</h4><ul>'+
