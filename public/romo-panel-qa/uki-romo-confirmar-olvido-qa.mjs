@@ -19,7 +19,7 @@ const clean=(v,min,max,name)=>{
  return s;
 };
 const equal=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
-export function prepararConfirmacionOlvidoRomoQA(estado,{
+export async function prepararConfirmacionOlvidoRomoQA(estado,{
  solicitudId,responsable,motivoConfirmacion,
  referenciaPagoLocal='',referenciaPagoExterno='',
  pagoHistoricoVerificado=false,autorizaDuenos=false,
@@ -146,8 +146,17 @@ export function prepararConfirmacionOlvidoRomoQA(estado,{
   repartoConciliado:false
  };
  estado.ajustesHistoricos[estado.ajustesHistoricos.indexOf(a)]=next;
- // La constancia SQL no contiene nombres de clientes ni texto del producto.
- const idReferencia=STORE+'|'+turno+'|'+solicitudId;
+ // Huella SHA-256 del contenido real del olvido, independiente del ID.
+ // Evita registrar dos veces el MISMO pedido bajo distintos folios sin
+ // enviar nombres de clientes o detalles de productos a la tabla financiera.
+ must(globalThis.crypto?.subtle&&typeof TextEncoder==='function',
+  'El cifrado seguro debe estar disponible en Safari');
+ const huella=await crypto.subtle.digest('SHA-256',
+  new TextEncoder().encode(a.claveOlvido));
+ const idReferencia=Array.from(new Uint8Array(huella),
+  b=>b.toString(16).padStart(2,'0')).join('');
+ must(/^[0-9a-f]{64}$/.test(idReferencia),
+  'No se comprobó la huella única del pedido omitido');
  const resumen={
   origen:'romo',store_id:STORE,tipo:'pedido_olvidado',
   fuente_original:STORE+'|'+turno,
