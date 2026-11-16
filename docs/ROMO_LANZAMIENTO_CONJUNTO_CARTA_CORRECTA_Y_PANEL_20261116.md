@@ -124,3 +124,27 @@ En `diannaleandra-art/romos-sushi-qa.` / `preparacion/romo-carta-neon-panel-2026
 - Corregido en `replica-uki/carta/public/candidata/app.js`, rama de preparación `preparacion/romo-carta-neon-panel-20261115`: el texto ahora utiliza `money(extraSaucePrices[extra.name])`, el mismo origen que `quote()`.
 - Se preservan todos los importes aprobados, recargos y reglas de armado. **No se ha publicado ni comprobado visualmente desde el iPhone**.
 - La preparación del puente carta-panel de esta sesión continúa sin conectar `index.html` a los módulos QA y conserva las banderas de escritura/lectura desactivadas; falta comprobar disponibilidad y revisión al confirmar la orden.
+
+
+## Bloque de protección de carrito, precios, WhatsApp, comprobantes y QR
+16-11-2026. **Cambios en rama de preparación de Romo; NO montados ni publicados.** Respetar las pruebas exclusivamente manuales y la publicación conjunta.
+
+### Cambios realizados en `romos-sushi-qa.`, rama `preparacion/romo-carta-neon-panel-20261115`
+- `public/candidata/receipt.mjs`: el comprobante descargable importa la misma instancia de `model.mjs?v=romo-modelo-km-20261114c` que el carrito y la comanda de Romo. Sustituye pie de «Uki Sushi» por «Romo’s Sushi».
+- `public/candidata/romo-guardia-catalogo-qa.mjs`: guardia de catálogo en memoria para evitar agregar artículos deshabilitados y consultar de nuevo la revisión/hash antes del envío.
+- `public/candidata/romo-proyeccion-catalogo-qa.mjs`: además del SKU principal, comprueba disponibilidad de toppings y salsas extras del armado. Un SKU inválido no se ignora.
+- `public/candidata/app.js`: se prepararon verificaciones de disponibilidad al añadir clásicos, premium, platos, mensuales, handrolls, acompañamientos; revisión de catálogo al preparar resumen, antes de registrar solicitud y antes de enviar pedido QR, además de copiar o descargar comprobante; se cambió nombre de imagen descargable a «Romo-pedido». Restricción QR en la carta de Romo a sucursal Serena, sin permitir código Arica/Uki.
+- `public/candidata/romo-inicio-catalogo-qa.mjs`: devuelve la guardia QA tras confirmar lectura y aplicar revisión.
+- `public/candidata/romo-arranque-protegido-qa.mjs`: entrada de prearranque separada que instala la guardia y **solo después** importa el `app.js` existente; si falla la consulta de precios, bloquea interfaz comercial y ofrece contacto de WhatsApp.
+
+### Estado de activación (NO CONFUNDIR CON PRODUCCIÓN)
+- `public/index.html` **continúa cargando directamente `/candidata/app.js`**: NO se sustituyó por el arranque protegido, ni se encendieron banderas del puente, ni se instaló la migración de ediciones, ni se activó el editor.
+- Las protecciones que dependen de `window.romoCatalogoControlQA` permanecen inactivas en la carta actual hasta la publicación conjunta y activación segura; ello mantiene la QA manual existente sin nueva publicación.
+- No se ejecutaron pruebas automáticas ni envíos artificiales: se efectuó inspección de código y confirmación de archivos GitHub. **Falta prueba manual visual y operativa con dueña.**
+
+### Hallazgo que impide habilitar el nuevo circuito de precios
+- **La recepción actual del servidor NO valida el importe contra la misma cotización del catálogo efectivo.** `api/romo-solicitudes-carta-qa.js` llama `registrarSolicitudRomo` y este `lib/romo-solicitudes-carta-qa.mjs` valida estructura/mensaje/total_indicado, pero no reevalúa precios, extras y disponibilidad desde una fuente de catálogo comercial autorizada. La guarda del navegador es una mitigación, NO una garantía contra datos alterados, revisiones concurrentes o cambios entre lectura e INSERT.
+- **Requisito antes de publicar a clientes:** añadir cotización de servidor desde la carta real (clásicos, premium, platos, extras, promos, reglas por roll) y comprobarla junto con `revision`/`baseSha256` dentro de la aceptación de solicitud. Rechazar pedidos no cotizables, catálogo cambiado o cantidad/ingrediente inválido. Mantener idempotencia de `request_key`, reserva 50 minutos y CAS de Neon. No relajar seguridad de la API actual.
+- Cierres, pagos, caja, timbres y Mi Administración siguen bajo su propia auditoría de paridad Uki. No declarar equivalencia global ni habilitar QR público hasta completar validación manual y publicación conjunta.
+
+**Siguiente bloque:** cotización de servidor ligada a una revisión única, protección ante cambio concurrente, filtros del catálogo visible (incluidos toppings/salsas) y después CRUD equivalente a Uki para categorías/ingredientes/fotos; solo entonces validación manual del circuito y lanzamiento único.
