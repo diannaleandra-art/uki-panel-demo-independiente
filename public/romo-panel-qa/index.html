@@ -3623,6 +3623,32 @@ function ukiDetallePago(p,tipo){
  return nota+(lines.length>1?'<p class="muted"><b>Pago mixto '+(tipo==="productos"?"productos":"delivery")+':</b> '+
    lines.map(x=>esc(x.medio)+" "+fmt(x.monto)).join(" + ")+'</p>':"");
 }
+
+/** Los ajustes v2 de cierres anteriores pertenecen al turno en que el
+ * dinero se movió; NO constituyen una segunda venta de sushi. */
+function ukiRomoRectificacionesTurnoEnCajaQA(caja){
+ if(S.suc!==ROMO_SUCURSAL_QA||caja?.turnoAbierto!==true||
+    typeof caja.turnoId!=='string')
+  return {neto:0,efectivo:0,porMedio:{}};
+ const confirmados=(S.ajustesHistoricos||[]).filter(a=>
+  a?.suc===ROMO_SUCURSAL_QA&&
+  a.tipo==='rectificacion_monetaria_confirmada'&&
+  a.estado==='confirmada'&&a.turnoMovimiento===caja.turnoId);
+ const seen=new Set(),porMedio={};
+ for(const a of confirmados){
+  if(a.noEsVentaNueva!==true||a.constanciaVersionada!==true||
+    a.fuenteRectificacion!==a.fuenteOriginal+'|v2'||
+    seen.has(a.fuenteOriginal)||!Number.isSafeInteger(a.delta)||
+    Math.abs(a.delta)!==a.monto||
+    !['Efectivo','Transferencia','Débito','Edenred','Otros'].includes(a.medio)){
+   throw Error('Ajuste v2 inconsistente: revisar Historial de Neon');
+  }
+  seen.add(a.fuenteOriginal);porMedio[a.medio]=(porMedio[a.medio]||0)+a.delta;
+ }
+ return {neto:Object.values(porMedio).reduce((a,b)=>a+b,0),
+  efectivo:porMedio.Efectivo||0,porMedio};
+}
+
 function totales(){
   const caja=cajaDelDia(),pedidos=delSucHoy(S.pedidos);
   const pag=pedidos.filter(p=>p.pagado&&p.estado!=="Cancelado"&&!p.esPremio);
@@ -3658,8 +3684,12 @@ function totales(){
   const retirosTotal=retiros.reduce((a,x)=>a+(Number(x.monto)||0),0);
   const pagoRepartidor=ukiPagoDeliveryDesglose(caja);
   const pagoDelivery=pagoRepartidor.total;
+  const rectificacionesPostCierre=ukiRomoRectificacionesTurnoEnCajaQA(caja);
   return {
     medios,totalMedios,correccionesPendientes:correccionesPendientes.length,saldoDiferenciasPendientes,
+    rectificacionesPostCierre:rectificacionesPostCierre.neto,
+    rectificacionesPostCierreEfectivo:rectificacionesPostCierre.efectivo,
+    rectificacionesPostCierrePorMedio:rectificacionesPostCierre.porMedio,
     ventaCorregida:totalMedios-saldoDiferenciasPendientes,
     productosPagadosOtroLocal,nDeliv,envios,enviosPedidos,enviosManuales,enviosCobradosUki,enviosCobradosOtroLocal,base:caja.base,pagoDelivery,
     pagoDeliveryDia:pagoRepartidor.dia,pagoDeliveryAnterior:pagoRepartidor.anterior,
@@ -3667,8 +3697,8 @@ function totales(){
     pagoDeliveryConceptoAnterior:pagoRepartidor.conceptoAnterior,
     ventaSinDelivery:totalMedios-enviosCobradosUki,gastosTotal,gastosEf,retirosTotal,
     propinas:propinas.reduce((a,x)=>a+(Number(x.monto)||0),0),propinasEfectivo,
-    efectivoCaja:(medios.Efectivo||0)-gastosEf-retirosTotal-pagoRepartidor.efectivo,
-    final:totalMedios-pagoDelivery-gastosTotal,
+    efectivoCaja:(medios.Efectivo||0)+rectificacionesPostCierre.efectivo-gastosEf-retirosTotal-pagoRepartidor.efectivo,
+    final:totalMedios+rectificacionesPostCierre.neto-pagoDelivery-gastosTotal,
     n:pedidos.filter(x=>x.estado!=="Cancelado"&&!x.esPremio).length,
     dels,cancelados:pedidos.filter(x=>x.estado==="Cancelado").length,pagadosN:pag.length,
     pendientesN:pedidos.filter(x=>x.estado!=="Cancelado"&&!x.pagado&&!x.esPremio).length,
@@ -7587,8 +7617,11 @@ function ukiRomoCajaConsultaHTMLQA(seccion='resumen'){
     fmt(Number(caja.base)||0))+
   row(baseConfirmada?'Caja chica inicial declarada':'Caja chica SIN CONFIRMAR (valor anterior)',
     fmt(Number(caja.cajaChica?.inicial)||0))+
-  row('Cobros confirmados',fmt(t.totalMedios))+
+  row('Cobros por pedidos de este turno',fmt(t.totalMedios))+
   cajaMedios+
+  row('Ajustes v2 de cierres anteriores (no venta)',fmt(t.rectificacionesPostCierre||0))+
+  row('De esos ajustes, efectivo movido',fmt(t.rectificacionesPostCierreEfectivo||0))+
+
   row('Deliverys de pedidos registrados',fmt(t.enviosPedidos))+
   row('Delivery manual a pagar',fmt(t.enviosManuales))+
   row('Repartos pendientes de pagar',fmt(aPagar))+
@@ -7597,7 +7630,7 @@ function ukiRomoCajaConsultaHTMLQA(seccion='resumen'){
   row('Gastos',fmt(t.gastosTotal))+
   row('Retiros de efectivo',fmt(delSucHoy(S.retiros).reduce((a,x)=>a+Number(x.monto||0),0)))+
   row('Pagos a repartidor',fmt(t.pagoDelivery))+
-  row('Venta neta (sin base inicial)',fmt(t.final),'final')+
+  row('Resultado de Caja con ajustes, sin base',fmt(t.final),'final')+
   '<p class="muted">Los pedidos sin pagar no suman ventas. Los pagos a repartidores solo se descuentan cuando realmente se registran. El cierre definitivo debe generar su constancia propia en Neon.</p></div>';
  const movimientosHtml=
   wrapper('💵 Establecer base del turno (antes del primer cobro)',
