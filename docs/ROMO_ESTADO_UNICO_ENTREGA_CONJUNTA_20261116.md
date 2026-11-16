@@ -289,3 +289,23 @@ Se comprobó que `totales()` y los medios de caja oficiales ya leen `medio`, `me
 5. Verificación comercial manual de la ruta completa con la propietaria, después publicación conjunta de carta y panel Romo sin modificar Uki oficial.
 
 No inventar porcentaje global ni fecha de entrega: hay módulos codificados pero no validados punta a punta. Requiere revisión integral antes de declararlos terminados o activar banderas públicas.
+
+
+## Bloque 1 · Rectificación monetaria posterior al cierre (preparación segura)
+16-11-2026. Rama exclusiva Romo, NO publicada, sin ajustes reales de dinero ni pruebas comerciales. **NO está terminado el bloque hasta emitir una constancia versionada y conciliada.**
+
+**Base exacta de Uki:** firebase/uki-sushi-local.html distingue cierre_aclarado (anotación sin tocar dinero), pedido_corregido posterior al cierre (historial; cierre original intacto) y pedido_olvidado (informe rectificado con original archivado). Las notas no son dinero recibido o devuelto.
+
+**Preparado en esta continuidad:**
+- public/romo-panel-qa/uki-romo-aclaraciones-cierre-qa.mjs prepara sobre una COPIA una solicitud de rectificacion_monetaria_pendiente vinculada al cierre original. Exige cierre único real, pedido pagado incluido en su fotografía, importe y medio coherentes, motivo, responsable y fecha posterior al cierre; rechaza QR, otros locales, prueba, diferencia abierta, rectificación previa sin conciliar y devolución superior a productos cobrados por ese medio.
+- Conserva la referencia original romo:serena|turno y el antes/después PROVISIONAL del total y medios como versión propuesta 2. Graba expresamente dineroRegistrado:false, esSoloPropuesta:true, requiereConstanciaVersionada:true.
+- public/romo-panel-qa/index.html usa el Historial existente de Caja, con sesión de dueños, guardado CAS en Neon Romo, confirmación que NO mueve dinero, y lectura comparativa de importe original y propuesto. No crea otra pantalla ni otra venta.
+- El cierre original, su recibo y PDF anterior, los pedidos, propinas, timbres, repartidores y Caja acumulada quedan inalterados. Mi Administración sigue sin importar estos ajustes. La fuente actual de cierre no permite sustituir una constancia original por otra.
+
+**Pendiente para completar este bloque:**
+1. Conciliación del movimiento real en el turno en que ocurrió el pago/devolución y aprobación de dueños, sin reabrir la caja antigua.
+2. Constancia inmutable y versionada de la diferencia, vinculada al original en Neon con clave idempotente y operación atómica CAS; la vista previa NO es una constancia.
+3. Generación y exportación de cierre rectificado una vez por versión, conservando original; Mi Administración debe importar solo el ajuste confirmado, no sumar nuevamente la venta original.
+4. Revisión exclusivamente MANUAL desde iPhone de pagos mixtos, duplicados, efectivo acumulado, autorizaciones y fecha operativa; no ejecutar migración SQL ni activar escritura pública antes de aprobar.
+
+**Estado real:** propuesta auditable guardada en GitHub; sin publicación, sin recibo financiero confirmado ni dinero movido.
