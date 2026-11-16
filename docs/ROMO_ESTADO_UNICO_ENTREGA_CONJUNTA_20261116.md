@@ -254,3 +254,23 @@ Se comprobó que `totales()` y los medios de caja oficiales ya leen `medio`, `me
 - Se comprobó exclusivamente sintaxis de los módulos y del script clásico HTML, referencias y conexiones del mismo formulario, **sin ejecutar pruebas de operaciones comerciales, cambios Neon ni despliegue**.
 
 **Aún NO abarcado:** cambio de cantidad, agregado/retiro de productos pagados, cambio de modalidad, descuento por pieza, devolución de propina registrada, retribución de fidelidad, correcciones posteriores a un cierre, caja acumulada y cierre definitivo sincronizado a Mi Administración. Estos requieren revisión aparte del código oficial y prueba manual real con la propietaria. No dar por finalizada la paridad de Caja hasta entonces.
+
+
+## Continuidad: corrección segura de propinas existentes y bloqueo de cierres
+16-11-2026. **Solo GitHub, rama preparacion/uki-romo-sobre-main-20261114. No publicado, no usado con dinero real ni probado comercialmente.**
+
+**Alcance estrictamente existente en Uki**
+- Se inspeccionó el formulario de propinas opcionales de pedidos, la tarjeta «Propinas (aparte de ventas)» y la corrección oficial de pedidos pagados. Se mantuvieron ambos formularios; no se creó otra caja ni una pantalla comercial.
+- En public/romo-panel-qa/uki-romo-propina-manual-qa.mjs se agregaron preparadores puros sobre una COPIA: rectificar la única propina de origen «pedido» desde el formulario del pedido pagado, y rectificar una única propina de origen «manual» desde la misma tarjeta de Caja. Se prohíben duplicados, pedidos de prueba, cancelados, QR, cobros en otra sucursal, ajustes financieros abiertos, turnos cerrados o sin base confirmada.
+- Las rectificaciones guardan el ID y la fecha original de la propina; exigen motivo, responsable, importe, medio autorizado y confirmación humana de que ya se recibió o devolvió el efectivo/dinero, o se verificó la clasificación original. Un cambio de medio y monto en la misma operación queda bloqueado.
+- Las correcciones registran la diferencia y las fotos antes/después tanto en el historial del pedido como en el registro de la propina, sin tocar las ventas de productos, delivery, timbres o fidelización. Para origen «pedido» actualiza también propina y total del MISMO pedido; para origen «manual» NO toca los importes del pedido.
+- public/romo-panel-qa/index.html conecta los dos controladores únicamente al mismo guardado CAS cifrado Neon Romo, con revalidación de sesión, pedido y propina. El botón de corrección manual usa la misma tarjeta de 4 campos; el de propina del pedido aparece solo si el pedido ya tiene propina. Ninguna acción mueve dinero desde el sistema.
+- public/romo-panel-qa/uki-romo-cierre-definitivo-qa.mjs impide cerrar si una propina del turno está duplicada, no corresponde a un pedido pagado vigente, pertenece a otra caja o difiere del importe/medio del pedido. Se mantiene el cierre bloqueado si hay ajustesCobroPendiente.
+
+**Faltantes que NO se declaran terminados**
+- Comprobar manualmente con la dueña el manejo físico del efectivo de propinas y cómo cuadra el arqueo; el cierre actual registra propinas como concepto separado de venta y no se ha redefinido la fórmula original de efectivo esperado.
+- Rectificación financiera POSTERIOR al cierre: la aclaración administrativa «cierre_aclarado» ya existe y sigue intacta, pero no constituye un nuevo cierre monetario corregido. No actualizar cifras de cierres anteriores sin versionado, auditoría y conciliación.
+- El libro de Caja acumulada tiene esquema y lectura aislados, sin inicialización ni autorización de escrituras. Mi Administración dispone de preconciliación y registro de cierre único por source_key, pero la importación no se activa desde esta integración. No sumar propinas como venta ni duplicar un cierre.
+- La publicación de carta y panel continúa unificada, con revisión manual de punta a punta. NO cambiar Uki main ni activar nuevos endpoints/banderas.
+
+**Comprobación de esta etapa:** lectura de fuentes y sintaxis estática del script del panel y módulos de propina/cierre; no se ejecutaron pruebas de pagos/cobros, no se escribieron registros de Neon y no se desplegó una versión comercial.
