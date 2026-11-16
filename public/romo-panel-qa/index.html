@@ -1854,8 +1854,9 @@ function ukiWhatsAppFicha(s,pendiente){
   '<p style="margin:5px 0"><b>WhatsApp:</b> '+esc(phone||'Número por confirmar')+'</p>'+ 
   '<p class="muted" style="margin:4px 0"><b>Recibido:</b> '+esc(s.fechaISO||'Fecha por confirmar')+'</p>'+
   '<p class="muted" style="margin:5px 0">'+esc(s.suc)+' · '+esc(d.modalidad||'Retiro')+
-   ' · Origen: Carta digital'+
-   (s.romoSolicitudQA===true?' · Importe indicado por el cliente':' · '+esc(productos.length)+' producto(s)')+(s.estado==='rechazada'?' · Rechazada: '+esc(s.motivo||''):s.estado==='aceptada'?' · Pedido interno #'+esc(s.pedidoId||''):' · Por confirmar')+'</p>'+
+   (s.romoSolicitudQA===true?
+    ' · Origen: Carta digital · Importe indicado por el cliente':
+    ' · '+esc(productos.length)+' producto(s)')+(s.estado==='rechazada'?' · Rechazada: '+esc(s.motivo||''):s.estado==='aceptada'?' · Pedido interno #'+esc(s.pedidoId||''):' · Por confirmar')+'</p>'+
   '<details class="inner-details"><summary>'+(
    s.estado==='rechazada'?'Ver detalle del rechazo · productos y mensaje original':
    'Ver productos y mensaje original')+'</summary>'+
