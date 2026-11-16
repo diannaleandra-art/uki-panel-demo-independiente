@@ -185,7 +185,12 @@
   // panel Romo, después de comprobar S.suc===Romo La Serena.
   window.romoMontarCartaEditorSeguroQA=function({container,storeId}={}){
     if(storeId!==STORE||!(container instanceof HTMLElement))return false;
-    if(state.root&&state.root!==container)return false;
+    // El panel oficial vuelve a dibujar la pantalla al cambiar de vista.
+    // El contenedor anterior deja de existir; no impedir un nuevo montaje.
+    if(state.root&&state.root!==container&&state.root.isConnected)return false;
+    if(state.root&&state.root!==container&&!state.root.isConnected){
+      state.current=null;state.selectedSku='';state.root=null;
+    }
     if(container.dataset.romoEditorSeguroQA==='1')return true;
     container.dataset.romoEditorSeguroQA='1';
     state.root=container;
