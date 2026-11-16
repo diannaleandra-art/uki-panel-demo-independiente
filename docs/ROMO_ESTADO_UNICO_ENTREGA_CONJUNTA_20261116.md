@@ -2,6 +2,27 @@
 Fecha de revisión: 16 de noviembre de 2026  
 **La carta y el panel todavía NO están listos para abrir pedidos públicos.**
 
+
+## Control de rumbo y no duplicación — revisión directa del 16-11-2026
+
+**Fuente única de decisiones:** este documento para la entrega conjunta y `AUDITORIA_PARIDAD_UKI_OFICIAL_ROMO_20261114.md` para los faltantes técnicos. No abrir nuevos proyectos, cartas, paneles, copias ni documentos de seguimiento. Trabajar solo en las dos ramas de preparación señaladas debajo.
+
+**NO REHACER (existe en código; algunas funciones aún no están desplegadas o probadas):** diseño negro/rojo y armado aprobado de Romo; 40 productos base; fotos y rutas; delivery por calles; prearranque y guardia de precio/stock; cotización del servidor; recepción pendiente con clave idempotente; inventario y PIN propio Romo; faltantes; controles de pedidos con búsqueda y filtros, timbres y pagos mixtos; siete pestañas visibles de Caja. Verificar y conectar lo existente, no crear sustitutos.
+
+**DIFERENCIA REAL COMPROBADA FRENTE A UKI `main`:**
+- `ndGuardar()` en Romo deriva a `ukiRomoGuardarPedidoPendienteQA()` o `ukiRomoAceptarSolicitudCartaQA()`; la primera ruta restringe edición, pagos mixtos y propinas. Ese procedimiento no es el oficial completo de Uki.
+- `vPedidos()`, `vClientes()` y `vCaja()` aún derivan a vistas específicas de Romo; estas ya poseen parte del filtrado y controles oficiales, pero no son operativamente equivalentes sin acciones y guardado compartidos con su CAS de Neon.
+- `guardarEnLocalStorage()` para Romo devuelve `Promise.resolve(false)`: **este bloqueo ya existe y funciona como protección de separación**. No cambiarlo a éxito ni intentar volver a guardar Romo en el almacenamiento de Uki.
+- El editor de Romo ya tiene precios y disponibilidad en revisión auditada, pero no el CRUD completo de productos/categorías/ingredientes/fotos/descuentos de Uki. Las banderas de recepción y edición siguen apagadas y la revisión inicial de catálogo no fue confirmada por la dueña.
+
+**ERROR REAL CORREGIDO AQUÍ:** en el `checkout.onsubmit` de `app.js`, un comentario `//` tras fijar `href='#'` había absorbido `#ready.hidden=false`, el armado de comprobante y el texto de preparación. Se reparó de forma puntual en la rama Romo (commit `03a414ac69f8e6e89e3289d4dc93d7b5dc9b4a4c`) sustituyendo ese comentario por `/*…*/`. No se modificaron precios, imágenes ni reglas.
+
+**SIGUIENTE SECUENCIA SIN CAMBIAR DE OBJETIVO:** 1) adaptar las acciones y validaciones del formulario oficial de pedidos al CAS Romo — edición, aceptación, mixtos, propinas, entrega y reversión sin cobros de prueba —; 2) reutilizar las pantallas oficiales una vez que sus acciones persistan correctamente; 3) cerrar paridad de las 7 pestañas y movimientos de Caja y timbres; 4) completar administración del catálogo e inventario/fotos; 5) Mi Administración con cierres definitivos idempotentes; 6) revisión manual de extremo a extremo; 7) publicación conjunta. Si una acción carece de persistencia confirmada en Neon, permanece desactivada.
+
+**Sin publicación:** no se cambió `main` Uki, no se ejecutaron pedidos/cobros/cierres de prueba, no se activaron banderas de recepción ni se inicializó el catálogo comercial.
+
+
+
 ## Objetivo acordado
 Replicar el sistema oficial aprobado de Uki Sushi (La Serena y Regimiento Arica) en Romo Sushi La Serena: mismos procedimientos, sin pizzas, marca negro/rojo y precios/datos/caja de Romo independientes. No sustituir una función aprobada por otra más simple ni modificar el sistema comercial de Uki. Reunir los cambios para una publicación conjunta, no una publicación por ajuste. Las comprobaciones de pedidos, caja, trabajadores y cobros serán manuales.
 
