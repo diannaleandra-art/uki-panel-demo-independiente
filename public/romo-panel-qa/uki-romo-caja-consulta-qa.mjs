@@ -39,6 +39,48 @@ const lineas=(pedido,key,medio,requerido,permitidos)=>{
  if(!permitidos.includes(pedido[medio]))err('Medio de pago no reconocido');
  return [{medio:pedido[medio],monto:requerido}];
 };
+/**
+ * Diferencias de cierres ANTERIORES recibidas o devueltas en el turno ACTUAL.
+ * Separadas del ingreso por pedidos; confía solo en filas confirmadas con
+ * fuente v2 que el endpoint Neon guarda en una sola operación CAS + recibo.
+ */
+export function rectificacionesConfirmadasDeTurnoQA(estado,turnoId){
+ if(estado?.suc!==SUC||typeof turnoId!=='string'||
+   !/^\d{4}-\d{2}-\d{2}@[1-9]\d{12,14}$/.test(turnoId))
+  err('Turno de conciliación inválido');
+ const all=Array.isArray(estado.ajustesHistoricos)?estado.ajustesHistoricos:[];
+ if(all.some(x=>x?.suc!==SUC))err('Las rectificaciones mezclan sucursales');
+ const movimientos=all.filter(x=>x.tipo==='rectificacion_monetaria_confirmada'&&
+  x.turnoMovimiento===turnoId);
+ const vistos=new Set(),porMedio=Object.fromEntries(
+  ['Efectivo','Transferencia','Débito','Edenred','Otros'].map(m=>[m,0])
+ );
+ const ids=new Set();
+ for(const x of movimientos){
+  if(x.estado!=='confirmada'||x.dineroRegistrado!==true||
+    x.constanciaVersionada!==true||x.noEsVentaNueva!==true||
+    !Number.isSafeInteger(x.id)||ids.has(x.id)||
+    typeof x.fuenteOriginal!=='string'||
+    x.fuenteRectificacion!==x.fuenteOriginal+'|v2'||
+    !Number.isSafeInteger(x.delta)||x.delta===0||
+    !Number.isSafeInteger(x.monto)||x.monto<=0||
+    Math.abs(x.delta)!==x.monto||
+    !Object.hasOwn(porMedio,x.medio)||vistos.has(x.fuenteOriginal)||
+    x.fechaOperativaMovimiento!==turnoId.slice(0,10)||
+    !Number.isSafeInteger(x.confirmadoEn)||
+    x.confirmadoEn<Number(turnoId.split('@')[1])){
+    err('La rectificación no coincide con la constancia o está duplicada');
+  }
+  if(x.clase!==(x.delta<0?'devolucion':'cobro_adicional'))
+   err('El signo del ajuste no coincide con el movimiento real');
+  vistos.add(x.fuenteOriginal);ids.add(x.id);
+  porMedio[x.medio]+=x.delta;
+ }
+ const neto=Object.values(porMedio).reduce((n,v)=>n+v,0);
+ return Object.freeze({neto,efectivo:porMedio.Efectivo,
+  movimientos:movimientos.length,porMedio:Object.freeze(porMedio)});
+}
+
 function etiquetaDia(p){
  const dia=String(p?.fechaOperativa||p?.fechaISO||'').slice(0,10);
  return /^\d{4}-\d{2}-\d{2}$/.test(dia)?dia:'';
@@ -93,6 +135,11 @@ export function consultarCajaRomoQA(estado,{fechaOperativa}={}){
   result.productosCobradosOtroLocal+=productoFuera;
   result.deliveryCobradoOtroLocal+=envioFuera;
  }
+ const turno=String(estado.cajasDiarias?.[SUC+'|'+fecha]?.turnoId||'');
+ const rectificaciones=turno?
+  rectificacionesConfirmadasDeTurnoQA(estado,turno):
+  Object.freeze({neto:0,efectivo:0,movimientos:0,porMedio:{}});
+ result.rectificacionesPostCierre=rectificaciones;
  result.cobrosEnRomo=Object.values(medios).reduce((a,b)=>a+b,0);
  if(result.cobrosEnRomo!==
     result.productosCobradosRomo+result.deliveryCobradoRomo)
