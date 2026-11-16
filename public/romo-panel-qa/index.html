@@ -7514,18 +7514,25 @@ async function ukiRomoVistaDiferenciasPagoQA(){
  out.textContent='Comparando importes del pedido registrado…';
  const id=Number(D.editando),p=(S.pedidos||[]).find(x=>
    x.suc===ROMO_SUCURSAL_QA&&x.id===id);
- if(!p?.pagado||!window.ukiRomoSesionRemotaQA?.disponible?.()){
-  out.textContent='Abre Romo con tu sesión autorizada y el pedido pagado original.';
+ const session=window.ukiRomoSesionRemotaQA;
+ if(!p?.pagado||!session?.disponible?.()||session.estado()?.conflicto){
+  out.textContent='Abre Romo con tu sesión autorizada y revisión actualizada en Neon.';
   return;
  }
- if(ukiCierreConfirmadoPedido(p)){
-  out.textContent='Turno cerrado. No calcular ajustes sobre un cierre anterior desde este formulario.';
+ const caja=S.cajasDiarias?.[ROMO_SUCURSAL_QA+'|'+
+  String(p.turnoClave||'').slice(0,10)];
+ if(ukiCierreConfirmadoPedido(p)||caja?.turnoAbierto!==true||
+    caja.baseConfirmada!==true||caja.turnoId!==p.turnoClave){
+  out.textContent='Solo se revisan diferencias de pedidos pagados del turno abierto y con base confirmada. No se modifica un cierre.';
   return;
  }
  const snapshot=JSON.stringify(D);
  try{
   const mod=await import('./uki-romo-diferencias-financieras-qa.mjs');
-  if(snapshot!==JSON.stringify(D))throw Error('El formulario cambió durante la consulta');
+  if(snapshot!==JSON.stringify(D)||S.suc!==ROMO_SUCURSAL_QA||
+     S.vista!=='nuevo'||!session.disponible()||
+     session.estado()?.conflicto)
+   throw Error('La sesión o el formulario cambiaron durante la consulta');
   const plan=mod.calcularDiferenciaPagadaRomoQA(p,D);
   const money=x=>fmt(x);
   const lineas=[
