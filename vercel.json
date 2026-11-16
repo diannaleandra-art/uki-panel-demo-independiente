@@ -29,5 +29,12 @@
         }
       ]
     }
+  ],
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/romo-panel-qa/index.html",
+      "permanent": false
+    }
   ]
 }
