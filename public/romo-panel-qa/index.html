@@ -267,6 +267,19 @@ color:#955115;box-shadow:0 2px 10px rgba(0,0,0,.12);font-weight:800;font-size:19
 </style>
 <style>
 /* Tercera sucursal exclusiva de Romo; caja y nube Uki siguen aisladas. */
+body.romo-acceso-qa{
+ --bg:#f9f7f8;--card:#fff;--ink:#211d20;--muted:#6b6065;
+ --accent:#ae1230;--accent-dark:#8e0923;--ok:#a90d2d;--line:#ecdce0;
+}
+body.romo-acceso-qa #ukiNubeSeccion,
+body.romo-acceso-qa #ukiMostrarConfig,
+body.romo-acceso-qa #ukiAvisoInterno,
+body.romo-acceso-qa #ukiEstadoOperativo{display:none!important}
+body.romo-acceso-qa #romoNeonEstadoQA{display:block!important}
+body.romo-acceso-qa #app>.card{border-color:#e4c9cf}
+body.romo-acceso-qa #app button.big{background:#ae1230;color:#fff;border-color:#ae1230}
+body.romo-acceso-qa header{border-bottom-color:#ae1230}
+
 body.romo-qa #romoLaSerenaPreparacionQA{border:2px solid #b01531;box-shadow:0 3px 14px #0001}
 body.romo-qa #romoLaSerenaPreparacionQA h2{color:#a30e25}
 body.romo-operativo-preparacion #ukiNubeSeccion,
@@ -684,7 +697,8 @@ function cargarDesdeLocalStorage(){
  const desdeEnlace=new URLSearchParams(location.search).get("sucursal");
  if(desdeEnlace==="regimiento")S.pinSuc="Uki Regimiento Arica";
  else if(desdeEnlace==="la-serena")S.pinSuc="Uki La Serena";
- else if(desdeEnlace==="romo-serena")S.pinSuc=ROMO_SUCURSAL_QA;
+ else if(desdeEnlace==="romo-serena"||(!desdeEnlace&&location.pathname.startsWith('/romo-panel-qa/')))
+  S.pinSuc=ROMO_SUCURSAL_QA;
 }
 async function entrarDatosSucursal(s,password){
  if(!globalThis.crypto?.subtle||!globalThis.crypto?.getRandomValues)throw Error("Cifrado no disponible");
@@ -871,17 +885,18 @@ function render(){
   const ukiVistaAnterior=ukiCapturarVistaAntesRender();
   try{
   document.body.classList.toggle('romo-qa',!!(S.romoSeleccionadoQA&&!S.suc&&!S.pinSuc));
+  document.body.classList.toggle('romo-acceso-qa',!S.suc&&(S.pinSuc===ROMO_SUCURSAL_QA||S.romoSeleccionadoQA));
   document.body.classList.toggle('romo-operativo-preparacion',S.suc===ROMO_SUCURSAL_QA);
   const tituloPanel=document.querySelector('header h1');
-  if(tituloPanel)tituloPanel.textContent=S.suc===ROMO_SUCURSAL_QA?
+  if(tituloPanel)tituloPanel.textContent=(S.suc===ROMO_SUCURSAL_QA||S.pinSuc===ROMO_SUCURSAL_QA||S.romoSeleccionadoQA)?
    'Romo’s Sushi · Panel v8.16 · La Serena':'Uki Sushi · Panel v8.16 · LOCALES';
-  $("suc").innerHTML=S.suc?`<span>${esc(S.suc)}</span><a href="#" onclick="salirSuc();return false;" class="salir">Salir</a>`:S.romoSeleccionadoQA?(S.romoIngresadoQA?'<span>Romo’s Sushi · La Serena · Balmaceda 1612</span><a href="#" onclick="ukiVolverAlSelectorLocales();return false;" class="salir">Salir</a>':'Romo’s Sushi · La Serena · Balmaceda 1612'):'Selecciona una sucursal para empezar';
+  $("suc").innerHTML=S.suc?`<span>${esc(S.suc)}</span><a href="#" onclick="salirSuc();return false;" class="salir">Salir</a>`:S.pinSuc===ROMO_SUCURSAL_QA?'<span>Acceso Romo · La Serena</span><a href="#" onclick="ukiVolverAlSelectorLocales();return false;" class="salir">Cambiar local</a>':S.romoSeleccionadoQA?(S.romoIngresadoQA?'<span>Romo’s Sushi · La Serena · Balmaceda 1612</span><a href="#" onclick="ukiVolverAlSelectorLocales();return false;" class="salir">Salir</a>':'Romo’s Sushi · La Serena · Balmaceda 1612'):'Selecciona una sucursal para empezar';
   const romoNeon=$("romoNeonEstadoQA");
-  if(romoNeon&&S.suc===ROMO_SUCURSAL_QA){
+  if(romoNeon&&(S.suc===ROMO_SUCURSAL_QA||S.pinSuc===ROMO_SUCURSAL_QA)){
    const estadoNeon=window.ukiRomoSesionRemotaQA?.estado?.();
    romoNeon.textContent=Number.isSafeInteger(estadoNeon?.revision)&&estadoNeon.revision>=1?
     "Romo · Neon cifrado · última revisión cargada: "+estadoNeon.revision:
-    "Romo · conexión operativa no verificada";
+    "Romo · acceso Google y clave habitual · Neon independiente";
   }
   $("nav").style.display=S.suc?"grid":"none";
   ukiAccesosDesplazamiento();
@@ -1278,6 +1293,10 @@ function vInicio(){
  const esRomo=S.pinSuc===ROMO_SUCURSAL_QA;
  const existe=esRomo||!!localStorage.getItem(claveLocal(S.pinSuc));
  return '<div class="card"><h2>'+esc(S.pinSuc)+'</h2>'+
+  (esRomo?'<div class="card" style="border-color:#cda6ae;background:#fff">'+
+   '<b>Acceso privado de Romo Sushi</b><p class="muted">Usa tu cuenta Google autorizada y después tu misma contraseña de Uki. No uses «Cargar nube» de Uki para esta sucursal.</p>'+
+   '<button type="button" class="big" onclick="document.getElementById(\'ukiLoginQA\')?.click()">Entrar con Google · Romo</button>'+
+   '<p id="romoGoogleEstadoQA" class="muted" role="status">Google: comprueba tu sesión para continuar.</p></div>':'')+
   '<p class="muted">'+(esRomo?"Ingresa con la misma contraseña de Uki.":existe?"Escribe la contraseña para abrir tus registros cifrados.":"Crea una clave de al menos 12 caracteres para esta sucursal.")+'</p>'+
   '<label>Contraseña de acceso</label><input id="ukiAccesoClave" type="password" autocomplete="off" placeholder="Mínimo 12 caracteres">'+
   (existe?'':'<label>Repite la contraseña</label><input id="ukiAccesoConfirmar" type="password" autocomplete="off" placeholder="Confirmar contraseña">')+
@@ -9009,7 +9028,17 @@ el("ukiMostrarConfig").addEventListener("click",()=>{
  nubeConfigAbiertaPorUsuario=!nubeConfigAbiertaPorUsuario;
  actualizarPresentacionNube();
 });
-const msg=s=>{el("ukiNubeEstado").textContent=s;actualizarPresentacionNube()};
+const msg=s=>{
+ el("ukiNubeEstado").textContent=s;
+ const romo=document.getElementById('romoGoogleEstadoQA');
+ if(romo){
+  const unauthorized=/auth\/unauthorized-domain/i.test(String(s));
+  romo.textContent=unauthorized?
+   'Google no puede iniciar: este dominio de Romo aún no está autorizado en Firebase Authentication. No es un error de tu contraseña.':
+   String(s).replace(/Uki Sushi/g,'Romo Sushi').replace(/Abre la sucursal y carga su nube\./g,'Ahora abre Romo con tu contraseña habitual.');
+ }
+ actualizarPresentacionNube();
+};
 function actualizarBloqueo(){
  const estado=auto.resumen();
  const esRomo=window.ukiQAGet?.()?.suc===ROMO_SUCURSAL_QA;
