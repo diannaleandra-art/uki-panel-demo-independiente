@@ -893,7 +893,13 @@ function render(){
   $("suc").innerHTML=S.suc?`<span>${esc(S.suc)}</span><a href="#" onclick="salirSuc();return false;" class="salir">Salir</a>`:S.pinSuc===ROMO_SUCURSAL_QA?'<span>Acceso Romo · La Serena</span><a href="#" onclick="ukiVolverAlSelectorLocales();return false;" class="salir">Cambiar local</a>':S.romoSeleccionadoQA?(S.romoIngresadoQA?'<span>Romo’s Sushi · La Serena · Balmaceda 1612</span><a href="#" onclick="ukiVolverAlSelectorLocales();return false;" class="salir">Salir</a>':'Romo’s Sushi · La Serena · Balmaceda 1612'):'Selecciona una sucursal para empezar';
   const romoNeon=$("romoNeonEstadoQA");
   if(romoNeon&&(S.suc===ROMO_SUCURSAL_QA||S.pinSuc===ROMO_SUCURSAL_QA)){
-   const estadoNeon=window.ukiRomoSesionRemotaQA?.estado?.();
+   // estado() exige una sesión Neon YA ABIERTA. Al pedir la clave todavía
+   // no existe esa sesión y nunca debe impedir dibujar el formulario.
+   let estadoNeon=null;
+   if(S.suc===ROMO_SUCURSAL_QA){
+    try{estadoNeon=window.ukiRomoSesionRemotaQA?.estado?.()||null;}
+    catch{estadoNeon=null;}
+   }
    romoNeon.textContent=Number.isSafeInteger(estadoNeon?.revision)&&estadoNeon.revision>=1?
     "Romo · Neon cifrado · última revisión cargada: "+estadoNeon.revision:
     "Romo · acceso Google y clave habitual · Neon independiente";
