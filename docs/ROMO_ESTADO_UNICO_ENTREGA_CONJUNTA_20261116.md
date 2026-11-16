@@ -94,3 +94,17 @@ Se inspeccionó el código exacto de la carta en `diannaleandra-art/romos-sushi-
 - Se conservaron el diseño aprobado negro y rojo, la carta de 40 productos, el armado, los precios, el carrito, el cálculo de delivery y el objetivo de un solo lanzamiento. **No se desplegó esta corrección**; debe confirmarse visualmente en la siguiente publicación conjunta y en el iPhone.
 
 Los enlaces de Vercel vistos por la propietaria siguen mostrando la versión de ayer hasta que se publique la actualización; no afirmar que los signos ya desaparecieron en esos enlaces. La aceptación manual de pedidos y los otros pendientes de paridad oficial Uki siguen bajo los mismos bloqueos.
+
+
+## Integración de faltantes Romo desde su inventario real
+16-11-2026. Código consolidado en rama `preparacion/uki-romo-sobre-main-20261114`, no publicado.
+
+Se confirmó desde el código que `public/romo-panel-qa/uki-inventario-admin-embebido.js` YA dispone de la ruta exclusiva `/api/romo-inventario-qa`, identidad Google, revisión y separación `storeId=romo:serena`, y que la vista de historial de inventario Romo utiliza `X.reports`. No crear otro inventario ni importar existencias de Uki.
+
+- `public/romo-panel-qa/uki-carta-precios-admin.js`: corregidas las lecturas inadvertidas de precios/faltantes de Uki desde Romo al entrar en `Revisiones y compras` o cambiar la selección de sucursal. La API Uki sigue permitida SOLO al estar en Uki. El editor de Romo permanece independiente.
+- `public/romo-panel-qa/uki-inventario-admin-embebido.js`: expone un snapshot **local, de solo lectura, exclusivamente si el inventario propio Romo está cargado y la sucursal del panel es Romo**. Incluye nombres, unidades, cantidades y mínimos únicamente de esa sucursal. Tras actualizarlo invoca el refresco local del reporte; no hace nuevos POST, cobros, ni escrituras comerciales.
+- La sección `Revisiones y compras` ahora reutiliza el cálculo aprobado de faltantes: «Hay / Mínimo / Pedir», búsqueda por nombre, faltantes y artículos justo al mínimo, usando el inventario real de Romo y sus unidades, no los datos Uki. Si Romo aún no está cargado, indica abrir Inventario y actualizar en vez de mostrar datos falsos.
+- El estilo de las tarjetas de faltantes de Romo cambia solo allí a negro/rojo y fondo neutro, manteniendo los colores y el procedimiento oficial para Uki sin modificación.
+- **No se aplicaron cambios en Neon, pedidos, inventarios ni producción de ninguno de los dos locales.** Es código preparado en GitHub, sin prueba manual todavía. El módulo de reporte no debe anunciarse como certificado hasta abrir Romo en el panel, actualizar inventario y revisar el cálculo con el teléfono.
+
+Resto pendiente: carta completa CRUD, fotos, ingredientes/promociones, roles y operaciones de caja/cierre con fidelidad Uki, pruebas manuales, y publicación conjunta sobre los proyectos Romo propios.
