@@ -265,6 +265,20 @@ export function crearReporteCierresRomoQA({cierres,desde='',hasta='',revision,tu
     resumenOlvidosConfirmadosRomoQA(ajustesHistoricos,x).ultimo].map(n=>
     '<td>'+escapeHtml(renderAmount(n))+'</td>').join('')+'</tr>').join('')+
   '</tbody></table>';
+ const olvidosHTML=filtered.map(x=>({
+  x,h:resumenOlvidosConfirmadosRomoQA(ajustesHistoricos,x)
+ })).filter(({h})=>h.count>0);
+ const detalleOlvidos=olvidosHTML.length?
+  '<h3>Pedidos olvidados · desglose histórico por local (no nueva venta)</h3>'+
+  '<table><thead><tr><th>Turno / Versión</th><th>Productos Romo</th>'+
+  '<th>Delivery Romo</th><th>Productos otros</th><th>Delivery otros</th>'+
+  '<th>Reparto a conciliar</th></tr></thead><tbody>'+
+  olvidosHTML.map(({x,h})=>'<tr><td>'+escapeHtml(x.fecha+' · v'+h.version)+'</td>'+
+   [h.productosLocal,h.deliveryLocal,h.productosExterno,
+    h.deliveryExterno,h.repartoPendiente].map(n=>
+    '<td>'+escapeHtml(renderAmount(n))+'</td>').join('')+'</tr>').join('')+
+  '</tbody></table>':
+  '<p>Sin pedidos olvidados confirmados en los cierres seleccionados.</p>';
  const html='<!doctype html><html lang="es"><head><meta charset="UTF-8">'+
   '<meta name="viewport" content="width=device-width,initial-scale=1">'+
   '<title>'+escapeHtml(title)+' · Romo</title>'+
@@ -284,7 +298,7 @@ export function crearReporteCierresRomoQA({cierres,desde='',hasta='',revision,tu
   '<p>Este documento no acredita sincronización con Mi Administración. '+
    'No incluye pedidos pendientes ni precierres.</p>'+
   '<p>*La venta histórica rectificada es informativa y procede del Historial cifrado, no de una nueva consulta a las constancias. Cada recibo original y versionado se debe verificar desde la opción del Historial. Los cobros externos y el reparto NO se vuelven a cargar como ventas ni como pagos.</p>'+
-  table+'<h3>Aclaraciones posteriores (importes del cierre sin cambios)</h3>'+
+  table+detalleOlvidos+'<h3>Aclaraciones posteriores (importes del cierre sin cambios)</h3>'+
   (filtered.map(x=>{const notas=notasCierre(ajustesHistoricos,x);
    return notas.length?'<h4>'+escapeHtml(x.fecha+' · '+x.turno)+'</h4><ul>'+
     notas.map(n=>'<li>'+escapeHtml(textoNota(n))+'</li>').join('')+'</ul>':'';
