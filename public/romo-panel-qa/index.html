@@ -9644,6 +9644,9 @@ function ukiOlvidoCambiarModalidad(){
  if(monto)monto.style.display=esDelivery?"block":"none";
 }
 function ukiAjustePedidoOlvidado(){
+ if(S.suc===ROMO_SUCURSAL_QA){
+  aviso('En Romo los pedidos olvidados se corrigen exclusivamente desde Caja > Historial y se concilian con recibo versionado de Neon.');return;
+ }
  if(S.busy){aviso("Espera a que termine la operación actual.");return;}
  if(typeof document!=="undefined"&&document.body?.classList?.contains("uki-operativo-bloqueado")){
   aviso("La sincronización está bloqueada. Recarga de forma segura antes de registrar una corrección histórica.");return;
@@ -10278,7 +10281,7 @@ function vHistorialCompacto(){
     while(card.firstChild)d.appendChild(card.firstChild);
     card.replaceWith(d);
   });
-  return vHistorialPrecierres()+ukiVAgregarPedidoOlvidado()+ukiArchivoRechazadosHistorialUI()+tmp.innerHTML;
+  return vHistorialPrecierres()+(S.suc===ROMO_SUCURSAL_QA?'':ukiVAgregarPedidoOlvidado())+ukiArchivoRechazadosHistorialUI()+tmp.innerHTML;
 }
 
 function vHistorial(){
