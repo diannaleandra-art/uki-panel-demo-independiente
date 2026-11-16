@@ -6,10 +6,91 @@ const UKI_CARTA_REMOTAS_API='https://uki-sushi-pedidos.vercel.app/api/carta-soli
 let ukiCartaRemotaActiva=null;
 let ukiCartaRemotas={rows:[],branch:'',busy:false,used:false,status:'Pulsa Actualizar para consultar pedidos de carta normal.'};
 let ukiCartaRecuperacionPuedeQA=false;
+// El contador informa del bloqueo contra duplicados que ya existe.
+// NO comienza al abrir una solicitud ni libera reservas automáticamente.
+let ukiCartaReservaDesfaseServidorQA=0;
+let ukiCartaReservaAudioQA=null;
+const ukiCartaReservaAlertasEmitidasQA=new Set();
+function ukiCartaReservaAhoraQA(){return Date.now()+ukiCartaReservaDesfaseServidorQA}
 function ukiCartaReservaVencidaQA(r){
  const hasta=Date.parse(r?.reserva_hasta||'');
- return r?.estado==='pendiente'&&r?.en_reserva===true&&Number.isFinite(hasta)&&hasta<Date.now();
+ return r?.estado==='pendiente'&&r?.en_reserva===true&&Number.isFinite(hasta)&&hasta<ukiCartaReservaAhoraQA();
 }
+function ukiCartaReservaFormatoQA(seg){
+ const n=Math.max(0,Math.ceil(seg));
+ return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0');
+}
+function ukiCartaReservaMensajeQA(seg){
+ if(seg<=0)return 'Reserva vencida: verifica el pedido, la caja y el historial antes de recuperar.';
+ if(seg<=60)return '¡Urgente! Falta 1 minuto para vencer.';
+ if(seg<=300)return '¡Atención! Faltan 5 minutos para vencer.';
+ if(seg<=600)return 'Quedan menos de 10 minutos.';
+ if(seg<=900)return 'Quedan menos de 15 minutos.';
+ if(seg<=1800)return 'Recordatorio: quedan menos de 30 minutos.';
+ return 'Esta reserva impide que otro equipo registre la misma solicitud.';
+}
+function ukiCartaReservaRelojHTMLQA(r){
+ const fin=Date.parse(r?.reserva_hasta||'');
+ if(!Number.isFinite(fin)||!r?.id)return '';
+ const seg=(fin-ukiCartaReservaAhoraQA())/1000;
+ const color=seg<=0?'#a22929':seg<=300?'#ba3024':seg<=900?'#a75c08':'#226644';
+ const boton=ukiCartaReservaAudioQA?.state==='running'?'Avisos sonoros activos':'Activar aviso sonoro';
+ return '<div class="uki-reserva-contador" data-uki-reserva-id="'+esc(String(r.id))+
+   '" data-uki-reserva-fin="'+esc(String(r.reserva_hasta))+
+   '" style="margin:9px 0;padding:10px;border:1px solid #e5d6c7;border-radius:10px;background:#fffaf4">'+
+   '<p style="margin:0 0 5px"><b>⏱ Reserva de seguridad: <span data-uki-reloj-tiempo style="color:'+
+   color+'">'+ukiCartaReservaFormatoQA(seg)+'</span></b></p>'+
+   '<p class="muted" data-uki-reloj-aviso style="margin:3px 0 7px">'+esc(ukiCartaReservaMensajeQA(seg))+'</p>'+
+   '<button type="button" class="sm" onclick="ukiCartaReservaActivarAudioQA()" '+
+   (ukiCartaReservaAudioQA?.state==='running'?'disabled':'')+' style="margin:1px">'+boton+'</button>'+
+   '</div>';
+}
+async function ukiCartaReservaActivarAudioQA(){
+ try{
+  const Audio=window.AudioContext||window.webkitAudioContext;
+  if(!Audio){aviso('Este dispositivo no admite sonido desde el navegador. El contador visual sigue activo.');return;}
+  if(!ukiCartaReservaAudioQA)ukiCartaReservaAudioQA=new Audio();
+  await ukiCartaReservaAudioQA.resume();
+  if(ukiCartaReservaAudioQA.state!=='running')throw Error('Sonido restringido');
+  document.querySelectorAll('.uki-reserva-contador button').forEach(b=>{b.disabled=true;b.textContent='Avisos sonoros activos'});
+ }catch{aviso('El navegador no permitió activar el sonido. Los avisos visuales siguen activos.')}
+}
+function ukiCartaReservaTonoQA(){
+ const ctx=ukiCartaReservaAudioQA;
+ if(!ctx||ctx.state!=='running')return;
+ try{
+  const os=ctx.createOscillator(),vol=ctx.createGain();
+  os.frequency.value=880;os.type='sine';vol.gain.setValueAtTime(0.0001,ctx.currentTime);
+  vol.gain.exponentialRampToValueAtTime(0.12,ctx.currentTime+0.02);
+  vol.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+0.35);
+  os.connect(vol);vol.connect(ctx.destination);os.start();os.stop(ctx.currentTime+0.36);
+ }catch{/* La pantalla no depende de permisos de audio. */}
+}
+function ukiCartaReservaActualizarRelojesQA(){
+ if(typeof S==='undefined'||S.vista!=='pedidos')return;
+ const cards=document.querySelectorAll('.uki-reserva-contador[data-uki-reserva-fin]');
+ cards.forEach(card=>{
+  const fin=Date.parse(card.dataset.ukiReservaFin||'');
+  if(!Number.isFinite(fin))return;
+  const seg=(fin-ukiCartaReservaAhoraQA())/1000;
+  const tiempo=card.querySelector('[data-uki-reloj-tiempo]');
+  const avisoReloj=card.querySelector('[data-uki-reloj-aviso]');
+  if(tiempo){
+   tiempo.textContent=ukiCartaReservaFormatoQA(seg);
+   tiempo.style.color=seg<=0?'#a22929':seg<=300?'#ba3024':seg<=900?'#a75c08':'#226644';
+  }
+  if(avisoReloj)avisoReloj.textContent=ukiCartaReservaMensajeQA(seg);
+  const fase=seg<=0?'vencida':seg<=60?'1m':seg<=300?'5m':seg<=600?'10m':seg<=900?'15m':seg<=1800?'30m':'normal';
+  if(fase==='5m'||fase==='1m'||fase==='vencida'){
+   const llave=String(card.dataset.ukiReservaId)+'|'+String(fin)+'|'+fase;
+   if(!ukiCartaReservaAlertasEmitidasQA.has(llave)){
+    ukiCartaReservaAlertasEmitidasQA.add(llave);
+    if(document.visibilityState==='visible')ukiCartaReservaTonoQA();
+   }
+  }
+ });
+}
+setInterval(ukiCartaReservaActualizarRelojesQA,1000);
 // Consulta el permiso usando la MISMA sesión autenticada del personal de Pedidos.
 // QR firmado o Google autorizado de la sucursal; no requiere otra contraseña.
 async function ukiCartaRecuperacionPermisoQA(branch){
@@ -116,6 +197,8 @@ async function ukiCartaRemotasActualizar(){
   });
   const data=await r.json().catch(()=>({}));
   if(!r.ok||!data.ok)throw Error(String(data.error||'No se pudo consultar'));
+  const horaServidor=Date.parse(String(data.ahoraServidor||''));
+  if(Number.isFinite(horaServidor))ukiCartaReservaDesfaseServidorQA=horaServidor-Date.now();
   if(branch===ukiMesaBranch()){
    ukiCartaRemotas.rows=Array.isArray(data.orders)?data.orders.filter(x=>x.branch===branch):[];
    ukiCartaRemotas.branch=branch;
@@ -172,7 +255,7 @@ function ukiCartaRemotaFicha(r){
  return '<div class="card order-card uki-carta-compacta"><p class="muted"><b>📲 Carta normal · '+
    (pendiente?'Por confirmar':'Rechazado')+'</b></p>'+
    '<p class="muted uki-whatsapp-check">Verifica el mensaje en WhatsApp antes de aceptarlo.</p>'+
-   detalle+(reservado?'<p class="muted"><b>'+(
+   detalle+(reservado?ukiCartaReservaRelojHTMLQA(r)+'<p class="muted"><b>'+(
     ukiCartaReservaVencidaQA(r)?'Reserva vencida.':'En revisión en otro equipo.'
    )+'</b> '+(
     ukiCartaReservaVencidaQA(r)?'No se libera sola: comprueba que nadie haya registrado el pedido.':
