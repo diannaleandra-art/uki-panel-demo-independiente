@@ -92,6 +92,8 @@
     buttons.style.cssText='display:flex;gap:10px;flex-wrap:wrap';
     const save=el('button','Guardar cambio en Romo');
     save.type='submit';
+    save.disabled=state.current.revision<1;
+    save.title=save.disabled?'Confirma primero la versión inicial sin alterar precios':'Guardar cambio auditado';
     save.style.cssText='background:#ad111f;color:white;border:0;padding:11px 15px;border-radius:10px;font-weight:700';
     const cancel=el('button','Cancelar');
     cancel.type='button';cancel.onclick=()=>{state.selectedSku='';renderForm();};
@@ -100,6 +102,7 @@
     form.onsubmit=async event=>{
       event.preventDefault();
       if(state.busy)return;
+      if(state.current?.revision<1){status('Primero confirma la versión inicial de la carta aprobada.');return;}
       const changed={};
       const editedName=name.value.trim();
       if(editedName!==p.name)changed.name=editedName;
