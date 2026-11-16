@@ -116,6 +116,11 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
   try{
    const db=await dbReader.query("SELECT revision FROM public.romo_estado_operativo_v1 WHERE store_id=$1 AND revision>=1 LIMIT 1",[STORE]);
    if(!db.length)return fail(res,503,'Estado de caja Romo no confirmado');
+   // No mostrar recepción habilitada si faltan las ediciones base o
+   // el mecanismo de revisión que protege contra cambios de precio.
+   const rev=await dbReader.query("SELECT revision FROM public.romo_carta_ediciones_v1 WHERE store_id=$1 AND revision>=1 LIMIT 1",[STORE]);
+   if(!Array.isArray(rev)||rev.length!==1)
+     return fail(res,503,'Carta Romo todavía no tiene revisión comercial confirmada');
    return res.status(200).json({ok:true,enabled:true,storeId:STORE,countsAsSale:false});
   }catch{return fail(res,503,'Romo no puede confirmar su recepción');}
  }
