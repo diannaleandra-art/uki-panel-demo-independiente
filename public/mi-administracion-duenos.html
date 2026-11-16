@@ -905,11 +905,26 @@ async function cargarCierresRomoQA(desde,hasta){
    throw Error(info?.error||'La consulta de Romo todavía no está disponible.');
   if(n!==romoCierresPrivadosSecuencia||!session)return;
   const seen=new Set();
-  const rows=info.cierres.filter(c=>{
-   if(!c||typeof c.turno_ref!=='string'||seen.has(c.turno_ref)||
-      !Number.isSafeInteger(Number(c.venta_total))||
-      !Number.isSafeInteger(Number(c.pedidos)))return false;
-   seen.add(c.turno_ref);return true;
+  // No ocultar silenciosamente cierres inválidos ni mostrar subtotales parciales.
+  if(info.soloLectura!==true||info.incluidoEnContabilidad!==false)
+   throw Error('La consulta privada cambió de modalidad');
+  const permitidos=new Set(['Efectivo','Transferencia','Débito','Edenred',
+   'Otros','Uber Eats','PedidosYa','Rappi']);
+  const monto=v=>Number.isSafeInteger(Number(v))&&Number(v)>=0&&Number(v)<=1000000000;
+  const rows=info.cierres.map(c=>{
+   if(!c||typeof c.turno_ref!=='string'||
+      !/^\d{4}-\d{2}-\d{2}@[1-9]\d{12,14}$/.test(c.turno_ref)||
+      c.source_key!=='romo:serena|'+c.turno_ref||
+      c.fecha_operativa!==c.turno_ref.slice(0,10)||seen.has(c.source_key)||
+      c.estado_contable!=='pendiente_incorporacion'||
+      !monto(c.venta_total)||!monto(c.pedidos)||Number(c.pedidos)>10000||
+      !monto(c.gastos_cierre)||!monto(c.delivery_por_pagar)||!monto(c.propinas)||
+      !Number.isSafeInteger(Number(c.revision_neon))||Number(c.revision_neon)<1||
+      !c.medios||typeof c.medios!=='object'||Array.isArray(c.medios)||
+      Object.entries(c.medios).some(([k,v])=>!permitidos.has(k)||!monto(v))||
+      Object.values(c.medios).reduce((n,v)=>n+Number(v),0)!==Number(c.venta_total))
+    throw Error('Cierre Romo inconsistente: no se presentan resultados parciales');
+   seen.add(c.source_key);return c;
   });
   const sum=rows.reduce((total,c)=>total+Number(c.venta_total),0);
   estado.textContent=rows.length?
@@ -922,7 +937,7 @@ async function cargarCierresRomoQA(desde,hasta){
    const detail=document.createElement('p');detail.className='hint';
    detail.textContent='Venta: '+pesos(c.venta_total)+' · Pedidos: '+c.pedidos+
     ' · Gastos: '+pesos(c.gastos_cierre)+
-    ' · Delivery por pagar: '+pesos(c.delivery_por_pagar)+
+    ' · Repartidor registrado en cierre: '+pesos(c.delivery_por_pagar)+
     ' · Propinas: '+pesos(c.propinas)+
     ' · Revisión Neon: '+c.revision_neon;
    const note=document.createElement('p');note.className='hint';
@@ -931,6 +946,7 @@ async function cargarCierresRomoQA(desde,hasta){
   });
  }catch(error){
   if(n!==romoCierresPrivadosSecuencia)return;
+  host.replaceChildren();
   estado.textContent='No se pudo verificar Romo: '+String(error?.message||'Consulta no disponible.');
  }
 }
