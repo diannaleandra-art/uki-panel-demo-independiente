@@ -27,7 +27,8 @@ function config(env){
   'UKI_FIN_PRIVATE_DATABASE_URL','UKI_FIN_QA_DATABASE_URL']){
   try{if(new URL(String(env[key]||'')).hostname.toLowerCase()===host)return null}catch{}
  }
- return {origin,read,write};
+ return {origin,read,write,
+  sharedRead:require('../lib/romo-origen-seguro-qa.cjs').origenUnificadoLecturaRomoQA(env)};
 }
 module.exports=async function romoInventarioQA(req,res){
  res.setHeader('Cache-Control','private,no-store,max-age=0');
@@ -37,13 +38,11 @@ module.exports=async function romoInventarioQA(req,res){
  if(!conf)return fail(res,503,'Inventario Romo no habilitado');
  const method=String(req.method||'').toUpperCase();
  if(!['GET','POST','OPTIONS'].includes(method))return fail(res,405,'Método no permitido');
- const origin=String(req.headers?.origin||'');
- const host=String(req.headers?.host||'').toLowerCase();
- const same=origin===conf.origin||(method==='GET'&&!origin&&
-  host===new URL(conf.origin).host.toLowerCase());
- if(!same)return fail(res,403,'Origen del panel Romo inválido');
- if(origin)res.setHeader('Access-Control-Allow-Origin',conf.origin);
- res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');
+ const {resolverOrigenLecturaUnificadaRomoQA}=require('../lib/romo-origen-seguro-qa.cjs');
+ const acceso=resolverOrigenLecturaUnificadaRomoQA(req,conf.origin,conf.sharedRead);
+ if(!acceso)return fail(res,403,'Origen del panel Romo inválido');
+ if(req.headers?.origin)res.setHeader('Access-Control-Allow-Origin',acceso.origin);
+ res.setHeader('Access-Control-Allow-Methods',acceso.compartido?'GET,OPTIONS':'GET,POST,OPTIONS');
  res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type');
  if(method==='OPTIONS')return res.status(204).end();
  if(method==='POST'&&(process.env.ROMO_INVENTARIO_ESCRITURA_QA_ENABLED!=='true'||!conf.write))
