@@ -28,7 +28,8 @@ function config(env){
     try{if(new URL(String(env[other]||'')).hostname.toLowerCase()===host)return null;}
     catch{}
   }
-  return {panel,carta,database:db.toString()};
+  return {panel,carta,database:db.toString(),
+    write:env.ROMO_CARTA_EDICIONES_ESCRITURA_QA_ENABLED==='true'};
 }
 async function approvedCarta(conf){
   const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),8000);
@@ -65,6 +66,10 @@ module.exports=async function romoCartaEdicionesSegurasQA(req,res){
   res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type');
   res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');
   if(method==='OPTIONS')return res.status(204).end();
+  // Consultar la carta NO habilita guardados ni su inicialización.
+  // Requiere un segundo permiso explícito, distinto del permiso de lectura.
+  if(method==='POST'&&!conf.write)
+    return fail(res,503,'Edición de productos Romo desactivada en Preview');
   if(method==='POST'&&
      !String(req.headers?.['content-type']||'').toLowerCase().startsWith('application/json'))
     return fail(res,415,'Se requiere JSON');
