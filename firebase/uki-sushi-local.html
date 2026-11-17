@@ -6192,6 +6192,23 @@ function vHistorial(){
   }).join("");
 }
 
+// Aplicar a la vista EXCLUSIVAMENTE tras confirmación CAS de Neon Romo.
+// No usa guardarEnLocalStorage(), no invoca ukiQASet(), no toca Firebase.
+window.ukiRomoAplicarConfirmadoPanelUnicoQA=async({estado,revision,tipo,detalle}={})=>{
+ if(S.suc!==ROMO_SUCURSAL_QA||!validarEstadoSucursal(estado,ROMO_SUCURSAL_QA))
+  throw Error('El estado confirmado no corresponde a Romo');
+ const session=window.ukiRomoSesionRemotaQA;
+ if(!session?.disponible?.())throw Error('No hay sesión Neon de Romo');
+ const remoto=session.estado();
+ if(!Number.isSafeInteger(revision)||revision<2||
+    remoto.storeId!=='romo:serena'||remoto.revision!==revision||remoto.conflicto)
+  throw Error('No hay confirmación Neon para actualizar el panel');
+ const vista=S.vista;
+ S={...estadoVacioSucursal(ROMO_SUCURSAL_QA),...JSON.parse(JSON.stringify(estado)),
+   suc:ROMO_SUCURSAL_QA,pinSuc:null,vista,codigos:{},busy:false,
+   confirmCierre:false,msg:'Romo · operación '+String(tipo||'')+' confirmada en Neon · revisión '+revision};
+ render();
+};
 window.ukiQAGet=()=>S.suc?{suc:S.suc,estado:datosSoloSucursal()}:null;
 window.ukiQASet=async(data)=>{
  if(!S.suc||!validarEstadoSucursal(data,S.suc))throw Error("Estado inválido para esta sucursal");
