@@ -956,11 +956,8 @@ function render(){
   }[S.vista]||vInicio;
   const msg=S.msg?`<div role="status" class="aviso" style="background:#ffece4;color:#7a2c08">${esc(S.msg)}</div>`:"";
   S.msg=null;
-  // Diagnóstico exclusivo QA, independiente del historial y caja.
-  const verificacionQA=S.suc===ROMO_SUCURSAL_QA&&S.vista==='inicio'?
-   '<details class="card" id="romoPruebaPermisoQA"><summary><b>Verificación técnica de permisos · QA</b></summary>'+
-   '<p class="muted">Una prueba aislada con cuenta Google de dueños. Registra una constancia en Neon QA; no cancela ni cobra pedidos.</p>'+
-   '<button type="button" class="sm" onclick="ukiRomoProbarPermisoNeonQA()">Probar escritura aislada</button></details>':'';
+  // El permiso de escritura aislada ya fue comprobado y auditado.
+  // No volver a ofrecer ese botón; sólo mostrar el siguiente ensayo QA.
   // Ensayo de cancelación exclusivamente sobre la COPIA Neon QA.
   // Requiere al dueño y su contraseña local; no cambia el panel en producción.
   const cancelacionQA=S.suc===ROMO_SUCURSAL_QA&&S.vista==='inicio'?
@@ -973,7 +970,7 @@ function render(){
    '<label for="romoCopiaQAMotivo">Motivo</label>'+
    '<input id="romoCopiaQAMotivo" maxlength="300" autocomplete="off" value="Pedido de prueba sin preparar, entregar ni cobrar">'+
    '<button type="button" class="sm" id="romoCopiaQABoton" onclick="ukiRomoEnsayarCancelacionCopiaQA()">Probar cancelación solo en copia QA</button></details>':'';
-  $("app").innerHTML=msg+verificacionQA+cancelacionQA+f();
+  $("app").innerHTML=msg+cancelacionQA+f();
   if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='promos')
    setTimeout(()=>{if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='promos')window.ukiRomoBannerAdminMount?.()},0);
   ukiRestaurarVistaTrasRender(ukiVistaAnterior);
