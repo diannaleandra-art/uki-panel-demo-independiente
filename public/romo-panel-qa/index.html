@@ -934,7 +934,9 @@ function render(){
     catch{estadoNeon=null;}
    }
    romoNeon.textContent=Number.isSafeInteger(estadoNeon?.revision)&&estadoNeon.revision>=1?
-    "Romo · Neon cifrado · última revisión cargada: "+estadoNeon.revision:
+    "Romo · Neon cifrado · última revisión cargada: "+estadoNeon.revision+
+    (window.ukiRomoGuardadoHabilitadoQA?.()===true?
+     ' · escritura habilitada para piloto':' · SOLO CONSULTA · guardado desactivado'):
     "Romo · acceso Google y clave habitual · Neon independiente";
   }
   $("nav").style.display=S.suc?"grid":"none";
@@ -6222,8 +6224,13 @@ function ukiRomoPedidosPendientesHTMLQA(){
     '" rows="2" maxlength="300" placeholder="Describe por qué se cancela"></textarea>'+
     '<label>Responsable del registro</label><input id="romoCancelarResponsable'+id+
     '" maxlength="80" autocomplete="off">'+
-    '<button type="button" class="sm" onclick="ukiRomoCambiarEstadoQA('+id+
-    ',\'cancelar\')">Confirmar cancelación</button></details>':'')+
+    '<button type="button" class="sm" '+
+     (window.ukiRomoGuardadoHabilitadoQA?.()===true?'':'disabled title="Guardado de Romo desactivado" ')+
+     'onclick="ukiRomoCambiarEstadoQA('+id+
+     ',\'cancelar\')">'+
+     (window.ukiRomoGuardadoHabilitadoQA?.()===true?
+      'Confirmar cancelación':'Solo consulta · cancelación bloqueada')+
+     '</button></details>':'')+
     (p.estado==='Pendiente'&&!tst?
      '<button type="button" class="sm ok" onclick="ukiRomoCambiarEstadoQA('+id+
      ',\'entregar\')">✓ Marcar entregado (sin cambiar pago)</button>':'');
@@ -6647,6 +6654,9 @@ function ukiRomoLeerDistribucionQA(id,tipo,monto){
  return lineas;
 }
 async function ukiRomoGuardarOperacionQA(copia,descripcion,orden,vista='pedidos'){
+ // Evitar el POST si el GET autorizado confirma que el guardado está cerrado.
+ if(window.ukiRomoGuardadoHabilitadoQA?.()!==true)
+  throw Error('Romo sigue en modo consulta. No se envió ningún cambio a Neon.');
  const session=window.ukiRomoSesionRemotaQA;
  if(!session?.disponible()||S.suc!==ROMO_SUCURSAL_QA)
   throw Error('Abre Romo con tu cuenta de dueños.');
@@ -6717,6 +6727,10 @@ async function ukiRomoConfirmarCobroQA(id){
 }
 async function ukiRomoCambiarEstadoQA(id,accion){
  if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA)return;
+ if(window.ukiRomoGuardadoHabilitadoQA?.()!==true){
+  aviso('Romo está en modo consulta: cancelaciones y entregas bloqueadas. No se modificó Neon.');
+  return;
+ }
  const pedidoId=Number(id);
  const p=(S.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&x.id===pedidoId);
  if(!p||p.esPremio||p.estado==='Cancelado')return;
