@@ -71,6 +71,10 @@ test('API privadas de Romo preservan sesión Vercel en Preview sin eliminar Goog
  const files=[
   '../public/romo-panel-qa/uki-romo-clave-remota-qa.mjs',
   '../public/romo-panel-qa/uki-romo-conexion-lectura-qa.mjs',
+  '../public/romo-panel-qa/uki-romo-operativo-qa.mjs',
+  '../public/romo-panel-qa/uki-romo-catalogo-qa.mjs',
+  '../public/romo-panel-qa/uki-romo-recepcion-formulario-qa.mjs',
+  '../public/romo-panel-qa/uki-romo-vinculo-duenos-qa.mjs',
   '../public/romo-panel-qa/index.html'
  ];
  for(const file of files){
