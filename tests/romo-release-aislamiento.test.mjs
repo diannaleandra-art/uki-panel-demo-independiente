@@ -157,3 +157,25 @@ test('Permisos Preview Romo: lectura independiente y escritura comercial cerrada
  assert.match(cierre,/ROMO_PANEL_PILOTO_MANUAL_QA_ENABLED/);
  assert.equal(env.ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED,undefined);
 });
+
+test('panel único QA permite ver Neon Romo desde mismo selector sin guardado',()=>{
+ const html=read('../firebase/uki-sushi-local.html');
+ assert.match(html,/const SUCURSALES=\["Uki Regimiento Arica","Uki La Serena"\]/);
+ assert.match(html,/const SUCURSALES_PANEL_QA=Object\.freeze\(\[\.\.\.SUCURSALES,ROMO_SUCURSAL_QA\]\)/);
+ assert.match(html,/function ukiConsultarRomoPanelUnicoQA\(\)/);
+ assert.match(html,/method:'GET',headers:\{Authorization:'Bearer '\+token\}/);
+ assert.match(html,/credentials:'same-origin'/);
+ assert.match(html,/abrirLocal\(JSON\.stringify\(remoto\.snapshot\),ROMO_SUCURSAL_QA,clave\)/);
+ assert.match(html,/function ukiResumenRomoConsultaQA\(\)/);
+ assert.match(html,/if\(!S\.suc&&!S\.pinSuc&&S\.romoSeleccionadoQA&&romoConsultaUnificadaQA\)/);
+ assert.match(html,/\/\/ No ingresar a S\.suc ni almacenar pedidos o claves: sólo contadores/);
+ const autoStart=html.indexOf('function guardarEnLocalStorage(){');
+ const autoEnd=html.indexOf('if(!S.suc||!claveSesion',autoStart);
+ assert.ok(autoStart>0&&autoEnd>autoStart);
+ const romoGuard=html.slice(autoStart,autoEnd);
+ assert.match(romoGuard,/if\(S\.suc===ROMO_SUCURSAL_QA\)/);
+ assert.match(romoGuard,/return Promise\.resolve\(false\)/);
+ assert.doesNotMatch(romoGuard,/session\.guardar\(/);
+ const module=read('../firebase/uki-romo-operativo-qa.mjs');
+ assert.match(module,/const ROMO_OPERATIVO_ENDPOINT_QA='';/);
+});
