@@ -10,7 +10,6 @@ const fail=(r,s,e)=>r.status(s).json({ok:false,storeId:STORE,error:e});
 const originOK=x=>/^https:\/\/[a-z0-9.-]+$/i.test(x)&&!String(x).includes('..');
 function config(env){
   if(!entornoPanelRomoAutorizado(env)||
-    env.VERCEL_ENV!=='preview'||
     env.ROMO_CARTA_EDICIONES_QA_ENABLED!=='true')return null;
   const panel=String(env.ROMO_PANEL_ALLOWED_ORIGIN||'');
   const carta=String(env.ROMO_CARTA_CATALOGO_QA_ORIGIN||'');
