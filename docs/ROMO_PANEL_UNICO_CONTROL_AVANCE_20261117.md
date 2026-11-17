@@ -51,3 +51,15 @@ No publicar producción Uki ni Romo desde esta etapa. Agrupar correcciones en Gi
 **Lo que falta para paridad real**: incorporación de las mismas acciones operativas de pedidos/WhatsApp/mesas, pagos mixtos, timbres, caja y cierres sobre CAS Neon exclusivo, pruebas manuales de un pedido real de Romo y su conciliación, y publicación final del selector sin alterar sesiones/datos locales de los dos Uki. Estas consultas no equivalen a habilitar ventas.
 
 **Verificación realizada**: 14 comprobaciones locales del helper de orígenes (GET y preflight GET permitidos, POST/PATCH/OPTIONS POST y Production rechazados). Se añadieron pruebas estáticas en `tests/romo-panel-unico-origen-lectura.test.mjs`. No se ejecutaron pruebas operativas ni escrituras comerciales. 
+
+## Página de prueba navegable preparada — 17-11-2026
+
+**Nuevo archivo público sin publicar:** `public/romo-panel-qa/panel-unico-consulta-qa.html`. Es la versión de consulta del panel de locales v8.16, derivada de `firebase/uki-sushi-local.html` QA. No sustituye `/romo-panel-qa/index.html`, el redirect `/` ni los enlaces oficiales de Uki.
+
+**Protección real de este Preview:** la página muestra los tres nombres del selector, pero mantiene las dos sucursales Uki bloqueadas en este enlace de pruebas y la apertura operativa Romo desactivada. Explica esa restricción al personal, para impedir que un pedido de prueba se interprete como pedido real. Se quitaron los 17 scripts externos que podían conectar inventario, ventas o nube. Se retiró todo el módulo Firestore de lectura/escritura y el autoguardado; únicamente se carga Firebase Auth para solicitar el token Google ya autorizado. La contraseña descifra el sobre Romo localmente mediante la consulta GET y no se envía al servidor.
+
+**La única conexión en esta página** es lectura autenticada hacia el backend Romo QA: estado cifrado, solicitudes de carta, inventario y carta aprobada de 40 productos. No hay POST de la interfaz. El panel normal de Romo y el oficial de Uki siguen sin cambios. La implementación completa de caja y pedidos Romo **todavía falta** y no debe interpretarse como terminada.
+
+**Pruebas de regresión añadidas:** `tests/panel-unico-qa-pagina-lectura.test.mjs`, junto con pruebas de orígenes GET y aislamiento incorporadas a `npm run test:release` en la rama QA. Las comprobaciones estáticas y sintácticas no sustituyen cargar la página en Safari y consultar Neon con Google y clave.
+
+**Configuración agrupada antes del único Preview:** 1) desplegar `qa/romos-panel-v816` en un Preview aislado de Uki que sirva el nuevo archivo; 2) identificar su origen exacto, y agregarlo como `ROMO_PANEL_UNIFICADO_LECTURA_ORIGIN` **solo en el Preview de `romos-sushi-panel`**; 3) publicar la misma revisión QA del backend Romo (ya contiene las cuatro APIs GET con CORS restrictivo). Si Vercel/Firebase bloquean el origen, diagnosticar sin debilitar reglas ni copiar credenciales; no publicar a Production. Solo una revisión manual de la vista y acceso, y después continuar la homologación de operaciones pendientes.
