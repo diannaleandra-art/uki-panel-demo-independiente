@@ -10,7 +10,10 @@ const fail=(r,s,e)=>r.status(s).json({ok:false,storeId:STORE,error:e});
 const validOrigin=x=>/^https:\/\/[a-z0-9.-]+$/i.test(x)&&!String(x).includes('..');
 
 function config(env){
-  if(!entornoPanelRomoAutorizado(env)||env.VERCEL_ENV!=='preview'||
+  // La comparación sigue siendo solo lectura y solo dueños Google+Neon.
+  // El control único de entorno autoriza Preview y, con habilitación
+  // explícita, el proyecto release de Romo; nunca main de Uki.
+  if(!entornoPanelRomoAutorizado(env)||
      env.ROMO_CATALOGO_PARIDAD_QA_ENABLED!=='true')return null;
   const origin=String(env.ROMO_PANEL_ALLOWED_ORIGIN||'');
   const carta=String(env.ROMO_CARTA_CATALOGO_QA_ORIGIN||'');
