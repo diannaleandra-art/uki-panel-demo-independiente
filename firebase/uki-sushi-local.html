@@ -754,8 +754,65 @@ function render(){
 }
 
 const ROMO_SERENA_QA=Object.freeze({brand:'romo',branch:'serena',nombre:ROMO_SUCURSAL_QA,direccion:'Balmaceda 1612, La Serena'});
+// Estado en memoria, exclusivamente para consultar Romo sin escribir en Uki.
+let romoConsultaUnificadaQA=null;
+async function ukiConsultarRomoPanelUnicoQA(){
+ const input=$("ukiAccesoClave"),clave=input?.value||'';
+ if(S.pinSuc!==ROMO_SUCURSAL_QA)return;
+ if(clave.length<12){aviso('Escribe la clave habitual del panel.');return;}
+ try{
+  const token=await window.ukiInventarioToken?.();
+  if(typeof token!=='string'||token.length<30)
+   throw Error('Inicia sesión con tu cuenta Google autorizada.');
+  const resp=await fetch('/api/romo-estado-cifrado-panel-qa',{
+   method:'GET',headers:{Authorization:'Bearer '+token},
+   cache:'no-store',credentials:'same-origin'
+  });
+  if(resp.status===403)throw Error('La cuenta Google no tiene permiso para consultar Romo.');
+  if(!resp.ok)throw Error('La consulta independiente de Romo todavía no está disponible.');
+  const remoto=await resp.json();
+  if(remoto?.ok!==true||remoto.storeId!=='romo:serena'||
+     !Number.isSafeInteger(remoto.revision)||remoto.revision<1||
+     remoto.snapshot?.sucursal!==ROMO_SUCURSAL_QA)
+   throw Error('Los datos recibidos no pertenecen a Romo La Serena.');
+  const abierto=await abrirLocal(JSON.stringify(remoto.snapshot),ROMO_SUCURSAL_QA,clave);
+  const datos=abierto.estado;
+  if(!validarEstadoSucursal(datos,ROMO_SUCURSAL_QA)||
+     !Number.isFinite(Number(datos.base))||
+     !Number.isFinite(Number(datos.cajaChica?.inicial)))
+   throw Error('No se confirmó la copia cifrada de Romo.');
+  // No ingresar a S.suc ni almacenar pedidos o claves: sólo contadores.
+  romoConsultaUnificadaQA=Object.freeze({
+   revision:remoto.revision,pedidos:datos.pedidos.length,
+   cierres:datos.cierres.length,base:Number(datos.base),
+   cajaChica:Number(datos.cajaChica.inicial)
+  });
+  S.pinSuc=null;S.romoSeleccionadoQA=true;S.romoIngresadoQA=false;
+  render();
+ }catch(e){aviso(String(e?.message||'Consulta Romo no disponible.'));}
+ finally{if(input)input.value='';}
+}
+function ukiRomoVolverDesdeConsultaQA(){
+ romoConsultaUnificadaQA=null;S.pinSuc=ROMO_SUCURSAL_QA;
+ S.romoSeleccionadoQA=false;S.romoIngresadoQA=false;render();
+}
+function ukiResumenRomoConsultaQA(){
+ const v=romoConsultaUnificadaQA;if(!v)return '';
+ return '<section class="card" id="romoVistaLecturaPanelUnicoQA">'+
+  '<h2>Romo’s Sushi La Serena</h2><p>Balmaceda 1612, La Serena</p>'+
+  '<p class="aviso" role="status">SOLO CONSULTA · Estado cifrado de Romo · revisión '+esc(v.revision)+
+  '. Pedidos, ventas y cierres deshabilitados.</p>'+
+  '<section class="kpis"><div class="kpi"><span>Pedidos</span><strong>'+esc(v.pedidos)+
+  '</strong></div><div class="kpi"><span>Cierres</span><strong>'+esc(v.cierres)+
+  '</strong></div><div class="kpi"><span>Base de caja</span><strong>'+fmt(v.base)+
+  '</strong></div><div class="kpi"><span>Caja chica inicial</span><strong>'+fmt(v.cajaChica)+
+  '</strong></div></section><p class="muted">Datos de Romo exclusivamente. Uki no se modifica.</p>'+
+  '<button type="button" class="big" onclick="ukiRomoVolverDesdeConsultaQA()">Volver al acceso de Romo</button></section>';
+}
+
 function ukiVolverAlSelectorLocales(){
  if(S.suc)return;
+ romoConsultaUnificadaQA=null;
  S.romoSeleccionadoQA=false;S.romoIngresadoQA=false;S.pinSuc=null;render();
 }
 
@@ -813,6 +870,7 @@ async function ukiRomoDarAltaClaveQA(){
 }
 function pedirPin(s){
  if(!SUCURSALES_PANEL_QA.includes(s))return;
+ romoConsultaUnificadaQA=null;
  S.romoSeleccionadoQA=false;S.romoIngresadoQA=false;S.pinSuc=s;render();
 }
 async function entrarSuc(){
@@ -933,6 +991,8 @@ function ukiRomoFormularioVinculacionQA(){
 }
 
 function vInicio(){
+ if(!S.suc&&!S.pinSuc&&S.romoSeleccionadoQA&&romoConsultaUnificadaQA)
+  return ukiResumenRomoConsultaQA();
  if(!S.suc&&!S.pinSuc&&S.romoSeleccionadoQA){
   return '<section class="card" id="romoLaSerenaPreparacionQA" aria-label="Romo’s Sushi La Serena">'+
    '<h2>Romo’s Sushi · La Serena</h2><p><b>Balmaceda 1612, La Serena</b></p>'+
@@ -948,6 +1008,7 @@ function vInicio(){
   '<label>Contraseña de acceso</label><input id="ukiAccesoClave" type="password" autocomplete="off" placeholder="Mínimo 12 caracteres">'+
   (existe?'':'<label>Repite la contraseña</label><input id="ukiAccesoConfirmar" type="password" autocomplete="off" placeholder="Confirmar contraseña">')+
   '<button class="big" onclick="entrarSuc()">'+(existe?"Abrir sucursal":"Crear acceso")+'</button>'+
+  (esRomo?'<button type="button" class="big" style="background:#ad102b" onclick="ukiConsultarRomoPanelUnicoQA()">Ver Romo en modo consulta</button>':'')+
   (esRomo?ukiRomoFormularioVinculacionQA():'')+
   '<p class="muted">La clave no se guarda. Si la pierdes, necesitarás un respaldo. El PIN antiguo de 4 números no protege estos registros.</p></div>';
  }
