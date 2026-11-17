@@ -7,6 +7,7 @@ import {
 import {
  crearSesionPanelUnicoRomoQA
 } from '../lib/romo-panel-unico-sesion-qa.mjs';
+import {prepararPedidoManualPendienteRomoQA} from '../firebase/uki-romo-pedido-manual-panel-unico-qa.mjs';
 
 const SUC='Romo’s Sushi La Serena';
 const estado=()=>({suc:SUC,pedidos:[{suc:SUC,id:11,pagado:false}],
@@ -169,4 +170,55 @@ test('La carta no usa la escritura simple de caja para aceptar solicitudes',()=>
  assert.match(atomic,/expectedRevision:revision,snapshot/);
  assert.match(controller,/const bandejaRomoPanelUnicoQA=crearBandejaRomoMismoPanelQA\(\)/);
  assert.match(atomic,/ROMO_GUARDADO_ATOMICO_HABILITADO_QA=false/);
+});
+
+test('Pedido manual Romo sin pagar reutiliza folio del turno y no toca Uki',()=>{
+ const day='2026-11-17',inicio=Date.parse('2026-11-17T10:00:00Z');
+ const e={...estado(),nextId:12,fechaOperativa:day,
+  cajasDiarias:{[SUC+'|'+day]:{turnoAbierto:true,inicioMs:inicio,turnoId:day+'@'+inicio}}};
+ const borrador={cliente:'Ana',telefono:'56912345678',modalidad:'Retiro',
+  medio:'Efectivo',pagado:false,propinaModo:'ninguna',codigoCarta:'',
+  items:[{nombre:'Handroll pollo',cant:2,precio:2500,det:'sin salsa'}]};
+ const res=prepararPedidoManualPendienteRomoQA(e,{
+  draft:borrador,registradoEn:inicio+3000,
+  fechaOperativa:day,confirmoSinPago:true
+ });
+ assert.equal(res.pedidoId,12);
+ assert.equal(res.total,5000);
+ assert.equal(e.pedidos.length,2);
+ assert.equal(e.pedidos[1].pagado,false);
+ assert.equal(e.pedidos[1].turnoClave,day+'@'+inicio);
+ assert.equal(e.pedidos[1].numeroTurno,1);
+ assert.equal(e.pedidos[1].suc,SUC);
+ assert.equal(e.nextId,13);
+ assert.equal(e.propinas.length,0);
+});
+test('Pedido manual no permite carta, cobro simulado ni turno cerrado',()=>{
+ const day='2026-11-17',inicio=Date.parse('2026-11-17T10:00:00Z');
+ const estadoLocal={...estado(),nextId:12,cajasDiarias:{
+  [SUC+'|'+day]:{turnoAbierto:true,inicioMs:inicio,turnoId:day+'@'+inicio}}};
+ const draft={cliente:'Ana',modalidad:'Retiro',medio:'Efectivo',
+  items:[{nombre:'Handroll pollo',cant:1,precio:2500}]};
+ const args={draft,registradoEn:inicio+3000,fechaOperativa:day,confirmoSinPago:true};
+ assert.throws(()=>prepararPedidoManualPendienteRomoQA(structuredClone(estadoLocal),
+  {...args,draft:{...draft,codigoCarta:'ROMO-77'}}),/bandeja de carta/);
+ assert.throws(()=>prepararPedidoManualPendienteRomoQA(structuredClone(estadoLocal),
+  {...args,draft:{...draft,pagado:true}}),/sin cobros/);
+ assert.throws(()=>prepararPedidoManualPendienteRomoQA(structuredClone(estadoLocal),
+  {...args,confirmoSinPago:false}),/quedará sin pagar/);
+ const cerrado=structuredClone(estadoLocal);
+ cerrado.cajasDiarias[SUC+'|'+day].turnoAbierto=false;
+ assert.throws(()=>prepararPedidoManualPendienteRomoQA(cerrado,args),/Abre y confirma/);
+ assert.equal(estadoLocal.pedidos.length,1,'Sin mutar la copia base');
+});
+test('Pedido manual se expone solo a través del mismo coordinador CAS desactivado',()=>{
+ const file=readFileSync(new URL('../firebase/uki-romo-transacciones-panel-unico-qa.mjs',import.meta.url),'utf8');
+ assert.match(file,/prepararPedidoManualPendienteRomoQA/);
+ assert.match(file,/guardarPedidoManual:/);
+ assert.match(file,/ROMO_TRANSACCIONES_PANEL_UNICO_QA_HABILITADAS=false/);
+ assert.match(file,/sesion\.guardar\(copia\)/);
+ const html=readFileSync(new URL('../firebase/uki-sushi-local.html',import.meta.url),'utf8');
+ assert.match(html,/tipo==='pedido_manual'\|\|tipo==='pedido_carta'/);
+ assert.match(html,/nuevoDraft\(\);S\.vista='pedidos'/);
+ assert.match(html,/window\.ukiRomoAplicarConfirmadoPanelUnicoQA/);
 });
