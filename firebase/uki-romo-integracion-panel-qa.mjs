@@ -79,6 +79,9 @@ window.ukiRomoSolicitudesGuardarPanelUnicoQA=crearGuardadoRomoDesdeFormularioQA(
    confirmoPago:false,confirmoDiferenciaTotal:false};
  },
  cifrarEstado:async(estado)=>{
+  const visible=visibleRomoPanelUnicoQA();
+  if(!visible||session.coincideEstadoOperativo(visible.estado)!==true)
+   throw Error('Hay cambios sin confirmar. Reabre Romo antes de aceptar la solicitud');
   const revision=session.estado().revision;
   return session.prepararSobreParaSolicitud(estado,{expectedRevision:revision});
  },
