@@ -20,6 +20,8 @@ const session=crearSesionPanelUnicoRomoQA({
  prepararEstadoInicial:unsupported
 });
 window.ukiRomoSesionRemotaQA=session;
+// Capacidad de escritura informada exclusivamente por GET autenticado en Romo.
+window.ukiRomoGuardadoHabilitadoQA=()=>vault.escrituraHabilitada?.()===true;
 
 window.ukiRomoCatalogoDisponibleQA=cartaRomoDisponibleQA;
 window.ukiRomoCatalogoLeerQA=()=>obtenerCartaRomoPanelQA();
