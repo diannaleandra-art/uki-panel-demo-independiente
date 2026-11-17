@@ -47,3 +47,17 @@ test('la vista mantiene lecturas Romo autorizadas, sin mezclar registros Uki',()
  assert.match(pagina,/romoConsultaSolicitudAreaQA/);
  assert.match(base,/function guardarEnLocalStorage\(\)/);
 });
+
+test('Caja y timbres de Romo solo se consultan desde la revisión cifrada',()=>{
+ assert.match(pagina,/await import\('\.\/uki-romo-caja-consulta-qa\.mjs'\)/);
+ assert.match(pagina,/consultarCajaRomoQA\(datos,\{fechaOperativa:diaCajaQA\}\)/);
+ assert.match(pagina,/function ukiRomoCajaConsultaPanelUnicoHTMLQA\(\)/);
+ assert.match(pagina,/timbresPendientesQA=datos\.pedidos\.filter/);
+ assert.match(pagina,/No es un precierre ni un cierre definitivo/);
+ assert.match(pagina,/No se pueden registrar desde esta vista/);
+ assert.doesNotMatch(pagina,/window\.ukiRomoTransaccionesPanelUnicoQA/);
+ assert.doesNotMatch(pagina,/guardarSobreCifrado/);
+ const fuente=read('../firebase/uki-sushi-local.html');
+ assert.match(fuente,/function ukiRomoCajaConsultaPanelUnicoHTMLQA\(\)/);
+ assert.match(fuente,/await import\('\.\/uki-romo-caja-consulta-qa\.mjs'\)/);
+});
