@@ -62,6 +62,9 @@ export function crearTransaccionesPanelUnicoRomoQA({
    visible.estado?.suc===SUCURSAL&&
    visible.estado.pedidos.every(p=>p?.suc===SUCURSAL),
    'Los datos visibles no corresponden a la misma revisión de Romo');
+  requerir(typeof sesion.coincideEstadoOperativo==='function'&&
+   sesion.coincideEstadoOperativo(visible.estado)===true,
+   'Hay cambios de caja o pedidos sin confirmar. Reabre Romo antes de operar');
   const antes=JSON.stringify(visible.estado);
   const copia=clonar(visible.estado);
   ocupado=true;
