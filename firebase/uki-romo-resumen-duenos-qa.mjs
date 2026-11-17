@@ -37,10 +37,17 @@ export function prepararResumenCierreRomoDuenosQA(cierre){
   'No se confirmó el momento del cierre');
  // La fecha operativa se valida contra la apertura LOCAL de Chile,
  // no contra UTC, para no mover ventas entre días de sucursal.
- const localStart=new Intl.DateTimeFormat('en-CA',{
+ const partesInicio=new Intl.DateTimeFormat('en-GB',{
   timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'
- }).format(new Date(inicio));
- ok(localStart===fecha,'El turno no comenzó en la fecha operativa declarada');
+ }).formatToParts(new Date(inicio));
+ const parte=k=>partesInicio.find(x=>x.type===k)?.value||'';
+ const diaInicio=[parte('year'),parte('month'),parte('day')].join('-');
+ const anterior=new Date(diaInicio+'T12:00:00Z');
+ anterior.setUTCDate(anterior.getUTCDate()-1);
+ // La apertura Romo admite la jornada de ayer al operar después de medianoche.
+ // El recibo debe usar la MISMA regla; no cambiar la fecha de ventas.
+ ok(fecha===diaInicio||fecha===anterior.toISOString().slice(0,10),
+  'El turno no corresponde a la jornada operativa declarada');
  const ventas=amount(cierre.venta,'ventas');
  const pedidos=amount(cierre.pedidos,'pedidos');
  ok(pedidos<=10000,'Cantidad de pedidos fuera de rango');
@@ -65,6 +72,30 @@ export function prepararResumenCierreRomoDuenosQA(cierre){
   'La diferencia requiere un motivo registrado');
  // La venta ya contiene los cobros a clientes. Ni reparto, ni propinas,
  // ni gastos, ni caja chica son ingresos adicionales.
+
+ // Las rectificaciones de otros cierres son dinero de ESTE turno pero no
+ // ventas. Referenciarlas para que el backend exija sus recibos v2 en Neon.
+ const ajustesV2=(cierre.detalle?.rectificacionesPostCierre||[]);
+ ok(Array.isArray(ajustesV2)&&ajustesV2.length<=200,
+  'Demasiados ajustes de cierres anteriores');
+ const fuentesV2=new Set();
+ const referenciaV2=ajustesV2.map(a=>{
+  ok(typeof a.fuenteOriginal==='string'&&
+    /^romo:serena\|\d{4}-\d{2}-\d{2}@[1-9]\d{12,14}$/.test(a.fuenteOriginal)&&
+    a.fuenteRectificacion===a.fuenteOriginal+'|v2'&&
+    a.version===2&&!fuentesV2.has(a.fuenteRectificacion)&&
+    METHODS.has(a.medio)&&Number.isSafeInteger(a.delta)&&
+    a.delta!==0&&Math.abs(a.delta)<=100000000,
+   'Referencia del recibo v2 inválida o duplicada');
+  fuentesV2.add(a.fuenteRectificacion);
+  return {fuente:a.fuenteRectificacion,delta:a.delta,medio:a.medio};
+ }).sort((a,b)=>a.fuente.localeCompare(b.fuente));
+ const sumaV2=referenciaV2.reduce((n,x)=>n+x.delta,0);
+ const efectivoV2=referenciaV2.filter(x=>x.medio==='Efectivo')
+  .reduce((n,x)=>n+x.delta,0);
+ ok(sumaV2===(cierre.rectificacionesPostCierre||0)&&
+  efectivoV2===(cierre.rectificacionesPostCierreEfectivo||0),
+  'Los ajustes v2 no cuadran con la Caja');
  const dat={
   origen:'romo',store_id:STORE,sucursal:'serena',fecha_operativa:fecha,
   turno_ref:turno,fecha_cierre_ms:cierre.fechaMs,
@@ -74,7 +105,9 @@ export function prepararResumenCierreRomoDuenosQA(cierre){
   efectivo_contado:contado,diferencia_efectivo:diferencia,
   caja_chica_inicial:amount(cierre.cajaChicaInicial??0,'caja chica inicial'),
   caja_chica_gastos:amount(cierre.cajaChicaGastos??0,'caja chica gastos'),
-  estado:'pendiente_confirmacion_neon'
+  estado:'pendiente_confirmacion_neon',
+  ...(referenciaV2.length?{ajustes_v2:referenciaV2,
+    ajustes_v2_total:sumaV2,ajustes_v2_efectivo:efectivoV2}:{})
  };
  return Object.freeze(dat);
 }
