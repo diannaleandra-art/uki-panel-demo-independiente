@@ -7,6 +7,7 @@ import {crearPuenteRomoOperativoQA} from './uki-romo-operativo-qa.mjs';
 import {crearSesionPanelUnicoRomoQA} from '../lib/romo-panel-unico-sesion-qa.mjs';
 import {cartaRomoDisponibleQA,obtenerCartaRomoPanelQA} from './uki-romo-catalogo-qa.mjs';
 import {crearTransaccionesPanelUnicoRomoQA} from './uki-romo-transacciones-panel-unico-qa.mjs';
+import {crearCierrePanelUnicoRomoQA} from './uki-romo-cierre-panel-unico-qa.mjs';
 import {crearBandejaRomoMismoPanelQA} from './uki-romo-recepcion-formulario-qa.mjs';
 import {crearGuardadoRomoDesdeFormularioQA} from './uki-romo-guardado-atomico-qa.mjs';
 import {obtenerTurnoRomoFolioQA} from './uki-romo-folio-turno-qa.mjs';
@@ -92,5 +93,23 @@ window.ukiRomoSolicitudesGuardarPanelUnicoQA=crearGuardadoRomoDesdeFormularioQA(
   const aplicar=window.ukiRomoAplicarConfirmadoPanelUnicoQA;
   if(typeof aplicar!=='function')throw Error('No está disponible el panel operativo de Romo');
   await aplicar({estado,revision,tipo:'pedido_carta',detalle:{pedidoId}});
+ }
+});
+
+/*
+ * Cierre definitivo: ÚNICAMENTE el POST atómico de Romo (snapshot y
+ * constancia juntos). Este controlador queda desactivado en QA y no
+ * añade botones ni escrituras a la página de consulta o a Uki oficial.
+ * Jamás reutilizar session.guardar() para cerrar un turno.
+ */
+window.ukiRomoCierreDefinitivoPanelUnicoQA=crearCierrePanelUnicoRomoQA({
+ sesion:session,
+ obtenerVisible:visibleRomoPanelUnicoQA,
+ validarEstado:(datos,sucursal)=>
+  window.ukiRomoValidarEstadoSucursalQA?.(datos,sucursal)===true,
+ aplicarConfirmado:async({estado,revision,tipo,detalle})=>{
+  const aplicar=window.ukiRomoAplicarConfirmadoPanelUnicoQA;
+  if(typeof aplicar!=='function')throw Error('No se puede confirmar la pantalla');
+  await aplicar({estado,revision,tipo,detalle});
  }
 });
