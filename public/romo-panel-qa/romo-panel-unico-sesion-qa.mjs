@@ -32,13 +32,39 @@ const PREDETERMINADOS_ROMO=Object.freeze({
 });
 const ordenarRecursivo=v=>Array.isArray(v)?v.map(ordenarRecursivo):
  hasOwn(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,ordenarRecursivo(v[k])])):v;
-function firmaOperativaRomo(datos){
+function cajaDeVistaSinMovimientosRomo(caja){
+ if(!hasOwn(caja)||Object.keys(caja).sort().join('|')!==
+    'apps|base|baseConfirmada|cajaChica|desdeMs|inicioMs|pagoDelivery|pagoDeliveryMedio')
+  return false;
+ return hasOwn(caja.apps)&&Object.keys(caja.apps).length===0&&
+  caja.base===0&&caja.baseConfirmada===false&&
+  hasOwn(caja.cajaChica)&&caja.cajaChica.inicial===0&&
+  Array.isArray(caja.cajaChica.gastos)&&caja.cajaChica.gastos.length===0&&
+  Object.keys(caja.cajaChica).length===2&&
+  caja.pagoDelivery===0&&caja.pagoDeliveryMedio==='Efectivo'&&
+  caja.desdeMs===0&&Number.isSafeInteger(caja.inicioMs)&&caja.inicioMs>0;
+}
+function firmaOperativaRomo(datos,original=null){
  if(!hasOwn(datos)||datos.suc!==ROMO_UI_SUCURSAL_QA)return null;
  const limpio={};
  for(const [k,v] of Object.entries(datos))
   if(!UI_TRANSIENTES_ROMO.has(k))limpio[k]=v;
  for(const [k,v] of Object.entries(PREDETERMINADOS_ROMO))
   if(!Object.prototype.hasOwnProperty.call(limpio,k))limpio[k]=v;
+ if(hasOwn(original)&&original.suc===ROMO_UI_SUCURSAL_QA){
+  // Solo normalizar campos que el render() existente genera en consulta
+  // aunque Neon no los tuviera. No se guardan en la cancelación.
+  if(!Object.prototype.hasOwnProperty.call(original,'fechaOperativa'))
+   delete limpio.fechaOperativa;
+  if(hasOwn(limpio.cajasDiarias)){
+   const cajas={...limpio.cajasDiarias};
+   const iniciales=hasOwn(original.cajasDiarias)?original.cajasDiarias:{};
+   for(const [clave,caja] of Object.entries(cajas))
+    if(!Object.prototype.hasOwnProperty.call(iniciales,clave)&&
+       cajaDeVistaSinMovimientosRomo(caja))delete cajas[clave];
+   limpio.cajasDiarias=cajas;
+  }
+ }
  return JSON.stringify(ordenarRecursivo(limpio));
 }
 
@@ -185,6 +211,17 @@ export function crearSesionPanelUnicoRomoQA({
    operacionAtomicaPendiente=false;
    return Object.freeze({ok:true,revision});
   },
+  /** Copia exacta de la última revisión descifrada y confirmada por Neon.
+   * Nunca utiliza caja generada por render() o filtros del teléfono.
+   */
+  estadoOperativoConfirmado(){
+   if(guardadoEnCurso||operacionAtomicaPendiente)
+    throw Error('Hay una operación en progreso, reabre Romo');
+   const current=requireSession();
+   if(!Number.isSafeInteger(current.revision)||current.revision<1)
+    throw Error('No existe una revisión confirmada de Romo');
+   return JSON.parse(current.ultimoEstado);
+  },
   /** Confirma que el estado visible parte de la revisión descifrada
    * y no arrastra ediciones locales de pedidos/caja sin guardar.
    * Ignora solamente los campos de presentación, nunca los monetarios.
@@ -196,8 +233,8 @@ export function crearSesionPanelUnicoRomoQA({
    try{
     validarDatosRomo(datos,validarEstado);
     const esperado=JSON.parse(sesion.ultimoEstado);
-    return firmaOperativaRomo(datos)!==null&&
-     firmaOperativaRomo(datos)===firmaOperativaRomo(esperado);
+    return firmaOperativaRomo(datos,esperado)!==null&&
+     firmaOperativaRomo(datos,esperado)===firmaOperativaRomo(esperado,esperado);
    }catch{return false;}
   },
   estado(){
