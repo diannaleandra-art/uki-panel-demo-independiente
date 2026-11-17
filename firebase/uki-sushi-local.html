@@ -1107,9 +1107,23 @@ async function entrarSuc(){
  }catch(e){aviso(esRomo?"Romo todavía no pudo abrirse. Revisa la cuenta Google, la clave habitual y la conexión independiente. No se guardó ningún movimiento.":"Clave incorrecta, datos dañados o cifrado no disponible.");}
 }
 async function salirSuc(){
- if(ukiSolicitudWhatsAppActiva)ukiWhatsAppPausarRevision();
- if(S.suc){const ok=await guardarEnLocalStorage();if(!ok)return;await colaGuardado;}
- if(S.suc===ROMO_SUCURSAL_QA)window.ukiRomoSesionRemotaQA?.cerrar();
+ if(S.suc===ROMO_SUCURSAL_QA){
+  // Al cerrar Romo NO se debe invocar el guardado de Uki, y tampoco
+  // cerrar una sesión con CAS pendiente. La sesión Neon valida su propio cierre.
+  if(S.vista==='nuevo'&&ukiBorradorTieneContenido()&&
+     !window.confirm('Este formulario de Romo no está guardado. ¿Salir y descartarlo?'))
+   return;
+  try{window.ukiRomoSesionRemotaQA?.cerrar();}
+  catch(e){
+   aviso('Romo todavía confirma una operación. Revisa el resultado antes de salir.');
+   return;
+  }
+ }else if(S.suc){
+  // Comportamiento oficial de ambas sucursales Uki, sin cambios.
+  if(ukiSolicitudWhatsAppActiva)ukiWhatsAppPausarRevision();
+  const ok=await guardarEnLocalStorage();if(!ok)return;
+  await colaGuardado;
+ }
  revisionGuardado++;claveSesion=null;saltSesion=null;sucursalSesion=null;
  cargarDesdeLocalStorage();nuevoDraft();
  if(typeof window.ukiQASessionLeft==="function")window.ukiQASessionLeft();
