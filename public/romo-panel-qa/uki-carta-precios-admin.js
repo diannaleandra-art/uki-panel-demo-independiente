@@ -162,8 +162,18 @@ function showTab(){
    // que el usuario conectado sea dueño autorizado de Romo.
    container.hidden=true;
    container.style.display='none';
-   if(typeof window.romoMontarCartaEditorSeguroQA==='function')
-    void window.romoMontarCartaEditorSeguroQA({container,storeId:'romo:serena'});
+   const avisoCarta=texto=>{
+    if(container.isConnected&&state.tab==='precios'&&esSucursalRomoQA())
+     info('ukiAdminCurrentDescription',texto);
+   };
+   if(typeof window.romoMontarCartaEditorSeguroQA==='function'){
+    avisoCarta('Comprobando acceso al editor de Romo…');
+    void Promise.resolve(window.romoMontarCartaEditorSeguroQA({container,storeId:'romo:serena'}))
+     .then(autorizado=>{
+      if(autorizado!==true)avisoCarta('Carta y precios de Romo aún no disponible: falta confirmar la conexión segura o el permiso de dueños. No se cambiaron productos.');
+     })
+     .catch(()=>avisoCarta('No se pudo comprobar el acceso al editor de Romo. No se cambiaron productos.'));
+   }else avisoCarta('Editor de Romo pendiente de conexión. No se cambiaron productos.');
   }
  }else if(state.tab==='precios'&&!state.ready)void loadPrices();
  if(state.tab==='reportes')void loadReponer();
