@@ -77,6 +77,14 @@ test('Rechaza cambios en pedidos, caja, cobros, fecha registrada y nuevos campos
  session.cerrar();
 });
 
+test('La fecha de pantalla puede avanzar; el candidato usa la fecha de Neon',async()=>{
+ const {session}=create();await enter(session);
+ const copia=session.estadoOperativoConfirmado();
+ const visible=clone(copia);visible.fechaOperativa='2026-11-17';
+ assert.equal(session.coincideEstadoOperativo(visible),true);
+ assert.equal(session.estadoOperativoConfirmado().fechaOperativa,undefined);
+ session.cerrar();
+});
 test('Una caja existente alterada no se confunde con caja virtual',async()=>{
  const {session}=create();await enter(session);
  const snapshot=session.estadoOperativoConfirmado();
