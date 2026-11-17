@@ -6786,7 +6786,7 @@ async function ukiRomoCambiarEstadoQA(id,accion){
    });
    const verificador=await import('./uki-romo-cancelacion-diff-qa.mjs');
    verificador.comprobarSoloCancelacionRomoQA(anterior,copia,{
-    pedidoId,responsable,motivo,registradoEn:ahoraMs
+    pedidoId,responsable,motivo,categoria,registradoEn:ahoraMs
    });
   }else{
    const mod=await import('./uki-romo-entrega-atomica-qa.mjs');
