@@ -32,7 +32,7 @@
     const headers={Authorization:'Bearer '+token,Accept:'application/json'};
     if(method==='POST')headers['Content-Type']='application/json';
     const res=await fetch(API,{
-      method,credentials:'omit',cache:'no-store',headers,
+      method,credentials:'same-origin',cache:'no-store',headers,
       ...(method==='POST'?{body:JSON.stringify(payload)}:{})
     });
     const json=await res.json().catch(()=>null);
