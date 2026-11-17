@@ -63,7 +63,8 @@ function configuration(env){
    cartaPreview:null,
   netlifyCarta:env.ROMO_NETLIFY_BRIDGE_QA_ENABLED==='true'?
    'https://romos-sushi-qa-privado.netlify.app':null,
-  read,write};
+  read,write,
+  sharedRead:require('../lib/romo-origen-seguro-qa.cjs').origenUnificadoLecturaRomoQA(env)};
 }
 module.exports=async function romoSolicitudesCartaQA(req,res){
  res.setHeader('Cache-Control','private,no-store,max-age=0');
@@ -74,6 +75,8 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
  const method=String(req.method||'').toUpperCase();
  if(!['GET','POST','PATCH','OPTIONS'].includes(method))return fail(res,405,'Método no permitido');
  const actualOrigin=String(req.headers?.origin||'');
+ const {resolverOrigenLecturaUnificadaRomoQA}=require('../lib/romo-origen-seguro-qa.cjs');
+ const compartido=resolverOrigenLecturaUnificadaRomoQA(req,conf.origin,conf.sharedRead)?.compartido===true;
  const host=String(req.headers?.host||'').toLowerCase();
  // Solo GET puede proceder de la misma página sin header Origin.
  const panel=(actualOrigin===conf.origin)||
@@ -81,11 +84,11 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
  const carta=(!!conf.carta&&actualOrigin===conf.carta)||
   (!!conf.cartaPreview&&actualOrigin===conf.cartaPreview)||
   (!!conf.netlifyCarta&&actualOrigin===conf.netlifyCarta);
- const allowed=(method==='POST'||(method==='GET'&&carta))?carta:
-  method==='OPTIONS'?(actualOrigin===conf.origin||carta):panel;
+ const allowed=compartido||((method==='POST'||(method==='GET'&&carta))?carta:
+  method==='OPTIONS'?(actualOrigin===conf.origin||carta):panel);
  if(!allowed)return fail(res,403,'Origen no autorizado');
  if(actualOrigin)res.setHeader('Access-Control-Allow-Origin',actualOrigin);
- res.setHeader('Access-Control-Allow-Methods','GET,POST,PATCH,OPTIONS');
+ res.setHeader('Access-Control-Allow-Methods',compartido?'GET,OPTIONS':'GET,POST,PATCH,OPTIONS');
  res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type');
  if(method==='OPTIONS')return res.status(204).end();
  if(method==='POST'&&process.env.ROMO_SOLICITUDES_PUBLICO_QA_ENABLED!=='true')
