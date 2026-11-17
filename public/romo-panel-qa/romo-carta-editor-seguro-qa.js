@@ -45,6 +45,8 @@
     const root=state.root,box=$(root,'[data-romo-carta-form]');
     if(!root||!box)return;
     clear(box);
+    // El modo lectura muestra productos, nunca controles de edición.
+    if(state.current?.edicionHabilitada!==true)return;
     const p=chosen();
     if(!p)return;
     const title=el('h3','Editar · '+p.name);
@@ -168,7 +170,9 @@
       open.type='button';open.style.cssText='background:white;color:#9b101c;border:1px solid #a11c27;border-radius:9px;padding:9px 13px';
       open.onclick=()=>{state.selectedSku=p.sku;renderForm();
         $(root,'[data-romo-carta-form]')?.scrollIntoView({block:'start',behavior:'smooth'});};
-      row.append(info,open);container.append(row);
+      if(state.current?.edicionHabilitada===true)row.append(info,open);
+      else row.append(info);
+      container.append(row);
     }
   }
   async function reload(){
@@ -182,8 +186,9 @@
       state.current=result;
       const initialize=$(state.root,'[data-romo-initialize]');
       if(initialize){
-        initialize.hidden=result.revision!==0;
-        initialize.style.display=result.revision===0?'block':'none';
+        const puedeIniciar=result.revision===0&&result.edicionHabilitada===true;
+        initialize.hidden=!puedeIniciar;
+        initialize.style.display=puedeIniciar?'block':'none';
       }
       const category=$(state.root,'[data-romo-carta-category]');
       const before=category.value;
@@ -191,7 +196,9 @@
       for(const c of result.categories)category.add(new Option(c.nombre,c.slug));
       if([...category.options].some(x=>x.value===before))category.value=before;
       renderList();renderForm();
-      status('Catálogo leído. Las ediciones solo son válidas con revisión '+result.revision+'.');
+      status(result.edicionHabilitada===true?
+        'Catálogo leído. Las ediciones solo son válidas con revisión '+result.revision+'.':
+        'Catálogo de Romo consultado. La edición de productos sigue desactivada.');
     }catch(error){
       state.current=null;state.selectedSku='';
       renderList();renderForm();
@@ -261,7 +268,8 @@
     initialize.hidden=true;
     initialize.style.cssText='display:none;margin:8px 0;padding:11px;border-radius:9px;background:#191919;color:white;font-weight:700';
     initialize.onclick=async()=>{
-      if(state.busy||state.current?.revision!==0||!state.current?.baseSha256)return;
+      if(state.busy||state.current?.edicionHabilitada!==true||
+         state.current?.revision!==0||!state.current?.baseSha256)return;
       if(!window.confirm('¿Confirmas la carta actual de Romo como versión inicial sin cambiar precios ni productos? Esta acción registra tu cuenta y fecha.'))return;
       state.busy=true;initialize.disabled=true;
       status('Registrando versión inicial sin cambiar productos…');
