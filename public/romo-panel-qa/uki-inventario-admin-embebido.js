@@ -91,7 +91,7 @@ async function requestRomo(action,data={},branch=X.branch){
   }else throw Error('Operación de inventario no autorizada para Romo.');
  }
  const response=await fetch('/api/romo-inventario-qa',{
-  method:isRead?'GET':'POST',credentials:'omit',cache:'no-store',
+  method:isRead?'GET':'POST',credentials:'same-origin',cache:'no-store',
   headers:{Authorization:'Bearer '+token,...(isRead?{}:{'Content-Type':'application/json'})},
   ...(isRead?{}:{body:JSON.stringify(body)})
  });
@@ -243,7 +243,7 @@ async function romoInicializarInventarioPlantilla(){
 async function romoPinInventarioGestion(action,code){
  const token=await window.ukiInventarioToken?.();
  if(typeof token!=='string'||token.length<30)throw Error('Inicia sesión Google como dueño de Romo.');
- const response=await fetch('/api/romo-pin-inventario-qa',{method:'POST',credentials:'omit',cache:'no-store',
+ const response=await fetch('/api/romo-pin-inventario-qa',{method:'POST',credentials:'same-origin',cache:'no-store',
   headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
   body:JSON.stringify(action==='estado'?{action}:{action,codigo:code})
  });
