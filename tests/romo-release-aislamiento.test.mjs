@@ -84,3 +84,29 @@ test('API privadas de Romo preservan sesión Vercel en Preview sin eliminar Goog
   assert.match(source,/Authorization:\s*['"]Bearer /);
  }
 });
+
+
+test('Romo QA mantiene autenticación en banner, catálogo e inventario sin abrir ventas',()=>{
+ const files=[
+  '../public/romo-panel-qa/romo-banner-admin.js',
+  '../public/romo-panel-qa/romo-carta-editor-seguro-qa.js',
+  '../public/romo-panel-qa/romo-inventario-trabajador.html'
+ ];
+ for(const path of files){
+  const src=read(path);
+  assert.match(src,/credentials:\s*['"]same-origin['"]/);
+  assert.doesNotMatch(src,/credentials:\s*['"]omit['"]/);
+ }
+ const inv=read('../public/romo-panel-qa/uki-inventario-admin-embebido.js');
+ assert.match(inv,/fetch\('\/api\/romo-inventario-qa',\{\s*method:isRead\?'GET':'POST',credentials:'same-origin'/);
+ assert.match(inv,/fetch\('\/api\/romo-pin-inventario-qa',\{method:'POST',credentials:'same-origin'/);
+ // La API heredada de Uki permanece separada; no se cambia su autenticación.
+ assert.match(inv,/fetch\(API,\{method:'POST',mode:'cors',credentials:'omit'/);
+ const tabs=read('../public/romo-panel-qa/uki-carta-precios-admin.js');
+ assert.match(tabs,/inventario:\[[^\]]*'romoInvWorkerAccess'/);
+ assert.match(tabs,/const ids=\[[\s\S]*?'romoInvWorkerAccess'/);
+ assert.match(tabs,/Carta y precios de Romo aún no disponible/);
+ const api=read('../api/romo-estado-cifrado-panel-qa.js');
+ assert.match(api,/ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED/);
+ assert.match(api,/ROMO_PANEL_PILOTO_MANUAL_QA_ENABLED/);
+});
