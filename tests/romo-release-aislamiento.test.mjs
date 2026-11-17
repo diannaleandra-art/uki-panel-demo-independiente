@@ -75,8 +75,8 @@ test('API privadas de Romo preservan sesión Vercel en Preview sin eliminar Goog
  ];
  for(const file of files){
   const source=read(file);
-  assert.match(source,/credentials:\\s*['\"]same-origin['\"]/);
-  assert.doesNotMatch(source,/credentials:\\s*['\"]omit['\"]/);
-  assert.match(source,/Authorization:\\s*['\"]Bearer /);
+  assert.match(source,/credentials:\s*['"]same-origin['"]/);
+  assert.doesNotMatch(source,/credentials:\s*['"]omit['"]/);
+  assert.match(source,/Authorization:\s*['"]Bearer /);
  }
 });
