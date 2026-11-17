@@ -6777,17 +6777,23 @@ async function ukiRomoCambiarEstadoQA(id,accion){
  ukiRomoOperandoPedidoQA=true;
  try{
   const anterior=datosSoloSucursal();
-  const copia=JSON.parse(JSON.stringify(anterior));
+  // El pedido que se cancela debe provenir de la última copia operativa
+  // confirmada en Neon; no arrastrar cambios de caja sin guardar.
+  if(accion==='cancelar'&&
+     (typeof sesion.coincideEstadoOperativo!=='function'||
+      sesion.coincideEstadoOperativo(anterior)!==true))
+   throw Error('Hay cambios sin conciliar. Reabre Romo antes de cancelar.');
+  let copia=JSON.parse(JSON.stringify(anterior));
   const ahoraMs=Date.now();
   if(accion==='cancelar'){
-   const mod=await import('./uki-romo-cancelacion-atomica-qa.mjs');
-   mod.prepararCancelacionRomoQA(copia,{
+   const conciliador=await import('./uki-romo-conciliacion-cancelacion-qa.mjs');
+   const propuesta=conciliador.prepararConciliacionCancelacionRomoQA(anterior,{
     pedidoId,responsable,motivo,categoria,registradoEn:ahoraMs
    });
-   const verificador=await import('./uki-romo-cancelacion-diff-qa.mjs');
-   verificador.comprobarSoloCancelacionRomoQA(anterior,copia,{
-    pedidoId,responsable,motivo,categoria,registradoEn:ahoraMs
-   });
+   if(propuesta.resumen?.guardadoEnNeon!==false||
+      propuesta.resumen?.modificacionCaja!==false)
+    throw Error('La conciliación no está preparada para guardar con seguridad');
+   copia=propuesta.estadoPropuesto;
   }else{
    const mod=await import('./uki-romo-entrega-atomica-qa.mjs');
    mod.prepararEntregaRomoQA(copia,{
