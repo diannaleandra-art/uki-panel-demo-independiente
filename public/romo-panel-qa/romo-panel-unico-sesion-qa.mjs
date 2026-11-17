@@ -17,6 +17,30 @@ const UKI_EXACT=new Map([
  ['Uki La Serena','uki:serena']
 ]);
 const hasOwn=x=>!!x&&typeof x==='object'&&!Array.isArray(x);
+// Comparación de datos operativos, no de navegación. La UI de Uki cambia
+// vista/filtros durante render sin constituir una edición de caja o pedido.
+const UI_TRANSIENTES_ROMO=new Set([
+ 'pinSuc','codigos','vista','busy','msg','confirmCierre',
+ 'filtro','filtroFecha','filtroCliente','romoSeleccionadoQA','romoIngresadoQA'
+]);
+const PREDETERMINADOS_ROMO=Object.freeze({
+ base:18000,pedidos:[],gastos:[],retiros:[],propinas:[],cierres:[],apps:{},
+ pagoDelivery:0,pagoDeliveryMedio:'Efectivo',deliveriesManuales:[],
+ ajustesHistoricos:[],borradores:[],solicitudesWhatsApp:[],
+ cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},
+ incidencias:[],nextIncidenciaId:1,nextId:1
+});
+const ordenarRecursivo=v=>Array.isArray(v)?v.map(ordenarRecursivo):
+ hasOwn(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,ordenarRecursivo(v[k])])):v;
+function firmaOperativaRomo(datos){
+ if(!hasOwn(datos)||datos.suc!==ROMO_UI_SUCURSAL_QA)return null;
+ const limpio={};
+ for(const [k,v] of Object.entries(datos))
+  if(!UI_TRANSIENTES_ROMO.has(k))limpio[k]=v;
+ for(const [k,v] of Object.entries(PREDETERMINADOS_ROMO))
+  if(!Object.prototype.hasOwnProperty.call(limpio,k))limpio[k]=v;
+ return JSON.stringify(ordenarRecursivo(limpio));
+}
 
 export function seleccionarAlmacenamientoPanelQA(sucursal){
  if(UKI_EXACT.has(sucursal))
@@ -160,6 +184,21 @@ export function crearSesionPanelUnicoRomoQA({
    current.ultimoEstado=JSON.stringify(estado);
    operacionAtomicaPendiente=false;
    return Object.freeze({ok:true,revision});
+  },
+  /** Confirma que el estado visible parte de la revisión descifrada
+   * y no arrastra ediciones locales de pedidos/caja sin guardar.
+   * Ignora solamente los campos de presentación, nunca los monetarios.
+   * NO consulta Neon en tiempo real: el CAS valida la revisión al guardar.
+   */
+  coincideEstadoOperativo(datos){
+   if(!sesion||sesion.conflicto||guardadoEnCurso||operacionAtomicaPendiente||
+      !Number.isSafeInteger(sesion.revision)||sesion.revision<1)return false;
+   try{
+    validarDatosRomo(datos,validarEstado);
+    const esperado=JSON.parse(sesion.ultimoEstado);
+    return firmaOperativaRomo(datos)!==null&&
+     firmaOperativaRomo(datos)===firmaOperativaRomo(esperado);
+   }catch{return false;}
   },
   estado(){
    const current=requireSession();
