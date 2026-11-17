@@ -38,9 +38,10 @@ window.ukiRomoTransaccionesPanelUnicoQA=crearTransaccionesPanelUnicoRomoQA({
  sesion:session,
  obtenerVisible:()=>{
   const visible=window.ukiQAGet?.();
-  if(visible?.suc!=='Romo’s Sushi La Serena')return null;
-  const remoto=session.estado();
-  return {revision:remoto.revision,estado:visible.estado};
+  const revision=window.ukiRomoRevisionVistaPanelUnicoQA;
+  if(visible?.suc!=='Romo’s Sushi La Serena'||
+     !Number.isSafeInteger(revision)||revision<1)return null;
+  return {revision,estado:visible.estado};
  },
  validarEstado:(datos,sucursal)=>
   window.ukiRomoValidarEstadoSucursalQA?.(datos,sucursal)===true,
@@ -61,9 +62,10 @@ window.ukiRomoTransaccionesPanelUnicoQA=crearTransaccionesPanelUnicoRomoQA({
  */
 const bandejaRomoPanelUnicoQA=crearBandejaRomoMismoPanelQA();
 const visibleRomoPanelUnicoQA=()=>{
- const v=window.ukiQAGet?.();
- if(v?.suc!=='Romo’s Sushi La Serena')return null;
- return {revision:session.estado().revision,estado:v.estado};
+ const v=window.ukiQAGet?.(),revision=window.ukiRomoRevisionVistaPanelUnicoQA;
+ if(v?.suc!=='Romo’s Sushi La Serena'||
+    !Number.isSafeInteger(revision)||revision<1)return null;
+ return {revision,estado:v.estado};
 };
 window.ukiRomoSolicitudesGuardarPanelUnicoQA=crearGuardadoRomoDesdeFormularioQA({
  bandeja:bandejaRomoPanelUnicoQA,
