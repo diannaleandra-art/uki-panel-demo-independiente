@@ -781,11 +781,39 @@ async function ukiConsultarRomoPanelUnicoQA(){
      !Number.isFinite(Number(datos.base))||
      !Number.isFinite(Number(datos.cajaChica?.inicial)))
    throw Error('No se confirmó la copia cifrada de Romo.');
-  // No ingresar a S.suc ni almacenar pedidos o claves: sólo contadores.
+  // Los pedidos ya guardados NO son solicitudes pendientes de la carta.
+  // Reutiliza las categorías y el origen del panel Uki, sin su estado global S.
+  const conError=new Set((datos.incidencias||[]).map(x=>x.pedidoId));
+  const pedidosGuardados=datos.pedidos.filter(p=>p?.suc===ROMO_SUCURSAL_QA)
+   .slice().sort((a,b)=>fechaRegistroMs(b)-fechaRegistroMs(a))
+   .slice(0,2000).map(p=>{
+    const nro=Number(p.numeroTurno);
+    return Object.freeze({
+     id:String(p.id??'').slice(0,40),
+     folio:Number.isSafeInteger(nro)&&nro>0?'Turno #'+String(nro).padStart(2,'0'):
+       'Interno #'+String(p.id??'').slice(0,40),
+     codigoCarta:String(p.codigoCarta||'').slice(0,60),
+     cliente:String(p.cliente||'').slice(0,80),
+     telefono:String(p.telefono||'').slice(0,30),
+     codigoCliente:String(p.codigoCliente||'').slice(0,35),
+     fecha:String(p.fechaISO||'').slice(0,30),
+     modalidad:String(p.modalidad||'').slice(0,40),
+     origen:ukiOrigenPedido(p),
+     estado:String(p.estado||'').slice(0,40),
+     pagado:p.pagado===true,
+     total:Number.isSafeInteger(p.total)&&p.total>=0?p.total:null,
+     categorias:Object.freeze(UKI_CATEGORIAS_PEDIDOS
+      .filter(([tipo])=>ukiCoincideCategoriaPedido(p,tipo,conError))
+      .map(([tipo])=>tipo))
+    });
+   });
+  // No ingresar en S.suc, copiar registros a Uki ni ejecutar guardados.
   ++romoConsultaSolicitudAreaQA;
   romoConsultaAreaPanelUnicoQA=null;
+  romoConsultaCategoriaPedidosQA='todos';romoConsultaBusquedaPedidosQA='';
   romoConsultaUnificadaQA=Object.freeze({
    revision:remoto.revision,pedidos:datos.pedidos.length,
+   registrados:Object.freeze(pedidosGuardados),
    cierres:datos.cierres.length,base:Number(datos.base),
    cajaChica:Number(datos.cajaChica.inicial)
   });
@@ -795,6 +823,7 @@ async function ukiConsultarRomoPanelUnicoQA(){
  finally{if(input)input.value='';}
 }
 function ukiRomoVolverDesdeConsultaQA(){
+ romoConsultaCategoriaPedidosQA='todos';romoConsultaBusquedaPedidosQA='';
  ++romoConsultaSolicitudAreaQA;
  romoConsultaAreaPanelUnicoQA=null;
  romoConsultaUnificadaQA=null;S.pinSuc=ROMO_SUCURSAL_QA;
@@ -877,14 +906,68 @@ async function ukiRomoConsultarAreaPanelUnicoQA(area){
  }
  if(romoConsultaUnificadaQA&&!S.suc&&!S.pinSuc&&S.romoSeleccionadoQA)render();
 }
+// Pedidos registrados y solicitudes son conceptos distintos en el flujo Uki.
+let romoConsultaCategoriaPedidosQA='todos';
+let romoConsultaBusquedaPedidosQA='';
+function ukiRomoFiltrarPedidosGuardadosQA(categoria){
+ if(!UKI_CATEGORIAS_PEDIDOS.some(([tipo])=>tipo===categoria))return;
+ if(!romoConsultaUnificadaQA||S.suc||S.pinSuc)return;
+ romoConsultaCategoriaPedidosQA=categoria;render();
+}
+function ukiRomoBuscarPedidosGuardadosQA(){
+ if(!romoConsultaUnificadaQA||S.suc||S.pinSuc)return;
+ romoConsultaBusquedaPedidosQA=String($('romoBuscarPedidosGuardadosQA')?.value||'').trim().slice(0,120);
+ render();
+}
+function ukiRomoPedidosGuardadosConsultaHTMLQA(){
+ const v=romoConsultaUnificadaQA;
+ if(!v)return '';
+ const registros=Array.isArray(v.registrados)?v.registrados:[];
+ const categoria=romoConsultaCategoriaPedidosQA;
+ const busqueda=romoConsultaBusquedaPedidosQA;
+ const opciones=UKI_CATEGORIAS_PEDIDOS.filter(([tipo])=>
+  !['por-confirmar','rechazados'].includes(tipo));
+ const visibles=registros.filter(p=>
+  p.categorias.includes(categoria)&&
+  ukiBusquedaPorDatos(busqueda,[p.cliente,p.telefono,p.codigoCliente,
+   p.codigoCarta,p.id,p.folio]));
+ const filtros='<div class="chips" role="group" aria-label="Filtros de pedidos de Romo">'+
+  opciones.map(([tipo,nombre])=>'<button type="button" class="chip'+
+   (tipo===categoria?' on':'')+'" onclick="ukiRomoFiltrarPedidosGuardadosQA(\''+
+   tipo+'\')">'+esc(nombre)+'</button>').join('')+'</div>';
+ const buscador='<form onsubmit="ukiRomoBuscarPedidosGuardadosQA();return false;">'+
+  '<label for="romoBuscarPedidosGuardadosQA">Buscar por nombre, WhatsApp, código de cliente o pedido</label>'+
+  '<input id="romoBuscarPedidosGuardadosQA" type="search" maxlength="120" value="'+
+   esc(busqueda)+'" placeholder="Nombre o número de pedido">'+
+  '<button type="submit" class="sm">Buscar</button></form>';
+ const filas=visibles.slice(0,40).map(p=>'<div class="card">'+
+  '<b>'+esc(p.folio)+(p.codigoCarta?' · Carta #'+esc(p.codigoCarta):'')+'</b>'+
+  '<p>'+esc(p.cliente||'Cliente sin nombre')+' · '+esc(p.modalidad||'Modalidad sin confirmar')+
+  ' · '+esc(p.origen)+'</p>'+
+  '<p class="muted">'+esc(p.fecha||'Sin fecha')+' · '+esc(p.estado||'Estado por revisar')+
+  ' · '+(p.pagado?'Pagado':'Por cobrar')+
+  ' · '+(p.total===null?'Total por revisar':fmt(p.total))+'</p></div>').join('');
+ return '<section class="card" aria-label="Pedidos registrados de Romo">'+
+  '<h3>Pedidos registrados · '+esc(v.pedidos)+'</h3>'+
+  '<p class="muted">Se leen del estado cifrado de Romo. No son solicitudes nuevas y no se cobran otra vez.</p>'+
+  filtros+buscador+'<p class="muted">'+visibles.length+' resultado(s)'+
+  (v.pedidos>registros.length?' · se consultaron los últimos '+registros.length:'')+
+  (visibles.length>40?' · se muestran los primeros 40':'')+'</p>'+
+  (filas||'<p class="muted">No hay pedidos para este filtro.</p>')+'</section>';
+}
 function ukiRomoAreaConsultaHTMLQA(){
  const a=romoConsultaAreaPanelUnicoQA;
  if(!a)return '<p class="muted">Selecciona una sección para consultar los datos independientes de Romo.</p>';
- if(a.estado==='cargando')return '<p class="muted" role="status">Consultando '+esc(a.area)+' en Romo…</p>';
- if(a.estado==='error')return '<p class="aviso" role="status">'+esc(a.mensaje)+'</p>';
+ // Los pedidos guardados en Neon son visibles incluso si falla la consulta
+ // independiente de solicitudes por confirmar. No contar solicitudes como ventas.
+ const registrados=a.area==='pedidos'?ukiRomoPedidosGuardadosConsultaHTMLQA():'';
+ if(a.estado==='cargando')return registrados+
+  '<p class="muted" role="status">Consultando '+esc(a.area)+' en Romo…</p>';
+ if(a.estado==='error')return registrados+
+  '<p class="aviso" role="status">'+esc(a.mensaje)+'</p>';
  const lista=a.filas.map(x=>'<div style="padding:9px 0;border-bottom:1px solid #eee">'+
   '<b>'+esc(x.nombre)+'</b><div class="muted">'+esc(x.detalle)+'</div></div>').join('');
- return '<div role="status" class="muted">'+esc(a.subtitulo)+
+ return registrados+'<div role="status" class="muted">'+esc(a.subtitulo)+
   ' · '+esc(a.total)+' registros'+(a.total>30?' · se muestran los primeros 30':'')+'</div>'+
   '<div>'+lista+'</div>';
 }
@@ -910,6 +993,7 @@ function ukiResumenRomoConsultaQA(){
 
 function ukiVolverAlSelectorLocales(){
  if(S.suc)return;
+ romoConsultaCategoriaPedidosQA='todos';romoConsultaBusquedaPedidosQA='';
  ++romoConsultaSolicitudAreaQA;
  romoConsultaAreaPanelUnicoQA=null;
  romoConsultaUnificadaQA=null;
@@ -970,6 +1054,7 @@ async function ukiRomoDarAltaClaveQA(){
 }
 function pedirPin(s){
  if(!SUCURSALES_PANEL_QA.includes(s))return;
+ romoConsultaCategoriaPedidosQA='todos';romoConsultaBusquedaPedidosQA='';
  ++romoConsultaSolicitudAreaQA;
  romoConsultaAreaPanelUnicoQA=null;
  romoConsultaUnificadaQA=null;
