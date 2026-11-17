@@ -59,7 +59,8 @@ export function crearPuenteRomoOperativoQA({
        !result.snapshot||result.snapshot.sucursal!==ROMO_OPERATIVO_SUCURSAL_QA||
        result.snapshot.formato!=='uki-v813-browser'||result.snapshot.version!==1))
     throw new Error('La respuesta no corresponde a Romo La Serena');
-   return Object.freeze({revision:result.revision,snapshot:result.snapshot??null});
+   return Object.freeze({storeId:ROMO_OPERATIVO_ID_QA,revision:result.revision,
+    snapshot:result.snapshot??null});
   },
   /**
    * Sólo sobre cifrado válido, jamás contraseñas, objeto de pedidos claro,
