@@ -30,6 +30,7 @@ function fixture({habilitado=true,wrongStore=false,saveError=false,hold=false,ap
  let visible=estado(),revision=3,revisionVisible=3,guardados=0,aplicados=0,release=null;
  const sesion={
   disponible:()=>true,
+  coincideEstadoOperativo:()=>true,
   estado:()=>({storeId:wrongStore?'uki:arica':'romo:serena',
    revision,conflicto:false}),
   async guardar(copia){
@@ -175,7 +176,7 @@ test('La carta no usa la escritura simple de caja para aceptar solicitudes',()=>
 test('Pedido manual Romo sin pagar reutiliza folio del turno y no toca Uki',()=>{
  const day='2026-11-17',inicio=Date.parse('2026-11-17T10:00:00Z');
  const e={...estado(),nextId:12,fechaOperativa:day,
-  cajasDiarias:{[SUC+'|'+day]:{turnoAbierto:true,inicioMs:inicio,turnoId:day+'@'+inicio}}};
+  cajasDiarias:{[SUC+'|'+day]:{turnoAbierto:true,baseConfirmada:true,inicioMs:inicio,turnoId:day+'@'+inicio}}};
  const borrador={cliente:'Ana',telefono:'56912345678',modalidad:'Retiro',
   medio:'Efectivo',pagado:false,propinaModo:'ninguna',codigoCarta:'',
   items:[{nombre:'Handroll pollo',cant:2,precio:2500,det:'sin salsa'}]};
@@ -196,7 +197,7 @@ test('Pedido manual Romo sin pagar reutiliza folio del turno y no toca Uki',()=>
 test('Pedido manual no permite carta, cobro simulado ni turno cerrado',()=>{
  const day='2026-11-17',inicio=Date.parse('2026-11-17T10:00:00Z');
  const estadoLocal={...estado(),nextId:12,cajasDiarias:{
-  [SUC+'|'+day]:{turnoAbierto:true,inicioMs:inicio,turnoId:day+'@'+inicio}}};
+  [SUC+'|'+day]:{turnoAbierto:true,baseConfirmada:true,inicioMs:inicio,turnoId:day+'@'+inicio}}};
  const draft={cliente:'Ana',modalidad:'Retiro',medio:'Efectivo',
   items:[{nombre:'Handroll pollo',cant:1,precio:2500}]};
  const args={draft,registradoEn:inicio+3000,fechaOperativa:day,confirmoSinPago:true};
@@ -221,4 +222,15 @@ test('Pedido manual se expone solo a través del mismo coordinador CAS desactiva
  assert.match(html,/tipo==='pedido_manual'\|\|tipo==='pedido_carta'/);
  assert.match(html,/nuevoDraft\(\);S\.vista='pedidos'/);
  assert.match(html,/window\.ukiRomoAplicarConfirmadoPanelUnicoQA/);
+});
+
+test('El panel unido no arrastra cambios financieros previos al CAS',async()=>{
+ const f=fixture();
+ // La condición vive en el adaptador de sesión; se comprueba ANTES de escribir.
+ const source=readFileSync(new URL('../firebase/uki-romo-transacciones-panel-unico-qa.mjs',import.meta.url),'utf8');
+ const session=readFileSync(new URL('../lib/romo-panel-unico-sesion-qa.mjs',import.meta.url),'utf8');
+ assert.match(source,/sesion\.coincideEstadoOperativo\(visible\.estado\)===true/);
+ assert.match(session,/CAMPOS_OPERATIVOS/);
+ assert.match(session,/firmaOperativa\(estado\)===firmaOperativa\(JSON\.parse\(current\.ultimoEstado\)\)/);
+ assert.equal(f.guardados(),0);
 });
