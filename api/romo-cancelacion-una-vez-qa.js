@@ -1,11 +1,10 @@
 'use strict';
 /**
- * ROMO — endpoint de CANCELACIÓN ÚNICA en QA, apagado por defecto.
- * Nunca abre las banderas del guardado genérico de caja/pedidos.
- * No se llama desde la UI hasta aprobar manualmente el piloto.
- *
- * No puede inspeccionar AES-GCM: la verificación semántica local es
- * necesaria pero NO demostrable por el backend. Requiere dueño verificado.
+ * ROMO — intención de cancelación QA, apagada por defecto.
+ * Guarda únicamente una constancia fuera del snapshot AES-GCM.
+ * No modifica pedidos ni caja: NO afirma que el pedido esté cancelado.
+ * Nunca abre las banderas del guardado genérico.
+ * No se llama desde la UI hasta probar la reconciliación.
  */
 const {config:configEstado}=require('./romo-estado-cifrado-panel-qa.js')._internalQA;
 const {esOrigenAutorizadoRomoQA}=require('../lib/romo-origen-seguro-qa.cjs');
@@ -46,11 +45,11 @@ module.exports=async function romoCancelarUnicaQA(req,res){
    return send(res,403,'Preflight no autorizado');
   return res.status(204).end();
  }
- if(req.method!=='POST')return send(res,405,'Sólo cancelación aprobada por POST');
+ if(req.method!=='POST')return send(res,405,'Sólo registro de intención QA mediante POST');
  if(String(req.headers?.['content-type']||'').split(';')[0]!=='application/json')
   return send(res,415,'Se requiere JSON');
  if(!req.body||typeof req.body!=='object'||Array.isArray(req.body)||
-    JSON.stringify(req.body).length>2000000)
+    JSON.stringify(req.body).length>1400)
   return send(res,400,'Paquete de cancelación inválido');
  try{
   const neon=require('@neondatabase/serverless').neon(cfg.url);
@@ -66,14 +65,14 @@ module.exports=async function romoCancelarUnicaQA(req,res){
   return res.status(200).json(result);
  }catch(error){
   const msg=String(error?.message||'');
-  if(/No se confirmó una única revisión/.test(msg))
-   return send(res,409,'Confirma el estado en Neon e Historial antes de repetir');
+  if(/Solicitud duplicada, revisión modificada/.test(msg))
+   return send(res,409,'Ya existe una solicitud o la revisión cambió; revisar antes de repetir');
   if(/permiso|Identidad|dueños|autorizad/i.test(msg))
    return send(res,403,'Operación no autorizada');
-  if(/Paquete|Sobre|Cifrado|Formulario|pedido\/revisión|responsable|motivo|cancelación inválid/i.test(msg))
+  if(/Formulario|Pedido y revisión|quién canceló|responsable|motivo|intención de cancelación inválid/i.test(msg))
    return send(res,400,'Solicitud de cancelación inválida');
   // No se revela SQL, tokens, bases ni credenciales.
-  return send(res,503,'No se confirmó el piloto de cancelación');
+  return send(res,503,'No se confirmó la intención de cancelación QA');
  }
 };
 module.exports._internalQA={config};
