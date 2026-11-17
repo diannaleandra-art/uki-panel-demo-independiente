@@ -187,14 +187,17 @@ test('panel único QA consulta áreas Romo sin alterar pedidos Uki',()=>{
  assert.ok(from>0&&until>from);
  const consulta=html.slice(from,until);
  for(const p of ['/api/romo-solicitudes-carta-qa',
-  '/api/romo-inventario-qa','/api/romo-catalogo-lectura-qa'])
+  '/api/romo-inventario-qa','/api/romo-carta-ediciones-seguras-qa'])
   assert.ok(consulta.includes(p));
  assert.match(consulta,/method:'GET'/);
  assert.doesNotMatch(consulta,/method:'POST'/);
  assert.doesNotMatch(consulta,/localStorage\.setItem\(/);
  assert.doesNotMatch(consulta,/session\.guardar\(/);
  assert.match(consulta,/data\?\.storeId!=='romo:serena'/);
- assert.match(consulta,/data\.catalogo\?\.brand!=='romo'/);
+ assert.match(consulta,/data\.readOnly!==true/);
+ assert.match(consulta,/data\.edicionHabilitada===true/);
+ assert.match(consulta,/data\.products\.length!==40/);
+ assert.match(consulta,/Carta aprobada de Romo/);
  assert.match(consulta,/solicitud!==romoConsultaSolicitudAreaQA/);
  assert.match(html,/function ukiRomoAreaConsultaHTMLQA\(\)/);
  assert.match(html,/esc\(x\.nombre\)/);
