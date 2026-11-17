@@ -18,7 +18,7 @@ export async function obtenerCartaRomoPanelQA({
   throw Error('Inicia sesión con Google para consultar Romo');
  const reply=await fetchFn(endpoint,{
   method:'GET',headers:{Authorization:'Bearer '+token},
-  cache:'no-store',credentials:'omit'
+  cache:'no-store',credentials:'same-origin'
  });
  if(!reply.ok)throw Error('El catálogo Romo no está disponible');
  const data=await reply.json();
