@@ -756,6 +756,21 @@ function render(){
 const ROMO_SERENA_QA=Object.freeze({brand:'romo',branch:'serena',nombre:ROMO_SUCURSAL_QA,direccion:'Balmaceda 1612, La Serena'});
 // Estado en memoria, exclusivamente para consultar Romo sin escribir en Uki.
 let romoConsultaUnificadaQA=null;
+
+// El panel Uki de QA consulta directamente Neon a través del backend AISLADO
+// de Romo; jamás se ponen credenciales Neon en el navegador ni en Uki.
+const ROMO_BACKEND_LECTURA_QA='https://romos-sushi-panel-git-qa-romos-panel-v816-diannaleandra-7046.vercel.app';
+function ukiRomoRutaLecturaPanelUnicoQA(ruta){
+ if(!/^\/api\/romo-[a-z0-9-]+-qa$/.test(ruta))
+  throw Error('Ruta de Romo no permitida');
+ const host=String(location.hostname||'').toLowerCase();
+ if(/^uki-sushi-inventario-git-qa-romos-panel-v816-[a-z0-9-]+\.vercel\.app$/.test(host))
+  return ROMO_BACKEND_LECTURA_QA+ruta;
+ return ruta;
+}
+function ukiRomoCredencialesLecturaPanelUnicoQA(url){
+ return String(url).startsWith(ROMO_BACKEND_LECTURA_QA+'/api/')?'omit':'same-origin';
+}
 async function ukiConsultarRomoPanelUnicoQA(){
  const input=$("ukiAccesoClave"),clave=input?.value||'';
  if(S.pinSuc!==ROMO_SUCURSAL_QA)return;
@@ -764,9 +779,10 @@ async function ukiConsultarRomoPanelUnicoQA(){
   const token=await window.ukiInventarioToken?.();
   if(typeof token!=='string'||token.length<30)
    throw Error('Inicia sesión con tu cuenta Google autorizada.');
-  const resp=await fetch('/api/romo-estado-cifrado-panel-qa',{
+  const url=ukiRomoRutaLecturaPanelUnicoQA('/api/romo-estado-cifrado-panel-qa');
+  const resp=await fetch(url,{
    method:'GET',headers:{Authorization:'Bearer '+token},
-   cache:'no-store',credentials:'same-origin'
+   cache:'no-store',credentials:ukiRomoCredencialesLecturaPanelUnicoQA(url)
   });
   if(resp.status===403)throw Error('La cuenta Google no tiene permiso para consultar Romo.');
   if(!resp.ok)throw Error('La consulta independiente de Romo todavía no está disponible.');
@@ -847,9 +863,10 @@ async function ukiRomoConsultarAreaPanelUnicoQA(area){
   const token=await window.ukiInventarioToken?.();
   if(typeof token!=='string'||token.length<30)
    throw Error('Necesitas iniciar sesión con Google para esta sección.');
-  const response=await fetch(rutas[area],{
+  const url=ukiRomoRutaLecturaPanelUnicoQA(rutas[area]);
+  const response=await fetch(url,{
    method:'GET',headers:{Authorization:'Bearer '+token},
-   cache:'no-store',credentials:'same-origin'
+   cache:'no-store',credentials:ukiRomoCredencialesLecturaPanelUnicoQA(url)
   });
   if(response.status===403)throw Error('Tu cuenta no tiene permiso para consultar esta sección.');
   if(!response.ok)throw Error('Esta conexión de Romo todavía no está disponible.');
