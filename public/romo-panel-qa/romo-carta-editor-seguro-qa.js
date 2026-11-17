@@ -201,16 +201,31 @@
   }
   // Integración futura: llamarlo solo desde la sección Carta y precios del
   // panel Romo, después de comprobar S.suc===Romo La Serena.
-  window.romoMontarCartaEditorSeguroQA=function({container,storeId}={}){
-    if(storeId!==STORE||!(container instanceof HTMLElement))return false;
-    // El panel oficial vuelve a dibujar la pantalla al cambiar de vista.
-    // El contenedor anterior deja de existir; no impedir un nuevo montaje.
+  window.romoMontarCartaEditorSeguroQA=async function({container,storeId}={}){
+    if(storeId!==STORE||!(container instanceof HTMLElement)||!container.isConnected)
+      return false;
+    // El editor y la confirmación de la revisión inicial SON de dueños.
+    // Antes de mostrar sus controles hay que verificar Google + rol Neon en
+    // el servidor. Un agendador no debe ver este acceso.
+    if(container.dataset.romoEditorSeguroQA==='1')return true;
+    let autorizado;
+    try{
+      autorizado=await request('GET');
+      if(autorizado?.readOnly!==true||
+         !Array.isArray(autorizado.products)||autorizado.products.length!==40)
+        return false;
+    }catch{
+      return false; // Error o falta de permisos: sin interfaz visible ni escrituras.
+    }
+    if(!container.isConnected||container.dataset.romoEditorSeguroQA==='1')
+      return false;
+    // El panel vuelve a dibujar la pantalla al cambiar de vista.
     if(state.root&&state.root!==container&&state.root.isConnected)return false;
     if(state.root&&state.root!==container&&!state.root.isConnected){
       state.current=null;state.selectedSku='';state.root=null;
     }
-    if(container.dataset.romoEditorSeguroQA==='1')return true;
     container.dataset.romoEditorSeguroQA='1';
+    container.hidden=false;
     state.root=container;
     const heading=el('h2','Carta y precios · Romo La Serena');
     const help=el('p','Mismos productos de la carta aprobada de Romo. '+
@@ -258,6 +273,8 @@
     form.style.cssText='margin-top:15px;padding-top:12px;border-top:2px solid #b71622';
     search.oninput=renderList;category.onchange=renderList;
     container.replaceChildren(heading,help,statusP,filter,refresh,initialize,list,form);
+    // Se muestra solo después de la autorización; cargar la revisión vigente
+    // nuevamente (sin guardar nada) para bloquear confirmaciones obsoletas.
     void reload();
     return true;
   };
