@@ -63,7 +63,7 @@ async function api(action,extra={}){
  const name=$('name').value.trim().replace(/\s+/g,' '),code=$('pin').value;
  if(name.length<2||name.length>60||!/^\d{6}$/.test(code))throw Error('Escribe el nombre y PIN válido');
  const response=await fetch('/api/romo-pin-inventario-qa',{
-  method:'POST',cache:'no-store',credentials:'omit',headers:{'Content-Type':'application/json'},
+  method:'POST',cache:'no-store',credentials:'same-origin',headers:{'Content-Type':'application/json'},
   body:JSON.stringify({action,worker_name:name,codigo:code,...extra}),signal:AbortSignal.timeout(20000)
  });
  const v=await response.json().catch(()=>null);
