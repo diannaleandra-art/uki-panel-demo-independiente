@@ -25,7 +25,7 @@ function config(env={}){
  const origin=String(env.ROMO_PANEL_ALLOWED_ORIGIN||'');
  if(!/^https:\/\/[^/\s?#@]+$/.test(origin))return null;
  const expectedHost=String(env.ROMO_QA_PRUEBA_DB_HOST||'').toLowerCase();
- if(!/^ep-[a-z0-9-]+\.c-[a-z0-9-]+\.[a-z0-9-]+\.neon\.tech$/.test(expectedHost))
+ if(!/^ep-[a-z0-9-]+\.c-[a-z0-9-]+\.[a-z0-9.-]+\.neon\.tech$/.test(expectedHost))
   return null;
  let qa,main;
  try{
