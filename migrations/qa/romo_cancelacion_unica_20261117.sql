@@ -1,3 +1,6 @@
+-- OBSOLETA / NO APLICAR. Esta versión intentaba actualizar el sobre AES-GCM,
+-- que el servidor no puede inspeccionar. Reemplazada por
+-- migrations/qa/romo_intencion_cancelacion_20261117.sql (solo auditoría QA).
 -- ROMO / PILOTO QA — NO APLICAR EN NEON PRINCIPAL SIN AUTORIZACIÓN EXPRESA.
 -- Esta tabla contiene solo constancia mínima de una única operación,
 -- no crea ni cobra pedidos ni cifra información. El snapshot permanece AES-GCM.
