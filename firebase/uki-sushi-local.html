@@ -6207,6 +6207,10 @@ window.ukiRomoAplicarConfirmadoPanelUnicoQA=async({estado,revision,tipo,detalle}
  S={...estadoVacioSucursal(ROMO_SUCURSAL_QA),...JSON.parse(JSON.stringify(estado)),
    suc:ROMO_SUCURSAL_QA,pinSuc:null,vista,codigos:{},busy:false,
    confirmCierre:false,msg:'Romo · operación '+String(tipo||'')+' confirmada en Neon · revisión '+revision};
+ // Solo limpiar el formulario cuando Neon confirmó que el pedido nuevo existe.
+ if(tipo==='pedido_manual'||tipo==='pedido_carta'){
+  nuevoDraft();S.vista='pedidos';
+ }
  render();
 };
 window.ukiQAGet=()=>S.suc?{suc:S.suc,estado:datosSoloSucursal()}:null;
