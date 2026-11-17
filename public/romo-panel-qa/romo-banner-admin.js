@@ -12,7 +12,7 @@
   if(typeof token!=='string'||token.length<30)throw Error('Ingresa con Google como dueña desde el panel');
   const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),24000);
   try{
-   const r=await fetch(ENDPOINT,{method,credentials:'omit',cache:'no-store',signal:ctrl.signal,
+   const r=await fetch(ENDPOINT,{method,credentials:'same-origin',cache:'no-store',signal:ctrl.signal,
     headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},
     ...(body?{body:JSON.stringify(body)}:{})});
    const j=await r.json().catch(()=>null);
