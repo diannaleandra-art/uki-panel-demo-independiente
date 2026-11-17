@@ -207,18 +207,30 @@
     // El editor y la confirmación de la revisión inicial SON de dueños.
     // Antes de mostrar sus controles hay que verificar Google + rol Neon en
     // el servidor. Un agendador no debe ver este acceso.
-    if(container.dataset.romoEditorSeguroQA==='1')return true;
+    const montado=container.dataset.romoEditorSeguroQA==='1';
     let autorizado;
     try{
       autorizado=await request('GET');
       if(autorizado?.readOnly!==true||
          !Array.isArray(autorizado.products)||autorizado.products.length!==40)
-        return false;
+        throw Error('Catálogo no confirmado por el servidor de Romo.');
     }catch{
-      return false; // Error o falta de permisos: sin interfaz visible ni escrituras.
-    }
-    if(!container.isConnected||container.dataset.romoEditorSeguroQA==='1')
+      // Al cambiar de vista o cerrar Google se revocan también los controles
+      // visibles; jamás dejar a la vista el formulario heredado de Uki.
+      container.hidden=true;
+      container.style.display='none';
       return false;
+    }
+    if(!container.isConnected)return false;
+    if(montado){
+      // Volver a la pestaña exige confirmar de nuevo el rol de dueños,
+      // incluso si ya se había abierto esta misma pantalla.
+      container.hidden=false;
+      container.style.removeProperty('display');
+      if(state.root===container)void reload();
+      return true;
+    }
+    if(container.dataset.romoEditorSeguroQA==='1')return false;
     // El panel vuelve a dibujar la pantalla al cambiar de vista.
     if(state.root&&state.root!==container&&state.root.isConnected)return false;
     if(state.root&&state.root!==container&&!state.root.isConnected){
@@ -226,6 +238,7 @@
     }
     container.dataset.romoEditorSeguroQA='1';
     container.hidden=false;
+    container.style.removeProperty('display');
     state.root=container;
     const heading=el('h2','Carta y precios · Romo La Serena');
     const help=el('p','Mismos productos de la carta aprobada de Romo. '+
