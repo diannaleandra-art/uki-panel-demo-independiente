@@ -179,3 +179,31 @@ test('panel único QA permite ver Neon Romo desde mismo selector sin guardado',(
  const module=read('../firebase/uki-romo-operativo-qa.mjs');
  assert.match(module,/const ROMO_OPERATIVO_ENDPOINT_QA='';/);
 });
+
+test('panel único QA consulta áreas Romo sin alterar pedidos Uki',()=>{
+ const html=read('../firebase/uki-sushi-local.html');
+ const from=html.indexOf('async function ukiRomoConsultarAreaPanelUnicoQA(area){');
+ const until=html.indexOf('function ukiRomoAreaConsultaHTMLQA(){',from);
+ assert.ok(from>0&&until>from);
+ const consulta=html.slice(from,until);
+ for(const p of ['/api/romo-solicitudes-carta-qa',
+  '/api/romo-inventario-qa','/api/romo-catalogo-lectura-qa'])
+  assert.ok(consulta.includes(p));
+ assert.match(consulta,/method:'GET'/);
+ assert.doesNotMatch(consulta,/method:'POST'/);
+ assert.doesNotMatch(consulta,/localStorage\.setItem\(/);
+ assert.doesNotMatch(consulta,/session\.guardar\(/);
+ assert.match(consulta,/data\?\.storeId!=='romo:serena'/);
+ assert.match(consulta,/data\.catalogo\?\.brand!=='romo'/);
+ assert.match(consulta,/solicitud!==romoConsultaSolicitudAreaQA/);
+ assert.match(html,/function ukiRomoAreaConsultaHTMLQA\(\)/);
+ assert.match(html,/esc\(x\.nombre\)/);
+ assert.match(html,/esc\(x\.detalle\)/);
+ assert.match(html,/\+\+romoConsultaSolicitudAreaQA/);
+ const inventory=read('../api/romo-inventario-qa.js');
+ assert.match(inventory,/ROMO_INVENTARIO_ESCRITURA_QA_ENABLED/);
+ const requests=read('../api/romo-solicitudes-carta-qa.js');
+ assert.match(requests,/ROMO_SOLICITUDES_ACEPTACION_QA_ENABLED/);
+ const catalog=read('../api/romo-catalogo-lectura-qa.js');
+ assert.match(catalog,/if\(req\.method!=='GET'\)/);
+});
