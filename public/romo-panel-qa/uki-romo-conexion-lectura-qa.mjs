@@ -3,6 +3,7 @@
  * Solo GET, sin contraseñas enviadas y sin habilitar sesiones operativas.
  */
 const STORE='romo:serena';
+// Preview protegido por Vercel Authentication: conservar cookies del mismo origen.
 const PATH='/api/romo-conexion-lectura-qa';
 export async function comprobarConexionRomoSoloLecturaQA(password){
  if(typeof password!=='string'||password.length<12||password.length>256)
@@ -18,7 +19,7 @@ export async function comprobarConexionRomoSoloLecturaQA(password){
   throw Error('La sesión Google no está disponible');
  const response=await fetch(PATH,{
   method:'GET',headers:{Authorization:'Bearer '+token},
-  credentials:'omit',cache:'no-store'
+  credentials:'same-origin',cache:'no-store'
  });
  if(!response.ok){
   if(response.status===403)throw Error('Tu cuenta Google no tiene acceso de dueños a Romo');

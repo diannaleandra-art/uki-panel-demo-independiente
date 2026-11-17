@@ -17,6 +17,8 @@ const enc=new TextEncoder(),dec=new TextDecoder();
 
 // Configuración pendiente de revisión de la dueña, despliegue, permisos y
 // aprobación. No se acepta URL dinámica del usuario ni del querystring.
+// APIs de Romo son del mismo origen. Preview usa Vercel Authentication:
+// enviar su cookie de sesión sin alterar la verificación Firebase del servidor.
 const ROMO_PROOFS_ENDPOINT='/api/romo-claves-lectura-qa';
 
 function decoded(value,max){
@@ -80,7 +82,7 @@ export async function leerYVerificarClaveRomoQA({
    throw new Error('Inicia sesión con la misma cuenta Google del panel');
  const reply=await fetchFn(endpoint,{
   method:'GET',headers:{Authorization:'Bearer '+token},
-  cache:'no-store',credentials:'omit'
+  cache:'no-store',credentials:'same-origin'
  });
  if(!reply.ok)throw new Error('Tu cuenta todavía no tiene acceso a Romo');
  const data=await reply.json();
@@ -148,7 +150,7 @@ export async function registrarClaveHabitualRomoQA({
   method:'POST',
   headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
   body:JSON.stringify({ukiSource,proof}),
-  cache:'no-store',credentials:'omit'
+  cache:'no-store',credentials:'same-origin'
  });
  const result=await response.json().catch(()=>null);
  if(response.status===409)throw Error('Esta sucursal ya tiene una clave registrada');

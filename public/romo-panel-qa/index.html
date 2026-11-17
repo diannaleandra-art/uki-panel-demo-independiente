@@ -1038,7 +1038,7 @@ async function ukiRomoLeerDatosCifradosQA(password){
  if(typeof token!=="string"||token.length<30)
   throw Error("Primero inicia sesión con Google de dueños.");
  const response=await fetch("/api/romo-estado-cifrado-panel-qa",{
-  method:"GET",headers:{Authorization:"Bearer "+token},cache:"no-store",credentials:"omit"
+  method:"GET",headers:{Authorization:"Bearer "+token},cache:"no-store",credentials:'same-origin'
  });
  if(!response.ok){
   if(response.status===403)throw Error("La cuenta Google no tiene permiso para consultar Romo.");
@@ -5248,7 +5248,7 @@ async function ukiRomoActualizarSolicitudesCartaQA(){
   if(typeof token!=='string'||token.length<30)
    throw Error('Inicia sesión Google para consultar la bandeja de Romo.');
   const response=await fetch('/api/romo-solicitudes-carta-qa',{
-   method:'GET',headers:{Authorization:'Bearer '+token},credentials:'omit',cache:'no-store'
+   method:'GET',headers:{Authorization:'Bearer '+token},credentials:'same-origin',cache:'no-store'
   });
   const data=await response.json().catch(()=>null);
   if(!response.ok||data?.ok!==true||data?.storeId!=='romo:serena'||
@@ -6960,7 +6960,7 @@ async function ukiRomoValidarCadenasOlvidosAntesDeReportarQA(cierres,revision){
     a.fuenteRectificacion!=='romo:serena|'+turno+'|v'+(i+2)))
    throw Error('La secuencia histórica no concuerda antes del reporte');
   const res=await fetch('/api/romo-pedidos-olvidados-qa',{
-   method:'POST',cache:'no-store',credentials:'omit',
+   method:'POST',cache:'no-store',credentials:'same-origin',
    headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
    body:JSON.stringify({action:'consultar',fuenteOriginal:'romo:serena|'+turno,
     version:ordered.length+1}),
@@ -7325,7 +7325,7 @@ async function ukiRomoConfirmarOlvidoQA(solicitudId){
   if(typeof token!=='string'||token.length<30)
    throw Error('No se obtuvo sesión Google autorizada de dueños');
   const response=await fetch('/api/romo-pedidos-olvidados-qa',{
-   method:'POST',cache:'no-store',credentials:'omit',
+   method:'POST',cache:'no-store',credentials:'same-origin',
    headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
    body:JSON.stringify({action:'confirmar',
     expectedRevision:paquete.revision,snapshot:paquete.snapshot,
@@ -7365,7 +7365,7 @@ async function ukiRomoVerConstanciaOlvidoQA(solicitudId){
   if(typeof token!=='string'||token.length<30)
    throw Error('Abre sesión Google de dueños');
   const response=await fetch('/api/romo-pedidos-olvidados-qa',{
-   method:'POST',cache:'no-store',credentials:'omit',
+   method:'POST',cache:'no-store',credentials:'same-origin',
    headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
    body:JSON.stringify({action:'consultar',fuenteOriginal:a.fuenteOriginal,
     version:a.versionConfirmada}),
@@ -7615,7 +7615,7 @@ async function ukiRomoConfirmarRectificacionQA(solicitudId){
   if(typeof token!=='string'||token.length<30)
    throw Error('No se verificó la cuenta Google de dueños');
   const response=await fetch('/api/romo-rectificacion-cierre-v2-qa',{
-   method:'POST',cache:'no-store',credentials:'omit',
+   method:'POST',cache:'no-store',credentials:'same-origin',
    headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
    body:JSON.stringify({action:'confirmar',expectedRevision:paquete.revision,
     snapshot:paquete.snapshot,resumen:plan.resumen}),
@@ -7656,7 +7656,7 @@ async function ukiRomoVerRectificacionConfirmadaQA(solicitudId){
   const token=await window.ukiInventarioToken?.();
   if(typeof token!=='string'||token.length<30)throw Error('Inicia Google de dueños');
   const response=await fetch('/api/romo-rectificacion-cierre-v2-qa',{
-   method:'POST',cache:'no-store',credentials:'omit',
+   method:'POST',cache:'no-store',credentials:'same-origin',
    headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
    body:JSON.stringify({action:'consultar',fuenteOriginal:a.fuenteOriginal}),
    signal:AbortSignal.timeout(15000)
@@ -8259,7 +8259,7 @@ async function ukiRomoAvanzarJornadaSinCajaQA(){
   // en la copia cifrada antes de avanzar la jornada.
   const response=await fetch('/api/romo-solicitudes-carta-qa',{
    headers:{Authorization:'Bearer '+token},
-   cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(15000)
+   cache:'no-store',credentials:'same-origin',signal:AbortSignal.timeout(15000)
   });
   const data=await response.json().catch(()=>null);
   if(!response.ok||data?.ok!==true||data.storeId!=='romo:serena'||
@@ -8480,7 +8480,7 @@ async function ukiRomoCerrarTurnoQA(){
   if(typeof token!=='string'||token.length<30)
    throw Error('No se obtuvo sesión Google autorizada para revisar las solicitudes.');
   const pendientesRespuesta=await fetch('/api/romo-solicitudes-carta-qa',{
-   method:'GET',cache:'no-store',credentials:'omit',
+   method:'GET',cache:'no-store',credentials:'same-origin',
    headers:{Authorization:'Bearer '+token},
    signal:AbortSignal.timeout(15000)
   });
@@ -8521,7 +8521,7 @@ async function ukiRomoCerrarTurnoQA(){
   // Reutilizar el token de la verificación inmediata anterior. El servidor
   // vuelve a autenticar y comprobar pendientes al confirmar el cierre.
   const response=await fetch('/api/romo-cierre-definitivo-qa',{
-   method:'POST',cache:'no-store',credentials:'omit',
+   method:'POST',cache:'no-store',credentials:'same-origin',
    headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
    body:JSON.stringify({expectedRevision:before.revision,turnoId:closing.turnoId,
     resumen,snapshot:packageCifrado.snapshot})

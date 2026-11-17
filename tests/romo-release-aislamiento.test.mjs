@@ -65,3 +65,18 @@ test('diagnóstico de Neon sólo acepta cuenta de servicio y rama QA de Romo',()
  assert.equal(config({...env,VERCEL_GIT_COMMIT_REF:'main'}),null);
  assert.equal(config({...env,ROMO_CONEXION_LECTURA_QA_ENABLED:'false'}),null);
 });
+
+
+test('API privadas de Romo preservan sesión Vercel en Preview sin eliminar Google',()=>{
+ const files=[
+  '../public/romo-panel-qa/uki-romo-clave-remota-qa.mjs',
+  '../public/romo-panel-qa/uki-romo-conexion-lectura-qa.mjs',
+  '../public/romo-panel-qa/index.html'
+ ];
+ for(const file of files){
+  const source=read(file);
+  assert.match(source,/credentials:\\s*['\"]same-origin['\"]/);
+  assert.doesNotMatch(source,/credentials:\\s*['\"]omit['\"]/);
+  assert.match(source,/Authorization:\\s*['\"]Bearer /);
+ }
+});
