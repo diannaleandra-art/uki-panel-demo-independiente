@@ -9,6 +9,7 @@
  */
 import {moverCajaRomoCandidatoQA} from './uki-romo-movimientos-atomicos-qa.mjs';
 import {prepararCobroPendienteRomoQA} from './uki-romo-cobro-pendiente-qa.mjs';
+import {prepararPedidoManualPendienteRomoQA} from './uki-romo-pedido-manual-panel-unico-qa.mjs';
 
 const SUCURSAL='Romo’s Sushi La Serena';
 export const ROMO_TRANSACCIONES_PANEL_UNICO_QA_HABILITADAS=false;
@@ -37,7 +38,8 @@ export function crearTransaccionesPanelUnicoRomoQA({
  habilitado=ROMO_TRANSACCIONES_PANEL_UNICO_QA_HABILITADAS,
  sesion,obtenerVisible,validarEstado,aplicarConfirmado,
  prepararMovimiento=moverCajaRomoCandidatoQA,
- prepararCobro=prepararCobroPendienteRomoQA
+ prepararCobro=prepararCobroPendienteRomoQA,
+ prepararPedidoManual=prepararPedidoManualPendienteRomoQA
 }={}){
  let ocupado=false,bloqueadoPorIncertidumbre=false;
  const disponible=()=>habilitado===true&&
@@ -66,7 +68,9 @@ export function crearTransaccionesPanelUnicoRomoQA({
   try{
    const detalle=tipo==='cobro'?
     prepararCobro(copia,{...datos,confirmoRecepcion:true}):
-    prepararMovimiento(copia,{tipo:datos?.tipo,datos:datos?.datos});
+    tipo==='pedido_manual'?
+     prepararPedidoManual(copia,{...datos,confirmoSinPago:true}):
+     prepararMovimiento(copia,{tipo:datos?.tipo,datos:datos?.datos});
    requerir(validarEstado(copia,SUCURSAL)===true,
     'El resultado no corresponde a Romo');
    const vigente=()=>sesion.estado().revision===remote.revision&&
@@ -106,6 +110,10 @@ export function crearTransaccionesPanelUnicoRomoQA({
  return Object.freeze({
   disponible,
   estado:()=>Object.freeze({ocupado,bloqueadoPorIncertidumbre}),
+  // Pedido nuevo con forma Uki: se guarda SIN PAGO y con folio de turno real.
+  guardarPedidoManual:({draft,fechaOperativa,registradoEn,
+   confirmoPedidoPendiente=false}={})=>
+   ejecutar('pedido_manual',{draft,fechaOperativa,registradoEn},confirmoPedidoPendiente),
   // Solo cobro de un pedido pendiente ya existente; nunca inventar ventas.
   confirmarCobro:({datos,confirmoRecepcion=false}={})=>
    ejecutar('cobro',datos,confirmoRecepcion),
