@@ -98,7 +98,7 @@ async function requestRomo(action,data={},branch=X.branch){
  const dataRomo=await response.json().catch(()=>null);
  if(!response.ok||dataRomo?.ok!==true||dataRomo.storeId!=='romo:serena'){
   if(response.status===409)throw Error('Inventario modificado en otro teléfono. Actualiza antes de guardar.');
-  throw Error(dataRomo?.error||'No se confirmó la operación de inventario Romo.');
+  throw Error(typeof dataRomo?.error==='string'?dataRomo.error:'No se confirmó la operación de inventario Romo (HTTP '+response.status+').');
  }
  if(isRead){
   const version=Number(dataRomo.revision),state=dataRomo.contenido;
@@ -249,7 +249,7 @@ async function romoPinInventarioGestion(action,code){
  });
  const value=await response.json().catch(()=>null);
  if(!response.ok||value?.ok!==true||value?.storeId!=='romo:serena')
-  throw Error(value?.error||'No fue posible confirmar el código de Romo');
+  throw Error(typeof value?.error==='string'?value.error:'No fue posible confirmar el código de Romo (HTTP '+response.status+').');
  return value;
 }
 async function romoPinInventarioCargar(){
