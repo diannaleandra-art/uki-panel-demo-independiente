@@ -54,8 +54,10 @@ function firmaOperativaRomo(datos,original=null){
  if(hasOwn(original)&&original.suc===ROMO_UI_SUCURSAL_QA){
   // Solo normalizar campos que el render() existente genera en consulta
   // aunque Neon no los tuviera. No se guardan en la cancelación.
-  if(!Object.prototype.hasOwnProperty.call(original,'fechaOperativa'))
-   delete limpio.fechaOperativa;
+  // La fecha de pantalla cambia automáticamente después de medianoche.
+  // Para cancelar se usa estadoOperativoConfirmado(), que preserva
+  // la fecha realmente almacenada; no se toma la fecha temporal del render.
+  delete limpio.fechaOperativa;
   if(hasOwn(limpio.cajasDiarias)){
    const cajas={...limpio.cajasDiarias};
    const iniciales=hasOwn(original.cajasDiarias)?original.cajasDiarias:{};
