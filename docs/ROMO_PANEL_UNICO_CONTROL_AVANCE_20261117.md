@@ -251,3 +251,13 @@ En la rama `qa/romos-panel-v816` se incorporaron, **sin habilitar escrituras com
 - Comprobación externa: HTML GET **200** contiene el botón; `GET /api/romo-prueba-escritura-aislada-qa` devuelve **405** (ruta encendida para POST de prueba únicamente); `GET /api/romo-estado-cifrado-panel-qa` sin Firebase devuelve **403**. **No se ejecutó un POST firmado**. Neon QA tabla de prueba **0 filas** y estado cifrado revisión 2. Neon principal estado revisión **2** desde `2026-11-14T17:17:44.272Z`, sin tabla de prueba. Uki oficial producción sigue SHA `3274dbc1b66b676663b74d74ae40f84d251b3ee9` READY.
 - Próximo paso real: con sesión Google del dueño dentro de Romo QA, abrir Inicio → Verificación técnica de permisos → Probar escritura aislada, confirmar una sola vez. Luego comprobar en Neon QA una fila y 0 cambios del estado principal. **No equivale a cancelar el pedido real de $1.000**; su cancelación requiere otro paso con permisos de escritura del sobre cifrado y validación manual.
 
+
+## Verificación real Google dueños completada — 17-11-2026, 19:21 Chile
+
+La usuaria confirmó manualmente en iPhone el diálogo de **Verificación técnica de permisos · QA** y la pantalla mostró el mensaje `Prueba QA confirmada: una constancia sin modificar pedidos, pagos, caja ni cierres.`. Acto seguido se verificó mediante SELECT directo a Neon:
+
+- Branch QA `br-gentle-wave-be71bcpa`, tabla `public.romo_prueba_escritura_aislada_qa_v1`: **exactamente una** constancia con `operation_id='romo-qa-autorizacion-20261117'`, `store_id='romo:serena'`, `observed_revision=2`, timestamp `2026-11-17T22:21:43.496Z` (19:21:43 hora de Chile).
+- La tabla de estado cifrado real de esa rama QA permanece en **revisión 2**.
+- Neon principal `romos_sushi` conserva `romo:serena` revisión **2**, `actualizado_en=2026-11-14T17:17:44.272Z`; la tabla de prueba aislada **no existe** en Neon principal.
+- **Prueba de autenticación y escritura aislada completada.** No volver a pedir que pulse el botón. El endpoint no autoriza la edición/cancelación del pedido real ni los cierres. Mantener las banderas generales de escritura comercial desactivadas mientras se prepara el siguiente bloque.
+- Pendientes próximos: asegurar el flujo específico de cancelación real con las garantías de estado cifrado y conciliación de caja/historial; pruebas manuales posteriores de caja/cierres. Corregir en una publicación futura conjunta el texto heredado `Gracias por aportar tu talento a Uki Sushi` que aparece en la portada de Romo QA.
