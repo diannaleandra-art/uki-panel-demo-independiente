@@ -59,14 +59,17 @@ test('Cliente y local: el mismo tipo pasa a preparar y comprobar la cancelación
    /modifica otros datos/);
  }
 });
-test('La UI aplica control antes de guardar; el servidor sigue sin permiso general',()=>{
+test('La UI usa conciliación verificada antes del guardado y mantiene servidor apagado',()=>{
  const html=readFileSync(new URL('../public/romo-panel-qa/index.html',import.meta.url),'utf8');
  const api=readFileSync(new URL('../api/romo-estado-cifrado-panel-qa.js',import.meta.url),'utf8');
+ const module=readFileSync(new URL('../public/romo-panel-qa/uki-romo-conciliacion-cancelacion-qa.mjs',import.meta.url),'utf8');
  const segment=html.slice(html.indexOf('async function ukiRomoCambiarEstadoQA('),
   html.indexOf('const ROMO_MEDIOS_SALIDAS_QA='));
- assert.ok(segment.indexOf('comprobarSoloCancelacionRomoQA(')>=0);
- assert.ok(segment.indexOf('comprobarSoloCancelacionRomoQA(')<segment.indexOf('ukiRomoGuardarOperacionQA('));
+ assert.ok(segment.indexOf('prepararConciliacionCancelacionRomoQA(')>=0);
+ assert.ok(segment.indexOf('prepararConciliacionCancelacionRomoQA(')<segment.indexOf('ukiRomoGuardarOperacionQA('));
+ assert.match(segment,/sesion\\.coincideEstadoOperativo\\(anterior\\)!==true/);
+ assert.match(segment,/pedidoId,responsable,motivo,categoria,registradoEn:ahoraMs/);
+ assert.match(module,/comprobarSoloCancelacionRomoQA\\(anterior,copia,datos\\)/);
  assert.match(api,/ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED!=='true'/);
  assert.match(api,/ROMO_PANEL_PILOTO_MANUAL_QA_ENABLED!=='true'/);
- assert.match(segment,/verificador\.comprobarSoloCancelacionRomoQA\(anterior,copia,\{\s*pedidoId,responsable,motivo,categoria,registradoEn:ahoraMs/);
 });
