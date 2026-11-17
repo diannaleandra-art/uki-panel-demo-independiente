@@ -67,9 +67,9 @@ test('La UI usa conciliación verificada antes del guardado y mantiene servidor 
   html.indexOf('const ROMO_MEDIOS_SALIDAS_QA='));
  assert.ok(segment.indexOf('prepararConciliacionCancelacionRomoQA(')>=0);
  assert.ok(segment.indexOf('prepararConciliacionCancelacionRomoQA(')<segment.indexOf('ukiRomoGuardarOperacionQA('));
- assert.match(segment,/sesion\\.coincideEstadoOperativo\\(anterior\\)!==true/);
+ assert.match(segment,/sesion\.coincideEstadoOperativo\(anterior\)!==true/);
  assert.match(segment,/pedidoId,responsable,motivo,categoria,registradoEn:ahoraMs/);
- assert.match(module,/comprobarSoloCancelacionRomoQA\\(anterior,copia,datos\\)/);
+ assert.match(module,/comprobarSoloCancelacionRomoQA\(anterior,copia,datos\)/);
  assert.match(api,/ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED!=='true'/);
  assert.match(api,/ROMO_PANEL_PILOTO_MANUAL_QA_ENABLED!=='true'/);
 });
