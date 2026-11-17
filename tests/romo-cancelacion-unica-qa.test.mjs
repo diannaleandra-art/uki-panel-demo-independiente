@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
+import {readFileSync} from 'node:fs';
 import {validarIntentoCancelacionUnicaRomoQA,guardarCancelacionUnicaRomoQA,
  _sqlCancelacionUnicaQA} from '../lib/romo-cancelacion-una-vez-qa.mjs';
 
@@ -83,4 +84,15 @@ test('Endpoint de piloto deshabilitado salvo Preview aislada explícita',()=>{
   ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED:'true'}),null);
  assert.equal(config({...env,ROMO_CANCELACION_UNICA_QA_ENABLED:'true',
   VERCEL_ENV:'production'}),null);
+});
+
+test('El endpoint sólo permite preflight del origen y método autorizados',()=>{
+ const api=readFileSync(new URL('../api/romo-cancelacion-una-vez-qa.js',import.meta.url),'utf8');
+ const migration=readFileSync(new URL('../migrations/qa/romo_cancelacion_unica_20261117.sql',import.meta.url),'utf8');
+ assert.match(api,/req\.method==='OPTIONS'/);
+ assert.match(api,/access-control-request-method/);
+ assert.match(api,/!==\s*'POST'/);
+ assert.match(api,/Piloto único Romo no habilitado/);
+ assert.match(migration,/REVOKE UPDATE,DELETE/);
+ assert.match(migration,/GRANT SELECT,INSERT/);
 });
