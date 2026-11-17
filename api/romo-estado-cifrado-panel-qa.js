@@ -39,7 +39,8 @@ function config(env){
  const writer=env.ROMO_PANEL_PILOTO_MANUAL_QA_ENABLED==='true'&&
     env.ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED==='true'&&
     uri.username==='romos_app_service'?uri.toString():null;
- return {url:uri.toString(),writer,origin};
+ return {url:uri.toString(),writer,origin,
+  sharedRead:require('../lib/romo-origen-seguro-qa.cjs').origenUnificadoLecturaRomoQA(env)};
 }
 
 module.exports=async function romoEstadoCifradoPanelQA(req,res){
@@ -48,10 +49,11 @@ module.exports=async function romoEstadoCifradoPanelQA(req,res){
  res.setHeader('X-Content-Type-Options','nosniff');
  const conf=config(process.env);
  if(!conf)return send(res,503,'La conexión de Romo sigue desactivada');
- const {esOrigenAutorizadoRomoQA}=require('../lib/romo-origen-seguro-qa.cjs');
- if(!esOrigenAutorizadoRomoQA(req,conf.origin))return send(res,403,'Origen no autorizado');
- res.setHeader('Access-Control-Allow-Origin',conf.origin);
- res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');
+ const {resolverOrigenLecturaUnificadaRomoQA}=require('../lib/romo-origen-seguro-qa.cjs');
+ const acceso=resolverOrigenLecturaUnificadaRomoQA(req,conf.origin,conf.sharedRead);
+ if(!acceso)return send(res,403,'Origen no autorizado');
+ res.setHeader('Access-Control-Allow-Origin',acceso.origin);
+ res.setHeader('Access-Control-Allow-Methods',acceso.compartido?'GET,OPTIONS':'GET,POST,OPTIONS');
  res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type');
  if(req.method==='OPTIONS')return res.status(204).end();
  if(!['GET','POST'].includes(req.method))return send(res,405,'Método no permitido');
