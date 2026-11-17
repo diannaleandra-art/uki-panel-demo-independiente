@@ -164,3 +164,15 @@ En la rama `qa/romos-panel-v816` se incorporaron, **sin habilitar escrituras com
 - Siete pruebas funcionales **simuladas** ejecutadas sobre el código fuente y el HTML parseado, todas pasaron. Pruebas end-to-end con sesión Google / UI en iPhone siguen pendientes; no se declara la suite Node completa ejecutada ni la cancelación resuelta.
 - Banderas de escritura del proyecto Romo `ROMO_PANEL_PILOTO_MANUAL_QA_ENABLED` y `ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED`: comprobadas AUSENTES antes del despliegue. No se activaron, no se publicaron cambios en producción, no se escribieron datos de pedidos, caja, cierres ni inventario.
 - El cambio de este registro está posterior al commit desplegado (documentación solamente). La Preview coincide con el código ya probado.
+
+## Prueba de autorización limitada y auditoría en Neon QA — 17-11-2026
+
+**Alcance:** únicamente prueba interna aislada, sin cancelar el pedido real ni habilitar escrituras de Romo.
+
+- Se reutilizó la rama separada de Neon `prepublicacion-romo-caja-acumulada-20261115` (`br-gentle-wave-be71bcpa`), de la base `romos_sushi`. **No se escribieron las tablas reales de pedidos, caja ni el estado cifrado**. La rama principal permaneció sin cambios.
+- Se creó la tabla auxiliar `public.romo_qa_prueba_guardado_control_v1`, con límites para `store_id='romo:serena'`, `pedido_id=1`, revisión simulada 2→3, una clave de operación única y bitácora JSON. **Esta tabla solo contiene una simulación de auditoría; no representa cancelación real**.
+- Primer intento con `INSERT ... WHERE EXISTS` (solo si el estado cifrado de la rama seguía en revisión 2) y `ON CONFLICT (test_key) DO NOTHING`: creó un registro QA de revisión simulada 3 y un evento de auditoría. Segundo intento idéntico: **0 filas nuevas**. Consulta posterior: **1 registro, 1 evento de auditoría**, revisión real cifrada de la rama aún en **2**.
+- Se verificó por `SELECT` independiente que el **Neon principal** `romo:serena` continúa en revisión **2**, última actualización **2026-11-14T17:17:44.272Z**.
+- Se comprobó que en el proyecto original de Vercel `romos-sushi-panel` las banderas `ROMO_PANEL_PILOTO_MANUAL_QA_ENABLED` y `ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED` **siguen ausentes**. La Preview comercial sigue en modo consulta y NO se efectuó ningún POST real desde ella.
+- **Límite de esta prueba:** no prueba que se pueda autorizar *solo una cancelación dentro del snapshot AES-GCM*, porque el servidor no puede inspeccionar la operación contenida en el estado cifrado. La tabla QA prueba únicamente exclusión de duplicados y registro de auditoría en un flujo separado. No activar las banderas generales como sustituto de una autorización por operación.
+- Próximo paso de arquitectura: evaluar un mecanismo de operación limitada que no abra la escritura general, que valide identidad/rol/turno/único pedido y controle el resultado cifrado por revisión sin afirmar verificaciones que el servidor no puede realizar. Aún faltan validación real de identidad Google y pruebas manuales con caja/cierres en el flujo autorizado. No modificar producción de Uki.
