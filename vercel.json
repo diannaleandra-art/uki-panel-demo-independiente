@@ -39,7 +39,8 @@
   ],
   "git": {
     "deploymentEnabled": {
-      "release/romos-panel-v816": false
+      "release/romos-panel-v816": false,
+      "qa/romos-panel-v816": false
     }
   }
 }
