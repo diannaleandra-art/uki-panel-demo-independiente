@@ -37,14 +37,102 @@ const valido=s=>{
 };
 function cajita(s,d){return s.cajasDiarias[SUC+'|'+d]}
 const dentro=(x,inicio,final)=>{const t=fechaReg(x);return t>=inicio&&t<=final};
+
+/**
+ * Excepción administrativa para una jornada antigua SIN caja ABIERTA ni dinero.
+ * Permite continuar con la fecha real tras cancelar manualmente los pedidos
+ * no cobrados. Conserva todos los registros y añade una nota auditada.
+ * No crea cierres ficticios, dinero o nuevas ventas.
+ */
+export function prepararAvanceJornadaSinCajaRomoQA(estado,{
+ fechaNueva,responsable,motivo,registradoEn
+}={}){
+ valido(estado);
+ CHECK(Array.isArray(estado.incidencias)&&
+  Array.isArray(estado.ajustesHistoricos)&&
+  Number.isSafeInteger(estado.nextId)&&estado.nextId>=1,
+  'El historial de Romo necesita revisión');
+ const anterior=String(estado.fechaOperativa||'');
+ CHECK(DIA(anterior)&&DIA(fechaNueva)&&fechaNueva>anterior,
+  'La jornada no está atrasada o la nueva fecha es incorrecta');
+ CHECK(Number.isSafeInteger(registradoEn)&&registradoEn>0,
+  'Fecha de revisión inválida');
+ const partes=new Intl.DateTimeFormat('en-GB',{
+  timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'
+ }).formatToParts(new Date(registradoEn));
+ const parte=k=>partes.find(x=>x.type===k)?.value;
+ const fechaChile=parte('year')+'-'+parte('month')+'-'+parte('day');
+ CHECK(fechaNueva===fechaChile,'Solo puede abrirse la jornada real de Chile');
+ const actor=TXT(responsable,80,'Responsable de regularización');
+ const detalle=TXT(motivo,300,'Motivo de regularización');
+ CHECK(!Object.entries(estado.cajasDiarias).some(([k,c])=>
+  k.startsWith(SUC+'|')&&c?.turnoAbierto===true),
+  'Hay caja abierta; requiere cierre y conciliación, no avance de fecha');
+ const caja=estado.cajasDiarias[SUC+'|'+anterior];
+ if(caja){
+  const tiene=(arr)=>Array.isArray(arr)&&arr.length>0;
+  CHECK(caja.baseConfirmada!==true&&
+    !Number(caja.pagoDelivery)&&!Number(caja.pagoDeliveryDia)&&
+    !Number(caja.pagoDeliveryAnterior)&&
+    !Object.values(caja.apps||{}).some(x=>Number(x)>0)&&
+    !tiene(caja.pagosRepartidor)&&!tiene(caja.pagosDeliveryDetalle)&&
+    !tiene(caja.movimientosApps)&&
+    !tiene(caja.cajaChica?.gastos)&&!tiene(caja.precierres)&&
+    !caja.turnoPrecierreAbierto,
+    'La jornada anterior contiene caja, reparto o precierre; requiere conciliar');
+ }
+ CHECK(!estado.cierres.some(c=>c.suc===SUC&&
+    c.fechaOperativa===anterior),
+  'La jornada anterior tiene cierres; consulta Historial antes de continuar');
+ const pedidoDia=p=>p?.suc===SUC&&(
+  String(p.fechaOperativa||'')===anterior||
+  String(p.turnoClave||'').slice(0,10)===anterior);
+ CHECK(!estado.pedidos.some(p=>pedidoDia(p)&&
+  (p.estado!=='Cancelado'||p.pagado===true||
+   (Array.isArray(p.pagosProductos)&&p.pagosProductos.length>0)||
+   (Array.isArray(p.pagosEnvio)&&p.pagosEnvio.length>0))),
+  'Quedan pedidos antiguos sin cancelar o con dinero; revisa Pedidos primero');
+ const movimientoDia=x=>x?.suc===SUC&&
+  (String(x.fechaOperativa||'')===anterior||
+   String(x.fechaISO||'').slice(0,10)===anterior);
+ CHECK(!['gastos','retiros','propinas','deliveriesManuales'].some(k=>
+   estado[k].some(movimientoDia)),
+  'Se encontraron movimientos de dinero; la jornada debe conciliarse');
+ CHECK(!estado.solicitudesWhatsApp?.some(x=>x.suc===SUC&&x.estado==='pendiente'),
+  'Quedan solicitudes pendientes por resolver');
+ estado.ajustesHistoricos.push({
+  suc:SUC,id:estado.nextId++,tipo:'jornada_regularizada_sin_caja',
+  fechaAnterior:anterior,fechaNueva,responsable:actor,motivo:detalle,
+  registradoEn,fechaISO:new Date(registradoEn).toISOString()
+ });
+ estado.fechaOperativa=fechaNueva;
+ return Object.freeze({tipo:'jornada_regularizada_sin_caja',
+  fechaAnterior:anterior,fechaNueva,responsable:actor});
+}
 export function prepararAperturaTurnoRomoQA(estado,{
- fechaOperativa,inicioMs,base=0,cajaChicaInicial,responsable
+ fechaOperativa,inicioMs,base,cajaChicaInicial,responsable
 }={}){
  valido(estado);
  CHECK(DIA(fechaOperativa),'Fecha operativa de apertura inválida');
  CHECK(Number.isSafeInteger(inicioMs)&&inicioMs>0,'Momento de apertura inválido');
+ const hoyPartes=new Intl.DateTimeFormat('en-GB',{
+  timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'
+ }).formatToParts(new Date(inicioMs));
+ const parte=k=>hoyPartes.find(x=>x.type===k)?.value;
+ const hoy=parte('year')+'-'+parte('month')+'-'+parte('day');
+ const ayer=new Date(hoy+'T12:00:00Z');
+ ayer.setUTCDate(ayer.getUTCDate()-1);
+ const diaAyer=ayer.toISOString().slice(0,10);
+ CHECK(fechaOperativa===hoy||fechaOperativa===diaAyer,
+  'Esta jornada es demasiado antigua. Revisa los pedidos y usa la regularización manual antes de abrir caja');
  const persona=TXT(responsable,80,'Responsable de apertura');
+ // Los dos montos pueden ser cero, pero ambos deben haberse ingresado.
+ // No asumir $0 ni copiar una caja chica anterior sin arqueo físico.
+ CHECK(base!==undefined&&base!==null&&base!==''&&
+  cajaChicaInicial!==undefined&&cajaChicaInicial!==null&&cajaChicaInicial!=='',
+  'Confirma expresamente base y caja chica reales antes de abrir');
  const montoBase=INT(base,'base del turno');
+ const montoCajaChica=INT(cajaChicaInicial,'caja chica');
  CHECK(!Object.entries(estado.cajasDiarias).some(([k,c])=>
   k.startsWith(SUC+'|')&&c?.turnoAbierto===true),'Ya hay un turno Romo abierto');
  const key=SUC+'|'+fechaOperativa,prev=estado.cajasDiarias[key];
@@ -55,11 +143,16 @@ export function prepararAperturaTurnoRomoQA(estado,{
  CHECK(!estado.cierres.some(x=>x.turnoClave===turnoId),'Turno cerrado anteriormente');
  estado.cajasDiarias[key]={
   ...(prev||{}),turnoId,turnoAbierto:true,inicioMs,desdeMs,
-  base:montoBase,responsableApertura:persona,apps:{},
+  base:montoBase,baseConfirmada:true,
+  baseConfirmadaEn:new Date(inicioMs).toISOString(),
+  baseConfirmadaPor:persona,
+  responsableApertura:persona,apps:{},
   pagoDeliveryDia:0,pagoDeliveryAnterior:0,
   pagoDeliveryMedioDia:'Efectivo',pagoDeliveryMedioAnterior:'Efectivo',
   pagoDeliveryConceptoAnterior:'',pagoDelivery:0,
-  cajaChica:{inicial:INT(cajaChicaInicial??prev?.cajaChica?.inicial??0,'caja chica'),gastos:[]},
+  cajaChica:{inicial:montoCajaChica,gastos:[]},
+  // Inicio limpio para la siguiente apertura: no heredar trabajador anterior.
+  turnoPrecierreAbierto:null,
   movimientosApps:[],pagosRepartidor:[]
  };
  estado.fechaOperativa=fechaOperativa;
@@ -76,13 +169,24 @@ export function prepararCierreDefinitivoRomoQA(estado,{
  const obs=String(observacion??'').trim();
  CHECK(obs.length<=700,'Observación demasiado larga');
  const caja=cajita(estado,fechaOperativa);
- CHECK(caja?.turnoAbierto===true&&Number.isSafeInteger(caja.inicioMs),
-  'Abre primero un turno Romo confirmado en Neon');
+ CHECK(caja?.turnoAbierto===true&&caja.baseConfirmada===true&&
+   Number.isSafeInteger(caja.inicioMs),
+  'Abre primero un turno Romo con base real confirmada en Neon');
+ INT(caja.base,'base del turno confirmado');
+ INT(caja.cajaChica?.inicial,'caja chica confirmada');
  const inicio=caja.inicioMs,turnoId=fechaOperativa+'@'+inicio;
  CHECK(inicio<cierreMs&&caja.turnoId===turnoId,
   'La identidad del turno no coincide');
  CHECK(!estado.cierres.some(c=>c.turnoClave===turnoId),
   'Este turno ya tiene cierre definitivo; consulta Historial');
+ // Una discrepancia de dinero aún sin devolver/cobrar no puede pasar a un
+ // cierre definitivo ni borrarse por cambiar de turno. No basta aceptar una
+ // diferencia de efectivo: el pedido debe quedar conciliado por separado.
+ const ajustesAbiertos=estado.pedidos.filter(p=>p?.suc===SUC&&
+  p.turnoClave===turnoId&&p.ajusteCobroPendiente!=null);
+ CHECK(ajustesAbiertos.length===0,
+  'Hay '+ajustesAbiertos.length+
+  ' pedido(s) con diferencias de cobro sin conciliar. Revísalos en Pedidos y Caja antes del cierre.');
  CHECK(!Array.isArray(estado.solicitudesWhatsApp)||
   !estado.solicitudesWhatsApp.some(x=>x.suc===SUC&&x.estado==='pendiente'),
   'Hay solicitudes WhatsApp locales por resolver');
@@ -93,6 +197,32 @@ export function prepararCierreDefinitivoRomoQA(estado,{
   p.estado!=='Cancelado'&&!p.productosPagadosOtroLocal&&
   !p.timbreEnviadoEn);
  CHECK(!timbresSinConfirmar,'Quedan timbres WhatsApp de pedidos pagados sin confirmar');
+
+ // Reutilizar exactamente UNA fila de la propina original (pedido o manual).
+ // Un ajuste confirmado de propina modifica esa fila, no añade otra.
+ const mediosPropina=['Efectivo','Transferencia','Débito','Edenred','Otros'];
+ for(const pedido of estado.pedidos.filter(p=>p.suc===SUC&&p.turnoClave===turnoId)){
+  const vinculadas=estado.propinas.filter(x=>x.pedidoId===pedido.id&&x.suc===SUC);
+  CHECK(vinculadas.length<=1,
+   'El pedido #'+pedido.id+' tiene propinas duplicadas: corrige antes del cierre');
+  const tip=vinculadas[0],importe=INT(pedido.propina??0,'propina del pedido');
+  if(tip){
+   CHECK(pedido.pagado===true&&pedido.estado!=='Cancelado'&&!pedido.esPremio,
+    'Existe propina en un pedido no cobrado, cancelado o premio');
+   CHECK(['pedido','manual'].includes(tip.origen)&&
+    mediosPropina.includes(tip.medio)&&
+    INT(tip.monto,'importe de propina')>=0&&
+    fechaReg(tip)>=inicio&&fechaReg(tip)<=cierreMs,
+    'Propina no conciliada con el turno o su medio de pago');
+   if(tip.origen==='pedido'){
+    CHECK(tip.monto===importe&&
+     tip.medio===String(pedido.medioPropina||'Efectivo'),
+     'La propina del pedido y su registro de Caja no coinciden');
+   }else CHECK(importe===0,
+    'El pedido tiene simultáneamente propina propia y manual');
+  }else CHECK(importe===0,
+   'Falta en Caja la propina ya registrada en el pedido #'+pedido.id);
+ }
  const corte={...estado};
  for(const k of ['pedidos','gastos','retiros','propinas','deliveriesManuales']){
   corte[k]=estado[k].filter(x=>dentro(x,inicio,cierreMs))
@@ -108,6 +238,24 @@ export function prepararCierreDefinitivoRomoQA(estado,{
  }
  const totalMedios=Object.values(medios).reduce((a,b)=>a+b,0);
  const sum=(rows)=>rows.reduce((a,x)=>a+INT(x.monto,'movimiento'),0);
+ const rectificacionesPostCierre=t.rectificacionesPostCierre||
+  {neto:0,efectivo:0,movimientos:0,porMedio:{}};
+ // El dinero de otro cierre NO es venta de este turno. El recibo v2
+ // se guarda atómicamente antes en Neon; aquí afecta solo al efectivo y
+ // resultado real de Caja, con desglose aparte en el comprobante.
+ CHECK(Number.isSafeInteger(rectificacionesPostCierre.neto)&&
+  Number.isSafeInteger(rectificacionesPostCierre.efectivo),
+  'Las rectificaciones confirmadas no coinciden con la Caja');
+ const rectificacionesDetalle=(estado.ajustesHistoricos||[]).filter(a=>
+  a?.suc===SUC&&a.tipo==='rectificacion_monetaria_confirmada'&&
+  a.turnoMovimiento===turnoId).map(a=>({
+   fuenteOriginal:a.fuenteOriginal,
+   fuenteRectificacion:a.fuenteRectificacion,
+   pedidoId:a.pedidoId,medio:a.medio,delta:a.delta,
+   version:2,confirmadoEn:a.confirmadoEn
+  }));
+ CHECK(rectificacionesDetalle.length===rectificacionesPostCierre.movimientos,
+  'El historial de ajustes del turno no coincide');
  const gastos=sum(corte.gastos),gastosEf=sum(corte.gastos.filter(x=>x.medio==='Efectivo'));
  const retiros=sum(corte.retiros);
  const propinas=sum(corte.propinas);
@@ -123,7 +271,8 @@ export function prepararCierreDefinitivoRomoQA(estado,{
  const pagoDelivery=pagoDeliveryDia+pagoDeliveryAnterior;
  const pagoEfectivo=(medioDia==='Efectivo'?pagoDeliveryDia:0)+
   (medioAnterior==='Efectivo'?pagoDeliveryAnterior:0);
- const efectivoEsperado=medios.Efectivo-gastosEf-retiros-pagoEfectivo;
+ const efectivoEsperado=medios.Efectivo+rectificacionesPostCierre.efectivo-
+  gastosEf-retiros-pagoEfectivo;
  const contado=INT(efectivoContado,'efectivo contado');
  const diferencia=contado-efectivoEsperado;
  CHECK(diferencia===0||aceptarDiferencia===true,
@@ -155,6 +304,9 @@ export function prepararCierreDefinitivoRomoQA(estado,{
   gastos:corte.gastos.map(x=>({...x})),retiros:corte.retiros.map(x=>({...x})),
   propinas:corte.propinas.map(x=>({...x})),
   deliveriesManuales:corte.deliveriesManuales.map(x=>({...x})),
+  rectificacionesPostCierre:rectificacionesDetalle,
+  rectificacionesPostCierreNeto:rectificacionesPostCierre.neto,
+  rectificacionesPostCierreEfectivo:rectificacionesPostCierre.efectivo,
   pagoRepartidor:{dia:pagoDeliveryDia,anterior:pagoDeliveryAnterior,
    medioDia,medioAnterior}
  };
@@ -168,7 +320,10 @@ export function prepararCierreDefinitivoRomoQA(estado,{
   saldoDiferenciasPendientesAlCerrar:0,
   ventaCorregida:totalMedios,venta:totalMedios,
   ventaSinDelivery:totalMedios-t.deliveryCobradoRomo,
-  gastos,delivery:pagoDelivery,final:totalMedios-gastos-pagoDelivery,
+  rectificacionesPostCierre:rectificacionesPostCierre.neto,
+  rectificacionesPostCierreEfectivo:rectificacionesPostCierre.efectivo,
+  gastos,delivery:pagoDelivery,
+  final:totalMedios-gastos-pagoDelivery+rectificacionesPostCierre.neto,
   efectivo:efectivoEsperado,propinas,
   pedidos:t.pedidosRegistrados-t.pedidosCancelados,
   efectivoCobrado:medios.Efectivo,gastosEf,retiros,
@@ -187,6 +342,9 @@ export function prepararCierreDefinitivoRomoQA(estado,{
   productosCobradosOtroLocal:t.productosCobradosOtroLocal
  };
  estado.cierres.push(cierre);
+ // Igual que Uki: cerrar Caja termina el indicador del trabajador,
+ // sin fabricar precierre. Se conservan los precierres confirmados.
+ caja.turnoPrecierreAbierto=null;
  // Los datos históricos permanecen; el siguiente turno tendrá otra apertura.
  caja.turnoAbierto=false;caja.desdeMs=cierreMs;
  caja.ultimoCierreTurnoId=turnoId;delete caja.inicioMs;delete caja.turnoId;
