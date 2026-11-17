@@ -10,6 +10,9 @@
 import {moverCajaRomoCandidatoQA} from './uki-romo-movimientos-atomicos-qa.mjs';
 import {prepararCobroPendienteRomoQA} from './uki-romo-cobro-pendiente-qa.mjs';
 import {prepararPedidoManualPendienteRomoQA} from './uki-romo-pedido-manual-panel-unico-qa.mjs';
+import {prepararTimbreRomoQA} from './uki-romo-timbres-atomicos-qa.mjs';
+import {prepararEntregaRomoQA} from './uki-romo-entrega-atomica-qa.mjs';
+import {prepararAperturaTurnoRomoQA} from './uki-romo-cierre-definitivo-qa.mjs';
 
 const SUCURSAL='Romo’s Sushi La Serena';
 export const ROMO_TRANSACCIONES_PANEL_UNICO_QA_HABILITADAS=false;
@@ -39,7 +42,10 @@ export function crearTransaccionesPanelUnicoRomoQA({
  sesion,obtenerVisible,validarEstado,aplicarConfirmado,
  prepararMovimiento=moverCajaRomoCandidatoQA,
  prepararCobro=prepararCobroPendienteRomoQA,
- prepararPedidoManual=prepararPedidoManualPendienteRomoQA
+ prepararPedidoManual=prepararPedidoManualPendienteRomoQA,
+ prepararTimbre=prepararTimbreRomoQA,
+ prepararEntrega=prepararEntregaRomoQA,
+ prepararApertura=prepararAperturaTurnoRomoQA
 }={}){
  let ocupado=false,bloqueadoPorIncertidumbre=false;
  const disponible=()=>habilitado===true&&
@@ -73,7 +79,15 @@ export function crearTransaccionesPanelUnicoRomoQA({
     prepararCobro(copia,{...datos,confirmoRecepcion:true}):
     tipo==='pedido_manual'?
      prepararPedidoManual(copia,{...datos,confirmoSinPago:true}):
-     prepararMovimiento(copia,{tipo:datos?.tipo,datos:datos?.datos});
+    tipo==='timbre'?
+     prepararTimbre(copia,{...datos,envioConfirmado:true}):
+    tipo==='entrega'?
+     prepararEntrega(copia,datos):
+    tipo==='apertura'?
+     prepararApertura(copia,datos):
+    tipo==='movimiento'?
+     prepararMovimiento(copia,{tipo:datos?.tipo,datos:datos?.datos}):
+     (()=>{throw Error('Operación Romo desconocida')})();
    requerir(validarEstado(copia,SUCURSAL)===true,
     'El resultado no corresponde a Romo');
    const vigente=()=>sesion.estado().revision===remote.revision&&
@@ -117,6 +131,15 @@ export function crearTransaccionesPanelUnicoRomoQA({
   guardarPedidoManual:({draft,fechaOperativa,registradoEn,
    confirmoPedidoPendiente=false}={})=>
    ejecutar('pedido_manual',{draft,fechaOperativa,registradoEn},confirmoPedidoPendiente),
+  // Abrir turno con base de caja confirmada físicamente.
+  abrirTurno:({datos,confirmoBaseFisica=false}={})=>
+   ejecutar('apertura',datos,confirmoBaseFisica),
+  // El envío real de WhatsApp ocurre FUERA del sistema; solo registra
+  // su confirmación humana y no intenta enviar el mensaje por su cuenta.
+  confirmarTimbre:({datos,confirmoEnvioWhatsApp=false}={})=>
+   ejecutar('timbre',datos,confirmoEnvioWhatsApp),
+  confirmarEntrega:({datos,confirmoEntregaReal=false}={})=>
+   ejecutar('entrega',datos,confirmoEntregaReal),
   // Solo cobro de un pedido pendiente ya existente; nunca inventar ventas.
   confirmarCobro:({datos,confirmoRecepcion=false}={})=>
    ejecutar('cobro',datos,confirmoRecepcion),
