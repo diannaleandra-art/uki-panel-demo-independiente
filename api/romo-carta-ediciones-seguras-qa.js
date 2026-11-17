@@ -29,7 +29,8 @@ function config(env){
     catch{}
   }
   return {panel,carta,database:db.toString(),
-    write:env.ROMO_CARTA_EDICIONES_ESCRITURA_QA_ENABLED==='true'};
+    write:env.ROMO_CARTA_EDICIONES_ESCRITURA_QA_ENABLED==='true',
+    sharedRead:require('../lib/romo-origen-seguro-qa.cjs').origenUnificadoLecturaRomoQA(env)};
 }
 async function approvedCarta(conf){
   const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),8000);
@@ -58,13 +59,12 @@ module.exports=async function romoCartaEdicionesSegurasQA(req,res){
   if(!['GET','POST','OPTIONS'].includes(method))
     return fail(res,405,'Sólo lectura y edición autorizada');
   const origin=String(req.headers?.origin||'');
-  const sameHost=method==='GET'&&!origin&&
-    String(req.headers?.host||'').toLowerCase()===new URL(conf.panel).host;
-  if(origin!==conf.panel&&!sameHost)
-    return fail(res,403,'Origen no autorizado para Romo');
-  if(origin)res.setHeader('Access-Control-Allow-Origin',conf.panel);
+  const {resolverOrigenLecturaUnificadaRomoQA}=require('../lib/romo-origen-seguro-qa.cjs');
+  const acceso=resolverOrigenLecturaUnificadaRomoQA(req,conf.panel,conf.sharedRead);
+  if(!acceso)return fail(res,403,'Origen no autorizado para Romo');
+  if(origin)res.setHeader('Access-Control-Allow-Origin',acceso.origin);
   res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type');
-  res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods',acceso.compartido?'GET,OPTIONS':'GET,POST,OPTIONS');
   if(method==='OPTIONS')return res.status(204).end();
   // Consultar la carta NO habilita guardados ni su inicialización.
   // Requiere un segundo permiso explícito, distinto del permiso de lectura.
