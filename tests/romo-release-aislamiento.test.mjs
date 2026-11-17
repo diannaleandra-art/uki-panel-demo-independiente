@@ -168,7 +168,7 @@ test('panel único QA permite ver Neon Romo desde mismo selector sin guardado',(
  assert.match(html,/abrirLocal\(JSON\.stringify\(remoto\.snapshot\),ROMO_SUCURSAL_QA,clave\)/);
  assert.match(html,/function ukiResumenRomoConsultaQA\(\)/);
  assert.match(html,/if\(!S\.suc&&!S\.pinSuc&&S\.romoSeleccionadoQA&&romoConsultaUnificadaQA\)/);
- assert.match(html,/\/\/ No ingresar a S\.suc ni almacenar pedidos o claves: sólo contadores/);
+ assert.match(html,/\/\/ No ingresar en S\.suc, copiar registros a Uki ni ejecutar guardados/);
  const autoStart=html.indexOf('function guardarEnLocalStorage(){');
  const autoEnd=html.indexOf('if(!S.suc||!claveSesion',autoStart);
  assert.ok(autoStart>0&&autoEnd>autoStart);
@@ -209,4 +209,43 @@ test('panel único QA consulta áreas Romo sin alterar pedidos Uki',()=>{
  assert.match(requests,/ROMO_SOLICITUDES_ACEPTACION_QA_ENABLED/);
  const catalog=read('../api/romo-catalogo-lectura-qa.js');
  assert.match(catalog,/if\(req\.method!=='GET'\)/);
+});
+
+test('panel único QA usa filtros del Uki oficial sobre pedidos confirmados de Romo sin mezclar solicitudes',()=>{
+ const html=read('../firebase/uki-sushi-local.html');
+ const from=html.indexOf('const pedidosGuardados=datos.pedidos.filter(');
+ const to=html.indexOf('// No ingresar en S.suc, copiar registros a Uki ni ejecutar guardados.',from);
+ assert.ok(from>0&&to>from);
+ const extraer=html.slice(from,to);
+ assert.match(extraer,/p\?\.suc===ROMO_SUCURSAL_QA/);
+ assert.match(extraer,/ukiOrigenPedido\(p\)/);
+ assert.match(extraer,/UKI_CATEGORIAS_PEDIDOS/);
+ assert.match(extraer,/ukiCoincideCategoriaPedido\(p,tipo,conError\)/);
+ assert.doesNotMatch(extraer,/S\.pedidos\.push|guardarEnLocalStorage|session\.guardar/);
+ const filtros=html.slice(html.indexOf('function ukiRomoFiltrarPedidosGuardadosQA('),
+  html.indexOf('function ukiRomoAreaConsultaHTMLQA(){'));
+ assert.match(filtros,/ukiBusquedaPorDatos\(busqueda,/);
+ assert.match(filtros,/function ukiRomoPedidosGuardadosConsultaHTMLQA\(\)/);
+ assert.match(filtros,/p\.categorias\.includes\(categoria\)/);
+ assert.match(filtros,/esc\(p\.cliente/);
+ assert.match(filtros,/p\.total===null\?'Total por revisar'/);
+ assert.match(filtros,/No son solicitudes nuevas y no se cobran otra vez/);
+ const area=html.slice(html.indexOf('function ukiRomoAreaConsultaHTMLQA(){'),
+  html.indexOf('function ukiResumenRomoConsultaQA(){'));
+ assert.match(area,/a\.area==='pedidos'\?ukiRomoPedidosGuardadosConsultaHTMLQA\(\)/);
+ assert.match(area,/Los pedidos guardados en Neon son visibles incluso si falla la consulta/);
+ assert.match(area,/return registrados\+/);
+});
+test('salida de Romo no usa guardado de Uki y no pierde operacion Neon pendiente',()=>{
+ const html=read('../firebase/uki-sushi-local.html');
+ const from=html.indexOf('async function salirSuc(){');
+ const until=html.indexOf('// Mensaje de equipo rotativo',from);
+ assert.ok(from>0&&until>from);
+ const salida=html.slice(from,until);
+ assert.match(salida,/if\(S\.suc===ROMO_SUCURSAL_QA\)/);
+ assert.match(salida,/ukiBorradorTieneContenido\(\)/);
+ assert.match(salida,/window\.ukiRomoSesionRemotaQA\?\.cerrar\(\)/);
+ assert.match(salida,/catch\(e\)\{/);
+ assert.match(salida,/else if\(S\.suc\)\{/);
+ assert.match(salida,/const ok=await guardarEnLocalStorage\(\);if\(!ok\)return/);
 });
