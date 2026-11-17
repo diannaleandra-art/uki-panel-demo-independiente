@@ -139,8 +139,14 @@ test('Permisos Preview Romo: lectura independiente y escritura comercial cerrada
  assert.equal(pinRead?.write,false);
  assert.equal(pin({...lectura,ROMO_PIN_INVENTARIO_QA_ENABLED:'true',
   ROMO_SOLICITUDES_RATE_SALT:'short'}),null);
- assert.equal(carta({...lectura,ROMO_CARTA_EDICIONES_QA_ENABLED:'true'})?.panel,
-  env.ROMO_PANEL_ALLOWED_ORIGIN);
+ const cartaRead=carta({...lectura,ROMO_CARTA_EDICIONES_QA_ENABLED:'true'});
+ assert.equal(cartaRead?.panel,env.ROMO_PANEL_ALLOWED_ORIGIN);
+ assert.equal(cartaRead?.write,false);
+ assert.equal(carta({...lectura,ROMO_CARTA_EDICIONES_QA_ENABLED:'true',
+  ROMO_CARTA_EDICIONES_ESCRITURA_QA_ENABLED:'true'})?.write,true);
+ const apiCarta=read('../api/romo-carta-ediciones-seguras-qa.js');
+ assert.match(apiCarta,/if\(method==='POST'&&!conf\.write\)/);
+ assert.match(apiCarta,/ROMO_CARTA_EDICIONES_ESCRITURA_QA_ENABLED/);
  const cierre=read('../api/romo-estado-cifrado-panel-qa.js');
  assert.match(cierre,/ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED/);
  assert.match(cierre,/ROMO_PANEL_PILOTO_MANUAL_QA_ENABLED/);
