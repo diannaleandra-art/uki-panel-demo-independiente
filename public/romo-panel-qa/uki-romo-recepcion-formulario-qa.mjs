@@ -140,7 +140,7 @@ export function crearBandejaRomoMismoPanelQA({
   const token=await getGoogleToken();
   requireValid(typeof token==='string'&&token.length>30,'Sin acceso Google autorizado');
   const response=await fetchFn(endpoint,{
-   method,credentials:'omit',cache:'no-store',
+   method,credentials:'same-origin',cache:'no-store',
    headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},
    ...(body?{body:JSON.stringify(body)}:{})
   });
