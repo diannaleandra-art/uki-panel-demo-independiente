@@ -523,19 +523,10 @@ function guardarEnLocalStorage(){
  // Romo no puede caer en el respaldo Uki "desconocida" ni en su Firestore.
  // Este enlace SOLO existe en la copia QA; la API todavía está apagada.
  if(S.suc===ROMO_SUCURSAL_QA){
-  const session=window.ukiRomoSesionRemotaQA;
-  if(!session?.disponible())return Promise.resolve(false);
-  const datos=datosSoloSucursal(),sucursalGuardada=S.suc;
-  colaGuardado=colaGuardado.catch(()=>{}).then(async()=>{
-   if(S.suc!==sucursalGuardada)return false;
-   await session.guardar(datos); // CAS, sólo ciphertext, base Neon Romo
-   return true;
-  });
-  return colaGuardado.catch(error=>{
-   console.error("Guardado aislado Romo no confirmado",error);
-   alert("Romo no confirmó el guardado. Conserva la sesión abierta y revisa la conexión.");
-   return false;
-  });
+  // Panel UNICO QA: nunca usar autoguardado del motor Uki para Romo.
+  // Los comandos de Romo requieren su CAS cifrado Neon y confirmacion explicita.
+  // Un cambio de vista no es una operacion ni puede escribir un pedido/caja.
+  return Promise.resolve(false);
  }
  if(!S.suc||!claveSesion||sucursalSesion!==S.suc)return Promise.resolve(true);
  const suc=S.suc,key=claveSesion,salt=saltSesion,datos=datosSoloSucursal(),revision=++revisionGuardado;
