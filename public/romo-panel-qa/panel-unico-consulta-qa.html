@@ -789,6 +789,27 @@ async function ukiConsultarRomoPanelUnicoQA(){
      !Number.isFinite(Number(datos.base))||
      !Number.isFinite(Number(datos.cajaChica?.inicial)))
    throw Error('No se confirmó la copia cifrada de Romo.');
+  // Caja: totales de solo consulta del MISMO motor aprobado de Romo.
+  // No instalar el snapshot completo en S ni crear nuevos movimientos.
+  let cajaConsultaQA=null;
+  const diaCajaQA=String(datos.fechaOperativa||'');
+  if(/^\d{4}-\d{2}-\d{2}$/.test(diaCajaQA)){
+   try{
+    const {consultarCajaRomoQA}=await import('./uki-romo-caja-consulta-qa.mjs');
+    const corte=consultarCajaRomoQA(datos,{fechaOperativa:diaCajaQA});
+    cajaConsultaQA=Object.freeze({
+     fecha:diaCajaQA,pagados:corte.pagados,pendientes:corte.pendientes,
+     venta:corte.cobrosEnRomo,envios:corte.deliveryParaRepartidor,
+     manuales:corte.entregasManualesAConciliar,
+     medios:Object.freeze({...corte.medios})
+    });
+   }catch{
+    cajaConsultaQA=Object.freeze({error:'No se pudo cuadrar la caja de esta revisión.'});
+   }
+  }
+  const timbresPendientesQA=datos.pedidos.filter(p=>p?.suc===ROMO_SUCURSAL_QA&&
+   p.pagado===true&&p.timbreReglaObligatoria===true&&p.estado!=='Cancelado'&&
+   !p.productosPagadosOtroLocal&&!p.timbreEnviadoEn).length;
   // Los pedidos ya guardados NO son solicitudes pendientes de la carta.
   // Reutiliza las categorías y el origen del panel Uki, sin su estado global S.
   const conError=new Set((datos.incidencias||[]).map(x=>x.pedidoId));
@@ -823,7 +844,9 @@ async function ukiConsultarRomoPanelUnicoQA(){
    revision:remoto.revision,pedidos:datos.pedidos.length,
    registrados:Object.freeze(pedidosGuardados),
    cierres:datos.cierres.length,base:Number(datos.base),
-   cajaChica:Number(datos.cajaChica.inicial)
+   cajaChica:Number(datos.cajaChica.inicial),
+   caja:Object.freeze(cajaConsultaQA||{sinJornada:true}),
+   timbresPendientes:timbresPendientesQA
   });
   S.pinSuc=null;S.romoSeleccionadoQA=true;S.romoIngresadoQA=false;
   render();
@@ -980,6 +1003,29 @@ function ukiRomoAreaConsultaHTMLQA(){
   ' · '+esc(a.total)+' registros'+(a.total>30?' · se muestran los primeros 30':'')+'</div>'+
   '<div>'+lista+'</div>';
 }
+function ukiRomoCajaConsultaPanelUnicoHTMLQA(){
+ const datos=romoConsultaUnificadaQA,c=datos?.caja;
+ if(!datos)return '';
+ const timbres='<p><b>Timbres WhatsApp pendientes de confirmar: '+
+  esc(datos.timbresPendientes)+'</b> · No se pueden registrar desde esta vista.</p>';
+ if(!c||c.sinJornada)return '<div class="card"><h3>Caja · solo consulta</h3>'+
+  '<p class="muted">No hay jornada confirmada para mostrar el resumen.</p>'+timbres+'</div>';
+ if(c.error)return '<div class="card"><h3>Caja · solo consulta</h3>'+
+  '<p class="aviso">'+esc(c.error)+'</p>'+timbres+'</div>';
+ const metodos=Object.entries(c.medios||{}).filter(([,v])=>v>0)
+  .map(([medio,valor])=>'<div class="row"><span>'+esc(medio)+'</span><b>'+
+   fmt(valor)+'</b></div>').join('');
+ return '<div class="card" id="romoCajaConsultaPanelUnicoQA">'+
+  '<h3>Caja Romo · '+esc(c.fecha)+' · solo consulta</h3>'+
+  '<div class="row"><span>Cobrado en Romo</span><b>'+fmt(c.venta)+'</b></div>'+
+  '<div class="row"><span>Pedidos pagados</span><b>'+esc(c.pagados)+'</b></div>'+
+  '<div class="row"><span>Pedidos pendientes de pago</span><b>'+esc(c.pendientes)+'</b></div>'+
+  '<div class="row"><span>Delivery para repartidor</span><b>'+fmt(c.envios)+'</b></div>'+
+  '<div class="row"><span>Delivery manual por conciliar</span><b>'+fmt(c.manuales)+'</b></div>'+
+  (metodos?'<h4>Medios de cobro</h4>'+metodos:'')+timbres+
+  '<p class="muted">Resumen de la revisión cifrada de Neon. No es un precierre ni un cierre definitivo.</p>'+
+  '</div>';
+}
 function ukiResumenRomoConsultaQA(){
  const v=romoConsultaUnificadaQA;if(!v)return '';
  return '<section class="card" id="romoVistaLecturaPanelUnicoQA">'+
@@ -991,6 +1037,7 @@ function ukiResumenRomoConsultaQA(){
   '</strong></div><div class="kpi"><span>Base de caja</span><strong>'+fmt(v.base)+
   '</strong></div><div class="kpi"><span>Caja chica inicial</span><strong>'+fmt(v.cajaChica)+
   '</strong></div></section><p class="muted">Datos de Romo exclusivamente. Uki no se modifica.</p>'+ 
+  ukiRomoCajaConsultaPanelUnicoHTMLQA()+
   '<h3>Secciones de Romo · solo consulta</h3>'+ 
   '<div class="quick-grid">'+
    '<button type="button" class="quick" onclick="ukiRomoConsultarAreaPanelUnicoQA(\'pedidos\')">Pedidos</button>'+ 
