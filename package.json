@@ -11,6 +11,6 @@
   },
   "scripts": {
     "test": "node --test tests/inventario-live.test.cjs tests/mi-administracion-informes.test.cjs tests/uki-facturas-ambos-paneles.test.cjs tests/uki-inventario-informe-ordenado.test.cjs",
-    "test:release": "node --test tests/romo-release-aislamiento.test.mjs tests/romo-panel-unico-origen-lectura.test.mjs tests/panel-unico-qa-pagina-lectura.test.mjs tests/panel-unico-transacciones-qa.test.mjs tests/panel-unico-turnos-timbres-qa.test.mjs tests/panel-unico-cierre-atomico-qa.test.mjs tests/romo-solo-consulta-escritura-qa.test.mjs tests/romo-cancelacion-diff-qa.test.mjs tests/romo-cancelacion-unica-qa.test.mjs tests/romo-conciliacion-cancelacion-qa.test.mjs tests/romo-sesion-estado-confirmado-qa.test.mjs"
+    "test:release": "node --test tests/romo-release-aislamiento.test.mjs tests/romo-panel-unico-origen-lectura.test.mjs tests/panel-unico-qa-pagina-lectura.test.mjs tests/panel-unico-transacciones-qa.test.mjs tests/panel-unico-turnos-timbres-qa.test.mjs tests/panel-unico-cierre-atomico-qa.test.mjs tests/romo-solo-consulta-escritura-qa.test.mjs tests/romo-cancelacion-diff-qa.test.mjs tests/romo-cancelacion-unica-qa.test.mjs tests/romo-conciliacion-cancelacion-qa.test.mjs tests/romo-sesion-estado-confirmado-qa.test.mjs tests/romo-prueba-escritura-aislada-qa.test.mjs"
   }
 }
