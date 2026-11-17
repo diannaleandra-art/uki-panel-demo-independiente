@@ -70,8 +70,9 @@ export function prepararCobroPendienteRomoQA(estado,{
  need(typeof p.turnoClave==='string'&&/^\d{4}-\d{2}-\d{2}@\d+$/.test(p.turnoClave),
   'Turno de pedido inválido');
  const dia=p.turnoClave.slice(0,10),caja=estado.cajasDiarias[SUC+'|'+dia];
- need(caja?.turnoAbierto===true&&caja.turnoId===p.turnoClave,
-  'La caja de este turno no está abierta');
+ need(caja?.turnoAbierto===true&&caja.baseConfirmada===true&&
+  caja.turnoId===p.turnoClave,
+  'El turno Romo debe estar abierto y su base real confirmada');
  need(!estado.cierres.some(c=>c.suc===SUC&&c.turnoClave===p.turnoClave),
   'El turno ya tiene cierre');
  const productos=Array.isArray(p.productos)?p.productos:[];
@@ -81,10 +82,13 @@ export function prepararCobroPendienteRomoQA(estado,{
  const subtotal=num(p.subtotal,1,100000000,'Subtotal inválido');
  need(productos.reduce((a,x)=>a+Number(x.cantidad)*Number(x.precioUnit),0)===subtotal,
   'El subtotal no coincide con los productos');
- const envio=p.modalidad==='Delivery'?num(p.envio,0,100000000,'Delivery inválido'):0;
+ const envio=p.modalidad==='Delivery'?num(p.envio,1,4000,'Delivery inválido'):0;
  need(p.modalidad==='Delivery'||Number(p.envio||0)===0,'Entrega sin delivery cobrado');
+ // Este formulario recibe productos y reparto; las propinas son una operación
+ // independiente de Caja, para no declarar cobrada una suma no recibida aquí.
  const propina=num(p.propina??0,0,100000000,'Propina inválida');
- need(num(p.total,1,100000000,'Total inválido')===subtotal+envio+propina,
+ need(propina===0,'Este pedido tiene propina previa: concilia en Caja antes de cobrar');
+ need(num(p.total,1,3000000,'Total inválido')===subtotal+envio,
   'El pedido no cuadra; revisar antes de cobrar');
  need(p.historialCambios===undefined||Array.isArray(p.historialCambios),
   'Historial del pedido inválido');
