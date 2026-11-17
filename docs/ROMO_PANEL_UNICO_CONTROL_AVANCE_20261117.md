@@ -35,3 +35,19 @@ No publicar producción Uki ni Romo desde esta etapa. Agrupar correcciones en Gi
 - Por ello la consulta del panel único exige **los 40 productos confirmados** por el servicio de carta aprobada, `readOnly=true` y permiso de edición desactivado; si no se confirman, presenta el error y no sustituye contenido con los 7 del catálogo auxiliar. No se modificaron precios ni categorías en Neon.
 - Se añadió barrera contra respuestas cruzadas cuando se cambia rápidamente de pestaña, y los nombres de productos/artículos se muestran con escape de HTML.
 - **Pendiente manual**: comprobar la carga real de cada consulta en una Preview autorizada (sin publicar todavía), verificar la equivalencia de contenido y luego implementar operaciones completas siguiendo la versión oficial Uki.
+
+## Puente de solo lectura del panel único — actualización 17-11-2026
+
+**Operación comercial sigue APAGADA. Ningún despliegue ni cambio de permisos en Vercel o Neon durante este bloque.**
+
+1. La vista de pedidos del panel único ahora distingue los **pedidos efectivamente registrados en el estado cifrado de Romo** de las **solicitudes pendientes de la carta**; no suma solicitudes como ventas. Para pedidos registrados reutiliza las categorías del Uki oficial `UKI_CATEGORIAS_PEDIDOS`, `ukiCoincideCategoriaPedido` y `ukiOrigenPedido`, con búsqueda por nombre, teléfono y códigos. Los datos se descifran solo en memoria y **no se copian a `S` ni a almacenamiento Uki**.
+2. La salida de Romo está separada de `guardarEnLocalStorage()` de Uki. Si alguna vez se abre una sesión operativa Romo, se exige cerrar primero correctamente su sesión CAS y no abandonar un formulario con contenido sin confirmación; las sucursales Uki conservan su salida habitual.
+3. Se preparó un puente **exclusivamente de lectura GET** entre el Preview del panel `uki-sushi-inventario` y la API del proyecto aislado `romos-sushi-panel`. `lib/romo-origen-seguro-qa.cjs` sólo autoriza un origen exacto `https://uki-sushi-inventario-git-qa-romos-panel-v816-<equipo>.vercel.app`, configurado en **Preview del proyecto Romo** con la variable `ROMO_PANEL_UNIFICADO_LECTURA_ORIGIN`. No acepta otros orígenes, Production, otra rama, ni rutas de escritura POST/PATCH/DELETE o sus preflights.
+4. Las API de estado cifrado, solicitudes, inventario y carta aprobada admiten ese GET adicional únicamente con JWT Firebase válido y permisos por rol comprobados en Neon Romo. La cuenta y base siguen siendo de Romo. CORS anuncia **GET,OPTIONS** para ese origen, mientras mantiene los permisos originales del sitio Romo.
+5. El navegador usa el backend QA aislado de Romo únicamente cuando el host del panel corresponde a esa rama Preview de Uki; utiliza `credentials:'omit'` para la petición entre dominios y token Google `Authorization`. En la copia Romo conserva rutas locales; no se altera el dominio oficial comercial.
+
+**Configuración aún no realizada**: tras confirmar ambos Preview, registrar una sola vez en Vercel Romo el origen exacto del Preview del panel único; no añadirla hoy sin URL confirmada ni hacer redeploy del commit antiguo. Confirmar manualmente si la protección de despliegues de Vercel permite GET entre sitios con JWT Google; si no, no relajar seguridad por ensayo y error.
+
+**Lo que falta para paridad real**: incorporación de las mismas acciones operativas de pedidos/WhatsApp/mesas, pagos mixtos, timbres, caja y cierres sobre CAS Neon exclusivo, pruebas manuales de un pedido real de Romo y su conciliación, y publicación final del selector sin alterar sesiones/datos locales de los dos Uki. Estas consultas no equivalen a habilitar ventas.
+
+**Verificación realizada**: 14 comprobaciones locales del helper de orígenes (GET y preflight GET permitidos, POST/PATCH/OPTIONS POST y Production rechazados). Se añadieron pruebas estáticas en `tests/romo-panel-unico-origen-lectura.test.mjs`. No se ejecutaron pruebas operativas ni escrituras comerciales. 
