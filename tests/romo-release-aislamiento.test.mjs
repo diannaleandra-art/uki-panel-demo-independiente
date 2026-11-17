@@ -15,6 +15,7 @@ const preview={
 
 test('preview de Romo sólo funciona en el panel aislado',()=>{
  assert.equal(entornoPanelRomoAutorizado(preview),true);
+ assert.equal(entornoPanelRomoAutorizado({...preview,VERCEL_GIT_COMMIT_REF:'qa/romos-panel-v816'}),true);
  assert.equal(entornoPanelRomoAutorizado({...preview,ROMO_PANEL_ISOLATED_PROJECT:'uki-sushi-inventario'}),false);
  assert.equal(entornoPanelRomoAutorizado({...preview,VERCEL_GIT_COMMIT_REF:'main'}),false);
  assert.equal(entornoPanelRomoAutorizado({...preview,ROMO_PANEL_ALLOWED_ORIGIN:'https://uki-sushi-inventario.vercel.app'}),false);
@@ -43,4 +44,5 @@ test('carta y precios aparece en inventario, no duplicada en promos',()=>{
 test('la rama de entrega no despliega automáticamente',()=>{
  const config=JSON.parse(read('../vercel.json'));
  assert.equal(config.git?.deploymentEnabled?.['release/romos-panel-v816'],false);
+ assert.equal(config.git?.deploymentEnabled?.['qa/romos-panel-v816'],false);
 });
