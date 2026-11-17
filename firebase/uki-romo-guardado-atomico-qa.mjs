@@ -89,7 +89,8 @@ export function crearGuardadoRomoDesdeFormularioQA({
     if(!sigueIgual())throw new RomoYaGuardadoQA(
       'Pedido confirmado en Romo. Actualiza la vista, no lo registres de nuevo.',pedidoId);
     try{
-     await aplicarConfirmado({estado:candidato,revision:resultado.revision,pedidoId,solicitudId:id});
+     await aplicarConfirmado({estado:candidato,revision:resultado.revision,pedidoId,solicitudId:id,
+      snapshot,expectedRevision:revision});
     }catch{
      throw new RomoYaGuardadoQA(
       'Pedido confirmado en Romo, pero no se actualizo la pantalla. Recarga.',pedidoId);
