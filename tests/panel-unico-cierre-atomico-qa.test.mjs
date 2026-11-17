@@ -61,6 +61,6 @@ test('El cierre no se hace con session.guardar, ni con URL de otro proyecto',()=
 test('La relectura cifrada incluye el storeId exigido por CAS',()=>{
  const puente=readFileSync(new URL('../firebase/uki-romo-operativo-qa.mjs',import.meta.url),'utf8');
  const sesion=readFileSync(new URL('../lib/romo-panel-unico-sesion-qa.mjs',import.meta.url),'utf8');
- assert.match(puente,/return Object\\.freeze\\(\\{storeId:ROMO_OPERATIVO_ID_QA,revision:result\\.revision/);
- assert.match(sesion,/actual\\?\\.storeId!==ROMO_UI_STORE_QA/);
+ assert.match(puente,/return Object\.freeze\(\{storeId:ROMO_OPERATIVO_ID_QA,revision:result\.revision/);
+ assert.match(sesion,/actual\?\.storeId!==ROMO_UI_STORE_QA/);
 });
