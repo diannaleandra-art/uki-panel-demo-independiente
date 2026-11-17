@@ -950,20 +950,13 @@ function render(){
   const f={inicio:vInicio,pedidos:vPedidos,nuevo:vNuevo,clientes:vClientes,caja:vCaja,
    inventario:()=>window.ukiInventarioPanelHTML?.()||'<div class="card"><p>Preparando inventario…</p></div>',
    promos:()=>S.suc===ROMO_SUCURSAL_QA?
-     (window.ukiRomoBannerAdminHTML?.()||'<div class="card">Cargando promociones de Romo…</div>')+
-     // El editor de Carta y precios ya existe: sólo dueños autorizados lo ven.
-     '<section id="romoCartaEditorSeguroQA" class="card" hidden></section>':vInicio()
+     (window.ukiRomoBannerAdminHTML?.()||'<div class="card">Cargando promociones de Romo…</div>'):vInicio()
   }[S.vista]||vInicio;
   const msg=S.msg?`<div role="status" class="aviso" style="background:#ffece4;color:#7a2c08">${esc(S.msg)}</div>`:"";
   S.msg=null;
   $("app").innerHTML=msg+f();
   if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='promos')
-   setTimeout(()=>{
-    if(S.suc!==ROMO_SUCURSAL_QA||S.vista!=='promos')return;
-    window.ukiRomoBannerAdminMount?.();
-    const zona=document.getElementById('romoCartaEditorSeguroQA');
-    if(zona)void window.romoMontarCartaEditorSeguroQA?.({container:zona,storeId:'romo:serena'});
-   },0);
+   setTimeout(()=>{if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='promos')window.ukiRomoBannerAdminMount?.()},0);
   ukiRestaurarVistaTrasRender(ukiVistaAnterior);
   ukiUltimaVistaRender=S.vista;ukiUltimaSucursalRender=S.suc;
   guardarEnLocalStorage();
