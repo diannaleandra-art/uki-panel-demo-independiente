@@ -127,8 +127,18 @@ module.exports=async function endpoint(req,res){
    const row=rows[0],revision=Number(row.revision);
    const {validarSobreCifradoRomoQA}=await import('../lib/romo-estado-cifrado-persistencia-qa.mjs');
    validarSobreCifradoRomoQA(row.snapshot);
+   const audRows=await db.query(
+    'SELECT revision_nueva,nuevo_md5 FROM public.romo_cancelacion_sobre_piloto_qa_v1 WHERE store_id=$1 AND pedido_id=$2 LIMIT 1',
+    [STORE,PEDIDO]);
+   if(!Array.isArray(audRows)||audRows.length>1)
+    return send(res,503,'Auditoría QA inconsistente');
+   const auditoriaConfirmada=revision===3&&audRows.length===1&&
+    Number(audRows[0].revision_nueva)===revision&&
+    audRows[0].nuevo_md5===row.fingerprint;
    return res.status(200).json({ok:true,soloQA:true,storeId:STORE,revision,
-    snapshot:row.snapshot,listaParaEnsayo:revision===REV&&row.fingerprint===OLD_MD5});
+    snapshot:row.snapshot,listaParaEnsayo:revision===REV&&
+     row.fingerprint===OLD_MD5&&audRows.length===0,
+    auditoriaConfirmada});
   }
   const result=await guardarQA({db,identity,body:req.body});
   return res.status(200).json(result);
