@@ -961,7 +961,19 @@ function render(){
    '<details class="card" id="romoPruebaPermisoQA"><summary><b>Verificación técnica de permisos · QA</b></summary>'+
    '<p class="muted">Una prueba aislada con cuenta Google de dueños. Registra una constancia en Neon QA; no cancela ni cobra pedidos.</p>'+
    '<button type="button" class="sm" onclick="ukiRomoProbarPermisoNeonQA()">Probar escritura aislada</button></details>':'';
-  $("app").innerHTML=msg+verificacionQA+f();
+  // Ensayo de cancelación exclusivamente sobre la COPIA Neon QA.
+  // Requiere al dueño y su contraseña local; no cambia el panel en producción.
+  const cancelacionQA=S.suc===ROMO_SUCURSAL_QA&&S.vista==='inicio'?
+   '<details class="card" id="romoCancelacionCopiaQA"><summary><b>Ensayo de cancelación · copia Neon QA</b></summary>'+
+   '<p class="muted">Sólo pedido de prueba #1, sin pago. La copia original de Romo, Caja, Ventas y Uki NO cambiarán. Una sola ejecución.</p>'+
+   '<label for="romoCopiaQAClave">Clave habitual del panel (no se envía a Neon)</label>'+
+   '<input id="romoCopiaQAClave" type="password" autocomplete="off" maxlength="150" placeholder="Clave para abrir la copia cifrada QA">'+
+   '<label for="romoCopiaQAResponsable">Responsable de la prueba</label>'+
+   '<input id="romoCopiaQAResponsable" maxlength="80" autocomplete="off" placeholder="Nombre responsable">'+
+   '<label for="romoCopiaQAMotivo">Motivo</label>'+
+   '<input id="romoCopiaQAMotivo" maxlength="300" autocomplete="off" value="Pedido de prueba sin preparar, entregar ni cobrar">'+
+   '<button type="button" class="sm" id="romoCopiaQABoton" onclick="ukiRomoEnsayarCancelacionCopiaQA()">Probar cancelación solo en copia QA</button></details>':'';
+  $("app").innerHTML=msg+verificacionQA+cancelacionQA+f();
   if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='promos')
    setTimeout(()=>{if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='promos')window.ukiRomoBannerAdminMount?.()},0);
   ukiRestaurarVistaTrasRender(ukiVistaAnterior);
@@ -6754,6 +6766,81 @@ async function ukiRomoProbarPermisoNeonQA(){
     'No se confirmó la escritura QA. Revisa la autorización Google de dueños.');
   aviso('Prueba QA confirmada: una constancia sin modificar pedidos, pagos, caja ni cierres.');
  }catch(error){aviso(String(error?.message||'Error de verificación QA'));}
+}
+
+let ukiRomoCancelacionCopiaEnCursoQA=false;
+async function ukiRomoEnsayarCancelacionCopiaQA(){
+ if(S.suc!==ROMO_SUCURSAL_QA||S.vista!=='inicio'||
+    ukiRomoCancelacionCopiaEnCursoQA||ukiRomoOperacionesEnCursoQA())return;
+ const claveEl=$('romoCopiaQAClave'),boton=$('romoCopiaQABoton');
+ const password=String(claveEl?.value||'');
+ const responsable=String($('romoCopiaQAResponsable')?.value||'').trim();
+ const motivo=String($('romoCopiaQAMotivo')?.value||'').trim();
+ if(password.length<12||responsable.length<2||responsable.length>80||
+    motivo.length<4||motivo.length>300){
+  aviso('Completa la clave habitual, responsable y motivo para la copia QA.');return;
+ }
+ ukiRomoCancelacionCopiaEnCursoQA=true;
+ if(boton)boton.disabled=true;
+ let enviado=false;
+ try{
+  const token=await window.ukiInventarioToken?.();
+  if(typeof token!=='string'||token.length<30)
+   throw Error('Inicia sesión Google con cuenta de dueños de Romo.');
+  const endpoint='/api/romo-cancelacion-cifrada-solo-qa';
+  const headers={Authorization:'Bearer '+token};
+  const leerQA=async()=>{
+   const respuesta=await fetch(endpoint,{method:'GET',headers,cache:'no-store',
+    credentials:'same-origin'});
+   const data=await respuesta.json().catch(()=>null);
+   if(!respuesta.ok||data?.ok!==true||data?.soloQA!==true||
+      data.storeId!=='romo:serena')throw Error('No se pudo verificar la copia aislada de Neon QA.');
+   return data;
+  };
+  const anteriorQA=await leerQA();
+  if(anteriorQA.revision!==2||anteriorQA.listaParaEnsayo!==true)
+   throw Error('La prueba QA ya fue ejecutada o cambió la revisión. No repetir.');
+  const opened=await abrirLocal(JSON.stringify(anteriorQA.snapshot),ROMO_SUCURSAL_QA,password);
+  const conciliador=await import('./uki-romo-conciliacion-cancelacion-qa.mjs');
+  const datos={pedidoId:1,registradoEn:Date.now(),categoria:'local',responsable,motivo};
+  const preparado=conciliador.prepararConciliacionCancelacionRomoQA(opened.estado,datos);
+  if(preparado.resumen?.pedidoId!==1||preparado.resumen?.cobro!==false||
+     preparado.resumen?.modificacionCaja!==false||
+     preparado.resumen?.guardadoEnNeon!==false)
+   throw Error('La cancelación no cumple los controles locales de Romo.');
+  const cifrado=await cifrarLocal(preparado.estadoPropuesto,ROMO_SUCURSAL_QA,
+   opened.key,opened.salt);
+  if(!window.confirm('ENSAYO EN COPIA NEON QA SOLAMENTE.\nPedido #1 pasa a Cancelado únicamente en la copia de pruebas.\nLa caja y pedidos originales siguen intactos.\n¿Confirmar UNA sola vez?'))return;
+  enviado=true;
+  const respuesta=await fetch(endpoint,{
+   method:'POST',cache:'no-store',credentials:'same-origin',
+   headers:{...headers,'Content-Type':'application/json'},
+   body:JSON.stringify({expectedRevision:2,pedidoId:1,categoria:'local',
+    motivo,snapshot:cifrado})
+  });
+  const post=await respuesta.json().catch(()=>null);
+  if(respuesta.status===409)
+   throw Error('La copia QA cambió o la operación ya fue ejecutada. NO repetir.');
+  if(!respuesta.ok||post?.ok!==true||post?.soloQA!==true||
+     post.revision!==3||post.auditoriaRegistrada!==true)
+   throw Error('No se pudo confirmar la actualización QA. NO repetir; revisa Neon.');
+  // Confirmación por segunda lectura. Nunca sincronizar estado QA con S
+  // ni sobrescribir los pedidos reales de la pantalla.
+  const despuesQA=await leerQA();
+  if(despuesQA.revision!==3||despuesQA.auditoriaConfirmada!==true)
+   throw Error('Neon QA confirmó escritura, pero falta conciliar el historial. NO repetir.');
+  const abiertoQA=await abrirLocal(JSON.stringify(despuesQA.snapshot),ROMO_SUCURSAL_QA,password);
+  if(JSON.stringify(abiertoQA.estado)!==JSON.stringify(preparado.estadoPropuesto))
+   throw Error('Diferencia en la copia QA después de guardar. NO repetir; revisar.');
+  aviso('ENSAYO QA CONFIRMADO: pedido #1 cancelado sólo en COPIA QA, con auditoría. Original y Caja intactos.');
+ }catch(error){
+  aviso((enviado?'No repitas la prueba. ':'')+
+   String(error?.message||'No se pudo comprobar el ensayo QA.'));
+ }finally{
+  if(claveEl)claveEl.value='';
+  ukiRomoCancelacionCopiaEnCursoQA=false;
+  if(boton)boton.disabled=false;
+ }
 }
 
 async function ukiRomoCambiarEstadoQA(id,accion){
