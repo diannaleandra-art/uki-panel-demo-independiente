@@ -34,7 +34,7 @@ export function crearPuenteRomoOperativoQA({
     ...(method==='POST'?{'Content-Type':'application/json'}:{})
    },
    ...(method==='POST'?{body:JSON.stringify(body)}:{}),
-   cache:'no-store',credentials:'omit'
+   cache:'no-store',credentials:'same-origin'
   });
   if(response.status===409)throw new RomoGuardarConflictoQA();
   if(!response.ok)throw new Error('No se confirmó el acceso o guardado de Romo');
