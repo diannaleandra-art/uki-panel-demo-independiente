@@ -55,6 +55,8 @@ export function prepararPedidoManualPendienteRomoQA(estado,{
  permitir(entero(total,1,3000000),'Total del pedido inválido');
  permitir(entero(registradoEn,1,8640000000000000),'Fecha de recepción inválida');
  const turno=obtenerTurnoRomoFolioQA(estado,{fechaOperativa,registradoEn});
+ permitir(estado.cajasDiarias?.[SUC+'|'+fechaOperativa]?.baseConfirmada===true,
+  'Primero confirma la base real del turno de Romo');
  const id=estado.nextId;
  permitir(!estado.pedidos.some(p=>p.id===id),'Folio interno duplicado');
  const fechaISO=texto(draft.fecha,45)||new Date(registradoEn).toISOString();
