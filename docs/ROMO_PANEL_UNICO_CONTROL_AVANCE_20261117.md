@@ -156,3 +156,11 @@ En la rama `qa/romos-panel-v816` se incorporaron, **sin habilitar escrituras com
 - Precaución: el servidor almacena un sobre AES-GCM cifrado, por lo que activar el guardado general permitiría varios tipos de modificaciones y **no garantizaría restringirlas a una cancelación**. No habilitar ambas flags sin un piloto controlado y pruebas manuales. Los datos, ventas, pedidos y cierres permanecen intactos.
 
 **Siguiente paso:** probar en una sola Preview aislada del proyecto `romos-sushi-panel`, con variables de escritura ausentes, el aviso y el bloqueo de botones. Mantener el despliegue oficial de Uki intacto. No repetir cancelación hasta que exista una estrategia de permisos segura y autorización explícita para escrituras.
+
+## Preview original de Romo con bloqueo preventivo publicado (17-11-2026)
+
+- **ÚNICO despliegue manual Preview de esta continuación** en proyecto Vercel original `romos-sushi-panel` (id `prj_5VHLcRLvLuPdaSX4ED4peRVCU2LU`), deployment `dpl_SmFSEhPg9AaxAX6Xkv7HkWZh2k2V`, commit exacto `c5ea49fe0830d6a6644420975567e4e29a1164a6`, rama `qa/romos-panel-v816`. Estado **READY**, `target=null` (Preview). URL: `https://romos-sushi-panel-git-qa-romos-panel-v816-diannaleandra-7046.vercel.app/romo-panel-qa/index.html`.
+- Comprobación externa: página HTTP **200** y marcador `SOLO CONSULTA · guardado desactivado` presente en HTML publicado; módulo `uki-romo-operativo-qa.mjs` HTTP **200**, contiene verificación de `escrituraHabilitada`. GET **sin Google** a `/api/romo-estado-cifrado-panel-qa` devuelve **403** por identidad sin autorización, como corresponde. No se ha intentado POST real.
+- Siete pruebas funcionales **simuladas** ejecutadas sobre el código fuente y el HTML parseado, todas pasaron. Pruebas end-to-end con sesión Google / UI en iPhone siguen pendientes; no se declara la suite Node completa ejecutada ni la cancelación resuelta.
+- Banderas de escritura del proyecto Romo `ROMO_PANEL_PILOTO_MANUAL_QA_ENABLED` y `ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED`: comprobadas AUSENTES antes del despliegue. No se activaron, no se publicaron cambios en producción, no se escribieron datos de pedidos, caja, cierres ni inventario.
+- El cambio de este registro está posterior al commit desplegado (documentación solamente). La Preview coincide con el código ya probado.
