@@ -110,3 +110,39 @@ test('Romo QA mantiene autenticación en banner, catálogo e inventario sin abri
  assert.match(api,/ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED/);
  assert.match(api,/ROMO_PANEL_PILOTO_MANUAL_QA_ENABLED/);
 });
+
+
+test('Permisos Preview Romo: lectura independiente y escritura comercial cerrada',()=>{
+ const env={
+  ...preview,
+  VERCEL_GIT_COMMIT_REF:'qa/romos-panel-v816',
+  ROMO_PANEL_ALLOWED_ORIGIN:'https://romos-sushi-panel-git-qa-romos-panel-v816-diannaleandra-7046.vercel.app',
+  ROMO_CARTA_ALLOWED_ORIGIN:'https://romos-sushi-carta.vercel.app',
+  ROMO_CARTA_CATALOGO_QA_ORIGIN:'https://romos-sushi-carta.vercel.app',
+  ROMO_PRIVATE_DATABASE_HOST:'ep-sample.c-2.us-east-2.aws.neon.tech',
+  ROMO_PRIVATE_DATABASE_URL:'postgresql://romos_app_service:dummy@ep-sample.c-2.us-east-2.aws.neon.tech/romos_sushi',
+  ROMO_SOLICITUDES_RATE_SALT:'x'.repeat(64)
+ };
+ const inventario=require('../api/romo-inventario-qa.js')._internalQA.config;
+ const banner=require('../api/romo-banner-carta-qa.js')._internal.config;
+ const carta=require('../api/romo-carta-ediciones-seguras-qa.js')._internalQA.config;
+ const pin=require('../api/romo-pin-inventario-qa.js')._internalQA.configuration;
+ for(const f of [inventario,banner,carta,pin])assert.equal(f(env),null);
+ const lectura={...env,ROMO_INVENTARIO_LECTURA_QA_ENABLED:'true',
+  ROMO_CATALOGO_LECTURA_QA_ENABLED:'true'};
+ const a=inventario(lectura),b=banner(lectura);
+ assert.equal(typeof a?.read,'string');
+ assert.equal(b?.write,false);
+ assert.equal(pin(lectura),null);
+ assert.equal(carta(lectura),null);
+ const pinRead=pin({...lectura,ROMO_PIN_INVENTARIO_QA_ENABLED:'true'});
+ assert.equal(pinRead?.write,false);
+ assert.equal(pin({...lectura,ROMO_PIN_INVENTARIO_QA_ENABLED:'true',
+  ROMO_SOLICITUDES_RATE_SALT:'short'}),null);
+ assert.equal(carta({...lectura,ROMO_CARTA_EDICIONES_QA_ENABLED:'true'})?.panel,
+  env.ROMO_PANEL_ALLOWED_ORIGIN);
+ const cierre=read('../api/romo-estado-cifrado-panel-qa.js');
+ assert.match(cierre,/ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED/);
+ assert.match(cierre,/ROMO_PANEL_PILOTO_MANUAL_QA_ENABLED/);
+ assert.equal(env.ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED,undefined);
+});
