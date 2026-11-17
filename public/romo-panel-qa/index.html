@@ -1295,7 +1295,10 @@ function ukiFraseDiaria(fecha=ukiFechaCalendarioChile(Date.now())){
   "🍱 Atención amable, pedidos correctos y cuentas claras."
  ];
  const dia=Date.parse(String(fecha)+"T12:00:00Z");
- return frases[Math.floor(dia/86400000)%frases.length]||frases[0];
+ const texto=frases[Math.floor(dia/86400000)%frases.length]||frases[0];
+ // La frase global de Uki se conserva en Uki; sólo Romo muestra su marca.
+ return S.suc===ROMO_SUCURSAL_QA?
+  texto.replace('a Uki Sushi.','a Romo Sushi.'):texto;
 }
 function ukiFechaHoraInicio(){
  return new Date().toLocaleString("es-CL",{timeZone:"America/Santiago",
