@@ -36,5 +36,10 @@
       "destination": "/romo-panel-qa/index.html",
       "permanent": false
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "release/romos-panel-v816": false
+    }
+  }
 }
