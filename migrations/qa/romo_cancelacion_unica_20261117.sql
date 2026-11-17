@@ -17,4 +17,7 @@ CREATE TABLE IF NOT EXISTS public.romo_cancelacion_pedido_qa_v1 (
   UNIQUE (store_id,revision_neon)
 );
 -- Permiso más reducido: auditoría append-only, sin UPDATE/DELETE de constancias.
+-- Neon puede heredar privilegios DEFAULT de nuevas tablas; revocarlos primero.
+-- La constancia debe ser append-only para la cuenta de aplicación.
+REVOKE UPDATE,DELETE ON public.romo_cancelacion_pedido_qa_v1 FROM romos_app_service;
 GRANT SELECT,INSERT ON public.romo_cancelacion_pedido_qa_v1 TO romos_app_service;
