@@ -98,7 +98,8 @@ test('El formulario exige copia conciliada de Neon antes de proponer y guardar',
  const html=readFileSync(new URL('../public/romo-panel-qa/index.html',import.meta.url),'utf8');
  const segment=html.slice(html.indexOf('async function ukiRomoCambiarEstadoQA('),
   html.indexOf('const ROMO_MEDIOS_SALIDAS_QA='));
- assert.match(segment,/sesion\.coincideEstadoOperativo\(anterior\)!==true/);
+ assert.match(segment,/sesion\.coincideEstadoOperativo\(visible\)!==true/);
+ assert.match(segment,/sesion\.estadoOperativoConfirmado\(\)/);
  assert.match(segment,/prepararConciliacionCancelacionRomoQA\(anterior,/);
  assert.match(segment,/guardadoEnNeon!==false/);
  assert.match(segment,/modificacionCaja!==false/);
