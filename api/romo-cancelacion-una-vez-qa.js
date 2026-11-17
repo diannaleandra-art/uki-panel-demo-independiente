@@ -40,6 +40,12 @@ module.exports=async function romoCancelarUnicaQA(req,res){
  res.setHeader('Access-Control-Allow-Origin',cfg.origin);
  res.setHeader('Access-Control-Allow-Methods','POST');
  res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type');
+ if(req.method==='OPTIONS'){
+  // El preflight sólo habilita el mismo origen y método POST, sin operar Neon.
+  if(String(req.headers?.['access-control-request-method']||'').toUpperCase()!=='POST')
+   return send(res,403,'Preflight no autorizado');
+  return res.status(204).end();
+ }
  if(req.method!=='POST')return send(res,405,'Sólo cancelación aprobada por POST');
  if(String(req.headers?.['content-type']||'').split(';')[0]!=='application/json')
   return send(res,415,'Se requiere JSON');
