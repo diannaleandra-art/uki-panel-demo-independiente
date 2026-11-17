@@ -1112,6 +1112,9 @@ async function entrarSuc(){
     // El MISMO panel y las MISMAS vistas; el servidor sólo entrega datos Romo.
     S={...estadoVacioSucursal(s),...unlocked.estado,
       suc:s,pinSuc:null,vista:"inicio",msg:null,busy:false,confirmCierre:false};
+    // La revisión de lo que muestra la pantalla se mantiene SEPARADA del
+    // número de CAS que puede avanzar antes de actualizar la UI.
+    window.ukiRomoRevisionVistaPanelUnicoQA=unlocked.revision;
     S.romoSeleccionadoQA=false;S.romoIngresadoQA=true;
    }else{
     // Mantener la pantalla de preparación ya aprobada; NO registrar operaciones.
@@ -1141,6 +1144,7 @@ async function salirSuc(){
   const ok=await guardarEnLocalStorage();if(!ok)return;
   await colaGuardado;
  }
+ window.ukiRomoRevisionVistaPanelUnicoQA=null;
  revisionGuardado++;claveSesion=null;saltSesion=null;sucursalSesion=null;
  cargarDesdeLocalStorage();nuevoDraft();
  if(typeof window.ukiQASessionLeft==="function")window.ukiQASessionLeft();
@@ -6203,6 +6207,8 @@ window.ukiRomoAplicarConfirmadoPanelUnicoQA=async({estado,revision,tipo,detalle}
  if(!Number.isSafeInteger(revision)||revision<2||
     remoto.storeId!=='romo:serena'||remoto.revision!==revision||remoto.conflicto)
   throw Error('No hay confirmación Neon para actualizar el panel');
+ if(window.ukiRomoRevisionVistaPanelUnicoQA!==revision-1)
+  throw Error('La revisión de la pantalla cambió; reabre Romo y concilia');
  const vista=S.vista;
  S={...estadoVacioSucursal(ROMO_SUCURSAL_QA),...JSON.parse(JSON.stringify(estado)),
    suc:ROMO_SUCURSAL_QA,pinSuc:null,vista,codigos:{},busy:false,
@@ -6212,6 +6218,7 @@ window.ukiRomoAplicarConfirmadoPanelUnicoQA=async({estado,revision,tipo,detalle}
   nuevoDraft();S.vista='pedidos';
  }
  render();
+ window.ukiRomoRevisionVistaPanelUnicoQA=revision;
 };
 window.ukiQAGet=()=>S.suc?{suc:S.suc,estado:datosSoloSucursal()}:null;
 window.ukiQASet=async(data)=>{
