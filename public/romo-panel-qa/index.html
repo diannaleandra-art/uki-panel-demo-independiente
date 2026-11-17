@@ -6776,13 +6776,16 @@ async function ukiRomoCambiarEstadoQA(id,accion){
  if(!window.confirm(mensaje))return;
  ukiRomoOperandoPedidoQA=true;
  try{
-  const anterior=datosSoloSucursal();
-  // El pedido que se cancela debe provenir de la última copia operativa
-  // confirmada en Neon; no arrastrar cambios de caja sin guardar.
+  const visible=datosSoloSucursal();
+  // La pantalla de Uki puede generar una caja vacía al navegar.
+  // Compararla con la última copia confirmada, pero nunca cifrarla
+  // accidentalmente como parte de una cancelación.
   if(accion==='cancelar'&&
      (typeof sesion.coincideEstadoOperativo!=='function'||
-      sesion.coincideEstadoOperativo(anterior)!==true))
-   throw Error('Hay cambios sin conciliar. Reabre Romo antes de cancelar.');
+      sesion.coincideEstadoOperativo(visible)!==true||
+      typeof sesion.estadoOperativoConfirmado!=='function'))
+   throw Error('Hay cambios operativos sin conciliar. Reabre Romo antes de cancelar.');
+  const anterior=accion==='cancelar'?sesion.estadoOperativoConfirmado():visible;
   let copia=JSON.parse(JSON.stringify(anterior));
   const ahoraMs=Date.now();
   if(accion==='cancelar'){
