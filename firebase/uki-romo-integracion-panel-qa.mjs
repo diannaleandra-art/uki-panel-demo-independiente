@@ -7,6 +7,9 @@ import {crearPuenteRomoOperativoQA} from './uki-romo-operativo-qa.mjs';
 import {crearSesionPanelUnicoRomoQA} from '../lib/romo-panel-unico-sesion-qa.mjs';
 import {cartaRomoDisponibleQA,obtenerCartaRomoPanelQA} from './uki-romo-catalogo-qa.mjs';
 import {crearTransaccionesPanelUnicoRomoQA} from './uki-romo-transacciones-panel-unico-qa.mjs';
+import {crearBandejaRomoMismoPanelQA} from './uki-romo-recepcion-formulario-qa.mjs';
+import {crearGuardadoRomoDesdeFormularioQA} from './uki-romo-guardado-atomico-qa.mjs';
+import {obtenerTurnoRomoFolioQA} from './uki-romo-folio-turno-qa.mjs';
 const unsupported=()=>{throw Error('Utiliza únicamente el cifrado de uki-sushi-local.html');};
 const vault=crearPuenteRomoOperativoQA({
  cifrar:unsupported,descifrar:unsupported,validarEstado:()=>false
@@ -45,5 +48,44 @@ window.ukiRomoTransaccionesPanelUnicoQA=crearTransaccionesPanelUnicoRomoQA({
   const aplicar=window.ukiRomoAplicarConfirmadoPanelUnicoQA;
   if(typeof aplicar!=='function')throw Error('No se puede confirmar la pantalla');
   await aplicar({estado,revision,tipo,detalle});
+ }
+});
+
+/*
+ * Aceptación de solicitudes de carta Romo: NO emplear session.guardar()
+ * porque dejaría pendiente el estado de la solicitud. Usa reserva y PATCH
+ * atómico del backend con expectedRevision. Después verifica el ciphertext
+ * exacto con un GET a Neon ANTES de instalar el pedido en el panel.
+ *
+ * Desactivado por defecto. No se puede invocar desde consulta pública QA.
+ */
+const bandejaRomoPanelUnicoQA=crearBandejaRomoMismoPanelQA();
+const visibleRomoPanelUnicoQA=()=>{
+ const v=window.ukiQAGet?.();
+ if(v?.suc!=='Romo’s Sushi La Serena')return null;
+ return {revision:session.estado().revision,estado:v.estado};
+};
+window.ukiRomoSolicitudesGuardarPanelUnicoQA=crearGuardadoRomoDesdeFormularioQA({
+ bandeja:bandejaRomoPanelUnicoQA,
+ estadoVisible:visibleRomoPanelUnicoQA,
+ validarEstado:(datos,sucursal)=>
+  window.ukiRomoValidarEstadoSucursalQA?.(datos,sucursal)===true,
+ contextoPedido:async({estado,draft})=>{
+  const registradoEn=Date.now(),fechaOperativa=String(estado?.fechaOperativa||'');
+  const folio=obtenerTurnoRomoFolioQA(estado,{fechaOperativa,registradoEn});
+  return {numeroTurno:folio.numero,turnoClave:folio.clave,registradoEn,
+   fechaISO:new Date(registradoEn).toISOString(),
+   // No convertir solicitudes en ventas pagadas sin cobro real confirmado.
+   confirmoPago:false,confirmoDiferenciaTotal:false};
+ },
+ cifrarEstado:async(estado)=>{
+  const revision=session.estado().revision;
+  return session.prepararSobreParaSolicitud(estado,{expectedRevision:revision});
+ },
+ aplicarConfirmado:async({estado,revision,snapshot,expectedRevision,pedidoId})=>{
+  await session.confirmarGuardadoAtomico({estado,revision,snapshot,expectedRevision});
+  const aplicar=window.ukiRomoAplicarConfirmadoPanelUnicoQA;
+  if(typeof aplicar!=='function')throw Error('No está disponible el panel operativo de Romo');
+  await aplicar({estado,revision,tipo:'pedido_carta',detalle:{pedidoId}});
  }
 });
