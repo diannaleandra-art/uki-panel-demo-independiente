@@ -158,9 +158,12 @@ function showTab(){
  if(state.tab==='precios'&&esRomo){
   const container=$('ukiPreciosPanel');
   if(container){
+   // No mostrar la ficha de edición de Uki antes de verificar en Neon
+   // que el usuario conectado sea dueño autorizado de Romo.
+   container.hidden=true;
+   container.style.display='none';
    if(typeof window.romoMontarCartaEditorSeguroQA==='function')
-    window.romoMontarCartaEditorSeguroQA({container,storeId:'romo:serena'});
-   else container.textContent='Carta y precios Romo: editor no habilitado todavía. Ningún dato se modificó.';
+    void window.romoMontarCartaEditorSeguroQA({container,storeId:'romo:serena'});
   }
  }else if(state.tab==='precios'&&!state.ready)void loadPrices();
  if(state.tab==='reportes')void loadReponer();
