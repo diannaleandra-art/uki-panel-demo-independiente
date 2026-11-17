@@ -956,7 +956,12 @@ function render(){
   }[S.vista]||vInicio;
   const msg=S.msg?`<div role="status" class="aviso" style="background:#ffece4;color:#7a2c08">${esc(S.msg)}</div>`:"";
   S.msg=null;
-  $("app").innerHTML=msg+f();
+  // Diagnóstico exclusivo QA, independiente del historial y caja.
+  const verificacionQA=S.suc===ROMO_SUCURSAL_QA&&S.vista==='inicio'?
+   '<details class="card" id="romoPruebaPermisoQA"><summary><b>Verificación técnica de permisos · QA</b></summary>'+
+   '<p class="muted">Una prueba aislada con cuenta Google de dueños. Registra una constancia en Neon QA; no cancela ni cobra pedidos.</p>'+
+   '<button type="button" class="sm" onclick="ukiRomoProbarPermisoNeonQA()">Probar escritura aislada</button></details>':'';
+  $("app").innerHTML=msg+verificacionQA+f();
   if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='promos')
    setTimeout(()=>{if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='promos')window.ukiRomoBannerAdminMount?.()},0);
   ukiRestaurarVistaTrasRender(ukiVistaAnterior);
@@ -6725,6 +6730,32 @@ async function ukiRomoConfirmarCobroQA(id){
    String(e?.message||e));
  }finally{ukiRomoOperandoPedidoQA=false;}
 }
+async function ukiRomoProbarPermisoNeonQA(){
+ if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoOperacionesEnCursoQA())return;
+ if(!window.confirm('Romo QA: registrar UNA constancia aislada con Google de dueños. No modifica pedidos, pagos, caja ni cierres. ¿Ejecutar prueba?'))return;
+ try{
+  const token=await window.ukiInventarioToken?.();
+  if(typeof token!=='string'||token.length<30)
+   throw Error('Primero inicia sesión Google autorizada de dueños.');
+  const response=await fetch('/api/romo-prueba-escritura-aislada-qa',{
+   method:'POST',cache:'no-store',credentials:'same-origin',
+   headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+   body:JSON.stringify({operationId:'romo-qa-autorizacion-20261117',expectedRevision:2})
+  });
+  const result=await response.json().catch(()=>null);
+  if(response.status===409){
+   aviso('La prueba ya se registró o la revisión cambió. No repetir la operación.');
+   return;
+  }
+  if(!response.ok||result?.ok!==true||result?.soloQA!==true||
+     result?.pedidoCancelado!==false||result?.cajaModificada!==false)
+   throw Error(response.status===503?
+    'Prueba aislada todavía no habilitada en esta Preview.':
+    'No se confirmó la escritura QA. Revisa la autorización Google de dueños.');
+  aviso('Prueba QA confirmada: una constancia sin modificar pedidos, pagos, caja ni cierres.');
+ }catch(error){aviso(String(error?.message||'Error de verificación QA'));}
+}
+
 async function ukiRomoCambiarEstadoQA(id,accion){
  if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA)return;
  if(window.ukiRomoGuardadoHabilitadoQA?.()!==true){
