@@ -234,3 +234,14 @@ test('El panel unido no arrastra cambios financieros previos al CAS',async()=>{
  assert.match(session,/firmaOperativa\(estado\)===firmaOperativa\(JSON\.parse\(current\.ultimoEstado\)\)/);
  assert.equal(f.guardados(),0);
 });
+
+test('Revisión de la vista no se adelanta a Neon antes de aplicar confirmado',()=>{
+ const html=readFileSync(new URL('../firebase/uki-sushi-local.html',import.meta.url),'utf8');
+ const adapter=readFileSync(new URL('../firebase/uki-romo-integracion-panel-qa.mjs',import.meta.url),'utf8');
+ assert.match(adapter,/revision=window\.ukiRomoRevisionVistaPanelUnicoQA/);
+ assert.doesNotMatch(adapter,/return \{revision:session\.estado\(\)\.revision,estado:v\.estado\}/);
+ assert.match(html,/window\.ukiRomoRevisionVistaPanelUnicoQA=unlocked\.revision/);
+ assert.match(html,/if\(window\.ukiRomoRevisionVistaPanelUnicoQA!==revision-1\)/);
+ assert.match(html,/render\(\);\s*window\.ukiRomoRevisionVistaPanelUnicoQA=revision/);
+ assert.match(html,/window\.ukiRomoRevisionVistaPanelUnicoQA=null/);
+});
