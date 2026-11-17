@@ -143,11 +143,11 @@ function showTab(){
  const sections={
   precios:['ukiPreciosPanel'],
   disponibilidad:['ukiCartaDisponibilidad'],
-  inventario:['ukiInvSectionHead','invRoot','invAdmin','invNewBox','ukiInvWorkerAccess','ukiMiniInventario'],
+  inventario:['ukiInvSectionHead','invRoot','invAdmin','invNewBox','ukiInvWorkerAccess','romoInvWorkerAccess','ukiMiniInventario'],
   reportes:['ukiReponerPanel','ukiHistorial']
  };
  const ids=['ukiInvSectionHead','invRoot','invAdmin','invNewBox','ukiInvWorkerAccess',
-  'ukiCartaDisponibilidad','ukiPreciosPanel','ukiReponerPanel','ukiMiniInventario','ukiHistorial','invReportsBox'];
+  'ukiCartaDisponibilidad','ukiPreciosPanel','ukiReponerPanel','ukiMiniInventario','ukiHistorial','invReportsBox','romoInvWorkerAccess'];
  for(const id of ids){
   const element=$(id);if(!element)continue;
   const visible=(sections[state.tab]||[]).includes(id);
