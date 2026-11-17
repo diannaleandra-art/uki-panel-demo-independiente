@@ -24,8 +24,15 @@ export function crearPuenteRomoOperativoQA({
  if(typeof cifrar!=='function'||typeof descifrar!=='function'||typeof validarEstado!=='function')
   throw new Error('El cifrado y validación deben provenir del panel Uki existente');
  const disponible=()=>Boolean(ROMO_OPERATIVO_ENDPOINT_QA)&&endpoint===ROMO_OPERATIVO_ENDPOINT_QA;
+ // Solo el GET autorizado puede informar si la escritura está permitida.
+ // Sin confirmar capacidad, jamás se envía un POST, aunque la UI tenga botones.
+ let escrituraPermitida=false;
+ const escrituraHabilitada=()=>escrituraPermitida===true;
  const request=async(method,body)=>{
   if(!disponible())throw new Error('Operaciones de Romo no habilitadas');
+  if(method==='GET')escrituraPermitida=false;
+  if(method==='POST'&&!escrituraHabilitada())
+   throw Error('Romo está en modo consulta. No se envió ningún cambio a Neon.');
   const token=await getGoogleToken();
   if(typeof token!=='string'||token.length<30)throw new Error('Utiliza el mismo acceso Google de Uki');
   const response=await fetchFn(endpoint,{
@@ -42,10 +49,11 @@ export function crearPuenteRomoOperativoQA({
   if(value?.ok!==true||value.storeId!==ROMO_OPERATIVO_ID_QA||
      !Number.isSafeInteger(value.revision)||value.revision<0)
    throw new Error('Respuesta operativa Romo inválida');
+  if(method==='GET')escrituraPermitida=value.escrituraHabilitada===true;
   return value;
  };
  return Object.freeze({
-  disponible,
+  disponible,escrituraHabilitada,
   /**
    * Adaptador nuevo para el MISMO cifrado AES-GCM ya usado por Uki.
    * Devuelve el sobre tal cual, sin enviarlo al almacenamiento Uki.
@@ -59,7 +67,8 @@ export function crearPuenteRomoOperativoQA({
        !result.snapshot||result.snapshot.sucursal!==ROMO_OPERATIVO_SUCURSAL_QA||
        result.snapshot.formato!=='uki-v813-browser'||result.snapshot.version!==1))
     throw new Error('La respuesta no corresponde a Romo La Serena');
-   return Object.freeze({revision:result.revision,snapshot:result.snapshot??null});
+   return Object.freeze({storeId:ROMO_OPERATIVO_ID_QA,revision:result.revision,
+    snapshot:result.snapshot??null,escrituraHabilitada:escrituraPermitida});
   },
   /**
    * Sólo sobre cifrado válido, jamás contraseñas, objeto de pedidos claro,
