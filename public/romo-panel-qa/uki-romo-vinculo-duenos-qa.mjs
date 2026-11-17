@@ -22,7 +22,7 @@ export async function comprobarGoogleDuenosRomoQA({
     throw new Error('Utiliza la misma sesión Google de Uki');
   const res=await fetchFn(endpoint,{
     method:'GET',headers:{Authorization:'Bearer '+token},
-    cache:'no-store',credentials:'omit'
+    cache:'no-store',credentials:'same-origin'
   });
   if(!res.ok)throw new Error('Cuenta Google pendiente de verificación');
   const body=await res.json();
