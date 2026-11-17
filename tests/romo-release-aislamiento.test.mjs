@@ -147,6 +147,11 @@ test('Permisos Preview Romo: lectura independiente y escritura comercial cerrada
  const apiCarta=read('../api/romo-carta-ediciones-seguras-qa.js');
  assert.match(apiCarta,/if\(method==='POST'&&!conf\.write\)/);
  assert.match(apiCarta,/ROMO_CARTA_EDICIONES_ESCRITURA_QA_ENABLED/);
+ assert.match(apiCarta,/edicionHabilitada:conf\.write/);
+ const editor=read('../public/romo-panel-qa/romo-carta-editor-seguro-qa.js');
+ assert.match(editor,/state\.current\?\.edicionHabilitada!==true\)return/);
+ assert.match(editor,/result\.edicionHabilitada===true/);
+ assert.match(editor,/La edición de productos sigue desactivada/);
  const cierre=read('../api/romo-estado-cifrado-panel-qa.js');
  assert.match(cierre,/ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED/);
  assert.match(cierre,/ROMO_PANEL_PILOTO_MANUAL_QA_ENABLED/);
