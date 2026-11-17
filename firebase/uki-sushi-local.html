@@ -807,7 +807,7 @@ async function ukiRomoConsultarAreaPanelUnicoQA(area){
  const rutas=Object.freeze({
   pedidos:'/api/romo-solicitudes-carta-qa',
   inventario:'/api/romo-inventario-qa',
-  carta:'/api/romo-catalogo-lectura-qa'
+  carta:'/api/romo-carta-ediciones-seguras-qa'
  });
  if(!Object.prototype.hasOwnProperty.call(rutas,area)||
     !romoConsultaUnificadaQA||S.suc||S.pinSuc||!S.romoSeleccionadoQA)return;
@@ -848,17 +848,19 @@ async function ukiRomoConsultarAreaPanelUnicoQA(area){
    }));
    subtitulo='Inventario de Romo · revisión '+String(data.revision??'?');
   }else{
-   if(data.catalogo?.storeId!=='romo:serena'||data.catalogo?.brand!=='romo'||
-      !Array.isArray(data.catalogo?.products)||!Array.isArray(data.catalogo?.categories)||
-      data.catalogo.products.length>300||data.catalogo.categories.length>100)
-    throw Error('La carta de Romo no se pudo confirmar.');
-   filas=data.catalogo.products.map(x=>({
+   // Fuente aprobada de 40 productos, NO tabla auxiliar de 7 productos.
+   if(data.readOnly!==true||data.edicionHabilitada===true||
+      !Array.isArray(data.products)||data.products.length!==40||
+      !Array.isArray(data.categories)||data.categories.length>100)
+    throw Error('La carta aprobada completa de Romo todavía no se pudo confirmar.');
+   filas=data.products.map(x=>({
     nombre:String(x.name||x.nombre||'Producto').slice(0,100),
     detalle:typeof x.price==='number'?fmt(x.price):
       (typeof x.precio==='number'?fmt(x.precio):'Precio por verificar')
    }));
-   subtitulo='Carta de Romo · revisión '+String(data.revision??'?')+
-    ' · '+data.catalogo.categories.length+' categorías';
+   subtitulo='Carta aprobada de Romo · 40 productos · '+
+    data.categories.length+' categorías · revisión de ediciones '+String(data.revision??'?')+
+    ' · sin cambios autorizados';
   }
   // No dejar que una respuesta anterior sustituya la sección recién elegida.
   if(solicitud!==romoConsultaSolicitudAreaQA||!romoConsultaUnificadaQA)return;
