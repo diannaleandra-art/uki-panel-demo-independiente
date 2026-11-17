@@ -782,6 +782,7 @@ async function ukiConsultarRomoPanelUnicoQA(){
      !Number.isFinite(Number(datos.cajaChica?.inicial)))
    throw Error('No se confirmó la copia cifrada de Romo.');
   // No ingresar a S.suc ni almacenar pedidos o claves: sólo contadores.
+  romoConsultaAreaPanelUnicoQA=null;
   romoConsultaUnificadaQA=Object.freeze({
    revision:remoto.revision,pedidos:datos.pedidos.length,
    cierres:datos.cierres.length,base:Number(datos.base),
@@ -793,8 +794,89 @@ async function ukiConsultarRomoPanelUnicoQA(){
  finally{if(input)input.value='';}
 }
 function ukiRomoVolverDesdeConsultaQA(){
+ romoConsultaAreaPanelUnicoQA=null;
  romoConsultaUnificadaQA=null;S.pinSuc=ROMO_SUCURSAL_QA;
  S.romoSeleccionadoQA=false;S.romoIngresadoQA=false;render();
+}
+// Consultas de áreas ya existentes, sin mezclar ni copiar datos Uki.
+let romoConsultaAreaPanelUnicoQA=null;
+async function ukiRomoConsultarAreaPanelUnicoQA(area){
+ const rutas=Object.freeze({
+  pedidos:'/api/romo-solicitudes-carta-qa',
+  inventario:'/api/romo-inventario-qa',
+  carta:'/api/romo-catalogo-lectura-qa'
+ });
+ if(!Object.prototype.hasOwnProperty.call(rutas,area)||
+    !romoConsultaUnificadaQA||S.suc||S.pinSuc||!S.romoSeleccionadoQA)return;
+ romoConsultaAreaPanelUnicoQA=Object.freeze({area,estado:'cargando'});
+ render();
+ try{
+  const token=await window.ukiInventarioToken?.();
+  if(typeof token!=='string'||token.length<30)
+   throw Error('Necesitas iniciar sesión con Google para esta sección.');
+  const response=await fetch(rutas[area],{
+   method:'GET',headers:{Authorization:'Bearer '+token},
+   cache:'no-store',credentials:'same-origin'
+  });
+  if(response.status===403)throw Error('Tu cuenta no tiene permiso para consultar esta sección.');
+  if(!response.ok)throw Error('Esta conexión de Romo todavía no está disponible.');
+  const data=await response.json();
+  if(data?.ok!==true||data.storeId!=='romo:serena')
+   throw Error('La respuesta no corresponde a Romo La Serena.');
+  let filas=[],subtitulo='';
+  if(area==='pedidos'){
+   if(!Array.isArray(data.orders)||data.orders.length>100)
+    throw Error('La bandeja de Romo no se pudo confirmar.');
+   filas=data.orders.map(x=>({
+    nombre:String(x.codigo_pedido||'Sin código').slice(0,60),
+    detalle:String(x.estado||'Sin estado').slice(0,30)+' · '+
+      String(x.cliente||'').slice(0,80)
+   }));
+   subtitulo='Solicitudes de la carta · solo consulta; no son ventas registradas';
+  }else if(area==='inventario'){
+   if(data.contenido?.version!==1||
+      !Array.isArray(data.contenido.items)||data.contenido.items.length>1500)
+    throw Error('El inventario de Romo no se pudo confirmar.');
+   filas=data.contenido.items.filter(x=>x.archived!==true).map(x=>({
+    nombre:String(x.name||'Artículo').slice(0,100),
+    detalle:String(x.stock_qty??0)+' '+String(x.stock_unit||'').slice(0,25)+
+       (x.available===false?' · No disponible':'')
+   }));
+   subtitulo='Inventario de Romo · revisión '+String(data.revision??'?');
+  }else{
+   if(!Array.isArray(data.catalogo?.products)||!Array.isArray(data.catalogo?.categories)||
+      data.catalogo.products.length>300||data.catalogo.categories.length>100)
+    throw Error('La carta de Romo no se pudo confirmar.');
+   filas=data.catalogo.products.map(x=>({
+    nombre:String(x.name||x.nombre||'Producto').slice(0,100),
+    detalle:typeof x.price==='number'?fmt(x.price):
+      (typeof x.precio==='number'?fmt(x.precio):'Precio por verificar')
+   }));
+   subtitulo='Carta de Romo · revisión '+String(data.revision??'?')+
+    ' · '+data.catalogo.categories.length+' categorías';
+  }
+  // Mostrar datos mínimos de la sucursal autorizada; no guardar el JSON ni hacer POST.
+  romoConsultaAreaPanelUnicoQA=Object.freeze({
+   area,estado:'listo',subtitulo,total:filas.length,
+   filas:Object.freeze(filas.slice(0,30).map(x=>Object.freeze(x)))
+  });
+ }catch(e){
+  romoConsultaAreaPanelUnicoQA=Object.freeze({
+   area,estado:'error',mensaje:String(e?.message||'Consulta no disponible').slice(0,160)
+  });
+ }
+ if(romoConsultaUnificadaQA&&!S.suc&&!S.pinSuc&&S.romoSeleccionadoQA)render();
+}
+function ukiRomoAreaConsultaHTMLQA(){
+ const a=romoConsultaAreaPanelUnicoQA;
+ if(!a)return '<p class="muted">Selecciona una sección para consultar los datos independientes de Romo.</p>';
+ if(a.estado==='cargando')return '<p class="muted" role="status">Consultando '+esc(a.area)+' en Romo…</p>';
+ if(a.estado==='error')return '<p class="aviso" role="status">'+esc(a.mensaje)+'</p>';
+ const lista=a.filas.map(x=>'<div style="padding:9px 0;border-bottom:1px solid #eee">'+
+  '<b>'+esc(x.nombre)+'</b><div class="muted">'+esc(x.detalle)+'</div></div>').join('');
+ return '<div role="status" class="muted">'+esc(a.subtitulo)+
+  ' · '+esc(a.total)+' registros'+(a.total>30?' · se muestran los primeros 30':'')+'</div>'+
+  '<div>'+lista+'</div>';
 }
 function ukiResumenRomoConsultaQA(){
  const v=romoConsultaUnificadaQA;if(!v)return '';
@@ -806,12 +888,19 @@ function ukiResumenRomoConsultaQA(){
   '</strong></div><div class="kpi"><span>Cierres</span><strong>'+esc(v.cierres)+
   '</strong></div><div class="kpi"><span>Base de caja</span><strong>'+fmt(v.base)+
   '</strong></div><div class="kpi"><span>Caja chica inicial</span><strong>'+fmt(v.cajaChica)+
-  '</strong></div></section><p class="muted">Datos de Romo exclusivamente. Uki no se modifica.</p>'+
+  '</strong></div></section><p class="muted">Datos de Romo exclusivamente. Uki no se modifica.</p>'+ 
+  '<h3>Secciones de Romo · solo consulta</h3>'+ 
+  '<div class="quick-grid">'+
+   '<button type="button" class="quick" onclick="ukiRomoConsultarAreaPanelUnicoQA(\'pedidos\')">Pedidos</button>'+ 
+   '<button type="button" class="quick" onclick="ukiRomoConsultarAreaPanelUnicoQA(\'inventario\')">Inventario</button>'+ 
+   '<button type="button" class="quick" onclick="ukiRomoConsultarAreaPanelUnicoQA(\'carta\')">Carta y precios</button>'+ 
+  '</div>'+ukiRomoAreaConsultaHTMLQA()+
   '<button type="button" class="big" onclick="ukiRomoVolverDesdeConsultaQA()">Volver al acceso de Romo</button></section>';
 }
 
 function ukiVolverAlSelectorLocales(){
  if(S.suc)return;
+ romoConsultaAreaPanelUnicoQA=null;
  romoConsultaUnificadaQA=null;
  S.romoSeleccionadoQA=false;S.romoIngresadoQA=false;S.pinSuc=null;render();
 }
@@ -870,6 +959,7 @@ async function ukiRomoDarAltaClaveQA(){
 }
 function pedirPin(s){
  if(!SUCURSALES_PANEL_QA.includes(s))return;
+ romoConsultaAreaPanelUnicoQA=null;
  romoConsultaUnificadaQA=null;
  S.romoSeleccionadoQA=false;S.romoIngresadoQA=false;S.pinSuc=s;render();
 }
