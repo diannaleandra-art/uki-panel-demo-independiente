@@ -21,7 +21,7 @@ function config(env){
  try{db=new URL(String(env.ROMO_PRIVATE_DATABASE_URL||''))}catch{return null;}
  if(!['postgres:','postgresql:'].includes(db.protocol)||
    db.hostname.toLowerCase()!==host||db.pathname!=='/romos_sushi'||
-   !db.username||!db.password)return null;
+   db.username!=='romos_app_service'||!db.password||db.hash)return null;
  for(const key of OTHER_DATABASES){
   try{if(new URL(String(env[key]||'')).hostname.toLowerCase()===host)return null;}catch{}
  }
