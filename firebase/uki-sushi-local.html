@@ -782,6 +782,7 @@ async function ukiConsultarRomoPanelUnicoQA(){
      !Number.isFinite(Number(datos.cajaChica?.inicial)))
    throw Error('No se confirmó la copia cifrada de Romo.');
   // No ingresar a S.suc ni almacenar pedidos o claves: sólo contadores.
+  ++romoConsultaSolicitudAreaQA;
   romoConsultaAreaPanelUnicoQA=null;
   romoConsultaUnificadaQA=Object.freeze({
    revision:remoto.revision,pedidos:datos.pedidos.length,
@@ -794,12 +795,14 @@ async function ukiConsultarRomoPanelUnicoQA(){
  finally{if(input)input.value='';}
 }
 function ukiRomoVolverDesdeConsultaQA(){
+ ++romoConsultaSolicitudAreaQA;
  romoConsultaAreaPanelUnicoQA=null;
  romoConsultaUnificadaQA=null;S.pinSuc=ROMO_SUCURSAL_QA;
  S.romoSeleccionadoQA=false;S.romoIngresadoQA=false;render();
 }
 // Consultas de áreas ya existentes, sin mezclar ni copiar datos Uki.
 let romoConsultaAreaPanelUnicoQA=null;
+let romoConsultaSolicitudAreaQA=0;
 async function ukiRomoConsultarAreaPanelUnicoQA(area){
  const rutas=Object.freeze({
   pedidos:'/api/romo-solicitudes-carta-qa',
@@ -808,6 +811,7 @@ async function ukiRomoConsultarAreaPanelUnicoQA(area){
  });
  if(!Object.prototype.hasOwnProperty.call(rutas,area)||
     !romoConsultaUnificadaQA||S.suc||S.pinSuc||!S.romoSeleccionadoQA)return;
+ const solicitud=++romoConsultaSolicitudAreaQA;
  romoConsultaAreaPanelUnicoQA=Object.freeze({area,estado:'cargando'});
  render();
  try{
@@ -844,7 +848,8 @@ async function ukiRomoConsultarAreaPanelUnicoQA(area){
    }));
    subtitulo='Inventario de Romo · revisión '+String(data.revision??'?');
   }else{
-   if(!Array.isArray(data.catalogo?.products)||!Array.isArray(data.catalogo?.categories)||
+   if(data.catalogo?.storeId!=='romo:serena'||data.catalogo?.brand!=='romo'||
+      !Array.isArray(data.catalogo?.products)||!Array.isArray(data.catalogo?.categories)||
       data.catalogo.products.length>300||data.catalogo.categories.length>100)
     throw Error('La carta de Romo no se pudo confirmar.');
    filas=data.catalogo.products.map(x=>({
@@ -855,12 +860,15 @@ async function ukiRomoConsultarAreaPanelUnicoQA(area){
    subtitulo='Carta de Romo · revisión '+String(data.revision??'?')+
     ' · '+data.catalogo.categories.length+' categorías';
   }
+  // No dejar que una respuesta anterior sustituya la sección recién elegida.
+  if(solicitud!==romoConsultaSolicitudAreaQA||!romoConsultaUnificadaQA)return;
   // Mostrar datos mínimos de la sucursal autorizada; no guardar el JSON ni hacer POST.
   romoConsultaAreaPanelUnicoQA=Object.freeze({
    area,estado:'listo',subtitulo,total:filas.length,
    filas:Object.freeze(filas.slice(0,30).map(x=>Object.freeze(x)))
   });
  }catch(e){
+  if(solicitud!==romoConsultaSolicitudAreaQA||!romoConsultaUnificadaQA)return;
   romoConsultaAreaPanelUnicoQA=Object.freeze({
    area,estado:'error',mensaje:String(e?.message||'Consulta no disponible').slice(0,160)
   });
@@ -900,6 +908,7 @@ function ukiResumenRomoConsultaQA(){
 
 function ukiVolverAlSelectorLocales(){
  if(S.suc)return;
+ ++romoConsultaSolicitudAreaQA;
  romoConsultaAreaPanelUnicoQA=null;
  romoConsultaUnificadaQA=null;
  S.romoSeleccionadoQA=false;S.romoIngresadoQA=false;S.pinSuc=null;render();
@@ -959,6 +968,7 @@ async function ukiRomoDarAltaClaveQA(){
 }
 function pedirPin(s){
  if(!SUCURSALES_PANEL_QA.includes(s))return;
+ ++romoConsultaSolicitudAreaQA;
  romoConsultaAreaPanelUnicoQA=null;
  romoConsultaUnificadaQA=null;
  S.romoSeleccionadoQA=false;S.romoIngresadoQA=false;S.pinSuc=s;render();
