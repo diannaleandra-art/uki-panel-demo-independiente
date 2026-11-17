@@ -46,3 +46,22 @@ test('la rama de entrega no despliega automáticamente',()=>{
  assert.equal(config.git?.deploymentEnabled?.['release/romos-panel-v816'],false);
  assert.equal(config.git?.deploymentEnabled?.['qa/romos-panel-v816'],false);
 });
+
+test('diagnóstico de Neon sólo acepta cuenta de servicio y rama QA de Romo',()=>{
+ const api=require('../api/romo-conexion-lectura-qa.js');
+ const config=api._internalQA.config;
+ const env={
+  VERCEL_ENV:'preview',
+  VERCEL_GIT_COMMIT_REF:'qa/romos-panel-v816',
+  ROMO_PANEL_ISOLATED_PROJECT:'romos-sushi-panel',
+  ROMO_PANEL_ALLOWED_ORIGIN:'https://romos-sushi-panel-git-qa-romos-panel-v816-diannaleandra-7046.vercel.app',
+  ROMO_PRIVATE_DATABASE_HOST:'ep-wild-hat-bezucf4v.c-9.us-east-2.aws.neon.tech',
+  ROMO_PRIVATE_DATABASE_URL:'postgresql://romos_app_service:dummy@ep-wild-hat-bezucf4v.c-9.us-east-2.aws.neon.tech/romos_sushi',
+  ROMO_CONEXION_LECTURA_QA_ENABLED:'true'
+ };
+ assert.equal(typeof config(env)?.db,'string');
+ assert.equal(config({...env,ROMO_PRIVATE_DATABASE_URL:env.ROMO_PRIVATE_DATABASE_URL.replace('romos_app_service','romos_sushi_owner')}),null);
+ assert.equal(config({...env,ROMO_PRIVATE_DATABASE_URL:env.ROMO_PRIVATE_DATABASE_URL.replace('/romos_sushi','/neondb')}),null);
+ assert.equal(config({...env,VERCEL_GIT_COMMIT_REF:'main'}),null);
+ assert.equal(config({...env,ROMO_CONEXION_LECTURA_QA_ENABLED:'false'}),null);
+});
