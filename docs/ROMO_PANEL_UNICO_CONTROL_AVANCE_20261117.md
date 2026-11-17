@@ -27,3 +27,11 @@ Un mismo panel y procedimiento de acceso para **Uki Regimiento Arica**, **Uki La
 
 ## Reglas de publicación
 No publicar producción Uki ni Romo desde esta etapa. Agrupar correcciones en GitHub y realizar una única publicación Preview para comprobación manual cuando el bloque esté listo; no reutilizar un redeploy de un commit anterior. Sin prueba operativa no declarar «terminado» ni «idéntico».
+
+## Avance de lectura integrada — 17-11-2026
+- En `firebase/uki-sushi-local.html` (misma interfaz QA de tres sucursales) se conectaron **tres pestañas de consulta** para Romo: Pedidos (solicitudes desde carta, no ventas), Inventario, Carta y precios. Todos sus accesos HTTP son `GET` autenticados por Google, con verificación de `storeId=romo:serena`; no exponen `POST`, no copian el JSON a `S` ni guardan en Uki.
+- La bandeja de Pedidos usa `/api/romo-solicitudes-carta-qa`, Inventario usa `/api/romo-inventario-qa` y Carta aprobada usa `/api/romo-carta-ediciones-seguras-qa`. Los errores de servicios se muestran como **no disponibles**; nunca se inventan cantidades ni se afirma éxito.
+- Se comprobó **sin escritura** en Neon Romo que `romo_catalogo_v1` tiene 7 productos y 2 categorías en su versión 1; `romo_inventario_v1` tiene 38 artículos. El catálogo auxiliar de 7 **no es equivalente** a la carta aprobada de 40 productos.
+- Por ello la consulta del panel único exige **los 40 productos confirmados** por el servicio de carta aprobada, `readOnly=true` y permiso de edición desactivado; si no se confirman, presenta el error y no sustituye contenido con los 7 del catálogo auxiliar. No se modificaron precios ni categorías en Neon.
+- Se añadió barrera contra respuestas cruzadas cuando se cambia rápidamente de pestaña, y los nombres de productos/artículos se muestran con escape de HTML.
+- **Pendiente manual**: comprobar la carga real de cada consulta en una Preview autorizada (sin publicar todavía), verificar la equivalencia de contenido y luego implementar operaciones completas siguiendo la versión oficial Uki.
