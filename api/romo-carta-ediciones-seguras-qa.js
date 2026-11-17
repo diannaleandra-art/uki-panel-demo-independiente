@@ -100,7 +100,7 @@ module.exports=async function romoCartaEdicionesSegurasQA(req,res){
     const lib=await import('../lib/romo-carta-ediciones-seguras-qa.mjs');
     if(method==='GET'){
       const result=await lib.leerEdicionesRomoQA({db,carta,identity});
-      return res.status(200).json(result);
+      return res.status(200).json({...result,edicionHabilitada:conf.write});
     }
     if(req.body.action==='initialize'){
       const result=await lib.inicializarCatalogoRomoQA({
