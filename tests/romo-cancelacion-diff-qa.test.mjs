@@ -46,6 +46,19 @@ test('Rechaza estado de Uki y pedido ya pagado, sin tocar ninguno',()=>{
  const paid=estado();paid.pedidos[0].pagado=true;
  assert.throws(()=>comprobarSoloCancelacionRomoQA(paid,candidate(estado()),datos),/con pagos/);
 });
+
+test('Cliente y local: el mismo tipo pasa a preparar y comprobar la cancelación',()=>{
+ for(const categoria of ['cliente','local']){
+  const d={...datos,categoria};
+  const before=estado(),next=clone(before);
+  prepararCancelacionRomoQA(next,d);
+  assert.equal(next.pedidos[0].motivoCancelacion,categoria);
+  assert.equal(next.pedidos[0].historialCambios[0].categoria,categoria);
+  assert.equal(comprobarSoloCancelacionRomoQA(before,next,d).ok,true);
+  assert.throws(()=>comprobarSoloCancelacionRomoQA(before,next,{...d,categoria:categoria==='cliente'?'local':'cliente'}),
+   /modifica otros datos/);
+ }
+});
 test('La UI aplica control antes de guardar; el servidor sigue sin permiso general',()=>{
  const html=readFileSync(new URL('../public/romo-panel-qa/index.html',import.meta.url),'utf8');
  const api=readFileSync(new URL('../api/romo-estado-cifrado-panel-qa.js',import.meta.url),'utf8');
@@ -55,4 +68,5 @@ test('La UI aplica control antes de guardar; el servidor sigue sin permiso gener
  assert.ok(segment.indexOf('comprobarSoloCancelacionRomoQA(')<segment.indexOf('ukiRomoGuardarOperacionQA('));
  assert.match(api,/ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED!=='true'/);
  assert.match(api,/ROMO_PANEL_PILOTO_MANUAL_QA_ENABLED!=='true'/);
+ assert.match(segment,/verificador\.comprobarSoloCancelacionRomoQA\(anterior,copia,\{\s*pedidoId,responsable,motivo,categoria,registradoEn:ahoraMs/);
 });
