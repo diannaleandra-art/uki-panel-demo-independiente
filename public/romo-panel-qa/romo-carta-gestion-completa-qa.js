@@ -100,6 +100,7 @@
   }catch(e){
    if(id!==state.requestId)return;
    state.admin=null;
+   legacy(true);
    status('La gestión avanzada no está disponible: '+String(e.message||e));
   }
  }
@@ -373,18 +374,29 @@
   };
   search.input.oninput=draw;draw();
  }
+ function legacy(show){
+  if(!state.root)return;
+  for(const selector of ['[data-romo-carta-list]','[data-romo-carta-form]']){
+   const node=state.root.querySelector(selector);
+   if(node)node.hidden=!show;
+  }
+  const search=state.root.querySelector('[data-romo-carta-search]');
+  const group=search?.parentElement;
+  if(group)group.hidden=!show;
+  for(const selector of ['[data-romo-categories-list]','[data-romo-ingredients-list]','[data-romo-promos-list]']){
+   const node=state.root.querySelector(selector);
+   if(node)node.hidden=!show;
+  }
+ }
  function render(){
   if(!state.root?.isConnected||!state.admin)return;
-  for(const name of ['categorias','ingredientes','promociones']){
-   const node=state.root.querySelector('[data-romo-'+
-    (name==='categorias'?'categories':name==='ingredientes'?'ingredients':'promos')+'-list]');
-   if(node)node.hidden=true;
-  }
+  legacy(false);
   renderProducts();renderCategories();renderIngredients();renderPromos();
  }
  window.romoMontarGestionCartaQA=function({container,base}={}){
   if(!container||!container.isConnected||base?.storeId!==STORE)return false;
   state.root=container;state.base=base;state.admin=null;state.limit=16;
+  legacy(true);
   for(const name of ['productos','categorias','ingredientes','promociones']){
    const target=host(name);if(target)clear(target);
   }
