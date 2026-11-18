@@ -29,7 +29,7 @@ module.exports=async function vistaPreviaRomoQA(req,res){
   if(access.compartido)return fail(res,403,'La simulación exige el panel autorizado de dueños');
   if(!String(req.headers?.['content-type']||'').toLowerCase().startsWith('application/json')||
     !req.body||typeof req.body!=='object'||Array.isArray(req.body)||
-    JSON.stringify(req.body).length>6500)
+    JSON.stringify(req.body).length>20000)
    return fail(res,400,'El carrito de pruebas es inválido');
  }
  try{
@@ -70,6 +70,30 @@ module.exports=async function vistaPreviaRomoQA(req,res){
   const project=require('../lib/romo-carta-vista-previa-admin-qa.cjs');
   const result=project.proyectarVistaAdminRomoQA(official,admin[0],photos);
   if(req.method==='POST'){
+   if(req.body?.action==='simularArmado'){
+    const item=req.body.item;
+    if(!item||typeof item!=='object'||Array.isArray(item))
+     return fail(res,400,'Armado de Romo inválido');
+    const ctrlQuote=new AbortController();
+    const timerQuote=setTimeout(()=>ctrlQuote.abort(),9000);
+    let remote;
+    try{
+     const response=await fetch(conf.carta+'/api/romo-cotizador-armado-preview-qa',{
+      method:'POST',cache:'no-store',redirect:'error',
+      headers:{Origin:conf.panel,Accept:'application/json',
+       'Content-Type':'application/json',
+       ...await require('../lib/romo-oidc-s2s-qa.cjs').headersOIDCRomoQA(process.env)},
+      body:JSON.stringify({item}),signal:ctrlQuote.signal
+     });
+     if(!response.ok)throw Error('El motor de armado no confirmó el producto');
+     const text=await response.text();
+     if(text.length>12000)throw Error('El motor devolvió una respuesta demasiado grande');
+     remote=JSON.parse(text);
+    }finally{clearTimeout(timerQuote);}
+    const combine=require('../lib/romo-simular-armado-qa.cjs');
+    const state=require('../lib/romo-carta-administracion-qa.cjs').read(admin[0]);
+    return res.status(200).json(combine.ensamblarArmadoRomoQA(result,state,req.body,remote));
+   }
    const quote=require('../lib/romo-carrito-borrador-qa.cjs');
    return res.status(200).json(quote.simularCarritoBorradorRomoQA(result,req.body));
   }
