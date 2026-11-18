@@ -76,3 +76,10 @@ test('no se admiten pagos externos sin confirmación ni cobro en caja inexistent
  const s=estado();s.cajasDiarias[SUC+'|'+DIA].turnoAbierto=false;
  assert.throws(()=>prepararCobroPendienteRomoQA(s,cobro),/abierto/);
 });
+
+test('no contabilizar cobro en turno olvidado de cuatro días atrás',()=>{
+ const s=estado(),anterior='2026-11-14@1794672000000';
+ s.pedidos[0].turnoClave=anterior;
+ s.cajasDiarias={[SUC+'|2026-11-14']:{turnoAbierto:true,baseConfirmada:true,turnoId:anterior}};
+ assert.throws(()=>prepararCobroPendienteRomoQA(s,cobro),/anterior a ayer/);
+});
