@@ -6330,10 +6330,24 @@ function ukiRomoPedidosPendientesHTMLQA(){
 // Fichas de Clientes del mismo panel Uki; sólo datos del estado Neon Romo.
 // No se generan timbres a partir de visualizaciones ni se canjean premios aquí.
 let ukiRomoClienteGuardandoQA=false;
+function ukiRomoClienteCoincideBusquedaQA(cli,valor){
+ const buscar=String(valor||'').trim();
+ if(!buscar)return true;
+ if(ukiBusquedaPorDatos(buscar,[cli.nombre,ukiCodigoClienteVisible(cli),
+   cli.codigoCliente,cli.telefono,ukiTelefonoNormalizado(cli.telefono)]))return true;
+ return pedidosHist(cli.nombre,cli.codigoCliente,cli.telefono).some(p=>
+   ukiBusquedaPorDatos(buscar,[p.cliente,ukiCodigoClienteVisible(p),
+     p.codigoCliente,p.telefono,ukiTelefonoNormalizado(p.telefono)]));
+}
 function ukiRomoFiltrarClientesQA(valor){
- const q=ukiTextoBusqueda(valor);
+ if(S.suc!==ROMO_SUCURSAL_QA)return;
+ const buscar=String(valor||'').trim();
+ // Solo filtra datos ya descifrados de la sucursal; no crea movimientos ni guarda en Neon.
+ const claves=new Set(ukiTarjetasAgrupadas().filter(cli=>
+  ukiRomoClienteCoincideBusquedaQA(cli,buscar)).map(cli=>String(cli._ukiClave||'')));
  document.querySelectorAll('.romo-cliente-card').forEach(card=>{
-  card.hidden=!ukiTextoBusqueda(card.getAttribute('data-buscar')).includes(q);
+  const key=card.querySelector('details[data-romo-cliente]')?.getAttribute('data-romo-cliente')||'';
+  card.hidden=!!buscar&&!claves.has(key);
  });
 }
 function ukiRomoTarjetasClientesHTMLQA(visibleQA){
@@ -6518,8 +6532,7 @@ function ukiRomoTimbresPanelQA(){
  const buscar=String(S.filtroCliente||'').trim();
  const todos=ukiTarjetasAgrupadas();
  const clientes=todos.filter(cli=>buscar?
-   ukiBusquedaPorDatos(buscar,[cli.nombre,cli.telefono,
-    ukiCodigoClienteVisible(cli),cli.codigoCliente,cli._ukiClave]):
+   ukiRomoClienteCoincideBusquedaQA(cli,buscar):
    (cli.movimientos||[]).some(m=>ukiFechaTimbreCalendario(m)===fecha));
  const movimientosDelDia=clientes.flatMap(cli=>(cli.movimientos||[])
   .filter(m=>m.tipo==='venta'&&ukiFechaTimbreCalendario(m)===fecha)
