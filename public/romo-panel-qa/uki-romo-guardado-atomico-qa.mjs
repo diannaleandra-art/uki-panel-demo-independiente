@@ -37,7 +37,7 @@ export function crearGuardadoRomoDesdeFormularioQA({
  return Object.freeze({
   disponible,
   async guardarSolicitud({solicitud,draft,estado,revision,snapshotAnterior=null,
-    confirmoArmado=false,confirmoImportes=false}={}){
+    confirmoArmado=false,confirmoImportes=false,confirmoPago=false}={}){
    need(disponible(),'Guardado Romo deshabilitado');
    need(!ocupado,'Ya se esta guardando una solicitud');
    need([preparar,cifrarEstado,validarEstado,estadoVisible,aplicarConfirmado]
@@ -46,7 +46,7 @@ export function crearGuardadoRomoDesdeFormularioQA({
    need(Number.isSafeInteger(revision)&&revision>=0,'Revision invalida');
    need(validarEstado(estado,SUC),'Estado no pertenece a Romo');
    const original=clone(estado),firma=JSON.stringify(original),id=solicitud.id;
-   verificarBorradorRomoAntesGuardarQA(draft,{solicitudId:id,confirmoArmado,confirmoImportes});
+   verificarBorradorRomoAntesGuardarQA(draft,{solicitudId:id,confirmoArmado,confirmoImportes,confirmoPago});
    need(!original.pedidos.some(p=>p.suc===SUC&&p.cartaSolicitudRemotaId===id),
      'Esta solicitud ya tiene un pedido incluso si fue cancelado');
    ocupado=true;
