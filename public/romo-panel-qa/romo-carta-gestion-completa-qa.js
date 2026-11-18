@@ -364,6 +364,109 @@
    card.append(buttonReview,result,list);
    return card;
   }
+  function gohanSimulator(){
+   const card=panel('🍚 Gohan personalizado · simulación privada');
+   const ids=['gohan-vegetariano','gohan-pollo','gohan-camaron','gohan-salmon'];
+   const all=ids.map(id=>projection.products.find(p=>p.sku==='dish:'+id))
+    .filter(p=>p&&p.available===true);
+   if(!all.length){card.append(info('No hay gohan disponibles en esta revisión.'));return card;}
+   const opts=(projection.ingredients||[]).filter(i=>
+    ['Vegetales','vegetal'].includes(i.category)&&i.name!=='Palta'&&
+    i.available!==false&&(i.draftOnly?i.surfaces?.includes('gohan'):
+     Number.isSafeInteger(i.contexts?.clasicas)));
+   const selected=select('Gohan',all.map(p=>[p.sku.slice(5),p.name]),all[0].sku.slice(5));
+   const veg1=select('Vegetal',opts.map(i=>[i.name,i.name]),opts[0]?.name||'');
+   const veg2=select('Segundo vegetal para vegetariano',
+    opts.map(i=>[i.name,i.name]),opts[1]?.name||opts[0]?.name||'');
+   const sauce=select('Salsa',[['Soya','Soya'],['Teriyaki','Teriyaki']],'Soya');
+   const qty=field('Cantidad',1,'number');qty.input.min='1';qty.input.max='20';
+   const statusText=info('El gohan se calcula usando el motor original de Romo y los ingredientes de Neon QA.');
+   const toggle=()=>{veg2.wrap.hidden=selected.input.value!=='gohan-vegetariano';};
+   selected.input.onchange=toggle;toggle();
+   const validate=button('Calcular gohan de prueba',async()=>{
+    statusText.textContent='Verificando preparación y precio del gohan…';
+    try{
+     const token=await window.ukiInventarioToken?.();
+     if(!token)throw Error('Ingresa con tu cuenta de dueños');
+     const item={kind:'dish',productId:selected.input.value,
+      qty:Number(qty.input.value),vegetables:[veg1.input.value,
+       ...(selected.input.value==='gohan-vegetariano'?[veg2.input.value]:[])],
+      sauce:sauce.input.value};
+     const r=await fetch('/api/romo-carta-vista-previa-admin-qa',{
+      method:'POST',cache:'no-store',credentials:'same-origin',
+      headers:{Authorization:'Bearer '+token,Accept:'application/json',
+       'Content-Type':'application/json'},
+      body:JSON.stringify({action:'simularArmado',item,
+       revisionComercial:projection.revisionComercial,
+       revisionAdministracion:projection.revisionAdministracion}),
+      signal:AbortSignal.timeout(18000)
+     });
+     const x=await r.json().catch(()=>null);
+     if(!r.ok||x?.ok!==true||x.storeId!==STORE||
+       x.canSendOrder!==false||x.canPay!==false||
+       x.countsAsSale!==false||x.totalComercial!==null)
+      throw Error(x?.error||'No se confirmó el gohan');
+     statusText.textContent='✓ '+x.name+' · precio base '+money(x.precioBaseConDescuento)+
+      ' · recargos validados '+money(x.recargosArmado)+
+      ' · subtotal de prueba '+money(x.subtotalProductos)+
+      '. Sin cobro, delivery ni pedido.';
+    }catch(e){statusText.textContent='Gohan no confirmado: '+String(e.message||e);}
+   },true);validate.disabled=false;
+   const inner=stack();inner.append(selected.wrap,veg1.wrap,veg2.wrap,sauce.wrap,
+    qty.wrap,validate,statusText);card.append(inner);return card;
+  }
+  function modalidadSimulator(){
+   const card=panel('🛵 Delivery, retiro y consumo · simulación');
+   card.append(info('El delivery real exige una ruta por calles. Las distancias siguientes son escenarios para probar la tarifa, no recorridos ni direcciones reales.'));
+   const mode=select('Modalidad',[['delivery','Delivery'],['retiro','Retiro en local'],
+    ['consumo','Consumo en local']],'retiro');
+   const km=select('Distancia hipotética para la prueba',[
+    ['','Sin ruta verificada'],['1','1 km de prueba'],['2','2 km de prueba'],
+    ['3','3 km de prueba'],['4.5','4,5 km de prueba'],['5','5 km de prueba'],
+    ['6','6 km de prueba'],['8','8 km de prueba'],['9','9 km: consultar']
+   ],'');
+   const statusText=info('Añade al carrito un producto sencillo o una promoción configurada para probar la modalidad.');
+   const toggle=()=>{km.wrap.hidden=mode.input.value!=='delivery';};
+   mode.input.onchange=toggle;toggle();
+   const run=button('Comprobar modalidad QA',async()=>{
+    statusText.textContent='Verificando modalidad y pago en el servidor de Romo…';
+    try{
+     if(!projection||(!selected.size&&!configuredPromos.size))
+      throw Error('Primero añade un producto al carrito de prueba');
+     const token=await window.ukiInventarioToken?.();
+     if(!token)throw Error('Ingresa con Google como dueña de Romo');
+     const body={action:'simularModalidad',mode:mode.input.value,
+      payment:paymentSelect.input.value,
+      revisionComercial:projection.revisionComercial,
+      revisionAdministracion:projection.revisionAdministracion,
+      items:[...selected].map(([sku,qty])=>({sku,qty})).concat(
+       [...configuredPromos.values()].map(x=>({sku:x.sku,qty:x.qty,config:x.config}))),
+      ...(mode.input.value==='delivery'&&km.input.value
+       ?{kmEscenario:Number(km.input.value)}:{})
+     };
+     const response=await fetch('/api/romo-carta-vista-previa-admin-qa',{
+      method:'POST',cache:'no-store',credentials:'same-origin',
+      headers:{Authorization:'Bearer '+token,Accept:'application/json',
+       'Content-Type':'application/json'},
+      body:JSON.stringify(body),signal:AbortSignal.timeout(18000)
+     });
+     const result=await response.json().catch(()=>null);
+     if(!response.ok||result?.ok!==true||result.storeId!==STORE||
+       result.canSendOrder!==false||result.countsAsSale!==false||
+       result.totalComercial!==null||result.deliveryFee!==null)
+      throw Error(result?.error||'No se confirmó la modalidad');
+     statusText.textContent='✓ '+mode.input.value+
+      ' · productos '+money(result.productos)+
+      (result.tarifaEscenario===null?' · delivery pendiente de ruta real':
+       ' · escenario de reparto '+money(result.tarifaEscenario))+
+      (result.referenciaSinCobro===null?' · sin total confirmado':
+       ' · referencia de prueba '+money(result.referenciaSinCobro))+
+      '. No se registró ningún pedido ni cobro.';
+    }catch(e){statusText.textContent='Modalidad no confirmada: '+String(e.message||e);}
+   },true);run.disabled=false;
+   const inner=stack();inner.append(mode.wrap,km.wrap,run,statusText);
+   card.append(inner);return card;
+  }
   function assembledExamples(){
    const card=panel('🍣 Simular armado original de Romo (solo prueba)');
    const options=[
@@ -607,7 +710,7 @@
      p.ingredients+' ingredientes · '+p.categories+' categorías · '+
      p.discounts+' descuentos · '+p.photos+' fotografías.';
     const promoWidget=promotionBuilder();
-    content.append(summary,publicationCheck(),assembledExamples(),promoWidget.card,cartBox);
+    content.append(summary,publicationCheck(),assembledExamples(),gohanSimulator(),promoWidget.card,cartBox,modalidadSimulator());
     drawCart();
     const search=field('Buscar productos en la vista previa');
     search.input.type='search';search.input.placeholder='Producto o categoría';
