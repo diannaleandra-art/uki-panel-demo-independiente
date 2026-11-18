@@ -323,6 +323,47 @@
    }
    void quoteCart();
   }
+  function publicationCheck(){
+   const card=panel('📋 Comprobar compatibilidad con carta pública · sin publicar');
+   card.append(info('Analiza categorías, precios, productos propios y promociones. Detecta funciones pendientes, pero no publica ni modifica la carta comercial.'));
+   const result=info('La publicación requiere comprobación final de dueños.');
+   const list=E('div');
+   const buttonReview=button('Revisar diferencias y requisitos',async()=>{
+    if(!projection)return;
+    result.textContent='Comparando la carta aprobada con los borradores de Romo…';
+    clear(list);
+    try{
+     const token=await window.ukiInventarioToken?.();
+     if(!token)throw Error('Debes ingresar como dueña de Romo');
+     const response=await fetch('/api/romo-carta-vista-previa-admin-qa',{
+      method:'POST',cache:'no-store',credentials:'same-origin',
+      headers:{Authorization:'Bearer '+token,Accept:'application/json',
+       'Content-Type':'application/json'},
+      body:JSON.stringify({action:'revisarPrepublicacion',
+       revisionComercial:projection.revisionComercial,
+       revisionAdministracion:projection.revisionAdministracion}),
+      signal:AbortSignal.timeout(18000)
+     });
+     const json=await response.json().catch(()=>null);
+     if(!response.ok||json?.ok!==true||json.storeId!==STORE||
+       json.readOnly!==true||json.publishable!==false||
+       !Array.isArray(json.items)||!Array.isArray(json.pendientes))
+      throw Error(json?.error||'No se pudo confirmar la compatibilidad');
+     result.textContent='✓ Revisión técnica realizada · '+json.summary.productos+
+      ' productos · '+json.summary.nuevos+' propios nuevos · '+
+      json.summary.categorias+' categorías. No se publicó nada.';
+     for(const pending of json.pendientes){
+      const line=info('• '+pending);
+      list.append(line);
+     }
+    }catch(error){
+     result.textContent='No se pudo confirmar la revisión: '+String(error.message||error);
+    }
+   },true);
+   buttonReview.disabled=false;
+   card.append(buttonReview,result,list);
+   return card;
+  }
   function assembledExamples(){
    const card=panel('🍣 Simular armado original de Romo (solo prueba)');
    const options=[
@@ -566,7 +607,7 @@
      p.ingredients+' ingredientes · '+p.categories+' categorías · '+
      p.discounts+' descuentos · '+p.photos+' fotografías.';
     const promoWidget=promotionBuilder();
-    content.append(summary,assembledExamples(),promoWidget.card,cartBox);
+    content.append(summary,publicationCheck(),assembledExamples(),promoWidget.card,cartBox);
     drawCart();
     const search=field('Buscar productos en la vista previa');
     search.input.type='search';search.input.placeholder='Producto o categoría';
