@@ -69,7 +69,8 @@ test('panel unico enruta GET al backend aislado y nunca anade permisos de escrit
  assert.ok(from>0&&to>from);
  const ruta=html.slice(from,to);
  assert.match(ruta,/uki-sushi-inventario-git-qa-romos-panel-v816-/);
- assert.match(ruta,/romos-sushi-panel-git-qa-romos-panel-v816-/);
+ // En Romo Preview se usa la API del mismo origen; no se fuerza un host ajeno.
+ assert.match(ruta,/return ruta;/);
  assert.match(ruta,/ROMO_BACKEND_LECTURA_QA\+ruta/);
  assert.match(ruta,/function ukiRomoCredencialesLecturaPanelUnicoQA\(url\)/);
  assert.match(ruta,/\?'omit':'same-origin'/);
