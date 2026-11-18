@@ -39,7 +39,11 @@ module.exports=async function gestionRomoQA(req,res){
  res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type');
  res.setHeader('Access-Control-Allow-Methods',access.compartido?'GET,OPTIONS':'GET,POST,OPTIONS');
  if(method==='OPTIONS')return res.status(204).end();
- if(method==='POST'&&!conf.write)return fail(res,503,'Gestión Romo solo lectura en Preview');
+ // Bandera separada: no reabre el editor de la carta comercial ni producción.
+ const adminWrite=process.env.VERCEL_ENV==='preview'&&
+  process.env.VERCEL_GIT_COMMIT_REF==='qa/romos-panel-v816'&&
+  process.env.ROMO_CARTA_ADMIN_ESCRITURA_QA_ENABLED==='true';
+ if(method==='POST'&&!adminWrite)return fail(res,503,'Gestión Romo solo lectura en Preview');
  if(method==='POST'&&(!String(req.headers['content-type']||'').startsWith('application/json')||
    !req.body||typeof req.body!=='object'||Array.isArray(req.body)||
    JSON.stringify(req.body).length>6000))
@@ -69,7 +73,7 @@ module.exports=async function gestionRomoQA(req,res){
   if(!Array.isArray(rows)||rows.length!==1)throw Error('Registro administrativo no inicializado en Neon QA');
   const current=M.read(rows[0]);
   if(method==='GET')return res.status(200).json({
-   ...M.view(rows[0],base),edicionHabilitada:conf.write,
+   ...M.view(rows[0],base),edicionHabilitada:adminWrite,
    aviso:'Borradores administrativos, no publicados en la carta comercial'
   });
   if(current.revision!==req.body.expectedRevision)
