@@ -8231,46 +8231,75 @@ function ukiRomoCajaConsultaHTMLQA(seccion='resumen'){
   row('Pagos a repartidor',fmt(t.pagoDelivery))+
   row('Resultado de Caja con ajustes, sin base',fmt(t.final),'final')+
   '<p class="muted">Los pedidos sin pagar no suman ventas. Los pagos a repartidores solo se descuentan cuando realmente se registran. El cierre definitivo debe generar su constancia propia en Neon.</p></div>';
- const movimientosHtml=
-  wrapper('💵 Establecer base del turno (antes del primer cobro)',
+ const movimientoPanelRomoQA={base:wrapper('💵 Establecer base del turno (antes del primer cobro)',
    '<p class="muted">La base y la caja chica deben reflejar solo el dinero realmente entregado. El valor de Uki no se copia a Romo. Si ves montos heredados, corrígelos aquí con confirmación.</p>'+
    '<label>Efectivo inicial real</label><input id="romoBaseQA" inputmode="numeric" type="number" min="0" max="1000000" value="'+esc(caja.base||0)+'">'+
    '<label>Caja chica inicial real</label><input id="romoCajaChicaQA" inputmode="numeric" type="number" min="0" max="1000000" value="'+esc(caja.cajaChica?.inicial||0)+'">'+
    '<p class="muted">Estos montos solo se guardan cuando tú confirmas la existencia real del dinero. Un importe predeterminado anterior no constituye ingreso.</p>'+
-   '<button class="big" type="button" onclick="ukiRomoGuardarMovimientoQA(\'base\')">Confirmar base real de Romo</button>')+
-  wrapper('🧾 Gastos del local',
+   '<button class="big" type="button" onclick="ukiRomoGuardarMovimientoQA(\'base\')">Confirmar base real de Romo</button>'),
+  gastos:wrapper('🧾 Gastos del local',
    '<label>Concepto</label><input id="romoGastoConceptoQA" maxlength="140" placeholder="Ej: compra de palta">'+
    '<label>Monto exacto</label><input id="romoGastoMontoQA" type="number" inputmode="numeric" min="1">'+
    '<label>Medio de pago</label><select id="romoGastoMedioQA">'+opciones+'</select>'+
    '<button class="big" type="button" onclick="ukiRomoGuardarMovimientoQA(\'gasto\')">Registrar gasto confirmado</button>'+
-   (movimientos||'<p class="muted">Sin gastos del turno</p>'))+
-  wrapper('🪙 Retiros de efectivo',
+   (movimientos||'<p class="muted">Sin gastos del turno</p>')),
+  retiros:wrapper('🪙 Retiros de efectivo',
    '<label>Motivo</label><input id="romoRetiroMotivoQA" maxlength="140" placeholder="Motivo del retiro">'+
    '<label>Monto</label><input id="romoRetiroMontoQA" type="number" inputmode="numeric" min="1">'+
    '<button class="big" type="button" onclick="ukiRomoGuardarMovimientoQA(\'retiro\')">Registrar retiro confirmado</button>'+
-   (retiros||'<p class="muted">Sin retiros registrados</p>'))+
-  ukiDesgloseDeliverysTurno(t)+
+   (retiros||'<p class="muted">Sin retiros registrados</p>')),
+  delivery:ukiDesgloseDeliverysTurno(t)+
   wrapper('🛵 Deliverys manuales a pagar',
    '<p class="muted">Se suma al total por pagar al repartidor; no aumenta las ventas.</p>'+
    '<label>Nombre del repartidor</label><input id="romoRepartidorQA" maxlength="90">'+
    '<label>Cliente (opcional)</label><input id="romoDeliveryClienteQA" maxlength="90">'+
    '<label>Valor del reparto</label><input id="romoDeliveryMontoQA" type="number" inputmode="numeric" min="1" max="4000">'+
    '<button class="big" type="button" onclick="ukiRomoGuardarMovimientoQA(\'delivery\')">Registrar reparto pendiente</button>'+
-   (delivery||'<p class="muted">Sin repartos manuales</p>'))+
-  wrapper('💸 Pago al repartidor',
+   (delivery||'<p class="muted">Sin repartos manuales</p>')),
+  repartidor:wrapper('💸 Pago al repartidor',
    '<p class="muted">Únicamente si ya se entregó el dinero. No se descuenta otra vez como gasto o retiro. Saldo del turno: '+fmt(aPagar)+'</p>'+
    '<label>Nombre del repartidor</label><input id="romoRepartidorPagoQA" maxlength="90">'+
    '<label>Monto efectivamente pagado</label><input id="romoPagoDeliveryMontoQA" type="number" inputmode="numeric" min="1">'+
    '<label>Medio</label><select id="romoPagoDeliveryMedioQA">'+opciones+'</select>'+
    '<button class="big" type="button" onclick="ukiRomoGuardarMovimientoQA(\'pagoRepartidor\')">Registrar pago al repartidor</button>'+
-   (detalles||'<p class="muted">Todavía no hay pagos de repartidor registrados</p>'))+
-  wrapper('💝 Propinas de pedidos · mismo formulario Uki',
+   (detalles||'<p class="muted">Todavía no hay pagos de repartidor registrados</p>')),
+  propinas:wrapper('💝 Propinas de pedidos · mismo formulario Uki',
    '<p class="muted">Solo propinas realmente recibidas del turno abierto, sin duplicarlas. Guarda con confirmación exclusiva en Neon Romo. No se suman a ventas.</p>'+
-   ukiRomoTarjetaPropinaUkiQA());
- const turnosHtml=ukiRomoCierreTurnoHTMLQA()+
-  '<p class="muted">El precierre desde cuenta de dueños está preparado; falta habilitar el acceso limitado del trabajador. Mi Administración todavía no contabiliza automáticamente estos cierres.</p>';
- return seccion==='movimientos'?(window.romoMovimientosParidadQA?.(movimientosHtml)||movimientosHtml):
-  seccion==='turnos'?turnosHtml:resumenHtml;
+   ukiRomoTarjetaPropinaUkiQA()),
+  apps:wrapper('📱 Apps · ventas manuales',
+   '<p class="muted">Solo consulta de ventas por app ya registradas. La edición y el nuevo registro aún no están habilitados en Romo: no se utiliza el guardado de Uki.</p>'+
+   (Object.entries(caja.apps||{}).filter(([k])=>APPS.includes(k)||k==='Otros')
+    .map(([k,monto])=>row(esc(k),fmt(Number(monto)||0))).join('')||
+    '<p class="muted">Sin ventas manuales por app confirmadas.</p>')),
+  chica:wrapper('🪙 Caja chica',
+   '<p class="muted">Solo consulta. El registro o edición de gastos de caja chica requiere su propio guardado seguro en Romo y sigue bloqueado.</p>'+
+   (baseConfirmada?
+    row('Inicial real',fmt(Number(caja.cajaChica?.inicial)||0))+
+    (Array.isArray(caja.cajaChica?.gastos)?caja.cajaChica.gastos:[])
+     .map(g=>row(esc(g.concepto||'Gasto de caja chica'),fmt(Number(g.monto)||0))).join('')+
+    row('Saldo caja chica',fmt((Number(caja.cajaChica?.inicial)||0)-
+      (Array.isArray(caja.cajaChica?.gastos)?caja.cajaChica.gastos:[])
+       .reduce((sum,g)=>sum+(Number(g.monto)||0),0)),'sub'):
+    '<p class="muted">Saldo no disponible hasta confirmar la base del turno.</p>'))
+ };
+ const activo=MOV_TABS.some(([k])=>k===movimientoTab)?movimientoTab:'gastos';
+ const navMovimientos='<div class="card uki-navegacion-compacta uki-navegacion-movimientos">'+
+  '<label for="romoMovimientoIrA"><b>🔎 Elegir tipo de movimiento</b></label>'+
+  '<select id="romoMovimientoIrA" onchange="cambiarMovimientoTab(this.value)">'+
+  MOV_TABS.map(([k,l])=>'<option value="'+esc(k)+'"'+
+   (activo===k?' selected':'')+'>'+esc(l)+'</option>').join('')+'</select>'+
+  '<div class="movement-tabs" role="group" aria-label="Tipos de movimiento de Romo">'+
+  MOV_TABS.map(([k,l])=>'<button type="button" class="'+
+   (activo===k?'selected':'')+'" onclick="cambiarMovimientoTab(&quot;'+
+   esc(k)+'&quot;)">'+esc(l)+'</button>').join('')+'</div></div>';
+ const movimientosHtml=(baseConfirmada?'':avisoBase)+navMovimientos+
+  movimientoPanelRomoQA.base+'<div data-romo-movimiento="'+esc(activo)+'">'+
+  movimientoPanelRomoQA[activo]+'</div>';
+
+ return seccion==='movimientos'?movimientosHtml:
+  seccion==='turnos'?ukiRomoCierreTurnoHTMLQA()+
+  '<p class="muted">El precierre desde cuenta de dueños está preparado; falta habilitar el acceso limitado del trabajador. Mi Administración todavía no contabiliza automáticamente estos cierres.</p>':
+  resumenHtml;
 }
 
 
