@@ -74,6 +74,8 @@ module.exports=async function vistaPreviaRomoQA(req,res){
     const item=req.body.item;
     if(!item||typeof item!=='object'||Array.isArray(item))
      return fail(res,400,'Armado de Romo inválido');
+    const ingredientes=require('../lib/romo-ingredientes-armado-qa.cjs');
+    const sanitized=ingredientes.prepararIngredientesRomoQA(result,item);
     const ctrlQuote=new AbortController();
     const timerQuote=setTimeout(()=>ctrlQuote.abort(),9000);
     let remote;
@@ -83,7 +85,7 @@ module.exports=async function vistaPreviaRomoQA(req,res){
       headers:{Origin:conf.panel,Accept:'application/json',
        'Content-Type':'application/json',
        ...await require('../lib/romo-oidc-s2s-qa.cjs').headersOIDCRomoQA(process.env)},
-      body:JSON.stringify({item}),signal:ctrlQuote.signal
+      body:JSON.stringify({item:sanitized.normalizado}),signal:ctrlQuote.signal
      });
      if(!response.ok)throw Error('El motor de armado no confirmó el producto');
      const text=await response.text();
