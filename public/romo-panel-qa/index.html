@@ -6966,6 +6966,14 @@ function ukiRomoCajaDisponibleQA(t,caja){
  const disponible=(Number(caja.base)||0)+(Number(t.efectivoCaja)||0);
  return Number.isSafeInteger(disponible)?disponible:0;
 }
+let ukiRomoGastoChicaAnularQA=null;
+async function ukiRomoAnularGastoChicaQA(id){
+ if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA)return;
+ if(!Number.isSafeInteger(Number(id))||Number(id)<=0)return;
+ ukiRomoGastoChicaAnularQA=Number(id);
+ try{await ukiRomoGuardarMovimientoQA('anularChica');}
+ finally{ukiRomoGastoChicaAnularQA=null;}
+}
 async function ukiRomoGuardarMovimientoQA(tipo){
  // Un cierre, precierre, timbre, cliente o pedido todavía en curso no puede
  // compartir el mismo snapshot financiero antes de su confirmación CAS Neon.
@@ -6995,7 +7003,10 @@ async function ukiRomoGuardarMovimientoQA(tipo){
   if(tipo==='base'){
    if(delSucHoy(S.pedidos).some(p=>p.pagado&&p.estado!=='Cancelado')||
       delSucHoy(S.gastos).length||delSucHoy(S.retiros).length||
-      Number(t.pagoDelivery)>0){
+      Number(t.pagoDelivery)>0||Number(t.totalMedios)>0||
+      (actual.cajaChica?.gastos||[]).length>0||
+      (actual.cajaChica?.anulaciones||[]).length>0||
+      (actual.movimientosApps||[]).length>0){
     throw Error('La base solo puede establecerse antes del primer cobro o movimiento de caja del turno.');
    }
    const base=ukiRomoMontoCampoQA('romoBaseQA',1000000,true);
@@ -7009,6 +7020,64 @@ async function ukiRomoGuardarMovimientoQA(tipo){
    c.baseConfirmadaEn=new Date(now).toISOString();
    c.baseConfirmadaPor='dueños';
    copia.base=base;copia.cajaChica={...copia.cajaChica,inicial:chica};
+  }else if(tipo==='app'){
+   const medio=String($('romoAppMedioQA')?.value||'');
+   if(![...APPS,'Otros'].includes(medio))throw Error('App no permitida');
+   const monto=ukiRomoMontoCampoQA('romoAppMontoQA',100000000,true);
+   const concepto=ukiRomoTextoCampoQA('romoAppConceptoQA',180,3);
+   const responsable=ukiRomoTextoCampoQA('romoAppResponsableQA',80,2);
+   if(c.turnoId!==dia+'@'+c.inicioMs)throw Error('El turno de Caja cambió');
+   c.apps=c.apps||{};
+   const anterior=Number(c.apps[medio]||0);
+   if(!Number.isSafeInteger(anterior)||anterior<0||
+      anterior===monto)throw Error('Total de app sin cambios o inválido; no se duplicó');
+   c.movimientosApps=Array.isArray(c.movimientosApps)?c.movimientosApps:[];
+   let id=now;while(c.movimientosApps.some(x=>x.id===id))id++;
+   c.apps[medio]=monto; // Igual que Uki: TOTAL absoluto, no un ingreso extra.
+   c.movimientosApps.push({id,suc:ROMO_SUCURSAL_QA,turnoClave:c.turnoId,
+    fechaOperativa:dia,registradoEn:now,fechaISO:new Date(now).toISOString(),
+    medio,concepto,responsable,monto,anterior,delta:monto-anterior,tipo:'total_manual'});
+   descripcion='App manual confirmada en Caja Romo';
+   resumen=medio+' · antes '+fmt(anterior)+' · nuevo total '+fmt(monto);
+  }else if(tipo==='chica'){
+   const concepto=ukiRomoTextoCampoQA('romoChicaConceptoQA',180,3);
+   const responsable=ukiRomoTextoCampoQA('romoChicaResponsableQA',80,2);
+   const monto=ukiRomoMontoCampoQA('romoChicaMontoQA',10000000);
+   if(c.turnoId!==dia+'@'+c.inicioMs||!Array.isArray(c.cajaChica?.gastos))
+    throw Error('Caja chica no está abierta y confirmada');
+   const inicial=Number(c.cajaChica.inicial);
+   const gastado=c.cajaChica.gastos.reduce((a,g)=>a+Number(g.monto||0),0);
+   if(!Number.isSafeInteger(inicial)||inicial<0||!Number.isSafeInteger(gastado)||
+      gastado<0||gastado>inicial||monto>inicial-gastado)
+    throw Error('El gasto supera el saldo real de caja chica');
+   let id=now;while(c.cajaChica.gastos.some(g=>g.id===id))id++;
+   c.cajaChica.gastos.push({id,suc:ROMO_SUCURSAL_QA,turnoClave:c.turnoId,
+    fechaOperativa:dia,registradoEn:now,fechaISO:new Date(now).toISOString(),
+    concepto,responsable,monto});
+   descripcion='Gasto caja chica confirmado';
+   resumen=concepto+' · '+fmt(monto)+' · saldo '+fmt(inicial-gastado-monto);
+  }else if(tipo==='anularChica'){
+   const responsable=ukiRomoTextoCampoQA('romoChicaResponsableQA',80,2);
+   const motivo=ukiRomoTextoCampoQA('romoChicaMotivoQA',180,3);
+   const gastoId=Number(ukiRomoGastoChicaAnularQA);
+   const gastos=c.cajaChica?.gastos;
+   if(c.turnoId!==dia+'@'+c.inicioMs||!Array.isArray(gastos))
+    throw Error('Caja chica no está abierta');
+   const gasto=gastos.find(x=>Number(x.id)===gastoId);
+   if(!Number.isSafeInteger(gastoId)||!gasto||gasto.suc!==ROMO_SUCURSAL_QA||
+      gasto.turnoClave!==c.turnoId)
+    throw Error('Solo se pueden anular gastos de este turno de Romo');
+   c.cajaChica.anulaciones=Array.isArray(c.cajaChica.anulaciones)?c.cajaChica.anulaciones:[];
+   if(c.cajaChica.anulaciones.some(a=>a.gastoId===gastoId))
+    throw Error('Este gasto ya fue anulado');
+   let id=now;while(c.cajaChica.anulaciones.some(a=>a.id===id))id++;
+   c.cajaChica.anulaciones.push({id,suc:ROMO_SUCURSAL_QA,
+    turnoClave:c.turnoId,fechaOperativa:dia,registradoEn:now,
+    fechaISO:new Date(now).toISOString(),gastoId,monto:gasto.monto,
+    concepto:gasto.concepto,responsable,motivo});
+   c.cajaChica.gastos=gastos.filter(g=>g!==gasto);
+   descripcion='Anulación auditada caja chica Romo';
+   resumen='Gasto #'+gastoId+' · '+fmt(gasto.monto)+' devuelto a caja chica';
   }else if(tipo==='gasto'){
    const concepto=ukiRomoTextoCampoQA('romoGastoConceptoQA',140,3);
    const monto=ukiRomoMontoCampoQA('romoGastoMontoQA');
@@ -8269,20 +8338,41 @@ function ukiRomoCajaConsultaHTMLQA(seccion='resumen'){
    '<p class="muted">Solo propinas realmente recibidas del turno abierto, sin duplicarlas. Guarda con confirmación exclusiva en Neon Romo. No se suman a ventas.</p>'+
    ukiRomoTarjetaPropinaUkiQA()),
   apps:wrapper('📱 Apps · ventas manuales',
-   '<p class="muted">Solo consulta de ventas por app ya registradas. La edición y el nuevo registro aún no están habilitados en Romo: no se utiliza el guardado de Uki.</p>'+
+   '<p class="muted">Igual que Uki: escribe el TOTAL acumulado de la app, no un importe adicional. No dupliques cobros de pedidos.</p>'+
    (Object.entries(caja.apps||{}).filter(([k])=>APPS.includes(k)||k==='Otros')
-    .map(([k,monto])=>row(esc(k),fmt(Number(monto)||0))).join('')||
-    '<p class="muted">Sin ventas manuales por app confirmadas.</p>')),
+    .map(([k,m])=>row(esc(k),fmt(Number(m)||0))).join('')||
+    '<p class="muted">Sin ventas manuales por app.</p>')+
+   (caja.turnoAbierto===true&&baseConfirmada?
+    '<label>App</label><select id="romoAppMedioQA">'+[...APPS,'Otros'].map(k=>
+     '<option value="'+esc(k)+'">'+esc(k)+'</option>').join('')+'</select>'+
+    '<label>Nuevo TOTAL de la app ($)</label><input id="romoAppMontoQA" type="number" min="0" step="1" inputmode="numeric">'+
+    '<label>Concepto o motivo</label><input id="romoAppConceptoQA" maxlength="180">'+
+    '<label>Responsable</label><input id="romoAppResponsableQA" maxlength="80">'+
+    '<button class="big" type="button" onclick="ukiRomoGuardarMovimientoQA(&quot;app&quot;)">Guardar total de app</button>':
+    '<p class="muted">Primero confirma un turno abierto de Romo.</p>')),
   chica:wrapper('🪙 Caja chica',
-   '<p class="muted">Solo consulta. El registro o edición de gastos de caja chica requiere su propio guardado seguro en Romo y sigue bloqueado.</p>'+
+   '<p class="muted">Caja chica separada de ventas y efectivo principal. Las anulaciones quedan auditadas.</p>'+
    (baseConfirmada?
     row('Inicial real',fmt(Number(caja.cajaChica?.inicial)||0))+
     (Array.isArray(caja.cajaChica?.gastos)?caja.cajaChica.gastos:[])
-     .map(g=>row(esc(g.concepto||'Gasto de caja chica'),fmt(Number(g.monto)||0))).join('')+
+     .map(g=>'<div class="row"><span>'+esc(g.concepto||'Gasto')+' · '+
+      esc(g.responsable||'Registro anterior')+'</span><b>'+fmt(Number(g.monto)||0)+
+      (caja.turnoAbierto===true&&g.turnoClave===caja.turnoId?
+       ' <button type="button" class="sm" onclick="ukiRomoAnularGastoChicaQA('+Number(g.id)+')">Anular</button>':'')+
+      '</b></div>').join('')+
     row('Saldo caja chica',fmt((Number(caja.cajaChica?.inicial)||0)-
       (Array.isArray(caja.cajaChica?.gastos)?caja.cajaChica.gastos:[])
-       .reduce((sum,g)=>sum+(Number(g.monto)||0),0)),'sub'):
-    '<p class="muted">Saldo no disponible hasta confirmar la base del turno.</p>'))
+       .reduce((a,g)=>a+(Number(g.monto)||0),0)),'sub')+
+    ((caja.cajaChica?.anulaciones||[]).length?
+     '<details><summary>Anulaciones auditadas</summary>'+
+     caja.cajaChica.anulaciones.map(a=>row(esc(a.concepto)+' · '+esc(a.motivo),fmt(a.monto))).join('')+'</details>':'')+
+    (caja.turnoAbierto===true?
+     '<label>Concepto</label><input id="romoChicaConceptoQA" maxlength="180">'+
+     '<label>Monto</label><input id="romoChicaMontoQA" type="number" min="1" step="1" inputmode="numeric">'+
+     '<label>Responsable (también para anulación)</label><input id="romoChicaResponsableQA" maxlength="80">'+
+     '<button type="button" class="big" onclick="ukiRomoGuardarMovimientoQA(&quot;chica&quot;)">Registrar gasto caja chica</button>'+
+     '<label>Motivo si deseas anular un gasto</label><input id="romoChicaMotivoQA" maxlength="180">':''):
+    '<p class="muted">Saldo no disponible hasta confirmar base real.</p>'))
  };
  const activo=MOV_TABS.some(([k])=>k===movimientoTab)?movimientoTab:'gastos';
  const navMovimientos='<div class="card uki-navegacion-compacta uki-navegacion-movimientos">'+
