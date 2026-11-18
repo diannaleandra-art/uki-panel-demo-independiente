@@ -70,6 +70,10 @@ module.exports=async function vistaPreviaRomoQA(req,res){
   const project=require('../lib/romo-carta-vista-previa-admin-qa.cjs');
   const result=project.proyectarVistaAdminRomoQA(official,admin[0],photos);
   if(req.method==='POST'){
+   if(req.body?.action==='simularMixto'){
+    const mixto=require('../lib/romo-carrito-mixto-qa.cjs');
+    return res.status(200).json(mixto.simularCarritoMixtoRomoQA(result,req.body));
+   }
    if(req.body?.action==='simularPromocion'){
     const mod=require('../lib/romo-promocion-armado-qa.cjs');
     return res.status(200).json(mod.simularPromocionRomoQA(result,req.body));
