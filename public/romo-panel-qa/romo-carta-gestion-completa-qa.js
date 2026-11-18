@@ -329,6 +329,50 @@
    card.append(info('Misma presentación y carrito de Romo. Los precios, promociones y categorías se cargan desde esta sesión de dueños. No envía WhatsApp, cobra ni registra pedidos.'));
    const statusText=info('Abre la carta privada para revisar el menú como lo vería un cliente.');
    const stage=E('div');stage.style.cssText='width:100%;overflow:hidden;margin-top:9px';
+   // Safari iPhone restringe cookies de Vercel SSO dentro de iframes de otro proyecto.
+   // Una pestaña propia mantiene Vercel Authentication y la sesión de dueños aisladas.
+   const buttonTab=button('Abrir carta privada en otra pestaña (iPhone)',()=>{
+    if(!projection){statusText.textContent='Primero comprueba la vista previa de Romo.';return;}
+    const tab=window.open(frameOrigin+'/api/romo-vista-cliente-privada-qa','_blank');
+    if(!tab){statusText.textContent='Safari bloqueó la pestaña. Permite ventanas emergentes para este panel.';return;}
+    buttonTab.disabled=true;
+    statusText.textContent='Carta privada abierta. Si Vercel solicita acceso, identifícate en esa pestaña.';
+    async function messengerTab(ev){
+     if(ev.source!==tab||ev.origin!==frameOrigin||ev.data?.storeId!==STORE)return;
+     if(ev.data.type==='romo-qa-owner-ready'){
+      try{
+       if(!projection)throw Error('La revisión privada caducó');
+       const photos={};
+       const wanted=projection.products.filter(p=>p.photoVersion>0);
+       for(let start=0;start<Math.min(wanted.length,40);start+=4){
+        const chunk=wanted.slice(start,start+4);
+        const done=await Promise.allSettled(chunk.map(async p=>{
+         const photo=await photoRequest('GET',null,p.sku);
+         if(photo.sku===p.sku&&photo.version===p.photoVersion&&photo.draftOnly===true&&
+            typeof photo.image==='string'&&/^data:image\/jpeg;base64,/.test(photo.image)&&
+            photo.image.length<1400000)photos[p.sku]=photo.image;
+        }));
+        if(done.some(x=>x.status==='rejected'))
+         statusText.textContent='Se omitió una fotografía de prueba no disponible.';
+       }
+       if(tab.closed)return;
+       tab.postMessage({type:'romo-qa-owner-data',storeId:STORE,projection,photos},frameOrigin);
+      }catch(err){
+       statusText.textContent='No se pudo conectar la pestaña: '+String(err.message||err);
+       buttonTab.disabled=false;window.removeEventListener('message',messengerTab);
+      }
+     }else if(ev.data.type==='romo-qa-owner-loaded'){
+      statusText.textContent='✓ Carta privada de Romo cargada · '+ev.data.products+
+       ' productos · sin pedidos, cobros ni ventas.';
+      buttonTab.disabled=false;window.removeEventListener('message',messengerTab);
+     }else if(ev.data.type==='romo-qa-owner-error'){
+      statusText.textContent='La pestaña no pudo validar la carta. No se habilitó ningún pedido.';
+      buttonTab.disabled=false;window.removeEventListener('message',messengerTab);
+     }
+    }
+    window.addEventListener('message',messengerTab);
+   },true);
+   buttonTab.disabled=false;
    const buttonView=button('Mostrar carta real de prueba',()=>{
     if(!projection){statusText.textContent='Primero comprueba la vista previa de Romo.';return;}
     clear(stage);
@@ -382,7 +426,9 @@
     },true);
     close.disabled=false;stage.append(close,frame);
    },true);
-   buttonView.disabled=false;card.append(buttonView,statusText,stage);return card;
+   buttonView.disabled=false;
+   if(/iPhone|iPad|iPod/i.test(navigator.userAgent))buttonView.hidden=true;
+   card.append(buttonTab,buttonView,statusText,stage);return card;
   }
   function publicationCheck(){
    const card=panel('📋 Comprobar compatibilidad con carta pública · sin publicar');
