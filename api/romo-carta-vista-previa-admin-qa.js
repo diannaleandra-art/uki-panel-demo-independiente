@@ -92,6 +92,8 @@ module.exports=async function vistaPreviaRomoQA(req,res){
     const item=req.body.item;
     if(!item||typeof item!=='object'||Array.isArray(item))
      return fail(res,400,'Armado de Romo inválido');
+    if(item.kind==='dish'&&String(item.productId||'').startsWith('gohan-'))
+     require('../lib/romo-gohan-qa.cjs').validarGohanRomoQA(result,item);
     const ingredientes=require('../lib/romo-ingredientes-armado-qa.cjs');
     const sanitized=ingredientes.prepararIngredientesRomoQA(result,item);
     const ctrlQuote=new AbortController();
