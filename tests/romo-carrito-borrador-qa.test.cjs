@@ -46,11 +46,9 @@ test('suma precios de servidor, descuentos y cantidades sin aceptar precios del 
  assert.equal(out.totalComercial,null);
  assert.equal(out.deliveryFee,null);
 });
-test('la promoción creada en Romo queda disponible en el simulador, no publicada',()=>{
- const out=simularCarritoBorradorRomoQA(make(),req([{sku:'promo:ejemplo',qty:1}]));
- assert.equal(out.subtotalProductos,12000);
- assert.equal(out.lineas[0].requiereArmado,true);
- assert.equal(out.status,'qa-carrito-sin-pedidos');
+test('una promoción nueva exige cotizar primero sus rolls y salsas',()=>{
+ assert.throws(()=>simularCarritoBorradorRomoQA(make(),
+   req([{sku:'promo:ejemplo',qty:1}])),/configurar/);
 });
 test('rechaza revisión antigua del catálogo',()=>{
  assert.throws(()=>simularCarritoBorradorRomoQA(make(),
