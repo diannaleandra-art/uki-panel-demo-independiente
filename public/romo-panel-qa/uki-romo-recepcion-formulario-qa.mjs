@@ -5,7 +5,7 @@
 const ENDPOINT='/api/romo-solicitudes-carta-qa';
 const STORE='romo:serena',BRANCH='serena',SUCURSAL='Romo’s Sushi La Serena';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-export const ROMO_PANEL_RECEPCION_HABILITADA_QA=false;
+export const ROMO_PANEL_RECEPCION_HABILITADA_QA=true; // Solo API autorizada decide si el piloto puede registrar solicitudes.
 const requireValid=(test,msg)=>{if(!test)throw Error(msg)};
 const clean=(v,n)=>String(v??'').trim().slice(0,n);
 export function prepararBorradorRomoDesdeSolicitudQA(row,{
