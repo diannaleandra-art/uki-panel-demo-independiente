@@ -15,7 +15,7 @@
     return e;
   };
   const money=n=>'$'+Number(n).toLocaleString('es-CL');
-  const state={current:null,filtered:[],busy:false,selectedSku:'',root:null};
+  const state={current:null,filtered:[],busy:false,selectedSku:'',root:null,area:'productos'};
   function status(msg){
     const e=state.root?.querySelector('[data-romo-carta-status]');
     if(e)e.textContent=msg;
@@ -135,7 +135,7 @@
         state.current=await request('GET');
         state.selectedSku='';
         renderList();
-        renderForm();
+        renderForm();renderExtras();
         status('✓ Edición auditada en Neon Romo. Falta comprobar manualmente '+
           'que la carta pública muestre exactamente el nuevo valor.');
       }catch(error){
@@ -145,6 +145,86 @@
     };
     box.append(title,info,form);
   }
+
+  // Misma navegación de cuatro áreas aprobada en Uki; datos solo de Romo.
+  // No inventar controles de guardado mientras el backend QA siga bloqueado.
+  const AREAS=['productos','categorias','ingredientes','promociones'];
+  function setArea(value){
+    if(!AREAS.includes(value)||!state.root)return;
+    state.area=value;
+    for(const b of state.root.querySelectorAll('[data-romo-nav]')){
+      const selected=b.dataset.romoNav===value;
+      b.setAttribute('aria-pressed',String(selected));
+      b.style.borderColor=selected?'#a80921':'#d9cdd0';
+      b.style.background=selected?'#fff0f3':'#fff';
+      b.style.boxShadow=selected?'inset 0 0 0 2px #a80921':'none';
+    }
+    for(const section of state.root.querySelectorAll('[data-romo-area]')){
+      const selected=section.dataset.romoArea===value;
+      section.hidden=!selected;
+      section.style.display=selected?'block':'none';
+    }
+  }
+  function aviso(text){
+    const p=el('p',text);
+    p.style.cssText='color:#66575a;font-size:13px;line-height:1.5;margin:6px 0 12px';
+    return p;
+  }
+  function fila(heading,detail){
+    const row=el('div');
+    row.style.cssText='border-bottom:1px solid #e7dfe1;padding:11px 0;display:flex;gap:10px;justify-content:space-between;align-items:center';
+    const info=el('div');
+    const h=el('strong',heading);
+    h.style.cssText='color:#231b1e;display:block;overflow-wrap:anywhere';
+    const d=el('small',detail);
+    d.style.cssText='display:block;color:#675d60;margin-top:3px;line-height:1.45';
+    info.append(h,d);row.append(info);
+    return row;
+  }
+  function renderExtras(){
+    const root=state.root, current=state.current;
+    if(!root)return;
+    const categories=$(root,'[data-romo-categories-list]');
+    const ingredients=$(root,'[data-romo-ingredients-list]');
+    const promos=$(root,'[data-romo-promos-list]');
+    if(!categories||!ingredients||!promos)return;
+    clear(categories);clear(ingredients);clear(promos);
+    const products=Array.isArray(current?.products)?current.products:[];
+    const cats=Array.isArray(current?.categories)?current.categories:[];
+    const ing=Array.isArray(current?.ingredients)?current.ingredients:[];
+    categories.append(aviso('Categorías actuales de Romo, independientes de Uki. Crear, renombrar y eliminar categorías exige completar el guardado protegido en Neon; aquí no se crean registros de prueba.'));
+    for(const c of cats){
+      const belonging=products.filter(p=>p.categoriaSlug===c.slug);
+      const row=fila(c.nombre,belonging.length+' productos · '+c.slug);
+      const open=el('button','Ver productos');
+      open.type='button';
+      open.style.cssText='flex-shrink:0;border:1px solid #b01b31;border-radius:9px;padding:8px 9px;background:white;color:#a00b22;font-weight:650';
+      open.onclick=()=>{
+        const filter=$(root,'[data-romo-carta-category]');
+        if(filter)filter.value=c.slug;
+        renderList();setArea('productos');
+      };
+      row.append(open);categories.append(row);
+    }
+    const search=String($(root,'[data-romo-ingredient-search]')?.value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+    const matching=ing.filter(p=>!search||String(p.name+' '+p.category).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(search));
+    ingredients.append(aviso(ing.length+' ingredientes aprobados en las recetas. Los recargos se muestran según el tipo de armado; la edición todavía no está habilitada en este apartado.'));
+    const contextLabels={clasicas:'Clásicas',premium:'Premium',mensual_extra:'Extra de promoción',burger_extra:'Extra de burger',salsas_incluidas:'Salsas incluidas'};
+    for(const p of matching){
+      const details=Object.entries(p.contexts||{}).map(([k,v])=>
+        (contextLabels[k]||k)+': '+(Number(v)>0?money(v):'sin recargo')).join(' · ');
+      ingredients.append(fila(p.name,p.category+' · '+details));
+    }
+    if(!matching.length)ingredients.append(aviso('No hay ingredientes que coincidan con la búsqueda.'));
+    const special=products.filter(p=>p.kind==='monthly'||p.categoriaSlug==='mensual');
+    promos.append(aviso('Promociones que figuran en la carta aprobada de Romo. No incluye promociones dinámicas nuevas: su creación, fotografías y descuentos siguen pendientes de conectar al mismo guardado de Romo.'));
+    for(const p of special){
+      promos.append(fila(p.name,money(p.price)+' · '+(p.available!==false?'Disponible':'No disponible')+
+        (p.description?' · '+p.description:'')));
+    }
+    if(!special.length)promos.append(aviso('No se encontraron promociones en el catálogo aprobado.'));
+  }
+
   function renderList(){
     const root=state.root,container=$(root,'[data-romo-carta-list]');
     if(!root||!container)return;
@@ -183,6 +263,8 @@
       if(result.readOnly!==true||!Array.isArray(result.products)||
          result.products.length<40||!Array.isArray(result.categories))
         throw Error('El catálogo no incluye todos los productos aprobados');
+      if(!Array.isArray(result.ingredients)||result.ingredients.length<20)
+        throw Error('La lista de ingredientes de Romo no está completa');
       state.current=result;
       const initialize=$(state.root,'[data-romo-initialize]');
       if(initialize){
@@ -195,7 +277,7 @@
       clear(category);category.add(new Option('Todas las categorías',''));
       for(const c of result.categories)category.add(new Option(c.nombre,c.slug));
       if([...category.options].some(x=>x.value===before))category.value=before;
-      renderList();renderForm();
+      renderList();renderForm();renderExtras();setArea(state.area);
       status(result.edicionHabilitada===true?
         'Catálogo leído. Las ediciones solo son válidas con revisión '+result.revision+'.':
         'Catálogo de Romo consultado. La edición de productos sigue desactivada.');
@@ -293,7 +375,43 @@
     const form=el('div');form.dataset.romoCartaForm='1';
     form.style.cssText='margin-top:15px;padding-top:12px;border-top:2px solid #b71622';
     search.oninput=renderList;category.onchange=renderList;
-    container.replaceChildren(heading,help,statusP,filter,refresh,initialize,list,form);
+    // Cuatro áreas visuales como Uki, conservando los controles existentes
+    // de producto y el aislamiento de sucursal. Las otras áreas son lectura.
+    const nav=el('div');
+    nav.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:15px 0';
+    const panels={};
+    const choices=[
+      ['productos','📋 Productos'],
+      ['categorias','🗂 Categorías'],
+      ['ingredientes','🌿 Ingredientes'],
+      ['promociones','🎁 Promociones']
+    ];
+    for(const [key,label] of choices){
+      const btn=el('button',label);
+      btn.type='button';btn.dataset.romoNav=key;
+      btn.style.cssText='width:100%;min-width:0;white-space:normal;font-size:15px;font-weight:750;line-height:1.3;padding:14px 7px;border:1px solid #d9cdd0;border-radius:13px;background:#fff;color:#2a2023';
+      btn.onclick=()=>setArea(key);nav.append(btn);
+      const panel=el('section');panel.dataset.romoArea=key;
+      panel.style.cssText='border:1px solid #ebd7dc;border-radius:14px;padding:13px 12px;margin:12px 0;background:#fff';
+      const heading=el('h3',label);
+      heading.style.cssText='margin:0 0 11px;color:#2a2023;font-size:18px';
+      panel.append(heading);
+      panels[key]=panel;
+    }
+    panels.productos.append(filter,refresh,initialize,list,form);
+    const categoryList=el('div');categoryList.dataset.romoCategoriesList='1';
+    panels.categorias.append(categoryList);
+    const ingredientSearch=el('input');
+    ingredientSearch.type='search';ingredientSearch.placeholder='Buscar ingrediente';
+    ingredientSearch.dataset.romoIngredientSearch='1';
+    ingredientSearch.style.cssText='width:100%;padding:11px;border:1px solid #d9cdd0;border-radius:10px';
+    ingredientSearch.oninput=renderExtras;
+    const ingredientList=el('div');ingredientList.dataset.romoIngredientsList='1';
+    panels.ingredientes.append(ingredientSearch,ingredientList);
+    const promoList=el('div');promoList.dataset.romoPromosList='1';
+    panels.promociones.append(promoList);
+    container.replaceChildren(heading,help,statusP,nav,...AREAS.map(key=>panels[key]));
+    setArea(state.area);
     // Se muestra solo después de la autorización; cargar la revisión vigente
     // nuevamente (sin guardar nada) para bloquear confirmaciones obsoletas.
     void reload();
