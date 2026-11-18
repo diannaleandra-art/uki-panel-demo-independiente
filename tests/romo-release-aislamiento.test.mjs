@@ -164,7 +164,9 @@ test('panel único QA permite ver Neon Romo desde mismo selector sin guardado',(
  assert.match(html,/const SUCURSALES_PANEL_QA=Object\.freeze\(\[\.\.\.SUCURSALES,ROMO_SUCURSAL_QA\]\)/);
  assert.match(html,/function ukiConsultarRomoPanelUnicoQA\(\)/);
  assert.match(html,/method:'GET',headers:\{Authorization:'Bearer '\+token\}/);
- assert.match(html,/credentials:'same-origin'/);
+ // Romo same-origin y la consulta cruzada usan permisos diferenciados.
+ assert.match(html,/credentials:ukiRomoCredencialesLecturaPanelUnicoQA\(url\)/);
+ assert.match(html,/\?'omit':'same-origin'/);
  assert.match(html,/abrirLocal\(JSON\.stringify\(remoto\.snapshot\),ROMO_SUCURSAL_QA,clave\)/);
  assert.match(html,/function ukiResumenRomoConsultaQA\(\)/);
  assert.match(html,/if\(!S\.suc&&!S\.pinSuc&&S\.romoSeleccionadoQA&&romoConsultaUnificadaQA\)/);
@@ -193,7 +195,7 @@ test('panel único QA consulta áreas Romo sin alterar pedidos Uki',()=>{
  assert.doesNotMatch(consulta,/method:'POST'/);
  assert.doesNotMatch(consulta,/localStorage\.setItem\(/);
  assert.doesNotMatch(consulta,/session\.guardar\(/);
- assert.match(consulta,/data\?\.storeId!=='romo:serena'/);
+ assert.match(consulta,/data\?\.ok!==true\|\|data\.storeId!=='romo:serena'/);
  assert.match(consulta,/data\.readOnly!==true/);
  assert.match(consulta,/data\.edicionHabilitada===true/);
  assert.match(consulta,/data\.products\.length!==40/);
