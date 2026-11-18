@@ -19,6 +19,8 @@ on:
       - 'lib/romo-promocion-armado-qa.cjs'
       - 'lib/romo-carrito-mixto-qa.cjs'
       - 'tests/romo-carrito-mixto-qa.test.cjs'
+      - 'lib/romo-carta-prepublicacion-qa.cjs'
+      - 'tests/romo-carta-prepublicacion-qa.test.cjs'
       - 'tests/romo-promocion-armado-qa.test.cjs'
       - 'tests/romo-simular-armado-qa.test.cjs'
       - 'api/romo-carta-vista-previa-admin-qa.js'
