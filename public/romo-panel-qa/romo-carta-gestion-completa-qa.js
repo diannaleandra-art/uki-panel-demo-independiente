@@ -231,16 +231,20 @@
   container.append(info('Vista exclusiva de dueños. Los productos, categorías y descuentos se toman de Neon Romo QA. El carrito calcula solo importes base; no registra ni envía pedidos.'));
   const content=E('div'),message=info('Pulsa «Comprobar vista previa» para cargar la carta.');
   let projection=null,requestSerial=0;
-  const selected=new Map();
+  const selected=new Map(),configuredPromos=new Map();
+  const paymentSelect=select('Medio de pago de prueba',
+   [['efectivo','Efectivo'],['transferencia','Transferencia'],['debito','Débito'],
+    ['credito','Crédito'],['edenred','Edenred'],['junaeb','Junaeb']],'efectivo');
   const cartBox=css(E('div'),'border:1px solid #ddc9d0;border-radius:12px;padding:12px;margin:12px 0;background:#fff');
   const cartTitle=E('h3','🛒 Carrito privado de pruebas');
   css(cartTitle,'font-size:16px;margin:0 0 6px');
   const cartLines=E('div'),cartStatus=info('Carrito QA vacío. No admite envíos, cobros ni pedidos reales.');
   cartStatus.setAttribute('role','status');
-  cartBox.append(cartTitle,info('Subtotal de referencia sin armado, recargos adicionales ni delivery.'),cartLines,cartStatus);
+  cartBox.append(cartTitle,info('Los precios mixtos se recalculan en Neon Romo. Nunca se cobran ni generan pedidos.'),paymentSelect.wrap,cartLines,cartStatus);
+  paymentSelect.input.onchange=()=>{void quoteCart();};
   async function quoteCart(){
    const requestNumber=++requestSerial;
-   if(!projection||selected.size===0){
+   if(!projection||(selected.size===0&&configuredPromos.size===0)){
     cartStatus.textContent='Carrito QA vacío. No existe ninguna solicitud comercial.';
     return;
    }
@@ -248,10 +252,13 @@
    try{
     const token=await window.ukiInventarioToken?.();
     if(!token)throw Error('Ingresa con tu sesión Google de dueños');
-    const body={action:'simular',
+    const body={action:'simularMixto',
      revisionComercial:projection.revisionComercial,
      revisionAdministracion:projection.revisionAdministracion,
-     items:[...selected].map(([sku,qty])=>({sku,qty}))
+     payment:paymentSelect.input.value,
+     items:[...selected].map(([sku,qty])=>({sku,qty})).concat(
+      [...configuredPromos.values()].map(p=>({sku:p.sku,qty:p.qty,config:p.config}))
+     )
     };
     const res=await fetch('/api/romo-carta-vista-previa-admin-qa',{
      method:'POST',cache:'no-store',credentials:'same-origin',
@@ -277,7 +284,7 @@
   }
   function drawCart(){
    clear(cartLines);
-   if(!projection||selected.size===0){
+   if(!projection||(selected.size===0&&configuredPromos.size===0)){
     cartLines.append(info('Selecciona productos de la lista para comprobar el subtotal.'));
    }else{
     const bySku=new Map(projection.products.map(p=>[p.sku,p]));
@@ -297,8 +304,20 @@
      minus.disabled=false;plus.disabled=qty>=20;
      line.append(detail,minus,plus);cartLines.append(line);
     }
+    for(const [sku,p] of configuredPromos){
+     const product=bySku.get(sku);
+     if(!product)continue;
+     const line=css(E('div'),'display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-bottom:1px solid #f0e1e5;padding:8px 0');
+     const desc=css(E('span',product.name+' · '+p.qty+' × '+money(product.precioFinal)+
+      ' · '+(product.promoType==='sushi'?'armado configurado':'oferta fija sin armado')),
+      'flex:1;min-width:180px;font-size:13px');
+     const del=button('Quitar promoción',()=>{
+      configuredPromos.delete(sku);drawCart();
+     },true);
+     del.disabled=false;line.append(desc,del);cartLines.append(line);
+    }
     const clearButton=button('Vaciar carrito de prueba',()=>{
-     selected.clear();drawCart();
+     selected.clear();configuredPromos.clear();drawCart();
     },true);
     clearButton.disabled=false;cartLines.append(clearButton);
    }
@@ -388,13 +407,15 @@
   function promotionBuilder(){
    const card=panel('🎁 Configurar promoción nueva de Romo · solo QA');
    const promos=(projection?.products||[]).filter(p=>
-     p.kind==='monthly'&&p.draftOnly===true&&p.promoType==='sushi'&&p.available===true);
+     p.kind==='monthly'&&p.draftOnly===true&&
+     ['sushi','combo','gohan'].includes(p.promoType)&&p.available===true);
    if(!promos.length){
-    card.append(info('No hay promociones nuevas de sushi configurables. Las promociones aprobadas conservan su armado original.'));
+    card.append(info('No hay promociones nuevas configurables. Las aprobadas conservan su armado original.'));
     return {card,open:()=>{card.open=true;}};
    }
    const choose=select('Promoción nueva',promos.map(p=>[p.sku,p.name+
-     ' · '+p.rollCount+' rolls · '+money(p.precioFinal)]),promos[0].sku);
+     ' · '+(p.promoType==='sushi'?p.rollCount+' rolls':'oferta fija')+
+     ' · '+money(p.precioFinal)]),promos[0].sku);
    const form=stack(),result=info('Completa rolls, salsas y medio de pago; el cálculo se realiza en Neon Romo QA.');
    card.append(info('Solo muestra un subtotal de referencia: no envía pedidos ni cobra.'),choose.wrap,form,result);
    const options=(category)=>{
@@ -414,6 +435,27 @@
     if(!p)return;
     const qty=field('Cantidad de promociones',1,'number');qty.input.min='1';qty.input.max='20';
     form.append(qty.wrap);
+    if(p.promoType!=='sushi'){
+     form.append(info('Oferta fija '+p.promoType+': no tiene rolls ni salsas personalizables en su ficha. No sustituye un gohan armado.'));
+     const fixedPay=select('Medio de pago permitido',
+      (p.payments||[]).map(x=>[x,x.charAt(0).toUpperCase()+x.slice(1)]),p.payments?.[0]||'');
+     form.append(fixedPay.wrap);
+     const addFixed=button('Incluir oferta fija en carrito QA',()=>{
+      if(configuredPromos.size+selected.size>=35&&!configuredPromos.has(p.sku)){
+       result.textContent='El carrito admite como máximo 35 productos.';return;
+      }
+      const q=Number(qty.input.value);
+      if(!Number.isSafeInteger(q)||q<1||q>20){
+       result.textContent='Cantidad fuera del rango de pruebas.';return;
+      }
+      paymentSelect.input.value=fixedPay.input.value;
+      configuredPromos.set(p.sku,{sku:p.sku,qty:q,config:{}});
+      result.textContent='Oferta fija incorporada a la simulación, pendiente de validación por servidor.';
+      drawCart();
+     },true);
+     addFixed.disabled=false;form.append(addFixed);
+     return;
+    }
     const rolls=[];
     for(let j=0;j<p.rollCount;j++){
      const panelRoll=panel('Roll '+(j+1)+' · '+p.piecesPerRoll+' piezas');
@@ -479,6 +521,14 @@
        ' · subtotal de prueba '+money(data.subtotalProductos)+
        ' · pago permitido '+data.paymentValidated+
        '. Nada se envía a clientes.';
+      if(configuredPromos.size+selected.size>=35&&!configuredPromos.has(p.sku)){
+       result.textContent+=' No se agregó al carrito porque llegó a 35 productos.';
+       return;
+      }
+      paymentSelect.input.value=payment.input.value;
+      configuredPromos.set(p.sku,{sku:p.sku,qty:Number(qty.input.value),
+       config:{rolls:item,sauces:sauces.map(x=>x.input.value)}});
+      drawCart();
      }catch(error){result.textContent='Promoción no confirmada: '+String(error.message||error);}
     },true);
     run.disabled=false;form.append(run);
@@ -491,7 +541,7 @@
   }
   async function fetchPreview(){
    message.textContent='Comprobando proyección privada de Romo…';
-   clear(content);projection=null;selected.clear();++requestSerial;
+   clear(content);projection=null;selected.clear();configuredPromos.clear();++requestSerial;
    try{
     const token=await window.ukiInventarioToken?.();
     if(!token)throw Error('Inicia sesión como dueña de Romo');
@@ -561,17 +611,21 @@
        photoButton.disabled=false;details.append(photoButton);
       }
       const promoCustom=product.kind==='monthly'&&product.draftOnly===true;
-      const promoUnsupported=promoCustom&&product.promoType!=='sushi';
+      const promoUnsupported=promoCustom&&!['sushi','combo','gohan'].includes(product.promoType);
+      const originalArmado=!promoCustom&&(
+       ['classic','premium','monthly'].includes(product.kind)||
+       (product.kind==='dish'&&/^dish:(gohan-|sushi-burger)/.test(product.sku)));
       const addButton=button(promoUnsupported?'Pendiente: tipo de promoción':
+       originalArmado?'Armado original separado':
        promoCustom?'Configurar promoción QA':'Añadir a prueba',()=>{
-       if(promoUnsupported)return;
+       if(promoUnsupported||originalArmado)return;
        if(promoCustom){promoWidget.open(product.sku);return;}
        const qty=selected.get(product.sku)||0;
        if(selected.size>=35&&!selected.has(product.sku))return;
        if(qty>=20)return;
        selected.set(product.sku,qty+1);drawCart();
       },true);
-      addButton.disabled=product.available!==true||promoUnsupported;
+      addButton.disabled=product.available!==true||promoUnsupported||originalArmado;
       item.append(details,addButton);list.append(item);
      }
      if(found.length>90)list.append(info('Usa el buscador para encontrar otros productos.'));
