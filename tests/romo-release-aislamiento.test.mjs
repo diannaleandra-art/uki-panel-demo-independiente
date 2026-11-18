@@ -251,3 +251,18 @@ test('salida de Romo no usa guardado de Uki y no pierde operacion Neon pendiente
  assert.match(salida,/else if\(S\.suc\)\{/);
  assert.match(salida,/const ok=await guardarEnLocalStorage\(\);if\(!ok\)return/);
 });
+
+
+test('el feed de precios de Romo exige revisión inicial de dueños; nunca revisión cero',()=>{
+ const endpoint=read('../api/romo-carta-cambios-publicos-qa.js');
+ const feed=read('../lib/romo-carta-feed-cotizacion-qa.mjs');
+ assert.match(endpoint,/if\(vista\.revision<1\)/);
+ assert.match(endpoint,/Carta Romo pendiente de confirmación inicial de dueños/);
+ assert.match(feed,/vista\.revision<1/);
+ // La vista privada sí puede mostrar una carta de referencia sin declarar ventas.
+ const editor=read('../public/romo-panel-qa/romo-carta-editor-seguro-qa.js');
+ assert.match(editor,/action:'initialize',expectedRevision:0/);
+ assert.match(editor,/¿Confirmas la carta actual de Romo como versión inicial/);
+ assert.match(editor,/edicionHabilitada===true/);
+ assert.match(editor,/window\.ukiInventarioToken/);
+});

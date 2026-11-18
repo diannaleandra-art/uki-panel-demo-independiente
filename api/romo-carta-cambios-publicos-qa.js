@@ -62,6 +62,10 @@ module.exports=async function romoCartaCambiosPublicosQA(req,res){
     if(!Array.isArray(rows)||rows.length>1)throw Error('Estado de ediciones no confirmado');
     const lib=await import('../lib/romo-carta-ediciones-seguras-qa.mjs');
     const vista=lib.vistaEdicionesRomoQA(base,rows[0]||null);
+    // La referencia de 40 productos sin revisión inicial NO confirma precios.
+    // Sólo dueños pueden crear esa revisión usando el endpoint ya existente.
+    if(vista.revision<1)
+      return fail(res,503,'Carta Romo pendiente de confirmación inicial de dueños');
     const feed=await import('../lib/romo-carta-feed-cotizacion-qa.mjs');
     return res.status(200).json(feed.construirFeedRomoQA(base,vista));
   }catch(e){
