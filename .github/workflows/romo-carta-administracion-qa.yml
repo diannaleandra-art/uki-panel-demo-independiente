@@ -10,6 +10,8 @@ on:
       - 'tests/romo-carta-administracion-qa.test.cjs'
       - 'tests/romo-carta-vista-previa-qa.test.cjs'
       - 'lib/romo-carta-vista-previa-admin-qa.cjs'
+      - 'lib/romo-carrito-borrador-qa.cjs'
+      - 'tests/romo-carrito-borrador-qa.test.cjs'
       - 'api/romo-carta-vista-previa-admin-qa.js'
       - 'package.json'
       - '.github/workflows/romo-carta-administracion-qa.yml'
