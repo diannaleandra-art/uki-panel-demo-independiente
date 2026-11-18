@@ -14,7 +14,7 @@ const base=()=>({
  cajaChica:{inicial:0,gastos:[]},clientes:{},cajasDiarias:{},
  incidencias:[],nextIncidenciaId:1,nextId:2
 });
-const create=({failure=false}={})=>{
+const create=({failure=false,initialState=null}={})=>{
  let writes=0;
  const session=crearSesionPanelUnicoRomoQA({
   vault:{
@@ -27,7 +27,7 @@ const create=({failure=false}={})=>{
    }
   },
   validarEstado:(x,s)=>x?.suc===s&&Array.isArray(x.pedidos),
-  desbloquearSobre:async()=>({estado:base(),cifrar:async()=>({
+  desbloquearSobre:async()=>({estado:clone(initialState||base()),cifrar:async()=>({
     sucursal:SUC,formato:'uki-v813-browser',version:1,
     salt:'AA',iv:'AA',cifrado:'AA'
   })}),
@@ -85,11 +85,15 @@ test('La fecha de pantalla puede avanzar; el candidato usa la fecha de Neon',asy
  assert.equal(session.estadoOperativoConfirmado().fechaOperativa,undefined);
  session.cerrar();
 });
-test('Una caja existente alterada no se confunde con caja virtual',async()=>{
- const {session}=create();await enter(session);
+test('Una caja CONFIRMADA en Neon no se confunde con caja visual temporal',async()=>{
+ const persisted=base(),clave=SUC+'|2026-11-14';
+ persisted.cajasDiarias[clave]=fakeCaja();
+ const {session}=create({initialState:persisted});await enter(session);
  const snapshot=session.estadoOperativoConfirmado();
- snapshot.cajasDiarias[SUC+'|2026-11-14']=fakeCaja();
+ assert.equal(session.coincideEstadoOperativo(snapshot),true);
+ snapshot.cajasDiarias[clave].base=500;
  assert.equal(session.coincideEstadoOperativo(snapshot),false);
+ assert.equal(session.estadoOperativoConfirmado().cajasDiarias[clave].base,0);
  session.cerrar();
 });
 
