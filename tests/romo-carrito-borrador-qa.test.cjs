@@ -74,7 +74,7 @@ test('rechaza productos ajenos, agotados, repetidos y campos de precio falsifica
 test('rechaza carritos demasiado grandes o con extras no cotizados',()=>{
  const projection=make();
  assert.throws(()=>simularCarritoBorradorRomoQA(projection,
-  req(Array.from({length:36},(_,i)=>({sku:projection.products[i].sku,qty:1}))),/35/);
+  req(Array.from({length:36},(_,i)=>({sku:projection.products[i].sku,qty:1})))),/35/);
  assert.throws(()=>simularCarritoBorradorRomoQA(projection,
   req([{sku:'classic:24',qty:1,ingredients:['extra-protein']}])),/inválid/);
  assert.throws(()=>simularCarritoBorradorRomoQA(projection,{
