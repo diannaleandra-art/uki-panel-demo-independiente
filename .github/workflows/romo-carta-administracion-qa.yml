@@ -8,6 +8,9 @@ on:
       - 'lib/romo-carta-administracion-qa.cjs'
       - 'api/romo-carta-administracion-qa.js'
       - 'tests/romo-carta-administracion-qa.test.cjs'
+      - 'tests/romo-carta-vista-previa-qa.test.cjs'
+      - 'lib/romo-carta-vista-previa-admin-qa.cjs'
+      - 'api/romo-carta-vista-previa-admin-qa.js'
       - 'package.json'
       - '.github/workflows/romo-carta-administracion-qa.yml'
   workflow_dispatch:
