@@ -11,6 +11,7 @@ on:
       - 'tests/romo-carta-vista-previa-qa.test.cjs'
       - 'lib/romo-carta-vista-previa-admin-qa.cjs'
       - 'lib/romo-carrito-borrador-qa.cjs'
+      - 'public/romo-panel-qa/romo-carta-gestion-completa-qa.js'
       - 'tests/romo-carrito-borrador-qa.test.cjs'
       - 'api/romo-carta-vista-previa-admin-qa.js'
       - 'package.json'
@@ -34,3 +35,5 @@ jobs:
         with:
           node-version: '22'
       - run: npm run test:romo-carta-admin-qa
+      - run: node --check public/romo-panel-qa/romo-carta-gestion-completa-qa.js
+      - run: node --check api/romo-carta-vista-previa-admin-qa.js
