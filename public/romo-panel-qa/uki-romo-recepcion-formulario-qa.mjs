@@ -100,7 +100,7 @@ export function prepararBorradorRomoDesdeSolicitudQA(row,{
   romoPagoEnvioIndicadoQA:pagoDelivery};
 }
 export function verificarBorradorRomoAntesGuardarQA(d,{
- solicitudId,confirmoArmado=false,confirmoImportes=false
+ solicitudId,confirmoArmado=false,confirmoImportes=false,confirmoPago=false
 }={}){
  requireValid(d&&!d.editando&&UUID.test(String(solicitudId||''))&&
   d.cartaSolicitudRemotaId===solicitudId,'Formulario no vinculado a esta solicitud');
@@ -117,17 +117,22 @@ export function verificarBorradorRomoAntesGuardarQA(d,{
   String(p.nombre||'').trim().length<=100&&
   String(p.det||'').length<=900,'Cantidad, precio o armado inválido');
  requireValid(['Retiro','Delivery','Consumo en local'].includes(d.modalidad),'Entrega inválida');
- requireValid(d.pagado!==true&&!d.mixtoProductos&&!d.mixtoEnvio&&
+ if(d.pagado===true){
+  requireValid(confirmoPago===true&&
+   String(d.romoResponsableCobro||'').trim().length>=2&&
+   String(d.romoResponsableCobro||'').trim().length<=80,
+   'No se confirmó el pago recibido ni quién lo cobró');
+ }else requireValid(!d.mixtoProductos&&!d.mixtoEnvio&&
   !d.productosPagadosOtroLocal&&!d.envioPagadoOtroLocal&&
   (d.propinaModo||'ninguna')==='ninguna',
-  'Primero registrar la solicitud pendiente, sin cobrar ni generar propina');
+  'No declarar dinero ni propina en una solicitud pendiente');
  const envio=d.modalidad==='Delivery'?Number(d.envio):0;
  requireValid(Number.isSafeInteger(envio)&&envio>=0&&envio<=4000&&
   (d.modalidad!=='Delivery'||envio>0),'Confirma el delivery de Romo');
  const subtotal=items.reduce((n,p)=>n+Number(p.cant)*Number(p.precio),0);
  requireValid(Number.isSafeInteger(subtotal)&&subtotal>0&&subtotal+envio<=3000000,
   'Los productos y el delivery no cuadran');
- return {solicitudId,subtotal,envio,pagado:false};
+ return {solicitudId,subtotal,envio,pagado:d.pagado===true};
 }
 export function crearBandejaRomoMismoPanelQA({
  endpoint=ENDPOINT,habilitada=ROMO_PANEL_RECEPCION_HABILITADA_QA,
