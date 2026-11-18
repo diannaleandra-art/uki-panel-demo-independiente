@@ -50,7 +50,7 @@ module.exports=async function romoCartaCambiosPublicosQA(req,res){
       response=await fetch(conf.carta+'/api/romo-catalogo-aprobado-qa',{
         method:'GET',
         headers:{Origin:conf.panel,Accept:'application/json',
-        ...require('../lib/romo-oidc-s2s-qa.cjs').headersOIDCRomoQA(process.env)},
+        ...await require('../lib/romo-oidc-s2s-qa.cjs').headersOIDCRomoQA(process.env)},
         cache:'no-store',redirect:'error',signal:ctrl.signal
       });
     }finally{clearTimeout(timer);}

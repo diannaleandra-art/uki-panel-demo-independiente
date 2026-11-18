@@ -7,7 +7,8 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "1.2.0",
-    "jose": "6.2.15"
+    "jose": "6.2.15",
+    "@vercel/oidc": "4.0.9"
   },
   "scripts": {
     "test": "node --test tests/inventario-live.test.cjs tests/mi-administracion-informes.test.cjs tests/uki-facturas-ambos-paneles.test.cjs tests/uki-inventario-informe-ordenado.test.cjs",
