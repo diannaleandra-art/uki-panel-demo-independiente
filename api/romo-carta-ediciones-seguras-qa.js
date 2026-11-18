@@ -36,7 +36,8 @@ async function approvedCarta(conf){
   const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),8000);
   try{
     const resp=await fetch(conf.carta+'/api/romo-catalogo-aprobado-qa',{
-      method:'GET',headers:{Origin:conf.panel,Accept:'application/json'},
+      method:'GET',headers:{Origin:conf.panel,Accept:'application/json',
+        ...require('../lib/romo-oidc-s2s-qa.cjs').headersOIDCRomoQA(process.env)},
       cache:'no-store',redirect:'error',signal:abort.signal
     });
     if(!resp.ok)throw Error('La carta aprobada no confirmó su catálogo');

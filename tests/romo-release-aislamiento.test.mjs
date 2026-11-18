@@ -266,3 +266,19 @@ test('el feed de precios de Romo exige revisión inicial de dueños; nunca revis
  assert.match(editor,/edicionHabilitada===true/);
  assert.match(editor,/window\.ukiInventarioToken/);
 });
+
+
+test('comunicación GET entre carta y panel protegidos usa identidad OIDC efímera en QA',()=>{
+ const {headersOIDCRomoQA}=require('../lib/romo-oidc-s2s-qa.cjs');
+ const qa={VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'qa/romos-panel-v816',ROMO_PANEL_ISOLATED_PROJECT:'romos-sushi-panel',VERCEL_OIDC_TOKEN:'header.payload.signature'};
+ assert.deepEqual(headersOIDCRomoQA(qa),{'x-vercel-trusted-oidc-idp-token':'header.payload.signature'});
+ assert.deepEqual(headersOIDCRomoQA({...qa,VERCEL_ENV:'production'}),{});
+ assert.deepEqual(headersOIDCRomoQA({...qa,VERCEL_GIT_COMMIT_REF:'main'}),{});
+ assert.deepEqual(headersOIDCRomoQA({...qa,ROMO_PANEL_ISOLATED_PROJECT:'uki-sushi-panel'}),{});
+ assert.deepEqual(headersOIDCRomoQA({...qa,VERCEL_OIDC_TOKEN:''}),{});
+ for(const path of ['../api/romo-carta-ediciones-seguras-qa.js','../api/romo-carta-cambios-publicos-qa.js']){
+  const source=read(path);
+  assert.match(source,/headersOIDCRomoQA\(process\.env\)/);
+  assert.match(source,/ROMO_CARTA_/);
+ }
+});
