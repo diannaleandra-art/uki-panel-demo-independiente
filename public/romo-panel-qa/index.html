@@ -8538,9 +8538,21 @@ async function ukiRomoPrepararSolicitudCartaQA(id){
  }catch(e){aviso('La solicitud no puede convertirse todavía en un pedido: '+String(e?.message||e));}
  finally{ukiRomoSolicitudCartaOcupadaQA=false;}
 }
+function ukiRomoFechaOperativaActualSeguraQA(){
+ if(S.suc!==ROMO_SUCURSAL_QA)return true;
+ const dia=fechaOperativaActual(),hoy=hoyLocal();
+ const fecha=new Date(hoy+'T12:00:00');
+ fecha.setDate(fecha.getDate()-1);
+ const ayer=[fecha.getFullYear(),String(fecha.getMonth()+1).padStart(2,'0'),
+  String(fecha.getDate()).padStart(2,'0')].join('-');
+ return dia===hoy||dia===ayer;
+}
 async function ukiRomoAceptarSolicitudCartaQA(){
  const requestId=String(D.cartaSolicitudRemotaId||'');
  if(!requestId||S.suc!==ROMO_SUCURSAL_QA||S.vista!=='nuevo')return;
+ if(!ukiRomoFechaOperativaActualSeguraQA()){
+  aviso('Romo conserva una jornada antigua. Revisa Caja y regulariza el turno antes de aceptar pedidos nuevos. No se duplicó el pedido.');return;
+ }
  if(ukiRomoSolicitudCartaOcupadaQA)return;
  const solicitud=(ukiRomoSolicitudesCartaQA||[]).find(o=>o.id===requestId&&o.estado==='pendiente');
  if(!solicitud){aviso('No está la solicitud pendiente. Recarga la bandeja antes de guardar.');return;}
@@ -9343,6 +9355,9 @@ async function ukiRomoGuardarPedidoPendienteQA(){
  const s=ROMO_SUCURSAL_QA,session=window.ukiRomoSesionRemotaQA;
  if(S.suc!==s||S.vista!=='nuevo'||!session?.disponible()){
   aviso('Abre Romo con Google y contraseña habitual antes de registrar.');return;
+ }
+ if(!ukiRomoFechaOperativaActualSeguraQA()){
+  aviso('Jornada Romo antigua: primero revisa Caja y concilia el turno. No se guardó otro pedido.');return;
  }
  if(D.editando||D.pagado||D.cartaSolicitudRemotaId||D.cartaReservaToken||
     (D.qrSolicitudes||[]).length||D.productosPagadosOtroLocal||
