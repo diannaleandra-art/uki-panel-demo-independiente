@@ -227,11 +227,86 @@
   box.append(preview,statusP,file,upload,remove);details.append(box);return details;
  }
  function previewPanel(){
-  const container=panel('🔎 Revisar vista previa completa antes de publicar');
-  container.append(info('Solo consulta: combina la carta aprobada con tus borradores de Romo. No activa clientes ni modifica precios.'));
-  const content=E('div'),message=info('Pulsa «Comprobar vista previa» para comparar la carta.');
+  const container=panel('🔎 Carta y carrito de prueba antes de publicar');
+  container.append(info('Vista exclusiva de dueños. Los productos, categorías y descuentos se toman de Neon Romo QA. El carrito calcula solo importes base; no registra ni envía pedidos.'));
+  const content=E('div'),message=info('Pulsa «Comprobar vista previa» para cargar la carta.');
+  let projection=null,requestSerial=0;
+  const selected=new Map();
+  const cartBox=css(E('div'),'border:1px solid #ddc9d0;border-radius:12px;padding:12px;margin:12px 0;background:#fff');
+  const cartTitle=E('h3','🛒 Carrito privado de pruebas');
+  css(cartTitle,'font-size:16px;margin:0 0 6px');
+  const cartLines=E('div'),cartStatus=info('Carrito QA vacío. No admite envíos, cobros ni pedidos reales.');
+  cartStatus.setAttribute('role','status');
+  cartBox.append(cartTitle,info('Subtotal de referencia sin armado, recargos adicionales ni delivery.'),cartLines,cartStatus);
+  async function quoteCart(){
+   const requestNumber=++requestSerial;
+   if(!projection||selected.size===0){
+    cartStatus.textContent='Carrito QA vacío. No existe ninguna solicitud comercial.';
+    return;
+   }
+   cartStatus.textContent='Comprobando precios y disponibilidad en el servidor de Romo…';
+   try{
+    const token=await window.ukiInventarioToken?.();
+    if(!token)throw Error('Ingresa con tu sesión Google de dueños');
+    const body={action:'simular',
+     revisionComercial:projection.revisionComercial,
+     revisionAdministracion:projection.revisionAdministracion,
+     items:[...selected].map(([sku,qty])=>({sku,qty}))
+    };
+    const res=await fetch('/api/romo-carta-vista-previa-admin-qa',{
+     method:'POST',cache:'no-store',credentials:'same-origin',
+     headers:{Authorization:'Bearer '+token,Accept:'application/json','Content-Type':'application/json'},
+     body:JSON.stringify(body),signal:AbortSignal.timeout(15000)
+    });
+    const result=await res.json().catch(()=>null);
+    if(requestNumber!==requestSerial)return;
+    if(!res.ok||result?.ok!==true||result.storeId!==STORE||
+       result.simulacion!==true||result.canSendOrder!==false||
+       result.countsAsSale!==false||
+       result.revisionComercial!==projection.revisionComercial||
+       result.revisionAdministracion!==projection.revisionAdministracion)
+     throw Error(result?.error||'El carrito no se pudo comprobar');
+    cartStatus.textContent='✓ Subtotal de prueba: '+money(result.subtotalProductos)+
+      ' · '+result.qtyTotal+' unidades · revisión '+result.revisionAdministracion+
+      '. No incluye armado, adicionales ni delivery. No se puede enviar o cobrar.';
+   }catch(error){
+    if(requestNumber!==requestSerial)return;
+    cartStatus.textContent='No se confirmó la simulación: '+String(error.message||error)+
+     '. Actualiza la vista previa antes de reintentar.';
+   }
+  }
+  function drawCart(){
+   clear(cartLines);
+   if(!projection||selected.size===0){
+    cartLines.append(info('Selecciona productos de la lista para comprobar el subtotal.'));
+   }else{
+    const bySku=new Map(projection.products.map(p=>[p.sku,p]));
+    for(const [sku,qty] of selected){
+     const product=bySku.get(sku);
+     if(!product)continue;
+     const line=css(E('div'),'display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid #f0e1e5;padding:8px 0');
+     const detail=css(E('span',product.name+' · '+qty+' × '+money(product.precioFinal)),'flex:1;min-width:150px;font-size:13px');
+     const minus=button('−',()=>{
+      if(qty<=1)selected.delete(sku);else selected.set(sku,qty-1);
+      drawCart();
+     },true);
+     const plus=button('+',()=>{
+      if(qty>=20)return;
+      selected.set(sku,qty+1);drawCart();
+     },true);
+     minus.disabled=false;plus.disabled=qty>=20;
+     line.append(detail,minus,plus);cartLines.append(line);
+    }
+    const clearButton=button('Vaciar carrito de prueba',()=>{
+     selected.clear();drawCart();
+    },true);
+    clearButton.disabled=false;cartLines.append(clearButton);
+   }
+   void quoteCart();
+  }
   async function fetchPreview(){
-   message.textContent='Comprobando proyección privada de Romo…';clear(content);
+   message.textContent='Comprobando proyección privada de Romo…';
+   clear(content);projection=null;selected.clear();++requestSerial;
    try{
     const token=await window.ukiInventarioToken?.();
     if(!token)throw Error('Inicia sesión como dueña de Romo');
@@ -245,44 +320,59 @@
        data.draftOnly!==true||data.publishable!==false||
        !Array.isArray(data.products)||data.products.length<40)
      throw Error(data?.error||'La vista previa no está confirmada');
+    projection=data;
     const p=data.summary;
-    message.textContent='✓ Vista previa comprobada · solo Romo QA. Nada de esto está publicado para clientes.';
-    const infoBlock=css(E('div'),'background:#faf5f6;border-radius:10px;padding:11px;line-height:1.8;font-size:13px');
-    infoBlock.textContent='Revisión comercial '+data.revisionComercial+
-     ' · revisión de administración '+data.revisionAdministracion+
+    message.textContent='✓ Vista previa privada comprobada. Ningún pedido ni cambio está publicado para clientes.';
+    const summary=css(E('div'),'background:#faf5f6;border-radius:10px;padding:11px;line-height:1.8;font-size:13px');
+    summary.textContent='Revisión comercial '+data.revisionComercial+
+     ' · revisión administrativa '+data.revisionAdministracion+
      ' · '+p.totalProducts+' productos ('+p.baseProducts+' originales, '+
-     p.newProducts+' nuevos, '+p.newPromotions+' promociones nuevas) · '+
+     p.newProducts+' nuevos y '+p.newPromotions+' promociones nuevas) · '+
      p.ingredients+' ingredientes · '+p.categories+' categorías · '+
      p.discounts+' descuentos · '+p.photos+' fotografías.';
-    content.append(infoBlock);
-    const search=field('Buscar en toda la vista previa');
-    search.input.type='search';search.input.placeholder='Producto, categoría o precio';
+    content.append(summary,cartBox);
+    drawCart();
+    const search=field('Buscar productos en la vista previa');
+    search.input.type='search';search.input.placeholder='Producto o categoría';
     content.append(search.wrap);
     const list=E('div');content.append(list);
     const draw=()=>{
      clear(list);
      const filter=norm(search.input.value);
-     const categoriesMap=new Map(data.categories.map(c=>[c.slug,c.nombre]));
-     const matched=data.products.filter(x=>norm(x.name+' '+(categoriesMap.get(x.categoriaSlug)||'')+' '+x.sku).includes(filter));
-     list.append(info(matched.length+' productos encontrados · precios resultantes de prueba'));
-     for(const product of matched.slice(0,90)){
-      const x=css(E('div'),'padding:9px 0;border-bottom:1px solid #e9dce1');
+     const cats=new Map(data.categories.map(c=>[c.slug,c.nombre]));
+     const found=data.products.filter(product=>norm(product.name+' '+(cats.get(product.categoriaSlug)||'')+' '+product.sku).includes(filter));
+     list.append(info(found.length+' productos encontrados, con precios proyectados.'));
+     for(const product of found.slice(0,90)){
+      const item=css(E('div'),'padding:10px 0;border-bottom:1px solid #e9dce1;display:flex;gap:8px;align-items:center;flex-wrap:wrap');
+      const details=css(E('div'),'flex:1;min-width:160px');
       const name=E('strong',product.name);name.style.cssText='display:block;font-size:13px';
-      const detail=E('small',(categoriesMap.get(product.categoriaSlug)||'Sin categoría')+
+      const extra=E('small',(cats.get(product.categoriaSlug)||'Sin categoría')+
        ' · '+money(product.precioOriginal)+
        (product.descuentoPorcentaje>0?' → '+money(product.precioFinal)+
         ' (-'+product.descuentoPorcentaje+'%)':'')+
        ' · '+(product.available?'Disponible':'Agotado')+
        (product.pendingChanges?' · cambio pendiente':'')+
        (product.photoVersion>0?' · foto v'+product.photoVersion:''));
-      detail.style.cssText='display:block;color:#666;font-size:12px;line-height:1.45';
-      x.append(name,detail);list.append(x);
+      extra.style.cssText='display:block;color:#666;font-size:12px;line-height:1.45';
+      details.append(name,extra);
+      const addButton=button('Añadir a prueba',()=>{
+       const qty=selected.get(product.sku)||0;
+       if(selected.size>=35&&!selected.has(product.sku))return;
+       if(qty>=20)return;
+       selected.set(product.sku,qty+1);drawCart();
+      },true);
+      addButton.disabled=product.available!==true;
+      item.append(details,addButton);list.append(item);
      }
+     if(found.length>90)list.append(info('Usa el buscador para encontrar otros productos.'));
     };
     search.input.oninput=draw;draw();
-   }catch(e){message.textContent='No se pudo verificar la vista previa. '+String(e.message||e);}
+   }catch(error){
+    message.textContent='No se pudo verificar la vista previa. '+String(error.message||error);
+    clear(content);
+   }
   }
-  const refresh=button('Comprobar vista previa',()=>void fetchPreview(),true);
+  const refresh=button('Comprobar carta y carrito QA',()=>void fetchPreview(),true);
   refresh.disabled=false;container.append(refresh,message,content);
   return container;
  }
