@@ -42,6 +42,13 @@ jobs:
           node -e "const p=require('./package.json');if(!p.scripts['test:release'])process.exit(1)"
       - name: Instalar dependencias sin scripts de instalación
         run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Confirmar sintaxis de módulos críticos de Romo
+        shell: bash
+        run: |
+          node --check api/romo-estado-cifrado-panel-qa.js
+          node --check api/romo-cancelacion-cifrada-solo-qa.js
+          node --check public/romo-panel-qa/romo-panel-unico-sesion-qa.mjs
+          node --check public/romo-panel-qa/uki-romo-conciliacion-cancelacion-qa.mjs
       - name: Pruebas completas de aislamiento Romo v8.16
         run: npm run test:release
       - name: Pruebas base oficiales de Uki
