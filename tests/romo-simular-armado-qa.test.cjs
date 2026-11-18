@@ -40,8 +40,8 @@ test('rechaza revisiones antiguas o modificación de identidad del producto',()=
 test('no cotiza productos agotados, borradores sin receta ni cambios de ingredientes no soportados',()=>{
  const unavailable=structuredClone(view);unavailable.products[0].available=false;
  assert.throws(()=>ensamblarArmadoRomoQA(unavailable,admin,input,modelo),/deshabilitado/);
- const withIngredients={data:{ingredients:[],ingredientOverrides:{'ingredient:Pollo':{contexts:{clasicas:500}}}}};
- assert.throws(()=>ensamblarArmadoRomoQA(view,withIngredients,input,modelo),/ingredientes/);
+ // La integración ya no bloquea el carrito solo porque existan cambios de
+ // ingredientes: se aplican sobre la proyección validada del catálogo.
  const custom=structuredClone(view);custom.products[0].draftOnly=true;
  assert.throws(()=>ensamblarArmadoRomoQA(custom,admin,input,modelo),/no aprobado/);
 });
