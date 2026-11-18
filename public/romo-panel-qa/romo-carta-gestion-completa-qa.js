@@ -250,7 +250,9 @@
    const items=products().filter(p=>norm(p.name+' '+p.sku).includes(norm(search.input.value)));
    container.append(info(items.length+' productos disponibles en administración ('+(state.base?.products?.length||0)+' aprobados).'));
    for(const p of items.slice(0,state.limit)){
-    const item=panel(p.name+' · '+money(p.price)+(p._base?' · Carta aprobada':' · Borrador'));
+    const percent=Number(state.admin.data.discounts?.[p.sku]||0);
+    const finalPrice=percent?Math.max(1,Math.round(p.price*(100-percent)/100)):p.price;
+    const item=panel(p.name+' · '+(percent?money(p.price)+' → '+money(finalPrice):money(p.price))+(p._base?' · Carta aprobada':' · Borrador'));
     const form=stack();
     const n=field('Nombre',p.name),price=field('Precio',p.price,'number'),
      desc=field('Descripción',p.description||''),
@@ -318,7 +320,21 @@
    area.append(rename.wrap,button('Guardar nombre',()=>{
     void save('category-rename',{id:c.slug,name:rename.input.value.trim()},'Categoría renombrada '+c.nombre);
    }));
-   area.append(info('Productos dentro de la categoría: '+(members.length?members.map(p=>p.name).join(', '):'ninguno')));
+   area.append(info('Productos dentro de la categoría ('+members.length+'):'));
+   for(const product of members){
+    const assignment=row(),label=css(E('span',product.name),'font-size:13px;flex:1;min-width:130px');
+    const pick=select('Mover a',categoryOptions(),product.categoriaSlug);
+    pick.wrap.style.flex='1 1 170px';
+    assignment.append(label,pick.wrap,button('Guardar',()=>{
+     void save('category-assign',{id:product.sku,category:pick.input.value},
+      'Mover '+product.name+' de categoría');
+    },true));
+    assignment.append(button('Quitar',()=>{
+     void save('category-assign',{id:product.sku,category:''},
+      'Quitar '+product.name+' de categoría');
+    },true));
+    area.append(assignment);
+   }
    area.append(button('Eliminar categoría',()=>{
     void save('category-delete',{id:c.slug},'Eliminar categoría '+c.nombre,
       '¿Eliminar la categoría «'+c.nombre+'» del borrador de Romo? Sus productos se conservan.');
@@ -438,7 +454,9 @@
    clear(list);const found=promos().filter(p=>norm(p.name).includes(norm(search.input.value)));
    list.append(info(found.length+' promociones disponibles en administración.'));
    for(const p of found){
-    const item=panel(p.name+' · '+money(p.price)+(p._base?' · Carta aprobada':' · Borrador'));
+    const percent=Number(state.admin.data.discounts?.[p.sku]||0);
+    const finalPrice=percent?Math.max(1,Math.round(p.price*(100-percent)/100)):p.price;
+    const item=panel(p.name+' · '+(percent?money(p.price)+' → '+money(finalPrice):money(p.price))+(p._base?' · Carta aprobada':' · Borrador'));
     if(!p._base){
      item.append(promotionForm(p,false));
      item.append(button('Eliminar promoción de borrador',()=>{
