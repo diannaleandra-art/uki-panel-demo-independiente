@@ -27,3 +27,14 @@
 - No habilitar `POST` comercial, pagos, caja o la carta pública de clientes ahora.
 - No usar la rama QA de Neon como sustituto de la base operativa sin revisar su aislamiento y permisos.
 - No recrear la carta ni duplicar el editor existente.
+
+
+## Avance de conexión y pruebas del 18-11-2026 (continuación)
+- Se verificó por herramienta conectada Vercel que `romos-sushi-panel` es accesible en el equipo `diannaleandra-7046`, pero `romos-sushi-carta-qa` (ID previamente confirmado por la dueña: `prj_z0MXks08m8xDbRIPHJ2DyaxYfnuY`) devuelve 404 incluso por ID, nombre, equipo y slug. **No inventar acceso**; se requiere ampliar o renovar la autorización del proyecto en el conector de Vercel o configuración manual sin compartir secretos.
+- Se configuraron en el proyecto Vercel `romos-sushi-panel` dos variables **exclusivas de Preview y rama `qa/romos-panel-v816`**: `ROMO_CARTA_EDICIONES_QA_ENABLED=true` (solamente GET autenticado; bandera de escritura sigue ausente) y `ROMO_CARTA_CATALOGO_QA_ORIGIN` apuntando al alias de la rama de carta mostrado en la captura de Vercel. **Los despliegues actuales no incorporan variables nuevas hasta volver a desplegar.** No se modificaron variables de producción.
+- En repo `diannaleandra-art/romos-sushi-qa.`, rama `release/romos-carta-v816`, commit `4fc077552cb4e210b70d526c13accf9b4b006124`: API de GET de cambios admite el alias fijo y la URL `Visit` inmutable únicamente si coincide con `VERCEL_URL` del mismo proyecto QA, y nunca desde producción, otro proyecto u origen ajeno. No se abre POST ni ventas.
+- Se activó CI de esa rama en el commit `fdbf21212912f594f244589ac3bece09776f7584` y se diferenciaron pruebas comerciales históricas de WhatsApp de pruebas QA actuales. Resultado real: **63 pruebas aprobadas, cero fallos**, ejecución GitHub Actions `44236463811`. No se desplegó esta revisión en Vercel.
+- Las tablas de Neon QA de edición/auditoría siguen sin revisión inicial. En el panel no se habilitó `ROMO_CARTA_EDICIONES_ESCRITURA_QA_ENABLED`, `ROMO_CARTA_CAMBIOS_PUBLICOS_QA_ENABLED`, recepción de pedidos, cobros, caja ni permisos comerciales.
+- **Orden correcto al recuperar acceso a carta QA:** verificar rama y origen, configurar únicamente lectura del catálogo aprobado y puente de GET, publicar un Preview de ambos componentes para comprobar Google/Neon. Posteriormente dueña confirma los 40 productos mediante editor autorizado y revisión CAS+auditoría; cerrar permiso de inicialización y validar feed `revision>=1`. Por último probar recepción/idempotencia y un pedido de retiro controlado, sin ingresar ventas por solicitudes pendientes.
+- La versión actual de carta Preview mostrada manualmente en iPhone `5deb3db` y los últimos cambios `ab533223`, `4fc07755` y `fdbf2121` en GitHub no son todos el mismo despliegue. **No anunciar que están publicados antes de comprobar Preview.** Mantener Uki oficial `main` y Romo producción sin cambios.
+
