@@ -1,0 +1,33 @@
+name: Romo Carta Administración QA
+
+on:
+  push:
+    branches:
+      - qa/romos-panel-v816
+    paths:
+      - 'lib/romo-carta-administracion-qa.cjs'
+      - 'api/romo-carta-administracion-qa.js'
+      - 'tests/romo-carta-administracion-qa.test.cjs'
+      - 'package.json'
+      - '.github/workflows/romo-carta-administracion-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: romo-carta-admin-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run test:romo-carta-admin-qa
