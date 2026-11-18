@@ -85,9 +85,9 @@ test('proteína personalizada y vegetal premium se calculan sin perder el armado
  assert.equal(prepararIngredientesRomoQA(v,i).normalizado.rolls[0].protein,'Pollo');
  assert.equal(calcularRecargosRomoQA(v,i,q(0,[[0],[0]])),1100);
 });
-test('handroll mensual suma envoltura propia y recargo original, sin duplicarlo',()=>{
+test('promoción mensual suma envoltura extra sin duplicarla, sin duplicarlo',()=>{
  const v=view();
- const m={kind:'monthly',productId:'handroll-individual',qty:1,
+ const m={kind:'monthly',productId:'romo-72-clasicas',qty:1,
   rolls:[roll({wrap:'Palta'})],sauces:['Soya'],toppings:[]};
  assert.equal(calcularRecargosRomoQA(v,m,{
   extrasModelo:1000,componentesModelo:{surcharge:1000,sauceExtra:0,toppingExtra:0,rolls:[{surcharge:0}]}
