@@ -28,6 +28,9 @@ module.exports=async function gestionRomoQA(req,res){
  res.setHeader('Cache-Control','private,no-store,max-age=0');
  res.setHeader('X-Content-Type-Options','nosniff');
  res.setHeader('Vary','Origin');
+ if(process.env.VERCEL_ENV!=='preview'||
+    process.env.VERCEL_GIT_COMMIT_REF!=='qa/romos-panel-v816')
+  return fail(res,503,'Administración disponible solo en QA de Romo');
  const conf=config(process.env);
  if(!conf)return fail(res,503,'Administración de Romo no habilitada');
  const method=String(req.method||'').toUpperCase();
