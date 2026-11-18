@@ -77,6 +77,6 @@ test('nunca convierte las promociones de Junaeb en promociones publicables sin s
 test('rechaza productos con IDs no reconocidos o de otra sucursal',()=>{
  const v=projection();v.products[40].sku='pizza:12345678';
  assert.throws(()=>prepararCartaRomoQA(v,{data}),/SKU|Identificador/);
- const other=projection();other.storeId='uki:serena';
+ const other=structuredClone(projection());other.storeId='uki:serena';
  assert.throws(()=>prepararCartaRomoQA(other,{data}),/no verificada/);
 });
