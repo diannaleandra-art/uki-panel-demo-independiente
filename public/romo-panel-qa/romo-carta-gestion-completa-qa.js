@@ -836,6 +836,19 @@
    korokes=field('Korokes incluidos',p?.korokes??0,'number'),
    available=field('Disponible',p?.available!==false,'checkbox');
   box.append(name.wrap,price.wrap,desc.wrap,type.wrap,rolls.wrap,pieces.wrap,sauces.wrap,korokes.wrap,available.wrap);
+  const config=()=>{
+   const fixed=type.input.value!=='sushi';
+   if(fixed){
+    rolls.input.value='0';sauces.input.value='0';
+   }else if(Number(rolls.input.value)===0&&create){
+    rolls.input.value='2';sauces.input.value='1';
+   }
+   rolls.input.disabled=fixed;pieces.input.disabled=fixed;sauces.input.disabled=fixed;
+   rolls.wrap.title=fixed?'Solo ofertas fijas: sin rolls':'';
+  };
+  type.input.onchange=config;config();
+  if(type.input.value!=='sushi'&&create)
+   box.append(info('Gohan y combo: solo ofertas fijas sin personalización de ingredientes. Las recetas armables aún no están disponibles.'));
   const pays=E('fieldset');pays.append(E('legend','Medios de pago'));
   const payments={},payOpts=[['efectivo','Efectivo'],['transferencia','Transferencia'],['debito','Tarjeta'],['edenred','Edenred'],['junaeb','Junaeb']];
   for(const [key,label] of payOpts){
@@ -859,7 +872,7 @@
   const target=host('promociones');if(!target)return;clear(target);
   target.append(cardNote());
   const newCard=panel('＋ Nueva promoción de Romo');
-  newCard.append(info('Tipos de Romo: sushi, gohan o combo; no pizzas. Las fotos y publicación comercial se conectarán después de la prueba del guardado.'));
+  newCard.append(info('Tipos de Romo: sushi personalizable, gohan fijo o combo fijo; no pizzas. Las fotos permanecen privadas hasta publicar la versión aprobada.'));
   newCard.append(promotionForm(null,true));target.append(newCard);
   const search=field('Buscar promoción por nombre');search.input.type='search';
   target.append(search.wrap);
