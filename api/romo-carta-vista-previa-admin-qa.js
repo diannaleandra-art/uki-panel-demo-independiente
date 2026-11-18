@@ -70,6 +70,16 @@ module.exports=async function vistaPreviaRomoQA(req,res){
   const project=require('../lib/romo-carta-vista-previa-admin-qa.cjs');
   const result=project.proyectarVistaAdminRomoQA(official,admin[0],photos);
   if(req.method==='POST'){
+   if(req.body?.action==='revisarPrepublicacion'){
+    if(!req.body||Object.keys(req.body).sort().join('|')!==
+      ['action','revisionAdministracion','revisionComercial'].sort().join('|')||
+       req.body.revisionComercial!==result.revisionComercial||
+       req.body.revisionAdministracion!==result.revisionAdministracion)
+      return fail(res,409,'La carta de Romo cambió. Actualiza antes de revisar el paquete');
+    const mod=require('../lib/romo-carta-prepublicacion-qa.cjs');
+    const state=require('../lib/romo-carta-administracion-qa.cjs').read(admin[0]);
+    return res.status(200).json(mod.prepararCartaRomoQA(result,state));
+   }
    if(req.body?.action==='simularMixto'){
     const mixto=require('../lib/romo-carrito-mixto-qa.cjs');
     return res.status(200).json(mixto.simularCarritoMixtoRomoQA(result,req.body));
