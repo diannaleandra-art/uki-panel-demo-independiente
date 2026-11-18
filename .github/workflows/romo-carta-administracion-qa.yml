@@ -17,6 +17,8 @@ on:
       - 'lib/romo-ingredientes-armado-qa.cjs'
       - 'tests/romo-ingredientes-armado-qa.test.cjs'
       - 'lib/romo-promocion-armado-qa.cjs'
+      - 'lib/romo-carrito-mixto-qa.cjs'
+      - 'tests/romo-carrito-mixto-qa.test.cjs'
       - 'tests/romo-promocion-armado-qa.test.cjs'
       - 'tests/romo-simular-armado-qa.test.cjs'
       - 'api/romo-carta-vista-previa-admin-qa.js'
