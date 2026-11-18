@@ -304,6 +304,59 @@
    }
    void quoteCart();
   }
+  function assembledExamples(){
+   const card=panel('🍣 Simular armado original de Romo (solo prueba)');
+   const options=[
+    ['classic:24','24 piezas clásicas · 2 rolls'],
+    ['classic:24:extra','24 piezas · envoltura palta y salsa extra'],
+    ['monthly:handroll-individual','Handroll individual'],
+    ['dish:papitas','Papitas fritas']
+   ];
+   const chooser=select('Ejemplo de armado a revisar',options);
+   const result=info('Utiliza el motor original de Romo, pero no permite enviar pedidos.');
+   function sample(key){
+    const roll=()=>({protein:'Pollo',vegetable:'Palta',wrap:'Panko',vegetariano:false});
+    if(key==='dish:papitas')return {kind:'dish',productId:'papitas',qty:1};
+    if(key==='monthly:handroll-individual')return {kind:'monthly',productId:'handroll-individual',
+     qty:1,rolls:[roll()],sauces:['Soya'],toppings:[]};
+    if(key==='classic:24:extra')return {kind:'classic',size:24,qty:1,
+     rolls:[{...roll(),wrap:'Palta'},roll()],sauces:['Soya'],
+     extraSauces:[{name:'Soya',qty:1}],toppings:[]};
+    return {kind:'classic',size:24,qty:1,rolls:[roll(),roll()],
+     sauces:['Soya'],extraSauces:[],toppings:[]};
+   }
+   const run=button('Comprobar armado completo QA',async()=>{
+    if(!projection)return;
+    result.textContent='Calculando el armado con el motor original de Romo…';
+    try{
+     const token=await window.ukiInventarioToken?.();
+     if(!token)throw Error('Ingresa con Google como dueña de Romo');
+     const item=sample(chooser.input.value);
+     const res=await fetch('/api/romo-carta-vista-previa-admin-qa',{
+      method:'POST',cache:'no-store',credentials:'same-origin',
+      headers:{Authorization:'Bearer '+token,Accept:'application/json','Content-Type':'application/json'},
+      body:JSON.stringify({action:'simularArmado',item,
+       revisionComercial:projection.revisionComercial,
+       revisionAdministracion:projection.revisionAdministracion}),
+      signal:AbortSignal.timeout(18000)
+     });
+     const q=await res.json().catch(()=>null);
+     if(!res.ok||q?.ok!==true||q.storeId!==STORE||
+       q.simulacion!==true||q.countsAsSale!==false||
+       q.canSendOrder!==false||q.totalComercial!==null)
+      throw Error(q?.error||'El motor de Romo rechazó el armado');
+     result.textContent='✓ '+q.name+' · base '+money(q.precioBaseConDescuento)+
+       ' · recargos del armado '+money(q.recargosArmado)+
+       ' · subtotal de prueba '+money(q.subtotalProductos)+
+       '. No incluye delivery ni pagos. No es un pedido.';
+    }catch(e){
+     result.textContent='Armado no confirmado: '+String(e.message||e)+
+      '. No se ha registrado ningún pedido.';
+    }
+   },true);
+   run.disabled=false;
+   const wrapper=stack();wrapper.append(chooser.wrap,run,result);card.append(wrapper);return card;
+  }
   async function fetchPreview(){
    message.textContent='Comprobando proyección privada de Romo…';
    clear(content);projection=null;selected.clear();++requestSerial;
@@ -330,7 +383,7 @@
      p.newProducts+' nuevos y '+p.newPromotions+' promociones nuevas) · '+
      p.ingredients+' ingredientes · '+p.categories+' categorías · '+
      p.discounts+' descuentos · '+p.photos+' fotografías.';
-    content.append(summary,cartBox);
+    content.append(summary,assembledExamples(),cartBox);
     drawCart();
     const search=field('Buscar productos en la vista previa');
     search.input.type='search';search.input.placeholder='Producto o categoría';
