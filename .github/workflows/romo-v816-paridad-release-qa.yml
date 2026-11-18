@@ -1,0 +1,54 @@
+name: Romo v8.16 — puerta QA sin publicar
+on:
+  push:
+    branches:
+      - qa/romos-panel-v816
+    paths:
+      - '.github/workflows/romo-v816-paridad-release-qa.yml'
+      - 'api/**'
+      - 'lib/**'
+      - 'firebase/**'
+      - 'public/**'
+      - 'tests/**'
+      - 'package.json'
+      - 'vercel.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: romo-v816-gate-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  comparar-y-probar:
+    name: Comprobación completa de QA (sin escrituras comerciales)
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Obtener la rama QA, nunca main de Uki
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Preparar Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Verificar rama sin credenciales
+        shell: bash
+        run: |
+          set -eu
+          test "${GITHUB_REF_NAME}" = "qa/romos-panel-v816"
+          test ! -e .env
+          test ! -e .env.production
+          node -e "const p=require('./package.json');if(!p.scripts['test:release'])process.exit(1)"
+      - name: Instalar dependencias sin scripts de instalación
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Pruebas completas de aislamiento Romo v8.16
+        run: npm run test:release
+      - name: Pruebas base oficiales de Uki
+        run: npm test
+      - name: Verificar que no haya llaves privadas o secretos configurados en CI
+        shell: bash
+        run: |
+          test -z "${ROMO_PRIVATE_DATABASE_URL:-}"
+          test -z "${ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED:-}"
+          echo "No se realizaron escrituras de pedidos ni cajas."
