@@ -385,6 +385,110 @@
    run.disabled=false;
    const wrapper=stack();wrapper.append(chooser.wrap,ingredientsBox,run,result);card.append(wrapper);return card;
   }
+  function promotionBuilder(){
+   const card=panel('🎁 Configurar promoción nueva de Romo · solo QA');
+   const promos=(projection?.products||[]).filter(p=>
+     p.kind==='monthly'&&p.draftOnly===true&&p.promoType==='sushi'&&p.available===true);
+   if(!promos.length){
+    card.append(info('No hay promociones nuevas de sushi configurables. Las promociones aprobadas conservan su armado original.'));
+    return {card,open:()=>{card.open=true;}};
+   }
+   const choose=select('Promoción nueva',promos.map(p=>[p.sku,p.name+
+     ' · '+p.rollCount+' rolls · '+money(p.precioFinal)]),promos[0].sku);
+   const form=stack(),result=info('Completa rolls, salsas y medio de pago; el cálculo se realiza en Neon Romo QA.');
+   card.append(info('Solo muestra un subtotal de referencia: no envía pedidos ni cobra.'),choose.wrap,form,result);
+   const options=(category)=>{
+    return (projection.ingredients||[]).filter(i=>{
+     const is=category==='proteina'?['proteina','Proteínas'].includes(i.category):
+      category==='vegetal'?['vegetal','Vegetales'].includes(i.category):
+      ['envoltura','Envolturas'].includes(i.category);
+     return is&&i.available!==false&&(i.draftOnly===true?
+      i.surfaces?.includes('monthly'):
+      category==='vegetal'?i.contexts?.clasicas!==undefined:
+       i.contexts?.clasicas!==undefined||i.contexts?.mensual_extra!==undefined);
+    }).map(i=>[i.name,i.name+(i.draftOnly?' · añadido':'')]);
+   };
+   const fill=()=>{
+    clear(form);result.textContent='Configura la promoción de prueba sin modificar la carta comercial.';
+    const p=promos.find(q=>q.sku===choose.input.value);
+    if(!p)return;
+    const qty=field('Cantidad de promociones',1,'number');qty.input.min='1';qty.input.max='20';
+    form.append(qty.wrap);
+    const rolls=[];
+    for(let j=0;j<p.rollCount;j++){
+     const panelRoll=panel('Roll '+(j+1)+' · '+p.piecesPerRoll+' piezas');
+     const protein=select('Proteína',options('proteina'),'Pollo');
+     const veg=select('Vegetal',options('vegetal'),'Palta');
+     const veg2=select('Segundo vegetal (vegetariano)',options('vegetal'),'Cebollín');
+     const wrap=select('Envoltura',options('envoltura'),'Panko');
+     const vegetarian=field('Vegetariano · dos vegetales',false,'checkbox');
+     const sinNori=field('Sin nori',false,'checkbox');
+     const sinQueso=field('Sin queso crema',false,'checkbox');
+     const base=stack();base.append(vegetarian.wrap,protein.wrap,veg.wrap,veg2.wrap,
+      wrap.wrap,sinNori.wrap,sinQueso.wrap);
+     const toggle=()=>{
+      veg2.wrap.hidden=!vegetarian.input.checked;
+      protein.wrap.hidden=vegetarian.input.checked;
+     };
+     vegetarian.input.onchange=toggle;toggle();panelRoll.append(base);
+     form.append(panelRoll);
+     rolls.push({protein,veg,veg2,wrap,vegetarian,sinNori,sinQueso});
+    }
+    const sauces=[];
+    for(let i=0;i<p.sauceCount;i++){
+     const sauce=select('Salsa incluida '+(i+1),
+       [['Soya','Soya'],['Teriyaki','Teriyaki']],'Soya');
+     sauces.push(sauce);form.append(sauce.wrap);
+    }
+    const payment=select('Medio de pago permitido (solo simulación)',
+     (p.payments||[]).map(x=>[x,x.charAt(0).toUpperCase()+x.slice(1)]));
+    form.append(payment.wrap);
+    const run=button('Calcular promoción configurada · QA',async()=>{
+     result.textContent='Verificando armado y precio en el servidor de Romo…';
+     try{
+      const token=await window.ukiInventarioToken?.();
+      if(!token)throw Error('Inicia sesión Google como dueña de Romo');
+      const item=rolls.map(x=>({
+       protein:x.vegetarian.input.checked?'':x.protein.input.value,
+       vegetable:x.veg.input.value,
+       ...(x.vegetarian.input.checked?{vegetable2:x.veg2.input.value}:{}),
+       wrap:x.wrap.input.value,
+       vegetariano:x.vegetarian.input.checked,
+       sinNori:x.sinNori.input.checked,
+       sinQueso:x.sinQueso.input.checked
+      }));
+      const response=await fetch('/api/romo-carta-vista-previa-admin-qa',{
+       method:'POST',cache:'no-store',credentials:'same-origin',
+       headers:{Authorization:'Bearer '+token,Accept:'application/json',
+        'Content-Type':'application/json'},
+       body:JSON.stringify({action:'simularPromocion',sku:p.sku,
+        qty:Number(qty.input.value),rolls:item,sauces:sauces.map(x=>x.input.value),
+        payment:payment.input.value,
+        revisionComercial:projection.revisionComercial,
+        revisionAdministracion:projection.revisionAdministracion}),
+       signal:AbortSignal.timeout(18000)
+      });
+      const data=await response.json().catch(()=>null);
+      if(!response.ok||data?.ok!==true||data.storeId!==STORE||
+       data.simulacion!==true||data.canSendOrder!==false||
+       data.countsAsSale!==false||data.totalComercial!==null||
+       data.sku!==p.sku)throw Error(data?.error||'No se confirmó la promoción');
+      result.textContent='✓ '+p.name+' · '+data.piezas+' piezas · '+
+       p.korokes+' korokes · precio base '+money(data.baseConDescuento)+
+       ' · recargos '+money(data.recargosArmado)+
+       ' · subtotal de prueba '+money(data.subtotalProductos)+
+       ' · pago permitido '+data.paymentValidated+
+       '. Nada se envía a clientes.';
+     }catch(error){result.textContent='Promoción no confirmada: '+String(error.message||error);}
+    },true);
+    run.disabled=false;form.append(run);
+   };
+   choose.input.onchange=fill;fill();
+   return {card,open:sku=>{
+    if(promos.some(p=>p.sku===sku)){choose.input.value=sku;fill();}
+    card.open=true;
+   }};
+  }
   async function fetchPreview(){
    message.textContent='Comprobando proyección privada de Romo…';
    clear(content);projection=null;selected.clear();++requestSerial;
