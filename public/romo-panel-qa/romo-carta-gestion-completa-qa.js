@@ -323,6 +323,67 @@
    }
    void quoteCart();
   }
+  function cartaClienteQA(){
+   const frameOrigin='https://romos-sushi-carta-qa-git-release-romo-357bb1-diannaleandra-7046.vercel.app';
+   const card=panel('🍣 Ver carta original de Romo como cliente · solo QA');
+   card.append(info('Misma presentación y carrito de Romo. Los precios, promociones y categorías se cargan desde esta sesión de dueños. No envía WhatsApp, cobra ni registra pedidos.'));
+   const statusText=info('Abre la carta privada para revisar el menú como lo vería un cliente.');
+   const stage=E('div');stage.style.cssText='width:100%;overflow:hidden;margin-top:9px';
+   const buttonView=button('Mostrar carta real de prueba',()=>{
+    if(!projection){statusText.textContent='Primero comprueba la vista previa de Romo.';return;}
+    clear(stage);
+    buttonView.disabled=true;
+    statusText.textContent='Conectando la carta original con la revisión privada de Romo…';
+    const frame=E('iframe');
+    frame.title='Romo Sushi · Carta visual de pruebas sin pedidos';
+    frame.src=frameOrigin+'/api/romo-vista-cliente-privada-qa';
+    frame.setAttribute('sandbox','allow-scripts allow-forms allow-same-origin');
+    frame.setAttribute('loading','eager');
+    css(frame,'display:block;width:100%;height:720px;border:1px solid #d4b3bd;border-radius:12px;background:#141114');
+    async function messenger(ev){
+     if(ev.source!==frame.contentWindow||ev.origin!==frameOrigin||
+      ev.data?.storeId!==STORE)return;
+     if(ev.data.type==='romo-qa-owner-ready'){
+      try{
+       if(!projection)throw Error('La revisión privada caducó');
+       const photos={};
+       const wanted=projection.products.filter(p=>p.photoVersion>0);
+       // Fotos en la propia sesión autenticada: nunca enviar el token al iframe.
+       for(let start=0;start<Math.min(wanted.length,40);start+=4){
+        const chunk=wanted.slice(start,start+4);
+        const done=await Promise.allSettled(chunk.map(async p=>{
+         const image=await photoRequest('GET',null,p.sku);
+         if(image.sku===p.sku&&image.version===p.photoVersion&&
+            image.draftOnly===true&&typeof image.image==='string'&&
+            /^data:image\/jpeg;base64,/.test(image.image)&&image.image.length<1400000)
+          photos[p.sku]=image.image;
+        }));
+        if(done.some(x=>x.status==='rejected'))
+         statusText.textContent='Se omitió una fotografía de prueba no disponible.';
+       }
+       if(!frame.isConnected)return;
+       frame.contentWindow.postMessage({type:'romo-qa-owner-data',storeId:STORE,
+        projection,photos},frameOrigin);
+      }catch(err){
+       statusText.textContent='No se pudo conectar la carta: '+String(err.message||err);
+      }
+     }else if(ev.data.type==='romo-qa-owner-loaded'){
+      statusText.textContent='✓ Carta real cargada en modo pruebas · '+
+       ev.data.products+' productos. Los pedidos están bloqueados.';
+     }else if(ev.data.type==='romo-qa-owner-error'){
+      statusText.textContent='No se pudo validar la carta real. No se ha habilitado ningún pedido.';
+     }
+    }
+    window.addEventListener('message',messenger);
+    const close=button('Cerrar carta de prueba',()=>{
+     window.removeEventListener('message',messenger);
+     frame.remove();clear(stage);buttonView.disabled=false;
+     statusText.textContent='La carta de pruebas está cerrada. Puedes volver a abrirla.';
+    },true);
+    close.disabled=false;stage.append(close,frame);
+   },true);
+   buttonView.disabled=false;card.append(buttonView,statusText,stage);return card;
+  }
   function publicationCheck(){
    const card=panel('📋 Comprobar compatibilidad con carta pública · sin publicar');
    card.append(info('Analiza categorías, precios, productos propios y promociones. Detecta funciones pendientes, pero no publica ni modifica la carta comercial.'));
@@ -710,7 +771,7 @@
      p.ingredients+' ingredientes · '+p.categories+' categorías · '+
      p.discounts+' descuentos · '+p.photos+' fotografías.';
     const promoWidget=promotionBuilder();
-    content.append(summary,publicationCheck(),assembledExamples(),gohanSimulator(),promoWidget.card,cartBox,modalidadSimulator());
+    content.append(summary,cartaClienteQA(),publicationCheck(),assembledExamples(),gohanSimulator(),promoWidget.card,cartBox,modalidadSimulator());
     drawCart();
     const search=field('Buscar productos en la vista previa');
     search.input.type='search';search.input.placeholder='Producto o categoría';
