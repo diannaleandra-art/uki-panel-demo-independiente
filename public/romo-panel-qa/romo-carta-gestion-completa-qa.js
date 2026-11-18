@@ -314,15 +314,41 @@
    ];
    const chooser=select('Ejemplo de armado a revisar',options);
    const result=info('Utiliza el motor original de Romo, pero no permite enviar pedidos.');
+   const available=(category,context)=>{
+    const all=(projection?.ingredients||[]).filter(item=>{
+     const valid=category==='Proteínas'?['Proteínas','proteina'].includes(item.category):
+      category==='Vegetales'?['Vegetales','vegetal'].includes(item.category):
+      ['Envolturas','envoltura'].includes(item.category);
+     return valid&&item.available!==false&&
+      (item.draftOnly===true?item.surfaces?.includes('classic'):
+       Number.isSafeInteger(item.contexts?.[context]));
+    });
+    return all.map(item=>[item.name,item.name+
+     (item.draftOnly?' · nuevo':'')+
+     (Number((item.draftOnly?item.surcharge:item.contexts?.[context])||0)>0
+       ?' · +'+money(item.draftOnly?item.surcharge:item.contexts[context]):'')]);
+   };
+   const protein=select('Proteína del clásico',available('Proteínas','clasicas'),'Pollo');
+   const vegetable=select('Vegetal del clásico',available('Vegetales','clasicas'),'Palta');
+   const wrap=select('Envoltura del clásico',available('Envolturas','clasicas'),'Panko');
+   const ingredientsBox=stack();
+   ingredientsBox.append(info('Prueba ingredientes disponibles o recién creados en el panel. Los tres selectores se aplican al ejemplo «24 piezas clásicas».'),
+      protein.wrap,vegetable.wrap,wrap.wrap);
    function sample(key){
     const roll=()=>({protein:'Pollo',vegetable:'Palta',wrap:'Panko',vegetariano:false});
+    const selected=()=>({
+     protein:protein.input.value||'Pollo',
+     vegetable:vegetable.input.value||'Palta',
+     wrap:wrap.input.value||'Panko',
+     vegetariano:false
+    });
     if(key==='dish:papitas')return {kind:'dish',productId:'papitas',qty:1};
     if(key==='monthly:handroll-individual')return {kind:'monthly',productId:'handroll-individual',
      qty:1,rolls:[roll()],sauces:['Soya'],toppings:[]};
     if(key==='classic:24:extra')return {kind:'classic',size:24,qty:1,
      rolls:[{...roll(),wrap:'Palta'},roll()],sauces:['Soya'],
      extraSauces:[{name:'Soya',qty:1}],toppings:[]};
-    return {kind:'classic',size:24,qty:1,rolls:[roll(),roll()],
+    return {kind:'classic',size:24,qty:1,rolls:[selected(),selected()],
      sauces:['Soya'],extraSauces:[],toppings:[]};
    }
    const run=button('Comprobar armado completo QA',async()=>{
@@ -345,8 +371,10 @@
        q.simulacion!==true||q.countsAsSale!==false||
        q.canSendOrder!==false||q.totalComercial!==null)
       throw Error(q?.error||'El motor de Romo rechazó el armado');
+     const diff=Number(q.variacionIngredientes||0);
      result.textContent='✓ '+q.name+' · base '+money(q.precioBaseConDescuento)+
        ' · recargos del armado '+money(q.recargosArmado)+
+       (diff?' · diferencia por ingredientes '+(diff>0?'+':'−')+money(Math.abs(diff)):'')+
        ' · subtotal de prueba '+money(q.subtotalProductos)+
        '. No incluye delivery ni pagos. No es un pedido.';
     }catch(e){
@@ -355,7 +383,7 @@
     }
    },true);
    run.disabled=false;
-   const wrapper=stack();wrapper.append(chooser.wrap,run,result);card.append(wrapper);return card;
+   const wrapper=stack();wrapper.append(chooser.wrap,ingredientsBox,run,result);card.append(wrapper);return card;
   }
   async function fetchPreview(){
    message.textContent='Comprobando proyección privada de Romo…';
