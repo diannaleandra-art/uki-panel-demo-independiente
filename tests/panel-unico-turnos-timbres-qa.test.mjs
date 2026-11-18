@@ -100,7 +100,7 @@ test('El controlador del panel único tiene timbre, entrega y apertura apagados'
   estado:()=>({storeId:'romo:serena',revision:3,conflicto:false}),
   coincideEstadoOperativo:()=>true};
  const controller=crearTransaccionesPanelUnicoRomoQA({
-  sesion,obtenerVisible:()=>({revision:3,estado:vacio()}),
+  sesion:session,obtenerVisible:()=>({revision:3,estado:vacio()}),
   validarEstado:(v,s)=>v?.suc===s,aplicarConfirmado:async()=>{}
  });
  assert.equal(controller.disponible(),false);
