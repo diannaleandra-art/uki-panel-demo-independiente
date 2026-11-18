@@ -6967,7 +6967,9 @@ function ukiRomoCajaDisponibleQA(t,caja){
  return Number.isSafeInteger(disponible)?disponible:0;
 }
 async function ukiRomoGuardarMovimientoQA(tipo){
- if(ukiRomoOperandoPedidoQA||S.suc!==ROMO_SUCURSAL_QA)return;
+ // Un cierre, precierre, timbre, cliente o pedido todavía en curso no puede
+ // compartir el mismo snapshot financiero antes de su confirmación CAS Neon.
+ if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA)return;
  const session=window.ukiRomoSesionRemotaQA;
  if(!session?.disponible()){aviso('Abre Romo con Google de dueños antes de registrar.');return;}
  let copia,descripcion,resumen;
