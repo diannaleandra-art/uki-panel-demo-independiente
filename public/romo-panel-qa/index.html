@@ -9360,15 +9360,16 @@ async function ukiRomoGuardarPedidoPendienteQA(){
  if(!ukiRomoFechaOperativaActualSeguraQA()){
   aviso('Jornada Romo antigua: primero revisa Caja y concilia el turno. No se guardó otro pedido.');return;
  }
- if(D.editando||D.pagado||D.cartaSolicitudRemotaId||D.cartaReservaToken||
-    (D.qrSolicitudes||[]).length||D.productosPagadosOtroLocal||
-    D.envioPagadoOtroLocal||D.mixtoProductos||D.mixtoEnvio||
-    D.propinaModo!=='ninguna'||D.propinaPersonalizada&&Number(D.propinaPersonalizada)>0){
-  aviso('Piloto Romo: solo pedidos nuevos pendientes, sin cobros ni otros movimientos.');return;
+ if(D.editando||D.cartaSolicitudRemotaId||D.cartaReservaToken||
+    (D.qrSolicitudes||[]).length||
+    (!D.pagado&&(D.productosPagadosOtroLocal||D.envioPagadoOtroLocal||
+     D.mixtoProductos||D.mixtoEnvio||ukiMontoPropina(D,0)>0||
+     D.propinaModo!=='ninguna'))){
+  aviso('Revisa la forma de pago: un pedido pendiente no puede declarar dinero recibido.');return;
  }
  if(!['Retiro','Delivery','Consumo en local'].includes(D.modalidad)||
     !String(D.cliente||'').trim()||String(D.cliente).length>80||
-    !['Efectivo','Transferencia','Débito','Edenred','Otros'].includes(D.medio)){
+    !ROMO_MEDIOS_COBRO_QA.includes(D.medio)){
   aviso('Completa cliente, modalidad y medio de pago previsto.');return;
  }
  const items=(D.items||[]).filter(x=>String(x?.nombre||'').trim());
@@ -9390,10 +9391,17 @@ async function ukiRomoGuardarPedidoPendienteQA(){
   aviso('Confirma manualmente el valor de delivery antes de guardar el pedido.');return;
  }
  const subtotal=items.reduce((sum,x)=>sum+Number(x.cant)*Number(x.precio),0);
- const total=subtotal+envio;
- if(!Number.isSafeInteger(total)||total<=0||total>3000000){
-  aviso('El total no es válido. Comprueba los precios.');return;
+ const propina=D.pagado?ukiMontoPropina(D,subtotal):0;
+ const total=subtotal+envio+propina;
+ if(!Number.isSafeInteger(total)||total<=0||total>3000000||
+    !Number.isSafeInteger(propina)||propina<0||propina>1000000){
+  aviso('El total o la propina no es válido. Comprueba los precios.');return;
  }
+ const responsable=String(D.romoResponsableCobro||'').trim();
+ if(D.pagado&&(responsable.length<2||responsable.length>80)){
+  aviso('Indica el responsable del dinero recibido, igual que en Caja.');return;
+ }
+ if(D.pagado&&!ukiValidarTimbreAntesGuardar(D,null))return;
  const remotas=Array.isArray(ukiRomoSolicitudesCartaQA)?ukiRomoSolicitudesCartaQA:[];
  if(D.codigoCarta&&remotas.some(r=>r.branch==='serena'&&
     ['pendiente','aceptada'].includes(r.estado)&&
@@ -9403,8 +9411,11 @@ async function ukiRomoGuardarPedidoPendienteQA(){
  if(D.codigoCarta&&S.pedidos.some(p=>p.codigoCarta===D.codigoCarta)){
   aviso('Ese código de pedido ya está registrado en Romo. Revisa la bandeja.');return;
  }
- if(!window.confirm('Romo La Serena: guardar este pedido PENDIENTE por '+fmt(total)+
-  ' en su base independiente. No se registra pago. ¿Confirmar?'))return;
+ if(!window.confirm('Romo La Serena: guardar este pedido por '+fmt(total)+
+  (D.pagado?' con PAGO COMPLETO REALMENTE RECIBIDO. Responsable: '+responsable+
+   '. Productos y delivery: '+fmt(subtotal+envio)+'; propina aparte: '+fmt(propina)+
+   '. Se registrará UNA sola vez en Neon Romo.':
+   ' como PENDIENTE: no se registra dinero.')+' ¿Confirmar?'))return;
  ukiRomoGuardandoManualQA=true;
  try{
   const expected=session.estado();
@@ -9431,11 +9442,30 @@ async function ukiRomoGuardarPedidoPendienteQA(){
    pagado:false,estado:'Pendiente',
    productos:items.map(x=>({nombre:String(x.nombre).trim(),
     cantidad:Number(x.cant),precioUnit:Number(x.precio),detalle:String(x.det||'')})),
-   subtotal,total,propina:0,propinaModo:'ninguna',medioPropina:'Efectivo',
+   subtotal,total:subtotal+envio,propina:0,propinaModo:'ninguna',medioPropina:'Efectivo',
    textoOriginal:String(D.texto||'').slice(0,12000),esPremio:false
   };
   clone.nextId++;
   clone.pedidos.push(pedido);
+  if(D.pagado){
+   const mod=await import('./uki-romo-cobro-pendiente-qa.mjs?v=romo-confirmacion-directa-20261118');
+   const pagosProductos=D.mixtoProductos?(D.pagosProductos||[]).map(x=>({...x})):[];
+   const pagosEnvio=D.mixtoEnvio?(D.pagosEnvio||[]).map(x=>({...x})):[];
+   const productosOtroLocal=D.productosPagadosOtroLocal?
+    ukiMontoProductosOtroLocal(D,subtotal):0;
+   const envioOtroLocal=D.envioPagadoOtroLocal?
+    ukiMontoEnvioOtroLocal(D,envio,subtotal):0;
+   mod.prepararCobroPendienteRomoQA(clone,{
+    pedidoId:pedido.id,responsable,registradoEn:pedido.registradoEn,
+    confirmoRecepcion:true,medioProductos:D.medio,
+    medioEnvio:D.medioEnvio||'Efectivo',pagosProductos,pagosEnvio,
+    productosOtroLocal,envioOtroLocal,
+    localPagoExterno:String(D.localPagoExterno||'').trim(),
+    confirmoPagoExterno:(productosOtroLocal+envioOtroLocal)>0,
+    propinaMonto:propina,medioPropina:D.medioPropina||'Efectivo'
+   });
+   if(ukiTimbreBorradorConfirmado(D))ukiAnotarTimbreConfirmadoEnPedido(pedido,D);
+  }
   if(!validarEstadoSucursal(clone,s))throw Error('La información de Romo no pasó la validación.');
   // No actualizar S.pedidos hasta obtener nueva revisión desde Neon.
   const saved=await session.guardar(clone);
@@ -9443,7 +9473,9 @@ async function ukiRomoGuardarPedidoPendienteQA(){
    throw Error('El servidor no confirmó la revisión del pedido; conserva este formulario.');
   S={...S,...clone,suc:s,pinSuc:null,msg:null,vista:'pedidos'};
   nuevoDraft();ukiRomoBorradorActivoQA=null;
-  S.msg='Pedido #'+pedido.id+' guardado en Neon Romo · pendiente de pago. Revisión '+saved.revision+'.';
+  S.msg='Pedido #'+pedido.id+' guardado en Neon Romo · '+
+   (D.pagado?'pago confirmado '+fmt(total):'pendiente de pago')+
+   '. Revisión '+saved.revision+'.';
   render();
  }catch(e){
   aviso('NO SE CONFIRMÓ el guardado de Romo. No repitas el pedido sin revisar desde otro acceso. '+String(e?.message||e));
