@@ -8566,9 +8566,13 @@ async function ukiRomoAceptarSolicitudCartaQA(){
  if(!solicitud){aviso('No está la solicitud pendiente. Recarga la bandeja antes de guardar.');return;}
  const session=window.ukiRomoSesionRemotaQA;
  if(!session?.disponible()){aviso('Romo no está abierto con Google y su contraseña.');return;}
- if(D.editando||D.pagado||D.productosPagadosOtroLocal||D.envioPagadoOtroLocal||
-    D.mixtoProductos||D.mixtoEnvio||D.propinaModo!=='ninguna'){
-  aviso('Primero acepta el pedido pendiente, sin cobrar ni generar timbre.');return;
+ if(D.editando||(!D.pagado&&(D.productosPagadosOtroLocal||D.envioPagadoOtroLocal||
+    D.mixtoProductos||D.mixtoEnvio||D.propinaModo!=='ninguna'))){
+  aviso('Un pedido pendiente no puede registrar dinero ni propina.');return;
+ }
+ if(D.pagado&&(!ukiValidarTimbreAntesGuardar(D,null)||
+   String(D.romoResponsableCobro||'').trim().length<2)){
+  aviso('Para registrar pago recibido identifica al responsable y confirma el timbre obligatorio.');return;
  }
  const pedido=(D.items||[]).filter(x=>String(x?.nombre||'').trim());
  if(!pedido.length||pedido.length>80||pedido.some(x=>
@@ -8586,9 +8590,11 @@ async function ukiRomoAceptarSolicitudCartaQA(){
   aviso('Confirma el delivery dentro de la tarifa aprobada; máximo $4.000.');return;
  }
  const subtotal=pedido.reduce((sum,x)=>sum+Number(x.cant)*Number(x.precio),0);
+ const propina=D.pagado?ukiMontoPropina(D,subtotal):0;
  const total=subtotal+envio;
- if(!Number.isSafeInteger(total)||total<=0||total>3000000){
-  aviso('El total no cuadra; comprueba cantidades, precios y envío.');return;
+ if(!Number.isSafeInteger(total)||total<=0||total>3000000||
+    !Number.isSafeInteger(propina)||propina<0||propina>1000000){
+  aviso('El total o la propina no cuadra; comprueba cantidades y precios.');return;
  }
  const diferencia=total!==Number(solicitud.total_indicado);
  const nota=diferencia?
@@ -8596,9 +8602,13 @@ async function ukiRomoAceptarSolicitudCartaQA(){
    ' y el total revisado es '+fmt(total)+'. Confirma ese importe con el cliente.':'';
  const advertenciaMedio=/^junaeb\b/i.test(String(D.romoPagoIndicadoQA||''))?
    '\nPago informado: Junaeb. Hasta habilitarlo en caja figura como Otros, NO como efectivo.':'';
- if(!window.confirm('ROMO LA SERENA: ¿ya revisaste el armado, el importe total '+fmt(total)+
-   ' y la entrega de la solicitud '+String(solicitud.codigo_pedido||'')+'?'+nota+advertenciaMedio+
-   '\nSe guardará PENDIENTE de pago; aún no es un cobro.'))return;
+ if(!window.confirm('ROMO LA SERENA: ¿revisaste armado, importe '+fmt(total)+
+   ' y entrega de la solicitud '+String(solicitud.codigo_pedido||'')+'?'+nota+advertenciaMedio+
+   (D.pagado?'\nConfirmas que el pago completo de '+fmt(total)+
+     ' YA FUE RECIBIDO, propina recibida '+fmt(propina)+
+     ', responsable '+String(D.romoResponsableCobro||'').trim()+
+     '. Se guardará conjuntamente y una sola vez en Neon Romo.':
+     '\nSe guardará PENDIENTE de pago y no se contabilizará cobro.')))return;
  ukiRomoSolicitudCartaOcupadaQA=true;
  try{
   const mod=await import('./uki-romo-guardado-atomico-qa.mjs');
@@ -8615,7 +8625,7 @@ async function ukiRomoAceptarSolicitudCartaQA(){
     const folio=ukiTurnoFolioActual();
     return {numeroTurno:folio.numero,turnoClave:folio.clave,
      registradoEn:Date.now(),fechaISO:new Date().toISOString(),
-     confirmoPago:false,confirmoDiferenciaTotal:diferencia};
+     confirmoPago:D.pagado===true,confirmoDiferenciaTotal:diferencia};
    },
    cifrarEstado:async estado=>{
     const r=await session.prepararSobreAceptacion(estado);
@@ -8626,16 +8636,17 @@ async function ukiRomoAceptarSolicitudCartaQA(){
     session.confirmarSobreAceptado({estado,revision});
     S={...S,...estado,suc:ROMO_SUCURSAL_QA,pinSuc:null,vista:'pedidos',msg:null};
     nuevoDraft();
+    const aceptado=candidatoEstadoPagadoRomoQA(estado,pedidoId);
     S.msg='Solicitud aceptada y pedido #'+pedidoId+
      ' guardado conjuntamente en Neon Romo · revisión '+revision+
-     '. Pendiente de pago.';
+     (aceptado?'. Pago confirmado.':'. Pendiente de pago.');
     render();
     void ukiRomoActualizarSolicitudesCartaQA();
    }
   });
   const result=await driver.guardarSolicitud({
-   solicitud,draft:{...D},estado:origen,revision:current.revision,
-   confirmoArmado:true,confirmoImportes:true
+   solicitud,draft:JSON.parse(JSON.stringify(D)),estado:origen,revision:current.revision,
+   confirmoArmado:true,confirmoImportes:true,confirmoPago:D.pagado===true
   });
   if(result?.estado!=='aceptada')throw Error('No se confirmó la aceptación.');
  }catch(e){
@@ -8644,6 +8655,11 @@ async function ukiRomoAceptarSolicitudCartaQA(){
  }finally{ukiRomoSolicitudCartaOcupadaQA=false;}
 }
 
+
+function candidatoEstadoPagadoRomoQA(estado,pedidoId){
+ return (estado?.pedidos||[]).some(p=>p.suc===ROMO_SUCURSAL_QA&&
+  Number(p.id)===Number(pedidoId)&&p.pagado===true);
+}
 
 /** Apertura, precierre de consulta y cierre: mismo esquema de caja Uki.
  * Cierre cifra snapshot, emite constancia agregada con CAS e idempotencia.
