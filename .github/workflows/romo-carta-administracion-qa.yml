@@ -16,6 +16,8 @@ on:
       - 'lib/romo-simular-armado-qa.cjs'
       - 'lib/romo-ingredientes-armado-qa.cjs'
       - 'tests/romo-ingredientes-armado-qa.test.cjs'
+      - 'lib/romo-promocion-armado-qa.cjs'
+      - 'tests/romo-promocion-armado-qa.test.cjs'
       - 'tests/romo-simular-armado-qa.test.cjs'
       - 'api/romo-carta-vista-previa-admin-qa.js'
       - 'package.json'
