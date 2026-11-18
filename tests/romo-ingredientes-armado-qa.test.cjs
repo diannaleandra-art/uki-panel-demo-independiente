@@ -122,3 +122,36 @@ test('modificaciones desconocidas, contexto incompatible y desglose adulterado s
   rolls:[roll({vegetable:'Solo premium'}),roll()]
  })),/no incluido/);
 });
+
+test('integración privada suma precio de panel, descuento e ingrediente cambiado sin ventas',()=>{
+ const {ensamblarArmadoRomoQA}=require('../lib/romo-simular-armado-qa.cjs');
+ const v=view();
+ const camarón=v.ingredients.find(x=>x.name==='Camarón'&&x.category==='Proteínas');
+ camarón.contexts.clasicas=1300;
+ v.ok=true;v.draftOnly=true;v.publishable=false;
+ v.revisionComercial=1;v.revisionAdministracion=4;
+ v.products=Array.from({length:40},(_,n)=>({
+  sku:n===0?'classic:24':'dish:'+n,
+  kind:n===0?'classic':'dish',name:'Prueba '+n,
+  available:true,draftOnly:false,
+  precioOriginal:n===0?9000:5000,precioFinal:n===0?8100:5000,
+  descuentoPorcentaje:n===0?10:0
+ }));
+ const i=item({qty:2,rolls:[roll({protein:'Camarón'}),roll()]});
+ const modelo={ok:true,storeId:'romo:serena',previewOnly:true,
+  canSendOrder:false,countsAsSale:false,sku:'classic:24',cantidad:2,
+  precioBaseAprobado:8000,unitarioModelo:8800,extrasModelo:800,
+  componentesModelo:{surcharge:800,sauceExtra:0,toppingExtra:0,
+   rolls:[{surcharge:800,wrapFree:false,extraProteinFree:false},
+    {surcharge:0,wrapFree:false,extraProteinFree:false}]}
+ };
+ const result=ensamblarArmadoRomoQA(v,{data:{}},{
+  action:'simularArmado',revisionComercial:1,revisionAdministracion:4,item:i
+ },modelo);
+ assert.equal(result.precioBaseConDescuento,8100);
+ assert.equal(result.recargosArmado,1300);
+ assert.equal(result.variacionIngredientes,500);
+ assert.equal(result.subtotalProductos,18800);
+ assert.equal(result.canSendOrder,false);
+ assert.equal(result.countsAsSale,false);
+});
