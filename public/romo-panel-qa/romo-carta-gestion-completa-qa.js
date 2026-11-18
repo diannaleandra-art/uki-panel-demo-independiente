@@ -441,7 +441,7 @@
      sauces.push(sauce);form.append(sauce.wrap);
     }
     const payment=select('Medio de pago permitido (solo simulación)',
-     (p.payments||[]).map(x=>[x,x.charAt(0).toUpperCase()+x.slice(1)]));
+     (p.payments||[]).map(x=>[x,x.charAt(0).toUpperCase()+x.slice(1)]),p.payments?.[0]||'');
     form.append(payment.wrap);
     const run=button('Calcular promoción configurada · QA',async()=>{
      result.textContent='Verificando armado y precio en el servidor de Romo…';
@@ -561,14 +561,17 @@
        photoButton.disabled=false;details.append(photoButton);
       }
       const promoCustom=product.kind==='monthly'&&product.draftOnly===true;
-      const addButton=button(promoCustom?'Configurar promoción QA':'Añadir a prueba',()=>{
+      const promoUnsupported=promoCustom&&product.promoType!=='sushi';
+      const addButton=button(promoUnsupported?'Pendiente: tipo de promoción':
+       promoCustom?'Configurar promoción QA':'Añadir a prueba',()=>{
+       if(promoUnsupported)return;
        if(promoCustom){promoWidget.open(product.sku);return;}
        const qty=selected.get(product.sku)||0;
        if(selected.size>=35&&!selected.has(product.sku))return;
        if(qty>=20)return;
        selected.set(product.sku,qty+1);drawCart();
       },true);
-      addButton.disabled=product.available!==true;
+      addButton.disabled=product.available!==true||promoUnsupported;
       item.append(details,addButton);list.append(item);
      }
      if(found.length>90)list.append(info('Usa el buscador para encontrar otros productos.'));
