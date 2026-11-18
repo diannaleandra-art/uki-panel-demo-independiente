@@ -2,6 +2,8 @@
 (function(){
  'use strict';
  const API='/api/romo-carta-administracion-qa',STORE='romo:serena';
+ // SKU histórico exclusivo de Uki: no debe figurar en la gestión comercial de Romo.
+ const SKU_UKI_PROMO='dish:sushi-burger-promo';
  const state={root:null,base:null,admin:null,busy:false,requestId:0,limit:16};
  const E=(tag,text)=>{const x=document.createElement(tag);if(text!==undefined)x.textContent=text;return x;};
  const money=x=>'$'+Number(x||0).toLocaleString('es-CL');
@@ -52,7 +54,7 @@
   const created=(data.products||[]).map(p=>({
    ...p,categoriaSlug:data.assignments?.[p.sku]??p.categoriaSlug,_base:false,_original:null
   }));
-  return [...base,...created];
+  return [...base,...created].filter(p=>p.sku!==SKU_UKI_PROMO);
  }
  function ingredients(){
   const data=state.admin?.data||{};
@@ -827,7 +829,7 @@
      clear(list);
      const filter=norm(search.input.value);
      const cats=new Map(data.categories.map(c=>[c.slug,c.nombre]));
-     const found=data.products.filter(product=>norm(product.name+' '+(cats.get(product.categoriaSlug)||'')+' '+product.sku).includes(filter));
+     const found=data.products.filter(product=>product.sku!==SKU_UKI_PROMO&&norm(product.name+' '+(cats.get(product.categoriaSlug)||'')+' '+product.sku).includes(filter));
      list.append(info(found.length+' productos encontrados, con precios proyectados.'));
      for(const product of found.slice(0,90)){
       const item=css(E('div'),'padding:10px 0;border-bottom:1px solid #e9dce1;display:flex;gap:8px;align-items:center;flex-wrap:wrap');
