@@ -28,6 +28,4 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-      - run: npm ci --ignore-scripts
       - run: npm run test:romo-carta-admin-qa
