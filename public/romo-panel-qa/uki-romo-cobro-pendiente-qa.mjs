@@ -72,6 +72,15 @@ export function prepararCobroPendienteRomoQA(estado,{
  need(typeof p.turnoClave==='string'&&/^\d{4}-\d{2}-\d{2}@\d+$/.test(p.turnoClave),
   'Turno de pedido inválido');
  const dia=p.turnoClave.slice(0,10),caja=estado.cajasDiarias[SUC+'|'+dia];
+ // Evita contabilizar dinero actual sobre una jornada antigua olvidada abierta.
+ // Se admite hoy o ayer por las jornadas que terminan después de medianoche.
+ const partes=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Santiago',
+  year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(stamp));
+ const parte=k=>partes.find(x=>x.type===k)?.value||'';
+ const diaActual=parte('year')+'-'+parte('month')+'-'+parte('day');
+ const ayer=new Date(diaActual+'T12:00:00Z');ayer.setUTCDate(ayer.getUTCDate()-1);
+ need(dia===diaActual||dia===ayer.toISOString().slice(0,10),
+  'El turno es anterior a ayer; revisa Caja y regulariza la jornada antes de cobrar');
  need(caja?.turnoAbierto===true&&caja.baseConfirmada===true&&
   caja.turnoId===p.turnoClave,
   'El turno Romo debe estar abierto y su base real confirmada');
