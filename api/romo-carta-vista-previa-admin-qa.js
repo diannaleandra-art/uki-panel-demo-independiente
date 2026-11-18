@@ -80,6 +80,10 @@ module.exports=async function vistaPreviaRomoQA(req,res){
     const state=require('../lib/romo-carta-administracion-qa.cjs').read(admin[0]);
     return res.status(200).json(mod.prepararCartaRomoQA(result,state));
    }
+   if(req.body?.action==='simularModalidad'){
+    const mod=require('../lib/romo-modalidades-qa.cjs');
+    return res.status(200).json(mod.simularModalidadRomoQA(result,req.body));
+   }
    if(req.body?.action==='simularMixto'){
     const mixto=require('../lib/romo-carrito-mixto-qa.cjs');
     return res.status(200).json(mixto.simularCarritoMixtoRomoQA(result,req.body));
