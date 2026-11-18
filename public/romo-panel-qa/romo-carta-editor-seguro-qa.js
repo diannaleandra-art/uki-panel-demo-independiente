@@ -223,6 +223,9 @@
         (p.description?' · '+p.description:'')));
     }
     if(!special.length)promos.append(aviso('No se encontraron promociones en el catálogo aprobado.'));
+    // Gestión completa aislada: conserva listado aprobado y no habilita ventas.
+    if(current&&typeof window.romoMontarGestionCartaQA==='function')
+      window.romoMontarGestionCartaQA({container:root,base:current});
   }
 
   function renderList(){
