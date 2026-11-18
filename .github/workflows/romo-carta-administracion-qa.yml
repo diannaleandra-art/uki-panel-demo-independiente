@@ -13,6 +13,8 @@ on:
       - 'lib/romo-carrito-borrador-qa.cjs'
       - 'public/romo-panel-qa/romo-carta-gestion-completa-qa.js'
       - 'tests/romo-carrito-borrador-qa.test.cjs'
+      - 'lib/romo-simular-armado-qa.cjs'
+      - 'tests/romo-simular-armado-qa.test.cjs'
       - 'api/romo-carta-vista-previa-admin-qa.js'
       - 'package.json'
       - '.github/workflows/romo-carta-administracion-qa.yml'
