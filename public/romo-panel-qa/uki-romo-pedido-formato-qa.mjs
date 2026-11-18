@@ -144,7 +144,6 @@ export async function construirCandidatoRomoFormatoUkiQA({estado,draft,contexto}
    'El importe difiere del indicado por el cliente, confirma la diferencia');
  const pagado=draft.pagado===true;
  check(!pagado||contexto.confirmoPago===true,'Pago no confirmado: no marcar Pagado');
- const pagos=pagosQA(draft,sub,envio);
  const medioPropina=txt(draft.medioPropina||'Efectivo',40);
  check(propina===0||mediosEntrega.includes(medioPropina),'Medio de propina inválido');
  const km=String(draft.kmRecorrido||'').trim();
@@ -160,11 +159,41 @@ export async function construirCandidatoRomoFormatoUkiQA({estado,draft,contexto}
   sucursalCarta:SUC,
   mesaReferencia:draft.modalidad==='Consumo en local'?txt(draft.mesaReferencia,50):'',
   modalidad:draft.modalidad,envio,kmRecorrido:km?Number(km.replace(',','.')):null,
-  ...pagos,pagado,estado:'Pendiente',productos,total,subtotal:sub,propina,
-  propinaModo:modo,medioPropina,textoOriginal:String(draft.texto||'').slice(0,20000),
+  medio:txt(draft.medio||'Efectivo',40),
+  medioEnvio:txt(draft.medioEnvio||draft.medio||'Efectivo',40),
+  pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,
+  montoProductosOtroLocal:0,envioPagadoOtroLocal:false,montoEnvioOtroLocal:'',
+  localPagoExterno:'',pagado:false,estado:'Pendiente',productos,
+  total:sub+envio,subtotal:sub,propina:0,
+  propinaModo:'ninguna',medioPropina,textoOriginal:String(draft.texto||'').slice(0,20000),
   esPremio:false};
- timbreQA(p,draft);
  estado.pedidos.push(p);estado.nextId=id+1;
- efectosEnCopia(estado,p,stamp);
- return {pedidoId:id,total,subtotal:sub};
+ if(pagado){
+  // La recepción del pedido y su pago se guardan juntos en UNA revisión CAS,
+  // con validación idéntica a la confirmación posterior de Pedidos.
+  const {prepararCobroPendienteRomoQA}=await import('./uki-romo-cobro-pendiente-qa.mjs');
+  prepararCobroPendienteRomoQA(estado,{
+   pedidoId:id,responsable:txt(draft.romoResponsableCobro,80),
+   registradoEn:stamp,confirmoRecepcion:contexto.confirmoPago===true,
+   medioProductos:draft.medio||'Efectivo',
+   medioEnvio:draft.medioEnvio||draft.medio||'Efectivo',
+   pagosProductos:draft.mixtoProductos?draft.pagosProductos||[]:[],
+   pagosEnvio:draft.mixtoEnvio?draft.pagosEnvio||[]:[],
+   productosOtroLocal:draft.productosPagadosOtroLocal?
+    (draft.montoProductosOtroLocal===''||draft.montoProductosOtroLocal==null?
+     sub:entero(draft.montoProductosOtroLocal,'pago en otro local',1)):0,
+   envioOtroLocal:draft.envioPagadoOtroLocal?
+    (draft.montoEnvioOtroLocal===''||draft.montoEnvioOtroLocal==null?
+     envio:entero(draft.montoEnvioOtroLocal,'delivery en otro local',1)):0,
+   localPagoExterno:draft.localPagoExterno||'',
+   confirmoPagoExterno:!!(draft.productosPagadosOtroLocal||draft.envioPagadoOtroLocal),
+   propinaMonto:propina,medioPropina
+  });
+  timbreQA(p,draft);
+ }else{
+  check(modo==='ninguna'&&propina===0&&!draft.mixtoProductos&&!draft.mixtoEnvio&&
+   !draft.productosPagadosOtroLocal&&!draft.envioPagadoOtroLocal,
+   'El pedido pendiente no puede registrar pagos ni propinas');
+ }
+ return {pedidoId:id,total:p.total,subtotal:sub};
 }
