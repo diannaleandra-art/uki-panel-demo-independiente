@@ -515,7 +515,8 @@
      p.newProducts+' nuevos y '+p.newPromotions+' promociones nuevas) · '+
      p.ingredients+' ingredientes · '+p.categories+' categorías · '+
      p.discounts+' descuentos · '+p.photos+' fotografías.';
-    content.append(summary,assembledExamples(),cartBox);
+    const promoWidget=promotionBuilder();
+    content.append(summary,assembledExamples(),promoWidget.card,cartBox);
     drawCart();
     const search=field('Buscar productos en la vista previa');
     search.input.type='search';search.input.placeholder='Producto o categoría';
@@ -540,7 +541,28 @@
        (product.photoVersion>0?' · foto v'+product.photoVersion:''));
       extra.style.cssText='display:block;color:#666;font-size:12px;line-height:1.45';
       details.append(name,extra);
-      const addButton=button('Añadir a prueba',()=>{
+      if(product.photoVersion>0){
+       const photoButton=button('Ver foto privada QA',async()=>{
+        photoButton.disabled=true;
+        const note=info('Consultando fotografía de Romo…');details.append(note);
+        try{
+         const image=await photoRequest('GET',null,product.sku);
+         if(!image.image||image.sku!==product.sku||
+            image.version!==product.photoVersion||image.draftOnly!==true)
+          throw Error('La fotografía cambió. Actualiza la carta de pruebas.');
+         const img=E('img');img.src=image.image;img.alt='Fotografía de '+product.name;
+         css(img,'max-width:150px;width:100%;height:auto;display:block;border-radius:10px;margin-top:7px');
+         details.append(img);note.textContent='Fotografía privada, no publicada a clientes.';
+        }catch(error){
+         note.textContent='No se confirmó la fotografía: '+String(error.message||error);
+         photoButton.disabled=false;
+        }
+       },true);
+       photoButton.disabled=false;details.append(photoButton);
+      }
+      const promoCustom=product.kind==='monthly'&&product.draftOnly===true;
+      const addButton=button(promoCustom?'Configurar promoción QA':'Añadir a prueba',()=>{
+       if(promoCustom){promoWidget.open(product.sku);return;}
        const qty=selected.get(product.sku)||0;
        if(selected.size>=35&&!selected.has(product.sku))return;
        if(qty>=20)return;
