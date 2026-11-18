@@ -5518,7 +5518,7 @@ function ukiRomoSolicitudesHTMLQA(){
    timeZone:'America/Santiago',day:'2-digit',month:'2-digit',year:'numeric',
    hour:'2-digit',minute:'2-digit'}):'Fecha por confirmar';
   const codigoCliente=ukiCodigoWhatsApp(telefono)||'sin número';
-  const buscar=[codigo,nombre,telefono,detalle].join(' ');
+  const buscar=[codigo,nombre,telefono,codigoCliente,detalle].join(' ');
   // La MISMA ficha que usa Uki para las solicitudes. Al tratarse de Romo
   // solo cambia el adaptador: se indica modalidad y total recibido del Neon.
   const datos=ukiWhatsAppDatosDesdeTexto(detalle);
@@ -5616,12 +5616,12 @@ async function ukiRomoRechazarSolicitudCartaQA(id){
  * Todos los datos siguen en el mensaje original de la solicitud cifrada.
  */
 function ukiRomoFiltrarPedidosVisiblesQA(value){
+ if(S.suc!==ROMO_SUCURSAL_QA)return;
  ukiRomoBusquedaPedidosQA=String(value||'').slice(0,120);
- const normalize=x=>String(x||'').normalize('NFD')
-  .replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('es-CL').trim();
- const query=normalize(ukiRomoBusquedaPedidosQA);
+ // Usa la búsqueda oficial de Uki, no comparación de un texto seguido.
  document.querySelectorAll('.romo-pedido-card,.romo-solicitud-card').forEach(card=>{
-  card.hidden=!normalize(card.getAttribute('data-buscar')).includes(query);
+  card.hidden=!ukiBusquedaPorDatos(ukiRomoBusquedaPedidosQA,
+   [card.getAttribute('data-buscar')||'']);
  });
 }
 function ukiRomoDetalleEntregaCartaHTMLQA(texto,{compacto=false}={}){
@@ -6177,7 +6177,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
    p.estado==='Entregado'&&p.pagado?'uki-pedido-entregado':
    p.pagado?'uki-pedido-pagado':'uki-pedido-cobrar';
   const resumen='<details class="card order-card romo-pedido-card '+clase+'" data-buscar="'+
-   esc([p.id,p.cliente,p.telefono,p.codigoCarta,p.codigoCliente,p.modalidad,p.mesaReferencia]
+   esc([p.id,p.numeroTurno,p.cliente,p.telefono,p.codigoCarta,p.codigoCliente,ukiCodigoClienteVisible(p),p.modalidad,p.mesaReferencia]
     .join(' ').toLocaleLowerCase('es-CL'))+'">'+
    '<summary><div class="order-head"><div><b>'+esc(ukiReferenciaConCarta(p))+
    ' · '+esc(p.cliente||'Sin nombre')+'</b>'+
