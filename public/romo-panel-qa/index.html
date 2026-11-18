@@ -2152,6 +2152,13 @@ function ukiAbrirTimbreBorrador(){
  if(ukiTimbreYaEnviadoPedido(original)||ukiTimbreBorradorConfirmado(D))
   return aviso("✅ Este pedido ya tiene timbre enviado. No abras WhatsApp nuevamente: evita duplicarlo.");
  if(!ukiTimbreObligatorioGuardar(D,original))return aviso("El timbre se envía cuando la compra está pagada y tiene WhatsApp.");
+ if(S.suc===ROMO_SUCURSAL_QA){
+  if(!ukiRomoFechaOperativaActualSeguraQA())return aviso('Regulariza primero la jornada Romo antes de enviar timbres de compras pagadas.');
+  const {clave}=ukiTurnoFolioActual();
+  const caja=S.cajasDiarias?.[ROMO_SUCURSAL_QA+'|'+clave.slice(0,10)];
+  if(caja?.turnoAbierto!==true||caja.baseConfirmada!==true||caja.turnoId!==clave)
+   return aviso('Abre el turno Romo con base real confirmada ANTES de enviar el timbre de un pedido pagado.');
+ }
  const numero=ukiNumeroTimbreWhatsApp(D.telefono);
  if(!numero)return aviso("Revisa el WhatsApp del cliente. Para un cliente sin WhatsApp, deja el campo vacío.");
  if(!String(D.cliente||'').trim())return aviso("Escribe el nombre del cliente antes de preparar el timbre.");
@@ -9471,10 +9478,11 @@ async function ukiRomoGuardarPedidoPendienteQA(){
   const saved=await session.guardar(clone);
   if(saved?.changed!==true||saved.revision!==expected.revision+1)
    throw Error('El servidor no confirmó la revisión del pedido; conserva este formulario.');
+  const quedoPagado=pedido.pagado===true;
   S={...S,...clone,suc:s,pinSuc:null,msg:null,vista:'pedidos'};
   nuevoDraft();ukiRomoBorradorActivoQA=null;
   S.msg='Pedido #'+pedido.id+' guardado en Neon Romo · '+
-   (D.pagado?'pago confirmado '+fmt(total):'pendiente de pago')+
+   (quedoPagado?'pago confirmado '+fmt(total):'pendiente de pago')+
    '. Revisión '+saved.revision+'.';
   render();
  }catch(e){
