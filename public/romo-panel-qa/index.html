@@ -8609,6 +8609,8 @@ async function ukiRomoAceptarSolicitudCartaQA(){
      ', responsable '+String(D.romoResponsableCobro||'').trim()+
      '. Se guardará conjuntamente y una sola vez en Neon Romo.':
      '\nSe guardará PENDIENTE de pago y no se contabilizará cobro.')))return;
+ const borradorConfirmado=JSON.parse(JSON.stringify(D));
+ const pagoConfirmadoAhora=borradorConfirmado.pagado===true;
  ukiRomoSolicitudCartaOcupadaQA=true;
  try{
   const mod=await import('./uki-romo-guardado-atomico-qa.mjs');
@@ -8625,7 +8627,7 @@ async function ukiRomoAceptarSolicitudCartaQA(){
     const folio=ukiTurnoFolioActual();
     return {numeroTurno:folio.numero,turnoClave:folio.clave,
      registradoEn:Date.now(),fechaISO:new Date().toISOString(),
-     confirmoPago:D.pagado===true,confirmoDiferenciaTotal:diferencia};
+     confirmoPago:pagoConfirmadoAhora,confirmoDiferenciaTotal:diferencia};
    },
    cifrarEstado:async estado=>{
     const r=await session.prepararSobreAceptacion(estado);
@@ -8645,8 +8647,8 @@ async function ukiRomoAceptarSolicitudCartaQA(){
    }
   });
   const result=await driver.guardarSolicitud({
-   solicitud,draft:JSON.parse(JSON.stringify(D)),estado:origen,revision:current.revision,
-   confirmoArmado:true,confirmoImportes:true,confirmoPago:D.pagado===true
+   solicitud,draft:borradorConfirmado,estado:origen,revision:current.revision,
+   confirmoArmado:true,confirmoImportes:true,confirmoPago:pagoConfirmadoAhora
   });
   if(result?.estado!=='aceptada')throw Error('No se confirmó la aceptación.');
  }catch(e){
