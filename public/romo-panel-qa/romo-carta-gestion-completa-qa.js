@@ -621,7 +621,9 @@
        if(promoUnsupported||originalArmado)return;
        if(promoCustom){promoWidget.open(product.sku);return;}
        const qty=selected.get(product.sku)||0;
-       if(selected.size>=35&&!selected.has(product.sku))return;
+       if(selected.size+configuredPromos.size>=35&&!selected.has(product.sku)){
+        cartStatus.textContent='El carrito de pruebas admite como máximo 35 productos.';return;
+       }
        if(qty>=20)return;
        selected.set(product.sku,qty+1);drawCart();
       },true);
