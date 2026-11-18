@@ -226,9 +226,69 @@
   });
   box.append(preview,statusP,file,upload,remove);details.append(box);return details;
  }
+ function previewPanel(){
+  const container=panel('🔎 Revisar vista previa completa antes de publicar');
+  container.append(info('Solo consulta: combina la carta aprobada con tus borradores de Romo. No activa clientes ni modifica precios.'));
+  const content=E('div'),message=info('Pulsa «Comprobar vista previa» para comparar la carta.');
+  async function fetchPreview(){
+   message.textContent='Comprobando proyección privada de Romo…';clear(content);
+   try{
+    const token=await window.ukiInventarioToken?.();
+    if(!token)throw Error('Inicia sesión como dueña de Romo');
+    const response=await fetch('/api/romo-carta-vista-previa-admin-qa',{
+     method:'GET',cache:'no-store',credentials:'same-origin',
+     headers:{Authorization:'Bearer '+token,Accept:'application/json'},
+     signal:AbortSignal.timeout(15000)
+    });
+    const data=await response.json().catch(()=>null);
+    if(!response.ok||data?.ok!==true||data.storeId!==STORE||
+       data.draftOnly!==true||data.publishable!==false||
+       !Array.isArray(data.products)||data.products.length<40)
+     throw Error(data?.error||'La vista previa no está confirmada');
+    const p=data.summary;
+    message.textContent='✓ Vista previa comprobada · solo Romo QA. Nada de esto está publicado para clientes.';
+    const infoBlock=css(E('div'),'background:#faf5f6;border-radius:10px;padding:11px;line-height:1.8;font-size:13px');
+    infoBlock.textContent='Revisión comercial '+data.revisionComercial+
+     ' · revisión de administración '+data.revisionAdministracion+
+     ' · '+p.totalProducts+' productos ('+p.baseProducts+' originales, '+
+     p.newProducts+' nuevos, '+p.newPromotions+' promociones nuevas) · '+
+     p.ingredients+' ingredientes · '+p.categories+' categorías · '+
+     p.discounts+' descuentos · '+p.photos+' fotografías.';
+    content.append(infoBlock);
+    const search=field('Buscar en toda la vista previa');
+    search.input.type='search';search.input.placeholder='Producto, categoría o precio';
+    content.append(search.wrap);
+    const list=E('div');content.append(list);
+    const draw=()=>{
+     clear(list);
+     const filter=norm(search.input.value);
+     const categoriesMap=new Map(data.categories.map(c=>[c.slug,c.nombre]));
+     const matched=data.products.filter(x=>norm(x.name+' '+(categoriesMap.get(x.categoriaSlug)||'')+' '+x.sku).includes(filter));
+     list.append(info(matched.length+' productos encontrados · precios resultantes de prueba'));
+     for(const product of matched.slice(0,90)){
+      const x=css(E('div'),'padding:9px 0;border-bottom:1px solid #e9dce1');
+      const name=E('strong',product.name);name.style.cssText='display:block;font-size:13px';
+      const detail=E('small',(categoriesMap.get(product.categoriaSlug)||'Sin categoría')+
+       ' · '+money(product.precioOriginal)+
+       (product.descuentoPorcentaje>0?' → '+money(product.precioFinal)+
+        ' (-'+product.descuentoPorcentaje+'%)':'')+
+       ' · '+(product.available?'Disponible':'Agotado')+
+       (product.pendingChanges?' · cambio pendiente':'')+
+       (product.photoVersion>0?' · foto v'+product.photoVersion:''));
+      detail.style.cssText='display:block;color:#666;font-size:12px;line-height:1.45';
+      x.append(name,detail);list.append(x);
+     }
+    };
+    search.input.oninput=draw;draw();
+   }catch(e){message.textContent='No se pudo verificar la vista previa. '+String(e.message||e);}
+  }
+  const refresh=button('Comprobar vista previa',()=>void fetchPreview(),true);
+  refresh.disabled=false;container.append(refresh,message,content);
+  return container;
+ }
  function renderProducts(){
   const target=host('productos');if(!target)return;clear(target);
-  target.append(E('h3','Gestión completa de productos'),cardNote());
+  target.append(E('h3','Gestión completa de productos'),cardNote(),previewPanel());
   const newCard=panel('＋ Agregar producto a Romo');
   const name=field('Nombre'),price=field('Precio en pesos','', 'number'),description=field('Descripción'),
    cat=select('Categoría',categoryOptions()), available=field('Disponible',true,'checkbox');
