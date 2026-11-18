@@ -20,10 +20,18 @@ module.exports=async function vistaPreviaRomoQA(req,res){
  const access=resolverOrigenLecturaUnificadaRomoQA(req,conf.panel,conf.sharedRead);
  if(!access)return fail(res,403,'Origen no autorizado');
  if(origin)res.setHeader('Access-Control-Allow-Origin',access.origin);
- res.setHeader('Access-Control-Allow-Methods',access.compartido?'GET,OPTIONS':'GET,OPTIONS');
+ res.setHeader('Access-Control-Allow-Methods',access.compartido?'GET,OPTIONS':'GET,POST,OPTIONS');
  res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type');
  if(req.method==='OPTIONS')return res.status(204).end();
- if(req.method!=='GET')return fail(res,405,'Vista previa solo lectura');
+ if(!['GET','POST'].includes(req.method))
+  return fail(res,405,'Solo consulta y simulación de carrito');
+ if(req.method==='POST'){
+  if(access.compartido)return fail(res,403,'La simulación exige el panel autorizado de dueños');
+  if(!String(req.headers?.['content-type']||'').toLowerCase().startsWith('application/json')||
+    !req.body||typeof req.body!=='object'||Array.isArray(req.body)||
+    JSON.stringify(req.body).length>6500)
+   return fail(res,400,'El carrito de pruebas es inválido');
+ }
  try{
   const {neon}=require('@neondatabase/serverless');
   const sql=neon(conf.database);
@@ -61,8 +69,13 @@ module.exports=async function vistaPreviaRomoQA(req,res){
   const official=editing.vistaEdicionesRomoQA(base,commercial[0]);
   const project=require('../lib/romo-carta-vista-previa-admin-qa.cjs');
   const result=project.proyectarVistaAdminRomoQA(official,admin[0],photos);
+  if(req.method==='POST'){
+   const quote=require('../lib/romo-carrito-borrador-qa.cjs');
+   return res.status(200).json(quote.simularCarritoBorradorRomoQA(result,req.body));
+  }
   return res.status(200).json(result);
  }catch(e){
+  if(e?.status===400)return fail(res,400,String(e.message||'Carrito de pruebas inválido'));
   console.error('Vista previa privada Romo falló:',String(e?.message||e));
   return fail(res,503,'No se puede confirmar la vista previa; no se cambió el catálogo');
  }
