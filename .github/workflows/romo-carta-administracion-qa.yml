@@ -14,6 +14,8 @@ on:
       - 'public/romo-panel-qa/romo-carta-gestion-completa-qa.js'
       - 'tests/romo-carrito-borrador-qa.test.cjs'
       - 'lib/romo-simular-armado-qa.cjs'
+      - 'lib/romo-ingredientes-armado-qa.cjs'
+      - 'tests/romo-ingredientes-armado-qa.test.cjs'
       - 'tests/romo-simular-armado-qa.test.cjs'
       - 'api/romo-carta-vista-previa-admin-qa.js'
       - 'package.json'
@@ -39,3 +41,4 @@ jobs:
       - run: npm run test:romo-carta-admin-qa
       - run: node --check public/romo-panel-qa/romo-carta-gestion-completa-qa.js
       - run: node --check api/romo-carta-vista-previa-admin-qa.js
+      - run: node --check lib/romo-ingredientes-armado-qa.cjs
