@@ -2266,6 +2266,29 @@ function ukiKmTexto(p){
  return distancia===null?"Km sin registrar":distancia.toLocaleString("es-CL",{maximumFractionDigits:2})+" km";
 }
 
+function ukiRomoPasoPagoNuevoQA(sub,envio){
+ // Misma jerarquía visual de Uki, sin afirmar un cobro antes de confirmarlo.
+ // La aceptación desde carta sigue siendo un pedido pendiente en Neon Romo.
+ const medios=['Efectivo','Transferencia','Débito','Edenred','Otros'];
+ const opciones=(campo)=>'<div class="chips">'+medios.map(m=>
+  '<button type="button" class="chip'+(D[campo]===m?' on':'')+
+  '" onclick="D.'+campo+'=\''+m+'\';render()">'+esc(m)+'</button>').join('')+'</div>';
+ return '<div class="card"><h2>💝 Propina opcional</h2>'+
+  '<p class="muted">Sugerida: 10% de los productos ('+fmt(Math.round(sub*.1))+
+  '). También puedes elegir sin propina u otro monto. No incluye delivery.</p>'+
+  '<p class="muted"><b>Se elige y confirma al cobrar en Pedidos</b>, solo cuando se reciba realmente. Queda registrada aparte de las ventas.</p></div>'+
+  '<div class="card" id="romoPagoPedidoQA"><h2>3 · Pago del pedido</h2>'+
+  '<p class="muted">Si todavía no han pagado, se guarda por cobrar. Esta pantalla no marca pagos ni mueve caja.</p>'+
+  '<div style="padding:12px;margin-bottom:14px;background:var(--bg);border-radius:12px">'+
+  '<h3 style="margin:0 0 6px">Cobro por confirmar en Romo</h3>'+
+  '<p>Productos '+fmt(sub)+' · Delivery '+fmt(envio)+
+  ' · <b>Previsto en Romo: '+fmt(sub+envio)+'</b></p></div>'+
+  '<label>Medio previsto para los productos</label>'+opciones('medio')+
+  (envio>0?'<label>Medio previsto para el delivery</label>'+opciones('medioEnvio'):'')+
+  '<p class="muted">Igual que Uki, podrás distribuir el cobro entre varios medios, registrar dinero recibido en otro local y elegir la propina. Por seguridad, la confirmación definitiva se hace sobre el pedido guardado en <b>Pedidos</b>, con turno y caja abiertos.</p>'+
+  '<p class="muted"><b>Pago completo confirmado:</b> solo cuando el dinero haya sido recibido. Nunca se confirma por guardar el pedido pendiente.</p></div>';
+}
+
 function vNuevo(){
   if(!S.suc) return vInicio(); if(!D.fecha) nuevoDraft();
   const sub=D.items.reduce((a,i)=>a+(i.cant||0)*(i.precio||0),0);
@@ -2287,7 +2310,7 @@ function vNuevo(){
   </details>
   <div class="card"><h2>1 · Cliente y entrega</h2>${modoNuevo==="manual"?`<div class="mini-help"><b>🔢 Número visible: ${esc(ukiFolioBorrador())}</b><p class="muted" style="margin:6px 0 0">${D.editando?"Este número ya pertenece al pedido y no cambiará.":"El sistema asignará el número correlativo definitivo al guardar. No tienes que escribir un código."}</p></div>`:`<div class="mini-help"><b>${esc(ukiFolioBorrador())}</b> · Identificador visible del turno.</div>`}${D.codigoCarta&&esMensajeCartaUki(D.texto||"")?`<div style="padding:10px;background:var(--bg);border-radius:10px"><b>📋 Carta #${esc(D.codigoCarta)}</b><p class="muted" style="margin:5px 0 0">Código original detectado automáticamente desde el pedido de la carta. No se escribe ni se modifica aquí.</p></div>`:modoNuevo!=="manual"?`<label>Código de la carta (solo si existe)</label><input value="${esc(D.codigoCarta||"")}" placeholder="Se detecta al procesar WhatsApp" oninput="D.codigoCarta=this.value.trim()" inputmode="text"><p class="muted">Si el pedido llegó desde la carta digital, pega su mensaje completo para detectar el código automáticamente.</p>`:""}<label>Código del cliente · últimos 4 dígitos del WhatsApp</label><input id="ukiCodigoAuto" value="${esc(ukiCodigoWhatsApp(D.telefono)||D.codigoCliente||"")}" placeholder="Automático al escribir WhatsApp" readonly inputmode="numeric"><p class="muted">Se calcula automáticamente. Para identificarlo y buscarlo usa también su nombre o el WhatsApp completo.</p><label>Fecha y hora</label><input type="datetime-local" value="${D.fecha}" oninput="D.fecha=this.value"><label>Cliente (no se autocompleta con total)</label><input value="${esc(D.cliente)}" placeholder="Ej: Camila Rojas" oninput="D.cliente=this.value">${cli?`<div style="margin-top:8px;padding:8px;background:#fff1e0;border-radius:8px"><b>${esc(cli.nombre)}</b> tiene <b>${ventasCli}/10</b> timbres ${ventasCli>=6?'<span class="tag" style="background:var(--ok);color:#fff">Puede canjear 12 piezas!</span>':''} ${ventasCli>=10?'<span class="tag" style="background:#111;color:#fff">Puede canjear 36+2 korokes!</span>':''}<div class="tarjeta" style="margin-top:6px">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventasCli?'lleno':''} ${i===5||i===9?'premio':''}">${i<ventasCli?'✓':i+1}</div>`).join("")}</div></div>`:"<p class='muted'>Nuevo cliente - empezará con 1 timbre</p>"}<label>📱 WhatsApp / Teléfono</label><input value="${esc(D.telefono)}" placeholder="+56 9 1234 5678" oninput="D.telefono=this.value;D.codigoCliente=ukiCodigoWhatsApp(D.telefono);const cod=document.getElementById('ukiCodigoAuto');if(cod)cod.value=D.codigoCliente" onchange="D.telefono=this.value;render()" inputmode="tel">${entregaUI}</div>
   <div class="card"><h2>2 · Productos y total</h2>${D.items.filter(x=>x.nombre).map((i,k)=>`<div class="row"><span>${i.cant} × ${esc(i.nombre)}${i.det?` <span class="muted">(${esc(i.det)})</span>`:""}</span><b>${fmt(i.cant*i.precio)} <button class="sm" onclick="delItem(${k})">✕</button></b></div>`).join("")||'<p class="muted">Aún no hay productos. Agrégalos abajo.</p>'}<div style="display:grid;grid-template-columns:80px 1fr;gap:8px;margin-top:10px"><div><label>Cant</label><input id="pCant" type="number" value="1" style="text-align:center;font-weight:700"></div><div><label>Precio</label><input id="pPre" type="number" inputmode="numeric" placeholder="14900"></div></div><label>Nombre producto</label><input id="pNom" placeholder="Promo 24 piezas"><label>Detalle</label><input id="pDet" placeholder="sin cebollín"><button class="sm ok" onclick="addItem()">+ Agregar producto</button><div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:10px;border-top:2px solid var(--accent)"><div class="row sub"><span>Subtotal productos</span><b>${fmt(sub)}</b></div><div class="row"><span>Delivery</span><b id="pedidoEnvioVista">${fmt(envio)}</b></div><div class="row"><span>Propina voluntaria</span><b>${fmt(propina)}</b></div><div class="row final"><span>Total a pagar</span><b id="pedidoTotalVista">${fmt(total)}</b></div><div class="row"><span>Este pedido da</span><b>${S.suc===ROMO_SUCURSAL_QA?"⭐ +1 timbre al confirmar el pago":D.productosPagadosOtroLocal?"Pago registrado en otro local":"⭐ +1 timbre"}</b></div></div></div>
-  ${S.suc===ROMO_SUCURSAL_QA?'<div class="card"><p class="muted">En Romo, guarda primero el pedido sin pagar. El cobro se confirma después en Pedidos, cuando el dinero haya sido recibido.</p></div>':ukiPropinaUI(sub)}
+  ${S.suc===ROMO_SUCURSAL_QA?ukiRomoPasoPagoNuevoQA(sub,envio):ukiPropinaUI(sub)}
   <div class="card" id="ukiPagoPedidoSoloUki" style="${S.suc===ROMO_SUCURSAL_QA?'display:none':''}" aria-hidden="${S.suc===ROMO_SUCURSAL_QA?'true':'false'}"><h2>3 · Pago del pedido</h2><p class="muted">Si todavía no han pagado, no marques la confirmación. El pedido quedará registrado por cobrar.</p>
     <div style="padding:12px;margin-bottom:14px;background:var(--bg);border-radius:12px">
       <h3 style="margin:0 0 6px">${D.pagado?"Cobro confirmado en Uki":"Cobro por confirmar en Uki"}</h3>
@@ -5231,8 +5254,9 @@ function ukiRomoCamposCobroQA(p){
  const metodos=['Efectivo','Transferencia','Débito','Edenred','Otros','Uber Eats','PedidosYa','Rappi'];
  const metodosEnvio=metodos.filter(m=>!['Uber Eats','PedidosYa','Rappi'].includes(m));
  const grupo=(scope,monto,nombre)=>{
-  const opciones=(scope==='Envio'?metodosEnvio:metodos)
-   .map(m=>'<option value="'+esc(m)+'">'+esc(m)+'</option>').join('');
+  const previsto=scope==='Envio'?p.medioEnvio:p.medio;
+ const opciones=(scope==='Envio'?metodosEnvio:metodos)
+   .map(m=>'<option value="'+esc(m)+'"'+(m===previsto?' selected':'')+'>'+esc(m)+'</option>').join('');
   const clave='romoCobro'+scope+id;
   const campo=i=>'<div class="row" style="align-items:end;gap:8px">'+
    '<label style="flex:1 1 52%">'+(i===1?'Medio principal':'Otro medio '+i)+
