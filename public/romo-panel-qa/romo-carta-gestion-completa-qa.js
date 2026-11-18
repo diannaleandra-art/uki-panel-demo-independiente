@@ -135,6 +135,97 @@
   const m=E('p');m.dataset.romoAdminStatus='1';m.setAttribute('role','status');
   m.style.fontSize='13px';b.append(m);return b;
  }
+ async function jpegBase64(file){
+  if(!file||file.size>15000000)throw Error('El archivo es demasiado grande');
+  return new Promise((resolve,reject)=>{
+   const src=URL.createObjectURL(file),img=new Image();
+   const clean=()=>URL.revokeObjectURL(src);
+   img.onload=()=>{
+    try{
+     const ratio=Math.min(1,1100/Math.max(img.naturalWidth,img.naturalHeight));
+     if(!Number.isFinite(ratio)||ratio<=0)throw Error('Imagen inválida');
+     let w=Math.max(1,Math.round(img.naturalWidth*ratio));
+     let h=Math.max(1,Math.round(img.naturalHeight*ratio));
+     const canvas=document.createElement('canvas'),context=canvas.getContext('2d');
+     if(!context)throw Error('No se pudo procesar la imagen');
+     let base64='';
+     for(let tries=0;tries<7;tries++){
+      canvas.width=w;canvas.height=h;context.drawImage(img,0,0,w,h);
+      const url=canvas.toDataURL('image/jpeg',Math.max(.35,.76-tries*.07));
+      base64=url.split(',')[1]||'';
+      if(base64.length>1400&&base64.length<400000)break;
+      w=Math.round(w*.84);h=Math.round(h*.84);
+     }
+     if(base64.length<1400||base64.length>400000||!base64.startsWith('/9j/'))
+      throw Error('La fotografía no se pudo reducir lo suficiente');
+     clean();resolve(base64);
+    }catch(error){clean();reject(error);}
+   };
+   img.onerror=()=>{clean();reject(Error('No se pudo leer la foto. Prueba una imagen JPEG.'));};
+   img.src=src;
+  });
+ }
+ async function photoRequest(method,payload,sku){
+  const token=await window.ukiInventarioToken?.();
+  if(!token)throw Error('Debes iniciar sesión como dueña de Romo');
+  const url='/api/romo-carta-fotos-qa'+(method==='GET'?'?sku='+encodeURIComponent(sku):'');
+  const r=await fetch(url,{method,credentials:'same-origin',cache:'no-store',
+   headers:{Authorization:'Bearer '+token,Accept:'application/json',
+    ...(method==='POST'?{'Content-Type':'application/json'}:{})},
+   ...(method==='POST'?{body:JSON.stringify(payload)}:{}),
+   signal:AbortSignal.timeout(20000)
+  });
+  const data=await r.json().catch(()=>null);
+  if(!r.ok||data?.ok!==true||data.storeId!==STORE)throw Error(data?.error||'La foto no se confirmó');
+  return data;
+ }
+ function photoPanel(sku){
+  const details=panel('📷 Fotografía · Ver o cambiar (solo Romo QA)');
+  const box=stack(),preview=E('div'),statusP=info('Abre esta sección para consultar la fotografía.');
+  const file=E('input');file.type='file';
+  file.accept='image/jpeg,image/png,image/webp,image/heic,image/heif,image/*';
+  const upload=button('Guardar fotografía de prueba',async()=>{
+   if(state.busy||!file.files?.length){statusP.textContent='Selecciona primero una fotografía';return;}
+   state.busy=true;upload.disabled=true;statusP.textContent='Preparando fotografía…';
+   try{
+    const base64=await jpegBase64(file.files[0]);
+    const result=await photoRequest('POST',{action:'save',sku,base64,expectedVersion:version},sku);
+    if(result.guardado!==true||result.auditado!==true||result.draftOnly!==true)
+     throw Error('No se confirmó auditoría de fotografía');
+    statusP.textContent='✓ Fotografía guardada en Romo QA; aún no publicada a clientes.';
+    await loadPhoto();
+   }catch(e){statusP.textContent='No se confirmó la foto. '+String(e.message||e);}
+   finally{state.busy=false;upload.disabled=!canWrite();}
+  });
+  const remove=button('Quitar fotografía',async()=>{
+   if(state.busy||version<1||!window.confirm('¿Quitar esta foto de prueba en Romo?'))return;
+   state.busy=true;remove.disabled=true;
+   try{
+    const result=await photoRequest('POST',{action:'remove',sku,expectedVersion:version},sku);
+    if(result.guardado!==true||result.auditado!==true)throw Error('No se confirmó el retiro');
+    await loadPhoto();statusP.textContent='✓ Foto quitada del borrador Romo.';
+   }catch(e){statusP.textContent='No se confirmó el retiro. '+String(e.message||e);}
+   finally{state.busy=false;remove.disabled=!canWrite()||version<1;}
+  },true);
+  let version=0,loaded=false;
+  const loadPhoto=async()=>{
+   try{
+    const result=await photoRequest('GET',null,sku);
+    version=result.version||0;clear(preview);
+    if(result.image){
+     const img=E('img');img.src=result.image;img.alt='Fotografía privada de Romo';
+     css(img,'display:block;max-width:230px;width:100%;height:auto;border-radius:10px');
+     preview.append(img);
+    }else preview.append(info('Este producto todavía no tiene fotografía guardada en Romo QA.'));
+    statusP.textContent='Fotografía consultada en Romo · versión '+version+'.';
+    remove.disabled=!canWrite()||version<1;
+   }catch(e){statusP.textContent='No se pudo consultar la foto: '+String(e.message||e);}
+  };
+  details.addEventListener('toggle',()=>{
+   if(details.open&&!loaded){loaded=true;void loadPhoto();}
+  });
+  box.append(preview,statusP,file,upload,remove);details.append(box);return details;
+ }
  function renderProducts(){
   const target=host('productos');if(!target)return;clear(target);
   target.append(E('h3','Gestión completa de productos'),cardNote());
@@ -191,7 +282,7 @@
       void save('product-delete',{id:p.sku},'Eliminación de '+p.name,
        '¿Eliminar el producto de los borradores de Romo? No modifica ventas anteriores.');
     },true));
-    form.append(actions);item.append(form);container.append(item);
+    form.append(actions);item.append(form,photoPanel(p.sku));container.append(item);
    }
    if(items.length>state.limit){
     const more=button('Mostrar más ('+(items.length-state.limit)+')',()=>{state.limit+=16;draw();},true);
@@ -369,7 +460,7 @@
      },true));
      item.append(f);
     }
-    list.append(item);
+    item.append(photoPanel(p.sku));list.append(item);
    }
   };
   search.input.oninput=draw;draw();
