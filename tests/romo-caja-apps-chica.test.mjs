@@ -76,3 +76,60 @@ test('Los formularios y el cierre conservan guardado aislado y QA',()=>{
  assert.match(html,/if\(window\.ukiRomoGuardadoHabilitadoQA\?\.\(\)!==true\)/);
  assert.match(html,/prepararCierreDefinitivoRomoQA\(copia/);
 });
+
+test('Anulación auditada en QA restaura saldo sin borrar trazabilidad',async()=>{
+ const x=sim();
+ await x.ctx.ukiRomoGuardarMovimientoQA('chica');
+ const key=x.S.suc+'|2026-11-17';
+ const gasto=x.store.saved[0].cajasDiarias[key].cajaChica.gastos[0];
+ x.S.cajasDiarias[key]=x.store.saved[0].cajasDiarias[key];
+ x.ctx.ukiRomoGastoChicaAnularQA=gasto.id;
+ await x.ctx.ukiRomoGuardarMovimientoQA('anularChica');
+ assert.equal(x.store.saved.length,2);
+ const chica=x.store.saved[1].cajasDiarias[key].cajaChica;
+ assert.equal(chica.gastos.length,0);
+ assert.equal(chica.anulaciones.length,1);
+ assert.equal(chica.anulaciones[0].motivo,'Registro equivocado');
+ assert.equal(chica.anulaciones[0].monto,1500);
+});
+test('No se permite cambiar base después de registrar Apps o Caja chica',async()=>{
+ const x=sim();
+ await x.ctx.ukiRomoGuardarMovimientoQA('app');
+ const key=x.S.suc+'|2026-11-17';
+ Object.assign(x.caja,x.store.saved[0].cajasDiarias[key]);
+ x.S.cajasDiarias[key]=x.caja;
+ x.fields.romoBaseQA='10000';x.fields.romoCajaChicaQA='5000';
+ await x.ctx.ukiRomoGuardarMovimientoQA('base');
+ assert.equal(x.store.saved.length,1);
+ assert.match(x.store.alerts.join(' '),/base solo puede establecerse antes/);
+});
+test('Integración cierre completo Romo: Apps y Caja chica no se duplican',async()=>{
+ const {prepararAperturaTurnoRomoQA,prepararCierreDefinitivoRomoQA}=
+  await import('../firebase/uki-romo-cierre-definitivo-qa.mjs');
+ const ms=Date.now(),f=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Santiago',
+  year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(ms));
+ const n=k=>f.find(v=>v.type===k)?.value;
+ const dia=[n('year'),n('month'),n('day')].join('-');
+ const suc='Romo’s Sushi La Serena';
+ const s={suc,pedidos:[],gastos:[],retiros:[],propinas:[],cierres:[],
+  deliveriesManuales:[],incidencias:[],clientes:{},cajasDiarias:{},
+  nextId:1,nextIncidenciaId:1};
+ prepararAperturaTurnoRomoQA(s,{fechaOperativa:dia,inicioMs:ms-60000,
+  responsable:'Encargada',base:0,cajaChicaInicial:5000});
+ const c=s.cajasDiarias[suc+'|'+dia];
+ c.apps['Uber Eats']=7000;
+ c.movimientosApps.push({id:ms-1,monto:9000,medio:'Uber Eats',concepto:'Total previo'});
+ c.movimientosApps.push({id:ms,monto:7000,medio:'Uber Eats',concepto:'Corrección total'});
+ c.cajaChica.gastos.push({id:ms,monto:1200,concepto:'Detergente'});
+ const result=prepararCierreDefinitivoRomoQA(s,{fechaOperativa:dia,
+  cierreMs:ms+1000,responsable:'Encargada',efectivoContado:0});
+ assert.equal(result.cierre.venta,7000);
+ assert.equal(result.cierre.medios['Uber Eats'],7000);
+ assert.equal(result.cierre.cajaChicaGastos,1200);
+ assert.equal(result.cierre.final,7000);
+ assert.equal(c.turnoAbierto,false);
+ assert.equal(s.cierres.length,1);
+ assert.throws(()=>prepararCierreDefinitivoRomoQA(s,{fechaOperativa:dia,
+  cierreMs:ms+2000,responsable:'Encargada',efectivoContado:0}),
+  /Abre primero un turno Romo|cierre definitivo/);
+});
