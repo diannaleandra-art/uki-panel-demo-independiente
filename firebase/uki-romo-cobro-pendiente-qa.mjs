@@ -45,7 +45,9 @@ export class RomoCobroConfirmadoReleerQA extends Error{
 export function prepararCobroPendienteRomoQA(estado,{
  pedidoId,responsable,registradoEn,confirmoRecepcion=false,
  medioProductos='Efectivo',medioEnvio='Efectivo',
- pagosProductos=[],pagosEnvio=[]
+ pagosProductos=[],pagosEnvio=[],
+ productosOtroLocal=0,envioOtroLocal=0,localPagoExterno='',
+ confirmoPagoExterno=false,propinaMonto=0,medioPropina='Efectivo'
 }={}){
  need(estado?.suc===SUC&&Array.isArray(estado.pedidos)&&
   Array.isArray(estado.propinas)&&Array.isArray(estado.cierres)&&
@@ -70,6 +72,15 @@ export function prepararCobroPendienteRomoQA(estado,{
  need(typeof p.turnoClave==='string'&&/^\d{4}-\d{2}-\d{2}@\d+$/.test(p.turnoClave),
   'Turno de pedido inválido');
  const dia=p.turnoClave.slice(0,10),caja=estado.cajasDiarias[SUC+'|'+dia];
+ // Evita contabilizar dinero actual sobre una jornada antigua olvidada abierta.
+ // Se admite hoy o ayer por las jornadas que terminan después de medianoche.
+ const partes=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Santiago',
+  year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(stamp));
+ const parte=k=>partes.find(x=>x.type===k)?.value||'';
+ const diaActual=parte('year')+'-'+parte('month')+'-'+parte('day');
+ const ayer=new Date(diaActual+'T12:00:00Z');ayer.setUTCDate(ayer.getUTCDate()-1);
+ need(dia===diaActual||dia===ayer.toISOString().slice(0,10),
+  'El turno es anterior a ayer; revisa Caja y regulariza la jornada antes de cobrar');
  need(caja?.turnoAbierto===true&&caja.baseConfirmada===true&&
   caja.turnoId===p.turnoClave,
   'El turno Romo debe estar abierto y su base real confirmada');
@@ -84,19 +95,40 @@ export function prepararCobroPendienteRomoQA(estado,{
   'El subtotal no coincide con los productos');
  const envio=p.modalidad==='Delivery'?num(p.envio,1,4000,'Delivery inválido'):0;
  need(p.modalidad==='Delivery'||Number(p.envio||0)===0,'Entrega sin delivery cobrado');
- // Este formulario recibe productos y reparto; las propinas son una operación
- // independiente de Caja, para no declarar cobrada una suma no recibida aquí.
- const propina=num(p.propina??0,0,100000000,'Propina inválida');
- need(propina===0,'Este pedido tiene propina previa: concilia en Caja antes de cobrar');
+ // La propina se contabiliza fuera de las ventas, en la misma confirmación
+ // cifrada que registra el cobro; nunca se presume recibida por elegirla.
+ const propinaAnterior=num(p.propina??0,0,100000000,'Propina previa inválida');
+ need(propinaAnterior===0,'Este pedido tiene propina previa: concilia en Caja antes de cobrar');
+ const propina=num(propinaMonto,0,1000000,'Propina recibida inválida');
+ need(['Efectivo','Transferencia','Débito','Edenred','Otros'].includes(medioPropina),
+  'Medio de propina no permitido');
+ need(!estado.propinas.some(x=>x.suc===SUC&&Number(x.pedidoId)===id),
+  'Ya existe una propina vinculada: concilia antes de registrar el cobro');
  need(num(p.total,1,3000000,'Total inválido')===subtotal+envio,
   'El pedido no cuadra; revisar antes de cobrar');
  need(p.historialCambios===undefined||Array.isArray(p.historialCambios),
   'Historial del pedido inválido');
+ const prodFuera=num(productosOtroLocal,0,subtotal,'Pago de productos en otro local inválido');
+ const envFuera=num(envioOtroLocal,0,envio,'Pago de delivery en otro local inválido');
+ const externo=String(localPagoExterno||'').trim();
+ need(!(prodFuera||envFuera)||(confirmoPagoExterno===true&&
+  externo.length>=2&&externo.length<=80),
+  'Confirma el dinero recibido por el otro local y su nombre');
+ need((prodFuera||envFuera)||(!externo&&confirmoPagoExterno!==true),
+  'No inventes cobros externos si no hay dinero fuera de Romo');
  const prod=mediosConfirmados({lineas:pagosProductos,medio:medioProductos,
-  total:subtotal,permitidos:METODOS,nombre:'productos'});
+  total:subtotal-prodFuera,permitidos:METODOS,nombre:'productos'});
  const del=mediosConfirmados({lineas:pagosEnvio,medio:medioEnvio,
-  total:envio,permitidos:METODOS_ENVIO,nombre:'delivery'});
+  total:envio-envFuera,permitidos:METODOS_ENVIO,nombre:'delivery'});
  p.pagado=true;p.medio=prod.medio;p.medioEnvio=del.medio;
+ p.productosPagadosOtroLocal=prodFuera>0;
+ p.montoProductosOtroLocal=prodFuera;
+ p.envioPagadoOtroLocal=envFuera>0;
+ p.montoEnvioOtroLocal=envFuera>0?envFuera:'';
+ p.localPagoExterno=prodFuera||envFuera?externo:'';
+ p.propina=propina;p.propinaModo=propina>0?'otro':'ninguna';
+ p.propinaPersonalizada=propina>0?propina:'';
+ p.medioPropina=medioPropina;
  // Si el cliente tiene WhatsApp, la entrega y el cierre deben exigir
  // timbre confirmado en el panel, incluso cuando pagó después de la entrega.
  p.timbreReglaObligatoria=telefonoTimbreRomoValidoQA(p.telefono);
@@ -106,12 +138,15 @@ export function prepararCobroPendienteRomoQA(estado,{
  const evento={tipo:'cobro_pendiente',fecha:p.cobroConfirmadoEn,
   responsable:actor,anterior:{pagado:false},nuevo:{pagado:true,
    total:p.total,medioProductos:prod.medio,medioEnvio:del.medio,
-   pagosProductos:prod.lineas,pagosEnvio:del.lineas}};
+   pagosProductos:prod.lineas,pagosEnvio:del.lineas,
+   productosOtroLocal:prodFuera,envioOtroLocal:envFuera,
+   localPagoExterno:p.localPagoExterno,propina,medioPropina}};
  p.historialCambios=[...(p.historialCambios||[]),evento].slice(-100);
  // Misma contabilidad auxiliar de cliente/propina que el pedido pagado de Romo.
  efectosEnCopia(estado,p,stamp);
- return Object.freeze({pedidoId:id,total:p.total,revisionNecesaria:true,
-  responsable:actor,medioProductos:prod.medio,medioEnvio:del.medio});
+ return Object.freeze({pedidoId:id,total:p.total,propina,externo:prodFuera+envFuera,
+  cobradoEnRomo:subtotal+envio-prodFuera-envFuera+propina,
+  revisionNecesaria:true,responsable:actor,medioProductos:prod.medio,medioEnvio:del.medio});
 }
 export function crearGuardadoCobroRomoQA({
  habilitado=ROMO_COBRO_PENDIENTE_HABILITADO_QA,
