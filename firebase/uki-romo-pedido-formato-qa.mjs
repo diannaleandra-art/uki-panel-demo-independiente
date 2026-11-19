@@ -111,6 +111,10 @@ export async function construirCandidatoRomoFormatoUkiQA({estado,draft,contexto}
   !draft.editando,'Solicitud no pertenece a Romo');
  check(!estado.pedidos.some(p=>p.cartaSolicitudRemotaId===draft.cartaSolicitudRemotaId||
   p.id===estado.nextId),'Solicitud o folio duplicado');
+ const codigoCarta=txt(draft.codigoCarta,60).toLowerCase();
+ check(!codigoCarta||!estado.pedidos.some(p=>
+  txt(p.codigoCarta,60).toLowerCase()===codigoCarta),
+  'Código de carta duplicado en Romo, revisa el historial antes de aceptar');
  check(Number.isSafeInteger(contexto?.numeroTurno)&&contexto.numeroTurno>0&&
   typeof contexto.turnoClave==='string'&&contexto.turnoClave.length>5&&
   Number.isSafeInteger(contexto.registradoEn)&&contexto.registradoEn>0,
