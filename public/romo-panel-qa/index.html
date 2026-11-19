@@ -585,12 +585,7 @@ function cambiarCajaTab(t){
  window.scrollTo({top:0,behavior:"instant"});
 }
 function cambiarMovimientoTab(t){movimientoTab=t;render();}
-function cambiarModoNuevo(t){
- if(S.suc===ROMO_SUCURSAL_QA&&!['manual','whatsapp'].includes(t)){
-  aviso('Modo no autorizado para Romo. No se guardó ningún pedido.');return;
- }
- modoNuevo=t;render();
-}
+function cambiarModoNuevo(t){modoNuevo=t;render();}
 
 
 function aviso(t){S.msg=t;render();window.scrollTo({top:0,behavior:"smooth"});}
@@ -2272,29 +2267,6 @@ function ukiPropinaVisiblePedido(p){
 function ukiKmTexto(p){
  const distancia=ukiKmRecorridoPedido(p);
  return distancia===null?"Km sin registrar":distancia.toLocaleString("es-CL",{maximumFractionDigits:2})+" km";
-}
-
-function ukiRomoPasoPagoNuevoQA(sub,envio){
- // Misma jerarquía visual de Uki, sin afirmar un cobro antes de confirmarlo.
- // La aceptación desde carta sigue siendo un pedido pendiente en Neon Romo.
- const medios=['Efectivo','Transferencia','Débito','Edenred','Otros'];
- const opciones=(campo)=>'<div class="chips">'+medios.map(m=>
-  '<button type="button" class="chip'+(D[campo]===m?' on':'')+
-  '" onclick="D.'+campo+'=\''+m+'\';render()">'+esc(m)+'</button>').join('')+'</div>';
- return '<div class="card"><h2>💝 Propina opcional</h2>'+
-  '<p class="muted">Sugerida: 10% de los productos ('+fmt(Math.round(sub*.1))+
-  '). También puedes elegir sin propina u otro monto. No incluye delivery.</p>'+
-  '<p class="muted"><b>Se elige y confirma al cobrar en Pedidos</b>, solo cuando se reciba realmente. Queda registrada aparte de las ventas.</p></div>'+
-  '<div class="card" id="romoPagoPedidoQA"><h2>3 · Pago del pedido</h2>'+
-  '<p class="muted">Si todavía no han pagado, se guarda por cobrar. Esta pantalla no marca pagos ni mueve caja.</p>'+
-  '<div style="padding:12px;margin-bottom:14px;background:var(--bg);border-radius:12px">'+
-  '<h3 style="margin:0 0 6px">Cobro por confirmar en Romo</h3>'+
-  '<p>Productos '+fmt(sub)+' · Delivery '+fmt(envio)+
-  ' · <b>Previsto en Romo: '+fmt(sub+envio)+'</b></p></div>'+
-  '<label>Medio previsto para los productos</label>'+opciones('medio')+
-  (envio>0?'<label>Medio previsto para el delivery</label>'+opciones('medioEnvio'):'')+
-  '<p class="muted">Igual que Uki, podrás distribuir el cobro entre varios medios, registrar dinero recibido en otro local y elegir la propina. Por seguridad, la confirmación definitiva se hace sobre el pedido guardado en <b>Pedidos</b>, con turno y caja abiertos.</p>'+
-  '<p class="muted"><b>Pago completo confirmado:</b> solo cuando el dinero haya sido recibido. Nunca se confirma por guardar el pedido pendiente.</p></div>';
 }
 
 function vNuevo(){
