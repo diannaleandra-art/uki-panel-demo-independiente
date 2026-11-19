@@ -118,7 +118,7 @@ module.exports=async function romoPinInventarioQA(req,res){
    if(!Number.isSafeInteger(body.contados)||!Number.isSafeInteger(body.entradas))
     return fail(res,400,'Resumen de turno inválido');
    operation='revision';
-   args={sku:'r_revision',contados:body.contados,entradas:body.entradas};
+   args={sku:'r_revision',contados:body.contados,entradas:body.entradas,worker_name:name};
   }
   const saved=await inv.guardarOperacionInventarioRomoQA({db,identity,
    expectedRevision:body.expectedRevision,action:operation,args});
