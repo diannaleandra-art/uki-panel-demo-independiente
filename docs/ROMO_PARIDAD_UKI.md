@@ -57,3 +57,16 @@ Funciones del núcleo Uki cuyo comportamiento se alteró en Romo (requieren revi
 - En Caja Romo el título `Turno abierto` ahora se muestra únicamente si lo confirma el estado; una fecha operativa antigua produce un aviso de conciliación, sin cambiar la caja ni cerrar automáticamente.
 - Los casos se verifican en `tests/romo-inventario-paridad-historial-qa.test.mjs`, incluidos aislamiento Romo, PDF/CSV, reconstrucción, operaciones incompletas y sintaxis del exportador.
 - Verificada la puerta QA GitHub: pruebas generales Romo y pruebas base Uki aprobadas; sin publicación comercial y sin escrituras sobre el negocio.
+
+## Continuidad de Pedidos — códigos y reserva manual (18-11-2026)
+
+**Rama exclusiva de preparación** `qa/romos-panel-v816`. Sin despliegue, sin pedido/venta/cierre real y sin cambios a `main` de Uki.
+
+- Se corrigió el guardado manual para que al buscar duplicados considere únicamente `Romo’s Sushi La Serena`, comparando códigos de carta normalizados sin mayúsculas ni espacios. La consulta de Uki continúa aislada.
+- En los dos módulos de aceptación (`public/romo-panel-qa/` y `firebase/`) el código `codigo_pedido` de la solicitud Neon debe coincidir con `draft.codigoCarta`, y la solicitud debe pertenecer a `serena`. Si el código ya existe en un pedido Romo, incluso cancelado, se rechaza antes de reservar; no se copia ni modifica la caja.
+- En ambos constructores del candidato de pedido se rechaza una referencia de carta repetida incluso cuando tenga otro ID de solicitud. Esto complementa el control ya existente por identificador UUID y folio de turno.
+- La recuperación autorizada de reserva vencida de 50 minutos estaba bloqueada por `pedido_interno IS NULL`; Neon define `pedido_interno TEXT NOT NULL DEFAULT ''`. Se ajustó el filtro SQL a `pedido_interno=''` conservando las condiciones: reserva vencida, estado pendiente, sin pedido asociado, autorización de dueños, motivo y registro en bitácora. **No se recuperó ninguna reserva real y no se modificó el temporizador**.
+- Se agregaron `tests/romo-aceptacion-codigo-unico-qa.test.mjs` y `tests/romo-reserva-vencida-recuperacion-qa.test.mjs` a `npm run test:release`. GitHub Actions **44444816331** completó con éxito. Son pruebas de código/mocks, **no una prueba real con Google, Safari ni una reserva vencida en Neon**.
+- Las rutas QA y la escritura comercial continúan con sus permisos y banderas anteriores; ninguna nueva Preview ni publicación Production fue creada en este bloque.
+
+**Siguientes diferencias funcionales aún abiertas:** recepción/edición/cancelación segura desde la misma interfaz Uki, mesa y QR propio Romo, cobro/entrega/timbre en caja real, siete pestañas de Caja y sus movimientos, cierre y Mi Administración. No declarar paridad operativa ni activar clientes hasta prueba manual controlada y conciliación de Neon Romo.
