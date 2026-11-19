@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
 import {Script} from 'node:vm';
 import {consultarRomoInventarioHistoricoQA as consulta} from '../public/romo-panel-qa/romo-inventario-historial-qa.mjs';
+import {aplicarOperacionInventarioRomoQA,emptyRomoInventory} from '../lib/romo-inventario-qa.mjs';
 const require=createRequire(import.meta.url);
 const exportUki=require('../public/romo-panel-qa/uki-inventario-exportar.js');
 const exportRomo=require('../public/romo-panel-qa/romo-inventario-exportar.js');
@@ -92,4 +93,22 @@ test('El servidor registra el nombre del trabajador solo en revisión autorizada
  assert.match(api,/worker_name:name/);
  assert.match(lib,/worker_name:workerName\|\|undefined/);
  assert.match(api,/workerAuthorized\(db,body.codigo,fp\)/);
+});
+
+test('Finalizar revisión conserva el nombre sin guardar datos de Uki',()=>{
+ const identity={brand:'romo',role:'inventario',branches:['serena'],
+  userId:'inv_empleado_abcd1234'};
+ const out=aplicarOperacionInventarioRomoQA(emptyRomoInventory(),{
+  identity,action:'revision',
+  args:{sku:'r_revision',contados:0,entradas:0,worker_name:'María Encargada'},
+  ahoraMs:Date.now()
+ });
+ assert.equal(out.state.movimientos.length,1);
+ assert.equal(out.state.movimientos[0].worker_name,'María Encargada');
+ assert.equal(out.state.movimientos[0].resumen.contados,0);
+ assert.throws(()=>aplicarOperacionInventarioRomoQA(emptyRomoInventory(),{
+  identity,action:'revision',
+  args:{sku:'r_revision',contados:0,entradas:0,worker_name:'X'},
+  ahoraMs:Date.now()
+ }),/Nombre de trabajador inválido/);
 });
