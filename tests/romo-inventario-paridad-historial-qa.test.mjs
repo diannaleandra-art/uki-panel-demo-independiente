@@ -54,6 +54,13 @@ test('Históricos reconstruidos NO usan el stock actual para días anteriores',(
  assert.equal(r1.items[0].stock_qty,2);
  assert.equal(r1.items[0].received_qty,null);
 });
+test('Rechaza una revisión si el stock posterior no coincide con el guardado',()=>{
+ const s=source();
+ s.contenido.items[0].stock_qty=999;
+ const id=consulta(s,{action:'historial'}).revisiones[0].id;
+ assert.throws(()=>consulta(s,{action:'revision',payload:{id}}),
+  /no coincide con la existencia posterior/);
+});
 test('Bloquea reconstrucción si falta una operación anterior para garantizar precisión',()=>{
  const s=source();
  delete s.contenido.movimientos[6].antes;
