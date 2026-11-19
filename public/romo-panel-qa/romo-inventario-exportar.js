@@ -1,4 +1,4 @@
-/* Romo's Sushi · Informes descargables en iPhone sin enviar datos a terceros. */
+/* Romo’s Sushi · Informes descargables en iPhone sin enviar datos a terceros. */
 (function(root,factory){
  const api=factory();
  if(typeof module!=='undefined'&&module.exports)module.exports=api;
@@ -63,7 +63,7 @@
   const f=fechaChile(report.created_at),r=filas(report);
   const faltantes=r.filter(x=>x.status==='Reponer');
   const entradas=r.filter(x=>x.received!==null&&x.received>0);
-  const msg=['📦 ROMO'S SUSHI · INVENTARIO ORDENADO',
+  const msg=['📦 ROMO’S SUSHI · INVENTARIO ORDENADO',
    'Sucursal: '+branchName(report.branch),
    'Registrado: '+f.dia+', '+f.fecha+' · '+f.hora+' h (Chile)',
    'Responsable: '+String(report.worker_name||'Sin identificar'),
@@ -92,7 +92,7 @@
   const f=fechaChile(report.created_at);
   const faltantes=filas(report).filter(x=>x.minimum>0&&x.toBuy>0)
    .sort((a,b)=>a.name.localeCompare(b.name,'es'));
-  const msg=['🛒 ROMO'S SUSHI · LISTA PARA COMPRAR',
+  const msg=['🛒 ROMO’S SUSHI · LISTA PARA COMPRAR',
    'Sucursal: '+branchName(report.branch),
    'Fecha: '+f.fecha+' · '+f.hora+' h (Chile)',
    'Productos que se deben pedir: '+faltantes.length,''];
@@ -108,7 +108,7 @@
    const file=new File([blob],nombreArchivo(report,'pdf'),{type:'application/pdf'});
    if(!navigator.canShare||navigator.canShare({files:[file]})){
     try{
-     await navigator.share({files:[file],title:'Romo's Sushi · Inventario PDF'});
+     await navigator.share({files:[file],title:'Romo’s Sushi · Inventario PDF'});
      return 'compartido';
     }catch(e){
      if(e?.name==='AbortError')return 'cancelado';
@@ -129,7 +129,7 @@
   const f=fechaChile(report.created_at),r=filas(report);
   const entries=r.filter(x=>x.received!==null&&x.received>0).length;
   const head=[
-    'ROMO'S SUSHI  |  INVENTARIO DEL TURNO',
+    'ROMO’S SUSHI  |  INVENTARIO DEL TURNO',
     branchName(report.branch)+'  |  '+f.dia+' '+f.fecha+'  |  '+f.hora+' h Chile',
     'Responsable: '+String(report.worker_name||'Sin identificar').slice(0,48),
     'Articulos: '+r.length+'  |  Reponer: '+r.filter(x=>x.status==='Reponer').length+
@@ -210,7 +210,7 @@
   if(typeof File!=='undefined'&&navigator.share){
    const file=new File([blob],nombreArchivo(report,'pdf'),{type:'application/pdf'});
    if(!navigator.canShare||navigator.canShare({files:[file]})){
-    try{await navigator.share({files:[file],title:'Inventario Romo's Sushi',text});return 'archivo';}
+    try{await navigator.share({files:[file],title:'Inventario Romo’s Sushi',text});return 'archivo';}
     catch(e){if(e?.name==='AbortError')return 'cancelado';}
    }
   }
