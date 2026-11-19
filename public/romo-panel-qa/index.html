@@ -8639,7 +8639,7 @@ async function ukiRomoAvanzarJornadaSinCajaQA(){
  if(responsable.length<2||motivo.length<2)
   return aviso('Escribe el responsable y explica por qué no hubo cierre de caja.');
  if(!window.confirm('¿Avanzar la jornada de '+anterior+' a '+nueva+
-  ' SIN inventar un cierre? Esto solo es posible si no hubo caja, ventas ni pedidos pendientes; conservará el historial completo.'))return;
+  ' SIN inventar un cierre? Solo si no hubo caja ni dinero y se resolvieron los pedidos y solicitudes antiguos. Las solicitudes nuevas de hoy se conservarán pendientes.'))return;
  ukiRomoTurnoOcupadoQA=true;
  try{
   const sesion=window.ukiRomoSesionRemotaQA;
@@ -8661,10 +8661,11 @@ async function ukiRomoAvanzarJornadaSinCajaQA(){
   if(data.orders.some(o=>o.branch!=='serena'||
     !['pendiente','aceptada','rechazada'].includes(o.estado)))
    throw Error('Hay datos de otra sucursal o estado desconocido.');
-  if(data.orders.some(o=>o.estado==='pendiente'))
-   throw Error('Hay solicitudes de la carta pendientes: resuélvelas primero.');
-  const copia=datosSoloSucursal();
   const mod=await import('./uki-romo-cierre-definitivo-qa.mjs');
+  // Solicitudes de HOY se conservan. Las de fechas anteriores deben
+  // resolverse primero; ninguna solicitud se borra automáticamente.
+  mod.verificarSolicitudesParaAvanceRomoQA(data.orders,nueva);
+  const copia=datosSoloSucursal();
   mod.prepararAvanceJornadaSinCajaRomoQA(copia,{
    fechaNueva:nueva,responsable,motivo,registradoEn:Date.now()
   });
@@ -8690,7 +8691,7 @@ function ukiRomoCierreTurnoHTMLQA(){
   (!abierto&&dia<hoyLocal()?
    '<div class="card" role="alert" style="border:2px solid #ac1e39"><h3>⚠️ Jornada anterior sin cierre</h3>'+
    '<p>Fecha guardada: <b>'+esc(dia)+'</b>. Fecha de hoy: <b>'+esc(hoyLocal())+'</b>. No abras una caja de un día anterior.</p>'+
-   '<p>Si el día anterior solo tuvo pedidos de prueba sin cobrar, cancélalos manualmente. Cuando no quede ninguna caja, solicitud ni dinero por conciliar, podrás pasar al día actual, conservando el historial.</p>'+
+   '<p>Si existen pedidos o solicitudes de días anteriores, revísalos en Pedidos. Los cobros antiguos deben conciliarse antes de avanzar. Las solicitudes nuevas de hoy se conservarán pendientes.</p>'+
    '<label>Responsable</label><input id="romoAvanceJornadaRespQA" maxlength="80" autocomplete="off">'+
    '<label>Motivo</label><textarea id="romoAvanceJornadaMotivoQA" maxlength="300" rows="2" placeholder="Ej.: Jornada de preparación sin caja real ni ventas"></textarea>'+
    '<button type="button" class="sm" onclick="ukiRomoAvanzarJornadaSinCajaQA()">Revisar y avanzar jornada sin caja</button>'+
