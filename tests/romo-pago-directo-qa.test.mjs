@@ -89,6 +89,7 @@ test('Interfaz Romo contiene casilla, medios mixtos y guardado atómico',()=>{
  assert.match(html,/<b>Pago completo confirmado<\/b>/);
  assert.match(html,/Dividir entre varios medios/);
  assert.match(html,/ukiPropinaUI\(sub\)/);
- assert.match(html,/confirmoPago:D\.pagado===true/);
+ assert.match(html,/confirmoPago:pagoConfirmadoAhora/);
+ assert.match(html,/const borradorConfirmado=JSON.parse\(JSON.stringify\(D\)\)/);
  assert.match(html,/prepararCobroPendienteRomoQA\(clone,/);
 });
