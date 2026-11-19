@@ -6044,7 +6044,6 @@ function ukiRomoPedidosPendientesHTMLQA(){
  const pagados=visibles.filter(p=>p.estado!=='Cancelado'&&p.pagado).length;
  const entregados=visibles.filter(p=>p.estado==='Entregado').length;
  const cancelados=visibles.filter(p=>p.estado==='Cancelado').length;
- const mesas=visibles.filter(p=>p.modalidad==='Consumo en local').length;
  const pendientesSolicitudes=(Array.isArray(ukiRomoSolicitudesCartaQA)?
   ukiRomoSolicitudesCartaQA:[]).filter(o=>o&&o.estado==='pendiente'&&
   o.branch==='serena'&&!(S.pedidos||[]).some(p=>p.suc===ROMO_SUCURSAL_QA&&
@@ -6073,9 +6072,8 @@ function ukiRomoPedidosPendientesHTMLQA(){
  const filtrosPrincipales=new Set(['todos','por-confirmar','sin-pago','pagados','pendientes']);
  const etiquetas=UKI_CATEGORIAS_PEDIDOS.filter(([tipo])=>filtrosPrincipales.has(tipo))
   .map(([tipo,nombre])=>[tipo,nombre+' ('+numeroCategoria(tipo)+')']);
- const etiquetasExtra=[...UKI_CATEGORIAS_PEDIDOS.filter(([tipo])=>!filtrosPrincipales.has(tipo)),
-  ['mesas','Pedidos de mesa']].map(([tipo,nombre])=>
-    [tipo,nombre+' ('+numeroCategoria(tipo)+')']);
+ const etiquetasExtra=UKI_CATEGORIAS_PEDIDOS.filter(([tipo])=>!filtrosPrincipales.has(tipo))
+  .map(([tipo,nombre])=>[tipo,nombre+' ('+numeroCategoria(tipo)+')']);
  const listado=visibles.filter(p=>coincide(p,ukiRomoFiltroPedidosQA));
  const enCurso=todos.filter(ukiRomoPedidoPendienteQA).length;
  const anteriores=todos.filter(p=>!enOperacion(p)).length;
@@ -6177,33 +6175,8 @@ function ukiRomoPedidosPendientesHTMLQA(){
    ' · '+esc(String(o.cliente||''))+
    ' · '+esc(String(o.creado_en||''))+'</p>').join('')+
   '</details>');
- // Vista de mesas (misma zona de Pedidos que Uki), sin llamar a los QR de Uki.
- // La suma es informativa y procede SOLO de pedidos registrados en Neon Romo.
- const mesaAgrupada=new Map();
- for(const p of todos){
-  if(p.modalidad!=='Consumo en local'||p.estado==='Cancelado'||p.esPremio||
-     (p.pagado&&p.estado==='Entregado'))continue;
-  const m=ukiMesaNumeroReferencia(p.mesaReferencia);
-  if(!m)continue;
-  const rows=mesaAgrupada.get(m)||[];
-  rows.push(p);mesaAgrupada.set(m,rows);
- }
- const mesasHTML='<details class="card" id="romoMesasCuentasQA" style="border:1px solid var(--accent);padding:12px 16px">'+
-  '<summary style="cursor:pointer;font-weight:700;font-size:17px;padding:3px 0;line-height:1.5">🍽 Pedidos de mesas · '+mesaAgrupada.size+'</summary>'+
-  '<p class="muted">Consulta desde los pedidos confirmados de Romo. No contiene solicitudes QR pendientes; no crea ni cobra cuentas.</p>'+
-  ([...mesaAgrupada.entries()].sort(([a],[b])=>a-b).map(([numero,ps])=>
-   '<div class="card" style="padding:12px;margin-top:10px"><b>Mesa '+numero+'</b>'+
-   '<p class="muted">'+ps.length+' pedido(s) registrados · '+
-   ps.filter(p=>!p.pagado).length+' sin cobrar</p>'+
-   '<p><b>Total de pedidos visibles: '+
-    fmt(ps.reduce((t,p)=>t+(Number(p.total)||0),0))+'</b></p>'+
-   ps.map(p=>'<p class="muted">'+esc(ukiReferenciaConCarta(p))+
-    ' · '+esc(p.cliente||'Sin nombre')+' · '+fmt(p.total)+
-    ' · '+(p.pagado?'Pagado':'Por cobrar')+'</p>').join('')+
-   '</div>').join('')||
-   '<p class="muted">No hay pedidos de mesa manuales pendientes de cobro o entrega.</p>')+
-   '<p class="muted">El QR de Uki no se reutiliza para Romo. La recepción QR de Romo sigue pendiente de conectar y comprobar.</p>'+
-  '</details>';
+ // Romo no tiene mesas ni QR de mesa. El ingreso de clientes es por el enlace
+ // normal de su carta. No se alteran datos o pedidos históricos de consumo.
  // Historial único de correcciones, entregas, cobros y cancelaciones confirmados.
  // Solo lectura: nunca reabre un turno ni restaura una caja.
  const eventosAuditados=todos.flatMap(p=>(Array.isArray(p.historialCambios)?
@@ -6388,7 +6361,6 @@ function ukiRomoPedidosPendientesHTMLQA(){
   (ukiRomoVistaPedidosQA==='operacion'?ukiRomoBorradoresResumenQA():'')+
   '<button class="big cta" type="button" onclick="nuevoDraft();modoNuevo=&quot;manual&quot;;ir(&quot;nuevo&quot;)">＋ Nuevo pedido</button>'+
   filtros+
-  (ukiRomoVistaPedidosQA==='operacion'&&['todos','por-confirmar'].includes(ukiRomoFiltroPedidosQA)?mesasHTML:'')+
   fechaHTML+buscar+bloqueIncidencias+
   (listado.length?items:(['por-confirmar','rechazados'].includes(ukiRomoFiltroPedidosQA)?'':
    '<section class="card"><p>No hay pedidos en esta categoría. Selecciona «Todos» para verlos.</p></section>'))+
