@@ -8207,8 +8207,22 @@ function ukiRomoCajaPestanasQA(){
   CAJA_TABS.map(([k,l])=>'<button type="button" class="'+
    (cajaTab===k?'selected':'')+'" onclick="cambiarCajaTab(\''+k+'\')">'+esc(l)+'</button>').join('')+
   '</div></div>';
- return '<div class="section-head"><h2>Caja</h2><p>Turno abierto · '+
-  esc(fechaOperativaActual())+'</p></div>'+selector+contenido;
+ const dia=fechaOperativaActual();
+ const actual=S.cajasDiarias?.[ROMO_SUCURSAL_QA+'|'+dia];
+ const titulo=actual?.turnoAbierto===true?
+  (actual.baseConfirmada===true?'Turno abierto':'Turno sin base confirmada'):
+  'Sin turno abierto';
+ const jornadaAntigua=!ukiRomoFechaOperativaActualSeguraQA();
+ const advertencia=jornadaAntigua?
+  '<div class="card" role="alert" style="border:2px solid #a50e30">'+
+  '<h3>⚠️ Jornada anterior sin regularizar</h3>'+
+  '<p>El panel conserva una jornada de '+esc(dia)+
+  '. Antes de registrar nuevos pagos, revisa Caja y el historial de ese turno. '+
+  'No se ha cambiado la fecha ni los movimientos automáticamente.</p>'+
+  '<button type="button" class="sm" onclick="cambiarCajaTab(\'cierre\')">'+
+  'Revisar cierre de esta jornada</button></div>':'';
+ return '<div class="section-head"><h2>Caja</h2><p>'+titulo+' · '+
+  esc(dia)+'</p></div>'+selector+advertencia+contenido;
 }
 /** La tarjeta aprobada de propinas de Uki se usa sin clonarla ni rehacerla. */
 function ukiRomoTarjetaPropinaUkiQA(){
