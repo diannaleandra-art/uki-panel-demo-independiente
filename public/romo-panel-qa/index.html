@@ -5721,7 +5721,7 @@ function ukiRomoDetalleEntregaCartaHTMLQA(texto,{compacto=false}={}){
  return '<div class="card" style="border-left:5px solid #b32133;'+
   (compacto?'margin:10px 0;padding:10px;':'')+'">'+
   '<b>🛵 Datos de entrega recibidos desde la carta</b>'+children+
-  (!compacto?'<p class="muted"><b>Importante:</b> revisa el recorrido y valor calculados por Uki antes de aceptar. No está cobrado.</p>':'')+
+  (!compacto?'<p class="muted"><b>Importante:</b> revisa el recorrido y valor calculados por la carta de Romo antes de aceptar. No está cobrado.</p>':'')+
   '</div>';
 }
 // Romo conserva el "pedido en espera" oficial de Uki con estado cifrado CAS.
@@ -9424,7 +9424,9 @@ async function ukiRomoGuardarPedidoPendienteQA(){
     String(r.codigo_pedido||'').trim().toLowerCase()===String(D.codigoCarta).trim().toLowerCase())){
   aviso('Este código ya existe en la bandeja de la carta Romo. Revísalo allí para evitar duplicados.');return;
  }
- if(D.codigoCarta&&S.pedidos.some(p=>p.codigoCarta===D.codigoCarta)){
+ if(D.codigoCarta&&(S.pedidos||[]).some(p=>
+  p.suc===ROMO_SUCURSAL_QA&&
+  String(p.codigoCarta||'').trim().toLowerCase()===String(D.codigoCarta).trim().toLowerCase())){
   aviso('Ese código de pedido ya está registrado en Romo. Revisa la bandeja.');return;
  }
  if(!window.confirm('Romo La Serena: guardar este pedido por '+fmt(total)+
