@@ -44,6 +44,40 @@ const dentro=(x,inicio,final)=>{const t=fechaReg(x);return t>=inicio&&t<=final};
  * no cobrados. Conserva todos los registros y añade una nota auditada.
  * No crea cierres ficticios, dinero o nuevas ventas.
  */
+/**
+ * La bandeja remota puede incluir solicitudes NUEVAS de la jornada que se
+ * intenta abrir. No deben impedir regularizar un día antiguo sin caja:
+ * no son dinero, ni ventas, ni pedidos internos, y se conservan pendientes.
+ * Sin embargo, una solicitud antigua sin resolver NUNCA se descarta.
+ */
+export function verificarSolicitudesParaAvanceRomoQA(rows,fechaNueva){
+ CHECK(DIA(fechaNueva)&&Array.isArray(rows)&&rows.length<100,
+  'La bandeja Romo debe estar completa antes de regularizar');
+ const diaChile=fecha=>{
+  const n=Date.parse(String(fecha||''));
+  CHECK(Number.isFinite(n)&&n>0,'Solicitud con fecha desconocida; revisa la bandeja');
+  const partes=new Intl.DateTimeFormat('en-GB',{
+   timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'
+  }).formatToParts(new Date(n));
+  const parte=k=>partes.find(p=>p.type===k)?.value||'';
+  return parte('year')+'-'+parte('month')+'-'+parte('day');
+ };
+ let hoyPendientes=0;
+ for(const row of rows){
+  CHECK(row?.branch==='serena'&&
+   ['pendiente','aceptada','rechazada'].includes(row.estado),
+   'Solicitud de otra sucursal o estado desconocido');
+  if(row.estado!=='pendiente')continue;
+  const dia=diaChile(row.creado_en);
+  CHECK(dia===fechaNueva,
+   dia<fechaNueva?
+    'Hay solicitudes antiguas pendientes. Resuélvelas en Pedidos antes de regularizar.':
+    'Solicitud con fecha posterior a la jornada: revisa antes de regularizar.');
+  hoyPendientes++;
+ }
+ return Object.freeze({storeId:'romo:serena',fechaNueva,hoyPendientes});
+}
+
 export function prepararAvanceJornadaSinCajaRomoQA(estado,{
  fechaNueva,responsable,motivo,registradoEn
 }={}){
