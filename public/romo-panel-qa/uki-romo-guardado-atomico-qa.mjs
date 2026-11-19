@@ -47,6 +47,14 @@ export function crearGuardadoRomoDesdeFormularioQA({
    need(validarEstado(estado,SUC),'Estado no pertenece a Romo');
    const original=clone(estado),firma=JSON.stringify(original),id=solicitud.id;
    verificarBorradorRomoAntesGuardarQA(draft,{solicitudId:id,confirmoArmado,confirmoImportes,confirmoPago});
+   // Reserva y codigo visible deben identificar el mismo pedido de carta.
+   const codigoSolicitud=String(solicitud.codigo_pedido||'').trim().toLowerCase();
+   const codigoBorrador=String(draft?.codigoCarta||'').trim().toLowerCase();
+   need(solicitud.branch==='serena'&&codigoSolicitud&&codigoBorrador===codigoSolicitud,
+     'El código de carta no coincide con la solicitud pendiente de Romo');
+   need(!original.pedidos.some(p=>p.suc===SUC&&
+     String(p.codigoCarta||'').trim().toLowerCase()===codigoSolicitud),
+     'Este código de carta ya tiene un pedido en Romo; revisa antes de aceptar');
    need(!original.pedidos.some(p=>p.suc===SUC&&p.cartaSolicitudRemotaId===id),
      'Esta solicitud ya tiene un pedido incluso si fue cancelado');
    ocupado=true;
