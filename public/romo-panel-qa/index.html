@@ -8212,28 +8212,32 @@ function ukiRomoCajaPrecierreHTMLQA(){
   ukiRomoFormularioPrecierreQA(caja,total)+'</div>';
 }
 function ukiRomoCajaPestanasQA(){
- const tab=(CAJA_TABS.find(([k])=>k===cajaTab)||CAJA_TABS[0])[0];
- const barra='<div class="card uki-navegacion-compacta uki-navegacion-caja">'+
-  '<label for="romoCajaIrA"><b>Ir a una sección de Caja</b></label>'+
-  '<select id="romoCajaIrA" onchange="cambiarCajaTab(this.value)">'+
+ // Mismo encabezado, selector y orden de pestañas que el panel oficial Uki.
+ // Sólo los datos y acciones de cada sección se leen desde Neon Romo.
+ const active=CAJA_TABS.find(x=>x[0]===cajaTab)||CAJA_TABS[0];
+ const contenido={
+  resumen:()=>ukiRomoCajaConsultaHTMLQA('resumen'),
+  movimientos:()=>ukiRomoCajaConsultaHTMLQA('movimientos'),
+  precierre:()=>ukiRomoCajaPrecierreHTMLQA(),
+  cierre:()=>ukiRomoCajaConsultaHTMLQA('turnos'),
+  historial:()=>ukiRomoCajaHistorialHTMLQA(),
+  semana:()=>ukiRomoCajaSemanaHTMLQA(),
+  acumulada:()=>window.ukiRomoCajaAcumuladaConciliacionQA?.render?.(
+   datosSoloSucursal(),window.ukiRomoSesionRemotaQA)||
+   '<div class="card">La conciliación acumulada necesita su sesión autorizada de Romo.</div>'
+ }[active[0]]();
+ const selector='<div class="card uki-navegacion-compacta uki-navegacion-caja">'+
+  '<label for="ukiCajaIrA"><b>🔎 Ir directamente a una sección de Caja</b></label>'+
+  '<select id="ukiCajaIrA" onchange="cambiarCajaTab(this.value)">'+
   CAJA_TABS.map(([k,l])=>'<option value="'+esc(k)+'"'+
-   (k===tab?' selected':'')+'>'+esc(l)+'</option>').join('')+'</select>'+
-  '<div class="sub-tabs" role="group" aria-label="Secciones de Caja Romo">'+
+   (cajaTab===k?' selected':'')+'>'+esc(l)+'</option>').join('')+'</select>'+
+  '<div class="sub-tabs" role="group" aria-label="Secciones de Caja visibles">'+
   CAJA_TABS.map(([k,l])=>'<button type="button" class="'+
-   (tab===k?'selected':'')+'" onclick="cambiarCajaTab(\''+k+'\')">'+
-   esc(l)+'</button>').join('')+'</div></div>';
- const vista=tab==='resumen'?ukiRomoCajaConsultaHTMLQA('resumen'):
-  tab==='movimientos'?ukiRomoCajaConsultaHTMLQA('movimientos'):
-  tab==='precierre'?ukiRomoCajaPrecierreHTMLQA():
-  tab==='cierre'?ukiRomoCajaConsultaHTMLQA('turnos'):
-  tab==='historial'?ukiRomoCajaHistorialHTMLQA():
-  tab==='semana'?ukiRomoCajaSemanaHTMLQA():
-  (window.ukiRomoCajaAcumuladaConciliacionQA?.render?.(
-    datosSoloSucursal(),window.ukiRomoSesionRemotaQA)||
-   '<div class="card">Consulta de conciliación de Romo todavía no disponible.</div>');
- return barra+vista;
+   (cajaTab===k?'selected':'')+'" onclick="cambiarCajaTab(\''+k+'\')">'+esc(l)+'</button>').join('')+
+  '</div></div>';
+ return '<div class="section-head"><h2>Caja</h2><p>Turno abierto · '+
+  esc(fechaOperativaActual())+'</p></div>'+selector+contenido;
 }
-
 /** La tarjeta aprobada de propinas de Uki se usa sin clonarla ni rehacerla. */
 function ukiRomoTarjetaPropinaUkiQA(){
  const temp=document.createElement('div');
