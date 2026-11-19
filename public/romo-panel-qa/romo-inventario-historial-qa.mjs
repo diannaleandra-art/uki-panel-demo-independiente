@@ -46,6 +46,9 @@ function retroceder(state,m){
   'Historial anterior no reconstruible: contiene cambios sin detalle histórico');
  need(typeof m.sku==='string'&&m.sku.length>=4,
   'Movimiento histórico sin artículo válido');
+ need(m.despues&&typeof m.despues==='object'&&
+  JSON.stringify(state.get(m.sku))===JSON.stringify(m.despues),
+  'El historial de Romo no coincide con la existencia posterior registrada');
  if(m.antes===null&&m.tipo==='alta'){
   state.delete(m.sku);return;
  }
