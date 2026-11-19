@@ -64,3 +64,14 @@ test('Pedidos Romo: los índices no omiten el código ni número de turno',()=>{
  assert.match(html,/esc\(\[p\.id,p\.numeroTurno,p\.cliente,p\.telefono,p\.codigoCarta,p\.codigoCliente,ukiCodigoClienteVisible\(p\)/);
  assert.match(html,/if\(window\.ukiRomoGuardadoHabilitadoQA\?\.\(\)!==true\)/);
 });
+
+test('Romo no requiere QR ni vista de mesas; los pedidos siguen por el flujo normal',()=>{
+ const from=html.indexOf('function ukiRomoPedidosPendientesHTMLQA(){');
+ const to=html.indexOf('// Fichas de Clientes del mismo panel Uki;',from);
+ assert.ok(from>0&&to>from,'Debe existir la lista de Pedidos Romo');
+ const romoPedidos=html.slice(from,to);
+ assert.doesNotMatch(romoPedidos,/const mesasHTML|Pedidos de mesas|La recepción QR de Romo sigue pendiente/);
+ assert.match(romoPedidos,/ukiRomoSolicitudesHTMLQA\(\)/);
+ assert.match(romoPedidos,/ukiRomoBorradoresResumenQA\(\)/);
+ assert.match(html,/\["Retiro","Delivery","Consumo en local"\]/);
+});
