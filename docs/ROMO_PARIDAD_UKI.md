@@ -69,4 +69,11 @@ Funciones del núcleo Uki cuyo comportamiento se alteró en Romo (requieren revi
 - Se agregaron `tests/romo-aceptacion-codigo-unico-qa.test.mjs` y `tests/romo-reserva-vencida-recuperacion-qa.test.mjs` a `npm run test:release`. GitHub Actions **44444816331** completó con éxito. Son pruebas de código/mocks, **no una prueba real con Google, Safari ni una reserva vencida en Neon**.
 - Las rutas QA y la escritura comercial continúan con sus permisos y banderas anteriores; ninguna nueva Preview ni publicación Production fue creada en este bloque.
 
-**Siguientes diferencias funcionales aún abiertas:** recepción/edición/cancelación segura desde la misma interfaz Uki, mesa y QR propio Romo, cobro/entrega/timbre en caja real, siete pestañas de Caja y sus movimientos, cierre y Mi Administración. No declarar paridad operativa ni activar clientes hasta prueba manual controlada y conciliación de Neon Romo.
+**Siguientes diferencias funcionales aún abiertas:** recepción/edición/cancelación segura desde la misma interfaz Uki y desde el enlace normal de la carta Romo, cobro/entrega/timbre en caja real, siete pestañas de Caja y sus movimientos, cierre y Mi Administración. El QR de mesas no es requisito en Romo. No declarar paridad operativa ni activar clientes hasta prueba manual controlada y conciliación de Neon Romo.
+
+## Decisión operativa — Romo sin mesas ni QR (18-11-2026)
+
+- La dueña confirma que **Romo no tiene mesas** y que los clientes realizarán sus pedidos con el **enlace normal de la carta**. No crear QR de mesas, cuentas QR ni un flujo paralelo para Romo.
+- Esta excepción a la réplica de Uki **elimina el QR de mesas de los requisitos de publicación, de las pruebas comerciales y del listado de pendientes de Romo**. Los QR existentes en Uki se conservan intactos.
+- En la pantalla **Pedidos de Romo** se deja de mostrar la tarjeta especial «Pedidos de mesas» y su filtro separado. No se borran pedidos históricos ni se altera la base, los pagos, la carta, el flujo normal de retiro/delivery o el registro existente de consumo en local. No se crearon solicitudes de prueba ni se habilitaron ventas.
+- Las demás funciones de Uki acordadas para Romo siguen pendientes de homologación donde corresponda: pedidos, cobros, timbres, caja, inventario, cierres y Mi Administración.
