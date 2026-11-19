@@ -135,7 +135,24 @@ const filtro=item=>{
 const nombreNormal=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 const nombreSucursal=b=>exports().branchName(b);
 async function request(action,payload={},b=sucursal()){
- if(b==='romo')throw Error('Para Romo consulta sus artículos y movimientos en Neon Romo. El historial heredado de Uki todavía no está sincronizado.');
+ if(b==='romo'){
+  // Se consulta únicamente el inventario de Romo desde SU API protegida.
+  // No se consulta nunca historial, compras ni existencias del backend Uki.
+  if(typeof S==='undefined'||S.suc!=='Romo’s Sushi La Serena')
+   throw Error('Primero abre la sucursal Romo');
+  const token=await window.ukiInventarioToken?.();
+  if(typeof token!=='string'||token.length<30)
+   throw Error('Inicia sesión autorizada para consultar inventario de Romo.');
+  const response=await fetch('/api/romo-inventario-qa',{
+   method:'GET',credentials:'same-origin',cache:'no-store',
+   headers:{Authorization:'Bearer '+token}
+  });
+  const json=await response.json().catch(()=>({}));
+  if(!response.ok||json?.ok!==true||json?.storeId!=='romo:serena')
+   throw Error(json.error||'No se pudo consultar el inventario propio de Romo');
+  const mod=await import('./romo-inventario-historial-qa.mjs');
+  return mod.consultarRomoInventarioHistoricoQA(json,{action,payload});
+ }
  if(!['arica','serena'].includes(b))throw Error('Sucursal de inventario no reconocida.');
  const token=await window.ukiInventarioToken?.();
  if(!token)throw Error('Inicia sesión Google en el panel para consultar.');
