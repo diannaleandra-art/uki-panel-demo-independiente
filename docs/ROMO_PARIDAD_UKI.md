@@ -22,7 +22,7 @@ Romo Sushi debe utilizar las mismas funciones, pasos, pestañas y comprobaciones
 | Modos de ingreso de pedido | Restricción identificada | `cambiarModoNuevo` limita Romo a `manual` y `whatsapp`; revisar todos los modos aprobados de Uki antes de habilitarlos con persistencia segura |
 | Inventario y Promociones | Pendiente de auditoría funcional | Accesos visibles, pero necesitan CRUD completo, permisos, carta sincronizada y exports equivalentes |
 | Timbres, tarjetas, búsqueda y WhatsApp | Parcial/pendiente | Código especializado `ukiRomoTimbresPanelQA`; confirmar la misma lógica de Uki y prohibir duplicados |
-| Mi Administración / dueños | NO INTEGRADO | La sección de Romo declara textualmente que la integración de cierres está pendiente. No enlazar a la caja/base de Uki por conveniencia |
+| Mi Administración / dueños | CONSULTA PARCIAL / NO CONTABILIZADA | La pantalla QA `public/mi-administracion-duenos.html` ya contiene una consulta privada de cierres Romo (solo lectura) con Google + PIN, pero estos importes aún NO se incorporan a ventas generales; el panel Romo sigue sin enlace operativo a esa función. No mezclar la base financiera de Uki ni duplicar ventas |
 | Turnos del 14 y del 18 de noviembre | Conciliación pendiente | No modificar histórico cifrado automáticamente ni generar cobros en jornada antigua |
 | Publicación comercial | NO AUTORIZADA | QA no equivale a cierre funcional; no tocar enlaces públicos de Uki |
 
@@ -47,3 +47,13 @@ No declarar `copia exacta`, `todas las funciones completas` ni `lista para clien
 Funciones del núcleo Uki cuyo comportamiento se alteró en Romo (requieren revisión de equivalencia o justificación de aislamiento):
 
 `cajaDelDia`, `cambiarCajaTab`, `ir`, `estadoVacioSucursal`, `guardarEnLocalStorage`, `cargarDesdeLocalStorage`, `render`, `pedirPin`, `entrarSuc`, `salirSuc`, `ukiFraseDiaria`, `vInicio`, `vInicioTrabajador`, `ukiExportarPrecierres`, `ukiWhatsAppFicha`, `leerTextoD`, `ukiTimbreTextoPedido`, `ukiAbrirTimbreBorrador`, `vNuevo`, `fichaHistorial`, `vClientes`, `ukiPagoDeliveryDesglose`, `addPropina`, `quitarPropina`, `ukiDetallePago`, `totales`, `vCaja`, `vReportes`, `vRegistros`, `vPedidos`, `ukiQRPermitirCobroDefinitivo`, `ndGuardar`, `ukiAjustePedidoOlvidado`, `ukiVHistorialCorreccionesCierre`, `ukiRegistrarCorreccionCierre`, `vHistorialCompacto`, `vHistorial`, `actualizarPresentacionNube`, `actualizarBloqueo`, `contexto`, `accion`.
+
+## Avance siguiente: inventario y caja sin afectar Uki (18 nov 2026)
+- Reparado el JavaScript roto de `public/romo-panel-qa/romo-inventario-exportar.js`: contenía seis apóstrofos que impedían su ejecución en el inventario del trabajador. El trabajador puede generar PDF/Excel/WhatsApp con el nombre de Romo.
+- El exportador compartido en Romo QA ahora selecciona el logo textual, encabezado y nombre de archivo de Romo o Uki según `report.branch` sin afectar los originales de producción.
+- Historial Romo: `public/romo-panel-qa/uki-inventario-historial-admin.js` ya no redirige el historial al backend Uki. Lee con token autorizado `/api/romo-inventario-qa` y transforma las revisiones del propio registro Neon mediante `romo-inventario-historial-qa.mjs`.
+- Las cantidades de revisiones anteriores se reconstruyen SOLO cuando los movimientos posteriores conservan el valor `antes`; si faltan datos, el detalle se bloquea con error explícito. Revisiones antiguas sin nombre guardado se presentan como `Nombre no registrado en esa revisión`.
+- Las nuevas revisiones cerradas por personal de Romo conservan el nombre proporcionado y validado del trabajador dentro del historial (sin consultar a Uki).
+- En Caja Romo el título `Turno abierto` ahora se muestra únicamente si lo confirma el estado; una fecha operativa antigua produce un aviso de conciliación, sin cambiar la caja ni cerrar automáticamente.
+- Los casos se verifican en `tests/romo-inventario-paridad-historial-qa.test.mjs`, incluidos aislamiento Romo, PDF/CSV, reconstrucción, operaciones incompletas y sintaxis del exportador.
+- Verificada la puerta QA GitHub: pruebas generales Romo y pruebas base Uki aprobadas; sin publicación comercial y sin escrituras sobre el negocio.
