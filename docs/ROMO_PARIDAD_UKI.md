@@ -33,3 +33,17 @@ No declarar `copia exacta`, `todas las funciones completas` ni `lista para clien
 - Se eliminó la regla de CSS que ocultaba el formulario original `Pago completo confirmado`.
 - El HTML servido por Vercel QA ya contiene el formulario visible, pagos mixtos y confirmación en el mismo paso.
 - No se hicieron cambios en producción Uki ni se modificaron los registros de pedidos/ventas de Romo.
+
+## Auditoría automática de fuente oficial — 18 nov 2026
+- Producción Uki VERIFICADA: proyecto Vercel `uki-sushi-inventario`, despliegue en producción del commit `3274dbc1b66b676663b74d74ae40f84d251b3ee9`. Código canónico: `firebase/uki-sushi-local.html`.
+- 320 funciones Uki recuperadas; 279 secciones de funciones sin cambios textuales y 41 intervenidas en QA Romo; 112 funciones adicionales Romo.
+- Los 13 módulos JavaScript oficiales de Uki están referenciados y sus archivos están presentes en la copia Romo.
+- Se retiró una pantalla de pagos alternativa que duplicaba la oficial y se restauró el selector de modalidad de Uki.
+- La navegación de Caja Romo ahora emplea encabezado y subpestañas de la interfaz original, pero mantiene los cálculos y datos en Neon Romo.
+- Los tests `tests/romo-paridad-origen-oficial-qa.test.mjs`, `tests/romo-pago-directo-qa.test.mjs`, `tests/romo-paridad-visual-uki.test.mjs` y `tests/romo-paridad-cobros-qa.test.mjs` forman parte de `npm run test:release` en rama QA.
+- Corrección CI: módulo de cobros espejo `firebase/uki-romo-cobro-pendiente-qa.mjs` sincronizado con `public/romo-panel-qa/uki-romo-cobro-pendiente-qa.mjs` para evitar dos versiones contradictorias.
+- **No se ha aprobado paridad funcional completa**: siguen pendientes pruebas de las 41 funciones modificadas, equivalencia real de Pedidos/Caja/Inventario/Promos/Mi Administración y cierre de turno histórico.
+
+Funciones del núcleo Uki cuyo comportamiento se alteró en Romo (requieren revisión de equivalencia o justificación de aislamiento):
+
+`cajaDelDia`, `cambiarCajaTab`, `ir`, `estadoVacioSucursal`, `guardarEnLocalStorage`, `cargarDesdeLocalStorage`, `render`, `pedirPin`, `entrarSuc`, `salirSuc`, `ukiFraseDiaria`, `vInicio`, `vInicioTrabajador`, `ukiExportarPrecierres`, `ukiWhatsAppFicha`, `leerTextoD`, `ukiTimbreTextoPedido`, `ukiAbrirTimbreBorrador`, `vNuevo`, `fichaHistorial`, `vClientes`, `ukiPagoDeliveryDesglose`, `addPropina`, `quitarPropina`, `ukiDetallePago`, `totales`, `vCaja`, `vReportes`, `vRegistros`, `vPedidos`, `ukiQRPermitirCobroDefinitivo`, `ndGuardar`, `ukiAjustePedidoOlvidado`, `ukiVHistorialCorreccionesCierre`, `ukiRegistrarCorreccionCierre`, `vHistorialCompacto`, `vHistorial`, `actualizarPresentacionNube`, `actualizarBloqueo`, `contexto`, `accion`.
