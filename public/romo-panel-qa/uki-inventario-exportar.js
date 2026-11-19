@@ -19,7 +19,9 @@
   return {dia:v('weekday'),fecha:v('day')+'/'+v('month')+'/'+v('year'),
    hora:v('hour')+':'+v('minute'),iso:v('year')+'-'+v('month')+'-'+v('day')};
  }
- const branchName=b=>b==='arica'?'Regimiento Arica':b==='serena'?'La Serena':'Sucursal';
+ const branchName=b=>b==='romo'?'Romo La Serena':b==='arica'?'Regimiento Arica':b==='serena'?'La Serena':'Sucursal';
+ const marca=r=>r?.branch==='romo'?'Romo’s Sushi':'Uki Sushi';
+ const marcaTitulo=r=>r?.branch==='romo'?'ROMO’S SUSHI':'UKI SUSHI';
  function resumenFila(item){
   const stock=Number(item.stock_qty)||0,minimum=Number(item.min_stock_qty)||0;
   const toBuy=minimum>0?Math.max(0,Math.round((minimum-stock)*1000)/1000):0;
@@ -38,7 +40,7 @@
  }
  function nombreArchivo(report,ext){
   const meta=fechaChile(report.created_at);
-  return 'uki-inventario-'+fileSafe(branchName(report.branch))+'-'+meta.iso+'-'+
+  return (report.branch==='romo'?'romo-inventario-':'uki-inventario-')+fileSafe(branchName(report.branch))+'-'+meta.iso+'-'+
    meta.hora.replace(':','-')+'.'+ext;
  }
  function tabla(report){
@@ -63,7 +65,7 @@
   const f=fechaChile(report.created_at),r=filas(report);
   const faltantes=r.filter(x=>x.status==='Reponer');
   const entradas=r.filter(x=>x.received!==null&&x.received>0);
-  const msg=['📦 UKI SUSHI · INVENTARIO ORDENADO',
+  const msg=['📦 '+marcaTitulo(report)+' · INVENTARIO ORDENADO',
    'Sucursal: '+branchName(report.branch),
    'Registrado: '+f.dia+', '+f.fecha+' · '+f.hora+' h (Chile)',
    'Responsable: '+String(report.worker_name||'Sin identificar'),
@@ -92,7 +94,7 @@
   const f=fechaChile(report.created_at);
   const faltantes=filas(report).filter(x=>x.minimum>0&&x.toBuy>0)
    .sort((a,b)=>a.name.localeCompare(b.name,'es'));
-  const msg=['🛒 UKI SUSHI · LISTA PARA COMPRAR',
+  const msg=['🛒 '+marcaTitulo(report)+' · LISTA PARA COMPRAR',
    'Sucursal: '+branchName(report.branch),
    'Fecha: '+f.fecha+' · '+f.hora+' h (Chile)',
    'Productos que se deben pedir: '+faltantes.length,''];
@@ -108,7 +110,7 @@
    const file=new File([blob],nombreArchivo(report,'pdf'),{type:'application/pdf'});
    if(!navigator.canShare||navigator.canShare({files:[file]})){
     try{
-     await navigator.share({files:[file],title:'Uki Sushi · Inventario PDF'});
+     await navigator.share({files:[file],title:marca(report)+' · Inventario PDF'});
      return 'compartido';
     }catch(e){
      if(e?.name==='AbortError')return 'cancelado';
@@ -129,7 +131,7 @@
   const f=fechaChile(report.created_at),r=filas(report);
   const entries=r.filter(x=>x.received!==null&&x.received>0).length;
   const head=[
-    'UKI SUSHI  |  INVENTARIO DEL TURNO',
+    marcaTitulo(report)+'  |  INVENTARIO DEL TURNO',
     branchName(report.branch)+'  |  '+f.dia+' '+f.fecha+'  |  '+f.hora+' h Chile',
     'Responsable: '+String(report.worker_name||'Sin identificar').slice(0,48),
     'Articulos: '+r.length+'  |  Reponer: '+r.filter(x=>x.status==='Reponer').length+
@@ -210,7 +212,7 @@
   if(typeof File!=='undefined'&&navigator.share){
    const file=new File([blob],nombreArchivo(report,'pdf'),{type:'application/pdf'});
    if(!navigator.canShare||navigator.canShare({files:[file]})){
-    try{await navigator.share({files:[file],title:'Inventario Uki Sushi',text});return 'archivo';}
+    try{await navigator.share({files:[file],title:'Inventario '+marca(report),text});return 'archivo';}
     catch(e){if(e?.name==='AbortError')return 'cancelado';}
    }
   }
