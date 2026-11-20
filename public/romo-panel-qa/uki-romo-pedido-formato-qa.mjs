@@ -4,7 +4,7 @@
  */
 export const ROMO_CANDIDATO_QA_ACTIVO=false;
 const SUC='Romo’s Sushi La Serena';
-const medios=['Efectivo','Transferencia','Débito','Edenred','Otros','Uber Eats','PedidosYa','Rappi'];
+const medios=['Efectivo','Transferencia','Débito','Edenred','Junaeb','Otros','Uber Eats','PedidosYa','Rappi'];
 const mediosEntrega=medios.filter(x=>!['Uber Eats','PedidosYa','Rappi'].includes(x));
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const check=(v,m)=>{if(!v)throw Error(m)};
