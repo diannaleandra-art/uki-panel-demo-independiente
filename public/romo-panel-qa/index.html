@@ -439,7 +439,7 @@ const SUCURSALES=["Uki Regimiento Arica","Uki La Serena"];
 const ROMO_SUCURSAL_QA="Romo’s Sushi La Serena";
 const SUCURSALES_PANEL_QA=Object.freeze([...SUCURSALES,ROMO_SUCURSAL_QA]);
 
-const MEDIOS=["Efectivo","Transferencia","Débito","Edenred","Otros","Uber Eats","PedidosYa","Rappi"];
+const MEDIOS=["Efectivo","Transferencia","Débito","Edenred","Junaeb","Otros","Uber Eats","PedidosYa","Rappi"];
 const APPS=["Uber Eats","PedidosYa","Rappi"];
 let S={suc:null,pinSuc:null,codigos:{},vista:"inicio",base:18000,pedidos:[],gastos:[],retiros:[],propinas:[],cierres:[],apps:{},pagoDelivery:0,pagoDeliveryMedio:"Efectivo",deliveriesManuales:[],ajustesHistoricos:[],borradores:[],solicitudesWhatsApp:[],cajaChica:{inicial:20000,gastos:[]},clientes:{},cajasDiarias:{},incidencias:[],nextIncidenciaId:1,nextId:1,busy:false,msg:null,confirmCierre:false,filtro:"",filtroFecha:"",filtroCliente:""};
 let D={texto:"",fecha:"",cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",qrSolicitudes:[],sucursalCarta:"",mesaReferencia:"",modalidad:"Retiro",envio:0,kmRecorrido:"",medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:"",envioPagadoOtroLocal:false,localPagoExterno:"",propinaModo:"ninguna",propinaPersonalizada:"",medioPropina:"Efectivo",editando:null};
@@ -1513,6 +1513,7 @@ function ukiFilaPrecierre(p){
    row("Transferencia",fmt(medios.Transferencia))+
    row("Débito",fmt(medios.Débito))+
    row("Edenred",fmt(medios.Edenred))+
+   (S.suc===ROMO_SUCURSAL_QA?row("Junaeb",fmt(medios.Junaeb)): '')+
    row("Otros y aplicaciones",fmt((medios.Otros||0)+(medios["Uber Eats"]||0)+(medios.PedidosYa||0)+(medios.Rappi||0)))+
    row("Deliverys para repartidor",fmt(t.delivery))+
    row("Propinas del turno (aparte)",fmt(t.propinas||0))+
@@ -3663,7 +3664,7 @@ function ukiRomoRectificacionesTurnoEnCajaQA(caja){
     a.fuenteRectificacion!==a.fuenteOriginal+'|v2'||
     seen.has(a.fuenteOriginal)||!Number.isSafeInteger(a.delta)||
     Math.abs(a.delta)!==a.monto||
-    !['Efectivo','Transferencia','Débito','Edenred','Otros'].includes(a.medio)){
+    !['Efectivo','Transferencia','Débito','Edenred','Junaeb','Otros'].includes(a.medio)){
    throw Error('Ajuste v2 inconsistente: revisar Historial de Neon');
   }
   seen.add(a.fuenteOriginal);porMedio[a.medio]=(porMedio[a.medio]||0)+a.delta;
@@ -5223,8 +5224,8 @@ function ukiRomoOperacionesEnCursoQA(){
   ukiRomoClienteGuardandoQA||ukiRomoCanjeEnCursoQA||
   ukiRomoAclaracionGuardandoQA;
 }
-// Mismos ocho medios de cobro de Uki; las apps no pueden pagar un delivery.
-const ROMO_MEDIOS_COBRO_QA=['Efectivo','Transferencia','Débito','Edenred','Otros','Uber Eats','PedidosYa','Rappi'];
+// Los ocho medios originales de Uki se conservan; Junaeb es adicional solo para Romo.
+const ROMO_MEDIOS_COBRO_QA=['Efectivo','Transferencia','Débito','Edenred','Junaeb','Otros','Uber Eats','PedidosYa','Rappi'];
 const ROMO_MEDIOS_DELIVERY_QA=ROMO_MEDIOS_COBRO_QA.filter(x=>!['Uber Eats','PedidosYa','Rappi'].includes(x));
 function ukiRomoCambiarFiltroQA(tipo){
  if(!UKI_CATEGORIAS_PEDIDOS.some(([id])=>id===tipo)&&tipo!=='mesas')return;
@@ -5232,7 +5233,7 @@ function ukiRomoCambiarFiltroQA(tipo){
 }
 function ukiRomoCamposCobroQA(p){
  const id=Number(p.id),sub=Number(p.subtotal)||0,env=p.modalidad==='Delivery'?Number(p.envio)||0:0;
- const metodos=['Efectivo','Transferencia','Débito','Edenred','Otros','Uber Eats','PedidosYa','Rappi'];
+ const metodos=ROMO_MEDIOS_COBRO_QA;
  const metodosEnvio=metodos.filter(m=>!['Uber Eats','PedidosYa','Rappi'].includes(m));
  const grupo=(scope,monto,nombre)=>{
   const previsto=scope==='Envio'?p.medioEnvio:p.medio;
@@ -8564,7 +8565,7 @@ async function ukiRomoAceptarSolicitudCartaQA(){
    '\nEl cliente indicó '+fmt(solicitud.total_indicado)+
    ' y el total revisado es '+fmt(total)+'. Confirma ese importe con el cliente.':'';
  const advertenciaMedio=/^junaeb\b/i.test(String(D.romoPagoIndicadoQA||''))?
-   '\nPago informado: Junaeb. Hasta habilitarlo en caja figura como Otros, NO como efectivo.':'';
+   '\nPago informado: Junaeb. Se registrará como Junaeb solo al confirmar el cobro real; NO es efectivo.':'';
  if(!window.confirm('ROMO LA SERENA: ¿revisaste armado, importe '+fmt(total)+
    ' y entrega de la solicitud '+String(solicitud.codigo_pedido||'')+'?'+nota+advertenciaMedio+
    (D.pagado?'\nConfirmas que el pago completo de '+fmt(total)+
@@ -9570,7 +9571,7 @@ async function ndGuardar(){
   const envio=D.modalidad==="Delivery"?D.envio:0; 
   const propina=ukiMontoPropina(D,sub);
   if(!ukiPropinaConfigurada(D,sub)){aviso("La propina debe ser un monto válido (o selecciona Sin propina).");return;}
-  if(propina>0&&!MEDIOS.filter(m=>!APPS.includes(m)).includes(D.medioPropina)){aviso("Selecciona un medio válido para la propina.");return;}
+  if(propina>0&&!['Efectivo','Transferencia','Débito','Edenred','Otros'].includes(D.medioPropina)){aviso("Selecciona un medio válido para la propina.");return;}
   if(D.editando&&propina>0&&(S.propinas||[]).some(x=>
     x.suc===S.suc&&Number(x.pedidoId)===Number(D.editando)&&x.origen==="manual")){
     aviso("Este pedido ya tiene una propina manual registrada. No agregues otra desde Editar pedido porque se duplicaría. Revisa su importe en Caja → Movimientos → Propinas.");return;
