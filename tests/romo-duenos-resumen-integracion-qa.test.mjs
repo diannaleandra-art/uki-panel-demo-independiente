@@ -22,7 +22,7 @@ test('Romo aparece en su negocio, no en la caja o la venta de Uki',()=>{
  assert.match(html,/const romo=x\.marca==='romo'/);
  assert.match(html,/k=romo\?'romo-serena'/);
  assert.match(html,/romo\?'Romo’s Sushi · La Serena'/);
- assert.match(modulo,/store_id/); // no depends on database writes
+ assert.match(modulo,/source_key/); // validación local de la clave de cierre
  assert.match(modulo,/STORE='romo:serena'/);
  assert.doesNotMatch(modulo,/\bfetch\s*\(/);
 });
