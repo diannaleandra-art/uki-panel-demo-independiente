@@ -221,7 +221,7 @@ label{color:#66574c}
 </section>
 <section class="card" id="romoCierresPrivadosQA" aria-label="Cierres Romo La Serena">
  <h2>🍣 Romo’s Sushi La Serena · cierres definitivos</h2>
- <p class="hint">Consulta privada de las constancias confirmadas en Neon Romo. Mismo acceso Google y PIN de dueños. <b>Informativo: aún no se suma a ventas generales ni a movimientos manuales.</b></p>
+ <p class="hint">Consulta privada de las constancias confirmadas en Neon Romo. Mismo acceso Google y PIN de dueños. <b>Vista de pruebas: los cierres conciliados pueden reflejarse en el resumen general sin generar asientos ni modificar el panel oficial de Uki.</b></p>
  <p class="hint" role="status" id="romoCierresEstadoQA">Inicia sesión privada para consultar los cierres.</p>
  <button class="soft" id="romoCierresActualizarQA" type="button" onclick="void cargarCierresRomoQA($('from').value,$('to').value)">Actualizar cierres de Romo</button>
  <div class="owner-business-list" id="romoCierresFilasQA"></div>
@@ -978,7 +978,7 @@ async function cargarCierresRomoQA(desde,hasta){
     ' · Propinas: '+pesos(c.propinas)+
     ' · Revisión Neon: '+c.revision_neon;
    const note=document.createElement('p');note.className='hint';
-   note.textContent='Cierre validado en Romo. No incluido en ingresos ni sumado dos veces.';
+   note.textContent='Cierre verificado: aparece en el resumen QA solo si no coincide con ventas manuales del día. No genera asiento contable.';
    card.append(name,detail,note);host.append(card);
   });
  }catch(error){
