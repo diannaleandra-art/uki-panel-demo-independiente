@@ -486,7 +486,7 @@ import {construirInforme,generarXLSX,generarPDF,compartirWhatsApp} from "./mi-ad
 const app=initializeApp({apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",appId:"1:1070481165758:web:b8f0f9ff40caf5b8ac7def"});
 const auth=getAuth(app),$=id=>document.getElementById(id);
 let cierresConfirmadosUki=[],errorConsultaCierresUki='';
-let resumenManualUki=[],pagosManualesUki=[];
+let resumenManualUki=[],pagosManualesUki=[],movimientosFinancierosCargadosQA=false;
 let cuentasPendientesActuales=[],cuentasPendientesLimitadas=false;
 let vistaGastosActual={manuales:[],cierres:[]};
 function mostrarVentasFinancieras(){
@@ -504,8 +504,8 @@ function mostrarVentasFinancieras(){
    negocios:businesses,sucursales:branches,
    desde:value('from'),hasta:value('to'),negocio_id:currentBiz(),
    sucursal_id:currentBranch(),razon_social_id:value('scopeRazon'),
-   lecturaAutorizada:romoCierresConsultaValidaQA,
-   movimientosCompletos:transactions.length<250
+   lecturaAutorizada:romoCierresConsultaValidaQA&&Boolean(session)&&Boolean(auth.currentUser),
+   movimientosCompletos:movimientosFinancierosCargadosQA&&transactions.length<250
   });
  }catch(error){
   romoVista.motivo='No se pueden conciliar cierres Romo: '+String(error?.message||error);
@@ -1687,17 +1687,25 @@ function renderPayments(rows){
 async function refresh(){
  if(!session)return;
  limpiarInformes();
+ movimientosFinancierosCargadosQA=false;
+ cierresConfirmadosRomoQA=[];romoCierresConsultaValidaQA=false;
  try{
   notify('Actualizando información financiera…');
   const params={negocio_id:currentBiz()||null,sucursal_id:currentBranch()||null,razon_social_id:value('scopeRazon')||'todos',desde:value('from'),hasta:value('to')};
   const [s,l]=await Promise.all([api('resumen',params),api('listar_movimientos',params)]);
-  transactions=l.movimientos||[];
+  if(!Array.isArray(l.movimientos))throw Error('No se recibió el listado completo de ventas');
+  transactions=l.movimientos;
+  movimientosFinancierosCargadosQA=true;
   marcarPeriodoSeleccionado();
   resumenManualUki=s.resumen||[];pagosManualesUki=s.pagos||[];
   renderRows();notify('Información privada actualizada.','success');
   await cargarCierresUki(value('from'),value('to'));
   await cargarCuentasPendientes();
- }catch(e){notify(e.message,'error');if(/código privado|sesión|Introduce el código/.test(e.message))lock();}
+ }catch(e){
+  movimientosFinancierosCargadosQA=false;
+  cierresConfirmadosRomoQA=[];romoCierresConsultaValidaQA=false;
+  notify(e.message,'error');if(/código privado|sesión|Introduce el código/.test(e.message))lock();
+ }
 }
 async function loadDocs(){
  try{await controlCompras.cargar()}
@@ -1881,6 +1889,8 @@ function marcarPeriodoSeleccionado(){
 }
 function show(id){for(const x of ['login','setup','unlock','app'])$(x).hidden=x!==id;$('tabs').hidden=id!=='app';$('exit').hidden=id==='login';}
 function lock(){session='';romoCierresPrivadosSecuencia++;
+ cierresConfirmadosRomoQA=[];romoCierresConsultaValidaQA=false;
+ movimientosFinancierosCargadosQA=false;
  if($('romoCierresFilasQA'))$('romoCierresFilasQA').replaceChildren();
  if($('romoCierresEstadoQA'))$('romoCierresEstadoQA').textContent='Acceso privado cerrado.';
  limpiarInformes();show('unlock');}
@@ -1909,7 +1919,9 @@ $('enter').onclick=()=>safe('enter',async()=>{
 });
 $('exit').onclick=async()=>{
  if(session)try{await api('salir')}catch{}
- session='';limpiarInformes();await signOut(auth);show('login');notify('Acceso privado cerrado.','success');
+ session='';cierresConfirmadosRomoQA=[];romoCierresConsultaValidaQA=false;
+ movimientosFinancierosCargadosQA=false;
+ limpiarInformes();await signOut(auth);show('login');notify('Acceso privado cerrado.','success');
 };
 // El fragmento nunca viaja al servidor y se conserva mientras Google completa
 // su inicio de sesión (Safari puede recargar la página durante ese proceso).
@@ -1923,7 +1935,8 @@ if(setupLink){
 $('from').value=today().slice(0,7)+'-01';
 $('histFrom').value=today().slice(0,7)+'-01';
 onAuthStateChanged(auth,user=>{
- if(!user){session='';limpiarInformes();show('login');}
+ if(!user){session='';cierresConfirmadosRomoQA=[];romoCierresConsultaValidaQA=false;
+  movimientosFinancierosCargadosQA=false;limpiarInformes();show('login');}
  if(!session)void checkState();
 });
 </script></body></html>
