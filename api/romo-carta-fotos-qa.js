@@ -4,14 +4,14 @@ const {createHash,randomUUID}=require('node:crypto');
 const STORE='romo:serena';
 const {config}=require('./romo-carta-ediciones-seguras-qa.js')._internalQA;
 const {resolverOrigenLecturaUnificadaRomoQA}=require('../lib/romo-origen-seguro-qa.cjs');
+const {entornoGestionRomoAutorizado,escrituraGestionRomoAutorizada}=require('../lib/romo-entorno-gestion.cjs');
 const fail=(res,status,error)=>res.status(status).json({ok:false,storeId:STORE,error});
 const BYTES=300000,BASE64=/^[A-Za-z0-9+/]+={0,2}$/;
 module.exports=async function romoFotosQA(req,res){
  res.setHeader('Cache-Control','private,no-store,max-age=0');
  res.setHeader('X-Content-Type-Options','nosniff');
  res.setHeader('Vary','Origin');
- if(process.env.VERCEL_ENV!=='preview'||
-    process.env.VERCEL_GIT_COMMIT_REF!=='qa/romos-panel-v816')
+ if(!entornoGestionRomoAutorizado(process.env))
     return fail(res,503,'Fotografías solo en Preview de Romo');
  const conf=config(process.env);
  if(!conf)return fail(res,503,'Fotografías de Romo no habilitadas');
@@ -24,7 +24,7 @@ module.exports=async function romoFotosQA(req,res){
  res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type');
  res.setHeader('Access-Control-Allow-Methods',access.compartido?'GET,OPTIONS':'GET,POST,OPTIONS');
  if(method==='OPTIONS')return res.status(204).end();
- const write=process.env.ROMO_CARTA_ADMIN_ESCRITURA_QA_ENABLED==='true';
+ const write=escrituraGestionRomoAutorizada(process.env);
  if(method==='POST'&&!write)return fail(res,503,'Fotografías en solo lectura');
  let sku;
  if(method==='GET')sku=String(req.query?.sku||'');

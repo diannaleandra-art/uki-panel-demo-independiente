@@ -7,12 +7,12 @@ const STORE='romo:serena';
 const fail=(res,status,error)=>res.status(status).json({ok:false,storeId:STORE,error});
 const {config}=require('./romo-carta-ediciones-seguras-qa.js')._internalQA;
 const {resolverOrigenLecturaUnificadaRomoQA}=require('../lib/romo-origen-seguro-qa.cjs');
+const {entornoGestionRomoAutorizado}=require('../lib/romo-entorno-gestion.cjs');
 module.exports=async function vistaPreviaRomoQA(req,res){
  res.setHeader('Cache-Control','private,no-store,max-age=0');
  res.setHeader('X-Content-Type-Options','nosniff');
  res.setHeader('Vary','Origin');
- if(process.env.VERCEL_ENV!=='preview'||
-    process.env.VERCEL_GIT_COMMIT_REF!=='qa/romos-panel-v816')
+ if(!entornoGestionRomoAutorizado(process.env))
    return fail(res,503,'Vista previa exclusiva de Romo QA');
  const conf=config(process.env);
  if(!conf)return fail(res,503,'Vista previa de Romo no habilitada');

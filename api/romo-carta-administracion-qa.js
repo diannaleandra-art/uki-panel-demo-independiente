@@ -9,6 +9,7 @@ const fail=(res,status,error)=>res.status(status).json({ok:false,storeId:STORE,e
 const {config}=require('./romo-carta-ediciones-seguras-qa.js')._internalQA;
 const M=require('../lib/romo-carta-administracion-qa.cjs');
 const {resolverOrigenLecturaUnificadaRomoQA}=require('../lib/romo-origen-seguro-qa.cjs');
+const {entornoGestionRomoAutorizado,escrituraGestionRomoAutorizada}=require('../lib/romo-entorno-gestion.cjs');
 async function approved(conf){
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),8000);
  try{
@@ -28,8 +29,7 @@ module.exports=async function gestionRomoQA(req,res){
  res.setHeader('Cache-Control','private,no-store,max-age=0');
  res.setHeader('X-Content-Type-Options','nosniff');
  res.setHeader('Vary','Origin');
- if(process.env.VERCEL_ENV!=='preview'||
-    process.env.VERCEL_GIT_COMMIT_REF!=='qa/romos-panel-v816')
+ if(!entornoGestionRomoAutorizado(process.env))
   return fail(res,503,'Administración disponible solo en QA de Romo');
  const conf=config(process.env);
  if(!conf)return fail(res,503,'Administración de Romo no habilitada');
@@ -43,9 +43,7 @@ module.exports=async function gestionRomoQA(req,res){
  res.setHeader('Access-Control-Allow-Methods',access.compartido?'GET,OPTIONS':'GET,POST,OPTIONS');
  if(method==='OPTIONS')return res.status(204).end();
  // Bandera separada: no reabre el editor de la carta comercial ni producción.
- const adminWrite=process.env.VERCEL_ENV==='preview'&&
-  process.env.VERCEL_GIT_COMMIT_REF==='qa/romos-panel-v816'&&
-  process.env.ROMO_CARTA_ADMIN_ESCRITURA_QA_ENABLED==='true';
+ const adminWrite=escrituraGestionRomoAutorizada(process.env);
  if(method==='POST'&&!adminWrite)return fail(res,503,'Gestión Romo solo lectura en Preview');
  if(method==='POST'&&(!String(req.headers['content-type']||'').startsWith('application/json')||
    !req.body||typeof req.body!=='object'||Array.isArray(req.body)||
