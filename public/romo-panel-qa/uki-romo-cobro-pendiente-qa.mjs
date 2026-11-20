@@ -7,7 +7,7 @@ import {efectosEnCopia} from './uki-romo-pedido-formato-qa.mjs';
 import {telefonoTimbreRomoValidoQA} from './uki-romo-timbres-atomicos-qa.mjs';
 export const ROMO_COBRO_PENDIENTE_HABILITADO_QA=false;
 const SUC='Romo’s Sushi La Serena';
-const METODOS=['Efectivo','Transferencia','Débito','Edenred','Otros','Uber Eats','PedidosYa','Rappi'];
+const METODOS=['Efectivo','Transferencia','Débito','Edenred','Junaeb','Otros','Uber Eats','PedidosYa','Rappi'];
 const METODOS_ENVIO=METODOS.filter(x=>!['Uber Eats','PedidosYa','Rappi'].includes(x));
 const need=(v,msg)=>{if(!v)throw Error(msg)};
 const num=(x,min,max,msg)=>{
