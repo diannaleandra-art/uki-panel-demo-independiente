@@ -165,3 +165,29 @@ Funciones del núcleo Uki cuyo comportamiento se alteró en Romo (requieren revi
 - Las primeras ejecuciones fallaron por dos errores en el fixture de test (falta de `location` en la cotización preparada y uso de import sin el mismo `?v=` del caché de delivery); corregidos para simular exactamente el código que usa la carta. **Ejecución final completa GitHub Actions `44779490031`: success**, commit `32f804bdd3a69a6e7de2d31c03804bcb42df9b4e`.
 - Carta privada Vercel redeploy `dpl_F1C7rfSMNrVNXLfjtogzMcDfLaPR` READY, alias `romos-sushi-carta-qa-git-release-romo-357bb1-diannaleandra-7046.vercel.app`. HTTP real: `/candidata/model.mjs` 200 con bloqueo Junaeb; `/api/romo-piloto-operativo-qa` 200 privado; `/api/romo-recepcion-carta-qa` 200 `enabled:true,countsAsSale:false`; `/api/romo-cambios-carta-qa` 200 revisión 1, 40 productos y 1 cambio.
 - Las pruebas son simulación lógica y comprobación HTTP de solo lectura, **no equivalen** a pedidos con dinero real ni a autorizar producción. La carta comercial sigue protegida y sin apertura pública; no se modificó el panel Uki ni la caja Romo.
+
+## Auditoría integral de pestañas: Romo frente a Uki oficial (20-11-2026)
+
+Comparación fuente **sin escrituras de negocio** de `firebase/uki-sushi-local.html` (Uki original) y `public/romo-panel-qa/index.html` (Romo, QA). Se compararon funciones nominales heredadas, navegación, paneles y conexiones; no asumir que una prueba estática equivale a aprobar cobros reales.
+
+| Área | Estado de la revisión de código | Evidencia / pendiente operativo |
+| --- | --- | --- |
+| Inicio y navegación | Incluye Inicio, Pedidos, Nuevo, Timbres, Caja y accesos Inventario/Promos; no habilita mesas QR Romo | Ruta `ir()` restringe Romo a áreas con guardado protegido |
+| Pedidos y recepción | Solicitudes de carta aceptadas atómicamente, filtros/búsqueda, borradores, edición, cancelación y gestión de timbres tienen implementaciones específicas Romo | Ya validada solicitud previa; no crear nuevas solicitudes ficticias |
+| Nuevo pedido y cobros | Casilla `Pago completo confirmado`, distribución de hasta seis medios y guardado CAS protegidos | **Aún sin comprobar venta realmente cobrada y su reflejo contable**. Revisar Junaeb: el formulario actual avisa que se registra como `Otros`, no una categoría Junaeb independiente |
+| Timbres y clientes | Búsquedas de nombre, código y WhatsApp; canjes y envío de timbre requieren confirmaciones; reutiliza reglas Uki | Funciones implementadas, no afirmar envío real sin verificación |
+| Caja | Siete pestañas: Resumen, Movimientos, Precierre, Cierre definitivo, Historial, Reportes, Caja acumulada; siete movimientos (Gastos, Apps, Delivery manual, Pago repartidor, Propinas, Retiros, Caja chica) | Cierre real de prueba $0 de jornada 19/11 guardado y leído en Mi Administración. Reportes de dinero real, diferencias y pagos mixtos pendientes de verificación operativa |
+| Inventario | Implementación exclusiva Romo mediante `/api/romo-inventario-qa`, código trabajador PIN 6 dígitos por `/api/romo-pin-inventario-qa`; exportación e historial propios | El sitio privado Vercel protegido con SSO todavía no es la puerta pública definitiva de trabajadores |
+| Carta/categorías/promos | Gestión completa ya tiene crear, renombrar, eliminar y asignar categorías; administración de productos y promociones; SKU promocional solo Uki excluido | Ediciones de gestión QA **no significan publicación automática al catálogo comercial de clientes** |
+| Mi Administración | Recepción del cierre Romo verificada por captura en Preview privado, lectura sin asientos automáticos | Necesita comprobar un cierre con ventas reales y luego establecer flujo contable aprobado |
+
+**Correcciones de presentación de este bloque**
+- Inicio Romo: se sustituyó el aviso obsoleto «la integración ... está pendiente» por texto fiel a lectura QA en Mi Administración, sin incorporar un enlace de propietarios visible al personal.
+- Editor anterior: las categorías y promos dejan de anunciarse como inexistentes; se remite a `romo-carta-gestion-completa-qa.js`. No se publican cambios comerciales.
+- Inventario: el bloque del trabajador Uki se marca `hidden` ya en el render inicial cuando la sucursal es Romo, además de ocultarse en `mount()`. Se preserva el enlace al trabajador **propio** de Romo.
+- Prueba añadida `tests/romo-paridad-pestanas-caja-inventario-admin-qa.test.mjs`, registrada en `test:release`, comprueba herencia de funciones oficiales, navegación, cobros, Caja, inventario y CRUD de categorías. Se ignoran los auxiliares **Romo QA** incluidos en el archivo espejo de Uki, que no pertenecen al núcleo del panel original.
+- CI integral `44787897992`: **success**. Panel Preview Vercel `dpl_914Sbcfy26T6rhEYu5Urdh36hEY7`: **READY**, commit `3844536dba15438c4aaed406f1f74d95b12e7ad6`, alias estable `romos-sushi-panel-git-qa-romos-panel-v816-diannaleandra-7046.vercel.app`.
+- GET del panel, JS de inventario y editor: 200 con correcciones; GET `/api/romo-cierre-preparacion-qa` todavía confirma `disponible:true`.
+- Neon QA verificado **sin escrituras** después del despliegue: revisión de caja **10**, **1** cierre, revisión de carta **1**, **0** solicitudes pendientes; rama principal Neon Romo **0** cierres.
+
+**Estado del lanzamiento**: lista de brechas priorizadas: (1) tratamiento correcto del medio Junaeb para la promoción Romo sin mezclarlo en `Otros`; (2) permisos/acceso trabajador sin exigir sesión de dueño en producción; (3) controles de producción aislados y URL única carta + panel; (4) comprobación manual limitada y auténtica de cobro completo, caja e integración Mi Administración. **Ninguna producción fue modificada, ni se amplió por accidente el ámbito de Uki.**
