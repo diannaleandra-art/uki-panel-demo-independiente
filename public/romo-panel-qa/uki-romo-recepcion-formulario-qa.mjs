@@ -52,11 +52,11 @@ export function prepararBorradorRomoDesdeSolicitudQA(row,{
  const kmRecorrido=modalidad==='Delivery'?kmTexto.replace(',','.'):'';
  const pago=clean(t.match(/^\s*Pago:\s*([^\n]+)/mi)?.[1],100);
  const pagoDelivery=clean(t.match(/^\s*Pago delivery:\s*([^\n]+)/mi)?.[1],100);
- // Junaeb no es efectivo: hasta habilitar ese medio explícito en la caja,
- // se mantiene como Otros y se conserva el texto original para revisión.
- const medio=['Efectivo','Transferencia','Débito','Edenred','Otros'].find(m=>
+ // Romo identifica Junaeb como medio propio; no equivale a efectivo.
+ // El borrador conserva el medio indicado y no lo cobra hasta confirmación.
+ const medio=['Efectivo','Transferencia','Débito','Edenred','Junaeb','Otros'].find(m=>
   pago.toLowerCase().startsWith(m.toLowerCase()))||'Otros';
- const medioEnvio=['Efectivo','Transferencia','Débito','Edenred','Otros'].find(m=>
+ const medioEnvio=['Efectivo','Transferencia','Débito','Edenred','Junaeb','Otros'].find(m=>
   pagoDelivery.toLowerCase().startsWith(m.toLowerCase()))||medio;
  const total=Number(row.total_indicado);
  requireValid(Number.isSafeInteger(total)&&total>=0,'Total Romo incorrecto');
