@@ -10,8 +10,8 @@ const env={
  VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'qa/romos-panel-v816',
  ROMO_PANEL_ISOLATED_PROJECT:'romos-sushi-panel',
  ROMO_PANEL_ALLOWED_ORIGIN:origin,
- ROMO_PRIVATE_DATABASE_URL:'postgresql://romos_app_service:test-only@ep-qa-romo.neon.tech/romos_sushi',
- ROMO_PRIVATE_DATABASE_HOST:'ep-qa-romo.neon.tech',
+ ROMO_PRIVATE_DATABASE_URL:'postgresql://romos_app_service:test-only@ep-wild-hat-bezucf4v.c-9.us-east-2.aws.neon.tech/romos_sushi',
+ ROMO_PRIVATE_DATABASE_HOST:'ep-wild-hat-bezucf4v.c-9.us-east-2.aws.neon.tech',
  ROMO_CIERRE_QA_ENABLED:'false'
 };
 test('Sin habilitación el cierre sigue bloqueado aunque DB QA esté correctamente aislada',()=>{
@@ -38,6 +38,8 @@ test('No habilita cierre con usuario distinto a servicio, base o host mal asocia
  assert.equal(condiciones({...env,ROMO_PRIVATE_DATABASE_URL:env.ROMO_PRIVATE_DATABASE_URL.replace('romos_app_service','neondb_owner')},host).configuracionSegura,false);
  assert.equal(condiciones({...env,ROMO_PRIVATE_DATABASE_URL:env.ROMO_PRIVATE_DATABASE_URL.replace('/romos_sushi','/neondb')},host).configuracionSegura,false);
  assert.equal(condiciones({...env,ROMO_PRIVATE_DATABASE_HOST:'ep-otra-rama.neon.tech'},host).configuracionSegura,false);
+ assert.equal(condiciones({...env,ROMO_PRIVATE_DATABASE_URL:env.ROMO_PRIVATE_DATABASE_URL.replace('ep-wild-hat-bezucf4v.c-9.us-east-2.aws.neon.tech','ep-damp-sun-beofcvis.c-9.us-east-2.aws.neon.tech'),
+  ROMO_PRIVATE_DATABASE_HOST:'ep-damp-sun-beofcvis.c-9.us-east-2.aws.neon.tech'},host).configuracionSegura,false);
  assert.equal(condiciones({...env,ROMO_PRIVATE_DATABASE_URL:''},host).configuracionSegura,false);
 });
 test('La precomprobación no escribe ni lee pedidos, ni devuelve datos sensibles',()=>{
