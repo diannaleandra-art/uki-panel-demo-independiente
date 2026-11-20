@@ -615,7 +615,7 @@ function pintarResumenPorNegocio(data,cierresSumables){
    if(t.estado==='pendiente')row.pendientes+=amt;else row.gastos+=amt;
   }
  }
- const entries=[...result.values()].filter(x=>x.venta||x.gastos||x.pendientes);
+ const entries=[...result.values()].filter(x=>x.venta||x.gastos||x.pendientes||x.cierres);
  if(!entries.length){
   const p=document.createElement('p');p.className='hint';p.textContent='Sin movimientos para estas fechas. Puedes elegir otro período.';
   host.append(p);return;
@@ -637,7 +637,7 @@ function pintarResumenPorNegocio(data,cierresSumables){
   if(e.pendientes)summary(card,'Por pagar',e.pendientes);
   if(e.cierres){
    const small=document.createElement('p');small.className='hint';
-   small.textContent=e.cierres+' cierre(s) definitivo(s) de Uki';card.append(small);
+   small.textContent=e.cierres+' cierre(s) definitivo(s) de '+(e.label.startsWith('Romo')?'Romo':'Uki');card.append(small);
   }
   host.append(card);
  }
