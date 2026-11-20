@@ -85,6 +85,7 @@ test('Cierre definitivo no pasa con timbres obligatorios sin enviar',()=>{
   responsable:'Encargada',base:0,cajaChicaInicial:0});
  s.pedidos.push({
   suc:SUC,id:11,turnoClave:s.cajasDiarias[SUC+'|'+dia].turnoId,
+  registradoEn:inicio+1000,fechaOperativa:dia,
   estado:'Pendiente',pagado:true,esPremio:false,productosPagadosOtroLocal:false,
   timbreReglaObligatoria:true,telefono:'56912345678'
  });
