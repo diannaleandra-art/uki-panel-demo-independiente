@@ -187,6 +187,7 @@ label{color:#66574c}
 </style></head><body>
 <header><div><h1>🔒 Mi Administración</h1><small>Acceso de dueños · Solo personal autorizado</small></div><button id="exit" hidden>Salir</button></header>
 <main><p id="notice" role="status" aria-live="polite">Conectando acceso privado…</p>
+<p class="hint" style="margin:10px 0 16px">🧪 Vista privada de pruebas: consultar informes y cierres sin cambiar datos financieros. Para registrar pagos, ventas, gastos o facturas utiliza <a href="https://uki-sushi-inventario.vercel.app/mi-administracion-duenos.html" rel="noopener noreferrer">Mi Administración oficial</a>.</p>
 <section id="login" class="card"><h2>Acceso privado</h2><p class="muted">Esta sección no comparte el código del agendador. Primero se confirma la cuenta Google autorizada y después tu código exclusivo.</p><button class="primary" id="google">Entrar con Google</button><p id="loginhelp" class="hint"></p></section>
 <section id="setup" class="card" hidden><h2>Configurar código privado · Una sola vez</h2><p class="muted">Define un código secreto de seis números que solo conozcan los dueños. No se envía por WhatsApp ni se guarda en el navegador.</p>
 <label>Clave de instalación privada</label><input id="setupkey" type="password" autocomplete="off" placeholder="Clave de instalación proporcionada a los dueños">
@@ -988,7 +989,7 @@ async function cargarCierresRomoQA(desde,hasta){
   estado.textContent='No se pudo verificar Romo: '+String(error?.message||'Consulta no disponible.');
  }
 }
-const UKI_DUENOS_CIERRES_URL='https://uki-sushi-inventario.vercel.app/api/mi-administracion-live';
+const UKI_DUENOS_CIERRES_URL='/api/mi-administracion-lectura-qa';
 let ukiCierresQAConsulta=0;
 async function cargarCierresUki(desde,hasta){
  if(session&&auth.currentUser)void cargarCierresRomoQA(desde,hasta);
@@ -1033,10 +1034,16 @@ const pesos=n=>'$'+Number(n||0).toLocaleString('es-CL',{maximumFractionDigits:0}
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const today=()=>{const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));return parts.year+'-'+parts.month+'-'+parts.day;};
 const notify=(msg,type='')=>{$('notice').textContent=msg;$('notice').className=type;};
+const FINANZAS_CONSULTA_QA=new Set(['estado','ingresar_pin','salir',
+ 'negocios','razones_sociales','resumen','listar_movimientos','listar_cierres',
+ 'listar_pendientes','documentos','abrir_documento','auditoria_movimiento',
+ 'costos','exportar_informes']);
 async function api(action,fields={}){
+ if(!FINANZAS_CONSULTA_QA.has(action))
+  throw Error('Esta versión de pruebas es solo lectura. Abre Mi Administración oficial para guardar cambios.');
  if(!auth.currentUser)throw Error('Primero inicia Google.');
  const bearer=await auth.currentUser.getIdToken();
- const response=await fetch('https://uki-sushi-inventario.vercel.app/api/mi-administracion-live',{method:'POST',cache:'no-store',credentials:'omit',
+ const response=await fetch('/api/mi-administracion-lectura-qa',{method:'POST',cache:'no-store',credentials:'omit',
   headers:{Authorization:'Bearer '+bearer,'Content-Type':'application/json','X-Fin-Session':session},
   body:JSON.stringify({action,...fields})});
  const data=await response.json().catch(()=>({error:'Respuesta inválida del servidor.'}));
@@ -1902,7 +1909,7 @@ async function checkState(){
 }
 $('google').onclick=async()=>{
  try{notify('Autenticando…');await signInWithPopup(auth,new GoogleAuthProvider());await checkState()}
- catch(e){notify('No se pudo abrir Google: '+e.message,'error');$('loginhelp').textContent='Comprueba que el dominio de esta página esté autorizado en Firebase.'}
+ catch(e){notify('No se pudo abrir Google: '+e.message,'error');$('loginhelp').textContent='Prueba abrir este enlace directamente en Safari. Si no se permite Google en el Preview, usa Mi Administración oficial para entrar a la cuenta.'}
 };
 $('configure').onclick=()=>safe('configure',async()=>{
  if(value('newpin')!==value('againpin'))throw Error('Los dos códigos deben coincidir.');
