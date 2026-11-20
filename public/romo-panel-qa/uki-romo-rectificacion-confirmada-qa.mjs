@@ -13,7 +13,7 @@
 export const ROMO_RECTIFICACION_VERSION_QA=2;
 const SUC='Romo’s Sushi La Serena',STORE='romo:serena';
 const TURN=/^\d{4}-\d{2}-\d{2}@[1-9]\d{12,14}$/;
-const MEDIOS=['Efectivo','Transferencia','Débito','Edenred','Otros'];
+const MEDIOS=['Efectivo','Transferencia','Débito','Edenred','Junaeb','Otros'];
 const need=(p,m)=>{if(!p)throw Error(m)};
 const int=(v,name,min=0,max=1000000000)=>{
  need(Number.isSafeInteger(v)&&v>=min&&v<=max,'Importe no válido: '+name);
