@@ -8,8 +8,10 @@ const api=readFileSync(new URL('../api/romo-cierres-duenos-consulta-qa.js',impor
 
 test('Mi Administración enlaza cierres Romo a totales solo luego de verificación Google+PIN',()=>{
  assert.match(html,/import \{conciliarCierresRomoResumenQA\} from/);
- assert.match(html,/lecturaAutorizada:romoCierresConsultaValidaQA/);
- assert.match(html,/movimientosCompletos:transactions\.length<250/);
+ assert.match(html,/lecturaAutorizada:romoCierresConsultaValidaQA&&Boolean\(session\)&&Boolean\(auth\.currentUser\)/);
+ assert.match(html,/movimientosCompletos:movimientosFinancierosCargadosQA&&transactions\.length<250/);
+ assert.match(html,/movimientosFinancierosCargadosQA=true/);
+ assert.match(html,/movimientosFinancierosCargadosQA=false/);
  assert.match(html,/cierresConfirmadosRomoQA=rows;romoCierresConsultaValidaQA=true/);
  assert.match(html,/cierresConfirmadosRomoQA=\[\];romoCierresConsultaValidaQA=false/);
  assert.match(html,/items:\[\.\.\.vistaUki\.items,\.\.\.romoVista\.items\]/);
