@@ -20,6 +20,15 @@ function config(env){
  // La cuenta de alta de claves no puede confirmar cierres ni modificar estado.
  // Romo tiene una cuenta de servicio con UPDATE CAS e INSERT de constancias.
  if(!ok(reader,'romos_app_service'))return null;
+ // Puerta QA estricta: este servicio no puede cerrar accidentalmente
+ // sobre la rama principal Neon de Romo ni sobre otras sucursales.
+ if(env.VERCEL_ENV==='preview'&&env.VERCEL_GIT_COMMIT_REF==='qa/romos-panel-v816'){
+  const qaHosts=new Set([
+   'ep-wild-hat-bezucf4v.c-9.us-east-2.aws.neon.tech',
+   'ep-wild-hat-bezucf4v-pooler.c-9.us-east-2.aws.neon.tech'
+  ]);
+  if(!qaHosts.has(reader.hostname.toLowerCase())||!qaHosts.has(host))return null;
+ }
  for(const key of ['UKI_INVENTARIO_LIVE_DATABASE_URL','UKI_INVENTARIO_QA_DATABASE_URL',
   'UKI_FIN_PRIVATE_DATABASE_URL','UKI_FIN_QA_DATABASE_URL']){
   try{if(new URL(String(env[key]||'')).hostname.toLowerCase()===host)return null}catch{}
