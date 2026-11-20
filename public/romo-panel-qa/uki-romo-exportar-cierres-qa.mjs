@@ -4,7 +4,7 @@
  * No accede a Uki, a la red ni a la base de datos; no genera cierres.
  */
 const SUC='Romo’s Sushi La Serena';
-const METHODS=['Efectivo','Transferencia','Débito','Edenred','Otros','Uber Eats','PedidosYa','Rappi'];
+const METHODS=['Efectivo','Transferencia','Débito','Edenred','Junaeb','Otros','Uber Eats','PedidosYa','Rappi'];
 const check=(p,m)=>{if(!p)throw Error(m)};
 const day=v=>{
  const d=String(v||'');
