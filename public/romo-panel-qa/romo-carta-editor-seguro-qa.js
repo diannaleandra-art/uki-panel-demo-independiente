@@ -194,7 +194,7 @@
     const products=Array.isArray(current?.products)?current.products.filter(visibleRomo):[];
     const cats=Array.isArray(current?.categories)?current.categories:[];
     const ing=Array.isArray(current?.ingredients)?current.ingredients:[];
-    categories.append(aviso('Categorías actuales de Romo, independientes de Uki. Crear, renombrar y eliminar categorías exige completar el guardado protegido en Neon; aquí no se crean registros de prueba.'));
+    categories.append(aviso('Categorías de Romo independientes de Uki. Para crear, renombrar, asignar o eliminar usa Gestión completa de carta, más abajo. Ninguna modificación se considera guardada sin confirmación de Neon.'));
     for(const c of cats){
       const belonging=products.filter(p=>p.categoriaSlug===c.slug);
       const row=fila(c.nombre,belonging.length+' productos · '+c.slug);
@@ -219,7 +219,7 @@
     }
     if(!matching.length)ingredients.append(aviso('No hay ingredientes que coincidan con la búsqueda.'));
     const special=products.filter(p=>p.kind==='monthly'||p.categoriaSlug==='mensual');
-    promos.append(aviso('Promociones que figuran en la carta aprobada de Romo. No incluye promociones dinámicas nuevas: su creación, fotografías y descuentos siguen pendientes de conectar al mismo guardado de Romo.'));
+    promos.append(aviso('Promociones de la carta aprobada. La edición de promociones, imágenes y descuentos se realiza en Gestión completa de carta. Este Preview no publica automáticamente cambios comerciales.'));
     for(const p of special){
       promos.append(fila(p.name,money(p.price)+' · '+(p.available!==false?'Disponible':'No disponible')+
         (p.description?' · '+p.description:'')));
