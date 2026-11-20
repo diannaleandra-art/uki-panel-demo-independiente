@@ -192,6 +192,37 @@ export function prepararAperturaTurnoRomoQA(estado,{
  estado.fechaOperativa=fechaOperativa;
  return Object.freeze({tipo:'apertura',turnoId,fechaOperativa,base:montoBase});
 }
+/**
+ * Evitar un cierre aparentemente en $0 que omita pedidos activos de la misma
+ * jornada, pero creados antes de abrir el turno actual. No se modifica dinero.
+ * Los pedidos cancelados sin cobro y los turnos ya cerrados quedan excluidos.
+ */
+export function pedidosPreviosSinConciliarRomoQA(estado,{
+ fechaOperativa,turnoId,inicioMs
+}={}){
+ valido(estado);
+ CHECK(DIA(fechaOperativa)&&typeof turnoId==='string'&&
+  turnoId.startsWith(fechaOperativa+'@')&&
+  Number.isSafeInteger(inicioMs)&&inicioMs>0,
+  'Turno de comprobación inválido');
+ const cerrados=new Set(estado.cierres.filter(c=>c?.suc===SUC)
+  .map(c=>String(c.turnoClave||'')));
+ const anteriores=estado.pedidos.filter(p=>{
+  if(p?.suc!==SUC||
+    !(p.fechaOperativa===fechaOperativa||
+     String(p.turnoClave||'').startsWith(fechaOperativa+'@')))return false;
+  const registrado=fechaReg(p);
+  if(registrado>=inicioMs&&p.turnoClave===turnoId)return false;
+  const sinDinero=p.pagado!==true&&
+   !(Array.isArray(p.pagosProductos)&&p.pagosProductos.length)&&
+   !(Array.isArray(p.pagosEnvio)&&p.pagosEnvio.length);
+  if(p.estado==='Cancelado'&&sinDinero)return false;
+  if(cerrados.has(String(p.turnoClave||'')))return false;
+  return true;
+ });
+ return Object.freeze(anteriores.map(p=>String(p.codigoCarta||p.id||'Sin código')));
+}
+
 export function prepararCierreDefinitivoRomoQA(estado,{
  fechaOperativa,cierreMs,responsable,efectivoContado,observacion='',
  aceptarDiferencia=false,aceptarPendientesSinPago=false
@@ -211,6 +242,13 @@ export function prepararCierreDefinitivoRomoQA(estado,{
  const inicio=caja.inicioMs,turnoId=fechaOperativa+'@'+inicio;
  CHECK(inicio<cierreMs&&caja.turnoId===turnoId,
   'La identidad del turno no coincide');
+ const pedidosAnteriores=pedidosPreviosSinConciliarRomoQA(estado,{
+  fechaOperativa,turnoId,inicioMs:inicio
+ });
+ CHECK(pedidosAnteriores.length===0,
+  'Hay pedidos anteriores de esta jornada sin cierre conciliado: '+
+  pedidosAnteriores.slice(0,5).join(', ')+
+  '. Revísalos en Pedidos antes de cerrar.');
  CHECK(!estado.cierres.some(c=>c.turnoClave===turnoId),
   'Este turno ya tiene cierre definitivo; consulta Historial');
  // Una discrepancia de dinero aún sin devolver/cobrar no puede pasar a un
