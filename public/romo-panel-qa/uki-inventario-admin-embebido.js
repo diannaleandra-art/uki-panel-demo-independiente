@@ -15,7 +15,7 @@ function panel(){return [
 '<p class="mini-help" style="margin:4px 0 9px">Administración: cuenta Google autorizada del panel. Trabajador: código exclusivo de inventario.</p>',
 '<button id="invRefresh" class="sm ok" type="button">↻ Actualizar inventario</button>',
 '<p id="invStatus" role="status" class="mini-help" style="margin:9px 0 0">Consultando inventario…</p></div>',
-'<div class="card" id="ukiInvWorkerAccess" style="padding:14px"><h3 style="margin:2px 0 5px;font-size:17px">👷 Inventario del trabajador</h3>',
+'<div class="card" id="ukiInvWorkerAccess" '+(panelBranch()==='romo'?'hidden ':'')+'style="padding:14px"><h3 style="margin:2px 0 5px;font-size:17px">👷 Inventario del trabajador</h3>',
 '<p class="muted" style="margin:5px 0 10px">El trabajador cuenta y recibe mercadería con su código. Sus revisiones se consultan en «Revisiones y compras». No puede ver cierres.</p>',
 '<a href="https://uki-sushi-inventario.vercel.app/" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#fff4e8;color:#8c4708;border:1px solid #edbd85;font-weight:700;text-decoration:none">Abrir acceso del trabajador</a></div>',
 '<section class="card" id="romoInvWorkerAccess" hidden><h3>👷 Inventario del trabajador · Romo</h3><p class="muted">El mismo acceso de seis números que utiliza inventario Uki, pero configurado exclusivamente para Romo. No abre pedidos, caja ni cierres.</p>'+
