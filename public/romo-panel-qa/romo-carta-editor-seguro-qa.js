@@ -6,6 +6,8 @@
 (function(){
   'use strict';
   const STORE='romo:serena';
+  const SKU_PROMO_SOLO_UKI='dish:sushi-burger-promo';
+  const visibleRomo=p=>p?.sku!==SKU_PROMO_SOLO_UKI;
   const API='/api/romo-carta-ediciones-seguras-qa';
   const $=(root,selector)=>root.querySelector(selector);
   const el=(tag,label,cls)=>{
@@ -39,7 +41,7 @@
     return validateResponse(res,json);
   }
   function chosen(){
-    return state.current?.products?.find(x=>x.sku===state.selectedSku)||null;
+    return state.current?.products?.find(x=>visibleRomo(x)&&x.sku===state.selectedSku)||null;
   }
   function renderForm(){
     const root=state.root,box=$(root,'[data-romo-carta-form]');
@@ -189,7 +191,7 @@
     const promos=$(root,'[data-romo-promos-list]');
     if(!categories||!ingredients||!promos)return;
     clear(categories);clear(ingredients);clear(promos);
-    const products=Array.isArray(current?.products)?current.products:[];
+    const products=Array.isArray(current?.products)?current.products.filter(visibleRomo):[];
     const cats=Array.isArray(current?.categories)?current.categories:[];
     const ing=Array.isArray(current?.ingredients)?current.ingredients:[];
     categories.append(aviso('Categorías actuales de Romo, independientes de Uki. Crear, renombrar y eliminar categorías exige completar el guardado protegido en Neon; aquí no se crean registros de prueba.'));
@@ -236,7 +238,7 @@
       .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
     const cat=$(root,'[data-romo-carta-category]')?.value||'';
     const products=(state.current?.products||[]).filter(p=>
-      (!cat||p.categoriaSlug===cat)&&
+      visibleRomo(p)&&(!cat||p.categoriaSlug===cat)&&
       (!q||String(p.name+' '+p.sku).normalize('NFD')
         .replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(q)));
     const caption=el('p',products.length+' productos encontrados');
