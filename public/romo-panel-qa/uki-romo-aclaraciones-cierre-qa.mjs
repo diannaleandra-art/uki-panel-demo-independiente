@@ -59,7 +59,7 @@ export function prepararAclaracionCierreRomoQA(estado,{
  * timbres, la Caja acumulada ni Mi Administración. NO es comprobante v2.
  */
 const METODOS_RECTIFICACION=new Set([
- 'Efectivo','Transferencia','Débito','Edenred','Otros'
+ 'Efectivo','Transferencia','Débito','Edenred','Junaeb','Otros'
 ]);
 const entero=(v,max,label)=>{
  need(v!==''&&v!==null&&v!==undefined&&Number.isSafeInteger(Number(v))&&

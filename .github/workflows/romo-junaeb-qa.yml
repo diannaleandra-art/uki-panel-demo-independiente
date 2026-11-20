@@ -1,0 +1,24 @@
+name: Romo Junaeb - QA aislada
+on:
+  push:
+    branches:
+      - fix/romo-junaeb-desglose-20261120
+      - qa/romos-panel-v816
+  pull_request:
+    branches:
+      - qa/romos-panel-v816
+permissions:
+  contents: read
+jobs:
+  junaeb-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - run: npm install --ignore-scripts --no-package-lock --no-audit --no-fund
+      - run: node --test tests/romo-junaeb-desglose-qa.test.mjs
