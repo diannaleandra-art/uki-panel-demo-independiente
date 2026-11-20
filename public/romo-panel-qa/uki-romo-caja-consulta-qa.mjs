@@ -5,7 +5,7 @@
  */
 export const ROMO_CAJA_CONSULTA_QA_SOLO_LECTURA=true;
 const SUC='Romo’s Sushi La Serena';
-const MEDIOS=['Efectivo','Transferencia','Débito','Edenred','Otros','Uber Eats','PedidosYa','Rappi'];
+const MEDIOS=['Efectivo','Transferencia','Débito','Edenred','Junaeb','Otros','Uber Eats','PedidosYa','Rappi'];
 const APPS=new Set(['Uber Eats','PedidosYa','Rappi']);
 const err=message=>{throw Error(message)};
 const monto=(v,label)=>{
@@ -53,7 +53,7 @@ export function rectificacionesConfirmadasDeTurnoQA(estado,turnoId){
  const movimientos=all.filter(x=>x.tipo==='rectificacion_monetaria_confirmada'&&
   x.turnoMovimiento===turnoId);
  const vistos=new Set(),porMedio=Object.fromEntries(
-  ['Efectivo','Transferencia','Débito','Edenred','Otros'].map(m=>[m,0])
+  ['Efectivo','Transferencia','Débito','Edenred','Junaeb','Otros'].map(m=>[m,0])
  );
  const ids=new Set();
  for(const x of movimientos){
