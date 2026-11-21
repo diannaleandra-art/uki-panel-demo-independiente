@@ -11,12 +11,31 @@ const MODULO='https://uki-sushi-inventario.vercel.app/uki-factura-interfaz-live.
 const $=id=>document.getElementById(id);
 const estado={branch:'',items:[],form:null,open:false,loading:null,modulo:null};
 const branchActual=()=>String($('invBranch')?.value||'');
-const sucursalNombre=b=>b==='serena'?'Uki La Serena':'Uki Regimiento Arica';
+const sucursalNombre=b=>b==='romo'?'Romo La Serena':b==='serena'?'Uki La Serena':'Uki Regimiento Arica';
 function mensaje(texto){
  const el=$('ukiFacturaAdminEstado');
  if(el)el.textContent=texto;
 }
 async function solicitar(action,payload={},branch=estado.branch){
+ if(branch==='romo'){
+  if(branch!==branchActual()||typeof S==='undefined'||S.suc!=='Romo’s Sushi La Serena')throw Error('Abre Romo');
+  const token=await window.ukiInventarioToken?.();if(!token||branch!==branchActual()||S.suc!=='Romo’s Sushi La Serena')throw Error('Ingresa con Google autorizado de Romo');
+  const read=action==='articulos',url=read?'/api/romo-inventario-qa':'/api/romo-inventario-facturas';
+  const r=await fetch(url,{method:read?'GET':'POST',cache:'no-store',headers:{Authorization:'Bearer '+token,...(read?{}:{'Content-Type':'application/json'})},...(read?{}:{body:JSON.stringify({...payload,action,...(action==='factura-preparar-articulos'?{expectedRevision:estado.revision}:{})})})});
+  const json=await r.json().catch(()=>({}));if(!r.ok||json.ok!==true||json.storeId!=='romo:serena')throw Error(json.error||'No se confirmó el registro de Romo');
+  if(branch!==branchActual()||S.suc!=='Romo’s Sushi La Serena')throw Error('Cambió la sucursal; actualiza antes de repetir');
+  if(read){estado.revision=Number(json.revision);if(!Number.isSafeInteger(estado.revision)||!Array.isArray(json.contenido?.items))throw Error('Inventario sin confirmar');return {items:json.contenido.items.filter(x=>!x.archived).map(x=>({...x,category:x.kind,kind:'inventory',version:estado.revision}))};}
+  if(action!=='factura-consultar'){
+   // No actualizar versiones a ciegas tras un reintento: recargar el estado completo.
+   if(json.duplicada===true||json.revision!==estado.revision+1){
+    const refreshed=await solicitar('articulos',{},branch);estado.items=refreshed.items;
+   }else{
+    estado.revision=json.revision;estado.items=estado.items.map(x=>({...x,version:json.revision}));
+    if(json.item)estado.items=estado.items.map(x=>x.sku===json.item.sku?json.item:x);
+   }
+  }
+  return json;
+ }
  if(!['arica','serena'].includes(branch)||branch!==branchActual())
   throw Error('Cambió la sucursal. Abre nuevamente la factura en el local correcto.');
  const token=await window.ukiInventarioToken?.();
@@ -39,6 +58,7 @@ async function cargarArticulos(branch){
 function actualizarPanel(branch){
  if(branch!==estado.branch)return;
  // Actualiza existencias y reportes existentes sin volver a registrar mercadería.
+ if(branch==='romo'){ $('invRefresh')?.click();$('ukiMiniActualizar')?.click();return; }
  void cargarArticulos(branch).then(()=>{
   if(branch!==estado.branch)return;
   $('invRefresh')?.click();
@@ -64,15 +84,15 @@ function usarRecepcionPorCodigo(razon){
  if(host){
   host.replaceChildren();
   const link=document.createElement('a');
-  link.href='https://uki-sushi-inventario.vercel.app/';
+  link.href=estado.branch==='romo'?'/romo-panel-qa/romo-inventario-trabajador.html':'https://uki-sushi-inventario.vercel.app/';
   link.target='_blank';link.rel='noopener noreferrer';
-  link.textContent='Abrir recepción de mercadería con código';
+  link.textContent=estado.branch==='romo'?'Abrir inventario del trabajador (conteo manual)':'Abrir recepción de mercadería con código';
   link.style.cssText='display:inline-block;max-width:100%;padding:11px 13px;margin:5px 0;'+
    'background:#fff1de;color:#87460f;border:1px solid #d9ae85;border-radius:10px;'+
    'font-weight:750;text-decoration:none';
   const info=document.createElement('p');
   info.className='muted';
-  info.textContent='Selecciona '+sucursalNombre(estado.branch)+
+  info.textContent=estado.branch==='romo'?'La recepción de factura no está disponible aquí. No registres la misma entrega dos veces. El acceso de trabajador permite conteo manual.':'Selecciona '+sucursalNombre(estado.branch)+
    ' e ingresa con el código de inventario. La recepción se guarda en el mismo stock; no la registres dos veces.';
   host.append(link,info);
  }
@@ -91,7 +111,7 @@ async function mostrarFactura(){
  estado.loading=(async()=>{
   mensaje('Cargando recepción de facturas…');
   // Reutilizar el módulo del QR. No hay una copia distinta de la lógica de facturas.
-  if(!estado.modulo)estado.modulo=import(MODULO);
+  if(!estado.modulo||estado.moduloBranch!==branch){estado.modulo=import(branch==='romo'?'./uki-factura-interfaz-live.mjs?v=romo-20261121':MODULO);estado.moduloBranch=branch;}
   const [lib]=await Promise.all([estado.modulo,cargarArticulos(branch)]);
   if(branch!==estado.branch||!contenedor.isConnected||!$('ukiFacturaAdminDetails')?.open)return;
   if(lib.facturaAdmiteMontajeAdmin!==true){
@@ -116,7 +136,7 @@ async function mostrarFactura(){
 function montar(){
  anteriorMontar();
  const mini=$('ukiMiniInventario'),branch=branchActual();
- if(!mini||!['arica','serena'].includes(branch))return;
+ if(!mini||!['arica','serena','romo'].includes(branch))return;
  if(estado.branch!==branch){
   // Nunca conservar un documento iniciado para un local en otro local.
   estado.branch=branch;estado.items=[];estado.form=null;estado.open=false;
@@ -130,7 +150,7 @@ function montar(){
   summary.style.cssText='cursor:pointer;color:#87460f;font-size:16px;font-weight:800;padding:6px 0';
   const info=document.createElement('p');
   info.className='muted';info.textContent=
-   'Disponible también para administración: foto, PDF o ingreso manual. Misma sucursal y mismo control de duplicados que el acceso del trabajador.';
+   branch==='romo'?'Recepción por administración de Romo: foto, XML, PDF con texto o ingreso manual. No registra gastos en Mi Administración.':'Disponible también para administración: foto, PDF o ingreso manual. Misma sucursal y mismo control de duplicados que el acceso del trabajador.';
   const status=document.createElement('p');status.id='ukiFacturaAdminEstado';
   status.className='mini-help';status.setAttribute('role','status');
   status.textContent='Abre este apartado para cargar las facturas.';
