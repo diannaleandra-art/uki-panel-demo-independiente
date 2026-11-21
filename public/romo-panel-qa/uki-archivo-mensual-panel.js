@@ -89,7 +89,7 @@
    return token;
   }
   async function guardarMes(){
-   if(loading)return false;
+   if(loading||hoyChile()<core().periodo(mes.value).desdeDia5)return false;
    loading=true;b.disabled=true;mes.disabled=true;
    try{
     const contexto=window.ukiQAGet?.();
@@ -178,7 +178,7 @@
     estado(String(e.message||e)+'. No se eliminó ningún registro.',true);return false;
    }finally{loading=false;mes.disabled=loteEnCurso;b.disabled=loteEnCurso||hoyChile()<core().periodo(mes.value).desdeDia5;}
   }
-  b.addEventListener('click',()=>{if(!loteEnCurso)void guardarMes();});
+  b.addEventListener('click',async()=>{if(!loteEnCurso)await guardarMes();});
   async function guardarPendientes(automatico=false){
    if(loading||loteEnCurso||!raiz.isConnected)return;
    const contexto=window.ukiQAGet?.(),sucursal=core()?.SUCURSALES?.[contexto?.suc];
@@ -193,7 +193,7 @@
     const token=await autorizar();
     const indice=await llamar(archiveURL,token,finSession,{action:'listar'});
     const meses=window.UkiAgendaArchivo.pendientes({hoy,sucursal,archivos:indice.archivos,periodo:core().periodo});
-    lotesRevisados.add(clave);
+    if(!meses.length)lotesRevisados.add(clave);
     if(!meses.length){estado('✓ Todos los meses exigibles de esta sucursal ya están registrados. Descargas en Mi Administración.');return;}
     let registrados=0;
     for(const m of meses){
@@ -204,12 +204,14 @@
      if(previo.confirmado===true)continue;
      if(window.ukiQAGet?.()?.suc!==contexto.suc||!raiz.isConnected)throw Error('La sucursal cambió.');
      mes.value=m;actualizarMes();mes.disabled=true;b.disabled=true;
-     if(!await guardarMes())return;
+     if(!await guardarMes()){lotesRevisados.add(clave);return;}
      registrados++;
     }
+    lotesRevisados.add(clave);
     estado('✓ '+registrados+' informes mensuales nuevos confirmados. Excel y PDF en Mi Administración. No se eliminó información.');
    }catch(e){
     if(/PIN|sesión|código privado/.test(String(e.message||''))){finSession='';finSessionHasta=0;pinArea.hidden=false;}
+    // No repetir automáticamente un fallo durante esta sesión y día.
     lotesRevisados.add(clave);
     estado(String(e.message||e)+'. No se eliminó información.',true);
    }finally{
