@@ -78,9 +78,11 @@ module.exports=async(req,res)=>{
  res.setHeader('X-Content-Type-Options','nosniff');
  res.setHeader('Vary','Origin');
  const origin=String(req.headers.origin||''),self='https://'+String(req.headers.host||'');
- // El formulario está en GitHub Pages, dominio ya autorizado por Firebase.
- // Solo este origen propio y el mismo deployment QA reciben autorización CORS.
- const allowedOrigin=origin==='https://diannaleandra-art.github.io'||origin===self;
+ // Exclusivamente los dominios oficiales de los tres locales y este mismo host.
+ // Google de dueños y PIN se verifican igualmente para cualquier origen permitido.
+ const allowedOrigin=origin==='https://diannaleandra-art.github.io'||
+  origin==='https://romos-sushi-panel.vercel.app'||
+  origin===self;
  if(allowedOrigin){
   res.setHeader('Access-Control-Allow-Origin',origin);
   res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type,X-Fin-Session');
