@@ -39,3 +39,7 @@ Comparar contra los commits oficiales vigentes; revisar todos los cambios juntos
 
 ### Avance en rama de integración (sin publicar)
 Se implementó el retiro persistente auditado de referencias originales de producto/promoción y de ingredientes, con restauración interna. La gestión filtra fichas retiradas y los datos comerciales las declaran no disponibles. Aún falta distinguir retiro definitivo de agotado en la carta pública, completar la interfaz de restauración, revisar dependencias de recetas y categorías y validar el lote. No ejecutar estas acciones contra datos reales antes de completar las pruebas.
+
+## Avance de retención 35/95 (solo simulación)
+- Implementado recuento por edad calendario de Chile y coincidencia exacta con el respaldo mensual recuperado, sin modificar el estado. El 5/12 se guarda noviembre; una ficha del 1/11 cumple 35 días el 6/12, no el 5/12. Una ficha posterior cumple el plazo después. Timbres conservan 95 días.
+- La simulación no autoriza purgas. Falta validar dependencias operativas, registros tardíos, restauración real, concurrencia y compuertas para las tres sucursales. No habilitar borrado automático ni programador aún.

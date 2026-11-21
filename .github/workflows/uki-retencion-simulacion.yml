@@ -1,0 +1,14 @@
+name: Simular retención 35 y 95 días sin borrar
+on:
+  pull_request:
+    branches: [release/romos-panel-v816]
+permissions:
+  contents: read
+jobs:
+  simulation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: node --test tests/uki-retencion-simulacion.test.cjs tests/uki-archivo-mensual-romo-carga.test.cjs
