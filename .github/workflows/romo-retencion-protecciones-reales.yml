@@ -1,0 +1,17 @@
+name: Romo - protecciones de retención reales
+on:
+  push:
+    branches: [integracion/romo-retencion-protecciones-reales-20261121]
+  pull_request:
+    branches: [release/romos-panel-v816]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: node --check public/romo-panel-qa/uki-archivo-mensual-panel.js
+      - run: node --test tests/uki-retencion-simulacion.test.cjs
