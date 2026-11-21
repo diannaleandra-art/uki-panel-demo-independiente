@@ -996,6 +996,8 @@ function render(){
    '<input id="romoCopiaQAMotivo" maxlength="300" autocomplete="off" value="Pedido de prueba sin preparar, entregar ni cobrar">'+
    '<button type="button" class="sm" id="romoCopiaQABoton" onclick="ukiRomoEnsayarCancelacionCopiaQA()">Probar cancelación solo en copia QA</button></details>':'';
   $("app").innerHTML=msg+f();
+  if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='caja'&&cajaTab==='acumulada')
+   setTimeout(()=>{if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='caja'&&cajaTab==='acumulada')window.romoCajaAcumuladaMontar?.();},0);
   if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='promos')
    setTimeout(()=>{
     if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='promos'){
@@ -4237,7 +4239,7 @@ function vCierre(){
   // Una solicitud no aceptada NO es venta, pero sí debe impedir cerrar sin resolverla.
   const pendientesSolicitudesLocales=(S.solicitudesWhatsApp||[])
    .filter(x=>x.suc===S.suc&&x.estado==='pendiente');
-  const pendientesSolicitudesCarta=typeof ukiCartaRemotasSucursal==='function'?
+  const pendientesSolicitudesCarta=S.suc===ROMO_SUCURSAL_QA?(ukiRomoSolicitudesCartaQA||[]).filter(x=>x.estado==='pendiente'&&x.branch==='serena'):typeof ukiCartaRemotasSucursal==='function'?
    ukiCartaRemotasSucursal().filter(x=>x.estado==='pendiente'):[];
   const pendientesSolicitudes=[...pendientesSolicitudesLocales.map(x=>({
    codigo:x.codigoCarta||'WhatsApp',cliente:x.cliente||'Sin nombre'
@@ -4249,7 +4251,7 @@ function vCierre(){
     dif===null?"Ingresa un monto válido, sin decimales":dif===0?"✅ Caja exacta":
     dif>0?"Sobrante: "+fmt(dif):"Faltante: "+fmt(-dif);
   const pendientesText=pendientes.map(p=>"#"+esc(p.codigoCarta||p.id)+" · "+esc(p.cliente||"Sin nombre")+" · "+fmt(p.total)).join("; ");
-  return `<div class="card"><h2>Venta del día</h2>${row("Pedidos del día",t.n)}${row("Pedidos pagados",t.pagadosN)}${row("Efectivo",fmt(t.medios.Efectivo))}${row("Transferencia",fmt(t.medios.Transferencia))}${row("Débito",fmt(t.medios.Débito))}${row("Edenred",fmt(t.medios.Edenred))}${row("Otros",fmt(t.medios.Otros))}${row("Uber Eats",fmt(t.medios["Uber Eats"]))}${row("PedidosYa",fmt(t.medios.PedidosYa))}${row("Rappi",fmt(t.medios.Rappi))}${row("Venta total con delivery",fmt(t.totalMedios),"sub")}${row("Venta sin delivery",fmt(t.ventaSinDelivery))}</div>
+  return `<div class="card"><h2>Venta del día</h2>${row("Pedidos del día",t.n)}${row("Pedidos pagados",t.pagadosN)}${row("Efectivo",fmt(t.medios.Efectivo))}${row("Transferencia",fmt(t.medios.Transferencia))}${row("Débito",fmt(t.medios.Débito))}${row("Edenred",fmt(t.medios.Edenred))}${S.suc===ROMO_SUCURSAL_QA?row("Junaeb",fmt(t.medios.Junaeb)):""}${row("Otros",fmt(t.medios.Otros))}${row("Uber Eats",fmt(t.medios["Uber Eats"]))}${row("PedidosYa",fmt(t.medios.PedidosYa))}${row("Rappi",fmt(t.medios.Rappi))}${row("Venta total con delivery",fmt(t.totalMedios),"sub")}${row("Venta sin delivery",fmt(t.ventaSinDelivery))}</div>
   ${ukiCobrosExternosTurno(t)}
   ${ukiAuditoriaPagosUI()}
   ${ukiAuditoriaTimbresUI()}
@@ -8291,18 +8293,57 @@ function ukiRomoCajaSemanaHTMLQA(){
    '</details></div>'+vReportes();
 }
 function ukiRomoCajaPrecierreHTMLQA(){
- const key=ROMO_SUCURSAL_QA+'|'+fechaOperativaActual();
- const caja=S.cajasDiarias?.[key];
- if(!caja?.turnoAbierto||caja.baseConfirmada!==true)
-  return '<div class="card"><h2>Precierre del trabajador</h2>'+
-   '<p class="muted">No hay turno abierto y base confirmada. Primero abre Caja desde Cierre definitivo, con la cuenta autorizada.</p></div>';
- const total=totales();
- return '<div class="section-head"><h2>Precierre del trabajador · Romo</h2></div>'+
-  '<div class="card"><p class="muted">Fotografía del turno en curso. Un precierre no cierra Caja ni suma otra venta.</p>'+
-  row('Cobros registrados',fmt(total.totalMedios))+
-  row('Pedidos pagados',total.pagadosN)+
-  row('Pendientes de pago',total.pendientesN)+
-  ukiRomoFormularioPrecierreQA(caja,total)+'</div>';
+ const caja=cajaDelDia();
+ if(caja?.turnoAbierto!==true||caja.baseConfirmada!==true)
+  return '<div class="card"><h2>🕒 PRECIERRE DEL TRABAJADOR · NO CIERRA EL DÍA</h2><p class="muted">Primero abre la caja y confirma la base real de Romo.</p><button class="sm" onclick="cambiarCajaTab(&quot;cierre&quot;)">Ir a Caja</button></div>';
+ // Vista oficial Uki; únicamente las acciones de persistencia usan Neon Romo.
+ return vPrecierreTrabajadores()
+  .replace('id="ukiEfectivoPrecierre"','id="romoPrecierreContadoQA"')
+  .replace('id="ukiObsPrecierre"','id="romoPrecierreObsQA"')
+  .replace('onclick="ukiGuardarPrecierre()"','onclick="ukiRomoGuardarPrecierreQA()"');
+}
+function ukiRomoVistaCierreOficialQA(){
+ const caja=cajaDelDia(),t=totales();
+ if(caja?.turnoAbierto!==true||caja.baseConfirmada!==true)
+  return ukiRomoCierreTurnoHTMLQA().replace('<details class="card" id="romoTurnosQA">','<details class="card" id="romoTurnosQA" open>');
+ const ajustes=(S.pedidos||[]).filter(p=>p?.suc===ROMO_SUCURSAL_QA&&p.turnoClave===caja.turnoId&&p.ajusteCobroPendiente!=null);
+ const extras=(ajustes.length?'<div class="card" role="alert"><b>⛔ Cierre bloqueado: '+ajustes.length+' ajuste(s) de cobro por conciliar.</b><p>Resuelve los ajustes en Pedidos antes de cerrar.</p></div>':'');
+ let vista=vCierre()
+  .replace('Pago al repartidor de Uki','Pago al repartidor de Romo')
+  .replace('onchange="cajaDelDia().base=Math.max(0,parseInt(this.value)||0);render()"','readonly aria-label="Base confirmada de Romo"')
+  .replace('oninput="actualizarConteoEfectivo(this.value)"','id="romoCierreContadoQA" oninput="actualizarConteoEfectivo(this.value)"')
+  .replace('id="resp"','id="romoCierreResponsableQA"')
+  .replace('id="obs"','id="romoCierreObsQA"')
+  .replace('onclick="cerrar()"','onclick="ukiRomoRevisarCierreOficialQA()"');
+ if(S.confirmCierre){
+  const opciones='<label><input id="romoCierreAceptoPendientesQA" type="checkbox"> Confirmo el tratamiento de pedidos pendientes de pago</label><label><input id="romoCierreAceptoDiferenciaQA" type="checkbox"> He revisado y acepto cualquier diferencia de efectivo</label>';
+  vista=vista.replace('<label style="font-weight:700"><input id="ukiConfirmarCierreDefinitivo"',opciones+'<label style="font-weight:700"><input id="ukiConfirmarCierreDefinitivo"');
+ }
+ return extras+vista;
+}
+function ukiRomoRevisarCierreOficialQA(){
+ if(ukiRomoTurnoOcupadoQA||S.suc!==ROMO_SUCURSAL_QA)return;
+ const c=cajaDelDia();
+ if(!c.turnoAbierto||c.baseConfirmada!==true)return aviso('Primero confirma la apertura de Romo.');
+ if((S.pedidos||[]).some(p=>p?.suc===ROMO_SUCURSAL_QA&&p.turnoClave===c.turnoId&&p.ajusteCobroPendiente!=null))
+  return aviso('Cierre bloqueado: concilia los ajustes de cobro pendientes.');
+ const responsable=String($('romoCierreResponsableQA')?.value||'').trim();
+ const observacion=String($('romoCierreObsQA')?.value||'').trim();
+ const contado=String($('romoCierreContadoQA')?.value??'').trim();
+ const dif=window.ukiControlTurnos?.diferencia(totales().efectivoCaja,contado);
+ if(responsable.length<2||responsable.length>80||!contado||!Number.isSafeInteger(Number(contado))||Number(contado)<0||Number(contado)>100000000||!Number.isSafeInteger(dif))
+  return aviso('Indica el responsable y el conteo físico válido (incluido cero).');
+ if(observacion.length>700)return aviso('Observaciones demasiado largas.');
+ cierreDraft={resp:responsable,obs:observacion,contado};
+ if(!S.confirmCierre){
+  S.confirmCierre=true;render();
+  $('ukiConfirmarCierreDefinitivo')?.scrollIntoView({block:'center'});return;
+ }
+ if(!$('ukiConfirmarCierreDefinitivo')?.checked){
+  window.alert('Marca la confirmación del cierre definitivo.');return;
+ }
+ // La función persistente vuelve a verificar solicitudes, diferencias, revisión y constancia única.
+ void ukiRomoCerrarTurnoQA();
 }
 function ukiRomoCajaPestanasQA(){
  // Mismo encabezado, selector y orden de pestañas que el panel oficial Uki.
@@ -8312,11 +8353,10 @@ function ukiRomoCajaPestanasQA(){
   resumen:()=>ukiRomoCajaConsultaHTMLQA('resumen'),
   movimientos:()=>ukiRomoCajaConsultaHTMLQA('movimientos'),
   precierre:()=>ukiRomoCajaPrecierreHTMLQA(),
-  cierre:()=>ukiRomoCajaConsultaHTMLQA('turnos'),
+  cierre:()=>ukiRomoVistaCierreOficialQA(),
   historial:()=>ukiRomoCajaHistorialHTMLQA(),
   semana:()=>ukiRomoCajaSemanaHTMLQA(),
-  acumulada:()=>window.ukiRomoCajaAcumuladaConciliacionQA?.render?.(
-   datosSoloSucursal(),window.ukiRomoSesionRemotaQA)||
+  acumulada:()=>window.romoCajaAcumuladaVista?.()||
    '<div class="card">La conciliación acumulada necesita su sesión autorizada de Romo.</div>'
  }[active[0]]();
  const selector='<div class="card uki-navegacion-compacta uki-navegacion-caja">'+
@@ -9086,11 +9126,13 @@ async function ukiRomoCerrarTurnoQA(){
      result.constancia!==true)
    throw Error(result?.error||'Respuesta de cierre no confirmada');
   session.confirmarSobreAceptado({estado:copia,revision:result.revision});
-  S={...S,...copia,suc:ROMO_SUCURSAL_QA,pinSuc:null,vista:'caja',msg:null};
+  S={...S,...copia,suc:ROMO_SUCURSAL_QA,pinSuc:null,vista:'caja',msg:null,confirmCierre:false};
+  cierreDraft={resp:'',obs:'',contado:''};
   S.msg='Cierre definitivo Romo '+closing.turnoId+
    ' y constancia confirmados en Neon · revisión '+result.revision+
-   '. Pendiente sincronización con Mi Administración.';
+   '. Cierre disponible en Historial.';
   render();
+  void window.romoCajaAcumuladaRegistrarCierre?.(closing.cierre);
  }catch(e){
   aviso('CIERRE NO CONFIRMADO EN LA PANTALLA. NO lo repitas sin consultar Historial y Neon. '+
    String(e?.message||e));
@@ -11320,6 +11362,8 @@ el("ukiAutoCheck").addEventListener("change",()=>{
 });
 </script>
 <script src="/romo-panel-qa/romo-caja-acumulada-conciliacion-qa.js?v=20261115a" defer></script>
+<script src="/romo-panel-qa/romo-caja-acumulada-exportar.js?v=20261121a" defer></script>
+<script src="/romo-panel-qa/romo-caja-acumulada-operativa.js?v=20261121a" defer></script>
 <script src="/romo-panel-qa/romo-movimientos-paridad-qa.js?v=20261115a" defer></script>
 <script src="/romo-panel-qa/romo-edicion-en-panel-qa.js?v=20261114c" defer></script>
 <script src="/romo-panel-qa/romo-carta-editor-seguro-qa.js?v=20261121f" defer></script><script src="/romo-panel-qa/romo-carta-gestion-completa-qa.js?v=20261121f" defer></script><script src="/romo-panel-qa/romo-banner-admin.js?v=20261114b" defer></script></body></html>
