@@ -74,17 +74,41 @@
   return '"'+s.replace(/"/g,'""')+'"';
  };
  function lineas(archivo){
-  const result=[['Seccion','Fecha','Folio','Cliente','WhatsApp','Codigo cliente','Estado','Medio de pago','Total CLP','Detalle completo']];
+  const result=[['Sección','Fecha','Folio','Cliente','WhatsApp','Código cliente','Estado','Medio de pago','Total CLP','Detalle completo']];
   for(const sec of SECCIONES){
    for(const x of archivo.registros[sec]){
-    const detalle=sec==='pedidos'?(x.productos||x.items||x.detalle||x.textoOriginal||''):x;
-    result.push([sec,fechaRegistro(x,sec),x.turnoClave||x.codigoCarta||x.id||'',x.cliente||x.resp||x.responsable||'',
-     x.telefono||'',x.codigoCliente||'',x.estado||'',x.medio||'',x.total??x.venta??x.monto??'',detalle]);
+    result.push([sec,fechaRegistro(x,sec),x.turnoClave||x.codigoCarta||x.id||'',
+     x.cliente||x.resp||x.responsable||'',x.telefono||x.whatsapp||'',
+     x.codigoCliente||'',x.estado||'',x.medio||'',x.total??x.venta??x.monto??'',x]);
    }
   }
-  for(const c of archivo.clientes)for(const m of c.movimientos)result.push(
-   ['timbres',fechaRegistro(m,'timbres'),m.pedidoId||'',c.nombre,c.telefono,c.codigoCliente,m.tipo,'',m.monto||'',m]);
+  for(const c of archivo.clientes){
+   result.push(['clientes','',c.codigoCliente||'',c.nombre||'',c.telefono||'',
+    c.codigoCliente||'','','','',c]);
+   for(const m of c.movimientos)result.push(
+    ['timbres',fechaRegistro(m,'timbres'),m.pedidoId||'',c.nombre,c.telefono,
+     c.codigoCliente,m.tipo,'',m.monto??'',m]);
+  }
   return result;
+ }
+ function hojasExcel(archivo){
+  const registros=lineas(archivo),encabezado=registros[0].slice(1);
+  const hojas=[{nombre:'Resumen',columnas:['Concepto','Dato'],filas:[
+   ['Sucursal',archivo.nombreSucursal],['Mes',archivo.mes],
+   ['Desde',archivo.desde],['Hasta',archivo.hasta],
+   ...Object.entries(archivo.resumen).map(([clave,valor])=>[clave,valor])
+  ]}];
+  const nombres=[...SECCIONES.map(s=>[s,({
+   pedidos:'Pedidos',cierres:'Cierres',gastos:'Gastos',retiros:'Retiros',propinas:'Propinas',
+   deliveriesManuales:'Delivery manual',incidencias:'Incidencias',ajustesHistoricos:'Ajustes históricos',
+   solicitudesWhatsApp:'Solicitudes WhatsApp'})[s]||s]),
+   ['clientes','Clientes'],['timbres','Timbres']];
+  for(const [codigo,nombre] of nombres){
+   hojas.push({nombre,columnas:encabezado,filas:registros.slice(1)
+    .filter(fila=>fila[0]===codigo).map(fila=>fila.slice(1).map(valor=>
+     valor&&typeof valor==='object'?JSON.stringify(valor):valor))});
+  }
+  return hojas;
  }
  function excel(archivo){return '\uFEFFsep=;\r\n'+lineas(archivo).map(row=>row.map(csvSafe).join(';')).join('\r\n')+'\r\n';}
  const ascii=v=>String(v??'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^\x20-\x7E]/g,'?');
@@ -159,5 +183,5 @@
   if(obj.version!==1||!SUCURSALES[obj.nombreSucursal]||obj.sucursal!==SUCURSALES[obj.nombreSucursal]||!Array.isArray(obj.registros?.pedidos))throw Error('Archivo de sucursal inválido.');
   return obj;
  }
- return Object.freeze({SECCIONES,SUCURSALES,periodo,fechaRegistro,generar,lineas,excel,pdf,empaquetar,desempaquetar});
+ return Object.freeze({SECCIONES,SUCURSALES,periodo,fechaRegistro,generar,lineas,hojasExcel,excel,pdf,empaquetar,desempaquetar});
 });
