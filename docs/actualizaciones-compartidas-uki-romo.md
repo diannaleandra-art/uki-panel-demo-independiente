@@ -15,3 +15,6 @@ Uki La Serena y Uki Regimiento Arica usan la misma aplicación Uki. Romo conserv
 5. Publicar las versiones aprobadas en sus proyectos oficiales, manteniendo los destinos de datos separados.
 
 Esta es la primera fase del mecanismo común; no habilita aún propagación automática en producción ni autoriza importaciones financieras. Nunca se usa una actualización de Uki para reemplazar precios, claves, inventarios, pedidos, cierres, saldos, logo ni sucursal de Romo.
+
+## Control de cobertura
+El sincronizador también lista cambios en firebase, public, api, lib, migrations y configuración de despliegue fuera del núcleo compartido. Si los detecta, impide avanzar la base automáticamente: primero debe revisarse si una corrección funcional requiere su equivalente en Romo. Así no se pierde un cambio por avanzar el SHA de referencia. Los módulos vinculados a credenciales y almacenamiento no se copian automáticamente, aunque sus archivos sean idénticos. Los exportadores y tarjetas de timbres que contienen la marca Uki requieren adaptación visual.
