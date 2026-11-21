@@ -11,8 +11,11 @@
   return o.year+'-'+o.month+'-'+o.day;
  }
  function mesInicial(){
-  const hoy=hoyChile(),d=new Date(Date.UTC(Number(hoy.slice(0,4)),Number(hoy.slice(5,7))-2,1));
-  return d.toISOString().slice(0,7)<'2026-11'?'2026-11':d.toISOString().slice(0,7);
+  // Solo proponer el mes cerrado cuyo día 5 ya llegó en Chile.
+  const [ano,mes,dia]=hoyChile().split('-').map(Number);
+  const d=new Date(Date.UTC(ano,mes-1-(dia>=5?1:2),1));
+  const elegido=d.toISOString().slice(0,7);
+  return elegido<'2026-11'?'2026-11':elegido;
  }
  async function llamar(url,token,session,body){
   const response=await fetch(url,{method:'POST',cache:'no-store',credentials:'omit',
