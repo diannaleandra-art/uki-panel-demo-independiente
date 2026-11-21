@@ -103,6 +103,34 @@ module.exports=async function gestionRomoQA(req,res){
   }
   if(req.body.action==='promotion-delete'&&commercial.publishedPromotions.some(p=>p.sku==='monthly:romoq-'+String(req.body.fields.id||'').slice(6)))return fail(res,409,'Retira primero la promoción de la carta pública');
   const next=M.apply(current,base,req.body.action,req.body.fields);
+  // Eliminación personalizada: publicar y quitar de administración en una
+  // sola transacción, conservando la auditoría y los pedidos históricos.
+  if(req.body.action==='ingredient-delete'&&ingredientesPublicacionHabilitada){
+   const row=commercialRows[0],oldDoc=typeof row.contenido==='string'?JSON.parse(row.contenido):row.contenido;
+   const newDoc=structuredClone(oldDoc),oldConfig=oldDoc.gestion?.ingredientConfig||null;
+   const projection=require('../lib/romo-ingredientes-publicacion.cjs').project(base,next.data);
+   const changed=JSON.stringify(oldConfig||{})!==JSON.stringify(projection||{});
+   if(changed){
+    newDoc.gestion={...(newDoc.gestion||{categories:[],products:[]}),ingredientConfig:projection};
+    newDoc.revision=commercial.revision+1;
+    lib.vistaEdicionesRomoQA(base,{...row,revision:newDoc.revision,contenido:newDoc});
+   }
+   const args=[STORE,commercial.revision,row.base_sha256,current.revision,JSON.stringify(next.data),identity.userId,next.action,next.id,JSON.stringify(next.before),JSON.stringify(next.after),req.body.motivo.trim(),JSON.stringify(newDoc),JSON.stringify(oldConfig),JSON.stringify(projection),changed];
+   const q=`WITH locked AS (SELECT store_id FROM public.romo_carta_ediciones_v1 WHERE store_id=$1 AND revision=$2 AND base_sha256=$3 FOR UPDATE),
+   saved_admin AS (UPDATE public.romo_carta_admin_qa_v1 SET revision=revision+1,contenido=$5::jsonb,actualizado_por=$6,actualizado_en=now()
+    WHERE store_id=$1 AND revision=$4 AND EXISTS(SELECT 1 FROM locked) RETURNING revision),
+   audit_admin AS (INSERT INTO public.romo_carta_admin_auditoria_qa_v1(store_id,revision,accion,registro_id,anterior,nuevo,responsable_uid,motivo)
+    SELECT $1,revision,$7,$8,$9::jsonb,$10::jsonb,$6,$11 FROM saved_admin RETURNING revision),
+   saved_commercial AS (UPDATE public.romo_carta_ediciones_v1 SET revision=revision+1,contenido=$12::jsonb,actualizado_por=$6,actualizado_en=now()
+    WHERE store_id=$1 AND revision=$2 AND base_sha256=$3 AND $15::boolean AND EXISTS(SELECT 1 FROM audit_admin) RETURNING revision),
+   audit_commercial AS (INSERT INTO public.romo_carta_ediciones_auditoria_v1(store_id,revision,revision_anterior,base_sha256,sku,anterior,nuevo,responsable_uid,motivo)
+    SELECT $1,revision,$2,$3,'catalog:ingredients',$13::jsonb,$14::jsonb,$6,$11 FROM saved_commercial RETURNING revision)
+   SELECT saved_admin.revision,COALESCE((SELECT revision FROM audit_commercial),$2) AS revision_comercial FROM saved_admin JOIN audit_admin USING(revision)`;
+   const saved=await db.query(q,args);
+   if(saved.length!==1||Number(saved[0].revision)!==next.revision||Number(saved[0].revision_comercial)!==commercial.revision+(changed?1:0))
+    return fail(res,409,'No se confirmó la eliminación; actualiza la lista antes de repetir');
+   return res.status(200).json({ok:true,storeId:STORE,revision:next.revision,guardado:true,auditado:true,draftOnly:true,recordId:next.id,ingredientesPublicados:true,revisionComercial:Number(saved[0].revision_comercial)});
+  }
   // CAS + auditoría como una sentencia. Nunca registrar éxito si falla auditoría.
   const saveSql=[
    'WITH locked_commercial AS (SELECT revision,contenido FROM public.romo_carta_ediciones_v1 WHERE store_id=$1 FOR SHARE), saved AS (',

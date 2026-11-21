@@ -188,7 +188,7 @@
       done.revision!==rev+1)throw Error('El servidor no confirmó la auditoría');
    savedDraft=true;
    if(syncPromo)await publicarPromocion(fields.id,action==='promotion-edit'&&fields.item.available===false,done.revision);
-    if(syncIngredient)await publicarIngredientes(done.revision);
+    if(syncIngredient&&done.ingredientesPublicados!==true)await publicarIngredientes(done.revision);
    state.busy=false;await load();
    status('✓ '+description+((syncPromo||syncIngredient)?'. Cambio publicado en la carta de Romo.':'. Guardado en administración; no se modificó la carta pública.'));
   }catch(e){
@@ -1165,13 +1165,25 @@
         surfaces:Object.keys(enabled).filter(k=>enabled[k].checked),available:av.input.checked
        }},'Editar ingrediente '+p.name);
       }));
-      f.append(button('Eliminar ingrediente creado',()=>void save('ingredient-delete',{id:p.sku},'Eliminar ingrediente '+p.name,'¿Eliminar este ingrediente de Romo? No se alteran pedidos anteriores.'),true));
+
       f.append(button(p.available!==false?'Marcar agotado':'Restaurar ingrediente',()=>{
        void save('ingredient-availability',{id:p.sku,available:p.available===false},
         'Disponibilidad de '+p.name);
       },true));
     }
-    item.append(f);list.append(item);
+    const card=css(E('article'),'border:1px solid #ead8de;border-radius:13px;padding:10px;margin:10px 0;background:white');
+    const actions=row();
+    if(!p._base){
+     const remove=button('Eliminar',async()=>{
+      if(state.busy||!canWrite())return;
+      if(!window.confirm('¿Eliminar '+p.name+' del panel y de la carta de Romo? Los pedidos anteriores se conservan.'))return;
+      remove.disabled=true;
+      try{await save('ingredient-delete',{id:p.sku},'Eliminar ingrediente '+p.name);}
+      finally{if(remove.isConnected)remove.disabled=!canWrite();}
+     },true);
+     remove.style.color='#a00e28';actions.append(remove);
+    }else actions.append(info('Ingrediente original: se puede marcar agotado.'));
+    item.append(f);card.append(item,actions);list.append(card);
    }
   };
   search.input.oninput=draw;filterKind.input.onchange=draw;draw();
