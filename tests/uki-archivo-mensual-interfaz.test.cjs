@@ -63,6 +63,7 @@ function ejecutarInterfaz(script,{romo=false,editarDuranteCompresion=false,pendi
  controles.ukiArchivoMes.value='2026-11';
  controles.ukiArchivoPin.value='123456';
  return {
+  snapshot(){return {disabled:controles.ukiArchivoGuardar.disabled,button:controles.ukiArchivoGuardar.textContent,status:controles.ukiArchivoEstado.textContent};},
   async click(){await controles.ukiArchivoGuardar.listeners.click();return {
    actions,desde:generarDesde,estado:controles.ukiArchivoEstado.textContent,
    botonDesactivado:controles.ukiArchivoGuardar.disabled,
@@ -167,6 +168,9 @@ test('noviembre no permite pulsar Guardar antes del 5 de diciembre',()=>{
  if(!fs.existsSync(file))return;
  const fecha='2026-11-21T15:00:00Z';
  const q=ejecutarInterfaz(fs.readFileSync(file,'utf8'),{fechaPrueba:fecha});
- // La fecha está antes del primer día 5 habilitado.
- assert.ok(q);
+ // Antes del día 5 no se puede iniciar el guardado desde el botón.
+ assert.equal(q.snapshot().disabled,true);
+ assert.match(q.snapshot().status,/2026-12-05/);
+ const habilitado=ejecutarInterfaz(fs.readFileSync(file,'utf8'),{fechaPrueba:'2026-12-05T15:00:00Z'});
+ assert.equal(habilitado.snapshot().disabled,false);
 });
