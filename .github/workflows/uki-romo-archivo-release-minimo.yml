@@ -1,0 +1,30 @@
+name: Romo respaldo mensual - revision segura release
+on:
+  push:
+    branches:
+      - integracion/archivo-mensual-romo-release-seguro-20261121
+    paths:
+      - public/romo-panel-qa/index.html
+      - public/romo-panel-qa/romo-panel-unico-sesion-qa.mjs
+      - public/romo-panel-qa/uki-archivo-mensual-core.js
+      - public/romo-panel-qa/uki-archivo-mensual-panel.js
+      - tests/uki-archivo-mensual-romo-carga.test.cjs
+      - tests/uki-archivo-mensual-interfaz.test.cjs
+      - .github/workflows/uki-romo-archivo-release-minimo.yml
+permissions:
+  contents: read
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Sintaxis
+        run: |
+          node --check public/romo-panel-qa/uki-archivo-mensual-core.js
+          node --check public/romo-panel-qa/uki-archivo-mensual-panel.js
+          node --check public/romo-panel-qa/romo-panel-unico-sesion-qa.mjs
+      - name: Pruebas de archivo y flujo Romo
+        run: node --test tests/uki-archivo-mensual-romo-carga.test.cjs tests/uki-archivo-mensual-interfaz.test.cjs
