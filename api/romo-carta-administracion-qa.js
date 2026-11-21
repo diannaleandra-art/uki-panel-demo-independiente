@@ -102,7 +102,7 @@ module.exports=async function gestionRomoQA(req,res){
   if(!Array.isArray(saved)||saved.length!==1||Number(saved[0].revision)!==next.revision)
    return fail(res,409,'Conflicto de revisión; ningún cambio confirmado');
   return res.status(200).json({ok:true,storeId:STORE,revision:next.revision,
-   guardado:true,auditado:true,draftOnly:true});
+   guardado:true,auditado:true,draftOnly:true,recordId:next.id});
  }catch(error){
   if(error?.status===400)return fail(res,400,String(error.message));
   if(error?.status===409)return fail(res,409,'Conflicto de revisión; actualiza antes de guardar');
