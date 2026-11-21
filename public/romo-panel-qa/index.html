@@ -415,7 +415,7 @@ body.romo-operativo-preparacion #app .uki-urgentes-carta .card button.sm.ok{
 </style>
 </head>
 <body>
-<div role="status" style="font:700 14px/1.5 system-ui,sans-serif; padding:13px 16px;background:#171717;color:#fff;border-bottom:4px solid #bb1024;text-align:center">ROMO LA SERENA · PILOTO INTERNO · PEDIDOS Y COBROS CONTROLADOS EN PRUEBAS · NO USAR CON CLIENTES AÚN</div>
+
 <header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.16 · LOCALES</h1><small id="ukiEstadoOperativo" role="status">Nube: desactivada · Abre tu sucursal y carga Firebase</small><small id="romoNeonEstadoQA" role="status" style="display:none">Romo · verificación Neon pendiente</small></header>
 <nav id="nav" class="app-nav" aria-label="Navegación de Uki Sushi"></nav>
 <section id="ukiNubeSeccion" style="margin:12px;padding:14px;background:#fff0dd;border:2px solid #b55e25;border-radius:14px">
@@ -947,7 +947,7 @@ function render(){
   document.body.classList.toggle('romo-operativo-preparacion',S.suc===ROMO_SUCURSAL_QA);
   const tituloPanel=document.querySelector('header h1');
   if(tituloPanel)tituloPanel.textContent=(S.suc===ROMO_SUCURSAL_QA||S.pinSuc===ROMO_SUCURSAL_QA||S.romoSeleccionadoQA)?
-   'Romo’s Sushi · Panel v8.16 · La Serena':'Uki Sushi · Panel v8.16 · LOCALES';
+   'Romo’s Sushi · La Serena':'Uki Sushi · Panel v8.16 · LOCALES';
   $("suc").innerHTML=S.suc?`<span>${esc(S.suc)}</span><a href="#" onclick="salirSuc();return false;" class="salir">Salir</a>`:S.pinSuc===ROMO_SUCURSAL_QA?'<span>Acceso Romo · La Serena</span><a href="#" onclick="ukiVolverAlSelectorLocales();return false;" class="salir">Cambiar local</a>':S.romoSeleccionadoQA?(S.romoIngresadoQA?'<span>Romo’s Sushi · La Serena · Balmaceda 1612</span><a href="#" onclick="ukiVolverAlSelectorLocales();return false;" class="salir">Salir</a>':'Romo’s Sushi · La Serena · Balmaceda 1612'):'Selecciona una sucursal para empezar';
   const romoNeon=$("romoNeonEstadoQA");
   if(romoNeon&&(S.suc===ROMO_SUCURSAL_QA||S.pinSuc===ROMO_SUCURSAL_QA)){
@@ -959,10 +959,9 @@ function render(){
     catch{estadoNeon=null;}
    }
    romoNeon.textContent=Number.isSafeInteger(estadoNeon?.revision)&&estadoNeon.revision>=1?
-    "Romo · Neon cifrado · última revisión cargada: "+estadoNeon.revision+
     (window.ukiRomoGuardadoHabilitadoQA?.()===true?
-     ' · escritura habilitada para piloto':' · SOLO CONSULTA · guardado desactivado'):
-    "Romo · acceso Google y clave habitual · Neon independiente";
+     'Conectado · Romo La Serena':'Solo consulta · guardado desactivado'):
+    "Acceso con Google y contraseña habitual";
   }
   $("nav").style.display=S.suc?"grid":"none";
   ukiAccesosDesplazamiento();
@@ -996,7 +995,7 @@ function render(){
    '<label for="romoCopiaQAMotivo">Motivo</label>'+
    '<input id="romoCopiaQAMotivo" maxlength="300" autocomplete="off" value="Pedido de prueba sin preparar, entregar ni cobrar">'+
    '<button type="button" class="sm" id="romoCopiaQABoton" onclick="ukiRomoEnsayarCancelacionCopiaQA()">Probar cancelación solo en copia QA</button></details>':'';
-  $("app").innerHTML=msg+cancelacionQA+f();
+  $("app").innerHTML=msg+f();
   if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='promos')
    setTimeout(()=>{
     if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='promos'){
@@ -2322,9 +2321,9 @@ function vNuevo(){
   const pedidoEdicion=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&p.id===D.editando):null;
   const deltaEdicion=pedidoEdicion?.pagado?Number(pedidoEdicion.total||0)-total:0;
   const pendienteEdicion=!!ukiCobroPendiente(pedidoEdicion);
-   const entregaUI=`<label>Tipo de entrega</label><div class="chips">${["Retiro","Delivery","Consumo en local"].map(m=>`<button ${chip(D.modalidad===m)} onclick="setModalidad('${m}')">${m}</button>`).join("")}</div>${S.suc===ROMO_SUCURSAL_QA&&revisandoSolicitud?ukiRomoDetalleEntregaCartaHTMLQA(D.texto):""}${D.modalidad==="Consumo en local"?`<label>Mesa o referencia (opcional)</label><input maxlength="50" value="${esc(D.mesaReferencia||"")}" placeholder="Ej: Mesa 2" oninput="D.mesaReferencia=this.value">`:""}${D.modalidad==="Delivery"?`<label>💰 Valor delivery (se suma)</label><input type="number" inputmode="numeric" value="${D.envio||""}" placeholder="Ej: 2000" oninput="setEnvioManual(this.value)"><p class="muted" id="pedidoEnvioAyuda">Delivery seleccionado - ${D.envio||0} se suma al total</p><label>🛵 Kilómetros del recorrido (opcional, no cambia el precio)</label><input id="ukiKmRecorrido" type="text" inputmode="decimal" value="${esc(D.kmRecorrido??"")}" placeholder="Ej: 4,5" onchange="D.kmRecorrido=this.value.trim();render()"><p class="muted">Si el recorrido viene escrito en el mensaje original, el panel también puede leerlo. No modifica el valor del delivery.</p>`:""}`;
-  return `<div class="section-head"><h2>${D.editando?`Editar pedido #${D.editando}`:revisandoSolicitud?"Revisar solicitud":"Nuevo pedido"}</h2><p>${D.editando&&pedidoEdicion?.pagado?"Romo: un pedido pagado solo permite corregir referencia de mesa o recorrido informativo, sin tocar importes, armado, cliente, timbres ni caja. Otras correcciones requieren conciliación financiera.":D.editando?"Corrige el pedido pendiente existente. No se registra otro pedido ni otro cobro.":revisandoSolicitud?"Solicitud recibida: verifica el detalle y la entrega; todavía NO es venta ni pago.":"Completa los datos y guarda el pedido una sola vez."}</p></div>
-  ${S.suc===ROMO_SUCURSAL_QA&&D.editando&&pedidoEdicion?.pagado?'<div class="card" role="note"><b>Romo · pedido ya pagado</b><p class="muted">Solo puedes corregir la referencia de mesa o kilómetros informativos en el turno abierto. Si modificas precios, cliente, armado, medios, propina o delivery, se bloqueará el guardado hasta conciliar la caja. No se cobrará de nuevo ni se reenviarán timbres.</p></div>':S.suc===ROMO_SUCURSAL_QA?'<div class="card"><b>Romo · pedido manual o por WhatsApp</b><p class="muted">Pega el mensaje y revisa productos, precios, entrega y delivery. El pedido se guarda por cobrar, sin registrar pago. El guardado exige confirmación cifrada de Neon Romo; los pedidos en espera quedan guardados de forma cifrada exclusivamente en Romo.</p></div>'+ukiRomoBorradoresVistaQA():ukiVistaBorradores()}
+   const entregaUI=`<label>Tipo de entrega</label><div class="chips">${(S.suc===ROMO_SUCURSAL_QA&&D.modalidad!=="Consumo en local"?["Retiro","Delivery"]:["Retiro","Delivery","Consumo en local"]).map(m=>`<button ${chip(D.modalidad===m)} onclick="setModalidad('${m}')">${m}</button>`).join("")}</div>${S.suc===ROMO_SUCURSAL_QA&&revisandoSolicitud?ukiRomoDetalleEntregaCartaHTMLQA(D.texto):""}${D.modalidad==="Consumo en local"?`<label>Mesa o referencia (opcional)</label><input maxlength="50" value="${esc(D.mesaReferencia||"")}" placeholder="Ej: Mesa 2" oninput="D.mesaReferencia=this.value">`:""}${D.modalidad==="Delivery"?`<label>💰 Valor delivery (se suma)</label><input type="number" inputmode="numeric" value="${D.envio||""}" placeholder="Ej: 2000" oninput="setEnvioManual(this.value)"><p class="muted" id="pedidoEnvioAyuda">Delivery seleccionado - ${D.envio||0} se suma al total</p><label>🛵 Kilómetros del recorrido (opcional, no cambia el precio)</label><input id="ukiKmRecorrido" type="text" inputmode="decimal" value="${esc(D.kmRecorrido??"")}" placeholder="Ej: 4,5" onchange="D.kmRecorrido=this.value.trim();render()"><p class="muted">Si el recorrido viene escrito en el mensaje original, el panel también puede leerlo. No modifica el valor del delivery.</p>`:""}`;
+  return `<div class="section-head"><h2>${D.editando?`Editar pedido #${D.editando}`:revisandoSolicitud?"Revisar solicitud":"Nuevo pedido"}</h2><p>${D.editando&&pedidoEdicion?.pagado?"Revisa los cambios del pedido pagado. Puedes corregir referencias, medios o precios con los controles de ajuste.":D.editando?"Corrige el pedido pendiente existente. No se registra otro pedido ni otro cobro.":revisandoSolicitud?"Solicitud recibida: verifica el detalle y la entrega; todavía NO es venta ni pago.":"Completa los datos y guarda el pedido una sola vez."}</p></div>
+  ${S.suc===ROMO_SUCURSAL_QA&&D.editando&&pedidoEdicion?.pagado?'<div class="card" role="note"><b>Romo · pedido ya pagado</b><p class="muted">Corrige el pedido del turno abierto. Usa las acciones de ajuste para precios, medios o propina. Los cambios de dinero requieren conciliación; no se reenvía el timbre.</p></div>':S.suc===ROMO_SUCURSAL_QA?'<div class="card"><b>Romo · pedido manual o por WhatsApp</b><p class="muted">Ingresa o pega el pedido, confirma el pago si corresponde y guarda. Puedes dejarlo en espera para atender otro.</p></div>'+ukiRomoBorradoresVistaQA():ukiVistaBorradores()}
   <details class="uki-modos-ingreso" ${revisandoSolicitud?'':'open'} style="${D.editando?'display:none;':'margin:10px 0'}"><summary><b>${revisandoSolicitud?'Ver mensaje original':'Opciones de ingreso · WhatsApp o manual'}</b></summary>
    ${revisandoSolicitud?'':`<div class="mode-switch" role="group" aria-label="Modo de ingresar pedido"><button type="button" class="${modoNuevo==='whatsapp'?'selected':''}" onclick="cambiarModoNuevo('whatsapp')">📋 Pegar WhatsApp</button><button type="button" class="${modoNuevo==='manual'?'selected':''}" onclick="cambiarModoNuevo('manual')">✎ Manual</button></div>`}
 
@@ -6174,7 +6173,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
  const filtrosPrincipales=new Set(['todos','por-confirmar','sin-pago','pagados','pendientes']);
  const etiquetas=UKI_CATEGORIAS_PEDIDOS.filter(([tipo])=>filtrosPrincipales.has(tipo))
   .map(([tipo,nombre])=>[tipo,nombre+' ('+numeroCategoria(tipo)+')']);
- const etiquetasExtra=UKI_CATEGORIAS_PEDIDOS.filter(([tipo])=>!filtrosPrincipales.has(tipo))
+ const etiquetasExtra=UKI_CATEGORIAS_PEDIDOS.filter(([tipo])=>!filtrosPrincipales.has(tipo)&&tipo!=='cuentas')
   .map(([tipo,nombre])=>[tipo,nombre+' ('+numeroCategoria(tipo)+')']);
  const listado=visibles.filter(p=>coincide(p,ukiRomoFiltroPedidosQA));
  const enCurso=todos.filter(ukiRomoPedidoPendienteQA).length;
@@ -6373,7 +6372,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
     (p.estado==='Pendiente'&&
      (!Array.isArray(p.qrSolicitudes)||p.qrSolicitudes.length===0)?
       '<button type="button" class="sm ok" onclick="editarPedido('+id+')">✏️ Editar pedido pendiente</button>':'')+
-    (window.ukiRomoEditorPedidoQA?.(p)||''))+
+    '')+
     (p.estado==='Pendiente'?
     '<details class="inner-details"><summary>❌ Cancelar pedido sin cobro</summary>'+
     (tst?'<p class="muted">Pedido de prueba sin pago: puedes cancelarlo con motivo y responsable, conservando su historial. No se realizará ningún cobro, entrega ni devolución.</p>':'')+
@@ -6397,7 +6396,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
   }else{
    acciones='<p class="muted">Pago guardado en Romo. No se realiza otro cobro.</p>'+
     (!tst&&(!Array.isArray(p.qrSolicitudes)||p.qrSolicitudes.length===0)?
-      '<button type="button" class="sm" onclick="editarPedido('+id+')">✏️ Corregir referencia (sin alterar cobros)</button>':'')+
+      '<button type="button" class="sm" onclick="editarPedido('+id+')">✏️ Editar pedido pagado</button>':'')+
     (p.timbreReglaObligatoria&&!p.timbreEnviadoEn?
      (ukiTimbreMovimientoRegistrado(p)&&ukiNumeroTimbreWhatsApp(p.telefono)?
       '<div class="card" style="padding:12px"><b>🎫 Timbre por enviar</b>'+
@@ -8860,7 +8859,7 @@ function ukiRomoFormularioPrecierreQA(c,t){
    '<button type="button" class="big" onclick="ukiRomoGuardarPrecierreQA()">Guardar precierre del trabajador</button>':
    '<p class="muted">No hay trabajador con turno iniciado. Igual que en Uki, inicia el turno desde Inicio; el precierre se registra aquí, sin cerrar Caja.</p>'+
    '<button type="button" class="big" onclick="ir(\'inicio\')">Ir a Inicio para comenzar turno</button>')+
-  '<p class="muted">Solo cuenta de dueños durante integración. El acceso por PIN independiente se conectará después. Cada apertura y precierre debe confirmarse en Neon.</p>'+
+  '<p class="muted">El precierre guarda el turno del trabajador sin cerrar el día.</p>'+
   '<button type="button" class="sm ok" onclick="ukiExportarPrecierres()">📊 Excel de precierres de Romo</button>'+
   '<details><summary>Precierres confirmados: '+prev.length+'</summary>'+
    (prev.map(p=>ukiFilaPrecierre(p)).join('')||'<p class="muted">Sin precierres confirmados en este turno.</p>')+
@@ -9578,9 +9577,9 @@ async function ukiRomoGuardarPedidoPendienteQA(){
   const quedoPagado=pedido.pagado===true;
   S={...S,...clone,suc:s,pinSuc:null,msg:null,vista:'pedidos'};
   nuevoDraft();ukiRomoBorradorActivoQA=null;
-  S.msg='Pedido #'+pedido.id+' guardado en Neon Romo · '+
+  S.msg='Pedido #'+pedido.id+' guardado · '+
    (quedoPagado?'pago confirmado '+fmt(total):'pendiente de pago')+
-   '. Revisión '+saved.revision+'.';
+   '.';
   render();
  }catch(e){
   aviso('No se guardó el pedido o no se confirmó la respuesta. Revisa Pedidos antes de repetir. '+String(e?.message||e));
@@ -10980,8 +10979,8 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 <script src="./uki-tarjeta-cliente.js" defer></script>
 <script src="./uki-cierre-detallado.js" defer></script>
 <script src="./uki-inventario-admin-embebido.js" defer></script>
-<script src="./uki-disponibilidad-admin.js" defer></script>
-<script src="./uki-carta-precios-admin.js?v=uki-categorias-crud-20261112" defer></script>
+<script src="./uki-disponibilidad-admin.js?v=romo-disponibilidad-20261121" defer></script>
+<script src="./uki-carta-precios-admin.js?v=romo-secciones-20261121" defer></script>
 <script src="./uki-armado-ingredientes-admin.js?v=uki-tres-vistas-qa-20261109" defer></script>
 <script src="./uki-inventario-exportar.js" defer></script>
 <script src="./uki-inventario-historial-admin.js" defer></script>
@@ -11275,4 +11274,4 @@ el("ukiAutoCheck").addEventListener("change",()=>{
 <script src="/romo-panel-qa/romo-caja-acumulada-conciliacion-qa.js?v=20261115a" defer></script>
 <script src="/romo-panel-qa/romo-movimientos-paridad-qa.js?v=20261115a" defer></script>
 <script src="/romo-panel-qa/romo-edicion-en-panel-qa.js?v=20261114c" defer></script>
-<script src="/romo-panel-qa/romo-carta-editor-seguro-qa.js?v=20261118b" defer></script><script src="/romo-panel-qa/romo-carta-gestion-completa-qa.js?v=20261118k" defer></script><script src="/romo-panel-qa/romo-banner-admin.js?v=20261114b" defer></script></body></html>
+<script src="/romo-panel-qa/romo-carta-editor-seguro-qa.js?v=20261121c" defer></script><script src="/romo-panel-qa/romo-carta-gestion-completa-qa.js?v=20261118k" defer></script><script src="/romo-panel-qa/romo-banner-admin.js?v=20261114b" defer></script></body></html>

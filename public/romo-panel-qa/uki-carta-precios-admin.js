@@ -97,7 +97,7 @@ const pricesPanel=[
 ].join('');
 window.ukiInventarioPanelHTML=()=>{
  const esRomo=typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena';
- return (esRomo?nav.replace('Administrar Uki Sushi','Administrar Romo Sushi'):nav)
+ return (esRomo?nav.replace('Administrar Uki Sushi','Administrar Romo Sushi').replaceAll('#d47109','#b31830').replaceAll('#fff0de','#fcecef').replaceAll('#ef820e','#b31830').replaceAll('#9b632d','#8e1026'):nav)
   +prevPanel()+pricesPanel;
 };
 function esSucursalRomoQA(){return typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena';}
@@ -143,11 +143,11 @@ function showTab(){
  const sections={
   precios:['ukiPreciosPanel'],
   disponibilidad:['ukiCartaDisponibilidad'],
-  inventario:['ukiInvSectionHead','invRoot','invAdmin','invNewBox','ukiInvWorkerAccess','romoInvWorkerAccess','ukiMiniInventario'],
+  inventario:['ukiInvSectionHead','invRoot','invAdmin','invNewBox','ukiInvWorkerAccess','romoInvWorkerAccess','ukiMiniInventario','romoInvBootstrap'],
   reportes:['ukiReponerPanel','ukiHistorial']
  };
  const ids=['ukiInvSectionHead','invRoot','invAdmin','invNewBox','ukiInvWorkerAccess',
-  'ukiCartaDisponibilidad','ukiPreciosPanel','ukiReponerPanel','ukiMiniInventario','ukiHistorial','invReportsBox','romoInvWorkerAccess'];
+  'ukiCartaDisponibilidad','ukiPreciosPanel','ukiReponerPanel','ukiMiniInventario','ukiHistorial','invReportsBox','romoInvWorkerAccess','romoInvBootstrap'];
  for(const id of ids){
   const element=$(id);if(!element)continue;
   const visible=(sections[state.tab]||[]).includes(id);
@@ -176,6 +176,7 @@ function showTab(){
    }else avisoCarta('Editor de Romo pendiente de conexión. No se cambiaron productos.');
   }
  }else if(state.tab==='precios'&&!state.ready)void loadPrices();
+ if(state.tab==='disponibilidad'&&esRomo)window.romoRefrescarDisponibilidadQA?.();
  if(state.tab==='reportes')void loadReponer();
 }
 // Fotos optimizadas: el mismo menú de Uki, sin servicios adicionales.

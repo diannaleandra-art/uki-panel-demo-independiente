@@ -6,8 +6,8 @@
  */
 const SUC='Romo’s Sushi La Serena';
 const MODES=new Set(['Retiro','Delivery','Consumo en local']);
-const PAYMENTS=new Set(['Efectivo','Transferencia','Débito','Edenred','Otros','Uber Eats','PedidosYa','Rappi']);
-const DELIVERY_PAYMENTS=new Set(['Efectivo','Transferencia','Débito','Edenred','Otros']);
+const PAYMENTS=new Set(['Efectivo','Transferencia','Débito','Edenred','Junaeb','Otros','Uber Eats','PedidosYa','Rappi']);
+const DELIVERY_PAYMENTS=new Set(['Efectivo','Transferencia','Débito','Edenred','Junaeb','Otros']);
 const BAD=/^Pedido WhatsApp \(revisar detalle\)$/i;
 const CLIENTE_MAX=80;
 const int=x=>Number.isSafeInteger(x);

@@ -306,7 +306,7 @@
     try{
       autorizado=await request('GET');
       if(autorizado?.readOnly!==true||
-         !Array.isArray(autorizado.products)||autorizado.products.length!==40)
+         !Array.isArray(autorizado.products)||autorizado.products.length<40)
         throw Error('Catálogo no confirmado por el servidor de Romo.');
     }catch{
       // Al cambiar de vista o cerrar Google se revocan también los controles

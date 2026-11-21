@@ -23,11 +23,11 @@
  '<p class="mini-help">Cuando marques Agotado se desactiva esa opción para la sucursal. Volver a disponible es manual; no depende del stock.</p>',
  '</div>'
  ].join('');
- const label=b=>b==='serena'?'La Serena':'Regimiento Arica';
+ const label=b=>b==='romo'?'Romo La Serena':b==='serena'?'La Serena':'Regimiento Arica';
  function sucursal(){return get('invBranch')?.value||((typeof S!=='undefined'&&S.suc==='Uki La Serena')?'serena':'arica');}
  function info(t){const n=get('ukiDispMensaje');if(n)n.textContent=t;}
  async function call(action,data={},branch=state.branch){
-  if(typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena')throw Error('La disponibilidad de Romo no puede modificarse en Uki.');
+  if(typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena')return callRomo(action,data,branch);
   const token=await window.ukiInventarioToken?.();
   if(!token)throw Error('Inicia sesión con Google para administrar la disponibilidad.');
   const r=await fetch(API,{method:'POST',mode:'cors',cache:'no-store',credentials:'omit',
@@ -36,6 +36,30 @@
   const body=await r.json().catch(()=>({}));
   if(!r.ok||!body.ok)throw Error(body.error||'No se pudo guardar la disponibilidad.');
   return body;
+ }
+ async function callRomo(action,data,branch){
+  if(branch!=='romo'||S?.suc!=='Romo’s Sushi La Serena')throw Error('Abre Romo para administrar su carta.');
+  const token=await window.ukiInventarioToken?.();
+  if(!token)throw Error('Inicia sesión Google de administración.');
+  const api='/api/romo-carta-ediciones-seguras-qa';
+  const headers={Authorization:'Bearer '+token,Accept:'application/json'};
+  async function req(method,payload){
+   const res=await fetch(api,{method,cache:'no-store',credentials:'same-origin',headers:{...headers,...(method==='POST'?{'Content-Type':'application/json'}:{})},...(method==='POST'?{body:JSON.stringify(payload)}:{})});
+   const j=await res.json().catch(()=>null);
+   if(!res.ok||j?.ok!==true||j.storeId!=='romo:serena')throw Error(j?.error||'No se confirmó la carta Romo.');
+   if(S?.suc!=='Romo’s Sushi La Serena'||sucursal()!=='romo')throw Error('Cambió la sucursal.');
+   return j;
+  }
+  const j=await req('GET');
+  if(!Array.isArray(j.products)||!Array.isArray(j.ingredients))throw Error('Catálogo incompleto.');
+  if(action==='listar')return {items:[
+   ...j.products.filter(p=>p.sku!=='dish:sushi-burger-promo').map(p=>({sku:p.sku,name:p.name,group:p.categoriaSlug,kind:'product',available:p.available!==false,version:j.revision,editable:j.edicionHabilitada===true&&j.revision>=1})),
+   ...j.ingredients.map(p=>({sku:p.sku,name:p.name,group:p.category||p.group||'Ingrediente',kind:'ingredient',available:p.available!==false,editable:false}))
+  ]};
+  if(action!=='marcar'||j.edicionHabilitada!==true||j.revision!==data.expected_version||!j.products.some(p=>p.sku===data.sku&&p.sku!=='dish:sushi-burger-promo'))throw Error('Actualiza la carta antes de modificar disponibilidad.');
+  const result=await req('POST',{expectedRevision:j.revision,baseSha256:j.baseSha256,sku:data.sku,patch:{available:data.available},motivo:'Cambio manual de disponibilidad desde administración de Romo'});
+  if(result.guardado!==true||result.auditado!==true||result.revision!==j.revision+1)throw Error('Cambio no confirmado.');
+  return {available:data.available,version:result.revision};
  }
  function pintar(){
   const box=get('ukiDispLista');if(!box)return;box.replaceChildren();
@@ -49,8 +73,8 @@
    const b=document.createElement('b');b.textContent=item.name;name.append(b);
    const sub=document.createElement('small');sub.style.display='block';sub.style.marginTop='3px';sub.style.color='#766659';sub.textContent=(item.group||item.kind)+' · '+(item.available?'Disponible':'Agotado');name.append(sub);
    const btn=document.createElement('button');btn.className='sm'+(item.available?'':' ok');btn.type='button';
-   btn.textContent=item.available?'Marcar agotado':'Volver a disponible';btn.disabled=state.busy;
-   btn.onclick=()=>void marcar(item);
+   btn.textContent=item.available?'Marcar agotado':'Volver a disponible';btn.disabled=state.busy||item.editable===false;
+   if(item.editable===false){btn.textContent=item.kind==='ingredient'?'Consultar ingrediente':'Solo consulta';btn.title='La edición de esta opción aún no está habilitada.';}else btn.onclick=()=>void marcar(item);
    row.append(name,btn);box.append(row);
   }
   info(filtered.length+' opciones mostradas · '+state.items.filter(x=>!x.available).length+' agotadas en '+label(state.branch)+'.');
@@ -80,7 +104,9 @@
   try{
    const result=await call('marcar',{sku:item.sku,available:!item.available,expected_version:item.version},branch);
    if(branch!==state.branch)return;
-   item.available=result.available;item.version=result.version;pintar();
+   item.available=result.available;item.version=result.version;
+   if(branch==='romo'){state.reloadRequested=true;state.items.forEach(x=>{if(x.kind==='product')x.version=result.version;});}
+   pintar();
    info('✓ '+item.name+' está '+(item.available?'disponible':'agotado')+' en '+label(branch)+'. La carta consultará este cambio automáticamente.');
   }catch(e){info('No se cambió la disponibilidad: '+String(e.message||e));}
   finally{
@@ -108,5 +134,6 @@
   if(state.loaded&&state.branch===sucursal()){get('ukiDispSucursal').textContent=label(state.branch);pintar();}
   else void cargar();
  }
+ window.romoRefrescarDisponibilidadQA=()=>{if(sucursal()==='romo')void cargar();};
  window.ukiInventarioMontar=montar;
 })();
