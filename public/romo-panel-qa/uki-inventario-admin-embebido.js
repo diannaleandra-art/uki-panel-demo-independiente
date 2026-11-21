@@ -64,7 +64,7 @@ async function requestRomo(action,data={},branch=X.branch){
  if(typeof token!=='string'||token.length<30)
   throw Error('Inicia sesión con la cuenta Google autorizada de Romo.');
  const revision=X.romoRevision;
- const isRead=action==='articulos'||action==='reportes';
+ const isRead=action==='articulos'||action==='reportes'||action==='inventario-completo';
  let body=null;
  if(!isRead){
   if(!Number.isSafeInteger(revision)||revision<0)
@@ -106,15 +106,10 @@ async function requestRomo(action,data={},branch=X.branch){
      !Array.isArray(state.items)||!Array.isArray(state.movimientos))
    throw Error('La respuesta de inventario no corresponde a Romo.');
   X.romoRevision=version;
-  if(action==='articulos'){
-   X.romoPlantilla=Array.isArray(dataRomo.plantilla_base)?dataRomo.plantilla_base:[];
-   return {items:state.items.filter(v=>!v.archived).map(v=>({
-    ...v,category:v.kind,inventory_only:true,version,available:v.available
-   }))};}
-  return {revisiones:state.movimientos.slice().reverse().map(m=>({
-   tipo:m.tipo,sku:m.sku,created_at:new Date(m.fechaMs).toISOString(),
-   worker_name:m.actor,summary:{sinMinimo:0,faltantes:[]}
-  }))};
+  const items=state.items.filter(v=>!v.archived).map(v=>({...v,category:v.kind,inventory_only:true,version,available:v.available}));
+  const revisiones=state.movimientos.slice().reverse().map(m=>({tipo:m.tipo,sku:m.sku,created_at:new Date(m.fechaMs).toISOString(),worker_name:m.worker_name||m.actor,summary:{sinMinimo:0,faltantes:[]}}));
+  X.romoPlantilla=Array.isArray(dataRomo.plantilla_base)?dataRomo.plantilla_base:[];
+  return {items,revisiones};
  }
  if(Number(dataRomo.revision)!==revision+1)
   throw Error('No se confirmó la revisión. Actualiza antes de reintentar.');
@@ -174,10 +169,11 @@ function reports(){
 }
 async function load(){
  if(X.busy||!$('invRoot'))return;X.busy=true;$('invRefresh').disabled=true;
- const branch=X.branch;status('Consultando inventario…');
+ const branch=X.branch,root=$('invRoot');status('Consultando inventario…');
  try{
-  const [a,r]=await Promise.all([request('articulos',{},branch),request('reportes',{},branch)]);
-  if(branch!==X.branch)return;
+  const snapshot=branch==='romo'?await request('inventario-completo',{},branch):null;
+  const [a,r]=snapshot?[snapshot,snapshot]:await Promise.all([request('articulos',{},branch),request('reportes',{},branch)]);
+  if(branch!==X.branch||branch!==panelBranch()||root!==$('invRoot'))return;
   X.items=a.items||[];X.reports=r.revisiones||[];X.loaded=true;
   const box=$('romoInvBootstrap');
   if(box){
@@ -195,8 +191,8 @@ async function load(){
   // Solo lectura de los faltantes de la MISMA sucursal Romo. No copia
   // existencias de Uki ni escribe datos; refresca el panel al terminar.
   if(branch==='romo')window.romoActualizarFaltantesQA?.();
- }catch(e){X.loaded=false;$('invAdmin').hidden=true;$('invNewBox').hidden=true;$('invReportsBox').hidden=true;status(String(e.message||e));}
- finally{X.busy=false;if($('invRefresh'))$('invRefresh').disabled=false;}
+ }catch(e){if(root===$('invRoot')&&branch===panelBranch()){X.loaded=false;$('invAdmin').hidden=true;$('invNewBox').hidden=true;$('invReportsBox').hidden=true;status(String(e.message||e));}}
+ finally{X.busy=false;if($('invRefresh'))$('invRefresh').disabled=false;if($('invRoot')&&root!==$('invRoot')&&!X.loaded)void load();}
 }
 async function save(){
  const i=X.items.find(x=>x.sku===X.selected);if(!i||X.busy)return;let params;
@@ -271,8 +267,9 @@ async function romoPinInventarioCrear(){
  }catch(e){alert(String(e?.message||e));}
  finally{button.disabled=false}
 }
+let mountedRoot=null;
 function mount(){
- if(!$('invRoot'))return;
+ const root=$('invRoot');if(!root||root===mountedRoot)return;mountedRoot=root;
  const active=panelBranch();
  if(X.branch!==active){X.items=[];X.reports=[];X.selected='';X.loaded=false;X.romoRevision=null;X.romoPlantilla=[];}
  X.branch=active;
