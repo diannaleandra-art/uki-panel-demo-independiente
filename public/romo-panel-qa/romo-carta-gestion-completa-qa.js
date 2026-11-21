@@ -4,7 +4,7 @@
  const API='/api/romo-carta-administracion-qa',STORE='romo:serena';
  // SKU histórico exclusivo de Uki: no debe figurar en la gestión comercial de Romo.
  const SKU_UKI_PROMO='dish:sushi-burger-promo';
- const state={root:null,base:null,admin:null,busy:false,requestId:0,limit:16};
+ const state={root:null,base:null,admin:null,busy:false,requestId:0,limit:16,ingredientSearch:'',ingredientKind:''};
  const E=(tag,text)=>{const x=document.createElement(tag);if(text!==undefined)x.textContent=text;return x;};
  const money=x=>'$'+Number(x||0).toLocaleString('es-CL');
  const norm=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('es-CL');
@@ -97,11 +97,12 @@
       !data.data||!Number.isSafeInteger(data.revision))
     throw Error('No se confirmó el aislamiento de Romo');
    state.admin=data;render();
-   status(canWrite()?'Los cambios de este apartado son borradores y todavía no modifican la carta pública.':'');
+   status(canWrite()?'Puedes guardar cambios administrativos en Romo. Aún no modifican el armado de la carta pública.':'Gestión disponible para consultar. El permiso de guardado de administración de Romo está desactivado en el servidor.');
   }catch(e){
    if(id!==state.requestId)return;
    state.admin=null;
    legacy(true);
+   for(const area of ['productos','categorias','ingredientes','promociones']){const target=host(area);if(target){clear(target);const card=cardNote();card.append(info('No se logró verificar la gestión de Romo: '+String(e.message||e)));const retry=button('Volver a cargar',()=>void load(),true);retry.disabled=false;card.append(retry);target.append(card);}}
    status('La gestión avanzada no está disponible: '+String(e.message||e));
   }
  }
@@ -132,7 +133,7 @@
  function cardNote(){
   const b=css(E('div'),'background:#f7f2f3;border:1px solid #e8dadd;border-radius:11px;padding:11px;margin:10px 0');
   b.append(info('Los cambios que guardes aquí quedan como BORRADOR en Neon Romo QA. No se envían a clientes ni a Uki.'));
-  if(!canWrite())b.append(info('Guardado desactivado hasta completar la validación de permisos y pruebas.'));
+  if(!canWrite())b.append(info('Puedes consultar los registros y formularios. Guardar requiere el permiso de escritura de administración en Romo; mientras esté desactivado no se modificará ningún dato.'));
   const m=E('p');m.dataset.romoAdminStatus='1';m.setAttribute('role','status');
   m.style.fontSize='13px';b.append(m);return b;
  }
@@ -1020,6 +1021,8 @@
   const updateSurfaces=(select,inputs)=>{for(const [k,input] of Object.entries(inputs)){input.disabled=!allowed[select.value]?.includes(k);if(input.disabled)input.checked=false;}};
   const surfaces=[['classic','Sushi clásico'],['premium','Premium'],['monthly','Promociones'],['handroll','Handroll'],['burger','Burger'],['gohan','Gohan']];
   const create=panel('＋ Agregar ingrediente al armado'),form=stack();
+  create.open=true;
+  if(!canWrite())create.append(info('Agregar ingrediente está visible, pero no se puede guardar hasta habilitar la edición administrativa de Romo.'));
   const n=field('Nombre'),kind=select('Tipo',kinds),price=field('Recargo en pesos (0 = incluido)',0,'number'),
     available=field('Disponible',true,'checkbox');
   form.append(n.wrap,kind.wrap,price.wrap,available.wrap);
@@ -1039,16 +1042,19 @@
    }},'Agregar ingrediente '+n.input.value.trim());
   }));
   create.append(form);target.append(create);
-  const search=field('Buscar ingrediente');search.input.type='search';target.append(search.wrap);
+  const search=field('Buscar ingrediente',state.ingredientSearch);search.input.type='search';search.input.placeholder='Ej.: Frutilla, palta o camarón';
+  const filterKind=select('Tipo de ingrediente',[['','Todos'],...kinds,['salsa','Salsas']],state.ingredientKind);
+  target.append(search.wrap,filterKind.wrap);
   const list=E('div');target.append(list);
   const draw=()=>{
    clear(list);
-   const query=norm(search.input.value).trim();
-   const data=ingredients().filter(p=>norm(p.name+' '+p.category).includes(query)).sort((a,b)=>String(a.name).localeCompare(String(b.name),'es'));
+   const query=norm(search.input.value).trim();state.ingredientSearch=search.input.value;state.ingredientKind=filterKind.input.value;
+   const kindOf=x=>({vegetales:'vegetal',proteinas:'proteina',envolturas:'envoltura',salsas:'salsa'})[norm(x)]||norm(x);
+   const data=ingredients().filter(p=>norm(p.name+' '+p.category).includes(query)&&(!state.ingredientKind||kindOf(p.category)===state.ingredientKind)).sort((a,b)=>String(a.name).localeCompare(String(b.name),'es'));
    if(query)list.append(info('Si el ingrediente ya existe, edita el registro encontrado en lugar de crearlo nuevamente.'));
-   list.append(info(data.length+' ingredientes disponibles en administración.'));
+   list.append(info(data.length+' ingredientes encontrados. Incluye ingredientes agotados y los creados en Romo.'));
    for(const p of data){
-    const item=panel(p.name+' · '+p.category+(p._base?' · Receta aprobada':' · Borrador'));
+    const item=panel(p.name+' · '+p.category+(p.available===false?' · Agotado':' · Disponible')+(p._base?' · Receta aprobada':' · Creado en Romo'));
     const f=stack();
     if(p._base){
       const contextInputs={};
@@ -1087,7 +1093,7 @@
     item.append(f);list.append(item);
    }
   };
-  search.input.oninput=draw;draw();
+  search.input.oninput=draw;filterKind.input.onchange=draw;draw();
  }
  function promotionForm(p,create=false){
   const box=stack(),name=field('Nombre',p?.name||''),price=field('Precio',p?.price||'','number'),
@@ -1192,19 +1198,7 @@
   if(!state.root?.isConnected||!state.admin)return;
   // La administración de borradores no debe sustituir la carta comercial.
   legacy(true);
-  if(!canWrite()){
-   const messages={
-    productos:'Las fotografías de productos nuevos y el armado personalizado aún están pendientes de conexión.',
-    categorias:'Las categorías originales del armado de sushi aún no se pueden mover ni eliminar.',
-    ingredientes:'Cambiar ingredientes y recargos requiere conectar el armado público y su cotizador.',
-    promociones:'La edición de promociones existentes está arriba. Crear nuevas promociones y sus fotos aún no está conectado.'
-   };
-   for(const [name,message] of Object.entries(messages)){
-    const target=host(name);if(!target)continue;clear(target);
-    const note=E('details');note.append(E('summary','Funciones pendientes de conexión'),info(message));target.append(note);
-   }
-   return;
-  }
+  // Mostrar todos los formularios incluso en modo consulta; los botones de escritura siguen bloqueados por el servidor.
   renderProducts();renderCategories();renderIngredients();renderPromos();
   // El editor existente alimenta la revisión comercial; no sustituirlo por borradores.
   // Se conserva accesible en un bloque plegable, sin duplicar formularios a la vista.

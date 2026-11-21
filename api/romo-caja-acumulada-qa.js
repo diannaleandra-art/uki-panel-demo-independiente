@@ -56,7 +56,7 @@ module.exports=async function romoCajaAcumuladaQA(req,res){
   return fail(res,400,'Solicitud inválida');
  const action=body.action;
  const write=['inicializar','entrada','gasto','retiro','sincronizar_cierre'].includes(action);
- if(!['saldo','movimientos'].includes(action)&&!write)
+ if(!['saldo','movimientos','libro'].includes(action)&&!write)
   return fail(res,400,'Operación no autorizada');
  if(write&&!conf.write)return fail(res,503,'Caja acumulada Romo solo consulta');
  if(!write&&!only(body,['action']))return fail(res,400,'Consulta inválida');
@@ -83,8 +83,19 @@ module.exports=async function romoCajaAcumuladaQA(req,res){
    authorization:req.headers?.authorization,db,
    verifyToken:auth.verifyFirebaseGoogleToken
   });
-  if(!identity||identity.role!=='duenos')
+  if(!identity||identity.brand!=='romo'||identity.role!=='duenos')
    return fail(res,403,'Solo dueños de Romo pueden consultar o mover caja acumulada');
+  if(action==='libro'){
+   // Una sola fotografía consistente: no escribe ni acredita cierres al consultar.
+   const rows=await db.query(`SELECT
+    COALESCE((SELECT row_to_json(a) FROM (SELECT store_id,balance,initialized,initialized_at,updated_at FROM public.romo_caja_acum_cuenta_v1 WHERE store_id=$1) a),
+      json_build_object('store_id',$1::text,'balance',0,'initialized',false)) AS cuenta,
+    COALESCE((SELECT json_agg(m ORDER BY m.creado_en DESC,m.id DESC) FROM
+      (SELECT id,tipo,monto,saldo_resultante,concepto,responsable,source_key,creado_en FROM public.romo_caja_acum_movimientos_v1 WHERE store_id=$1 ORDER BY creado_en DESC,id DESC LIMIT 250) m),'[]'::json) AS movimientos,
+    COALESCE((SELECT json_agg(c.source_key) FROM public.romo_caja_acum_cierres_v1 c WHERE c.store_id=$1),'[]'::json) AS cierres_acreditados`,[STORE]);
+   if(!Array.isArray(rows)||rows.length!==1)throw Error('Libro no verificado');
+   return res.status(200).json({ok:true,storeId:STORE,soloRomo:true,escrituraHabilitada:conf.write,...rows[0]});
+  }
   if(action==='saldo'){
    const rows=await db.query(
     'SELECT store_id,balance,initialized,initialized_at,updated_at '+
