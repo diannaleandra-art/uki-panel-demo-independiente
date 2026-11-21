@@ -907,6 +907,31 @@ function ukiEscribiendoCancelacion(){
   !!el&&!!app&&app.contains(el)&&
   /^(motivoCancelacion|detalleCancelacion|cobroCancelacion|respCancelacion)\d+$/.test(String(el.id||""));
 }
+async function ukiRomoMontarEditorDuenosEnPromosQA(){
+ // El editor no aparece a agendadores. El backend debe confirmar Google y
+ // rol dueños en Neon Romo ANTES de montar controles en la pantalla.
+ if(S.suc!==ROMO_SUCURSAL_QA||S.vista!=='promos')return false;
+ const root=document.getElementById('romoCartaEditorDuenosQA');
+ if(!root||!root.isConnected||
+    typeof window.romoMontarCartaEditorSeguroQA!=='function')return false;
+ try{
+  const token=await window.ukiInventarioToken?.();
+  if(typeof token!=='string'||token.length<30)return false;
+  const resp=await fetch('/api/romo-carta-ediciones-seguras-qa',{
+   method:'GET',cache:'no-store',credentials:'same-origin',
+   headers:{Authorization:'Bearer '+token,Accept:'application/json'}
+  });
+  const data=await resp.json().catch(()=>null);
+  if(!resp.ok||data?.ok!==true||data.storeId!=='romo:serena'||
+     !Array.isArray(data.products)||data.products.length<40)return false;
+  if(!root.isConnected||S.suc!==ROMO_SUCURSAL_QA||
+     S.vista!=='promos')return false;
+  return await window.romoMontarCartaEditorSeguroQA({
+   container:root,storeId:'romo:serena'
+  });
+ }catch{return false;}
+}
+
 function render(){
   // Una notificación de nube no debe destruir el campo mientras se está escribiendo.
   // La validación al pulsar Confirmar usa siempre S actualizado y la revisión de nube.
@@ -948,7 +973,8 @@ function render(){
   const f={inicio:vInicio,pedidos:vPedidos,nuevo:vNuevo,clientes:vClientes,caja:vCaja,
    inventario:()=>window.ukiInventarioPanelHTML?.()||'<div class="card"><p>Preparando inventario…</p></div>',
    promos:()=>S.suc===ROMO_SUCURSAL_QA?
-     (window.ukiRomoBannerAdminHTML?.()||'<div class="card">Cargando promociones de Romo…</div>'):vInicio()
+     ((window.ukiRomoBannerAdminHTML?.()||'<div class="card">Cargando promociones de Romo…</div>')+
+      '<section id="romoCartaEditorDuenosQA" class="card" hidden></section>'):vInicio()
   }[S.vista]||vInicio;
   const msg=S.msg?`<div role="status" class="aviso" style="background:#ffece4;color:#7a2c08">${esc(S.msg)}</div>`:"";
   S.msg=null;
@@ -968,7 +994,12 @@ function render(){
    '<button type="button" class="sm" id="romoCopiaQABoton" onclick="ukiRomoEnsayarCancelacionCopiaQA()">Probar cancelación solo en copia QA</button></details>':'';
   $("app").innerHTML=msg+cancelacionQA+f();
   if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='promos')
-   setTimeout(()=>{if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='promos')window.ukiRomoBannerAdminMount?.()},0);
+   setTimeout(()=>{
+    if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='promos'){
+     window.ukiRomoBannerAdminMount?.();
+     void ukiRomoMontarEditorDuenosEnPromosQA();
+    }
+   },0);
   ukiRestaurarVistaTrasRender(ukiVistaAnterior);
   ukiUltimaVistaRender=S.vista;ukiUltimaSucursalRender=S.suc;
   guardarEnLocalStorage();
