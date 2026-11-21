@@ -135,12 +135,21 @@
   if(done.guardado!==true||done.auditado!==true||done.publicada!==!retirar)throw Error('No se confirmó la publicación');
   return done;
  }
- async function save(action,fields,description,confirmText){
+ async function publicarIngredientes(expectedAdmin){
+   const current=await request('GET');
+   if(current.revision!==expectedAdmin)throw Error('La gestión cambió; actualiza antes de sincronizar los ingredientes');
+   if(!current.ingredientesPublicacionHabilitada||!Number.isSafeInteger(current.revisionComercial)||current.revisionComercial<1)throw Error('Sincronización comercial no habilitada');
+   const result=await request('POST',{action:'ingredients-publish',expectedRevision:expectedAdmin,fields:{commercialRevision:current.revisionComercial},motivo:'Publicar ingredientes y disponibilidad Romo'});
+   if(result.ingredientesPublicados!==true||(!(result.guardado===true&&result.auditado===true)&&result.sinCambios!==true))throw Error('Publicación de ingredientes no confirmada');
+   return result;
+  }
+  async function save(action,fields,description,confirmText){
   if(state.busy||!canWrite())return;
   if(confirmText&&!window.confirm(confirmText))return;
   const rev=state.admin.revision;
   const syncPromo=(state.admin.publishedPromotions||[]).some(p=>p.sku==='monthly:romoq-'+String(fields.id||'').slice(6))&&['promotion-edit','discount-set'].includes(action);
-  let savedDraft=false;
+  const syncIngredient=['ingredient-create','ingredient-edit','ingredient-delete','ingredient-base-edit','ingredient-availability'].includes(action)&&state.admin.ingredientesPublicacionHabilitada===true;
+   let savedDraft=false;
   state.busy=true;status('Guardando cambios en Romo…');
   try{
    const done=await request('POST',{
@@ -150,8 +159,9 @@
       done.revision!==rev+1)throw Error('El servidor no confirmó la auditoría');
    savedDraft=true;
    if(syncPromo)await publicarPromocion(fields.id,action==='promotion-edit'&&fields.item.available===false,done.revision);
+    if(syncIngredient)await publicarIngredientes(done.revision);
    state.busy=false;await load();
-   status('✓ '+description+(syncPromo?'. Cambio publicado en la carta de Romo.':'. Guardado en administración; no se modificó la carta pública.'));
+   status('✓ '+description+((syncPromo||syncIngredient)?'. Cambio publicado en la carta de Romo.':'. Guardado en administración; no se modificó la carta pública.'));
   }catch(e){
    if(savedDraft){state.busy=false;await load();}
    status((savedDraft?'Guardado en administración, pero no se confirmó su publicación. ':'No se confirmó el guardado. No repitas la acción sin actualizar. ')+String(e.message||e));
@@ -1056,9 +1066,9 @@
  function renderIngredients(){
   const target=host('ingredientes');if(!target)return;clear(target);
   target.append(cardNote(),info('Vegetales, proteínas y envolturas. Cada recargo puede variar según la preparación.'));
-  const sync=button('Aplicar ingredientes y recargos a la carta',async()=>{if(state.busy||!state.admin?.ingredientesPublicacionHabilitada)return;if(!window.confirm('¿Aplicar todos los ingredientes y recargos guardados de Romo a la carta comercial? No cambia pedidos antiguos.'))return;state.busy=true;try{const result=await request('POST',{action:'ingredients-publish',expectedRevision:state.admin.revision,fields:{commercialRevision:state.admin.revisionComercial},motivo:'Publicar ingredientes y disponibilidad Romo'});if(result.guardado!==true||result.auditado!==true||result.ingredientesPublicados!==true)throw Error('Publicación no confirmada');await load();status('Ingredientes publicados en revisión '+result.revisionComercial+'.');}catch(e){status('No se confirmó la publicación: '+String(e.message||e));}finally{state.busy=false;}});
+   const sync=button('Sincronizar cambios pendientes',async()=>{if(state.busy||!state.admin?.ingredientesPublicacionHabilitada)return;if(!window.confirm('¿Aplicar los ingredientes y recargos pendientes de Romo a la carta? No cambia pedidos antiguos.'))return;state.busy=true;try{const result=await publicarIngredientes(state.admin.revision);await load();status(result.sinCambios?'Los ingredientes ya están sincronizados.':'Ingredientes publicados en revisión '+result.revisionComercial+'.');}catch(e){status('No se confirmó la publicación: '+String(e.message||e));}finally{state.busy=false;}},true);
   sync.disabled=!state.admin?.ingredientesPublicacionHabilitada||state.admin?.revisionComercial<1;target.append(sync);
-  if(sync.disabled)target.append(info('Sincronización comercial pendiente de habilitación. Los cambios se conservan como borrador.'));
+  if(sync.disabled)target.append(info('Sincronización comercial pendiente de habilitación. Los cambios se conservan como borrador.'));else target.append(info('Al guardar vegetales, proteínas y envolturas, se sincronizan con la carta de Romo. Usa el botón solo para recuperar cambios pendientes.'));
   const kinds=[['vegetal','Vegetal'],['proteina','Proteína'],['envoltura','Envoltura']];
   const allowed={vegetal:['classic','premium','monthly','handroll','burger','gohan'],proteina:['classic','premium','monthly','handroll','burger'],envoltura:['classic','premium','monthly','handroll']};
   const updateSurfaces=(select,inputs)=>{for(const [k,input] of Object.entries(inputs)){input.disabled=!allowed[select.value]?.includes(k);if(input.disabled)input.checked=false;}};
@@ -1105,7 +1115,7 @@
        const input=field('Recargo · '+key,price,'number');f.append(input.wrap);contextInputs[key]=input.input;
       }
       const av=field('Disponible',p.available!==false,'checkbox');f.append(av.wrap);
-      f.append(button('Guardar recargos QA',()=>{
+      f.append(button('Guardar recargos',()=>{
        void save('ingredient-base-edit',{id:p.sku,available:av.input.checked,
         contexts:Object.fromEntries(Object.entries(contextInputs).map(([k,x])=>[k,Number(x.value)]))
        },'Recargos de '+p.name);
@@ -1127,7 +1137,7 @@
         surfaces:Object.keys(enabled).filter(k=>enabled[k].checked),available:av.input.checked
        }},'Editar ingrediente '+p.name);
       }));
-      f.append(button('Eliminar ingrediente creado',()=>void save('ingredient-delete',{id:p.sku},'Eliminar ingrediente '+p.name,'¿Eliminar este ingrediente del borrador? No se alteran pedidos anteriores.'),true));
+      f.append(button('Eliminar ingrediente creado',()=>void save('ingredient-delete',{id:p.sku},'Eliminar ingrediente '+p.name,'¿Eliminar este ingrediente de Romo? No se alteran pedidos anteriores.'),true));
       f.append(button(p.available!==false?'Marcar agotado':'Restaurar ingrediente',()=>{
        void save('ingredient-availability',{id:p.sku,available:p.available===false},
         'Disponibilidad de '+p.name);
