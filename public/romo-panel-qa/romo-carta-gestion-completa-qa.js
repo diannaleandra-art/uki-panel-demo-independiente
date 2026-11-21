@@ -106,21 +106,33 @@
    status('La gestión avanzada no está disponible: '+String(e.message||e));
   }
  }
+ async function publicarPromocion(sku,retirar=false){
+  const current=await request('GET');
+  if(!current.publicacionHabilitada||!Number.isSafeInteger(current.revisionComercial))throw Error('Publicación comercial no disponible');
+  const done=await request('POST',{action:retirar?'promotion-withdraw':'promotion-publish',expectedRevision:current.revision,fields:{id:sku,commercialRevision:current.revisionComercial},motivo:(retirar?'Retirar':'Publicar')+' promoción Romo'});
+  if(done.guardado!==true||done.auditado!==true||done.publicada!==!retirar)throw Error('No se confirmó la publicación');
+  return done;
+ }
  async function save(action,fields,description,confirmText){
   if(state.busy||!canWrite())return;
   if(confirmText&&!window.confirm(confirmText))return;
   const rev=state.admin.revision;
-  state.busy=true;status('Guardando el borrador en Neon Romo…');
+  const syncPromo=(state.admin.publishedPromotions||[]).some(p=>p.sku==='monthly:romoq-'+String(fields.id||'').slice(6))&&['promotion-edit','discount-set'].includes(action);
+  let savedDraft=false;
+  state.busy=true;status('Guardando cambios en Romo…');
   try{
    const done=await request('POST',{
     action,expectedRevision:rev,fields,motivo:'Gestión manual QA Romo: '+description
    });
    if(done.guardado!==true||done.auditado!==true||done.draftOnly!==true||
       done.revision!==rev+1)throw Error('El servidor no confirmó la auditoría');
+   savedDraft=true;
+   if(syncPromo)await publicarPromocion(fields.id,action==='promotion-edit'&&fields.item.available===false);
    state.busy=false;await load();
-   status('✓ '+description+'. Guardado solo en Romo QA; pendiente de publicar a clientes.');
+   status('✓ '+description+(syncPromo?'. Cambio publicado en la carta de Romo.':'. Guardado en administración; no se modificó la carta pública.'));
   }catch(e){
-   status('No se confirmó el guardado. No repitas la acción sin actualizar. '+String(e.message||e));
+   if(savedDraft){state.busy=false;await load();}
+   status((savedDraft?'Guardado en administración, pero no se confirmó su publicación. ':'No se confirmó el guardado. No repitas la acción sin actualizar. ')+String(e.message||e));
   }finally{state.busy=false;}
  }
  function host(name){
@@ -1129,7 +1141,7 @@
   if(p?._base)type.input.disabled=true;
   type.input.onchange=config;rolls.input.oninput=config;pieces.input.onchange=config;config();
   const pays=E('fieldset');pays.append(E('legend','Medios de pago permitidos'));
-  const payments={},payOpts=[['efectivo','Efectivo'],['transferencia','Transferencia'],['debito','Débito'],['credito','Crédito'],['edenred','Edenred'],['junaeb','Junaeb']];
+  const payments={},payOpts=[['efectivo','Efectivo'],['transferencia','Transferencia'],['debito','Débito'],['edenred','Edenred'],['junaeb','Junaeb']];
   const preset=select('Restricción de pago',[['personalizado','Elegir medios'],['normal','Efectivo y transferencia'],['edenred','Solo Edenred'],['junaeb','Solo Junaeb'],['todos','Todos los medios']],'personalizado');pays.append(preset.wrap);
   for(const [key,label] of payOpts){
    const checked=p?.payments?p.payments.includes(key):['efectivo','transferencia'].includes(key);
@@ -1145,8 +1157,8 @@
    payments:Object.keys(payments).filter(k=>payments[k].checked),available:available.input.checked});
   if(create){
    const file=E('input');file.type='file';file.accept='image/*';const label=E('label','Fotografía real de la promoción');label.append(file);box.append(label);
-   box.append(info('Se guarda primero el borrador y luego su foto. Si falla la foto, recupera el borrador existente y sube la foto allí; no crees otro.'));
-   const createButton=button('Crear promoción con fotografía (borrador)',async()=>{
+   box.append(info('Al crear una promoción disponible, se guarda la foto y se publica en la carta. Si falla algún paso, recupera la promoción existente; no la crees otra vez.'));
+   const createButton=button('Crear y publicar promoción',async()=>{
     if(state.busy||!canWrite())return;
     const item=make();
     if(item.name.length<2||!Number.isSafeInteger(item.price)||item.price<1||!item.payments.length||!file.files?.length){status('Completa nombre, precio, medios de pago y fotografía real.');return;}
@@ -1160,8 +1172,8 @@
      created=result.recordId;
      const photo=await photoRequest('POST',{action:'save',sku:created,base64,expectedVersion:0},created);
      if(photo.guardado!==true||photo.auditado!==true||photo.draftOnly!==true)throw Error('La foto no quedó confirmada.');
-     notice='Promoción y fotografía guardadas como borrador en Romo. Pendiente de publicación comercial.';
-    }catch(e){notice=(created?'El borrador existe; completa la fotografía en la promoción existente. ':'')+String(e.message||e);}
+     if(item.available){await publicarPromocion(created);notice='✓ Promoción publicada con foto en la carta de Romo.';}else notice='Promoción guardada y desactivada. Puedes publicarla cuando esté disponible.';
+    }catch(e){notice=(created?'La promoción ya existe; revisa su foto y pulsa Publicar promoción en la lista. ':'')+String(e.message||e);}
     finally{state.busy=false;await load();status(notice);if(createButton.isConnected)createButton.disabled=!canWrite();}
    });box.append(createButton);
   }else box.append(button(p._base?'Guardar cambios de armado como borrador':'Guardar cambios de promoción',()=>void save(p._base?'promotion-base-edit':'promotion-edit',{id:p.sku,item:make()},'Editar promoción '+name.input.value.trim())));
@@ -1169,8 +1181,8 @@
  }
  function renderPromos(){
   const target=host('promociones');if(!target)return;clear(target);
-  target.append(cardNote());
-  const newCard=panel('＋ Crear nueva promoción de Romo');
+  const note=cardNote();note.firstElementChild.textContent='Crea, edita y publica tus promociones de Romo. Las promociones activas se actualizan al guardar; las no publicadas conservan su borrador.';target.append(note);
+  const newCard=panel('＋ Crear nueva promoción');
   newCard.append(info('Tipos de Romo: sushi personalizable, gohan fijo o combo fijo; no pizzas. Las fotos permanecen privadas hasta publicar la versión aprobada.'));
   newCard.append(promotionForm(null,true));target.append(newCard);
   const search=field('Buscar promoción por nombre');search.input.type='search';
@@ -1182,15 +1194,16 @@
    for(const p of found){
     const percent=Number(state.admin.data.discounts?.[p.sku]||0);
     const finalPrice=percent?Math.max(1,Math.round(p.price*(100-percent)/100)):p.price;
-    const item=panel(p.name+' · '+(percent?money(p.price)+' → '+money(finalPrice):money(p.price))+(p._base?' · Carta aprobada':' · Borrador'));
+    const published=!p._base&&(state.admin?.publishedPromotions||[]).some(x=>x.sku==='monthly:romoq-'+p.sku.slice(6));
+    const item=panel(p.name+' · '+(percent?money(p.price)+' → '+money(finalPrice):money(p.price))+(p._base?' · Carta vigente':published?' · Publicada':' · Borrador'));
     if(!p._base){
      item.append(info((p.available===false?'Agotada o desactivada':'Disponible en borrador')+' · '+(p.promoType==='sushi'?(p.rollCount*p.piecesPerRoll)+' piezas · '+p.rollCount+' rolls · '+p.korokes+' korokes':p.promoType==='gohan'?'Gohan definido':'Combo definido')+' · '+p.sauceCount+' salsas · '+(p.payments||[]).join(', ')));
-     item.append(promotionForm(p,false));
-     const published=(state.admin?.publishedPromotions||[]).some(x=>x.sku==='monthly:romoq-'+p.sku.slice(6));
-     item.append(info(published?'Publicada en carta · las ediciones del borrador requieren actualizar la publicación.':'No publicada'));
+     if(!published){item.open=true;}
+     item.append(info(published?'Publicada en carta · guardar los cambios actualiza su publicación.':'No publicada · pulsa Publicar promoción para mostrarla a clientes.'));
      const publication=async retirar=>{if(state.busy||!state.admin.publicacionHabilitada)return;if(!window.confirm(retirar?'¿Retirar de la carta de Romo? Los pedidos históricos se conservan.':'¿Publicar esta promoción con su foto y configuración actual en la carta de Romo?'))return;state.busy=true;try{const done=await request('POST',{action:retirar?'promotion-withdraw':'promotion-publish',expectedRevision:state.admin.revision,fields:{id:p.sku,commercialRevision:state.admin.revisionComercial},motivo:(retirar?'Retirar ':'Publicar ')+p.name});if(done.guardado!==true||done.auditado!==true||done.publicada!==!retirar)throw Error('No se confirmó la publicación');await load();status('Cambio comercial confirmado en revisión '+done.revisionComercial+'.');}catch(e){status('No se confirmó: '+String(e.message||e));}finally{state.busy=false;}};
      const publish=button(published?'Actualizar promoción publicada':'Publicar promoción',()=>void publication(false));publish.disabled=!state.admin.publicacionHabilitada;item.append(publish);
      if(published){const withdraw=button('Retirar promoción de la carta',()=>void publication(true),true);withdraw.disabled=!state.admin.publicacionHabilitada;item.append(withdraw);}
+     const edit=panel('Editar promoción');edit.append(promotionForm(p,false));item.append(edit);
      const discount=field('Descuento (%)',percent,'number');discount.input.max='99';const preview=info('');const show=()=>{const n=Number(discount.input.value);preview.textContent=Number.isInteger(n)&&n>=0&&n<=99?'Antes '+money(p.price)+' · Ahora '+money(Math.max(1,Math.round(p.price*(100-n)/100))):'Descuento entre 0 y 99%';};discount.input.oninput=show;show();
      item.append(discount.wrap,preview,button('Guardar descuento',()=>void save('discount-set',{id:p.sku,percent:Number(discount.input.value)},'Descuento de '+p.name),true));
      if(!published)item.append(button('Eliminar promoción de borrador',()=>{
