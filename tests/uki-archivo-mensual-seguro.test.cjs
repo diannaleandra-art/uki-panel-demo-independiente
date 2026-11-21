@@ -199,3 +199,17 @@ test('el servidor exige sesión privada vinculada a la identidad Google autoriza
  assert.equal(consultas,1,'La sesión inválida ni siquiera consulta la base de datos');
  assert.equal(await backend.privateSession({query:async()=>[]},{headers:{'x-fin-session':token}},{uid:'otro-usuario'}),false);
 });
+
+test('PDF mensual admite más de 350 páginas sin recortar pedidos numerosos',async()=>{
+ const datos=estado();
+ datos.pedidos=Array.from({length:800},(_,id)=>({
+  suc:ubicacion,id:'pedido-'+id,fechaISO:'2026-11-24T12:00:00',
+  pagado:true,estado:'Entregado',total:2500,detalle:'R'.repeat(1600)
+ }));
+ const documento=core.generar(datos,'2026-11',new Date('2026-12-06T15:00:00Z'));
+ const pdf=core.pdf(documento),s=Buffer.from(await pdf.arrayBuffer()).toString('latin1');
+ const paginas=(s.match(/\/Type \/Page \/Parent/g)||[]).length;
+ assert.ok(paginas>350,'Deben existir más de 350 páginas');
+ assert.equal((s.match(/pedido-[0-9]+/g)||[]).length>=800,true);
+ assert.ok(s.startsWith('%PDF-1.4'));
+});
