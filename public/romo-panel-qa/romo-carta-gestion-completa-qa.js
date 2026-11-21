@@ -1190,6 +1190,89 @@
   };
   search.input.oninput=draw;filterKind.input.onchange=draw;draw();
  }
+ // La cantidad del título debe coincidir con los rolls del armado real.
+ function desajustePiezas(p){
+  if(p?.promoType!=='sushi')return null;
+  const match=String(p.name||'').match(/\b(\d{2,3})\s*(?:piezas|pzas)\b/i);
+  if(!match)return null;
+  const esperadas=Number(match[1]),porRoll=Number(p.piecesPerRoll),rolls=Number(p.rollCount);
+  const actuales=porRoll*rolls;
+  if(!Number.isSafeInteger(actuales)||actuales===esperadas)return null;
+  const propuestos=esperadas/porRoll;
+  return {esperadas,actuales,rolls,porRoll,
+   rollsPropuestos:Number.isSafeInteger(propuestos)&&propuestos>=1&&propuestos<=20?propuestos:null};
+ }
+ function promoPublicada(p){
+  return (state.admin?.publishedPromotions||[]).some(x=>
+   x.sku==='monthly:romoq-'+String(p.sku||'').slice(6));
+ }
+ function datosPromoParaGuardar(p,rolls){
+  return {name:p.name,price:p.price,description:p.description||'',
+   promoType:p.promoType,rollCount:rolls??p.rollCount,
+   piecesPerRoll:p.piecesPerRoll,sauceCount:p.sauceCount,
+   korokes:p.korokes,payments:p.payments,available:p.available!==false};
+ }
+ // Un solo recorrido visible: verificar foto, corregir piezas autorizadas,
+ // publicar en la carta y comprobar la respuesta del servidor.
+ async function publicarEnUnPaso(p,retirar=false){
+  if(state.busy||!canWrite())return;
+  if(state.admin?.publicacionHabilitada!==true){
+   status('La publicación de Romo no está habilitada. El borrador sigue guardado.');return;
+  }
+  if(!retirar&&p.available===false){
+   status('Activa primero esta promoción en Editar promoción.');return;
+  }
+  const diferencia=retirar?null:desajustePiezas(p);
+  if(diferencia&&!diferencia.rollsPropuestos){
+   status('El nombre anuncia '+diferencia.esperadas+' piezas, pero la configuración suma '+
+    diferencia.actuales+'. Corrige la cantidad de rolls en Editar promoción.');return;
+  }
+  const aviso=retirar?
+   '¿Retirar esta promoción de la carta? Los pedidos anteriores quedan intactos.':
+   diferencia?'La promoción dice '+diferencia.esperadas+' piezas, pero tiene '+
+    diferencia.rolls+' rolls de '+diferencia.porRoll+' ('+diferencia.actuales+
+    ' piezas). ¿Corregir a '+diferencia.rollsPropuestos+
+    ' rolls y publicar? Se conservan precio, ingredientes y salsas.':
+   '¿Publicar «'+p.name+'» con su fotografía y condiciones actuales en Romo?';
+  if(!window.confirm(aviso))return;
+  let corregido=false;
+  state.busy=true;
+  try{
+   let revision=state.admin.revision;
+   if(!retirar){
+    status('Verificando fotografía y datos de la promoción…');
+    const foto=await photoRequest('GET',null,p.sku);
+    if(!Number.isSafeInteger(foto.version)||foto.version<1)
+     throw Error('Falta la foto de esta promoción. Abre su ficha y agrega una fotografía.');
+    if(diferencia){
+     const fresh=await request('GET');
+     if(fresh.revision!==revision)throw Error('La promoción cambió. Actualiza antes de publicar.');
+     const result=await request('POST',{
+      action:'promotion-edit',expectedRevision:revision,
+      fields:{id:p.sku,item:datosPromoParaGuardar(p,diferencia.rollsPropuestos)},
+      motivo:'Corregir '+diferencia.esperadas+' piezas antes de publicar promoción Romo'
+     });
+     if(result.guardado!==true||result.auditado!==true||result.draftOnly!==true||
+       result.revision!==revision+1)throw Error('No se confirmó la corrección de rolls.');
+     revision=result.revision;corregido=true;
+    }
+   }
+   status('Confirmando publicación en la carta pública de Romo…');
+   const done=await publicarPromocion(p.sku,retirar,revision);
+   const final=await request('GET');
+   const aparece=(final.publishedPromotions||[]).some(x=>
+    x.sku==='monthly:romoq-'+p.sku.slice(6));
+   if(aparece===retirar)throw Error('El servidor no confirmó el cambio en la carta pública.');
+   state.busy=false;
+   await load();
+   status(retirar?'✓ Promoción retirada de la carta.':
+    '✓ Promoción publicada en la carta de Romo'+(corregido?' con la cantidad corregida.':'.'));
+  }catch(e){
+   state.busy=false;await load();
+   status((corregido?'La cantidad quedó corregida en administración, pero falta publicar. ':
+    'El borrador se conserva; no se creó otra promoción. ')+String(e.message||e));
+  }finally{state.busy=false;}
+ }
  function promotionForm(p,create=false){
   const box=stack(),name=field('Nombre',p?.name||''),price=field('Precio ($)',p?.price||'','number'),
    desc=field('Descripción de lo que incluye',p?.description||''),type=select('Tipo de promoción',
@@ -1236,6 +1319,12 @@
     if(state.busy||!canWrite())return;
     const item=make();
     if(item.name.length<2||!Number.isSafeInteger(item.price)||item.price<1||!item.payments.length||!file.files?.length){status('Completa nombre, precio, medios de pago y fotografía real.');return;}
+    const diferencia=desajustePiezas(item);
+    if(diferencia){
+     status('El título indica '+diferencia.esperadas+' piezas, pero el armado suma '+
+      diferencia.actuales+'. Corrige los rolls antes de crear para no guardar otro borrador.');
+     return;
+    }
     if(item.promoType!=='sushi'&&item.description.length<2){status('Describe lo que incluye esta promoción.');return;}
     state.busy=true;createButton.disabled=true;let created=null,notice='';
     try{
@@ -1246,7 +1335,13 @@
      created=result.recordId;
      const photo=await photoRequest('POST',{action:'save',sku:created,base64,expectedVersion:0},created);
      if(photo.guardado!==true||photo.auditado!==true||photo.draftOnly!==true)throw Error('La foto no quedó confirmada.');
-     if(item.available){await publicarPromocion(created,false,result.revision);notice='✓ Promoción publicada con foto en la carta de Romo.';}else notice='Promoción guardada y desactivada. Puedes publicarla cuando esté disponible.';
+     if(item.available){
+      await publicarPromocion(created,false,result.revision);
+      const confirmada=await request('GET');
+      if(!(confirmada.publishedPromotions||[]).some(x=>x.sku==='monthly:romoq-'+created.slice(6)))
+       throw Error('La carta pública no confirmó la publicación. Revisa el borrador existente.');
+      notice='✓ Promoción publicada con foto en la carta de Romo.';
+     }else notice='Promoción guardada y desactivada. Actívala desde su ficha cuando quieras publicarla.';
     }catch(e){notice=(created?'La promoción ya existe; revisa su foto y pulsa Publicar promoción en la lista. ':'')+String(e.message||e);}
     finally{state.busy=false;await load();status(notice);if(createButton.isConnected)createButton.disabled=!canWrite();}
    });box.append(createButton);
@@ -1263,9 +1358,34 @@
  function renderPromos(){
   const target=host('promociones');if(!target)return;clear(target);
   const note=cardNote();note.firstElementChild.textContent='Crea, edita y publica tus promociones de Romo. Las promociones activas se actualizan al guardar; las no publicadas conservan su borrador.';target.append(note);
-  const newCard=panel('＋ Crear nueva promoción');
+  const newCard=panel('＋ Crear promoción y publicar');
   newCard.append(info('Tipos de Romo: sushi personalizable, gohan fijo o combo fijo; no pizzas. Las fotos permanecen privadas hasta publicar la versión aprobada.'));
   newCard.append(promotionForm(null,true));const createArea=sectionCard();createArea.append(info('Nueva promoción. Abre el formulario solo para crear; las existentes aparecen abajo.'),newCard);target.append(createArea);
+  const pendientes=promos().filter(p=>!p._base&&!promoPublicada(p));
+  if(pendientes.length){
+   const pendientesBox=sectionCard();
+   pendientesBox.style.background='#fff9f9';
+   pendientesBox.append(css(E('h4','Pendientes de publicación · '+pendientes.length),
+    'color:#96162e;margin:0 0 7px;font-size:16px'),
+    info('Estas promociones ya existen; no las crees de nuevo. Puedes publicarlas o corregir su armado aquí.'));
+   for(const p of pendientes){
+    const linea=css(E('div'),'border-top:1px solid #eedde1;padding:10px 0');
+    const titulo=css(E('strong',p.name),'display:block;color:#241e21;font-size:15px');
+    const cantidad=desajustePiezas(p);
+    linea.append(titulo,info(money(p.price)+' · '+
+     (cantidad?'Revisar: anuncia '+cantidad.esperadas+' piezas y suma '+cantidad.actuales+'.':
+      p.available===false?'Desactivada · actívala en su ficha.':'Lista para comprobar y publicar.')));
+    if(p.available!==false){
+     const activar=button(cantidad&&cantidad.rollsPropuestos?
+      'Corregir a '+cantidad.rollsPropuestos+' rolls y publicar':'Publicar ahora',
+      ()=>void publicarEnUnPaso(p));
+     activar.disabled=!state.admin?.publicacionHabilitada;
+     linea.append(activar);
+    }
+    pendientesBox.append(linea);
+   }
+   target.append(pendientesBox);
+  }
   const search=field('Buscar promoción por nombre');search.input.type='search';
   const existing=sectionCard();existing.append(css(E('h4','Promociones existentes · Ver o editar'),'font-size:17px;color:#2a2023;margin:0 0 9px'),search.wrap);target.append(existing);
   const list=E('div');existing.append(list);
@@ -1275,14 +1395,14 @@
    for(const p of found){
     const percent=p._base?(p.originalPrice?Math.round(100*(1-p.price/p.originalPrice)):0):Number(state.admin.data.discounts?.[p.sku]||0);
     const finalPrice=p._base?p.price:percent?Math.max(1,Math.round(p.price*(100-percent)/100)):p.price;
-    const published=!p._base&&(state.admin?.publishedPromotions||[]).some(x=>x.sku==='monthly:romoq-'+p.sku.slice(6));
+    const published=!p._base&&promoPublicada(p);
     const item=itemCard(p.name,finalPrice,percent?(p.originalPrice||p.price):0,p.available===false?'Agotado':'Disponible',p._base||published?'Publicada':p.available===false?'Desactivada':'Borrador');
     if(!p._base){
      item.append(info((p.available===false?'Agotada o desactivada':published?'Disponible en carta':'Disponible en borrador')+' · '+(p.promoType==='sushi'?(p.rollCount*p.piecesPerRoll)+' piezas · '+p.rollCount+' rolls · '+p.korokes+' korokes':p.promoType==='gohan'?'Gohan definido':'Combo definido')+' · '+p.sauceCount+' salsas · '+(p.payments||[]).join(', ')));
      item.open=false;
      item.append(info(published?'Publicada en carta · guardar los cambios actualiza su publicación.':'No publicada · pulsa Publicar promoción para mostrarla a clientes.'));
-     const publication=async retirar=>{if(state.busy||!state.admin.publicacionHabilitada)return;if(!window.confirm(retirar?'¿Retirar de la carta de Romo? Los pedidos históricos se conservan.':'¿Publicar esta promoción con su foto y configuración actual en la carta de Romo?'))return;state.busy=true;try{const done=await publicarPromocion(p.sku,retirar,state.admin.revision);await load();status(done.sinCambios?'La promoción ya está actualizada.':'Cambio comercial confirmado en revisión '+done.revisionComercial+'.');}catch(e){status('No se confirmó: '+String(e.message||e));}finally{state.busy=false;}};
-     const publish=button(published?'Actualizar promoción publicada':'Publicar promoción',()=>void publication(false));publish.disabled=!state.admin.publicacionHabilitada||p.available===false;item.append(publish);
+     const publication=retirar=>void publicarEnUnPaso(p,retirar);
+     const publish=button(published?'Actualizar en carta':'Publicar ahora',()=>publication(false));publish.disabled=!state.admin.publicacionHabilitada||p.available===false;item.append(publish);
      if(published){const withdraw=button('Retirar promoción de la carta',()=>void publication(true),true);withdraw.disabled=!state.admin.publicacionHabilitada;item.append(withdraw);}
      const edit=panel('Editar promoción');edit.append(promotionForm(p,false));item.append(edit);
      const discount=field('Descuento (%)',percent,'number');discount.input.max='99';const preview=info('');const show=()=>{const n=Number(discount.input.value);preview.textContent=Number.isInteger(n)&&n>=0&&n<=99?'Antes '+money(p.price)+' · Ahora '+money(Math.max(1,Math.round(p.price*(100-n)/100))):'Descuento entre 0 y 99%';};discount.input.oninput=show;show();
