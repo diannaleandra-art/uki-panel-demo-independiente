@@ -145,4 +145,4 @@ module.exports=async function archivoMensual(req,res){
   return fail(res,503,'No se pudo verificar el respaldo. No se borró ningún registro.');
  }
 };
-module.exports._testing={dates,month,verify,config,todayChile,leerRespaldoVerificado};
+module.exports._testing={dates,month,verify,config,todayChile,leerRespaldoVerificado,privateSession};
