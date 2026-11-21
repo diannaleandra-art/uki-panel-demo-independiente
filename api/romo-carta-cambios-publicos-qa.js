@@ -37,8 +37,13 @@ module.exports=async function romoCartaCambiosPublicosQA(req,res){
   const conf=config(process.env);
   if(!conf)return fail(res,503,'Publicación de cambios Romo deshabilitada');
   const origin=String(req.headers?.origin||'');
-  if(origin!==conf.carta)return fail(res,403,'La solicitud no viene de la carta aprobada de Romo');
-  res.setHeader('Access-Control-Allow-Origin',conf.carta);
+  // La misma carta pública de Romo tiene dominios oficiales alternativos.
+  // Se autoriza solo GET público, sin abrir credenciales, edición ni auditoría.
+  const cartaOrigenes=new Set([conf.carta,
+   'https://romos-sushi-carta-qa.vercel.app',
+   'https://romos-sushi-carta-qa-diannaleandra-7046.vercel.app']);
+  if(!cartaOrigenes.has(origin))return fail(res,403,'La solicitud no viene de la carta aprobada de Romo');
+  res.setHeader('Access-Control-Allow-Origin',origin);
   res.setHeader('Access-Control-Allow-Methods','GET,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers','Accept');
   if(req.method==='OPTIONS')return res.status(204).end();
