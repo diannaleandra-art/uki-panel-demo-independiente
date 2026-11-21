@@ -180,3 +180,22 @@ test('Google + PIN privado permiten preflight únicamente desde orígenes oficia
   assert.equal(response.statusCode,404);
  }
 });
+
+test('el servidor exige sesión privada vinculada a la identidad Google autorizada',async()=>{
+ const crypto=require('node:crypto');
+ const token='a'.repeat(64);
+ const uid='usuario-qa-abstracto';
+ let consultas=0;
+ const sql={query:async(q,args)=>{
+  consultas++;
+  assert.match(q,/fin_sesiones/);
+  assert.equal(args[0],crypto.createHash('sha256').update(token).digest('hex'));
+  assert.equal(args[1],uid);
+  return [{'?column?':1}];
+ }};
+ assert.equal(await backend.privateSession(sql,{headers:{'x-fin-session':token}},{uid}),true);
+ assert.equal(consultas,1);
+ assert.equal(await backend.privateSession(sql,{headers:{'x-fin-session':'clave-corta'}},{uid}),false);
+ assert.equal(consultas,1,'La sesión inválida ni siquiera consulta la base de datos');
+ assert.equal(await backend.privateSession({query:async()=>[]},{headers:{'x-fin-session':token}},{uid:'otro-usuario'}),false);
+});
