@@ -54,6 +54,16 @@ function verify(data,suc,mes,period){
  if(total>20000||data.resumen.clientes!==data.clientes.length)throw Error('El archivo supera el límite o difiere de su resumen.');
  return total;
 }
+function leerRespaldoVerificado(body,sucursal,mes,period){
+  const compressed=Buffer.from(body.base64,'base64');
+  if(compressed.length<1||compressed.length>1200000)throw Object.assign(Error('El archivo es demasiado grande.'),{status:413});
+  const raw=body.encoding==='gzip'?
+   zlib.gunzipSync(compressed,{maxOutputLength:8000000}):compressed;
+  if(raw.length>8000000||hash(raw)!==body.sha256)throw Object.assign(Error('El respaldo no superó la verificación SHA-256.'),{status:409});
+  const parsed=JSON.parse(raw.toString('utf8'));
+  const n=verify(parsed,sucursal,mes,period);
+  return {n,parsed};
+}
 async function google(req,e=process.env){
  const token=String(req.headers.authorization||'').match(/^Bearer ([A-Za-z0-9_.-]+)$/)?.[1];
  if(!token||token.startsWith('UKIDEV1.'))return null;
@@ -117,13 +127,7 @@ module.exports=async function archivoMensual(req,res){
      !['gzip','json'].includes(body.encoding)||typeof body.base64!=='string'||
      body.base64.length<4||body.base64.length>1650000||!/^[A-Za-z0-9+/]*={0,2}$/.test(body.base64))
    return fail(res,400,'Comprueba la integridad y formato del respaldo.');
-  const compressed=Buffer.from(body.base64,'base64');
-  if(compressed.length<1||compressed.length>1200000)return fail(res,413,'El archivo es demasiado grande.');
-  const raw=body.encoding==='gzip'?
-   zlib.gunzipSync(compressed,{maxOutputLength:8000000}):compressed;
-  if(raw.length>8000000||hash(raw)!==body.sha256)return fail(res,409,'El respaldo no superó la verificación SHA-256.');
-  const parsed=JSON.parse(raw.toString('utf8'));
-  const n=verify(parsed,sucursal,mes,period);
+  const {n}=leerRespaldoVerificado(body,sucursal,mes,period);
   const result=await sql.query("INSERT INTO public.fin_archivos_mensuales_v1(sucursal,mes,desde,hasta,sha256,encoding,contenido,total_registros,resumen,creado_por_uid) VALUES($1,$2,$3::date,$4::date,$5,$6,decode($7,'base64'),$8,$9::jsonb,$10) ON CONFLICT(sucursal,mes) DO NOTHING RETURNING sha256",
    [sucursal,mes,period.desde,period.hasta,body.sha256,body.encoding,body.base64,n,JSON.stringify(parsed.resumen),who.uid]);
   if(!result.length){
@@ -135,9 +139,10 @@ module.exports=async function archivoMensual(req,res){
     JSON.stringify({sha256:body.sha256,registros:n}),who.uid]);
   return good(res,{confirmado:true,sucursal,mes,sha256:body.sha256,totalRegistros:n,permanente:true});
  }catch(e){
+  if(e?.status===413||e?.status===409)return fail(res,e.status,e.message);
   if(e?.code==='23505')return fail(res,409,'El archivo mensual ya existe.');
   console.error('Archivo mensual:',String(e?.code||e?.name||'error').slice(0,70));
   return fail(res,503,'No se pudo verificar el respaldo. No se borró ningún registro.');
  }
 };
-module.exports._testing={dates,month,verify,config,todayChile};
+module.exports._testing={dates,month,verify,config,todayChile,leerRespaldoVerificado};
