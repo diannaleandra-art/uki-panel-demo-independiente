@@ -8,8 +8,8 @@ module.exports=async(req,res)=>{
  if(req.method!=='POST'||req.headers?.origin!==conf.origin)return fail(res,403,'Origen de Romo no autorizado');
  if(!String(req.headers?.['content-type']||'').startsWith('application/json'))return fail(res,415,'Se requiere JSON');
  const body=req.body;
- if(!body||typeof body!=='object'||Array.isArray(body)||JSON.stringify(body).length>20000||!['factura-consultar','factura-preparar-articulos','factura-recibir'].includes(body.action))return fail(res,400,'Solicitud de factura inválida');
- if(body.action!=='factura-consultar'&&process.env.ROMO_INVENTARIO_ESCRITURA_QA_ENABLED!=='true')return fail(res,503,'Inventario solo lectura');
+ if(!body||typeof body!=='object'||Array.isArray(body)||JSON.stringify(body).length>20000||!['factura-consultar','factura-historial','factura-preparar-articulos','factura-recibir'].includes(body.action))return fail(res,400,'Solicitud de factura inválida');
+ if(!['factura-consultar','factura-historial'].includes(body.action)&&process.env.ROMO_INVENTARIO_ESCRITURA_QA_ENABLED!=='true')return fail(res,503,'Inventario solo lectura');
  try{
   const sql=require('@neondatabase/serverless').neon(conf.read),db={query:(q,p)=>sql.query(q,p)};
   const auth=await import('../lib/romo-identidad-servidor-qa.mjs');

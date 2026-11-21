@@ -72,7 +72,8 @@ module.exports=async function romoInventarioQA(req,res){
     (await import('../lib/romo-inventario-plantilla-base-qa.mjs')).ROMO_INVENTARIO_BASE_QA.map(
       x=>({name:x.name,unit:x.unit})
     ):undefined;
-   return res.status(200).json({ok:true,...result,plantilla_base:plantilla});
+   const {facturas,...contenido}=result.contenido;
+   return res.status(200).json({ok:true,...result,contenido,plantilla_base:plantilla});
   }
   const body=req.body;
   if(!body||typeof body!=='object'||Array.isArray(body)||

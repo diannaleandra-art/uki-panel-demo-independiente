@@ -25,7 +25,7 @@ async function solicitar(action,payload={},branch=estado.branch){
   const json=await r.json().catch(()=>({}));if(!r.ok||json.ok!==true||json.storeId!=='romo:serena')throw Error(json.error||'No se confirmó el registro de Romo');
   if(branch!==branchActual()||S.suc!=='Romo’s Sushi La Serena')throw Error('Cambió la sucursal; actualiza antes de repetir');
   if(read){estado.revision=Number(json.revision);if(!Number.isSafeInteger(estado.revision)||!Array.isArray(json.contenido?.items))throw Error('Inventario sin confirmar');return {items:json.contenido.items.filter(x=>!x.archived).map(x=>({...x,category:x.kind,kind:'inventory',version:estado.revision}))};}
-  if(action!=='factura-consultar'){
+  if(!['factura-consultar','factura-historial'].includes(action)){
    // No actualizar versiones a ciegas tras un reintento: recargar el estado completo.
    if(json.duplicada===true||json.revision!==estado.revision+1){
     const refreshed=await solicitar('articulos',{},branch);estado.items=refreshed.items;
@@ -133,6 +133,30 @@ async function mostrarFactura(){
  }).finally(()=>{estado.loading=null});
  return estado.loading;
 }
+function historialRecepcionRomo(host){
+ const details=document.createElement('details');details.className='card';details.id='romoFacturasHistorial';
+ const summary=document.createElement('summary');summary.textContent='Historial de recepción por proveedor y folio';details.append(summary);
+ const field=(label,type)=>{const l=document.createElement('label');l.textContent=label;const i=document.createElement('input');i.type=type;l.append(i);details.append(l);return i;};
+ const buscar=field('Buscar RUT, folio o producto','search'),desde=field('Desde (última recepción)','date'),hasta=field('Hasta','date');
+ const status=document.createElement('p');status.setAttribute('role','status');const list=document.createElement('div');
+ let offset=0,busy=false,total=0;
+ const button=(text,callback)=>{const b=document.createElement('button');b.type='button';b.className='sm';b.textContent=text;b.onclick=callback;details.append(b);return b;};
+ const consultar=button('Buscar',()=>{offset=0;void load();}),anterior=button('Anterior',()=>{offset=Math.max(0,offset-25);void load();}),siguiente=button('Siguiente',()=>{if(offset+25<total){offset+=25;void load();}});
+ anterior.disabled=siguiente.disabled=true;
+ details.append(status,list);
+ const note=document.createElement('p');note.className='muted';note.textContent='Este historial confirma mercadería recibida, no importes pagados. La compra se registra una sola vez en Mi Administración.';
+ const admin=document.createElement('a');admin.href='https://uki-sushi-inventario.vercel.app/mi-administracion-duenos.html';admin.target='_blank';admin.rel='noopener noreferrer';admin.textContent='Abrir compras y facturas en Mi Administración';details.append(note,admin);
+ async function load(){if(busy||!details.isConnected||branchActual()!=='romo')return;busy=true;consultar.disabled=anterior.disabled=siguiente.disabled=true;status.textContent='Consultando Romo…';
+  try{const d=await solicitar('factura-historial',{buscar:buscar.value,desde:desde.value,hasta:hasta.value,offset},'romo');if(!details.isConnected)return;
+   if(!Number.isSafeInteger(d.total)||!Array.isArray(d.documentos))throw Error('Historial no confirmado');
+   total=d.total;list.replaceChildren();
+   for(const doc of d.documentos){const box=document.createElement('details'),title=document.createElement('summary');title.textContent='RUT '+doc.rut+' · Folio '+doc.folio+' · '+doc.lineas+' líneas';box.append(title);for(const e of doc.entregas){const p=document.createElement('p');p.textContent='Línea '+e.linea+' / entrega '+e.entrega+' · '+e.descripcion+' · '+e.cantidad+' '+e.unidad+' · '+new Date(e.fechaMs).toLocaleString('es-CL',{timeZone:'America/Santiago'});box.append(p);}list.append(box);}
+   status.textContent=total?total+' documentos · página '+(Math.floor(offset/25)+1):'Sin recepciones registradas en este filtro.';
+  }catch(e){list.replaceChildren();status.textContent=String(e.message||e);total=0;}
+  finally{busy=false;consultar.disabled=false;anterior.disabled=offset===0;siguiente.disabled=offset+25>=total;}
+ }
+ details.ontoggle=()=>{if(details.open)void load();};host.append(details);
+}
 function montar(){
  anteriorMontar();
  const mini=$('ukiMiniInventario'),branch=branchActual();
@@ -159,6 +183,7 @@ function montar(){
   const antes=mini.querySelector('.uki-mini-fields');
   if(antes)mini.insertBefore(details,antes);else mini.append(details);
  }
+ if(branch==='romo'&&!$('romoFacturasHistorial'))historialRecepcionRomo(mini);
  details.open=estado.open;
  if(estado.form&&details.open){
   const host=$('ukiFacturaAdminMount');
