@@ -122,8 +122,27 @@
   // un pedido abierto en un pedido apto para eliminación.
   const pedidosAbiertos=(estado.pedidos||[]).filter(x=>x?.suc===suc&&dentro(fechaRegistro(x,'pedidos'))&&dias(fechaRegistro(x,'pedidos'))>=35&&
    !(x.estado==='Cancelado'||(x.estado==='Entregado'&&x.pagado===true))).length;
-  const solicitudesPendientes=(estado.solicitudesWhatsApp||[]).filter(x=>x?.suc===suc&&dentro(fechaRegistro(x,'solicitudesWhatsApp'))&&dias(fechaRegistro(x,'solicitudesWhatsApp'))>=35&&
-   !['aceptado','rechazado','cancelado','procesado'].includes(String(x.estado||'').toLowerCase())).length;
+  // El panel real escribe "aceptada" / "rechazada", no sus formas masculinas.
+  // La finalización posterior a la fecha original también protege el registro:
+  // nunca tratar como liberado un WhatsApp con pedido abierto o borrador asociado.
+  const antiguo=(x,tipo)=>x?.suc===suc&&dentro(fechaRegistro(x,tipo))&&dias(fechaRegistro(x,tipo))>=35;
+  const solicitudes=(estado.solicitudesWhatsApp||[]).filter(x=>antiguo(x,'solicitudesWhatsApp'));
+  const estadoSolicitud=x=>String(x?.estado||'').toLowerCase();
+  const finalizada=x=>['aceptada','rechazada','aceptado','rechazado','cancelado','cancelada','procesado','procesada'].includes(estadoSolicitud(x));
+  const borradores=Array.isArray(estado.borradores)?estado.borradores:[];
+  const pedidos=Array.isArray(estado.pedidos)?estado.pedidos:[];
+  const pedidoFinal=p=>p?.estado==='Cancelado'||(p?.estado==='Entregado'&&p.pagado===true);
+  const solicitudesPendientes=solicitudes.filter(x=>!finalizada(x)).length;
+  const solicitudesVinculadas=solicitudes.filter(x=>finalizada(x)&&(
+   borradores.some(d=>d?.suc===suc&&d.solicitudWhatsAppId===x.id)||
+   (['aceptada','aceptado','procesado','procesada'].includes(estadoSolicitud(x))&&
+    !pedidos.some(p=>p?.suc===suc&&String(p.id)===String(x.pedidoId)&&pedidoFinal(p)))
+  )).length;
+  const fechaFinal=x=>x?.finalizadoEn!==undefined&&x.finalizadoEn!==null&&x.finalizadoEn!==''?localFecha(x.finalizadoEn):'';
+  const solicitudesFinalizacionNoVerificada=solicitudes.filter(x=>finalizada(x)&&
+   (!fechaValida(fechaFinal(x))||dias(fechaFinal(x))<35)).length;
+  const incidenciasPendientes=(estado.incidencias||[]).filter(x=>antiguo(x,'incidencias')&&
+   (String(x.estado||'').toLowerCase()!=='resuelto'||!String(x.solucion||'').trim())).length;
   const secciones={};
   for(const sec of SECCIONES){
    if(sec==='cajasDiarias'){
@@ -158,7 +177,7 @@
    for(const k of Object.keys(timbres))timbres[k]+=a[k];
   }
   return Object.freeze({sucursal:code,mes:archivo.mes,hoy,operativosDias:35,timbresDias:95,
-   secciones,timbres,bloqueos:{pedidosAbiertos,solicitudesPendientes,timbresProtegidos},simulacion:true,permiteEliminar:false,
+   secciones,timbres,bloqueos:{pedidosAbiertos,solicitudesPendientes,solicitudesVinculadas,solicitudesFinalizacionNoVerificada,incidenciasPendientes,timbresProtegidos},simulacion:true,permiteEliminar:false,
    aviso:'Solo simulación de antigüedad y coincidencia. No confirma que los registros puedan eliminarse.'});
  }
  const csvSafe=v=>{

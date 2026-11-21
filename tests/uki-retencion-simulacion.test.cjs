@@ -71,5 +71,33 @@ test('Motor de archivo y retención idéntico para Uki y Mi Administración, ref
  const admin=fs.readFileSync(path.join(__dirname,'../public/uki-archivo-mensual-core.js'));
  assert.deepEqual(uki,admin);
  const blob=crypto.createHash('sha1').update('blob '+uki.length+'\0').update(uki).digest('hex');
- assert.equal(blob,'d9d24fd6e9f7c609ba8970b06530ed366770b99e','Revisar y coordinar una modificación del núcleo con Romo antes de cambiar la referencia');
+ assert.equal(blob,'f0317b4cffe82c7e1e8203ac8e654618531e681e','Revisar y coordinar una modificación del núcleo con Romo antes de cambiar la referencia');
+});
+
+test('Estados reales de WhatsApp, finalización tardía, borradores y pedidos vinculados',()=>{
+ const s=fixture(),fechaISO='2026-11-01T12:00:00',finalizadoEn=Date.parse('2026-11-01T13:00:00Z');
+ const base={suc:s.suc,fechaISO,finalizadoEn};
+ s.pedidos=[{suc:s.suc,id:123,fechaISO,estado:'Entregado',pagado:true},
+  {suc:s.suc,id:124,fechaISO,estado:'Pendiente',pagado:false}];
+ s.solicitudesWhatsApp=[
+  {...base,id:'a',estado:'aceptada',pedidoId:123},
+  {...base,id:'r',estado:'rechazada'},
+  {...base,id:'p',estado:'pendiente'},
+  {...base,id:'b',estado:'aceptada',pedidoId:124},
+  {...base,id:'c',estado:'aceptada',pedidoId:999},
+  {...base,id:'d',estado:'rechazada',finalizadoEn:Date.parse('2026-12-05T13:00:00Z')},
+  {...base,id:'e',estado:'rechazada',finalizadoEn:null},
+  {...base,id:'f',estado:'rechazada'}
+ ];
+ s.borradores=[{suc:s.suc,solicitudWhatsAppId:'f'}];
+ s.incidencias=[{suc:s.suc,fecha:fechaISO,estado:'Pendiente',problema:'prueba'},
+  {suc:s.suc,fecha:fechaISO,estado:'Resuelto',solucion:'confirmada'}];
+ const a=core.generar(s,'2026-11',new Date('2026-12-06T15:00:00Z'));
+ const antes=JSON.stringify(s),r=core.simularRetencion(s,a,new Date('2026-12-06T15:00:00Z'));
+ assert.equal(r.bloqueos.solicitudesPendientes,1);
+ assert.equal(r.bloqueos.solicitudesVinculadas,3);
+ assert.equal(r.bloqueos.solicitudesFinalizacionNoVerificada,2);
+ assert.equal(r.bloqueos.incidenciasPendientes,1);
+ assert.equal(r.permiteEliminar,false);
+ assert.equal(JSON.stringify(s),antes);
 });
