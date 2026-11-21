@@ -5948,6 +5948,21 @@ window.ukiCancelacionNubeLista=()=>{
    !estado.ocupado&&estado.actualRespaldado===true&&estado.estado==="sincronizado"&&
    estado.sucursal===contextoLocal.suc);
 };
+// Respaldo mensual: comprobar contra FIRESTORE real la última revisión inmutable.
+// Solo lectura; la etiqueta visual «sincronizado» por sí sola no prueba actualidad.
+window.ukiArchivoComprobarNube=async(sucursal)=>{
+ if(!auth.currentUser||window.ukiCancelacionNubeLista?.()!==true)return false;
+ const ramas={"Uki Regimiento Arica":"regimiento","Uki La Serena":"la-serena"};
+ const rama=ramas[sucursal];if(!rama)return false;
+ const antes=auto.resumen();
+ if(antes.sucursal!==sucursal||!Number.isSafeInteger(antes.revision)||antes.revision<1)return false;
+ const instantanea=await getDocFromServer(doc(db,"uki_operacion_v1",rama));
+ const remoto=instantanea.exists()?instantanea.data():null;
+ const despues=auto.resumen();
+ return !!(remoto&&remoto.branch===rama&&remoto.schemaVersion===2&&
+  remoto.rev===antes.revision&&despues.revision===antes.revision&&
+  despues.actualRespaldado===true&&window.ukiCancelacionNubeLista?.()===true);
+};
 window.ukiOperativoActualizar=actualizarBloqueo;
 function contexto(){
  if(!UKI_OPERACION_HABILITADA)throw Error("Versión sin activar: falta aprobar reglas, pruebas y lanzamiento.");
