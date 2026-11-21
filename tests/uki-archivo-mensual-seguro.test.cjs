@@ -86,3 +86,29 @@ test('panel Uki incorpora acceso mensual sin tocar Caja ni los cobros',()=>{
  assert.doesNotMatch(bridge,/\bDELETE\s+FROM\b/i);
  assert.doesNotMatch(bridge,/\blocalStorage\.(clear|removeItem)\b/);
 });
+
+test('el XLSX usado por el panel Uki es un ZIP de Excel con los datos originales',async()=>{
+ const original=estado(),documento=core.generar(original,'2026-11',new Date('2026-12-06T15:00:00Z'));
+ const {generarXLSX}=await import('../firebase/uki-archivo-xlsx.mjs');
+ const libro=generarXLSX({hojas:core.hojasExcel(documento)});
+ const buffer=Buffer.from(await libro.arrayBuffer());
+ assert.equal(buffer.subarray(0,2).toString('latin1'),'PK');
+ assert.ok(buffer.includes(Buffer.from('xl/workbook.xml')));
+ assert.ok(buffer.includes(Buffer.from('Detalle completo')));
+ assert.ok(buffer.includes(Buffer.from('Ejemplo')));
+ assert.equal(libro.type,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+});
+test('el archivo respeta el aislamiento entre los tres locales',()=>{
+ for(const [nombre,codigo] of Object.entries(core.SUCURSALES)){
+  const datos=estado();
+  datos.suc=nombre;
+  datos.pedidos=datos.pedidos.map(x=>({...x,suc:nombre}));
+  datos.cierres=datos.cierres.map(x=>({...x,suc:nombre}));
+  const ajeno=core.SUCURSALES[Object.keys(core.SUCURSALES).find(x=>x!==nombre)];
+  datos.pedidos.push({id:'fuera',suc:ajeno,fechaISO:'2026-11-12T14:20:00',total:9999,pagado:true});
+  const archivo=core.generar(datos,'2026-11',new Date('2026-12-06T15:00:00Z'));
+  assert.equal(archivo.sucursal,codigo);
+  assert.equal(archivo.registros.pedidos.length,1);
+  assert.equal(archivo.resumen.totalVentas,2500);
+ }
+});
