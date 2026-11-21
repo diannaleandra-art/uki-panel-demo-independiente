@@ -47,7 +47,7 @@
  function products(){
   const data=state.admin?.data||{},cats=categories(),validCats=new Set(cats.map(c=>c.slug));
   const base=(state.base?.products||[]).map(p=>({
-   ...p,...(data.baseProductOverrides?.[p.sku]||{}),
+   ...p,
    categoriaSlug:validCats.has(data.assignments?.[p.sku]??p.categoriaSlug)?(data.assignments?.[p.sku]??p.categoriaSlug):'',
    _base:true,_original:p
   }));
@@ -98,16 +98,28 @@
   try{
    const fresh=await commercialRequest('GET');
    if(fresh.edicionHabilitada!==true||fresh.revision!==state.admin.revisionComercial)throw Error('La carta cambió; actualiza antes de guardar');
-   const current=fresh.products.find(x=>x.sku===p.sku);if(!current)throw Error('Promoción no encontrada');
+   const current=fresh.products.find(x=>x.sku===p.sku);if(!current)throw Error('Producto no encontrado');
    if(percent!==null){if(!Number.isSafeInteger(percent)||percent<0||percent>99)throw Error('Descuento entre 0 y 99%');const original=current.originalPrice||current.price;patch={price:Math.max(1,Math.round(original*(100-percent)/100)),originalPrice:percent?original:null};}
    else if(current.originalPrice&&patch.price>=current.originalPrice)patch.originalPrice=null;
    if(!Number.isSafeInteger(patch.price)||patch.price<1)throw Error('Precio inválido');
-   const result=await commercialRequest('POST',{sku:p.sku,patch,expectedRevision:fresh.revision,baseSha256:fresh.baseSha256,motivo:'Editar promoción vigente de Romo'});
+   const result=await commercialRequest('POST',{sku:p.sku,patch,expectedRevision:fresh.revision,baseSha256:fresh.baseSha256,motivo:'Editar producto vigente de Romo'});
    if(result.guardado!==true||result.auditado!==true)throw Error('Cambio comercial no confirmado');
-   state.base=await commercialRequest('GET');await load();status('✓ Promoción vigente actualizada en la carta.');
+   state.base=await commercialRequest('GET');await load();status('✓ Producto vigente actualizado en la carta.');
   }catch(e){status('No se confirmó el cambio comercial. '+String(e.message||e));}
   finally{state.busy=false;}
  }
+ async function saveCommercial(action,fields,description,confirmation){
+  if(state.busy||!canWrite()||(confirmation&&!window.confirm(confirmation)))return;
+  state.busy=true;
+  try{
+   const fresh=await commercialRequest('GET');
+   if(!fresh.edicionHabilitada||fresh.revision!==state.admin.revisionComercial||fresh.revision<1)throw Error('Actualiza la carta antes de guardar');
+   const result=await commercialRequest('POST',{action,fields,expectedRevision:fresh.revision,baseSha256:fresh.baseSha256,motivo:description});
+   if(!result.guardado||!result.auditado||result.revision!==fresh.revision+1)throw Error('Guardado no confirmado');
+   state.base=await commercialRequest('GET');await load();status('✓ '+description+' · Guardado en carta de Romo.');
+  }catch(e){status('No se confirmó el cambio. '+String(e.message||e));}finally{state.busy=false;}
+ }
+ const commercialCategoryOptions=()=> (state.base?.categories||[]).filter(c=>c.slug==='entradas'||c.slug.startsWith('romoq-')).map(c=>[c.slug,c.nombre]);
  async function load(){
   if(!state.root||!state.root.isConnected)return;
   const id=++state.requestId;
@@ -118,7 +130,7 @@
       !data.data||!Number.isSafeInteger(data.revision))
     throw Error('No se confirmó el aislamiento de Romo');
    state.admin=data;render();
-   status(canWrite()?'Puedes guardar cambios administrativos en Romo. Aún no modifican el armado de la carta pública.':'Gestión disponible para consultar. El permiso de guardado de administración de Romo está desactivado en el servidor.');
+   status(canWrite()?'Puedes guardar cambios en Romo. Cada operación confirma si se publicó en la carta o quedó en administración.':'Gestión disponible para consultar. El permiso de guardado de administración de Romo está desactivado en el servidor.');
   }catch(e){
    if(id!==state.requestId)return;
    state.admin=null;
@@ -176,7 +188,7 @@
  }
  function cardNote(){
   const b=css(E('div'),'background:#f7f2f3;border:1px solid #e8dadd;border-radius:11px;padding:11px;margin:10px 0');
-  b.append(info('Los cambios que guardes aquí quedan como BORRADOR en Neon Romo QA. No se envían a clientes ni a Uki.'));
+  b.append(info('Gestiona la carta de Romo. Los cambios comerciales confirmados se publican; los borradores anteriores se conservan y no afectan a Uki.'));
   if(!canWrite())b.append(info('Puedes consultar los registros y formularios. Guardar requiere el permiso de escritura de administración en Romo; mientras esté desactivado no se modificará ningún dato.'));
   const m=E('p');m.dataset.romoAdminStatus='1';m.setAttribute('role','status');
   m.style.fontSize='13px';b.append(m);return b;
@@ -947,20 +959,20 @@
  }
  function renderProducts(){
   const target=host('productos');if(!target)return;clear(target);
-  target.append(E('h3','Gestión completa de productos'),cardNote(),previewPanel());
+  target.append(E('h3','Productos'),cardNote());
   const newCard=panel('＋ Agregar producto a Romo');
   const name=field('Nombre'),price=field('Precio en pesos','', 'number'),description=field('Descripción'),
-   cat=select('Categoría',categoryOptions()), available=field('Disponible',true,'checkbox');
+   cat=select('Categoría',commercialCategoryOptions()), available=field('Disponible',true,'checkbox');
   const form=stack();add(form,name.wrap,price.wrap,description.wrap,cat.wrap,available.wrap);
   form.append(button('Agregar producto',()=>{
    const n=Number(price.input.value);
    if(!name.input.value.trim()||!Number.isSafeInteger(n)||n<1){status('Ingresa nombre y precio válido');return;}
-   void save('product-create',{item:{
+   void saveCommercial('product-create',{
     name:name.input.value.trim(),price:n,description:description.input.value.trim(),
     categoriaSlug:cat.input.value,available:available.input.checked
-   }},'Producto agregado como borrador');
+   },'Crear producto '+name.input.value.trim());
   }));
-  newCard.append(form);target.append(newCard);
+  newCard.append(info('Producto de precio fijo. Para sushi personalizable utiliza Promociones.'),form);target.append(newCard);
   const search=field('Buscar producto');search.input.type='search';
   search.input.placeholder='Sushi, gohan, promoción…';target.append(search.wrap);
   const container=E('div');target.append(container);
@@ -969,36 +981,39 @@
    const items=products().filter(p=>norm(p.name+' '+p.sku).includes(norm(search.input.value)));
    container.append(info(items.length+' productos disponibles en administración ('+(state.base?.products?.length||0)+' aprobados).'));
    for(const p of items.slice(0,state.limit)){
-    const percent=Number(state.admin.data.discounts?.[p.sku]||0);
-    const finalPrice=percent?Math.max(1,Math.round(p.price*(100-percent)/100)):p.price;
-    const item=panel(p.name+' · '+(percent?money(p.price)+' → '+money(finalPrice):money(p.price))+(p._base?' · Carta aprobada':' · Borrador'));
+    const percent=p._base?(p.originalPrice?Math.round(100*(1-p.price/p.originalPrice)):0):Number(state.admin.data.discounts?.[p.sku]||0);
+    const finalPrice=p._base?p.price:percent?Math.max(1,Math.round(p.price*(100-percent)/100)):p.price;
+    const item=panel(p.name+' · '+(percent?money(p.originalPrice||p.price)+' → '+money(finalPrice):money(p.price))+(p._base?' · Carta vigente':' · Borrador conservado'));
     const form=stack();
     const n=field('Nombre',p.name),price=field('Precio',p.price,'number'),
      desc=field('Descripción',p.description||''),
-     cat=select('Categoría',categoryOptions(),p.categoriaSlug),
+     cat=select('Categoría',p._base&&p.custom?commercialCategoryOptions():categoryOptions(),p.categoriaSlug),
      av=field('Disponible',p.available!==false,'checkbox');
     if(p._base&&['classic','premium','extra'].includes(p.kind))n.input.disabled=true;
     if(p._base&&['classic','premium','topping','extra'].includes(p.kind))desc.input.disabled=true;
     form.append(n.wrap,price.wrap,desc.wrap,cat.wrap,av.wrap);
-    const pct=field('Descuento de prueba (%)',state.admin.data.discounts?.[p.sku]||0,'number');
+    const pct=field('Descuento (%)',percent,'number');
     pct.input.min='0';pct.input.max='99';form.append(pct.wrap);
     const actions=row();
     actions.append(button('Guardar producto',()=>{
      const amount=Number(price.input.value);
      if(!Number.isSafeInteger(amount)||amount<1){status('Precio inválido');return;}
      const baseFields={name:n.input.value.trim(),price:amount,description:desc.input.value.trim(),available:av.input.checked};
-     const action=p._base?'product-base-edit':'product-edit';
+     if(p._base){if(p.custom)baseFields.categoriaSlug=cat.input.value;void saveBasePromo(p,baseFields,null);return;}
+     const action='product-edit';
      const fields=p._base?{id:p.sku,item:baseFields}:
        {id:p.sku,item:{...baseFields,categoriaSlug:cat.input.value}};
      void save(action,fields,'Edición de '+p.name);
     }));
-    actions.append(button('Guardar categoría',()=>{
+    if(!p._base)actions.append(button('Guardar categoría',()=>{
       void save('category-assign',{id:p.sku,category:cat.input.value},'Categoría de '+p.name);
     },true));
-    actions.append(button('Aplicar descuento QA',()=>{
+    if(!p._base||['classic','premium','monthly','dish','topping'].includes(p.kind))actions.append(button('Aplicar descuento',()=>{
      const x=Number(pct.input.value);if(!Number.isSafeInteger(x)||x<0||x>99){status('Descuento entre 0 y 99%');return;}
+     if(p._base){void saveBasePromo(p,null,x);return;}
      void save('discount-set',{id:p.sku,percent:x},'Descuento de '+p.name);
     },true));
+    if(p._base&&p.custom)actions.append(button('Eliminar producto',()=>void saveCommercial('product-delete',{sku:p.sku},'Eliminar producto '+p.name,'¿Eliminar de la carta? Los pedidos anteriores se conservan.'),true));
     if(!p._base)actions.append(button('Eliminar producto',()=>{
       void save('product-delete',{id:p.sku},'Eliminación de '+p.name,
        '¿Eliminar el producto de los borradores de Romo? No modifica ventas anteriores.');
@@ -1010,13 +1025,13 @@
     more.disabled=false;container.append(more);
    }
   };
-  search.input.oninput=()=>{state.limit=16;draw();};draw();
+  search.input.oninput=()=>{state.limit=16;draw();};draw();target.append(previewPanel());
  }
  function renderCategories(){
   const target=host('categorias');if(!target)return;clear(target);
   target.append(cardNote(),info('Crea, renombra, elimina y asigna productos. Eliminar una categoría no borra productos.'));
   const create=panel('＋ Crear categoría'),n=field('Nombre de la categoría'),f=stack();
-  f.append(n.wrap,button('Guardar categoría',()=>void save('category-create',{name:n.input.value.trim()},'Nueva categoría')));
+  f.append(n.wrap,button('Guardar categoría',()=>void saveCommercial('category-create',{nombre:n.input.value.trim()},'Crear categoría '+n.input.value.trim())));
   create.append(f);target.append(create);
   const items=products(),cats=categories();
   const find=field('Buscar producto para asignar');find.input.type='search';target.append(find.wrap);
@@ -1038,9 +1053,7 @@
   for(const c of cats){
    const members=items.filter(p=>p.categoriaSlug===c.slug);
    const card=panel(c.nombre+' · '+members.length+' productos'),rename=field('Editar nombre',c.nombre),area=stack();
-   area.append(rename.wrap,button('Guardar nombre',()=>{
-    void save('category-rename',{id:c.slug,name:rename.input.value.trim()},'Categoría renombrada '+c.nombre);
-   }));
+   if(c.slug.startsWith('romoq-')&&c.original)area.append(rename.wrap,button('Guardar nombre',()=>void saveCommercial('category-rename',{slug:c.slug,nombre:rename.input.value.trim()},'Renombrar categoría '+c.nombre)));else if(!c.original)area.append(rename.wrap,button('Guardar nombre',()=>void save('category-rename',{id:c.slug,name:rename.input.value.trim()},'Categoría renombrada '+c.nombre)));else area.append(info('Categoría original de armado. Se conserva para pedidos y recetas.'));
    area.append(info('Productos dentro de la categoría ('+members.length+'):'));
    for(const product of members){
     const assignment=row(),label=css(E('span',product.name),'font-size:13px;flex:1;min-width:130px');
@@ -1056,10 +1069,7 @@
     },true));
     area.append(assignment);
    }
-   area.append(button('Eliminar categoría',()=>{
-    void save('category-delete',{id:c.slug},'Eliminar categoría '+c.nombre,
-      '¿Eliminar la categoría «'+c.nombre+'» del borrador de Romo? Sus productos se conservan.');
-   },true));
+   if(c.original&&c.slug.startsWith('romoq-'))area.append(button('Eliminar categoría',()=>void saveCommercial('category-delete',{slug:c.slug},'Eliminar categoría '+c.nombre,'¿Eliminar categoría? Sus productos pasarán a Entradas.'),true));else if(!c.original)area.append(button('Eliminar borrador',()=>void save('category-delete',{id:c.slug},'Eliminar categoría '+c.nombre,'¿Eliminar esta categoría de administración?'),true));
    card.append(area);target.append(card);
   }
  }
