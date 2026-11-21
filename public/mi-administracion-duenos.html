@@ -193,6 +193,14 @@ label{color:#66574c}
 <div class="grid2"><div><label>Nuevo PIN de 6 números</label><input id="newpin" type="password" inputmode="numeric" pattern="[0-9]{6}" autocomplete="new-password" maxlength="6"></div><div><label>Repite el PIN</label><input id="againpin" type="password" inputmode="numeric" maxlength="6"></div></div><button class="primary" id="configure">Crear acceso privado</button></section>
 <section id="unlock" class="card" hidden><h2>Tu código privado</h2><label>PIN de 6 números</label><input id="pin" type="password" inputmode="numeric" pattern="[0-9]{6}" autocomplete="off" maxlength="6"><button class="primary" id="enter">Abrir Mi Administración</button><p class="hint">La sesión privada caduca después de 30 minutos. No afecta el acceso normal de Uki.</p></section>
 <section id="app" hidden>
+<details class="card" id="ukiArchivoHistorialDuenos">
+<summary style="font-weight:800;cursor:pointer">📁 Archivos mensuales permanentes · Uki y Romo</summary>
+<p class="hint">Aquí se conserva el respaldo privado por sucursal. Primer archivo: noviembre de 2026, a partir del 5 de diciembre. No se eliminan cierres ni documentos de Mi Administración.</p>
+<div class="row"><label for="ukiArchivoAnio">Año</label><select id="ukiArchivoAnio"><option value="2026">2026</option><option value="todos">Todos</option></select>
+<button id="ukiArchivoActualizar" type="button">Consultar archivos</button></div>
+<p id="ukiArchivoListadoEstado" role="status" class="hint">Consulta un año para ver los archivos guardados.</p>
+<div id="ukiArchivoListado"></div>
+</details>
 <section id="filterCard" class="card">
 <div class="row"><strong>🏢 Todos nuestros negocios</strong><span class="pill">Solo dueños</span></div>
 <p class="hint">Vista general compartida por los dueños. Los filtros son opcionales y no necesitas cambiar de acceso para ver otros locales.</p>
@@ -1041,6 +1049,55 @@ async function api(action,fields={}){
  if(!response.ok||!data.ok)throw Error(data.error||'No se pudo completar.');
  return data;
 }
+async function ukiArchivosPrivadosListar(){
+ const status=$('ukiArchivoListadoEstado'),root=$('ukiArchivoListado');
+ if(!session||!auth.currentUser){status.textContent='Abre primero tu sesión privada.';return;}
+ status.textContent='Consultando respaldos…';root.replaceChildren();
+ try{
+  const result=await api('archivo_operativo_listar',{anio:value('ukiArchivoAnio')});
+  if(!Array.isArray(result.archivos))throw Error('Lista de archivos no disponible');
+  for(const item of result.archivos){
+   const row=document.createElement('div');row.className='card';row.style.padding='10px';
+   const header=document.createElement('p');header.textContent=({'uki:arica':'Uki Regimiento Arica','uki:serena':'Uki La Serena','romo:serena':'Romo La Serena'}[item.sucursal]||item.sucursal)+' · '+item.mes;
+   header.style.fontWeight='700';row.append(header);
+   const count=document.createElement('p');count.className='hint';
+   count.textContent='Pedidos: '+Number(item.conteos?.pedidos||0)+' · Cierres: '+Number(item.conteos?.cierres||0)+' · Clientes: '+Number(item.conteos?.clientes||0);
+   row.append(count);
+   for(const kind of ['csv','pdf']){
+    const b=document.createElement('button');b.type='button';b.textContent=kind==='csv'?'📗 Excel (.csv)':'📕 PDF';
+    b.onclick=()=>void ukiArchivoDescargarPrivado(item,kind,b);row.append(b);
+   }
+   root.append(row);
+  }
+  status.textContent=result.archivos.length+' archivo(s) privados confirmados. Se conservan sin borrado automático.';
+ }catch(e){status.textContent='No se pudo consultar: '+e.message;}
+}
+async function ukiArchivoDescargarPrivado(item,kind,button){
+ const status=$('ukiArchivoListadoEstado');button.disabled=true;
+ try{
+  const data=await api('archivo_operativo_obtener',{id:item.id});
+  if(data.verificado!==true||data.sucursal!==item.sucursal||data.mes!==item.mes||data.sha256!==item.sha256)
+   throw Error('No se verificó la versión del respaldo');
+  const bin=atob(data.comprimido),bytes=Uint8Array.from(bin,c=>c.charCodeAt(0));
+  const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));
+  const sha=[...digest].map(x=>x.toString(16).padStart(2,'0')).join('');
+  if(sha!==data.sha256)throw Error('La huella del archivo no coincide');
+  if(typeof DecompressionStream==='undefined')throw Error('Esta versión de Safari no admite abrir archivos comprimidos');
+  const content=await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+  const doc=JSON.parse(content);
+  if(doc.formato!=='uki-archivo-mensual-v1'||doc.mes!==item.mes)
+   throw Error('El contenido no corresponde a este período');
+  const parser=window.ukiArchivoMensualV1;
+  if(!parser)throw Error('No se cargó el exportador mensual');
+  const blob=kind==='csv'?new Blob([parser.csv(doc)],{type:'text/csv;charset=utf-8'}):
+   new Blob([parser.pdf(doc)],{type:'application/pdf'});
+  descargarArchivo(blob,'archivo-'+item.sucursal.replace(':','-')+'-'+item.mes+'.'+kind);
+  status.textContent='Archivo '+item.mes+' descargado y verificado.';
+ }catch(e){status.textContent='No se pudo descargar: '+e.message;}
+ finally{button.disabled=false;}
+}
+$('ukiArchivoActualizar').onclick=()=>void ukiArchivosPrivadosListar();
+
 const value=id=>$(id).value,amount=id=>{const n=Number(value(id)||0);if(!Number.isSafeInteger(n)||n<0||n>1000000000)throw Error('Importe inválido.');return n;};
 const selected=(id,label,arr)=>{const t=$(id);t.replaceChildren(new Option(label,''));arr.forEach(x=>t.add(new Option(x.nombre,x.id)));};
 function branchesFor(b){return branches.filter(x=>x.negocio_id===b);}
@@ -1954,4 +2011,4 @@ onAuthStateChanged(auth,user=>{
  if(!user){session='';limpiarInformes();show('login');}
  if(!session)void checkState();
 });
-</script></body></html>
+</script><script src="/uki-archivo-mensual.js?v=20261205archivo-privado" defer></script></body></html>
