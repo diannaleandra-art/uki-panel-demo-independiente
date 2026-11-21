@@ -4,7 +4,7 @@
  const HOST='https://uki-sushi-inventario.vercel.app';
  const core=()=>window.UkiArchivoMensual;
  const loginURL=HOST+'/api/mi-administracion-live',archiveURL=HOST+'/api/mi-archivo-mensual-live';
- let finSession='',ultimo=null,loading=false;
+ let finSession='',finSessionHasta=0,ultimo=null,loading=false;
  const $=(id,el=document)=>el.querySelector('#'+id);
  function hoyChile(){
   const o=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'America/Santiago',day:'2-digit',month:'2-digit',year:'numeric'}).formatToParts(new Date()).filter(x=>x.type!=='literal').map(x=>[x.type,x.value]));
@@ -100,11 +100,12 @@
      '). Se conserva todo y no se permite cerrar un respaldo incompleto.');
     const token=await window.ukiInventarioToken?.();
     if(!token)throw Error('Inicia sesión con tu Google autorizado de dueños.');
+    if(finSession&&Date.now()>finSessionHasta){finSession='';pinArea.hidden=false;}
     if(!finSession){
      if(!/^\d{6}$/.test(pin.value))throw Error('Escribe el PIN privado de seis dígitos.');
      const response=await llamar(loginURL,token,'',{action:'ingresar_pin',pin:pin.value});
      if(!/^[a-f0-9]{64}$/.test(String(response.sesion||'')))throw Error('No se recibió una sesión privada válida.');
-     finSession=response.sesion;pin.value='';pinArea.hidden=true;
+     finSession=response.sesion;finSessionHasta=Date.now()+29*60*1000;pin.value='';pinArea.hidden=true;
     }
     estado('Comprimiendo y verificando el archivo completo…');
     const packed=await core().empaquetar(archivo);
@@ -119,10 +120,18 @@
        JSON.stringify(sesionRomo.estadoOperativoConfirmado())!==huellaOrigen))
      throw Error('La revisión confirmada de Romo cambió. Vuelve a consultar Neon.');
     await revisarRevisionRemota();
-    const response=await llamar(archiveURL,token,finSession,{action:'guardar',sucursal:archivo.sucursal,mes:archivo.mes,
-     sha256:packed.sha256,encoding:packed.encoding,base64:packed.base64});
-    if(response.confirmado!==true||response.sha256!==packed.sha256||response.mes!==archivo.mes)
-     throw Error('El archivo no fue confirmado con la misma huella digital.');
+    // Guardar es idempotente: si ya se archivó este mes, reutilizar el mismo archivo.
+    const previo=await llamar(archiveURL,token,finSession,
+     {action:'verificar',sucursal:archivo.sucursal,mes:archivo.mes});
+    if(previo.confirmado===true){
+     if(previo.sha256!==packed.sha256)
+      throw Error('Este mes ya tiene un respaldo diferente. No se reemplazó; revisa los cambios posteriores en Mi Administración.');
+    }else{
+     const response=await llamar(archiveURL,token,finSession,{action:'guardar',sucursal:archivo.sucursal,mes:archivo.mes,
+      sha256:packed.sha256,encoding:packed.encoding,base64:packed.base64});
+     if(response.confirmado!==true||response.sha256!==packed.sha256||response.mes!==archivo.mes)
+      throw Error('El archivo no fue confirmado con la misma huella digital.');
+    }
     // Releer del servidor y descomprimir: un simple 'guardado' no basta.
     estado('Comprobando que el archivo se puede recuperar completo…');
     const consulta=await llamar(archiveURL,token,finSession,
@@ -136,7 +145,7 @@
     ultimo=recuperado;ex.disabled=pd.disabled=false;
     estado('✓ Respaldo guardado y comprobado en Mi Administración. Excel y PDF en «Otros meses y descargas».');
    }catch(e){
-    if(/PIN|sesión|código privado/.test(String(e.message||''))){finSession='';pinArea.hidden=false;}
+    if(/PIN|sesión|código privado/.test(String(e.message||''))){finSession='';finSessionHasta=0;pinArea.hidden=false;}
     estado(String(e.message||e)+'. No se eliminó ningún registro.',true);
    }finally{loading=false;b.disabled=false;}
   });
