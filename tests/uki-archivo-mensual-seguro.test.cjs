@@ -213,3 +213,19 @@ test('PDF mensual admite más de 350 páginas sin recortar pedidos numerosos',as
  assert.equal((s.match(/pedido-[0-9]+/g)||[]).length>=800,true);
  assert.ok(s.startsWith('%PDF-1.4'));
 });
+
+test('Mi Administración consulta automáticamente las tres sucursales desde el día 5',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../public/mi-administracion-duenos.html'),'utf8');
+ const start=html.indexOf('function mesArchivoExigible(');
+ const end=html.indexOf('async function archivoMensualListar(){',start);
+ assert.ok(start>=0&&end>start);
+ const fn=new Function('today',html.slice(start,end)+'return mesArchivoExigible;')(()=> '2026-11-21');
+ assert.equal(fn('2026-11-21'),null);
+ assert.equal(fn('2026-12-04'),null);
+ assert.equal(fn('2026-12-05'),'2026-11');
+ assert.equal(fn('2027-01-04'),'2026-11');
+ assert.equal(fn('2027-01-05'),'2026-12');
+ assert.equal((html.match(/if\(mesArchivoExigible\(\)\)void archivoMensualListar\(\)/g)||[]).length,2);
+ assert.match(html,/const ultimoMes=mesArchivoExigible\(\)\|\|/);
+ assert.match(html,/const sinArchivo=Object\.entries\(labels\)/);
+});
