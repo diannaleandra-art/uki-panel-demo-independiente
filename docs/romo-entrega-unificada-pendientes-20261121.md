@@ -46,3 +46,6 @@ Se implementó el retiro persistente auditado de referencias originales de produ
 
 ### Comprobación de producción (21/11/2026)
 La tabla fin_archivos_mensuales_v1 existe en la rama privada de finanzas; consulta agregada sin filas, coherente con la fecha del primer respaldo. Los estados operativos son cifrados por sucursal: no se consultan ni modifican sus registros mediante SQL directo. La simulación señala pedidos abiertos/impagos y solicitudes sin resolver, sin purgar nada. No afirmar que el respaldo de noviembre está comprobado hasta recuperarlo después del 5/12. La purga queda bloqueada mientras no exista publicación de su mecanismo transaccional, validación de cierre/caja y respaldo real de cada sucursal.
+
+### Dependencia de fidelización encontrada
+El saldo se calcula desde movimientos consolidados de perfiles vinculados: ventas con vencimiento individual, último canje10 y canje6, con fallback de cli.ventas. No reducir el historial activo sin preservar el saldo actual y la semántica de canjes/fallback. La simulación identifica movimientos protegidos, no los suprime. La retención de las ventas históricas y el almacenamiento de saldos requieren migración comprobada; no desplegar una purga por edad sola.

@@ -48,3 +48,19 @@ test('Antigüedad no libera pedidos pendientes ni entregas sin pago',()=>{
  assert.equal(v.permiteEliminar,false);
  assert.equal(s.pedidos.length,4);
 });
+
+test('No confundir 95 días con vencimiento real ni eliminar información de canjes',()=>{
+ const s=fixture(),fecha='2026-11-01T12:00:00Z';
+ s.clientes.a.movimientos=[
+  {tipo:'venta',fecha,vence:'2027-03-01T12:00:00Z',pedidoId:1},
+  {tipo:'venta',fecha,vence:'2027-02-01T12:00:00Z',pedidoId:2},
+  {tipo:'venta',fecha,pedidoId:3},
+  {tipo:'canje6',fecha},{tipo:'canje10',fecha}
+ ];
+ const archive=core.generar(s,'2026-11',new Date('2026-12-05T15:00:00Z'));
+ const antes=JSON.stringify(s);
+ const result=core.simularRetencion(s,archive,new Date('2027-02-04T15:00:00Z'));
+ assert.deepEqual(result.bloqueos.timbresProtegidos,{vigentes:1,canjes:2,sinVencimiento:1});
+ assert.equal(result.permiteEliminar,false);
+ assert.equal(JSON.stringify(s),antes);
+});

@@ -139,14 +139,26 @@
   if(!Array.isArray(archivo.clientes))throw Error('Clientes no comprobados');
   const clientes=new Map(archivo.clientes.map(c=>[c.clave,c]));
   if(clientes.size!==archivo.clientes.length)throw Error('Clientes duplicados en el respaldo');
+  // Nunca deducir caducidad de los 95 días: el derecho del cliente
+  // usa la fecha 'vence' y los canjes. Los movimientos sin vencimiento
+  // comprobado o que no sean ventas se revisan conservadoramente.
+  const timbresProtegidos={vigentes:0,canjes:0,sinVencimiento:0};
+  const ahoraMs=new Date(ahora).getTime();
   const timbres={porAntiguedadYCoincidencia:0,noCoinciden:0,conservar:0};
   for(const [clave,c] of Object.entries(estado.clientes||{})){
    if(!Array.isArray(c?.movimientos))continue;
+   for(const m of c.movimientos){
+    const fecha=fechaRegistro(m,'timbres');
+    if(!dentro(fecha)||dias(fecha)<95)continue;
+    if(m.tipo==='canje6'||m.tipo==='canje10'){timbresProtegidos.canjes++;continue;}
+    if(m.tipo!=='venta'||typeof m.vence!=='string'||!Number.isFinite(Date.parse(m.vence))){timbresProtegidos.sinVencimiento++;continue;}
+    if(Date.parse(m.vence)>ahoraMs)timbresProtegidos.vigentes++;
+   }
    const a=contar(c.movimientos,clientes.get(clave)?.movimientos||[],'timbres',95);
    for(const k of Object.keys(timbres))timbres[k]+=a[k];
   }
   return Object.freeze({sucursal:code,mes:archivo.mes,hoy,operativosDias:35,timbresDias:95,
-   secciones,timbres,bloqueos:{pedidosAbiertos,solicitudesPendientes},simulacion:true,permiteEliminar:false,
+   secciones,timbres,bloqueos:{pedidosAbiertos,solicitudesPendientes,timbresProtegidos},simulacion:true,permiteEliminar:false,
    aviso:'Solo simulación de antigüedad y coincidencia. No confirma que los registros puedan eliminarse.'});
  }
  const csvSafe=v=>{

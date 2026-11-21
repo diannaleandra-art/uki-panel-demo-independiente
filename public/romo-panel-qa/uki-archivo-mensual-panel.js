@@ -163,7 +163,7 @@
      const sim=core().simularRetencion(origen,recuperado);
      const operativos=Object.values(sim.secciones).reduce((a,v)=>a+v.porAntiguedadYCoincidencia,0);
      const discrepancias=Object.values(sim.secciones).reduce((a,v)=>a+v.noCoinciden,0)+sim.timbres.noCoinciden;
-     aviso+=' Simulación: '+operativos+' registros de 35 días o más y '+sim.timbres.porAntiguedadYCoincidencia+' movimientos de timbres de 95 días o más coinciden con el archivo. '+discrepancias+' diferencias. '+sim.bloqueos.pedidosAbiertos+' pedidos antiguos sin finalizar y '+sim.bloqueos.solicitudesPendientes+' solicitudes antiguas sin resolver requieren revisión. No se elimina nada.';
+     aviso+=' Simulación: '+operativos+' registros de 35 días o más y '+sim.timbres.porAntiguedadYCoincidencia+' movimientos de timbres de 95 días o más coinciden con el archivo. '+discrepancias+' diferencias. '+sim.bloqueos.pedidosAbiertos+' pedidos antiguos sin finalizar y '+sim.bloqueos.solicitudesPendientes+' solicitudes antiguas sin resolver requieren revisión. Timbres protegidos: '+sim.bloqueos.timbresProtegidos.vigentes+' vigentes, '+sim.bloqueos.timbresProtegidos.canjes+' canjes y '+sim.bloqueos.timbresProtegidos.sinVencimiento+' sin vencimiento verificable. No se elimina nada.';
     }catch(e){aviso+=' La simulación de limpieza no quedó confirmada; no se elimina nada.';}
     estado(aviso);
    }catch(e){
