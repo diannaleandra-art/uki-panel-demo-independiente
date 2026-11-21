@@ -228,9 +228,9 @@ export function prepararRectificacionMediosRomoQA({
 
 
 /**
- * Subconjunto prudente de la edición PAGADA oficial de Uki:
- * modificar ÚNICAMENTE el precio unitario de productos ya existentes.
- * Conservar cantidades, artículos, cliente, timbres, propina y delivery.
+ * Edición PAGADA: productos, cantidades, precios y armado.
+ * Conservar cliente, timbres, propina y delivery. Un ajuste de importe
+ * mantiene el dinero efectivamente recibido hasta conciliación.
  * No registra cobro/devolución ni declara dinero recibido. Solo deja un
  * ajusteCobroPendiente con el dinero REAL anterior, cerrado por separado.
  */
@@ -261,21 +261,22 @@ export function prepararDiferenciaPrecioPagadoRomoQA({
     registradoEn<=0||!Number.isFinite(Date.parse(fechaISO))||
     Number(draft?.editando)!==pedidoId)
   err('Responsable, fecha o formulario incorrecto');
- if(!Array.isArray(p.productos)||p.productos.length===0||
-    !Array.isArray(draft.items)||draft.items.length!==p.productos.length)
-  err('No es posible agregar o retirar productos en este ajuste de precio');
- const precios=draft.items.map((x,i)=>{
-  const old=p.productos[i];
-  if(String(x.nombre||'')!==String(old.nombre||'')||
-     Number(x.cant)!==Number(old.cantidad)||
-     String(x.det||'')!==String(old.detalle||''))
-   err('Solo cambia el precio: los productos, cantidades y armado deben quedar intactos');
-  const precio=amount(x.precio,'precio nuevo',1000000);
-  if(precio===0)err('El precio debe ser mayor a cero');
-  return precio;
+ if(!Array.isArray(p.productos)||!p.productos.length||!Array.isArray(draft.items)||!draft.items.length||draft.items.length>50)
+  err('El pedido debe tener entre 1 y 50 productos');
+ const utilizados=new Set();
+ const nuevos=draft.items.map(x=>{
+  const nombre=String(x?.nombre||'').trim(),detalle=String(x?.det||'');
+  const cantidad=amount(x?.cant,'cantidad',100),precioUnit=amount(x?.precio,'precio unitario',1000000);
+  if(!nombre||nombre.length>180||/^Pedido WhatsApp \(revisar detalle\)$/i.test(nombre)||detalle.length>900||cantidad<1||precioUnit<1)
+   err('Revisa nombre, cantidad, precio y armado de cada producto');
+  const posibles=p.productos.map((old,i)=>({old,i})).filter(z=>!utilizados.has(z.i)&&String(z.old.nombre||'').trim()===nombre&&String(z.old.detalle||'')===detalle);
+  const match=posibles.length===1?posibles[0]:null;
+  if(match)utilizados.add(match.i);
+  return {...(match?.old||{}),nombre,cantidad,precioUnit,detalle};
  });
- if(!precios.some((precio,i)=>precio!==Number(p.productos[i].precioUnit)))
-  err('No se modificó ningún precio');
+ const forma=x=>x.map(z=>({nombre:String(z.nombre||'').trim(),cantidad:Number(z.cantidad),precioUnit:Number(z.precioUnit),detalle:String(z.detalle||'')}));
+ if(JSON.stringify(forma(nuevos))===JSON.stringify(forma(p.productos)))
+  err('No hay cambios de productos para guardar');
  const clas=clasificarCorreccionPagadaRomoQA(p,draft);
  const proteccionAceptada=new Set([
   'armado, productos, cantidades o precios','total o subtotal',
@@ -298,7 +299,6 @@ export function prepararDiferenciaPrecioPagadoRomoQA({
  if(plan.original.delivery!==plan.propuesto.delivery||
     plan.original.propina!==plan.propuesto.propina||
     plan.propina.medioAnterior!==plan.propina.medioPropuesto||
-    plan.original.productos===plan.propuesto.productos||
     plan.saldoTeorico!==plan.propuesto.productos-plan.original.productos)
   err('El ajuste debe cambiar solo el importe de los productos, no propinas ni reparto');
  const distribucion=toLines(draft,'productos',plan.propuesto.productos,mediosProductos,true);
@@ -314,23 +314,21 @@ export function prepararDiferenciaPrecioPagadoRomoQA({
  const recibido=Object.fromEntries(plan.diferencias
   .filter(x=>x.registrado>0).map(x=>[x.medio,x.registrado]));
  const saldo=-plan.saldoTeorico;
- if(!Number.isSafeInteger(saldo)||saldo===0||Math.abs(saldo)>3000000)
-  err('Diferencia inválida; no se generó una devolución o cobro');
+ if(!Number.isSafeInteger(saldo)||Math.abs(saldo)>3000000||(!saldo&&plan.diferencias.some(x=>x.diferencia!==0)))
+  err('La diferencia no cuadra; si cambia el medio sin cambiar el importe, corrígelo por separado');
  const antes=foto(p);
  const nuevo={...p,
-  productos:p.productos.map((x,i)=>({...x,precioUnit:precios[i]})),
+  productos:nuevos,
   subtotal:plan.propuesto.productos,
   total:plan.propuesto.total,
   pagosProductos:prevMix?distribucion.map(x=>({...x})):[]
  };
- nuevo.ajusteCobroPendiente={
-  estado:'pendiente',recibido,saldo,fechaISO
- };
+ nuevo.ajusteCobroPendiente=saldo?{estado:'pendiente',recibido,saldo,fechaISO}:null;
  const despues=foto(nuevo);
  const ev={
-  tipo:'correccion_precio_pagado_pendiente',
+  tipo:saldo?'correccion_precio_pagado_pendiente':'correccion_productos_pagados_sin_diferencia',
   responsable:actor,fecha:fechaISO,fechaISO,registradoEn,
-  motivo:'Importe corregido sin recibir ni devolver todavía dinero',
+  motivo:saldo?'Productos e importe corregidos sin recibir ni devolver todavía dinero':'Productos corregidos con la misma venta y medios de cobro',
   saldoPendiente:saldo,
   recibidoOriginal:{...recibido},
   diferenciaMedios:plan.diferencias,
@@ -338,12 +336,12 @@ export function prepararDiferenciaPrecioPagadoRomoQA({
  };
  nuevo.historialCambios=[...(Array.isArray(p.historialCambios)?p.historialCambios:[]),ev];
  nuevo.correccionesTurno=[...(Array.isArray(p.correccionesTurno)?p.correccionesTurno:[]),
-  {tipo:ev.tipo,accion:'ajuste_financiero_pendiente',
+  {tipo:ev.tipo,accion:saldo?'ajuste_financiero_pendiente':'edicion_sin_diferencia',
    fechaISO,registradoEn,responsable:actor,nota:ev.motivo,
    antes,despues,recibidoOriginal:{...recibido},
    diferenciaMedios:plan.diferencias,saldoPendiente:saldo}];
  estado.pedidos[estado.pedidos.indexOf(p)]=nuevo;
- return Object.freeze({pedidoId,ajustePendiente:true,ventaConNuevoImporte:true,
+ return Object.freeze({pedidoId,ajustePendiente:saldo!==0,ventaConNuevoImporte:saldo!==0,
   noRegistraCobro:true,saldoPendiente:saldo,
   diferencias:Object.freeze(plan.diferencias.map(x=>Object.freeze({...x})))});
 }
