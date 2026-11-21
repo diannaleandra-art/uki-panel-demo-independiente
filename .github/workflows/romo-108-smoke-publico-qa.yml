@@ -5,6 +5,11 @@ on:
       - qa/verificar-promo-108-publica-20261121
     paths:
       - .github/workflows/romo-108-smoke-publico-qa.yml
+  pull_request:
+    branches:
+      - release/romos-panel-v816
+    paths:
+      - .github/workflows/romo-108-smoke-publico-qa.yml
 permissions:
   contents: read
 jobs:
