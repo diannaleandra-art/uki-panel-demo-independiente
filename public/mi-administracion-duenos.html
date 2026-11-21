@@ -187,7 +187,6 @@ label{color:#66574c}
 </style></head><body>
 <header><div><h1>🔒 Mi Administración</h1><small>Acceso de dueños · Solo personal autorizado</small></div><button id="exit" hidden>Salir</button></header>
 <main><p id="notice" role="status" aria-live="polite">Conectando acceso privado…</p>
-<p class="hint" style="margin:10px 0 16px">🧪 Vista privada de pruebas: consultar informes y cierres sin cambiar datos financieros. Para registrar pagos, ventas, gastos o facturas utiliza <a href="https://uki-sushi-inventario.vercel.app/mi-administracion-duenos.html" rel="noopener noreferrer">Mi Administración oficial</a>.</p>
 <section id="login" class="card"><h2>Acceso privado</h2><p class="muted">Esta sección no comparte el código del agendador. Primero se confirma la cuenta Google autorizada y después tu código exclusivo.</p><button class="primary" id="google">Entrar con Google</button><p id="loginhelp" class="hint"></p></section>
 <section id="setup" class="card" hidden><h2>Configurar código privado · Una sola vez</h2><p class="muted">Define un código secreto de seis números que solo conozcan los dueños. No se envía por WhatsApp ni se guarda en el navegador.</p>
 <label>Clave de instalación privada</label><input id="setupkey" type="password" autocomplete="off" placeholder="Clave de instalación proporcionada a los dueños">
@@ -222,7 +221,7 @@ label{color:#66574c}
 </section>
 <section class="card" id="romoCierresPrivadosQA" aria-label="Cierres Romo La Serena">
  <h2>🍣 Romo’s Sushi La Serena · cierres definitivos</h2>
- <p class="hint">Consulta privada de las constancias confirmadas en Neon Romo. Mismo acceso Google y PIN de dueños. <b>Vista de pruebas: los cierres conciliados pueden reflejarse en el resumen general sin generar asientos ni modificar el panel oficial de Uki.</b></p>
+ <p class="hint">Consulta privada de las constancias confirmadas en Neon Romo. Mismo acceso Google y PIN de dueños. <b>Los cierres conciliados se reflejan automáticamente en el resumen privado sin duplicar ventas manuales.</b></p>
  <p class="hint" role="status" id="romoCierresEstadoQA">Inicia sesión privada para consultar los cierres.</p>
  <button class="soft" id="romoCierresActualizarQA" type="button" onclick="void cargarCierresRomoQA($('from').value,$('to').value)">Actualizar cierres de Romo</button>
  <div class="owner-business-list" id="romoCierresFilasQA"></div>
@@ -272,6 +271,13 @@ label{color:#66574c}
 <button type="button" id="ukiCompartirInforme" disabled>💬 WhatsApp</button>
 </div>
 <p class="hint">En iPhone podrás compartir el PDF desde la hoja de compartir y elegir WhatsApp. Si el dispositivo no admite archivos, se abrirá un resumen en WhatsApp. El envío requiere tu confirmación.</p>
+</details>
+<details class="card" id="ukiArchivoMensualPrivado">
+<summary>🗄️ Archivo mensual permanente · tres sucursales</summary>
+<p class="hint">Aquí se conservan los cierres, pedidos, ventas, WhatsApp, clientes y timbres de cada mes, separados por local. Este archivo no se limpia automáticamente ni duplica ventas contables.</p>
+<button type="button" class="primary" id="ukiArchivoConsultar" style="width:100%">Consultar meses archivados</button>
+<p id="ukiArchivoEstadoAdmin" class="hint" role="status">Primer archivo: noviembre de 2026, disponible desde el 5 de diciembre.</p>
+<div id="ukiArchivoMesesAdmin"></div>
 </details>
 <div class="owner-section-label">Detalle de ventas</div>
 <button id="ukiGoTodasVentas" type="button" class="owner-action-all">📋 Todas las ventas<small>Cierres finales y ventas manuales por fecha y sucursal</small></button>
@@ -477,17 +483,18 @@ label{color:#66574c}
 </section>
 <footer>Mi Administración · Acceso exclusivo de dueños</footer>
 </main><nav id="tabs" hidden><button data-tab="resumen" class="active"><i>⌂</i>Inicio</button><button data-tab="ventas"><i>＄</i>Ventas</button><button data-tab="gastos"><i>▣</i>Gastos</button><button data-tab="facturas"><i>▥</i>Compras</button><button data-tab="negocios"><i>◫</i>Negocios</button></nav>
+<script src="/uki-archivo-mensual-core.js?v=20261121noviembre"></script>
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
 import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
 import {crearControlCompras} from "./mi-administracion-compras.js?v=general-v5";
 import {unirVentasDuenos} from "./uki-duenos-ventas-unificadas-qa.mjs";
-import {conciliarCierresRomoResumenQA} from "./uki-duenos-romo-cierres-conciliados-qa.mjs";
+import {conciliarCierresRomoResumenQA} from './uki-duenos-romo-cierres-conciliados-qa.mjs?v=20261121v2';
 import {construirInforme,generarXLSX,generarPDF,compartirWhatsApp} from "./mi-administracion-informes.js?v=duenos-reporte-v1";
 const app=initializeApp({apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",appId:"1:1070481165758:web:b8f0f9ff40caf5b8ac7def"});
 const auth=getAuth(app),$=id=>document.getElementById(id);
 let cierresConfirmadosUki=[],errorConsultaCierresUki='';
-let resumenManualUki=[],pagosManualesUki=[],movimientosFinancierosCargadosQA=false;
+let resumenManualUki=[],pagosManualesUki=[],movimientosFinancierosCargadosQA=false,romoMovimientosConciliacion=[];
 let cuentasPendientesActuales=[],cuentasPendientesLimitadas=false;
 let vistaGastosActual={manuales:[],cierres:[]};
 function mostrarVentasFinancieras(){
@@ -501,19 +508,19 @@ function mostrarVentasFinancieras(){
  let romoVista={items:[],incluidos:0,bloqueados:0,deliveryPorPagar:0,motivo:''};
  try{
   romoVista=conciliarCierresRomoResumenQA({
-   cierres:cierresConfirmadosRomoQA,movimientos:transactions,
+   cierres:cierresConfirmadosRomoQA,movimientos:romoMovimientosConciliacion,
    negocios:businesses,sucursales:branches,
    desde:value('from'),hasta:value('to'),negocio_id:currentBiz(),
    sucursal_id:currentBranch(),razon_social_id:value('scopeRazon'),
    lecturaAutorizada:romoCierresConsultaValidaQA&&Boolean(session)&&Boolean(auth.currentUser),
-   movimientosCompletos:movimientosFinancierosCargadosQA&&transactions.length<250
+   movimientosCompletos:movimientosFinancierosCargadosQA&&romoMovimientosConciliacion.length<250
   });
  }catch(error){
   romoVista.motivo='No se pueden conciliar cierres Romo: '+String(error?.message||error);
  }
  const data={...vistaUki,
   items:[...vistaUki.items,...romoVista.items]
-   .sort((a,b)=>b.fecha.localeCompare(a.fecha)||b.id.localeCompare(a.id)),
+   .sort((a,b)=>b.fecha.localeCompare(a.fecha)||String(b.id).localeCompare(String(a.id))),
   cierresConfirmados:vistaUki.cierresConfirmados+romoVista.incluidos,
   romoCierresIncluidos:romoVista.incluidos,
   romoDeliveryPorPagar:romoVista.deliveryPorPagar
@@ -523,11 +530,10 @@ function mostrarVentasFinancieras(){
  };
  linea(data.manuales+' ventas registradas · '+vistaUki.cierresConfirmados+
   ' cierres Uki · '+romoVista.incluidos+
-  ' cierres Romo incluidos en vista QA · '+data.coincidencias+' coincidencias verificadas.');
- linea('Los cierres Romo aparecen solo en el resumen privado de pruebas; NO generan asiento contable.');
+  ' cierres Romo conciliados · '+data.coincidencias+' coincidencias verificadas.');
+ linea('Los cierres Romo confirmados se incorporan al resumen privado sin duplicar ventas manuales ni crear otro movimiento.');
  if(romoVista.motivo&&session&&auth.currentUser)linea(romoVista.motivo);
- if(romoVista.deliveryPorPagar)linea('Repartidores Romo por pagar (NO gasto pagado): '+
-  pesos(romoVista.deliveryPorPagar));
+ if(romoVista.deliveryPorPagar)linea('Pagos a repartidores Romo incluidos en los gastos: '+pesos(romoVista.deliveryPorPagar));
  if(data.conflictos)linea(data.conflictos+' referencia(s) con importes distintos. Revisar conciliación.');
  if(errorConsultaCierresUki)linea(errorConsultaCierresUki+' Las ventas manuales siguen disponibles.');
  if(!data.items.length)linea('Sin ventas para estas fechas y filtros.');
@@ -542,8 +548,7 @@ function mostrarVentasFinancieras(){
   if(item.tipo==='cierre'){
    const detalles=document.createElement('p');detalles.className='hint';
    detalles.textContent='Gastos: '+pesos(item.gastos)+
-    ' · Delivery '+(item.marca==='romo'?'por pagar':'registrado')+
-    ': '+pesos(item.marca==='romo'?item.deliveryPorPagar:item.delivery)+
+    ' · Repartidores pagados: '+pesos(item.delivery)+
     ' · Propinas: '+pesos(item.propinas)+' · Retiros: '+pesos(item.retiros);
    box.append(detalles);
    const medios=Object.entries(item.medios||{}).filter(([,v])=>Number(v)>0);
@@ -680,8 +685,8 @@ function actualizarResumenConCierres(data){
  $('m-pendientes').textContent='Verificando…';
  $('ukiPeriodoResumen').textContent='Período: '+value('from')+' a '+value('to')+
   ' · Cierres incluidos en vista: '+cierresSumables.length+
-  (data.romoCierresIncluidos?' (Romo QA: '+data.romoCierresIncluidos+', sin asiento contable)':'')+
-  (data.romoDeliveryPorPagar?' · Repartidores Romo por pagar: '+pesos(data.romoDeliveryPorPagar):'')+
+  (data.romoCierresIncluidos?' (Romo: '+data.romoCierresIncluidos+', sin asiento contable)':'')+
+  (data.romoDeliveryPorPagar?' · Repartidores Romo pagados: '+pesos(data.romoDeliveryPorPagar):'')+
   (data.conflictos?' · '+data.conflictos+' pendiente(s) de conciliación':'');
  const nombrarMedio=k=>k==='Uber'||k==='Uber Eats'?'Uber Eats':k==='Otro'||k==='Otros'?'Otros':k;
  const pagos=new Map();
@@ -910,7 +915,7 @@ function pintarGastos(dato=vistaGastosActual){
 // Romo se obtiene de Neon aislado a través de la misma sesión Google + PIN.
 // JAMÁS se añade a cierresConfirmadosUki, fin_movimientos ni a ventas manuales.
 const ROMO_CIERRES_PRIVADOS_URL=
- 'https://uki-sushi-inventario-git-preparacion-c0b0e9-diannaleandra-7046.vercel.app/api/romo-cierres-duenos-consulta-qa';
+ 'https://romos-sushi-panel.vercel.app/api/romo-cierres-duenos-consulta-qa';
 let romoCierresPrivadosSecuencia=0;
 let cierresConfirmadosRomoQA=[],romoCierresConsultaValidaQA=false;
 async function cargarCierresRomoQA(desde,hasta){
@@ -966,7 +971,7 @@ async function cargarCierresRomoQA(desde,hasta){
   const sum=rows.reduce((total,c)=>total+Number(c.venta_total),0);
   estado.textContent=rows.length?
    rows.length+' cierre(s) Romo confirmados · '+pesos(sum)+
-   ' · conciliación automática en resumen privado QA, sin asiento contable':
+   ' · conciliación automática en resumen privado, sin duplicar movimientos':
    'No hay cierres definitivos confirmados de Romo para estas fechas.';
   rows.forEach(c=>{
    const card=document.createElement('div');card.className='owner-business-item';
@@ -975,11 +980,11 @@ async function cargarCierresRomoQA(desde,hasta){
    const detail=document.createElement('p');detail.className='hint';
    detail.textContent='Venta: '+pesos(c.venta_total)+' · Pedidos: '+c.pedidos+
     ' · Gastos: '+pesos(c.gastos_cierre)+
-    ' · Repartidor registrado en cierre: '+pesos(c.delivery_por_pagar)+
+    ' · Repartidor pagado según cierre: '+pesos(c.delivery_por_pagar)+
     ' · Propinas: '+pesos(c.propinas)+
     ' · Revisión Neon: '+c.revision_neon;
    const note=document.createElement('p');note.className='hint';
-   note.textContent='Cierre verificado: aparece en el resumen QA solo si no coincide con ventas manuales del día. No genera asiento contable.';
+   note.textContent=(c.version_cierre?'Versión '+c.version_cierre+' · Original: '+pesos(c.venta_original)+' · Diferencia: '+pesos(c.diferencia_venta)+'. ':'')+'Cierre verificado: se incorpora al resumen solo si no coincide con ventas manuales del día. No genera asiento contable.';
    card.append(name,detail,note);host.append(card);
   });
  }catch(error){
@@ -989,7 +994,7 @@ async function cargarCierresRomoQA(desde,hasta){
   estado.textContent='No se pudo verificar Romo: '+String(error?.message||'Consulta no disponible.');
  }
 }
-const UKI_DUENOS_CIERRES_URL='/api/mi-administracion-lectura-qa';
+const UKI_DUENOS_CIERRES_URL='https://uki-sushi-inventario.vercel.app/api/mi-administracion-live';
 let ukiCierresQAConsulta=0;
 async function cargarCierresUki(desde,hasta){
  if(session&&auth.currentUser)void cargarCierresRomoQA(desde,hasta);
@@ -1034,16 +1039,10 @@ const pesos=n=>'$'+Number(n||0).toLocaleString('es-CL',{maximumFractionDigits:0}
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const today=()=>{const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));return parts.year+'-'+parts.month+'-'+parts.day;};
 const notify=(msg,type='')=>{$('notice').textContent=msg;$('notice').className=type;};
-const FINANZAS_CONSULTA_QA=new Set(['estado','ingresar_pin','salir',
- 'negocios','razones_sociales','resumen','listar_movimientos','listar_cierres',
- 'listar_pendientes','documentos','abrir_documento','auditoria_movimiento',
- 'costos','exportar_informes']);
 async function api(action,fields={}){
- if(!FINANZAS_CONSULTA_QA.has(action))
-  throw Error('Esta versión de pruebas es solo lectura. Abre Mi Administración oficial para guardar cambios.');
  if(!auth.currentUser)throw Error('Primero inicia Google.');
  const bearer=await auth.currentUser.getIdToken();
- const response=await fetch('/api/mi-administracion-lectura-qa',{method:'POST',cache:'no-store',credentials:'omit',
+ const response=await fetch('https://uki-sushi-inventario.vercel.app/api/mi-administracion-live',{method:'POST',cache:'no-store',credentials:'omit',
   headers:{Authorization:'Bearer '+bearer,'Content-Type':'application/json','X-Fin-Session':session},
   body:JSON.stringify({action,...fields})});
  const data=await response.json().catch(()=>({error:'Respuesta inválida del servidor.'}));
@@ -1691,24 +1690,44 @@ function renderPayments(rows){
  for(const p of rows||[])if(p.medio&&Number(p.total)>0)pagos[p.medio]=Number(p.total);
  $('mediosReport').innerHTML=moneyRows(pagos)||'<p class="muted">No se ha registrado el desglose.</p>';
 }
+let refreshFinSeq=0;
 async function refresh(){
  if(!session)return;
+ const seq=++refreshFinSeq,privateSession=session;
+ // Invalida consultas anteriores antes de cambiar filtros.
+ ++romoCierresPrivadosSecuencia;++ukiCierresQAConsulta;
  limpiarInformes();
- movimientosFinancierosCargadosQA=false;
+ movimientosFinancierosCargadosQA=false;romoMovimientosConciliacion=[];
  cierresConfirmadosRomoQA=[];romoCierresConsultaValidaQA=false;
+ const params={negocio_id:currentBiz()||null,sucursal_id:currentBranch()||null,razon_social_id:value('scopeRazon')||'todos',desde:value('from'),hasta:value('to')};
+ const vigente=()=>seq===refreshFinSeq&&session===privateSession&&params.desde===value('from')&&params.hasta===value('to')&&params.negocio_id===(currentBiz()||null)&&params.sucursal_id===(currentBranch()||null)&&params.razon_social_id===(value('scopeRazon')||'todos');
  try{
   notify('Actualizando información financiera…');
-  const params={negocio_id:currentBiz()||null,sucursal_id:currentBranch()||null,razon_social_id:value('scopeRazon')||'todos',desde:value('from'),hasta:value('to')};
   const [s,l]=await Promise.all([api('resumen',params),api('listar_movimientos',params)]);
+  if(!vigente())return;
   if(!Array.isArray(l.movimientos))throw Error('No se recibió el listado completo de ventas');
   transactions=l.movimientos;
-  movimientosFinancierosCargadosQA=true;
   marcarPeriodoSeleccionado();
   resumenManualUki=s.resumen||[];pagosManualesUki=s.pagos||[];
   renderRows();notify('Información privada actualizada.','success');
-  await cargarCierresUki(value('from'),value('to'));
-  await cargarCuentasPendientes();
+  // Si la lectura adicional falla, no se suman cierres Romo; los registros
+  // normales Uki siguen visibles y utilizables.
+  try{
+   const conciliacion=await api('listar_movimientos',{negocio_id:null,sucursal_id:null,razon_social_id:'todos',desde:params.desde,hasta:params.hasta});
+   if(!vigente())return;
+   romoMovimientosConciliacion=Array.isArray(conciliacion.movimientos)?conciliacion.movimientos:[];
+   movimientosFinancierosCargadosQA=Array.isArray(conciliacion.movimientos)&&conciliacion.movimientos.length<250;
+  }catch(e){
+   if(!vigente())return;
+   movimientosFinancierosCargadosQA=false;
+   romoMovimientosConciliacion=[];
+   if(/código privado|sesión|Introduce el código/.test(String(e.message))){lock();return;}
+  }
+  if(!vigente())return;
+  await cargarCierresUki(params.desde,params.hasta);
+  if(vigente())await cargarCuentasPendientes();
  }catch(e){
+  if(!vigente())return;
   movimientosFinancierosCargadosQA=false;
   cierresConfirmadosRomoQA=[];romoCierresConsultaValidaQA=false;
   notify(e.message,'error');if(/código privado|sesión|Introduce el código/.test(e.message))lock();
@@ -1909,7 +1928,7 @@ async function checkState(){
 }
 $('google').onclick=async()=>{
  try{notify('Autenticando…');await signInWithPopup(auth,new GoogleAuthProvider());await checkState()}
- catch(e){notify('No se pudo abrir Google: '+e.message,'error');$('loginhelp').textContent='Prueba abrir este enlace directamente en Safari. Si no se permite Google en el Preview, usa Mi Administración oficial para entrar a la cuenta.'}
+ catch(e){notify('No se pudo abrir Google: '+e.message,'error');$('loginhelp').textContent='Comprueba que el dominio de esta página esté autorizado en Firebase.'}
 };
 $('configure').onclick=()=>safe('configure',async()=>{
  if(value('newpin')!==value('againpin'))throw Error('Los dos códigos deben coincidir.');
@@ -1926,9 +1945,7 @@ $('enter').onclick=()=>safe('enter',async()=>{
 });
 $('exit').onclick=async()=>{
  if(session)try{await api('salir')}catch{}
- session='';cierresConfirmadosRomoQA=[];romoCierresConsultaValidaQA=false;
- movimientosFinancierosCargadosQA=false;
- limpiarInformes();await signOut(auth);show('login');notify('Acceso privado cerrado.','success');
+ session='';limpiarInformes();await signOut(auth);show('login');notify('Acceso privado cerrado.','success');
 };
 // El fragmento nunca viaja al servidor y se conserva mientras Google completa
 // su inicio de sesión (Safari puede recargar la página durante ese proceso).
@@ -1941,9 +1958,73 @@ if(setupLink){
 ['saleDate','expenseDate','docDate','to','histTo'].forEach(id=>$(id).value=today());
 $('from').value=today().slice(0,7)+'-01';
 $('histFrom').value=today().slice(0,7)+'-01';
+
+/* Archivo privado permanente, independiente de movimientos contables del panel. */
+async function archivoMensualApi(action,rest={}){
+ if(!session||!auth.currentUser)throw Error('Inicia Google y PIN privado de Mi Administración.');
+ const bearer=await auth.currentUser.getIdToken();
+ const response=await fetch('https://uki-sushi-inventario.vercel.app/api/mi-archivo-mensual-live',{
+  method:'POST',cache:'no-store',credentials:'omit',
+  headers:{Authorization:'Bearer '+bearer,'Content-Type':'application/json','X-Fin-Session':session},
+  body:JSON.stringify({action,...rest})
+ });
+ const data=await response.json().catch(()=>null);
+ if(!response.ok||data?.ok!==true)throw Error(data?.error||'No se pudo consultar el archivo mensual.');
+ return data;
+}
+function archivoDescargar(blob,nombre){
+ const url=URL.createObjectURL(blob),link=document.createElement('a');
+ link.href=url;link.download=nombre;document.body.append(link);link.click();
+ setTimeout(()=>{link.remove();URL.revokeObjectURL(url);},3000);
+}
+async function archivoMensualDescargar(registro,tipo){
+ const aviso=$('ukiArchivoEstadoAdmin');
+ try{
+  aviso.textContent='Verificando archivo '+registro.mes+'…';
+  const data=await archivoMensualApi('consultar',{sucursal:registro.sucursal,mes:registro.mes});
+  const x=data.archivo;
+  if(!x||x.sha256!==registro.sha256||x.sucursal!==registro.sucursal||x.mes!==registro.mes)
+   throw Error('El archivo descargado no coincide con el índice privado.');
+  const core=window.UkiArchivoMensual;
+  if(!core)throw Error('No se cargó el generador de informes.');
+  const documento=await core.desempaquetar(x.base64,x.encoding,x.sha256);
+  const nombre='archivo-'+registro.sucursal.replace(':','-')+'-'+registro.mes;
+  if(tipo==='excel')archivoDescargar(new Blob([core.excel(documento)],{type:'text/csv;charset=utf-8'}),nombre+'.csv');
+  else archivoDescargar(core.pdf(documento),nombre+'.pdf');
+  aviso.textContent='Archivo '+tipo.toUpperCase()+' preparado con verificación SHA-256.';
+ }catch(e){aviso.textContent=String(e.message||e)+' No se modificaron datos.';}
+}
+async function archivoMensualListar(){
+ const btn=$('ukiArchivoConsultar'),host=$('ukiArchivoMesesAdmin'),estado=$('ukiArchivoEstadoAdmin');
+ btn.disabled=true;estado.textContent='Consultando archivos privados…';
+ try{
+  const data=await archivoMensualApi('listar');
+  if(!Array.isArray(data.archivos))throw Error('El índice no está disponible.');
+  host.replaceChildren();
+  if(!data.archivos.length){estado.textContent='Aún no hay meses archivados. El primero corresponde a noviembre de 2026.';return;}
+  const labels={'uki:arica':'Uki Regimiento Arica','uki:serena':'Uki La Serena','romo:serena':'Romo Sushi La Serena'};
+  for(const r of data.archivos){
+   if(!labels[r.sucursal]||!/^\d{4}-\d{2}$/.test(r.mes)||!/^[a-f0-9]{64}$/.test(r.sha256))continue;
+   const box=document.createElement('div');box.style.cssText='border-top:1px solid var(--line);padding:12px 0';
+   const name=document.createElement('strong');name.textContent=labels[r.sucursal]+' · '+r.mes;
+   const desc=document.createElement('p');desc.className='hint';
+   desc.textContent='Pedidos: '+(r.resumen?.pedidos||0)+' · Cierres: '+(r.resumen?.cierres||0)+' · Clientes: '+(r.resumen?.clientes||0);
+   const row=document.createElement('div');row.className='owner-reports-actions';
+   for(const [key,title] of [['excel','📗 Excel'],['pdf','📕 PDF']]){
+    const b=document.createElement('button');b.type='button';b.textContent=title;
+    b.onclick=()=>void archivoMensualDescargar(r,key);
+    row.append(b);
+   }
+   box.append(name,desc,row);host.append(box);
+  }
+  estado.textContent='Archivos privados confirmados: '+data.archivos.length+'. No se elimina información desde esta sección.';
+ }catch(e){estado.textContent=String(e.message||e);}
+ finally{btn.disabled=false;}
+}
+$('ukiArchivoConsultar').onclick=()=>void archivoMensualListar();
+
 onAuthStateChanged(auth,user=>{
- if(!user){session='';cierresConfirmadosRomoQA=[];romoCierresConsultaValidaQA=false;
-  movimientosFinancierosCargadosQA=false;limpiarInformes();show('login');}
+ if(!user){session='';limpiarInformes();show('login');}
  if(!session)void checkState();
 });
 </script></body></html>
