@@ -1,0 +1,20 @@
+name: Romo promociones Neon para carta publica
+on:
+  push:
+    branches: [release/romos-panel-v816]
+    paths:
+      - api/romo-promociones-publicas-qa.js
+      - tests/romo-promociones-publicadas-carta.test.cjs
+      - .github/workflows/romo-promociones-feed-publico.yml
+permissions:
+  contents: read
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: node --check api/romo-promociones-publicas-qa.js
+      - run: node --test tests/romo-promociones-publicadas-carta.test.cjs
