@@ -8,6 +8,7 @@ on:
       - public/romo-panel-qa/uki-archivo-mensual-core.js
       - public/romo-panel-qa/uki-archivo-mensual-panel.js
       - tests/uki-archivo-mensual-romo-carga.test.cjs
+      - tests/uki-archivo-mensual-interfaz.test.cjs
       - .github/workflows/uki-romo-archivo-mensual-qa.yml
   pull_request:
     paths:
@@ -27,4 +28,4 @@ jobs:
           node --check public/romo-panel-qa/uki-archivo-mensual-core.js
           node --check public/romo-panel-qa/uki-archivo-mensual-panel.js
       - name: Probar carga de Romo
-        run: node --test tests/uki-archivo-mensual-romo-carga.test.cjs
+        run: node --test tests/uki-archivo-mensual-romo-carga.test.cjs tests/uki-archivo-mensual-interfaz.test.cjs
