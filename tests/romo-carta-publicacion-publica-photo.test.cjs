@@ -50,6 +50,14 @@ test('prueba real GET: la carta y el panel muestran la Familiar 108 con imagen v
  const page=await fetch(origen,{signal:AbortSignal.timeout(18000)});
  assert.equal(page.status,200,'Dominio oficial de carta inaccesible');
  const html=await page.text();
+ console.log('Carta oficial:',page.url,'longitud:',html.length,'cache:',page.headers.get('x-vercel-cache'),
+  'marcador nuevo:',html.indexOf('romo-promociones-publicas-qa'),
+  'marcador anterior:',html.indexOf('romos_products?select='));
+ const immutable=await fetch('https://romos-sushi-carta-5kicy6sql-diannaleandra-7046.vercel.app',{
+  signal:AbortSignal.timeout(18000)});
+ const immutableBody=await immutable.text();
+ console.log('Deployment inmóvil:',immutable.status,immutable.url,'longitud:',immutableBody.length,
+  'marcador nuevo:',immutableBody.indexOf('romo-promociones-publicas-qa'));
  assert.ok(html.includes(api),'El dominio de clientes aún tiene una versión sin la promoción');
  const imagen=await fetch('https://romos-sushi-panel.vercel.app/api/romo-carta-foto-publica-qa?sku='+encodeURIComponent(sku),{
   signal:AbortSignal.timeout(18000)});
