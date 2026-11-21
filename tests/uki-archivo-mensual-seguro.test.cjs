@@ -1,0 +1,232 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const core=require('../public/uki-archivo-mensual-core.js');
+const backend=require('../api/mi-archivo-mensual-live.js')._testing;
+const ubicacion='Uki Regimiento Arica';
+function estado(){
+ const obj={suc:ubicacion,clientes:{
+  'cliente-1':{nombre:'Ejemplo',telefono:'56912345678',codigoCliente:'A1',movimientos:[
+   {fechaISO:'2026-11-24T12:00:00',tipo:'venta',monto:2500}
+  ]}
+ }};
+ for(const nombre of core.SECCIONES)if(nombre!=='cajasDiarias')obj[nombre]=[];
+ obj.cajasDiarias={
+  [ubicacion+'|2026-11-30']:{base:18000,precierres:[{nombre:'Turno 1',inicioMs:1796000000000}]},
+  [ubicacion+'|2026-12-01']:{base:18000}
+ };
+ obj.pedidos=[{suc:ubicacion,id:'orden-1',fechaISO:'2026-11-24T12:00:00',
+  pagado:true,total:2500,telefono:'56912345678',cliente:'Ejemplo',
+  detalle:'N'.repeat(500)},
+  {suc:ubicacion,id:'orden-diciembre',fechaISO:'2026-12-01T12:00:00',
+   pagado:true,total:1000,telefono:'56912345678'}];
+ obj.cierres=[{suc:ubicacion,fechaOperativa:'2026-11-30',venta:2500}];
+ return obj;
+}
+test('noviembre no puede archivarse antes del 5 de diciembre en Chile',()=>{
+ const original=estado();
+ assert.throws(()=>core.generar(original,'2026-11',new Date('2026-12-04T17:00:00Z')),
+  /2026-12-05/);
+ assert.equal(original.pedidos.length,2);
+});
+test('archivo conserva solo el mes, clientes, timbres y detalle original sin mutar',()=>{
+ const original=estado(),archivo=core.generar(original,'2026-11',new Date('2026-12-06T15:00:00Z'));
+ assert.equal(archivo.registros.pedidos.length,1);
+ assert.equal(archivo.registros.cierres.length,1);
+ assert.equal(archivo.clientes.length,1);
+ assert.equal(archivo.resumen.timbres,1);
+ assert.equal(archivo.resumen.totalVentas,2500);
+ assert.equal(archivo.registros.pedidos[0].detalle.length,500);
+ assert.equal(original.pedidos.length,2);
+ assert.equal(archivo.sucursal,'uki:arica');
+});
+test('servidor valida periodo, cantidad y no habilita la función sin bandera',()=>{
+ const a=core.generar(estado(),'2026-11',new Date('2026-12-06T15:00:00Z'));
+ assert.equal(backend.verify(a,a.sucursal,'2026-11',backend.dates('2026-11')),4);
+ assert.equal(backend.dates('2026-11').habilitado,'2026-12-05');
+ assert.equal(backend.config({VERCEL_ENV:'production',UKI_FIN_PRIVATE_ENABLED:'true'}),null);
+ assert.throws(()=>backend.verify({...a,resumen:{...a.resumen,pedidos:999}},
+  a.sucursal,'2026-11',backend.dates('2026-11')),/Conteos/);
+});
+test('PDF no corta silenciosamente el detalle de más de 320 caracteres',async()=>{
+ const archivo=core.generar(estado(),'2026-11',new Date('2026-12-06T15:00:00Z'));
+ const pdf=core.pdf(archivo);
+ const text=Buffer.from(await pdf.arrayBuffer()).toString('latin1');
+ assert.ok(text.startsWith('%PDF-1.4'));
+ assert.ok((text.match(/N{20,}/g)||[]).reduce((acc,x)=>acc+x.length,0)>320);
+});
+test('XLSX conserva ficha original de cada pedido y clientes de noviembre',()=>{
+ const a=core.generar(estado(),'2026-11',new Date('2026-12-06T15:00:00Z'));
+ const hojas=core.hojasExcel(a);
+ assert.equal(hojas.find(h=>h.nombre==='Pedidos').filas.length,1);
+ assert.equal(hojas.find(h=>h.nombre==='Clientes').filas.length,1);
+ assert.equal(hojas.find(h=>h.nombre==='Timbres').filas.length,1);
+ const bruto=hojas.find(h=>h.nombre==='Pedidos').filas[0].at(-1);
+ assert.equal(JSON.parse(bruto).detalle.length,500);
+});
+test('el servidor bloquea meses con registros sin fecha verificable',()=>{
+ const a=core.generar(estado(),'2026-11',new Date('2026-12-06T15:00:00Z'));
+ a.sinFecha.pedidos=1;
+ assert.throws(()=>backend.verify(a,a.sucursal,'2026-11',backend.dates('2026-11')),/sin fecha/);
+});
+
+test('panel Uki incorpora acceso mensual sin tocar Caja ni los cobros',()=>{
+ const panel=fs.readFileSync(path.join(__dirname,'../firebase/uki-sushi-local.html'),'utf8');
+ const bridge=fs.readFileSync(path.join(__dirname,'../firebase/uki-archivo-mensual-panel.js'),'utf8');
+ const coreUki=fs.readFileSync(path.join(__dirname,'../firebase/uki-archivo-mensual-core.js'),'utf8');
+ const coreComun=fs.readFileSync(path.join(__dirname,'../public/uki-archivo-mensual-core.js'),'utf8');
+ assert.equal(coreUki,coreComun,'La versión del motor mensual debe ser idéntica');
+ assert.match(panel,/id="ukiArchivoMensualRoot"/);
+ assert.match(panel,/src="\.\/uki-archivo-mensual-core\.js\?/);
+ assert.match(panel,/src="\.\/uki-archivo-mensual-panel\.js\?/);
+ assert.match(bridge,/window\.ukiCancelacionNubeLista\?\.\(\)!==true/);
+ assert.match(bridge,/verificarNube\(contexto\.suc\)/);
+ assert.match(bridge,/action:'consultar'/);
+ assert.match(bridge,/desempaquetar\(/);
+ assert.match(bridge,/\.xlsx'/);
+ assert.match(bridge,/import\('\.\/uki-archivo-xlsx\.mjs'\)/);
+ assert.doesNotMatch(bridge,/\bDELETE\s+FROM\b/i);
+ assert.doesNotMatch(bridge,/\blocalStorage\.(clear|removeItem)\b/);
+});
+
+test('el XLSX usado por el panel Uki es un ZIP de Excel con los datos originales',async()=>{
+ const original=estado(),documento=core.generar(original,'2026-11',new Date('2026-12-06T15:00:00Z'));
+ const {generarXLSX}=await import('../firebase/uki-archivo-xlsx.mjs');
+ const libro=generarXLSX({hojas:core.hojasExcel(documento)});
+ const buffer=Buffer.from(await libro.arrayBuffer());
+ assert.equal(buffer.subarray(0,2).toString('latin1'),'PK');
+ assert.ok(buffer.includes(Buffer.from('xl/workbook.xml')));
+ assert.ok(buffer.includes(Buffer.from('Detalle completo')));
+ assert.ok(buffer.includes(Buffer.from('Ejemplo')));
+ assert.equal(libro.type,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+});
+test('el archivo respeta el aislamiento entre los tres locales',()=>{
+ for(const [nombre,codigo] of Object.entries(core.SUCURSALES)){
+  const datos=estado();
+  datos.suc=nombre;
+  datos.pedidos=datos.pedidos.map(x=>({...x,suc:nombre}));
+  datos.cierres=datos.cierres.map(x=>({...x,suc:nombre}));
+  const ajeno=core.SUCURSALES[Object.keys(core.SUCURSALES).find(x=>x!==nombre)];
+  datos.pedidos.push({id:'fuera',suc:ajeno,fechaISO:'2026-11-12T14:20:00',total:9999,pagado:true});
+  const archivo=core.generar(datos,'2026-11',new Date('2026-12-06T15:00:00Z'));
+  assert.equal(archivo.sucursal,codigo);
+  assert.equal(archivo.registros.pedidos.length,1);
+  assert.equal(archivo.resumen.totalVentas,2500);
+ }
+});
+
+test('timbres sin fecha detienen el respaldo y no afectan ventas ni tarjeta',()=>{
+ const datos=estado();
+ datos.clientes['cliente-1'].movimientos.push({tipo:'venta',pedidoId:700});
+ const original=JSON.stringify(datos);
+ const archivo=core.generar(datos,'2026-11',new Date('2026-12-06T15:00:00Z'));
+ assert.equal(archivo.sinFecha.timbres,1);
+ assert.throws(()=>backend.verify(archivo,archivo.sucursal,'2026-11',backend.dates('2026-11')),/timbres sin fecha/);
+ assert.equal(JSON.stringify(datos),original,'La validación nunca puede cambiar el historial original');
+});
+
+test('el archivo guarda la caja diaria, precierres y excluye cajas del mes siguiente',()=>{
+ const datos=estado(),archivo=core.generar(datos,'2026-11',new Date('2026-12-06T15:00:00Z'));
+ assert.equal(archivo.registros.cajasDiarias.length,1);
+ assert.equal(archivo.registros.cajasDiarias[0].datos.precierres.length,1);
+ assert.equal(archivo.resumen.cajasDiarias,1);
+ assert.equal(core.hojasExcel(archivo).find(h=>h.nombre==='Cajas diarias').filas.length,1);
+ assert.equal(datos.cajasDiarias[ubicacion+'|2026-12-01'].base,18000);
+ assert.equal(backend.verify(archivo,archivo.sucursal,'2026-11',backend.dates('2026-11')),4);
+});
+test('un cierre diario sin fecha válida impide dar por completo el respaldo',()=>{
+ const datos=estado();
+ datos.cajasDiarias[ubicacion+'|sin-fecha']={base:18000};
+ const a=core.generar(datos,'2026-11',new Date('2026-12-06T15:00:00Z'));
+ assert.equal(a.sinFecha.cajasDiarias,1);
+ assert.throws(()=>backend.verify(a,a.sucursal,'2026-11',backend.dates('2026-11')),/sin fecha/);
+});
+
+test('respaldo completo pasa por el mismo validador de subida y se recupera por SHA-256',async()=>{
+ const registro=core.generar(estado(),'2026-11',new Date('2026-12-06T15:00:00Z'));
+ const packed=await core.empaquetar(registro);
+ const body={base64:packed.base64,encoding:packed.encoding,sha256:packed.sha256};
+ const verificado=backend.leerRespaldoVerificado(body,registro.sucursal,'2026-11',backend.dates('2026-11'));
+ assert.deepEqual(verificado.parsed,registro);
+ assert.equal(verificado.n,4);
+ const recuperado=await core.desempaquetar(body.base64,body.encoding,body.sha256);
+ assert.deepEqual(recuperado,registro);
+ assert.throws(()=>backend.leerRespaldoVerificado(
+  {...body,sha256:'0'.repeat(64)},registro.sucursal,'2026-11',backend.dates('2026-11')),
+  /SHA-256/);
+});
+
+test('Google + PIN privado permiten preflight únicamente desde orígenes oficiales',async()=>{
+ const finance=require('../api/mi-administracion-live.js');
+ function res(){
+  return {headers:{},statusCode:null,
+   setHeader(k,v){this.headers[k]=v;return this;},
+   status(n){this.statusCode=n;return this;},
+   json(x){this.body=x;return this;},
+   end(){return this;}};
+ }
+ const sources=[
+  ['https://diannaleandra-art.github.io',true],
+  ['https://romos-sushi-panel.vercel.app',true],
+  ['https://sitio-inventado.example',false]
+ ];
+ for(const [origin,permitido] of sources){
+  const response=res();
+  await finance({method:'OPTIONS',headers:{origin,host:'uki-sushi-inventario.vercel.app'}},response);
+  assert.equal(response.headers['Access-Control-Allow-Origin']===origin,permitido);
+  // Sin activar producción, el servidor no admite escrituras ni sesiones.
+  assert.equal(response.statusCode,404);
+ }
+});
+
+test('el servidor exige sesión privada vinculada a la identidad Google autorizada',async()=>{
+ const crypto=require('node:crypto');
+ const token='a'.repeat(64);
+ const uid='usuario-qa-abstracto';
+ let consultas=0;
+ const sql={query:async(q,args)=>{
+  consultas++;
+  assert.match(q,/fin_sesiones/);
+  assert.equal(args[0],crypto.createHash('sha256').update(token).digest('hex'));
+  assert.equal(args[1],uid);
+  return [{'?column?':1}];
+ }};
+ assert.equal(await backend.privateSession(sql,{headers:{'x-fin-session':token}},{uid}),true);
+ assert.equal(consultas,1);
+ assert.equal(await backend.privateSession(sql,{headers:{'x-fin-session':'clave-corta'}},{uid}),false);
+ assert.equal(consultas,1,'La sesión inválida ni siquiera consulta la base de datos');
+ assert.equal(await backend.privateSession({query:async()=>[]},{headers:{'x-fin-session':token}},{uid:'otro-usuario'}),false);
+});
+
+test('PDF mensual admite más de 350 páginas sin recortar pedidos numerosos',async()=>{
+ const datos=estado();
+ datos.pedidos=Array.from({length:800},(_,id)=>({
+  suc:ubicacion,id:'pedido-'+id,fechaISO:'2026-11-24T12:00:00',
+  pagado:true,estado:'Entregado',total:2500,detalle:'R'.repeat(1600)
+ }));
+ const documento=core.generar(datos,'2026-11',new Date('2026-12-06T15:00:00Z'));
+ const pdf=core.pdf(documento),s=Buffer.from(await pdf.arrayBuffer()).toString('latin1');
+ const paginas=(s.match(/\/Type \/Page \/Parent/g)||[]).length;
+ assert.ok(paginas>350,'Deben existir más de 350 páginas');
+ assert.equal((s.match(/pedido-[0-9]+/g)||[]).length>=800,true);
+ assert.ok(s.startsWith('%PDF-1.4'));
+});
+
+test('Mi Administración consulta automáticamente las tres sucursales desde el día 5',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../public/mi-administracion-duenos.html'),'utf8');
+ const start=html.indexOf('function mesArchivoExigible(');
+ const end=html.indexOf('async function archivoMensualListar(){',start);
+ assert.ok(start>=0&&end>start);
+ const fn=new Function('today',html.slice(start,end)+'return mesArchivoExigible;')(()=> '2026-11-21');
+ assert.equal(fn('2026-11-21'),null);
+ assert.equal(fn('2026-12-04'),null);
+ assert.equal(fn('2026-12-05'),'2026-11');
+ assert.equal(fn('2027-01-04'),'2026-11');
+ assert.equal(fn('2027-01-05'),'2026-12');
+ assert.equal((html.match(/void archivoMensualListar\(\);/g)||[]).length>=2,true);
+ assert.match(html,/Primer respaldo mensual: noviembre de 2026, desde el 5 de diciembre/);
+ assert.match(html,/const ultimoMes=mesArchivoExigible\(\)\|\|/);
+ assert.match(html,/const sinArchivo=Object\.entries\(labels\)/);
+});

@@ -1,0 +1,45 @@
+name: Archivo mensual seguro - pruebas
+on:
+  push:
+    branches:
+      - integracion/archivo-mensual-oficial-20261121
+    paths:
+      - public/uki-archivo-mensual-core.js
+      - firebase/uki-archivo-mensual-core.js
+      - firebase/uki-archivo-mensual-panel.js
+      - firebase/uki-archivo-xlsx.mjs
+      - firebase/uki-sushi-local.html
+      - api/mi-archivo-mensual-live.js
+      - api/mi-administracion-live.js
+      - public/mi-administracion-duenos.html
+      - tests/uki-archivo-mensual-seguro.test.cjs
+      - tests/uki-archivo-mensual-interfaz.test.cjs
+      - .github/workflows/uki-archivo-mensual-qa.yml
+  pull_request:
+    paths:
+      - public/uki-archivo-mensual-core.js
+      - api/mi-archivo-mensual-live.js
+      - api/mi-administracion-live.js
+      - tests/uki-archivo-mensual-seguro.test.cjs
+permissions:
+  contents: read
+jobs:
+  verify-archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify Node runtime
+        run: node --version
+      - name: Validate JavaScript files
+        run: |
+          node --check public/uki-archivo-mensual-core.js
+          node --check firebase/uki-archivo-mensual-core.js
+          node --check firebase/uki-archivo-mensual-panel.js
+          node --check firebase/uki-archivo-xlsx.mjs
+          node --check api/mi-archivo-mensual-live.js
+          node --check api/mi-administracion-live.js
+      - name: Test monthly archive safety
+        run: node --test tests/uki-archivo-mensual-seguro.test.cjs tests/uki-archivo-mensual-interfaz.test.cjs
