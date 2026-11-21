@@ -37,8 +37,12 @@ function verify(data,suc,mes,period){
  !data.registros||typeof data.registros!=='object'||Array.isArray(data.registros)||
  !data.resumen||typeof data.resumen!=='object'||Array.isArray(data.resumen))
   throw Error('Estructura de archivo mensual incorrecta.');
+ if(!data.sinFecha||typeof data.sinFecha!=='object'||Array.isArray(data.sinFecha))
+  throw Error('La revisión de registros sin fecha está incompleta.');
  let total=0;
  for(const k of SECTIONS){
+  if(!Number.isSafeInteger(data.sinFecha[k])||data.sinFecha[k]!==0)
+   throw Error('Hay registros operativos sin fecha. El respaldo queda bloqueado.');
   const a=data.registros[k];
   if(!Array.isArray(a)||a.length>15000||data.resumen[k]!==a.length)
    throw Error('Conteos del archivo mensual inconsistentes.');
