@@ -2000,8 +2000,15 @@ async function archivoMensualListar(){
   const data=await archivoMensualApi('listar');
   if(!Array.isArray(data.archivos))throw Error('El índice no está disponible.');
   host.replaceChildren();
-  if(!data.archivos.length){estado.textContent='Aún no hay meses archivados. El primero corresponde a noviembre de 2026.';return;}
   const labels={'uki:arica':'Uki Regimiento Arica','uki:serena':'Uki La Serena','romo:serena':'Romo Sushi La Serena'};
+  const ultimoMes=data.archivos[0]?.mes||'2026-11';
+  const archivadas=new Set(data.archivos.filter(x=>x.mes===ultimoMes).map(x=>x.sucursal));
+  const sinArchivo=Object.entries(labels).filter(([k])=>!archivadas.has(k)).map(([,nombre])=>nombre);
+  const indicador=document.createElement('p');indicador.className='hint';
+  indicador.textContent='Control mensual '+ultimoMes+' · '+(3-sinArchivo.length)+
+   '/3 sucursales con respaldo. '+(sinArchivo.length?'Pendientes: '+sinArchivo.join(', ')+'.':'Tres sucursales archivadas. Revisar descargas y recuperación antes de cualquier limpieza.');
+  host.append(indicador);
+  if(!data.archivos.length){estado.textContent='Aún no hay meses archivados. El primero corresponde a noviembre de 2026.';return;}
   for(const r of data.archivos){
    if(!labels[r.sucursal]||!/^\d{4}-\d{2}$/.test(r.mes)||!/^[a-f0-9]{64}$/.test(r.sha256))continue;
    const box=document.createElement('div');box.style.cssText='border-top:1px solid var(--line);padding:12px 0';
