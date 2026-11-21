@@ -47,8 +47,11 @@
    registros[sec]=items.filter(x=>{const f=fechaRegistro(x,sec);return f>=p.desde&&f<=p.hasta;}).map(x=>JSON.parse(JSON.stringify(x)));
   }
   const pedidos=registros.pedidos,clientes=[];
+  sinFecha.timbres=0;
   for(const [clave,c] of Object.entries(estado.clientes||{})){
    if(!c||typeof c!=='object'||!Array.isArray(c.movimientos))continue;
+   // También auditar timbres antiguos: no omitir silenciosamente los que no tengan fecha.
+   sinFecha.timbres+=c.movimientos.filter(m=>!fechaRegistro(m,'timbres')).length;
    const movimientos=c.movimientos.filter(m=>{const f=fechaRegistro(m,'timbres');return f>=p.desde&&f<=p.hasta;});
    const tel=String(c.telefono||'').replace(/\D/g,'');
    const vinculado=pedidos.some(v=>tel.length>=8&&String(v.telefono||'').replace(/\D/g,'')===tel);
