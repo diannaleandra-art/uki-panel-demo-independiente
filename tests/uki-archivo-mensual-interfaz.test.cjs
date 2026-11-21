@@ -165,7 +165,7 @@ test('un mes modificado tras guardar no sobrescribe el respaldo original',async(
  const file=path.join(root,'firebase/uki-archivo-mensual-panel.js');
  if(!fs.existsSync(file))return;
  const q=await ejecutarInterfaz(fs.readFileSync(file,'utf8'),{archivoExistente:true,cambioTrasArchivo:true}).click();
- assert.deepEqual(q.actions,['ingresar_pin','verificar']);
+ assert.deepEqual(q.actions,['ingresar_pin','verificar','consultar']);
  assert.match(q.estado,/no se reemplazó/i);
 });
 test('noviembre no permite pulsar Guardar antes del 5 de diciembre',()=>{
