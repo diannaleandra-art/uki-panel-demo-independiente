@@ -73,12 +73,22 @@ module.exports=async function gestionRomoQA(req,res){
   const rows=await db.query('SELECT store_id,revision,contenido FROM public.romo_carta_admin_qa_v1 WHERE store_id=$1',[STORE]);
   if(!Array.isArray(rows)||rows.length!==1)throw Error('Registro administrativo no inicializado en Neon QA');
   const current=M.read(rows[0]);
+  const publicacionHabilitada=adminWrite&&conf.write&&process.env.ROMO_PROMOCIONES_PUBLICACION_ENABLED==='true'&&!access.compartido;
   if(method==='GET')return res.status(200).json({
-   ...M.view(rows[0],base),edicionHabilitada:adminWrite,
+   ...M.view(rows[0],base),edicionHabilitada:adminWrite&&!access.compartido,publicacionHabilitada,
    aviso:'Borradores administrativos, no publicados en la carta comercial'
   });
   if(current.revision!==req.body.expectedRevision)
    return fail(res,409,'La gestión cambió. Actualiza la pantalla antes de guardar');
+  if(access.compartido)return fail(res,403,'Solo lectura desde el panel compartido');
+  if(['promotion-publish','promotion-withdraw'].includes(req.body.action)){
+   if(!publicacionHabilitada)return fail(res,503,'Publicación comercial aún no habilitada');
+   const f=req.body.fields;
+   if(Object.keys(f).sort().join('|')!=='commercialRevision|id')return fail(res,400,'Datos de publicación inválidos');
+   const lib=await import('../lib/romo-carta-ediciones-seguras-qa.mjs');
+   const result=await lib.publicarPromoRomoQA({db,carta:base,identity,adminRevision:current.revision,commercialRevision:f.commercialRevision,sku:f.id,retirar:req.body.action==='promotion-withdraw',motivo:req.body.motivo.trim()});
+   return res.status(200).json(result);
+  }
   const next=M.apply(current,base,req.body.action,req.body.fields);
   // CAS + auditoría como una sentencia. Nunca registrar éxito si falla auditoría.
   const saveSql=[

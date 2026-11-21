@@ -1183,9 +1183,14 @@
     if(!p._base){
      item.append(info((p.available===false?'Agotada o desactivada':'Disponible en borrador')+' · '+(p.promoType==='sushi'?(p.rollCount*p.piecesPerRoll)+' piezas · '+p.rollCount+' rolls · '+p.korokes+' korokes':p.promoType==='gohan'?'Gohan definido':'Combo definido')+' · '+p.sauceCount+' salsas · '+(p.payments||[]).join(', ')));
      item.append(promotionForm(p,false));
+     const published=(state.base?.publishedPromotions||[]).some(x=>x.sku==='monthly:romoq-'+p.sku.slice(6));
+     item.append(info(published?'Publicada en carta · las ediciones del borrador requieren actualizar la publicación.':'No publicada'));
+     const publication=async retirar=>{if(state.busy||!state.admin.publicacionHabilitada)return;if(!window.confirm(retirar?'¿Retirar de la carta de Romo? Los pedidos históricos se conservan.':'¿Publicar esta promoción con su foto y configuración actual en la carta de Romo?'))return;state.busy=true;try{const done=await request('POST',{action:retirar?'promotion-withdraw':'promotion-publish',expectedRevision:state.admin.revision,fields:{id:p.sku,commercialRevision:state.base.revision},motivo:(retirar?'Retirar ':'Publicar ')+p.name});if(done.guardado!==true||done.auditado!==true||done.publicada!==!retirar)throw Error('No se confirmó la publicación');status('Cambio comercial confirmado. Actualiza Carta y precios para obtener la nueva revisión.');}catch(e){status('No se confirmó: '+String(e.message||e));}finally{state.busy=false;}};
+     const publish=button(published?'Actualizar promoción publicada':'Publicar promoción',()=>void publication(false));publish.disabled=!state.admin.publicacionHabilitada;item.append(publish);
+     if(published){const withdraw=button('Retirar promoción de la carta',()=>void publication(true),true);withdraw.disabled=!state.admin.publicacionHabilitada;item.append(withdraw);}
      const discount=field('Descuento (%)',percent,'number');discount.input.max='99';const preview=info('');const show=()=>{const n=Number(discount.input.value);preview.textContent=Number.isInteger(n)&&n>=0&&n<=99?'Antes '+money(p.price)+' · Ahora '+money(Math.max(1,Math.round(p.price*(100-n)/100))):'Descuento entre 0 y 99%';};discount.input.oninput=show;show();
      item.append(discount.wrap,preview,button('Guardar descuento',()=>void save('discount-set',{id:p.sku,percent:Number(discount.input.value)},'Descuento de '+p.name),true));
-     item.append(button('Eliminar promoción de borrador',()=>{
+     if(!published)item.append(button('Eliminar promoción de borrador',()=>{
       void save('promotion-delete',{id:p.sku},'Eliminar promoción '+p.name,
        '¿Eliminar esta promoción de pruebas? Se conserva la auditoría.');
      },true));
