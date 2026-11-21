@@ -83,9 +83,10 @@ module.exports=async function promocionesPublicasRomo(req,res){
   if(!Array.isArray(rows)||rows.length!==1)throw Error('Edición comercial no encontrada');
   const revision=Number(rows[0].revision);
   const promociones=proyectarPromociones(rows[0].contenido,revision);
+  const ingredientConfig=require('../lib/romo-ingredientes-publicacion.cjs').validate(rows[0].contenido.gestion.ingredientConfig);
   return res.status(200).json({
    ok:true,storeId:STORE,readOnly:true,revision,
-   customPromotions:promociones,archivedProducts:proyectarRetirados(rows[0].contenido)
+   customPromotions:promociones,archivedProducts:proyectarRetirados(rows[0].contenido),ingredientConfig
   });
  }catch(e){
   console.error('Lectura promociones publicadas Romo no confirmada',String(e?.message||e));
