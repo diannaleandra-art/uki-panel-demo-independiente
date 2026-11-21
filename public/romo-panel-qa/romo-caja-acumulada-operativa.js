@@ -48,7 +48,7 @@ function html(){
   '</div>'+
  '</div>'+
  '</div>'+
- '<div class="card"><h3>Cierres por conciliar</h3><p class="muted">Solo se incorpora efectivo de cierres posteriores al conteo inicial y con constancia confirmada. No se registra dinero al abrir esta pantalla.</p><div id="romoAcumCierres"></div></div>'+
+ '<div class="card"><h3>Cierres por conciliar</h3><p class="muted">Los nuevos cierres con arqueo exacto se acreditan al confirmar el cierre. Aquí puedes conciliar los pendientes posteriores al conteo inicial, sin duplicar efectivo.</p><div id="romoAcumCierres"></div></div>'+
  '<details class="card" open><summary><b>📖 Historial de Caja acumulada en efectivo</b></summary>'+
  '<button type="button" id="ukiAcumHistoryRefresh" class="sm">Actualizar historial</button>'+
  '<div class="quick-grid" style="margin-top:10px">'+
@@ -92,6 +92,21 @@ async function confirmarCierre(c){
  try{const r=await request('sincronizar_cierre',closePayload(c),'serena');message=r.duplicate?'Cierre ya acreditado, sin duplicar.':'Cierre acreditado mediante su constancia de Neon.';}
  catch(e){message='No se confirmó la acreditación. Revisa el historial antes de repetir: '+String(e.message||e);}
  finally{state.busy=false;if(root?.isConnected){await load();status(message);}}
+}
+async function registrarCierreConfirmado(c){
+ // Solo cierre con constancia en Neon y saldo inicial previo; la función SQL
+ // verifica la constancia y evita duplicar por source_key.
+ if(branchFromPanel()!=='serena'||c?.suc!==LOCAL)return 'omitido';
+ try{
+  const info=await request('libro',{},'serena');
+  const since=Date.parse(info.cuenta?.initialized_at||'');
+  if(info.cuenta?.store_id!=='romo:serena'||!info.cuenta?.initialized||!info.escrituraHabilitada||!Number.isFinite(since)||!closureEligible(c,'serena',since))return 'pendiente';
+  const keys=info.cierres_acreditados;
+  if(!Array.isArray(keys))return 'pendiente';
+  if(keys.includes('romo:serena|'+c.turnoClave))return 'acreditado';
+  const result=await request('sincronizar_cierre',closePayload(c),'serena');
+  return result.ok===true?'acreditado':'pendiente';
+ }catch(e){console.warn('Romo cierre pendiente de conciliar:',String(e?.message||e));return 'pendiente';}
 }
 function drawCandidates(){
  const root=$('romoAcumCierres');if(!root)return;root.replaceChildren();
@@ -224,6 +239,6 @@ function mount(){
  $('ukiAcumWhatsApp').onclick=()=>void exportReport('whatsapp');
  draw();void load();
 }
-window.romoCajaAcumuladaVista=html;window.romoCajaAcumuladaMontar=mount;
+window.romoCajaAcumuladaVista=html;window.romoCajaAcumuladaMontar=mount;window.romoCajaAcumuladaRegistrarCierre=registrarCierreConfirmado;
 // Consultar el saldo nunca genera escrituras automáticas.
 })();

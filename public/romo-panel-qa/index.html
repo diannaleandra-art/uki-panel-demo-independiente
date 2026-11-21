@@ -8316,9 +8316,9 @@ function ukiRomoCajaPestanasQA(){
   cierre:()=>ukiRomoCajaConsultaHTMLQA('turnos'),
   historial:()=>ukiRomoCajaHistorialHTMLQA(),
   semana:()=>ukiRomoCajaSemanaHTMLQA(),
-  acumulada:()=> (window.romoCajaAcumuladaVista?.()||'')+ (window.ukiRomoCajaAcumuladaConciliacionQA?.render?.(
+  acumulada:()=> (window.romoCajaAcumuladaVista?.()||'<div class="card">No se cargó Caja acumulada. Actualiza el panel.</div>')+ '<details class="card"><summary>Consulta de conciliación avanzada</summary>'+ (window.ukiRomoCajaAcumuladaConciliacionQA?.render?.(
    datosSoloSucursal(),window.ukiRomoSesionRemotaQA)||
-   '<div class="card">La conciliación acumulada necesita su sesión autorizada de Romo.</div>')
+   '<div class="card">La conciliación acumulada necesita su sesión autorizada de Romo.</div>')+'</details>'
  }[active[0]]();
  const selector='<div class="card uki-navegacion-compacta uki-navegacion-caja">'+
   '<label for="ukiCajaIrA"><b>🔎 Ir directamente a una sección de Caja</b></label>'+
@@ -8867,7 +8867,7 @@ function ukiRomoResumenCierreVisualQA(t,c){
  ukiCobrosExternosTurno(t)+ukiAuditoriaPagosUI()+ukiAuditoriaTimbresUI()+
  '<div class="card"><h2>🛵 Pago al repartidor de Romo</h2>'+row('Repartidor',esc(ukiNombreRepartidorTurno(c)))+row('Deliverys de pedidos',fmt(t.enviosPedidos))+row('Deliverys manuales',fmt(t.enviosManuales))+row('Total de repartos registrados',fmt(t.envios))+row('Pagado por repartos del día',fmt(t.pagoDeliveryDia))+row('Pendiente por repartos del día',fmt(Math.max(0,t.envios-t.pagoDeliveryDia)),'sub')+'</div>'+
  ukiDesgloseDeliverysTurno(t)+ukiGastosTurnoVisible(t)+
- '<div class="card"><h2>Resultado final</h2>'+row('Venta total con delivery',fmt(t.totalMedios))+row('− Pago a repartidor',fmt(t.pagoDelivery),'neg')+row('− Gastos',fmt(t.gastosTotal),'neg')+row('Total final',fmt(t.final),'final')+row('Efectivo esperado sin base ni propinas (según cierre Romo)',fmt(t.efectivoCaja))+row('Propinas (aparte)',fmt(t.propinas))+'</div>';
+ '<div class="card"><h2>Resultado final</h2>'+row('Venta total con delivery',fmt(t.totalMedios))+row('− Pago de repartos del día ('+esc(t.pagoDeliveryMedioDia||'')+')',fmt(t.pagoDeliveryDia),'neg')+(t.pagoDeliveryAnterior?row('− Abono saldos anteriores ('+esc(t.pagoDeliveryMedioAnterior||'')+')',fmt(t.pagoDeliveryAnterior),'neg'):'')+(t.pagoDeliveryAnterior&&t.pagoDeliveryConceptoAnterior?'<p class="muted">Concepto de saldo anterior: '+esc(t.pagoDeliveryConceptoAnterior)+'</p>':'')+row('Venta - pagos al repartidor',fmt(t.totalMedios-t.pagoDelivery))+row('− Gastos',fmt(t.gastosTotal),'neg')+row('Venta total - gastos',fmt(t.totalMedios-t.gastosTotal),'sub')+row('Total final (venta - pago delivery - gastos)',fmt(t.final),'final')+row('Efectivo esperado sin base ni propinas',fmt(t.efectivoCaja))+row('Propinas (aparte)',fmt(t.propinas))+(t.propinasEfectivo?row('De ellas, en efectivo',fmt(t.propinasEfectivo)):'')+'</div>';
 }
 function ukiRomoCierreTurnoHTMLQA(){
  const c=cajaDelDia(),abierto=c.turnoAbierto===true;
@@ -8898,12 +8898,7 @@ function ukiRomoCierreTurnoHTMLQA(){
    '<label>Caja chica inicial REAL</label><input id="romoTurnoChicaQA" type="number" inputmode="numeric" min="0" step="1" placeholder="Escribe 0 si realmente no hay caja chica">'+
    '<p class="muted">No se toman los importes antiguos de Uki. La base se confirma en la misma apertura.</p>'+
    '<button type="button" class="big" onclick="ukiRomoAbrirTurnoQA()">Abrir turno en Neon Romo</button></div>':
-   '<div class="card"><h3>🕒 Precierre del trabajador · NO cierra el día</h3>'+
-   row('Venta del día hasta ahora',fmt(t.totalMedios))+
-   row('Efectivo del día, sin base',fmt(t.efectivoCaja))+
-   row('Pedidos pagados',String(t.pagadosN))+row('Pendientes de pago',String(t.pendientesN))+
-   ukiRomoFormularioPrecierreQA(c,t)+
-   '</div>'+
+   '<div class="card"><p class="muted"><b>¿Solo finaliza el turno de un trabajador?</b> Usa Precierre trabajador. No realiza un cierre de caja.</p><button type="button" class="sm" onclick="cambiarCajaTab(&quot;precierre&quot;)">Ir a precierre</button></div>'+
    ukiRomoResumenCierreVisualQA(t,c)+'<div class="card"><h3>🔒 Cierre definitivo del turno</h3>'+
    '<p class="muted">Requiere conteo físico, revisión de pedidos, timbres y solicitudes. Se guarda una sola vez con su constancia en Neon.</p>'+
    (ajustesSinConciliar.length?
@@ -9130,6 +9125,9 @@ async function ukiRomoCerrarTurnoQA(){
   S.msg='Cierre definitivo Romo '+closing.turnoId+
    ' y constancia confirmados en Neon · revisión '+result.revision+
    '. Pendiente sincronización con Mi Administración.';
+  // El cierre ya es definitivo, aun si falla la acreditación del efectivo.
+  const acreditacion=await window.romoCajaAcumuladaRegistrarCierre?.(closing.cierre).catch(()=> 'pendiente');
+  S.msg+=(acreditacion==='acreditado'?' Efectivo acreditado en Caja acumulada.':' Revisa Caja acumulada si corresponde acreditar este cierre.');
   render();
  }catch(e){
   aviso('CIERRE NO CONFIRMADO EN LA PANTALLA. NO lo repitas sin consultar Historial y Neon. '+
@@ -11364,7 +11362,7 @@ el("ukiAutoCheck").addEventListener("change",()=>{
 </script>
 <script src="/romo-panel-qa/romo-caja-acumulada-conciliacion-qa.js?v=20261115a" defer></script>
 <script src="/romo-panel-qa/romo-caja-acumulada-exportar.js?v=20261121b" defer></script>
-<script src="/romo-panel-qa/romo-caja-acumulada-operativa.js?v=20261121b" defer></script>
+<script src="/romo-panel-qa/romo-caja-acumulada-operativa.js?v=20261121cierre-v8" defer></script>
 <script src="/romo-panel-qa/romo-movimientos-paridad-qa.js?v=20261115a" defer></script>
 <script src="/romo-panel-qa/romo-edicion-en-panel-qa.js?v=20261114c" defer></script>
 <script src="/romo-panel-qa/romo-carta-editor-seguro-qa.js?v=20261121carta-orden-v7" defer></script><script src="/romo-panel-qa/romo-carta-gestion-completa-qa.js?v=20261121carta-orden-v7" defer></script><script src="/romo-panel-qa/romo-banner-admin.js?v=20261114b" defer></script></body></html>
