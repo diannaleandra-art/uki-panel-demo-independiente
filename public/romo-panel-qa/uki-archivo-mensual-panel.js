@@ -82,11 +82,27 @@
     estado(String(e.message||e)+'. No se eliminó ningún registro.',true);
    }finally{loading=false;b.disabled=false;}
   });
-  ex.onclick=()=>{
+  ex.onclick=async()=>{
    if(!ultimo||ultimo.mes!==mes.value)return estado('Primero guarda este mes.',true);
-   descargar(new Blob([core().excel(ultimo)],{type:'text/csv;charset=utf-8'}),
-    'archivo-'+ultimo.sucursal.replace(':','-')+'-'+ultimo.mes+'.csv');
-   estado('Excel preparado para descargar.');
+   try{
+    const {generarXLSX}=await import('/mi-administracion-informes.js');
+    const registros=core().lineas(ultimo),cabecera=registros[0],filas=registros.slice(1);
+    const hojas=[{nombre:'Resumen',columnas:['Concepto','Dato'],filas:[
+     ['Sucursal',ultimo.nombreSucursal],['Mes',ultimo.mes],
+     ['Desde',ultimo.desde],['Hasta',ultimo.hasta],
+     ...Object.entries(ultimo.resumen).map(([k,v])=>[k,v])
+    ]}];
+    const nombres={pedidos:'Pedidos',cierres:'Cierres',gastos:'Gastos',retiros:'Retiros',
+     propinas:'Propinas',deliveriesManuales:'Delivery manual',incidencias:'Incidencias',
+     ajustesHistoricos:'Ajustes históricos',solicitudesWhatsApp:'Solicitudes WhatsApp',timbres:'Timbres'};
+    for(const [sec,nombre] of Object.entries(nombres)){
+     hojas.push({nombre,columnas:cabecera.slice(1),
+      filas:filas.filter(row=>row[0]===sec).map(row=>row.slice(1))});
+    }
+    descargar(generarXLSX({hojas}),
+     'archivo-'+ultimo.sucursal.replace(':','-')+'-'+ultimo.mes+'.xlsx');
+    estado('Excel XLSX preparado para descargar.');
+   }catch(e){estado('No se pudo generar el Excel: '+String(e.message||e),true);}
   };
   pd.onclick=()=>{
    if(!ultimo||ultimo.mes!==mes.value)return estado('Primero guarda este mes.',true);
