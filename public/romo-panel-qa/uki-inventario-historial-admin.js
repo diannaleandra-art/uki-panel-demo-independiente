@@ -4,6 +4,7 @@
 const oldHTML=window.ukiInventarioPanelHTML,oldMount=window.ukiInventarioMontar;
 if(typeof oldHTML!=='function'||typeof oldMount!=='function')return;
 const API='https://uki-sushi-inventario.vercel.app/api/inventario-turno-live';
+let romoTab='inventario',mountedRoot=null;
 const x={branch:'',items:[],loaded:false,loadedAt:null,limit:12,filter:'todos',query:'',editor:false,
  history:[],historyLoaded:false,historyOffset:0,historyTotal:0,busyHistory:false,
  selected:null,detailLimit:15,detailQuery:'',detailFilter:'todos'};
@@ -217,12 +218,12 @@ function renderCurrent(){
   ' para reponer · mostrando '+Math.min(found.length,x.limit)+' de '+x.items.length+' del inventario.');
 }
 async function loadCurrent(){
- const b=sucursal();status('ukiMiniEstado','Cargando inventario de '+nombreSucursal(b)+'…');
+ const b=sucursal(),root=$('ukiMiniInventario');status('ukiMiniEstado','Cargando inventario de '+nombreSucursal(b)+'…');
  try{
   const data=await request('articulos',{},b);
-  if(b!==sucursal())return;
+  if(b!==sucursal()||root!==$('ukiMiniInventario'))return;
   x.items=Array.isArray(data.items)?data.items:[];x.loaded=true;x.loadedAt=new Date().toISOString();renderCurrent();
- }catch(e){x.loaded=false;x.loadedAt=null;x.items=[];status('ukiMiniEstado','Error: '+String(e.message||e));$('ukiMiniFilas').replaceChildren();}
+ }catch(e){if(root!==$('ukiMiniInventario')||b!==sucursal())return;x.loaded=false;x.loadedAt=null;x.items=[];status('ukiMiniEstado','Error: '+String(e.message||e));$('ukiMiniFilas')?.replaceChildren();}
 }
 function edit(sku){
  const area=$('invAdmin'),sel=$('invSelect'),search=$('invSearch');
@@ -254,13 +255,15 @@ async function exportar(tipo,report,output){
   status(output,'Archivo preparado. Revisa las descargas del teléfono.');
  }catch(e){status(output,'No fue posible exportar: '+String(e.message||e));}
 }
-function tab(){return document.querySelector('[data-uki-tab][aria-pressed="true"]')?.dataset.ukiTab||'inventario';}
+function tab(){return sucursal()==='romo'?romoTab:document.querySelector('[data-uki-tab][aria-pressed="true"]')?.dataset.ukiTab||'inventario';}
 function show(){
  const t=tab();
+ if(sucursal()==='romo')for(const b of document.querySelectorAll('[data-romo-inv-tab]'))b.setAttribute('aria-pressed',String(b.dataset.romoInvTab===t));
  $('ukiMiniInventario').hidden=t!=='inventario';
  $('ukiHistorial').hidden=t!=='reportes';
  if($('invAdmin'))$('invAdmin').style.display=t==='inventario'&&x.editor?'':'none';
- if($('invReportsBox'))$('invReportsBox').style.display='none';
+ if($('invReportsBox'))$('invReportsBox').style.display=sucursal()==='romo'&&t==='reportes'?'':'none';
+ if(sucursal()==='romo'){for(const id of ['invNewBox','romoInvBootstrap','romoInvWorkerAccess']){const e=$(id);if(e)e.style.display=t==='inventario'?'':'none';}}
  if(t==='inventario'&&!x.loaded)void loadCurrent();
  if(t==='reportes'&&!x.historyLoaded)void loadHistory();
 }
@@ -273,7 +276,7 @@ function renderHistory(){
   const left=document.createElement('div');left.className='uki-mini-info';
   const title=document.createElement('strong');title.textContent=fecha(revision.created_at);
   const details=document.createElement('small');const summary=revision.summary||{};
-  details.textContent=String(revision.worker_name||'Trabajador')+' · '+(Number(summary.productos)||0)+
+  details.textContent=revision.branch==='romo'?String(revision.worker_name||'Trabajador')+' · '+(Number(summary.contados)||0)+' conteos · '+(Number(summary.entradas_periodo)||0)+' entradas registradas':String(revision.worker_name||'Trabajador')+' · '+(Number(summary.productos)||0)+
    ' artículos · '+(summary.faltantes?.length||0)+' para reponer'+
   (summary.entradas_verificadas?' · '+(summary.articulos_con_entradas||0)+' con entradas':' · entradas no desglosadas');
   left.append(title,details);row.append(left,button('Ver inventario',()=>void openRevision(revision.id)));
@@ -286,18 +289,18 @@ function renderHistory(){
 }
 async function loadHistory(){
  if(x.busyHistory)return;
- x.busyHistory=true;const b=sucursal();
+ x.busyHistory=true;const b=sucursal(),root=$('ukiHistorial');
  status('ukiHistoriaEstado','Buscando revisiones de '+nombreSucursal(b)+'…');
  $('ukiHistoriaAnterior').disabled=true;$('ukiHistoriaSiguiente').disabled=true;
  try{
   const data=await request('historial',{desde:$('ukiHistoriaDesde').value,
    hasta:$('ukiHistoriaHasta').value,trabajador:$('ukiHistoriaNombre').value,
    offset:x.historyOffset},b);
-  if(b!==sucursal())return;
+  if(b!==sucursal()||root!==$('ukiHistorial'))return;
   x.history=Array.isArray(data.revisiones)?data.revisiones:[];
   x.historyTotal=Number(data.total)||0;x.historyLoaded=true;
- }catch(e){x.historyLoaded=false;status('ukiHistoriaEstado','No se pudo consultar: '+String(e.message||e));}
- finally{x.busyHistory=false;if(x.historyLoaded&&b===sucursal())renderHistory();}
+ }catch(e){if(root===$('ukiHistorial')){x.historyLoaded=false;status('ukiHistoriaEstado','No se pudo consultar: '+String(e.message||e));}}
+ finally{x.busyHistory=false;if(root===$('ukiHistorial')&&x.historyLoaded&&b===sucursal())renderHistory();else if($('ukiHistorial')&&root!==$('ukiHistorial')&&tab()==='reportes')void loadHistory();}
 }
 function renderDetail(){
  if(!x.selected)return;
@@ -316,32 +319,30 @@ function renderDetail(){
  status('ukiDetalleEstado',filtered.length+' artículos · mostrando '+Math.min(x.detailLimit,filtered.length)+'.');
 }
 async function openRevision(id){
- const b=sucursal();status('ukiHistoriaEstado','Abriendo revisión histórica…');
+ const b=sucursal(),root=$('ukiHistorial');status('ukiHistoriaEstado','Abriendo revisión histórica…');
  try{
   const response=await request('revision',{id:String(id)},b);
-  if(b!==sucursal())return;
+  if(b!==sucursal()||root!==$('ukiHistorial'))return;
   x.selected={...response.revision,branch:b};x.detailQuery='';x.detailLimit=15;x.detailFilter='todos';
   $('ukiDetalleBuscar').value='';$('ukiDetalleFiltro').value='todos';
   $('ukiHistorialDetalle').hidden=false;
   status('ukiHistorialFecha',fecha(x.selected.created_at)+' · '+x.selected.worker_name+
    ' · '+nombreSucursal(b)+'. Es el inventario registrado ese día, no el stock actual.');
   renderDetail();renderHistory();$('ukiHistorialDetalle').scrollIntoView({behavior:'smooth',block:'start'});
- }catch(e){status('ukiHistoriaEstado','No se pudo abrir el inventario: '+String(e.message||e));}
+ }catch(e){if(root===$('ukiHistorial'))status('ukiHistoriaEstado','No se pudo abrir el inventario: '+String(e.message||e));}
 }
 function mount(){
  oldMount();
+ const mounted=$('ukiMiniInventario');if(!mounted||!exports()||mounted===mountedRoot)return;mountedRoot=mounted;
  if(sucursal()==='romo'){
-  for(const id of ['ukiMiniInventario','ukiHistorial']){
-   const section=$(id);if(section)section.hidden=true;
-  }
-  return;
+  const nav=document.createElement('div');nav.className='sub-tabs';nav.setAttribute('role','group');nav.setAttribute('aria-label','Inventario Romo');
+  for(const [k,label] of [['inventario','Existencias y compras'],['reportes','Historial de revisiones']]){const b=button(label,()=>{romoTab=k;show();});b.dataset.romoInvTab=k;b.setAttribute('aria-pressed',String(romoTab===k));nav.append(b);} $('invRoot')?.insertAdjacentElement('afterend',nav);
  }
- if(!$('ukiMiniInventario')||!exports())return;
  // Reordenar solamente contenedores existentes, conservando botones y eventos.
  const root=$('invRoot');
  if(root){
-  let anterior=root;
-  for(const id of ['ukiMiniInventario','invAdmin','invNewBox','ukiInvWorkerAccess']){
+  let anterior=sucursal()==='romo'?(document.querySelector('[data-romo-inv-tab]')?.parentElement||root):root;
+  for(const id of ['ukiMiniInventario','invAdmin','invNewBox','ukiInvWorkerAccess','romoInvWorkerAccess']){
    const el=$(id);if(el){anterior.insertAdjacentElement('afterend',el);anterior=el;}
   }
  }
@@ -353,6 +354,7 @@ function mount(){
  $('ukiMiniExcel').onclick=()=>void exportar('excel',x.loaded?currentSnapshot():null,'ukiMiniEstado');
  $('ukiMiniPDF').onclick=()=>void exportar('pdf',x.loaded?currentSnapshot():null,'ukiMiniEstado');
  $('ukiMiniCompartir').onclick=()=>void exportar('whatsapp',x.loaded?currentSnapshot():null,'ukiMiniEstado');
+ if(sucursal()==='romo'){const buy=button('Compartir lista para comprar',()=>{if(!x.loaded)return status('ukiMiniEstado','Actualiza el inventario antes de preparar la lista.');const text=exports().mensajeCompras?.(currentSnapshot());if(typeof text!=='string')return status('ukiMiniEstado','Lista no disponible');window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank','noopener');});$('ukiMiniCompartir').insertAdjacentElement('afterend',buy);}
  $('ukiHistoriaBuscar').onclick=()=>{x.historyOffset=0;$('ukiHistorialDetalle').hidden=true;void loadHistory();};
  $('ukiHistoriaLimpiar').onclick=()=>{
   $('ukiHistoriaDesde').value='';$('ukiHistoriaHasta').value='';$('ukiHistoriaNombre').value='';

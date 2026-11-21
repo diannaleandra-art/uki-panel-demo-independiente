@@ -9,6 +9,9 @@ const tipoConSnapshot=new Set(['alta','editar','editar_completo','archivar','con
  'disponibilidad_carta']);
 const need=(v,msg)=>{if(!v)throw Error(msg)};
 const clone=x=>JSON.parse(JSON.stringify(x));
+// JSONB reordena propiedades; comparar contenido, no el orden de claves.
+const canonical=x=>Array.isArray(x)?x.map(canonical):x&&typeof x==='object'?Object.fromEntries(Object.keys(x).sort().map(k=>[k,canonical(x[k])])):x;
+const equal=(a,b)=>JSON.stringify(canonical(a))===JSON.stringify(canonical(b));
 const fechaChile=ms=>{
  const d=new Date(ms);need(Number.isFinite(d.getTime()),'Fecha de revisión inválida');
  const p=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Santiago',
@@ -47,7 +50,7 @@ function retroceder(state,m){
  need(typeof m.sku==='string'&&m.sku.length>=4,
   'Movimiento histórico sin artículo válido');
  need(m.despues&&typeof m.despues==='object'&&
-  JSON.stringify(state.get(m.sku))===JSON.stringify(m.despues),
+  equal(state.get(m.sku),m.despues),
   'El historial de Romo no coincide con la existencia posterior registrada');
  if(m.antes===null&&m.tipo==='alta'){
   state.delete(m.sku);return;
