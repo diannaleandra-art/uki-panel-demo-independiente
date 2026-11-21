@@ -272,6 +272,13 @@ label{color:#66574c}
 </div>
 <p class="hint">En iPhone podrás compartir el PDF desde la hoja de compartir y elegir WhatsApp. Si el dispositivo no admite archivos, se abrirá un resumen en WhatsApp. El envío requiere tu confirmación.</p>
 </details>
+<details class="card" id="ukiArchivoMensualPrivado">
+<summary>🗄️ Archivo mensual permanente · tres sucursales</summary>
+<p class="hint">Aquí se conservan los cierres, pedidos, ventas, WhatsApp, clientes y timbres de cada mes, separados por local. Este archivo no se limpia automáticamente ni duplica ventas contables.</p>
+<button type="button" class="primary" id="ukiArchivoConsultar" style="width:100%">Consultar meses archivados</button>
+<p id="ukiArchivoEstadoAdmin" class="hint" role="status">Primer archivo: noviembre de 2026, disponible desde el 5 de diciembre.</p>
+<div id="ukiArchivoMesesAdmin"></div>
+</details>
 <div class="owner-section-label">Detalle de ventas</div>
 <button id="ukiGoTodasVentas" type="button" class="owner-action-all">📋 Todas las ventas<small>Cierres finales y ventas manuales por fecha y sucursal</small></button>
 <div class="owner-section-label">Administrar movimientos</div>
@@ -476,6 +483,7 @@ label{color:#66574c}
 </section>
 <footer>Mi Administración · Acceso exclusivo de dueños</footer>
 </main><nav id="tabs" hidden><button data-tab="resumen" class="active"><i>⌂</i>Inicio</button><button data-tab="ventas"><i>＄</i>Ventas</button><button data-tab="gastos"><i>▣</i>Gastos</button><button data-tab="facturas"><i>▥</i>Compras</button><button data-tab="negocios"><i>◫</i>Negocios</button></nav>
+<script src="/uki-archivo-mensual-core.js?v=20261121v2"></script>
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
 import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
@@ -1950,6 +1958,70 @@ if(setupLink){
 ['saleDate','expenseDate','docDate','to','histTo'].forEach(id=>$(id).value=today());
 $('from').value=today().slice(0,7)+'-01';
 $('histFrom').value=today().slice(0,7)+'-01';
+/* Archivo privado permanente, independiente de movimientos contables del panel. */
+async function archivoMensualApi(action,rest={}){
+ if(!session||!auth.currentUser)throw Error('Inicia Google y PIN privado de Mi Administración.');
+ const bearer=await auth.currentUser.getIdToken();
+ const response=await fetch('https://uki-sushi-inventario.vercel.app/api/mi-archivo-mensual-live',{
+  method:'POST',cache:'no-store',credentials:'omit',
+  headers:{Authorization:'Bearer '+bearer,'Content-Type':'application/json','X-Fin-Session':session},
+  body:JSON.stringify({action,...rest})
+ });
+ const data=await response.json().catch(()=>null);
+ if(!response.ok||data?.ok!==true)throw Error(data?.error||'No se pudo consultar el archivo mensual.');
+ return data;
+}
+function archivoDescargar(blob,nombre){
+ const url=URL.createObjectURL(blob),link=document.createElement('a');
+ link.href=url;link.download=nombre;document.body.append(link);link.click();
+ setTimeout(()=>{link.remove();URL.revokeObjectURL(url);},3000);
+}
+async function archivoMensualDescargar(registro,tipo){
+ const aviso=$('ukiArchivoEstadoAdmin');
+ try{
+  aviso.textContent='Verificando archivo '+registro.mes+'…';
+  const data=await archivoMensualApi('consultar',{sucursal:registro.sucursal,mes:registro.mes});
+  const x=data.archivo;
+  if(!x||x.sha256!==registro.sha256||x.sucursal!==registro.sucursal||x.mes!==registro.mes)
+   throw Error('El archivo descargado no coincide con el índice privado.');
+  const core=window.UkiArchivoMensual;
+  if(!core)throw Error('No se cargó el generador de informes.');
+  const documento=await core.desempaquetar(x.base64,x.encoding,x.sha256);
+  const nombre='archivo-'+registro.sucursal.replace(':','-')+'-'+registro.mes;
+  if(tipo==='excel')archivoDescargar(generarXLSX({hojas:core.hojasExcel(documento)}),nombre+'.xlsx');
+  else archivoDescargar(core.pdf(documento),nombre+'.pdf');
+  aviso.textContent='Archivo '+tipo.toUpperCase()+' preparado con verificación SHA-256.';
+ }catch(e){aviso.textContent=String(e.message||e)+' No se modificaron datos.';}
+}
+async function archivoMensualListar(){
+ const btn=$('ukiArchivoConsultar'),host=$('ukiArchivoMesesAdmin'),estado=$('ukiArchivoEstadoAdmin');
+ btn.disabled=true;estado.textContent='Consultando archivos privados…';
+ try{
+  const data=await archivoMensualApi('listar');
+  if(!Array.isArray(data.archivos))throw Error('El índice no está disponible.');
+  host.replaceChildren();
+  if(!data.archivos.length){estado.textContent='Aún no hay meses archivados. El primero corresponde a noviembre de 2026.';return;}
+  const labels={'uki:arica':'Uki Regimiento Arica','uki:serena':'Uki La Serena','romo:serena':'Romo Sushi La Serena'};
+  for(const r of data.archivos){
+   if(!labels[r.sucursal]||!/^\d{4}-\d{2}$/.test(r.mes)||!/^[a-f0-9]{64}$/.test(r.sha256))continue;
+   const box=document.createElement('div');box.style.cssText='border-top:1px solid var(--line);padding:12px 0';
+   const name=document.createElement('strong');name.textContent=labels[r.sucursal]+' · '+r.mes;
+   const desc=document.createElement('p');desc.className='hint';
+   desc.textContent='Pedidos: '+(r.resumen?.pedidos||0)+' · Cierres: '+(r.resumen?.cierres||0)+' · Clientes: '+(r.resumen?.clientes||0);
+   const row=document.createElement('div');row.className='owner-reports-actions';
+   for(const [key,title] of [['excel','📗 Excel'],['pdf','📕 PDF']]){
+    const b=document.createElement('button');b.type='button';b.textContent=title;
+    b.onclick=()=>void archivoMensualDescargar(r,key);
+    row.append(b);
+   }
+   box.append(name,desc,row);host.append(box);
+  }
+  estado.textContent='Archivos privados confirmados: '+data.archivos.length+'. No se elimina información desde esta sección.';
+ }catch(e){estado.textContent=String(e.message||e);}
+ finally{btn.disabled=false;}
+}
+$('ukiArchivoConsultar').onclick=()=>void archivoMensualListar();
+
 onAuthStateChanged(auth,user=>{
  if(!user){session='';limpiarInformes();show('login');}
  if(!session)void checkState();
