@@ -82,7 +82,8 @@ module.exports=async function romoCartaEdicionesSegurasQA(req,res){
     const keys=Object.keys(req.body).sort().join('|');
     const edition=['baseSha256','expectedRevision','motivo','patch','sku'].sort().join('|');
     const begin=['action','baseSha256','expectedRevision','motivo'].sort().join('|');
-    if(keys!==edition&&keys!==begin)
+    const gestion=['action','baseSha256','expectedRevision','fields','motivo'].sort().join('|');
+    if(keys!==edition&&keys!==begin&&keys!==gestion)
       return fail(res,400,'Campos adicionales no permitidos');
     if(keys===begin&&(req.body.action!=='initialize'||req.body.expectedRevision!==0))
       return fail(res,400,'Inicialización de Romo no autorizada');
@@ -108,6 +109,9 @@ module.exports=async function romoCartaEdicionesSegurasQA(req,res){
         db,carta,identity,baseSha256:req.body.baseSha256,motivo:req.body.motivo
       });
       return res.status(200).json(result);
+    }
+    if(req.body.fields&&req.body.action){
+      return res.status(200).json(await lib.guardarGestionRomoQA({db,carta,identity,expectedRevision:req.body.expectedRevision,baseSha256:req.body.baseSha256,action:req.body.action,fields:req.body.fields,motivo:req.body.motivo}));
     }
     const result=await lib.guardarEdicionRomoQA({
       db,carta,identity,
