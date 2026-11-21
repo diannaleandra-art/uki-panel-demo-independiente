@@ -1,0 +1,28 @@
+name: Romo publico - promos y fotos Neon
+on:
+  push:
+    branches:
+      - fix/romo-promo-publica-lectura-dominios-20261121
+    paths:
+      - api/romo-carta-cambios-publicos-qa.js
+      - api/romo-carta-foto-publica-qa.js
+      - tests/romo-carta-publicacion-publica-photo.test.cjs
+      - .github/workflows/romo-carta-promo-foto-publica.yml
+  pull_request:
+    branches:
+      - release/romos-panel-v816
+permissions:
+  contents: read
+jobs:
+  probar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Sintaxis y aislamiento publico
+        run: |
+          node --check api/romo-carta-cambios-publicos-qa.js
+          node --check api/romo-carta-foto-publica-qa.js
+          node --test tests/romo-carta-publicacion-publica-photo.test.cjs
