@@ -43,6 +43,6 @@ test('Romo consulta revisión Neon y bloquea archivo si otro teléfono actualiz�
  assert.equal(await session.comprobarRevisionParaArchivo(),true);
  remoteRev=5;
  assert.equal(await session.comprobarRevisionParaArchivo(),false);
- assert.equal(session.estado().conflicto,true);
+ assert.throws(()=>session.estado(),/Romo cambió/);
  assert.equal(await session.comprobarRevisionParaArchivo(),false);
 });
