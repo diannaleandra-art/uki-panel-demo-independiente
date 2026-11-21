@@ -24,7 +24,7 @@ export function construirInforme(data){
   const ref=normal(venta.referencia);
   if(ref)ventasPorReferencia.set(ref,venta);
  }
- const cierres=data.cierres.map(c=>{
+ const cierres=[...data.cierres,...(data.cierresRomo||[])].map(c=>{
   const manual=ventasPorReferencia.get(normal(c.turno_ref));
   const coincidente=!!manual&&seguro(manual.monto)===seguro(c.venta_total);
   const conflicto=!!manual&&!coincidente;
@@ -57,7 +57,7 @@ export function construirInforme(data){
   conflictos:cierres.filter(c=>c.conflicto).length,
   facturas:facturas.length,cierres:incluidos.length
  };
- const nota='Resultado preliminar de control, no utilidad contable. Verificar coincidencias entre gastos de cierre y facturas antes de contabilizar.';
+ const nota='Resultado preliminar de control, no utilidad contable. Verificar coincidencias entre gastos de cierre y facturas antes de contabilizar. Los cierres Romo incluidos aportan ventas, no gastos ni delivery por pagar; pendientes de conciliación.';
  const header=['Indicador','Monto CLP'];
  const resumen=[
   fila('Desde',data.desde),fila('Hasta',data.hasta),
@@ -76,8 +76,8 @@ export function construirInforme(data){
  ];
  const ventas=[
   ...manuales.map(x=>fila(fecha(x.fecha),lugar(x),empresa(x),'Venta manual',x.referencia,x.concepto,seguro(x.monto),pago(x))),
-  ...cierres.map(c=>fila(fecha(c.fecha),'Uki Sushi · '+(c.branch==='arica'?'Regimiento Arica':'La Serena'),
-   'Cierre Uki',c.conciliado?'Coincide con venta manual; no sumar':
+  ...cierres.map(c=>fila(fecha(c.fecha),c.branch==='romo'?'Romo’s Sushi · La Serena':'Uki Sushi · '+(c.branch==='arica'?'Regimiento Arica':'La Serena'),
+   c.branch==='romo'?'Cierre Romo':'Cierre Uki',c.conciliado?'Coincide con venta manual; no sumar':
     c.conflicto?'Monto distinto; revisar, no sumar':'Cierre definitivo',
    c.turno_ref,'',seguro(c.venta_total),pago(c)))
  ].sort(orden);
@@ -105,7 +105,7 @@ export function construirInforme(data){
   ...inversionesFacturas.map(x=>fila(fecha(x.fecha),lugar(x),empresa(x),'Inversión factura',
    x.categoria||'',x.proveedor,x.estado,seguro(x.monto),x.referencia))
  ].sort(orden);
- const rowsCierres=cierres.map(c=>fila(fecha(c.fecha),c.branch==='arica'?'Regimiento Arica':'La Serena',
+ const rowsCierres=cierres.map(c=>fila(fecha(c.fecha),c.branch==='romo'?'Romo La Serena':c.branch==='arica'?'Uki Regimiento Arica':'Uki La Serena',
   c.turno_ref,seguro(c.venta_total),seguro(c.pedidos),
   seguro(c.gastos_cierre),seguro(c.delivery_por_pagar),
   seguro(c.propinas),seguro(c.retiros),
@@ -122,7 +122,8 @@ export function construirInforme(data){
   hoja('Compras',['Fecha','Local asignado','Razón social','Proveedor','Factura','Estado','Total original CLP','Importe asignado CLP','Categoría','Vencimiento'],compras),
   hoja('Por pagar',['Fecha','Local','Razón social','Proveedor','Concepto','Referencia','Vence','Importe CLP','Tipo'],pendientes),
   hoja('Inversiones y retiros',['Fecha','Local','Razón social','Tipo','Categoría','Concepto','Estado','Monto CLP','Referencia'],rowsCapital),
-  hoja('Cierres Uki',['Fecha','Sucursal','Referencia','Ventas CLP','Pedidos','Gastos cierre CLP','Delivery cierre CLP','Propinas CLP','Retiros CLP','Conciliación'],rowsCierres),
+  hoja('Cierres de locales',['Fecha','Sucursal','Referencia','Ventas CLP','Pedidos','Gastos cierre CLP','Delivery cierre CLP','Propinas CLP','Retiros CLP','Conciliación'],rowsCierres),
+  hoja('Romo por conciliar',['Fecha','Referencia','Venta CLP','Gastos documentados CLP','Delivery por pagar CLP','Observación'],[...(data.cierresRomo||[]).map(c=>fila(c.fecha_operativa,c.source_key,seguro(c.venta_total),seguro(c.gastos_documentados),seguro(c.delivery_pendiente),'Venta incluida; gastos y delivery pendientes')),...(data.cierresRomoPendientes||[]).map(c=>fila(c.fecha_operativa,c.source_key,seguro(c.venta_total),seguro(c.gastos_cierre),seguro(c.delivery_por_pagar),c.motivo))]),
   hoja('Medios de pago',['Medio','Ventas registradas CLP'],[...medios].sort((a,b)=>a[0].localeCompare(b[0])).map(x=>fila(...x)))
  ];
  const nombre='Mi-Administracion_'+data.desde+'_'+data.hasta;
@@ -138,7 +139,7 @@ export function construirInforme(data){
   'Retiros pagados: '+pesos(retiros),
   'Ingresos extraordinarios: '+pesos(ingresosExtra),
   ...(totales.conflictos?['Atención: '+totales.conflictos+' cierre(s) con importes que requieren conciliación.']:[]),
-  'Nota: resultado de control, no utilidad contable. Verificar coincidencias con facturas.'
+  'Nota: resultado de control, no utilidad contable. Romo suma únicamente ventas conciliadas; gastos y delivery pendientes de verificar.'
  ].join('\n');
  return {hojas,totales,nota,nombre,mensaje,desde:data.desde,hasta:data.hasta};
 }
