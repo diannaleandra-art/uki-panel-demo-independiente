@@ -80,7 +80,7 @@ module.exports=async(req,res)=>{
  const origin=String(req.headers.origin||''),self='https://'+String(req.headers.host||'');
  // El formulario está en GitHub Pages, dominio ya autorizado por Firebase.
  // Solo este origen propio y el mismo deployment QA reciben autorización CORS.
- const allowedOrigin=origin==='https://diannaleandra-art.github.io'||origin===self;
+ const allowedOrigin=origin==='https://diannaleandra-art.github.io'||origin==='https://romos-sushi-panel.vercel.app'||origin===self;
  if(allowedOrigin){
   res.setHeader('Access-Control-Allow-Origin',origin);
   res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type,X-Fin-Session');
