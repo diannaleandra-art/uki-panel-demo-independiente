@@ -28,7 +28,7 @@ module.exports=async function fotoPublicadaRomo(req,res){
    "SELECT encode(contenido,'base64') AS foto, version "+
    'FROM public.romo_carta_admin_fotos_qa_v1 WHERE store_id=$1 AND sku=$2 AND version=$3',
    ['romo:serena',original,version]);
-  if(rows.length!==1||rows[0].version!==version)return fail(res,404);
+  if(rows.length!==1||Number(rows[0].version)!==version)return fail(res,404);
   const bytes=Buffer.from(rows[0].foto||'','base64');
   if(bytes.length<1024||bytes.length>300000||bytes[0]!==255||
      bytes[1]!==216||bytes[2]!==255||bytes[bytes.length-2]!==255||
