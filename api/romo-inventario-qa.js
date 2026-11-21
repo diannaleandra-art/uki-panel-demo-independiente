@@ -45,6 +45,7 @@ module.exports=async function romoInventarioQA(req,res){
  res.setHeader('Access-Control-Allow-Methods',acceso.compartido?'GET,OPTIONS':'GET,POST,OPTIONS');
  res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type');
  if(method==='OPTIONS')return res.status(204).end();
+ if(method==='POST'&&acceso.compartido)return fail(res,403,'La consulta compartida no autoriza cambios de inventario');
  if(method==='POST'&&(process.env.ROMO_INVENTARIO_ESCRITURA_QA_ENABLED!=='true'||!conf.write))
   return fail(res,503,'Inventario de Romo en modo consulta');
  if(method==='POST'&&String(req.headers?.['content-type']||'').split(';')[0]!=='application/json')
@@ -71,7 +72,8 @@ module.exports=async function romoInventarioQA(req,res){
     (await import('../lib/romo-inventario-plantilla-base-qa.mjs')).ROMO_INVENTARIO_BASE_QA.map(
       x=>({name:x.name,unit:x.unit})
     ):undefined;
-   return res.status(200).json({ok:true,...result,plantilla_base:plantilla});
+   const {facturas,...contenido}=result.contenido;
+   return res.status(200).json({ok:true,...result,contenido,plantilla_base:plantilla});
   }
   const body=req.body;
   if(!body||typeof body!=='object'||Array.isArray(body)||

@@ -102,7 +102,8 @@ module.exports=async function romoPinInventarioQA(req,res){
    userId:'inv_'+slug+'_'+fp.slice(0,12)};
   if(action==='listar'){
    const data=await inv.readInventarioRomoQA({db,identity});
-   return res.status(200).json({ok:true,...data});
+   const {facturas,...contenido}=data.contenido;
+   return res.status(200).json({ok:true,...data,contenido});
   }
   if(!cfg.write)return fail(res,503,'El inventario Romo está en consulta');
   if(!Number.isSafeInteger(body.expectedRevision)||body.expectedRevision<0)
