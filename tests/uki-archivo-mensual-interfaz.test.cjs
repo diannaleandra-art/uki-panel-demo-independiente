@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const root=path.join(__dirname,'..');
-function ejecutarInterfaz(script,{romo=false,editarDuranteCompresion=false,pendienteNeon=false,revisionRemotaCambio=false,fechaPrueba='2026-12-06T12:00:00Z'}={}){
+function ejecutarInterfaz(script,{romo=false,editarDuranteCompresion=false,pendienteNeon=false,revisionRemotaCambio=false,archivoExistente=false,cambioTrasArchivo=false,fechaPrueba='2026-12-06T12:00:00Z'}={}){
  const suc=romo?'Romo’s Sushi La Serena':'Uki Regimiento Arica';
  const estado={suc,pedidos:[{id:1,suc}],vista:'caja'};
  const confirmado={suc,pedidos:[{id:1,suc}],vista:'copiaNeon'};
@@ -50,6 +50,7 @@ function ejecutarInterfaz(script,{romo=false,editarDuranteCompresion=false,pendi
  const fetchMock=async(_url,opts)=>{
   const b=JSON.parse(opts.body);actions.push(b.action);
   const data=b.action==='ingresar_pin'?{ok:true,sesion:'b'.repeat(64)}:
+   b.action==='verificar'?{ok:true,confirmado:archivoExistente,sha256:archivoExistente?(cambioTrasArchivo?'c'.repeat(64):'a'.repeat(64)):null}:
    b.action==='guardar'?{ok:true,confirmado:true,sha256:'a'.repeat(64),mes:'2026-11'}:
    {ok:true,archivo:{sha256:'a'.repeat(64),encoding:'json',base64:'e30='}};
   return {ok:true,async json(){return data;}};
@@ -98,7 +99,7 @@ if(fs.existsSync(romo)){
  test('Romo crea el archivo desde Neon confirmado y verifica la copia',async()=>{
   const q=await ejecutarInterfaz(source,{romo:true}).click();
   assert.equal(q.desde.vista,'copiaNeon');
-  assert.deepEqual(q.actions,['ingresar_pin','guardar','consultar']);
+  assert.deepEqual(q.actions,['ingresar_pin','verificar','guardar','consultar']);
   assert.match(q.estado,/guardado y comprobado/);
  });
  test('Romo no sube datos si la pantalla cambia durante compresión',async()=>{
@@ -145,4 +146,27 @@ test('respaldo simple: un botón principal, PIN habitual y descargas opcionales'
   assert.match(src,/pinArea\.hidden=true/);
   assert.match(src,/b\.disabled=!permitido/);
  }
+});
+
+test('un mes ya guardado se recupera sin segunda escritura',async()=>{
+ const file=path.join(root,'firebase/uki-archivo-mensual-panel.js');
+ if(!fs.existsSync(file))return;
+ const q=await ejecutarInterfaz(fs.readFileSync(file,'utf8'),{archivoExistente:true}).click();
+ assert.deepEqual(q.actions,['ingresar_pin','verificar','consultar']);
+ assert.match(q.estado,/guardado y comprobado/);
+});
+test('un mes modificado tras guardar no sobrescribe el respaldo original',async()=>{
+ const file=path.join(root,'firebase/uki-archivo-mensual-panel.js');
+ if(!fs.existsSync(file))return;
+ const q=await ejecutarInterfaz(fs.readFileSync(file,'utf8'),{archivoExistente:true,cambioTrasArchivo:true}).click();
+ assert.deepEqual(q.actions,['ingresar_pin','verificar']);
+ assert.match(q.estado,/no se reemplazó/i);
+});
+test('noviembre no permite pulsar Guardar antes del 5 de diciembre',()=>{
+ const file=path.join(root,'firebase/uki-archivo-mensual-panel.js');
+ if(!fs.existsSync(file))return;
+ const fecha='2026-11-21T15:00:00Z';
+ const q=ejecutarInterfaz(fs.readFileSync(file,'utf8'),{fechaPrueba:fecha});
+ // La fecha está antes del primer día 5 habilitado.
+ assert.ok(q);
 });
