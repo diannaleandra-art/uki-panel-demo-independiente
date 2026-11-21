@@ -7196,7 +7196,7 @@ async function ukiRomoGuardarMovimientoQA(tipo,datos={}){
   }else if(tipo==='app'){
    const medio=String(datos.medio??$('romoAppMedioQA')?.value??'');
    if(![...APPS,'Otros'].includes(medio))throw Error('App no permitida');
-   const monto=datos.monto!==undefined?Number(datos.monto||0):ukiRomoMontoCampoQA('romoAppMontoQA',100000000,true);
+   const monto=datos.monto!==undefined?(String(datos.monto).trim()===''?NaN:Number(datos.monto)):ukiRomoMontoCampoQA('romoAppMontoQA',100000000,true);
    if(!Number.isSafeInteger(monto)||monto<0||monto>100000000)throw Error('Total de app inválido');
    const concepto='Actualización total manual de '+medio;
    const responsable=ukiTimbreResponsableActual();
@@ -8661,6 +8661,31 @@ function ukiRomoCajaConsultaHTMLQA(seccion='resumen'){
  const card=cards.children[idx];
  if(activo==='chica'&&card){const input=card.querySelector('input[onchange]');if(input){input.removeAttribute('onchange');input.readOnly=true;}}
  if(activo==='repartidor'&&card){const p=document.createElement('div');p.innerHTML='<label>Repartidor habitual</label><input maxlength="80" value="'+esc(S.repartidorHabitual||'')+'" onchange="ukiCambiarRepartidorHabitual(this.value)"><label>Repartidor de hoy</label><input maxlength="80" value="'+esc(ukiNombreRepartidorTurno(caja))+'" onchange="ukiCambiarRepartidorTurno(this.value)">';card.insertBefore(p,card.querySelector('h3'));for(const x of card.querySelectorAll('select'))for(const op of [...x.options])if(!['Efectivo','Transferencia','Débito','Edenred','Otros'].includes(op.value)&&!op.selected)op.remove();}
+ if(card){
+  // Única tarjeta oficial de Uki, con acciones conectadas a Romo.
+  // Los movimientos fuera de un turno abierto permanecen visibles, no editables.
+  if(activo==='apps'){
+   const title=card.querySelector('h2');if(title)title.textContent='💳 Ventas manuales por app';
+   const help=card.querySelector('p');if(help)help.textContent='Registra el TOTAL acumulado de cada app. No sumes nuevamente pedidos ya registrados.';
+   const historial=(caja.movimientosApps||[]).filter(x=>x.suc===ROMO_SUCURSAL_QA&&x.turnoClave===caja.turnoId).slice().reverse();
+   if(historial.length){const div=document.createElement('details');div.innerHTML='<summary>Historial de cambios de apps · '+historial.length+'</summary>'+historial.map(x=>row(esc(x.medio)+' · '+esc(x.responsable||'')+' · '+esc(x.fechaISO?new Date(x.fechaISO).toLocaleString('es-CL'):''),fmt(x.anterior)+' → '+fmt(x.monto))).join('');card.append(div);}
+  }
+  if(activo==='repartidor'){
+   const div=document.createElement('div');
+   div.innerHTML='<h3>Repartos registrados y pendientes de pagar</h3>'+row('Deliverys de pedidos ('+t.dels.length+')',fmt(t.enviosPedidos))+row('Deliverys manuales ('+delSucHoy(S.deliveriesManuales).length+')',fmt(t.enviosManuales))+row('Total de repartos',fmt(t.envios))+row('Pagado por repartos del día',fmt(t.pagoDeliveryDia))+row('Pendiente de pagar',fmt(aPagar),'final')+ukiDesgloseDeliverysTurno(t)+(detalles?'<details><summary>Detalle de pagos registrados</summary>'+detalles+'</details>':'');
+   card.insertBefore(div,card.querySelector('h3'));
+  }
+  if(activo==='chica'&&(caja.cajaChica?.anulaciones||[]).length){
+   const div=document.createElement('details');div.innerHTML='<summary>Anulaciones auditadas</summary>'+caja.cajaChica.anulaciones.map(a=>row(esc(a.concepto)+' · '+esc(a.motivo)+' · '+esc(a.responsable||''),fmt(a.monto))).join('');card.append(div);
+  }
+  if(caja.turnoAbierto!==true||!baseConfirmada){
+   for(const input of card.querySelectorAll('input,select,textarea,button')){
+    const action=input.getAttribute('onclick')||input.getAttribute('onchange')||'';
+    if(!/ukiReportePropinas|ukiCambiarPeriodo|ukiPropinasPeriodo/.test(action))input.disabled=true;
+   }
+   const nota=document.createElement('p');nota.className='muted';nota.textContent='Consulta solamente. Abre el turno y confirma la base para registrar movimientos.';card.prepend(nota);
+  }
+ }
  const movimientosHtml=(baseConfirmada?'':avisoBase)+navMovimientos+
   (baseConfirmada?'':movimientoPanelRomoQA.base)+'<div data-romo-movimiento="'+esc(activo)+'">'+
   (card?.outerHTML||'<div class="card">No se pudo cargar el movimiento.</div>')+'</div>';
@@ -11387,6 +11412,6 @@ el("ukiAutoCheck").addEventListener("change",()=>{
 <script src="/romo-panel-qa/romo-caja-acumulada-conciliacion-qa.js?v=20261115a" defer></script>
 <script src="/romo-panel-qa/romo-caja-acumulada-exportar.js?v=20261121a" defer></script>
 <script src="/romo-panel-qa/romo-caja-acumulada-operativa.js?v=20261121a" defer></script>
-<script src="/romo-panel-qa/romo-movimientos-paridad-qa.js?v=20261115a" defer></script>
+
 <script src="/romo-panel-qa/romo-edicion-en-panel-qa.js?v=20261114c" defer></script>
 <script src="/romo-panel-qa/romo-carta-editor-seguro-qa.js?v=20261121f" defer></script><script src="/romo-panel-qa/romo-carta-gestion-completa-qa.js?v=20261121f" defer></script><script src="/romo-panel-qa/romo-banner-admin.js?v=20261114b" defer></script></body></html>
