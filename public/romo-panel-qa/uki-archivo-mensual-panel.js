@@ -72,6 +72,13 @@
      throw Error('Romo tiene información local aún no confirmada en Neon. Primero sincroniza.');
     const origen=romo?sesionRomo.estadoOperativoConfirmado():contexto.estado;
     const huellaPantalla=JSON.stringify(contexto.estado),huellaOrigen=JSON.stringify(origen);
+    const revisarRevisionRemota=async()=>{
+     const confirmado=romo?await sesionRomo?.comprobarRevisionParaArchivo?.():
+      await window.ukiArchivoComprobarNube?.(contexto.suc);
+     if(confirmado!==true)
+      throw Error('La revisión más reciente de la nube no está confirmada. Recarga la sucursal antes de archivar.');
+    };
+    await revisarRevisionRemota();
     const archivo=core()?.generar(origen,mes.value);
     if(!archivo)throw Error('No se cargó el generador mensual.');
     const sinFecha=Object.entries(archivo.sinFecha||{}).filter(([,cantidad])=>cantidad>0);
@@ -98,6 +105,7 @@
     if(romo&&(sesionRomo.coincideEstadoOperativo(actual.estado)!==true||
        JSON.stringify(sesionRomo.estadoOperativoConfirmado())!==huellaOrigen))
      throw Error('La revisión confirmada de Romo cambió. Vuelve a consultar Neon.');
+    await revisarRevisionRemota();
     const response=await llamar(archiveURL,token,finSession,{action:'guardar',sucursal:archivo.sucursal,mes:archivo.mes,
      sha256:packed.sha256,encoding:packed.encoding,base64:packed.base64});
     if(response.confirmado!==true||response.sha256!==packed.sha256||response.mes!==archivo.mes)
