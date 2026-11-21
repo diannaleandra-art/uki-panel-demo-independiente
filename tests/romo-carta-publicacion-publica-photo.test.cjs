@@ -52,7 +52,9 @@ test('prueba real GET: la carta y el panel muestran la Familiar 108 con imagen v
  const html=await page.text();
  console.log('Carta oficial:',page.url,'longitud:',html.length,'cache:',page.headers.get('x-vercel-cache'),
   'marcador nuevo:',html.indexOf('romo-promociones-publicas-qa'),
-  'marcador anterior:',html.indexOf('romos_products?select='));
+  'marcador anterior:',html.indexOf('romos_products?select='),
+  'título:',(html.match(/<title[^>]*>([^<]*)<\/title>/i)||[])[1],
+  'inicio:',html.slice(0,240).replace(/\s+/g,' '));
  const immutable=await fetch('https://romos-sushi-carta-5kicy6sql-diannaleandra-7046.vercel.app',{
   signal:AbortSignal.timeout(18000)});
  const immutableBody=await immutable.text();
