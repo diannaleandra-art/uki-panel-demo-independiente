@@ -239,6 +239,21 @@ export function crearSesionPanelUnicoRomoQA({
      firmaOperativaRomo(datos,esperado)===firmaOperativaRomo(esperado,esperado);
    }catch{return false;}
   },
+  // Verificar en Neon la última revisión antes de subir un archivo mensual.
+  // Es solo lectura y no cambia pedidos, caja ni estado guardado.
+  async comprobarRevisionParaArchivo(){
+   if(!sesion||sesion.conflicto||guardadoEnCurso||
+      operacionAtomicaPendiente||!disponible())return false;
+   const local=sesion,revision=local.revision;
+   if(!Number.isSafeInteger(revision)||revision<1)return false;
+   const remoto=await vault.cargarSobre();
+   if(remoto.revision!==revision){
+    local.conflicto=true;
+    return false;
+   }
+   return sesion===local&&!local.conflicto&&!guardadoEnCurso&&
+    !operacionAtomicaPendiente&&local.revision===revision;
+  },
   estado(){
    const current=requireSession();
    return Object.freeze({storeId:ROMO_UI_STORE_QA,revision:current.revision,conflicto:current.conflicto});
