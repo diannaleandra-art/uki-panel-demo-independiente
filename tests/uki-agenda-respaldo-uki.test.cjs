@@ -22,7 +22,7 @@ test('Sin bypass ni eliminación, sesión de dueño vigente, verificación previ
  assert.match(src,/action:'ingresar_pin'/);
  assert.match(src,/if\(automatico&&\(!finSession\|\|Date.now\(\)>=finSessionHasta/);
  assert.match(src,/action:'verificar',sucursal,mes:m/);
- assert.match(src,/if\(!await guardarMes\(\)\)return/);
+ assert.match(src,/if\(!await guardarMes\(\)\)\{lotesRevisados\.add\(clave\);return;/);
  assert.doesNotMatch(src,/localStorage|sessionStorage|action:'eliminar'|action:'purga'/);
  assert.match(src,/No se eliminó información/);
 });
