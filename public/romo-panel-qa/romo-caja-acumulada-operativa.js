@@ -8,7 +8,7 @@ const TYPES={apertura:'Saldo inicial',cierre:'Cierre confirmado',ajuste_cierre:'
  entrada:'Entrada',gasto:'Gasto',retiro:'Retiro',traspaso_salida:'Traspaso enviado',traspaso_entrada:'Traspaso recibido'};
 const API='/api/romo-caja-acumulada-qa';
 const LOCAL='Romo’s Sushi La Serena';
-const state={branch:'serena',balance:0,initialized:false,initializedAt:null,history:[],busy:false,ready:false,nonce:null};
+const state={branch:'serena',balance:0,initialized:false,initializedAt:null,history:[],busy:false,ready:false,nonce:null,pending:null};
 const $=id=>document.getElementById(id);
 const money=v=>'$'+Number(v||0).toLocaleString('es-CL',{maximumFractionDigits:0});
 const branchFromPanel=()=>typeof S!=='undefined'&&S?.suc===LOCAL?'serena':null;
@@ -107,7 +107,7 @@ function draw(){
  for(const id of ['ukiAcumRefresh','ukiAcumStart','ukiAcumSave','ukiAcumHistoryRefresh','ukiAcumExcel','ukiAcumPDF','ukiAcumWhatsApp'])
    $(id).disabled=state.busy||!state.ready&&id!=='ukiAcumRefresh';
  const root=$('ukiAcumHistory');root.replaceChildren();
- if(!state.history.length){
+ if(!state.ready||!state.history.length){
   const p=document.createElement('p');p.className='muted';
   p.textContent=state.ready?'Aún no hay movimientos en esta sucursal.':'Historial no disponible.';
   root.append(p);return;
@@ -136,15 +136,18 @@ async function load(){
    }
   }
   if(branch!==state.branch)return;
-  state.balance=Number(a.cuenta.balance)||0;
-  state.initialized=a.cuenta.initialized===true;
-  state.initializedAt=a.cuenta.initialized_at||null;
-  state.history=Array.isArray(m.movimientos)?m.movimientos:[];
+  const cuenta=a.cuenta,history=m.movimientos,balance=Number(cuenta?.balance);
+  if(branchFromPanel()!==branch||cuenta?.store_id!=='romo:serena'||typeof cuenta.initialized!=='boolean'||!Number.isSafeInteger(balance)||balance<0||balance>1000000000||!Array.isArray(history)||history.length>250||history.some(x=>!x||!['apertura','entrada','gasto','retiro','cierre'].includes(x.tipo)||!Number.isSafeInteger(Number(x.monto))||!Number.isSafeInteger(Number(x.saldo_resultante))))throw Error('Libro de Romo sin confirmar; no se muestran importes.');
+  state.balance=balance;
+  state.initialized=cuenta.initialized;
+  state.initializedAt=cuenta.initialized_at||null;
+  state.history=history;
   state.ready=true;
   if(summary.failed)status('Algunos cierres no se sincronizaron. Revisa la conexión y vuelve a Actualizar saldo.','error');
   else if(summary.skipped)status(summary.skipped+' cierre(s) aún sin arqueo exacto; no se sumaron para evitar descuadres.','error');
+  else if(state.pending)status('Existe una operación sin confirmar en esta sesión. Revisa el historial y conserva los mismos datos si reintentas.','error');
   else status('✓ Efectivo acumulado actualizado y separado de las ventas del turno.','success');
- }catch(e){state.ready=false;status(String(e.message||e),'error');}
+ }catch(e){state.ready=false;state.history=[];state.balance=0;status(String(e.message||e),'error');}
  finally{state.busy=false;draw();}
 }
 function readAmount(id,allowZero=false){
@@ -160,29 +163,31 @@ function readConcept(id){
 }
 async function save(first=false){
  if(state.busy||!state.ready)return;
- let action,monto,concepto,destino,responsable;
+ let action,monto,concepto,responsable;
  try{
   action=first?'inicializar':$('ukiAcumType').value;
   monto=readAmount(first?'ukiAcumInitial':'ukiAcumAmount',first);
   concepto=readConcept(first?'ukiAcumInitialConcept':'ukiAcumConcept');
   responsable=String($('ukiAcumResponsable')?.value||'').trim();
   if(responsable.length<2||responsable.length>80)throw Error('Escribe el nombre del responsable (dueños autorizados).');
-  destino=action==='traspaso'?$('ukiAcumDestination').value:undefined;
-  if(destino===state.branch)throw Error('Selecciona una sucursal distinta.');
+  if(!first&&!Object.hasOwn(ACTIONS,action))throw Error('Movimiento no autorizado.');
+  if(state.pending&&state.pending!==JSON.stringify({action,monto,concepto,responsable}))throw Error('Hay una operación sin confirmar. Revisa el historial y no cambies los datos del reintento.');
   if(!confirm('ATENCIÓN: es DINERO REAL. ¿Confirmas '+money(monto)+' en '+BRANCHES[state.branch]+'? '+(first?'El saldo inicial debe incluir todo el efectivo ya acumulado de cierres anteriores.':'El movimiento se guardará una sola vez y quedará en el historial.')))return;
  }catch(e){status(String(e.message||e),'error');return;}
  const branch=state.branch;
  if(!state.nonce)state.nonce=crypto.randomUUID();
+ state.pending=JSON.stringify({action,monto,concepto,responsable});
+ let finalStatus='',finalKind='error';
  state.busy=true;draw();status('Registrando movimiento de efectivo…');
  try{
   const r=await request(action,{monto,concepto,responsable,op_key:state.nonce},branch);
-  state.nonce=null;
+  state.nonce=null;state.pending=null;
   if(branch!==state.branch)return;
   if(first){$('ukiAcumInitial').value='';$('ukiAcumInitialConcept').value='';}
   else{$('ukiAcumAmount').value='';$('ukiAcumConcept').value='';}
-  status(r.duplicate?'✓ Movimiento ya registrado; no se duplicó el saldo.':'✓ Movimiento guardado correctamente.','success');
- }catch(e){status(String(e.message||e),'error');}
- finally{state.busy=false;await load();}
+  finalStatus=r.duplicate?'✓ Movimiento ya registrado; no se duplicó el saldo.':'✓ Movimiento guardado correctamente.';finalKind='success';
+ }catch(e){finalStatus=String(e.message||e)+' Revisa el historial antes de reintentar. No cambies el importe ni los datos.';}
+ finally{state.busy=false;await load();if(finalStatus)status(finalStatus+(state.ready?'':' Saldo pendiente de actualizar.'),finalKind);}
 }
 function exportReport(kind){
  if(!state.ready||!state.initialized)return status('Primero comprueba tu acceso y el saldo inicial real.','error');
@@ -199,7 +204,7 @@ function exportReport(kind){
 function mount(){
  if(!$('ukiAcumRoot'))return;
  if(branchFromPanel()!=='serena')return;
- state.branch='serena';state.ready=false;
+ state.branch='serena';state.ready=false;state.history=[];state.balance=0;
  $('ukiAcumBranch').disabled=true;
  $('ukiAcumType').onchange=draw;
  $('ukiAcumRefresh').onclick=()=>void load();
