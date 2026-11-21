@@ -67,3 +67,22 @@ test('el servidor bloquea meses con registros sin fecha verificable',()=>{
  a.sinFecha.pedidos=1;
  assert.throws(()=>backend.verify(a,a.sucursal,'2026-11',backend.dates('2026-11')),/sin fecha/);
 });
+
+test('panel Uki incorpora acceso mensual sin tocar Caja ni los cobros',()=>{
+ const panel=fs.readFileSync(path.join(__dirname,'../firebase/uki-sushi-local.html'),'utf8');
+ const bridge=fs.readFileSync(path.join(__dirname,'../firebase/uki-archivo-mensual-panel.js'),'utf8');
+ const coreUki=fs.readFileSync(path.join(__dirname,'../firebase/uki-archivo-mensual-core.js'),'utf8');
+ const coreComun=fs.readFileSync(path.join(__dirname,'../public/uki-archivo-mensual-core.js'),'utf8');
+ assert.equal(coreUki,coreComun,'La versión del motor mensual debe ser idéntica');
+ assert.match(panel,/id="ukiArchivoMensualRoot"/);
+ assert.match(panel,/src="\.\/uki-archivo-mensual-core\.js\?/);
+ assert.match(panel,/src="\.\/uki-archivo-mensual-panel\.js\?/);
+ assert.match(bridge,/window\.ukiCancelacionNubeLista\?\.\(\)!==true/);
+ assert.match(bridge,/verificarNube\(contexto\.suc\)/);
+ assert.match(bridge,/action:'consultar'/);
+ assert.match(bridge,/desempaquetar\(/);
+ assert.match(bridge,/\.xlsx'/);
+ assert.match(bridge,/import\('\.\/uki-archivo-xlsx\.mjs'\)/);
+ assert.doesNotMatch(bridge,/\bDELETE\s+FROM\b/i);
+ assert.doesNotMatch(bridge,/\blocalStorage\.(clear|removeItem)\b/);
+});
