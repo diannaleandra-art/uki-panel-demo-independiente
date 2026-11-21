@@ -1117,6 +1117,7 @@
    pieceSummary.textContent=Number.isSafeInteger(n)&&n>=1&&n<=20?n+' rolls × '+v+' piezas = '+(n*v)+' piezas':'Indica entre 1 y 20 rolls.';
    typeNote.textContent=fixed?'Describe los productos incluidos. Puedes incluir 0 o 1 salsa a elección.':'El cliente podrá personalizar cada roll; se conserva la configuración de piezas y salsas.';
   };
+  if(p?._base)type.input.disabled=true;
   type.input.onchange=config;rolls.input.oninput=config;pieces.input.onchange=config;config();
   const pays=E('fieldset');pays.append(E('legend','Medios de pago permitidos'));
   const payments={},payOpts=[['efectivo','Efectivo'],['transferencia','Transferencia'],['debito','Débito'],['credito','Crédito'],['edenred','Edenred'],['junaeb','Junaeb']];
@@ -1154,7 +1155,7 @@
     }catch(e){notice=(created?'El borrador existe; completa la fotografía en la promoción existente. ':'')+String(e.message||e);}
     finally{state.busy=false;await load();status(notice);if(createButton.isConnected)createButton.disabled=!canWrite();}
    });box.append(createButton);
-  }else box.append(button('Guardar cambios de promoción',()=>void save('promotion-edit',{id:p.sku,item:make()},'Editar promoción '+name.input.value.trim())));
+  }else box.append(button(p._base?'Guardar cambios de armado como borrador':'Guardar cambios de promoción',()=>void save(p._base?'promotion-base-edit':'promotion-edit',{id:p.sku,item:make()},'Editar promoción '+name.input.value.trim())));
   return box;
  }
  function renderPromos(){
@@ -1185,6 +1186,11 @@
     }else{
      item.append(info('Promoción existente en la carta comercial. Aquí puedes preparar cambios como borrador.'));
      const config=p.config||p;item.append(info((Number.isInteger(config.rollCount)&&config.rollCount>0?config.rollCount+' rolls · ':'')+(Number.isInteger(config.sauceCount)?config.sauceCount+' salsas · ':'')+(Number.isInteger(config.korokes)?config.korokes+' korokes · ':'')+(Array.isArray(config.payments)?'Pagos: '+config.payments.join(', '):'Armado original conservado')));
+     if(p.kind==='monthly'&&p.sourceId!=='handroll-individual'){
+      const edit=panel('Editar armado completo de la promoción');
+      edit.append(info('Los cambios de rolls, salsas y pagos requieren publicación coordinada con el cotizador. Conservamos la receta comercial actual hasta entonces.'),promotionForm({...p,promoType:'sushi',piecesPerRoll:p.piecesPerRoll||((p.size&&p.rollCount)?p.size/p.rollCount:12)},false));item.append(edit);
+     }
+     const commercial=button('Editar precio y disponibilidad de la carta vigente',()=>window.romoAbrirEdicionComercialQA?.(p.sku),true);commercial.disabled=state.base?.edicionHabilitada!==true||state.base?.revision<1;item.append(commercial);
      const f=stack(),name=field('Nombre',p.name),price=field('Precio',p.price,'number'),
        desc=field('Descripción',p.description||''),av=field('Disponible',p.available!==false,'checkbox');
      f.append(name.wrap,price.wrap,desc.wrap,av.wrap);

@@ -372,6 +372,14 @@
   }
   // Integración futura: llamarlo solo desde la sección Carta y precios del
   // panel Romo, después de comprobar S.suc===Romo La Serena.
+  window.romoAbrirEdicionComercialQA=function(sku){
+    if(!state.root?.isConnected||state.busy||state.current?.edicionHabilitada!==true||state.current.revision<1||
+      !state.current.products.some(p=>p.sku===sku&&visibleRomo(p)))return;
+    state.selectedSku=sku;setArea('productos');renderForm();
+    const form=$(state.root,'[data-romo-carta-form]');
+    const parent=form?.closest('details');if(parent)parent.open=true;
+    form?.scrollIntoView({block:'start',behavior:'smooth'});
+  };
   window.romoMontarCartaEditorSeguroQA=async function({container,storeId}={}){
     if(storeId!==STORE||!(container instanceof HTMLElement)||!container.isConnected)
       return false;
