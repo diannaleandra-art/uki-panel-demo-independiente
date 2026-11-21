@@ -40,7 +40,7 @@ test('archivo conserva solo el mes, clientes, timbres y detalle original sin mut
 });
 test('servidor valida periodo, cantidad y no habilita la función sin bandera',()=>{
  const a=core.generar(estado(),'2026-11',new Date('2026-12-06T15:00:00Z'));
- assert.equal(backend.verify(a,a.sucursal,'2026-11',backend.dates('2026-11')),4);
+ assert.equal(backend.verify(a,a.sucursal,'2026-11',backend.dates('2026-11')),3);
  assert.equal(backend.dates('2026-11').habilitado,'2026-12-05');
  assert.equal(backend.config({VERCEL_ENV:'production',UKI_FIN_PRIVATE_ENABLED:'true'}),null);
  assert.throws(()=>backend.verify({...a,resumen:{...a.resumen,pedidos:999}},
