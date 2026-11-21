@@ -1,0 +1,17 @@
+name: Uki - núcleo mensual compartido y retención segura
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [integracion/uki-respaldo-comun-seguro-20261121]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: node --check firebase/uki-archivo-mensual-panel.js
+      - run: node --test tests/uki-retencion-simulacion.test.cjs

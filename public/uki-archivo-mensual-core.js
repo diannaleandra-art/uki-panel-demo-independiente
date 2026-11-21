@@ -89,6 +89,78 @@
   return {version:1,sucursal:code,nombreSucursal:sucursal,mes,desde:p.desde,hasta:p.hasta,
    generadoEn:new Date(ahora).toISOString(),resumen,registros,clientes,sinFecha};
  }
+ // Simulación de antigüedad, sin modificar el estado ni el respaldo.
+ // Un registro sólo cuenta si el archivo recuperado contiene su copia exacta.
+ // No autoriza purga: las dependencias de caja, pedidos, clientes y timbres
+ // se deben comprobar también con el estado remoto antes de cualquier escritura.
+ function simularRetencion(estado,archivo,ahora=new Date()){
+  const p=periodo(archivo?.mes),suc=estado?.suc,code=SUCURSALES[suc];
+  const hoy=localFecha(ahora);
+  if(!code||archivo.version!==1||archivo.sucursal!==code||archivo.nombreSucursal!==suc||
+     archivo.desde!==p.desde||archivo.hasta!==p.hasta||!fechaValida(hoy)||hoy<p.desdeDia5)
+   throw Error('Respaldo de sucursal o período no confirmado');
+  if(!archivo.sinFecha||[...SECCIONES,'timbres'].some(k=>archivo.sinFecha[k]!==0))
+   throw Error('El respaldo tiene registros sin fecha verificable');
+  const dias=(f)=>(Date.parse(hoy+'T12:00:00Z')-Date.parse(f+'T12:00:00Z'))/86400000;
+  const dentro=f=>fechaValida(f)&&f>=p.desde&&f<=p.hasta;
+  const canonical=x=>x===null||typeof x!=='object'?JSON.stringify(x):Array.isArray(x)?'['+x.map(canonical).join(',')+']':'{'+Object.keys(x).sort().map(k=>JSON.stringify(k)+':'+canonical(x[k])).join(',')+'}';
+  function contar(actual,archivados,tipo,limite){
+   if(!Array.isArray(actual)||!Array.isArray(archivados))throw Error('Sección no comprobada: '+tipo);
+   const copias=new Map();
+   for(const item of archivados){const k=canonical(item);copias.set(k,(copias.get(k)||0)+1);}
+   let candidatos=0,noCoinciden=0,conservar=0;
+   for(const item of actual){
+    const fecha=fechaRegistro(item,tipo);
+    if(!dentro(fecha)||dias(fecha)<limite){conservar++;continue;}
+    const k=canonical(item),n=copias.get(k)||0;
+    if(n<1){noCoinciden++;continue;}
+    copias.set(k,n-1);candidatos++;
+   }
+   return {porAntiguedadYCoincidencia:candidatos,noCoinciden,conservar};
+  }
+  // Diagnóstico independiente: la edad y la copia no convierten
+  // un pedido abierto en un pedido apto para eliminación.
+  const pedidosAbiertos=(estado.pedidos||[]).filter(x=>x?.suc===suc&&dentro(fechaRegistro(x,'pedidos'))&&dias(fechaRegistro(x,'pedidos'))>=35&&
+   !(x.estado==='Cancelado'||(x.estado==='Entregado'&&x.pagado===true))).length;
+  const solicitudesPendientes=(estado.solicitudesWhatsApp||[]).filter(x=>x?.suc===suc&&dentro(fechaRegistro(x,'solicitudesWhatsApp'))&&dias(fechaRegistro(x,'solicitudesWhatsApp'))>=35&&
+   !['aceptado','rechazado','cancelado','procesado'].includes(String(x.estado||'').toLowerCase())).length;
+  const secciones={};
+  for(const sec of SECCIONES){
+   if(sec==='cajasDiarias'){
+    if(!estado.cajasDiarias||typeof estado.cajasDiarias!=='object'||Array.isArray(estado.cajasDiarias))throw Error('Cajas no comprobadas');
+    const prefix=suc+'|';
+    const actual=Object.entries(estado.cajasDiarias).filter(([k])=>k.startsWith(prefix)).map(([clave,datos])=>({suc,fechaOperativa:clave.slice(prefix.length),clave,datos}));
+    secciones[sec]=contar(actual,archivo.registros?.[sec],sec,35);
+   }else{
+    if(!Array.isArray(estado[sec]))throw Error('Falta '+sec);
+    secciones[sec]=contar(estado[sec].filter(x=>x?.suc===suc),archivo.registros?.[sec],sec,35);
+   }
+  }
+  if(!Array.isArray(archivo.clientes))throw Error('Clientes no comprobados');
+  const clientes=new Map(archivo.clientes.map(c=>[c.clave,c]));
+  if(clientes.size!==archivo.clientes.length)throw Error('Clientes duplicados en el respaldo');
+  // Nunca deducir caducidad de los 95 días: el derecho del cliente
+  // usa la fecha 'vence' y los canjes. Los movimientos sin vencimiento
+  // comprobado o que no sean ventas se revisan conservadoramente.
+  const timbresProtegidos={vigentes:0,canjes:0,sinVencimiento:0};
+  const ahoraMs=new Date(ahora).getTime();
+  const timbres={porAntiguedadYCoincidencia:0,noCoinciden:0,conservar:0};
+  for(const [clave,c] of Object.entries(estado.clientes||{})){
+   if(!Array.isArray(c?.movimientos))continue;
+   for(const m of c.movimientos){
+    const fecha=fechaRegistro(m,'timbres');
+    if(!dentro(fecha)||dias(fecha)<95)continue;
+    if(m.tipo==='canje6'||m.tipo==='canje10'){timbresProtegidos.canjes++;continue;}
+    if(m.tipo!=='venta'||typeof m.vence!=='string'||!Number.isFinite(Date.parse(m.vence))){timbresProtegidos.sinVencimiento++;continue;}
+    if(Date.parse(m.vence)>ahoraMs)timbresProtegidos.vigentes++;
+   }
+   const a=contar(c.movimientos,clientes.get(clave)?.movimientos||[],'timbres',95);
+   for(const k of Object.keys(timbres))timbres[k]+=a[k];
+  }
+  return Object.freeze({sucursal:code,mes:archivo.mes,hoy,operativosDias:35,timbresDias:95,
+   secciones,timbres,bloqueos:{pedidosAbiertos,solicitudesPendientes,timbresProtegidos},simulacion:true,permiteEliminar:false,
+   aviso:'Solo simulación de antigüedad y coincidencia. No confirma que los registros puedan eliminarse.'});
+ }
  const csvSafe=v=>{
   let s=typeof v==='string'?v:JSON.stringify(v??'');
   if(/^\s*[=+\-@\t\r]/.test(s))s="'"+s;
@@ -204,5 +276,5 @@
   if(obj.version!==1||!SUCURSALES[obj.nombreSucursal]||obj.sucursal!==SUCURSALES[obj.nombreSucursal]||!Array.isArray(obj.registros?.pedidos))throw Error('Archivo de sucursal inválido.');
   return obj;
  }
- return Object.freeze({SECCIONES,SUCURSALES,periodo,fechaRegistro,generar,lineas,hojasExcel,excel,pdf,empaquetar,desempaquetar});
+ return Object.freeze({SECCIONES,SUCURSALES,periodo,fechaRegistro,generar,simularRetencion,lineas,hojasExcel,excel,pdf,empaquetar,desempaquetar});
 });
