@@ -123,8 +123,17 @@
     // Guardar es idempotente: si ya se archivó este mes, reutilizar el mismo archivo.
     const previo=await llamar(archiveURL,token,finSession,
      {action:'verificar',sucursal:archivo.sucursal,mes:archivo.mes});
+    let consulta;
     if(previo.confirmado===true){
-     if(previo.sha256!==packed.sha256)
+     consulta=await llamar(archiveURL,token,finSession,
+      {action:'consultar',sucursal:archivo.sucursal,mes:archivo.mes});
+     if(!consulta.archivo||consulta.archivo.sha256!==previo.sha256)
+      throw Error('No coincide la referencia del respaldo anterior.');
+     // La hora de generación cambia en cada intento. Los datos del mes NO.
+     const anterior=await core().desempaquetar(
+      consulta.archivo.base64,consulta.archivo.encoding,consulta.archivo.sha256);
+     const sinHora=(dato)=>{const {generadoEn,...contenido}=dato;return JSON.stringify(contenido);};
+     if(sinHora(anterior)!==sinHora(archivo))
       throw Error('Este mes ya tiene un respaldo diferente. No se reemplazó; revisa los cambios posteriores en Mi Administración.');
     }else{
      const response=await llamar(archiveURL,token,finSession,{action:'guardar',sucursal:archivo.sucursal,mes:archivo.mes,
@@ -134,13 +143,13 @@
     }
     // Releer del servidor y descomprimir: un simple 'guardado' no basta.
     estado('Comprobando que el archivo se puede recuperar completo…');
-    const consulta=await llamar(archiveURL,token,finSession,
+    if(!consulta)consulta=await llamar(archiveURL,token,finSession,
      {action:'consultar',sucursal:archivo.sucursal,mes:archivo.mes});
-    if(!consulta.archivo||consulta.archivo.sha256!==packed.sha256)
+    if(!consulta.archivo||consulta.archivo.sha256!==(previo.confirmado?previo.sha256:packed.sha256))
      throw Error('La copia remota no coincide con la guardada.');
     const recuperado=await core().desempaquetar(
      consulta.archivo.base64,consulta.archivo.encoding,consulta.archivo.sha256);
-    if(JSON.stringify(recuperado)!==JSON.stringify(archivo))
+    if(previo.confirmado!==true&&JSON.stringify(recuperado)!==JSON.stringify(archivo))
      throw Error('La recuperación no reprodujo el archivo completo.');
     ultimo=recuperado;ex.disabled=pd.disabled=false;
     estado('✓ Respaldo guardado y comprobado en Mi Administración. Excel y PDF en «Otros meses y descargas».');
