@@ -73,6 +73,12 @@
     }
     const price=input('Precio en pesos',p.price,'input',10);
     price.type='number';price.min='1';price.max='1000000';price.step='1';
+    let previo=null;
+    if(['classic','premium','monthly','dish','topping'].includes(p.kind)){
+      previo=input('Precio anterior (opcional, se muestra tachado)',p.originalPrice||'','input',10);
+      previo.type='number';previo.min='1';previo.max='1000000';previo.step='1';
+      form.append(el('p','Para activar un descuento, ingresa el precio anterior y escribe el nuevo precio de venta. Deja vacío el anterior para retirar el descuento.'));
+    }
     const desc=input('Descripción',p.description||'','textarea',500);
     if(['classic','premium','topping','extra'].includes(p.kind)){
       desc.disabled=true;
@@ -116,6 +122,13 @@
         status('Revisa el precio; debe ser un valor entero.');return;
       }
       if(newPrice!==p.price)changed.price=newPrice;
+      if(previo){
+        const anterior=previo.value.trim()===''?null:Number(previo.value);
+        if(anterior!==null&&(!Number.isSafeInteger(anterior)||anterior<=newPrice||anterior>1000000)){
+          status('El precio anterior debe ser mayor al precio final.');return;
+        }
+        if(anterior!==(p.originalPrice??null))changed.originalPrice=anterior;
+      }
       if(desc.value!==String(p.description||''))changed.description=desc.value;
       if(category.value!==p.categoriaSlug)changed.categoriaSlug=category.value;
       if(available.checked!==(p.available!==false))changed.available=available.checked;
@@ -257,6 +270,7 @@
       const info=el('div');
       const heading=el('strong',p.name);
       const detail=el('small',money(p.price)+' · '+(p.available!==false?'Disponible':'No disponible'));
+      if(p.originalPrice>p.price){const old=el('del',money(p.originalPrice)+' ');detail.prepend(old);}
       detail.style.cssText='display:block;color:#666;margin-top:3px';
       info.append(heading,detail);
       const open=el('button','Editar');
