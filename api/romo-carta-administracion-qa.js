@@ -102,10 +102,12 @@ module.exports=async function gestionRomoQA(req,res){
    return res.status(200).json(result);
   }
   if(req.body.action==='promotion-delete'&&commercial.publishedPromotions.some(p=>p.sku==='monthly:romoq-'+String(req.body.fields.id||'').slice(6)))return fail(res,409,'Retira primero la promoción de la carta pública');
+  if(['ingredient-base-archive','ingredient-base-restore'].includes(req.body.action)&&!ingredientesPublicacionHabilitada)
+   return fail(res,503,'Retiro de ingredientes no habilitado en carta pública');
   const next=M.apply(current,base,req.body.action,req.body.fields);
   // Eliminación personalizada: publicar y quitar de administración en una
   // sola transacción, conservando la auditoría y los pedidos históricos.
-  if(req.body.action==='ingredient-delete'&&ingredientesPublicacionHabilitada){
+  if(['ingredient-delete','ingredient-base-archive','ingredient-base-restore'].includes(req.body.action)&&ingredientesPublicacionHabilitada){
    const row=commercialRows[0],oldDoc=typeof row.contenido==='string'?JSON.parse(row.contenido):row.contenido;
    const newDoc=structuredClone(oldDoc),oldConfig=oldDoc.gestion?.ingredientConfig||null;
    const projection=require('../lib/romo-ingredientes-publicacion.cjs').project(base,next.data);

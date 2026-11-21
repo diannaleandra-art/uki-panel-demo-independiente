@@ -16,6 +16,20 @@ const SKU=/^monthly:romoq-[a-f0-9-]{36}$/;
 const isObject=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const int=x=>Number.isSafeInteger(x);
 const result=(res,status,error)=>res.status(status).json({ok:false,storeId:STORE,error});
+function proyectarRetirados(contenido){
+ const a=contenido.gestion?.archivedProducts??[];
+ if(!Array.isArray(a)||a.length>40||new Set(a).size!==a.length||
+    a.some(x=>typeof x!=='string'||!/^(classic|premium|monthly|dish|topping|extra):[^\r\n\u0000-\u001f]{1,92}$/.test(x)))
+  throw Error('Referencias retiradas no verificadas');
+ return [...a];
+}
+function proyectarCategoriasRetiradas(contenido){
+ const a=contenido.gestion?.archivedCategories??[];
+ if(!Array.isArray(a)||a.length>30||new Set(a).size!==a.length||
+    a.some(x=>typeof x!=='string'||!/^[a-z0-9-]{2,70}$/.test(x)))
+  throw Error('Categorías retiradas no verificadas');
+ return [...a];
+}
 function proyectarPromociones(contenido,revision){
  if(!int(revision)||revision<1||!isObject(contenido)||
     contenido.storeId!==STORE||contenido.revision!==revision||
@@ -76,13 +90,14 @@ module.exports=async function promocionesPublicasRomo(req,res){
   if(!Array.isArray(rows)||rows.length!==1)throw Error('Edición comercial no encontrada');
   const revision=Number(rows[0].revision);
   const promociones=proyectarPromociones(rows[0].contenido,revision);
+  const ingredientConfig=require('../lib/romo-ingredientes-publicacion.cjs').validate(rows[0].contenido.gestion.ingredientConfig);
   return res.status(200).json({
    ok:true,storeId:STORE,readOnly:true,revision,
-   customPromotions:promociones
+   customPromotions:promociones,archivedProducts:proyectarRetirados(rows[0].contenido),archivedCategories:proyectarCategoriasRetiradas(rows[0].contenido),ingredientConfig
   });
  }catch(e){
   console.error('Lectura promociones publicadas Romo no confirmada',String(e?.message||e));
   return result(res,503,'No se pudo comprobar la carta publicada de Romo');
  }
 };
-module.exports._test={proyectarPromociones};
+module.exports._test={proyectarPromociones,proyectarRetirados};
