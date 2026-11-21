@@ -80,7 +80,7 @@ module.exports=async(req,res)=>{
  const origin=String(req.headers.origin||''),self='https://'+String(req.headers.host||'');
  // El formulario está en GitHub Pages, dominio ya autorizado por Firebase.
  // Solo este origen propio y el mismo deployment QA reciben autorización CORS.
- const allowedOrigin=origin==='https://diannaleandra-art.github.io'||origin===self;
+ const allowedOrigin=origin==='https://diannaleandra-art.github.io'||origin===self||origin==='https://romos-sushi-panel.vercel.app';
  if(allowedOrigin){
   res.setHeader('Access-Control-Allow-Origin',origin);
   res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type,X-Fin-Session');
@@ -134,6 +134,8 @@ module.exports=async(req,res)=>{
    return ok(res,{sesion:token,minutos:30});
   }
   if(!await authorized(sql,req,who))return fail(res,401,'Introduce el código privado para continuar.');
+   if(['archivo_operativo_guardar','archivo_operativo_listar','archivo_operativo_obtener'].includes(action))
+    return require('../lib/uki-archivo-mensual-api.cjs')({sql,body,who,res});
   if(action==='listar_cierres'){
    const desde=validDate(body.desde)?body.desde:'2000-01-01';
    const hasta=validDate(body.hasta)?body.hasta:'2099-12-31';
