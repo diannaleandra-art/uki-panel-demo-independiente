@@ -1296,7 +1296,7 @@ async function salirSuc(){
   try{window.ukiRomoSesionRemotaQA?.cerrar();}
   catch(e){aviso(String(e?.message||e));return;}
   ukiRomoSolicitudesCartaQA=null;ukiRomoSolicitudesAvisoQA='';
-  ukiRomoWAAbiertosQA.clear();
+  ukiRomoWAAbiertosQA.clear(); ukiRomoTimbreCobroQA.clear();
  }
  revisionGuardado++;claveSesion=null;saltSesion=null;sucursalSesion=null;
  cargarDesdeLocalStorage();nuevoDraft();
@@ -5272,6 +5272,64 @@ function ukiRomoCambiarFiltroQA(tipo){
  if(!UKI_CATEGORIAS_PEDIDOS.some(([id])=>id===tipo)&&tipo!=='mesas')return;
  ukiRomoFiltroPedidosQA=tipo;render();
 }
+const ukiRomoTimbreCobroQA=new Map();
+function ukiRomoTimbreCobroDraftQA(p,externo=0){
+ const d={pagado:true,productosPagadosOtroLocal:externo>0,telefono:p.telefono,cliente:p.cliente,editando:p.id};
+ const r=ukiRomoTimbreCobroQA.get(Number(p.id));
+ if(r?.sesion===window.ukiRomoSesionRemotaQA&&r.timbreAvisoAbiertoFirma===ukiFirmaTimbreBorrador(d))Object.assign(d,r);
+ return d;
+}
+function ukiRomoTimbreCobroUIQA(p){
+ const id=Number(p.id),d=ukiRomoTimbreCobroDraftQA(p);
+ if(!ukiTimbreObligatorioGuardar(d,p))
+  return ukiTimbreYaEnviadoPedido(p)?'<p>✅ Timbre enviado · NO reenviar</p>':'<p class="muted">Sin WhatsApp: la compra acumula su timbre al guardar.</p>';
+ const abierto=!!d.timbreAvisoAbiertoEn,enviado=ukiTimbreBorradorConfirmado(d);
+ return '<div class="card uki-timbre-obligatorio" id="romoTimbreCobroBloque'+id+'"><h3>🎫 Paso obligatorio antes de guardar</h3>'+
+  '<p>Envía el timbre por WhatsApp y confirma el envío antes de registrar el pago.</p>'+
+  '<button class="big" type="button" id="romoTimbreCobroAbrir'+id+'" '+(enviado?'disabled':'')+' onclick="ukiRomoAbrirTimbreCobroQA('+id+')">📲 Enviar timbre por WhatsApp</button>'+
+  '<label class="check"><input type="checkbox" id="romoTimbreCobroConfirmar'+id+'" '+(enviado?'checked disabled':abierto?'':'disabled')+
+  ' onchange="ukiRomoConfirmarTimbreCobroQA('+id+',this.checked)"> Confirmo que pulsé Enviar en WhatsApp</label>'+
+  '<p class="muted" id="romoTimbreCobroEstado'+id+'">'+(enviado?'✅ Envío confirmado. Ya puedes guardar.':'Primero abre WhatsApp y envía el mensaje.')+'</p></div>';
+}
+function ukiRomoActualizarTimbreCobroQA(id){
+ const p=(S.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&Number(x.id)===Number(id));
+ if(!p)return;
+ const d=ukiRomoTimbreCobroDraftQA(p,Number($('romoCobroExternoProducto'+id)?.value||0));
+ const obligatorio=ukiTimbreObligatorioGuardar(d,p),enviado=ukiTimbreBorradorConfirmado(d);
+ const bloque=$('romoTimbreCobroBloque'+id),boton=$('romoCobroGuardar'+id),check=$('romoTimbreCobroConfirmar'+id),abrir=$('romoTimbreCobroAbrir'+id),estado=$('romoTimbreCobroEstado'+id);
+ if(bloque)bloque.hidden=!obligatorio;
+ if(boton)boton.disabled=obligatorio&&!enviado;
+ if(check){check.checked=enviado;check.disabled=enviado||!d.timbreAvisoAbiertoEn;}
+ if(abrir)abrir.disabled=enviado;
+ if(estado)estado.textContent=enviado?'✅ Envío confirmado. Ya puedes guardar.':d.timbreAvisoAbiertoEn?'Regresa de WhatsApp y confirma que pulsaste Enviar.':'Primero abre WhatsApp y envía el mensaje.';
+}
+function ukiRomoAbrirTimbreCobroQA(id){
+ if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoOperacionesEnCursoQA())return;
+ const p=(S.pedidos||[]).find(x=>x.suc===S.suc&&Number(x.id)===Number(id));
+ if(!p||p.pagado||p.estado==='Cancelado'||p.esPremio||ukiCierreConfirmadoPedido(p))return aviso('El pedido no admite este timbre.');
+ const d=ukiRomoTimbreCobroDraftQA(p,Number($('romoCobroExternoProducto'+id)?.value||0));
+ if(!ukiTimbreObligatorioGuardar(d,p)||ukiTimbreBorradorConfirmado(d))return aviso('No corresponde reenviar el timbre.');
+ const caja=S.cajasDiarias?.[S.suc+'|'+String(p.turnoClave||'').slice(0,10)];
+ if(!caja?.turnoAbierto||caja.baseConfirmada!==true||caja.turnoId!==p.turnoClave)return aviso('Inicia el turno de Caja antes de confirmar el cobro.');
+ const numero=ukiNumeroTimbreWhatsApp(p.telefono);
+ if(!numero||!String(p.cliente||'').trim())return aviso('Revisa el nombre y WhatsApp del cliente.');
+ const cli=getCliente(p.cliente,p.codigoCliente,p.telefono);
+ ukiRomoTimbreCobroQA.set(Number(id),{sesion:window.ukiRomoSesionRemotaQA,timbreAvisoAbiertoFirma:ukiFirmaTimbreBorrador(d),timbreAvisoAbiertoEn:new Date().toISOString(),timbreAvisoConfirmadoFirma:'',timbreAvisoConfirmadoEn:''});
+ ukiRomoActualizarTimbreCobroQA(id);
+ window.open('https://wa.me/'+numero+'?text='+encodeURIComponent(ukiTimbreTextoPedido(p.cliente,(cli?ventasValidas(cli):0)+1)),'_blank','noopener,noreferrer');
+}
+function ukiRomoConfirmarTimbreCobroQA(id,marcado){
+ const p=(S.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&Number(x.id)===Number(id));
+ if(!p||p.pagado||S.suc!==ROMO_SUCURSAL_QA)return;
+ const d=ukiRomoTimbreCobroDraftQA(p,Number($('romoCobroExternoProducto'+id)?.value||0));
+ const r=ukiRomoTimbreCobroQA.get(Number(id));
+ if(marcado&&ukiTimbreObligatorioGuardar(d,p)&&d.timbreAvisoAbiertoEn&&r&&r.timbreAvisoAbiertoFirma===ukiFirmaTimbreBorrador(d)&&!ukiTimbreBorradorConfirmado(d)){
+  r.timbreAvisoConfirmadoFirma=r.timbreAvisoAbiertoFirma;
+  r.timbreAvisoConfirmadoEn=new Date().toISOString();
+  r.timbreAvisoConfirmadoPor=ukiTimbreResponsableActual();
+ }
+ ukiRomoActualizarTimbreCobroQA(id);
+}
 function ukiRomoCamposCobroQA(p){
  const id=Number(p.id),sub=Number(p.subtotal)||0,env=p.modalidad==='Delivery'?Number(p.envio)||0:0;
  const metodos=ROMO_MEDIOS_COBRO_QA;
@@ -5324,7 +5382,8 @@ function ukiRomoCamposCobroQA(p){
   '<p class="muted">La propina solo se registrará cuando confirmes el cobro; queda en Caja por separado.</p></div>'+
   '<label>Responsable que recibió el pago</label><input id="romoCobroResponsable'+id+
   '" maxlength="80" autocomplete="off" placeholder="Nombre del responsable">'+
-  '<button type="button" class="big" onclick="ukiRomoConfirmarCobroQA('+id+
+  ukiRomoTimbreCobroUIQA(p)+
+  '<button type="button" class="big" id="romoCobroGuardar'+id+'" '+(ukiTimbreObligatorioGuardar(ukiRomoTimbreCobroDraftQA(p),p)&&!ukiTimbreBorradorConfirmado(ukiRomoTimbreCobroDraftQA(p))?'disabled':'')+' onclick="ukiRomoConfirmarCobroQA('+id+
   ')">✅ Pago completo confirmado · registrar una sola vez</button></details>';
 }
 function ukiRomoCambiarPropinaCobroQA(id){
@@ -5354,6 +5413,7 @@ function ukiRomoAjustarCotizacionCobroQA(id){
   const extras=[2,3,4,5,6].some(i=>Number($('romoCobro'+scope+id+'Monto'+i)?.value||0)>0);
   if(primero&&!extras&&Number.isSafeInteger(monto)&&monto>=0)primero.value=String(monto);
  }
+ ukiRomoActualizarTimbreCobroQA(id);
 }
 
 
@@ -6843,6 +6903,8 @@ async function ukiRomoConfirmarCobroQA(id){
   confirmoPagoExterno:(a||b)?confirmoPagoExterno:false,
   propinaMonto,medioPropina
  };
+ const timbreDraft=ukiRomoTimbreCobroDraftQA(original,a);
+ if(!ukiValidarTimbreAntesGuardar(timbreDraft,original))return;
  const enRomo=sub+env-a-b+propinaMonto;
  if(!window.confirm('ROMO LA SERENA · ¿Confirmas que YA RECIBISTE '+fmt(enRomo)+
    ' EN ROMO'+(a||b?' y verificaste '+fmt(a+b)+' en '+localPagoExterno:'')+
@@ -6854,9 +6916,12 @@ async function ukiRomoConfirmarCobroQA(id){
   const copia=datosSoloSucursal();
   const mod=await import('./uki-romo-cobro-pendiente-qa.mjs?v=romo-paridad-pagos-20261118');
   mod.prepararCobroPendienteRomoQA(copia,datos);
+  const cobrado=copia.pedidos.find(p=>p.suc===ROMO_SUCURSAL_QA&&p.id===pedidoId);
+  if(ukiTimbreObligatorioGuardar(timbreDraft,original))ukiAnotarTimbreConfirmadoEnPedido(cobrado,timbreDraft);
   if(!validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
    throw Error('La copia de cobro no pertenece a Romo.');
-  await ukiRomoGuardarOperacionQA(copia,'Cobro auditado, propina y timbre registrados',pedidoId);
+  await ukiRomoGuardarOperacionQA(copia,'Cobro confirmado',pedidoId);
+  ukiRomoTimbreCobroQA.delete(pedidoId);
  }catch(e){
   aviso('NO SE CONFIRMÓ el cobro en Neon. Antes de repetir, revisa Pedidos, Caja e Historial: '+String(e.message||e));
  }finally{ukiRomoOperandoPedidoQA=false;}
