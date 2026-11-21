@@ -99,9 +99,11 @@
    'Clientes: '+r.clientes+' / timbres ganados: '+r.timbres,
    ''];
   for(const [seccion,fecha,folio,cliente,whatsapp,codigo,estado,medio,total,contenido] of lineas(archivo).slice(1)){
-   detail.push(ascii(seccion+' | '+fecha+' | '+folio+' | '+cliente+' | '+whatsapp+' | '+codigo+' | '+estado+' | '+medio+' | '+total).slice(0,128));
+   const cabecera=ascii(seccion+' | '+fecha+' | '+folio+' | '+cliente+' | '+whatsapp+' | '+codigo+' | '+estado+' | '+medio+' | '+total);
+   for(let i=0;i<cabecera.length;i+=80)detail.push(cabecera.slice(i,i+80));
    const v=typeof contenido==='string'?contenido:JSON.stringify(contenido||'');
-   for(let i=0;i<Math.min(v.length,320);i+=118)detail.push('  '+ascii(v.slice(i,i+118)));
+   // El PDF conserva el detalle íntegro, sin el recorte anterior de 320 caracteres.
+   for(let i=0;i<v.length;i+=78)detail.push('  '+ascii(v.slice(i,i+78)));
   }
   const paginas=[];for(let i=0;i<detail.length;i+=45)paginas.push(detail.slice(i,i+45));
   if(paginas.length>350)throw Error('El PDF sería demasiado grande. Descarga primero el Excel completo.');
