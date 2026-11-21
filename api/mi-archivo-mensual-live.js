@@ -39,6 +39,8 @@ function verify(data,suc,mes,period){
   throw Error('Estructura de archivo mensual incorrecta.');
  if(!data.sinFecha||typeof data.sinFecha!=='object'||Array.isArray(data.sinFecha))
   throw Error('La revisión de registros sin fecha está incompleta.');
+ if(!Number.isSafeInteger(data.sinFecha.timbres)||data.sinFecha.timbres!==0)
+  throw Error('Existen timbres sin fecha verificable. No se puede confirmar el respaldo.');
  let total=0;
  for(const k of SECTIONS){
   if(!Number.isSafeInteger(data.sinFecha[k])||data.sinFecha[k]!==0)
