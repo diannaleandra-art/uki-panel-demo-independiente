@@ -28,3 +28,24 @@ No hay autorización para sobrescribir históricos, inicializar saldos ficticios
 
 ## C. Criterio de salida
 Comparar contra los commits oficiales vigentes; revisar todos los cambios juntos; compilar candidatos; pruebas manuales agrupadas con la dueña sin inventar ventas ni alterar cierres existentes; publicar solo proyectos modificados con sus dominios vigentes. Confirmar alias y registros de errores; retener las versiones de reversión. Actualizar este documento con el resultado real de cada prueba, sin marcar casos simplemente por compilar.
+
+
+## Acotación adicional de la dueña — eliminación integral del catálogo
+- [ ] Las tres áreas Productos, Ingredientes y Promociones deben ofrecer Editar, Desactivar/Agotado y Eliminar de manera coherente, también para referencias originales. La corrección no se considera terminada solo porque puedan eliminarse borradores.
+- [ ] Eliminar una promoción publicada debe retirarla de carta y banner y del listado activo con una sola confirmación visible y verificar ambos resultados. Si falla un paso, informar el estado real, sin repetir automáticamente.
+- [ ] En referencias originales, diseñar retiro persistente del catálogo activo con auditoría, preservando las recetas e identificadores históricos y sin volver a publicarlas al recargar el catálogo base. Comprobar dependencias de ingredientes y evitar armados imposibles; no borrar ni alterar pedidos, ventas, cierres, timbres, ni datos Uki.
+- [ ] Probar las fichas nuevas y originales en las tres áreas, impedir acciones sin permisos y comprobar carta y banner reales. No eliminar referencias reales como prueba.
+- [ ] Mantener en el mismo lote la retención segura de 35 días (timbres 95) y comprobar respaldos permanentes de Mi Administración antes de habilitar cualquier limpieza. No publicar una actualización por cada acotación.
+
+### Avance en rama de integración (sin publicar)
+Se implementó el retiro persistente auditado de referencias originales de producto/promoción y de ingredientes, con restauración interna. La gestión filtra fichas retiradas y los datos comerciales las declaran no disponibles. Aún falta distinguir retiro definitivo de agotado en la carta pública, completar la interfaz de restauración, revisar dependencias de recetas y categorías y validar el lote. No ejecutar estas acciones contra datos reales antes de completar las pruebas.
+
+## Avance de retención 35/95 (solo simulación)
+- Implementado recuento por edad calendario de Chile y coincidencia exacta con el respaldo mensual recuperado, sin modificar el estado. El 5/12 se guarda noviembre; una ficha del 1/11 cumple 35 días el 6/12, no el 5/12. Una ficha posterior cumple el plazo después. Timbres conservan 95 días.
+- La simulación no autoriza purgas. Falta validar dependencias operativas, registros tardíos, restauración real, concurrencia y compuertas para las tres sucursales. No habilitar borrado automático ni programador aún.
+
+### Comprobación de producción (21/11/2026)
+La tabla fin_archivos_mensuales_v1 existe en la rama privada de finanzas; consulta agregada sin filas, coherente con la fecha del primer respaldo. Los estados operativos son cifrados por sucursal: no se consultan ni modifican sus registros mediante SQL directo. La simulación señala pedidos abiertos/impagos y solicitudes sin resolver, sin purgar nada. No afirmar que el respaldo de noviembre está comprobado hasta recuperarlo después del 5/12. La purga queda bloqueada mientras no exista publicación de su mecanismo transaccional, validación de cierre/caja y respaldo real de cada sucursal.
+
+### Dependencia de fidelización encontrada
+El saldo se calcula desde movimientos consolidados de perfiles vinculados: ventas con vencimiento individual, último canje10 y canje6, con fallback de cli.ventas. No reducir el historial activo sin preservar el saldo actual y la semántica de canjes/fallback. La simulación identifica movimientos protegidos, no los suprime. La retención de las ventas históricas y el almacenamiento de saldos requieren migración comprobada; no desplegar una purga por edad sola.

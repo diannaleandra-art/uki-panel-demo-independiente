@@ -44,3 +44,11 @@ test('Rechazar productos inválidos y duplicados antes de mostrarlos',()=>{
  duplicate.gestion.promotions.push(duplicate.gestion.promotions[0]);
  assert.throws(()=>api._test.proyectarPromociones(duplicate,11),/inválida/);
 });
+
+test('La consulta alternativa conserva las referencias retiradas',()=>{
+ const {proyectarRetirados}=api._test;
+ assert.deepEqual(proyectarRetirados({gestion:{archivedProducts:['classic:24','monthly:72']}}),['classic:24','monthly:72']);
+ assert.deepEqual(proyectarRetirados({gestion:{}}),[]);
+ assert.throws(()=>proyectarRetirados({gestion:{archivedProducts:['classic:24','classic:24']}}),/retiradas/);
+ assert.throws(()=>proyectarRetirados({gestion:{archivedProducts:['uki:24']}}),/retiradas/);
+});
