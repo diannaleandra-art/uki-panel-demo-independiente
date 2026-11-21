@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const root=path.join(__dirname,'..');
-function ejecutarInterfaz(script,{romo=false,editarDuranteCompresion=false,pendienteNeon=false,revisionRemotaCambio=false}={}){
+function ejecutarInterfaz(script,{romo=false,editarDuranteCompresion=false,pendienteNeon=false,revisionRemotaCambio=false,fechaPrueba='2026-12-06T12:00:00Z'}={}){
  const suc=romo?'Romo’s Sushi La Serena':'Uki Regimiento Arica';
  const estado={suc,pedidos:[{id:1,suc}],vista:'caja'};
  const confirmado={suc,pedidos:[{id:1,suc}],vista:'copiaNeon'};
@@ -32,6 +32,7 @@ function ejecutarInterfaz(script,{romo=false,editarDuranteCompresion=false,pendi
    estadoOperativoConfirmado:()=>JSON.parse(JSON.stringify(confirmado))
   },
   UkiArchivoMensual:{
+   periodo:()=>({desdeDia5:'2026-12-05'}),
    generar(datos,mes){
     generarDesde=datos;
     return {sucursal:romo?'romo:serena':'uki:arica',mes,sinFecha:{},version:1,registros:{pedidos:[]}};
@@ -53,8 +54,9 @@ function ejecutarInterfaz(script,{romo=false,editarDuranteCompresion=false,pendi
    {ok:true,archivo:{sha256:'a'.repeat(64),encoding:'json',base64:'e30='}};
   return {ok:true,async json(){return data;}};
  };
+ class FechaPrueba extends Date{constructor(...args){super(...(args.length?args:[fechaPrueba]));}}
  vm.runInNewContext(script,{
-  window:ventana,document:doc,fetch:fetchMock,Intl,Date,JSON,console,
+  window:ventana,document:doc,fetch:fetchMock,Intl,Date:FechaPrueba,JSON,console,
   MutationObserver:class{observe(){}}
  },{timeout:3000});
  controles.ukiArchivoMes.value='2026-11';
@@ -62,6 +64,8 @@ function ejecutarInterfaz(script,{romo=false,editarDuranteCompresion=false,pendi
  return {
   async click(){await controles.ukiArchivoGuardar.listeners.click();return {
    actions,desde:generarDesde,estado:controles.ukiArchivoEstado.textContent,
+   botonDesactivado:controles.ukiArchivoGuardar.disabled,
+   pinOculto:controles.ukiArchivoPinArea.hidden,
    modo:ventana.ukiRomoSesionRemotaQA.estado(),original:JSON.parse(JSON.stringify(estado))
   }}
  };
@@ -95,7 +99,7 @@ if(fs.existsSync(romo)){
   const q=await ejecutarInterfaz(source,{romo:true}).click();
   assert.equal(q.desde.vista,'copiaNeon');
   assert.deepEqual(q.actions,['ingresar_pin','guardar','consultar']);
-  assert.match(q.estado,/recuperado correctamente/);
+  assert.match(q.estado,/guardado y comprobado/);
  });
  test('Romo no sube datos si la pantalla cambia durante compresión',async()=>{
   const q=await ejecutarInterfaz(source,{romo:true,editarDuranteCompresion:true}).click();
@@ -126,5 +130,19 @@ test('mes predeterminado respeta el día 5 y no abre un período futuro',()=>{
    ['2027-02-05','2027-01']]){
    assert.equal(calcula(()=>hoy)(),esperado,file+' '+hoy);
   }
+ }
+});
+
+test('respaldo simple: un botón principal, PIN habitual y descargas opcionales',()=>{
+ for(const file of ['firebase/uki-archivo-mensual-panel.js',
+  'public/romo-panel-qa/uki-archivo-mensual-panel.js']){
+  const full=path.join(root,file);if(!fs.existsSync(full))continue;
+  const src=fs.readFileSync(full,'utf8');
+  assert.match(src,/Respaldo mensual/);
+  assert.match(src,/id="ukiArchivoGuardar"/);
+  assert.match(src,/id="ukiArchivoPinArea"/);
+  assert.match(src,/Otros meses y descargas/);
+  assert.match(src,/pinArea\.hidden=true/);
+  assert.match(src,/b\.disabled=!permitido/);
  }
 });
