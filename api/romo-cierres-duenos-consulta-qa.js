@@ -124,7 +124,11 @@ module.exports=async function consultaCierresQA(req,res){
     if(!keys.includes(row.fuente_original)||olvidos.has(row.fuente_original)||rects.has(row.fuente_original))throw Error('Cadena de cierre incompatible');
     const receipt=await lib.consultarConstanciaOlvidoRomoQA({db,identity:owner,fuenteOriginal:row.fuente_original,version:Number(row.version)});
     if(!receipt.encontrado)throw Error('Versión no confirmada');
-    olvidos.set(row.fuente_original,receipt.recibo);
+    // La cadena ya fue validada por el lector; cada versión equivale
+    // a un pedido olvidado distinto. No registra otro cobro ni otro cierre.
+    if(!Array.isArray(receipt.versiones)||receipt.versiones.length!==Number(row.version)-1)
+     throw Error('Cantidad de versiones históricas inconsistente');
+    olvidos.set(row.fuente_original,{...receipt.recibo,pedidos_recuperados:receipt.versiones.length});
    }
   }
   const cierres=cierresBase.map(c=>{
@@ -139,7 +143,7 @@ module.exports=async function consultaCierresQA(req,res){
    // referencias al ajuste, no una segunda venta. Se proyecta la versión
    // vigente en la fecha del cierre original, preservando sus gastos.
    if(rect&&Object.entries(raw.medios).some(([k,n])=>n!==rect.medios_original[k]))throw Error('Medios originales inconsistentes');
-   return {...c,venta_total:v.venta_rectificada,medios:v.medios_rectificados,
+   return {...c,pedidos:c.pedidos+(olvido?.pedidos_recuperados||0),venta_total:v.venta_rectificada,medios:v.medios_rectificados,
     venta_original:c.venta_total,version_cierre:v.version,fuente_version:v.fuente_unica,
     diferencia_venta:v.venta_rectificada-c.venta_total};
   });
