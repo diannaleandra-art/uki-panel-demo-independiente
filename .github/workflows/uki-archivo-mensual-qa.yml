@@ -10,6 +10,7 @@ on:
       - firebase/uki-archivo-xlsx.mjs
       - firebase/uki-sushi-local.html
       - api/mi-archivo-mensual-live.js
+      - api/mi-administracion-live.js
       - public/mi-administracion-duenos.html
       - tests/uki-archivo-mensual-seguro.test.cjs
       - .github/workflows/uki-archivo-mensual-qa.yml
@@ -17,6 +18,7 @@ on:
     paths:
       - public/uki-archivo-mensual-core.js
       - api/mi-archivo-mensual-live.js
+      - api/mi-administracion-live.js
       - tests/uki-archivo-mensual-seguro.test.cjs
 permissions:
   contents: read
@@ -37,5 +39,6 @@ jobs:
           node --check firebase/uki-archivo-mensual-panel.js
           node --check firebase/uki-archivo-xlsx.mjs
           node --check api/mi-archivo-mensual-live.js
+          node --check api/mi-administracion-live.js
       - name: Test monthly archive safety
         run: node --test tests/uki-archivo-mensual-seguro.test.cjs
