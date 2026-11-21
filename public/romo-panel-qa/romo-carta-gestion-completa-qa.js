@@ -1221,7 +1221,14 @@
     }catch(e){notice=(created?'La promoción ya existe; revisa su foto y pulsa Publicar promoción en la lista. ':'')+String(e.message||e);}
     finally{state.busy=false;await load();status(notice);if(createButton.isConnected)createButton.disabled=!canWrite();}
    });box.append(createButton);
-  }else box.append(button(p._base?'Guardar cambios de armado como borrador':'Guardar cambios de promoción',()=>void save(p._base?'promotion-base-edit':'promotion-edit',{id:p.sku,item:make()},'Editar promoción '+name.input.value.trim())));
+  }else if(p._base){
+   name.wrap.hidden=true;price.wrap.hidden=true;desc.wrap.hidden=true;available.wrap.hidden=true;type.wrap.hidden=true;typeNote.hidden=true;
+   box.append(button('Guardar armado en la carta',()=>{
+    const x=make(),config=Object.fromEntries(['rollCount','piecesPerRoll','sauceCount','korokes','payments'].map(k=>[k,x[k]]));
+    if(!config.payments.length||!Number.isInteger(config.rollCount)||config.rollCount<1||config.rollCount>20){status('Revisa la cantidad de rolls y los medios de pago.');return;}
+    void saveCommercial('original-promo-config',{sku:p.sku,config},'Actualizar armado de '+p.name);
+   }));
+  }else box.append(button('Guardar cambios de promoción',()=>void save('promotion-edit',{id:p.sku,item:make()},'Editar promoción '+name.input.value.trim())));
   return box;
  }
  function renderPromos(){
@@ -1256,11 +1263,11 @@
        '¿Eliminar esta promoción de pruebas? Se conserva la auditoría.');
      },true));
     }else{
-     item.append(info('Promoción vigente. Guarda el nombre, precio, disponibilidad o descuento directamente en la carta. El armado completo aún requiere sincronización.'));
+     item.append(info('Promoción vigente. Guarda nombre, precio, disponibilidad, descuento o armado desde su formulario.'));
      const config=p.config||p;item.append(info((Number.isInteger(config.rollCount)&&config.rollCount>0?config.rollCount+' rolls · ':'')+(Number.isInteger(config.sauceCount)?config.sauceCount+' salsas · ':'')+(Number.isInteger(config.korokes)?config.korokes+' korokes · ':'')+(Array.isArray(config.payments)?'Pagos: '+config.payments.join(', '):'Armado original conservado')));
      if(p.kind==='monthly'&&p.sourceId!=='handroll-individual'){
       const edit=panel('Editar armado completo de la promoción');
-      edit.append(info('Los cambios de rolls, salsas y pagos requieren publicación coordinada con el cotizador. Conservamos la receta comercial actual hasta entonces.'),promotionForm({...p,promoType:'sushi',piecesPerRoll:p.piecesPerRoll||((p.size&&p.rollCount)?p.size/p.rollCount:12)},false));item.append(edit);
+      edit.append(info('Configura rolls, piezas por roll, salsas, korokes y medios de pago. El nombre, precio y disponibilidad se editan por separado.'),promotionForm({...p,promoType:'sushi',piecesPerRoll:p.piecesPerRoll||((p.size&&p.rollCount)?p.size/p.rollCount:12)},false));item.append(edit);
      }
      const live=p._original||p;
      const f=stack(),name=field('Nombre',live.name),price=field('Precio vigente',live.price,'number'),
