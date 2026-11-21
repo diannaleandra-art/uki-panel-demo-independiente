@@ -1,0 +1,48 @@
+name: Romo - verificar promo 108 en enlaces oficiales
+on:
+  push:
+    branches:
+      - qa/verificar-promo-108-publica-20261121
+    paths:
+      - .github/workflows/romo-108-smoke-publico-qa.yml
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Comprobar promoción, imagen y carta reales, sin escrituras
+        run: |
+          node <<'NODE'
+          const assert=require('node:assert/strict');
+          const ctrl=AbortSignal.timeout(18000);
+          const origin='https://romos-sushi-serena.vercel.app';
+          const endpoint='https://romos-sushi-panel.vercel.app/api/romo-promociones-publicas-qa';
+          (async()=>{
+            const respuesta=await fetch(endpoint,{headers:{Origin:origin,Accept:'application/json'},signal:ctrl});
+            const data=await respuesta.json().catch(()=>({}));
+            console.log('API promo status:',respuesta.status,'CORS:',respuesta.headers.get('access-control-allow-origin'));
+            assert.equal(respuesta.status,200,'El panel no devuelve las promociones públicas');
+            assert.equal(respuesta.headers.get('access-control-allow-origin'),origin);
+            assert.equal(data.ok,true);assert.equal(data.storeId,'romo:serena');
+            const sku='monthly:romoq-036c69f1-1769-45c4-8aaa-2d814c206b2a';
+            const promo=(data.customPromotions||[]).find(p=>p.sku===sku);
+            assert.ok(promo,'La promoción familiar no está en la API');
+            assert.equal(promo.price,27000);
+            assert.equal(promo.config.rollCount*promo.config.piecesPerRoll,108);
+            assert.equal(promo.config.sauceCount,8);
+            assert.equal(promo.photoVersion,1);
+            const carta=await fetch(origin,{signal:AbortSignal.timeout(18000)});
+            assert.equal(carta.status,200,'Carta Romo inaccesible');
+            const html=await carta.text();
+            assert.ok(html.includes(endpoint),'La carta publicada usa otro origen de promociones');
+            const foto='https://romos-sushi-panel.vercel.app/api/romo-carta-foto-publica-qa?sku='+encodeURIComponent(sku);
+            const imagen=await fetch(foto,{signal:AbortSignal.timeout(18000)});
+            assert.equal(imagen.status,200,'La fotografía de la promo publicada no está disponible');
+            assert.equal(imagen.headers.get('content-type'),'image/jpeg');
+            const arr=new Uint8Array(await imagen.arrayBuffer());
+            assert.ok(arr.length>=1024&&arr[0]===255&&arr[1]===216&&arr.at(-2)===255&&arr.at(-1)===217);
+            console.log('Confirmado: carta oficial y panel leen promo 108 ($27.000) con foto JPEG real; sin datos privados ni escrituras.');
+          })().catch(err=>{console.error('ERROR DE PUBLICACIÓN:',err.message);process.exitCode=1});
+          NODE
