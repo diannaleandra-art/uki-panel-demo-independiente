@@ -58,7 +58,15 @@
     const contexto=window.ukiQAGet?.();
     if(!contexto?.suc||!contexto?.estado)throw Error('Abre primero una sucursal.');
     verificarNube(contexto.suc);
-    const archivo=core()?.generar(contexto.estado,mes.value);
+    // Tomar una foto verificada antes de comprimir, nunca el estado en movimiento.
+    // Romo conserva una copia confirmada por Neon, distinta de los campos del render.
+    const romo=contexto.suc==='Romo’s Sushi La Serena';
+    const sesionRomo=romo?window.ukiRomoSesionRemotaQA:null;
+    if(romo&&sesionRomo?.coincideEstadoOperativo?.(contexto.estado)!==true)
+     throw Error('Romo tiene información local aún no confirmada en Neon. Primero sincroniza.');
+    const origen=romo?sesionRomo.estadoOperativoConfirmado():contexto.estado;
+    const huellaPantalla=JSON.stringify(contexto.estado),huellaOrigen=JSON.stringify(origen);
+    const archivo=core()?.generar(origen,mes.value);
     if(!archivo)throw Error('No se cargó el generador mensual.');
     const sinFecha=Object.entries(archivo.sinFecha||{}).filter(([,cantidad])=>cantidad>0);
     if(sinFecha.length)throw Error('Hay registros sin fecha verificable ('+
@@ -74,6 +82,16 @@
     }
     estado('Comprimiendo y verificando el archivo completo…');
     const packed=await core().empaquetar(archivo);
+    // Si durante el proceso cambió el pedido, el cierre, la sucursal o la nube,
+    // NO subir el archivo antiguo ni sustituir el mes confirmado.
+    const actual=window.ukiQAGet?.();
+    if(!actual||actual.suc!==contexto.suc||
+       JSON.stringify(actual.estado)!==huellaPantalla)
+     throw Error('La sucursal cambió mientras se preparaba el respaldo. Revisa y reintenta.');
+    verificarNube(contexto.suc);
+    if(romo&&(sesionRomo.coincideEstadoOperativo(actual.estado)!==true||
+       JSON.stringify(sesionRomo.estadoOperativoConfirmado())!==huellaOrigen))
+     throw Error('La revisión confirmada de Romo cambió. Vuelve a consultar Neon.');
     const response=await llamar(archiveURL,token,finSession,{action:'guardar',sucursal:archivo.sucursal,mes:archivo.mes,
      sha256:packed.sha256,encoding:packed.encoding,base64:packed.base64});
     if(response.confirmado!==true||response.sha256!==packed.sha256||response.mes!==archivo.mes)
