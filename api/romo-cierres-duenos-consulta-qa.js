@@ -80,7 +80,7 @@ module.exports=async function consultaCierresQA(req,res){
    return fail(res,409,'Reduce el rango para ver todos los cierres');
   const check=await import('../lib/romo-cierre-constancia-qa.mjs');
   const vistos=new Set();
-  const cierres=rows.map(row=>{
+  const cierresBase=rows.map(row=>{
    const raw=typeof row.resumen==='string'?JSON.parse(row.resumen):row.resumen;
    const summary={...raw,estado:'confirmado_en_romo_pendiente_de_sincronizar_duenos',
     revision_neon:Number(row.revision_neon)};
@@ -102,8 +102,49 @@ module.exports=async function consultaCierresQA(req,res){
     delivery_por_pagar:raw.delivery_por_pagar,
     propinas:raw.propinas,medios:raw.medios};
   });
+  // Leer las versiones confirmadas desde las tablas propias, nunca desde
+  // el navegador. Si no están instaladas, conservar el cierre original.
+  const schema=await db.query("SELECT to_regclass('public.romo_rectificaciones_cierre_v2') IS NOT NULL AS rect, to_regclass('public.romo_pedidos_olvidados_versiones_v1') IS NOT NULL AS olvidos",[]);
+  if(schema.length!==1)throw Error('Esquema de versiones no confirmado');
+  const keys=cierresBase.map(c=>c.source_key),rects=new Map(),olvidos=new Map();
+  if(keys.length&&schema[0].rect){
+   const rr=await db.query('SELECT fuente_original FROM public.romo_rectificaciones_cierre_v2 WHERE store_id=$1 AND fuente_original=ANY($2::text[])',[STORE,keys]);
+   const lib=await import('../lib/romo-rectificacion-constancia-v2-qa.mjs');
+   for(const row of rr){
+    if(!keys.includes(row.fuente_original)||rects.has(row.fuente_original))throw Error('Rectificación repetida');
+    const receipt=await lib.consultarReciboRectificacionRomoQA({db,identity:owner,fuenteOriginal:row.fuente_original});
+    if(!receipt.encontrado)throw Error('Rectificación no confirmada');
+    rects.set(row.fuente_original,receipt.comprobante);
+   }
+  }
+  if(keys.length&&schema[0].olvidos){
+   const oo=await db.query('SELECT fuente_original,max(version)::integer AS version FROM public.romo_pedidos_olvidados_versiones_v1 WHERE store_id=$1 AND fuente_original=ANY($2::text[]) GROUP BY fuente_original',[STORE,keys]);
+   const lib=await import('../lib/romo-olvidos-constancias-qa.mjs');
+   for(const row of oo){
+    if(!keys.includes(row.fuente_original)||olvidos.has(row.fuente_original)||rects.has(row.fuente_original))throw Error('Cadena de cierre incompatible');
+    const receipt=await lib.consultarConstanciaOlvidoRomoQA({db,identity:owner,fuenteOriginal:row.fuente_original,version:Number(row.version)});
+    if(!receipt.encontrado)throw Error('Versión no confirmada');
+    olvidos.set(row.fuente_original,receipt.recibo);
+   }
+  }
+  const cierres=cierresBase.map(c=>{
+   const rect=rects.get(c.source_key),olvido=olvidos.get(c.source_key),v=rect||olvido;
+   if(!v)return c;
+   const original=rows.find(x=>x.source_key===c.source_key);
+   const raw=typeof original.resumen==='string'?JSON.parse(original.resumen):original.resumen;
+   if(v.venta_original!==c.venta_total||!v.medios_rectificados||
+      Object.values(v.medios_rectificados).reduce((a,b)=>a+b,0)!==v.venta_rectificada)
+    throw Error('Versión no coincide con cierre original');
+   // El cierre que recibió el dinero de una rectificación contiene
+   // referencias al ajuste, no una segunda venta. Se proyecta la versión
+   // vigente en la fecha del cierre original, preservando sus gastos.
+   if(rect&&Object.entries(raw.medios).some(([k,n])=>n!==rect.medios_original[k]))throw Error('Medios originales inconsistentes');
+   return {...c,venta_total:v.venta_rectificada,medios:v.medios_rectificados,
+    venta_original:c.venta_total,version_cierre:v.version,fuente_version:v.fuente_unica,
+    diferencia_venta:v.venta_rectificada-c.venta_total};
+  });
   return res.status(200).json({ok:true,storeId:STORE,cierres,soloLectura:true,
-   incluidoEnContabilidad:false});
+   incluidoEnContabilidad:false,versionesVerificadas:true});
  }catch{
   return fail(res,503,'No se pudo verificar la consulta privada de Romo; no se modificó nada');
  }
