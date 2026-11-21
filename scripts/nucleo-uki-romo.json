@@ -1,0 +1,23 @@
+{
+  "baseUki": "36a0c19b79f134c2159d6b024f410935877db5a7",
+  "modules": [
+    {
+      "source": "firebase/uki-control-turnos.js",
+      "target": "public/romo-panel-qa/uki-control-turnos.js"
+    },
+    {
+      "source": "firebase/uki-cierre-detallado.js",
+      "target": "public/romo-panel-qa/uki-cierre-detallado.js"
+    }
+  ],
+  "excluded": [
+    "index.html",
+    "credenciales y autorización",
+    "estado operativo y bases de datos",
+    "carta y precios",
+    "facturas e inventario",
+    "caja y cierres persistidos",
+    "logos y colores",
+    "recepción de pedidos y pagos"
+  ]
+}
