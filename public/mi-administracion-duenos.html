@@ -879,7 +879,7 @@ function pintarGastos(dato=vistaGastosActual){
 // Romo se obtiene de Neon aislado a través de la misma sesión Google + PIN.
 // JAMÁS se añade a cierresConfirmadosUki, fin_movimientos ni a ventas manuales.
 const ROMO_CIERRES_PRIVADOS_URL=
- 'https://uki-sushi-inventario-git-preparacion-c0b0e9-diannaleandra-7046.vercel.app/api/romo-cierres-duenos-consulta-qa';
+ 'https://romos-sushi-panel.vercel.app/api/romo-cierres-duenos-consulta-qa';
 let romoCierresPrivadosSecuencia=0;
 async function cargarCierresRomoQA(desde,hasta){
  const estado=$('romoCierresEstadoQA'),host=$('romoCierresFilasQA');
