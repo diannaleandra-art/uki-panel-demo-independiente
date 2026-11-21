@@ -616,7 +616,6 @@ function ir(v){
    }
    if(v==='nuevo')modoNuevo='manual';
    S.vista=v;render();
-   if(v==='inventario')setTimeout(()=>window.ukiInventarioMontar?.(),0);
    return;
   }
   if(S.vista==='nuevo'&&v!=='nuevo'&&ukiCartaRemotaActiva)ukiCartaRemotaActiva=null;
@@ -996,6 +995,7 @@ function render(){
    '<input id="romoCopiaQAMotivo" maxlength="300" autocomplete="off" value="Pedido de prueba sin preparar, entregar ni cobrar">'+
    '<button type="button" class="sm" id="romoCopiaQABoton" onclick="ukiRomoEnsayarCancelacionCopiaQA()">Probar cancelación solo en copia QA</button></details>':'';
   $("app").innerHTML=msg+f();
+  if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='inventario')setTimeout(()=>{if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='inventario')window.ukiInventarioMontar?.();},0);
   if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='caja'&&cajaTab==='acumulada')setTimeout(()=>{if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='caja'&&cajaTab==='acumulada')window.romoCajaAcumuladaMontar?.();},0);
   if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='promos')
    setTimeout(()=>{
@@ -11069,7 +11069,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 <script type="module" src="./uki-romo-vinculo-duenos-qa.mjs"></script>
 <script src="./uki-tarjeta-cliente.js" defer></script>
 <script src="./uki-cierre-detallado.js" defer></script>
-<script src="./uki-inventario-admin-embebido.js" defer></script>
+<script src="./uki-inventario-admin-embebido.js?v=romo-inventario-montaje-20261121" defer></script>
 <script src="./uki-disponibilidad-admin.js?v=romo-disponibilidad-20261121" defer></script>
 <script src="./uki-carta-precios-admin.js?v=romo-secciones-20261121" defer></script>
 <script src="./uki-armado-ingredientes-admin.js?v=uki-tres-vistas-qa-20261109" defer></script>
