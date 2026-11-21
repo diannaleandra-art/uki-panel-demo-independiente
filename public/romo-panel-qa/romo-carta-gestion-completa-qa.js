@@ -40,15 +40,15 @@
  function categories(){
   const data=state.admin?.data||{},base=state.base||{};
   const list=[...(base.categories||[]),...(data.categories||[])];
-  return list.filter(c=>!(data.categoryHidden||[]).includes(c.slug))
-   .map(c=>({slug:c.slug,nombre:data.categoryNames?.[c.slug]||c.nombre,original:(base.categories||[]).some(b=>b.slug===c.slug)}));
+  return list.filter(c=>(base.categories||[]).some(b=>b.slug===c.slug)||!(data.categoryHidden||[]).includes(c.slug))
+   .map(c=>({slug:c.slug,nombre:(base.categories||[]).some(b=>b.slug===c.slug)?c.nombre:(data.categoryNames?.[c.slug]||c.nombre),original:(base.categories||[]).some(b=>b.slug===c.slug)}));
  }
  function categoryOptions(){return [['','Sin categoría'],...categories().map(c=>[c.slug,c.nombre])];}
  function products(){
   const data=state.admin?.data||{},cats=categories(),validCats=new Set(cats.map(c=>c.slug));
   const base=(state.base?.products||[]).map(p=>({
    ...p,
-   categoriaSlug:validCats.has(data.assignments?.[p.sku]??p.categoriaSlug)?(data.assignments?.[p.sku]??p.categoriaSlug):'',
+   categoriaSlug:p.categoriaSlug,
    _base:true,_original:p
   }));
   const created=(data.products||[]).map(p=>({
@@ -989,6 +989,7 @@
      desc=field('Descripción',p.description||''),
      cat=select('Categoría',p._base&&p.custom?commercialCategoryOptions():categoryOptions(),p.categoriaSlug),
      av=field('Disponible',p.available!==false,'checkbox');
+    if(p._base&&!p.custom)cat.input.disabled=true;
     if(p._base&&['classic','premium','extra'].includes(p.kind))n.input.disabled=true;
     if(p._base&&['classic','premium','topping','extra'].includes(p.kind))desc.input.disabled=true;
     form.append(n.wrap,price.wrap,desc.wrap,cat.wrap,av.wrap);
@@ -1029,49 +1030,45 @@
  }
  function renderCategories(){
   const target=host('categorias');if(!target)return;clear(target);
-  target.append(cardNote(),info('Crea, renombra, elimina y asigna productos. Eliminar una categoría no borra productos.'));
+  target.append(cardNote(),info('Crea categorías propias y consulta los productos de cada una. Las categorías originales de armado se conservan.'));
   const create=panel('＋ Crear categoría'),n=field('Nombre de la categoría'),f=stack();
   f.append(n.wrap,button('Guardar categoría',()=>void saveCommercial('category-create',{nombre:n.input.value.trim()},'Crear categoría '+n.input.value.trim())));
   create.append(f);target.append(create);
   const items=products(),cats=categories();
-  const find=field('Buscar producto para asignar');find.input.type='search';target.append(find.wrap);
-  const assignments=E('div');target.append(assignments);
-  const draw=()=>{
-   clear(assignments);
-   const matches=items.filter(p=>norm(p.name).includes(norm(find.input.value)));
-   assignments.append(info(matches.length+' productos encontrados.'));
-   for(const p of matches){
-    const r=row(),title=css(E('strong',p.name),'flex:1;min-width:140px;font-size:13px');
-    const c=select('Categoría',categoryOptions(),p.categoriaSlug);
-    c.wrap.style.flex='1 1 180px';
-    const saveButton=button('Guardar',()=>void save('category-assign',
-      {id:p.sku,category:c.input.value},'Asignación de '+p.name),true);
-    r.append(title,c.wrap,saveButton);assignments.append(r);
+  const find=field('Buscar categoría o producto');find.input.type='search';target.append(find.wrap);
+  const list=E('div');target.append(list);
+  const draw=()=>{clear(list);
+   const query=norm(find.input.value);
+   for(const c of cats){
+    const members=items.filter(p=>p.categoriaSlug===c.slug);
+    if(query&&!norm(c.nombre).includes(query)&&!members.some(p=>norm(p.name).includes(query)))continue;
+    const card=panel(c.nombre+' · '+members.length+' productos'+(c.original?'':' · Borrador')),area=stack();
+    if(c.original&&c.slug.startsWith('romoq-')){
+     const rename=field('Editar nombre',c.nombre);
+     area.append(rename.wrap,button('Guardar nombre',()=>void saveCommercial('category-rename',{slug:c.slug,nombre:rename.input.value.trim()},'Renombrar categoría '+c.nombre)));
+    }else if(!c.original){
+     const rename=field('Editar nombre',c.nombre);
+     area.append(rename.wrap,button('Guardar borrador',()=>void save('category-rename',{id:c.slug,name:rename.input.value.trim()},'Categoría renombrada '+c.nombre)));
+    }
+    area.append(info('Productos dentro de la categoría ('+members.length+'):'));
+    for(const p of members){
+     const entry=row(),label=css(E('span',p.name),'font-size:14px;flex:1;min-width:130px');
+     entry.append(label);
+     if(p._base&&p.custom){
+      const pick=select('Mover a',commercialCategoryOptions(),p.categoriaSlug);
+      entry.append(pick.wrap,button('Guardar',()=>void saveBasePromo(p,{price:p.price,categoriaSlug:pick.input.value},null),true));
+     }else if(!p._base){
+      const pick=select('Mover borrador a',categoryOptions(),p.categoriaSlug);
+      entry.append(pick.wrap,button('Guardar borrador',()=>void save('category-assign',{id:p.sku,category:pick.input.value},'Mover '+p.name),true));
+     }
+     area.append(entry);
+    }
+    if(c.original&&c.slug.startsWith('romoq-'))area.append(button('Eliminar categoría',()=>void saveCommercial('category-delete',{slug:c.slug},'Eliminar categoría '+c.nombre,'¿Eliminar categoría? Sus productos pasarán a Entradas.'),true));
+    else if(!c.original)area.append(button('Eliminar borrador',()=>void save('category-delete',{id:c.slug},'Eliminar categoría '+c.nombre,'¿Eliminar esta categoría de administración?'),true));
+    card.append(area);list.append(card);
    }
   };
   find.input.oninput=draw;draw();
-  for(const c of cats){
-   const members=items.filter(p=>p.categoriaSlug===c.slug);
-   const card=panel(c.nombre+' · '+members.length+' productos'),rename=field('Editar nombre',c.nombre),area=stack();
-   if(c.slug.startsWith('romoq-')&&c.original)area.append(rename.wrap,button('Guardar nombre',()=>void saveCommercial('category-rename',{slug:c.slug,nombre:rename.input.value.trim()},'Renombrar categoría '+c.nombre)));else if(!c.original)area.append(rename.wrap,button('Guardar nombre',()=>void save('category-rename',{id:c.slug,name:rename.input.value.trim()},'Categoría renombrada '+c.nombre)));else area.append(info('Categoría original de armado. Se conserva para pedidos y recetas.'));
-   area.append(info('Productos dentro de la categoría ('+members.length+'):'));
-   for(const product of members){
-    const assignment=row(),label=css(E('span',product.name),'font-size:13px;flex:1;min-width:130px');
-    const pick=select('Mover a',categoryOptions(),product.categoriaSlug);
-    pick.wrap.style.flex='1 1 170px';
-    assignment.append(label,pick.wrap,button('Guardar',()=>{
-     void save('category-assign',{id:product.sku,category:pick.input.value},
-      'Mover '+product.name+' de categoría');
-    },true));
-    assignment.append(button('Quitar',()=>{
-     void save('category-assign',{id:product.sku,category:''},
-      'Quitar '+product.name+' de categoría');
-    },true));
-    area.append(assignment);
-   }
-   if(c.original&&c.slug.startsWith('romoq-'))area.append(button('Eliminar categoría',()=>void saveCommercial('category-delete',{slug:c.slug},'Eliminar categoría '+c.nombre,'¿Eliminar categoría? Sus productos pasarán a Entradas.'),true));else if(!c.original)area.append(button('Eliminar borrador',()=>void save('category-delete',{id:c.slug},'Eliminar categoría '+c.nombre,'¿Eliminar esta categoría de administración?'),true));
-   card.append(area);target.append(card);
-  }
  }
  function renderIngredients(){
   const target=host('ingredientes');if(!target)return;clear(target);
