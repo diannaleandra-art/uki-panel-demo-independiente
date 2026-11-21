@@ -7194,7 +7194,7 @@ async function ukiRomoGuardarMovimientoQA(tipo,datos={}){
   }else if(tipo==='app'){
    const medio=String(datos.medio??$('romoAppMedioQA')?.value??'');
    if(![...APPS,'Otros'].includes(medio))throw Error('App no permitida');
-   const monto=datos.monto!==undefined?Number(datos.monto||0):ukiRomoMontoCampoQA('romoAppMontoQA',100000000,true);
+   const monto=datos.monto!==undefined?(String(datos.monto).trim()===''?NaN:Number(datos.monto)):ukiRomoMontoCampoQA('romoAppMontoQA',100000000,true);
    if(!Number.isSafeInteger(monto)||monto<0||monto>100000000)throw Error('Total de app inválido');
    const concepto='Actualización total manual de '+medio;
    const responsable=ukiTimbreResponsableActual();
@@ -8621,6 +8621,31 @@ function ukiRomoCajaConsultaHTMLQA(seccion='resumen'){
  const card=cards.children[idx];
  if(activo==='chica'&&card){const input=card.querySelector('input[onchange]');if(input){input.removeAttribute('onchange');input.readOnly=true;}}
  if(activo==='repartidor'&&card){const p=document.createElement('div');p.innerHTML='<label>Repartidor habitual</label><input maxlength="80" value="'+esc(S.repartidorHabitual||'')+'" onchange="ukiCambiarRepartidorHabitual(this.value)"><label>Repartidor de hoy</label><input maxlength="80" value="'+esc(ukiNombreRepartidorTurno(caja))+'" onchange="ukiCambiarRepartidorTurno(this.value)">';card.insertBefore(p,card.querySelector('h3'));for(const x of card.querySelectorAll('select'))for(const op of [...x.options])if(!['Efectivo','Transferencia','Débito','Edenred','Otros'].includes(op.value)&&!op.selected)op.remove();}
+ if(card){
+  // Única tarjeta oficial de Uki, con acciones conectadas a Romo.
+  // Los movimientos fuera de un turno abierto permanecen visibles, no editables.
+  if(activo==='apps'){
+   const title=card.querySelector('h2');if(title)title.textContent='💳 Ventas manuales por app';
+   const help=card.querySelector('p');if(help)help.textContent='Registra el TOTAL acumulado de cada app. No sumes nuevamente pedidos ya registrados.';
+   const historial=(caja.movimientosApps||[]).filter(x=>x.suc===ROMO_SUCURSAL_QA&&x.turnoClave===caja.turnoId).slice().reverse();
+   if(historial.length){const div=document.createElement('details');div.innerHTML='<summary>Historial de cambios de apps · '+historial.length+'</summary>'+historial.map(x=>row(esc(x.medio)+' · '+esc(x.responsable||'')+' · '+esc(x.fechaISO?new Date(x.fechaISO).toLocaleString('es-CL'):''),fmt(x.anterior)+' → '+fmt(x.monto))).join('');card.append(div);}
+  }
+  if(activo==='repartidor'){
+   const div=document.createElement('div');
+   div.innerHTML='<h3>Repartos registrados y pendientes de pagar</h3>'+row('Deliverys de pedidos ('+t.dels.length+')',fmt(t.enviosPedidos))+row('Deliverys manuales ('+delSucHoy(S.deliveriesManuales).length+')',fmt(t.enviosManuales))+row('Total de repartos',fmt(t.envios))+row('Pagado por repartos del día',fmt(t.pagoDeliveryDia))+row('Pendiente de pagar',fmt(aPagar),'final')+ukiDesgloseDeliverysTurno(t)+(detalles?'<details><summary>Detalle de pagos registrados</summary>'+detalles+'</details>':'');
+   card.insertBefore(div,card.querySelector('h3'));
+  }
+  if(activo==='chica'&&(caja.cajaChica?.anulaciones||[]).length){
+   const div=document.createElement('details');div.innerHTML='<summary>Anulaciones auditadas</summary>'+caja.cajaChica.anulaciones.map(a=>row(esc(a.concepto)+' · '+esc(a.motivo)+' · '+esc(a.responsable||''),fmt(a.monto))).join('');card.append(div);
+  }
+  if(caja.turnoAbierto!==true||!baseConfirmada){
+   for(const input of card.querySelectorAll('input,select,textarea,button')){
+    const action=input.getAttribute('onclick')||input.getAttribute('onchange')||'';
+    if(!/ukiReportePropinas|ukiCambiarPeriodo|ukiPropinasPeriodo/.test(action))input.disabled=true;
+   }
+   const nota=document.createElement('p');nota.className='muted';nota.textContent='Consulta solamente. Abre el turno y confirma la base para registrar movimientos.';card.prepend(nota);
+  }
+ }
  const movimientosHtml=(baseConfirmada?'':avisoBase)+navMovimientos+
   (baseConfirmada?'':movimientoPanelRomoQA.base)+'<div data-romo-movimiento="'+esc(activo)+'">'+
   (card?.outerHTML||'<div class="card">No se pudo cargar el movimiento.</div>')+'</div>';
@@ -8831,6 +8856,18 @@ async function ukiRomoAvanzarJornadaSinCajaQA(){
    String(e?.message||e));
  }finally{ukiRomoTurnoOcupadoQA=false;}
 }
+function ukiRomoCuadreCierreVisualQA(valor){
+ const el=$('romoCuadreCierreVisual');if(!el)return;
+ const raw=String(valor).trim(),dif=window.ukiControlTurnos?.diferencia(totales().efectivoCaja,raw);
+ el.textContent=!raw?'Ingresa el efectivo contado para comparar.':!Number.isSafeInteger(dif)?'Ingresa un importe entero válido.':dif===0?'✅ Caja exacta':dif>0?'Sobrante: '+fmt(dif):'Faltante: '+fmt(-dif);
+}
+function ukiRomoResumenCierreVisualQA(t,c){
+ return '<div class="card"><h2>Venta del día</h2>'+row('Pedidos del día',t.n)+row('Pedidos pagados',t.pagadosN)+ROMO_MEDIOS_COBRO_QA.map(k=>row(k,fmt(t.medios[k]||0))).join('')+row('Venta total con delivery',fmt(t.totalMedios),'sub')+row('Venta sin delivery',fmt(t.ventaSinDelivery))+'</div>'+
+ ukiCobrosExternosTurno(t)+ukiAuditoriaPagosUI()+ukiAuditoriaTimbresUI()+
+ '<div class="card"><h2>🛵 Pago al repartidor de Romo</h2>'+row('Repartidor',esc(ukiNombreRepartidorTurno(c)))+row('Deliverys de pedidos',fmt(t.enviosPedidos))+row('Deliverys manuales',fmt(t.enviosManuales))+row('Total de repartos registrados',fmt(t.envios))+row('Pagado por repartos del día',fmt(t.pagoDeliveryDia))+row('Pendiente por repartos del día',fmt(Math.max(0,t.envios-t.pagoDeliveryDia)),'sub')+'</div>'+
+ ukiDesgloseDeliverysTurno(t)+ukiGastosTurnoVisible(t)+
+ '<div class="card"><h2>Resultado final</h2>'+row('Venta total con delivery',fmt(t.totalMedios))+row('− Pago a repartidor',fmt(t.pagoDelivery),'neg')+row('− Gastos',fmt(t.gastosTotal),'neg')+row('Total final',fmt(t.final),'final')+row('Efectivo esperado sin base ni propinas (según cierre Romo)',fmt(t.efectivoCaja))+row('Propinas (aparte)',fmt(t.propinas))+'</div>';
+}
 function ukiRomoCierreTurnoHTMLQA(){
  const c=cajaDelDia(),abierto=c.turnoAbierto===true;
  const t=totales(),dia=fechaOperativaActual();
@@ -8839,7 +8876,7 @@ function ukiRomoCierreTurnoHTMLQA(){
   p.ajusteCobroPendiente!=null);
  const cierres=(S.cierres||[]).filter(x=>x.suc===ROMO_SUCURSAL_QA)
   .slice().sort((a,b)=>(Number(b.fechaMs)||0)-(Number(a.fechaMs)||0));
- return '<details class="card" id="romoTurnosQA">'+
+ return '<details class="card" id="romoTurnosQA" open>'+
   '<summary><b>🕒 Turnos, precierre y cierre definitivo · Romo</b></summary>'+
   '<p class="muted">Mismas reglas de importes de Uki. Cierre definitivo solo dueños, con constancia única en Neon Romo. La sincronización con Mi Administración sigue en preparación.</p>'+
   (!abierto&&dia<hoyLocal()?
@@ -8866,7 +8903,7 @@ function ukiRomoCierreTurnoHTMLQA(){
    row('Pedidos pagados',String(t.pagadosN))+row('Pendientes de pago',String(t.pendientesN))+
    ukiRomoFormularioPrecierreQA(c,t)+
    '</div>'+
-   '<div class="card"><h3>🔒 Cierre definitivo del turno</h3>'+
+   ukiRomoResumenCierreVisualQA(t,c)+'<div class="card"><h3>🔒 Cierre definitivo del turno</h3>'+
    '<p class="muted">Requiere conteo físico, revisión de pedidos, timbres y solicitudes. Se guarda una sola vez con su constancia en Neon.</p>'+
    (ajustesSinConciliar.length?
     '<div class="card" role="alert" style="border:2px solid #b21b38;background:#fff7f8">'+
@@ -8875,7 +8912,8 @@ function ukiRomoCierreTurnoHTMLQA(){
     '<p>Revisa cada cobro o devolución realmente efectuada en Pedidos y Caja. Aceptar una diferencia del conteo NO regulariza estos pedidos.</p>'+
     '<p class="muted">Pedidos: '+ajustesSinConciliar.map(p=>esc(String(p.id))).join(', ')+'</p></div>':'')+
    '<label>Responsable</label><input id="romoCierreResponsableQA" maxlength="80" autocomplete="off">'+
-   '<label>Efectivo contado sin base inicial (pesos)</label><input id="romoCierreContadoQA" type="number" inputmode="numeric" min="0" step="1">'+
+   '<label>Efectivo contado sin base inicial (pesos)</label><input id="romoCierreContadoQA" type="number" inputmode="numeric" min="0" step="1" oninput="ukiRomoCuadreCierreVisualQA(this.value)">'+
+   '<p id="romoCuadreCierreVisual" class="muted">Ingresa el efectivo contado para comparar.</p>'+
    '<label>Observaciones / motivo de diferencia</label><textarea id="romoCierreObsQA" maxlength="700" rows="2"></textarea>'+
    '<label><input id="romoCierreAceptoPendientesQA" type="checkbox"> Confirmo el tratamiento de pedidos pendientes de pago</label>'+
    '<label><input id="romoCierreAceptoDiferenciaQA" type="checkbox"> He revisado y acepto cualquier diferencia de efectivo</label>'+
@@ -8900,6 +8938,7 @@ function ukiRomoFormularioPrecierreQA(c,t){
   .slice().reverse();
  return (activo?
    '<p>Trabajador: <b>'+esc(activo.nombre)+'</b> · Inicio: '+esc(new Date(activo.inicioMs).toLocaleString('es-CL'))+'</p>'+
+   (Number.isSafeInteger(activo.base?.propinasEfectivo)?'<p class="muted">Propinas en efectivo de este trabajador: <b>'+fmt(Math.max(0,(Number(t.propinasEfectivo)||0)-activo.base.propinasEfectivo))+'</b>. Sepáralas antes de contar.</p>':'')+
    '<label>Efectivo físico contado en el turno, sin base ni propinas</label>'+
    '<input id="romoPrecierreContadoQA" type="number" min="0" step="1" inputmode="numeric" placeholder="Escribe 0 si corresponde">'+
    '<label>Observaciones</label><textarea id="romoPrecierreObsQA" maxlength="300" rows="2"></textarea>'+
@@ -9567,6 +9606,7 @@ async function ukiRomoGuardarPedidoPendienteQA(){
    '. Productos y delivery: '+fmt(subtotal+envio)+'; propina aparte: '+fmt(propina)+
    '. Se registrará UNA sola vez en Neon Romo.':
    ' como PENDIENTE: no se registra dinero.')+' ¿Confirmar?'))return;
+ const firmaGuardado=JSON.stringify(D);
  ukiRomoGuardandoManualQA=true;
  try{
   const expected=session.estado();
@@ -9600,6 +9640,7 @@ async function ukiRomoGuardarPedidoPendienteQA(){
   clone.pedidos.push(pedido);
   if(D.pagado){
    const mod=await import('./uki-romo-cobro-pendiente-qa.mjs?v=romo-confirmacion-directa-20261118');
+   if(JSON.stringify(D)!==firmaGuardado||!ukiValidarTimbreAntesGuardar(D,null)||session.estado()?.revision!==expected.revision)throw Error('El formulario, la confirmación de timbre o la revisión cambiaron antes de guardar.');
    const pagosProductos=D.mixtoProductos?(D.pagosProductos||[]).map(x=>({...x})):[];
    const pagosEnvio=D.mixtoEnvio?(D.pagosEnvio||[]).map(x=>({...x})):[];
    const productosOtroLocal=D.productosPagadosOtroLocal?
@@ -9617,6 +9658,7 @@ async function ukiRomoGuardarPedidoPendienteQA(){
    });
    if(ukiTimbreBorradorConfirmado(D))ukiAnotarTimbreConfirmadoEnPedido(pedido,D);
   }
+  if(JSON.stringify(D)!==firmaGuardado)throw Error('El formulario cambió antes del guardado.');
   if(!validarEstadoSucursal(clone,s))throw Error('La información de Romo no pasó la validación.');
   // No actualizar S.pedidos hasta obtener nueva revisión desde Neon.
   const saved=await session.guardar(clone);

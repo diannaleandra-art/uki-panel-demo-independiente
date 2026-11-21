@@ -48,11 +48,11 @@
   const data=state.admin?.data||{},cats=categories(),validCats=new Set(cats.map(c=>c.slug));
   const base=(state.base?.products||[]).map(p=>({
    ...p,...(data.baseProductOverrides?.[p.sku]||{}),
-   categoriaSlug:data.assignments?.[p.sku]??(validCats.has(p.categoriaSlug)?p.categoriaSlug:''),
+   categoriaSlug:validCats.has(data.assignments?.[p.sku]??p.categoriaSlug)?(data.assignments?.[p.sku]??p.categoriaSlug):'',
    _base:true,_original:p
   }));
   const created=(data.products||[]).map(p=>({
-   ...p,categoriaSlug:data.assignments?.[p.sku]??p.categoriaSlug,_base:false,_original:null
+   ...p,categoriaSlug:validCats.has(data.assignments?.[p.sku]??p.categoriaSlug)?(data.assignments?.[p.sku]??p.categoriaSlug):'',_base:false,_original:null
   }));
   return [...base,...created].filter(p=>p.sku!==SKU_UKI_PROMO);
  }
@@ -972,7 +972,9 @@
   const assignments=E('div');target.append(assignments);
   const draw=()=>{
    clear(assignments);
-   for(const p of items.filter(p=>norm(p.name).includes(norm(find.input.value))).slice(0,20)){
+   const matches=items.filter(p=>norm(p.name).includes(norm(find.input.value)));
+   assignments.append(info(matches.length+' productos encontrados.'));
+   for(const p of matches){
     const r=row(),title=css(E('strong',p.name),'flex:1;min-width:140px;font-size:13px');
     const c=select('Categoría',categoryOptions(),p.categoriaSlug);
     c.wrap.style.flex='1 1 180px';
@@ -1014,6 +1016,8 @@
   const target=host('ingredientes');if(!target)return;clear(target);
   target.append(cardNote(),info('Vegetales, proteínas y envolturas. Cada recargo puede variar según la preparación.'));
   const kinds=[['vegetal','Vegetal'],['proteina','Proteína'],['envoltura','Envoltura']];
+  const allowed={vegetal:['classic','premium','monthly','handroll','burger','gohan'],proteina:['classic','premium','monthly','handroll','burger'],envoltura:['classic','premium','monthly','handroll']};
+  const updateSurfaces=(select,inputs)=>{for(const [k,input] of Object.entries(inputs)){input.disabled=!allowed[select.value]?.includes(k);if(input.disabled)input.checked=false;}};
   const surfaces=[['classic','Sushi clásico'],['premium','Premium'],['monthly','Promociones'],['handroll','Handroll'],['burger','Burger'],['gohan','Gohan']];
   const create=panel('＋ Agregar ingrediente al armado'),form=stack();
   const n=field('Nombre'),kind=select('Tipo',kinds),price=field('Recargo en pesos (0 = incluido)',0,'number'),
@@ -1026,6 +1030,7 @@
    box.wrap.style.display='flex';box.wrap.style.alignItems='center';box.input.style.width='auto';
    surfaceInputs[key]=box.input;checks.append(box.wrap);
   }
+  kind.input.onchange=()=>updateSurfaces(kind.input,surfaceInputs);updateSurfaces(kind.input,surfaceInputs);
   form.append(checks,button('Agregar ingrediente',()=>{
    void save('ingredient-create',{item:{name:n.input.value.trim(),category:kind.input.value,
     surcharge:Number(price.input.value),
@@ -1038,7 +1043,9 @@
   const list=E('div');target.append(list);
   const draw=()=>{
    clear(list);
-   const data=ingredients().filter(p=>norm(p.name+' '+p.category).includes(norm(search.input.value)));
+   const query=norm(search.input.value).trim();
+   const data=ingredients().filter(p=>norm(p.name+' '+p.category).includes(query)).sort((a,b)=>String(a.name).localeCompare(String(b.name),'es'));
+   if(query)list.append(info('Si el ingrediente ya existe, edita el registro encontrado en lugar de crearlo nuevamente.'));
    list.append(info(data.length+' ingredientes disponibles en administración.'));
    for(const p of data){
     const item=panel(p.name+' · '+p.category+(p._base?' · Receta aprobada':' · Borrador'));
@@ -1064,13 +1071,15 @@
        const x=field(label,p.surfaces?.includes(key)||false,'checkbox');
        x.wrap.style.display='flex';x.input.style.width='auto';enabled[key]=x.input;checks.append(x.wrap);
       }
+      cat.input.onchange=()=>updateSurfaces(cat.input,enabled);updateSurfaces(cat.input,enabled);
       f.append(checks,button('Guardar ingrediente',()=>{
        void save('ingredient-edit',{id:p.sku,item:{
         name:n.input.value.trim(),category:cat.input.value,surcharge:Number(cost.input.value),
         surfaces:Object.keys(enabled).filter(k=>enabled[k].checked),available:av.input.checked
        }},'Editar ingrediente '+p.name);
       }));
-      f.append(button(p.available?'Marcar agotado':'Restaurar ingrediente',()=>{
+      f.append(button('Eliminar ingrediente creado',()=>void save('ingredient-delete',{id:p.sku},'Eliminar ingrediente '+p.name,'¿Eliminar este ingrediente del borrador? No se alteran pedidos anteriores.'),true));
+      f.append(button(p.available!==false?'Marcar agotado':'Restaurar ingrediente',()=>{
        void save('ingredient-availability',{id:p.sku,available:p.available===false},
         'Disponibilidad de '+p.name);
       },true));
@@ -1173,6 +1182,7 @@
   const search=state.root.querySelector('[data-romo-carta-search]');
   const group=search?.parentElement;
   if(group)group.hidden=!show;
+  const oldIngredientSearch=state.root.querySelector('[data-romo-ingredient-search]');if(oldIngredientSearch)oldIngredientSearch.hidden=!show;
   for(const selector of ['[data-romo-categories-list]','[data-romo-ingredients-list]','[data-romo-promos-list]']){
    const node=state.root.querySelector(selector);
    if(node)node.hidden=!show;
@@ -1196,6 +1206,24 @@
    return;
   }
   renderProducts();renderCategories();renderIngredients();renderPromos();
+  // El editor existente alimenta la revisión comercial; no sustituirlo por borradores.
+  // Se conserva accesible en un bloque plegable, sin duplicar formularios a la vista.
+  legacy(true);
+  const area=state.root.querySelector('[data-romo-area="productos"]');
+  if(area){
+   let details=area.querySelector('[data-romo-editor-comercial]');
+   if(!details){details=panel('Carta vigente · edición comercial existente');details.dataset.romoEditorComercial='1';}
+   const filter=area.querySelector('[data-romo-carta-search]')?.parentElement;
+   for(const node of [filter,area.querySelector('[data-romo-carta-list]'),area.querySelector('[data-romo-carta-form]')])
+    if(node&&node.parentElement!==details)details.append(node);
+   if(!details.isConnected)area.append(details);
+  }
+  for(const name of ['categories','ingredients','promos']){
+   const node=state.root.querySelector('[data-romo-'+name+'-list]');
+   if(node)node.hidden=true;
+  }
+  const oldSearch=state.root.querySelector('[data-romo-ingredient-search]');
+  if(oldSearch)oldSearch.hidden=true;
  }
  window.romoMontarGestionCartaQA=function({container,base}={}){
   if(!container||!container.isConnected||base?.storeId!==STORE)return false;
