@@ -3448,10 +3448,10 @@ function canjear36(key){
   guardarEnLocalStorage(); render();
 }
 
-function addGasto(){const c=$("gCon").value.trim(); const m=parseInt($("gMon").value)||0; const med=$("gMed").value; if(!c||!m){aviso("Concepto y monto");return;} S.gastos.push({suc:S.suc,id:Date.now(),fechaISO:ahora(),registradoEn:Date.now(),concepto:c,monto:m,medio:med}); $("gCon").value=""; $("gMon").value=""; render();}
-function quitarGasto(id){S.gastos=S.gastos.filter(x=>x.id!==id);render();}
-function addDM(){const monto=parseInt($("dmMon").value)||0; const cliente=$("dmCli").value.trim(); const nota=$("dmNota").value.trim(); const medio=$("dmMed").value; if(!monto){aviso("Monto delivery");return;} S.deliveriesManuales.push({suc:S.suc,id:Date.now(),fechaISO:ahora(),registradoEn:Date.now(),monto:monto,cliente:cliente,nota:nota,medio:medio}); $("dmMon").value=""; $("dmCli").value=""; $("dmNota").value=""; render();}
-function quitarDM(id){S.deliveriesManuales=S.deliveriesManuales.filter(x=>x.id!==id);render();}
+function addGasto(){if(S.suc===ROMO_SUCURSAL_QA)return void ukiRomoGuardarMovimientoQA('gasto');const c=$("gCon").value.trim(); const m=parseInt($("gMon").value)||0; const med=$("gMed").value; if(!c||!m){aviso("Concepto y monto");return;} S.gastos.push({suc:S.suc,id:Date.now(),fechaISO:ahora(),registradoEn:Date.now(),concepto:c,monto:m,medio:med}); $("gCon").value=""; $("gMon").value=""; render();}
+function quitarGasto(id){if(S.suc===ROMO_SUCURSAL_QA)return void ukiRomoGuardarMovimientoQA('anular',{coleccion:'gastos',id});S.gastos=S.gastos.filter(x=>x.id!==id);render();}
+function addDM(){if(S.suc===ROMO_SUCURSAL_QA)return void ukiRomoGuardarMovimientoQA('delivery');const monto=parseInt($("dmMon").value)||0; const cliente=$("dmCli").value.trim(); const nota=$("dmNota").value.trim(); const medio=$("dmMed").value; if(!monto){aviso("Monto delivery");return;} S.deliveriesManuales.push({suc:S.suc,id:Date.now(),fechaISO:ahora(),registradoEn:Date.now(),monto:monto,cliente:cliente,nota:nota,medio:medio}); $("dmMon").value=""; $("dmCli").value=""; $("dmNota").value=""; render();}
+function quitarDM(id){if(S.suc===ROMO_SUCURSAL_QA)return void ukiRomoGuardarMovimientoQA('anular',{coleccion:'deliveriesManuales',id});S.deliveriesManuales=S.deliveriesManuales.filter(x=>x.id!==id);render();}
 // Compatibilidad con turnos anteriores que solo guardaban un importe global.
 function ukiPagoDeliveryDesglose(caja){
  const separado=Number.isSafeInteger(caja.pagoDeliveryDia)&&Number.isSafeInteger(caja.pagoDeliveryAnterior);
@@ -3470,7 +3470,7 @@ function ukiPagoDeliveryDesglose(caja){
   conceptoAnterior:separado?String(caja.pagoDeliveryConceptoAnterior||''):'',
   efectivo:efectivoDia+(medioAnterior==='Efectivo'?anterior:0)};
 }
-function savePD(){
+function savePD(){if(S.suc===ROMO_SUCURSAL_QA)return void ukiRomoGuardarMovimientoQA('pagosUki');
  const dia=Number($('pdDia')?.value||0),anterior=Number($('pdAnterior')?.value||0);
  const medioDia=String($('pdDiaMed')?.value||'Efectivo'),medioAnterior=String($('pdAnteriorMed')?.value||'Efectivo');
  const concepto=String($('pdConceptoAnterior')?.value||'').trim().replace(/\s+/g,' ');
@@ -3530,11 +3530,11 @@ function quitarPropina(id){
   aviso('Las propinas de Romo no se eliminan desde esta pantalla. Requieren corrección auditada de caja.');return;
  }
  const x=S.propinas.find(x=>x.id===id&&x.suc===S.suc);if(x?.pedidoId){aviso("Esta propina pertenece a un pedido. Corrige el pedido para evitar descuadres.");return;}S.propinas=S.propinas.filter(x=>x.id!==id);render();}
-function addRetiro(){const m=parseInt($("reMon").value)||0; const mot=$("reMot").value.trim(); if(!m){aviso("Monto retiro");return;} S.retiros.push({suc:S.suc,id:Date.now(),fechaISO:ahora(),registradoEn:Date.now(),monto:m,motivo:mot}); $("reMon").value=""; $("reMot").value=""; render();}
-function quitarRetiro(id){S.retiros=S.retiros.filter(x=>x.id!==id);render();}
-function addCC(){const m=parseInt($("ccMon").value)||0; const con=$("ccCon").value.trim(); if(!m){aviso("Monto caja chica");return;} cajaDelDia().cajaChica.gastos.push({id:Date.now(),monto:m,concepto:con}); $("ccMon").value=""; $("ccCon").value=""; render();}
-function quitarCC(id){cajaDelDia().cajaChica.gastos=cajaDelDia().cajaChica.gastos.filter(x=>x.id!==id);render();}
-function setApp(k,v){cajaDelDia().apps[k]=Math.max(0,parseInt(v,10)||0);render();}
+function addRetiro(){if(S.suc===ROMO_SUCURSAL_QA)return void ukiRomoGuardarMovimientoQA('retiro');const m=parseInt($("reMon").value)||0; const mot=$("reMot").value.trim(); if(!m){aviso("Monto retiro");return;} S.retiros.push({suc:S.suc,id:Date.now(),fechaISO:ahora(),registradoEn:Date.now(),monto:m,motivo:mot}); $("reMon").value=""; $("reMot").value=""; render();}
+function quitarRetiro(id){if(S.suc===ROMO_SUCURSAL_QA)return void ukiRomoGuardarMovimientoQA('anular',{coleccion:'retiros',id});S.retiros=S.retiros.filter(x=>x.id!==id);render();}
+function addCC(){if(S.suc===ROMO_SUCURSAL_QA)return void ukiRomoGuardarMovimientoQA('chica');const m=parseInt($("ccMon").value)||0; const con=$("ccCon").value.trim(); if(!m){aviso("Monto caja chica");return;} cajaDelDia().cajaChica.gastos.push({id:Date.now(),monto:m,concepto:con}); $("ccMon").value=""; $("ccCon").value=""; render();}
+function quitarCC(id){if(S.suc===ROMO_SUCURSAL_QA)return void ukiRomoAnularGastoChicaQA(id);cajaDelDia().cajaChica.gastos=cajaDelDia().cajaChica.gastos.filter(x=>x.id!==id);render();}
+function setApp(k,v){if(S.suc===ROMO_SUCURSAL_QA)return void ukiRomoGuardarMovimientoQA('app',{medio:k,monto:v});cajaDelDia().apps[k]=Math.max(0,parseInt(v,10)||0);render();}
 
 // Pago mixto por componente (productos/delivery) y pago de productos en otra caja.
 // La sucursal que prepara conserva el pedido; solo suma sus propios cobros.
@@ -7145,7 +7145,7 @@ async function ukiRomoAnularGastoChicaQA(id){
  try{await ukiRomoGuardarMovimientoQA('anularChica');}
  finally{ukiRomoGastoChicaAnularQA=null;}
 }
-async function ukiRomoGuardarMovimientoQA(tipo){
+async function ukiRomoGuardarMovimientoQA(tipo,datos={}){
  // Un cierre, precierre, timbre, cliente o pedido todavía en curso no puede
  // compartir el mismo snapshot financiero antes de su confirmación CAS Neon.
  if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA)return;
@@ -7192,11 +7192,12 @@ async function ukiRomoGuardarMovimientoQA(tipo){
    c.baseConfirmadaPor='dueños';
    copia.base=base;copia.cajaChica={...copia.cajaChica,inicial:chica};
   }else if(tipo==='app'){
-   const medio=String($('romoAppMedioQA')?.value||'');
+   const medio=String(datos.medio??$('romoAppMedioQA')?.value??'');
    if(![...APPS,'Otros'].includes(medio))throw Error('App no permitida');
-   const monto=ukiRomoMontoCampoQA('romoAppMontoQA',100000000,true);
-   const concepto=ukiRomoTextoCampoQA('romoAppConceptoQA',180,3);
-   const responsable=ukiRomoTextoCampoQA('romoAppResponsableQA',80,2);
+   const monto=datos.monto!==undefined?Number(datos.monto||0):ukiRomoMontoCampoQA('romoAppMontoQA',100000000,true);
+   if(!Number.isSafeInteger(monto)||monto<0||monto>100000000)throw Error('Total de app inválido');
+   const concepto='Actualización total manual de '+medio;
+   const responsable=ukiTimbreResponsableActual();
    if(c.turnoId!==dia+'@'+c.inicioMs)throw Error('El turno de Caja cambió');
    c.apps=c.apps||{};
    const anterior=Number(c.apps[medio]||0);
@@ -7211,9 +7212,9 @@ async function ukiRomoGuardarMovimientoQA(tipo){
    descripcion='App manual confirmada en Caja Romo';
    resumen=medio+' · antes '+fmt(anterior)+' · nuevo total '+fmt(monto);
   }else if(tipo==='chica'){
-   const concepto=ukiRomoTextoCampoQA('romoChicaConceptoQA',180,3);
-   const responsable=ukiRomoTextoCampoQA('romoChicaResponsableQA',80,2);
-   const monto=ukiRomoMontoCampoQA('romoChicaMontoQA',10000000);
+   const concepto=ukiRomoTextoCampoQA('ccCon',180,1);
+   const responsable=ukiTimbreResponsableActual();
+   const monto=ukiRomoMontoCampoQA('ccMon',10000000);
    if(c.turnoId!==dia+'@'+c.inicioMs||!Array.isArray(c.cajaChica?.gastos))
     throw Error('Caja chica no está abierta y confirmada');
    const inicial=Number(c.cajaChica.inicial);
@@ -7228,8 +7229,9 @@ async function ukiRomoGuardarMovimientoQA(tipo){
    descripcion='Gasto caja chica confirmado';
    resumen=concepto+' · '+fmt(monto)+' · saldo '+fmt(inicial-gastado-monto);
   }else if(tipo==='anularChica'){
-   const responsable=ukiRomoTextoCampoQA('romoChicaResponsableQA',80,2);
-   const motivo=ukiRomoTextoCampoQA('romoChicaMotivoQA',180,3);
+   const responsable=ukiTimbreResponsableActual();
+   const motivo=String(window.prompt('Motivo de la anulación:','')||'').trim();
+   if(motivo.length<3||motivo.length>180)throw Error('Indica el motivo de la anulación');
    const gastoId=Number(ukiRomoGastoChicaAnularQA);
    const gastos=c.cajaChica?.gastos;
    if(c.turnoId!==dia+'@'+c.inicioMs||!Array.isArray(gastos))
@@ -7250,9 +7252,9 @@ async function ukiRomoGuardarMovimientoQA(tipo){
    descripcion='Anulación auditada caja chica Romo';
    resumen='Gasto #'+gastoId+' · '+fmt(gasto.monto)+' devuelto a caja chica';
   }else if(tipo==='gasto'){
-   const concepto=ukiRomoTextoCampoQA('romoGastoConceptoQA',140,3);
-   const monto=ukiRomoMontoCampoQA('romoGastoMontoQA');
-   const medio=ukiRomoMedioSalidaQA('romoGastoMedioQA');
+   const concepto=ukiRomoTextoCampoQA('gCon',140,1);
+   const monto=ukiRomoMontoCampoQA('gMon');
+   const medio=String($('gMed')?.value||'');if(!MEDIOS.includes(medio))throw Error('Medio no permitido');
    if(medio==='Efectivo'&&monto>efectivoDisponible)
     throw Error('No hay suficiente efectivo registrado para ese gasto.');
    let id=now;while(copia.gastos.some(g=>g.id===id))id++;
@@ -7260,22 +7262,58 @@ async function ukiRomoGuardarMovimientoQA(tipo){
     registradoEn:now,fechaOperativa:dia,concepto,monto,medio});
    descripcion='Gasto de Romo confirmado';resumen=concepto+' · '+fmt(monto)+' · '+medio;
   }else if(tipo==='retiro'){
-   const motivo=ukiRomoTextoCampoQA('romoRetiroMotivoQA',140,3);
-   const monto=ukiRomoMontoCampoQA('romoRetiroMontoQA');
+   const motivo=ukiRomoTextoCampoQA('reMot',140,1);
+   const monto=ukiRomoMontoCampoQA('reMon');
    if(monto>efectivoDisponible)throw Error('No hay efectivo suficiente registrado en Romo.');
    let id=now;while(copia.retiros.some(g=>g.id===id))id++;
    copia.retiros.push({suc:ROMO_SUCURSAL_QA,id,fechaISO:new Date(now).toISOString(),
     registradoEn:now,fechaOperativa:dia,monto,motivo});
    descripcion='Retiro de efectivo confirmado';resumen=motivo+' · '+fmt(monto);
   }else if(tipo==='delivery'){
-   const repartidor=ukiRomoTextoCampoQA('romoRepartidorQA',90,2);
-   const cliente=String($('romoDeliveryClienteQA')?.value||'').trim().slice(0,90);
-   const monto=ukiRomoMontoCampoQA('romoDeliveryMontoQA',4000);
+   const repartidor=ukiNombreRepartidorTurno(actual);
+   const cliente=String($('dmCli')?.value||'').trim().slice(0,90);
+   const nota=String($('dmNota')?.value||'').trim().slice(0,180);
+   const medio=String($('dmMed')?.value||'');if(!MEDIOS.includes(medio))throw Error('Medio no permitido');
+   const monto=ukiRomoMontoCampoQA('dmMon',1000000);
    let id=now;while(copia.deliveriesManuales.some(d=>d.id===id))id++;
    copia.deliveriesManuales.push({suc:ROMO_SUCURSAL_QA,id,fechaISO:new Date(now).toISOString(),
-    registradoEn:now,fechaOperativa:dia,monto,cliente,repartidor,nota:'Reparto a pagar a '+repartidor,
-    medio:'Efectivo'});
-   descripcion='Delivery manual registrado';resumen=fmt(monto)+' a pagar a '+repartidor+' (no es ingreso)';
+    registradoEn:now,fechaOperativa:dia,turnoClave:c.turnoId,monto,cliente,repartidor,nota,medio});
+   descripcion='Delivery manual registrado';resumen=fmt(monto)+' a pagar al repartidor (no es ingreso)';
+  }else if(tipo==='anular'){
+   const lista=datos.coleccion;
+   if(!['gastos','retiros','deliveriesManuales'].includes(lista))throw Error('Movimiento inválido');
+   const original=delSucHoy(S[lista]).find(x=>Number(x.id)===Number(datos.id));
+   if(!original)throw Error('Solo se corrigen movimientos del turno vigente');
+   if(lista==='deliveriesManuales'&&Number(c.pagoDeliveryDia||0)>Number(t.envios)-Number(original.monto))
+    throw Error('Corrige primero el pago del repartidor; no puede superar la deuda.');
+   const motivo=String(window.prompt('Motivo de la anulación (obligatorio):','')||'').trim();
+   if(motivo.length<3||motivo.length>180)throw Error('Indica el motivo de la anulación');
+   c.movimientosCajaAuditoria=c.movimientosCajaAuditoria||[];
+   c.movimientosCajaAuditoria.push({tipo:'anulacion',coleccion:lista,original,turnoClave:c.turnoId,fechaISO:new Date(now).toISOString(),responsable:ukiTimbreResponsableActual(),motivo});
+   copia[lista]=copia[lista].filter(x=>!(x.suc===ROMO_SUCURSAL_QA&&Number(x.id)===Number(datos.id)));
+   descripcion='Movimiento corregido';resumen=fmt(original.monto)+' · '+motivo;
+  }else if(tipo==='pagosUki'){
+   const pd=ukiPagoDeliveryDesglose(actual);
+   const diaMonto=Number($('pdDia')?.value||0),anterior=Number($('pdAnterior')?.value||0);
+   const md=String($('pdDiaMed')?.value||''),ma=String($('pdAnteriorMed')?.value||'');
+   const concepto=String($('pdConceptoAnterior')?.value||'').trim();
+   const tipos=['Efectivo','Transferencia','Débito','Edenred','Otros'];
+   if(!Number.isSafeInteger(diaMonto)||diaMonto<0||!Number.isSafeInteger(anterior)||anterior<0||diaMonto+anterior>100000000||!tipos.includes(md)||!tipos.includes(ma))throw Error('Revisa los importes y medios de pago');
+   if(diaMonto>Number(t.envios))throw Error('El pago del día supera los repartos registrados');
+   if(anterior>0&&(concepto.length<3||concepto.length>120))throw Error('Identifica el saldo anterior');
+   const detallePrevio=actual.pagosDeliveryDetalle||[];
+   const mixto=new Set(detallePrevio.map(x=>x.medio)).size>1;
+   if(mixto&&(diaMonto!==pd.dia||md!==pd.medioDia))throw Error('Los pagos anteriores tienen medios mixtos: conserva el total del día y su medio para no perder el desglose.');
+   const efDia=mixto?pd.efectivo-(pd.medioAnterior==='Efectivo'?pd.anterior:0):md==='Efectivo'?diaMonto:0;
+   const efNuevo=efDia+(ma==='Efectivo'?anterior:0);
+   if(efNuevo-pd.efectivo>efectivoDisponible)throw Error('No hay suficiente efectivo registrado');
+   if(diaMonto===pd.dia&&anterior===pd.anterior&&md===pd.medioDia&&ma===pd.medioAnterior&&concepto===pd.conceptoAnterior)throw Error('No hay cambios en el pago');
+   c.movimientosCajaAuditoria=c.movimientosCajaAuditoria||[];
+   c.movimientosCajaAuditoria.push({tipo:'pago_repartidor_total',turnoClave:c.turnoId,fechaISO:new Date(now).toISOString(),responsable:ukiTimbreResponsableActual(),anterior:pd,detallePrevio,nuevo:{dia:diaMonto,anterior,medioDia:md,medioAnterior:ma,concepto}});
+   if(!mixto&&(diaMonto!==pd.dia||md!==pd.medioDia))c.pagosDeliveryDetalle=diaMonto?[{id:now,fechaISO:new Date(now).toISOString(),repartidor:ukiNombreRepartidorTurno(actual)||'Repartidor',monto:diaMonto,medio:md}]:[];
+   c.pagoDeliveryDia=diaMonto;c.pagoDeliveryAnterior=anterior;c.pagoDeliveryMedioDia=md;c.pagoDeliveryMedioAnterior=ma;c.pagoDeliveryConceptoAnterior=anterior?concepto:'';
+   c.pagoDelivery=diaMonto+anterior;c.pagoDeliveryMedio=md;
+   descripcion='Pagos al repartidor guardados';resumen='Total día '+fmt(diaMonto)+' · saldos anteriores '+fmt(anterior)+' (totales, no importes adicionales)';
   }else if(tipo==='pagoRepartidor'){
    const repartidor=ukiRomoTextoCampoQA('romoRepartidorPagoQA',90,2);
    const medio=ukiRomoMedioSalidaQA('romoPagoDeliveryMedioQA');
@@ -8573,9 +8611,14 @@ function ukiRomoCajaConsultaHTMLQA(seccion='resumen'){
   MOV_TABS.map(([k,l])=>'<button type="button" class="'+
    (activo===k?'selected':'')+'" onclick="cambiarMovimientoTab(&quot;'+
    esc(k)+'&quot;)">'+esc(l)+'</button>').join('')+'</div></div>';
+ const cards=document.createElement('div');cards.innerHTML=vRegistros();
+ const idx={apps:1,delivery:2,gastos:3,repartidor:4,propinas:5,retiros:6,chica:7}[activo];
+ const card=cards.children[idx];
+ if(activo==='chica'&&card){const input=card.querySelector('input[onchange]');if(input){input.removeAttribute('onchange');input.readOnly=true;}}
+ if(activo==='repartidor'&&card){for(const x of card.querySelectorAll('select'))for(const op of [...x.options])if(!['Efectivo','Transferencia','Débito','Edenred','Otros'].includes(op.value)&&!op.selected)op.remove();}
  const movimientosHtml=(baseConfirmada?'':avisoBase)+navMovimientos+
-  movimientoPanelRomoQA.base+'<div data-romo-movimiento="'+esc(activo)+'">'+
-  movimientoPanelRomoQA[activo]+'</div>';
+  (baseConfirmada?'':movimientoPanelRomoQA.base)+'<div data-romo-movimiento="'+esc(activo)+'">'+
+  (card?.outerHTML||'<div class="card">No se pudo cargar el movimiento.</div>')+'</div>';
 
  return seccion==='movimientos'?movimientosHtml:
   seccion==='turnos'?ukiRomoCierreTurnoHTMLQA()+
