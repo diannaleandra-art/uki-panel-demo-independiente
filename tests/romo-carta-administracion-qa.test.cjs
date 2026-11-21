@@ -90,3 +90,17 @@ test('rechaza valores, cambios y tipos no permitidos sin mutar los datos',()=>{
   assert.equal(JSON.stringify(state),original,action);
  }
 });
+
+test('Retiro de ingrediente original es persistente y permite restaurar sin mutar la receta',()=>{
+ const state={revision:1,data:empty()},id='ingredient:Vegetales:Palta',old=JSON.stringify(base);
+ const first=apply(state,base,'ingredient-base-archive',{id});
+ assert.deepEqual(first.data.archivedIngredients,[id]);
+ assert.equal(first.data.ingredientOverrides[id].available,false);
+ const loaded=read({store_id:'romo:serena',revision:first.revision,contenido:first.data});
+ assert.deepEqual(loaded.data.archivedIngredients,[id]);
+ assert.throws(()=>apply(loaded,base,'ingredient-base-edit',{id,available:true,contexts:{clasicas:0}}),/Restaura primero/);
+ const last=apply(loaded,base,'ingredient-base-restore',{id});
+ assert.deepEqual(last.data.archivedIngredients,[]);
+ assert.equal(last.data.ingredientOverrides[id],undefined);
+ assert.equal(JSON.stringify(base),old);
+});

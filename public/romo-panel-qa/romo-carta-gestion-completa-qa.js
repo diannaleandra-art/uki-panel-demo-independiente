@@ -69,7 +69,7 @@
   const created=(data.products||[]).map(p=>({
    ...p,categoriaSlug:validCats.has(data.assignments?.[p.sku]??p.categoriaSlug)?(data.assignments?.[p.sku]??p.categoriaSlug):'',_base:false,_original:null
   }));
-  return [...base,...created].filter(p=>p.sku!==SKU_UKI_PROMO);
+  return [...base,...created].filter(p=>p.sku!==SKU_UKI_PROMO&&!(state.base?.archivedProducts||[]).includes(p.sku));
  }
  function ingredients(){
   const data=state.admin?.data||{};
@@ -79,7 +79,7 @@
    _base:true
   }));
   const more=(data.ingredients||[]).map(i=>({...i,_base:false}));
-  return [...base,...more];
+  return [...base,...more].filter(i=>!(data.archivedIngredients||[]).includes(i.sku));
  }
  function promos(){
   const data=state.admin?.data||{};
@@ -178,7 +178,7 @@
   const previousPromo=(state.admin.data.promotions||[]).find(p=>p.sku===fields.id);
   const reactivate=action==='promotion-edit'&&previousPromo?.available===false&&fields.item?.available===true;
   const syncPromo=(wasPublished&&['promotion-edit','discount-set'].includes(action))||reactivate;
-  const syncIngredient=['ingredient-create','ingredient-edit','ingredient-delete','ingredient-base-edit','ingredient-availability'].includes(action)&&state.admin.ingredientesPublicacionHabilitada===true;
+  const syncIngredient=['ingredient-create','ingredient-edit','ingredient-delete','ingredient-base-edit','ingredient-availability','ingredient-base-archive','ingredient-base-restore'].includes(action)&&state.admin.ingredientesPublicacionHabilitada===true;
    let savedDraft=false;
   state.busy=true;status('Guardando cambios en Romo…');
   try{
@@ -1037,6 +1037,7 @@
      void save('discount-set',{id:p.sku,percent:x},'Descuento de '+p.name);
     },true));
     if(p._base&&p.custom)actions.append(button('Eliminar producto',()=>void saveCommercial('product-delete',{sku:p.sku},'Eliminar producto '+p.name,'¿Eliminar de la carta? Los pedidos anteriores se conservan.'),true));
+    if(p._base&&!p.custom)actions.append(button('Eliminar producto',()=>void saveCommercial('original-product-archive',{sku:p.sku},'Retirar producto '+p.name,'¿Retirar '+p.name+' del catálogo activo de Romo? Se conserva el historial.'),true));
     if(!p._base)actions.append(button('Eliminar producto',()=>{
       void save('product-delete',{id:p.sku},'Eliminación de '+p.name,
        '¿Eliminar el producto de los borradores de Romo? No modifica ventas anteriores.');
@@ -1184,7 +1185,7 @@
       finally{if(remove.isConnected)remove.disabled=!canWrite();}
      },true);
      remove.style.color='#a00e28';actions.append(remove);
-    }else actions.append(info('Ingrediente original: se puede marcar agotado.'));
+    }else actions.append(button('Eliminar ingrediente',()=>void save('ingredient-base-archive',{id:p.sku},'Retirar ingrediente '+p.name,'¿Retirar '+p.name+' de las opciones activas de Romo? Los pedidos anteriores se conservan.'),true));
     item.append(f,actions);list.append(item);
    }
   };
@@ -1459,6 +1460,7 @@
      f.append(button('Guardar cambios en la carta',()=>void saveBasePromo(p,{name:name.input.value.trim(),price:Number(price.input.value),description:desc.input.value.trim(),available:av.input.checked},null)));
      const discount=field('Descuento (%)',live.originalPrice?Math.round(100*(1-live.price/live.originalPrice)):0,'number');f.append(discount.wrap);
      f.append(button('Aplicar descuento a la carta',()=>void saveBasePromo(p,null,Number(discount.input.value)),true));
+     f.append(button('Eliminar promoción',()=>void saveCommercial('original-product-archive',{sku:p.sku},'Retirar promoción '+p.name,'¿Retirar esta promoción del catálogo activo de Romo? Los pedidos anteriores se conservan.'),true));
      item.append(f);
     }
     item.append(photoPanel(p.sku));list.append(item);

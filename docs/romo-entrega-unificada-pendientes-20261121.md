@@ -36,3 +36,6 @@ Comparar contra los commits oficiales vigentes; revisar todos los cambios juntos
 - [ ] En referencias originales, diseñar retiro persistente del catálogo activo con auditoría, preservando las recetas e identificadores históricos y sin volver a publicarlas al recargar el catálogo base. Comprobar dependencias de ingredientes y evitar armados imposibles; no borrar ni alterar pedidos, ventas, cierres, timbres, ni datos Uki.
 - [ ] Probar las fichas nuevas y originales en las tres áreas, impedir acciones sin permisos y comprobar carta y banner reales. No eliminar referencias reales como prueba.
 - [ ] Mantener en el mismo lote la retención segura de 35 días (timbres 95) y comprobar respaldos permanentes de Mi Administración antes de habilitar cualquier limpieza. No publicar una actualización por cada acotación.
+
+### Avance en rama de integración (sin publicar)
+Se implementó el retiro persistente auditado de referencias originales de producto/promoción y de ingredientes, con restauración interna. La gestión filtra fichas retiradas y los datos comerciales las declaran no disponibles. Aún falta distinguir retiro definitivo de agotado en la carta pública, completar la interfaz de restauración, revisar dependencias de recetas y categorías y validar el lote. No ejecutar estas acciones contra datos reales antes de completar las pruebas.
