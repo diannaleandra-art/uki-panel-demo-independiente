@@ -136,3 +136,10 @@ test('si dueños cancelan, no modifica ni publica la promoción',async()=>{
  await x.fn(x.draft);
  assert.equal(x.eventos.filter(e=>e.type==='edicion'||e.type==='publicar').length,0);
 });
+
+test('La página oficial Romo carga la versión nueva del editor en Safari iPhone',()=>{
+ const html=fs.readFileSync(path.join(root,'public/romo-panel-qa/index.html'),'utf8');
+ const ref='/romo-panel-qa/romo-carta-gestion-completa-qa.js?v=20261121productos-claros-v1';
+ assert.equal(html.split(ref).length-1,1);
+ assert.ok(html.includes('<script src="'+ref+'" defer></script>'));
+});
