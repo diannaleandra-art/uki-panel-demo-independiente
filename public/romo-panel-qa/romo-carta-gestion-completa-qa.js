@@ -87,6 +87,27 @@
    throw Error(value?.error||'El servidor no confirmó la operación');
   return value;
  }
+ async function commercialRequest(method,payload){
+  const token=await window.ukiInventarioToken?.();if(!token)throw Error('Ingresa como dueño de Romo');
+  const res=await fetch('/api/romo-carta-ediciones-seguras-qa',{method,cache:'no-store',credentials:'same-origin',headers:{Authorization:'Bearer '+token,Accept:'application/json',...(method==='POST'?{'Content-Type':'application/json'}:{})},...(method==='POST'?{body:JSON.stringify(payload)}:{}),signal:AbortSignal.timeout(15000)});
+  const x=await res.json().catch(()=>null);if(!res.ok||x?.ok!==true||x.storeId!==STORE)throw Error(x?.error||'Carta no confirmada');return x;
+ }
+ async function saveBasePromo(p,patch,percent){
+  if(state.busy||!canWrite())return;
+  state.busy=true;
+  try{
+   const fresh=await commercialRequest('GET');
+   if(fresh.edicionHabilitada!==true||fresh.revision!==state.admin.revisionComercial)throw Error('La carta cambió; actualiza antes de guardar');
+   const current=fresh.products.find(x=>x.sku===p.sku);if(!current)throw Error('Promoción no encontrada');
+   if(percent!==null){if(!Number.isSafeInteger(percent)||percent<0||percent>99)throw Error('Descuento entre 0 y 99%');const original=current.originalPrice||current.price;patch={price:Math.max(1,Math.round(original*(100-percent)/100)),originalPrice:percent?original:null};}
+   else if(current.originalPrice&&patch.price>=current.originalPrice)patch.originalPrice=null;
+   if(!Number.isSafeInteger(patch.price)||patch.price<1)throw Error('Precio inválido');
+   const result=await commercialRequest('POST',{sku:p.sku,patch,expectedRevision:fresh.revision,baseSha256:fresh.baseSha256,motivo:'Editar promoción vigente de Romo'});
+   if(result.guardado!==true||result.auditado!==true)throw Error('Cambio comercial no confirmado');
+   state.base=await commercialRequest('GET');await load();status('✓ Promoción vigente actualizada en la carta.');
+  }catch(e){status('No se confirmó el cambio comercial. '+String(e.message||e));}
+  finally{state.busy=false;}
+ }
  async function load(){
   if(!state.root||!state.root.isConnected)return;
   const id=++state.requestId;
@@ -106,8 +127,9 @@
    status('La gestión avanzada no está disponible: '+String(e.message||e));
   }
  }
- async function publicarPromocion(sku,retirar=false){
+ async function publicarPromocion(sku,retirar=false,expectedAdmin=null){
   const current=await request('GET');
+  if(expectedAdmin!==null&&current.revision!==expectedAdmin)throw Error('La gestión cambió; revisa el borrador antes de publicar');
   if(!current.publicacionHabilitada||!Number.isSafeInteger(current.revisionComercial))throw Error('Publicación comercial no disponible');
   const done=await request('POST',{action:retirar?'promotion-withdraw':'promotion-publish',expectedRevision:current.revision,fields:{id:sku,commercialRevision:current.revisionComercial},motivo:(retirar?'Retirar':'Publicar')+' promoción Romo'});
   if(done.guardado!==true||done.auditado!==true||done.publicada!==!retirar)throw Error('No se confirmó la publicación');
@@ -127,7 +149,7 @@
    if(done.guardado!==true||done.auditado!==true||done.draftOnly!==true||
       done.revision!==rev+1)throw Error('El servidor no confirmó la auditoría');
    savedDraft=true;
-   if(syncPromo)await publicarPromocion(fields.id,action==='promotion-edit'&&fields.item.available===false);
+   if(syncPromo)await publicarPromocion(fields.id,action==='promotion-edit'&&fields.item.available===false,done.revision);
    state.busy=false;await load();
    status('✓ '+description+(syncPromo?'. Cambio publicado en la carta de Romo.':'. Guardado en administración; no se modificó la carta pública.'));
   }catch(e){
@@ -1172,7 +1194,7 @@
      created=result.recordId;
      const photo=await photoRequest('POST',{action:'save',sku:created,base64,expectedVersion:0},created);
      if(photo.guardado!==true||photo.auditado!==true||photo.draftOnly!==true)throw Error('La foto no quedó confirmada.');
-     if(item.available){await publicarPromocion(created);notice='✓ Promoción publicada con foto en la carta de Romo.';}else notice='Promoción guardada y desactivada. Puedes publicarla cuando esté disponible.';
+     if(item.available){await publicarPromocion(created,false,result.revision);notice='✓ Promoción publicada con foto en la carta de Romo.';}else notice='Promoción guardada y desactivada. Puedes publicarla cuando esté disponible.';
     }catch(e){notice=(created?'La promoción ya existe; revisa su foto y pulsa Publicar promoción en la lista. ':'')+String(e.message||e);}
     finally{state.busy=false;await load();status(notice);if(createButton.isConnected)createButton.disabled=!canWrite();}
    });box.append(createButton);
@@ -1211,24 +1233,19 @@
        '¿Eliminar esta promoción de pruebas? Se conserva la auditoría.');
      },true));
     }else{
-     item.append(info('Promoción existente en la carta comercial. Aquí puedes preparar cambios como borrador.'));
+     item.append(info('Promoción vigente. Guarda el nombre, precio, disponibilidad o descuento directamente en la carta. El armado completo aún requiere sincronización.'));
      const config=p.config||p;item.append(info((Number.isInteger(config.rollCount)&&config.rollCount>0?config.rollCount+' rolls · ':'')+(Number.isInteger(config.sauceCount)?config.sauceCount+' salsas · ':'')+(Number.isInteger(config.korokes)?config.korokes+' korokes · ':'')+(Array.isArray(config.payments)?'Pagos: '+config.payments.join(', '):'Armado original conservado')));
      if(p.kind==='monthly'&&p.sourceId!=='handroll-individual'){
       const edit=panel('Editar armado completo de la promoción');
       edit.append(info('Los cambios de rolls, salsas y pagos requieren publicación coordinada con el cotizador. Conservamos la receta comercial actual hasta entonces.'),promotionForm({...p,promoType:'sushi',piecesPerRoll:p.piecesPerRoll||((p.size&&p.rollCount)?p.size/p.rollCount:12)},false));item.append(edit);
      }
-     const commercial=button('Editar precio y disponibilidad de la carta vigente',()=>window.romoAbrirEdicionComercialQA?.(p.sku),true);commercial.disabled=state.base?.edicionHabilitada!==true||state.base?.revision<1;item.append(commercial);
-     const f=stack(),name=field('Nombre',p.name),price=field('Precio',p.price,'number'),
-       desc=field('Descripción',p.description||''),av=field('Disponible',p.available!==false,'checkbox');
+     const live=p._original||p;
+     const f=stack(),name=field('Nombre',live.name),price=field('Precio vigente',live.price,'number'),
+       desc=field('Descripción',live.description||''),av=field('Disponible',live.available!==false,'checkbox');
      f.append(name.wrap,price.wrap,desc.wrap,av.wrap);
-     f.append(button('Guardar cambios QA',()=>void save('product-base-edit',{
-      id:p.sku,item:{name:name.input.value.trim(),price:Number(price.input.value),
-       description:desc.input.value.trim(),available:av.input.checked}
-     },'Editar promoción aprobada '+p.name)));
-     const discount=field('Descuento (%)',state.admin.data.discounts?.[p.sku]||0,'number');f.append(discount.wrap);
-     f.append(button('Guardar descuento QA',()=>{
-      void save('discount-set',{id:p.sku,percent:Number(discount.input.value)},'Descuento de '+p.name);
-     },true));
+     f.append(button('Guardar cambios en la carta',()=>void saveBasePromo(p,{name:name.input.value.trim(),price:Number(price.input.value),description:desc.input.value.trim(),available:av.input.checked},null)));
+     const discount=field('Descuento (%)',live.originalPrice?Math.round(100*(1-live.price/live.originalPrice)):0,'number');f.append(discount.wrap);
+     f.append(button('Aplicar descuento a la carta',()=>void saveBasePromo(p,null,Number(discount.input.value)),true));
      item.append(f);
     }
     item.append(photoPanel(p.sku));list.append(item);
