@@ -35,8 +35,9 @@
  const stack=()=>css(E('div'),'display:grid;gap:10px;margin:13px 0;min-width:0');
  const sectionCard=()=>css(E('section'),'border:1.5px solid #e4c8cd;border-radius:14px;padding:13px;background:#fff;margin:0 0 15px;min-width:0');
  function itemCard(name,price,original,availability,publication,collapsible=true){
-  const card=css(E(collapsible?'details':'article'),'margin:12px 0;border:1.5px solid #e1c4ca;border-left:5px solid #a00e28;background:#fff;border-radius:15px;padding:13px;min-width:0;overflow-wrap:anywhere;box-shadow:0 2px 7px #2513190d');
-  const head=css(E(collapsible?'summary':'header'),'display:block;cursor:'+(collapsible?'pointer':'default')+';padding:3px 0 10px;color:#241e21;border-bottom:1px solid #efdee2');
+  const card=css(E(collapsible?'details':'article'),'margin:10px 0;border:1.5px solid #e1c4ca;border-left:5px solid #a00e28;background:#fff!important;border-radius:14px;padding:12px;min-width:0;overflow-wrap:anywhere;box-shadow:0 2px 7px #2513190d');
+  // No usar <header>: el CSS global del panel pinta todos los header con degradado oscuro.
+  const head=css(E(collapsible?'summary':'div'),'display:block;cursor:'+(collapsible?'pointer':'default')+';background:#fff!important;color:#241e21!important;padding:5px 2px 10px;border-bottom:1px solid #efdee2;list-style:none');
   head.append(css(E('strong',name),'display:block;font-size:17px;line-height:1.35;color:#231b1e'));
   const line=row();line.style.margin='7px 0 0';
   if(original>price)line.append(css(E('del',money(original)),'font-size:14px;color:#776b6d'));
@@ -995,7 +996,7 @@
   newCard.append(info('Producto de precio fijo. Para sushi personalizable utiliza Promociones.'),form);target.append(newCard);
   const search=field('Buscar producto');search.input.type='search';
   search.input.placeholder='Sushi, gohan, promoción…';const group=select('Categoría',[['','Todas las categorías'],...categoryOptions().filter(x=>x[0]),['__uncategorized','Sin categoría']]);
-  const filters=stack();filters.append(search.wrap,group.wrap);const reset=button('Limpiar búsqueda y categoría',()=>{search.input.value='';group.input.value='';state.limit=16;draw();},true);reset.disabled=false;filters.append(reset);target.append(filters);
+  const filters=stack();filters.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end;margin:12px 0';filters.append(search.wrap,group.wrap);const reset=button('Limpiar filtros',()=>{search.input.value='';group.input.value='';state.limit=16;draw();},true);reset.disabled=false;filters.append(reset);target.append(filters);
   const container=E('div');target.append(container);
   const draw=()=>{
    clear(container);
@@ -1004,7 +1005,7 @@
    for(const p of items.slice(0,state.limit)){
     const percent=p._base?(p.originalPrice?Math.round(100*(1-p.price/p.originalPrice)):0):Number(state.admin.data.discounts?.[p.sku]||0);
     const finalPrice=p._base?p.price:percent?Math.max(1,Math.round(p.price*(100-percent)/100)):p.price;
-    const item=itemCard(p.name,finalPrice,percent?(p.originalPrice||p.price):0,p.available===false?'Agotado':'Disponible',p._base?'Carta vigente':'Borrador',false);
+    const item=itemCard(p.name,finalPrice,percent?(p.originalPrice||p.price):0,p.available===false?'Agotado':'Disponible',p._base?'Carta vigente':'Borrador',true);
     const form=stack();
     const n=field('Nombre',p.name),price=field('Precio',p.price,'number'),
      desc=field('Descripción',p.description||''),
@@ -1171,7 +1172,8 @@
         'Disponibilidad de '+p.name);
       },true));
     }
-    const card=css(E('article'),'border:1px solid #ead8de;border-radius:13px;padding:10px;margin:10px 0;background:white');
+    // Un solo desplegable por ingrediente, sin tarjetas anidadas que ocupen la pantalla.
+    item.style.cssText='border:1px solid #ead8de;border-radius:12px;padding:11px;margin:9px 0;background:#fff;color:#241e21';
     const actions=row();
     if(!p._base){
      const remove=button('Eliminar',async()=>{
@@ -1183,7 +1185,7 @@
      },true);
      remove.style.color='#a00e28';actions.append(remove);
     }else actions.append(info('Ingrediente original: se puede marcar agotado.'));
-    item.append(f);card.append(item,actions);list.append(card);
+    item.append(f,actions);list.append(item);
    }
   };
   search.input.oninput=draw;filterKind.input.onchange=draw;draw();
