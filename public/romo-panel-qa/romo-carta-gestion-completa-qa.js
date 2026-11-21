@@ -1078,14 +1078,14 @@
  }
  function renderIngredients(){
   const target=host('ingredientes');if(!target)return;clear(target);
-  target.append(cardNote(),info('Vegetales, proteínas y envolturas. Cada recargo puede variar según la preparación.'));
+  target.append(cardNote(),info('Vegetales, proteínas, envolturas y salsas incluidas. Las salsas adicionales de pago se editan en Productos.'));
    const sync=button('Sincronizar cambios pendientes',async()=>{if(state.busy||!state.admin?.ingredientesPublicacionHabilitada)return;if(!window.confirm('¿Aplicar los ingredientes y recargos pendientes de Romo a la carta? No cambia pedidos antiguos.'))return;state.busy=true;try{const result=await publicarIngredientes(state.admin.revision);await load();status(result.sinCambios?'Los ingredientes ya están sincronizados.':'Ingredientes publicados en revisión '+result.revisionComercial+'.');}catch(e){status('No se confirmó la publicación: '+String(e.message||e));}finally{state.busy=false;}},true);
   sync.disabled=!state.admin?.ingredientesPublicacionHabilitada||state.admin?.revisionComercial<1;target.append(sync);
   if(sync.disabled)target.append(info('Sincronización comercial pendiente de habilitación. Los cambios se conservan como borrador.'));else target.append(info('Al guardar vegetales, proteínas y envolturas, se sincronizan con la carta de Romo. Usa el botón solo para recuperar cambios pendientes.'));
-  const kinds=[['vegetal','Vegetal'],['proteina','Proteína'],['envoltura','Envoltura']];
-  const allowed={vegetal:['classic','premium','monthly','handroll','burger','gohan'],proteina:['classic','premium','monthly','handroll','burger'],envoltura:['classic','premium','monthly','handroll']};
+  const kinds=[['vegetal','Vegetal'],['proteina','Proteína'],['envoltura','Envoltura'],['salsa','Salsa incluida']];
+  const allowed={vegetal:['classic','premium','monthly','handroll','burger','gohan'],proteina:['classic','premium','monthly','handroll','burger'],envoltura:['classic','premium','monthly','handroll'],salsa:['sauces']};
   const updateSurfaces=(select,inputs)=>{for(const [k,input] of Object.entries(inputs)){input.disabled=!allowed[select.value]?.includes(k);if(input.disabled)input.checked=false;}};
-  const surfaces=[['classic','Sushi clásico'],['premium','Premium'],['monthly','Promociones'],['handroll','Handroll'],['burger','Burger'],['gohan','Gohan']];
+  const surfaces=[['classic','Sushi clásico'],['premium','Premium'],['monthly','Promociones'],['handroll','Handroll'],['burger','Burger'],['gohan','Gohan'],['sauces','Todos los armados con salsa incluida']];
   const create=panel('＋ Agregar ingrediente al armado'),form=stack();
   create.open=true;
   if(!canWrite())create.append(info('Agregar ingrediente está visible, pero no se puede guardar hasta habilitar la edición administrativa de Romo.'));
@@ -1099,7 +1099,7 @@
    box.wrap.style.display='flex';box.wrap.style.alignItems='center';box.input.style.width='auto';
    surfaceInputs[key]=box.input;checks.append(box.wrap);
   }
-  kind.input.onchange=()=>updateSurfaces(kind.input,surfaceInputs);updateSurfaces(kind.input,surfaceInputs);
+  kind.input.onchange=()=>{updateSurfaces(kind.input,surfaceInputs);price.input.disabled=kind.input.value==='salsa';if(kind.input.value==='salsa'){price.input.value='0';surfaceInputs.sauces.checked=true;}};kind.input.onchange();
   form.append(checks,button('Agregar ingrediente',()=>{
    void save('ingredient-create',{item:{name:n.input.value.trim(),category:kind.input.value,
     surcharge:Number(price.input.value),
@@ -1109,7 +1109,7 @@
   }));
   create.append(form);target.append(create);
   const search=field('Buscar ingrediente',state.ingredientSearch);search.input.type='search';search.input.placeholder='Ej.: Frutilla, palta o camarón';
-  const filterKind=select('Tipo de ingrediente',[['','Todos'],...kinds,['salsa','Salsas']],state.ingredientKind);
+  const filterKind=select('Tipo de ingrediente',[['','Todos'],...kinds],state.ingredientKind);
   target.append(search.wrap,filterKind.wrap);
   const list=E('div');target.append(list);
   const draw=()=>{
@@ -1125,7 +1125,7 @@
     if(p._base){
       const contextInputs={};
       for(const [key,price] of Object.entries(p.contexts||{})){
-       const input=field('Recargo · '+key,price,'number');f.append(input.wrap);contextInputs[key]=input.input;
+       const input=field('Recargo · '+key,price,'number');if(kindOf(p.category)==='salsa')input.input.disabled=true;f.append(input.wrap);contextInputs[key]=input.input;
       }
       const av=field('Disponible',p.available!==false,'checkbox');f.append(av.wrap);
       f.append(button('Guardar recargos',()=>{
@@ -1143,7 +1143,7 @@
        const x=field(label,p.surfaces?.includes(key)||false,'checkbox');
        x.wrap.style.display='flex';x.input.style.width='auto';enabled[key]=x.input;checks.append(x.wrap);
       }
-      cat.input.onchange=()=>updateSurfaces(cat.input,enabled);updateSurfaces(cat.input,enabled);
+      cat.input.onchange=()=>{updateSurfaces(cat.input,enabled);cost.input.disabled=cat.input.value==='salsa';if(cat.input.value==='salsa'){cost.input.value='0';enabled.sauces.checked=true;}};cat.input.onchange();
       f.append(checks,button('Guardar ingrediente',()=>{
        void save('ingredient-edit',{id:p.sku,item:{
         name:n.input.value.trim(),category:cat.input.value,surcharge:Number(cost.input.value),
