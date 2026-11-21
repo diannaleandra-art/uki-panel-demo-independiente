@@ -11,6 +11,17 @@ on:
       - tests/uki-archivo-mensual-romo-carga.test.cjs
       - tests/uki-archivo-mensual-interfaz.test.cjs
       - .github/workflows/uki-romo-archivo-release-minimo.yml
+  pull_request:
+    branches:
+      - release/romos-panel-v816
+    paths:
+      - public/romo-panel-qa/index.html
+      - public/romo-panel-qa/romo-panel-unico-sesion-qa.mjs
+      - public/romo-panel-qa/uki-archivo-mensual-core.js
+      - public/romo-panel-qa/uki-archivo-mensual-panel.js
+      - tests/uki-archivo-mensual-romo-carga.test.cjs
+      - tests/uki-archivo-mensual-interfaz.test.cjs
+      - .github/workflows/uki-romo-archivo-release-minimo.yml
 permissions:
   contents: read
 jobs:
