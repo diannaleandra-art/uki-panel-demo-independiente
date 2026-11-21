@@ -151,7 +151,7 @@
    for(let i=0;i<v.length;i+=78)detail.push('  '+ascii(v.slice(i,i+78)));
   }
   const paginas=[];for(let i=0;i<detail.length;i+=45)paginas.push(detail.slice(i,i+45));
-  if(paginas.length>350)throw Error('El PDF sería demasiado grande. Descarga primero el Excel completo.');
+  if(paginas.length>3500)throw Error('El PDF supera el tamaño seguro para generar en el teléfono. Conserva el Excel íntegro y el archivo permanente.');
   const objetos=['','<< /Type /Catalog /Pages 2 0 R >>','','<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>'];
   const kids=[];
   paginas.forEach((rows,i)=>{
