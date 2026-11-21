@@ -251,11 +251,11 @@
    state.busy=true;upload.disabled=true;statusP.textContent='Preparando fotografía…';
    try{
     const base64=await jpegBase64(file.files[0]);
-    const result=await photoRequest('POST',{action:'save',sku,base64,expectedVersion:version},sku);
-    if(result.guardado!==true||result.auditado!==true||result.draftOnly!==true)
+    const result=await photoRequest('POST',{action:activePromo?'replace-published':'save',sku,base64,expectedVersion:version,...(activePromo?{expectedCommercialRevision:state.admin.revisionComercial}:{})},sku);
+    if(result.guardado!==true||result.auditado!==true||(activePromo?result.publicada!==true:result.draftOnly!==true))
      throw Error('No se confirmó auditoría de fotografía');
-    statusP.textContent='✓ Fotografía guardada en Romo QA; aún no publicada a clientes.';
-    await loadPhoto();
+    if(activePromo){await load();status('✓ Fotografía actualizada en la promoción publicada.');}
+    else{await loadPhoto();statusP.textContent='✓ Fotografía guardada; pendiente de publicación.';}
    }catch(e){statusP.textContent='No se confirmó la foto. '+String(e.message||e);}
    finally{state.busy=false;upload.disabled=!canWrite();}
   });
@@ -281,13 +281,13 @@
     }else preview.append(info('Este producto todavía no tiene fotografía guardada en Romo QA.'));
     statusP.textContent='Fotografía consultada en Romo · versión '+version+'.';
     remove.disabled=!canWrite()||version<1||activePromo;
-    upload.disabled=!canWrite()||activePromo;
+    upload.disabled=!canWrite()||(activePromo&&(!state.admin.publicacionHabilitada||version<1));
    }catch(e){statusP.textContent='No se pudo consultar la foto: '+String(e.message||e);}
   };
   details.addEventListener('toggle',()=>{
    if(details.open&&!loaded){loaded=true;void loadPhoto();}
   });
-  if(activePromo){file.disabled=true;upload.disabled=true;remove.disabled=true;box.append(info('La foto de esta promoción está publicada. Para cambiarla, retira la promoción, guarda la nueva foto y vuelve a publicar. No hace falta crear otra promoción.'));}
+  if(activePromo){upload.disabled=true;remove.disabled=true;box.append(info('Elige una fotografía nueva y guárdala. La promoción conserva su precio, armado y disponibilidad; no hace falta retirarla.'));}
   box.append(preview,statusP,file,upload,remove);details.append(box);return details;
  }
  function previewPanel(){

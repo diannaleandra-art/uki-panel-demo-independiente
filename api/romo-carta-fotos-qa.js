@@ -1,5 +1,5 @@
 'use strict';
-/* Imágenes JPEG privadas de Romo QA: nunca se publican automáticamente. */
+/* Imágenes Romo: privadas por defecto; reemplazo publicado solo por dueños y con auditoría atómica. */
 const {createHash,randomUUID}=require('node:crypto');
 const STORE='romo:serena';
 const {config}=require('./romo-carta-ediciones-seguras-qa.js')._internalQA;
@@ -34,11 +34,12 @@ module.exports=async function romoFotosQA(req,res){
      !body||typeof body!=='object'||Array.isArray(body)||
      JSON.stringify(body).length>450000)
     return fail(res,400,'Foto inválida o demasiado grande');
-  if(!['save','remove'].includes(body.action)||
+  if(!['save','remove','replace-published'].includes(body.action)||
      !Number.isSafeInteger(body.expectedVersion)||body.expectedVersion<0||
      body.expectedVersion>100000||
-     Object.keys(body).some(k=>!['action','sku','expectedVersion','base64'].includes(k))||
-     (body.action==='save'&&typeof body.base64!=='string')||
+     Object.keys(body).some(k=>!['action','sku','expectedVersion','base64','expectedCommercialRevision'].includes(k))||
+     (body.action==='replace-published'?(!Number.isSafeInteger(body.expectedCommercialRevision)||body.expectedCommercialRevision<1||body.expectedVersion<1||body.expectedVersion>=100000):body.expectedCommercialRevision!==undefined)||
+     (body.action!=='remove'&&typeof body.base64!=='string')||
      (body.action==='remove'&&body.base64!==undefined))
     return fail(res,400,'Acción de fotografía inválida');
   sku=String(body.sku||'');
@@ -109,6 +110,34 @@ module.exports=async function romoFotosQA(req,res){
       binary[binary.length-2]!==255||binary[binary.length-1]!==217)
      return fail(res,400,'La imagen debe ser JPEG comprimido');
    const hash=createHash('sha256').update(binary).digest('hex');
+   if(body.action==='replace-published'){
+    if(!conf.write||process.env.ROMO_PROMOCIONES_PUBLICACION_ENABLED!=='true'||!/^promo:[a-f0-9-]{36}$/.test(sku))
+     return fail(res,403,'Reemplazo de fotografía publicado no autorizado');
+    const commercialRows=await db.query('SELECT store_id,revision,base_sha256,contenido FROM public.romo_carta_ediciones_v1 WHERE store_id=$1',[STORE]);
+    if(commercialRows.length!==1)return fail(res,409,'Carta comercial no confirmada');
+    const row=commercialRows[0],lib=await import('../lib/romo-carta-ediciones-seguras-qa.mjs');
+    const view=lib.vistaEdicionesRomoQA(base,row);
+    const commercialSku='monthly:romoq-'+sku.slice(6);
+    const prev=view.publishedPromotions.find(p=>p.sku===commercialSku);
+    if(view.revision!==body.expectedCommercialRevision||!prev||prev.photoVersion!==expected)
+     return fail(res,409,'Cambió la promoción o su fotografía; actualiza antes de reemplazar');
+    const doc=structuredClone(typeof row.contenido==='string'?JSON.parse(row.contenido):row.contenido);
+    const original=doc.gestion.promotions.find(p=>p.sku===commercialSku);
+    const before={...original};
+    original.photoVersion=expected+1;doc.revision=view.revision+1;
+    lib.vistaEdicionesRomoQA(base,{...row,revision:doc.revision,contenido:doc});
+    const changed=await db.query([
+     'WITH locked AS (SELECT store_id FROM public.romo_carta_ediciones_v1 WHERE store_id=$1 AND revision=$10 AND base_sha256=$11 FOR UPDATE),',
+     'saved_photo AS (UPDATE public.romo_carta_admin_fotos_qa_v1 SET contenido=decode($3,\'base64\'),version=version+1,actualizado_por=$5,actualizado_en=now() WHERE store_id=$1 AND sku=$2 AND version=$4 AND EXISTS(SELECT 1 FROM locked) RETURNING version),',
+     'saved_catalog AS (UPDATE public.romo_carta_ediciones_v1 SET revision=revision+1,contenido=$9::jsonb,actualizado_por=$5,actualizado_en=now() WHERE store_id=$1 AND revision=$10 AND base_sha256=$11 AND EXISTS(SELECT 1 FROM saved_photo) RETURNING revision),',
+     'audit_photo AS (INSERT INTO public.romo_carta_admin_fotos_auditoria_qa_v1(event_id,store_id,sku,accion,version,sha256,bytes,responsable_uid) SELECT $6,$1,$2,\'subir\',version,$7,$8,$5 FROM saved_photo RETURNING event_id),',
+     'audit_catalog AS (INSERT INTO public.romo_carta_ediciones_auditoria_v1(store_id,revision,revision_anterior,base_sha256,sku,anterior,nuevo,responsable_uid,motivo) SELECT $1,revision,$10,$11,$12,$13::jsonb,$14::jsonb,$5,\'Actualizar fotografía de promoción publicada\' FROM saved_catalog RETURNING revision)',
+     'SELECT saved_photo.version,saved_catalog.revision FROM saved_photo CROSS JOIN saved_catalog CROSS JOIN audit_photo JOIN audit_catalog ON audit_catalog.revision=saved_catalog.revision'
+    ].join('\n'),[STORE,sku,raw,expected,identity.userId,eventId,hash,binary.length,JSON.stringify(doc),view.revision,row.base_sha256,commercialSku,JSON.stringify(before),JSON.stringify(original)]);
+    if(changed.length!==1||Number(changed[0].version)!==expected+1||Number(changed[0].revision)!==doc.revision)
+     return fail(res,409,'No se confirmó el reemplazo; actualiza antes de repetir');
+    return res.status(200).json({ok:true,storeId:STORE,sku,draftOnly:false,publicada:true,guardado:true,auditado:true,version:expected+1,revisionComercial:doc.revision});
+   }
    const args=[STORE,sku,raw,expected,identity.userId,eventId,hash,binary.length];
    if(expected===0){
     rows=await db.query([
