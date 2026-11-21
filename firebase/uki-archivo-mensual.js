@@ -3,7 +3,7 @@
  */
 (function(root,factory){
  const api=factory();if(typeof module!=='undefined'&&module.exports)module.exports=api;
- if(root){root.ukiArchivoMensualV1=api;if(root.document)api.instalar();}
+ if(root){root.ukiArchivoMensualV1=api;if(root.document&&(/\/romo-panel-qa\//.test(root.location.pathname)||/\/uki-sushi-local\.html$/.test(root.location.pathname)))api.instalar();}
 })(typeof window!=='undefined'?window:null,function(){
 'use strict';
 const MAP={'Uki Regimiento Arica':'uki:arica','Uki La Serena':'uki:serena',
