@@ -1922,7 +1922,7 @@ function lock(){session='';romoCierresPrivadosSecuencia++;
  limpiarInformes();show('unlock');}
 async function checkState(){
  if(!auth.currentUser){show('login');notify('Entra con tu cuenta autorizada.');return}
- try{const r=await api('estado');if(r.autorizado){show('app');await loadBusinesses();if(mesArchivoExigible())void archivoMensualListar();return}
+ try{const r=await api('estado');if(r.autorizado){show('app');await loadBusinesses();void archivoMensualListar();return}
  show(r.pin_configurado?'unlock':'setup');notify(r.pin_configurado?'Escribe el PIN privado.':'Configura el PIN de dueños una única vez.');
  }catch(e){show('login');notify(e.message,'error')}
 }
@@ -1941,7 +1941,7 @@ $('configure').onclick=()=>safe('configure',async()=>{
 });
 $('enter').onclick=()=>safe('enter',async()=>{
  const r=await api('ingresar_pin',{pin:value('pin')});session=r.sesion;$('pin').value='';
- show('app');await loadBusinesses();switchTab('resumen');if(mesArchivoExigible())void archivoMensualListar();
+ show('app');await loadBusinesses();switchTab('resumen');void archivoMensualListar();
 });
 $('exit').onclick=async()=>{
  if(session)try{await api('salir')}catch{}
@@ -2013,7 +2013,9 @@ async function archivoMensualListar(){
   const archivadas=new Set(data.archivos.filter(x=>x.mes===ultimoMes).map(x=>x.sucursal));
   const sinArchivo=Object.entries(labels).filter(([k])=>!archivadas.has(k)).map(([,nombre])=>nombre);
   const indicador=document.createElement('p');indicador.className='hint';
-  indicador.textContent='Control mensual '+ultimoMes+' · '+(3-sinArchivo.length)+
+  indicador.textContent=!mesArchivoExigible()?
+   'Primer respaldo mensual: noviembre de 2026, desde el 5 de diciembre. No hay atrasos ni se borrará información.':
+   'Control mensual '+ultimoMes+' · '+(3-sinArchivo.length)+
    '/3 sucursales con respaldo. '+(sinArchivo.length?'Pendientes: '+sinArchivo.join(', ')+'.':'Tres sucursales archivadas. Revisar descargas y recuperación antes de cualquier limpieza.');
   host.append(indicador);
   if(!data.archivos.length){estado.textContent='Aún no hay meses archivados. El primero corresponde a noviembre de 2026.';return;}
