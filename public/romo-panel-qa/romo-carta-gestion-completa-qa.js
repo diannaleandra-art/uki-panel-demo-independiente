@@ -980,6 +980,7 @@
  }
  function renderProducts(){
   const target=host('productos');if(!target)return;clear(target);
+  restaurarReferenciasOriginales(target,'product');
   target.append(cardNote());
   const newCard=panel('＋ Agregar producto a Romo');
   const name=field('Nombre'),price=field('Precio en pesos','', 'number'),description=field('Descripción'),
@@ -1095,6 +1096,7 @@
  }
  function renderIngredients(){
   const target=host('ingredientes');if(!target)return;clear(target);
+  restaurarReferenciasOriginales(target,'ingredient');
   target.append(cardNote(),info('Vegetales, proteínas, envolturas y salsas incluidas. Las salsas adicionales de pago se editan en Productos.'));
    const sync=button('Sincronizar cambios pendientes',async()=>{if(state.busy||!state.admin?.ingredientesPublicacionHabilitada)return;if(!window.confirm('¿Aplicar los ingredientes y recargos pendientes de Romo a la carta? No cambia pedidos antiguos.'))return;state.busy=true;try{const result=await publicarIngredientes(state.admin.revision);await load();status(result.sinCambios?'Los ingredientes ya están sincronizados.':'Ingredientes publicados en revisión '+result.revisionComercial+'.');}catch(e){status('No se confirmó la publicación: '+String(e.message||e));}finally{state.busy=false;}},true);
   sync.disabled=!state.admin?.ingredientesPublicacionHabilitada||state.admin?.revisionComercial<1;target.append(sync);
@@ -1391,9 +1393,26 @@
   }else box.append(button('Guardar cambios de promoción',()=>void save('promotion-edit',{id:p.sku,item:make()},'Editar promoción '+name.input.value.trim())));
   return box;
  }
+ function restaurarReferenciasOriginales(target,tipo){
+  const items=tipo==='ingredient'?(state.base?.ingredients||[]).filter(x=>(state.admin?.data?.archivedIngredients||[]).includes(x.sku)):
+   (state.base?.products||[]).filter(x=>(state.base?.archivedProducts||[]).includes(x.sku)&&
+    (tipo==='promotion'?((x.kind==='monthly'&&x.sourceId!=='handroll-individual')||(x.categoriaSlug==='mensual'&&x.kind!=='monthly')):true));
+  if(!items.length)return;
+  const box=panel('Fichas retiradas · '+items.length);
+  box.append(info('No forman parte del catálogo activo. Se conserva su historial.'));
+  for(const p of items){
+   const line=row();
+   line.append(E('strong',p.name),button('Restaurar',()=>{
+    if(tipo==='ingredient')void save('ingredient-base-restore',{id:p.sku},'Restaurar ingrediente '+p.name,'¿Restaurar '+p.name+'?');
+    else void saveCommercial('original-product-restore',{sku:p.sku},'Restaurar '+p.name,'¿Restaurar esta ficha? Su disponibilidad anterior se conserva.');
+   },true));box.append(line);
+  }
+  target.append(box);
+ }
  function renderPromos(){
   const target=host('promociones');if(!target)return;clear(target);
   const note=cardNote();note.firstElementChild.textContent='Crea, edita y publica tus promociones de Romo. Las promociones activas se actualizan al guardar; las no publicadas conservan su borrador.';target.append(note);
+  restaurarReferenciasOriginales(target,'promotion');
   const newCard=panel('＋ Crear promoción y publicar');
   newCard.append(info('Tipos de Romo: sushi personalizable, gohan fijo o combo fijo; no pizzas. Las fotos permanecen privadas hasta publicar la versión aprobada.'));
   newCard.append(promotionForm(null,true));const createArea=sectionCard();createArea.append(info('Nueva promoción. Abre el formulario solo para crear; las existentes aparecen abajo.'),newCard);target.append(createArea);
