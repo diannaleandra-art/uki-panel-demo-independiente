@@ -1381,25 +1381,30 @@ function vInicio(){
  if(S.pinSuc){
  const esRomo=S.pinSuc===ROMO_SUCURSAL_QA;
  const existe=esRomo||!!localStorage.getItem(claveLocal(S.pinSuc));
- return '<div class="card"><h2>'+esc(S.pinSuc)+'</h2>'+
-  (esRomo?'<div class="card" style="border-color:#cda6ae;background:#fff">'+
-   '<b>Acceso privado de Romo Sushi</b><p class="muted">Usa tu cuenta Google autorizada y después tu misma contraseña de Uki. No uses «Cargar nube» de Uki para esta sucursal.</p>'+
-   '<button type="button" class="big" onclick="document.getElementById(\'ukiLoginQA\')?.click()">Entrar con Google · Romo</button>'+
-   '<p id="romoGoogleEstadoQA" class="muted" role="status">Google: comprueba tu sesión para continuar.</p></div>':'')+
-  '<p class="muted">'+(esRomo?"Ingresa con la misma contraseña de Uki.":existe?"Escribe la contraseña para abrir tus registros cifrados.":"Crea una clave de al menos 12 caracteres para esta sucursal.")+'</p>'+
-  '<label>Contraseña de acceso</label><input id="ukiAccesoClave" type="password" autocomplete="off" placeholder="Mínimo 12 caracteres">'+
-  (existe?'':'<label>Repite la contraseña</label><input id="ukiAccesoConfirmar" type="password" autocomplete="off" placeholder="Confirmar contraseña">')+
-  '<button class="big" onclick="entrarSuc()">'+(existe?"Abrir sucursal":"Crear acceso")+'</button>'+
-  (esRomo?'<button type="button" class="big" style="background:#382e2a" onclick="ukiRomoRevisarAccesoSoloLecturaQA()">Consultar estado cifrado de Romo</button>'+
-   '<p class="muted">Comprueba la copia ya guardada sin abrir caja, registrar pedidos ni modificar inventario. Usa tu contraseña habitual.</p>'+
-   '<button type="button" class="big" style="background:#ad102b" onclick="ukiRomoAbrirVistaPreliminarQA()">Ver Romo en modo consulta (sin ventas)</button>'+
-   '<p class="muted">Vista preliminar dentro del mismo panel. Muestra los contadores reales cifrados y la carta Romo si está disponible. No permite registrar movimientos.</p>'+
-   '<details id="romoCajaInicialDuenosQA" class="card" style="border-color:#c9b19f;background:#fffaf6">'+
-   '<summary style="cursor:pointer;font-weight:700">Solo dueños · Preparar estado inicial vacío de Romo</summary>'+
-   '<p class="muted">Se crea una sola copia cifrada VACÍA de Romo en su propia base, con caja inicial en $0 y sin ventas, turnos, pedidos, inventario ni cierres. No se abre la operación.</p>'+
-   '<button type="button" class="big" style="background:#a72c24" onclick="ukiRomoCrearEstadoInicialVacioQA()">Confirmar preparación de Romo (sin ventas)</button></details>':'')+
-  (esRomo?ukiRomoFormularioVinculacionQA():'')+
-  '<p class="muted">La clave no se guarda. Si la pierdes, necesitarás un respaldo. El PIN antiguo de 4 números no protege estos registros.</p></div>';
+ // Inicio compacto para Romo; conserva exactamente los mismos validadores.
+ // Las herramientas de diagnóstico permanecen disponibles, pero cerradas.
+ return '<section class="card" id="romoAccesoSimpleQA" style="max-width:480px;margin:10px auto 18px;padding:20px 17px">'+
+  '<h2 style="font-size:22px;line-height:1.2;margin:0 0 10px">'+(esRomo?'Ingresar al panel':esc(S.pinSuc))+'</h2>'+
+  (esRomo?'<p class="muted" style="margin:0 0 17px">Romo’s Sushi · La Serena</p>'+
+   '<button type="button" class="big" onclick="document.getElementById(\'ukiLoginQA\')?.click()">1. Iniciar sesión con Google</button>'+
+   '<p id="romoGoogleEstadoQA" class="muted" role="status" style="margin:9px 0 18px;font-size:12px">Inicia sesión para continuar.</p>':'')+
+  '<label for="ukiAccesoClave" style="font-weight:700;color:inherit">'+(esRomo?'2. Contraseña de acceso':'Contraseña de acceso')+'</label>'+
+  '<input id="ukiAccesoClave" type="password" autocomplete="off" placeholder="'+(esRomo?'Escribe tu contraseña':'Mínimo 12 caracteres')+'">'+
+  (existe?'':'<label for="ukiAccesoConfirmar">Repite la contraseña</label><input id="ukiAccesoConfirmar" type="password" autocomplete="off" placeholder="Confirmar contraseña">')+
+  '<button type="button" class="big" onclick="entrarSuc()" style="min-height:50px">'+(esRomo?'Entrar al panel':existe?'Abrir sucursal':'Crear acceso')+'</button>'+
+  (esRomo?'<details id="romoHerramientasAdminQA" style="margin:19px 0 0;padding:12px 0 0;border-top:1px solid #ebd9dd">'+
+    '<summary style="cursor:pointer;font-size:13px;font-weight:650;color:#685e60">Opciones avanzadas de administración</summary>'+
+    '<div style="padding:12px 0 0">'+
+     '<p class="muted" style="font-size:12px">Herramientas de consulta y preparación; requieren autorización. No registran ventas.</p>'+
+     '<button type="button" class="big" style="background:#382e2a" onclick="ukiRomoRevisarAccesoSoloLecturaQA()">Consultar estado cifrado de Romo</button>'+
+     '<button type="button" class="big" style="background:#ad102b" onclick="ukiRomoAbrirVistaPreliminarQA()">Ver Romo en modo consulta (sin ventas)</button>'+
+     '<details id="romoCajaInicialDuenosQA" class="card" style="border-color:#c9b19f;background:#fffaf6;margin-top:12px">'+
+      '<summary style="cursor:pointer;font-weight:700">Solo dueños · Preparar estado inicial vacío de Romo</summary>'+
+      '<p class="muted">Prepara una copia cifrada vacía sin pedidos, caja ni ventas. Solo realizar por autorización de los dueños.</p>'+
+      '<button type="button" class="big" style="background:#a72c24" onclick="ukiRomoCrearEstadoInicialVacioQA()">Confirmar preparación de Romo (sin ventas)</button></details>'+
+     ukiRomoFormularioVinculacionQA()+'</div></details>':
+    '<p class="muted" style="font-size:12px">La contraseña no se guarda. Conserva tu respaldo cifrado.</p>')+
+  '</section>';
  }
   if(!S.suc){return `<div class="card"><h2>Selecciona una sucursal</h2><p class="muted">Un solo panel y el mismo procedimiento de ingreso para los tres locales.</p>${SUCURSALES_PANEL_QA.map(s=>`<button class="big" onclick="pedirPin('${s}')">${s}</button>`).join("")}<p class="muted">Romo La Serena está en pruebas; todavía no permite registrar operaciones.</p></div><div class="card"><p class="muted"><b>Información de acceso:</b> se requiere la cuenta Google y la contraseña habitual del panel. Los registros de cada local permanecen separados.</p></div>`;}
 

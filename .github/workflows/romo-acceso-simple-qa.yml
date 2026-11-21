@@ -1,0 +1,16 @@
+name: Romo pantalla de ingreso simple
+on:
+  pull_request:
+    branches: [release/romos-panel-v816]
+permissions:
+  contents: read
+jobs:
+  ui-acceso:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verificar acceso simple sin modificar autenticación
+        run: node --test tests/romo-acceso-simple-ui.test.cjs
