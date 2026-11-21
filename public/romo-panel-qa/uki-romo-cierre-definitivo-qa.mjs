@@ -376,7 +376,10 @@ export function prepararCierreDefinitivoRomoQA(estado,{
  CHECK(permitidos.includes(medioDia)&&permitidos.includes(medioAnterior),
   'Medio de pago del repartidor no permitido');
  const pagoDelivery=pagoDeliveryDia+pagoDeliveryAnterior;
- const pagoEfectivo=(medioDia==='Efectivo'?pagoDeliveryDia:0)+
+ const detallesPago=Array.isArray(caja.pagosDeliveryDetalle)?caja.pagosDeliveryDetalle:[];
+ const detalleTotal=detallesPago.reduce((a,x)=>a+INT(x.monto,'pago repartidor'),0);
+ const detalleEfectivo=detallesPago.filter(x=>x.medio==='Efectivo').reduce((a,x)=>a+INT(x.monto,'pago efectivo repartidor'),0);
+ const pagoEfectivo=(detallesPago.length&&detalleTotal===pagoDeliveryDia?detalleEfectivo:(medioDia==='Efectivo'?pagoDeliveryDia:0))+
   (medioAnterior==='Efectivo'?pagoDeliveryAnterior:0);
  const efectivoEsperado=medios.Efectivo+rectificacionesPostCierre.efectivo-
   gastosEf-retiros-pagoEfectivo;
@@ -403,7 +406,7 @@ export function prepararCierreDefinitivoRomoQA(estado,{
  }));
  const detalle={
   turnoId,fechaOperativa,desdeMs:inicio,hastaMs:cierreMs,
-  pagosRepartidor:abonos,cobrosManualesPlataformas:appsGuardados,
+  pagosRepartidor:abonos,detallePagosRepartidor:detallesPago.map(x=>({...x})),movimientosCajaAuditoria:(caja.movimientosCajaAuditoria||[]).filter(x=>x.turnoClave===turnoId),cobrosManualesPlataformas:appsGuardados,
   cajaChica:{inicial:INT(chica.inicial??0,'caja chica inicial'),
    gastos:gastosChica,totalGastos:totalCajaChica},
   pedidos:corte.pedidos.map(x=>({id:x.id,cliente:x.cliente||'',total:x.total,
@@ -460,7 +463,7 @@ export function prepararCierreDefinitivoRomoQA(estado,{
  caja.pagoDeliveryMedioAnterior='Efectivo';
  caja.pagoDeliveryConceptoAnterior='';
  caja.cajaChica={inicial:caja.cajaChica?.inicial??0,gastos:[]};
- caja.pagosRepartidor=[];
+ caja.pagosRepartidor=[];caja.pagosDeliveryDetalle=[];caja.movimientosCajaAuditoria=[];
  delete caja.repartidorNombre;
  return Object.freeze({tipo:'cierre',turnoId,cierre,
   totalMedios,efectivoEsperado,efectivoContado:contado,diferencia,

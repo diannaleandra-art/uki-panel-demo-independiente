@@ -1663,7 +1663,7 @@ function ukiNombreRepartidorTurno(caja=cajaDelDia()){
  const elegido=caja.repartidorNombre;
  return String(elegido===undefined?S.repartidorHabitual||"":elegido).trim().slice(0,80);
 }
-function ukiCambiarRepartidorHabitual(valor){
+function ukiCambiarRepartidorHabitual(valor){if(S.suc===ROMO_SUCURSAL_QA)return void ukiRomoGuardarMovimientoQA('repartidorNombre',{habitual:true,valor});
  const previo=String(S.repartidorHabitual||"").trim();
  S.repartidorHabitual=String(valor||"").trim().slice(0,80);
  const caja=cajaDelDia();
@@ -1671,7 +1671,7 @@ function ukiCambiarRepartidorHabitual(valor){
    caja.repartidorNombre=S.repartidorHabitual;
  void guardarEnLocalStorage();render();
 }
-function ukiCambiarRepartidorTurno(valor){
+function ukiCambiarRepartidorTurno(valor){if(S.suc===ROMO_SUCURSAL_QA)return void ukiRomoGuardarMovimientoQA('repartidorNombre',{habitual:false,valor});
  cajaDelDia().repartidorNombre=String(valor||"").trim().slice(0,80);
  void guardarEnLocalStorage();render();
 }
@@ -7156,12 +7156,12 @@ async function ukiRomoGuardarMovimientoQA(tipo,datos={}){
   const dia=fechaOperativaActual(),key=ROMO_SUCURSAL_QA+'|'+dia;
   const t=totales(),actual=cajaDelDia(),now=Date.now();
   // Las salidas y repartos no se pueden registrar tras cerrar el turno.
-  if(tipo!=='base'&&actual.turnoAbierto!==true)
+  if(!['base','repartidorNombre'].includes(tipo)&&actual.turnoAbierto!==true)
    throw Error('El turno de Romo no está abierto. Abre Caja antes de registrar movimientos.');
   if(tipo==='base'&&actual.turnoAbierto!==true&&
     (S.cierres||[]).some(x=>x.suc===ROMO_SUCURSAL_QA&&x.fechaOperativa===dia))
    throw Error('Este día ya tiene un cierre: abre el siguiente turno antes de ajustar la base.');
-  if(tipo!=='base'&&actual.baseConfirmada!==true)
+  if(!['base','repartidorNombre'].includes(tipo)&&actual.baseConfirmada!==true)
    throw Error('Antes de registrar dinero confirma la base y caja chica REALES de Romo en Caja. Los importes antiguos no están validados.');
   const efectivoDisponible=ukiRomoCajaDisponibleQA(t,actual);
   copia=datosSoloSucursal();
@@ -7279,6 +7279,11 @@ async function ukiRomoGuardarMovimientoQA(tipo,datos={}){
    copia.deliveriesManuales.push({suc:ROMO_SUCURSAL_QA,id,fechaISO:new Date(now).toISOString(),
     registradoEn:now,fechaOperativa:dia,turnoClave:c.turnoId,monto,cliente,repartidor,nota,medio});
    descripcion='Delivery manual registrado';resumen=fmt(monto)+' a pagar al repartidor (no es ingreso)';
+  }else if(tipo==='repartidorNombre'){
+   const valor=String(datos.valor||'').trim().slice(0,80);
+   if(datos.habitual===true){const previo=String(copia.repartidorHabitual||'');copia.repartidorHabitual=valor;if(c.repartidorNombre===undefined||c.repartidorNombre===previo)c.repartidorNombre=valor;}
+   else{if(!actual.turnoAbierto)throw Error('Inicia el turno para cambiar el repartidor del día');c.repartidorNombre=valor;}
+   descripcion='Repartidor actualizado';resumen=valor||'Sin repartidor';
   }else if(tipo==='anular'){
    const lista=datos.coleccion;
    if(!['gastos','retiros','deliveriesManuales'].includes(lista))throw Error('Movimiento inválido');
@@ -8615,7 +8620,7 @@ function ukiRomoCajaConsultaHTMLQA(seccion='resumen'){
  const idx={apps:1,delivery:2,gastos:3,repartidor:4,propinas:5,retiros:6,chica:7}[activo];
  const card=cards.children[idx];
  if(activo==='chica'&&card){const input=card.querySelector('input[onchange]');if(input){input.removeAttribute('onchange');input.readOnly=true;}}
- if(activo==='repartidor'&&card){for(const x of card.querySelectorAll('select'))for(const op of [...x.options])if(!['Efectivo','Transferencia','Débito','Edenred','Otros'].includes(op.value)&&!op.selected)op.remove();}
+ if(activo==='repartidor'&&card){const p=document.createElement('div');p.innerHTML='<label>Repartidor habitual</label><input maxlength="80" value="'+esc(S.repartidorHabitual||'')+'" onchange="ukiCambiarRepartidorHabitual(this.value)"><label>Repartidor de hoy</label><input maxlength="80" value="'+esc(ukiNombreRepartidorTurno(caja))+'" onchange="ukiCambiarRepartidorTurno(this.value)">';card.insertBefore(p,card.querySelector('h3'));for(const x of card.querySelectorAll('select'))for(const op of [...x.options])if(!['Efectivo','Transferencia','Débito','Edenred','Otros'].includes(op.value)&&!op.selected)op.remove();}
  const movimientosHtml=(baseConfirmada?'':avisoBase)+navMovimientos+
   (baseConfirmada?'':movimientoPanelRomoQA.base)+'<div data-romo-movimiento="'+esc(activo)+'">'+
   (card?.outerHTML||'<div class="card">No se pudo cargar el movimiento.</div>')+'</div>';
