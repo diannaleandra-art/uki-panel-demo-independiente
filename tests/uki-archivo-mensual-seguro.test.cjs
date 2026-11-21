@@ -157,3 +157,26 @@ test('respaldo completo pasa por el mismo validador de subida y se recupera por 
   {...body,sha256:'0'.repeat(64)},registro.sucursal,'2026-11',backend.dates('2026-11')),
   /SHA-256/);
 });
+
+test('Google + PIN privado permiten preflight únicamente desde orígenes oficiales',async()=>{
+ const finance=require('../api/mi-administracion-live.js');
+ function res(){
+  return {headers:{},statusCode:null,
+   setHeader(k,v){this.headers[k]=v;return this;},
+   status(n){this.statusCode=n;return this;},
+   json(x){this.body=x;return this;},
+   end(){return this;}};
+ }
+ const sources=[
+  ['https://diannaleandra-art.github.io',true],
+  ['https://romos-sushi-panel.vercel.app',true],
+  ['https://sitio-inventado.example',false]
+ ];
+ for(const [origin,permitido] of sources){
+  const response=res();
+  await finance({method:'OPTIONS',headers:{origin,host:'uki-sushi-inventario.vercel.app'}},response);
+  assert.equal(response.headers['Access-Control-Allow-Origin']===origin,permitido);
+  // Sin activar producción, el servidor no admite escrituras ni sesiones.
+  assert.equal(response.statusCode,404);
+ }
+});
