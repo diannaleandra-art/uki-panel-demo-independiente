@@ -35,13 +35,18 @@ function ejecutarInterfaz(script,{romo=false,editarDuranteCompresion=false,pendi
    periodo:()=>({desdeDia5:'2026-12-05'}),
    generar(datos,mes){
     generarDesde=datos;
-    return {sucursal:romo?'romo:serena':'uki:arica',mes,sinFecha:{},version:1,registros:{pedidos:[]}};
+    return {sucursal:romo?'romo:serena':'uki:arica',mes,sinFecha:{},version:1,
+     generadoEn:fechaPrueba,registros:{pedidos:[]}};
    },
    async empaquetar(){
     if(editarDuranteCompresion)estado.pedidos.push({id:2,suc});
     return {sha256:'a'.repeat(64),encoding:'json',base64:'e30='};
    },
-   async desempaquetar(){return documento;}
+   async desempaquetar(){
+    if(!archivoExistente)return documento;
+    return {...documento,generadoEn:'2026-12-05T12:00:00Z',
+     registros:cambioTrasArchivo?{pedidos:[{id:9000}]}:documento.registros};
+   }
   }
  };
  let generarDesde=null,documento=null;
@@ -52,7 +57,7 @@ function ejecutarInterfaz(script,{romo=false,editarDuranteCompresion=false,pendi
   const data=b.action==='ingresar_pin'?{ok:true,sesion:'b'.repeat(64)}:
    b.action==='verificar'?{ok:true,confirmado:archivoExistente,sha256:archivoExistente?(cambioTrasArchivo?'c'.repeat(64):'a'.repeat(64)):null}:
    b.action==='guardar'?{ok:true,confirmado:true,sha256:'a'.repeat(64),mes:'2026-11'}:
-   {ok:true,archivo:{sha256:'a'.repeat(64),encoding:'json',base64:'e30='}};
+   {ok:true,archivo:{sha256:archivoExistente&&cambioTrasArchivo?'c'.repeat(64):'a'.repeat(64),encoding:'json',base64:'e30='}};
   return {ok:true,async json(){return data;}};
  };
  class FechaPrueba extends Date{constructor(...args){super(...(args.length?args:[fechaPrueba]));}}
