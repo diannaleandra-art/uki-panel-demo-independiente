@@ -143,3 +143,17 @@ test('un cierre diario sin fecha válida impide dar por completo el respaldo',()
  assert.equal(a.sinFecha.cajasDiarias,1);
  assert.throws(()=>backend.verify(a,a.sucursal,'2026-11',backend.dates('2026-11')),/sin fecha/);
 });
+
+test('respaldo completo pasa por el mismo validador de subida y se recupera por SHA-256',async()=>{
+ const registro=core.generar(estado(),'2026-11',new Date('2026-12-06T15:00:00Z'));
+ const packed=await core.empaquetar(registro);
+ const body={base64:packed.base64,encoding:packed.encoding,sha256:packed.sha256};
+ const verificado=backend.leerRespaldoVerificado(body,registro.sucursal,'2026-11',backend.dates('2026-11'));
+ assert.deepEqual(verificado.parsed,registro);
+ assert.equal(verificado.n,4);
+ const recuperado=await core.desempaquetar(body.base64,body.encoding,body.sha256);
+ assert.deepEqual(recuperado,registro);
+ assert.throws(()=>backend.leerRespaldoVerificado(
+  {...body,sha256:'0'.repeat(64)},registro.sucursal,'2026-11',backend.dates('2026-11')),
+  /SHA-256/);
+});
