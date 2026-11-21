@@ -26,3 +26,23 @@ test('las consultas de archivo requieren cuenta dueños y no borran registros',(
  assert.match(b,/verificarNube\(contexto\.suc\)/);
  assert.doesNotMatch(b,/\bDELETE\s+FROM\b/i);
 });
+
+test('Romo consulta revisión Neon y bloquea archivo si otro teléfono actualizó',async()=>{
+ const {crearSesionPanelUnicoRomoQA,ROMO_UI_SUCURSAL_QA}=await import(
+  '../public/romo-panel-qa/romo-panel-unico-sesion-qa.mjs');
+ let remoteRev=4;
+ const datos={suc:ROMO_UI_SUCURSAL_QA,
+  pedidos:[],cierres:[],gastos:[],retiros:[],propinas:[],deliveriesManuales:[],incidencias:[]};
+ const vault={disponible:()=>true,cargarSobre:async()=>({revision:remoteRev,snapshot:{formato:'cifrado-sintetico'}}),
+  guardarSobre:async()=>{throw Error('No se pueden escribir datos en este test')}};
+ const session=crearSesionPanelUnicoRomoQA({vault,
+  validarEstado:(v,s)=>v?.suc===s,
+  desbloquearSobre:async()=>({estado:datos,cifrar:async()=>null}),
+  prepararEstadoInicial:async()=>({estado:datos,cifrar:async()=>null})});
+ await session.abrir({googleVerificado:true,claveUkiVerificada:true});
+ assert.equal(await session.comprobarRevisionParaArchivo(),true);
+ remoteRev=5;
+ assert.equal(await session.comprobarRevisionParaArchivo(),false);
+ assert.equal(session.estado().conflicto,true);
+ assert.equal(await session.comprobarRevisionParaArchivo(),false);
+});
