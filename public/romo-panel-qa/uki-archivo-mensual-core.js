@@ -118,6 +118,12 @@
    }
    return {porAntiguedadYCoincidencia:candidatos,noCoinciden,conservar};
   }
+  // Diagnóstico independiente: la edad y la copia no convierten
+  // un pedido abierto en un pedido apto para eliminación.
+  const pedidosAbiertos=(estado.pedidos||[]).filter(x=>x?.suc===suc&&dentro(fechaRegistro(x,'pedidos'))&&dias(fechaRegistro(x,'pedidos'))>=35&&
+   !(x.estado==='Cancelado'||(x.estado==='Entregado'&&x.pagado===true))).length;
+  const solicitudesPendientes=(estado.solicitudesWhatsApp||[]).filter(x=>x?.suc===suc&&dentro(fechaRegistro(x,'solicitudesWhatsApp'))&&dias(fechaRegistro(x,'solicitudesWhatsApp'))>=35&&
+   !['aceptado','rechazado','cancelado','procesado'].includes(String(x.estado||'').toLowerCase())).length;
   const secciones={};
   for(const sec of SECCIONES){
    if(sec==='cajasDiarias'){
@@ -140,7 +146,7 @@
    for(const k of Object.keys(timbres))timbres[k]+=a[k];
   }
   return Object.freeze({sucursal:code,mes:archivo.mes,hoy,operativosDias:35,timbresDias:95,
-   secciones,timbres,simulacion:true,permiteEliminar:false,
+   secciones,timbres,bloqueos:{pedidosAbiertos,solicitudesPendientes},simulacion:true,permiteEliminar:false,
    aviso:'Solo simulación de antigüedad y coincidencia. No confirma que los registros puedan eliminarse.'});
  }
  const csvSafe=v=>{

@@ -31,3 +31,20 @@ test('Una modificación posterior no cuenta como copia exacta, ni se acepta resp
  assert.throws(()=>core.simularRetencion(s,{...a,sucursal:'uki:arica'}));
  assert.throws(()=>core.simularRetencion(s,{...a,sinFecha:{...a.sinFecha,timbres:1}}));
 });
+
+test('Antigüedad no libera pedidos pendientes ni entregas sin pago',()=>{
+ const s=fixture();const fechaISO='2026-11-01T12:00:00';
+ s.pedidos=[
+  {suc:s.suc,id:'a',fechaISO,estado:'Pendiente',pagado:false,total:2000},
+  {suc:s.suc,id:'b',fechaISO,estado:'Entregado',pagado:false,total:2000},
+  {suc:s.suc,id:'c',fechaISO,estado:'Entregado',pagado:true,total:2000},
+  {suc:s.suc,id:'d',fechaISO,estado:'Cancelado',pagado:false,total:2000}
+ ];
+ s.solicitudesWhatsApp=[{suc:s.suc,fechaISO,estado:'pendiente',id:'s'}];
+ const a=core.generar(s,'2026-11',new Date('2026-12-06T15:00:00Z'));
+ const v=core.simularRetencion(s,a,new Date('2026-12-06T15:00:00Z'));
+ assert.equal(v.bloqueos.pedidosAbiertos,2);
+ assert.equal(v.bloqueos.solicitudesPendientes,1);
+ assert.equal(v.permiteEliminar,false);
+ assert.equal(s.pedidos.length,4);
+});

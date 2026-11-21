@@ -43,3 +43,6 @@ Se implementó el retiro persistente auditado de referencias originales de produ
 ## Avance de retención 35/95 (solo simulación)
 - Implementado recuento por edad calendario de Chile y coincidencia exacta con el respaldo mensual recuperado, sin modificar el estado. El 5/12 se guarda noviembre; una ficha del 1/11 cumple 35 días el 6/12, no el 5/12. Una ficha posterior cumple el plazo después. Timbres conservan 95 días.
 - La simulación no autoriza purgas. Falta validar dependencias operativas, registros tardíos, restauración real, concurrencia y compuertas para las tres sucursales. No habilitar borrado automático ni programador aún.
+
+### Comprobación de producción (21/11/2026)
+La tabla fin_archivos_mensuales_v1 existe en la rama privada de finanzas; consulta agregada sin filas, coherente con la fecha del primer respaldo. Los estados operativos son cifrados por sucursal: no se consultan ni modifican sus registros mediante SQL directo. La simulación señala pedidos abiertos/impagos y solicitudes sin resolver, sin purgar nada. No afirmar que el respaldo de noviembre está comprobado hasta recuperarlo después del 5/12. La purga queda bloqueada mientras no exista publicación de su mecanismo transaccional, validación de cierre/caja y respaldo real de cada sucursal.
