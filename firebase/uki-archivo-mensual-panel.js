@@ -4,7 +4,8 @@
  const HOST='https://uki-sushi-inventario.vercel.app';
  const core=()=>window.UkiArchivoMensual;
  const loginURL=HOST+'/api/mi-administracion-live',archiveURL=HOST+'/api/mi-archivo-mensual-live';
- let finSession='',finSessionHasta=0,ultimo=null,loading=false;
+ let finSession='',finSessionHasta=0,ultimo=null,loading=false,loteEnCurso=false;
+ const lotesRevisados=new Set();
  const $=(id,el=document)=>el.querySelector('#'+id);
  function hoyChile(){
   const o=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'America/Santiago',day:'2-digit',month:'2-digit',year:'numeric'}).formatToParts(new Date()).filter(x=>x.type!=='literal').map(x=>[x.type,x.value]));
@@ -45,16 +46,17 @@
    '<div id="ukiArchivoPinArea"><label for="ukiArchivoPin">PIN de dueños</label>'+
    '<input id="ukiArchivoPin" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="Tu PIN habitual de 6 números">'+
    '<p class="muted">Usa el PIN que ya tienes. Solo se solicita al iniciar una sesión privada.</p></div>'+
-   '<button id="ukiArchivoGuardar" type="button" class="big">Guardar respaldo</button>'+
+   '<button id="ukiArchivoPendientes" type="button" class="big">Respaldar meses pendientes</button>'+
    '<p id="ukiArchivoEstado" role="status" class="muted">Disponible desde el 5 de diciembre de 2026.</p>'+
    '<details><summary style="cursor:pointer">Otros meses y descargas</summary>'+
    '<label for="ukiArchivoMes">Mes completo</label><input id="ukiArchivoMes" type="month" min="2026-11">'+
+   '<button id="ukiArchivoGuardar" type="button">Guardar o recuperar este mes</button>'+
    '<div class="quick-grid"><button type="button" id="ukiArchivoExcel" disabled>Descargar Excel</button>'+
    '<button type="button" id="ukiArchivoPDF" disabled>Descargar PDF</button></div></details>'+
    '<p class="muted">Solo los dueños pueden respaldar. La limpieza seguirá desactivada.</p>';
   raiz.append(d);
   const mes=$('ukiArchivoMes',raiz),pin=$('ukiArchivoPin',raiz),pinArea=$('ukiArchivoPinArea',raiz),
-   b=$('ukiArchivoGuardar',raiz),ex=$('ukiArchivoExcel',raiz),pd=$('ukiArchivoPDF',raiz),msg=$('ukiArchivoEstado',raiz);
+   pendientesBtn=$('ukiArchivoPendientes',raiz),b=$('ukiArchivoGuardar',raiz),ex=$('ukiArchivoExcel',raiz),pd=$('ukiArchivoPDF',raiz),msg=$('ukiArchivoEstado',raiz);
   mes.value=mesInicial();
   const estado=(t,error=false)=>{msg.textContent=t;msg.style.color=error?'#af1231':'';};
   function actualizarMes(){
@@ -71,8 +73,21 @@
   }
   mes.addEventListener('change',actualizarMes);
   actualizarMes();
-  b.addEventListener('click',async()=>{
-   if(loading)return;loading=true;b.disabled=true;
+  async function autorizar(){
+   const token=await window.ukiInventarioToken?.();
+   if(!token)throw Error('Inicia sesión con tu Google autorizado de dueños.');
+   if(finSession&&Date.now()>finSessionHasta){finSession='';finSessionHasta=0;pinArea.hidden=false;}
+   if(!finSession){
+    if(!/^\d{6}$/.test(pin.value))throw Error('Escribe el PIN privado de seis dígitos.');
+    const response=await llamar(loginURL,token,'',{action:'ingresar_pin',pin:pin.value});
+    if(!/^[a-f0-9]{64}$/.test(String(response.sesion||'')))throw Error('No se recibió una sesión privada válida.');
+    finSession=response.sesion;finSessionHasta=Date.now()+29*60*1000;pin.value='';pinArea.hidden=true;
+   }
+   return token;
+  }
+  async function guardarMes(){
+   if(loading)return false;
+   loading=true;b.disabled=true;mes.disabled=true;
    try{
     const contexto=window.ukiQAGet?.();
     if(!contexto?.suc||!contexto?.estado)throw Error('Abre primero una sucursal.');
@@ -98,15 +113,7 @@
     if(sinFecha.length)throw Error('Hay registros sin fecha verificable ('+
      sinFecha.map(([nombre,cantidad])=>nombre+': '+cantidad).join(', ')+
      '). Se conserva todo y no se permite cerrar un respaldo incompleto.');
-    const token=await window.ukiInventarioToken?.();
-    if(!token)throw Error('Inicia sesión con tu Google autorizado de dueños.');
-    if(finSession&&Date.now()>finSessionHasta){finSession='';pinArea.hidden=false;}
-    if(!finSession){
-     if(!/^\d{6}$/.test(pin.value))throw Error('Escribe el PIN privado de seis dígitos.');
-     const response=await llamar(loginURL,token,'',{action:'ingresar_pin',pin:pin.value});
-     if(!/^[a-f0-9]{64}$/.test(String(response.sesion||'')))throw Error('No se recibió una sesión privada válida.');
-     finSession=response.sesion;finSessionHasta=Date.now()+29*60*1000;pin.value='';pinArea.hidden=true;
-    }
+    const token=await autorizar();
     estado('Comprimiendo y verificando el archivo completo…');
     const packed=await core().empaquetar(archivo);
     // Si durante el proceso cambió el pedido, el cierre, la sucursal o la nube,
@@ -162,12 +169,59 @@
      const discrepancias=Object.values(sim.secciones).reduce((a,v)=>a+v.noCoinciden,0)+sim.timbres.noCoinciden;
      aviso+=' Simulación: '+operativos+' registros de 35 días o más y '+sim.timbres.porAntiguedadYCoincidencia+' movimientos de timbres de 95 días o más coinciden con el archivo. '+discrepancias+' diferencias. '+sim.bloqueos.pedidosAbiertos+' pedidos antiguos sin finalizar y '+sim.bloqueos.solicitudesPendientes+' solicitudes antiguas sin resolver requieren revisión. Timbres protegidos: '+sim.bloqueos.timbresProtegidos.vigentes+' vigentes, '+sim.bloqueos.timbresProtegidos.canjes+' canjes y '+sim.bloqueos.timbresProtegidos.sinVencimiento+' sin vencimiento verificable. No se elimina nada.';
     }catch(e){aviso+=' La simulación de limpieza no quedó confirmada; no se elimina nada.';}
-    estado(aviso);
+    estado(aviso);return true;
    }catch(e){
     if(/PIN|sesión|código privado/.test(String(e.message||''))){finSession='';finSessionHasta=0;pinArea.hidden=false;}
-    estado(String(e.message||e)+'. No se eliminó ningún registro.',true);
-   }finally{loading=false;b.disabled=false;}
-  });
+    estado(String(e.message||e)+'. No se eliminó ningún registro.',true);return false;
+   }finally{loading=false;mes.disabled=loteEnCurso;b.disabled=loteEnCurso||hoyChile()<core().periodo(mes.value).desdeDia5;}
+  }
+  b.addEventListener('click',()=>{if(!loteEnCurso)void guardarMes();});
+  async function guardarPendientes(automatico=false){
+   if(loading||loteEnCurso||!raiz.isConnected)return;
+   const contexto=window.ukiQAGet?.(),sucursal=core()?.SUCURSALES?.[contexto?.suc];
+   if(!sucursal||!window.UkiAgendaArchivo)return;
+   const hoy=hoyChile(),clave=sucursal+'|'+hoy;
+   if(hoy<'2026-12-05'){if(!automatico)estado('El primer respaldo corresponde al 5 de diciembre.');return;}
+   if(automatico&&(!finSession||Date.now()>=finSessionHasta||lotesRevisados.has(clave)))return;
+   loteEnCurso=true;pendientesBtn.disabled=b.disabled=mes.disabled=true;
+   try{
+    verificarNube(contexto.suc);
+    // No se almacena ni se pide nuevamente el PIN si hay sesión vigente.
+    const token=await autorizar();
+    const indice=await llamar(archiveURL,token,finSession,{action:'listar'});
+    const meses=window.UkiAgendaArchivo.pendientes({hoy,sucursal,archivos:indice.archivos,periodo:core().periodo});
+    lotesRevisados.add(clave);
+    if(!meses.length){estado('✓ Todos los meses exigibles de esta sucursal ya están registrados. Descargas en Mi Administración.');return;}
+    let registrados=0;
+    for(const m of meses){
+     if(!raiz.isConnected||window.ukiQAGet?.()?.suc!==contexto.suc||!finSession||Date.now()>=finSessionHasta)
+      throw Error('La sesión o sucursal cambió; los meses restantes quedan pendientes.');
+     // La consulta de índice está limitada; verificar también cada mes por separado.
+     const previo=await llamar(archiveURL,token,finSession,{action:'verificar',sucursal,mes:m});
+     if(previo.confirmado===true)continue;
+     if(window.ukiQAGet?.()?.suc!==contexto.suc||!raiz.isConnected)throw Error('La sucursal cambió.');
+     mes.value=m;actualizarMes();mes.disabled=true;b.disabled=true;
+     if(!await guardarMes())return;
+     registrados++;
+    }
+    estado('✓ '+registrados+' informes mensuales nuevos confirmados. Excel y PDF en Mi Administración. No se eliminó información.');
+   }catch(e){
+    if(/PIN|sesión|código privado/.test(String(e.message||''))){finSession='';finSessionHasta=0;pinArea.hidden=false;}
+    lotesRevisados.add(clave);
+    estado(String(e.message||e)+'. No se eliminó información.',true);
+   }finally{
+    loteEnCurso=false;pendientesBtn.disabled=false;mes.disabled=false;
+    b.disabled=hoyChile()<core().periodo(mes.value).desdeDia5;
+   }
+  }
+  pendientesBtn.addEventListener('click',()=>void guardarPendientes(false));
+  // Automatización únicamente mientras exista una sesión de dueños activa.
+  // No iniciar sesión automáticamente, no guardar PIN y no borrar registros.
+  const timer=setInterval(()=>{
+   if(!raiz.isConnected){clearInterval(timer);return;}
+   if(document.visibilityState==='visible')void guardarPendientes(true);
+  },60000);
+  if(finSession&&Date.now()<finSessionHasta)void guardarPendientes(true);
   ex.onclick=async()=>{
    if(!ultimo||ultimo.mes!==mes.value)return estado('Primero guarda este mes.',true);
    try{
