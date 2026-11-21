@@ -61,6 +61,10 @@
     verificarNube(contexto.suc);
     const archivo=core()?.generar(contexto.estado,mes.value);
     if(!archivo)throw Error('No se cargó el generador mensual.');
+    const sinFecha=Object.entries(archivo.sinFecha||{}).filter(([,cantidad])=>cantidad>0);
+    if(sinFecha.length)throw Error('Hay registros sin fecha verificable ('+
+     sinFecha.map(([nombre,cantidad])=>nombre+': '+cantidad).join(', ')+
+     '). Se conserva todo y no se permite cerrar un respaldo incompleto.');
     const token=await window.ukiInventarioToken?.();
     if(!token)throw Error('Inicia sesión con tu Google autorizado de dueños.');
     if(!finSession){
@@ -75,8 +79,18 @@
      sha256:packed.sha256,encoding:packed.encoding,base64:packed.base64});
     if(response.confirmado!==true||response.sha256!==packed.sha256||response.mes!==archivo.mes)
      throw Error('El archivo no fue confirmado con la misma huella digital.');
-    ultimo=archivo;ex.disabled=pd.disabled=false;
-    estado('✓ Mes archivado en Mi Administración. Descarga el Excel y PDF.');
+    // Releer del servidor y descomprimir: un simple 'guardado' no basta.
+    estado('Comprobando que el archivo se puede recuperar completo…');
+    const consulta=await llamar(archiveURL,token,finSession,
+     {action:'consultar',sucursal:archivo.sucursal,mes:archivo.mes});
+    if(!consulta.archivo||consulta.archivo.sha256!==packed.sha256)
+     throw Error('La copia remota no coincide con la guardada.');
+    const recuperado=await core().desempaquetar(
+     consulta.archivo.base64,consulta.archivo.encoding,consulta.archivo.sha256);
+    if(JSON.stringify(recuperado)!==JSON.stringify(archivo))
+     throw Error('La recuperación no reprodujo el archivo completo.');
+    ultimo=recuperado;ex.disabled=pd.disabled=false;
+    estado('✓ Mes archivado y recuperado correctamente. Descarga Excel y PDF.');
    }catch(e){
     if(/PIN|sesión|código privado/.test(String(e.message||'')))finSession='';
     estado(String(e.message||e)+'. No se eliminó ningún registro.',true);
