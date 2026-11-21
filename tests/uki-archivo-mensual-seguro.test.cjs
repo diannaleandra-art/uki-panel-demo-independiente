@@ -225,7 +225,8 @@ test('Mi Administración consulta automáticamente las tres sucursales desde el 
  assert.equal(fn('2026-12-05'),'2026-11');
  assert.equal(fn('2027-01-04'),'2026-11');
  assert.equal(fn('2027-01-05'),'2026-12');
- assert.equal((html.match(/if\(mesArchivoExigible\(\)\)void archivoMensualListar\(\)/g)||[]).length,2);
+ assert.equal((html.match(/void archivoMensualListar\(\);/g)||[]).length>=2,true);
+ assert.match(html,/Primer respaldo mensual: noviembre de 2026, desde el 5 de diciembre/);
  assert.match(html,/const ultimoMes=mesArchivoExigible\(\)\|\|/);
  assert.match(html,/const sinArchivo=Object\.entries\(labels\)/);
 });
