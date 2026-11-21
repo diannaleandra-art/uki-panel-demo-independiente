@@ -177,8 +177,9 @@
       const selected=b.dataset.romoNav===value;
       b.setAttribute('aria-pressed',String(selected));
       b.style.borderColor=selected?'#a80921':'#d9cdd0';
-      b.style.background=selected?'#fff0f3':'#fff';
-      b.style.boxShadow=selected?'inset 0 0 0 2px #a80921':'none';
+      b.style.background=selected?'#a00e28':'#f7f2f3';
+      b.style.color=selected?'#fff':'#241e21';
+      b.style.boxShadow=selected?'inset 0 0 0 1px #78101e':'none';
     }
     for(const section of state.root.querySelectorAll('[data-romo-area]')){
       const selected=section.dataset.romoArea===value;
@@ -478,7 +479,7 @@
     for(const [key,label] of choices){
       const btn=el('button',label);
       btn.type='button';btn.dataset.romoNav=key;
-      btn.style.cssText='width:100%;min-width:0;white-space:normal;font-size:15px;font-weight:750;line-height:1.3;padding:14px 7px;border:1px solid #d9cdd0;border-radius:13px;background:#fff;color:#2a2023';
+      btn.style.cssText='width:100%;min-width:0;white-space:normal;font-size:13px;font-weight:750;line-height:1.35;padding:11px 5px;border:1px solid #d9cdd0;border-radius:13px;background:#fff;color:#2a2023';
       btn.onclick=()=>setArea(key);nav.append(btn);
       const panel=el('section');panel.dataset.romoArea=key;
       panel.style.cssText='border:1px solid #ebd7dc;border-radius:14px;padding:13px 12px;margin:12px 0;background:#fff';

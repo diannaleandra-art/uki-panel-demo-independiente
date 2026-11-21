@@ -32,7 +32,21 @@
   b.type='button';b.disabled=!canWrite();b.onclick=handler;return b;
  };
  const panel=(title)=>{const d=css(E('details'),'border:1px solid #ead8de;border-radius:13px;padding:12px;margin:10px 0;background:#fff');const h=css(E('summary',title),'font-weight:800;cursor:pointer;color:#281e22;font-size:15px');d.append(h);return d;};
- const stack=()=>css(E('div'),'display:grid;gap:10px;margin:13px 0');
+ const stack=()=>css(E('div'),'display:grid;gap:10px;margin:13px 0;min-width:0');
+ const sectionCard=()=>css(E('section'),'border:1.5px solid #e4c8cd;border-radius:14px;padding:13px;background:#fff;margin:0 0 15px;min-width:0');
+ function itemCard(name,price,original,availability,publication,collapsible=true){
+  const card=css(E(collapsible?'details':'article'),'margin:12px 0;border:1.5px solid #e1c4ca;border-left:5px solid #a00e28;background:#fff;border-radius:15px;padding:13px;min-width:0;overflow-wrap:anywhere;box-shadow:0 2px 7px #2513190d');
+  const head=css(E(collapsible?'summary':'header'),'display:block;cursor:'+(collapsible?'pointer':'default')+';padding:3px 0 10px;color:#241e21;border-bottom:1px solid #efdee2');
+  head.append(css(E('strong',name),'display:block;font-size:17px;line-height:1.35;color:#231b1e'));
+  const line=row();line.style.margin='7px 0 0';
+  if(original>price)line.append(css(E('del',money(original)),'font-size:14px;color:#776b6d'));
+  line.append(css(E('strong',money(price)),'font-weight:800;font-size:20px;color:#9e1027'));
+  if(availability)line.append(css(E('span',availability),'font-size:12px;color:'+(availability==='Agotado'?'#9e1027':'#494345')));
+  if(publication)line.append(css(E('span',publication),'padding:4px 8px;border-radius:8px;font-size:12px;font-weight:750;background:#f4edef;color:#4b343b'));
+  head.append(line);
+  if(collapsible)head.append(css(E('span','▸ Ver detalles / editar'),'display:block;margin-top:8px;font-weight:700;color:#9e1027;font-size:13px'));
+  card.append(head);return card;
+ }
  const row=()=>css(E('div'),'display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin:9px 0');
  const canWrite=()=>state.admin?.edicionHabilitada===true;
  const statuses=()=>state.root?Array.from(state.root.querySelectorAll('[data-romo-admin-status]')):[];
@@ -965,7 +979,7 @@
  }
  function renderProducts(){
   const target=host('productos');if(!target)return;clear(target);
-  target.append(E('h3','Productos'),cardNote());
+  target.append(cardNote());
   const newCard=panel('＋ Agregar producto a Romo');
   const name=field('Nombre'),price=field('Precio en pesos','', 'number'),description=field('Descripción'),
    cat=select('Categoría',commercialCategoryOptions()), available=field('Disponible',true,'checkbox');
@@ -980,16 +994,17 @@
   }));
   newCard.append(info('Producto de precio fijo. Para sushi personalizable utiliza Promociones.'),form);target.append(newCard);
   const search=field('Buscar producto');search.input.type='search';
-  search.input.placeholder='Sushi, gohan, promoción…';target.append(search.wrap);
+  search.input.placeholder='Sushi, gohan, promoción…';const group=select('Categoría',[['','Todas las categorías'],...categoryOptions().filter(x=>x[0]),['__uncategorized','Sin categoría']]);
+  const filters=stack();filters.append(search.wrap,group.wrap);const reset=button('Limpiar búsqueda y categoría',()=>{search.input.value='';group.input.value='';state.limit=16;draw();},true);reset.disabled=false;filters.append(reset);target.append(filters);
   const container=E('div');target.append(container);
   const draw=()=>{
    clear(container);
-   const items=products().filter(p=>norm(p.name+' '+p.sku).includes(norm(search.input.value)));
+   const items=products().filter(p=>norm(p.name+' '+p.sku).includes(norm(search.input.value))&&(!group.input.value||(group.input.value==='__uncategorized'?!p.categoriaSlug:p.categoriaSlug===group.input.value)));
    container.append(info(items.length+' productos disponibles en administración ('+(state.base?.products?.length||0)+' aprobados).'));
    for(const p of items.slice(0,state.limit)){
     const percent=p._base?(p.originalPrice?Math.round(100*(1-p.price/p.originalPrice)):0):Number(state.admin.data.discounts?.[p.sku]||0);
     const finalPrice=p._base?p.price:percent?Math.max(1,Math.round(p.price*(100-percent)/100)):p.price;
-    const item=panel(p.name+' · '+(percent?money(p.originalPrice||p.price)+' → '+money(finalPrice):money(p.price))+(p._base?' · Carta vigente':' · Borrador conservado'));
+    const item=itemCard(p.name,finalPrice,percent?(p.originalPrice||p.price):0,p.available===false?'Agotado':'Disponible',p._base?'Carta vigente':'Borrador',false);
     const form=stack();
     const n=field('Nombre',p.name),price=field('Precio',p.price,'number'),
      desc=field('Descripción',p.description||''),
@@ -1032,17 +1047,17 @@
     more.disabled=false;container.append(more);
    }
   };
-  search.input.oninput=()=>{state.limit=16;draw();};draw();target.append(previewPanel());
+  search.input.oninput=group.input.onchange=()=>{state.limit=16;draw();};draw();target.append(previewPanel());
  }
  function renderCategories(){
   const target=host('categorias');if(!target)return;clear(target);
   target.append(cardNote(),info('Crea categorías propias y consulta los productos de cada una. Las categorías originales de armado se conservan.'));
   const create=panel('＋ Crear categoría'),n=field('Nombre de la categoría'),f=stack();
   f.append(n.wrap,button('Guardar categoría',()=>void saveCommercial('category-create',{nombre:n.input.value.trim()},'Crear categoría '+n.input.value.trim())));
-  create.append(f);target.append(create);
+  create.append(f);
   const items=products(),cats=categories();
   const find=field('Buscar categoría o producto');find.input.type='search';target.append(find.wrap);
-  const list=E('div');target.append(list);
+  const list=E('div');target.append(E('h4','Categorías guardadas ('+cats.length+')'),list,create);
   const draw=()=>{clear(list);
    const query=norm(find.input.value);
    for(const c of cats){
@@ -1081,13 +1096,13 @@
   target.append(cardNote(),info('Vegetales, proteínas, envolturas y salsas incluidas. Las salsas adicionales de pago se editan en Productos.'));
    const sync=button('Sincronizar cambios pendientes',async()=>{if(state.busy||!state.admin?.ingredientesPublicacionHabilitada)return;if(!window.confirm('¿Aplicar los ingredientes y recargos pendientes de Romo a la carta? No cambia pedidos antiguos.'))return;state.busy=true;try{const result=await publicarIngredientes(state.admin.revision);await load();status(result.sinCambios?'Los ingredientes ya están sincronizados.':'Ingredientes publicados en revisión '+result.revisionComercial+'.');}catch(e){status('No se confirmó la publicación: '+String(e.message||e));}finally{state.busy=false;}},true);
   sync.disabled=!state.admin?.ingredientesPublicacionHabilitada||state.admin?.revisionComercial<1;target.append(sync);
-  if(sync.disabled)target.append(info('Sincronización comercial pendiente de habilitación. Los cambios se conservan como borrador.'));else target.append(info('Al guardar vegetales, proteínas y envolturas, se sincronizan con la carta de Romo. Usa el botón solo para recuperar cambios pendientes.'));
+  if(sync.disabled)target.append(info('Sincronización comercial pendiente de habilitación. Los cambios se conservan como borrador.'));else target.append(info('Al guardar vegetales, proteínas, envolturas y salsas, se sincronizan con la carta de Romo. Usa el botón solo para recuperar cambios pendientes.'));
   const kinds=[['vegetal','Vegetal'],['proteina','Proteína'],['envoltura','Envoltura'],['salsa','Salsa incluida']];
   const allowed={vegetal:['classic','premium','monthly','handroll','burger','gohan'],proteina:['classic','premium','monthly','handroll','burger'],envoltura:['classic','premium','monthly','handroll'],salsa:['sauces']};
   const updateSurfaces=(select,inputs)=>{for(const [k,input] of Object.entries(inputs)){input.disabled=!allowed[select.value]?.includes(k);if(input.disabled)input.checked=false;}};
   const surfaces=[['classic','Sushi clásico'],['premium','Premium'],['monthly','Promociones'],['handroll','Handroll'],['burger','Burger'],['gohan','Gohan'],['sauces','Todos los armados con salsa incluida']];
   const create=panel('＋ Agregar ingrediente al armado'),form=stack();
-  create.open=true;
+  create.open=false;
   if(!canWrite())create.append(info('Agregar ingrediente está visible, pero no se puede guardar hasta habilitar la edición administrativa de Romo.'));
   const n=field('Nombre'),kind=select('Tipo',kinds),price=field('Recargo en pesos (0 = incluido)',0,'number'),
     available=field('Disponible',true,'checkbox');
@@ -1236,21 +1251,21 @@
   const note=cardNote();note.firstElementChild.textContent='Crea, edita y publica tus promociones de Romo. Las promociones activas se actualizan al guardar; las no publicadas conservan su borrador.';target.append(note);
   const newCard=panel('＋ Crear nueva promoción');
   newCard.append(info('Tipos de Romo: sushi personalizable, gohan fijo o combo fijo; no pizzas. Las fotos permanecen privadas hasta publicar la versión aprobada.'));
-  newCard.append(promotionForm(null,true));target.append(newCard);
+  newCard.append(promotionForm(null,true));const createArea=sectionCard();createArea.append(info('Nueva promoción. Abre el formulario solo para crear; las existentes aparecen abajo.'),newCard);target.append(createArea);
   const search=field('Buscar promoción por nombre');search.input.type='search';
-  const existing=E('section');existing.append(E('h3','Promociones existentes · Ver o editar'),search.wrap);target.append(existing);
+  const existing=sectionCard();existing.append(css(E('h4','Promociones existentes · Ver o editar'),'font-size:17px;color:#2a2023;margin:0 0 9px'),search.wrap);target.append(existing);
   const list=E('div');existing.append(list);
   const draw=()=>{
    clear(list);const found=promos().filter(p=>norm(p.name).includes(norm(search.input.value))).sort((a,b)=>a.name.localeCompare(b.name,'es'));
    list.append(info(found.length+' promociones disponibles en administración.'));
    for(const p of found){
-    const percent=Number(state.admin.data.discounts?.[p.sku]||0);
-    const finalPrice=percent?Math.max(1,Math.round(p.price*(100-percent)/100)):p.price;
+    const percent=p._base?(p.originalPrice?Math.round(100*(1-p.price/p.originalPrice)):0):Number(state.admin.data.discounts?.[p.sku]||0);
+    const finalPrice=p._base?p.price:percent?Math.max(1,Math.round(p.price*(100-percent)/100)):p.price;
     const published=!p._base&&(state.admin?.publishedPromotions||[]).some(x=>x.sku==='monthly:romoq-'+p.sku.slice(6));
-    const item=panel(p.name+' · '+(percent?money(p.price)+' → '+money(finalPrice):money(p.price))+(p._base?' · Carta vigente':published?' · Publicada':p.available===false?' · Desactivada':' · Borrador'));
+    const item=itemCard(p.name,finalPrice,percent?(p.originalPrice||p.price):0,p.available===false?'Agotado':'Disponible',p._base||published?'Publicada':p.available===false?'Desactivada':'Borrador');
     if(!p._base){
      item.append(info((p.available===false?'Agotada o desactivada':published?'Disponible en carta':'Disponible en borrador')+' · '+(p.promoType==='sushi'?(p.rollCount*p.piecesPerRoll)+' piezas · '+p.rollCount+' rolls · '+p.korokes+' korokes':p.promoType==='gohan'?'Gohan definido':'Combo definido')+' · '+p.sauceCount+' salsas · '+(p.payments||[]).join(', ')));
-     if(!published){item.open=true;}
+     item.open=false;
      item.append(info(published?'Publicada en carta · guardar los cambios actualiza su publicación.':'No publicada · pulsa Publicar promoción para mostrarla a clientes.'));
      const publication=async retirar=>{if(state.busy||!state.admin.publicacionHabilitada)return;if(!window.confirm(retirar?'¿Retirar de la carta de Romo? Los pedidos históricos se conservan.':'¿Publicar esta promoción con su foto y configuración actual en la carta de Romo?'))return;state.busy=true;try{const done=await publicarPromocion(p.sku,retirar,state.admin.revision);await load();status(done.sinCambios?'La promoción ya está actualizada.':'Cambio comercial confirmado en revisión '+done.revisionComercial+'.');}catch(e){status('No se confirmó: '+String(e.message||e));}finally{state.busy=false;}};
      const publish=button(published?'Actualizar promoción publicada':'Publicar promoción',()=>void publication(false));publish.disabled=!state.admin.publicacionHabilitada||p.available===false;item.append(publish);
