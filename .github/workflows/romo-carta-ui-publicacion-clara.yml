@@ -5,6 +5,7 @@ on:
       - fix/romo-carta-clara-productos-promos-20261121
     paths:
       - public/romo-panel-qa/romo-carta-gestion-completa-qa.js
+      - public/romo-panel-qa/index.html
       - lib/romo-carta-ediciones-seguras-qa.mjs
       - tests/romo-carta-ui-publicacion-clara.test.cjs
       - .github/workflows/romo-carta-ui-publicacion-clara.yml
@@ -13,6 +14,7 @@ on:
       - release/romos-panel-v816
     paths:
       - public/romo-panel-qa/romo-carta-gestion-completa-qa.js
+      - public/romo-panel-qa/index.html
       - lib/romo-carta-ediciones-seguras-qa.mjs
       - tests/romo-carta-ui-publicacion-clara.test.cjs
 permissions:
