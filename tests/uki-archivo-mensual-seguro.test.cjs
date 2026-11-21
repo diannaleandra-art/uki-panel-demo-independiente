@@ -112,3 +112,13 @@ test('el archivo respeta el aislamiento entre los tres locales',()=>{
   assert.equal(archivo.resumen.totalVentas,2500);
  }
 });
+
+test('timbres sin fecha detienen el respaldo y no afectan ventas ni tarjeta',()=>{
+ const datos=estado();
+ datos.clientes['cliente-1'].movimientos.push({tipo:'venta',pedidoId:700});
+ const original=JSON.stringify(datos);
+ const archivo=core.generar(datos,'2026-11',new Date('2026-12-06T15:00:00Z'));
+ assert.equal(archivo.sinFecha.timbres,1);
+ assert.throws(()=>backend.verify(archivo,archivo.sucursal,'2026-11',backend.dates('2026-11')),/timbres sin fecha/);
+ assert.equal(JSON.stringify(datos),original,'La validación nunca puede cambiar el historial original');
+});
