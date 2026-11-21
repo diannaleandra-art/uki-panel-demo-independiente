@@ -1,0 +1,16 @@
+name: Romo cierre Junaeb sin modificar importes
+on:
+  pull_request:
+    branches: [release/romos-panel-v816]
+permissions:
+  contents: read
+jobs:
+  cierre:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Validar medio Junaeb en resumen y constancia de cierre
+        run: node --test tests/romo-junaeb-desglose-qa.test.mjs tests/romo-finanzas-cierres-sin-duplicar-qa.test.mjs

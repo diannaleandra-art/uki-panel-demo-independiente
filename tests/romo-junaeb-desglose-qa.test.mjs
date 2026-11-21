@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {prepararResumenCierreRomoDuenosQA} from '../public/romo-panel-qa/uki-romo-resumen-duenos-qa.mjs';
 import {prepararBorradorRomoDesdeSolicitudQA} from '../public/romo-panel-qa/uki-romo-recepcion-formulario-qa.mjs';
 import {construirCandidatoRomoFormatoUkiQA} from '../public/romo-panel-qa/uki-romo-pedido-formato-qa.mjs';
 import {prepararCobroPendienteRomoQA} from '../public/romo-panel-qa/uki-romo-cobro-pendiente-qa.mjs';
@@ -115,4 +116,30 @@ test('Interfaz y exportación Romo muestran Junaeb sin alterar el archivo oficia
  assert.doesNotMatch(panel,/Hasta habilitarlo en caja figura como Otros/);
  assert.match(exportador,/const METHODS=\[[^\n]*'Junaeb'/);
  assert.ok(!original.includes('const ROMO_MEDIOS_COBRO_QA'));
+});
+
+test('Cierre efectivo de Romo acepta Junaeb desde el adaptador de dueños hasta el recibo Neon',()=>{
+ const dia='2026-11-21',inicio=Date.parse('2026-11-21T04:30:00-03:00');
+ const turno=dia+'@'+inicio;
+ const cierre={
+  suc:SUC,fechaOperativa:dia,turnoClave:turno,fechaMs:inicio+300000,
+  venta:7000,pedidos:1,medios:{
+   Efectivo:0,Transferencia:0,'Débito':0,Edenred:0,Junaeb:7000,
+   Otros:0,'Uber Eats':0,PedidosYa:0,Rappi:0
+  },gastos:0,delivery:0,propinas:0,retiros:0,
+  efectivoContado:0,diferenciaEfectivo:0,
+  cajaChicaInicial:0,cajaChicaGastos:0
+ };
+ const antes=JSON.stringify(cierre);
+ const resumen=prepararResumenCierreRomoDuenosQA(cierre);
+ assert.equal(resumen.medios.Junaeb,7000);
+ assert.equal(resumen.venta_total,7000);
+ assert.deepEqual(Object.keys(resumen.medios),Object.keys(cierre.medios));
+ assert.equal(resumen.estado,'pendiente_confirmacion_neon');
+ const original=normalizarResumenCierreRomoQA(resumen,turno);
+ assert.equal(original.medios.Junaeb,7000);
+ assert.equal(JSON.stringify(cierre),antes,'Preparar el resumen no altera caja ni pedidos');
+ assert.throws(()=>prepararResumenCierreRomoDuenosQA({
+  ...cierre,medios:{...cierre.medios,'Medio desconocido':0}
+ }),/Medio de pago Romo desconocido/);
 });

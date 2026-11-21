@@ -9,7 +9,7 @@
 export const ROMO_FINANZAS_DUENOS_LIVE_HABILITADO_QA=false;
 const SUC='Romo’s Sushi La Serena';
 const STORE='romo:serena';
-const METHODS=new Set(['Efectivo','Transferencia','Débito','Edenred','Otros','Uber Eats','PedidosYa','Rappi']);
+const METHODS=new Set(['Efectivo','Transferencia','Débito','Edenred','Junaeb','Otros','Uber Eats','PedidosYa','Rappi']);
 const ok=(v,m)=>{if(!v)throw Error(m)};
 const amount=(v,n)=>{
  ok(Number.isSafeInteger(v)&&v>=0&&v<=1000000000,'Importe inválido de '+n);
