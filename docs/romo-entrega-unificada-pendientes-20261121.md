@@ -28,3 +28,11 @@ No hay autorización para sobrescribir históricos, inicializar saldos ficticios
 
 ## C. Criterio de salida
 Comparar contra los commits oficiales vigentes; revisar todos los cambios juntos; compilar candidatos; pruebas manuales agrupadas con la dueña sin inventar ventas ni alterar cierres existentes; publicar solo proyectos modificados con sus dominios vigentes. Confirmar alias y registros de errores; retener las versiones de reversión. Actualizar este documento con el resultado real de cada prueba, sin marcar casos simplemente por compilar.
+
+
+## Acotación adicional de la dueña — eliminación integral del catálogo
+- [ ] Las tres áreas Productos, Ingredientes y Promociones deben ofrecer Editar, Desactivar/Agotado y Eliminar de manera coherente, también para referencias originales. La corrección no se considera terminada solo porque puedan eliminarse borradores.
+- [ ] Eliminar una promoción publicada debe retirarla de carta y banner y del listado activo con una sola confirmación visible y verificar ambos resultados. Si falla un paso, informar el estado real, sin repetir automáticamente.
+- [ ] En referencias originales, diseñar retiro persistente del catálogo activo con auditoría, preservando las recetas e identificadores históricos y sin volver a publicarlas al recargar el catálogo base. Comprobar dependencias de ingredientes y evitar armados imposibles; no borrar ni alterar pedidos, ventas, cierres, timbres, ni datos Uki.
+- [ ] Probar las fichas nuevas y originales en las tres áreas, impedir acciones sin permisos y comprobar carta y banner reales. No eliminar referencias reales como prueba.
+- [ ] Mantener en el mismo lote la retención segura de 35 días (timbres 95) y comprobar respaldos permanentes de Mi Administración antes de habilitar cualquier limpieza. No publicar una actualización por cada acotación.

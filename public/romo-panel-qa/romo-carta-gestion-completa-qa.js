@@ -1273,6 +1273,41 @@
     'El borrador se conserva; no se creó otra promoción. ')+String(e.message||e));
   }finally{state.busy=false;}
  }
+ // Una acción visible, dos operaciones auditadas y confirmadas cuando
+ // la promoción está publicada. Nunca borrar mientras siga en la carta.
+ async function eliminarPromocionPropia(p){
+  if(state.busy||!canWrite()||p?._base||!/^promo:[a-f0-9-]{36}$/.test(p?.sku||''))return;
+  if(!window.confirm('¿Eliminar «'+p.name+'» de la carta, banner y listado? Los pedidos y ventas anteriores se conservan.'))return;
+  const revisionInicial=state.admin.revision;
+  const publicSku='monthly:romoq-'+p.sku.slice(6);
+  let retirada=false;
+  state.busy=true;
+  try{
+   const current=await request('GET');
+   if(current.revision!==revisionInicial||!current.data?.promotions?.some(x=>x.sku===p.sku))
+    throw Error('La gestión cambió. Actualiza la lista antes de eliminar.');
+   if((current.publishedPromotions||[]).some(x=>x.sku===publicSku)){
+    if(current.publicacionHabilitada!==true)throw Error('No está autorizada la retirada comercial.');
+    status('Retirando promoción de la carta y el banner…');
+    await publicarPromocion(p.sku,true,revisionInicial);
+    retirada=true;
+   }
+   const fresh=await request('GET');
+   if(fresh.revision!==revisionInicial||(fresh.publishedPromotions||[]).some(x=>x.sku===publicSku))
+    throw Error('No se confirmó una revisión segura para eliminar.');
+   const done=await request('POST',{action:'promotion-delete',expectedRevision:revisionInicial,
+    fields:{id:p.sku},motivo:'Eliminar promoción '+p.name});
+   if(done.guardado!==true||done.auditado!==true||done.revision!==revisionInicial+1)
+    throw Error('No se confirmó la eliminación administrativa');
+   const final=await request('GET');
+   if(final.data?.promotions?.some(x=>x.sku===p.sku)||(final.publishedPromotions||[]).some(x=>x.sku===publicSku))
+    throw Error('La eliminación todavía no se confirmó');
+   state.busy=false;await load();status('✓ Promoción eliminada de la carta y administración.');
+  }catch(e){
+   state.busy=false;await load();
+   status((retirada?'La promoción se retiró de la carta; revisa su ficha antes de completar la eliminación. ':'No se confirmó la eliminación; actualiza antes de repetir. ')+String(e.message||e));
+  }finally{state.busy=false;}
+ }
  function promotionForm(p,create=false){
   const box=stack(),name=field('Nombre',p?.name||''),price=field('Precio ($)',p?.price||'','number'),
    desc=field('Descripción de lo que incluye',p?.description||''),type=select('Tipo de promoción',
@@ -1407,10 +1442,9 @@
      const edit=panel('Editar promoción');edit.append(promotionForm(p,false));item.append(edit);
      const discount=field('Descuento (%)',percent,'number');discount.input.max='99';const preview=info('');const show=()=>{const n=Number(discount.input.value);preview.textContent=Number.isInteger(n)&&n>=0&&n<=99?'Antes '+money(p.price)+' · Ahora '+money(Math.max(1,Math.round(p.price*(100-n)/100))):'Descuento entre 0 y 99%';};discount.input.oninput=show;show();
      item.append(discount.wrap,preview,button('Guardar descuento',()=>void save('discount-set',{id:p.sku,percent:Number(discount.input.value)},'Descuento de '+p.name),true));
-     if(!published)item.append(button('Eliminar promoción de borrador',()=>{
-      void save('promotion-delete',{id:p.sku},'Eliminar promoción '+p.name,
-       '¿Eliminar esta promoción de pruebas? Se conserva la auditoría.');
-     },true));
+     const remove=button('Eliminar promoción',()=>void eliminarPromocionPropia(p),true);
+     remove.disabled=!canWrite()||(published&&!state.admin.publicacionHabilitada);
+     remove.style.color='#a00e28';item.append(remove);
     }else{
      item.append(info('Promoción vigente. Guarda nombre, precio, disponibilidad, descuento o armado desde su formulario.'));
      const config=p.config||p;item.append(info((Number.isInteger(config.rollCount)&&config.rollCount>0?config.rollCount+' rolls · ':'')+(Number.isInteger(config.sauceCount)?config.sauceCount+' salsas · ':'')+(Number.isInteger(config.korokes)?config.korokes+' korokes · ':'')+(Array.isArray(config.payments)?'Pagos: '+config.payments.join(', '):'Armado original conservado')));
