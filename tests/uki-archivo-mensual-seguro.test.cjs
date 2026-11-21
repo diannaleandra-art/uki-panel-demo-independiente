@@ -12,7 +12,11 @@ function estado(){
    {fechaISO:'2026-11-24T12:00:00',tipo:'venta',monto:2500}
   ]}
  }};
- for(const nombre of core.SECCIONES)obj[nombre]=[];
+ for(const nombre of core.SECCIONES)if(nombre!=='cajasDiarias')obj[nombre]=[];
+ obj.cajasDiarias={
+  [ubicacion+'|2026-11-30']:{base:18000,precierres:[{nombre:'Turno 1',inicioMs:1796000000000}]},
+  [ubicacion+'|2026-12-01']:{base:18000}
+ };
  obj.pedidos=[{suc:ubicacion,id:'orden-1',fechaISO:'2026-11-24T12:00:00',
   pagado:true,total:2500,telefono:'56912345678',cliente:'Ejemplo',
   detalle:'N'.repeat(500)},
@@ -40,7 +44,7 @@ test('archivo conserva solo el mes, clientes, timbres y detalle original sin mut
 });
 test('servidor valida periodo, cantidad y no habilita la función sin bandera',()=>{
  const a=core.generar(estado(),'2026-11',new Date('2026-12-06T15:00:00Z'));
- assert.equal(backend.verify(a,a.sucursal,'2026-11',backend.dates('2026-11')),3);
+ assert.equal(backend.verify(a,a.sucursal,'2026-11',backend.dates('2026-11')),4);
  assert.equal(backend.dates('2026-11').habilitado,'2026-12-05');
  assert.equal(backend.config({VERCEL_ENV:'production',UKI_FIN_PRIVATE_ENABLED:'true'}),null);
  assert.throws(()=>backend.verify({...a,resumen:{...a.resumen,pedidos:999}},
@@ -121,4 +125,21 @@ test('timbres sin fecha detienen el respaldo y no afectan ventas ni tarjeta',()=
  assert.equal(archivo.sinFecha.timbres,1);
  assert.throws(()=>backend.verify(archivo,archivo.sucursal,'2026-11',backend.dates('2026-11')),/timbres sin fecha/);
  assert.equal(JSON.stringify(datos),original,'La validación nunca puede cambiar el historial original');
+});
+
+test('el archivo guarda la caja diaria, precierres y excluye cajas del mes siguiente',()=>{
+ const datos=estado(),archivo=core.generar(datos,'2026-11',new Date('2026-12-06T15:00:00Z'));
+ assert.equal(archivo.registros.cajasDiarias.length,1);
+ assert.equal(archivo.registros.cajasDiarias[0].datos.precierres.length,1);
+ assert.equal(archivo.resumen.cajasDiarias,1);
+ assert.equal(core.hojasExcel(archivo).find(h=>h.nombre==='Cajas diarias').filas.length,1);
+ assert.equal(datos.cajasDiarias[ubicacion+'|2026-12-01'].base,18000);
+ assert.equal(backend.verify(archivo,archivo.sucursal,'2026-11',backend.dates('2026-11')),4);
+});
+test('un cierre diario sin fecha válida impide dar por completo el respaldo',()=>{
+ const datos=estado();
+ datos.cajasDiarias[ubicacion+'|sin-fecha']={base:18000};
+ const a=core.generar(datos,'2026-11',new Date('2026-12-06T15:00:00Z'));
+ assert.equal(a.sinFecha.cajasDiarias,1);
+ assert.throws(()=>backend.verify(a,a.sucursal,'2026-11',backend.dates('2026-11')),/sin fecha/);
 });
