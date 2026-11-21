@@ -59,6 +59,7 @@ export function conciliarCierresRomoResumenQA({
  const keys=new Set(),candidatos=[];
  for(const c of cierres){
   validarCierre(c);
+  if(c.version_cierre!=null&&(!Number.isInteger(c.version_cierre)||c.version_cierre<2||c.version_cierre>32||c.fuente_version!==c.source_key+'|v'+c.version_cierre||!M(c.venta_original)||c.diferencia_venta!==c.venta_total-c.venta_original))fail('Versión de cierre inconsistente');
   if(keys.has(c.source_key))fail('Cierre Romo duplicado en la consulta');
   keys.add(c.source_key);
   if((desde&&c.fecha_operativa<desde)||(hasta&&c.fecha_operativa>hasta))continue;
@@ -76,9 +77,9 @@ export function conciliarCierresRomoResumenQA({
   if(diasManuales.has(c.fecha_operativa)){bloqueados++;continue;}
   deliveryPorPagar+=c.delivery_por_pagar;
   items.push(Object.freeze({
-   tipo:'cierre',marca:'romo',origen:'Cierre Romo confirmado',
+   tipo:'cierre',marca:'romo',origen:c.version_cierre?'Cierre Romo rectificado · v'+c.version_cierre:'Cierre Romo confirmado',
    fecha:c.fecha_operativa,sucursal:'La Serena',nombre:'Romo’s Sushi',
-   importe:c.venta_total,id:c.source_key,ref:c.source_key,
+   importe:c.venta_total,id:c.source_key,ref:c.source_key,version:c.version_cierre||1,ventaOriginal:c.venta_original??c.venta_total,
    confirmado:true,estado:'confirmado',medios:{...c.medios},
    gastos:c.gastos_cierre,delivery:c.delivery_por_pagar,deliveryPorPagar:0,
    propinas:c.propinas,retiros:0

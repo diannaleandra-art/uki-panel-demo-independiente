@@ -481,7 +481,7 @@ import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app
 import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
 import {crearControlCompras} from "./mi-administracion-compras.js?v=general-v5";
 import {unirVentasDuenos} from "./uki-duenos-ventas-unificadas-qa.mjs";
-import {conciliarCierresRomoResumenQA} from './uki-duenos-romo-cierres-conciliados-qa.mjs?v=20261121';
+import {conciliarCierresRomoResumenQA} from './uki-duenos-romo-cierres-conciliados-qa.mjs?v=20261121v2';
 import {construirInforme,generarXLSX,generarPDF,compartirWhatsApp} from "./mi-administracion-informes.js?v=duenos-reporte-v1";
 const app=initializeApp({apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",appId:"1:1070481165758:web:b8f0f9ff40caf5b8ac7def"});
 const auth=getAuth(app),$=id=>document.getElementById(id);
@@ -976,7 +976,7 @@ async function cargarCierresRomoQA(desde,hasta){
     ' · Propinas: '+pesos(c.propinas)+
     ' · Revisión Neon: '+c.revision_neon;
    const note=document.createElement('p');note.className='hint';
-   note.textContent='Cierre verificado: se incorpora al resumen solo si no coincide con ventas manuales del día. No genera asiento contable.';
+   note.textContent=(c.version_cierre?'Versión '+c.version_cierre+' · Original: '+pesos(c.venta_original)+' · Diferencia: '+pesos(c.diferencia_venta)+'. ':'')+'Cierre verificado: se incorpora al resumen solo si no coincide con ventas manuales del día. No genera asiento contable.';
    card.append(name,detail,note);host.append(card);
   });
  }catch(error){
