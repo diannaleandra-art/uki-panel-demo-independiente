@@ -63,6 +63,8 @@ function ejecutarInterfaz(script,{romo=false,editarDuranteCompresion=false,pendi
  class FechaPrueba extends Date{constructor(...args){super(...(args.length?args:[fechaPrueba]));}}
  vm.runInNewContext(script,{
   window:ventana,document:doc,fetch:fetchMock,Intl,Date:FechaPrueba,JSON,console,
+  // Temporizador del navegador simulado: no ejecuta tareas de fondo en esta prueba.
+  setInterval:()=>1,clearInterval:()=>{},
   MutationObserver:class{observe(){}}
  },{timeout:3000});
  controles.ukiArchivoMes.value='2026-11';
