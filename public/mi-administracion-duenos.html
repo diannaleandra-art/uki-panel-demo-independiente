@@ -1682,26 +1682,44 @@ function renderPayments(rows){
  for(const p of rows||[])if(p.medio&&Number(p.total)>0)pagos[p.medio]=Number(p.total);
  $('mediosReport').innerHTML=moneyRows(pagos)||'<p class="muted">No se ha registrado el desglose.</p>';
 }
+let refreshFinSeq=0;
 async function refresh(){
  if(!session)return;
+ const seq=++refreshFinSeq,privateSession=session;
+ // Invalida consultas anteriores antes de cambiar filtros.
+ ++romoCierresPrivadosSecuencia;++ukiCierresQAConsulta;
  limpiarInformes();
- movimientosFinancierosCargadosQA=false;
+ movimientosFinancierosCargadosQA=false;romoMovimientosConciliacion=[];
  cierresConfirmadosRomoQA=[];romoCierresConsultaValidaQA=false;
+ const params={negocio_id:currentBiz()||null,sucursal_id:currentBranch()||null,razon_social_id:value('scopeRazon')||'todos',desde:value('from'),hasta:value('to')};
+ const vigente=()=>seq===refreshFinSeq&&session===privateSession&&params.desde===value('from')&&params.hasta===value('to')&&params.negocio_id===(currentBiz()||null)&&params.sucursal_id===(currentBranch()||null)&&params.razon_social_id===(value('scopeRazon')||'todos');
  try{
   notify('Actualizando información financiera…');
-  const params={negocio_id:currentBiz()||null,sucursal_id:currentBranch()||null,razon_social_id:value('scopeRazon')||'todos',desde:value('from'),hasta:value('to')};
   const [s,l]=await Promise.all([api('resumen',params),api('listar_movimientos',params)]);
+  if(!vigente())return;
   if(!Array.isArray(l.movimientos))throw Error('No se recibió el listado completo de ventas');
   transactions=l.movimientos;
-  const conciliacion=await api('listar_movimientos',{negocio_id:null,sucursal_id:null,razon_social_id:'todos',desde:params.desde,hasta:params.hasta});
-  romoMovimientosConciliacion=Array.isArray(conciliacion.movimientos)?conciliacion.movimientos:[];
-  movimientosFinancierosCargadosQA=Array.isArray(conciliacion.movimientos)&&conciliacion.movimientos.length<250&&params.desde===value('from')&&params.hasta===value('to');
   marcarPeriodoSeleccionado();
   resumenManualUki=s.resumen||[];pagosManualesUki=s.pagos||[];
   renderRows();notify('Información privada actualizada.','success');
-  await cargarCierresUki(value('from'),value('to'));
-  await cargarCuentasPendientes();
+  // Si la lectura adicional falla, no se suman cierres Romo; los registros
+  // normales Uki siguen visibles y utilizables.
+  try{
+   const conciliacion=await api('listar_movimientos',{negocio_id:null,sucursal_id:null,razon_social_id:'todos',desde:params.desde,hasta:params.hasta});
+   if(!vigente())return;
+   romoMovimientosConciliacion=Array.isArray(conciliacion.movimientos)?conciliacion.movimientos:[];
+   movimientosFinancierosCargadosQA=Array.isArray(conciliacion.movimientos)&&conciliacion.movimientos.length<250;
+  }catch(e){
+   if(!vigente())return;
+   movimientosFinancierosCargadosQA=false;
+   romoMovimientosConciliacion=[];
+   if(/código privado|sesión|Introduce el código/.test(String(e.message))){lock();return;}
+  }
+  if(!vigente())return;
+  await cargarCierresUki(params.desde,params.hasta);
+  if(vigente())await cargarCuentasPendientes();
  }catch(e){
+  if(!vigente())return;
   movimientosFinancierosCargadosQA=false;
   cierresConfirmadosRomoQA=[];romoCierresConsultaValidaQA=false;
   notify(e.message,'error');if(/código privado|sesión|Introduce el código/.test(e.message))lock();
