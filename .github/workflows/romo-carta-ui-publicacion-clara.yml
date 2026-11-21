@@ -1,0 +1,33 @@
+name: Romo carta - productos ingredientes promociones claros
+on:
+  push:
+    branches:
+      - fix/romo-carta-clara-productos-promos-20261121
+    paths:
+      - public/romo-panel-qa/romo-carta-gestion-completa-qa.js
+      - lib/romo-carta-ediciones-seguras-qa.mjs
+      - tests/romo-carta-ui-publicacion-clara.test.cjs
+      - .github/workflows/romo-carta-ui-publicacion-clara.yml
+  pull_request:
+    branches:
+      - release/romos-panel-v816
+    paths:
+      - public/romo-panel-qa/romo-carta-gestion-completa-qa.js
+      - lib/romo-carta-ediciones-seguras-qa.mjs
+      - tests/romo-carta-ui-publicacion-clara.test.cjs
+permissions:
+  contents: read
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Sintaxis de editor y publicación
+        run: |
+          node --check public/romo-panel-qa/romo-carta-gestion-completa-qa.js
+          node --check lib/romo-carta-ediciones-seguras-qa.mjs
+      - name: Probar visual, validación y publicación
+        run: node --test tests/romo-carta-ui-publicacion-clara.test.cjs
