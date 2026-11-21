@@ -1922,7 +1922,7 @@ function lock(){session='';romoCierresPrivadosSecuencia++;
  limpiarInformes();show('unlock');}
 async function checkState(){
  if(!auth.currentUser){show('login');notify('Entra con tu cuenta autorizada.');return}
- try{const r=await api('estado');if(r.autorizado){show('app');await loadBusinesses();return}
+ try{const r=await api('estado');if(r.autorizado){show('app');await loadBusinesses();if(mesArchivoExigible())void archivoMensualListar();return}
  show(r.pin_configurado?'unlock':'setup');notify(r.pin_configurado?'Escribe el PIN privado.':'Configura el PIN de dueños una única vez.');
  }catch(e){show('login');notify(e.message,'error')}
 }
@@ -1941,7 +1941,7 @@ $('configure').onclick=()=>safe('configure',async()=>{
 });
 $('enter').onclick=()=>safe('enter',async()=>{
  const r=await api('ingresar_pin',{pin:value('pin')});session=r.sesion;$('pin').value='';
- show('app');await loadBusinesses();switchTab('resumen');
+ show('app');await loadBusinesses();switchTab('resumen');if(mesArchivoExigible())void archivoMensualListar();
 });
 $('exit').onclick=async()=>{
  if(session)try{await api('salir')}catch{}
@@ -1993,6 +1993,14 @@ async function archivoMensualDescargar(registro,tipo){
   aviso.textContent='Archivo '+tipo.toUpperCase()+' preparado con verificación SHA-256.';
  }catch(e){aviso.textContent=String(e.message||e)+' No se modificaron datos.';}
 }
+// Fecha local de Chile: noviembre solo se revisa desde el 5 de diciembre.
+function mesArchivoExigible(fecha=today()){
+ const [y,m,d]=String(fecha).split('-').map(Number);
+ if(!Number.isInteger(y)||!Number.isInteger(m)||!Number.isInteger(d)||m<1||m>12||d<1||d>31)return null;
+ const mesesAtras=d>=5?1:2;
+ const mes=new Date(Date.UTC(y,m-1-mesesAtras,1)).toISOString().slice(0,7);
+ return mes>='2026-11'?mes:null;
+}
 async function archivoMensualListar(){
  const btn=$('ukiArchivoConsultar'),host=$('ukiArchivoMesesAdmin'),estado=$('ukiArchivoEstadoAdmin');
  btn.disabled=true;estado.textContent='Consultando archivos privados…';
@@ -2001,7 +2009,7 @@ async function archivoMensualListar(){
   if(!Array.isArray(data.archivos))throw Error('El índice no está disponible.');
   host.replaceChildren();
   const labels={'uki:arica':'Uki Regimiento Arica','uki:serena':'Uki La Serena','romo:serena':'Romo Sushi La Serena'};
-  const ultimoMes=data.archivos[0]?.mes||'2026-11';
+  const ultimoMes=mesArchivoExigible()||data.archivos[0]?.mes||'2026-11';
   const archivadas=new Set(data.archivos.filter(x=>x.mes===ultimoMes).map(x=>x.sucursal));
   const sinArchivo=Object.entries(labels).filter(([k])=>!archivadas.has(k)).map(([,nombre])=>nombre);
   const indicador=document.createElement('p');indicador.className='hint';
