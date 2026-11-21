@@ -465,7 +465,8 @@ function ukiTurnoFolioActual(){
   ...(caja.precierres||[]).filter(x=>x?.fechaOperativa===dia).map(x=>Number(x.finMs)||0));
  const actuales=pedidosSuc().filter(p=>{
    const registrado=fechaRegistroMs(p);
-   return p.turnoClave===clave ? registrado>=inicio :
+   const incorporado=S.suc===ROMO_SUCURSAL_QA&&p.turnoClave===clave?Number(p.turnoIncorporadoEn)||0:0;
+   return p.turnoClave===clave ? Math.max(registrado,incorporado)>=inicio :
      !p.turnoClave&&registrado>=desdeHistorico&&esDelPeriodo(p);
  });
  const maxNumero=Math.max(0,...actuales.map(p=>Number(p.numeroTurno)||0));

@@ -189,14 +189,47 @@ export function prepararAperturaTurnoRomoQA(estado,{
   turnoPrecierreAbierto:null,
   movimientosApps:[],pagosRepartidor:[]
  };
+ // Incorporar únicamente pedidos no cobrados de esta jornada, anteriores
+ // a la primera apertura o al siguiente turno sin cierre que los incluya.
+ // Conservar la fecha, ID, folio, importes y solicitud original.
+ const cerrados=new Set(estado.cierres.map(c=>String(c.turnoClave||'')));
+ const incorporados=[];
+ for(const p of estado.pedidos){
+  const anterior=String(p.turnoClave||'');
+  const registrado=fechaReg(p);
+  const fechaPedido=String(p.fechaOperativa||anterior.slice(0,10));
+  if(fechaPedido!==fechaOperativa||!anterior.startsWith(fechaOperativa+'@')||
+    registrado<=desdeMs||registrado>=inicioMs||cerrados.has(anterior)||
+    !['Pendiente','Entregado'].includes(p.estado)||p.pagado!==false||p.esPremio||
+    p.cobroConfirmadoEn||p.ajusteCobroPendiente||p.productosPagadosOtroLocal||
+    p.envioPagadoOtroLocal||Number(p.propina||0)!==0||
+    (p.pagosProductos||[]).length||(p.pagosEnvio||[]).length||
+    estado.propinas.some(t=>Number(t.pedidoId)===Number(p.id)))continue;
+  p.turnoClave=turnoId;
+  p.turnoIncorporadoEn=inicioMs;
+  p.turnoAnteriorSinCaja=anterior;
+  p.historialCambios=[...(Array.isArray(p.historialCambios)?p.historialCambios:[]),{
+   tipo:'vinculacion_turno_sin_cobro',fecha:new Date(inicioMs).toISOString(),
+   responsable:persona,anterior:{turnoClave:anterior},
+   nuevo:{turnoClave:turnoId,pagado:false}
+  }].slice(-100);
+  incorporados.push(p.id);
+ }
  estado.fechaOperativa=fechaOperativa;
- return Object.freeze({tipo:'apertura',turnoId,fechaOperativa,base:montoBase});
+ return Object.freeze({tipo:'apertura',turnoId,fechaOperativa,base:montoBase,
+  pedidosIncorporados:Object.freeze(incorporados)});
 }
 /**
  * Evitar un cierre aparentemente en $0 que omita pedidos activos de la misma
  * jornada, pero creados antes de abrir el turno actual. No se modifica dinero.
  * Los pedidos cancelados sin cobro y los turnos ya cerrados quedan excluidos.
  */
+function incorporadoAlTurnoRomoQA(p,turnoId,inicioMs){
+ return p?.turnoClave===turnoId&&p.turnoIncorporadoEn===inicioMs&&
+  typeof p.turnoAnteriorSinCaja==='string'&&p.turnoAnteriorSinCaja!==turnoId&&
+  p.turnoAnteriorSinCaja.startsWith(turnoId.slice(0,10)+'@')&&
+  fechaReg(p)>0&&fechaReg(p)<inicioMs;
+}
 export function pedidosPreviosSinConciliarRomoQA(estado,{
  fechaOperativa,turnoId,inicioMs
 }={}){
@@ -212,7 +245,8 @@ export function pedidosPreviosSinConciliarRomoQA(estado,{
     !(p.fechaOperativa===fechaOperativa||
      String(p.turnoClave||'').startsWith(fechaOperativa+'@')))return false;
   const registrado=fechaReg(p);
-  if(registrado>=inicioMs&&p.turnoClave===turnoId)return false;
+  if((registrado>=inicioMs&&p.turnoClave===turnoId)||
+     incorporadoAlTurnoRomoQA(p,turnoId,inicioMs))return false;
   const sinDinero=p.pagado!==true&&
    !(Array.isArray(p.pagosProductos)&&p.pagosProductos.length)&&
    !(Array.isArray(p.pagosEnvio)&&p.pagosEnvio.length);
@@ -297,7 +331,8 @@ export function prepararCierreDefinitivoRomoQA(estado,{
  }
  const corte={...estado};
  for(const k of ['pedidos','gastos','retiros','propinas','deliveriesManuales']){
-  corte[k]=estado[k].filter(x=>dentro(x,inicio,cierreMs))
+  corte[k]=estado[k].filter(x=>dentro(x,inicio,cierreMs)||
+   (k==='pedidos'&&incorporadoAlTurnoRomoQA(x,turnoId,inicio)))
    .map(x=>({...x,fechaOperativa}));
  }
  const t=consultarCajaRomoQA(corte,{fechaOperativa});
