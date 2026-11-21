@@ -6,7 +6,7 @@
  if(root)root.UkiArchivoMensual=api;
 })(typeof window==='object'?window:null,function(){
  'use strict';
- const SECCIONES=['pedidos','cierres','gastos','retiros','propinas','deliveriesManuales','incidencias','ajustesHistoricos','solicitudesWhatsApp'];
+ const SECCIONES=['pedidos','cierres','gastos','retiros','propinas','deliveriesManuales','incidencias','ajustesHistoricos','solicitudesWhatsApp','cajasDiarias'];
  const SUCURSALES={'Uki Regimiento Arica':'uki:arica','Uki La Serena':'uki:serena','Romo’s Sushi La Serena':'romo:serena'};
  const fechaValida=s=>/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(s)&&new Date(s+'T12:00:00Z').toISOString().slice(0,10)===s;
  const localFecha=v=>{
@@ -41,11 +41,29 @@
   if(localFecha(ahora)<p.desdeDia5)throw Error('El primer archivo de '+mes+' se prepara el '+p.desdeDia5+'.');
   const registros={},sinFecha={};
   for(const sec of SECCIONES){
+   if(sec==='cajasDiarias')continue;
    if(!Array.isArray(estado[sec]))throw Error('El panel no tiene la sección '+sec+' verificada.');
    const items=estado[sec].filter(x=>x&&x.suc===sucursal),separados=items.filter(x=>!fechaRegistro(x,sec));
    sinFecha[sec]=separados.length;
    registros[sec]=items.filter(x=>{const f=fechaRegistro(x,sec);return f>=p.desde&&f<=p.hasta;}).map(x=>JSON.parse(JSON.stringify(x)));
   }
+  // Las cajas diarias son un mapa por sucursal y fecha, no un arreglo.
+  // Su detalle incluye precierres, turnos, caja chica y datos de caja acumulada.
+  const mapa=estado.cajasDiarias;
+  if(!mapa||typeof mapa!=='object'||Array.isArray(mapa))
+   throw Error('Falta el historial de cajas diarias para esta sucursal.');
+  const prefijo=sucursal+'|';
+  const entradas=Object.entries(mapa).filter(([clave])=>clave.startsWith(prefijo));
+  sinFecha.cajasDiarias=entradas.filter(([clave,valor])=>
+   !fechaValida(clave.slice(prefijo.length))||!valor||
+   typeof valor!=='object'||Array.isArray(valor)).length;
+  registros.cajasDiarias=entradas.filter(([clave,valor])=>
+   fechaValida(clave.slice(prefijo.length))&&valor&&
+   typeof valor==='object'&&!Array.isArray(valor)&&
+   clave.slice(prefijo.length)>=p.desde&&clave.slice(prefijo.length)<=p.hasta)
+   .map(([clave,datos])=>JSON.parse(JSON.stringify({
+    suc:sucursal,fechaOperativa:clave.slice(prefijo.length),clave,datos
+   })));
   const pedidos=registros.pedidos,clientes=[];
   sinFecha.timbres=0;
   for(const [clave,c] of Object.entries(estado.clientes||{})){
@@ -104,7 +122,7 @@
   const nombres=[...SECCIONES.map(s=>[s,({
    pedidos:'Pedidos',cierres:'Cierres',gastos:'Gastos',retiros:'Retiros',propinas:'Propinas',
    deliveriesManuales:'Delivery manual',incidencias:'Incidencias',ajustesHistoricos:'Ajustes históricos',
-   solicitudesWhatsApp:'Solicitudes WhatsApp'})[s]||s]),
+   solicitudesWhatsApp:'Solicitudes WhatsApp',cajasDiarias:'Cajas diarias'})[s]||s]),
    ['clientes','Clientes'],['timbres','Timbres']];
   for(const [codigo,nombre] of nombres){
    hojas.push({nombre,columnas:encabezado,filas:registros.slice(1)
