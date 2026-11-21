@@ -118,7 +118,7 @@ module.exports=async function archivoMensual(req,res){
   if(raw.length>8000000||hash(raw)!==body.sha256)return fail(res,409,'El respaldo no superó la verificación SHA-256.');
   const parsed=JSON.parse(raw.toString('utf8'));
   const n=verify(parsed,sucursal,mes,period);
-  const result=await sql.query('INSERT INTO public.fin_archivos_mensuales_v1(sucursal,mes,desde,hasta,sha256,encoding,contenido,total_registros,resumen,creado_por_uid) VALUES($1,$2,$3::date,$4::date,$5,$6,decode($7,'base64'),$8,$9::jsonb,$10) ON CONFLICT(sucursal,mes) DO NOTHING RETURNING sha256',
+  const result=await sql.query("INSERT INTO public.fin_archivos_mensuales_v1(sucursal,mes,desde,hasta,sha256,encoding,contenido,total_registros,resumen,creado_por_uid) VALUES($1,$2,$3::date,$4::date,$5,$6,decode($7,'base64'),$8,$9::jsonb,$10) ON CONFLICT(sucursal,mes) DO NOTHING RETURNING sha256",
    [sucursal,mes,period.desde,period.hasta,body.sha256,body.encoding,body.base64,n,JSON.stringify(parsed.resumen),who.uid]);
   if(!result.length){
    const check=await sql.query('SELECT sha256 FROM public.fin_archivos_mensuales_v1 WHERE sucursal=$1 AND mes=$2',[sucursal,mes]);
