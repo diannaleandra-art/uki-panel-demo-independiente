@@ -55,7 +55,7 @@
  function categories(){
   const data=state.admin?.data||{},base=state.base||{};
   const list=[...(base.categories||[]),...(data.categories||[])];
-  return list.filter(c=>(base.categories||[]).some(b=>b.slug===c.slug)||!(data.categoryHidden||[]).includes(c.slug))
+  return list.filter(c=>!(base.archivedCategories||[]).includes(c.slug)&&((base.categories||[]).some(b=>b.slug===c.slug)||!(data.categoryHidden||[]).includes(c.slug)))
    .map(c=>({slug:c.slug,nombre:(base.categories||[]).some(b=>b.slug===c.slug)?c.nombre:(data.categoryNames?.[c.slug]||c.nombre),original:(base.categories||[]).some(b=>b.slug===c.slug)}));
  }
  function categoryOptions(){return [['','Sin categoría'],...categories().map(c=>[c.slug,c.nombre])];}
@@ -134,7 +134,7 @@
    state.base=await commercialRequest('GET');await load();status('✓ '+description+' · Guardado en carta de Romo.');
   }catch(e){status('No se confirmó el cambio. '+String(e.message||e));}finally{state.busy=false;}
  }
- const commercialCategoryOptions=()=> (state.base?.categories||[]).filter(c=>c.slug==='entradas'||c.slug.startsWith('romoq-')).map(c=>[c.slug,c.nombre]);
+ const commercialCategoryOptions=()=> (state.base?.categories||[]).filter(c=>!(state.base?.archivedCategories||[]).includes(c.slug)&&(c.slug==='entradas'||c.slug.startsWith('romoq-'))).map(c=>[c.slug,c.nombre]);
  async function load(){
   if(!state.root||!state.root.isConnected)return;
   const id=++state.requestId;
@@ -1054,7 +1054,13 @@
  }
  function renderCategories(){
   const target=host('categorias');if(!target)return;clear(target);
-  target.append(cardNote(),info('Crea categorías propias y consulta los productos de cada una. Las categorías originales de armado se conservan.'));
+  target.append(cardNote(),info('Crea categorías, consulta sus productos y retira las categorías originales vacías. No se borran productos al eliminar una categoría.'));
+  const retiradas=(state.base?.categories||[]).filter(c=>(state.base?.archivedCategories||[]).includes(c.slug));
+  if(retiradas.length){
+   const box=panel('Categorías retiradas · '+retiradas.length);
+   for(const c of retiradas){const line=row();line.append(E('strong',c.nombre),button('Restaurar',()=>void saveCommercial('original-category-restore',{slug:c.slug},'Restaurar categoría '+c.nombre,'¿Restaurar esta categoría?'),true));box.append(line);}
+   target.append(box);
+  }
   const create=panel('＋ Crear categoría'),n=field('Nombre de la categoría'),f=stack();
   f.append(n.wrap,button('Guardar categoría',()=>void saveCommercial('category-create',{nombre:n.input.value.trim()},'Crear categoría '+n.input.value.trim())));
   create.append(f);
@@ -1089,6 +1095,7 @@
     }
     if(c.original&&c.slug.startsWith('romoq-'))area.append(button('Eliminar categoría',()=>void saveCommercial('category-delete',{slug:c.slug},'Eliminar categoría '+c.nombre,'¿Eliminar categoría? Sus productos pasarán a Entradas.'),true));
     else if(!c.original)area.append(button('Eliminar borrador',()=>void save('category-delete',{id:c.slug},'Eliminar categoría '+c.nombre,'¿Eliminar esta categoría de administración?'),true));
+    else if(c.original){const remove=button('Eliminar categoría',()=>void saveCommercial('original-category-archive',{slug:c.slug},'Retirar categoría '+c.nombre,'¿Retirar esta categoría vacía? No se borran productos ni ventas.'),true);remove.disabled=!canWrite()||members.length>0;area.append(remove);if(members.length)area.append(info('Retira o mueve sus productos primero.'));}
     card.append(area);list.append(card);
    }
   };

@@ -23,6 +23,13 @@ function proyectarRetirados(contenido){
   throw Error('Referencias retiradas no verificadas');
  return [...a];
 }
+function proyectarCategoriasRetiradas(contenido){
+ const a=contenido.gestion?.archivedCategories??[];
+ if(!Array.isArray(a)||a.length>30||new Set(a).size!==a.length||
+    a.some(x=>typeof x!=='string'||!/^[a-z0-9-]{2,70}$/.test(x)))
+  throw Error('Categorías retiradas no verificadas');
+ return [...a];
+}
 function proyectarPromociones(contenido,revision){
  if(!int(revision)||revision<1||!isObject(contenido)||
     contenido.storeId!==STORE||contenido.revision!==revision||
@@ -86,7 +93,7 @@ module.exports=async function promocionesPublicasRomo(req,res){
   const ingredientConfig=require('../lib/romo-ingredientes-publicacion.cjs').validate(rows[0].contenido.gestion.ingredientConfig);
   return res.status(200).json({
    ok:true,storeId:STORE,readOnly:true,revision,
-   customPromotions:promociones,archivedProducts:proyectarRetirados(rows[0].contenido),ingredientConfig
+   customPromotions:promociones,archivedProducts:proyectarRetirados(rows[0].contenido),archivedCategories:proyectarCategoriasRetiradas(rows[0].contenido),ingredientConfig
   });
  }catch(e){
   console.error('Lectura promociones publicadas Romo no confirmada',String(e?.message||e));
