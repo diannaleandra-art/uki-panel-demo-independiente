@@ -3,7 +3,7 @@
    Acceso idéntico a Mi Administración: Firebase Google autorizado + PIN vigente. */
 const crypto=require('node:crypto'),zlib=require('node:zlib');
 const STORE=new Set(['uki:arica','uki:serena','romo:serena']);
-const SECTIONS=['pedidos','cierres','gastos','retiros','propinas','deliveriesManuales','incidencias','ajustesHistoricos','solicitudesWhatsApp'];
+const SECTIONS=['pedidos','cierres','gastos','retiros','propinas','deliveriesManuales','incidencias','ajustesHistoricos','solicitudesWhatsApp','cajasDiarias'];
 const hash=x=>crypto.createHash('sha256').update(x).digest('hex');
 const fail=(res,n,msg)=>res.status(n).json({ok:false,error:msg});
 const good=(res,data)=>res.status(200).json({ok:true,...data});
