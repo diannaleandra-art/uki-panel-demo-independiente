@@ -74,8 +74,9 @@ module.exports=async function gestionRomoQA(req,res){
   if(!Array.isArray(rows)||rows.length!==1)throw Error('Registro administrativo no inicializado en Neon QA');
   const current=M.read(rows[0]);
   const publicacionHabilitada=adminWrite&&conf.write&&process.env.ROMO_PROMOCIONES_PUBLICACION_ENABLED==='true'&&!access.compartido;
+  const ingredientesPublicacionHabilitada=adminWrite&&conf.write&&process.env.ROMO_INGREDIENTES_PUBLICACION_ENABLED==='true'&&!access.compartido;
   if(method==='GET')return res.status(200).json({
-   ...M.view(rows[0],base),edicionHabilitada:adminWrite&&!access.compartido,publicacionHabilitada,
+   ...M.view(rows[0],base),edicionHabilitada:adminWrite&&!access.compartido,publicacionHabilitada,ingredientesPublicacionHabilitada,
    aviso:'Borradores administrativos, no publicados en la carta comercial'
   });
   if(current.revision!==req.body.expectedRevision)
@@ -87,6 +88,13 @@ module.exports=async function gestionRomoQA(req,res){
    if(Object.keys(f).sort().join('|')!=='commercialRevision|id')return fail(res,400,'Datos de publicación inválidos');
    const lib=await import('../lib/romo-carta-ediciones-seguras-qa.mjs');
    const result=await lib.publicarPromoRomoQA({db,carta:base,identity,adminRevision:current.revision,commercialRevision:f.commercialRevision,sku:f.id,retirar:req.body.action==='promotion-withdraw',motivo:req.body.motivo.trim()});
+   return res.status(200).json(result);
+  }
+  if(req.body.action==='ingredients-publish'){
+   if(!ingredientesPublicacionHabilitada)return fail(res,503,'La sincronización comercial de ingredientes aún no está habilitada');
+   if(Object.keys(req.body.fields).join('|')!=='commercialRevision'||!Number.isSafeInteger(req.body.fields.commercialRevision)||req.body.fields.commercialRevision<1)return fail(res,400,'Revisión comercial inválida');
+   const lib=await import('../lib/romo-carta-ediciones-seguras-qa.mjs');
+   const result=await lib.publicarIngredientesRomoQA({db,carta:base,identity,adminRevision:current.revision,commercialRevision:req.body.fields.commercialRevision,motivo:req.body.motivo.trim()});
    return res.status(200).json(result);
   }
   const next=M.apply(current,base,req.body.action,req.body.fields);

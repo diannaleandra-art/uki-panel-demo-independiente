@@ -1022,6 +1022,9 @@
  function renderIngredients(){
   const target=host('ingredientes');if(!target)return;clear(target);
   target.append(cardNote(),info('Vegetales, proteínas y envolturas. Cada recargo puede variar según la preparación.'));
+  const sync=button('Aplicar ingredientes y recargos a la carta',async()=>{if(state.busy||!state.admin?.ingredientesPublicacionHabilitada)return;if(!window.confirm('¿Aplicar todos los ingredientes y recargos guardados de Romo a la carta comercial? No cambia pedidos antiguos.'))return;state.busy=true;try{const result=await request('POST',{action:'ingredients-publish',expectedRevision:state.admin.revision,fields:{commercialRevision:state.base.revision},motivo:'Publicar ingredientes y disponibilidad Romo'});if(result.guardado!==true||result.auditado!==true||result.ingredientesPublicados!==true)throw Error('Publicación no confirmada');sync.disabled=true;status('Ingredientes publicados en revisión '+result.revisionComercial+'. Actualiza Carta y precios para confirmar.');}catch(e){status('No se confirmó la publicación: '+String(e.message||e));}finally{state.busy=false;}});
+  sync.disabled=!state.admin?.ingredientesPublicacionHabilitada||state.base?.revision<1;target.append(sync);
+  if(sync.disabled)target.append(info('Sincronización comercial pendiente de habilitación. Los cambios se conservan como borrador.'));
   const kinds=[['vegetal','Vegetal'],['proteina','Proteína'],['envoltura','Envoltura']];
   const allowed={vegetal:['classic','premium','monthly','handroll','burger','gohan'],proteina:['classic','premium','monthly','handroll','burger'],envoltura:['classic','premium','monthly','handroll']};
   const updateSurfaces=(select,inputs)=>{for(const [k,input] of Object.entries(inputs)){input.disabled=!allowed[select.value]?.includes(k);if(input.disabled)input.checked=false;}};
