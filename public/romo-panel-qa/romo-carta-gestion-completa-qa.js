@@ -144,7 +144,7 @@
   if(expectedAdmin!==null&&current.revision!==expectedAdmin)throw Error('La gestión cambió; revisa el borrador antes de publicar');
   if(!current.publicacionHabilitada||!Number.isSafeInteger(current.revisionComercial))throw Error('Publicación comercial no disponible');
   const done=await request('POST',{action:retirar?'promotion-withdraw':'promotion-publish',expectedRevision:current.revision,fields:{id:sku,commercialRevision:current.revisionComercial},motivo:(retirar?'Retirar':'Publicar')+' promoción Romo'});
-  if(done.guardado!==true||done.auditado!==true||done.publicada!==!retirar)throw Error('No se confirmó la publicación');
+  if((!(done.guardado===true&&done.auditado===true)&&done.sinCambios!==true)||done.publicada!==!retirar)throw Error('No se confirmó la publicación');
   return done;
  }
  async function publicarIngredientes(expectedAdmin){
@@ -159,7 +159,10 @@
   if(state.busy||!canWrite())return;
   if(confirmText&&!window.confirm(confirmText))return;
   const rev=state.admin.revision;
-  const syncPromo=(state.admin.publishedPromotions||[]).some(p=>p.sku==='monthly:romoq-'+String(fields.id||'').slice(6))&&['promotion-edit','discount-set'].includes(action);
+  const wasPublished=(state.admin.publishedPromotions||[]).some(p=>p.sku==='monthly:romoq-'+String(fields.id||'').slice(6));
+  const previousPromo=(state.admin.data.promotions||[]).find(p=>p.sku===fields.id);
+  const reactivate=action==='promotion-edit'&&previousPromo?.available===false&&fields.item?.available===true;
+  const syncPromo=(wasPublished&&['promotion-edit','discount-set'].includes(action))||reactivate;
   const syncIngredient=['ingredient-create','ingredient-edit','ingredient-delete','ingredient-base-edit','ingredient-availability'].includes(action)&&state.admin.ingredientesPublicacionHabilitada===true;
    let savedDraft=false;
   state.busy=true;status('Guardando cambios en Romo…');
@@ -238,11 +241,12 @@
   return data;
  }
  function photoPanel(sku){
-  const details=panel('📷 Fotografía · Ver o cambiar (solo Romo QA)');
+  const details=panel('📷 Fotografía · Ver o cambiar');
+  const activePromo=(state.admin?.publishedPromotions||[]).some(p=>p.sku==='monthly:romoq-'+sku.slice(6))&&sku.startsWith('promo:');
   const box=stack(),preview=E('div'),statusP=info('Abre esta sección para consultar la fotografía.');
   const file=E('input');file.type='file';
   file.accept='image/jpeg,image/png,image/webp,image/heic,image/heif,image/*';
-  const upload=button('Guardar fotografía de prueba',async()=>{
+  const upload=button('Guardar fotografía',async()=>{
    if(state.busy||!file.files?.length){statusP.textContent='Selecciona primero una fotografía';return;}
    state.busy=true;upload.disabled=true;statusP.textContent='Preparando fotografía…';
    try{
@@ -276,12 +280,14 @@
      preview.append(img);
     }else preview.append(info('Este producto todavía no tiene fotografía guardada en Romo QA.'));
     statusP.textContent='Fotografía consultada en Romo · versión '+version+'.';
-    remove.disabled=!canWrite()||version<1;
+    remove.disabled=!canWrite()||version<1||activePromo;
+    upload.disabled=!canWrite()||activePromo;
    }catch(e){statusP.textContent='No se pudo consultar la foto: '+String(e.message||e);}
   };
   details.addEventListener('toggle',()=>{
    if(details.open&&!loaded){loaded=true;void loadPhoto();}
   });
+  if(activePromo){file.disabled=true;upload.disabled=true;remove.disabled=true;box.append(info('La foto de esta promoción está publicada. Para cambiarla, retira la promoción, guarda la nueva foto y vuelve a publicar. No hace falta crear otra promoción.'));}
   box.append(preview,statusP,file,upload,remove);details.append(box);return details;
  }
  function previewPanel(){
@@ -1234,13 +1240,13 @@
     const percent=Number(state.admin.data.discounts?.[p.sku]||0);
     const finalPrice=percent?Math.max(1,Math.round(p.price*(100-percent)/100)):p.price;
     const published=!p._base&&(state.admin?.publishedPromotions||[]).some(x=>x.sku==='monthly:romoq-'+p.sku.slice(6));
-    const item=panel(p.name+' · '+(percent?money(p.price)+' → '+money(finalPrice):money(p.price))+(p._base?' · Carta vigente':published?' · Publicada':' · Borrador'));
+    const item=panel(p.name+' · '+(percent?money(p.price)+' → '+money(finalPrice):money(p.price))+(p._base?' · Carta vigente':published?' · Publicada':p.available===false?' · Desactivada':' · Borrador'));
     if(!p._base){
-     item.append(info((p.available===false?'Agotada o desactivada':'Disponible en borrador')+' · '+(p.promoType==='sushi'?(p.rollCount*p.piecesPerRoll)+' piezas · '+p.rollCount+' rolls · '+p.korokes+' korokes':p.promoType==='gohan'?'Gohan definido':'Combo definido')+' · '+p.sauceCount+' salsas · '+(p.payments||[]).join(', ')));
+     item.append(info((p.available===false?'Agotada o desactivada':published?'Disponible en carta':'Disponible en borrador')+' · '+(p.promoType==='sushi'?(p.rollCount*p.piecesPerRoll)+' piezas · '+p.rollCount+' rolls · '+p.korokes+' korokes':p.promoType==='gohan'?'Gohan definido':'Combo definido')+' · '+p.sauceCount+' salsas · '+(p.payments||[]).join(', ')));
      if(!published){item.open=true;}
      item.append(info(published?'Publicada en carta · guardar los cambios actualiza su publicación.':'No publicada · pulsa Publicar promoción para mostrarla a clientes.'));
-     const publication=async retirar=>{if(state.busy||!state.admin.publicacionHabilitada)return;if(!window.confirm(retirar?'¿Retirar de la carta de Romo? Los pedidos históricos se conservan.':'¿Publicar esta promoción con su foto y configuración actual en la carta de Romo?'))return;state.busy=true;try{const done=await request('POST',{action:retirar?'promotion-withdraw':'promotion-publish',expectedRevision:state.admin.revision,fields:{id:p.sku,commercialRevision:state.admin.revisionComercial},motivo:(retirar?'Retirar ':'Publicar ')+p.name});if(done.guardado!==true||done.auditado!==true||done.publicada!==!retirar)throw Error('No se confirmó la publicación');await load();status('Cambio comercial confirmado en revisión '+done.revisionComercial+'.');}catch(e){status('No se confirmó: '+String(e.message||e));}finally{state.busy=false;}};
-     const publish=button(published?'Actualizar promoción publicada':'Publicar promoción',()=>void publication(false));publish.disabled=!state.admin.publicacionHabilitada;item.append(publish);
+     const publication=async retirar=>{if(state.busy||!state.admin.publicacionHabilitada)return;if(!window.confirm(retirar?'¿Retirar de la carta de Romo? Los pedidos históricos se conservan.':'¿Publicar esta promoción con su foto y configuración actual en la carta de Romo?'))return;state.busy=true;try{const done=await publicarPromocion(p.sku,retirar,state.admin.revision);await load();status(done.sinCambios?'La promoción ya está actualizada.':'Cambio comercial confirmado en revisión '+done.revisionComercial+'.');}catch(e){status('No se confirmó: '+String(e.message||e));}finally{state.busy=false;}};
+     const publish=button(published?'Actualizar promoción publicada':'Publicar promoción',()=>void publication(false));publish.disabled=!state.admin.publicacionHabilitada||p.available===false;item.append(publish);
      if(published){const withdraw=button('Retirar promoción de la carta',()=>void publication(true),true);withdraw.disabled=!state.admin.publicacionHabilitada;item.append(withdraw);}
      const edit=panel('Editar promoción');edit.append(promotionForm(p,false));item.append(edit);
      const discount=field('Descuento (%)',percent,'number');discount.input.max='99';const preview=info('');const show=()=>{const n=Number(discount.input.value);preview.textContent=Number.isInteger(n)&&n>=0&&n<=99?'Antes '+money(p.price)+' · Ahora '+money(Math.max(1,Math.round(p.price*(100-n)/100))):'Descuento entre 0 y 99%';};discount.input.oninput=show;show();
