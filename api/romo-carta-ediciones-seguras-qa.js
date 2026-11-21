@@ -69,6 +69,7 @@ module.exports=async function romoCartaEdicionesSegurasQA(req,res){
   if(method==='OPTIONS')return res.status(204).end();
   // Consultar la carta NO habilita guardados ni su inicialización.
   // Requiere un segundo permiso explícito, distinto del permiso de lectura.
+  if(method==='POST'&&acceso.compartido)return fail(res,403,'La consulta compartida no autoriza modificaciones');
   if(method==='POST'&&!conf.write)
     return fail(res,503,'Edición de productos Romo desactivada en Preview');
   if(method==='POST'&&
