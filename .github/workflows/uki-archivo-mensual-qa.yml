@@ -5,6 +5,10 @@ on:
       - integracion/archivo-mensual-oficial-20261121
     paths:
       - public/uki-archivo-mensual-core.js
+      - firebase/uki-archivo-mensual-core.js
+      - firebase/uki-archivo-mensual-panel.js
+      - firebase/uki-archivo-xlsx.mjs
+      - firebase/uki-sushi-local.html
       - api/mi-archivo-mensual-live.js
       - public/mi-administracion-duenos.html
       - tests/uki-archivo-mensual-seguro.test.cjs
@@ -29,6 +33,9 @@ jobs:
       - name: Validate JavaScript files
         run: |
           node --check public/uki-archivo-mensual-core.js
+          node --check firebase/uki-archivo-mensual-core.js
+          node --check firebase/uki-archivo-mensual-panel.js
+          node --check firebase/uki-archivo-xlsx.mjs
           node --check api/mi-archivo-mensual-live.js
       - name: Test monthly archive safety
         run: node --test tests/uki-archivo-mensual-seguro.test.cjs
