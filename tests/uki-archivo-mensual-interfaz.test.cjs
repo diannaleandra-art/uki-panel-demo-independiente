@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const root=path.join(__dirname,'..');
-function ejecutarInterfaz(script,{romo=false,editarDuranteCompresion=false,pendienteNeon=false}={}){
+function ejecutarInterfaz(script,{romo=false,editarDuranteCompresion=false,pendienteNeon=false,revisionRemotaCambio=false}={}){
  const suc=romo?'Romo’s Sushi La Serena':'Uki Regimiento Arica';
  const estado={suc,pedidos:[{id:1,suc}],vista:'caja'};
  const confirmado={suc,pedidos:[{id:1,suc}],vista:'copiaNeon'};
@@ -16,7 +16,10 @@ function ejecutarInterfaz(script,{romo=false,editarDuranteCompresion=false,pendi
  const doc={readyState:'complete',getElementById(id){
   return id==='app'?{}:id==='ukiArchivoMensualRoot'?html:null;
  },createElement(){return {innerHTML:'',className:''};}};
+ let verificacionesRemotas=0;
+ const revisionActual=async()=>{verificacionesRemotas++;return !revisionRemotaCambio||verificacionesRemotas===1;};
  const ventana={
+  ukiArchivoComprobarNube:revisionActual,
   ukiQAGet:()=>({suc,estado:JSON.parse(JSON.stringify(estado))}),
   ukiCancelacionNubeLista:()=>true,
   ukiInventarioToken:async()=> 'token-google-de-prueba',
@@ -24,6 +27,7 @@ function ejecutarInterfaz(script,{romo=false,editarDuranteCompresion=false,pendi
   ukiRomoSesionRemotaQA:{
    disponible:()=>true,
    estado:()=>({conflicto:false}),
+   comprobarRevisionParaArchivo:revisionActual,
    coincideEstadoOperativo:()=>!pendienteNeon,
    estadoOperativoConfirmado:()=>JSON.parse(JSON.stringify(confirmado))
   },
@@ -73,6 +77,11 @@ if(fs.existsSync(uki)){
  test('Uki verifica que la nube esté sincronizada antes y después',()=>{
   assert.ok((source.match(/verificarNube\(contexto\.suc\)/g)||[]).length>=2);
  });
+ test('Uki bloquea subida si Firebase avisa de nueva revisión antes de guardar',async()=>{
+  const q=await ejecutarInterfaz(source,{revisionRemotaCambio:true}).click();
+  assert.deepEqual(q.actions,['ingresar_pin']);
+  assert.match(q.estado,/revisión más reciente/);
+ });
 }
 const romo=path.join(root,'public/romo-panel-qa/uki-archivo-mensual-panel.js');
 if(fs.existsSync(romo)){
@@ -92,6 +101,11 @@ if(fs.existsSync(romo)){
   const q=await ejecutarInterfaz(source,{romo:true,editarDuranteCompresion:true}).click();
   assert.deepEqual(q.actions,['ingresar_pin']);
   assert.match(q.estado,/cambió|reintenta/);
+ });
+ test('Romo bloquea archivo al detectar una revisión nueva de Neon',async()=>{
+  const q=await ejecutarInterfaz(source,{romo:true,revisionRemotaCambio:true}).click();
+  assert.deepEqual(q.actions,['ingresar_pin']);
+  assert.match(q.estado,/revisión más reciente/);
  });
 }
 
