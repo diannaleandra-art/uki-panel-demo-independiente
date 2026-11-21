@@ -73,19 +73,42 @@ module.exports=async function gestionRomoQA(req,res){
   const rows=await db.query('SELECT store_id,revision,contenido FROM public.romo_carta_admin_qa_v1 WHERE store_id=$1',[STORE]);
   if(!Array.isArray(rows)||rows.length!==1)throw Error('Registro administrativo no inicializado en Neon QA');
   const current=M.read(rows[0]);
+  const commercialRows=await db.query('SELECT store_id,revision,base_sha256,contenido FROM public.romo_carta_ediciones_v1 WHERE store_id=$1',[STORE]);
+  if(commercialRows.length!==1)throw Error('Revisión comercial no confirmada');
+  const lib=await import('../lib/romo-carta-ediciones-seguras-qa.mjs');
+  const commercial=lib.vistaEdicionesRomoQA(base,commercialRows[0]);
+  const publicacionHabilitada=adminWrite&&conf.write&&process.env.ROMO_PROMOCIONES_PUBLICACION_ENABLED==='true'&&!access.compartido;
+  const ingredientesPublicacionHabilitada=adminWrite&&conf.write&&process.env.ROMO_INGREDIENTES_PUBLICACION_ENABLED==='true'&&!access.compartido;
   if(method==='GET')return res.status(200).json({
-   ...M.view(rows[0],base),edicionHabilitada:adminWrite,
+   ...M.view(rows[0],base),edicionHabilitada:adminWrite&&!access.compartido,publicacionHabilitada,ingredientesPublicacionHabilitada,revisionComercial:commercial.revision,publishedPromotions:commercial.publishedPromotions,
    aviso:'Borradores administrativos, no publicados en la carta comercial'
   });
   if(current.revision!==req.body.expectedRevision)
    return fail(res,409,'La gestión cambió. Actualiza la pantalla antes de guardar');
+  if(access.compartido)return fail(res,403,'Solo lectura desde el panel compartido');
+  if(['promotion-publish','promotion-withdraw'].includes(req.body.action)){
+   if(!publicacionHabilitada)return fail(res,503,'Publicación comercial aún no habilitada');
+   const f=req.body.fields;
+   if(Object.keys(f).sort().join('|')!=='commercialRevision|id')return fail(res,400,'Datos de publicación inválidos');
+   const lib=await import('../lib/romo-carta-ediciones-seguras-qa.mjs');
+   const result=await lib.publicarPromoRomoQA({db,carta:base,identity,adminRevision:current.revision,commercialRevision:f.commercialRevision,sku:f.id,retirar:req.body.action==='promotion-withdraw',motivo:req.body.motivo.trim()});
+   return res.status(200).json(result);
+  }
+  if(req.body.action==='ingredients-publish'){
+   if(!ingredientesPublicacionHabilitada)return fail(res,503,'La sincronización comercial de ingredientes aún no está habilitada');
+   if(Object.keys(req.body.fields).join('|')!=='commercialRevision'||!Number.isSafeInteger(req.body.fields.commercialRevision)||req.body.fields.commercialRevision<1)return fail(res,400,'Revisión comercial inválida');
+   const lib=await import('../lib/romo-carta-ediciones-seguras-qa.mjs');
+   const result=await lib.publicarIngredientesRomoQA({db,carta:base,identity,adminRevision:current.revision,commercialRevision:req.body.fields.commercialRevision,motivo:req.body.motivo.trim()});
+   return res.status(200).json(result);
+  }
+  if(req.body.action==='promotion-delete'&&commercial.publishedPromotions.some(p=>p.sku==='monthly:romoq-'+String(req.body.fields.id||'').slice(6)))return fail(res,409,'Retira primero la promoción de la carta pública');
   const next=M.apply(current,base,req.body.action,req.body.fields);
   // CAS + auditoría como una sentencia. Nunca registrar éxito si falla auditoría.
   const saveSql=[
-   'WITH saved AS (',
+   'WITH locked_commercial AS (SELECT revision,contenido FROM public.romo_carta_ediciones_v1 WHERE store_id=$1 FOR SHARE), saved AS (',
    ' UPDATE public.romo_carta_admin_qa_v1',
    ' SET revision=revision+1,contenido=$3::jsonb,actualizado_por=$4,actualizado_en=now()',
-   ' WHERE store_id=$1 AND revision=$2',
+   " WHERE store_id=$1 AND revision=$2 AND EXISTS(SELECT 1 FROM locked_commercial WHERE revision=$10 AND ($5<>'promotion-delete' OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(contenido->'gestion'->'promotions','[]'::jsonb)) p WHERE p->>'sku'='monthly:romoq-'||substring($6 FROM 7))))",
    ' RETURNING revision',
    '), audit AS (',
    ' INSERT INTO public.romo_carta_admin_auditoria_qa_v1',
@@ -97,12 +120,12 @@ module.exports=async function gestionRomoQA(req,res){
   const saved=await db.query(saveSql,[
    STORE,current.revision,JSON.stringify(next.data),identity.userId,
    next.action,next.id,JSON.stringify(next.before),JSON.stringify(next.after),
-   req.body.motivo.trim()
+   req.body.motivo.trim(),commercial.revision
   ]);
   if(!Array.isArray(saved)||saved.length!==1||Number(saved[0].revision)!==next.revision)
    return fail(res,409,'Conflicto de revisión; ningún cambio confirmado');
   return res.status(200).json({ok:true,storeId:STORE,revision:next.revision,
-   guardado:true,auditado:true,draftOnly:true});
+   guardado:true,auditado:true,draftOnly:true,recordId:next.id});
  }catch(error){
   if(error?.status===400)return fail(res,400,String(error.message));
   if(error?.status===409)return fail(res,409,'Conflicto de revisión; actualiza antes de guardar');

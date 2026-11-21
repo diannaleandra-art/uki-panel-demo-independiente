@@ -25,7 +25,7 @@ module.exports=async function romoFotosQA(req,res){
  res.setHeader('Access-Control-Allow-Methods',access.compartido?'GET,OPTIONS':'GET,POST,OPTIONS');
  if(method==='OPTIONS')return res.status(204).end();
  const write=escrituraGestionRomoAutorizada(process.env);
- if(method==='POST'&&!write)return fail(res,503,'Fotografías en solo lectura');
+ if(method==='POST'&&(!write||access.compartido))return fail(res,503,'Fotografías en solo lectura');
  let sku;
  if(method==='GET')sku=String(req.query?.sku||'');
  else{
@@ -84,13 +84,16 @@ module.exports=async function romoFotosQA(req,res){
     image:rows[0]?'data:image/jpeg;base64,'+String(rows[0].base64).replace(/\s+/g,''):null});
   }
   const body=req.body,expected=body.expectedVersion;
+  // La foto de una promoción publicada permanece intacta hasta retirarla.
+  // Bloquear la revisión comercial dentro de la misma sentencia para impedir carreras.
+  const lockPhoto=`WITH commercial AS (SELECT contenido FROM public.romo_carta_ediciones_v1 WHERE store_id=$1 FOR SHARE), permitted AS (SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM commercial, jsonb_array_elements(COALESCE(contenido->'gestion'->'promotions','[]'::jsonb)) p WHERE p->>'sku'=('monthly:romoq-'||substring($2::text FROM 7)) AND $2 LIKE 'promo:%')), `;
   const eventId=randomUUID();
   let rows;
   if(body.action==='remove'){
    if(expected<1)return fail(res,409,'No hay foto para eliminar');
    rows=await db.query([
-    'WITH removed AS (DELETE FROM public.romo_carta_admin_fotos_qa_v1',
-    'WHERE store_id=$1 AND sku=$2 AND version=$3 RETURNING version),',
+    lockPhoto+'removed AS (DELETE FROM public.romo_carta_admin_fotos_qa_v1',
+    'WHERE store_id=$1 AND sku=$2 AND version=$3 AND EXISTS(SELECT 1 FROM permitted) RETURNING version),',
     'audit AS (INSERT INTO public.romo_carta_admin_fotos_auditoria_qa_v1',
     '(event_id,store_id,sku,accion,version,responsable_uid)',
     "SELECT $4,$1,$2,'quitar',version,$5 FROM removed RETURNING event_id)",
@@ -109,9 +112,9 @@ module.exports=async function romoFotosQA(req,res){
    const args=[STORE,sku,raw,expected,identity.userId,eventId,hash,binary.length];
    if(expected===0){
     rows=await db.query([
-     'WITH saved AS (INSERT INTO public.romo_carta_admin_fotos_qa_v1',
+     lockPhoto+'saved AS (INSERT INTO public.romo_carta_admin_fotos_qa_v1',
      "(store_id,sku,mime_type,contenido,version,actualizado_por)",
-     "VALUES($1,$2,'image/jpeg',decode($3,'base64'),1,$5)",
+     "SELECT $1,$2,'image/jpeg',decode($3,'base64'),1,$5 WHERE $4=0 AND EXISTS(SELECT 1 FROM permitted)",
      'ON CONFLICT DO NOTHING RETURNING version),',
      'audit AS (INSERT INTO public.romo_carta_admin_fotos_auditoria_qa_v1',
      '(event_id,store_id,sku,accion,version,sha256,bytes,responsable_uid)',
@@ -120,9 +123,9 @@ module.exports=async function romoFotosQA(req,res){
     ].join('\n'),args);
    }else{
     rows=await db.query([
-     'WITH saved AS (UPDATE public.romo_carta_admin_fotos_qa_v1',
+     lockPhoto+'saved AS (UPDATE public.romo_carta_admin_fotos_qa_v1',
      "SET contenido=decode($3,'base64'),version=version+1,actualizado_por=$5,actualizado_en=now()",
-     'WHERE store_id=$1 AND sku=$2 AND version=$4 RETURNING version),',
+     'WHERE store_id=$1 AND sku=$2 AND version=$4 AND EXISTS(SELECT 1 FROM permitted) RETURNING version),',
      'audit AS (INSERT INTO public.romo_carta_admin_fotos_auditoria_qa_v1',
      '(event_id,store_id,sku,accion,version,sha256,bytes,responsable_uid)',
      "SELECT $6,$1,$2,'subir',version,$7,$8,$5 FROM saved RETURNING event_id)",
@@ -131,7 +134,7 @@ module.exports=async function romoFotosQA(req,res){
    }
   }
   if(!Array.isArray(rows)||rows.length!==1)
-   return fail(res,409,'La foto cambió. Actualiza antes de volver a guardar');
+   return fail(res,409,'La foto cambió o pertenece a una promoción publicada. Retira la promoción antes de reemplazar su foto.');
   return res.status(200).json({ok:true,storeId:STORE,sku,draftOnly:true,
    guardado:true,auditado:true,version:body.action==='remove'?0:Number(rows[0].version)});
  }catch(e){

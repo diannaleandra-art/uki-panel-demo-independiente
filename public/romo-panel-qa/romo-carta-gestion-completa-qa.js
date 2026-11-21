@@ -689,9 +689,11 @@
     const qty=field('Cantidad de promociones',1,'number');qty.input.min='1';qty.input.max='20';
     form.append(qty.wrap);
     if(p.promoType!=='sushi'){
-     form.append(info('Oferta fija '+p.promoType+': no tiene rolls ni salsas personalizables en su ficha. No sustituye un gohan armado.'));
+     form.append(info('Oferta fija '+p.promoType+': no tiene rolls. Si incluye una salsa, se elige aquí. No sustituye un gohan armado.'));
      const fixedPay=select('Medio de pago permitido',
       (p.payments||[]).map(x=>[x,x.charAt(0).toUpperCase()+x.slice(1)]),p.payments?.[0]||'');
+     const fixedSauce=p.sauceCount===1?select('Salsa incluida',[['','Selecciona salsa'],...(projection.ingredients||[]).filter(i=>i.category==='Salsas'&&i.available!==false&&['Soya','Teriyaki'].includes(i.name)).map(i=>[i.name,i.name])],''):null;
+     if(fixedSauce)form.append(fixedSauce.wrap);
      form.append(fixedPay.wrap);
      const addFixed=button('Incluir oferta fija en carrito QA',()=>{
       if(configuredPromos.size+selected.size>=35&&!configuredPromos.has(p.sku)){
@@ -701,8 +703,9 @@
       if(!Number.isSafeInteger(q)||q<1||q>20){
        result.textContent='Cantidad fuera del rango de pruebas.';return;
       }
+      if(fixedSauce&&!fixedSauce.input.value){result.textContent='Selecciona la salsa incluida.';return;}
       paymentSelect.input.value=fixedPay.input.value;
-      configuredPromos.set(p.sku,{sku:p.sku,qty:q,config:{}});
+      configuredPromos.set(p.sku,{sku:p.sku,qty:q,config:fixedSauce?{sauces:[fixedSauce.input.value]}:{}});
       result.textContent='Oferta fija incorporada a la simulación, pendiente de validación por servidor.';
       drawCart();
      },true);
@@ -717,17 +720,20 @@
      const veg2=select('Segundo vegetal (vegetariano)',options('vegetal'),'Cebollín');
      const wrap=select('Envoltura',options('envoltura'),'Panko');
      const vegetarian=field('Vegetariano · dos vegetales',false,'checkbox');
+     const soloProteina=field('Solo proteína · sin vegetales',false,'checkbox');
      const sinNori=field('Sin nori',false,'checkbox');
      const sinQueso=field('Sin queso crema',false,'checkbox');
-     const base=stack();base.append(vegetarian.wrap,protein.wrap,veg.wrap,veg2.wrap,
+     const base=stack();base.append(vegetarian.wrap,soloProteina.wrap,protein.wrap,veg.wrap,veg2.wrap,
       wrap.wrap,sinNori.wrap,sinQueso.wrap);
      const toggle=()=>{
       veg2.wrap.hidden=!vegetarian.input.checked;
       protein.wrap.hidden=vegetarian.input.checked;
+      veg.wrap.hidden=soloProteina.input.checked;
      };
-     vegetarian.input.onchange=toggle;toggle();panelRoll.append(base);
+     vegetarian.input.onchange=()=>{if(vegetarian.input.checked)soloProteina.input.checked=false;toggle();};
+     soloProteina.input.onchange=()=>{if(soloProteina.input.checked)vegetarian.input.checked=false;toggle();};toggle();panelRoll.append(base);
      form.append(panelRoll);
-     rolls.push({protein,veg,veg2,wrap,vegetarian,sinNori,sinQueso});
+     rolls.push({protein,veg,veg2,wrap,vegetarian,soloProteina,sinNori,sinQueso});
     }
     const sauces=[];
     for(let i=0;i<p.sauceCount;i++){
@@ -745,10 +751,10 @@
       if(!token)throw Error('Inicia sesión Google como dueña de Romo');
       const item=rolls.map(x=>({
        protein:x.vegetarian.input.checked?'':x.protein.input.value,
-       vegetable:x.veg.input.value,
+       vegetable:x.soloProteina.input.checked?'':x.veg.input.value,
        ...(x.vegetarian.input.checked?{vegetable2:x.veg2.input.value}:{}),
        wrap:x.wrap.input.value,
-       vegetariano:x.vegetarian.input.checked,
+       vegetariano:x.vegetarian.input.checked,soloProteina:x.soloProteina.input.checked,
        sinNori:x.sinNori.input.checked,
        sinQueso:x.sinQueso.input.checked
       }));
@@ -1016,6 +1022,9 @@
  function renderIngredients(){
   const target=host('ingredientes');if(!target)return;clear(target);
   target.append(cardNote(),info('Vegetales, proteínas y envolturas. Cada recargo puede variar según la preparación.'));
+  const sync=button('Aplicar ingredientes y recargos a la carta',async()=>{if(state.busy||!state.admin?.ingredientesPublicacionHabilitada)return;if(!window.confirm('¿Aplicar todos los ingredientes y recargos guardados de Romo a la carta comercial? No cambia pedidos antiguos.'))return;state.busy=true;try{const result=await request('POST',{action:'ingredients-publish',expectedRevision:state.admin.revision,fields:{commercialRevision:state.admin.revisionComercial},motivo:'Publicar ingredientes y disponibilidad Romo'});if(result.guardado!==true||result.auditado!==true||result.ingredientesPublicados!==true)throw Error('Publicación no confirmada');await load();status('Ingredientes publicados en revisión '+result.revisionComercial+'.');}catch(e){status('No se confirmó la publicación: '+String(e.message||e));}finally{state.busy=false;}});
+  sync.disabled=!state.admin?.ingredientesPublicacionHabilitada||state.admin?.revisionComercial<1;target.append(sync);
+  if(sync.disabled)target.append(info('Sincronización comercial pendiente de habilitación. Los cambios se conservan como borrador.'));
   const kinds=[['vegetal','Vegetal'],['proteina','Proteína'],['envoltura','Envoltura']];
   const allowed={vegetal:['classic','premium','monthly','handroll','burger','gohan'],proteina:['classic','premium','monthly','handroll','burger'],envoltura:['classic','premium','monthly','handroll']};
   const updateSurfaces=(select,inputs)=>{for(const [k,input] of Object.entries(inputs)){input.disabled=!allowed[select.value]?.includes(k);if(input.disabled)input.checked=false;}};
@@ -1096,71 +1105,106 @@
   search.input.oninput=draw;filterKind.input.onchange=draw;draw();
  }
  function promotionForm(p,create=false){
-  const box=stack(),name=field('Nombre',p?.name||''),price=field('Precio',p?.price||'','number'),
-   desc=field('Descripción',p?.description||''),type=select('Tipo',
-   [['sushi','Sushi personalizable'],['gohan','Gohan'],['combo','Combo sin armado']],p?.promoType||'sushi'),
+  const box=stack(),name=field('Nombre',p?.name||''),price=field('Precio ($)',p?.price||'','number'),
+   desc=field('Descripción de lo que incluye',p?.description||''),type=select('Tipo de promoción',
+   [['sushi','Sushi · el cliente arma'],['gohan','Gohan · preparación definida'],['combo','Combo u otra · sin armado']],p?.promoType||'sushi'),
    rolls=field('Cantidad de rolls',p?.rollCount??2,'number'),
-   pieces=select('Piezas por roll',[['12','12'],['10','10']],String(p?.piecesPerRoll||12)),
+   pieces=select('Piezas por roll',[['12','12 piezas'],['10','10 piezas']],String(p?.piecesPerRoll||12)),
    sauces=field('Salsas incluidas',p?.sauceCount??1,'number'),
    korokes=field('Korokes incluidos',p?.korokes??0,'number'),
    available=field('Disponible',p?.available!==false,'checkbox');
-  box.append(name.wrap,price.wrap,desc.wrap,type.wrap,rolls.wrap,pieces.wrap,sauces.wrap,korokes.wrap,available.wrap);
+  name.input.maxLength=100;desc.input.maxLength=500;rolls.input.min='1';rolls.input.max='20';korokes.input.max='30';price.input.min='1';
+  const pieceSummary=info(''),typeNote=info('');
+  box.append(name.wrap,type.wrap,typeNote,desc.wrap,price.wrap,rolls.wrap,pieces.wrap,pieceSummary,sauces.wrap,korokes.wrap,available.wrap);
   const config=()=>{
    const fixed=type.input.value!=='sushi';
-   if(fixed){
-    rolls.input.value='0';sauces.input.value='0';
-   }else if(Number(rolls.input.value)===0&&create){
-    rolls.input.value='2';sauces.input.value='1';
-   }
-   rolls.input.disabled=fixed;pieces.input.disabled=fixed;sauces.input.disabled=fixed;
-   rolls.wrap.title=fixed?'Solo ofertas fijas: sin rolls':'';
+   rolls.wrap.hidden=fixed;pieces.wrap.hidden=fixed;korokes.wrap.hidden=fixed;pieceSummary.hidden=fixed;
+   rolls.input.disabled=fixed;pieces.input.disabled=fixed;korokes.input.disabled=fixed;
+   sauces.input.max=fixed?'1':'20';
+   if(fixed&&Number(sauces.input.value)>1)sauces.input.value='1';
+   const n=Number(rolls.input.value),v=Number(pieces.input.value);
+   pieceSummary.textContent=Number.isSafeInteger(n)&&n>=1&&n<=20?n+' rolls × '+v+' piezas = '+(n*v)+' piezas':'Indica entre 1 y 20 rolls.';
+   typeNote.textContent=fixed?'Describe los productos incluidos. Puedes incluir 0 o 1 salsa a elección.':'El cliente podrá personalizar cada roll; se conserva la configuración de piezas y salsas.';
   };
-  type.input.onchange=config;config();
-  if(type.input.value!=='sushi'&&create)
-   box.append(info('Gohan y combo: solo ofertas fijas sin personalización de ingredientes. Las recetas armables aún no están disponibles.'));
-  const pays=E('fieldset');pays.append(E('legend','Medios de pago'));
-  const payments={},payOpts=[['efectivo','Efectivo'],['transferencia','Transferencia'],['debito','Tarjeta'],['edenred','Edenred'],['junaeb','Junaeb']];
+  if(p?._base)type.input.disabled=true;
+  type.input.onchange=config;rolls.input.oninput=config;pieces.input.onchange=config;config();
+  const pays=E('fieldset');pays.append(E('legend','Medios de pago permitidos'));
+  const payments={},payOpts=[['efectivo','Efectivo'],['transferencia','Transferencia'],['debito','Débito'],['credito','Crédito'],['edenred','Edenred'],['junaeb','Junaeb']];
+  const preset=select('Restricción de pago',[['personalizado','Elegir medios'],['normal','Efectivo y transferencia'],['edenred','Solo Edenred'],['junaeb','Solo Junaeb'],['todos','Todos los medios']],'personalizado');pays.append(preset.wrap);
   for(const [key,label] of payOpts){
    const checked=p?.payments?p.payments.includes(key):['efectivo','transferencia'].includes(key);
-   const entry=field(label,checked,'checkbox');
-   entry.wrap.style.display='flex';entry.input.style.width='auto';payments[key]=entry.input;pays.append(entry.wrap);
+   const entry=field(label,checked,'checkbox');entry.wrap.style.display='flex';entry.input.style.width='auto';payments[key]=entry.input;pays.append(entry.wrap);
+   entry.input.onchange=()=>{preset.input.value='personalizado';};
   }
+  preset.input.onchange=()=>{const v=preset.input.value;if(v==='personalizado')return;const set=v==='todos'?Object.keys(payments):v==='normal'?['efectivo','transferencia']:[v];for(const [k,input] of Object.entries(payments))input.checked=set.includes(k);};
   box.append(pays);
   const make=()=>({name:name.input.value.trim(),price:Number(price.input.value),
    description:desc.input.value.trim(),promoType:type.input.value,
-   rollCount:Number(rolls.input.value),piecesPerRoll:Number(pieces.input.value),
-   sauceCount:Number(sauces.input.value),korokes:Number(korokes.input.value),
+   rollCount:type.input.value==='sushi'?Number(rolls.input.value):0,piecesPerRoll:Number(pieces.input.value),
+   sauceCount:Number(sauces.input.value),korokes:type.input.value==='sushi'?Number(korokes.input.value):0,
    payments:Object.keys(payments).filter(k=>payments[k].checked),available:available.input.checked});
-  const saveAction=create?'promotion-create':'promotion-edit';
-  box.append(button(create?'Crear promoción borrador':'Guardar promoción',
-    ()=>void save(saveAction,create?{item:make()}:{id:p.sku,item:make()},
-     (create?'Crear promoción ':'Editar promoción ')+name.input.value.trim())));
+  if(create){
+   const file=E('input');file.type='file';file.accept='image/*';const label=E('label','Fotografía real de la promoción');label.append(file);box.append(label);
+   box.append(info('Se guarda primero el borrador y luego su foto. Si falla la foto, recupera el borrador existente y sube la foto allí; no crees otro.'));
+   const createButton=button('Crear promoción con fotografía (borrador)',async()=>{
+    if(state.busy||!canWrite())return;
+    const item=make();
+    if(item.name.length<2||!Number.isSafeInteger(item.price)||item.price<1||!item.payments.length||!file.files?.length){status('Completa nombre, precio, medios de pago y fotografía real.');return;}
+    if(item.promoType!=='sushi'&&item.description.length<2){status('Describe lo que incluye esta promoción.');return;}
+    state.busy=true;createButton.disabled=true;let created=null,notice='';
+    try{
+     const rev=state.admin.revision,base64=await jpegBase64(file.files[0]);
+     status('Guardando promoción y fotografía exclusivamente en Romo…');
+     const result=await request('POST',{action:'promotion-create',expectedRevision:rev,fields:{item},motivo:'Crear promoción con foto: '+item.name});
+     if(result.guardado!==true||result.auditado!==true||result.draftOnly!==true||result.revision!==rev+1||!/^promo:[a-z0-9-]{5,80}$/i.test(result.recordId||''))throw Error('No se confirmó la creación. Actualiza la lista antes de repetir.');
+     created=result.recordId;
+     const photo=await photoRequest('POST',{action:'save',sku:created,base64,expectedVersion:0},created);
+     if(photo.guardado!==true||photo.auditado!==true||photo.draftOnly!==true)throw Error('La foto no quedó confirmada.');
+     notice='Promoción y fotografía guardadas como borrador en Romo. Pendiente de publicación comercial.';
+    }catch(e){notice=(created?'El borrador existe; completa la fotografía en la promoción existente. ':'')+String(e.message||e);}
+    finally{state.busy=false;await load();status(notice);if(createButton.isConnected)createButton.disabled=!canWrite();}
+   });box.append(createButton);
+  }else box.append(button(p._base?'Guardar cambios de armado como borrador':'Guardar cambios de promoción',()=>void save(p._base?'promotion-base-edit':'promotion-edit',{id:p.sku,item:make()},'Editar promoción '+name.input.value.trim())));
   return box;
  }
  function renderPromos(){
   const target=host('promociones');if(!target)return;clear(target);
   target.append(cardNote());
-  const newCard=panel('＋ Nueva promoción de Romo');
+  const newCard=panel('＋ Crear nueva promoción de Romo');
   newCard.append(info('Tipos de Romo: sushi personalizable, gohan fijo o combo fijo; no pizzas. Las fotos permanecen privadas hasta publicar la versión aprobada.'));
   newCard.append(promotionForm(null,true));target.append(newCard);
   const search=field('Buscar promoción por nombre');search.input.type='search';
-  target.append(search.wrap);
-  const list=E('div');target.append(list);
+  const existing=E('section');existing.append(E('h3','Promociones existentes · Ver o editar'),search.wrap);target.append(existing);
+  const list=E('div');existing.append(list);
   const draw=()=>{
-   clear(list);const found=promos().filter(p=>norm(p.name).includes(norm(search.input.value)));
+   clear(list);const found=promos().filter(p=>norm(p.name).includes(norm(search.input.value))).sort((a,b)=>a.name.localeCompare(b.name,'es'));
    list.append(info(found.length+' promociones disponibles en administración.'));
    for(const p of found){
     const percent=Number(state.admin.data.discounts?.[p.sku]||0);
     const finalPrice=percent?Math.max(1,Math.round(p.price*(100-percent)/100)):p.price;
     const item=panel(p.name+' · '+(percent?money(p.price)+' → '+money(finalPrice):money(p.price))+(p._base?' · Carta aprobada':' · Borrador'));
     if(!p._base){
+     item.append(info((p.available===false?'Agotada o desactivada':'Disponible en borrador')+' · '+(p.promoType==='sushi'?(p.rollCount*p.piecesPerRoll)+' piezas · '+p.rollCount+' rolls · '+p.korokes+' korokes':p.promoType==='gohan'?'Gohan definido':'Combo definido')+' · '+p.sauceCount+' salsas · '+(p.payments||[]).join(', ')));
      item.append(promotionForm(p,false));
-     item.append(button('Eliminar promoción de borrador',()=>{
+     const published=(state.admin?.publishedPromotions||[]).some(x=>x.sku==='monthly:romoq-'+p.sku.slice(6));
+     item.append(info(published?'Publicada en carta · las ediciones del borrador requieren actualizar la publicación.':'No publicada'));
+     const publication=async retirar=>{if(state.busy||!state.admin.publicacionHabilitada)return;if(!window.confirm(retirar?'¿Retirar de la carta de Romo? Los pedidos históricos se conservan.':'¿Publicar esta promoción con su foto y configuración actual en la carta de Romo?'))return;state.busy=true;try{const done=await request('POST',{action:retirar?'promotion-withdraw':'promotion-publish',expectedRevision:state.admin.revision,fields:{id:p.sku,commercialRevision:state.admin.revisionComercial},motivo:(retirar?'Retirar ':'Publicar ')+p.name});if(done.guardado!==true||done.auditado!==true||done.publicada!==!retirar)throw Error('No se confirmó la publicación');await load();status('Cambio comercial confirmado en revisión '+done.revisionComercial+'.');}catch(e){status('No se confirmó: '+String(e.message||e));}finally{state.busy=false;}};
+     const publish=button(published?'Actualizar promoción publicada':'Publicar promoción',()=>void publication(false));publish.disabled=!state.admin.publicacionHabilitada;item.append(publish);
+     if(published){const withdraw=button('Retirar promoción de la carta',()=>void publication(true),true);withdraw.disabled=!state.admin.publicacionHabilitada;item.append(withdraw);}
+     const discount=field('Descuento (%)',percent,'number');discount.input.max='99';const preview=info('');const show=()=>{const n=Number(discount.input.value);preview.textContent=Number.isInteger(n)&&n>=0&&n<=99?'Antes '+money(p.price)+' · Ahora '+money(Math.max(1,Math.round(p.price*(100-n)/100))):'Descuento entre 0 y 99%';};discount.input.oninput=show;show();
+     item.append(discount.wrap,preview,button('Guardar descuento',()=>void save('discount-set',{id:p.sku,percent:Number(discount.input.value)},'Descuento de '+p.name),true));
+     if(!published)item.append(button('Eliminar promoción de borrador',()=>{
       void save('promotion-delete',{id:p.sku},'Eliminar promoción '+p.name,
        '¿Eliminar esta promoción de pruebas? Se conserva la auditoría.');
      },true));
     }else{
-     item.append(info('Promoción aprobada. Puedes preparar un cambio de precio, descripción o disponibilidad sin alterar todavía la carta comercial.'));
+     item.append(info('Promoción existente en la carta comercial. Aquí puedes preparar cambios como borrador.'));
+     const config=p.config||p;item.append(info((Number.isInteger(config.rollCount)&&config.rollCount>0?config.rollCount+' rolls · ':'')+(Number.isInteger(config.sauceCount)?config.sauceCount+' salsas · ':'')+(Number.isInteger(config.korokes)?config.korokes+' korokes · ':'')+(Array.isArray(config.payments)?'Pagos: '+config.payments.join(', '):'Armado original conservado')));
+     if(p.kind==='monthly'&&p.sourceId!=='handroll-individual'){
+      const edit=panel('Editar armado completo de la promoción');
+      edit.append(info('Los cambios de rolls, salsas y pagos requieren publicación coordinada con el cotizador. Conservamos la receta comercial actual hasta entonces.'),promotionForm({...p,promoType:'sushi',piecesPerRoll:p.piecesPerRoll||((p.size&&p.rollCount)?p.size/p.rollCount:12)},false));item.append(edit);
+     }
+     const commercial=button('Editar precio y disponibilidad de la carta vigente',()=>window.romoAbrirEdicionComercialQA?.(p.sku),true);commercial.disabled=state.base?.edicionHabilitada!==true||state.base?.revision<1;item.append(commercial);
      const f=stack(),name=field('Nombre',p.name),price=field('Precio',p.price,'number'),
        desc=field('Descripción',p.description||''),av=field('Disponible',p.available!==false,'checkbox');
      f.append(name.wrap,price.wrap,desc.wrap,av.wrap);
