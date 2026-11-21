@@ -7861,8 +7861,7 @@ async function ukiRomoVerConstanciaOlvidoQA(solicitudId){
    '<p>Pedido olvidado incorporado solo al informe histórico. El cierre físico original y sus comprobantes se mantienen íntegros. No se registra nuevamente dinero ni pago al repartidor.</p>'+
    '<table>'+documento+anteriores+'</table>'+
    '<p>Constancia de Neon Romo verificada. La importación a Mi Administración permanece separada y pendiente de autorización.</p>'+
-   '<script src="/romo-panel-qa/uki-archivo-mensual-core.js?v=20261121noviembre"></script>
-<script src="/romo-panel-qa/uki-archivo-mensual-panel.js?v=20261121noviembre" defer></script></body></html>');
+   '</body></html>');
   win.document.close();
  }catch(e){
   if(win&&!win.closed)win.close();
@@ -11361,6 +11360,8 @@ el("ukiAutoCheck").addEventListener("change",()=>{
  vigilarRevisiones(contextoLocal.suc);
 });
 </script>
+<script src="/romo-panel-qa/uki-archivo-mensual-core.js?v=20261121archivo-v2" defer></script>
+<script src="/romo-panel-qa/uki-archivo-mensual-panel.js?v=20261121archivo-v2" defer></script>
 <script src="/romo-panel-qa/romo-caja-acumulada-conciliacion-qa.js?v=20261115a" defer></script>
 <script src="/romo-panel-qa/romo-caja-acumulada-exportar.js?v=20261121b" defer></script>
 <script src="/romo-panel-qa/romo-caja-acumulada-operativa.js?v=20261121cierre-v8" defer></script>
