@@ -455,7 +455,10 @@ function ukiTurnoFolioActual(){
  const caja=cajaDelDia(),dia=fechaOperativaActual();
  const inicios=[Number(caja.desdeMs)||0,Number(caja.inicioMs)||0,Number(caja.turnoPrecierreAbierto?.inicioMs)||0];
  for(const p of caja.precierres||[])if(p?.fechaOperativa===dia)inicios.push(Number(p.finMs)||0);
- const inicio=Math.max(...inicios),clave=dia+"@"+inicio;
+ const inicio=Math.max(...inicios);
+ // Número de atención por trabajador; identidad financiera de caja estable.
+ const clave=S.suc===ROMO_SUCURSAL_QA&&caja.turnoAbierto===true&&caja.baseConfirmada===true?
+  caja.turnoId:dia+"@"+inicio;
  // Pedidos antiguos sin turnoClave pueden haberse registrado antes de abrir la caja.
  // Inclúyelos sin tocar su ID, pero nunca mezcles períodos ya cerrados ni precierres.
  const desdeHistorico=Math.max(Number(caja.desdeMs)||0,
@@ -1557,10 +1560,16 @@ function ukiFilaPrecierre(p){
 function vInicioTrabajador(){
  if(S.suc===ROMO_SUCURSAL_QA){
   const caja=cajaDelDia();
-  if(caja?.turnoAbierto!==true||caja?.baseConfirmada!==true)
+  if(caja?.turnoAbierto!==true||caja?.baseConfirmada!==true){
+   if(!ukiRomoFechaOperativaActualSeguraQA())
+    return '<div class="card uki-turno-card"><h2>🕒 Iniciar turno de trabajador</h2><p>Revisa la jornada anterior antes de iniciar.</p><button class="big" onclick="ir(\'cierre\')">Revisar jornada anterior</button></div>';
    return '<div class="card uki-turno-card"><h2>🕒 Iniciar turno de trabajador</h2>'+
-    '<p class="muted">Abre primero el turno y confirma la base real de Romo desde Caja. Después registra aquí el nombre del trabajador, como en Uki.</p>'+
-    '<button class="big" onclick="ir(\'cierre\')">Ir a apertura de Caja</button></div>';
+    '<p class="muted">Confirma los importes reales al comenzar el primer turno del día. Los siguientes trabajadores solo registran su nombre.</p>'+
+    '<label>Nombre del trabajador</label><input id="romoTurnoResponsableQA" maxlength="60" placeholder="Nombre del trabajador">'+
+    '<label>Efectivo inicial</label><input id="romoTurnoBaseQA" type="number" inputmode="numeric" min="0" step="1" placeholder="0 si no hay efectivo">'+
+    '<label>Caja chica inicial</label><input id="romoTurnoChicaQA" type="number" inputmode="numeric" min="0" step="1" placeholder="0 si no hay caja chica">'+
+    '<button class="big" onclick="ukiRomoAbrirTurnoQA(true)">Iniciar turno</button></div>';
+  }
  }
  const abierto=ukiTurnoTrabajadorVigente();
  if(abierto){
@@ -2185,7 +2194,7 @@ function ukiAbrirTimbreBorrador(){
   const {clave}=ukiTurnoFolioActual();
   const caja=S.cajasDiarias?.[ROMO_SUCURSAL_QA+'|'+clave.slice(0,10)];
   if(caja?.turnoAbierto!==true||caja.baseConfirmada!==true||caja.turnoId!==clave)
-   return aviso('Abre el turno Romo con base real confirmada ANTES de enviar el timbre de un pedido pagado.');
+   return aviso('Inicia el turno desde Inicio antes de confirmar un pago. Tu pedido sigue en el formulario.');
  }
  const numero=ukiNumeroTimbreWhatsApp(D.telefono);
  if(!numero)return aviso("Revisa el WhatsApp del cliente. Para un cliente sin WhatsApp, deja el campo vacío.");
@@ -8849,7 +8858,7 @@ async function ukiRomoGuardarPrecierreQA(){
  }finally{ukiRomoPrecierreOcupadoQA=false;}
 }
 
-async function ukiRomoAbrirTurnoQA(){
+async function ukiRomoAbrirTurnoQA(iniciarTrabajador=false){
  if(ukiRomoTurnoOcupadoQA||S.suc!==ROMO_SUCURSAL_QA)return;
  const nombre=String($('romoTurnoResponsableQA')?.value||'').trim();
  let base,chica;
@@ -8872,7 +8881,13 @@ async function ukiRomoAbrirTurnoQA(){
   const r=mod.prepararAperturaTurnoRomoQA(copia,{
    fechaOperativa:dia,inicioMs:inicio,base,cajaChicaInicial:chica,responsable:nombre
   });
-  await ukiRomoGuardarOperacionQA(copia,'Turno abierto '+r.turnoId,null,'caja');
+  if(iniciarTrabajador){
+   const nuevaCaja=copia.cajasDiarias[ROMO_SUCURSAL_QA+'|'+dia];
+   // La foto de inicio utiliza la misma contabilidad visible; abrir caja no registra ventas.
+   const basePrecierre=ukiFotoPrecierre();
+   nuevaCaja.turnoPrecierreAbierto={nombre,inicioMs:inicio,fechaOperativa:dia,base:basePrecierre};
+  }
+  await ukiRomoGuardarOperacionQA(copia,'Turno abierto '+r.turnoId,null,iniciarTrabajador?'inicio':'caja');
  }catch(e){
   aviso('Apertura no confirmada. Revisa Caja antes de repetir. '+String(e?.message||e));
  }finally{ukiRomoTurnoOcupadoQA=false}
@@ -9502,7 +9517,7 @@ async function ukiRomoGuardarPedidoPendienteQA(){
    '. Revisión '+saved.revision+'.';
   render();
  }catch(e){
-  aviso('NO SE CONFIRMÓ el guardado de Romo. No repitas el pedido sin revisar desde otro acceso. '+String(e?.message||e));
+  aviso('No se guardó el pedido o no se confirmó la respuesta. Revisa Pedidos antes de repetir. '+String(e?.message||e));
  }finally{ukiRomoGuardandoManualQA=false;}
 }
 
