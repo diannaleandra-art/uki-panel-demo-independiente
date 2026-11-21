@@ -1182,6 +1182,7 @@
   const search=state.root.querySelector('[data-romo-carta-search]');
   const group=search?.parentElement;
   if(group)group.hidden=!show;
+  const oldIngredientSearch=state.root.querySelector('[data-romo-ingredient-search]');if(oldIngredientSearch)oldIngredientSearch.hidden=!show;
   for(const selector of ['[data-romo-categories-list]','[data-romo-ingredients-list]','[data-romo-promos-list]']){
    const node=state.root.querySelector(selector);
    if(node)node.hidden=!show;
@@ -1205,7 +1206,24 @@
    return;
   }
   renderProducts();renderCategories();renderIngredients();renderPromos();
-  legacy(false); // Evitar dos editores simultáneos cuando la gestión completa está disponible.
+  // El editor existente alimenta la revisión comercial; no sustituirlo por borradores.
+  // Se conserva accesible en un bloque plegable, sin duplicar formularios a la vista.
+  legacy(true);
+  const area=state.root.querySelector('[data-romo-area="productos"]');
+  if(area){
+   let details=area.querySelector('[data-romo-editor-comercial]');
+   if(!details){details=panel('Carta vigente · edición comercial existente');details.dataset.romoEditorComercial='1';}
+   const filter=area.querySelector('[data-romo-carta-search]')?.parentElement;
+   for(const node of [filter,area.querySelector('[data-romo-carta-list]'),area.querySelector('[data-romo-carta-form]')])
+    if(node&&node.parentElement!==details)details.append(node);
+   if(!details.isConnected)area.append(details);
+  }
+  for(const name of ['categories','ingredients','promos']){
+   const node=state.root.querySelector('[data-romo-'+name+'-list]');
+   if(node)node.hidden=true;
+  }
+  const oldSearch=state.root.querySelector('[data-romo-ingredient-search]');
+  if(oldSearch)oldSearch.hidden=true;
  }
  window.romoMontarGestionCartaQA=function({container,base}={}){
   if(!container||!container.isConnected||base?.storeId!==STORE)return false;
