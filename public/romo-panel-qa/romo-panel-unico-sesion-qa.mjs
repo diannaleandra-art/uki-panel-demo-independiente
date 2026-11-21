@@ -242,8 +242,9 @@ export function crearSesionPanelUnicoRomoQA({
   // Comprobar en Neon que NO exista una revisión más nueva, sin descifrar ni guardar.
   // El archivo mensual requiere esta confirmación antes de subir el mes.
   async comprobarRevisionParaArchivo(){
-   if(guardadoEnCurso||operacionAtomicaPendiente||!disponible())return false;
-   const local=requireSession(),revision=local.revision;
+   if(!sesion||sesion.conflicto||guardadoEnCurso||
+      operacionAtomicaPendiente||!disponible())return false;
+   const local=sesion,revision=local.revision;
    if(!Number.isSafeInteger(revision)||revision<1)return false;
    const remoto=await vault.cargarSobre();
    if(remoto.revision!==revision){
