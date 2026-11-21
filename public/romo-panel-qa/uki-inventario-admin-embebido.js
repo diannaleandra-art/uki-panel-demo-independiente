@@ -30,7 +30,7 @@ function panel(){return [
 '<div><label for="invMin">Mínimo de reposición</label><input id="invMin" inputmode="decimal" autocomplete="off"></div></div>',
 '<p class="muted">Cambiar unidad no convierte las cantidades; escribe las cifras correctas.</p><button id="invSave" class="big" type="button">Guardar cambios</button>'+
 '<div id="romoInvOperaciones" hidden><button id="romoInvDisponible" class="sm" type="button">Cambiar disponibilidad</button>'+
-'<button id="romoInvArchivar" class="sm" type="button">Archivar artículo</button></div></div>',
+'<button id="romoInvArchivar" class="sm" type="button">Eliminar artículo</button></div></div>',
 '<p class="mini-help">Disponible/Agotado sigue siendo manual. El stock nunca lo modifica automáticamente.</p></div>',
 '<div class="card" id="romoInvBootstrap" hidden><h3>📦 Preparar inventario de Romo</h3>'+
 '<p class="muted">Copia solo los nombres y unidades de los artículos existentes en Uki Regimiento Arica. <b>Las cantidades y los mínimos se dejan en cero</b>; ningún movimiento ni dinero de Uki se copia. Aparecerán como no disponibles hasta revisar el stock real.</p>'+
@@ -107,7 +107,11 @@ async function requestRomo(action,data={},branch=X.branch){
    throw Error('La respuesta de inventario no corresponde a Romo.');
   X.romoRevision=version;
   const items=state.items.filter(v=>!v.archived).map(v=>({...v,category:v.kind,inventory_only:true,version,available:v.available}));
-  const revisiones=state.movimientos.slice().reverse().map(m=>({tipo:m.tipo,sku:m.sku,created_at:new Date(m.fechaMs).toISOString(),worker_name:m.worker_name||m.actor,summary:{sinMinimo:0,faltantes:[]}}));
+  const porSku=new Map(state.items.map(v=>[v.sku,v]));
+  const revisiones=state.movimientos.slice().reverse().map(m=>({
+   tipo:m.tipo,sku:m.sku,nombre:m.despues?.name||m.antes?.name||porSku.get(m.sku)?.name||'',
+   antes:m.antes??null,despues:m.despues??null,
+   created_at:new Date(m.fechaMs).toISOString(),worker_name:m.worker_name||m.actor,summary:{sinMinimo:0,faltantes:[]}}));
   X.romoPlantilla=Array.isArray(dataRomo.plantilla_base)?dataRomo.plantilla_base:[];
   return {items,revisiones};
  }
@@ -121,7 +125,7 @@ async function romoArticuloOperacion(action){
  if(!i||X.busy)return;
  const isArchive=action==='romo-archivar';
  if(!window.confirm(isArchive?
-  '¿Archivar «'+i.name+'» del inventario Romo? Sus movimientos históricos permanecen.':
+  '¿Eliminar «'+i.name+'» de la lista activa del inventario Romo? Sus movimientos históricos permanecen.':
   '¿Confirmas que «'+i.name+'» estará '+(i.available?'NO disponible':'disponible')+' en Romo?'))return;
  X.busy=true;status('Guardando exclusivamente en Romo…');
  try{
@@ -159,10 +163,22 @@ function reports(){
   const d=document.createElement('details');d.className='card';
   const title=document.createElement('summary'),s=r.summary||{},list=s.faltantes||[];
   title.textContent=X.branch==='romo'?
-   (r.tipo||'Movimiento')+' · '+(r.sku||'Artículo')+' · '+new Date(r.created_at).toLocaleString('es-CL',{timeZone:'America/Santiago'}):
+   ({alta:'Artículo agregado',editar_completo:'Artículo editado',editar:'Edición',archivar:'Artículo eliminado',conteo:'Conteo',entrada:'Entrada',disponibilidad:'Disponibilidad',revision:'Revisión',importar_base:'Lista inicial'}[r.tipo]||r.tipo||'Movimiento')+' · '+(r.nombre||r.sku||'Inventario')+' · '+new Date(r.created_at).toLocaleString('es-CL',{timeZone:'America/Santiago'}):
    (r.worker_name||'Trabajador')+' · '+new Date(r.created_at).toLocaleString('es-CL',{timeZone:'America/Santiago'})+' · '+list.length+' para reponer';d.append(title);
   let p=document.createElement('p');p.className='muted';p.textContent=X.branch==='romo'?
     'Registrado por: '+(r.worker_name||'Cuenta autorizada'):(s.sinMinimo||0)+' sin mínimo configurado';d.append(p);
+  if(X.branch==='romo'){
+   const antes=r.antes,despues=r.despues;
+   const cantidad=v=>v&&Number.isFinite(Number(v.stock_qty))?String(v.stock_qty)+' '+String(v.stock_unit||''):'—';
+   if(antes||despues){
+    const detalle=document.createElement('p');
+    detalle.textContent='Existencia anterior: '+cantidad(antes)+' · Existencia posterior: '+cantidad(despues);
+    d.append(detalle);
+    if(antes&&despues&&antes.available!==despues.available){
+     const disponibilidad=document.createElement('p');disponibilidad.textContent='Disponibilidad: '+(despues.available?'Disponible':'No disponible');d.append(disponibilidad);
+    }
+   }
+  }
   for(const f of list){p=document.createElement('p');p.textContent=f.nombre+' · comprar '+(f.llevar===0?'al llegar al mínimo':f.llevar+' '+f.unidad);d.append(p);}
   target.append(d);
  }
