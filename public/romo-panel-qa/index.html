@@ -996,6 +996,7 @@ function render(){
    '<input id="romoCopiaQAMotivo" maxlength="300" autocomplete="off" value="Pedido de prueba sin preparar, entregar ni cobrar">'+
    '<button type="button" class="sm" id="romoCopiaQABoton" onclick="ukiRomoEnsayarCancelacionCopiaQA()">Probar cancelación solo en copia QA</button></details>':'';
   $("app").innerHTML=msg+f();
+  if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='caja'&&cajaTab==='acumulada')setTimeout(()=>{if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='caja'&&cajaTab==='acumulada')window.romoCajaAcumuladaMontar?.();},0);
   if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='promos')
    setTimeout(()=>{
     if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='promos'){
@@ -8315,7 +8316,7 @@ function ukiRomoCajaPestanasQA(){
   cierre:()=>ukiRomoCajaConsultaHTMLQA('turnos'),
   historial:()=>ukiRomoCajaHistorialHTMLQA(),
   semana:()=>ukiRomoCajaSemanaHTMLQA(),
-  acumulada:()=>window.ukiRomoCajaAcumuladaConciliacionQA?.render?.(
+  acumulada:()=>window.romoCajaAcumuladaVista?.()||window.ukiRomoCajaAcumuladaConciliacionQA?.render?.(
    datosSoloSucursal(),window.ukiRomoSesionRemotaQA)||
    '<div class="card">La conciliación acumulada necesita su sesión autorizada de Romo.</div>'
  }[active[0]]();
@@ -11362,6 +11363,8 @@ el("ukiAutoCheck").addEventListener("change",()=>{
 });
 </script>
 <script src="/romo-panel-qa/romo-caja-acumulada-conciliacion-qa.js?v=20261115a" defer></script>
+<script src="/romo-panel-qa/romo-caja-acumulada-exportar.js?v=20261121b" defer></script>
+<script src="/romo-panel-qa/romo-caja-acumulada-operativa.js?v=20261121b" defer></script>
 <script src="/romo-panel-qa/romo-movimientos-paridad-qa.js?v=20261115a" defer></script>
 <script src="/romo-panel-qa/romo-edicion-en-panel-qa.js?v=20261114c" defer></script>
 <script src="/romo-panel-qa/romo-carta-editor-seguro-qa.js?v=20261121f" defer></script><script src="/romo-panel-qa/romo-carta-gestion-completa-qa.js?v=20261121f" defer></script><script src="/romo-panel-qa/romo-banner-admin.js?v=20261114b" defer></script></body></html>
