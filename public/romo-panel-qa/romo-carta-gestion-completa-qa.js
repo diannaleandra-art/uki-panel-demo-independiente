@@ -689,9 +689,11 @@
     const qty=field('Cantidad de promociones',1,'number');qty.input.min='1';qty.input.max='20';
     form.append(qty.wrap);
     if(p.promoType!=='sushi'){
-     form.append(info('Oferta fija '+p.promoType+': no tiene rolls ni salsas personalizables en su ficha. No sustituye un gohan armado.'));
+     form.append(info('Oferta fija '+p.promoType+': no tiene rolls. Si incluye una salsa, se elige aquí. No sustituye un gohan armado.'));
      const fixedPay=select('Medio de pago permitido',
       (p.payments||[]).map(x=>[x,x.charAt(0).toUpperCase()+x.slice(1)]),p.payments?.[0]||'');
+     const fixedSauce=p.sauceCount===1?select('Salsa incluida',[['','Selecciona salsa'],...(projection.ingredients||[]).filter(i=>i.category==='Salsas'&&i.available!==false&&['Soya','Teriyaki'].includes(i.name)).map(i=>[i.name,i.name])],''):null;
+     if(fixedSauce)form.append(fixedSauce.wrap);
      form.append(fixedPay.wrap);
      const addFixed=button('Incluir oferta fija en carrito QA',()=>{
       if(configuredPromos.size+selected.size>=35&&!configuredPromos.has(p.sku)){
@@ -701,8 +703,9 @@
       if(!Number.isSafeInteger(q)||q<1||q>20){
        result.textContent='Cantidad fuera del rango de pruebas.';return;
       }
+      if(fixedSauce&&!fixedSauce.input.value){result.textContent='Selecciona la salsa incluida.';return;}
       paymentSelect.input.value=fixedPay.input.value;
-      configuredPromos.set(p.sku,{sku:p.sku,qty:q,config:{}});
+      configuredPromos.set(p.sku,{sku:p.sku,qty:q,config:fixedSauce?{sauces:[fixedSauce.input.value]}:{}});
       result.textContent='Oferta fija incorporada a la simulación, pendiente de validación por servidor.';
       drawCart();
      },true);
@@ -717,17 +720,20 @@
      const veg2=select('Segundo vegetal (vegetariano)',options('vegetal'),'Cebollín');
      const wrap=select('Envoltura',options('envoltura'),'Panko');
      const vegetarian=field('Vegetariano · dos vegetales',false,'checkbox');
+     const soloProteina=field('Solo proteína · sin vegetales',false,'checkbox');
      const sinNori=field('Sin nori',false,'checkbox');
      const sinQueso=field('Sin queso crema',false,'checkbox');
-     const base=stack();base.append(vegetarian.wrap,protein.wrap,veg.wrap,veg2.wrap,
+     const base=stack();base.append(vegetarian.wrap,soloProteina.wrap,protein.wrap,veg.wrap,veg2.wrap,
       wrap.wrap,sinNori.wrap,sinQueso.wrap);
      const toggle=()=>{
       veg2.wrap.hidden=!vegetarian.input.checked;
       protein.wrap.hidden=vegetarian.input.checked;
+      veg.wrap.hidden=soloProteina.input.checked;
      };
-     vegetarian.input.onchange=toggle;toggle();panelRoll.append(base);
+     vegetarian.input.onchange=()=>{if(vegetarian.input.checked)soloProteina.input.checked=false;toggle();};
+     soloProteina.input.onchange=()=>{if(soloProteina.input.checked)vegetarian.input.checked=false;toggle();};toggle();panelRoll.append(base);
      form.append(panelRoll);
-     rolls.push({protein,veg,veg2,wrap,vegetarian,sinNori,sinQueso});
+     rolls.push({protein,veg,veg2,wrap,vegetarian,soloProteina,sinNori,sinQueso});
     }
     const sauces=[];
     for(let i=0;i<p.sauceCount;i++){
@@ -745,10 +751,10 @@
       if(!token)throw Error('Inicia sesión Google como dueña de Romo');
       const item=rolls.map(x=>({
        protein:x.vegetarian.input.checked?'':x.protein.input.value,
-       vegetable:x.veg.input.value,
+       vegetable:x.soloProteina.input.checked?'':x.veg.input.value,
        ...(x.vegetarian.input.checked?{vegetable2:x.veg2.input.value}:{}),
        wrap:x.wrap.input.value,
-       vegetariano:x.vegetarian.input.checked,
+       vegetariano:x.vegetarian.input.checked,soloProteina:x.soloProteina.input.checked,
        sinNori:x.sinNori.input.checked,
        sinQueso:x.sinQueso.input.checked
       }));
