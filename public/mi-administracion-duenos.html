@@ -1989,7 +1989,7 @@ async function archivoMensualDescargar(registro,tipo){
   if(!core)throw Error('No se cargó el generador de informes.');
   const documento=await core.desempaquetar(x.base64,x.encoding,x.sha256);
   const nombre='archivo-'+registro.sucursal.replace(':','-')+'-'+registro.mes;
-  if(tipo==='excel')archivoDescargar(new Blob([core.excel(documento)],{type:'text/csv;charset=utf-8'}),nombre+'.csv');
+  if(tipo==='excel')archivoDescargar(generarXLSX({hojas:core.hojasExcel(documento)}),nombre+'.xlsx');
   else archivoDescargar(core.pdf(documento),nombre+'.pdf');
   aviso.textContent='Archivo '+tipo.toUpperCase()+' preparado con verificación SHA-256.';
  }catch(e){aviso.textContent=String(e.message||e)+' No se modificaron datos.';}
