@@ -1184,8 +1184,8 @@
   legacy(true);
   if(!canWrite()){
    const messages={
-    productos:'Agregar productos, cambiar fotografías y descuentos nuevos aún está pendiente de conectar con la carta pública.',
-    categorias:'La creación, renombrado y eliminación de categorías aún no se publican en la carta.',
+    productos:'Las fotografías de productos nuevos y el armado personalizado aún están pendientes de conexión.',
+    categorias:'Las categorías originales del armado de sushi aún no se pueden mover ni eliminar.',
     ingredientes:'Cambiar ingredientes y recargos requiere conectar el armado público y su cotizador.',
     promociones:'La edición de promociones existentes está arriba. Crear nuevas promociones y sus fotos aún no está conectado.'
    };

@@ -86,9 +86,9 @@
     }
     const categoryWrap=el('label','Categoría'),category=el('select');
     for(const c of state.current.categories||[])
-      category.add(new Option(c.nombre,c.slug));
+      if(!p.custom||c.slug==='entradas'||c.slug.startsWith('romoq-'))category.add(new Option(c.nombre,c.slug));
     category.value=p.categoriaSlug;
-    category.disabled=true;
+    category.disabled=!p.custom;
     category.title='La organización de categorías requiere el editor completo de Uki';
     category.style.cssText='display:block;width:100%;padding:10px;border:1px solid #aaa;border-radius:9px';
     categoryWrap.append(category);form.append(categoryWrap);
@@ -108,7 +108,13 @@
     const cancel=el('button','Cancelar');
     cancel.type='button';cancel.onclick=()=>{state.selectedSku='';renderForm();};
     cancel.style.cssText='background:white;border:1px solid #999;padding:11px 15px;border-radius:10px';
-    buttons.append(save,cancel);form.append(buttons);
+    buttons.append(save,cancel);
+    if(p.custom){
+      const remove=el('button','Eliminar producto');remove.type='button';
+      remove.onclick=()=>void gestion('product-delete',{sku:p.sku},'Eliminación de '+p.name,'¿Eliminar '+p.name+' de la carta? Los pedidos anteriores se conservan.');
+      buttons.append(remove);
+    }
+    form.append(buttons);
     form.onsubmit=async event=>{
       event.preventDefault();
       if(state.busy)return;
@@ -196,6 +202,42 @@
     info.append(h,d);row.append(info);
     return row;
   }
+  async function gestion(action,fields,motivo,confirmation){
+    if(state.busy||state.current?.edicionHabilitada!==true||state.current.revision<1)return;
+    if(confirmation&&!window.confirm(confirmation))return;
+    const rev=state.current.revision,hash=state.current.baseSha256;
+    state.busy=true;status('Guardando cambio en la carta de Romo…');
+    try{
+      const saved=await request('POST',{action,fields,expectedRevision:rev,baseSha256:hash,motivo});
+      if(saved.guardado!==true||saved.auditado!==true||saved.revision!==rev+1)throw Error('Cambio no confirmado');
+      state.selectedSku='';state.busy=false;await reload();status('Cambio guardado. Actualiza la carta pública para verlo.');
+    }catch(err){status('No se confirmó el cambio. Actualiza antes de repetir. '+String(err.message||err));}
+    finally{state.busy=false;}
+  }
+  function accion(label,onclick){const b=el('button',label);b.type='button';b.style.cssText='margin:6px 0;padding:9px 13px;border:1px solid #a11c27;border-radius:9px;color:#991120;background:white';b.onclick=onclick;return b;}
+  function campo(parent,label,type='text',value=''){
+    const wrap=el('label',label),field=el('input');field.type=type;field.value=String(value);
+    field.style.cssText='display:block;width:100%;padding:10px;border:1px solid #aaa;border-radius:9px';
+    wrap.append(field);parent.append(wrap);return field;
+  }
+  function formNuevoProducto(){
+    const root=state.root,area=$(root,'[data-romo-area="productos"]'),old=area?.querySelector('[data-romo-nuevo-producto]');
+    old?.remove();if(!area||state.current?.edicionHabilitada!==true||state.current.revision<1)return;
+    const box=el('details');box.dataset.romoNuevoProducto='1';box.style.cssText='padding:12px;border:1px solid #e9d8dd;border-radius:12px;margin:12px 0';
+    box.append(el('summary','＋ Agregar producto de precio fijo'));
+    const name=campo(box,'Nombre');name.maxLength=100;
+    const price=campo(box,'Precio','number');price.min='1';price.max='1000000';price.step='1';
+    const desc=campo(box,'Descripción');desc.maxLength=500;
+    const wrap=el('label','Categoría'),cat=el('select');
+    for(const c of state.current.categories||[])if(c.slug==='entradas'||c.slug.startsWith('romoq-'))cat.add(new Option(c.nombre,c.slug));
+    cat.style.cssText='display:block;width:100%;padding:10px';wrap.append(cat);box.append(wrap);
+    const available=el('input');available.type='checkbox';available.checked=true;
+    const av=el('label','Disponible en carta');av.prepend(available);box.append(av);
+    box.append(aviso('Para productos fijos sin armado personalizado. Los rollos y promociones personalizables conservan sus recetas actuales.'),
+      accion('Guardar producto',()=>{const n=Number(price.value);if(name.value.trim().length<2||!Number.isSafeInteger(n)||n<1||n>1000000||!cat.value){status('Completa nombre, precio y categoría.');return;}
+        void gestion('product-create',{name:name.value.trim(),price:n,description:desc.value.trim(),categoriaSlug:cat.value,available:available.checked},'Creación de '+name.value.trim(),'¿Agregar este producto a la carta de Romo?');}));
+    area.insertBefore(box,$(root,'[data-romo-carta-list]'));
+  }
   function renderExtras(){
     const root=state.root, current=state.current;
     if(!root)return;
@@ -207,7 +249,13 @@
     const products=Array.isArray(current?.products)?current.products.filter(visibleRomo):[];
     const cats=Array.isArray(current?.categories)?current.categories:[];
     const ing=Array.isArray(current?.ingredients)?current.ingredients:[];
-    categories.append(aviso('Consulta los productos de cada categoría de Romo.'));
+    categories.append(aviso('Crea tus categorías propias y consulta los productos de cada una. Las categorías de armado original se conservan.'));
+    formNuevoProducto();
+    if(current?.edicionHabilitada===true&&current.revision>=1){
+      const create=el('details');create.append(el('summary','＋ Crear categoría'));
+      const name=campo(create,'Nombre de la categoría');name.maxLength=45;
+      create.append(accion('Guardar categoría',()=>{if(name.value.trim().length<2){status('Ingresa el nombre de la categoría.');return;}void gestion('category-create',{nombre:name.value.trim()},'Creación de categoría '+name.value.trim());}));categories.append(create);
+    }
     for(const c of cats){
       const belonging=products.filter(p=>p.categoriaSlug===c.slug);
       const row=fila(c.nombre,belonging.length+' productos · '+c.slug);
@@ -220,6 +268,13 @@
         renderList();setArea('productos');
       };
       row.append(open);categories.append(row);
+      if(current?.edicionHabilitada===true&&c.slug.startsWith('romoq-')){
+        const controls=el('details');controls.append(el('summary','Editar categoría'));
+        const name=campo(controls,'Nombre','text',c.nombre);name.maxLength=45;
+        controls.append(accion('Guardar nombre',()=>void gestion('category-rename',{slug:c.slug,nombre:name.value.trim()},'Renombrar categoría '+c.nombre)),
+          accion('Eliminar categoría',()=>void gestion('category-delete',{slug:c.slug},'Eliminar categoría '+c.nombre,'¿Eliminar esta categoría? Sus productos pasarán a Entradas.')));
+        categories.append(controls);
+      }
     }
     const search=String($(root,'[data-romo-ingredient-search]')?.value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
     const matching=ing.filter(p=>!search||String(p.name+' '+p.category).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(search));
@@ -264,7 +319,7 @@
         .replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(q)));
     const caption=el('p',products.length+' productos encontrados');
     caption.style.fontWeight='700';container.append(caption);
-    for(const p of products.slice(0,75)){
+    for(const p of products){
       const row=el('div');
       row.style.cssText='border-bottom:1px solid #ddd;padding:9px 0;display:flex;gap:8px;align-items:center;justify-content:space-between';
       const info=el('div');
@@ -306,7 +361,7 @@
       if([...category.options].some(x=>x.value===before))category.value=before;
       renderList();renderForm();renderExtras();setArea(state.area);
       status(result.edicionHabilitada===true?
-        'Carta actualizada. Puedes editar productos existentes.':
+        'Carta actualizada. Puedes crear y editar productos fijos y categorías propias.':
         'Catálogo de Romo consultado. La edición de productos sigue desactivada.');
     }catch(error){
       state.current=null;state.selectedSku='';
