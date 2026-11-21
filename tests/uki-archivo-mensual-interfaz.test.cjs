@@ -94,3 +94,23 @@ if(fs.existsSync(romo)){
   assert.match(q.estado,/cambió|reintenta/);
  });
 }
+
+test('mes predeterminado respeta el día 5 y no abre un período futuro',()=>{
+ for(const file of ['firebase/uki-archivo-mensual-panel.js',
+  'public/romo-panel-qa/uki-archivo-mensual-panel.js']){
+  const full=path.join(root,file);if(!fs.existsSync(full))continue;
+  const c=fs.readFileSync(full,'utf8');
+  const i=c.indexOf('function mesInicial(){'),j=c.indexOf('async function llamar(',i);
+  assert.ok(i>=0&&j>i,'No se encontró el cálculo de mes permitido');
+  const calcula=new Function('hoyChile',c.slice(i,j)+'return mesInicial;');
+  for(const [hoy,esperado] of [
+   ['2026-11-21','2026-11'],
+   ['2026-12-04','2026-11'],
+   ['2026-12-05','2026-11'],
+   ['2027-01-04','2026-11'],
+   ['2027-01-05','2026-12'],
+   ['2027-02-05','2027-01']]){
+   assert.equal(calcula(()=>hoy)(),esperado,file+' '+hoy);
+  }
+ }
+});
