@@ -1,0 +1,30 @@
+name: Archivo mensual Romo - sintaxis y carga
+on:
+  push:
+    branches:
+      - integracion/retencion-mensual-segura-20261121
+    paths:
+      - public/romo-panel-qa/index.html
+      - public/romo-panel-qa/uki-archivo-mensual-core.js
+      - public/romo-panel-qa/uki-archivo-mensual-panel.js
+      - tests/uki-archivo-mensual-romo-carga.test.cjs
+      - .github/workflows/uki-romo-archivo-mensual-qa.yml
+  pull_request:
+    paths:
+      - tests/uki-archivo-mensual-romo-carga.test.cjs
+permissions:
+  contents: read
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Sintaxis de componentes del archivo mensual
+        run: |
+          node --check public/romo-panel-qa/uki-archivo-mensual-core.js
+          node --check public/romo-panel-qa/uki-archivo-mensual-panel.js
+      - name: Probar carga de Romo
+        run: node --test tests/uki-archivo-mensual-romo-carga.test.cjs
