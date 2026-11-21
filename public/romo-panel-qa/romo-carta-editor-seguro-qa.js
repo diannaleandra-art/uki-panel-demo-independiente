@@ -194,7 +194,7 @@
     const products=Array.isArray(current?.products)?current.products.filter(visibleRomo):[];
     const cats=Array.isArray(current?.categories)?current.categories:[];
     const ing=Array.isArray(current?.ingredients)?current.ingredients:[];
-    categories.append(aviso('Categorías de Romo independientes de Uki. Para crear, renombrar, asignar o eliminar usa Gestión completa de carta, más abajo. Ninguna modificación se considera guardada sin confirmación de Neon.'));
+    categories.append(aviso('Consulta los productos de cada categoría de Romo.'));
     for(const c of cats){
       const belonging=products.filter(p=>p.categoriaSlug===c.slug);
       const row=fila(c.nombre,belonging.length+' productos · '+c.slug);
@@ -219,10 +219,18 @@
     }
     if(!matching.length)ingredients.append(aviso('No hay ingredientes que coincidan con la búsqueda.'));
     const special=products.filter(p=>p.kind==='monthly'||p.categoriaSlug==='mensual');
-    promos.append(aviso('Promociones de la carta aprobada. La edición de promociones, imágenes y descuentos se realiza en Gestión completa de carta. Este Preview no publica automáticamente cambios comerciales.'));
+    promos.append(aviso('Consulta y edita los precios y disponibilidad de las promociones existentes.'));
     for(const p of special){
-      promos.append(fila(p.name,money(p.price)+' · '+(p.available!==false?'Disponible':'No disponible')+
-        (p.description?' · '+p.description:'')));
+      const row=fila(p.name,money(p.price)+' · '+(p.available!==false?'Disponible':'No disponible')+
+        (p.description?' · '+p.description:''));
+      if(current?.edicionHabilitada===true){
+        const open=el('button','Editar promoción');open.type='button';
+        open.style.cssText='flex-shrink:0;border:1px solid #b01b31;border-radius:9px;padding:8px;color:#a00b22;background:white';
+        open.onclick=()=>{
+          state.selectedSku=p.sku;setArea('productos');renderForm();
+          $(root,'[data-romo-carta-form]')?.scrollIntoView({block:'start',behavior:'smooth'});
+        };row.append(open);
+      }promos.append(row);
     }
     if(!special.length)promos.append(aviso('No se encontraron promociones en el catálogo aprobado.'));
     // Gestión completa aislada: conserva listado aprobado y no habilita ventas.
@@ -284,7 +292,7 @@
       if([...category.options].some(x=>x.value===before))category.value=before;
       renderList();renderForm();renderExtras();setArea(state.area);
       status(result.edicionHabilitada===true?
-        'Catálogo leído. Las ediciones solo son válidas con revisión '+result.revision+'.':
+        'Carta actualizada. Puedes editar productos existentes.':
         'Catálogo de Romo consultado. La edición de productos sigue desactivada.');
     }catch(error){
       state.current=null;state.selectedSku='';
@@ -335,8 +343,7 @@
     container.style.removeProperty('display');
     state.root=container;
     const heading=el('h2','Carta y precios · Romo La Serena');
-    const help=el('p','Mismos productos de la carta aprobada de Romo. '+
-      'Los cambios necesitan sesión de dueños y motivo. No se guardan en Uki.');
+    const help=el('p','Administra la carta de Romo La Serena. Los cambios comerciales son exclusivos de esta sucursal.');
     const statusP=el('p','Editor todavía no verificado');
     statusP.dataset.romoCartaStatus='1';statusP.setAttribute('role','status');
     const filter=el('div');filter.style.cssText='display:flex;gap:8px;flex-wrap:wrap';

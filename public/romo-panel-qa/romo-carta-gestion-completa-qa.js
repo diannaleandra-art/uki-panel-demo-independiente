@@ -97,8 +97,7 @@
       !data.data||!Number.isSafeInteger(data.revision))
     throw Error('No se confirmó el aislamiento de Romo');
    state.admin=data;render();
-   status(canWrite()?'Gestión QA activa: se guardan borradores auditados, sin publicarlos a clientes.':
-    'Gestión QA de solo lectura: formularios preparados. No se pueden guardar cambios.');
+   status(canWrite()?'Los cambios de este apartado son borradores y todavía no modifican la carta pública.':'');
   }catch(e){
    if(id!==state.requestId)return;
    state.admin=null;
@@ -1181,7 +1180,21 @@
  }
  function render(){
   if(!state.root?.isConnected||!state.admin)return;
-  legacy(false);
+  // La administración de borradores no debe sustituir la carta comercial.
+  legacy(true);
+  if(!canWrite()){
+   const messages={
+    productos:'Agregar productos, cambiar fotografías y descuentos nuevos aún está pendiente de conectar con la carta pública.',
+    categorias:'La creación, renombrado y eliminación de categorías aún no se publican en la carta.',
+    ingredientes:'Cambiar ingredientes y recargos requiere conectar el armado público y su cotizador.',
+    promociones:'La edición de promociones existentes está arriba. Crear nuevas promociones y sus fotos aún no está conectado.'
+   };
+   for(const [name,message] of Object.entries(messages)){
+    const target=host(name);if(!target)continue;clear(target);
+    const note=E('details');note.append(E('summary','Funciones pendientes de conexión'),info(message));target.append(note);
+   }
+   return;
+  }
   renderProducts();renderCategories();renderIngredients();renderPromos();
  }
  window.romoMontarGestionCartaQA=function({container,base}={}){
