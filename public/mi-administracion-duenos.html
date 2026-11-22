@@ -212,20 +212,20 @@ label{color:#66574c}
  <p>Ventas, gastos y cuentas pendientes de cada local, por fecha. Todo desde aquí.</p>
 </div>
 <section class="owner-branches" aria-labelledby="ownerBranchTitle">
- <div id="ownerBranchTitle" class="owner-section-label" style="margin:0 0 4px">🏪 Sucursales Uki Sushi</div>
- <p class="hint">Los cierres finales de ambas sucursales aparecen automáticamente tras confirmar la copia de seguridad. No necesitas consultar respaldos ni introducir otra clave.</p>
+ <div id="ownerBranchTitle" class="owner-section-label" style="margin:0 0 4px">🏪 Sucursales</div>
+ <p class="hint">Consulta los cierres definitivos de cada local, sin cambiar de acceso.</p>
  <div class="owner-branch-grid">
-  <button class="owner-branch-button" type="button" data-owner-branch="arica"><strong>Regimiento Arica</strong><small id="ukiAutoArica">Sin cierres confirmados en estas fechas</small></button>
-  <button class="owner-branch-button" type="button" data-owner-branch="serena"><strong>La Serena</strong><small id="ukiAutoSerena">Sin cierres confirmados en estas fechas</small></button>
+  <button class="owner-branch-button" type="button" data-owner-branch="arica"><strong>Uki · Regimiento Arica</strong><small id="ukiAutoArica">Sin cierres confirmados en estas fechas</small></button>
+  <button class="owner-branch-button" type="button" data-owner-branch="serena"><strong>Uki · La Serena</strong><small id="ukiAutoSerena">Sin cierres confirmados en estas fechas</small></button>
+  <button class="owner-branch-button" type="button" data-owner-branch="romo"><strong>Romo · La Serena</strong><small id="romoAutoSerena">Sin cierres confirmados en estas fechas</small></button>
  </div>
 </section>
-<section class="card" id="romoCierresPrivadosQA" aria-label="Cierres Romo La Serena">
- <h2>🍣 Romo’s Sushi La Serena · cierres definitivos</h2>
- <p class="hint">Consulta privada de las constancias confirmadas en Neon Romo. Mismo acceso Google y PIN de dueños. <b>Informativo: aún no se suma a ventas generales ni a movimientos manuales.</b></p>
+<details class="card" id="romoCierresPrivadosQA" aria-label="Cierres Romo La Serena">
+ <summary>🍣 Cierres definitivos de Romo · ver detalle</summary>
  <p class="hint" role="status" id="romoCierresEstadoQA">Inicia sesión privada para consultar los cierres.</p>
- <button class="soft" id="romoCierresActualizarQA" type="button" onclick="void cargarCierresRomoQA($('from').value,$('to').value)">Actualizar cierres de Romo</button>
+ <button class="soft" id="romoCierresActualizarQA" type="button">Actualizar cierres de Romo</button>
  <div class="owner-business-list" id="romoCierresFilasQA"></div>
-</section>
+</details>
 <div class="card owner-finance-card"><div class="owner-eyebrow">MOVIMIENTOS FINANCIEROS REGISTRADOS</div><h2>📊 Resumen de todos los negocios</h2>
 <details class="owner-hint-collapsible"><summary>ℹ️ Acerca de estos totales</summary><p>Incluyen cierres finales y movimientos manuales. Los registros heredados de pruebas deben verificarse antes de tratarlos como operaciones reales. Si una compra ya figura como gasto de caja, hay que conciliarla para evitar contarla dos veces. Los retiros personales no se consideran gastos operativos.</p></details>
 <p class="hint" id="ukiPeriodoResumen">Período seleccionado: el mes actual</p>
@@ -490,27 +490,51 @@ import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app
 import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
 import {crearControlCompras} from "./mi-administracion-compras.js?v=general-v5";
 import {unirVentasDuenos} from "./uki-duenos-ventas-unificadas-qa.mjs";
+import {conciliarCierresRomoResumenQA} from "./uki-duenos-romo-cierres-conciliados-qa.mjs?v=20261122";
 import {construirInforme,generarXLSX,generarPDF,compartirWhatsApp} from "./mi-administracion-informes.js?v=duenos-reporte-v1";
 const app=initializeApp({apiKey:"AIzaSyCS05MCZdbCwN-PPg7eOSd43JIG-uWYIeA",authDomain:"uki-panel-f4909.firebaseapp.com",projectId:"uki-panel-f4909",appId:"1:1070481165758:web:b8f0f9ff40caf5b8ac7def"});
 const auth=getAuth(app),$=id=>document.getElementById(id);
 let cierresConfirmadosUki=[],errorConsultaCierresUki='';
-let resumenManualUki=[],pagosManualesUki=[];
+let resumenManualUki=[],pagosManualesUki=[],movimientosFinancierosCargadosQA=false,romoMovimientosConciliacion=[];
 let cuentasPendientesActuales=[],cuentasPendientesLimitadas=false;
 let vistaGastosActual={manuales:[],cierres:[]};
 function mostrarVentasFinancieras(){
  const host=$('ukiOwnerFinancierasLista');host.replaceChildren();
- const data=unirVentasDuenos({
+ const vistaUki=unirVentasDuenos({
   movimientos:transactions,cierres:cierresConfirmadosUki,
   desde:value('from'),hasta:value('to'),negocio_id:currentBiz(),
   sucursal_id:currentBranch(),razon_social_id:value('scopeRazon'),
   negocios:businesses,sucursales:branches
  });
+ let romoVista={items:[],incluidos:0,bloqueados:0,deliveryPorPagar:0,motivo:''};
+ try{
+  romoVista=conciliarCierresRomoResumenQA({
+   cierres:cierresConfirmadosRomoQA,movimientos:romoMovimientosConciliacion,
+   negocios:businesses,sucursales:branches,
+   desde:value('from'),hasta:value('to'),negocio_id:currentBiz(),
+   sucursal_id:currentBranch(),razon_social_id:value('scopeRazon'),
+   lecturaAutorizada:romoCierresConsultaValidaQA&&Boolean(session)&&Boolean(auth.currentUser),
+   movimientosCompletos:movimientosFinancierosCargadosQA&&romoMovimientosConciliacion.length<250
+  });
+ }catch(error){
+  romoVista.motivo='No se pueden conciliar cierres Romo: '+String(error?.message||error);
+ }
+ const data={...vistaUki,
+  items:[...vistaUki.items,...romoVista.items]
+   .sort((a,b)=>b.fecha.localeCompare(a.fecha)||String(b.id).localeCompare(String(a.id))),
+  cierresConfirmados:vistaUki.cierresConfirmados+romoVista.incluidos,
+  romoCierresIncluidos:romoVista.incluidos,
+  romoDeliveryPorPagar:romoVista.deliveryPorPagar
+ };
  const linea=(texto,clase='hint')=>{
   const el=document.createElement('p');el.className=clase;el.textContent=texto;host.append(el);
  };
- linea(data.manuales+' ventas registradas · '+data.cierresConfirmados+
-  ' cierres finales · '+data.coincidencias+' coincidencias verificadas.');
- linea('Los importes de ventas manuales y cierres se muestran juntos, pero NO se suman dos veces.');
+ linea(data.manuales+' ventas registradas · '+vistaUki.cierresConfirmados+
+  ' cierres Uki · '+romoVista.incluidos+
+  ' cierres Romo conciliados · '+data.coincidencias+' coincidencias verificadas.');
+ linea('Los cierres Romo confirmados se incorporan al resumen privado sin duplicar ventas manuales ni crear otro movimiento.');
+ if(romoVista.motivo&&session&&auth.currentUser)linea(romoVista.motivo);
+ if(romoVista.deliveryPorPagar)linea('Pagos a repartidores Romo incluidos en los gastos: '+pesos(romoVista.deliveryPorPagar));
  if(data.conflictos)linea(data.conflictos+' referencia(s) con importes distintos. Revisar conciliación.');
  if(errorConsultaCierresUki)linea(errorConsultaCierresUki+' Las ventas manuales siguen disponibles.');
  if(!data.items.length)linea('Sin ventas para estas fechas y filtros.');
@@ -519,13 +543,14 @@ function mostrarVentasFinancieras(){
   const head=document.createElement('strong');
   head.textContent=item.fecha+' · '+pesos(item.importe)+' · '+item.origen;
   const desc=document.createElement('p');desc.className='hint';
-  desc.textContent=item.nombre+' · '+item.sucursal+(item.ref?' · Ref. '+item.ref:'');
+  desc.textContent=item.nombre+' · '+item.sucursal+(item.tipo==='manual'&&item.ref?' · Ref. '+item.ref:'');
   box.append(head,desc);
   if(item.tipo==='manual')pintarAccionesManual(box,transactions.find(t=>String(t.id)===String(item.id)));
   if(item.tipo==='cierre'){
    const detalles=document.createElement('p');detalles.className='hint';
-   detalles.textContent='Gastos: '+pesos(item.gastos)+' · Delivery por pagar: '+
-    pesos(item.delivery)+' · Propinas: '+pesos(item.propinas)+' · Retiros: '+pesos(item.retiros);
+   detalles.textContent='Gastos: '+pesos(item.gastos)+
+    ' · Repartidores pagados: '+pesos(item.delivery)+
+    ' · Propinas: '+pesos(item.propinas)+' · Retiros: '+pesos(item.retiros);
    box.append(detalles);
    const medios=Object.entries(item.medios||{}).filter(([,v])=>Number(v)>0);
    if(medios.length){
@@ -578,8 +603,9 @@ function pintarResumenPorNegocio(data,cierresSumables){
  };
  // Usamos las mismas ventas conciliadas del resumen: no se vuelven a registrar.
  for(const x of cierresSumables){
-  const k=/arica/i.test(x.sucursal)?'uki-arica':'uki-serena';
-  const row=entry(k,'Uki Sushi · '+x.sucursal);
+  const romo=x.marca==='romo';
+  const k=romo?'romo-serena':/arica/i.test(x.sucursal)?'uki-arica':'uki-serena';
+  const row=entry(k,romo?'Romo’s Sushi · La Serena':'Uki Sushi · '+x.sucursal);
   row.venta+=money(x.importe);
   row.gastos+=money(x.gastos)+money(x.delivery);
   row.cierres++;
@@ -595,7 +621,7 @@ function pintarResumenPorNegocio(data,cierresSumables){
    if(t.estado==='pendiente')row.pendientes+=amt;else row.gastos+=amt;
   }
  }
- const entries=[...result.values()].filter(x=>x.venta||x.gastos||x.pendientes);
+ const entries=[...result.values()].filter(x=>x.venta||x.gastos||x.pendientes||x.cierres);
  if(!entries.length){
   const p=document.createElement('p');p.className='hint';p.textContent='Sin movimientos para estas fechas. Puedes elegir otro período.';
   host.append(p);return;
@@ -617,7 +643,7 @@ function pintarResumenPorNegocio(data,cierresSumables){
   if(e.pendientes)summary(card,'Por pagar',e.pendientes);
   if(e.cierres){
    const small=document.createElement('p');small.className='hint';
-   small.textContent=e.cierres+' cierre(s) definitivo(s) de Uki';card.append(small);
+   small.textContent=e.cierres+' cierre(s) definitivo(s) de '+(e.label.startsWith('Romo')?'Romo':'Uki');card.append(small);
   }
   host.append(card);
  }
@@ -659,7 +685,9 @@ function actualizarResumenConCierres(data){
  // período como si fuera el total histórico mientras se consulta el servidor.
  $('m-pendientes').textContent='Verificando…';
  $('ukiPeriodoResumen').textContent='Período: '+value('from')+' a '+value('to')+
-  ' · Cierres de Uki incluidos: '+cierresSumables.length+
+  ' · Cierres incluidos en vista: '+cierresSumables.length+
+  (data.romoCierresIncluidos?' (Romo: '+data.romoCierresIncluidos+', sin asiento contable)':'')+
+  (data.romoDeliveryPorPagar?' · Repartidores Romo pagados: '+pesos(data.romoDeliveryPorPagar):'')+
   (data.conflictos?' · '+data.conflictos+' pendiente(s) de conciliación':'');
  const nombrarMedio=k=>k==='Uber'||k==='Uber Eats'?'Uber Eats':k==='Otro'||k==='Otros'?'Otros':k;
  const pagos=new Map();
@@ -827,13 +855,13 @@ function pintarGastos(dato=vistaGastosActual){
  for(const c of dato.cierres){
   if(valor(c.gastos))all.push({
    fecha:c.fecha,categoria:'Gastos del cierre (sin desglose)',titulo:'Gastos de caja',
-   importe:valor(c.gastos),scope:'local',estado:'pagado',concepto:'Cierre definitivo de Uki',proveedor:'',
-   detalle:'Uki · '+c.sucursal+' · Automático, solo consulta'
+   importe:valor(c.gastos),scope:'local',estado:'pagado',concepto:'Cierre definitivo de '+(c.marca==='romo'?'Romo':'Uki'),proveedor:'',
+   detalle:(c.marca==='romo'?'Romo':'Uki')+' · '+c.sucursal+' · Automático, solo consulta'
   });
   if(valor(c.delivery))all.push({
    fecha:c.fecha,categoria:'Repartidores pagados',titulo:'Repartidores',
    importe:valor(c.delivery),scope:'local',estado:'pagado',concepto:'Pago a repartidores',proveedor:'',
-   detalle:'Uki · '+c.sucursal+' · Automático, solo consulta'
+   detalle:(c.marca==='romo'?'Romo':'Uki')+' · '+c.sucursal+' · Automático, solo consulta'
   });
  }
  const filtroCategoria=$('ukiFiltroGastoCategoria');
@@ -890,16 +918,22 @@ function pintarGastos(dato=vistaGastosActual){
 const ROMO_CIERRES_PRIVADOS_URL=
  'https://romos-sushi-panel.vercel.app/api/romo-cierres-duenos-consulta-qa';
 let romoCierresPrivadosSecuencia=0;
+let cierresConfirmadosRomoQA=[],romoCierresConsultaValidaQA=false;
 async function cargarCierresRomoQA(desde,hasta){
  const estado=$('romoCierresEstadoQA'),host=$('romoCierresFilasQA');
  if(!estado||!host)return;
  if(!session||!auth.currentUser){
+  cierresConfirmadosRomoQA=[];romoCierresConsultaValidaQA=false;
   estado.textContent='Inicia sesión Google y PIN de Mi Administración para ver Romo.';
-  host.replaceChildren();return;
+  host.replaceChildren();mostrarVentasFinancieras();return;
  }
  const n=++romoCierresPrivadosSecuencia;
+ const sesionConsulta=session;
+ cierresConfirmadosRomoQA=[];romoCierresConsultaValidaQA=false;
+ $('romoAutoSerena').textContent='Consultando cierres…';
  estado.textContent='Consultando cierres confirmados de Romo…';
  host.replaceChildren();
+ mostrarVentasFinancieras();
  try{
   const token=await auth.currentUser.getIdToken();
   const response=await fetch(ROMO_CIERRES_PRIVADOS_URL,{
@@ -912,41 +946,63 @@ async function cargarCierresRomoQA(desde,hasta){
   if(!response.ok||info?.ok!==true||info.storeId!=='romo:serena'||
      !Array.isArray(info.cierres)||info.cierres.length>100)
    throw Error(info?.error||'La consulta de Romo todavía no está disponible.');
-  if(n!==romoCierresPrivadosSecuencia||!session)return;
+  if(n!==romoCierresPrivadosSecuencia||session!==sesionConsulta||!auth.currentUser)return;
   const seen=new Set();
-  const rows=info.cierres.filter(c=>{
-   if(!c||typeof c.turno_ref!=='string'||seen.has(c.turno_ref)||
-      !Number.isSafeInteger(Number(c.venta_total))||
-      !Number.isSafeInteger(Number(c.pedidos)))return false;
-   seen.add(c.turno_ref);return true;
+  // No ocultar silenciosamente cierres inválidos ni mostrar subtotales parciales.
+  if(info.soloLectura!==true||info.incluidoEnContabilidad!==false)
+   throw Error('La consulta privada cambió de modalidad');
+  const permitidos=new Set(['Efectivo','Transferencia','Débito','Edenred','Junaeb',
+   'Otros','Uber Eats','PedidosYa','Rappi']);
+  const monto=v=>Number.isSafeInteger(Number(v))&&Number(v)>=0&&Number(v)<=1000000000;
+  const rows=info.cierres.map(c=>{
+   if(!c||typeof c.turno_ref!=='string'||
+      !/^\d{4}-\d{2}-\d{2}@[1-9]\d{12,14}$/.test(c.turno_ref)||
+      c.source_key!=='romo:serena|'+c.turno_ref||
+      c.fecha_operativa!==c.turno_ref.slice(0,10)||seen.has(c.source_key)||
+      c.estado_contable!=='pendiente_incorporacion'||
+      !monto(c.venta_total)||!monto(c.pedidos)||Number(c.pedidos)>10000||
+      !monto(c.gastos_cierre)||!monto(c.delivery_por_pagar)||!monto(c.propinas)||
+      !Number.isSafeInteger(Number(c.revision_neon))||Number(c.revision_neon)<1||
+      !c.medios||typeof c.medios!=='object'||Array.isArray(c.medios)||
+      Object.entries(c.medios).some(([k,v])=>!permitidos.has(k)||!monto(v))||
+      Object.values(c.medios).reduce((n,v)=>n+Number(v),0)!==Number(c.venta_total))
+    throw Error('Cierre Romo inconsistente: no se presentan resultados parciales');
+   seen.add(c.source_key);return c;
   });
+  cierresConfirmadosRomoQA=rows;romoCierresConsultaValidaQA=true;
+  mostrarVentasFinancieras();
   const sum=rows.reduce((total,c)=>total+Number(c.venta_total),0);
+  $('romoAutoSerena').textContent=rows.length?pesos(sum)+' · '+rows.length+' cierre(s) confirmado(s)':'Sin cierres confirmados en el período';
   estado.textContent=rows.length?
-   rows.length+' cierre(s) Romo confirmados · '+pesos(sum)+' (solo informativo; NO sumado a ventas)':
+   rows.length+' cierre(s) Romo confirmados · '+pesos(sum)+
+   ' · conciliación automática en resumen privado, sin duplicar movimientos':
    'No hay cierres definitivos confirmados de Romo para estas fechas.';
   rows.forEach(c=>{
    const card=document.createElement('div');card.className='owner-business-item';
    const name=document.createElement('strong');
-   name.textContent='Romo La Serena · '+c.fecha_operativa+' · '+c.turno_ref;
+   name.textContent='Romo La Serena · '+c.fecha_operativa+' · '+new Date(Number(c.turno_ref.split('@')[1])).toLocaleTimeString('es-CL',{timeZone:'America/Santiago',hour:'2-digit',minute:'2-digit'});
    const detail=document.createElement('p');detail.className='hint';
    detail.textContent='Venta: '+pesos(c.venta_total)+' · Pedidos: '+c.pedidos+
     ' · Gastos: '+pesos(c.gastos_cierre)+
-    ' · Delivery por pagar: '+pesos(c.delivery_por_pagar)+
-    ' · Propinas: '+pesos(c.propinas)+
-    ' · Revisión Neon: '+c.revision_neon;
+    ' · Repartidor pagado según cierre: '+pesos(c.delivery_por_pagar)+
+    ' · Propinas: '+pesos(c.propinas);
    const note=document.createElement('p');note.className='hint';
-   note.textContent='Cierre validado en Romo. No incluido en ingresos ni sumado dos veces.';
+   note.textContent=(c.version_cierre?'Versión '+c.version_cierre+' · Original: '+pesos(c.venta_original)+' · Diferencia: '+pesos(c.diferencia_venta)+'. ':'')+'Cierre verificado: se incorpora al resumen solo si no coincide con ventas manuales del día. No genera asiento contable.';
    card.append(name,detail,note);host.append(card);
   });
  }catch(error){
-  if(n!==romoCierresPrivadosSecuencia)return;
+  if(n!==romoCierresPrivadosSecuencia||session!==sesionConsulta)return;
+  $('romoAutoSerena').textContent='No se pudo consultar Romo';
+  cierresConfirmadosRomoQA=[];romoCierresConsultaValidaQA=false;
+  host.replaceChildren();mostrarVentasFinancieras();
   estado.textContent='No se pudo verificar Romo: '+String(error?.message||'Consulta no disponible.');
  }
 }
+$('romoCierresActualizarQA').onclick=()=>void refresh();
 const UKI_DUENOS_CIERRES_URL='https://uki-sushi-inventario.vercel.app/api/mi-administracion-live';
 let ukiCierresQAConsulta=0;
 async function cargarCierresUki(desde,hasta){
- if(session&&auth.currentUser)void cargarCierresRomoQA(desde,hasta);
+ const consultaRomo=session&&auth.currentUser?cargarCierresRomoQA(desde,hasta):Promise.resolve();
  const seq=++ukiCierresQAConsulta,arica=$('ukiAutoArica'),serena=$('ukiAutoSerena');
  if(!session||!auth.currentUser)return;
  arica.textContent=serena.textContent='Consultando cierres…';
@@ -978,7 +1034,8 @@ async function cargarCierresUki(desde,hasta){
   errorConsultaCierresUki='Los cierres automáticos no están disponibles. Consulta después.';
   cierresConfirmadosUki=[];
  }
- if(seq===ukiCierresQAConsulta)mostrarVentasFinancieras();
+ await consultaRomo;
+ if(seq===ukiCierresQAConsulta&&session)mostrarVentasFinancieras();
 }
 
 let session="",businesses=[],branches=[],razones=[],vinculos=[],transactions=[],docs=[],tab='resumen';
@@ -1218,11 +1275,11 @@ $('ukiGoTodasVentas').onclick=()=>{
 };
 for(const btn of document.querySelectorAll('[data-owner-branch]'))btn.onclick=()=>{
  const target=btn.dataset.ownerBranch;
- const uki=businesses.find(b=>/\buki\b/i.test(String(b.nombre||'')));
+ const uki=businesses.find(b=>target==='romo'?/\bromo(?:[’']?s)?\b/i.test(String(b.nombre||'')):/\buki\b/i.test(String(b.nombre||'')));
  const branch=branches.find(b=>String(b.negocio_id)===String(uki?.id)&&
   (target==='arica'?/arica|regimiento/i.test(b.nombre):/la serena|serena/i.test(b.nombre)));
  if(!uki||!branch){
-  notify('Primero vincula las sucursales de Uki en Mis negocios.','error');return;
+  notify('Primero vincula este local en Mis negocios.','error');return;
  }
  $('scopeBusiness').value=String(uki.id);
  chooseBranch('scopeBranch',String(uki.id),'Todas las sucursales');
@@ -1639,20 +1696,48 @@ function renderPayments(rows){
  for(const p of rows||[])if(p.medio&&Number(p.total)>0)pagos[p.medio]=Number(p.total);
  $('mediosReport').innerHTML=moneyRows(pagos)||'<p class="muted">No se ha registrado el desglose.</p>';
 }
+let refreshFinSeq=0;
 async function refresh(){
  if(!session)return;
+ const seq=++refreshFinSeq,privateSession=session;
+ // Invalida consultas anteriores antes de cambiar filtros.
+ ++romoCierresPrivadosSecuencia;++ukiCierresQAConsulta;
  limpiarInformes();
+ movimientosFinancierosCargadosQA=false;romoMovimientosConciliacion=[];
+ cierresConfirmadosRomoQA=[];romoCierresConsultaValidaQA=false;
+ const params={negocio_id:currentBiz()||null,sucursal_id:currentBranch()||null,razon_social_id:value('scopeRazon')||'todos',desde:value('from'),hasta:value('to')};
+ const vigente=()=>seq===refreshFinSeq&&session===privateSession&&params.desde===value('from')&&params.hasta===value('to')&&params.negocio_id===(currentBiz()||null)&&params.sucursal_id===(currentBranch()||null)&&params.razon_social_id===(value('scopeRazon')||'todos');
  try{
   notify('Actualizando información financiera…');
-  const params={negocio_id:currentBiz()||null,sucursal_id:currentBranch()||null,razon_social_id:value('scopeRazon')||'todos',desde:value('from'),hasta:value('to')};
   const [s,l]=await Promise.all([api('resumen',params),api('listar_movimientos',params)]);
-  transactions=l.movimientos||[];
+  if(!vigente())return;
+  if(!Array.isArray(l.movimientos))throw Error('No se recibió el listado completo de ventas');
+  transactions=l.movimientos;
   marcarPeriodoSeleccionado();
   resumenManualUki=s.resumen||[];pagosManualesUki=s.pagos||[];
   renderRows();notify('Información privada actualizada.','success');
-  await cargarCierresUki(value('from'),value('to'));
-  await cargarCuentasPendientes();
- }catch(e){notify(e.message,'error');if(/código privado|sesión|Introduce el código/.test(e.message))lock();}
+  // Si la lectura adicional falla, no se suman cierres Romo; los registros
+  // normales Uki siguen visibles y utilizables.
+  try{
+   const conciliacion=await api('listar_movimientos',{negocio_id:null,sucursal_id:null,razon_social_id:'todos',desde:params.desde,hasta:params.hasta});
+   if(!vigente())return;
+   romoMovimientosConciliacion=Array.isArray(conciliacion.movimientos)?conciliacion.movimientos:[];
+   movimientosFinancierosCargadosQA=Array.isArray(conciliacion.movimientos)&&conciliacion.movimientos.length<250;
+  }catch(e){
+   if(!vigente())return;
+   movimientosFinancierosCargadosQA=false;
+   romoMovimientosConciliacion=[];
+   if(/código privado|sesión|Introduce el código/.test(String(e.message))){lock();return;}
+  }
+  if(!vigente())return;
+  await cargarCierresUki(params.desde,params.hasta);
+  if(vigente())await cargarCuentasPendientes();
+ }catch(e){
+  if(!vigente())return;
+  movimientosFinancierosCargadosQA=false;
+  cierresConfirmadosRomoQA=[];romoCierresConsultaValidaQA=false;
+  notify(e.message,'error');if(/código privado|sesión|Introduce el código/.test(e.message))lock();
+ }
 }
 async function loadDocs(){
  try{await controlCompras.cargar()}
@@ -1835,7 +1920,12 @@ function marcarPeriodoSeleccionado(){
  }
 }
 function show(id){for(const x of ['login','setup','unlock','app'])$(x).hidden=x!==id;$('tabs').hidden=id!=='app';$('exit').hidden=id==='login';}
-function lock(){session='';limpiarInformes();show('unlock');}
+function lock(){session='';romoCierresPrivadosSecuencia++;
+ cierresConfirmadosRomoQA=[];romoCierresConsultaValidaQA=false;
+ movimientosFinancierosCargadosQA=false;
+ if($('romoCierresFilasQA'))$('romoCierresFilasQA').replaceChildren();
+ if($('romoCierresEstadoQA'))$('romoCierresEstadoQA').textContent='Acceso privado cerrado.';
+ limpiarInformes();show('unlock');}
 async function checkState(){
  if(!auth.currentUser){show('login');notify('Entra con tu cuenta autorizada.');return}
  try{const r=await api('estado');if(r.autorizado){show('app');await loadBusinesses();void archivoMensualListar();return}
@@ -1861,7 +1951,7 @@ $('enter').onclick=()=>safe('enter',async()=>{
 });
 $('exit').onclick=async()=>{
  if(session)try{await api('salir')}catch{}
- session='';$('ukiArchivoControlAdmin').replaceChildren();$('ukiArchivoMesesAdmin').replaceChildren();limpiarInformes();await signOut(auth);show('login');notify('Acceso privado cerrado.','success');
+ session='';++romoCierresPrivadosSecuencia;++ukiCierresQAConsulta;++refreshFinSeq;cierresConfirmadosRomoQA=[];romoCierresConsultaValidaQA=false;movimientosFinancierosCargadosQA=false;$('ukiArchivoControlAdmin').replaceChildren();$('ukiArchivoMesesAdmin').replaceChildren();limpiarInformes();await signOut(auth);show('login');notify('Acceso privado cerrado.','success');
 };
 // El fragmento nunca viaja al servidor y se conserva mientras Google completa
 // su inicio de sesión (Safari puede recargar la página durante ese proceso).
