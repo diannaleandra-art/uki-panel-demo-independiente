@@ -94,35 +94,7 @@ module.exports=async function ukiCajaAcumuladaLive(req,res){
   if(action==='marcar_revision'){
    const clave=String(body.cierre_clave||''),estado=String(body.estado||'');
    const responsable=String(body.responsable||'').trim(),motivo=String(body.motivo||'').trim();
-   if(!new RegExp('^uki\\|'+branch+'\\|[1-9][0-9]{12,14}
-  if(action==='inicializar'&&body.saldo_inicial_contado!==true)
-    return error(res,400,'Cuenta el efectivo real y confirma el saldo inicial.');
-  // La caja no copia silenciosamente movimientos desde los cierres de ventas.
-  // Los cierres deberán llevar referencia única, importe y día operativo confirmados.
-  if(!amount(body.monto)||!validUUID(body.op_key)||!safeText(body.concepto)||typeof body.responsable!=='string'||body.responsable.trim().length<2||body.responsable.trim().length>80)
-   return error(res,400,'Monto, concepto o identificador incorrecto.');
-  const fecha=body.fecha_operativa??null;
-  if(fecha!==null&&!validDay(fecha))return error(res,400,'Fecha operativa incorrecta.');
-  const cierre=body.cierre_clave??null;
-  if(['cierre','ajustar_cierre'].includes(action)&&(!safeText(cierre,150)||!fecha))
-   return error(res,400,'Se requiere una referencia y día del cierre confirmado.');
-  const destino=body.destino??null;
-  if(action==='traspaso'&&(!BRANCHES.has(destino)||destino===branch))
-   return error(res,400,'Destino del traspaso incorrecto.');
-  const rows=await sql.query(
-   'SELECT public.uki_caja_acum_aplicar_live($1,$2,$3,$4::uuid,$5,$6,$7,$8,$9,$10) AS resultado',
-   [branch,action,body.monto,body.op_key,user.uid,body.concepto.trim(),fecha,cierre,destino,body.responsable.trim()]);
-  return res.status(200).json({...rows[0].resultado,modo:'PRODUCCION'});
- }catch(e){
-  const label=String(e?.message||'Error en caja acumulada');
-  if(/Saldo insuficiente|ya fue inicializada|Cierre ya registrado|no fue incorporado|Ya tiene ese importe|clase|fecha|clave|monto|importe|inicial|destino|otra acción|operación|Primero concilia|anterior al saldo|Fecha de cierre futura|revisión|acreditado|restaurar|conciliación/.test(label))
-   return error(res,409,label.slice(0,220));
-  console.error('Uki caja QA error:',String(e?.code||e?.name||'db').slice(0,70));
-  return error(res,503,'No se pudo operar sobre la caja acumulada. Los cierres y ventas no se modificaron.');
- }
-};
-module.exports._testing={liveEnabled,amount,validDay,validUUID,allowedOrigins};
-).test(clave)||
+   if(!new RegExp('^uki\\|'+branch+'\\|[1-9][0-9]{12,14}$').test(clave)||
       !['ya_incluido','pendiente'].includes(estado)||!validUUID(body.op_key)||
       responsable.length<2||responsable.length>80||motivo.length<3||motivo.length>240)
     return error(res,400,'Cierre, responsable o motivo de revisión inválido.');
@@ -151,7 +123,7 @@ module.exports._testing={liveEnabled,amount,validDay,validUUID,allowedOrigins};
   return res.status(200).json({...rows[0].resultado,modo:'PRODUCCION'});
  }catch(e){
   const label=String(e?.message||'Error en caja acumulada');
-  if(/Saldo insuficiente|ya fue inicializada|Cierre ya registrado|no fue incorporado|Ya tiene ese importe|clase|fecha|clave|monto|importe|inicial|destino|otra acción|operación|Primero concilia|anterior al saldo|Fecha de cierre futura/.test(label))
+  if(/Saldo insuficiente|ya fue inicializada|Cierre ya registrado|no fue incorporado|Ya tiene ese importe|clase|fecha|clave|monto|importe|inicial|destino|otra acción|operación|Primero concilia|anterior al saldo|Fecha de cierre futura|revisión|acreditado|restaurar|conciliación/.test(label))
    return error(res,409,label.slice(0,220));
   console.error('Uki caja QA error:',String(e?.code||e?.name||'db').slice(0,70));
   return error(res,503,'No se pudo operar sobre la caja acumulada. Los cierres y ventas no se modificaron.');
