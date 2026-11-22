@@ -62,23 +62,32 @@ module.exports=async function ukiCajaAcumuladaLive(req,res){
   }
   if(action==='movimientos'){
    const rows=await sql.query('SELECT id,branch,op_key,tipo,monto,saldo_resultante,concepto,actor_uid,responsable,fecha_operativa,cierre_clave,sucursal_destino,creado_en FROM public.uki_caja_acum_movimientos_live WHERE branch=$1 ORDER BY creado_en DESC,id DESC LIMIT 80',[branch]);
-   return res.status(200).json({ok:true,branch,modo:'PRODUCCION',movimientos:rows});
+   const acreditados=await sql.query('SELECT cierre_clave FROM public.uki_caja_acum_cierres_live WHERE branch=$1',[branch]);
+   return res.status(200).json({ok:true,branch,modo:'PRODUCCION',movimientos:rows,cierres_acreditados:acreditados.map(x=>x.cierre_clave)});
   }
   if(action==='sincronizar_cierre'){
-   // El cierre jamás modifica S.cierres: solo se refleja el efectivo ya confirmado,
-   // descontado y contado exactamente. No admitir monto negativo ni dato incompleto.
+   // Acreditar efectivo físicamente contado, sin modificar ventas ni cierres.
    const closeKey=body.cierre_clave,day=body.fecha_operativa,ms=body.fecha_cierre_ms;
    if(!amount(body.monto)||!validUUID(body.op_key)||!validDay(day)||
       typeof closeKey!=='string'||closeKey.trim().length<8||closeKey.length>150||
       !Number.isSafeInteger(ms)||ms<1700000000000||ms>Date.now()+20*60000||
-      body.confirmado!==true||body.diferencia_efectivo!==0||
+      body.confirmado!==true||!Number.isSafeInteger(body.diferencia_efectivo)||
       body.efectivo_contado!==body.monto||
       typeof body.responsable!=='string'||body.responsable.trim().length<2||
       body.responsable.trim().length>80)
        return error(res,400,'Cierre confirmado incompleto o sin conciliación.');
+   const esperado=body.efectivo_esperado===undefined&&body.diferencia_efectivo===0?body.monto:body.efectivo_esperado;
+   const dif=body.diferencia_efectivo;
+   const obs=typeof body.observacion==='string'?body.observacion.trim():'';
+   if(!Number.isSafeInteger(esperado)||Math.abs(esperado)>100000000||
+      body.monto-esperado!==dif||closeKey!=='uki|'+branch+'|'+ms||
+      (dif!==0&&obs.length<3))
+     return error(res,400,'Conteo, diferencia u observación del cierre no corresponde.');
+   const hora=new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',dateStyle:'short',timeStyle:'short'}).format(new Date(ms));
+   const concepto=('Cierre '+day+' · '+hora+' · '+(dif===0?'Caja exacta':'Diferencia '+(dif>0?'+':'')+'$'+dif+' · Esperado $'+esperado+' · Contado $'+body.monto+' · '+obs)).slice(0,240);
    const result=await sql.query(
-    'SELECT public.uki_caja_acum_sincronizar_cierre_live($1,$2,$3,$4,$5,$6::uuid,$7,$8) AS resultado',
-    [branch,closeKey.trim(),day,body.monto,ms,body.op_key,user.uid,body.responsable.trim()]);
+    'SELECT public.uki_caja_acum_sincronizar_contado_v2($1,$2,$3,$4,$5,$6::uuid,$7,$8,$9) AS resultado',
+    [branch,closeKey.trim(),day,body.monto,ms,body.op_key,user.uid,body.responsable.trim(),concepto]);
    return res.status(200).json({...result[0].resultado,modo:'PRODUCCION'});
   }
   if(!writeActions.has(action))return error(res,400,'Acción desconocida.');
