@@ -494,7 +494,55 @@ label{color:#66574c}
 <p class="hint" id="costPreview">Completa el precio y el costo para ver la ganancia bruta estimada por unidad.</p>
 <div class="row" style="gap:8px;justify-content:flex-start;flex-wrap:wrap"><button class="primary" id="saveCost">Guardar costo</button><button type="button" class="soft" id="costCancel" hidden>Cancelar edición</button></div>
 <p id="costStatus" class="hint" role="status">Selecciona uno de los tres locales antes de registrar costos.</p>
-<div id="costList"></div></div></section>
+<div id="costList"></div>
+<details id="costInsumosPanel" style="margin-top:15px">
+ <summary><b>🥬 Ingredientes y precios desde facturas</b></summary>
+ <p class="hint">Los artículos provienen de facturas que ya confirmaste por foto. Revisa el peso o contenido de cada envase: muchas facturas dicen «un» aunque sea una bolsa de 1 kg. Los precios se vinculan solo cuando tú los confirmes.</p>
+ <button type="button" class="soft" id="costIngredientesRefresh">Actualizar precios y recetas</button>
+ <p class="hint" id="costIngredientesEstado" role="status">Selecciona la marca y el local.</p>
+ <label for="costFacturaItem">Tomar precio de una factura guardada (opcional)</label>
+ <select id="costFacturaItem"><option value="">Precio manual / sin factura</option></select>
+ <button type="button" class="soft" id="costFacturaUsar">Usar artículo de factura</button>
+ <p class="hint" id="costFacturaAviso">Solo se tomarán artículos de facturas confirmadas de esta marca. Los artículos de compras generales requieren que elijas el local.</p>
+ <label for="costIngNombre">Ingrediente o insumo</label><input id="costIngNombre" maxlength="100" placeholder="Ej.: Pechuga de pollo">
+ <div class="grid2">
+  <div><label for="costIngUnit">Presentación comprada</label><select id="costIngUnit">
+    <option value="kg">Kilogramos (kg)</option><option value="g">Gramos (g)</option>
+    <option value="l">Litros (l)</option><option value="ml">Mililitros (ml)</option>
+    <option value="un">Unidades (un)</option></select></div>
+  <div><label for="costIngQty">Cantidad total comprada</label><input id="costIngQty" inputmode="decimal" placeholder="Ej.: 2"></div>
+ </div>
+ <div class="grid2">
+  <div><label for="costIngPrice">Precio total de esa cantidad ($)</label><input id="costIngPrice" type="number" min="1" inputmode="numeric" placeholder="Ej.: 12.000"></div>
+  <div><label for="costIngYield">Rendimiento útil (%)</label><input id="costIngYield" inputmode="decimal" value="100" placeholder="Ej.: 90"></div>
+ </div>
+ <label for="costIngRoll">Consumo de este ingrediente por roll (g, ml o unidades)</label>
+ <input id="costIngRoll" inputmode="decimal" placeholder="Ej.: 45 para pollo, 60 para carne">
+ <p class="hint">Para una factura con cajas o paquetes en «un», escribe el peso o volumen total de la compra en kg, g, l o ml después de comprobar su presentación.</p>
+ <label style="display:flex;gap:8px;align-items:flex-start"><input id="costIngConfirmed" type="checkbox" style="width:20px;min-width:20px;margin-top:3px">He comprobado cantidad, contenido y precio de compra.</label>
+ <p id="costIngPreview" class="hint">Completa los datos para calcular cuánto cuesta cada gramo y cada roll.</p>
+ <div class="row" style="gap:8px;flex-wrap:wrap;justify-content:flex-start">
+  <button class="primary" type="button" id="costIngSave">Guardar ingrediente</button>
+  <button class="soft" type="button" id="costIngCancel">Limpiar formulario</button></div>
+ <h3>Ingredientes de este local</h3><div id="costIngList"></div>
+</details>
+<details id="costRecetasPanel" style="margin-top:15px">
+ <summary><b>🍣 Recetas vinculadas y ganancias automáticas</b></summary>
+ <p class="hint">Define los ingredientes de cada roll o promoción. Al actualizar un precio de compra, se recalculan las recetas vinculadas de este local sin descontar inventario ni modificar ventas.</p>
+ <label for="costRecName">Nombre del roll o promoción</label><input id="costRecName" maxlength="120" placeholder="Ej.: 36 piezas pollo panko">
+ <div class="grid2">
+  <div><label for="costRecRolls">Rolls del producto</label><input id="costRecRolls" type="number" min="1" max="100" inputmode="numeric" value="1"></div>
+  <div><label for="costRecPrice">Precio de venta ($)</label><input id="costRecPrice" type="number" min="1" inputmode="numeric"></div>
+ </div>
+ <div id="costRecLines"></div><button class="soft" type="button" id="costRecAdd">＋ Agregar ingrediente a la receta</button>
+ <p class="hint">Elige «por roll» para los 45 g de pollo que se multiplican por el número de rolls; «por promoción» para un envase o salsa que se usa una sola vez.</p>
+ <label style="display:flex;gap:8px;align-items:flex-start"><input id="costRecComplete" type="checkbox" style="width:20px;min-width:20px;margin-top:3px">Confirmo que incluí TODOS los ingredientes, envolturas, envases e insumos de esta receta.</label>
+ <p id="costRecPreview" class="hint">Selecciona los ingredientes y cantidades para obtener el costo estimado.</p>
+ <div class="row" style="gap:8px;justify-content:flex-start;flex-wrap:wrap">
+  <button class="primary" type="button" id="costRecSave">Guardar receta</button>
+  <button class="soft" type="button" id="costRecCancel">Limpiar receta</button></div>
+ <h3>Costos de productos en este local</h3><div id="costRecList"></div>
+</details></div></section>
 </section>
 <footer>Mi Administración · Acceso exclusivo de dueños</footer>
 </main><nav id="tabs" hidden><button data-tab="resumen" class="active"><i>⌂</i>Inicio</button><button data-tab="ventas"><i>＄</i>Ventas</button><button data-tab="gastos"><i>▣</i>Gastos</button><button data-tab="facturas"><i>▥</i>Compras</button><button data-tab="negocios"><i>◫</i>Negocios</button></nav>
