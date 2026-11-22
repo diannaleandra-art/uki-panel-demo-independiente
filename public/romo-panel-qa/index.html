@@ -9692,7 +9692,7 @@ async function ukiRomoGuardarEdicionUnicaQA(){
  const firma=JSON.stringify(D),anterior=sesion.estado(),estadoFirma=JSON.stringify(datosSoloSucursal());
  ukiRomoGuardandoManualQA=true;
  try{
-  const mod=await import('./uki-romo-edicion-unica-qa.mjs?v=20261121v1');
+  const mod=await import('./uki-romo-edicion-unica-qa.mjs?v=20261121v2');
   if(JSON.stringify(D)!==firma||JSON.stringify(datosSoloSucursal())!==estadoFirma||sesion.estado()?.revision!==anterior.revision||sesion.estado()?.conflicto)
    throw Error('El pedido cambió. Reabre y revisa antes de guardar.');
   const copia=datosSoloSucursal();
@@ -9705,7 +9705,12 @@ async function ukiRomoGuardarEdicionUnicaQA(){
    throw Error('No se confirmó la corrección.');
   const medio=resultado.reclasificar?'\nConfirma que el dinero ya fue recibido en los medios seleccionados. No se vuelve a cobrar.':'';
   const diferencia=resultado.saldo?'\nQueda '+(resultado.saldo>0?'por devolver ':'por cobrar ')+fmt(Math.abs(resultado.saldo))+'. Se regulariza cuando ocurra el movimiento real.':'';
-  if((medio||diferencia)&&!window.confirm('Guardar cambios del pedido #'+id+'?'+medio+diferencia))return;
+  const listaMedios=map=>Object.entries(map||{}).map(([m,v])=>m+' '+fmt(v)).join(', ')||fmt(0);
+  const reparto=resultado.propuestasMixtas?.length?
+   '\nPago mixto: propuesta para el valor corregido: '+listaMedios(resultado.distribucionNueva)+
+   '.\nDinero originalmente recibido: '+listaMedios(resultado.recibidoOriginal)+
+   '.\nConfirma solo si el reparto propuesto es correcto. Si no, cancela y modifica los importes en Pago del pedido.':'';
+  if((medio||diferencia||reparto)&&!window.confirm('Guardar cambios del pedido #'+id+'?'+medio+diferencia+reparto))return;
   if(JSON.stringify(D)!==firma||JSON.stringify(datosSoloSucursal())!==estadoFirma||sesion.estado()?.revision!==anterior.revision||sesion.estado()?.conflicto)
    throw Error('El pedido cambió antes de guardar.');
   await ukiRomoGuardarOperacionQA(copia,'Pedido actualizado'+(resultado.saldo?' · diferencia pendiente':''),id,'pedidos');nuevoDraft();
