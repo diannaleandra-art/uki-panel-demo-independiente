@@ -4,7 +4,7 @@ const {url:dbUrl}=require('../lib/uki-inventario-db-live.cjs');
 const allowedOrigins=new Set(['https://diannaleandra-art.github.io']);
 const BRANCHES=new Set(['arica','serena']);
 const ACTIONS=new Set(['saldo','movimientos','inicializar','entrada','gasto','retiro',
- 'traspaso','sincronizar_cierre']);
+ 'traspaso','sincronizar_cierre','marcar_revision']);
 const writeActions=new Set(['inicializar','entrada','gasto','retiro','traspaso']);
 const liveEnabled=(env=process.env)=>env.VERCEL_ENV==='production'&&env.UKI_INVENTARIO_LIVE_ENABLED==='true';
 const error=(res,status,msg)=>res.status(status).json({ok:false,error:msg});
@@ -63,7 +63,8 @@ module.exports=async function ukiCajaAcumuladaLive(req,res){
   if(action==='movimientos'){
    const rows=await sql.query('SELECT id,branch,op_key,tipo,monto,saldo_resultante,concepto,actor_uid,responsable,fecha_operativa,cierre_clave,sucursal_destino,creado_en FROM public.uki_caja_acum_movimientos_live WHERE branch=$1 ORDER BY creado_en DESC,id DESC LIMIT 80',[branch]);
    const acreditados=await sql.query('SELECT cierre_clave FROM public.uki_caja_acum_cierres_live WHERE branch=$1',[branch]);
-   return res.status(200).json({ok:true,branch,modo:'PRODUCCION',movimientos:rows,cierres_acreditados:acreditados.map(x=>x.cierre_clave)});
+   const revisiones=await sql.query('SELECT DISTINCT ON (cierre_clave) cierre_clave,estado,responsable,motivo,creado_en FROM public.uki_caja_acum_revisiones_live WHERE branch=$1 ORDER BY cierre_clave,id DESC',[branch]);
+   return res.status(200).json({ok:true,branch,modo:'PRODUCCION',movimientos:rows,cierres_acreditados:acreditados.map(x=>x.cierre_clave),revisiones});
   }
   if(action==='sincronizar_cierre'){
    // Acreditar efectivo físicamente contado, sin modificar ventas ni cierres.
@@ -89,6 +90,45 @@ module.exports=async function ukiCajaAcumuladaLive(req,res){
     'SELECT public.uki_caja_acum_sincronizar_contado_v2($1,$2,$3,$4,$5,$6::uuid,$7,$8,$9) AS resultado',
     [branch,closeKey.trim(),day,body.monto,ms,body.op_key,user.uid,body.responsable.trim(),concepto]);
    return res.status(200).json({...result[0].resultado,modo:'PRODUCCION'});
+  }
+  if(action==='marcar_revision'){
+   const clave=String(body.cierre_clave||''),estado=String(body.estado||'');
+   const responsable=String(body.responsable||'').trim(),motivo=String(body.motivo||'').trim();
+   if(!new RegExp('^uki\\|'+branch+'\\|[1-9][0-9]{12,14}
+  if(action==='inicializar'&&body.saldo_inicial_contado!==true)
+    return error(res,400,'Cuenta el efectivo real y confirma el saldo inicial.');
+  // La caja no copia silenciosamente movimientos desde los cierres de ventas.
+  // Los cierres deberán llevar referencia única, importe y día operativo confirmados.
+  if(!amount(body.monto)||!validUUID(body.op_key)||!safeText(body.concepto)||typeof body.responsable!=='string'||body.responsable.trim().length<2||body.responsable.trim().length>80)
+   return error(res,400,'Monto, concepto o identificador incorrecto.');
+  const fecha=body.fecha_operativa??null;
+  if(fecha!==null&&!validDay(fecha))return error(res,400,'Fecha operativa incorrecta.');
+  const cierre=body.cierre_clave??null;
+  if(['cierre','ajustar_cierre'].includes(action)&&(!safeText(cierre,150)||!fecha))
+   return error(res,400,'Se requiere una referencia y día del cierre confirmado.');
+  const destino=body.destino??null;
+  if(action==='traspaso'&&(!BRANCHES.has(destino)||destino===branch))
+   return error(res,400,'Destino del traspaso incorrecto.');
+  const rows=await sql.query(
+   'SELECT public.uki_caja_acum_aplicar_live($1,$2,$3,$4::uuid,$5,$6,$7,$8,$9,$10) AS resultado',
+   [branch,action,body.monto,body.op_key,user.uid,body.concepto.trim(),fecha,cierre,destino,body.responsable.trim()]);
+  return res.status(200).json({...rows[0].resultado,modo:'PRODUCCION'});
+ }catch(e){
+  const label=String(e?.message||'Error en caja acumulada');
+  if(/Saldo insuficiente|ya fue inicializada|Cierre ya registrado|no fue incorporado|Ya tiene ese importe|clase|fecha|clave|monto|importe|inicial|destino|otra acción|operación|Primero concilia|anterior al saldo|Fecha de cierre futura|revisión|acreditado|restaurar|conciliación/.test(label))
+   return error(res,409,label.slice(0,220));
+  console.error('Uki caja QA error:',String(e?.code||e?.name||'db').slice(0,70));
+  return error(res,503,'No se pudo operar sobre la caja acumulada. Los cierres y ventas no se modificaron.');
+ }
+};
+module.exports._testing={liveEnabled,amount,validDay,validUUID,allowedOrigins};
+).test(clave)||
+      !['ya_incluido','pendiente'].includes(estado)||!validUUID(body.op_key)||
+      responsable.length<2||responsable.length>80||motivo.length<3||motivo.length>240)
+    return error(res,400,'Cierre, responsable o motivo de revisión inválido.');
+   const rows=await sql.query('SELECT public.uki_caja_acum_marcar_revision_v1($1,$2,$3,$4::uuid,$5,$6,$7) AS resultado',
+     [branch,clave,estado,body.op_key,user.uid,responsable,motivo]);
+   return res.status(200).json({...rows[0].resultado,branch,modo:'PRODUCCION'});
   }
   if(!writeActions.has(action))return error(res,400,'Acción desconocida.');
   if(action==='inicializar'&&body.saldo_inicial_contado!==true)
