@@ -1942,7 +1942,9 @@ async function archivoControlRecuperacion(mes,labels,sesionInicial){
    if(!vigente()){host.replaceChildren();return;}
    const periodo=core.periodo(mes);
    if(doc.sucursal!==sucursal||doc.mes!==mes||doc.desde!==periodo.desde||doc.hasta!==periodo.hasta||
-    Object.values(doc.sinFecha||{}).some(n=>n!==0)||!Array.isArray(doc.clientes))
+    !doc.sinFecha||[...core.SECCIONES,'timbres'].some(k=>doc.sinFecha[k]!==0)||
+    core.SECCIONES.some(k=>!Array.isArray(doc.registros?.[k])||doc.resumen?.[k]!==doc.registros[k].length)||
+    !Array.isArray(doc.clientes)||doc.resumen?.clientes!==doc.clientes.length)
      throw Error('Contenido no coincide');
    const total=Object.values(doc.registros||{}).reduce((n,rows)=>n+(Array.isArray(rows)?rows.length:NaN),doc.clientes.length);
    if(total!==v.totalRegistros)throw Error('Conteo recuperado no coincide');
