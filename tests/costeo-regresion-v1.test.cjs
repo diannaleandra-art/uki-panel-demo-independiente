@@ -85,3 +85,14 @@ test('promociones de Romo usan SKU público y mantienen los borradores',async()=
  assert.ok(p.some(x=>x.sku==='monthly:romoq-'+id&&x.source==='borrador'));
  assert.ok(p.some(x=>x.sku==='romo:promocion-24'));
 });
+test('Uki ofrece todos los insumos base aunque aún no tengan fila en Neon',async()=>{
+ const {operate}=require('../lib/costeo-precios-servicio-v1.cjs');
+ const fake={query:async q=>{
+  if(q.includes('uki_inventario_items_live')||q.includes('uki_inventario_extras_live')||q.includes('costeo_precios_v1'))return [];
+  throw Error('Consulta no esperada: '+q);
+ }};
+ const result=await operate(fake,store,'owner',{action:'listar'});
+ assert.equal(result.ok,true);
+ assert.ok(result.items.some(i=>i.sku.startsWith('ingredient:')&&i.store===store));
+ assert.ok(result.items.every(i=>i.store===store));
+});
