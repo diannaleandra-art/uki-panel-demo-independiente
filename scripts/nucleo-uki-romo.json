@@ -8,6 +8,16 @@
     {
       "source": "firebase/uki-cierre-detallado.js",
       "target": "public/romo-panel-qa/uki-cierre-detallado.js"
+    },
+    {
+      "source": "firebase/uki-archivo-agenda.js",
+      "target": "public/romo-panel-qa/uki-archivo-agenda.js",
+      "baseUki": "cc63df47668cdffc57c601a5979a710875d97262"
+    },
+    {
+      "source": "firebase/uki-archivo-mensual-core.js",
+      "target": "public/romo-panel-qa/uki-archivo-mensual-core.js",
+      "baseUki": "cc63df47668cdffc57c601a5979a710875d97262"
     }
   ],
   "excluded": [
