@@ -136,6 +136,12 @@ module.exports=async(req,res)=>{
    return ok(res,{sesion:token,minutos:30});
   }
   if(!await authorized(sql,req,who))return fail(res,401,'Introduce el código privado para continuar.');
+  if(action==='resumen_costeo_inventario'){
+   if(process.env.UKI_COSTEO_ADMIN_V1_ENABLED!=='true')return fail(res,404,'Rentabilidad de inventario todavía no habilitada.');
+   if(!validDate(body.desde)||!validDate(body.hasta)||body.desde>body.hasta)return fail(res,400,'Selecciona fechas válidas.');
+   const rows=await require('../lib/costeo-admin-resumen-v1.cjs').report(body.desde,body.hasta);
+   return ok(res,{desde:body.desde,hasta:body.hasta,locales:rows,soloLectura:true,totalesFinancierosModificados:false});
+  }
   if(action==='listar_cierres'){
    const desde=validDate(body.desde)?body.desde:'2000-01-01';
    const hasta=validDate(body.hasta)?body.hasta:'2099-12-31';

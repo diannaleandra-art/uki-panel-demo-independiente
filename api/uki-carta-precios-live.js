@@ -95,7 +95,7 @@ async function listing(sql,branch,conPromos=promocionesHabilitadas()){
  const normal=base.filter(i=>i.kind!=='ingredient').map(i=>{
   const o=map.get(i.sku);return {sku:i.sku,kind:i.kind,group:i.group_key,name:i.name,description:i.description||'',
    price:o&&o.price!==null?Number(o.price):i.price,available:o?o.available===true:true,version:o?Number(o.version):0,custom:false,
-   ...visibility(i.sku)};
+   ...visibility(i.sku),...(i.kind==='monthly'&&i.config?{config:i.config}:{})};
  });
  return [...normal,...custom.map(x=>({sku:x.sku,kind:x.kind,group:x.group_key,name:x.name,
   description:x.description,price:Number(x.price),available:x.available===true,version:Number(x.version),custom:true,

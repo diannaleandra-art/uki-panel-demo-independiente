@@ -88,7 +88,10 @@ test('Color distinto por pagado, cobrar, entregado, cancelado y premio',()=>{
   'uki-pedido-cancelado','uki-pedido-premio','uki-estado-badge'])assert.ok(p.includes(cls),cls);
  for(const css of ['.order-card.uki-pedido-pagado',' .order-card.uki-pedido-cobrar',
   '#ukiFraseDiariaInicio','uki-navegacion-caja','uki-navegacion-movimientos'])assert.ok(html.includes(css.trim()),css);
- assert.match(html,/Secciones de Caja visibles/);assert.match(html,/Tipos de movimiento visibles/);
+ assert.match(html,/function ukiCajaNavegacionSimple\(\)/);
+ assert.match(html,/role="group" aria-label="Caja"/);
+ assert.match(html,/const MOV_TABS=/);
+ assert.match(html,/function cambiarMovimientoTab\(t\)/);
 });
 test('Flechas cambian fecha consultada, no fecha operativa ni cierre real',()=>{
  const context={pedidosArchivoDia:'2026-11-09',S:{filtroFecha:'2026-11-09',filtro:'abc'},
