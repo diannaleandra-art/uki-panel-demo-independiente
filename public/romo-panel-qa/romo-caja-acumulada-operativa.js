@@ -8,7 +8,7 @@ const TYPES={apertura:'Saldo inicial',cierre:'Cierre confirmado',ajuste_cierre:'
  entrada:'Entrada',gasto:'Gasto',retiro:'Retiro',traspaso_salida:'Traspaso enviado',traspaso_entrada:'Traspaso recibido'};
 const API='/api/romo-caja-acumulada-qa';
 const LOCAL='Romo’s Sushi La Serena';
-const state={branch:'serena',balance:0,initialized:false,initializedAt:null,history:[],busy:false,ready:false,nonce:null,pending:null,write:false,credited:[],candidates:[],operationRoot:null};
+const state={branch:'serena',balance:0,initialized:false,initializedAt:null,history:[],busy:false,ready:false,nonce:null,pending:null,write:false,credited:[],candidates:[],marked:[],revisiones:[],operationRoot:null};
 const $=id=>document.getElementById(id);
 const money=v=>'$'+Number(v||0).toLocaleString('es-CL',{maximumFractionDigits:0});
 const branchFromPanel=()=>typeof S!=='undefined'&&S?.suc===LOCAL?'serena':null;
@@ -63,7 +63,8 @@ function html(){
   '</div>'+
  '</div>'+
  '</div>'+
- '<div class="card"><h3>Cierres por conciliar</h3><p class="muted">Los nuevos cierres se acreditan por el efectivo contado, con la diferencia y su motivo. Aquí puedes conciliar los pendientes posteriores al conteo inicial, sin duplicar efectivo.</p><div id="romoAcumCierres"></div></div>'+
+ '<div class="card"><h3>Cierres por conciliar</h3><p class="muted">Revisa los cierres anteriores antes de acreditar. Si ya agregaste el dinero manualmente, quita ese cierre de pendientes sin modificar el saldo ni eliminar su historial.</p><div id="romoAcumCierres"></div></div>'+ 
+ '<details class="card"><summary><b>Cierres ya incluidos manualmente</b></summary><p class="muted">Conservados para auditoría, sin generar un nuevo abono. Puedes restaurarlos a pendientes.</p><div id="romoAcumExcluidos"></div></details>'+
  '<details class="card" open><summary><b>📖 Historial de Caja acumulada en efectivo</b></summary>'+
  '<button type="button" id="ukiAcumHistoryRefresh" class="sm">Actualizar historial</button>'+
  '<div class="quick-grid" style="margin-top:10px">'+
@@ -91,12 +92,13 @@ function closureEligible(c,branch,initMs){
 function closePayload(c){
  return {source_key:'romo:serena|'+c.turnoClave,concepto:c.diferenciaEfectivo===0?'Cierre definitivo '+c.fechaOperativa:String(c.obs||'').trim().slice(0,240),responsable:c.resp.trim().slice(0,80),op_key:crypto.randomUUID()};
 }
-function reconcileCandidates(initializedAt,credited){
+function reconcileCandidates(initializedAt,credited,revisiones=[]){
  const since=Date.parse(initializedAt||'');
  if(!Number.isFinite(since))return [];
  const all=(S.cierres||[]).filter(c=>c?.suc===LOCAL&&Number(c.fechaMs)>since&&!credited.includes('romo:serena|'+c.turnoClave));
  const counts=new Map();for(const c of all)counts.set(c.turnoClave,(counts.get(c.turnoClave)||0)+1);
- return all.map(c=>({c,eligible:counts.get(c.turnoClave)===1&&closureEligible(c,'serena',since)})).sort((a,b)=>b.c.fechaMs-a.c.fechaMs);
+ const excluidos=new Set(revisiones.filter(x=>x.estado==='ya_incluido').map(x=>x.source_key));
+ return all.map(c=>({c,eligible:counts.get(c.turnoClave)===1&&closureEligible(c,'serena',since),excluded:excluidos.has('romo:serena|'+c.turnoClave)})).sort((a,b)=>b.c.fechaMs-a.c.fechaMs);
 }
 async function confirmarCierre(c){
  if(state.busy||!state.ready||!state.write||state.pending||!state.initialized)return;
@@ -119,22 +121,69 @@ async function registrarCierreConfirmado(c){
   const keys=info.cierres_acreditados;
   if(!Array.isArray(keys))return 'pendiente';
   if(keys.includes('romo:serena|'+c.turnoClave))return 'acreditado';
+  if((info.revisiones||[]).some(x=>x.source_key==='romo:serena|'+c.turnoClave&&x.estado==='ya_incluido'))return 'pendiente';
   const result=await request('sincronizar_cierre',closePayload(c),'serena');
   return result.ok===true?'acreditado':'pendiente';
  }catch(e){console.warn('Romo cierre pendiente de conciliar:',String(e?.message||e));return 'pendiente';}
 }
+
+async function revisarPendiente(c,estado){
+ if(state.busy||!state.ready||!state.write||state.pending||!state.initialized)return;
+ if(branchFromPanel()!=='serena')return;
+ const excluido=estado==='ya_incluido';
+ if(!confirm(excluido?
+  '¿Confirmas que este efectivo de Romo YA FUE AGREGADO MANUALMENTE? Se quitará de pendientes sin mover dinero ni borrar el cierre.':
+  '¿Restaurar este cierre de Romo a pendientes? No se agregará ningún dinero por restaurarlo.'))return;
+ const responsable=String(prompt('Nombre de quien confirma la revisión:','')||'').trim();
+ if(responsable.length<2||responsable.length>80){status('Escribe el responsable de esta revisión.','error');return;}
+ const motivo=excluido?'Cierre ya incorporado manualmente al saldo acumulado':'Restaurar cierre a pendientes tras revisión';
+ const root=state.operationRoot;state.busy=true;draw();status('Guardando revisión de Romo sin modificar efectivo…');
+ let message='';
+ try{
+  await request('marcar_revision',{source_key:'romo:serena|'+c.turnoClave,estado,motivo,responsable,op_key:crypto.randomUUID()},'serena');
+  message=excluido?'✓ Cierre quitado de pendientes sin modificar dinero.':'✓ Cierre restaurado para conciliación.';
+ }catch(e){message='No se confirmó la revisión: '+String(e.message||e);}
+ finally{state.busy=false;if(root?.isConnected){await load();status(message);}}
+}
 function drawCandidates(){
- const root=$('romoAcumCierres');if(!root)return;root.replaceChildren();
- if(!state.ready||!state.initialized){root.textContent='Disponible después de confirmar el saldo inicial real.';return;}
- if(!state.candidates.length){root.textContent='No hay cierres pendientes de acreditar después del saldo inicial.';return;}
- for(const {c,eligible} of state.candidates.slice(0,100)){
-  const line=document.createElement('div');line.className='row';
-  const text=document.createElement('span');text.textContent=String(c.fechaOperativa||'Fecha sin verificar')+' · '+(Number.isSafeInteger(c.efectivoContado)?money(c.efectivoContado):'Sin arqueo confirmado')+' · '+(eligible?(c.diferenciaEfectivo===0?'Caja exacta':'Diferencia '+money(c.diferenciaEfectivo)+' · '+String(c.obs||'')):'Requiere revisión');
-  line.append(text);
-  if(eligible&&state.write){const b=document.createElement('button');b.type='button';b.className='sm';b.disabled=state.busy||!!state.pending;b.textContent='Acreditar cierre';b.onclick=()=>void confirmarCierre(c);line.append(b);}
-  root.append(line);
+ const root=$('romoAcumCierres'),archived=$('romoAcumExcluidos');if(!root||!archived)return;
+ root.replaceChildren();archived.replaceChildren();
+ if(!state.ready||!state.initialized){
+  root.textContent='Disponible después de confirmar el saldo inicial real.';return;
  }
- if(state.candidates.length>100){const note=document.createElement('p');note.textContent='Mostrando los 100 cierres pendientes más recientes.';root.append(note);}
+ function createRow(target,c,eligible,excluded){
+  const line=document.createElement('div');line.className='row';
+  line.style.cssText='display:flex;flex-wrap:wrap;gap:9px;align-items:flex-start';
+  const desc=document.createElement('span');desc.style.cssText='flex:1 1 200px;min-width:0;overflow-wrap:anywhere';
+  const registrado=fechaHoraMovimiento(c.fechaMs);
+  const contado=Number.isSafeInteger(c.efectivoContado)?money(c.efectivoContado):'Sin arqueo confirmado';
+  desc.textContent='Turno: '+(fechaOperativaLegible(c.fechaOperativa)||String(c.fechaOperativa||''))+
+    ' · Registrado: '+registrado+' · Contado '+contado+
+    (Number.isSafeInteger(c.diferenciaEfectivo)?' · Diferencia '+money(c.diferenciaEfectivo):'')+
+    (c.obs?' · '+String(c.obs):'')+(eligible?'':' · Requiere revisión del cierre');
+  line.append(desc);
+  if(state.write){
+   const actions=document.createElement('div');actions.style.cssText='display:flex;flex-wrap:wrap;gap:5px';
+   if(!excluded&&eligible){
+    const b=document.createElement('button');b.type='button';b.className='sm';
+    b.disabled=state.busy||!!state.pending;b.textContent='Acreditar cierre';
+    b.onclick=()=>void confirmarCierre(c);actions.append(b);
+   }
+   const b=document.createElement('button');b.type='button';b.className='sm';
+   b.disabled=state.busy||!!state.pending;b.textContent=excluded?'Restaurar a pendientes':'Ya ingresado manualmente';
+   b.onclick=()=>void revisarPendiente(c,excluded?'pendiente':'ya_incluido');
+   actions.append(b);line.append(actions);
+  }
+  target.append(line);
+ }
+ for(const {c,eligible} of state.candidates.slice(0,100))createRow(root,c,eligible,false);
+ for(const {c,eligible} of state.marked.slice(0,100))createRow(archived,c,eligible,true);
+ if(!state.candidates.length)root.textContent='No hay cierres pendientes de acreditar después del saldo inicial.';
+ if(!state.marked.length)archived.textContent='No hay cierres marcados como incluidos manualmente.';
+ if(state.candidates.length>100||state.marked.length>100){
+  const p=document.createElement('p');p.textContent='Se muestran los 100 cierres más recientes de cada lista.';
+  root.append(p);
+ }
 }
 
 function draw(){
@@ -185,7 +234,12 @@ async function load(){
   if(!root?.isConnected||root!==state.operationRoot||branchFromPanel()!==branch)return;
   const cuenta=a.cuenta,history=a.movimientos,balance=Number(cuenta?.balance),credited=a.cierres_acreditados;
   if(cuenta?.store_id!=='romo:serena'||typeof cuenta.initialized!=='boolean'||typeof a.escrituraHabilitada!=='boolean'||!Number.isSafeInteger(balance)||balance<0||balance>1000000000||!Array.isArray(history)||history.length>250||history.some(x=>!x||!['apertura','entrada','gasto','retiro','cierre'].includes(x.tipo)||!Number.isSafeInteger(Number(x.monto))||!Number.isSafeInteger(Number(x.saldo_resultante)))||!Array.isArray(credited)||credited.some(k=>typeof k!=='string'||!/^romo:serena\|\d{4}-\d{2}-\d{2}@[1-9]\d{12,14}$/.test(k)))throw Error('Libro de Romo sin confirmar; no se muestran importes.');
-  state.write=a.escrituraHabilitada;state.credited=credited;state.candidates=cuenta.initialized?reconcileCandidates(cuenta.initialized_at,credited):[];
+  if(!Array.isArray(a.revisiones)||a.revisiones.some(x=>typeof x.source_key!=='string'||!['ya_incluido','pendiente'].includes(x.estado)))throw Error('No se pudo verificar el estado de revisiones de Romo.');
+  state.write=a.escrituraHabilitada;state.credited=credited;
+  state.revisiones=a.revisiones;
+  const disponibles=cuenta.initialized?reconcileCandidates(cuenta.initialized_at,credited,a.revisiones):[];
+  state.candidates=disponibles.filter(x=>!x.excluded);
+  state.marked=disponibles.filter(x=>x.excluded);
   state.balance=balance;
   state.initialized=cuenta.initialized;
   state.initializedAt=cuenta.initialized_at||null;
@@ -194,7 +248,7 @@ async function load(){
   if(state.pending)status('Existe una operación sin confirmar en esta sesión. Revisa el historial y conserva los mismos datos si reintentas.','error');
   else if(!state.write)status('Saldo e historial confirmados. Escritura deshabilitada por el servidor.','success');
   else status('✓ Efectivo acumulado actualizado. No se modificó ningún saldo al consultar.','success');
- }catch(e){state.ready=false;state.write=false;state.history=[];state.candidates=[];state.balance=0;status(String(e.message||e),'error');}
+ }catch(e){state.ready=false;state.write=false;state.history=[];state.candidates=[];state.marked=[];state.balance=0;status(String(e.message||e),'error');}
  finally{state.busy=false;draw();if(state.operationRoot?.isConnected&&!state.ready&&state.operationRoot!==loadRoot)void load();}
 }
 function readAmount(id,allowZero=false){
