@@ -377,7 +377,7 @@ window.ukiInventarioPanelHTML=panel;window.ukiInventarioMontar=mount;
  // Recetas de productos: borrador privado, sin descontar existencias.
  const recipeBox=document.createElement('details');recipeBox.id='invRecipeBox';
  recipeBox.style.marginTop='16px';
- recipeBox.innerHTML='<summary><b>🍣 Recetas y costos por producto</b></summary><p class="muted">Selecciona un producto y registra todos sus ingredientes e insumos por unidad vendida. Para sushi personalizado, usa una variante que describa el armado completo. No se aplican costos a ventas automáticamente.</p><button type="button" class="sm" id="invRecipeLoad">Consultar recetas</button><p role="status" id="invRecipeStatus" class="mini-help"></p><fieldset id="invRecipeFields" hidden style="border:0;padding:0;margin:0;min-width:0"><label for="invRecipeProduct">Producto o promoción</label><select id="invRecipeProduct"></select><label for="invRecipeVariant">Variante de receta</label><input id="invRecipeVariant" list="invRecipeVariants" maxlength="180" value="base" placeholder="Ej.: pollo panko"><datalist id="invRecipeVariants"></datalist><button type="button" id="invRecipeChoose" class="sm">Abrir variante</button><div id="invRecipeLines"></div><button type="button" class="sm" id="invRecipeAdd">＋ Agregar insumo</button><p class="mini-help" id="invRecipeEstimate"></p><button type="button" id="invRecipeSave" class="big">Guardar receta en borrador</button></fieldset>';
+ recipeBox.innerHTML='<summary><b>🍣 Recetas y costos por producto</b></summary><p class="muted">Selecciona un producto y registra todos sus ingredientes e insumos por unidad vendida. Para sushi personalizado, usa una variante que describa el armado completo. No se aplican costos a ventas automáticamente.</p><button type="button" class="sm" id="invRecipeLoad">Consultar recetas</button><p role="status" id="invRecipeStatus" class="mini-help"></p><fieldset id="invRecipeFields" hidden style="border:0;padding:0;margin:0;min-width:0"><label for="invRecipeProduct">Producto o promoción</label><select id="invRecipeProduct"></select><label for="invRecipeVariant">Variante de receta</label><input id="invRecipeVariant" list="invRecipeVariants" maxlength="180" value="base" placeholder="Ej.: pollo panko"><datalist id="invRecipeVariants"></datalist><button type="button" id="invRecipeChoose" class="sm">Abrir variante</button><div id="invRecipeLines"></div><button type="button" class="sm" id="invRecipeAdd">＋ Agregar insumo</button><p class="mini-help" id="invRecipeEstimate"></p><button type="button" id="invRecipeSave" class="big">Guardar receta en borrador</button><button type="button" class="sm ok" id="invRecipeConfirm">Confirmar receta guardada</button></fieldset>';
  card.append(recipeBox);
  let recipeProducts=[],recipeItems=[],recipes=[],recipeBusy=false,loadedProduct='',loadedVariant='',loadedRevision=0;
  const re=id=>recipeBox.querySelector('#'+id);
@@ -464,6 +464,19 @@ window.ukiInventarioPanelHTML=panel;window.ukiInventarioMontar=mount;
  re('invRecipeChoose').onclick=openRecipe;
  re('invRecipeAdd').onclick=()=>{if(re('invRecipeLines').children.length<100)recipeLine();};
  re('invRecipeSave').onclick=()=>void saveRecipe();
+ re('invRecipeConfirm').onclick=async()=>{
+  if(recipeBusy||!within())return;
+  const r=recipes.find(x=>x.product_sku===loadedProduct&&x.variant_key===loadedVariant);
+  if(!r||r.confirmed||loadedProduct!==re('invRecipeProduct').value||loadedVariant!==re('invRecipeVariant').value.trim()){rs('Abre una receta borrador guardada antes de confirmar.');return;}
+  const current=Array.from(re('invRecipeLines').children).map(x=>x.readRecipe());
+  const normalize=a=>JSON.stringify(a.map(x=>({sku:x.sku,unit:x.unit,quantity:Number(x.quantity)})));
+  if(normalize(current)!==normalize(r.recipe_lines)){rs('Guarda los cambios antes de confirmar.');return;}
+  if(!window.confirm('¿Confirmas que esta receta incluye todos los ingredientes, salsas y envases de la variante indicada?'))return;
+  recipeLock(true);rs('Confirmando receta completa…');
+  try{const a=await call('confirmar-receta',{productSku:loadedProduct,variantKey:loadedVariant,revision:loadedRevision,confirmar:true});recipes=recipes.filter(x=>!(x.product_sku===loadedProduct&&x.variant_key===loadedVariant)).concat(a.recipe);openRecipe();rs('Receta confirmada. No se modificó el inventario.');}
+  catch(e){rs(e.message);}finally{if(within())recipeLock(false);}
+ };
+
 
 }
 
