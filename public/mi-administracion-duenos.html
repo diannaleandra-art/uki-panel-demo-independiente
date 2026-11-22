@@ -2006,6 +2006,125 @@ $('costIngSave').onclick=async()=>{
  finally{button.disabled=false;}
 };
 
+
+function cRecipeClear(){
+ costData.recipeEdit=null;
+ $('costRecName').value='';$('costRecRolls').value='1';$('costRecPrice').value='';
+ $('costRecComplete').checked=false;$('costRecLines').replaceChildren();
+ $('costRecSave').textContent='Guardar receta';renderRecipePreview();
+}
+$('costRecCancel').onclick=cRecipeClear;
+function cAddRecipeLine(line=null){
+ const row=document.createElement('div');row.className='line';
+ const label=document.createElement('label');label.textContent='Ingrediente del producto';
+ const select=document.createElement('select');select.dataset.costRecipeId='1';
+ select.add(new Option('Selecciona ingrediente',''));
+ for(const i of costData.insumos)select.add(new Option(i.nombre,i.id));
+ const qtyLabel=document.createElement('label');qtyLabel.textContent='Cantidad utilizada (g, ml o unidades)';
+ const qty=document.createElement('input');qty.inputMode='decimal';qty.placeholder='Ej.: 45';
+ const mode=document.createElement('select');
+ mode.add(new Option('Se usa por cada roll','roll'),new Option('Se usa una vez por promoción','producto'));
+ const unit=document.createElement('p');unit.className='hint';
+ const change=()=>{
+  const selected=costData.insumos.find(x=>x.id===select.value);
+  unit.textContent=selected?'Medir en '+cBase(selected.unidad_compra)+
+   '. Revisa el consumo real de este ingrediente.':'Elige primero el ingrediente.';
+  renderRecipePreview();
+ };
+ select.onchange=()=>{
+  const selected=costData.insumos.find(x=>x.id===select.value);
+  if(selected&&selected.cantidad_roll!=null)qty.value=String(selected.cantidad_roll);
+  change();
+ };
+ qty.oninput=renderRecipePreview;mode.onchange=renderRecipePreview;
+ const remove=document.createElement('button');remove.type='button';remove.className='soft';
+ remove.textContent='Quitar';remove.onclick=()=>{row.remove();renderRecipePreview();};
+ if(line){select.value=String(line.insumo_id);qty.value=String(line.cantidad);mode.value=line.modo;}
+ row.append(label,select,qtyLabel,qty,mode,unit,remove);$('costRecLines').append(row);change();
+}
+$('costRecAdd').onclick=()=>cAddRecipeLine();
+function cRecipeLines(){
+ return [...$('costRecLines').children].map(row=>{
+  const selects=row.querySelectorAll('select'),item=costData.insumos.find(x=>x.id===selects[0]?.value);
+  return {insumo_id:selects[0]?.value||'',cantidad:cNum(row.querySelector('input')?.value),
+   unidad:item?cBase(item.unidad_compra):'',modo:selects[1]?.value||'roll'};
+ });
+}
+function cRecipeCost(f){
+ const count=Number(f.rolls),sale=Number(f.precio_venta),lines=f.lineas;
+ if(!Number.isSafeInteger(count)||count<1||!Number.isSafeInteger(sale)||sale<1||
+    !Array.isArray(lines)||!lines.length)return null;
+ let cost=0;
+ for(const x of lines){
+  const ins=costData.insumos.find(i=>i.id===x.insumo_id);
+  if(!ins||cBase(ins.unidad_compra)!==x.unidad)return null;
+  const part=cIngredientCost(ins,x.cantidad);
+  if(part===null)return null;
+  cost+=part*(x.modo==='roll'?count:1);
+ }
+ return {cost:Math.round(cost),margin:sale-Math.round(cost)};
+}
+function renderRecipePreview(){
+ const sale=cNum(value('costRecPrice')),complete=$('costRecComplete').checked;
+ const r=cRecipeCost({rolls:cNum(value('costRecRolls')),precio_venta:sale,lineas:cRecipeLines()});
+ const target=$('costRecPreview');
+ if(!r){target.textContent='Agrega ingredientes y cantidades para calcular el costo estimado.';return;}
+ target.textContent='Costo de ingredientes e insumos: '+cMoney(r.cost)+
+  (complete?' · Ganancia bruta estimada: ':' · Diferencia parcial (faltan insumos): ')+cMoney(r.margin)+
+  ' · '+(r.margin/sale*100).toLocaleString('es-CL',{maximumFractionDigits:1})+'%.'+
+  (complete?' Confirmaste que la receta incluye todos sus insumos.':
+  ' Marca la receta completa solo cuando hayas incluido TODOS los ingredientes, envases y salsas.')+
+  ' No se incluyen sueldos, comisiones ni impuestos.';
+}
+for(const id of ['costRecRolls','costRecPrice'])
+ $(id).addEventListener('input',renderRecipePreview);
+$('costRecComplete').addEventListener('change',renderRecipePreview);
+function drawRecipeList(){
+ const list=$('costRecList');list.replaceChildren();
+ if(!costData.fichas.length){list.textContent='Sin recetas vinculadas en este local.';return;}
+ for(const f of costData.fichas){
+  const row=document.createElement('div');row.className='line';
+  const title=document.createElement('b');title.textContent=f.nombre+' · '+f.rolls+' roll(s)';
+  const p=document.createElement('p');p.className='hint';
+  const r=cRecipeCost(f);
+  p.textContent=r===null?'Costo pendiente: algún ingrediente o unidad no está disponible.':
+   'Venta '+cMoney(f.precio_venta)+' · Elaboración '+cMoney(r.cost)+' · '+
+   (f.completa?'Ganancia bruta estimada ':'Diferencia parcial ')+cMoney(r.margin);
+  const b=document.createElement('button');b.type='button';b.className='soft';
+  b.textContent='Editar receta';b.onclick=()=>{
+   costData.recipeEdit={id:f.id,version:f.actualizado_en};
+   $('costRecName').value=f.nombre;$('costRecRolls').value=String(f.rolls);
+   $('costRecPrice').value=String(f.precio_venta);
+   $('costRecComplete').checked=f.completa===true;
+   $('costRecLines').replaceChildren();for(const l of f.lineas||[])cAddRecipeLine(l);
+   $('costRecSave').textContent='Guardar cambios';renderRecipePreview();
+   $('costRecName').scrollIntoView({behavior:'smooth',block:'center'});
+  };
+  row.append(title,p,b);list.append(row);
+ }
+}
+$('costRecSave').onclick=async()=>{
+ const local=cLocal(),nombre=value('costRecName').trim(),
+  rolls=cNum(value('costRecRolls')),precio_venta=cNum(value('costRecPrice')),
+  lineas=cRecipeLines(),completa=$('costRecComplete').checked,
+  r=cRecipeCost({rolls,precio_venta,lineas});
+ if(!local.negocio_id||!local.sucursal_id)return notify('Selecciona la sucursal.','error');
+ if(nombre.length<2||!Number.isSafeInteger(rolls)||rolls<1||rolls>100||
+    !Number.isSafeInteger(precio_venta)||precio_venta<=0||!r||
+    lineas.some(x=>!Number.isFinite(x.cantidad)||x.cantidad<=0))
+  return notify('Revisa nombre, precio, rolls y todos los ingredientes.','error');
+ if(!confirm('¿Guardar la receta '+nombre+' de '+branchName(local.sucursal_id)+
+  '? Costo estimado '+cMoney(r.cost)+'. No cambiará inventario, caja ni ventas.'))return;
+ const button=$('costRecSave');button.disabled=true;
+ try{
+  await api('costeo_ficha_guardar',{...local,nombre,rolls,precio_venta,lineas,completa,
+   ...(costData.recipeEdit?{id:costData.recipeEdit.id,version:costData.recipeEdit.version}:{})});
+  notify('Receta guardada y vinculada a los precios de ingredientes.','success');
+  await loadCostIngredients();
+ }catch(e){notify(e.message,'error');}
+ finally{button.disabled=false;}
+};
+
 let costEdit=null,costQuerySeq=0;
 function pintarCostoPreview(){
  const venta=Number(value('costPrice')),costo=Number(value('costAmount'));
