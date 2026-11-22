@@ -145,6 +145,30 @@ async function revisarPendiente(c,estado){
  }catch(e){message='No se confirmó la revisión: '+String(e.message||e);}
  finally{state.busy=false;if(root?.isConnected){await load();status(message);}}
 }
+function motivosRevisionRomo(c,initMs){
+ const issues=[];
+ const ms=c?.fechaMs,key=String(c?.turnoClave||'');
+ if(c?.suc!==LOCAL)issues.push('No corresponde a Romo La Serena.');
+ if(!Number.isSafeInteger(ms)||ms<=initMs||ms>Date.now()+20*60000)
+  issues.push('La fecha de cierre necesita revisión.');
+ if(!/^\\d{4}-\\d{2}-\\d{2}@[1-9]\\d{12,14}$/.test(key)||
+    !key.startsWith(String(c?.fechaOperativa||'')+'@'))
+  issues.push('La referencia del turno no está confirmada.');
+ if(!Number.isSafeInteger(c?.efectivo)||Math.abs(c.efectivo)>100000000)
+  issues.push('No hay efectivo esperado válido.');
+ if(!Number.isSafeInteger(c?.efectivoContado)||c.efectivoContado<0||c.efectivoContado>100000000)
+  issues.push('Falta efectivo físicamente contado.');
+ else if(Number.isSafeInteger(c?.efectivo)&&(!Number.isSafeInteger(c?.diferenciaEfectivo)||
+          c.efectivoContado-c.efectivo!==c.diferenciaEfectivo))
+  issues.push('El efectivo contado no coincide con la diferencia del cierre.');
+ if(c?.diferenciaEfectivo!==0&&String(c?.obs||'').trim().length<3)
+  issues.push('Falta explicación de la diferencia.');
+ if(c?.rectificacion||(c?.rectificaciones||[]).length)
+  issues.push('Cierre con rectificaciones: requiere revisión antes de acreditar.');
+ if(String(c?.resp||'').trim().length<2)
+  issues.push('Falta identificar al responsable.');
+ return issues;
+}
 function drawCandidates(){
  const root=$('romoAcumCierres'),archived=$('romoAcumExcluidos');if(!root||!archived)return;
  root.replaceChildren();archived.replaceChildren();
@@ -160,8 +184,17 @@ function drawCandidates(){
   desc.textContent='Turno: '+(fechaOperativaLegible(c.fechaOperativa)||String(c.fechaOperativa||''))+
     ' · Registrado: '+registrado+' · Contado '+contado+
     (Number.isSafeInteger(c.diferenciaEfectivo)?' · Diferencia '+money(c.diferenciaEfectivo):'')+
-    (c.obs?' · '+String(c.obs):'')+(eligible?'':' · Requiere revisión del cierre');
+    (c.obs?' · '+String(c.obs):'')+(eligible?'':' · Revisar: '+motivosRevisionRomo(c,Date.parse(state.initializedAt||'')).join(' '));
   line.append(desc);
+  if(!eligible&&!excluded){
+   const issues=motivosRevisionRomo(c,Date.parse(state.initializedAt||''));
+   const revisar=document.createElement('button');revisar.type='button';revisar.className='sm';
+   revisar.textContent='Revisar cierre';revisar.onclick=()=>alert(
+     'No se puede acreditar este cierre hasta verificar:\\n- '+
+     (issues.length?issues.join('\\n- '):'El servidor requiere confirmar la constancia del cierre.')+
+     '\\nEl dinero y el cierre original no se han modificado.');
+   line.append(revisar);
+  }
   if(state.write){
    const actions=document.createElement('div');actions.style.cssText='display:flex;flex-wrap:wrap;gap:5px';
    if(!excluded&&eligible){
