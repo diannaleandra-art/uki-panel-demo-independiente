@@ -249,14 +249,8 @@ async function load(){
  try{
   let [a,m]=await Promise.all([request('saldo',{},branch),request('movimientos',{},branch)]);
   if(branch!==state.branch)return;
-  let summary={synced:0,skipped:0,failed:0};
-  if(a.cuenta.initialized){
-   const excluidos=new Set((m.revisiones||[]).filter(x=>x.estado==='ya_incluido').map(x=>x.cierre_clave));
-   summary=await reconcileClosures(branch,a.cuenta.initialized_at,excluidos);
-   if(summary.synced){
-    [a,m]=await Promise.all([request('saldo',{},branch),request('movimientos',{},branch)]);
-   }
-  }
+  // Consultar no mueve efectivo. Los cierres anteriores que falten
+  // se muestran para acreditación explícita: evita duplicar entradas manuales.
   if(branch!==state.branch)return;
   state.balance=Number(a.cuenta.balance)||0;
   state.initialized=a.cuenta.initialized===true;
@@ -272,8 +266,7 @@ async function load(){
   state.pendingClosures=candidates.filter(c=>!excluidos.has('uki|'+branch+'|'+c.fechaMs));
   state.markedClosures=candidates.filter(c=>excluidos.has('uki|'+branch+'|'+c.fechaMs));
   state.ready=true;
-  if(summary.failed)status('Algunos cierres no se sincronizaron. Revisa la conexión y vuelve a Actualizar saldo.','error');
-  else if(summary.skipped)status(summary.skipped+' cierre(s) sin conteo o datos completos; revisa el historial.','error');
+  if(state.pendingClosures.length)status(state.pendingClosures.length+' cierre(s) pendientes de acreditar. Revisa antes de sumar: pueden estar incluidos manualmente.','error');
   else status('✓ Efectivo acumulado actualizado y separado de las ventas del turno.','success');
  }catch(e){state.ready=false;status(String(e.message||e),'error');}
  finally{state.busy=false;draw();}
