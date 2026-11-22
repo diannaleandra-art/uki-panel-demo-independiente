@@ -30,7 +30,11 @@ function mapProductoCarta(p){
  }
  if(rolls===null&&['dish','extra','topping'].includes(kind))rolls=1;
  if(rolls!==null&&(!Number.isSafeInteger(rolls)||rolls<1||rolls>100))rolls=null;
- return {sku,name:nombre,price,kind,rolls};
+ const pieces=kind==='classic'?12:kind==='premium'?10:
+  kind==='monthly'&&Number.isSafeInteger(Number(config.piecesPerRoll))?
+   Number(config.piecesPerRoll):null;
+ const piecesPerRoll=pieces!==null&&pieces>=8&&pieces<=16?pieces:null;
+ return {sku,name:nombre,price,kind,rolls,piecesPerRoll};
 }
 async function obtenerCartaCosto(req,negocio,sucursal){
  const local=CARTA_LOCAL_OFICIAL[String(sucursal||'')];
