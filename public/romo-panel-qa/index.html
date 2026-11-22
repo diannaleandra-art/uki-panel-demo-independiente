@@ -2043,6 +2043,7 @@ function ukiWhatsAppGuardarSolicitudBoton(){
   : '<button class="sm ok" type="button" onclick="ukiWhatsAppAgregarDelFormulario()">📩 Guardar como solicitud por confirmar</button>';
 }
 function nuevoDraft(){D={texto:"",fecha:ahora(),cliente:"",telefono:"",codigoCarta:"",codigoCliente:"",qrSolicitudes:[],sucursalCarta:"",mesaReferencia:"",modalidad:"Retiro",envio:0,kmRecorrido:"",medio:"Efectivo",medioEnvio:"Efectivo",pagado:false,items:[{nombre:"",cant:1,precio:0,det:""}],mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],productosPagadosOtroLocal:false,montoProductosOtroLocal:"",envioPagadoOtroLocal:false,montoEnvioOtroLocal:"",localPagoExterno:"",propinaModo:"ninguna",propinaPersonalizada:"",medioPropina:"Efectivo",editando:null};}
+function ukiRomoEditarPrecioItemQA(k,valor){const n=Number(valor);if(!Number.isSafeInteger(n)||n<=0||!D.items[k]){aviso("Escribe un precio válido.");return;}D.items[k].precio=n;render();}
 function delItem(k){D.items.splice(k,1);if(!D.items.length)D.items=[{nombre:"",cant:1,precio:0,det:""}];render();}
 function addItem(){const n=$("pNom").value.trim(); const c=parseInt($("pCant").value)||1; const p=parseInt($("pPre").value)||0; const d=$("pDet").value.trim(); if(!n||!p){aviso("Pon nombre y precio");return;} D.items=D.items.filter(x=>x.nombre); D.items.push({nombre:n,cant:c,precio:p,det:d}); $("pNom").value=""; $("pCant").value=1; $("pPre").value=""; $("pDet").value=""; render();}
 // El codigo del pedido proviene del encabezado de la carta digital, NO del numero interno ni del codigo de cliente.
@@ -2328,15 +2329,15 @@ function vNuevo(){
   const deltaEdicion=pedidoEdicion?.pagado?Number(pedidoEdicion.total||0)-total:0;
   const pendienteEdicion=!!ukiCobroPendiente(pedidoEdicion);
    const entregaUI=`<label>Tipo de entrega</label><div class="chips">${(S.suc===ROMO_SUCURSAL_QA&&D.modalidad!=="Consumo en local"?["Retiro","Delivery"]:["Retiro","Delivery","Consumo en local"]).map(m=>`<button ${chip(D.modalidad===m)} onclick="setModalidad('${m}')">${m}</button>`).join("")}</div>${S.suc===ROMO_SUCURSAL_QA&&revisandoSolicitud?ukiRomoDetalleEntregaCartaHTMLQA(D.texto):""}${D.modalidad==="Consumo en local"?`<label>Mesa o referencia (opcional)</label><input maxlength="50" value="${esc(D.mesaReferencia||"")}" placeholder="Ej: Mesa 2" oninput="D.mesaReferencia=this.value">`:""}${D.modalidad==="Delivery"?`<label>💰 Valor delivery (se suma)</label><input type="number" inputmode="numeric" value="${D.envio||""}" placeholder="Ej: 2000" oninput="setEnvioManual(this.value)"><p class="muted" id="pedidoEnvioAyuda">Delivery seleccionado - ${D.envio||0} se suma al total</p><label>🛵 Kilómetros del recorrido (opcional, no cambia el precio)</label><input id="ukiKmRecorrido" type="text" inputmode="decimal" value="${esc(D.kmRecorrido??"")}" placeholder="Ej: 4,5" onchange="D.kmRecorrido=this.value.trim();render()"><p class="muted">Si el recorrido viene escrito en el mensaje original, el panel también puede leerlo. No modifica el valor del delivery.</p>`:""}`;
-  return `<div class="section-head"><h2>${D.editando?`Editar pedido #${D.editando}`:revisandoSolicitud?"Revisar solicitud":"Nuevo pedido"}</h2><p>${D.editando&&pedidoEdicion?.pagado?"Revisa los cambios del pedido pagado. Puedes corregir referencias, medios o precios con los controles de ajuste.":D.editando?"Corrige el pedido pendiente existente. No se registra otro pedido ni otro cobro.":revisandoSolicitud?"Solicitud recibida: verifica el detalle y la entrega; todavía NO es venta ni pago.":"Completa los datos y guarda el pedido una sola vez."}</p></div>
-  ${S.suc===ROMO_SUCURSAL_QA&&D.editando&&pedidoEdicion?.pagado?'<div class="card" role="note"><b>Romo · pedido ya pagado</b><p class="muted">Corrige el pedido del turno abierto. Usa las acciones de ajuste para precios, medios o propina. Los cambios de dinero requieren conciliación; no se reenvía el timbre.</p></div>':S.suc===ROMO_SUCURSAL_QA?'<div class="card"><b>Romo · pedido manual o por WhatsApp</b><p class="muted">Ingresa o pega el pedido, confirma el pago si corresponde y guarda. Puedes dejarlo en espera para atender otro.</p></div>'+ukiRomoBorradoresVistaQA():ukiVistaBorradores()}
+  return `<div class="section-head"><h2>${D.editando?`Editar pedido #${D.editando}`:revisandoSolicitud?"Revisar solicitud":"Nuevo pedido"}</h2><p>${D.editando&&pedidoEdicion?.pagado?"Corrige el pedido y pulsa Guardar cambios, igual que en Uki.":D.editando?"Corrige el pedido pendiente existente. No se registra otro pedido ni otro cobro.":revisandoSolicitud?"Solicitud recibida: verifica el detalle y la entrega; todavía NO es venta ni pago.":"Completa los datos y guarda el pedido una sola vez."}</p></div>
+  ${S.suc===ROMO_SUCURSAL_QA&&D.editando&&pedidoEdicion?.pagado?'':S.suc===ROMO_SUCURSAL_QA?'<div class="card"><b>Romo · pedido manual o por WhatsApp</b><p class="muted">Ingresa o pega el pedido, confirma el pago si corresponde y guarda. Puedes dejarlo en espera para atender otro.</p></div>'+ukiRomoBorradoresVistaQA():ukiVistaBorradores()}
   <details class="uki-modos-ingreso" ${revisandoSolicitud?'':'open'} style="${D.editando?'display:none;':'margin:10px 0'}"><summary><b>${revisandoSolicitud?'Ver mensaje original':'Opciones de ingreso · WhatsApp o manual'}</b></summary>
    ${revisandoSolicitud?'':`<div class="mode-switch" role="group" aria-label="Modo de ingresar pedido"><button type="button" class="${modoNuevo==='whatsapp'?'selected':''}" onclick="cambiarModoNuevo('whatsapp')">📋 Pegar WhatsApp</button><button type="button" class="${modoNuevo==='manual'?'selected':''}" onclick="cambiarModoNuevo('manual')">✎ Manual</button></div>`}
 
   ${modoNuevo==='whatsapp'?`<div class="card"><h2>Texto del pedido</h2><p class="muted">Pega el mensaje de la carta digital y toca Procesar.</p><textarea id="pegaTxt" rows="4" placeholder="Pega aquí el pedido de WhatsApp" oninput="D.texto=this.value" onpaste="setTimeout(()=>{const el=document.getElementById('pegaTxt');if(el){D.texto=el.value;leerTextoD();}},150)">${esc(D.texto)}</textarea>${revisandoSolicitud?'':'<button class="big" onclick="leerTextoD()">Procesar pedido pegado</button>'}${revisandoSolicitud||S.suc===ROMO_SUCURSAL_QA?'':ukiWhatsAppGuardarSolicitudBoton()}<p class="muted">Revisa nombre, WhatsApp, código de carta, productos, precio y delivery. Como solicitud no suma ventas.</p></div>`:`<div class="mini-help">Agrega los datos del pedido manualmente en el formulario siguiente.</div>`}
   </details>
   <div class="card"><h2>1 · Cliente y entrega</h2>${modoNuevo==="manual"?`<div class="mini-help"><b>🔢 Número visible: ${esc(ukiFolioBorrador())}</b><p class="muted" style="margin:6px 0 0">${D.editando?"Este número ya pertenece al pedido y no cambiará.":"El sistema asignará el número correlativo definitivo al guardar. No tienes que escribir un código."}</p></div>`:`<div class="mini-help"><b>${esc(ukiFolioBorrador())}</b> · Identificador visible del turno.</div>`}${D.codigoCarta&&esMensajeCartaUki(D.texto||"")?`<div style="padding:10px;background:var(--bg);border-radius:10px"><b>📋 Carta #${esc(D.codigoCarta)}</b><p class="muted" style="margin:5px 0 0">Código original detectado automáticamente desde el pedido de la carta. No se escribe ni se modifica aquí.</p></div>`:modoNuevo!=="manual"?`<label>Código de la carta (solo si existe)</label><input value="${esc(D.codigoCarta||"")}" placeholder="Se detecta al procesar WhatsApp" oninput="D.codigoCarta=this.value.trim()" inputmode="text"><p class="muted">Si el pedido llegó desde la carta digital, pega su mensaje completo para detectar el código automáticamente.</p>`:""}<label>Código del cliente · últimos 4 dígitos del WhatsApp</label><input id="ukiCodigoAuto" value="${esc(ukiCodigoWhatsApp(D.telefono)||D.codigoCliente||"")}" placeholder="Automático al escribir WhatsApp" readonly inputmode="numeric"><p class="muted">Se calcula automáticamente. Para identificarlo y buscarlo usa también su nombre o el WhatsApp completo.</p><label>Fecha y hora</label><input type="datetime-local" value="${D.fecha}" oninput="D.fecha=this.value"><label>Cliente (no se autocompleta con total)</label><input value="${esc(D.cliente)}" placeholder="Ej: Camila Rojas" oninput="D.cliente=this.value">${cli?`<div style="margin-top:8px;padding:8px;background:#fff1e0;border-radius:8px"><b>${esc(cli.nombre)}</b> tiene <b>${ventasCli}/10</b> timbres ${ventasCli>=6?'<span class="tag" style="background:var(--ok);color:#fff">Puede canjear 12 piezas!</span>':''} ${ventasCli>=10?'<span class="tag" style="background:#111;color:#fff">Puede canjear 36+2 korokes!</span>':''}<div class="tarjeta" style="margin-top:6px">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventasCli?'lleno':''} ${i===5||i===9?'premio':''}">${i<ventasCli?'✓':i+1}</div>`).join("")}</div></div>`:"<p class='muted'>Nuevo cliente - empezará con 1 timbre</p>"}<label>📱 WhatsApp / Teléfono</label><input value="${esc(D.telefono)}" placeholder="+56 9 1234 5678" oninput="D.telefono=this.value;D.codigoCliente=ukiCodigoWhatsApp(D.telefono);const cod=document.getElementById('ukiCodigoAuto');if(cod)cod.value=D.codigoCliente" onchange="D.telefono=this.value;render()" inputmode="tel">${entregaUI}</div>
-  <div class="card"><h2>2 · Productos y total</h2>${D.items.filter(x=>x.nombre).map((i,k)=>`<div class="row"><span>${i.cant} × ${esc(i.nombre)}${i.det?` <span class="muted">(${esc(i.det)})</span>`:""}</span><b>${fmt(i.cant*i.precio)} <button class="sm" onclick="delItem(${k})">✕</button></b></div>`).join("")||'<p class="muted">Aún no hay productos. Agrégalos abajo.</p>'}<div style="display:grid;grid-template-columns:80px 1fr;gap:8px;margin-top:10px"><div><label>Cant</label><input id="pCant" type="number" value="1" style="text-align:center;font-weight:700"></div><div><label>Precio</label><input id="pPre" type="number" inputmode="numeric" placeholder="14900"></div></div><label>Nombre producto</label><input id="pNom" placeholder="Promo 24 piezas"><label>Detalle</label><input id="pDet" placeholder="sin cebollín"><button class="sm ok" onclick="addItem()">+ Agregar producto</button><div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:10px;border-top:2px solid var(--accent)"><div class="row sub"><span>Subtotal productos</span><b>${fmt(sub)}</b></div><div class="row"><span>Delivery</span><b id="pedidoEnvioVista">${fmt(envio)}</b></div><div class="row"><span>Propina voluntaria</span><b>${fmt(propina)}</b></div><div class="row final"><span>Total a pagar</span><b id="pedidoTotalVista">${fmt(total)}</b></div><div class="row"><span>Este pedido da</span><b>${S.suc===ROMO_SUCURSAL_QA?"⭐ +1 timbre al confirmar el pago":D.productosPagadosOtroLocal?"Pago registrado en otro local":"⭐ +1 timbre"}</b></div></div></div>
+  <div class="card"><h2>2 · Productos y total</h2>${D.items.filter(x=>x.nombre).map((i,k)=>`<div class="row"><span>${i.cant} × ${esc(i.nombre)}${i.det?` <span class="muted">(${esc(i.det)})</span>`:""}</span><b>${fmt(i.cant*i.precio)} ${S.suc===ROMO_SUCURSAL_QA&&D.editando?`<label class="muted">Precio unitario</label><input aria-label="Precio unitario de ${esc(i.nombre)}" type="number" inputmode="numeric" min="1" value="${esc(i.precio)}" onchange="ukiRomoEditarPrecioItemQA(${D.items.indexOf(i)},this.value)">`:``} <button class="sm" onclick="delItem(${D.items.indexOf(i)})">✕</button></b></div>`).join("")||'<p class="muted">Aún no hay productos. Agrégalos abajo.</p>'}<div style="display:grid;grid-template-columns:80px 1fr;gap:8px;margin-top:10px"><div><label>Cant</label><input id="pCant" type="number" value="1" style="text-align:center;font-weight:700"></div><div><label>Precio</label><input id="pPre" type="number" inputmode="numeric" placeholder="14900"></div></div><label>Nombre producto</label><input id="pNom" placeholder="Promo 24 piezas"><label>Detalle</label><input id="pDet" placeholder="sin cebollín"><button class="sm ok" onclick="addItem()">+ Agregar producto</button><div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:10px;border-top:2px solid var(--accent)"><div class="row sub"><span>Subtotal productos</span><b>${fmt(sub)}</b></div><div class="row"><span>Delivery</span><b id="pedidoEnvioVista">${fmt(envio)}</b></div><div class="row"><span>Propina voluntaria</span><b>${fmt(propina)}</b></div><div class="row final"><span>Total a pagar</span><b id="pedidoTotalVista">${fmt(total)}</b></div><div class="row"><span>Este pedido da</span><b>${S.suc===ROMO_SUCURSAL_QA?"⭐ +1 timbre al confirmar el pago":D.productosPagadosOtroLocal?"Pago registrado en otro local":"⭐ +1 timbre"}</b></div></div></div>
   ${ukiPropinaUI(sub)}
   <div class="card" id="ukiPagoPedidoSoloUki"><h2>3 · Pago del pedido</h2><p class="muted">Si todavía no han pagado, no marques la confirmación. El pedido quedará registrado por cobrar.</p>
     <div style="padding:12px;margin-bottom:14px;background:var(--bg);border-radius:12px">
@@ -2369,21 +2370,13 @@ function vNuevo(){
       `<p class="muted"><b>Delivery ${fmt(envio)}:</b> se incluirá en los deliverys de ${S.suc===ROMO_SUCURSAL_QA?"Romo":"Uki"} para el repartidor, pero NO como ingreso de la caja porque lo cobraron en otro local.</p>`:
       `<label>Pago del delivery recibido en ${S.suc===ROMO_SUCURSAL_QA?"Romo":"Uki"} · ${fmt(envio)}</label>${ukiPagoUI("envio",envio)}`):""}
     <label class="check"><input type="checkbox" ${D.pagado?"checked":""} onchange="D.pagado=this.checked;render()"> <b>Pago completo confirmado</b></label>
-    ${S.suc===ROMO_SUCURSAL_QA&&D.pagado?`<label>Responsable que recibió el dinero</label><input maxlength="80" placeholder="Nombre de quien confirma el cobro" value="${esc(D.romoResponsableCobro||"")}" oninput="D.romoResponsableCobro=this.value"><p class="muted">Solo marca esta casilla después de recibir el dinero. Se guarda en Neon Romo en una sola operación y no se cobrará nuevamente.</p>`:""}
+    ${S.suc===ROMO_SUCURSAL_QA&&D.pagado&&!pedidoEdicion?.pagado?`<label>Responsable que recibió el dinero</label><input maxlength="80" placeholder="Nombre de quien confirma el cobro" value="${esc(D.romoResponsableCobro||"")}" oninput="D.romoResponsableCobro=this.value"><p class="muted">Solo marca esta casilla después de recibir el dinero. Se guarda en Neon Romo en una sola operación y no se cobrará nuevamente.</p>`:""}
     <p class="muted">Solo se consideran ventas los pagos completos confirmados. Los montos mixtos deben sumar exactamente lo que corresponde.</p></div>
   ${pedidoEdicion?.pagado&&(deltaEdicion!==0||pendienteEdicion)?
     '<p class="muted">La diferencia del cobro quedará registrada automáticamente; editar no declara una devolución.</p>':''}
    ${ukiPasoTimbreAntesDeGuardar(pedidoEdicion)}
    ${D.editando?'<div class="card"><h2>Responsable de la corrección</h2><p><b>✍️ SOLO CUANDO MODIFICAS UN PEDIDO EXISTENTE</b></p><label for="ukiResponsableEdicion"><b>¿Quién está haciendo este cambio? · Obligatorio</b></label><input id="ukiResponsableEdicion" maxlength="80" autocomplete="off" placeholder="Nombre de quien corrige" value="'+esc(D.responsableEdicion||"")+'" oninput="D.responsableEdicion=this.value"><p class="muted">El nombre, la fecha y el detalle del cambio quedarán en el historial del pedido. En el primer registro NO es necesario este nombre.</p></div>':''}
-   ${S.suc===ROMO_SUCURSAL_QA&&D.editando&&pedidoEdicion?.pagado?
-    '<div class="card" style="border-color:#ad102b"><b>Revisar diferencias de caja · solo consulta</b>'+
-    '<p class="muted">Compara importes y medios registrados con los cambios escritos. No genera cobros, devoluciones ni autoriza editar una venta pagada.</p>'+
-    '<button type="button" class="sm" onclick="ukiRomoVistaDiferenciasPagoQA()">Ver diferencias sin guardar</button>'+
-    '<button type="button" class="sm" onclick="ukiRomoConfirmarMedioRealQA()">Corregir medio realmente recibido</button>'+ '<button type="button" class="sm" onclick="ukiRomoGuardarDiferenciaPrecioQA()">Guardar corrección de precio pendiente</button>'+
-    (Number(pedidoEdicion?.propina)>0?'<button type="button" class="sm" onclick="ukiRomoCorregirPropinaPagadaQA()">Corregir propina ya registrada del pedido</button>':'')+
- '<p class="muted">Este ajuste modifica solo precios unitarios de los mismos productos. No declara devolución ni cobro adicional: la diferencia debe conciliarse luego en el pedido antes del cierre.</p>'+
-    '<p class="muted">La corrección del medio realmente recibido conserva la venta, el delivery y la propina intactos. El ajuste de precio deja la diferencia pendiente para conciliarla después.</p>'+
-    '<p id="romoRevisionDiferenciasPagadasQA" role="status" class="muted" style="white-space:pre-wrap"></p></div>':''}
+
    <button class="big" onclick="ndGuardar()" ${ukiTimbreObligatorioGuardar(D,pedidoEdicion)&&!ukiTimbreBorradorConfirmado(D)?'disabled title="Primero confirma el envío del timbre"':''}>${D.editando?`💾 Guardar cambios #${D.editando}`:D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición (no cancela el pedido)</button><p class="muted">Para cancelar el pedido, guarda primero cualquier corrección de pago. Luego vuelve a Pedidos, abre Ver detalle y selecciona ❌ Cancelar pedido. Si hay una devolución, regularízala primero.</p>`:""}`;
 }
 
@@ -2554,7 +2547,17 @@ montoProductosOtroLocal:p.productosPagadosOtroLocal?Math.min(Number(p.subtotal)|
 envioPagadoOtroLocal:ukiMontoEnvioOtroLocal(p,Number(p.envio)||0,Number(p.subtotal)||0)>0,
 montoEnvioOtroLocal:p.montoEnvioOtroLocal??"",
 localPagoExterno:p.localPagoExterno||"",propinaModo:p.propinaModo||((Number(p.propina)||0)>0?"otro":"ninguna"),propinaPersonalizada:p.propinaModo==="otro"||!p.propinaModo?p.propina||"": "",medioPropina:p.medioPropina||"Efectivo",
-items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),ajusteCajaRegularizado:false,responsableEdicion:"",editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}]; modoNuevo="manual";ir("nuevo"); aviso(`Editando pedido #${id}`);}
+items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),ajusteCajaRegularizado:false,responsableEdicion:"",editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}];
+ if(S.suc===ROMO_SUCURSAL_QA&&p.pagado){
+  // El guardado de Romo puede representar un medio único como una línea.
+  // Mostrarlo como medio único, no como pago mixto, y conservar su importe real.
+  for(const [key,flag,medio] of [['pagosProductos','mixtoProductos','medio'],['pagosEnvio','mixtoEnvio','medioEnvio']]){
+   if(Array.isArray(D[key])&&D[key].length===1){D[medio]=D[key][0].medio||D[medio];D[key]=[];D[flag]=false;}
+  }
+  // La propina ya recibida no debe recalcularse al corregir el precio.
+  if(D.propinaModo==='diez'){D.propinaModo='otro';D.propinaPersonalizada=Number(p.propina)||0;}
+ }
+ modoNuevo="manual";ir("nuevo"); aviso(`Editando pedido #${id}`);}
 function reanalizar(){leerTextoD();}
 
 // La propina es opcional (sugerencia 10% de productos), fuera de la venta.
@@ -9680,11 +9683,41 @@ async function ukiRomoGuardarPedidoPendienteQA(){
  }finally{ukiRomoGuardandoManualQA=false;}
 }
 
+async function ukiRomoGuardarEdicionUnicaQA(){
+ if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA||S.vista!=='nuevo'||!D.editando)return;
+ const id=Number(D.editando),sesion=window.ukiRomoSesionRemotaQA;
+ const p=(S.pedidos||[]).find(x=>x.suc===S.suc&&x.id===id);
+ if(!p?.pagado||!sesion?.disponible?.()||sesion.estado()?.conflicto){aviso('Vuelve a abrir el pedido con la nube sincronizada.');return;}
+ if(!String(D.responsableEdicion||'').trim()){aviso('Escribe quién realiza la modificación.');document.getElementById('ukiResponsableEdicion')?.focus();return;}
+ const firma=JSON.stringify(D),anterior=sesion.estado(),estadoFirma=JSON.stringify(datosSoloSucursal());
+ ukiRomoGuardandoManualQA=true;
+ try{
+  const mod=await import('./uki-romo-edicion-unica-qa.mjs?v=20261121v1');
+  if(JSON.stringify(D)!==firma||JSON.stringify(datosSoloSucursal())!==estadoFirma||sesion.estado()?.revision!==anterior.revision||sesion.estado()?.conflicto)
+   throw Error('El pedido cambió. Reabre y revisa antes de guardar.');
+  const copia=datosSoloSucursal();
+  const resultado=mod.prepararEdicionUnicaRomoQA({estado:copia,pedidoId:id,draft:D,responsable:D.responsableEdicion,
+   mediosProductos:ROMO_MEDIOS_COBRO_QA,mediosDelivery:ROMO_MEDIOS_DELIVERY_QA,
+   turnoCerrado:!!ukiCierreConfirmadoPedido(p),foto:ukiFotoCorreccionPedido,km:ukiKmRecorridoBorrador()});
+  if(resultado.sinCambios){aviso('No hay cambios para guardar.');return;}
+  if(resultado.soloPropina){ukiRomoGuardandoManualQA=false;await ukiRomoCorregirPropinaPagadaQA();return;}
+  if(resultado.ventaUnica!==true||resultado.noReenviaTimbre!==true||!validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
+   throw Error('No se confirmó la corrección.');
+  const medio=resultado.reclasificar?'\nConfirma que el dinero ya fue recibido en los medios seleccionados. No se vuelve a cobrar.':'';
+  const diferencia=resultado.saldo?'\nQueda '+(resultado.saldo>0?'por devolver ':'por cobrar ')+fmt(Math.abs(resultado.saldo))+'. Se regulariza cuando ocurra el movimiento real.':'';
+  if((medio||diferencia)&&!window.confirm('Guardar cambios del pedido #'+id+'?'+medio+diferencia))return;
+  if(JSON.stringify(D)!==firma||JSON.stringify(datosSoloSucursal())!==estadoFirma||sesion.estado()?.revision!==anterior.revision||sesion.estado()?.conflicto)
+   throw Error('El pedido cambió antes de guardar.');
+  await ukiRomoGuardarOperacionQA(copia,'Pedido actualizado'+(resultado.saldo?' · diferencia pendiente':''),id,'pedidos');nuevoDraft();
+ }catch(e){aviso('No se pudo confirmar el cambio. '+String(e?.message||e));}
+ finally{ukiRomoGuardandoManualQA=false;}
+}
+
 async function ndGuardar(){
   if(S.suc===ROMO_SUCURSAL_QA)
    return D.editando?
     ((S.pedidos||[]).find(p=>p.suc===ROMO_SUCURSAL_QA&&p.id===Number(D.editando))?.pagado?
-      ukiRomoCorregirReferenciaPagadaQA():ukiRomoEditarPedidoPendienteQA()):
+      ukiRomoGuardarEdicionUnicaQA():ukiRomoEditarPedidoPendienteQA()):
     (D.cartaSolicitudRemotaId?
      ukiRomoAceptarSolicitudCartaQA():ukiRomoGuardarPedidoPendienteQA());
   if(ukiGuardadoSolicitudEnCurso)return;
