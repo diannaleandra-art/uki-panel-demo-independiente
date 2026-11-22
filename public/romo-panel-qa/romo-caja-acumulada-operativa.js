@@ -29,6 +29,32 @@ function fechaOperativaLegible(raw){
  if(utc.getUTCFullYear()!==y||utc.getUTCMonth()+1!==m||utc.getUTCDate()!==d)return null;
  return primeraMayuscula(movimientoFechaChile.format(utc));
 }
+// Calendario del turno, sin cambiar el libro contable ni la hora de auditoría.
+const diaChileFormato=new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'});
+function diaMovimientoRomo(m){
+ const ref=/^romo:serena\|(\d{4}-\d{2}-\d{2})@/.exec(String(m?.source_key||''));
+ if(['cierre','ajuste_cierre'].includes(m?.tipo)&&ref)return ref[1];
+ if(typeof m?.fecha_operativa==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(m.fecha_operativa))
+  return m.fecha_operativa;
+ const fecha=new Date(m?.creado_en);
+ if(!Number.isFinite(fecha.getTime()))return '';
+ const parts=diaChileFormato.formatToParts(fecha);
+ const part=k=>parts.find(v=>v.type===k)?.value||'';
+ return part('year')+'-'+part('month')+'-'+part('day');
+}
+function ordenarCalendarioRomo(a,b){
+ const dayA=diaMovimientoRomo(a),dayB=diaMovimientoRomo(b);
+ if(dayA!==dayB)return dayA<dayB?1:-1;
+ const aTime=Date.parse(a?.creado_en)||0,bTime=Date.parse(b?.creado_en)||0;
+ if(aTime!==bTime)return bTime-aTime;
+ return Number(b?.id||0)-Number(a?.id||0);
+}
+function resumenPendientesRomo(candidatos){
+ const unique=[...new Set(candidatos.map(x=>
+  fechaOperativaLegible(x.c.fechaOperativa)||String(x.c.fechaOperativa||'Fecha no identificada')))];
+ return unique.slice(0,8).join('; ')+(unique.length>8?
+  '; y '+(unique.length-8)+' fecha(s) más (ver lista)':'');
+}
 function status(msg,kind=''){
  const el=$('ukiAcumStatus');if(!el)return;
  el.textContent=msg;el.dataset.kind=kind;
@@ -271,14 +297,22 @@ async function load(){
   state.write=a.escrituraHabilitada;state.credited=credited;
   state.revisiones=a.revisiones;
   const disponibles=cuenta.initialized?reconcileCandidates(cuenta.initialized_at,credited,a.revisiones):[];
-  state.candidates=disponibles.filter(x=>!x.excluded);
-  state.marked=disponibles.filter(x=>x.excluded);
+  state.candidates=disponibles.filter(x=>!x.excluded)
+   .sort((a,b)=>String(a.c.fechaOperativa||'')===String(b.c.fechaOperativa||'')?
+     b.c.fechaMs-a.c.fechaMs:String(a.c.fechaOperativa||'')<String(b.c.fechaOperativa||'')?1:-1);
+  state.marked=disponibles.filter(x=>x.excluded)
+   .sort((a,b)=>String(a.c.fechaOperativa||'')===String(b.c.fechaOperativa||'')?
+     b.c.fechaMs-a.c.fechaMs:String(a.c.fechaOperativa||'')<String(b.c.fechaOperativa||'')?1:-1);
   state.balance=balance;
   state.initialized=cuenta.initialized;
   state.initializedAt=cuenta.initialized_at||null;
-  state.history=history;
+  state.history=history.slice().sort(ordenarCalendarioRomo);
   state.ready=true;
-  if(state.pending)status('Existe una operación sin confirmar en esta sesión. Revisa el historial y conserva los mismos datos si reintentas.','error');
+  const fechas=state.candidates.length?' Cierre(s) pendientes de acreditar ('+
+   state.candidates.length+'). Turno(s): '+resumenPendientesRomo(state.candidates)+'.':'';
+  if(state.pending)status('Existe una operación sin confirmar en esta sesión. Revisa el historial.'+fechas,'error');
+  else if(state.candidates.length)status('⚠'+fechas+
+   (state.write?' Revisa si ya ingresaste ese efectivo manualmente.':' Escritura no habilitada.'),'error');
   else if(!state.write)status('Saldo e historial confirmados. Escritura deshabilitada por el servidor.','success');
   else status('✓ Efectivo acumulado actualizado. No se modificó ningún saldo al consultar.','success');
  }catch(e){state.ready=false;state.write=false;state.history=[];state.candidates=[];state.marked=[];state.balance=0;status(String(e.message||e),'error');}
