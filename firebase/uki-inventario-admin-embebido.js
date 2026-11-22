@@ -213,6 +213,74 @@ window.ukiInventarioPanelHTML=panel;window.ukiInventarioMontar=mount;
   for(const row of r?.recipe_lines||[])recipeLine(row);
   if(!r)recipeLine();
   re('invRecipeEstimate').textContent=r?.cost!=null?'Costo estimado de la receta: 
+
+ // Consulta privada de rentabilidad estimada, sin modificar pedidos ni inventario.
+ const report=document.createElement('details');report.style.marginTop='16px';
+ report.innerHTML='<summary><b>📊 Consumo y rentabilidad por pedido</b></summary><p class="muted">Consulta pedidos pagados y entregados disponibles en este panel. Usa precios actuales; no representa costos históricos ni descuenta existencias.</p><label for="invProfitFrom">Desde</label><input id="invProfitFrom" type="date"><label for="invProfitTo">Hasta</label><input id="invProfitTo" type="date"><button type="button" class="sm" id="invProfitLoad">Consultar pedidos</button><p role="status" id="invProfitStatus"></p><div id="invProfitFields" hidden><label for="invProfitOrder">Pedido</label><select id="invProfitOrder"></select><div id="invProfitChoices"></div><button type="button" class="sm ok" id="invProfitCalc">Calcular pedido</button><div id="invProfitResult"></div><div id="invProfitTotal"></div></div>';
+ card.append(report);
+ const pe=id=>report.querySelector('#'+id);
+ const ps=s=>{if(within())pe('invProfitStatus').textContent=s;};
+ const localDate=v=>{try{return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(v));}catch{return '';}};
+ const fmtMoney=v=>'$'+Number(v).toLocaleString('es-CL');
+ const countFmt=v=>Number(v).toLocaleString('es-CL',{maximumFractionDigits:4});
+ let orders=[],confirmed=[],profitBusy=false,totals=new Map();
+ pe('invProfitFrom').value=pe('invProfitTo').value=localDate(Date.now());
+ const make=(tag,t)=>{const e=document.createElement(tag);if(t!=null)e.textContent=t;return e;};
+ function selectedOrder(){return orders[Number(pe('invProfitOrder').value)];}
+ function orderSignature(p){return JSON.stringify(p);}
+ function sanitized(p){
+  return {id:p.id,suc:p.suc,fechaISO:p.fechaISO,pagado:p.pagado,estado:p.estado,productos:(p.productos||[]).map(x=>({skuCarta:x.skuCarta,nombre:String(x.nombre||''),cantidad:Number(x.cantidad),precioUnit:Number(x.precioUnit),detalle:String(x.detalle||'')}))};
+ }
+ function currentOrders(){
+  const start=pe('invProfitFrom').value,end=pe('invProfitTo').value;
+  if(!start||!end||start>end)throw Error('Selecciona un período válido.');
+  const current=typeof S!=='undefined'&&Array.isArray(S.pedidos)?S.pedidos:[];
+  const seen=new Set();
+  return current.filter(p=>p.suc===S.suc&&p.pagado===true&&p.estado==='Entregado'&&!p.esPremio&&localDate(p.fechaISO)>=start&&localDate(p.fechaISO)<=end).filter(p=>{const k=String(p.id)+'|'+String(p.fechaISO);if(seen.has(k))return false;seen.add(k);return true;}).map(sanitized);
+ }
+ function showTotals(){
+  const a=[...totals.values()].filter(x=>x.status==='ready'),p=pe('invProfitTotal');p.replaceChildren();
+  const rev=a.reduce((n,x)=>n+x.revenue,0),cost=a.reduce((n,x)=>n+x.cost,0);
+  p.append(make('h3','Resumen de pedidos calculados'),make('p',a.length+' de '+orders.length+' pedidos identificados del período · '+(orders.length-a.length)+' pendientes de cálculo'),make('p','Venta de productos: '+fmtMoney(rev)),make('p','Costo estimado: '+fmtMoney(cost)),make('b','Ganancia bruta estimada: '+fmtMoney(rev-cost)),make('p','Solo incluye pedidos completos revisados en esta consulta. Excluye delivery, propinas, comisiones y otros gastos.'));
+ }
+ function showOrder(){
+  const o=selectedOrder(),area=pe('invProfitChoices');area.replaceChildren();pe('invProfitResult').replaceChildren();if(!o)return;
+  for(const [i,x] of o.productos.entries()){
+   const div=make('div');div.className='card';div.append(make('b',x.cantidad+' × '+x.nombre));if(x.detalle)div.append(make('p',x.detalle));
+   const select=make('select');select.setAttribute('aria-label','Variante para '+x.nombre);opt(select,'','Seleccionar receta comprobada');
+   const variants=confirmed.filter(r=>r.product_sku===x.skuCarta);
+   for(const [j,v] of variants.entries())opt(select,String(j),v.variant_key);
+   div.append(select);
+   div.getChoice=()=>{const v=select.value!==''?variants[Number(select.value)]:null;return v?{index:i,variant:v.variant_key,revision:Number(v.revision),verified:true}:null;};
+   if(!variants.length)div.append(make('p','Sin receta confirmada o producto sin código. El costo queda pendiente.'));
+   area.append(div);
+  }
+ }
+ pe('invProfitLoad').onclick=async()=>{
+  if(profitBusy)return;profitBusy=true;pe('invProfitLoad').disabled=true;pe('invProfitCalc').disabled=true;ps('Consultando…');
+  try{const a=await call('listar-recetas');confirmed=(a.recipes||[]).filter(r=>r.confirmed===true);orders=currentOrders();totals.clear();const field=pe('invProfitOrder');field.replaceChildren();for(const [i,p] of orders.entries())opt(field,String(i),'#'+p.id+' · '+localDate(p.fechaISO));pe('invProfitFields').hidden=!orders.length;showOrder();showTotals();ps(orders.length?orders.length+' pedidos disponibles. Revisa las variantes de cada pedido.':'No hay pedidos pagados y entregados disponibles en este período.');}
+  catch(e){if(within()){pe('invProfitFields').hidden=true;ps(e.message);}}
+  finally{profitBusy=false;if(within()){pe('invProfitLoad').disabled=false;pe('invProfitCalc').disabled=false;}}
+ };
+ for(const id of ['invProfitFrom','invProfitTo'])pe(id).onchange=()=>{orders=[];totals.clear();pe('invProfitFields').hidden=true;ps('Consulta el nuevo período.');};
+ pe('invProfitOrder').onchange=showOrder;
+ pe('invProfitCalc').onclick=async()=>{
+  if(profitBusy||!within())return;const order=selectedOrder();if(!order)return;
+  const real=(S.pedidos||[]).find(p=>p.suc===S.suc&&p.id===order.id&&p.fechaISO===order.fechaISO);
+  if(!real||orderSignature(sanitized(real))!==orderSignature(order)){ps('El pedido cambió. Consulta nuevamente el período.');return;}
+  const choices=Array.from(pe('invProfitChoices').children).map(x=>x.getChoice()).filter(Boolean);
+  profitBusy=true;pe('invProfitLoad').disabled=true;pe('invProfitCalc').disabled=true;pe('invProfitOrder').disabled=true;ps('Calculando…');
+  try{const a=await call('proyectar-pedido',{order,choices});const r=a.projection,out=pe('invProfitResult');out.replaceChildren();totals.set(r.orderKey,r);
+   if(r.status==='ready'){
+    out.append(make('h3','Costo estimado del pedido'),make('p','Costo: '+fmtMoney(r.cost)),make('b','Ganancia bruta: '+fmtMoney(r.grossProfit)),make('h3','Comparación con existencias actuales'));
+    for(const x of a.stock||[])out.append(make('p',x.name+' · consumo '+(x.required===null?'sin unidad compatible':countFmt(x.required)+' '+x.unit)+' · existencia '+(x.available===null?'sin dato':countFmt(x.available)+' '+x.unit)));
+    out.append(make('p','Comparación informativa: las existencias pueden haber sido contadas después de preparar este pedido.'));
+   }else out.append(make('p','Costo pendiente: completa la identificación de productos, recetas y precios de compra.'));
+   showTotals();ps('Consulta finalizada. No se modificaron existencias.');
+  }catch(e){ps(e.message);}
+  finally{profitBusy=false;if(within()){pe('invProfitLoad').disabled=false;pe('invProfitCalc').disabled=false;pe('invProfitOrder').disabled=false;}}
+ };
+
 }
 
 function mount(){
