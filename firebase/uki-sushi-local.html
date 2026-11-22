@@ -1740,9 +1740,15 @@ function ukiDibujarCatalogoManual(){
  if(ukiCatalogoManual.error){root.append(mk('p','No se pudo confirmar la carta: '+ukiCatalogoManual.error),refresh);return;}
  const search=mk('input');search.type='search';search.placeholder='Buscar, ej.: 60 piezas, handroll';search.setAttribute('aria-label','Buscar producto');
  const grid=mk('div');grid.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0';
- const chosen=mk('div');
+ const chosen=mk('div');chosen.id='ukiProductoSeleccionActual';chosen.setAttribute('role','status');chosen.style.cssText='scroll-margin-top:150px;background:var(--card);border:2px solid var(--accent);padding:14px;border-radius:12px;margin:12px 0';
  const drawSelection=()=>{
-  chosen.replaceChildren();const p=ukiCatalogoManual.items[ukiCatalogoManual.seleccion];if(!p)return;
+  chosen.replaceChildren();const p=ukiCatalogoManual.items[ukiCatalogoManual.seleccion];chosen.hidden=!p;if(!p)return;
+   for(const tile of grid.querySelectorAll('button[data-catalog-index]')){
+    const selected=Number(tile.dataset.catalogIndex)===ukiCatalogoManual.seleccion;
+    tile.setAttribute('aria-pressed',String(selected));
+    tile.style.border=selected?'3px solid var(--accent)':'';
+   }
+   chosen.append(mk('p','✅ Producto seleccionado · aún no agregado al pedido'));
   chosen.append(mk('b',p.nombre+' · '+fmt(p.precio)));
   const info=mk('p',p.piezas!==null?p.piezas+' piezas · '+p.rolls+' rolls por promoción':'Precio de carta');
   if(p.pagos.length)info.textContent+=' · Medios indicados en carta: '+p.pagos.join(', ');
@@ -1761,11 +1767,12 @@ function ukiDibujarCatalogoManual(){
  };
  let more=false;
  function drawGrid(){grid.replaceChildren();const q=search.value.toLocaleLowerCase('es').trim();const rows=ukiCatalogoManual.items.map((p,i)=>({p,i})).filter(({p})=>!q||(p.nombre+' '+(p.piezas===null?'':p.piezas+' piezas')).toLocaleLowerCase('es').includes(q));
-  for(const {p,i} of rows.slice(0,more?rows.length:14)){const b=mk('button');b.type='button';b.className='sm';b.style.cssText='white-space:normal;text-align:left;min-height:56px';b.append(mk('b',p.piezas!==null?p.piezas+' piezas · '+(p.kind==='classic'?'Clásico':p.kind==='premium'?'Premium':p.nombre):p.nombre),mk('div',fmt(p.precio)));b.onclick=()=>{ukiCatalogoManual.seleccion=i;drawSelection();};grid.append(b);}
+  for(const {p,i} of rows.slice(0,more?rows.length:14)){const b=mk('button');b.type='button';b.className='sm';b.style.cssText='white-space:normal;text-align:left;min-height:56px';b.append(mk('b',p.piezas!==null?p.piezas+' piezas · '+(p.kind==='classic'?'Clásico':p.kind==='premium'?'Premium':p.nombre):p.nombre),mk('div',fmt(p.precio)));b.dataset.catalogIndex=String(i);b.setAttribute('aria-pressed',String(i===ukiCatalogoManual.seleccion));
+    b.onclick=()=>{ukiCatalogoManual.seleccion=i;drawSelection();requestAnimationFrame(()=>chosen.scrollIntoView({behavior:'smooth',block:'start'}));};grid.append(b);}
   if(rows.length>14&&!more){const b=mk('button','Ver más productos');b.type='button';b.className='sm';b.onclick=()=>{more=true;drawGrid();};grid.append(b);}
   if(!rows.length)grid.append(mk('p','No hay coincidencias.'));
  }
- search.oninput=()=>{more=false;drawGrid();};root.append(search,grid,chosen,refresh);drawGrid();drawSelection();
+ search.oninput=()=>{more=false;drawGrid();};root.append(search,chosen,grid,refresh);drawGrid();drawSelection();
 }
 function vNuevo(){
   if(!S.suc) return vInicio(); if(!D.fecha) nuevoDraft();
