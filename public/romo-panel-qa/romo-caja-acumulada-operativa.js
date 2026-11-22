@@ -48,7 +48,7 @@ function html(){
   '</div>'+
  '</div>'+
  '</div>'+
- '<div class="card"><h3>Cierres por conciliar</h3><p class="muted">Los nuevos cierres con arqueo exacto se acreditan al confirmar el cierre. Aquí puedes conciliar los pendientes posteriores al conteo inicial, sin duplicar efectivo.</p><div id="romoAcumCierres"></div></div>'+
+ '<div class="card"><h3>Cierres por conciliar</h3><p class="muted">Los nuevos cierres se acreditan por el efectivo contado, con la diferencia y su motivo. Aquí puedes conciliar los pendientes posteriores al conteo inicial, sin duplicar efectivo.</p><div id="romoAcumCierres"></div></div>'+
  '<details class="card" open><summary><b>📖 Historial de Caja acumulada en efectivo</b></summary>'+
  '<button type="button" id="ukiAcumHistoryRefresh" class="sm">Actualizar historial</button>'+
  '<div class="quick-grid" style="margin-top:10px">'+
@@ -68,13 +68,13 @@ async function request(action,extra={},branch=state.branch){
  if(!response.ok||data.ok!==true||data.storeId!=='romo:serena'||data.soloRomo!==true)throw Error(data.error||'No se pudo confirmar la caja acumulada de Romo.');
  return data;
 }
-// Solo se acreditan cierres posteriores al saldo inicial, confirmados, con arqueo exacto.
+// Solo cierres posteriores al saldo inicial, con conteo real y diferencia documentada.
 function closureEligible(c,branch,initMs){
  const ms=Number(c?.fechaMs),cash=c?.efectivo,key=String(c?.turnoClave||'');
- return branch==='serena'&&c?.suc===LOCAL&&Number.isSafeInteger(ms)&&ms>initMs&&ms<=Date.now()+20*60000&&Number.isSafeInteger(cash)&&cash>=0&&cash<=100000000&&c?.efectivoContado===cash&&c?.diferenciaEfectivo===0&&/^\d{4}-\d{2}-\d{2}@[1-9]\d{12,14}$/.test(key)&&key.startsWith(String(c.fechaOperativa)+'@')&&!c.rectificacion&&!(c.rectificaciones||[]).length&&typeof c.resp==='string'&&c.resp.trim().length>=2;
+ return branch==='serena'&&c?.suc===LOCAL&&Number.isSafeInteger(ms)&&ms>initMs&&ms<=Date.now()+20*60000&&Number.isSafeInteger(cash)&&Math.abs(cash)<=100000000&&Number.isSafeInteger(c.efectivoContado)&&c.efectivoContado>=0&&c.efectivoContado<=100000000&&Number.isSafeInteger(c.diferenciaEfectivo)&&c.efectivoContado-cash===c.diferenciaEfectivo&&(c.diferenciaEfectivo===0||typeof c.obs==='string'&&c.obs.trim().length>=3)&&/^\d{4}-\d{2}-\d{2}@[1-9]\d{12,14}$/.test(key)&&key.startsWith(String(c.fechaOperativa)+'@')&&!c.rectificacion&&!(c.rectificaciones||[]).length&&typeof c.resp==='string'&&c.resp.trim().length>=2;
 }
 function closePayload(c){
- return {source_key:'romo:serena|'+c.turnoClave,concepto:'Cierre definitivo '+c.fechaOperativa,responsable:c.resp.trim().slice(0,80),op_key:crypto.randomUUID()};
+ return {source_key:'romo:serena|'+c.turnoClave,concepto:c.diferenciaEfectivo===0?'Cierre definitivo '+c.fechaOperativa:String(c.obs||'').trim().slice(0,240),responsable:c.resp.trim().slice(0,80),op_key:crypto.randomUUID()};
 }
 function reconcileCandidates(initializedAt,credited){
  const since=Date.parse(initializedAt||'');
@@ -114,7 +114,7 @@ function drawCandidates(){
  if(!state.candidates.length){root.textContent='No hay cierres pendientes de acreditar después del saldo inicial.';return;}
  for(const {c,eligible} of state.candidates.slice(0,100)){
   const line=document.createElement('div');line.className='row';
-  const text=document.createElement('span');text.textContent=String(c.fechaOperativa||'Fecha sin verificar')+' · '+(Number.isSafeInteger(c.efectivoContado)?money(c.efectivoContado):'Sin arqueo confirmado')+' · '+(eligible?'Arqueo coincidente':'Requiere revisión');
+  const text=document.createElement('span');text.textContent=String(c.fechaOperativa||'Fecha sin verificar')+' · '+(Number.isSafeInteger(c.efectivoContado)?money(c.efectivoContado):'Sin arqueo confirmado')+' · '+(eligible?(c.diferenciaEfectivo===0?'Caja exacta':'Diferencia '+money(c.diferenciaEfectivo)+' · '+String(c.obs||'')):'Requiere revisión');
   line.append(text);
   if(eligible&&state.write){const b=document.createElement('button');b.type='button';b.className='sm';b.disabled=state.busy||!!state.pending;b.textContent='Acreditar cierre';b.onclick=()=>void confirmarCierre(c);line.append(b);}
   root.append(line);
