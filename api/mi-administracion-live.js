@@ -793,13 +793,21 @@ module.exports=async(req,res)=>{
    const negocio=body.negocio_id,sucursal=body.sucursal_id;
    if(!uuid.test(String(sucursal||'')))return fail(res,400,'Selecciona una sucursal para la receta.');
    await belongs(sql,negocio,sucursal);
-   const nombre=text(body.nombre,120),rolls=Number(body.rolls),
-    precio=Number(body.precio_venta),completa=body.completa===true,
-    lineas=body.lineas;
-   if(nombre.length<2||!Number.isSafeInteger(rolls)||rolls<1||rolls>100||
-      !Number.isSafeInteger(precio)||precio<1||precio>1000000000||
-      !Array.isArray(lineas)||!lineas.length||lineas.length>50)
-    return fail(res,400,'Revisa nombre, rolls, precio y lista de ingredientes de la receta.');
+   // El navegador NO fija el nombre, ni el número de rolls, ni el precio.
+   // Todos vienen de la carta oficial verificada al guardar cada receta.
+   const sku=String(body.catalog_sku||'');
+   if(!sku||sku.length>180)return fail(res,400,'Selecciona un producto de la carta de este local.');
+   let catalog;
+   try{catalog=await obtenerCartaCosto(req,negocio,sucursal);}
+   catch{return fail(res,503,'No se pudo confirmar la carta oficial. La receta no fue modificada.');}
+   const product=catalog.items.find(x=>x.sku===sku);
+   if(!product)return fail(res,409,'El producto ya no está disponible en esta carta.');
+   if(!Number.isSafeInteger(product.rolls)||product.rolls<1)
+    return fail(res,409,'No se pudo verificar cuántos rolls contiene. Revisa su configuración en la carta.');
+   const nombre=product.name,rolls=product.rolls,precio=product.price,
+    completa=body.completa===true,lineas=body.lineas;
+   if(!Array.isArray(lineas)||!lineas.length||lineas.length>50)
+    return fail(res,400,'Agrega los ingredientes y las cantidades reales de la receta.');
    const clean=[],ids=new Set();
    for(const x of lineas){
     const id=String(x?.insumo_id||''),unidad=String(x?.unidad||''),
@@ -826,20 +834,20 @@ module.exports=async(req,res)=>{
      return fail(res,400,'Actualiza el listado antes de modificar la receta.');
     const r=await sql.query(
      `UPDATE public.fin_costeo_fichas_v1 SET nombre=$4,rolls=$5,precio_venta=$6,
-      lineas=$7::jsonb,completa=$8,actualizado_en=now()
+      lineas=$7::jsonb,completa=$8,catalog_sku=$10,actualizado_en=now()
       WHERE id=$1 AND negocio_id=$2 AND sucursal_id=$3
        AND date_trunc('milliseconds',actualizado_en)=date_trunc('milliseconds',$9::timestamptz)
       RETURNING id,actualizado_en`,
-     [id,negocio,sucursal,nombre,rolls,precio,JSON.stringify(clean),completa,body.version]);
+     [id,negocio,sucursal,nombre,rolls,precio,JSON.stringify(clean),completa,body.version,sku]);
     if(!r.length)return fail(res,409,'La receta se modificó; actualiza el listado antes de guardarla.');
     await audit(sql,'costeo_ficha',id,'editar',who,{sucursal_id:sucursal,nombre,rolls,completa});
     return ok(res,{id:r[0].id,sucursal_id:sucursal,actualizado_en:r[0].actualizado_en,
       afectaInventario:false,afectaCaja:false});
    }
    const r=await sql.query(
-    `INSERT INTO public.fin_costeo_fichas_v1(negocio_id,sucursal_id,nombre,rolls,precio_venta,lineas,completa)
-     VALUES($1,$2,$3,$4,$5,$6::jsonb,$7) ON CONFLICT DO NOTHING RETURNING id,actualizado_en`,
-    [negocio,sucursal,nombre,rolls,precio,JSON.stringify(clean),completa]);
+    `INSERT INTO public.fin_costeo_fichas_v1(negocio_id,sucursal_id,nombre,rolls,precio_venta,lineas,completa,catalog_sku)
+     VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8) ON CONFLICT DO NOTHING RETURNING id,actualizado_en`,
+    [negocio,sucursal,nombre,rolls,precio,JSON.stringify(clean),completa,sku]);
    if(!r.length)return fail(res,409,'La receta ya existe para este local. Selecciona Editar.');
    await audit(sql,'costeo_ficha',r[0].id,'crear',who,{sucursal_id:sucursal,nombre,rolls,completa});
    return ok(res,{id:r[0].id,sucursal_id:sucursal,actualizado_en:r[0].actualizado_en,
@@ -869,7 +877,7 @@ module.exports=async(req,res)=>{
         OR EXISTS(SELECT 1 FROM public.fin_compra_repartos r
           WHERE r.compra_id=m.id AND r.sucursal_id=$2))
       ORDER BY m.fecha DESC,m.creado_en DESC,i.posicion LIMIT 180`,[negocio,sucursal]),
-    sql.query('SELECT id,negocio_id,sucursal_id,nombre,rolls,precio_venta,lineas,completa,actualizado_en '+
+    sql.query('SELECT id,negocio_id,sucursal_id,nombre,rolls,precio_venta,lineas,completa,catalog_sku,actualizado_en '+
      'FROM public.fin_costeo_fichas_v1 WHERE negocio_id=$1 AND sucursal_id=$2 ORDER BY nombre LIMIT 180',
      [negocio,sucursal])
    ]);
