@@ -18,7 +18,7 @@ function fail(res,status,error){return res.status(status).json({ok:false,error})
 const {entornoPanelRomoAutorizado}=require('../lib/romo-entorno-panel.cjs');
 function config(env){
  if(!entornoPanelRomoAutorizado(env)||
-   env.ROMO_CAJA_ACUMULADA_LECTURA_QA_ENABLED!=='true')return null;
+   env.ROMO_INVENTARIO_LECTURA_QA_ENABLED!=='true')return null;
  const host=String(env.ROMO_PRIVATE_DATABASE_HOST||'').toLowerCase();
  const origin=String(env.ROMO_PANEL_ALLOWED_ORIGIN||'');
  let db;try{db=new URL(String(env.ROMO_PRIVATE_DATABASE_URL||''))}catch{return null;}
@@ -33,8 +33,7 @@ function config(env){
    if(new URL(String(env[name]||'')).hostname.toLowerCase()===host)return null;
   }catch{}
  }
- return {url:db.toString(),origin,
-  write:env.ROMO_CAJA_ACUMULADA_ESCRITURA_QA_ENABLED==='true'};
+ return {url:db.toString(),origin};
 }
 
 module.exports=async(req,res)=>{
