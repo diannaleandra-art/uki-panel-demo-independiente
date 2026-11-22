@@ -205,7 +205,7 @@ function mountCosteo(){
  }
  async function loadRecipes(){
   if(recipeBusy)return;recipeLock(true);rs('Consultando productos e ingredientes…');
-  try{const [catalog,inventory]=await Promise.all([call('listar-recetas'),call('listar')]);recipeProducts=catalog.products||[];recipes=catalog.recipes||[];recipeItems=(inventory.items||[]).filter(i=>groups[i.stock_unit]);const field=re('invRecipeProduct'),prev=field.value;field.replaceChildren();for(const p of recipeProducts)opt(field,p.sku,p.name);if(recipeProducts.some(p=>p.sku===prev))field.value=prev;re('invRecipeFields').hidden=!recipeProducts.length;if(recipeProducts.length){variants();openRecipe();}else rs('No hay productos registrados en la carta.');}
+  try{const [catalog,inventory]=await Promise.all([call('listar-recetas'),call('listar')]);recipeProducts=catalog.products||[];recipes=catalog.recipes||[];recipeItems=(inventory.items||[]).filter(i=>groups[i.stock_unit]);const field=re('invRecipeProduct'),prev=field.value;field.replaceChildren();for(const p of recipeProducts)opt(field,p.sku,p.name+(p.source==='borrador'?' · borrador de carta':''));if(recipeProducts.some(p=>p.sku===prev))field.value=prev;re('invRecipeFields').hidden=!recipeProducts.length;if(recipeProducts.length){variants();openRecipe();}else rs('No hay productos registrados en la carta.');}
   catch(e){if(within()){re('invRecipeFields').hidden=true;rs(e.message);}}
   finally{if(within())recipeLock(false);}
  }
