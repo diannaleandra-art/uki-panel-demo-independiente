@@ -74,18 +74,20 @@
   function renderExample(){
     const p=$('rxProduct'),price=$('rxPrice'),cost=$('rxCost'),tax=$('rxTax');
     if(!p||!price||!cost||!tax)return;
-    const n=Number(price.value),c=Number(cost.value),hasPrice=price.value.trim()!==''&&Number.isFinite(n)&&n>0;
-    const hasCost=cost.value.trim()!==''&&Number.isFinite(c)&&c>=0;
+    const n=Number(price.value),cShown=Number(cost.value),hasPrice=price.value.trim()!==''&&Number.isFinite(n)&&n>0;
+    const hasCost=cost.value.trim()!==''&&Number.isFinite(cShown)&&cShown>0;
     const gross=tax.value==='con';
     const saleNet=hasPrice?n/1.19:NaN;
-    const costShown=hasCost?(gross?c*1.19:c):NaN;
+    const cNet=hasCost?(gross?cShown/1.19:cShown):NaN;
+    const costShown=hasCost?cShown:NaN;
+    $('rxCostInputLabel').textContent=gross?'Me cuesta prepararlo, con IVA ($)':'Me cuesta prepararlo, sin IVA ($)';
     $('rxSaleLabel').textContent=gross?'Lo vendo en (con IVA)':'Lo vendo en (sin IVA)';
     $('rxSale').textContent=fmt(gross?n:saleNet);
     $('rxCostLabel').textContent=gross?'Me cuesta prepararlo (con IVA estimado)':'Me cuesta prepararlo (sin IVA)';
     $('rxCostShown').textContent=fmt(costShown);
-    $('rxMargin').textContent=hasPrice&&hasCost?fmt(saleNet-c):'Sin costo completo';
-    $('rxPriceSuggested').textContent=hasCost?fmt(Math.ceil((c*1.19/0.30)/100)*100):'Sin costo completo';
-    $('rxPriceLow').textContent=hasCost?fmt(Math.ceil((c*1.19/0.35)/100)*100):'—';
+    $('rxMargin').textContent=hasPrice&&hasCost?fmt(saleNet-cNet):'Sin costo completo';
+    $('rxPriceSuggested').textContent=hasCost?fmt(Math.ceil((cNet*1.19/0.30)/100)*100):'Sin costo completo';
+    $('rxPriceLow').textContent=hasCost?fmt(Math.ceil((cNet*1.19/0.35)/100)*100):'—';
     $('rxMarginDescription').textContent=hasCost?
       'Queda después de ingredientes e IVA, pero ANTES de sueldos, arriendo, comisiones y otros gastos. No es ganancia final.':
       'Para saber cuánto deja, registra primero todos los ingredientes y envases en Negocios → Costos.';
@@ -97,6 +99,15 @@
     if(!$('rxRecipes'))return;
     renderRecipes();
     const select=$('rxProduct');
+    let previousTax=$('rxTax').value;
+    $('rxTax').addEventListener('change',()=>{
+      const input=$('rxCost');
+      if(input.value.trim()!=='' && Number.isFinite(Number(input.value)) && Number(input.value)>0){
+        input.value=String(Math.round(Number(input.value)*(previousTax==='con'?1/1.19:1.19)));
+      }
+      previousTax=$('rxTax').value;
+      renderExample();
+    });
     for(let i=0;i<products.length;i++) select.add(new Option(products[i].name,String(i)));
     function chosen(){
       $('rxPrice').value=String(products[Number(select.value)||0].price);
@@ -104,7 +115,7 @@
       renderExample();
     }
     select.onchange=chosen;
-    for(const id of ['rxTax','rxCost','rxPrice'])$(id).addEventListener('input',renderExample);
+    for(const id of ['rxCost','rxPrice'])$(id).addEventListener('input',renderExample);
     $('rxGoCosts').addEventListener('click',()=>{
       const tab=document.querySelector('button[data-tab="negocios"]');
       if(!tab)return;tab.click();
