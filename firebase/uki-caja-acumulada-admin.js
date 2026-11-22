@@ -28,6 +28,44 @@ function fechaOperativaLegible(raw){
  if(utc.getUTCFullYear()!==y||utc.getUTCMonth()+1!==m||utc.getUTCDate()!==d)return null;
  return primeraMayuscula(movimientoFechaChile.format(utc));
 }
+// Orden de calendario del turno, separado de la hora real del registro.
+// Esta ordenación es SOLO de presentación: nunca recalcula saldos.
+const movimientoDiaChile=new Intl.DateTimeFormat('es-CL',{
+ timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'
+});
+function diaMovimiento(m){
+ const valido=x=>typeof x==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(x);
+ if(valido(m?.fecha_operativa))return m.fecha_operativa;
+ if(['cierre','ajuste_cierre'].includes(m?.tipo)){
+  const ref=/^uki\|(?:arica|serena)\|(\d{13})$/.exec(String(m?.cierre_clave||''));
+  if(ref&&Number.isFinite(Number(ref[1]))){
+   const d=new Date(Number(ref[1]));
+   if(Number.isFinite(d.getTime())){
+    const parts=movimientoDiaChile.formatToParts(d);
+    const v=k=>parts.find(p=>p.type===k)?.value||'';
+    return v('year')+'-'+v('month')+'-'+v('day');
+   }
+  }
+ }
+ const d=new Date(m?.creado_en);
+ if(!Number.isFinite(d.getTime()))return '';
+ const parts=movimientoDiaChile.formatToParts(d);
+ const v=k=>parts.find(p=>p.type===k)?.value||'';
+ return v('year')+'-'+v('month')+'-'+v('day');
+}
+function ordenarMovimientosCalendario(a,b){
+ const dayA=diaMovimiento(a),dayB=diaMovimiento(b);
+ if(dayA!==dayB)return dayA<dayB?1:-1;
+ const tA=Date.parse(a?.creado_en)||0,tB=Date.parse(b?.creado_en)||0;
+ if(tA!==tB)return tB-tA;
+ return Number(b?.id||0)-Number(a?.id||0);
+}
+function fechasPendientesLegibles(cierres){
+ const fechas=[...new Set(cierres.map(c=>fechaOperativaLegible(c.fechaOperativa)||
+  fechaHoraMovimiento(c.fechaMs)))];
+ return fechas.slice(0,8).join('; ')+(fechas.length>8?
+  '; y '+(fechas.length-8)+' fecha(s) más (ver lista)':'');
+}
 function status(msg,kind=''){
  const el=$('ukiAcumStatus');if(!el)return;
  el.textContent=msg;el.dataset.kind=kind;
@@ -355,18 +393,23 @@ async function load(){
   state.balance=Number(a.cuenta.balance)||0;
   state.initialized=a.cuenta.initialized===true;
   state.initializedAt=a.cuenta.initialized_at||null;
-  state.history=Array.isArray(m.movimientos)?m.movimientos:[];
+  state.history=Array.isArray(m.movimientos)?m.movimientos.slice().sort(ordenarMovimientosCalendario):[];
   const credited=new Set(Array.isArray(m.cierres_acreditados)?m.cierres_acreditados:[]);
   state.revisiones=Array.isArray(m.revisiones)?m.revisiones:[];
   const excluidos=new Set(state.revisiones.filter(x=>x.estado==='ya_incluido').map(x=>x.cierre_clave));
   const inicio=Date.parse(state.initializedAt||'');
   const branchName=branch==='arica'?'Uki Regimiento Arica':'Uki La Serena';
   const candidates=state.initialized&&Array.isArray(m.cierres_acreditados)?
-    (S.cierres||[]).filter(c=>c?.suc===branchName&&Number.isSafeInteger(c.fechaMs)&&c.fechaMs>inicio&&c.fechaMs<=Date.now()+20*60000&&!credited.has('uki|'+branch+'|'+c.fechaMs)).sort((a,b)=>b.fechaMs-a.fechaMs):[];
+    (S.cierres||[]).filter(c=>c?.suc===branchName&&Number.isSafeInteger(c.fechaMs)&&c.fechaMs>inicio&&c.fechaMs<=Date.now()+20*60000&&!credited.has('uki|'+branch+'|'+c.fechaMs)).sort((a,b)=>{
+     const da=String(a.fechaOperativa||''),db=String(b.fechaOperativa||'');
+     return da===db?b.fechaMs-a.fechaMs:da<db?1:-1;
+    }):[];
   state.pendingClosures=candidates.filter(c=>!excluidos.has('uki|'+branch+'|'+c.fechaMs));
   state.markedClosures=candidates.filter(c=>excluidos.has('uki|'+branch+'|'+c.fechaMs));
   state.ready=true;
-  if(state.pendingClosures.length)status(state.pendingClosures.length+' cierre(s) pendientes de acreditar. Revisa antes de sumar: pueden estar incluidos manualmente.','error');
+  if(state.pendingClosures.length)status('⚠ '+state.pendingClosures.length+
+   ' cierre(s) pendientes de acreditar. Turno(s): '+fechasPendientesLegibles(state.pendingClosures)+
+   '. Revisa antes de sumar, porque alguno podría estar incluido manualmente.','error');
   else status('✓ Efectivo acumulado actualizado y separado de las ventas del turno.','success');
  }catch(e){state.ready=false;status(String(e.message||e),'error');}
  finally{state.busy=false;draw();}
