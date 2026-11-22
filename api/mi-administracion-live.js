@@ -713,11 +713,67 @@ module.exports=async(req,res)=>{
 
   // Costeo por insumos y factura: solo uso privado tras sesión Google + PIN.
   // Las fotos nunca modifican precios sin validación explícita del dueño.
+  if(action==='costeo_ficha_guardar'){
+   const negocio=body.negocio_id,sucursal=body.sucursal_id;
+   if(!uuid.test(String(sucursal||'')))return fail(res,400,'Selecciona una sucursal para la receta.');
+   await belongs(sql,negocio,sucursal);
+   const nombre=text(body.nombre,120),rolls=Number(body.rolls),
+    precio=Number(body.precio_venta),completa=body.completa===true,
+    lineas=body.lineas;
+   if(nombre.length<2||!Number.isSafeInteger(rolls)||rolls<1||rolls>100||
+      !Number.isSafeInteger(precio)||precio<1||precio>1000000000||
+      !Array.isArray(lineas)||!lineas.length||lineas.length>50)
+    return fail(res,400,'Revisa nombre, rolls, precio y lista de ingredientes de la receta.');
+   const clean=[],ids=new Set();
+   for(const x of lineas){
+    const id=String(x?.insumo_id||''),unidad=String(x?.unidad||''),
+      modo=String(x?.modo||''),cantidad=Number(x?.cantidad);
+    if(!uuid.test(id)||!['g','ml','un'].includes(unidad)||
+       !['roll','producto'].includes(modo)||
+       !Number.isFinite(cantidad)||cantidad<=0||cantidad>1000000||
+       Math.round(cantidad*1000)!==cantidad*1000||
+       ids.has(id+'|'+modo))return fail(res,400,'Revisa los insumos y cantidades de la receta.');
+    clean.push({insumo_id:id,unidad,modo,cantidad});ids.add(id+'|'+modo);
+   }
+   const ingredientRows=await sql.query(
+    'SELECT id,unidad_compra FROM public.fin_costeo_insumos_v1 WHERE negocio_id=$1 AND sucursal_id=$2 AND id=ANY($3::uuid[])',
+    [negocio,sucursal,clean.map(x=>x.insumo_id)]);
+   if(new Set(ingredientRows.map(x=>String(x.id))).size!==new Set(clean.map(x=>x.insumo_id)).size)
+    return fail(res,400,'Hay ingredientes de otra sucursal o sin costo registrado.');
+   const kinds=new Map(ingredientRows.map(x=>[String(x.id),
+      ['kg','g'].includes(x.unidad_compra)?'g':['l','ml'].includes(x.unidad_compra)?'ml':'un']));
+   if(clean.some(x=>kinds.get(x.insumo_id)!==x.unidad))
+    return fail(res,400,'La unidad de consumo no coincide con la unidad de compra de un ingrediente.');
+   const id=body.id;
+   if(id!==null&&id!==undefined&&id!==''){
+    if(!uuid.test(String(id))||typeof body.version!=='string'||!Number.isFinite(Date.parse(body.version)))
+     return fail(res,400,'Actualiza el listado antes de modificar la receta.');
+    const r=await sql.query(
+     `UPDATE public.fin_costeo_fichas_v1 SET nombre=$4,rolls=$5,precio_venta=$6,
+      lineas=$7::jsonb,completa=$8,actualizado_en=now()
+      WHERE id=$1 AND negocio_id=$2 AND sucursal_id=$3
+       AND date_trunc('milliseconds',actualizado_en)=date_trunc('milliseconds',$9::timestamptz)
+      RETURNING id,actualizado_en`,
+     [id,negocio,sucursal,nombre,rolls,precio,JSON.stringify(clean),completa,body.version]);
+    if(!r.length)return fail(res,409,'La receta se modificó; actualiza el listado antes de guardarla.');
+    await audit(sql,'costeo_ficha',id,'editar',who,{sucursal_id:sucursal,nombre,rolls,completa});
+    return ok(res,{id:r[0].id,sucursal_id:sucursal,actualizado_en:r[0].actualizado_en,
+      afectaInventario:false,afectaCaja:false});
+   }
+   const r=await sql.query(
+    `INSERT INTO public.fin_costeo_fichas_v1(negocio_id,sucursal_id,nombre,rolls,precio_venta,lineas,completa)
+     VALUES($1,$2,$3,$4,$5,$6::jsonb,$7) ON CONFLICT DO NOTHING RETURNING id,actualizado_en`,
+    [negocio,sucursal,nombre,rolls,precio,JSON.stringify(clean),completa]);
+   if(!r.length)return fail(res,409,'La receta ya existe para este local. Selecciona Editar.');
+   await audit(sql,'costeo_ficha',r[0].id,'crear',who,{sucursal_id:sucursal,nombre,rolls,completa});
+   return ok(res,{id:r[0].id,sucursal_id:sucursal,actualizado_en:r[0].actualizado_en,
+    afectaInventario:false,afectaCaja:false});
+  }
   if(action==='costeo_insumos_listar'){
    const negocio=body.negocio_id,sucursal=body.sucursal_id;
    if(!uuid.test(String(sucursal||'')))return fail(res,400,'Selecciona la sucursal.');
    await belongs(sql,negocio,sucursal);
-   const [insumos,facturas]=await Promise.all([
+   const [insumos,facturas,fichas]=await Promise.all([
     sql.query('SELECT id,negocio_id,sucursal_id,nombre,unidad_compra,cantidad_compra::text,precio_compra::text,'+
       'rendimiento_pct::text,cantidad_roll::text,origen_item_id,origen_factura_id,actualizado_en '+
       'FROM public.fin_costeo_insumos_v1 WHERE negocio_id=$1 AND sucursal_id=$2 ORDER BY nombre LIMIT 250',
@@ -736,9 +792,12 @@ module.exports=async(req,res)=>{
        AND (m.sucursal_id=$2 OR m.sucursal_id IS NULL
         OR EXISTS(SELECT 1 FROM public.fin_compra_repartos r
           WHERE r.compra_id=m.id AND r.sucursal_id=$2))
-      ORDER BY m.fecha DESC,m.creado_en DESC,i.posicion LIMIT 180`,[negocio,sucursal])
+      ORDER BY m.fecha DESC,m.creado_en DESC,i.posicion LIMIT 180`,[negocio,sucursal]),
+    sql.query('SELECT id,negocio_id,sucursal_id,nombre,rolls,precio_venta,lineas,completa,actualizado_en '+
+     'FROM public.fin_costeo_fichas_v1 WHERE negocio_id=$1 AND sucursal_id=$2 ORDER BY nombre LIMIT 180',
+     [negocio,sucursal])
    ]);
-   return ok(res,{sucursal_id:sucursal,insumos,facturas,
+   return ok(res,{sucursal_id:sucursal,insumos,facturas,fichas,
     nota:'El valor de línea de factura puede ser neto y no incluye automáticamente IVA, descuentos o fletes. Confirma el contenido del envase y el peso real antes de vincular.'});
   }
   if(action==='costeo_insumo_guardar'){
