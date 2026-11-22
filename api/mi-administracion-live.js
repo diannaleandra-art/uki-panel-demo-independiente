@@ -710,18 +710,56 @@ module.exports=async(req,res)=>{
    if(!rows.length)return fail(res,404,'No existe ese documento.');
    return ok(res,{mime:rows[0].mime,nombre:rows[0].nombre,base64:rows[0].base64.replace(/\s/g,'')});
   }
-  if(action==='guardar_costo'){
-   await belongs(sql,body.negocio_id,null);
-   const nombre=text(body.nombre,100),venta=Number(body.precio_venta),costo=Number(body.costo_estimado);
-   if(nombre.length<2||!money(venta)||!money(costo))return fail(res,400,'Revisa nombre y costos.');
-   const r=await sql.query('INSERT INTO public.fin_costos_productos(negocio_id,nombre,precio_venta,costo_estimado,detalle) VALUES($1,$2,$3,$4,$5) RETURNING id',[body.negocio_id,nombre,venta,costo,text(body.detalle,500)]);
-   await audit(sql,'costo',r[0].id,'crear',who,{nombre,venta,costo});
-   return ok(res,{id:r[0].id});
+  // Costos manuales solo por sucursal, sin tocar cierres, inventario ni caja.
+  // Esta ruta solo se alcanza tras verificar Google y PIN de los dueños.
+  if(action==='guardar_costo'||action==='editar_costo'){
+   const negocio=body.negocio_id,sucursal=body.sucursal_id;
+   if(!uuid.test(String(sucursal||'')))return fail(res,400,'Selecciona el local al que pertenece el costo.');
+   await belongs(sql,negocio,sucursal);
+   const nombre=text(body.nombre,100),venta=Number(body.precio_venta),
+    costo=Number(body.costo_estimado),detalle=text(body.detalle,500);
+   if(nombre.length<2||!Number.isSafeInteger(venta)||venta<1||venta>1000000000||
+      !Number.isSafeInteger(costo)||costo<1||costo>1000000000)
+    return fail(res,400,'Ingresa precio de venta y costo estimado reales para esta sucursal.');
+   if(action==='guardar_costo'){
+    const r=await sql.query(
+     'INSERT INTO public.fin_costos_productos(negocio_id,sucursal_id,nombre,precio_venta,costo_estimado,detalle) '+
+     'VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING RETURNING id',
+     [negocio,sucursal,nombre,venta,costo,detalle]);
+    if(!r.length)return fail(res,409,'Ese producto ya existe en este local. Usa Editar para cambiarlo.');
+    await audit(sql,'costo',r[0].id,'crear',who,{negocio_id:negocio,sucursal_id:sucursal,nombre,venta,costo});
+    return ok(res,{id:r[0].id,sucursal_id:sucursal});
+   }
+   if(!uuid.test(String(body.id||''))||typeof body.version!=='string'||
+      !Number.isFinite(Date.parse(body.version)))
+    return fail(res,400,'Actualiza la lista antes de editar este costo.');
+   const before=await sql.query(
+    'SELECT id,nombre,precio_venta,costo_estimado,detalle,actualizado_en '+
+    'FROM public.fin_costos_productos WHERE id=$1 AND negocio_id=$2 AND sucursal_id=$3',
+    [body.id,negocio,sucursal]);
+   if(!before.length)return fail(res,404,'El costo ya no pertenece a esta sucursal.');
+   const r=await sql.query(
+    'UPDATE public.fin_costos_productos SET nombre=$4,precio_venta=$5,costo_estimado=$6,detalle=$7,actualizado_en=now() '+
+    'WHERE id=$1 AND negocio_id=$2 AND sucursal_id=$3 AND actualizado_en=$8::timestamptz '+
+    'RETURNING id,actualizado_en',
+    [body.id,negocio,sucursal,nombre,venta,costo,detalle,body.version]);
+   if(!r.length)return fail(res,409,'Este costo fue modificado. Actualiza y vuelve a revisar.');
+   await audit(sql,'costo',body.id,'editar',who,{
+    sucursal_id:sucursal,
+    antes:{nombre:before[0].nombre,precio_venta:Number(before[0].precio_venta),
+     costo_estimado:Number(before[0].costo_estimado),detalle:before[0].detalle},
+    despues:{nombre,precio_venta:venta,costo_estimado:costo,detalle}});
+   return ok(res,{id:r[0].id,sucursal_id:sucursal,actualizado_en:r[0].actualizado_en});
   }
   if(action==='costos'){
-   const b=body.negocio_id||null;if(b)await belongs(sql,b,null);
-   const rows=await sql.query('SELECT id,negocio_id,nombre,precio_venta,costo_estimado,detalle FROM public.fin_costos_productos WHERE ($1::uuid IS NULL OR negocio_id=$1) ORDER BY nombre LIMIT 200',[b]);
-   return ok(res,{productos:rows});
+   const negocio=body.negocio_id,sucursal=body.sucursal_id;
+   if(!uuid.test(String(sucursal||'')))return fail(res,400,'Selecciona una sucursal para ver sus costos.');
+   await belongs(sql,negocio,sucursal);
+   const rows=await sql.query(
+    'SELECT id,negocio_id,sucursal_id,nombre,precio_venta,costo_estimado,detalle,actualizado_en '+
+    'FROM public.fin_costos_productos WHERE negocio_id=$1 AND sucursal_id=$2 ORDER BY nombre LIMIT 200',
+    [negocio,sucursal]);
+   return ok(res,{productos:rows,sucursal_id:sucursal,soloEstimaciones:true});
   }
   return fail(res,400,'Función no reconocida.');
  }catch(e){
