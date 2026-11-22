@@ -740,7 +740,7 @@ module.exports=async(req,res)=>{
    if(!before.length)return fail(res,404,'El costo ya no pertenece a esta sucursal.');
    const r=await sql.query(
     'UPDATE public.fin_costos_productos SET nombre=$4,precio_venta=$5,costo_estimado=$6,detalle=$7,actualizado_en=now() '+
-    'WHERE id=$1 AND negocio_id=$2 AND sucursal_id=$3 AND actualizado_en=$8::timestamptz '+
+    'WHERE id=$1 AND negocio_id=$2 AND sucursal_id=$3 AND date_trunc(\'milliseconds\',actualizado_en)=date_trunc(\'milliseconds\',$8::timestamptz) '+
     'RETURNING id,actualizado_en',
     [body.id,negocio,sucursal,nombre,venta,costo,detalle,body.version]);
    if(!r.length)return fail(res,409,'Este costo fue modificado. Actualiza y vuelve a revisar.');
