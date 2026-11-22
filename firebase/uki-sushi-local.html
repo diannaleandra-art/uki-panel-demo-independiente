@@ -3057,12 +3057,28 @@ function totales(){
   };
 }
 
+
+function ukiCajaNavegacionSimple(){
+ const principales=['resumen','movimientos','precierre','cierre','historial'];
+ const botones=items=>items.map(([k,l])=>'<button type="button" class="'+(cajaTab===k?'selected':'')+'" style="'+(k==='cierre'?'font-weight:800;':'')+'" onclick="cambiarCajaTab(\''+k+'\')">'+esc(l)+'</button>').join('');
+ return '<section class="card"><div class="sub-tabs" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px" role="group" aria-label="Caja">'+botones(CAJA_TABS.filter(([k])=>principales.includes(k)))+'</div><details '+(!principales.includes(cajaTab)?'open':'')+'><summary>Más opciones · reportes y efectivo acumulado</summary><div class="sub-tabs">'+botones(CAJA_TABS.filter(([k])=>!principales.includes(k)))+'</div></details></section>';
+}
+let ukiCierreReciente=null;
+function ukiCierreRecienteUI(){
+ const c=ukiCierreReciente;
+ if(!c||c.suc!==S.suc)return '';
+ const i=(S.cierres||[]).findIndex(x=>x.suc===c.suc&&fechaCierreMs(x)===c.ms);
+ if(i<0)return '';
+ const cierre=S.cierres[i];
+ return '<section class="card" role="status" style="border:2px solid #238636"><h2>✅ Cierre guardado</h2><p>'+esc(cierre.fechaOperativa||'')+' · '+esc(cierre.fecha||cierre.fechaISO||'')+'</p>'+row('Venta total',fmt(cierre.venta))+ukiAccionesCierreReciente(cierre,i)+'<button type="button" class="sm" onclick="ukiCierreReciente=null;cambiarCajaTab(\'resumen\')">Volver a Caja</button> <button type="button" class="sm" onclick="ukiCierreReciente=null;cambiarCajaTab(\'historial\')">Ver historial</button></section>';
+}
+function ukiAccionesCierreReciente(c,i){return ukiAccionesHistorial(c);}
 function vCaja(){
   if(!S.suc)return vInicio();
   const active=CAJA_TABS.find(x=>x[0]===cajaTab)||CAJA_TABS[0];
   const content=({resumen:vCajaResumen,movimientos:vMovimientos,precierre:vPrecierreTrabajadores,cierre:vCierre,historial:vHistorialCompacto,semana:vReportes,acumulada:()=>window.ukiCajaAcumuladaVista?.()||'<div class="card">Preparando Caja acumulada en efectivo…</div>'})[active[0]]();
   return `<div class="section-head"><h2>Caja</h2><p>Turno abierto · ${fechaOperativaActual()}</p></div>
-  <div class="card uki-navegacion-compacta uki-navegacion-caja"><label for="ukiCajaIrA"><b>🔎 Ir directamente a una sección de Caja</b></label><select id="ukiCajaIrA" onchange="cambiarCajaTab(this.value)">${CAJA_TABS.map(([k,l])=>`<option value="${k}" ${cajaTab===k?'selected':''}>${l}</option>`).join('')}</select><div class="sub-tabs" role="group" aria-label="Secciones de Caja visibles">${CAJA_TABS.map(([k,l])=>`<button type="button" class="${cajaTab===k?'selected':''}" onclick="cambiarCajaTab('${k}')">${l}</button>`).join('')}</div></div>${content}<div class="card"><h2>💾 Respaldo protegido de esta sucursal</h2><p class="muted">Guarda un respaldo cifrado al terminar el turno. La clave no se guarda: si la olvidas, no podrás recuperar ese archivo.</p><label>Crear clave para este respaldo (minimo 12 caracteres)</label><input id="ukiClaveBackup" type="password" autocomplete="new-password" placeholder="Clave de respaldo"><label>Repite la clave</label><input id="ukiConfirmaBackup" type="password" autocomplete="new-password" placeholder="Confirmar clave"><button class="big" onclick="descargarRespaldoCompleto()">Descargar respaldo cifrado</button><hr><p class="muted">Restaurar reemplaza los registros actuales de esta sucursal. Antes guarda una copia. También se admiten los respaldos anteriores v8.11 sin cifrar.</p><label>Clave del respaldo (si está cifrado)</label><input id="ukiClaveRestaurar" type="password" autocomplete="off" placeholder="Clave del archivo"><label>Elegir archivo para restaurar</label><input type="file" accept=".json,application/json" onchange="cargarRespaldo(event)"></div><section id="ukiArchivoMensualRoot"></section>`;
+  ${ukiCierreRecienteUI()}${ukiCajaNavegacionSimple()}${content}<details class="card"><summary>💾 Respaldo protegido y restauración</summary><p class="muted">Guarda un respaldo cifrado al terminar el turno. La clave no se guarda: si la olvidas, no podrás recuperar ese archivo.</p><label>Crear clave para este respaldo (minimo 12 caracteres)</label><input id="ukiClaveBackup" type="password" autocomplete="new-password" placeholder="Clave de respaldo"><label>Repite la clave</label><input id="ukiConfirmaBackup" type="password" autocomplete="new-password" placeholder="Confirmar clave"><button class="big" onclick="descargarRespaldoCompleto()">Descargar respaldo cifrado</button><hr><p class="muted">Restaurar reemplaza los registros actuales de esta sucursal. Antes guarda una copia. También se admiten los respaldos anteriores v8.11 sin cifrar.</p><label>Clave del respaldo (si está cifrado)</label><input id="ukiClaveRestaurar" type="password" autocomplete="off" placeholder="Clave del archivo"><label>Elegir archivo para restaurar</label><input type="file" accept=".json,application/json" onchange="cargarRespaldo(event)"></details><section id="ukiArchivoMensualRoot"></section>`;
 }
 let semanaConsulta="";
 function actualizarSemana(fecha){semanaConsulta=fecha||"";render();}
@@ -3379,7 +3395,7 @@ function vMovimientos(){
   const cards=Array.from(tmp.children);
   const index={apps:1,delivery:2,gastos:3,repartidor:4,propinas:5,retiros:6,chica:7}[movimientoTab];
   const selected=cards[index];
-  return `<div class="card uki-navegacion-compacta uki-navegacion-movimientos"><label for="ukiMovimientoIrA"><b>🔎 Elegir tipo de movimiento</b></label><select id="ukiMovimientoIrA" onchange="cambiarMovimientoTab(this.value)">${MOV_TABS.map(([k,l])=>`<option value="${k}" ${movimientoTab===k?'selected':''}>${l}</option>`).join('')}</select><div class="movement-tabs" role="group" aria-label="Tipos de movimiento visibles">${MOV_TABS.map(([k,l])=>`<button type="button" class="${movimientoTab===k?'selected':''}" onclick="cambiarMovimientoTab('${k}')">${l}</button>`).join('')}</div></div>
+  return `<div class="card uki-navegacion-compacta uki-navegacion-movimientos"><h2>Movimientos del turno</h2><div class="movement-tabs" role="group" aria-label="Tipos de movimiento visibles">${MOV_TABS.map(([k,l])=>`<button type="button" class="${movimientoTab===k?'selected':''}" onclick="cambiarMovimientoTab('${k}')">${l}</button>`).join('')}</div></div>
     ${selected?selected.outerHTML:'<div class="card">No se encontró esta sección. Regresa al resumen.</div>'}`;
 }
 
@@ -3558,7 +3574,7 @@ function vCierre(){
   </div>
   <div class="card"><p class="muted"><b>🕒 ¿Solo finaliza el turno de un trabajador?</b> Usa «Precierre trabajador». No realiza un cierre de caja. <button type="button" class="sm" onclick="cambiarCajaTab('precierre')">Ir a precierre</button></p></div>
   <div class="card" style="border:2px solid #a44b2a"><h2>🔒 CIERRE DEFINITIVO · ${fechaOperativaActual()}</h2><p class="muted"><b>ESTA OPCIÓN SÍ CIERRA LA CAJA Y GUARDA EL CORTE DEL DÍA.</b> No es el precierre de un trabajador.</p><label>Responsable</label><input id="resp" placeholder="Nombre" value="${esc(cierreDraft.resp)}" oninput="cierreDraft.resp=this.value"><label>Observaciones</label><textarea id="obs" rows="2" oninput="cierreDraft.obs=this.value">${esc(cierreDraft.obs)}</textarea>${S.confirmCierre?'<p class="aviso" style="background:#ffe1e1;color:#7a0010">El siguiente botón CIERRA DEFINITIVAMENTE la caja del día. Marca la casilla antes de confirmar.</p>':""}${S.confirmCierre?'<label style="font-weight:700"><input id="ukiConfirmarCierreDefinitivo" type="checkbox"> Confirmo que deseo cerrar definitivamente la caja del día.</label>':''}<button class="big" style="background:#8c302b;color:#fff" onclick="cerrar()" ${pendientesSolicitudes.length?'disabled title="Resuelve primero las solicitudes pendientes de Pedidos"':''}>${S.confirmCierre?"CONFIRMAR CIERRE DEFINITIVO":"Revisar cierre definitivo"}</button></div>
-  <div class="card"><h2>📤 Compartir y descargar · al final del cierre</h2><p class="muted">Primero confirma el cierre definitivo. Después podrás compartir la versión guardada por WhatsApp y descargar el PDF real o Excel desde Historial, sin confundirla con un resumen provisional.</p><button type="button" class="big" onclick="cambiarCajaTab('historial')">📚 Ir a cierres guardados · WhatsApp / Excel / PDF</button></div>`;
+  <p class="muted">Al confirmar, aparecerán WhatsApp, PDF y Excel del cierre guardado.</p>`;
 }
 // Fechas independientes: pedidos por fecha del pedido, incidencias por fecha del reporte.
 let filtroCodigoCarta="",filtroDiaPedidos="",filtroDiaIncidencias="",erroresAbiertos=false;
@@ -4827,16 +4843,18 @@ async function cerrar(){
   delete caja.inicioMs;
   delete caja.repartidorNombre; // siguiente turno vuelve al habitual
   S.fechaOperativa=hoyLocal(); // Nuevo período luego del cierre, no a medianoche.
-  guardarEnLocalStorage();
+  const guardadoCierre=await guardarEnLocalStorage();
+  if(guardadoCierre===false){S.busy=false;aviso("No se confirmó el guardado del cierre. No lo repitas sin revisar el estado y el respaldo.");return;}
   // Caja acumulada: sincroniza solo el cierre confirmado, sin detener caja si no hay conexión.
   const cierreAcumulable=S.cierres[S.cierres.length-1];
   if(cierreAcumulable&&typeof window.ukiCajaAcumuladaRegistrarCierre==="function")
     void window.ukiCajaAcumuladaRegistrarCierre(cierreAcumulable);
   S.busy=false;
   cierreDraft={resp:"",obs:"",contado:""};
-  aviso("✅ Turno "+fechaTurnoCerrado+" cerrado y guardado en Historial");
-  S.vista="caja";cajaTab="historial";
-  render();
+  ukiCierreReciente={suc:S.suc,ms:fechaCierre};
+  S.msg="✅ Turno "+fechaTurnoCerrado+" cerrado y guardado";
+  S.vista="caja";cajaTab="resumen";
+  render();window.scrollTo({top:0,behavior:"instant"});
 }
 function descargarTextoArchivo(nombre, contenido, mime){
   try{
