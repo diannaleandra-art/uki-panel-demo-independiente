@@ -26,8 +26,10 @@ if(manual.length){
 }
 if(mode==='--aplicar'&&manual.length)throw Error('Hay modificaciones fuera del núcleo compartido; conciliar todos los adaptadores antes de avanzar la base Uki.');
 const operations=[];
-for(const {source,target} of manifest.modules){
- const previous=git('show',manifest.baseUki+':'+source);
+for(const {source,target,baseUki:moduleBase=manifest.baseUki} of manifest.modules){
+ if(!/^[0-9a-f]{40}$/.test(moduleBase))throw Error('Base de módulo no verificada: '+source);
+ git('merge-base','--is-ancestor',moduleBase,ref);
+ const previous=git('show',moduleBase+':'+source);
  const next=git('show',ref+':'+source);
  const local=readFileSync(target);
  const conflict=hash(local)!==hash(previous)&&hash(local)!==hash(next);
@@ -39,6 +41,7 @@ if(mode==='--aplicar'){
  if(git('status','--porcelain').toString().trim())throw Error('Comienza desde un árbol Git limpio');
  for(const op of operations.filter(x=>x.changed))writeFileSync(op.target,op.next);
  manifest.baseUki=ref;
+ for(const module of manifest.modules)delete module.baseUki;
  writeFileSync(new URL('./nucleo-uki-romo.json',import.meta.url),JSON.stringify(manifest,null,2)+'\n');
  console.log('Núcleo actualizado localmente, pendiente de revisión, pruebas manuales y publicación.');
 }else console.log('Solo comparación. Sin escrituras ni despliegues.');
