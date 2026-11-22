@@ -37,3 +37,6 @@ BEGIN
  INTO result;
  RETURN result||jsonb_build_object('cierre_clave',p_close_key);
 END $function$;
+
+-- La función sólo debe poder invocarse mediante el rol autenticado del backend.
+REVOKE ALL ON FUNCTION public.uki_caja_acum_sincronizar_contado_v2(text,text,text,bigint,bigint,uuid,text,text,text) FROM PUBLIC;
