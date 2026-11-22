@@ -6159,8 +6159,9 @@ function ukiRomoPedidosPendientesHTMLQA(){
  const cerrados=new Set(todos.length?(S.cierres||[]).filter(c=>c.suc===ROMO_SUCURSAL_QA).map(c=>String(c.turnoClave||'')).filter(Boolean):[]);
  const enOperacion=p=>{
   const clave=String(p.turnoClave||'');
-  if((clave&&cerrados.has(clave))||ukiCierreConfirmadoPedido(p))return false;
+  if(clave&&cerrados.has(clave))return false;
   if(clave&&turnoActual)return clave===turnoActual;
+  if(ukiCierreConfirmadoPedido(p))return false;
   return ukiRomoFechaPedidoQA(p)===fechaActual&&esDelPeriodo(p);
  };
  const pendienteAnterior=p=>!enOperacion(p)&&ukiRomoPedidoPendienteQA(p);
@@ -8314,7 +8315,7 @@ function ukiRomoCajaHistorialHTMLQA(){
   vHistorialPrecierres()+busqueda+
   (registros||'<div class="card">Sin cierres definitivos para esta búsqueda.</div>')+
   (cierres.length>100?'<p class="muted">Se muestran 100 cierres; la descarga incluye los cierres coincidentes restantes.</p>':'')+
-  '<p class="muted">Mi Administración sigue pendiente de sincronización; no se duplican ventas.</p>';
+  '<p class="muted">Los cierres guardados se conservan para su consulta y conciliación en Mi Administración.</p>';
 }
 function ukiRomoCajaSemanaHTMLQA(){
  // Se reutiliza vReportes() oficial: dia, semana, mes y propinas.
@@ -8660,7 +8661,7 @@ function ukiRomoCajaConsultaHTMLQA(seccion='resumen'){
  const activo=MOV_TABS.some(([k])=>k===movimientoTab)?movimientoTab:'gastos';
  const navMovimientos='<div class="card uki-navegacion-compacta uki-navegacion-movimientos">'+
   '<h2>Movimientos del turno</h2>'+
-  '<div class="movement-tabs" role="group" aria-label="Tipos de movimiento de Romo">'+
+  '<div class="movement-tabs" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px" role="group" aria-label="Tipos de movimiento de Romo">'+
   MOV_TABS.map(([k,l])=>'<button type="button" class="'+
    (activo===k?'selected':'')+'" onclick="cambiarMovimientoTab(&quot;'+
    esc(k)+'&quot;)">'+esc(l)+'</button>').join('')+'</div></div>';
@@ -8921,8 +8922,6 @@ function ukiRomoCierreTurnoHTMLQA(){
  const ajustesSinConciliar=(S.pedidos||[]).filter(p=>
   p?.suc===ROMO_SUCURSAL_QA&&p.turnoClave===c.turnoId&&
   p.ajusteCobroPendiente!=null);
- const cierres=(S.cierres||[]).filter(x=>x.suc===ROMO_SUCURSAL_QA)
-  .slice().sort((a,b)=>(Number(b.fechaMs)||0)-(Number(a.fechaMs)||0));
  return '<details class="card" id="romoTurnosQA" open>'+
   '<summary><b>🕒 Turnos, precierre y cierre definitivo · Romo</b></summary>'+
   '<p class="muted">Cierre definitivo del turno. Confirma el efectivo contado y revisa los pendientes.</p>'+
@@ -8962,11 +8961,7 @@ function ukiRomoCierreTurnoHTMLQA(){
    '<button type="button" class="big" onclick="ukiRomoCerrarTurnoQA()"'+
     (ajustesSinConciliar.length?' disabled title="Concilia primero los pedidos con ajustes pendientes"':'')+
     '>Revisar y cerrar definitivamente</button></div>')+
-  '<div class="card"><h3>Historial de cierres confirmados · '+cierres.length+'</h3>'+
-   (cierres.map(x=>'<div class="row"><span>'+esc(x.fechaOperativa||x.fechaISO||'Fecha')+
-     ' · '+esc(x.resp||'Responsable')+'</span><b>'+fmt(x.venta)+'</b></div>').join('')||
-    '<p class="muted">Todavía no hay cierres confirmados en Romo.</p>')+
-   '</div></details>';
+   '</details>';
 }
 
 /* Precierre de trabajadores, mismas funciones de fotografía/diferencia de Uki,
