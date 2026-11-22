@@ -260,6 +260,12 @@ label{color:#66574c}
 <section class="card" id="ukiResumenPorLocal"><h2 style="margin:0 0 7px;font-size:18px">🏪 Cómo va cada local</h2>
 <p class="hint">Ventas, gastos pagados y resultado del período por sucursal o negocio. Los gastos generales sin sucursal permanecen separados.</p>
 <div id="ukiOwnerPorNegocio" class="owner-business-list"><p class="muted">Consultando movimientos…</p></div></section>
+<details class="card" id="ukiCosteoResumen">
+<summary>📊 Rentabilidad de productos por local</summary>
+<p class="hint">Consulta separada del resultado de caja. Solo se consideran pedidos con consumo y costo registrados; no se vuelven a descontar las compras ni los gastos. Usa las fechas de arriba y muestra los tres locales, independientemente del filtro de negocio o razón social.</p>
+<button class="soft" type="button" id="ukiCosteoConsultar">Consultar rentabilidad</button>
+<div id="ukiCosteoResultado" role="status" aria-live="polite"><p class="hint">Sin consultar.</p></div>
+</details>
 <details class="card" id="ukiInformesDuenos">
 <summary>📄 Informes privados · PDF, Excel y WhatsApp</summary>
 <p class="hint">Usa las fechas y el negocio seleccionados arriba. Los pagos pendientes se incluyen de todas las fechas. Los informes se generan solo al solicitarlos y no se guardan en el servidor.</p>
@@ -1700,6 +1706,7 @@ function renderPayments(rows){
 let refreshFinSeq=0;
 async function refresh(){
  if(!session)return;
+ limpiarCosteoResumen();
  const seq=++refreshFinSeq,privateSession=session;
  // Invalida consultas anteriores antes de cambiar filtros.
  ++romoCierresPrivadosSecuencia;++ukiCierresQAConsulta;
@@ -1754,6 +1761,44 @@ async function openDoc(id){
   setTimeout(()=>URL.revokeObjectURL(url),60000);notify('Documento preparado. Revisa las descargas.','success');
  }catch(e){notify(e.message,'error')}
 }
+
+let costeoConsultaSeq=0;
+function limpiarCosteoResumen(){
+ ++costeoConsultaSeq;
+ $('ukiCosteoConsultar').disabled=false;
+ $('ukiCosteoResultado').textContent='Consulta la rentabilidad para el período seleccionado.';
+}
+$('ukiCosteoConsultar').onclick=async()=>{
+ if(!session)return;
+ const seq=++costeoConsultaSeq,active=session,desde=value('from'),hasta=value('to');
+ const result=$('ukiCosteoResultado'),button=$('ukiCosteoConsultar');
+ const valid=()=>seq===costeoConsultaSeq&&session===active&&desde===value('from')&&hasta===value('to');
+ button.disabled=true;result.textContent='Consultando…';
+ try{
+  const a=await api('resumen_costeo_inventario',{desde,hasta});
+  if(!valid())return;
+  if(a.soloLectura!==true||a.desde!==desde||a.hasta!==hasta||!Array.isArray(a.locales))throw Error('Consulta no verificable.');
+  const names={'uki:arica':'Uki Regimiento Arica','uki:serena':'Uki La Serena','romo:serena':'Romo La Serena'};
+  result.replaceChildren();
+  const add=(parent,tag,text)=>{const n=document.createElement(tag);n.textContent=text;parent.append(n);};
+  const seen=new Set();
+  for(const r of a.locales){
+   if(!Object.hasOwn(names,r.store)||seen.has(r.store))continue;seen.add(r.store);
+   const div=document.createElement('div');div.className='line';add(div,'b',names[r.store]);
+   if(r.status==='no_disponible')add(div,'p','Costos históricos no disponibles.');
+   else if(r.status==='sin_registros')add(div,'p','Sin pedidos con costos registrados. No significa que el local no vendió.');
+   else if(r.status==='parcial') {
+    add(div,'p',r.pedidos+' pedido(s) con costo registrado · Cobertura parcial.');
+    add(div,'p','Venta de productos: '+pesos(r.ventas));
+    add(div,'p','Costo de ingredientes e insumos: '+pesos(r.costo));
+    add(div,'b','Ganancia bruta de pedidos registrados: '+pesos(r.margen));
+   }
+   result.append(div);
+  }
+  add(result,'p','No es utilidad neta. No incluye comisiones, sueldos, impuestos ni gastos generales. No altera el resultado de ventas menos gastos.');
+ }catch(e){if(valid())result.textContent=e.message;}
+ finally{if(valid())button.disabled=false;}
+};
 async function loadCosts(){
  try{
   const r=await api('costos',{negocio_id:currentBiz()||null});
