@@ -1102,7 +1102,9 @@ function renderBusinessList(){
 }
 function options(){
  selected('scopeBusiness','Todos los negocios',businesses);
- for(const id of ['saleBiz','expenseBiz','docBiz','newBranchBiz','costBiz'])selected(id,'Selecciona negocio',businesses);
+ for(const id of ['saleBiz','expenseBiz','docBiz','newBranchBiz'])selected(id,'Selecciona negocio',businesses);
+ const costosMarcas=businesses.filter(b=>/uki|romo/i.test(String(b.nombre||'')));
+ selected('costBiz','Selecciona marca',costosMarcas);
  ['saleBiz','expenseBiz','docBiz'].forEach((id,i)=>{
  const branchId=['saleBranch','expenseBranch','docBranch'][i];
  $(id).onchange=()=>{
@@ -1115,7 +1117,19 @@ function options(){
  $('scopeBranch').onchange=()=>void refresh();
  $('scopeRazon').onchange=()=>void refresh();
  for(const id of ['saleBiz','expenseBiz','docBiz']){if(businesses.length){$(id).value=businesses[0].id;$(id).onchange();}}
- if(businesses.length){$('costBiz').value=businesses[0].id;$('newBranchBiz').value=businesses[0].id;}
+ if(businesses.length)$('newBranchBiz').value=businesses[0].id;
+ $('costBiz').onchange=()=>{
+  const b=value('costBiz'),nombre=businesses.find(x=>x.id===b)?.nombre||'';
+  const locales=branchesFor(b).filter(x=>
+   /uki/i.test(nombre)?/arica|regimiento|serena/i.test(x.nombre):
+   /romo/i.test(nombre)?/serena/i.test(x.nombre):false);
+  selected('costBranch','Selecciona sucursal',locales);
+  if(locales.length===1)$('costBranch').value=locales[0].id;
+  resetCostEditor();
+  if(tab==='negocios')void loadCosts();
+ };
+ $('costBranch').onchange=()=>{resetCostEditor();if(tab==='negocios')void loadCosts();};
+ if(costosMarcas.length){$('costBiz').value=costosMarcas[0].id;$('costBiz').onchange();}
  chooseBranch('scopeBranch','','Todas las sucursales');
  renderBusinessList();
 }
