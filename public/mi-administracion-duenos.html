@@ -1821,11 +1821,70 @@ $('ukiCosteoConsultar').onclick=async()=>{
  }catch(e){if(valid())result.textContent=e.message;}
  finally{if(valid())button.disabled=false;}
 };
+let costEdit=null,costQuerySeq=0;
+function pintarCostoPreview(){
+ const venta=Number(value('costPrice')),costo=Number(value('costAmount'));
+ const host=$('costPreview');
+ if(!Number.isSafeInteger(venta)||venta<=0||!Number.isSafeInteger(costo)||costo<=0){
+  host.textContent='Completa precio de venta y costo de elaboración para calcular la ganancia bruta estimada.';
+  return;
+ }
+ const diferencia=venta-costo;
+ host.textContent='Ganancia bruta estimada por unidad: '+pesos(diferencia)+
+  ' ('+(diferencia/venta*100).toLocaleString('es-CL',{maximumFractionDigits:1})+
+  '%). No incluye comisiones, sueldos, arriendo, delivery ni impuestos.';
+}
+function resetCostEditor(){
+ costEdit=null;
+ for(const id of ['costName','costPrice','costAmount','costDescription'])$(id).value='';
+ $('saveCost').textContent='Guardar costo';$('costCancel').hidden=true;
+ pintarCostoPreview();
+}
+for(const id of ['costPrice','costAmount'])$(id).addEventListener('input',pintarCostoPreview);
+$('costCancel').onclick=resetCostEditor;
 async function loadCosts(){
+ const seq=++costQuerySeq,biz=value('costBiz'),suc=value('costBranch'),sesionActual=session;
+ const list=$('costList');list.replaceChildren();
+ if(!biz||!suc){$('costStatus').textContent='Selecciona una marca y una sucursal.';return;}
+ $('costStatus').textContent='Consultando costos de '+branchName(suc)+'…';
  try{
-  const r=await api('costos',{negocio_id:currentBiz()||null});
-  $('costList').innerHTML=(r.productos||[]).slice(0,25).map(p=>'<div class="line"><b>'+esc(p.nombre)+'</b><p class="hint">Venta: '+pesos(p.precio_venta)+' · Costo estimado: '+pesos(p.costo_estimado)+' · Margen estimado: '+pesos(p.precio_venta-p.costo_estimado)+'</p></div>').join('');
- }catch(e){notify(e.message,'error')}
+  const r=await api('costos',{negocio_id:biz,sucursal_id:suc});
+  if(seq!==costQuerySeq||session!==sesionActual||value('costBiz')!==biz||value('costBranch')!==suc)return;
+  if(r.sucursal_id!==suc||r.soloEstimaciones!==true||!Array.isArray(r.productos)||
+     r.productos.some(p=>p.negocio_id!==biz||p.sucursal_id!==suc))
+   throw Error('No se pudo verificar la separación de costos por sucursal.');
+  $('costStatus').textContent=r.productos.length?
+   r.productos.length+' costo(s) estimados registrados en '+branchName(suc)+'.':
+   'Aún no hay costos registrados en '+branchName(suc)+'.';
+  for(const p of r.productos){
+   const card=document.createElement('div');card.className='line';
+   const title=document.createElement('b');title.textContent=String(p.nombre||'Producto');
+   const numbers=document.createElement('p');numbers.className='hint';
+   const venta=Number(p.precio_venta),costo=Number(p.costo_estimado),margen=venta-costo;
+   numbers.textContent='Venta: '+pesos(venta)+' · Elaboración: '+pesos(costo)+
+    ' · Ganancia bruta estimada: '+pesos(margen)+
+    (venta>0?' ('+(margen*100/venta).toLocaleString('es-CL',{maximumFractionDigits:1})+'%)':'');
+   const detail=document.createElement('p');detail.className='hint';
+   detail.textContent=String(p.detalle||'Sin detalle de ingredientes');
+   const edit=document.createElement('button');edit.type='button';edit.className='soft';
+   edit.textContent='Editar costo';
+   edit.onclick=()=>{
+    if(value('costBiz')!==biz||value('costBranch')!==suc)return;
+    costEdit={id:p.id,version:p.actualizado_en};
+    $('costName').value=String(p.nombre||'');
+    $('costPrice').value=String(p.precio_venta);
+    $('costAmount').value=String(p.costo_estimado);
+    $('costDescription').value=String(p.detalle||'');
+    $('saveCost').textContent='Guardar cambios';$('costCancel').hidden=false;
+    pintarCostoPreview();
+    $('costName').scrollIntoView({behavior:'smooth',block:'center'});
+   };
+   card.append(title,numbers,detail,edit);list.append(card);
+  }
+ }catch(e){
+  if(seq===costQuerySeq&&session===sesionActual)
+   $('costStatus').textContent='No se pudo consultar: '+e.message;
+ }
 }
 async function safe(action,fn){
  const btn=$(action);btn.disabled=true;notify('Guardando…');
@@ -1960,7 +2019,28 @@ const controlCompras=crearControlCompras({
 });
 $('newBiz').onclick=()=>safe('newBiz',async()=>{await api('nuevo_negocio',{nombre:value('newBizName'),razon_social:value('newBizReason')});$('newBizName').value='';await loadBusinesses()});
 $('newBranch').onclick=()=>safe('newBranch',async()=>{await api('nueva_sucursal',{negocio_id:value('newBranchBiz'),nombre:value('newBranchName')});$('newBranchName').value='';await loadBusinesses()});
-$('saveCost').onclick=()=>safe('saveCost',async()=>{await api('guardar_costo',{negocio_id:value('costBiz'),nombre:value('costName'),precio_venta:amount('costPrice'),costo_estimado:amount('costAmount'),detalle:value('costDescription')});$('costName').value='';await loadCosts()});
+$('saveCost').onclick=async()=>{
+ const biz=value('costBiz'),suc=value('costBranch'),nombre=value('costName').trim(),
+  venta=Number(value('costPrice')),costo=Number(value('costAmount')),detalle=value('costDescription');
+ if(!biz||!suc)return notify('Selecciona marca y sucursal.','error');
+ if(nombre.length<2||!Number.isSafeInteger(venta)||venta<=0||venta>1000000000||
+    !Number.isSafeInteger(costo)||costo<=0||costo>1000000000)
+  return notify('Completa nombre, precio y costo estimado de elaboración.','error');
+ if(!confirm('¿Guardar el costo estimado de '+nombre+' para '+branchName(suc)+
+  '? No se modifican ventas, caja ni inventario.'))return;
+ const edit=costEdit,button=$('saveCost');button.disabled=true;
+ try{
+  await api(edit?'editar_costo':'guardar_costo',{
+   negocio_id:biz,sucursal_id:suc,nombre,precio_venta:venta,costo_estimado:costo,detalle,
+   ...(edit?{id:edit.id,version:edit.version}:{})
+  });
+  if(value('costBiz')===biz&&value('costBranch')===suc){
+   resetCostEditor();await loadCosts();
+  }
+  notify('Costo estimado guardado en '+branchName(suc)+'.','success');
+ }catch(e){notify(e.message,'error');}
+ finally{button.disabled=false;}
+};
 $('refresh').onclick=()=>void refresh();$('from').onchange=()=>void refresh();$('to').onchange=()=>void refresh();
 const periodoHasta=()=>today();
 const periodoHaceDias=n=>{
