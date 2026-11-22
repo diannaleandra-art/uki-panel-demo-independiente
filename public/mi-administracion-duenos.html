@@ -570,6 +570,7 @@ nav button{font-size:10px;min-width:0}
   <p>Consulta aquí los gramajes que hemos aprobado y los productos que faltan por revisar. No cambia la carta de los clientes ni las preparaciones del personal.</p>
   <p class="steps">Estas recetas son una <b>guía confirmada</b> para comparar y seguir estandarizando. Para calcular costos reales deben vincularse los ingredientes, sus presentaciones de compra y los envases.</p>
   <div id="rxRecipes" aria-label="Recetas que estamos revisando"></div>
+  <details class="rx-recipe"><summary>📋 Productos que todavía debemos revisar</summary><p class="hint">Gohan vegetariano; vegetal y apanizado del roll clásico; tempura del handroll; costos de proteínas y envolturas; promociones de 24, 36, 60 y 108 piezas; korokes, gyozas, papas, pollo furay, alitas y toppings; pizzas, jugos y postres de Regimiento Arica. Estos productos aún no tienen un costo completo confirmado.</p></details>
   <button class="soft" id="rxGoCosts" type="button" style="width:100%;margin-top:12px">✏️ Revisar ingredientes y guardar costos en Negocios</button>
  </div>
  <div class="card">
@@ -581,9 +582,9 @@ nav button{font-size:10px;min-width:0}
   <select id="rxTax"><option value="con">Con IVA</option><option value="sin">Sin IVA</option></select>
   <div class="grid2">
    <div><label for="rxPrice">Precio que paga el cliente ($)</label><input type="number" inputmode="numeric" min="1" id="rxPrice"></div>
-   <div><label for="rxCost">Todos los insumos, sin IVA ($)</label><input type="number" inputmode="numeric" min="0" id="rxCost" placeholder="Pendiente de calcular"></div>
+   <div><label for="rxCost" id="rxCostInputLabel">Me cuesta prepararlo, con IVA ($)</label><input type="number" inputmode="numeric" min="1" id="rxCost" placeholder="Pendiente de calcular"></div>
   </div>
-  <p class="hint">No introduzcas el precio de la factura completa: aquí va <b>cuánto cuesta elaborar una sola unidad o promoción</b>, con sus ingredientes y envases. El cálculo de esta pantalla es temporal; los costos se guardan en Negocios.</p>
+  <p class="hint">No introduzcas el precio de la factura completa: aquí va <b>cuánto cuesta elaborar una sola unidad o promoción</b>, con todos sus ingredientes y envases. Puedes cambiar entre Con IVA y Sin IVA; el importe se convierte automáticamente. Esta simulación no se guarda; los costos definitivos se registran en Negocios.</p>
   <div class="metrics">
    <div class="metric"><small id="rxSaleLabel">Lo vendo en</small><b id="rxSale">—</b></div>
    <div class="metric"><small id="rxCostLabel">Me cuesta prepararlo</small><b id="rxCostShown">—</b></div>
