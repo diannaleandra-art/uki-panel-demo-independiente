@@ -488,8 +488,23 @@ function ukiReferenciaCorta(p){
  }
  return "Interno #"+String(p?.id||"");
 }
+// La carta Romo emite las mismas tres cifras que Uki. La referencia RS-...
+// sigue siendo la identidad única; el folio visible no participa en el guardado.
+function ukiRomoFolioCartaVisibleQA(p){
+ const texto=String(p?.textoOriginal||p?.mensaje||p?.datos?.texto||p?.texto||'');
+ const codigo=String(p?.codigoCarta||p?.codigo_pedido||p?.datos?.codigoCarta||'');
+ const folio=texto.match(/^\s*(?:N[.°ºo\s]*|N[uú]mero)\s+de\s+pedido\s*:\s*([0-9]{3})\s*$/im)?.[1]||'';
+ return folio||(/^[0-9]{3}$/.test(codigo)?codigo:'');
+}
 function ukiReferenciaConCarta(p){
- return (p.codigoCarta?"Carta #"+p.codigoCarta+" · ":"")+ukiReferenciaCorta(p);
+ const folio=ukiRomoFolioCartaVisibleQA(p);
+ const carta=S.suc===ROMO_SUCURSAL_QA?folio:p.codigoCarta;
+ return (carta?"Carta #"+carta+" · ":"")+ukiReferenciaCorta(p);
+}
+function ukiRomoTurnoVisibleQA(clave){
+ const ref=String(clave||''),m=ref.match(/^(\d{4}-\d{2}-\d{2})@(\d{13})$/);
+ if(!m)return 'Turno registrado';
+ return m[1]+' · apertura '+new Date(Number(m[2])).toLocaleTimeString('es-CL',{timeZone:'America/Santiago',hour:'2-digit',minute:'2-digit'});
 }
 function ukiFolioBorrador(){
  if(D.editando)return ukiReferenciaCorta(S.pedidos.find(p=>p.id===D.editando)||{id:D.editando});
@@ -1802,6 +1817,7 @@ function ukiWhatsAppDatosDesdeTexto(raw){
   medioPropina:'Efectivo',editando:null};
 }
 function ukiWhatsAppIdentificador(req){
+ if(req.suc===ROMO_SUCURSAL_QA){const n=ukiRomoFolioCartaVisibleQA(req);return n?'Carta #'+n:req.codigoCarta?'Carta · solicitud registrada':'Solicitud WhatsApp';}
  return req.codigoCarta?'Carta #'+req.codigoCarta:'Sin código de carta · WA-'+String(req.id||'').slice(-6).toUpperCase();
 }
 let ukiCartaReservaEnCurso=false;
@@ -2083,7 +2099,7 @@ function leerTextoD(){
    const esRomo=/^\s*\*?\s*ROMO(?:['’´]S|S)?\s+SUSHI\b/im.test(t);
    if(esRomo){
     const x=extraerMensajeCartaUki(t);
-    const codigo=x.codigoCarta||
+    const codigo=(t.match(/^\s*Referencia de carta:\s*(RS-[A-F0-9]{12})\s*$/mi)||[])[1]||x.codigoCarta||
      (t.match(/^\s*\*?\s*ROMO(?:['’´]S|S)?\s+SUSHI\s*[·•#:\-]\s*([A-Za-z0-9-]+)/im)||[])[1]||'';
     if(!codigo||x.productos===null||!x.lineasCocina.length||
       (x.total!==null&&x.total!==x.productos+(x.delivery||0))||
@@ -5670,7 +5686,7 @@ function ukiRomoSolicitudesHTMLQA(){
    '<p class="muted">Solo solicitudes de la carta Romo; no son pedidos, cobros ni timbres.</p>'+
    (rechazadas.map(o=>'<div class="card order-card uki-carta-compacta">'+
      '<p class="muted"><b>✕ Carta normal · Rechazado</b></p>'+
-     '<div class="row"><b>Carta #'+esc(String(o.codigo_pedido||''))+'</b>'+
+     '<div class="row"><b>'+esc(ukiRomoFolioCartaVisibleQA(o)?'Carta #'+ukiRomoFolioCartaVisibleQA(o):'Carta · solicitud registrada')+'</b>'+
      '<strong>'+fmt(Number(o.total_indicado)||0)+'</strong></div>'+
      '<p>Cliente: '+esc(String(o.cliente||'Sin nombre'))+
       ' · Modalidad: <b>'+esc(ukiRomoModalidadSolicitudQA(o.mensaje))+'</b>'+
@@ -6281,7 +6297,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
   '<details class="card"><summary>Solicitudes rechazadas disponibles ('+
    rechazados.length+')</summary><p class="muted">Solicitudes de carta rechazadas; no son pedidos, ventas ni cobros. La consulta puede incluir solo los registros más recientes disponibles.</p>'+
   rechazados.slice().reverse().map(o=>
-   '<p>Solicitud '+esc(String(o.codigo_pedido||o.id||''))+
+   '<p>Solicitud '+esc(ukiRomoFolioCartaVisibleQA(o)||'registrada')+
    ' · '+esc(String(o.cliente||''))+
    ' · '+esc(String(o.creado_en||''))+'</p>').join('')+
   '</details>');
@@ -6328,7 +6344,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
    p.estado==='Entregado'&&p.pagado?'uki-pedido-entregado':
    p.pagado?'uki-pedido-pagado':'uki-pedido-cobrar';
   const resumen='<details class="card order-card romo-pedido-card '+clase+'" data-buscar="'+
-   esc([p.id,p.numeroTurno,p.cliente,p.telefono,p.codigoCarta,p.codigoCliente,ukiCodigoClienteVisible(p),p.modalidad,p.mesaReferencia]
+   esc([p.id,p.numeroTurno,p.cliente,p.telefono,p.codigoCarta,ukiRomoFolioCartaVisibleQA(p),p.codigoCliente,ukiCodigoClienteVisible(p),p.modalidad,p.mesaReferencia]
     .join(' ').toLocaleLowerCase('es-CL'))+'">'+
    '<summary><div class="order-head"><div><b>'+esc(ukiReferenciaConCarta(p))+
    ' · '+esc(p.cliente||'Sin nombre')+'</b>'+
@@ -6340,7 +6356,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
    '</span></div><div class="order-right"><strong>'+fmt(p.total)+'</strong>'+
    '<small class="uki-estado-badge">'+esc(estado)+'</small></div></div></summary>'+
    '<div class="order-body">'+
-   '<p class="muted"><b>Turno:</b> '+esc(p.turnoClave||'No identificado')+
+   '<p class="muted"><b>Turno:</b> '+esc(ukiRomoTurnoVisibleQA(p.turnoClave))+
    ' · <b>WhatsApp:</b> '+esc(p.telefono||'Sin número')+'</p>'+
    (p.modalidad==='Consumo en local'?
     '<p class="muted">Pedido de mesa registrado · La integración QR se valida por separado.</p>':'')+
@@ -8691,7 +8707,7 @@ async function ukiRomoPrepararSolicitudCartaQA(id){
   D={...D,...draft,pagado:false,editando:null};
   modoNuevo='manual';
   S.vista='nuevo';
-  S.msg='Solicitud de carta '+row.codigo_pedido+
+  S.msg='Solicitud de carta '+(ukiRomoFolioCartaVisibleQA(row)||'registrada')+
     ' cargada en el mismo formulario. Confirma cantidades, precios, dirección y tarifa de delivery antes de guardar; aún no cuenta como venta.';
   render();
  }catch(e){aviso('La solicitud no puede convertirse todavía en un pedido: '+String(e?.message||e));}
@@ -8754,7 +8770,7 @@ async function ukiRomoAceptarSolicitudCartaQA(){
  const advertenciaMedio=/^junaeb\b/i.test(String(D.romoPagoIndicadoQA||''))?
    '\nPago informado: Junaeb. Se registrará como Junaeb solo al confirmar el cobro real; NO es efectivo.':'';
  if(!window.confirm('ROMO LA SERENA: ¿revisaste armado, importe '+fmt(total)+
-   ' y entrega de la solicitud '+String(solicitud.codigo_pedido||'')+'?'+nota+advertenciaMedio+
+   ' y entrega de la solicitud '+(ukiRomoFolioCartaVisibleQA(solicitud)||'registrada')+'?'+nota+advertenciaMedio+
    (D.pagado?'\nConfirmas que el pago completo de '+fmt(total)+
      ' YA FUE RECIBIDO, propina recibida '+fmt(propina)+
      ', responsable '+String(D.romoResponsableCobro||'').trim()+
