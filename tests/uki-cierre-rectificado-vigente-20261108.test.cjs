@@ -67,7 +67,9 @@ test('Solo se exige efectivo contado para precierre y cierre: cero es válido',(
  assert.match(pre,/Number\.isSafeInteger\(contado\)/);
  assert.match(start,/if\(contadoStr===""\)/);
  assert.match(cierreUI,/Conteo obligatorio/);
- assert.match(cierreUI,/Compartir y descargar · al final del cierre/);
+ assert.match(html,/function ukiCierreRecienteUI\(\)/);
+ assert.match(html,/function ukiAccionesCierreReciente\(c,i\)\{return ukiAccionesHistorial\(c\);\}/);
+ assert.match(html,/function compartirWhatsAppCierre\(\)/);
 });
 test('WhatsApp, PDF y Excel ofrecen versión vigente y hora, sin agregar otro cierre al libro',()=>{
  const wa=html.slice(html.indexOf('function ukiMensajeCierreHistorico('),html.indexOf('function ukiCompartirCierreHistorial('));
