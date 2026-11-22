@@ -182,6 +182,79 @@ window.ukiInventarioPanelHTML=panel;window.ukiInventarioMontar=mount;
  el('invCostSave').onclick=()=>void saveCost();
  el('invCostItem').onchange=select;
  for(const id of ['invCostQty','invCostPrice','invCostUnit'])el(id).oninput=preview;
+
+ // Recetas de productos: borrador privado, sin descontar existencias.
+ const recipeBox=document.createElement('details');recipeBox.id='invRecipeBox';
+ recipeBox.style.marginTop='16px';
+ recipeBox.innerHTML='<summary><b>🍣 Recetas y costos por producto</b></summary><p class="muted">Selecciona un producto y registra todos sus ingredientes e insumos por unidad vendida. Para sushi personalizado, usa una variante que describa el armado completo. No se aplican costos a ventas automáticamente.</p><button type="button" class="sm" id="invRecipeLoad">Consultar recetas</button><p role="status" id="invRecipeStatus" class="mini-help"></p><fieldset id="invRecipeFields" hidden style="border:0;padding:0;margin:0;min-width:0"><label for="invRecipeProduct">Producto o promoción</label><select id="invRecipeProduct"></select><label for="invRecipeVariant">Variante de receta</label><input id="invRecipeVariant" list="invRecipeVariants" maxlength="180" value="base" placeholder="Ej.: pollo panko"><datalist id="invRecipeVariants"></datalist><button type="button" id="invRecipeChoose" class="sm">Abrir variante</button><div id="invRecipeLines"></div><button type="button" class="sm" id="invRecipeAdd">＋ Agregar insumo</button><p class="mini-help" id="invRecipeEstimate"></p><button type="button" id="invRecipeSave" class="big">Guardar receta en borrador</button></fieldset>';
+ card.append(recipeBox);
+ let recipeProducts=[],recipeItems=[],recipes=[],recipeBusy=false,loadedProduct='',loadedVariant='',loadedRevision=0;
+ const re=id=>recipeBox.querySelector('#'+id);
+ const rs=s=>{if(within())re('invRecipeStatus').textContent=s;};
+ function recipeLock(b){recipeBusy=b;re('invRecipeFields').disabled=b;re('invRecipeLoad').disabled=b;}
+ function recipeLine(data={}){
+  const line=document.createElement('div');line.className='card';line.style.padding='9px';
+  const product=document.createElement('select'),unit=document.createElement('select'),quantity=document.createElement('input'),remove=document.createElement('button');
+  product.setAttribute('aria-label','Insumo de receta');unit.setAttribute('aria-label','Unidad de ingrediente');quantity.setAttribute('aria-label','Cantidad por producto');quantity.inputMode='decimal';quantity.placeholder='Cantidad';remove.type='button';remove.className='sm';remove.textContent='Quitar insumo';
+  opt(product,'','Elegir ingrediente');for(const i of recipeItems)opt(product,i.sku,i.name);
+  if(data.sku&&!recipeItems.some(i=>i.sku===data.sku))opt(product,data.sku,'Insumo no disponible: '+data.sku);
+  product.value=data.sku||'';
+  function units(preferred){unit.replaceChildren();const item=recipeItems.find(i=>i.sku===product.value);for(const u of groups[item?.stock_unit]||[])opt(unit,u,labels[u]);if(preferred&&Array.from(unit.options).some(o=>o.value===preferred))unit.value=preferred;else if(item)unit.value=item.stock_unit;}
+  units(data.unit);quantity.value=data.quantity??'';product.onchange=()=>units();remove.onclick=()=>line.remove();
+  for(const node of [product,quantity,unit,remove])line.append(node);
+  line.readRecipe=()=>({sku:product.value,unit:unit.value,quantity:numeric(quantity.value)});
+  re('invRecipeLines').append(line);
+ }
+ function variants(){const p=re('invRecipeProduct').value,list=re('invRecipeVariants');list.replaceChildren();opt(list,'base','Receta base');for(const r of recipes.filter(r=>r.product_sku===p&&r.variant_key!=='base'))opt(list,r.variant_key,r.variant_key);}
+ function openRecipe(){
+  loadedProduct=re('invRecipeProduct').value;loadedVariant=re('invRecipeVariant').value.trim()||'base';re('invRecipeVariant').value=loadedVariant;
+  const r=recipes.find(r=>r.product_sku===loadedProduct&&r.variant_key===loadedVariant);
+  loadedRevision=Number(r?.revision||0);re('invRecipeLines').replaceChildren();
+  for(const row of r?.recipe_lines||[])recipeLine(row);
+  if(!r)recipeLine();
+  re('invRecipeEstimate').textContent=r?.cost!=null?'Costo estimado de la receta: 
+}
+
+function mount(){
+ if(!$('invRoot'))return;
+ const active=panelBranch();
+ if(X.branch!==active){X.items=[];X.reports=[];X.selected='';X.loaded=false;}
+ X.branch=active;
+ $('invBranch').value=active;
+ $('invBranch').disabled=true;
+ $('ukiInvSucursalActual').textContent=active==='serena'?'Uki La Serena':'Uki Regimiento Arica';
+ $('invRefresh').onclick=()=>void load();$('invSearch').oninput=populate;
+ $('invSelect').onchange=e=>{X.selected=e.target.value;selection();};
+ $('invSave').onclick=()=>void save();$('invCreate').onclick=()=>void create();
+ if(X.loaded){$('invAdmin').hidden=false;$('invNewBox').hidden=false;$('invReportsBox').hidden=false;populate();reports();status('Inventario listo.');}
+ else void load();
+}
+window.ukiInventarioPanelHTML=panel;window.ukiInventarioMontar=mount;
+})();+Number(r.cost).toLocaleString('es-CL')+' · '+(r.confirmed?'Confirmada':'Borrador'):'Costo pendiente de ingredientes, precios o configuración.';
+  rs(r?'Receta existente. Cualquier edición queda como borrador.':'Nueva variante de receta.');
+ }
+ async function loadRecipes(){
+  if(recipeBusy)return;recipeLock(true);rs('Consultando productos e ingredientes…');
+  try{const [catalog,inventory]=await Promise.all([call('listar-recetas'),call('listar')]);recipeProducts=catalog.products||[];recipes=catalog.recipes||[];recipeItems=(inventory.items||[]).filter(i=>groups[i.stock_unit]);const field=re('invRecipeProduct'),prev=field.value;field.replaceChildren();for(const p of recipeProducts)opt(field,p.sku,p.name);if(recipeProducts.some(p=>p.sku===prev))field.value=prev;re('invRecipeFields').hidden=!recipeProducts.length;if(recipeProducts.length){variants();openRecipe();}else rs('No hay productos registrados en la carta.');}
+  catch(e){if(within()){re('invRecipeFields').hidden=true;rs(e.message);}}
+  finally{if(within())recipeLock(false);}
+ }
+ async function saveRecipe(){
+  if(recipeBusy||!within())return;
+  if(loadedProduct!==re('invRecipeProduct').value||loadedVariant!==re('invRecipeVariant').value.trim()){rs('Abre la variante indicada antes de guardar.');return;}
+  const lines=Array.from(re('invRecipeLines').children).map(x=>x.readRecipe());
+  if(!lines.length||lines.some(x=>!x.sku||!x.unit||!(x.quantity>0))){rs('Completa los ingredientes, unidades y cantidades.');return;}
+  recipeLock(true);rs('Guardando receta…');
+  try{const a=await call('guardar-receta',{productSku:loadedProduct,variantKey:loadedVariant,revision:loadedRevision,lines});recipes=recipes.filter(r=>!(r.product_sku===loadedProduct&&r.variant_key===loadedVariant)).concat(a.recipe);variants();openRecipe();rs('Receta guardada como borrador. No modifica stock ni caja.');}
+  catch(e){rs(e.message);}
+  finally{if(within())recipeLock(false);}
+ }
+ re('invRecipeLoad').onclick=()=>void loadRecipes();
+ re('invRecipeProduct').onchange=()=>{re('invRecipeVariant').value='base';variants();openRecipe();};
+ re('invRecipeChoose').onclick=openRecipe;
+ re('invRecipeAdd').onclick=()=>{if(re('invRecipeLines').children.length<100)recipeLine();};
+ re('invRecipeSave').onclick=()=>void saveRecipe();
+
 }
 
 function mount(){
