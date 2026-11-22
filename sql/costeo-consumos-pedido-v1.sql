@@ -17,6 +17,9 @@ CREATE TABLE IF NOT EXISTS public.costeo_consumos_pedido_v1 (
 );
 ALTER TABLE public.costeo_consumos_pedido_v1 ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.costeo_consumos_pedido_v1 FROM PUBLIC;
+-- Historial: acceso exclusivo de lectura al servicio Romo. Escritura no autorizada aún.
+CREATE POLICY romo_costeo_consumos_select ON public.costeo_consumos_pedido_v1 FOR SELECT TO romos_app_service USING (store_id='romo:serena');
+GRANT SELECT ON public.costeo_consumos_pedido_v1 TO romos_app_service;
 COMMIT;
 -- Este libro solo se escribirá junto con el movimiento de existencias en una misma transacción.
 -- No debe alimentarse con proyecciones del navegador ni con pedidos anteriores al conteo de inicio.
