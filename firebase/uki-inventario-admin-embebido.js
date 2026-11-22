@@ -115,7 +115,10 @@ async function create(){
 
 // Costos privados: solo lectura y cambios de precio, nunca modifica stock.
 function mountCosteo(){
- const root=$('invRoot');if(!root||$('invCosteo'))return;
+ const root=$('invRoot');if(!root)return;
+ const old=$('invCosteo');
+ if(old&&old.__ukiInventarioRaiz===root&&old.__ukiSucursal===X.branch)return;
+ if(old)old.remove();
  const active=X.branch;
  const isRomo=active==='romo';
  const store=isRomo?'romo:serena':'uki:'+active;
@@ -123,6 +126,7 @@ function mountCosteo(){
  const card=document.createElement('details');card.className='card';card.id='invCosteo';
  card.innerHTML='<summary><b>💰 Precios de compra y costos · Administración</b></summary><p class="muted">Registra el precio de una cantidad comprada. No cambia existencias ni precios de venta.</p><button type="button" class="sm" id="invCostLoad">Consultar costos</button><p role="status" id="invCostStatus" class="mini-help">Consulta con Google autorizado.</p><div id="invCostFields" hidden><label for="invCostItem">Ingrediente o insumo</label><select id="invCostItem"></select><label for="invCostUnit">Unidad de compra</label><select id="invCostUnit"></select><label for="invCostQty">Cantidad comprada</label><input id="invCostQty" inputmode="decimal"><label for="invCostPrice">Precio total en pesos</label><input id="invCostPrice" inputmode="numeric"><p id="invCostResult" class="mini-help"></p><button type="button" class="big" id="invCostSave">Guardar precio de compra</button></div>';
  root.after(card);
+ card.__ukiInventarioRaiz=root;card.__ukiSucursal=X.branch;
  let rows=[],prices=[],busy=false;
  const within=()=>card.isConnected&&X.branch===active&&panelBranch()===active;
  const el=id=>card.querySelector('#'+id);
