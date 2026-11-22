@@ -1,0 +1,39 @@
+name: Uki y Romo - revisar cambios comunes
+on:
+  push:
+    branches:
+      - main
+      - release/romos-panel-v816
+      - fix/romo-edicion-importes-20261121
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.ref_name == 'main' && 'release/romos-panel-v816' || github.ref_name }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Comparar sin copiar ni publicar
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            SHA_UKI="$GITHUB_SHA"
+          else
+            SHA_UKI="$(git rev-parse origin/main)"
+          fi
+          echo "## Revisión de cambios comunes Uki y Romo" >> "$GITHUB_STEP_SUMMARY"
+          echo "Referencia Uki: $SHA_UKI" >> "$GITHUB_STEP_SUMMARY"
+          echo 'Solo revisión de código: no cambia datos, credenciales ni producción.' >> "$GITHUB_STEP_SUMMARY"
+          echo '~~~' >> "$GITHUB_STEP_SUMMARY"
+          set +e
+          node scripts/sincronizar-nucleo-uki-romo.mjs "$SHA_UKI" 2>&1 | tee /tmp/uki-romo-comparacion.txt
+          rc=${PIPESTATUS[0]}
+          set -e
+          cat /tmp/uki-romo-comparacion.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '~~~' >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
