@@ -2,7 +2,7 @@
 const {operate}=require('../lib/costeo-precios-servicio-v1.cjs');
 async function dispatch(req,res,store,db,uid){
  const body=req.body;
- if(!body||typeof body!=='object'||Array.isArray(body)||JSON.stringify(body).length>3000)return fail(res,400,'Solicitud inválida.');
+ if(!body||typeof body!=='object'||Array.isArray(body)||JSON.stringify(body).length>40000)return fail(res,400,'Solicitud inválida.');
  const result=await operate(db,store,uid,body);
  return res.status(result.status||200).json(result);
 }
