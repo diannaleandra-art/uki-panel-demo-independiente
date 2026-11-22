@@ -44,7 +44,7 @@ test('Los rechazados antiguos salen del listado principal, se consultan por cale
  assert.match(hist,/type="date"/);
  assert.match(hist,/ukiWhatsAppFicha\(x\.valor,false\)/);
  assert.match(hist,/ukiCartaRemotaFicha\(x\.valor\)/);
- assert.match(html,/ukiVAgregarPedidoOlvidado\(\)\+ukiArchivoRechazadosHistorialUI\(\)/);
+ assert.match(html,/ukiVAgregarPedidoOlvidado\(\)\+ukiHistorialPendientesAnterioresUI\(\)\+ukiArchivoRechazadosHistorialUI\(\)/);
 });
 test('Historial filtra rechazos de otra jornada por fecha sin modificar registros',()=>{
  const part=cut('function ukiArchivoRechazadosHistorialUI(){','function vHistorialCompacto(){');
