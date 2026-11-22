@@ -1954,31 +1954,59 @@ function drawIngredientList(){
 async function loadCostIngredients(){
  const seq=++costData.seq,local=cLocal(),active=session;
  costData.insumos=[];costData.facturas=[];costData.fichas=[];
+ costData.catalog=[];costData.catalogError='';
  costIngClear();cRecipeClear();
  $('costIngList').replaceChildren();$('costRecList').replaceChildren();
- const select=$('costFacturaItem');select.replaceChildren(new Option('Precio manual / sin factura',''));
+ const invoice=$('costFacturaItem');invoice.replaceChildren(new Option('Precio manual / sin factura',''));
+ const product=$('costRecProduct');product.replaceChildren(new Option('Selecciona un producto de la carta',''));
  if(!local.negocio_id||!local.sucursal_id){
-  $('costIngredientesEstado').textContent='Selecciona primero marca y sucursal.';return;
+  $('costIngredientesEstado').textContent='Selecciona primero marca y sucursal.';
+  $('costRecCatalogStatus').textContent='Selecciona una sucursal para consultar su carta.';return;
  }
  $('costIngredientesEstado').textContent='Consultando ingredientes y facturas…';
+ $('costRecCatalogStatus').textContent='Consultando precios vigentes de la carta oficial…';
  try{
-  const r=await api('costeo_insumos_listar',local);
+  // Fallo de catálogo no impide consultar ingredientes ni facturas, pero sí
+  // bloquea el cálculo y guardado de recetas con un precio no confirmado.
+  const [fin,cat]=await Promise.allSettled([
+   api('costeo_insumos_listar',local),api('costeo_carta_productos',local)
+  ]);
   if(seq!==costData.seq||active!==session||value('costBiz')!==local.negocio_id||
      value('costBranch')!==local.sucursal_id)return;
+  if(fin.status!=='fulfilled')throw fin.reason;
+  const r=fin.value;
   if(r.sucursal_id!==local.sucursal_id||!Array.isArray(r.insumos)||!Array.isArray(r.facturas)||
      !Array.isArray(r.fichas)||r.insumos.some(x=>x.sucursal_id!==local.sucursal_id)||
      r.fichas.some(x=>x.sucursal_id!==local.sucursal_id))
    throw Error('El sistema no confirmó la separación de los costos por sucursal.');
   costData.insumos=r.insumos;costData.facturas=r.facturas;costData.fichas=r.fichas;
-  for(const x of r.facturas)select.add(new Option(
+  for(const x of r.facturas)invoice.add(new Option(
    x.fecha+' · '+x.descripcion+' · '+x.cantidad_factura+' '+x.unidad+' · '+
    cMoney(x.total_linea)+(x.alcance==='local'?'':' · '+x.alcance),String(x.item_id)));
   $('costIngredientesEstado').textContent=r.insumos.length+' ingredientes · '+
    r.fichas.length+' recetas · '+r.facturas.length+' artículos de facturas disponibles.';
-  drawIngredientList();drawRecipeList();
+  if(cat.status==='fulfilled'&&cat.value.sucursal_id===local.sucursal_id&&
+     cat.value.soloLectura===true&&Array.isArray(cat.value.items)&&
+     cat.value.items.length>0&&cat.value.items.length<=500&&
+     cat.value.items.every(p=>typeof p.sku==='string'&&typeof p.name==='string'&&
+       Number.isSafeInteger(p.price)&&p.price>0&&
+       (p.rolls===null||Number.isSafeInteger(p.rolls)))){
+   costData.catalog=cat.value.items.slice().sort((a,b)=>a.name.localeCompare(b.name,'es'));
+   for(const p of costData.catalog)product.add(new Option(
+     p.name+' · '+cMoney(p.price)+(p.rolls==null?'':' · '+p.rolls+' roll(s)'),p.sku));
+   $('costRecCatalogStatus').textContent='Carta de '+businessName(local.negocio_id)+' · '+
+     branchName(local.sucursal_id)+' confirmada. Selecciona un producto; su precio se rellena solo.';
+  }else{
+   costData.catalogError='No se pudo verificar la carta de '+businessName(local.negocio_id)+
+    ' · '+branchName(local.sucursal_id)+'. Actualiza cuando esté disponible; no escribas un precio manual.';
+   $('costRecCatalogStatus').textContent=costData.catalogError;
+  }
+  drawIngredientList();drawRecipeList();renderRecipePreview();
  }catch(e){
-  if(seq===costData.seq&&active===session)
+  if(seq===costData.seq&&active===session){
    $('costIngredientesEstado').textContent='No se pudo consultar: '+e.message;
+   $('costRecCatalogStatus').textContent='No se confirmaron productos ni precios de carta.';
+  }
  }
 }
 $('costIngredientesRefresh').onclick=()=>void loadCostIngredients();
