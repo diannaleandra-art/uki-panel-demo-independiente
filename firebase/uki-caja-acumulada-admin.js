@@ -149,7 +149,7 @@ function problemasCierre(c,branch,initMs){
  if(!Number.isSafeInteger(ms)||ms<=initMs||ms>Date.now()+20*60000)
   issues.push('La fecha de cierre no es válida o el cierre ya estaba comprendido en el saldo inicial.');
  const dia=String(c?.fechaOperativa||'');
- if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(dia)||
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(dia)||
    !Number.isFinite(Date.parse(dia+'T12:00:00Z'))||
    new Date(dia+'T12:00:00Z').toISOString().slice(0,10)!==dia)
   issues.push('La fecha del turno necesita revisión.');
@@ -174,7 +174,7 @@ function conciliacionPosible(c,branch,initMs){
  const day=String(c?.fechaOperativa||'');
  const ms=c?.fechaMs;
  return c?.suc===local&&Number.isSafeInteger(ms)&&ms>initMs&&ms<=Date.now()+20*60000&&
-   /^\\d{4}-\\d{2}-\\d{2}$/.test(day)&&
+   /^\d{4}-\d{2}-\d{2}$/.test(day)&&
    Number.isFinite(Date.parse(day+'T12:00:00Z'))&&
    new Date(day+'T12:00:00Z').toISOString().slice(0,10)===day&&
    Number.isSafeInteger(c?.efectivo)&&Math.abs(c.efectivo)<=100000000;
@@ -184,20 +184,20 @@ async function revisarYConciliarCierre(c){
  const branch=state.branch,inicio=Date.parse(state.initializedAt||'');
  const issues=problemasCierre(c,branch,inicio);
  if(!conciliacionPosible(c,branch,inicio)){
-  alert('Este cierre necesita revisar sus datos antes de acreditarlo:\\n- '+issues.join('\\n- ')+
-   '\\nEl cierre histórico y el dinero no se modificarán.');
+  alert('Este cierre necesita revisar sus datos antes de acreditarlo:\n- '+issues.join('\n- ')+
+   '\nEl cierre histórico y el dinero no se modificarán.');
   return;
  }
- const nota=issues.length?'Datos a revisar:\\n- '+issues.join('\\n- '):
+ const nota=issues.length?'Datos a revisar:\n- '+issues.join('\n- '):
    'Los datos registrados están completos.';
- alert('Turno '+fechaOperativaLegible(c.fechaOperativa)+'\\n'+nota+
-   '\\nLa conciliación no cambiará el cierre original.');
+ alert('Turno '+fechaOperativaLegible(c.fechaOperativa)+'\n'+nota+
+   '\nLa conciliación no cambiará el cierre original.');
  const previo=Number.isSafeInteger(c.efectivoContado)&&c.efectivoContado>=0?
   String(c.efectivoContado):'';
  const raw=prompt('¿Cuánto dinero FÍSICO quedó de este cierre? Verifica el conteo real antes de continuar.',previo);
  if(raw===null)return;
  const texto=raw.trim();
- if(!/^\\d{1,9}$/.test(texto)){status('Ingresa el efectivo físico contado, en pesos enteros.','error');return;}
+ if(!/^\d{1,9}$/.test(texto)){status('Ingresa el efectivo físico contado, en pesos enteros.','error');return;}
  const contado=Number(texto);
  if(!Number.isSafeInteger(contado)||contado>100000000){status('Efectivo contado inválido.','error');return;}
  const esperado=c.efectivo,diferencia=contado-esperado;
@@ -216,10 +216,10 @@ async function revisarYConciliarCierre(c){
   observacion=nueva.trim();
   if(observacion.length<3){status('Escribe la observación de la diferencia.','error');return;}
  }
- if(!confirm('CONFIRMACIÓN DE EFECTIVO REAL\\nTurno: '+String(c.fechaOperativa)+
-   '\\nEsperado: '+money(esperado)+'\\nContado: '+money(contado)+
-   '\\nDiferencia: '+money(diferencia)+
-   '\\n¿Confirmas que este importe NO está incluido en el saldo inicial ni en una entrada manual?'))return;
+ if(!confirm('CONFIRMACIÓN DE EFECTIVO REAL\nTurno: '+String(c.fechaOperativa)+
+   '\nEsperado: '+money(esperado)+'\nContado: '+money(contado)+
+   '\nDiferencia: '+money(diferencia)+
+   '\n¿Confirmas que este importe NO está incluido en el saldo inicial ni en una entrada manual?'))return;
  const payload={
   monto:contado,efectivo_contado:contado,efectivo_esperado:esperado,
   diferencia_efectivo:diferencia,observacion:observacion.slice(0,700),
