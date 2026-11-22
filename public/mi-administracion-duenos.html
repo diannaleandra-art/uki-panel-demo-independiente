@@ -184,6 +184,17 @@ label{color:#66574c}
 #ukiOwnerListadoVentas .line{border-bottom:1px solid #eedfd2;padding:9px 0}
 @media(max-width:350px){.owner-branch-grid{grid-template-columns:1fr}.owner-branch-button{min-height:68px}}
 
+
+/* Sección de consulta del control de recetas, separada de caja y ventas. */
+nav{grid-template-columns:repeat(6,minmax(0,1fr))}
+nav button{font-size:10px;min-width:0}
+#v-recetas .rx-recipe{border:1px solid var(--line);background:#fffdfb;border-radius:12px;margin:9px 0;padding:0 11px}
+#v-recetas .rx-recipe>summary{font-size:13px;line-height:1.4;padding:13px 2px;list-style-position:inside}
+#v-recetas .rx-recipe-grid{border-top:1px solid var(--line);padding-top:5px}
+#v-recetas .rx-recipe-row{display:flex;justify-content:space-between;gap:12px;padding:6px 2px;font-size:13px}
+#v-recetas .rx-recipe-row strong{white-space:nowrap}
+#v-recetas .rx-recipe p{padding-bottom:7px}
+#v-recetas .metric b{font-size:18px}
 </style></head><body>
 <header><div><h1>🔒 Mi Administración</h1><small>Acceso de dueños · Solo personal autorizado</small></div><button id="exit" hidden>Salir</button></header>
 <main><p id="notice" role="status" aria-live="polite">Conectando acceso privado…</p>
@@ -551,8 +562,42 @@ label{color:#66574c}
  <h3>Costos de productos en este local</h3><div id="costRecList"></div>
 </details></div></section>
 </section>
+
+<section class="view" id="v-recetas" hidden>
+ <div class="card">
+  <div class="eyebrow">CONTROL PRIVADO DE LOS TRES LOCALES</div>
+  <h2>🍣 Recetas, costos y ganancias</h2>
+  <p>Consulta aquí los gramajes que hemos aprobado y los productos que faltan por revisar. No cambia la carta de los clientes ni las preparaciones del personal.</p>
+  <p class="steps">Estas recetas son una <b>guía confirmada</b> para comparar y seguir estandarizando. Para calcular costos reales deben vincularse los ingredientes, sus presentaciones de compra y los envases.</p>
+  <div id="rxRecipes" aria-label="Recetas que estamos revisando"></div>
+  <button class="soft" id="rxGoCosts" type="button" style="width:100%;margin-top:12px">✏️ Revisar ingredientes y guardar costos en Negocios</button>
+ </div>
+ <div class="card">
+  <h2>💰 ¿Cuánto gasto y cuánto me queda?</h2>
+  <p class="hint">Haz una prueba en pesos chilenos. El precio es de referencia, <b>no modifica la carta</b>. El costo se completa cuando registremos todos los ingredientes y envases.</p>
+  <label for="rxProduct">Producto para revisar</label>
+  <select id="rxProduct"></select>
+  <label for="rxTax">Mostrar valores</label>
+  <select id="rxTax"><option value="con">Con IVA</option><option value="sin">Sin IVA</option></select>
+  <div class="grid2">
+   <div><label for="rxPrice">Precio que paga el cliente ($)</label><input type="number" inputmode="numeric" min="1" id="rxPrice"></div>
+   <div><label for="rxCost">Todos los insumos, sin IVA ($)</label><input type="number" inputmode="numeric" min="0" id="rxCost" placeholder="Pendiente de calcular"></div>
+  </div>
+  <p class="hint">No introduzcas el precio de la factura completa: aquí va <b>cuánto cuesta elaborar una sola unidad o promoción</b>, con sus ingredientes y envases. El cálculo de esta pantalla es temporal; los costos se guardan en Negocios.</p>
+  <div class="metrics">
+   <div class="metric"><small id="rxSaleLabel">Lo vendo en</small><b id="rxSale">—</b></div>
+   <div class="metric"><small id="rxCostLabel">Me cuesta prepararlo</small><b id="rxCostShown">—</b></div>
+   <div class="metric"><small>Me queda después de ingredientes e IVA</small><b id="rxMargin">—</b></div>
+   <div class="metric"><small>Precio orientativo si insumos son el 30 % de venta sin IVA</small><b id="rxPriceSuggested">—</b></div>
+  </div>
+  <div class="owner-finance-note"><b>Precio orientativo con un 35 % para insumos:</b> <span id="rxPriceLow">—</span><p id="rxMarginDescription" class="hint"></p></div>
+  <p id="rxTaxExplanation" class="hint"></p>
+  <p class="hint"><b>Ganancia final:</b> pendiente hasta descontar también sueldos, arriendo, luz, comisiones, delivery y otros gastos. No interpretamos lo que queda después de insumos como utilidad neta.</p>
+  <button class="soft" id="rxGoPurchases" type="button" style="width:100%">🧾 Consultar mis compras y facturas</button>
+ </div>
+</section>
 <footer>Mi Administración · Acceso exclusivo de dueños</footer>
-</main><nav id="tabs" hidden><button data-tab="resumen" class="active"><i>⌂</i>Inicio</button><button data-tab="ventas"><i>＄</i>Ventas</button><button data-tab="gastos"><i>▣</i>Gastos</button><button data-tab="facturas"><i>▥</i>Compras</button><button data-tab="negocios"><i>◫</i>Negocios</button></nav>
+</main><nav id="tabs" hidden><button data-tab="resumen" class="active"><i>⌂</i>Inicio</button><button data-tab="ventas"><i>＄</i>Ventas</button><button data-tab="gastos"><i>▣</i>Gastos</button><button data-tab="facturas"><i>▥</i>Compras</button><button data-tab="negocios"><i>◫</i>Negocios</button><button data-tab="recetas"><i>🍣</i>Recetas</button></nav>
 <script src="/uki-archivo-mensual-core.js?v=20261121-retencion-simulada-v2"></script>
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
@@ -2623,4 +2668,4 @@ onAuthStateChanged(auth,user=>{
  if(!user){session='';limpiarInformes();show('login');}
  if(!session)void checkState();
 });
-</script></body></html>
+</script><script type="module" src="./mi-administracion-recetas-v1.js?v=20261122"></script></body></html>
