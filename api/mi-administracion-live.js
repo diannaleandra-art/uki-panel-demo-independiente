@@ -710,6 +710,110 @@ module.exports=async(req,res)=>{
    if(!rows.length)return fail(res,404,'No existe ese documento.');
    return ok(res,{mime:rows[0].mime,nombre:rows[0].nombre,base64:rows[0].base64.replace(/\s/g,'')});
   }
+
+  // Costeo por insumos y factura: solo uso privado tras sesión Google + PIN.
+  // Las fotos nunca modifican precios sin validación explícita del dueño.
+  if(action==='costeo_insumos_listar'){
+   const negocio=body.negocio_id,sucursal=body.sucursal_id;
+   if(!uuid.test(String(sucursal||'')))return fail(res,400,'Selecciona la sucursal.');
+   await belongs(sql,negocio,sucursal);
+   const [insumos,facturas]=await Promise.all([
+    sql.query('SELECT id,negocio_id,sucursal_id,nombre,unidad_compra,cantidad_compra::text,precio_compra::text,'+
+      'rendimiento_pct::text,cantidad_roll::text,origen_item_id,origen_factura_id,actualizado_en '+
+      'FROM public.fin_costeo_insumos_v1 WHERE negocio_id=$1 AND sucursal_id=$2 ORDER BY nombre LIMIT 250',
+      [negocio,sucursal]),
+    sql.query(`SELECT i.id::text AS item_id,m.id AS factura_id,m.fecha::text AS fecha,
+      m.proveedor,i.descripcion,i.cantidad::text AS cantidad_factura,i.unidad,
+      i.precio_unitario::text,i.total_linea::text,
+      CASE WHEN m.sucursal_id=$2 THEN 'local'
+       WHEN EXISTS(SELECT 1 FROM public.fin_compra_repartos r
+       WHERE r.compra_id=m.id AND r.sucursal_id=$2) THEN 'compartida'
+       ELSE 'general' END AS alcance
+      FROM public.fin_compra_items i
+      JOIN public.fin_movimientos m ON m.id=i.compra_id
+      WHERE m.negocio_id=$1 AND m.tipo='compra' AND m.fuente='factura'
+       AND m.estado<>'anulado' AND i.total_linea>0
+       AND (m.sucursal_id=$2 OR m.sucursal_id IS NULL
+        OR EXISTS(SELECT 1 FROM public.fin_compra_repartos r
+          WHERE r.compra_id=m.id AND r.sucursal_id=$2))
+      ORDER BY m.fecha DESC,m.creado_en DESC,i.posicion LIMIT 180`,[negocio,sucursal])
+   ]);
+   return ok(res,{sucursal_id:sucursal,insumos,facturas,
+    nota:'El valor de línea de factura puede ser neto y no incluye automáticamente IVA, descuentos o fletes. Confirma el contenido del envase y el peso real antes de vincular.'});
+  }
+  if(action==='costeo_insumo_guardar'){
+   const negocio=body.negocio_id,sucursal=body.sucursal_id;
+   if(!uuid.test(String(sucursal||'')))return fail(res,400,'Selecciona un local válido.');
+   await belongs(sql,negocio,sucursal);
+   const nombre=text(body.nombre,100);
+   const unidad=String(body.unidad_compra||'');
+   const cantidad=Number(body.cantidad_compra),rendimiento=Number(body.rendimiento_pct??100);
+   const roll=body.cantidad_roll===null||body.cantidad_roll===''||body.cantidad_roll===undefined?
+     null:Number(body.cantidad_roll);
+   const validNumber=n=>Number.isFinite(n)&&n>0&&n<=100000000&&
+     Math.round(n*1000)===n*1000;
+   if(nombre.length<2||!['kg','g','l','ml','un'].includes(unidad)||
+      !validNumber(cantidad)||!Number.isFinite(rendimiento)||
+      rendimiento<=0||rendimiento>100||
+      Math.round(rendimiento*100)!==rendimiento*100||
+      (roll!==null&&!validNumber(roll)))
+    return fail(res,400,'Revisa nombre, unidad, cantidad y rendimiento del ingrediente.');
+   // Fuente documental siempre se verifica en la base, nunca se confía en un
+   // valor declarado por el navegador al elegir un artículo de factura.
+   const itemId=body.origen_item_id==null||body.origen_item_id===''?null:String(body.origen_item_id);
+   if(itemId!==null&&!/^[1-9]\d{0,16}$/.test(itemId))
+    return fail(res,400,'Artículo de factura inválido.');
+   let precio=Number(body.precio_compra),facturaId=null;
+   if(itemId!==null){
+    const rows=await sql.query(`SELECT i.total_linea,m.id AS factura_id
+      FROM public.fin_compra_items i
+      JOIN public.fin_movimientos m ON m.id=i.compra_id
+      WHERE i.id=$1::bigint AND m.negocio_id=$2
+       AND m.tipo='compra' AND m.fuente='factura' AND m.estado<>'anulado'
+       AND (m.sucursal_id=$3 OR m.sucursal_id IS NULL
+        OR EXISTS(SELECT 1 FROM public.fin_compra_repartos r
+        WHERE r.compra_id=m.id AND r.sucursal_id=$3))`,
+       [itemId,negocio,sucursal]);
+    if(rows.length!==1)return fail(res,400,'La factura no corresponde a esta marca o sucursal.');
+    precio=Number(rows[0].total_linea);facturaId=rows[0].factura_id;
+   }
+   if(!Number.isSafeInteger(precio)||precio<=0||precio>1000000000)
+    return fail(res,400,'No hay un precio de compra válido para este ingrediente.');
+   const id=body.id;
+   let result;
+   if(id!==null&&id!==undefined&&id!==''){
+    if(!uuid.test(String(id))||typeof body.version!=='string'||
+       !Number.isFinite(Date.parse(body.version)))
+     return fail(res,400,'Actualiza antes de editar el ingrediente.');
+    const old=await sql.query('SELECT nombre,precio_compra,origen_item_id FROM public.fin_costeo_insumos_v1 '+
+     'WHERE id=$1 AND negocio_id=$2 AND sucursal_id=$3',[id,negocio,sucursal]);
+    if(!old.length)return fail(res,404,'Ingrediente de otro local o eliminado.');
+    result=await sql.query(`UPDATE public.fin_costeo_insumos_v1
+     SET nombre=$4,unidad_compra=$5,cantidad_compra=$6,rendimiento_pct=$7,
+      cantidad_roll=$8,precio_compra=$9,origen_item_id=$10,origen_factura_id=$11,actualizado_en=now()
+     WHERE id=$1 AND negocio_id=$2 AND sucursal_id=$3
+      AND date_trunc('milliseconds',actualizado_en)=date_trunc('milliseconds',$12::timestamptz)
+     RETURNING id,actualizado_en`,
+     [id,negocio,sucursal,nombre,unidad,cantidad,rendimiento,roll,precio,itemId,facturaId,body.version]);
+    if(!result.length)return fail(res,409,'El ingrediente cambió. Actualiza y revisa el nuevo precio.');
+    await audit(sql,'costeo_insumo',id,'editar',who,{
+      sucursal_id:sucursal,nombre,precio,origen_item_id:itemId,
+      precio_anterior:Number(old[0].precio_compra)});
+   }else{
+    result=await sql.query(`INSERT INTO public.fin_costeo_insumos_v1
+    (negocio_id,sucursal_id,nombre,unidad_compra,cantidad_compra,precio_compra,
+     rendimiento_pct,cantidad_roll,origen_item_id,origen_factura_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT DO NOTHING
+     RETURNING id,actualizado_en`,
+     [negocio,sucursal,nombre,unidad,cantidad,precio,rendimiento,roll,itemId,facturaId]);
+    if(!result.length)return fail(res,409,'El ingrediente ya existe en este local. Selecciona Editar.');
+    await audit(sql,'costeo_insumo',result[0].id,'crear',who,{
+      sucursal_id:sucursal,nombre,precio,origen_item_id:itemId});
+   }
+   return ok(res,{id:result[0].id,sucursal_id:sucursal,actualizado_en:result[0].actualizado_en,
+    precio_compra:precio,soloCosteo:true,
+    mensaje:'Precio de ingrediente guardado. Las recetas que lo utilicen tomarán este precio al consultar.'});
+  }
   // Costos manuales solo por sucursal, sin tocar cierres, inventario ni caja.
   // Esta ruta solo se alcanza tras verificar Google y PIN de los dueños.
   if(action==='guardar_costo'||action==='editar_costo'){
