@@ -7,7 +7,7 @@ const ACTIONS={entrada:'Agregar dinero',gasto:'Registrar gasto',retiro:'Retirar 
 const TYPES={apertura:'Saldo inicial',cierre:'Cierre confirmado',ajuste_cierre:'Corrección de cierre',
  entrada:'Entrada',gasto:'Gasto',retiro:'Retiro',traspaso_salida:'Traspaso enviado',traspaso_entrada:'Traspaso recibido'};
 const API='https://uki-sushi-inventario.vercel.app/api/uki-caja-acumulada-live';
-const state={branch:'arica',balance:0,initialized:false,initializedAt:null,history:[],busy:false,ready:false,nonce:null};
+const state={branch:'arica',balance:0,initialized:false,initializedAt:null,history:[],busy:false,ready:false,nonce:null,pendingDifferences:[]};
 const $=id=>document.getElementById(id);
 const money=v=>'$'+Number(v||0).toLocaleString('es-CL',{maximumFractionDigits:0});
 const branchFromPanel=()=>typeof S!=='undefined'&&S?.suc==='Uki La Serena'?'serena':'arica';
@@ -54,6 +54,7 @@ function html(){
  '<button type="button" id="ukiAcumPDF" class="sm">PDF</button>'+
  '<button type="button" id="ukiAcumWhatsApp" class="sm">Compartir WhatsApp</button></div>'+
  '<div id="ukiAcumHistory"></div></details>'+
+ '<details class="card"><summary><b>Cierres anteriores con diferencia por verificar</b></summary><p class="muted">Solo incorpora los que todavía no están incluidos en el efectivo acumulado ni fueron agregados manualmente.</p><div id="ukiAcumPendientes"></div></details>'+
  '<p class="muted">Los cierres antiguos no se acumulan sin reconciliar el dinero real. Las correcciones aportan solo la diferencia.</p>';
 }
 async function request(action,extra={},branch=state.branch){
@@ -68,20 +69,22 @@ async function request(action,extra={},branch=state.branch){
  if(!response.ok||!data.ok)throw Error(data.error||'No se pudo consultar la caja acumulada.');
  return data;
 }
-// Solo se acreditan cierres posteriores al saldo inicial, confirmados, con arqueo exacto.
+// Solo cierres guardados posteriores al saldo inicial, con conteo físico.
 function closureEligible(c,branch,initMs){
  const cash=Number(c?.efectivo),counted=c?.efectivoContado,diff=c?.diferenciaEfectivo;
  const ms=Number(c?.fechaMs);
  return c?.suc===(branch==='arica'?'Uki Regimiento Arica':'Uki La Serena') &&
   Number.isSafeInteger(ms)&&ms>initMs&&ms<=Date.now()+20*60000&&
-  Number.isSafeInteger(cash)&&cash>=0&&cash<=100000000&&
-  counted!==null&&counted!==undefined&&Number(counted)===cash&&diff===0&&
+  Number.isSafeInteger(cash)&&Math.abs(cash)<=100000000&&
+  Number.isSafeInteger(counted)&&counted>=0&&counted<=100000000&&
+  Number.isSafeInteger(diff)&&counted-cash===diff&&
+  (diff===0||typeof c.obs==='string'&&c.obs.trim().length>=3)&&
   /^\d{4}-\d{2}-\d{2}$/.test(String(c.fechaOperativa||''))&&
   typeof c.resp==='string'&&c.resp.trim().length>=2;
 }
 function closePayload(c,branch){
- return {monto:c.efectivo,efectivo_contado:c.efectivoContado,
-  diferencia_efectivo:c.diferenciaEfectivo,confirmado:true,
+ return {monto:c.efectivoContado,efectivo_contado:c.efectivoContado,efectivo_esperado:c.efectivo,
+  diferencia_efectivo:c.diferenciaEfectivo,observacion:String(c.obs||'').trim().slice(0,700),confirmado:true,
   fecha_operativa:c.fechaOperativa,fecha_cierre_ms:c.fechaMs,
   cierre_clave:'uki|'+branch+'|'+c.fechaMs,
   responsable:String(c.resp).trim().slice(0,80),op_key:crypto.randomUUID()};
@@ -94,6 +97,9 @@ async function reconcileClosures(branch,initializedAt){
  let synced=0,skipped=0,failed=0;
  for(const c of all){
   if(!closureEligible(c,branch,since)){skipped++;continue}
+  // Los cierres antiguos con diferencia pueden haberse incorporado manualmente.
+  // Solo se acreditan previa confirmación; nunca se vuelven a sumar solos.
+  if(c.diferenciaEfectivo!==0)continue;
   try{const r=await request('sincronizar_cierre',closePayload(c,branch),branch);
     if(!r.duplicate)synced++;
   }catch(e){failed++;console.warn('Uki cierre pendiente de conciliar:',String(e?.message||e));}
@@ -113,6 +119,27 @@ async function registerConfirmedClosure(c){
   console.warn('Uki caja acumulada: cierre en cola de conciliación',String(e?.message||e));
  }
 }
+async function acreditarPendiente(c){
+ if(state.busy||!state.ready||!state.initialized||branchFromPanel()!==state.branch)return;
+ const branch=state.branch;
+ if(!closureEligible(c,branch,Date.parse(state.initializedAt||'')))return;
+ if(!confirm('¿Confirmas que '+money(c.efectivoContado)+' de este cierre aún NO está incluido en el saldo inicial ni en una entrada manual?'))return;
+ state.busy=true;draw();
+ try{await request('sincronizar_cierre',closePayload(c,branch),branch);}
+ catch(e){status(String(e.message||e),'error');}
+ finally{state.busy=false;await load();}
+}
+function drawPendientes(){
+ const root=$('ukiAcumPendientes');if(!root)return;
+ root.replaceChildren();
+ for(const c of state.pendingDifferences){
+  const line=document.createElement('div');line.className='row';
+  const desc=document.createElement('span');desc.textContent=date(c.fechaMs)+' · '+money(c.efectivoContado)+' · diferencia '+money(c.diferenciaEfectivo)+' · '+String(c.obs||'');
+  const b=document.createElement('button');b.type='button';b.className='sm';b.textContent='Acreditar';b.disabled=state.busy;b.onclick=()=>void acreditarPendiente(c);
+  line.append(desc,b);root.append(line);
+ }
+ if(!state.pendingDifferences.length)root.textContent='Sin cierres pendientes con diferencia.';
+}
 function draw(){
  if(!$('ukiAcumRoot'))return;
  $('ukiAcumBranch').value=state.branch;
@@ -126,6 +153,7 @@ function draw(){
  $('ukiAcumDestinationRow').hidden=$('ukiAcumType').value!=='traspaso';
  for(const id of ['ukiAcumRefresh','ukiAcumStart','ukiAcumSave','ukiAcumHistoryRefresh','ukiAcumExcel','ukiAcumPDF','ukiAcumWhatsApp'])
    $(id).disabled=state.busy||!state.ready&&id!=='ukiAcumRefresh';
+ drawPendientes();
  const root=$('ukiAcumHistory');root.replaceChildren();
  if(!state.history.length){
   const p=document.createElement('p');p.className='muted';
@@ -160,9 +188,11 @@ async function load(){
   state.initialized=a.cuenta.initialized===true;
   state.initializedAt=a.cuenta.initialized_at||null;
   state.history=Array.isArray(m.movimientos)?m.movimientos:[];
+  const credited=new Set(Array.isArray(m.cierres_acreditados)?m.cierres_acreditados:[]);
+  state.pendingDifferences=state.initialized&&Array.isArray(m.cierres_acreditados)?(S.cierres||[]).filter(c=>closureEligible(c,branch,Date.parse(state.initializedAt))&&c.diferenciaEfectivo!==0&&!credited.has('uki|'+branch+'|'+c.fechaMs)):[];
   state.ready=true;
   if(summary.failed)status('Algunos cierres no se sincronizaron. Revisa la conexión y vuelve a Actualizar saldo.','error');
-  else if(summary.skipped)status(summary.skipped+' cierre(s) aún sin arqueo exacto; no se sumaron para evitar descuadres.','error');
+  else if(summary.skipped)status(summary.skipped+' cierre(s) sin conteo o datos completos; revisa el historial.','error');
   else status('✓ Efectivo acumulado actualizado y separado de las ventas del turno.','success');
  }catch(e){state.ready=false;status(String(e.message||e),'error');}
  finally{state.busy=false;draw();}
