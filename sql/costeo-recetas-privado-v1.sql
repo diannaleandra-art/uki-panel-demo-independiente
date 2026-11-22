@@ -29,6 +29,15 @@ CREATE TABLE IF NOT EXISTS public.costeo_recetas_estado_v1 (
 ALTER TABLE public.costeo_precios_v1 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.costeo_recetas_estado_v1 ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.costeo_precios_v1, public.costeo_recetas_estado_v1 FROM PUBLIC;
+-- El servidor Romo accede mediante romos_app_service (no es dueño de las tablas).
+-- Política limitada al único local, sin apertura a roles públicos o PIN de trabajador.
+CREATE POLICY romo_costeo_precios_select ON public.costeo_precios_v1 FOR SELECT TO romos_app_service USING (store_id='romo:serena');
+CREATE POLICY romo_costeo_precios_insert ON public.costeo_precios_v1 FOR INSERT TO romos_app_service WITH CHECK (store_id='romo:serena');
+CREATE POLICY romo_costeo_precios_update ON public.costeo_precios_v1 FOR UPDATE TO romos_app_service USING (store_id='romo:serena') WITH CHECK (store_id='romo:serena');
+CREATE POLICY romo_costeo_recetas_select ON public.costeo_recetas_estado_v1 FOR SELECT TO romos_app_service USING (store_id='romo:serena');
+CREATE POLICY romo_costeo_recetas_insert ON public.costeo_recetas_estado_v1 FOR INSERT TO romos_app_service WITH CHECK (store_id='romo:serena');
+CREATE POLICY romo_costeo_recetas_update ON public.costeo_recetas_estado_v1 FOR UPDATE TO romos_app_service USING (store_id='romo:serena') WITH CHECK (store_id='romo:serena');
+GRANT SELECT,INSERT,UPDATE ON public.costeo_precios_v1, public.costeo_recetas_estado_v1 TO romos_app_service;
 COMMIT;
 -- La API de dueños debe validar SKU existente, sucursal, unidad compatible y revisión.
 -- Guardar receta y estado en una transacción; cualquier edición devuelve a borrador.
