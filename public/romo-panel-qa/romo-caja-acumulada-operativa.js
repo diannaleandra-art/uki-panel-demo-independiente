@@ -151,7 +151,7 @@ function motivosRevisionRomo(c,initMs){
  if(c?.suc!==LOCAL)issues.push('No corresponde a Romo La Serena.');
  if(!Number.isSafeInteger(ms)||ms<=initMs||ms>Date.now()+20*60000)
   issues.push('La fecha de cierre necesita revisión.');
- if(!/^\\d{4}-\\d{2}-\\d{2}@[1-9]\\d{12,14}$/.test(key)||
+ if(!/^\d{4}-\d{2}-\d{2}@[1-9]\d{12,14}$/.test(key)||
     !key.startsWith(String(c?.fechaOperativa||'')+'@'))
   issues.push('La referencia del turno no está confirmada.');
  if(!Number.isSafeInteger(c?.efectivo)||Math.abs(c.efectivo)>100000000)
