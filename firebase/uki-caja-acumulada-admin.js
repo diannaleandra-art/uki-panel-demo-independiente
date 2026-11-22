@@ -15,8 +15,9 @@ const date=v=>new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',
  day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(v));
 const movimientoFechaChile=new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',weekday:'long',day:'numeric',month:'long',year:'numeric'});
 const movimientoHoraChile=new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
-const primeraMayuscula=s=>String(s).charAt(0).toLocaleUpperCase('es-CL')+String(s).slice(1);
+const primeraMayuscula=s=>{const value=String(s).replace(/^([^,]+),\s*(?=\d)/,'$1 ');return value.charAt(0).toLocaleUpperCase('es-CL')+value.slice(1);};
 function fechaHoraMovimiento(v){
+ if(v===null||v===undefined||v==='')return 'Fecha y hora sin registrar';
  const d=new Date(v);
  if(!Number.isFinite(d.getTime()))return 'Fecha y hora sin registrar';
  return primeraMayuscula(movimientoFechaChile.format(d))+' · '+movimientoHoraChile.format(d);
