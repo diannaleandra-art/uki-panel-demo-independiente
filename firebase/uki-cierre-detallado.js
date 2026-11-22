@@ -59,9 +59,10 @@ function capturar(S,caja,delSucHoy){
   localPagoExterno:p.localPagoExterno||"",
   pagosProductos:(p.pagosProductos||[]).map(x=>({medio:x.medio,monto:Number(x.monto)||0})),
   pagosEnvio:(p.pagosEnvio||[]).map(x=>({medio:x.medio,monto:Number(x.monto)||0})),
+  textoOriginal:(String(p.textoOriginal||"").match(/(?:^|\n)\s*\*?COCINA\*?\s*\n[\s\S]*?(?=\n\s*\*?ENTREGA\*?\s*(?:\n|$))/i)?.[0]||"").slice(0,12000)+"\n*ENTREGA*\n",
   productos:(p.productos||[]).map(z=>({
     nombre:z.nombre||"",cantidad:Number(z.cantidad)||0,
-    precioUnit:Number(z.precioUnit)||0,detalle:z.detalle||""
+    precioUnit:Number(z.precioUnit)||0,detalle:z.detalle||"",...((typeof z.skuCarta==='string'&&z.skuCarta.length<=150)?{skuCarta:z.skuCarta}:{}),...(Number.isSafeInteger(z.piezasUnidad)&&z.piezasUnidad>0?{piezasUnidad:z.piezasUnidad}:{}),...(Number.isSafeInteger(z.rollsUnidad)&&z.rollsUnidad>0?{rollsUnidad:z.rollsUnidad}:{})
   }))
  }));
  return {
