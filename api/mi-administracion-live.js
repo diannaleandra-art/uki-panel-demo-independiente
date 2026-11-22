@@ -5,6 +5,71 @@
 const crypto=require('node:crypto');
 const MAX_BYTES=1700000;
 const MODES=new Set(['venta','gasto','compra','costo_producto','retiro','ingreso_extra']);
+// Fuente única del precio público de carta. Aislada de escrituras de carta y caja.
+const CARTA_LOCAL_OFICIAL=Object.freeze({
+ '47278e71-42d5-4156-8d07-6d1d2101d50b':{biz:'6ba9065d-6031-46af-bc76-22f04b009397',brand:'uki',branch:'arica'},
+ '94560de2-f0dd-4ea3-8a9c-b84dc7787cdc':{biz:'6ba9065d-6031-46af-bc76-22f04b009397',brand:'uki',branch:'serena'},
+ 'e8c2323c-030c-48c6-8861-64029df112fe':{biz:'ce130c9c-b2fc-4bff-9d70-41badf4778a4',brand:'romo',branch:'serena'}
+});
+function mapProductoCarta(p){
+ if(!p||typeof p!=='object'||Array.isArray(p))return null;
+ const sku=String(p.sku||''),nombre=String(p.name||'').trim();
+ const price=Number(p.precioFinal??p.price);
+ if(!sku||sku.length>180||nombre.length<2||nombre.length>120||
+    !Number.isSafeInteger(price)||price<=0||price>1000000||
+    p.available===false||p.visible===false||p.archived===true)return null;
+ const config=p.config||p,kind=String(p.kind||''),n=Number(sku.split(':')[1]);
+ let rolls=null;
+ if(['classic','premium'].includes(kind)&&Number.isSafeInteger(n)&&n>0&&
+    n%(kind==='classic'?12:10)===0)rolls=n/(kind==='classic'?12:10);
+ else if(kind==='monthly'&&config.promoType!=='gohan'&&config.promoType!=='pizza'&&
+         config.promoType!=='combo'){
+  const count=Number(config.rollCount),size=Number(config.size),pieces=Number(config.piecesPerRoll);
+  if(Number.isSafeInteger(count)&&count>0)rolls=count;
+  else if(Number.isSafeInteger(size)&&Number.isSafeInteger(pieces)&&pieces>0&&size%pieces===0)rolls=size/pieces;
+ }
+ if(rolls===null&&['dish','extra','topping'].includes(kind))rolls=1;
+ if(rolls!==null&&(!Number.isSafeInteger(rolls)||rolls<1||rolls>100))rolls=null;
+ return {sku,name:nombre,price,kind,rolls};
+}
+async function obtenerCartaCosto(req,negocio,sucursal){
+ const local=CARTA_LOCAL_OFICIAL[String(sucursal||'')];
+ if(!local||local.biz!==negocio)throw Error('Este local no tiene carta oficial vinculada al costeo.');
+ let url,headers={Accept:'application/json'};
+ if(local.brand==='uki')url='https://uki-sushi-inventario.vercel.app/api/uki-carta-precios-live?branch='+local.branch;
+ else{
+  url='https://romos-sushi-panel.vercel.app/api/romo-carta-ediciones-seguras-qa';
+  const bearer=String(req.headers.authorization||'');
+  if(!/^Bearer [A-Za-z0-9_.-]+$/.test(bearer))throw Error('Vuelve a confirmar el acceso a Romo.');
+  headers={...headers,Authorization:bearer,Origin:'https://romos-sushi-panel.vercel.app'};
+ }
+ const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),9000);
+ let data;
+ try{
+  const response=await fetch(url,{method:'GET',cache:'no-store',redirect:'error',headers,signal:ctrl.signal});
+  if(!response.ok)throw Error('La carta oficial no devolvió un precio confirmado.');
+  const raw=await response.text();
+  if(raw.length>500000)throw Error('Respuesta de carta inválida.');
+  data=JSON.parse(raw);
+ }finally{clearTimeout(timer)}
+ if(!data||data.ok!==true)throw Error('La carta oficial no confirmó el catálogo.');
+ let items;
+ if(local.brand==='uki'){
+  if(data.branch!==local.branch||!Array.isArray(data.items))throw Error('Sucursal de la carta no coincide.');
+  items=data.items;
+ }else{
+  if(data.storeId!=='romo:serena'||!Array.isArray(data.products)||
+     !Array.isArray(data.publishedPromotions))throw Error('La carta Romo no confirmó sus productos.');
+  const retirados=new Set(data.archivedProducts||[]),categorias=new Set(data.archivedCategories||[]);
+  items=[...data.products,...data.publishedPromotions].filter(p=>
+   !retirados.has(p.sku)&&!categorias.has(p.categoriaSlug));
+ }
+ const mapped=items.map(mapProductoCarta).filter(Boolean);
+ if(!mapped.length||mapped.length>500)throw Error('La carta no devolvió productos vigentes.');
+ if(new Set(mapped.map(x=>x.sku)).size!==mapped.length)throw Error('Identificadores duplicados en la carta.');
+ return {store:local.brand+':'+local.branch,items:mapped};
+}
+
 const PAYMENTS=new Set(['Efectivo','Transferencia','Débito','Crédito','Edenred','Junaeb','Uber','Rappi','PedidosYa','Otro']);
 const DOC_TYPES=new Set(['factura','boleta','cierre','comprobante','otro']);
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -713,6 +778,17 @@ module.exports=async(req,res)=>{
 
   // Costeo por insumos y factura: solo uso privado tras sesión Google + PIN.
   // Las fotos nunca modifican precios sin validación explícita del dueño.
+  if(action==='costeo_carta_productos'){
+   const negocio=body.negocio_id,sucursal=body.sucursal_id;
+   await belongs(sql,negocio,sucursal);
+   try{
+    const catalog=await obtenerCartaCosto(req,negocio,sucursal);
+    return ok(res,{sucursal_id:sucursal,store:catalog.store,items:catalog.items,soloLectura:true,
+     aviso:'Precios vigentes de la carta oficial, sin modificar productos ni pedidos.'});
+   }catch(e){
+    return fail(res,503,'No se pudo confirmar el precio actual de esta carta. Reintenta sin introducirlo manualmente.');
+   }
+  }
   if(action==='costeo_ficha_guardar'){
    const negocio=body.negocio_id,sucursal=body.sucursal_id;
    if(!uuid.test(String(sucursal||'')))return fail(res,400,'Selecciona una sucursal para la receta.');
