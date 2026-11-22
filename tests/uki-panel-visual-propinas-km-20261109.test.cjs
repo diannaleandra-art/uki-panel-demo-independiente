@@ -19,8 +19,10 @@ test('Cada fecha calendario tiene una frase diferente sin modificar la jornada o
  assert.match(home,/id="ukiFraseDiariaInicio"/);
  assert.doesNotMatch(home,/🕒 Información del turno/);
  assert.match(html,/function ukiSaltarPanel\(ubicacion\)/);
- assert.match(html,/id="ukiCajaIrA"/);
- assert.match(html,/id="ukiMovimientoIrA"/);
+ assert.match(html,/function ukiCajaNavegacionSimple\(\)/);
+ assert.match(html,/function cambiarCajaTab\(t\)/);
+ assert.match(html,/function cambiarMovimientoTab\(t\)/);
+ assert.match(html,/const MOV_TABS=/);
 });
 test('Kilómetros reales: admite coma decimal y texto explícito, sin calcular precio',()=>{
  const ctx={D:{modalidad:"Delivery",kmRecorrido:"4,5",texto:""}};
