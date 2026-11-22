@@ -472,6 +472,39 @@ window.ukiInventarioPanelHTML=panel;window.ukiInventarioMontar=mount;
   finally{profitBusy=false;if(within()){pe('invProfitLoad').disabled=false;pe('invProfitCalc').disabled=false;pe('invProfitOrder').disabled=false;}}
  };
 
+
+ // Punto de partida del consumo: solo preparación del registro, no activa descuentos.
+ const startBox=document.createElement('details');startBox.style.marginTop='16px';
+ startBox.innerHTML='<summary><b>Inicio del control de consumo</b></summary><p class="muted">Preparar el conteo físico inicial. Solo confirma al terminar la jornada, sin pedidos preparados pendientes. Esta etapa no activa descuentos de stock.</p><button type="button" class="sm" id="invStartLoad">Consultar inventario inicial</button><p role="status" id="invStartStatus"></p><div id="invStartReview" hidden><div id="invStartItems"></div><label><input id="invStartCounted" type="checkbox"> Confirmo que las cantidades coinciden con el conteo físico.</label><label><input id="invStartNoPending" type="checkbox"> No quedan pedidos preparados pendientes de registrar.</label><button type="button" class="sm ok" id="invStartConfirm">Registrar punto inicial</button></div>';
+ card.append(startBox);
+ const se=id=>startBox.querySelector('#'+id);
+ let startToken=null,startBusy=false;
+ const ss=v=>{if(within())se('invStartStatus').textContent=v;};
+ function showStart(v){
+  startToken=null;se('invStartReview').hidden=true;
+  se('invStartCounted').checked=false;se('invStartNoPending').checked=false;
+  const list=se('invStartItems');list.replaceChildren();
+  if(v.existing){ss('Punto inicial registrado: '+new Date(v.existing.cutoff).toLocaleString('es-CL',{timeZone:'America/Santiago'})+'. El descuento automático sigue desactivado.');return;}
+  const items=v.snapshot?.items||[];
+  if(!items.length){ss('No hay artículos configurados.');return;}
+  for(const i of items){const row=document.createElement('p');row.textContent=i.name+' · '+Number(i.quantity).toLocaleString('es-CL',{maximumFractionDigits:4})+' '+i.unit;list.append(row);}
+  startToken=v.token;se('invStartReview').hidden=false;ss('Revisa '+items.length+' artículos antes de confirmar.');
+ }
+ se('invStartLoad').onclick=async()=>{
+  if(startBusy)return;startBusy=true;se('invStartLoad').disabled=true;se('invStartConfirm').disabled=true;startToken=null;se('invStartReview').hidden=true;ss('Consultando…');
+  try{showStart(await call('consultar-inicio'));}catch(e){ss(e.message);}
+  finally{startBusy=false;if(within()){se('invStartLoad').disabled=false;se('invStartConfirm').disabled=false;}}
+ };
+ se('invStartConfirm').onclick=async()=>{
+  if(startBusy||!within()||!startToken)return;
+  if(!se('invStartCounted').checked||!se('invStartNoPending').checked){ss('Confirma ambas verificaciones.');return;}
+  if(!window.confirm('¿Registrar este conteo como punto de inicio? No se descontará stock ni se habilitará consumo automático.'))return;
+  startBusy=true;se('invStartLoad').disabled=true;se('invStartConfirm').disabled=true;ss('Registrando…');
+  try{showStart(await call('confirmar-inicio',{token:startToken,confirmar:true,sinPendientes:true}));}
+  catch(e){startToken=null;se('invStartReview').hidden=true;ss(e.message+' Consulta nuevamente el inventario.');}
+  finally{startBusy=false;if(within()){se('invStartLoad').disabled=false;se('invStartConfirm').disabled=false;}}
+ };
+
 }
 
 function mount(){
