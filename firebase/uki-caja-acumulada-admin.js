@@ -138,6 +138,105 @@ async function registerConfirmedClosure(c){
   console.warn('Uki caja acumulada: cierre en cola de conciliación',String(e?.message||e));
  }
 }
+
+// Los cierres guardados siguen intactos: esta revisión solo explica por qué
+// falta la acreditación y permite conciliar el efectivo físico con confirmación.
+function problemasCierre(c,branch,initMs){
+ const issues=[];
+ const local=branch==='arica'?'Uki Regimiento Arica':'Uki La Serena';
+ if(c?.suc!==local)issues.push('Este cierre no pertenece a la sucursal actual.');
+ const ms=c?.fechaMs;
+ if(!Number.isSafeInteger(ms)||ms<=initMs||ms>Date.now()+20*60000)
+  issues.push('La fecha de cierre no es válida o el cierre ya estaba comprendido en el saldo inicial.');
+ const dia=String(c?.fechaOperativa||'');
+ if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(dia)||
+   !Number.isFinite(Date.parse(dia+'T12:00:00Z'))||
+   new Date(dia+'T12:00:00Z').toISOString().slice(0,10)!==dia)
+  issues.push('La fecha del turno necesita revisión.');
+ const esperado=c?.efectivo;
+ if(!Number.isSafeInteger(esperado)||Math.abs(esperado)>100000000)
+  issues.push('El cierre no contiene un efectivo esperado válido.');
+ const contado=c?.efectivoContado;
+ if(!Number.isSafeInteger(contado)||contado<0||contado>100000000)
+  issues.push('Falta confirmar cuánto efectivo físico quedó realmente.');
+ else if(Number.isSafeInteger(esperado) &&
+         (!Number.isSafeInteger(c?.diferenciaEfectivo)||contado-esperado!==c.diferenciaEfectivo))
+  issues.push('La diferencia guardada no coincide con el efectivo contado.');
+ const dif=Number.isSafeInteger(contado)&&Number.isSafeInteger(esperado)?contado-esperado:null;
+ if(dif!==null&&dif!==0&&String(c?.obs||'').trim().length<3)
+  issues.push('Falta una observación para explicar la diferencia.');
+ if(String(c?.resp||'').trim().length<2)
+  issues.push('Falta el nombre del responsable del cierre.');
+ return issues;
+}
+function conciliacionPosible(c,branch,initMs){
+ const local=branch==='arica'?'Uki Regimiento Arica':'Uki La Serena';
+ const day=String(c?.fechaOperativa||'');
+ const ms=c?.fechaMs;
+ return c?.suc===local&&Number.isSafeInteger(ms)&&ms>initMs&&ms<=Date.now()+20*60000&&
+   /^\\d{4}-\\d{2}-\\d{2}$/.test(day)&&
+   Number.isFinite(Date.parse(day+'T12:00:00Z'))&&
+   new Date(day+'T12:00:00Z').toISOString().slice(0,10)===day&&
+   Number.isSafeInteger(c?.efectivo)&&Math.abs(c.efectivo)<=100000000;
+}
+async function revisarYConciliarCierre(c){
+ if(state.busy||!state.ready||!state.initialized||branchFromPanel()!==state.branch)return;
+ const branch=state.branch,inicio=Date.parse(state.initializedAt||'');
+ const issues=problemasCierre(c,branch,inicio);
+ if(!conciliacionPosible(c,branch,inicio)){
+  alert('Este cierre necesita revisar sus datos antes de acreditarlo:\\n- '+issues.join('\\n- ')+
+   '\\nEl cierre histórico y el dinero no se modificarán.');
+  return;
+ }
+ const nota=issues.length?'Datos a revisar:\\n- '+issues.join('\\n- '):
+   'Los datos registrados están completos.';
+ alert('Turno '+fechaOperativaLegible(c.fechaOperativa)+'\\n'+nota+
+   '\\nLa conciliación no cambiará el cierre original.');
+ const previo=Number.isSafeInteger(c.efectivoContado)&&c.efectivoContado>=0?
+  String(c.efectivoContado):'';
+ const raw=prompt('¿Cuánto dinero FÍSICO quedó de este cierre? Verifica el conteo real antes de continuar.',previo);
+ if(raw===null)return;
+ const texto=raw.trim();
+ if(!/^\\d{1,9}$/.test(texto)){status('Ingresa el efectivo físico contado, en pesos enteros.','error');return;}
+ const contado=Number(texto);
+ if(!Number.isSafeInteger(contado)||contado>100000000){status('Efectivo contado inválido.','error');return;}
+ const esperado=c.efectivo,diferencia=contado-esperado;
+ let responsable=String(c.resp||'').trim();
+ if(responsable.length<2){
+  const nuevo=prompt('Nombre de quien revisa y acredita el cierre:','');
+  if(nuevo===null)return;
+  responsable=nuevo.trim();
+ }
+ if(responsable.length<2||responsable.length>80){status('Nombre del responsable inválido.','error');return;}
+ let observacion=String(c.obs||'').trim();
+ if(diferencia!==0){
+  const sugerida=observacion.length>=3?observacion:'';
+  const nueva=prompt('Hay una diferencia de '+money(diferencia)+'. Explica el motivo para registrar la conciliación:',sugerida);
+  if(nueva===null)return;
+  observacion=nueva.trim();
+  if(observacion.length<3){status('Escribe la observación de la diferencia.','error');return;}
+ }
+ if(!confirm('CONFIRMACIÓN DE EFECTIVO REAL\\nTurno: '+String(c.fechaOperativa)+
+   '\\nEsperado: '+money(esperado)+'\\nContado: '+money(contado)+
+   '\\nDiferencia: '+money(diferencia)+
+   '\\n¿Confirmas que este importe NO está incluido en el saldo inicial ni en una entrada manual?'))return;
+ const payload={
+  monto:contado,efectivo_contado:contado,efectivo_esperado:esperado,
+  diferencia_efectivo:diferencia,observacion:observacion.slice(0,700),
+  confirmado:true,fecha_operativa:c.fechaOperativa,fecha_cierre_ms:c.fechaMs,
+  cierre_clave:'uki|'+branch+'|'+c.fechaMs,
+  responsable,op_key:crypto.randomUUID()
+ };
+ state.busy=true;draw();status('Conciliando efectivo contado, sin modificar el cierre de ventas…');
+ let msg='';
+ try{
+  const resultado=await request('sincronizar_cierre',payload,branch);
+  msg=resultado.duplicate?'✓ El cierre ya estaba acreditado. No se sumó dos veces.':
+    '✓ Efectivo conciliado y registrado una sola vez.';
+ }catch(e){msg='No se acreditó el cierre: '+String(e?.message||e);}
+ finally{state.busy=false;await load();status(msg,/^✓/.test(msg)?'success':'error');}
+}
+
 async function acreditarPendiente(c){
  if(state.busy||!state.ready||!state.initialized||branchFromPanel()!==state.branch)return;
  const branch=state.branch;
@@ -182,18 +281,19 @@ function drawPendientes(){
   const turno=fechaOperativaLegible(c.fechaOperativa)||String(c.fechaOperativa||'Fecha del turno sin registrar');
   const diferencia=Number.isSafeInteger(c.diferenciaEfectivo)?' · Diferencia '+money(c.diferenciaEfectivo):' · Sin diferencia validada';
   const monto=Number.isSafeInteger(c.efectivoContado)?money(c.efectivoContado):'Sin conteo confirmado';
-  desc.textContent='Turno: '+turno+' · Registrado: '+fechaHoraMovimiento(c.fechaMs)+' · Contado '+monto+diferencia+(c.obs?' · '+String(c.obs):'')+(eligible?'':' · Requiere revisar los datos del cierre');
+  const problemas=eligible?[]:problemasCierre(c,state.branch,Date.parse(state.initializedAt||''));
+  desc.textContent='Turno: '+turno+' · Registrado: '+fechaHoraMovimiento(c.fechaMs)+' · Contado '+monto+diferencia+(c.obs?' · '+String(c.obs):'')+(problemas.length?' · Revisar: '+problemas.join(' '):'');
   const actions=document.createElement('div');actions.style.cssText='display:flex;gap:6px;flex-wrap:wrap;flex:0 1 auto';
   const b=document.createElement('button');b.type='button';b.className='sm';b.disabled=state.busy;
   if(excluded){
    b.textContent='Restaurar a pendientes';b.onclick=()=>void revisarPendiente(c,'pendiente');
   }else{
    b.textContent='Ya ingresado manualmente';b.onclick=()=>void revisarPendiente(c,'ya_incluido');
-   if(eligible){
-    const add=document.createElement('button');add.type='button';add.className='sm';
-    add.textContent='Acreditar';add.disabled=state.busy;add.onclick=()=>void acreditarPendiente(c);
-    actions.append(add);
-   }
+   const add=document.createElement('button');add.type='button';add.className='sm';
+   add.textContent=eligible?'Acreditar':'Revisar y acreditar';
+   add.disabled=state.busy;
+   add.onclick=()=>eligible?void acreditarPendiente(c):void revisarYConciliarCierre(c);
+   actions.append(add);
   }
   actions.append(b);line.append(desc,actions);target.append(line);
  }
