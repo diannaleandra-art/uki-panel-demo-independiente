@@ -312,42 +312,7 @@ function mountCosteo(){
   return result;
  }
  function opt(select,value,name){const o=document.createElement('option');o.value=value;o.textContent=name;select.append(o);}
- function preview(){const n=numeric(el('invCostQty').value),p=numeric(el('invCostPrice').value),unit=el('invCostUnit').value;el('invCostResult').textContent=n>0&&Number.isSafeInteger(p)&&p>0?'Costo por '+unit+': 
- const root=$('invRoot');if(!root||root===mountedRoot)return;mountedRoot=root;
- const active=panelBranch();
- if(X.branch!==active){X.items=[];X.reports=[];X.selected='';X.loaded=false;X.romoRevision=null;X.romoPlantilla=[];}
- X.branch=active;
- mountCosteo();
- $('invBranch').value=active;
- $('invBranch').disabled=true;
- $('ukiInvSucursalActual').textContent=active==='romo'?'Romo’s Sushi La Serena':
-  active==='serena'?'Uki La Serena':'Uki Regimiento Arica';
- if($('ukiInvWorkerAccess'))$('ukiInvWorkerAccess').hidden=active==='romo';
- if($('romoInvWorkerAccess'))$('romoInvWorkerAccess').hidden=active!=='romo';
- if(active==='romo'){
-  $('romoPinInventarioCrear').onclick=()=>void romoPinInventarioCrear();
-  void romoPinInventarioCargar();
- }
- $('invRefresh').onclick=()=>void load();$('invSearch').oninput=populate;
- if($('romoInvPlantillaCargar'))$('romoInvPlantillaCargar').onclick=()=>void romoInicializarInventarioPlantilla();
- $('invSelect').onchange=e=>{X.selected=e.target.value;selection();};
- $('invSave').onclick=()=>void save();$('invCreate').onclick=()=>void create();
- if($('romoInvDisponible'))$('romoInvDisponible').onclick=()=>void romoArticuloOperacion('romo-disponibilidad');
- if($('romoInvArchivar'))$('romoInvArchivar').onclick=()=>void romoArticuloOperacion('romo-archivar');
- if(X.loaded){$('invAdmin').hidden=false;$('invNewBox').hidden=false;$('invReportsBox').hidden=false;populate();reports();status('Inventario listo.');}
- else void load();
-}
-// Lectura local, sin token nuevo ni acceso a otras sucursales.
-window.romoInventarioFaltantesSoloLecturaQA=function(){
- if(X.branch!=='romo'||S?.suc!=='Romo’s Sushi La Serena'||!X.loaded)return null;
- return Object.freeze({storeId:'romo:serena',revision:X.romoRevision,
-   items:X.items.filter(v=>v.archived!==true).map(v=>Object.freeze({
-     sku:String(v.sku),name:String(v.name),stock_unit:String(v.stock_unit||'un'),
-     stock_qty:Number(v.stock_qty)||0,min_stock_qty:Number(v.min_stock_qty)||0
-   }))});
-};
-window.ukiInventarioPanelHTML=panel;window.ukiInventarioMontar=mount;
-})();+(p/n).toLocaleString('es-CL',{maximumFractionDigits:4}):'Completa cantidad y precio.';}
+ function preview(){const n=numeric(el('invCostQty').value),p=numeric(el('invCostPrice').value),unit=el('invCostUnit').value;el('invCostResult').textContent=n>0&&Number.isSafeInteger(p)&&p>0?'Costo por '+unit+': $'+(p/n).toLocaleString('es-CL',{maximumFractionDigits:4}):'Completa cantidad y precio.';}
  function select(){
   const item=rows.find(x=>x.sku===el('invCostItem').value),p=prices.find(x=>x.sku===item?.sku);
   el('invCostUnit').replaceChildren();for(const u of groups[item?.stock_unit]||[])opt(el('invCostUnit'),u,labels[u]);
@@ -403,7 +368,43 @@ window.ukiInventarioPanelHTML=panel;window.ukiInventarioMontar=mount;
   loadedRevision=Number(r?.revision||0);re('invRecipeLines').replaceChildren();
   for(const row of r?.recipe_lines||[])recipeLine(row);
   if(!r)recipeLine();
-  re('invRecipeEstimate').textContent=r?.cost!=null?'Costo estimado de la receta: 
+  re('invRecipeEstimate').textContent=r?.cost!=null?'Costo estimado de la receta: $'+Number(r.cost).toLocaleString('es-CL')+' · '+(r.confirmed?'Confirmada':'Borrador'):'Costo pendiente de ingredientes, precios o configuración.';
+  rs(r?'Receta existente. Cualquier edición queda como borrador.':'Nueva variante de receta.');
+ }
+ async function loadRecipes(){
+  if(recipeBusy)return;recipeLock(true);rs('Consultando productos e ingredientes…');
+  try{const [catalog,inventory]=await Promise.all([call('listar-recetas'),call('listar')]);recipeProducts=catalog.products||[];recipes=catalog.recipes||[];recipeItems=(inventory.items||[]).filter(i=>groups[i.stock_unit]);const field=re('invRecipeProduct'),prev=field.value;field.replaceChildren();for(const p of recipeProducts)opt(field,p.sku,p.name);if(recipeProducts.some(p=>p.sku===prev))field.value=prev;re('invRecipeFields').hidden=!recipeProducts.length;if(recipeProducts.length){variants();openRecipe();}else rs('No hay productos registrados en la carta.');}
+  catch(e){if(within()){re('invRecipeFields').hidden=true;rs(e.message);}}
+  finally{if(within())recipeLock(false);}
+ }
+ async function saveRecipe(){
+  if(recipeBusy||!within())return;
+  if(loadedProduct!==re('invRecipeProduct').value||loadedVariant!==re('invRecipeVariant').value.trim()){rs('Abre la variante indicada antes de guardar.');return;}
+  const lines=Array.from(re('invRecipeLines').children).map(x=>x.readRecipe());
+  if(!lines.length||lines.some(x=>!x.sku||!x.unit||!(x.quantity>0))){rs('Completa los ingredientes, unidades y cantidades.');return;}
+  recipeLock(true);rs('Guardando receta…');
+  try{const a=await call('guardar-receta',{productSku:loadedProduct,variantKey:loadedVariant,revision:loadedRevision,lines});recipes=recipes.filter(r=>!(r.product_sku===loadedProduct&&r.variant_key===loadedVariant)).concat(a.recipe);variants();openRecipe();rs('Receta guardada como borrador. No modifica stock ni caja.');}
+  catch(e){rs(e.message);}
+  finally{if(within())recipeLock(false);}
+ }
+ re('invRecipeLoad').onclick=()=>void loadRecipes();
+ re('invRecipeProduct').onchange=()=>{re('invRecipeVariant').value='base';variants();openRecipe();};
+ re('invRecipeChoose').onclick=openRecipe;
+ re('invRecipeAdd').onclick=()=>{if(re('invRecipeLines').children.length<100)recipeLine();};
+ re('invRecipeSave').onclick=()=>void saveRecipe();
+ re('invRecipeConfirm').onclick=async()=>{
+  if(recipeBusy||!within())return;
+  const r=recipes.find(x=>x.product_sku===loadedProduct&&x.variant_key===loadedVariant);
+  if(!r||r.confirmed||loadedProduct!==re('invRecipeProduct').value||loadedVariant!==re('invRecipeVariant').value.trim()){rs('Abre una receta borrador guardada antes de confirmar.');return;}
+  const current=Array.from(re('invRecipeLines').children).map(x=>x.readRecipe());
+  const normalize=a=>JSON.stringify(a.map(x=>({sku:x.sku,unit:x.unit,quantity:Number(x.quantity)})));
+  if(normalize(current)!==normalize(r.recipe_lines)){rs('Guarda los cambios antes de confirmar.');return;}
+  if(!window.confirm('¿Confirmas que esta receta incluye todos los ingredientes, salsas y envases de la variante indicada?'))return;
+  recipeLock(true);rs('Confirmando receta completa…');
+  try{const a=await call('confirmar-receta',{productSku:loadedProduct,variantKey:loadedVariant,revision:loadedRevision,confirmar:true});recipes=recipes.filter(x=>!(x.product_sku===loadedProduct&&x.variant_key===loadedVariant)).concat(a.recipe);openRecipe();rs('Receta confirmada. No se modificó el inventario.');}
+  catch(e){rs(e.message);}finally{if(within())recipeLock(false);}
+ };
+
 
  // Consulta privada de rentabilidad estimada, sin modificar pedidos ni inventario.
  const report=document.createElement('details');report.style.marginTop='16px';
@@ -512,80 +513,7 @@ function mount(){
  const active=panelBranch();
  if(X.branch!==active){X.items=[];X.reports=[];X.selected='';X.loaded=false;X.romoRevision=null;X.romoPlantilla=[];}
  X.branch=active;
- $('invBranch').value=active;
- $('invBranch').disabled=true;
- $('ukiInvSucursalActual').textContent=active==='romo'?'Romo’s Sushi La Serena':
-  active==='serena'?'Uki La Serena':'Uki Regimiento Arica';
- if($('ukiInvWorkerAccess'))$('ukiInvWorkerAccess').hidden=active==='romo';
- if($('romoInvWorkerAccess'))$('romoInvWorkerAccess').hidden=active!=='romo';
- if(active==='romo'){
-  $('romoPinInventarioCrear').onclick=()=>void romoPinInventarioCrear();
-  void romoPinInventarioCargar();
- }
- $('invRefresh').onclick=()=>void load();$('invSearch').oninput=populate;
- if($('romoInvPlantillaCargar'))$('romoInvPlantillaCargar').onclick=()=>void romoInicializarInventarioPlantilla();
- $('invSelect').onchange=e=>{X.selected=e.target.value;selection();};
- $('invSave').onclick=()=>void save();$('invCreate').onclick=()=>void create();
- if($('romoInvDisponible'))$('romoInvDisponible').onclick=()=>void romoArticuloOperacion('romo-disponibilidad');
- if($('romoInvArchivar'))$('romoInvArchivar').onclick=()=>void romoArticuloOperacion('romo-archivar');
- if(X.loaded){$('invAdmin').hidden=false;$('invNewBox').hidden=false;$('invReportsBox').hidden=false;populate();reports();status('Inventario listo.');}
- else void load();
-}
-// Lectura local, sin token nuevo ni acceso a otras sucursales.
-window.romoInventarioFaltantesSoloLecturaQA=function(){
- if(X.branch!=='romo'||S?.suc!=='Romo’s Sushi La Serena'||!X.loaded)return null;
- return Object.freeze({storeId:'romo:serena',revision:X.romoRevision,
-   items:X.items.filter(v=>v.archived!==true).map(v=>Object.freeze({
-     sku:String(v.sku),name:String(v.name),stock_unit:String(v.stock_unit||'un'),
-     stock_qty:Number(v.stock_qty)||0,min_stock_qty:Number(v.min_stock_qty)||0
-   }))});
-};
-window.ukiInventarioPanelHTML=panel;window.ukiInventarioMontar=mount;
-})();+Number(r.cost).toLocaleString('es-CL')+' · '+(r.confirmed?'Confirmada':'Borrador'):'Costo pendiente de ingredientes, precios o configuración.';
-  rs(r?'Receta existente. Cualquier edición queda como borrador.':'Nueva variante de receta.');
- }
- async function loadRecipes(){
-  if(recipeBusy)return;recipeLock(true);rs('Consultando productos e ingredientes…');
-  try{const [catalog,inventory]=await Promise.all([call('listar-recetas'),call('listar')]);recipeProducts=catalog.products||[];recipes=catalog.recipes||[];recipeItems=(inventory.items||[]).filter(i=>groups[i.stock_unit]);const field=re('invRecipeProduct'),prev=field.value;field.replaceChildren();for(const p of recipeProducts)opt(field,p.sku,p.name);if(recipeProducts.some(p=>p.sku===prev))field.value=prev;re('invRecipeFields').hidden=!recipeProducts.length;if(recipeProducts.length){variants();openRecipe();}else rs('No hay productos registrados en la carta.');}
-  catch(e){if(within()){re('invRecipeFields').hidden=true;rs(e.message);}}
-  finally{if(within())recipeLock(false);}
- }
- async function saveRecipe(){
-  if(recipeBusy||!within())return;
-  if(loadedProduct!==re('invRecipeProduct').value||loadedVariant!==re('invRecipeVariant').value.trim()){rs('Abre la variante indicada antes de guardar.');return;}
-  const lines=Array.from(re('invRecipeLines').children).map(x=>x.readRecipe());
-  if(!lines.length||lines.some(x=>!x.sku||!x.unit||!(x.quantity>0))){rs('Completa los ingredientes, unidades y cantidades.');return;}
-  recipeLock(true);rs('Guardando receta…');
-  try{const a=await call('guardar-receta',{productSku:loadedProduct,variantKey:loadedVariant,revision:loadedRevision,lines});recipes=recipes.filter(r=>!(r.product_sku===loadedProduct&&r.variant_key===loadedVariant)).concat(a.recipe);variants();openRecipe();rs('Receta guardada como borrador. No modifica stock ni caja.');}
-  catch(e){rs(e.message);}
-  finally{if(within())recipeLock(false);}
- }
- re('invRecipeLoad').onclick=()=>void loadRecipes();
- re('invRecipeProduct').onchange=()=>{re('invRecipeVariant').value='base';variants();openRecipe();};
- re('invRecipeChoose').onclick=openRecipe;
- re('invRecipeAdd').onclick=()=>{if(re('invRecipeLines').children.length<100)recipeLine();};
- re('invRecipeSave').onclick=()=>void saveRecipe();
- re('invRecipeConfirm').onclick=async()=>{
-  if(recipeBusy||!within())return;
-  const r=recipes.find(x=>x.product_sku===loadedProduct&&x.variant_key===loadedVariant);
-  if(!r||r.confirmed||loadedProduct!==re('invRecipeProduct').value||loadedVariant!==re('invRecipeVariant').value.trim()){rs('Abre una receta borrador guardada antes de confirmar.');return;}
-  const current=Array.from(re('invRecipeLines').children).map(x=>x.readRecipe());
-  const normalize=a=>JSON.stringify(a.map(x=>({sku:x.sku,unit:x.unit,quantity:Number(x.quantity)})));
-  if(normalize(current)!==normalize(r.recipe_lines)){rs('Guarda los cambios antes de confirmar.');return;}
-  if(!window.confirm('¿Confirmas que esta receta incluye todos los ingredientes, salsas y envases de la variante indicada?'))return;
-  recipeLock(true);rs('Confirmando receta completa…');
-  try{const a=await call('confirmar-receta',{productSku:loadedProduct,variantKey:loadedVariant,revision:loadedRevision,confirmar:true});recipes=recipes.filter(x=>!(x.product_sku===loadedProduct&&x.variant_key===loadedVariant)).concat(a.recipe);openRecipe();rs('Receta confirmada. No se modificó el inventario.');}
-  catch(e){rs(e.message);}finally{if(within())recipeLock(false);}
- };
-
-
-}
-
-function mount(){
- const root=$('invRoot');if(!root||root===mountedRoot)return;mountedRoot=root;
- const active=panelBranch();
- if(X.branch!==active){X.items=[];X.reports=[];X.selected='';X.loaded=false;X.romoRevision=null;X.romoPlantilla=[];}
- X.branch=active;
+ mountCosteo();
  $('invBranch').value=active;
  $('invBranch').disabled=true;
  $('ukiInvSucursalActual').textContent=active==='romo'?'Romo’s Sushi La Serena':
