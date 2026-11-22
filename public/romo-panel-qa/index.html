@@ -2333,6 +2333,101 @@ function ukiKmTexto(p){
  return distancia===null?"Km sin registrar":distancia.toLocaleString("es-CL",{maximumFractionDigits:2})+" km";
 }
 
+
+/* Selección rápida de la carta vigente. No guarda ni cobra hasta la acción habitual. */
+const ukiCatalogoManual={suc:'',items:[],cargado:0,ocupado:false,error:'',seleccion:-1};
+function ukiFichaCatalogoManual(p){
+ const kind=String(p?.kind||''),sku=String(p?.sku||''),name=String(p?.name||'').trim(),price=Number(p?.precioFinal??p?.price);
+ if(!['classic','premium','monthly','pizza','dish','topping','extra'].includes(kind)||!sku||!name||!Number.isSafeInteger(price)||price<=0||price>1000000||p.available!==true||p.visible===false||p.archived===true||sku==='dish:sushi-burger-promo'&&S.suc==='Romo’s Sushi La Serena')return null;
+ let piezas=null,rolls=null;
+ const c=p.config||p;
+ const n=Number(sku.split(':')[1]);
+ if((kind==='classic'||kind==='premium')&&Number.isSafeInteger(n)&&n>0&&n%(kind==='classic'?12:10)===0){piezas=n;rolls=n/(kind==='classic'?12:10);}
+ else if(kind==='monthly'&&c.promoType!=='gohan'&&c.promoType!=='pizza'&&c.promoType!=='combo'){
+  const r=Number(c.rollCount),u=Number(c.piecesPerRoll),size=Number(c.size);
+  if(Number.isSafeInteger(r)&&r>0&&Number.isSafeInteger(u)&&u>0){rolls=r;piezas=r*u;}
+  else if(Number.isSafeInteger(r)&&r>0&&Number.isSafeInteger(size)&&size>0&&size%r===0){rolls=r;piezas=size;}
+ }
+ const pagos=Array.isArray(c.payments)?c.payments.filter(x=>typeof x==='string'):[];
+ return {sku,kind,nombre:name,precio:price,piezas,rolls,pagos};
+}
+function ukiDatosCatalogoItem(x){
+ let meta={};
+ if(typeof x?.skuCarta==='string'&&x.skuCarta.length<=150)meta.skuCarta=x.skuCarta;
+ if(Number.isSafeInteger(x?.piezasUnidad)&&x.piezasUnidad>0)meta.piezasUnidad=x.piezasUnidad;
+ if(Number.isSafeInteger(x?.rollsUnidad)&&x.rollsUnidad>0)meta.rollsUnidad=x.rollsUnidad;
+ return meta;
+}
+function ukiCatalogoManualUI(){
+ setTimeout(()=>void ukiCargarCatalogoManual(false),0);
+ return '<section id="ukiCatalogoManualRoot" class="mini-help" style="margin-top:10px"><h3>Seleccionar producto de la carta</h3><p class="muted">Consultando precios de esta sucursal…</p></section>';
+}
+async function ukiCargarCatalogoManual(force){
+ const root=document.getElementById('ukiCatalogoManualRoot'),suc=S.suc;
+ if(!root||!suc)return;
+ if(ukiCatalogoManual.suc!==suc){Object.assign(ukiCatalogoManual,{suc,items:[],cargado:0,ocupado:false,error:'',seleccion:-1});}
+ if(ukiCatalogoManual.ocupado){ukiDibujarCatalogoManual();return;}
+ if(!force&&ukiCatalogoManual.cargado&&Date.now()-ukiCatalogoManual.cargado<120000){ukiDibujarCatalogoManual();return;}
+ if(!force&&ukiCatalogoManual.error){ukiDibujarCatalogoManual();return;}
+ ukiCatalogoManual.ocupado=true;ukiCatalogoManual.error='';ukiDibujarCatalogoManual();
+ try{
+  let lista,revision;
+  if(suc==='Romo’s Sushi La Serena'){
+   const token=await window.ukiInventarioToken?.();
+   if(!token)throw Error('Confirma el acceso habitual de Romo.');
+   const response=await fetch('/api/romo-carta-ediciones-seguras-qa',{method:'GET',cache:'no-store',headers:{Authorization:'Bearer '+token},signal:AbortSignal.timeout(15000)});
+   const d=await response.json();if(!response.ok||d.ok!==true||d.storeId!=='romo:serena'||!Array.isArray(d.products)||!Array.isArray(d.publishedPromotions))throw Error('Carta Romo no confirmada.');
+   const retired=new Set(d.archivedCategories||[]);
+   lista=[...d.products,...d.publishedPromotions].filter(p=>!retired.has(p.categoriaSlug));
+  }else{
+   const branch=suc==='Uki Regimiento Arica'?'arica':suc==='Uki La Serena'?'serena':null;
+   if(!branch)throw Error('Sucursal no reconocida.');
+   const response=await fetch('https://uki-sushi-inventario.vercel.app/api/uki-carta-precios-live?branch='+branch,{cache:'no-store',signal:AbortSignal.timeout(15000)});
+   const d=await response.json();if(!response.ok||d.ok!==true||d.branch!==branch||!Array.isArray(d.items))throw Error('Carta Uki no confirmada.');
+   lista=d.items;
+  }
+  if(ukiCatalogoManual.suc!==suc||S.suc!==suc)return;
+  const items=lista.map(ukiFichaCatalogoManual).filter(Boolean).sort((a,b)=>(a.piezas===null)-(b.piezas===null)||(a.piezas||0)-(b.piezas||0)||a.nombre.localeCompare(b.nombre,'es'));
+  if(!items.length)throw Error('No hay productos disponibles en la carta.');
+  ukiCatalogoManual.items=items;ukiCatalogoManual.cargado=Date.now();ukiCatalogoManual.seleccion=-1;
+ }catch(e){if(ukiCatalogoManual.suc===suc){ukiCatalogoManual.error=String(e?.message||e);ukiCatalogoManual.items=[];ukiCatalogoManual.cargado=0;}}
+ finally{if(ukiCatalogoManual.suc===suc){ukiCatalogoManual.ocupado=false;ukiDibujarCatalogoManual();}}
+}
+function ukiDibujarCatalogoManual(){
+ const root=document.getElementById('ukiCatalogoManualRoot');if(!root||ukiCatalogoManual.suc!==S.suc)return;
+ const mk=(tag,t)=>{const e=document.createElement(tag);if(t)e.textContent=t;return e;};
+ root.replaceChildren(mk('h3','Seleccionar producto de la carta'));
+ const refresh=mk('button','Actualizar carta');refresh.type='button';refresh.className='sm';refresh.disabled=ukiCatalogoManual.ocupado;refresh.onclick=()=>void ukiCargarCatalogoManual(true);
+ if(ukiCatalogoManual.ocupado){root.append(mk('p','Consultando precios…'));return;}
+ if(ukiCatalogoManual.error){root.append(mk('p','No se pudo confirmar la carta: '+ukiCatalogoManual.error),refresh);return;}
+ const search=mk('input');search.type='search';search.placeholder='Buscar, ej.: 60 piezas, handroll';search.setAttribute('aria-label','Buscar producto');
+ const grid=mk('div');grid.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0';
+ const chosen=mk('div');
+ const drawSelection=()=>{
+  chosen.replaceChildren();const p=ukiCatalogoManual.items[ukiCatalogoManual.seleccion];if(!p)return;
+  chosen.append(mk('b',p.nombre+' · '+fmt(p.precio)));
+  const info=mk('p',p.piezas!==null?p.piezas+' piezas · '+p.rolls+' rolls por promoción':'Precio de carta');
+  if(p.pagos.length)info.textContent+=' · Medios indicados en carta: '+p.pagos.join(', ');
+  info.className='muted';chosen.append(info);
+  const lab=mk('label','Cantidad'),qty=mk('input');qty.type='number';qty.min='1';qty.max='100';qty.step='1';qty.value='1';qty.inputMode='numeric';lab.append(qty);chosen.append(lab);
+  const d=mk('details'),sum=mk('summary','Indicaciones opcionales'),note=mk('textarea');note.rows=2;note.maxLength=300;note.placeholder='Ej.: sin cebollín';d.append(sum,note);chosen.append(d);
+  const add=mk('button','+ Agregar al pedido');add.type='button';add.className='big';add.onclick=()=>{
+   if(S.suc!==ukiCatalogoManual.suc||!document.getElementById('ukiCatalogoManualRoot')||!ukiCatalogoManual.items.includes(p)||Date.now()-ukiCatalogoManual.cargado>=120000){aviso('Actualiza la carta antes de agregar.');void ukiCargarCatalogoManual(true);return;}
+   const cant=Number(qty.value);if(!Number.isSafeInteger(cant)||cant<1||cant>100){aviso('Cantidad inválida.');return;}
+   D.items=D.items.filter(x=>x.nombre);
+   D.items.push({nombre:p.nombre,cant,precio:p.precio,det:note.value.trim(),skuCarta:p.sku,...(p.piezas!==null?{piezasUnidad:p.piezas,rollsUnidad:p.rolls}:{})});
+   ukiCatalogoManual.seleccion=-1;render();
+  };
+  chosen.append(add);
+ };
+ let more=false;
+ function drawGrid(){grid.replaceChildren();const q=search.value.toLocaleLowerCase('es').trim();const rows=ukiCatalogoManual.items.map((p,i)=>({p,i})).filter(({p})=>!q||(p.nombre+' '+(p.piezas===null?'':p.piezas+' piezas')).toLocaleLowerCase('es').includes(q));
+  for(const {p,i} of rows.slice(0,more?rows.length:14)){const b=mk('button');b.type='button';b.className='sm';b.style.cssText='white-space:normal;text-align:left;min-height:56px';b.append(mk('b',p.piezas!==null?p.piezas+' piezas · '+(p.kind==='classic'?'Clásico':p.kind==='premium'?'Premium':p.nombre):p.nombre),mk('div',fmt(p.precio)));b.onclick=()=>{ukiCatalogoManual.seleccion=i;drawSelection();};grid.append(b);}
+  if(rows.length>14&&!more){const b=mk('button','Ver más productos');b.type='button';b.className='sm';b.onclick=()=>{more=true;drawGrid();};grid.append(b);}
+  if(!rows.length)grid.append(mk('p','No hay coincidencias.'));
+ }
+ search.oninput=()=>{more=false;drawGrid();};root.append(search,grid,chosen,refresh);drawGrid();drawSelection();
+}
 function vNuevo(){
   if(!S.suc) return vInicio(); if(!D.fecha) nuevoDraft();
   const sub=D.items.reduce((a,i)=>a+(i.cant||0)*(i.precio||0),0);
@@ -2353,7 +2448,7 @@ function vNuevo(){
   ${modoNuevo==='whatsapp'?`<div class="card"><h2>Texto del pedido</h2><p class="muted">Pega el mensaje de la carta digital y toca Procesar.</p><textarea id="pegaTxt" rows="4" placeholder="Pega aquí el pedido de WhatsApp" oninput="D.texto=this.value" onpaste="setTimeout(()=>{const el=document.getElementById('pegaTxt');if(el){D.texto=el.value;leerTextoD();}},150)">${esc(D.texto)}</textarea>${revisandoSolicitud?'':'<button class="big" onclick="leerTextoD()">Procesar pedido pegado</button>'}${revisandoSolicitud||S.suc===ROMO_SUCURSAL_QA?'':ukiWhatsAppGuardarSolicitudBoton()}<p class="muted">Revisa nombre, WhatsApp, código de carta, productos, precio y delivery. Como solicitud no suma ventas.</p></div>`:`<div class="mini-help">Agrega los datos del pedido manualmente en el formulario siguiente.</div>`}
   </details>
   <div class="card"><h2>1 · Cliente y entrega</h2>${modoNuevo==="manual"?`<div class="mini-help"><b>🔢 Número visible: ${esc(ukiFolioBorrador())}</b><p class="muted" style="margin:6px 0 0">${D.editando?"Este número ya pertenece al pedido y no cambiará.":"El sistema asignará el número correlativo definitivo al guardar. No tienes que escribir un código."}</p></div>`:`<div class="mini-help"><b>${esc(ukiFolioBorrador())}</b> · Identificador visible del turno.</div>`}${D.codigoCarta&&S.suc===ROMO_SUCURSAL_QA?`<div style="padding:10px;background:var(--bg);border-radius:10px"><b>📋 ${ukiRomoFolioCartaVisibleQA(D)?"Carta #"+esc(ukiRomoFolioCartaVisibleQA(D)):"Carta · solicitud registrada"}</b><p class="muted">Número de atención del pedido. La referencia original se conserva automáticamente.</p></div>`:D.codigoCarta&&esMensajeCartaUki(D.texto||"")?`<div style="padding:10px;background:var(--bg);border-radius:10px"><b>📋 Carta #${esc(D.codigoCarta)}</b><p class="muted" style="margin:5px 0 0">Código original detectado automáticamente desde el pedido de la carta. No se escribe ni se modifica aquí.</p></div>`:modoNuevo!=="manual"?`<label>Código de la carta (solo si existe)</label><input value="${esc(D.codigoCarta||"")}" placeholder="Se detecta al procesar WhatsApp" oninput="D.codigoCarta=this.value.trim()" inputmode="text"><p class="muted">Si el pedido llegó desde la carta digital, pega su mensaje completo para detectar el código automáticamente.</p>`:""}<label>Código del cliente · últimos 4 dígitos del WhatsApp</label><input id="ukiCodigoAuto" value="${esc(ukiCodigoWhatsApp(D.telefono)||D.codigoCliente||"")}" placeholder="Automático al escribir WhatsApp" readonly inputmode="numeric"><p class="muted">Se calcula automáticamente. Para identificarlo y buscarlo usa también su nombre o el WhatsApp completo.</p><label>Fecha y hora</label><input type="datetime-local" value="${D.fecha}" oninput="D.fecha=this.value"><label>Cliente (no se autocompleta con total)</label><input value="${esc(D.cliente)}" placeholder="Ej: Camila Rojas" oninput="D.cliente=this.value">${cli?`<div style="margin-top:8px;padding:8px;background:#fff1e0;border-radius:8px"><b>${esc(cli.nombre)}</b> tiene <b>${ventasCli}/10</b> timbres ${ventasCli>=6?'<span class="tag" style="background:var(--ok);color:#fff">Puede canjear 12 piezas!</span>':''} ${ventasCli>=10?'<span class="tag" style="background:#111;color:#fff">Puede canjear 36+2 korokes!</span>':''}<div class="tarjeta" style="margin-top:6px">${Array.from({length:10},(_,i)=>`<div class="timbre ${i<ventasCli?'lleno':''} ${i===5||i===9?'premio':''}">${i<ventasCli?'✓':i+1}</div>`).join("")}</div></div>`:"<p class='muted'>Nuevo cliente - empezará con 1 timbre</p>"}<label>📱 WhatsApp / Teléfono</label><input value="${esc(D.telefono)}" placeholder="+56 9 1234 5678" oninput="D.telefono=this.value;D.codigoCliente=ukiCodigoWhatsApp(D.telefono);const cod=document.getElementById('ukiCodigoAuto');if(cod)cod.value=D.codigoCliente" onchange="D.telefono=this.value;render()" inputmode="tel">${entregaUI}</div>
-  <div class="card"><h2>2 · Productos y total</h2>${D.items.filter(x=>x.nombre).map((i,k)=>`<div class="row"><span>${i.cant} × ${esc(i.nombre)}${i.det?` <span class="muted">(${esc(i.det)})</span>`:""}</span><b>${fmt(i.cant*i.precio)} ${S.suc===ROMO_SUCURSAL_QA&&D.editando?`<label class="muted">Precio unitario</label><input aria-label="Precio unitario de ${esc(i.nombre)}" type="number" inputmode="numeric" min="1" value="${esc(i.precio)}" onchange="ukiRomoEditarPrecioItemQA(${D.items.indexOf(i)},this.value)">`:``} <button class="sm" onclick="delItem(${D.items.indexOf(i)})">✕</button></b></div>`).join("")||'<p class="muted">Aún no hay productos. Agrégalos abajo.</p>'}<div style="display:grid;grid-template-columns:80px 1fr;gap:8px;margin-top:10px"><div><label>Cant</label><input id="pCant" type="number" value="1" style="text-align:center;font-weight:700"></div><div><label>Precio</label><input id="pPre" type="number" inputmode="numeric" placeholder="14900"></div></div><label>Nombre producto</label><input id="pNom" placeholder="Promo 24 piezas"><label>Detalle</label><input id="pDet" placeholder="sin cebollín"><button class="sm ok" onclick="addItem()">+ Agregar producto</button><div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:10px;border-top:2px solid var(--accent)"><div class="row sub"><span>Subtotal productos</span><b>${fmt(sub)}</b></div><div class="row"><span>Delivery</span><b id="pedidoEnvioVista">${fmt(envio)}</b></div><div class="row"><span>Propina voluntaria</span><b>${fmt(propina)}</b></div><div class="row final"><span>Total a pagar</span><b id="pedidoTotalVista">${fmt(total)}</b></div><div class="row"><span>Este pedido da</span><b>${S.suc===ROMO_SUCURSAL_QA?"⭐ +1 timbre al confirmar el pago":D.productosPagadosOtroLocal?"Pago registrado en otro local":"⭐ +1 timbre"}</b></div></div></div>
+  <div class="card"><h2>2 · Productos y total</h2>${D.items.filter(x=>x.nombre).map((i,k)=>`<div class="row"><span>${i.cant} × ${esc(i.nombre)}${i.det?` <span class="muted">(${esc(i.det)})</span>`:""}</span><b>${fmt(i.cant*i.precio)} ${S.suc===ROMO_SUCURSAL_QA&&D.editando?`<label class="muted">Precio unitario</label><input aria-label="Precio unitario de ${esc(i.nombre)}" type="number" inputmode="numeric" min="1" value="${esc(i.precio)}" onchange="ukiRomoEditarPrecioItemQA(${D.items.indexOf(i)},this.value)">`:``} <button class="sm" onclick="delItem(${D.items.indexOf(i)})">✕</button></b></div>`).join("")||'<p class="muted">Aún no hay productos. Agrégalos abajo.</p>'}${modoNuevo==='manual'&&!revisandoSolicitud?ukiCatalogoManualUI():''}${modoNuevo==='manual'&&!revisandoSolicitud&&!D.editando?'':`<details><summary>Agregar producto manual / corregir importe</summary><div style="display:grid;grid-template-columns:80px 1fr;gap:8px;margin-top:10px"><div><label>Cant</label><input id="pCant" type="number" value="1" style="text-align:center;font-weight:700"></div><div><label>Precio</label><input id="pPre" type="number" inputmode="numeric" placeholder="14900"></div></div><label>Nombre producto</label><input id="pNom" placeholder="Promo 24 piezas"><label>Detalle</label><input id="pDet" placeholder="sin cebollín"><button class="sm ok" onclick="addItem()">+ Agregar producto</button></details>`}<div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:10px;border-top:2px solid var(--accent)"><div class="row sub"><span>Subtotal productos</span><b>${fmt(sub)}</b></div><div class="row"><span>Delivery</span><b id="pedidoEnvioVista">${fmt(envio)}</b></div><div class="row"><span>Propina voluntaria</span><b>${fmt(propina)}</b></div><div class="row final"><span>Total a pagar</span><b id="pedidoTotalVista">${fmt(total)}</b></div><div class="row"><span>Este pedido da</span><b>${S.suc===ROMO_SUCURSAL_QA?"⭐ +1 timbre al confirmar el pago":D.productosPagadosOtroLocal?"Pago registrado en otro local":"⭐ +1 timbre"}</b></div></div></div>
   ${ukiPropinaUI(sub)}
   <div class="card" id="ukiPagoPedidoSoloUki"><h2>3 · Pago del pedido</h2><p class="muted">Si todavía no han pagado, no marques la confirmación. El pedido quedará registrado por cobrar.</p>
     <div style="padding:12px;margin-bottom:14px;background:var(--bg);border-radius:12px">
@@ -2563,7 +2658,7 @@ montoProductosOtroLocal:p.productosPagadosOtroLocal?Math.min(Number(p.subtotal)|
 envioPagadoOtroLocal:ukiMontoEnvioOtroLocal(p,Number(p.envio)||0,Number(p.subtotal)||0)>0,
 montoEnvioOtroLocal:p.montoEnvioOtroLocal??"",
 localPagoExterno:p.localPagoExterno||"",propinaModo:p.propinaModo||((Number(p.propina)||0)>0?"otro":"ninguna"),propinaPersonalizada:p.propinaModo==="otro"||!p.propinaModo?p.propina||"": "",medioPropina:p.medioPropina||"Efectivo",
-items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),ajusteCajaRegularizado:false,responsableEdicion:"",editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}];
+items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||"",...ukiDatosCatalogoItem(pr)})),ajusteCajaRegularizado:false,responsableEdicion:"",editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}];
  if(S.suc===ROMO_SUCURSAL_QA&&p.pagado){
   // El guardado de Romo puede representar un medio único como una línea.
   // Mostrarlo como medio único, no como pago mixto, y conservar su importe real.
@@ -9672,7 +9767,7 @@ async function ukiRomoGuardarPedidoPendienteQA(){
    medio:D.medio,medioEnvio:D.medioEnvio||'Efectivo',
    pagado:false,estado:'Pendiente',
    productos:items.map(x=>({nombre:String(x.nombre).trim(),
-    cantidad:Number(x.cant),precioUnit:Number(x.precio),detalle:String(x.det||'')})),
+    cantidad:Number(x.cant),precioUnit:Number(x.precio),detalle:String(x.det||''),...ukiDatosCatalogoItem(x)})),
    subtotal,total:subtotal+envio,propina:0,propinaModo:'ninguna',medioPropina:'Efectivo',
    textoOriginal:String(D.texto||'').slice(0,12000),esPremio:false
   };
@@ -9874,7 +9969,7 @@ async function ndGuardar(){
       const cierreHistorico=ukiCierreConfirmadoPedido(p);
       const snapshot=ukiCopia(p);
       const propuesta={...p,subtotal:sub,total,envio,propina,medio:D.medio,medioEnvio:D.medioEnvio,pagado:!!D.pagado,
-       productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),...datosPago};
+       productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det,...ukiDatosCatalogoItem(x)})),...datosPago};
       const cambiaCobro=ukiPagoModificado(snapshot,propuesta);
       const requiereAjuste=cambiaCobro||!!ukiCobroPendiente(snapshot);
       let autorizacion='';
@@ -9918,7 +10013,7 @@ async function ndGuardar(){
           perfil.gastado=Math.max(0,(perfil.gastado||0)-(Number(p.subtotal)||0));
         }
       }
-      p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||"";p.codigoCarta=D.codigoCarta||"";p.codigoCliente=D.codigoCliente||"";p.qrSolicitudes=Array.isArray(D.qrSolicitudes)?[...new Set(D.qrSolicitudes)]:[];p.sucursalCarta=D.sucursalCarta||""; p.mesaReferencia=D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():""; p.modalidad=D.modalidad; p.envio=envio; p.kmRecorrido=kmRecorrido; p.medio=D.medio; p.medioEnvio=D.medioEnvio; Object.assign(p,datosPago); p.estado=ukiEstadoTrasRetirarPago(snapshot,D.pagado);p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})); p.total=total; p.subtotal=sub; p.propina=propina;p.propinaModo=D.propinaModo;p.medioPropina=D.medioPropina;p.textoOriginal=D.texto;
+      p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||"";p.codigoCarta=D.codigoCarta||"";p.codigoCliente=D.codigoCliente||"";p.qrSolicitudes=Array.isArray(D.qrSolicitudes)?[...new Set(D.qrSolicitudes)]:[];p.sucursalCarta=D.sucursalCarta||""; p.mesaReferencia=D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():""; p.modalidad=D.modalidad; p.envio=envio; p.kmRecorrido=kmRecorrido; p.medio=D.medio; p.medioEnvio=D.medioEnvio; Object.assign(p,datosPago); p.estado=ukiEstadoTrasRetirarPago(snapshot,D.pagado);p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det,...ukiDatosCatalogoItem(x)})); p.total=total; p.subtotal=sub; p.propina=propina;p.propinaModo=D.propinaModo;p.medioPropina=D.medioPropina;p.textoOriginal=D.texto;
       // Un cierre confirmado mantiene intactos sus movimientos de propina y fidelidad.
       if(!cierreHistorico)ukiSincronizarPropinaPedido(p);
       if(!cierreHistorico){
@@ -9993,7 +10088,7 @@ async function ndGuardar(){
   }
   const {numero:numeroTurno,clave:turnoClave}=ukiTurnoFolioActual();
   const idNuevo=S.nextId++;
-  const nuevoPedido={id:idNuevo,numeroTurno,turnoClave,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),cliente:D.cliente,telefono:D.telefono||"",codigoCarta:D.codigoCarta||"",codigoCliente:D.codigoCliente||"",cartaSolicitudRemotaId:String(D.cartaSolicitudRemotaId||""),cartaReservaToken:String(D.cartaReservaToken||""),qrSolicitudes:Array.isArray(D.qrSolicitudes)?[...new Set(D.qrSolicitudes)]:[],sucursalCarta:D.sucursalCarta||"",mesaReferencia:D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():"",modalidad:D.modalidad,envio:envio,kmRecorrido,medio:D.medio,medioEnvio:D.medioEnvio,...datosPago,pagado:D.pagado,estado:"Pendiente",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det})),total:total,subtotal:sub,propina:propina,propinaModo:D.propinaModo,medioPropina:D.medioPropina,textoOriginal:D.texto,esPremio:false};
+  const nuevoPedido={id:idNuevo,numeroTurno,turnoClave,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),cliente:D.cliente,telefono:D.telefono||"",codigoCarta:D.codigoCarta||"",codigoCliente:D.codigoCliente||"",cartaSolicitudRemotaId:String(D.cartaSolicitudRemotaId||""),cartaReservaToken:String(D.cartaReservaToken||""),qrSolicitudes:Array.isArray(D.qrSolicitudes)?[...new Set(D.qrSolicitudes)]:[],sucursalCarta:D.sucursalCarta||"",mesaReferencia:D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():"",modalidad:D.modalidad,envio:envio,kmRecorrido,medio:D.medio,medioEnvio:D.medioEnvio,...datosPago,pagado:D.pagado,estado:"Pendiente",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det,...ukiDatosCatalogoItem(x)})),total:total,subtotal:sub,propina:propina,propinaModo:D.propinaModo,medioPropina:D.medioPropina,textoOriginal:D.texto,esPremio:false};
   S.pedidos.push(nuevoPedido);
   // Incluso si el pago se desmarcó tras enviar WhatsApp, conservar la marca enviada.
   // No suma timbres de fidelidad mientras la compra continúe sin pagar.
@@ -11441,7 +11536,7 @@ el("ukiAutoCheck").addEventListener("change",()=>{
 <script src="/romo-panel-qa/uki-archivo-mensual-panel.js?v=20261121-agenda-v1" defer></script>
 <script src="/romo-panel-qa/romo-caja-acumulada-conciliacion-qa.js?v=20261115a" defer></script>
 <script src="/romo-panel-qa/romo-caja-acumulada-exportar.js?v=20261121b" defer></script>
-<script src="/romo-panel-qa/romo-caja-acumulada-operativa.js?v=20261121cierre-v8" defer></script>
+<script src="/romo-panel-qa/romo-caja-acumulada-operativa.js?v=20261122-contado" defer></script>
 <script src="/romo-panel-qa/romo-movimientos-paridad-qa.js?v=20261115a" defer></script>
 <script src="/romo-panel-qa/romo-edicion-en-panel-qa.js?v=20261114c" defer></script>
 <script src="/romo-panel-qa/romo-carta-editor-seguro-qa.js?v=20261121carta-orden-v7" defer></script><script src="/romo-panel-qa/romo-carta-gestion-completa-qa.js?v=20261121productos-claros-v1" defer></script><script src="/romo-panel-qa/romo-banner-admin.js?v=20261114b" defer></script></body></html>
