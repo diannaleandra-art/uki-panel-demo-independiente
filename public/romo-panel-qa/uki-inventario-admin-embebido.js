@@ -284,11 +284,240 @@ async function romoPinInventarioCrear(){
  finally{button.disabled=false}
 }
 let mountedRoot=null;
+
+// Costos privados: solo lectura y cambios de precio, nunca modifica stock.
+function mountCosteo(){
+ const root=$('invRoot');if(!root)return;
+ const old=$('invCosteo');
+ if(old&&old.__ukiInventarioRaiz===root&&old.__ukiSucursal===X.branch)return;
+ if(old)old.remove();
+ const active=X.branch;
+ const isRomo=active==='romo';
+ const store=isRomo?'romo:serena':'uki:'+active;
+ const api=isRomo?'/api/romo-costeo-v1':'https://uki-sushi-inventario.vercel.app/api/uki-costeo-v1';
+ const card=document.createElement('details');card.className='card';card.id='invCosteo';
+ card.innerHTML='<summary><b>💰 Precios de compra y costos · Administración</b></summary><p class="muted">Registra el precio de una cantidad comprada. No cambia existencias ni precios de venta.</p><button type="button" class="sm" id="invCostLoad">Consultar costos</button><p role="status" id="invCostStatus" class="mini-help">Consulta con Google autorizado.</p><div id="invCostFields" hidden><label for="invCostItem">Ingrediente o insumo</label><select id="invCostItem"></select><label for="invCostUnit">Unidad de compra</label><select id="invCostUnit"></select><label for="invCostQty">Cantidad comprada</label><input id="invCostQty" inputmode="decimal"><label for="invCostPrice">Precio total en pesos</label><input id="invCostPrice" inputmode="numeric"><p id="invCostResult" class="mini-help"></p><button type="button" class="big" id="invCostSave">Guardar precio de compra</button></div>';
+ root.after(card);
+ card.__ukiInventarioRaiz=root;card.__ukiSucursal=X.branch;
+ let rows=[],prices=[],busy=false;
+ const within=()=>card.isConnected&&X.branch===active&&panelBranch()===active;
+ const el=id=>card.querySelector('#'+id);
+ const status=s=>{if(within())el('invCostStatus').textContent=s;};
+ const groups={kg:['kg','g'],g:['kg','g'],l:['l','ml'],ml:['l','ml'],un:['un']};
+ const labels={kg:'Kilogramos',g:'Gramos',l:'Litros',ml:'Mililitros',un:'Unidades'};
+ const numeric=s=>{const t=String(s).trim();return /^\d+(?:[.,]\d{1,6})?$/.test(t)?Number(t.replace(',','.')):NaN;};
+ async function call(action,extra={}){
+  if(!within())throw Error('Cambió la sucursal.');
+  const token=await window.ukiInventarioToken?.();if(!token||!within())throw Error('Ingresa con Google autorizado.');
+  const response=await fetch(api,{method:'POST',cache:'no-store',credentials:'omit',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({branch:active,action,...extra})});
+  const result=await response.json().catch(()=>null);
+  if(!response.ok||result?.ok!==true||result.store!==store)throw Error(typeof result?.error==='string'?result.error:'Costos todavía no disponibles.');
+  if(!within())throw Error('Cambió la sucursal.');
+  return result;
+ }
+ function opt(select,value,name){const o=document.createElement('option');o.value=value;o.textContent=name;select.append(o);}
+ function preview(){const n=numeric(el('invCostQty').value),p=numeric(el('invCostPrice').value),unit=el('invCostUnit').value;el('invCostResult').textContent=n>0&&Number.isSafeInteger(p)&&p>0?'Costo por '+unit+': $'+(p/n).toLocaleString('es-CL',{maximumFractionDigits:4}):'Completa cantidad y precio.';}
+ function select(){
+  const item=rows.find(x=>x.sku===el('invCostItem').value),p=prices.find(x=>x.sku===item?.sku);
+  el('invCostUnit').replaceChildren();for(const u of groups[item?.stock_unit]||[])opt(el('invCostUnit'),u,labels[u]);
+  el('invCostUnit').value=p&&groups[item?.stock_unit]?.includes(p.unit)?p.unit:item?.stock_unit||'';
+  el('invCostQty').value=p?String(p.quantity):'';el('invCostPrice').value=p?String(p.price):'';preview();
+ }
+ async function loadCosts(){
+  if(busy)return;busy=true;el('invCostLoad').disabled=true;el('invCostSave').disabled=true;status('Consultando…');
+  try{const a=await call('listar');rows=(a.items||[]).filter(x=>groups[x.stock_unit]);prices=a.prices||[];const field=el('invCostItem');const prev=field.value;field.replaceChildren();for(const i of rows)opt(field,i.sku,i.name);if(rows.some(i=>i.sku===prev))field.value=prev;el('invCostFields').hidden=!rows.length;select();status(rows.length?'Costos de esta sucursal.':'No hay insumos con unidades compatibles.');}
+  catch(e){if(within()){el('invCostFields').hidden=true;status(e.message);}}
+  finally{busy=false;if(within()){el('invCostLoad').disabled=false;el('invCostSave').disabled=false;}}
+ }
+ async function saveCost(){
+  if(busy||!within())return;const sku=el('invCostItem').value,unit=el('invCostUnit').value,quantity=numeric(el('invCostQty').value),price=numeric(el('invCostPrice').value);
+  if(!(quantity>0)||!Number.isSafeInteger(price)||price<=0){status('Revisa cantidad y precio total.');return;}
+  const revision=Number(prices.find(x=>x.sku===sku)?.revision||0);
+  busy=true;el('invCostSave').disabled=true;el('invCostLoad').disabled=true;status('Guardando precio…');
+  try{const a=await call('guardar-precio',{sku,unit,quantity,price,revision});prices=prices.filter(x=>x.sku!==sku).concat(a.price);status('Precio confirmado. Existencias sin cambios.');}
+  catch(e){status(e.message);}
+  finally{busy=false;if(within()){el('invCostSave').disabled=false;el('invCostLoad').disabled=false;}}
+ }
+ el('invCostLoad').onclick=()=>void loadCosts();
+ el('invCostSave').onclick=()=>void saveCost();
+ el('invCostItem').onchange=select;
+ for(const id of ['invCostQty','invCostPrice','invCostUnit'])el(id).oninput=preview;
+
+ // Recetas de productos: borrador privado, sin descontar existencias.
+ const recipeBox=document.createElement('details');recipeBox.id='invRecipeBox';
+ recipeBox.style.marginTop='16px';
+ recipeBox.innerHTML='<summary><b>🍣 Recetas y costos por producto</b></summary><p class="muted">Selecciona un producto y registra todos sus ingredientes e insumos por unidad vendida. Para sushi personalizado, usa una variante que describa el armado completo. No se aplican costos a ventas automáticamente.</p><button type="button" class="sm" id="invRecipeLoad">Consultar recetas</button><p role="status" id="invRecipeStatus" class="mini-help"></p><fieldset id="invRecipeFields" hidden style="border:0;padding:0;margin:0;min-width:0"><label for="invRecipeProduct">Producto o promoción</label><select id="invRecipeProduct"></select><label for="invRecipeVariant">Variante de receta</label><input id="invRecipeVariant" list="invRecipeVariants" maxlength="180" value="base" placeholder="Ej.: pollo panko"><datalist id="invRecipeVariants"></datalist><button type="button" id="invRecipeChoose" class="sm">Abrir variante</button><div id="invRecipeLines"></div><button type="button" class="sm" id="invRecipeAdd">＋ Agregar insumo</button><p class="mini-help" id="invRecipeEstimate"></p><button type="button" id="invRecipeSave" class="big">Guardar receta en borrador</button><button type="button" class="sm ok" id="invRecipeConfirm">Confirmar receta guardada</button></fieldset>';
+ card.append(recipeBox);
+ let recipeProducts=[],recipeItems=[],recipes=[],recipeBusy=false,loadedProduct='',loadedVariant='',loadedRevision=0;
+ const re=id=>recipeBox.querySelector('#'+id);
+ const rs=s=>{if(within())re('invRecipeStatus').textContent=s;};
+ function recipeLock(b){recipeBusy=b;re('invRecipeFields').disabled=b;re('invRecipeLoad').disabled=b;}
+ function recipeLine(data={}){
+  const line=document.createElement('div');line.className='card';line.style.padding='9px';
+  const product=document.createElement('select'),unit=document.createElement('select'),quantity=document.createElement('input'),remove=document.createElement('button');
+  product.setAttribute('aria-label','Insumo de receta');unit.setAttribute('aria-label','Unidad de ingrediente');quantity.setAttribute('aria-label','Cantidad por producto');quantity.inputMode='decimal';quantity.placeholder='Cantidad';remove.type='button';remove.className='sm';remove.textContent='Quitar insumo';
+  opt(product,'','Elegir ingrediente');for(const i of recipeItems)opt(product,i.sku,i.name);
+  if(data.sku&&!recipeItems.some(i=>i.sku===data.sku))opt(product,data.sku,'Insumo no disponible: '+data.sku);
+  product.value=data.sku||'';
+  function units(preferred){unit.replaceChildren();const item=recipeItems.find(i=>i.sku===product.value);for(const u of groups[item?.stock_unit]||[])opt(unit,u,labels[u]);if(preferred&&Array.from(unit.options).some(o=>o.value===preferred))unit.value=preferred;else if(item)unit.value=item.stock_unit;}
+  units(data.unit);quantity.value=data.quantity??'';product.onchange=()=>units();remove.onclick=()=>line.remove();
+  for(const node of [product,quantity,unit,remove])line.append(node);
+  line.readRecipe=()=>({sku:product.value,unit:unit.value,quantity:numeric(quantity.value)});
+  re('invRecipeLines').append(line);
+ }
+ function variants(){const p=re('invRecipeProduct').value,list=re('invRecipeVariants');list.replaceChildren();opt(list,'base','Receta base');for(const r of recipes.filter(r=>r.product_sku===p&&r.variant_key!=='base'))opt(list,r.variant_key,r.variant_key);}
+ function openRecipe(){
+  loadedProduct=re('invRecipeProduct').value;loadedVariant=re('invRecipeVariant').value.trim()||'base';re('invRecipeVariant').value=loadedVariant;
+  const r=recipes.find(r=>r.product_sku===loadedProduct&&r.variant_key===loadedVariant);
+  loadedRevision=Number(r?.revision||0);re('invRecipeLines').replaceChildren();
+  for(const row of r?.recipe_lines||[])recipeLine(row);
+  if(!r)recipeLine();
+  re('invRecipeEstimate').textContent=r?.cost!=null?'Costo estimado de la receta: $'+Number(r.cost).toLocaleString('es-CL')+' · '+(r.confirmed?'Confirmada':'Borrador'):'Costo pendiente de ingredientes, precios o configuración.';
+  rs(r?'Receta existente. Cualquier edición queda como borrador.':'Nueva variante de receta.');
+ }
+ async function loadRecipes(){
+  if(recipeBusy)return;recipeLock(true);rs('Consultando productos e ingredientes…');
+  try{const [catalog,inventory]=await Promise.all([call('listar-recetas'),call('listar')]);recipeProducts=catalog.products||[];recipes=catalog.recipes||[];recipeItems=(inventory.items||[]).filter(i=>groups[i.stock_unit]);const field=re('invRecipeProduct'),prev=field.value;field.replaceChildren();for(const p of recipeProducts)opt(field,p.sku,p.name+(p.source==='borrador'?' · borrador de carta':''));if(recipeProducts.some(p=>p.sku===prev))field.value=prev;re('invRecipeFields').hidden=!recipeProducts.length;if(recipeProducts.length){variants();openRecipe();}else rs('No hay productos registrados en la carta.');}
+  catch(e){if(within()){re('invRecipeFields').hidden=true;rs(e.message);}}
+  finally{if(within())recipeLock(false);}
+ }
+ async function saveRecipe(){
+  if(recipeBusy||!within())return;
+  if(loadedProduct!==re('invRecipeProduct').value||loadedVariant!==re('invRecipeVariant').value.trim()){rs('Abre la variante indicada antes de guardar.');return;}
+  const lines=Array.from(re('invRecipeLines').children).map(x=>x.readRecipe());
+  if(!lines.length||lines.some(x=>!x.sku||!x.unit||!(x.quantity>0))){rs('Completa los ingredientes, unidades y cantidades.');return;}
+  recipeLock(true);rs('Guardando receta…');
+  try{const a=await call('guardar-receta',{productSku:loadedProduct,variantKey:loadedVariant,revision:loadedRevision,lines});recipes=recipes.filter(r=>!(r.product_sku===loadedProduct&&r.variant_key===loadedVariant)).concat(a.recipe);variants();openRecipe();rs('Receta guardada como borrador. No modifica stock ni caja.');}
+  catch(e){rs(e.message);}
+  finally{if(within())recipeLock(false);}
+ }
+ re('invRecipeLoad').onclick=()=>void loadRecipes();
+ re('invRecipeProduct').onchange=()=>{re('invRecipeVariant').value='base';variants();openRecipe();};
+ re('invRecipeChoose').onclick=openRecipe;
+ re('invRecipeAdd').onclick=()=>{if(re('invRecipeLines').children.length<100)recipeLine();};
+ re('invRecipeSave').onclick=()=>void saveRecipe();
+ re('invRecipeConfirm').onclick=async()=>{
+  if(recipeBusy||!within())return;
+  const r=recipes.find(x=>x.product_sku===loadedProduct&&x.variant_key===loadedVariant);
+  if(!r||r.confirmed||loadedProduct!==re('invRecipeProduct').value||loadedVariant!==re('invRecipeVariant').value.trim()){rs('Abre una receta borrador guardada antes de confirmar.');return;}
+  const current=Array.from(re('invRecipeLines').children).map(x=>x.readRecipe());
+  const normalize=a=>JSON.stringify(a.map(x=>({sku:x.sku,unit:x.unit,quantity:Number(x.quantity)})));
+  if(normalize(current)!==normalize(r.recipe_lines)){rs('Guarda los cambios antes de confirmar.');return;}
+  if(!window.confirm('¿Confirmas que esta receta incluye todos los ingredientes, salsas y envases de la variante indicada?'))return;
+  recipeLock(true);rs('Confirmando receta completa…');
+  try{const a=await call('confirmar-receta',{productSku:loadedProduct,variantKey:loadedVariant,revision:loadedRevision,confirmar:true});recipes=recipes.filter(x=>!(x.product_sku===loadedProduct&&x.variant_key===loadedVariant)).concat(a.recipe);openRecipe();rs('Receta confirmada. No se modificó el inventario.');}
+  catch(e){rs(e.message);}finally{if(within())recipeLock(false);}
+ };
+
+
+ // Consulta privada de rentabilidad estimada, sin modificar pedidos ni inventario.
+ const report=document.createElement('details');report.style.marginTop='16px';
+ report.innerHTML='<summary><b>📊 Consumo y rentabilidad por pedido</b></summary><p class="muted">Consulta pedidos pagados y entregados disponibles en este panel. Usa precios actuales; no representa costos históricos ni descuenta existencias.</p><label for="invProfitFrom">Desde</label><input id="invProfitFrom" type="date"><label for="invProfitTo">Hasta</label><input id="invProfitTo" type="date"><button type="button" class="sm" id="invProfitLoad">Consultar pedidos</button><p role="status" id="invProfitStatus"></p><div id="invProfitFields" hidden><label for="invProfitOrder">Pedido</label><select id="invProfitOrder"></select><div id="invProfitChoices"></div><button type="button" class="sm ok" id="invProfitCalc">Calcular pedido</button><div id="invProfitResult"></div><div id="invProfitTotal"></div></div>';
+ card.append(report);
+ const pe=id=>report.querySelector('#'+id);
+ const ps=s=>{if(within())pe('invProfitStatus').textContent=s;};
+ const localDate=v=>{try{return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(v));}catch{return '';}};
+ const fmtMoney=v=>'$'+Number(v).toLocaleString('es-CL');
+ const countFmt=v=>Number(v).toLocaleString('es-CL',{maximumFractionDigits:4});
+ let orders=[],confirmed=[],profitBusy=false,totals=new Map();
+ pe('invProfitFrom').value=pe('invProfitTo').value=localDate(Date.now());
+ const make=(tag,t)=>{const e=document.createElement(tag);if(t!=null)e.textContent=t;return e;};
+ function selectedOrder(){return orders[Number(pe('invProfitOrder').value)];}
+ function orderSignature(p){return JSON.stringify(p);}
+ function sanitized(p){
+  return {id:p.id,suc:p.suc,fechaISO:p.fechaISO,pagado:p.pagado,estado:p.estado,productos:(p.productos||[]).map(x=>({skuCarta:x.skuCarta,nombre:String(x.nombre||''),cantidad:Number(x.cantidad),precioUnit:Number(x.precioUnit),detalle:String(x.detalle||'')}))};
+ }
+ function currentOrders(){
+  const start=pe('invProfitFrom').value,end=pe('invProfitTo').value;
+  if(!start||!end||start>end)throw Error('Selecciona un período válido.');
+  const current=typeof S!=='undefined'&&Array.isArray(S.pedidos)?S.pedidos:[];
+  const seen=new Set();
+  return current.filter(p=>p.suc===S.suc&&p.pagado===true&&p.estado==='Entregado'&&!p.esPremio&&localDate(p.fechaISO)>=start&&localDate(p.fechaISO)<=end).filter(p=>{const k=String(p.id)+'|'+String(p.fechaISO);if(seen.has(k))return false;seen.add(k);return true;}).map(sanitized);
+ }
+ function showTotals(){
+  const a=[...totals.values()].filter(x=>x.status==='ready'),p=pe('invProfitTotal');p.replaceChildren();
+  const rev=a.reduce((n,x)=>n+x.revenue,0),cost=a.reduce((n,x)=>n+x.cost,0);
+  p.append(make('h3','Resumen de pedidos calculados'),make('p',a.length+' de '+orders.length+' pedidos identificados del período · '+(orders.length-a.length)+' pendientes de cálculo'),make('p','Venta de productos: '+fmtMoney(rev)),make('p','Costo estimado: '+fmtMoney(cost)),make('b','Ganancia bruta estimada: '+fmtMoney(rev-cost)),make('p','Solo incluye pedidos completos revisados en esta consulta. Excluye delivery, propinas, comisiones y otros gastos.'));
+ }
+ function showOrder(){
+  const o=selectedOrder(),area=pe('invProfitChoices');area.replaceChildren();pe('invProfitResult').replaceChildren();if(!o)return;
+  for(const [i,x] of o.productos.entries()){
+   const div=make('div');div.className='card';div.append(make('b',x.cantidad+' × '+x.nombre));if(x.detalle)div.append(make('p',x.detalle));
+   const select=make('select');select.setAttribute('aria-label','Variante para '+x.nombre);opt(select,'','Seleccionar receta comprobada');
+   const variants=confirmed.filter(r=>r.product_sku===x.skuCarta);
+   for(const [j,v] of variants.entries())opt(select,String(j),v.variant_key);
+   div.append(select);
+   div.getChoice=()=>{const v=select.value!==''?variants[Number(select.value)]:null;return v?{index:i,variant:v.variant_key,revision:Number(v.revision),verified:true}:null;};
+   if(!variants.length)div.append(make('p','Sin receta confirmada o producto sin código. El costo queda pendiente.'));
+   area.append(div);
+  }
+ }
+ pe('invProfitLoad').onclick=async()=>{
+  if(profitBusy)return;profitBusy=true;pe('invProfitLoad').disabled=true;pe('invProfitCalc').disabled=true;ps('Consultando…');
+  try{const a=await call('listar-recetas');confirmed=(a.recipes||[]).filter(r=>r.confirmed===true);orders=currentOrders();totals.clear();const field=pe('invProfitOrder');field.replaceChildren();for(const [i,p] of orders.entries())opt(field,String(i),'#'+p.id+' · '+localDate(p.fechaISO));pe('invProfitFields').hidden=!orders.length;showOrder();showTotals();ps(orders.length?orders.length+' pedidos disponibles. Revisa las variantes de cada pedido.':'No hay pedidos pagados y entregados disponibles en este período.');}
+  catch(e){if(within()){pe('invProfitFields').hidden=true;ps(e.message);}}
+  finally{profitBusy=false;if(within()){pe('invProfitLoad').disabled=false;pe('invProfitCalc').disabled=false;}}
+ };
+ for(const id of ['invProfitFrom','invProfitTo'])pe(id).onchange=()=>{orders=[];totals.clear();pe('invProfitFields').hidden=true;ps('Consulta el nuevo período.');};
+ pe('invProfitOrder').onchange=showOrder;
+ pe('invProfitCalc').onclick=async()=>{
+  if(profitBusy||!within())return;const order=selectedOrder();if(!order)return;
+  const real=(S.pedidos||[]).find(p=>p.suc===S.suc&&p.id===order.id&&p.fechaISO===order.fechaISO);
+  if(!real||orderSignature(sanitized(real))!==orderSignature(order)){ps('El pedido cambió. Consulta nuevamente el período.');return;}
+  const choices=Array.from(pe('invProfitChoices').children).map(x=>x.getChoice()).filter(Boolean);
+  profitBusy=true;pe('invProfitLoad').disabled=true;pe('invProfitCalc').disabled=true;pe('invProfitOrder').disabled=true;ps('Calculando…');
+  try{const a=await call('proyectar-pedido',{order,choices});const r=a.projection,out=pe('invProfitResult');out.replaceChildren();totals.set(r.orderKey,r);
+   if(r.status==='ready'){
+    out.append(make('h3','Costo estimado del pedido'),make('p','Costo: '+fmtMoney(r.cost)),make('b','Ganancia bruta: '+fmtMoney(r.grossProfit)),make('h3','Comparación con existencias actuales'));
+    for(const x of a.stock||[])out.append(make('p',x.name+' · consumo '+(x.required===null?'sin unidad compatible':countFmt(x.required)+' '+x.unit)+' · existencia '+(x.available===null?'sin dato':countFmt(x.available)+' '+x.unit)));
+    out.append(make('p','Comparación informativa: las existencias pueden haber sido contadas después de preparar este pedido.'));
+   }else out.append(make('p','Costo pendiente: completa la identificación de productos, recetas y precios de compra.'));
+   showTotals();ps('Consulta finalizada. No se modificaron existencias.');
+  }catch(e){ps(e.message);}
+  finally{profitBusy=false;if(within()){pe('invProfitLoad').disabled=false;pe('invProfitCalc').disabled=false;pe('invProfitOrder').disabled=false;}}
+ };
+
+
+ // Punto de partida del consumo: solo preparación del registro, no activa descuentos.
+ const startBox=document.createElement('details');startBox.style.marginTop='16px';
+ startBox.innerHTML='<summary><b>Inicio del control de consumo</b></summary><p class="muted">Preparar el conteo físico inicial. Solo confirma al terminar la jornada, sin pedidos preparados pendientes. Esta etapa no activa descuentos de stock.</p><button type="button" class="sm" id="invStartLoad">Consultar inventario inicial</button><p role="status" id="invStartStatus"></p><div id="invStartReview" hidden><div id="invStartItems"></div><label><input id="invStartCounted" type="checkbox"> Confirmo que las cantidades coinciden con el conteo físico.</label><label><input id="invStartNoPending" type="checkbox"> No quedan pedidos preparados pendientes de registrar.</label><button type="button" class="sm ok" id="invStartConfirm">Registrar punto inicial</button></div>';
+ card.append(startBox);
+ const se=id=>startBox.querySelector('#'+id);
+ let startToken=null,startBusy=false;
+ const ss=v=>{if(within())se('invStartStatus').textContent=v;};
+ function showStart(v){
+  startToken=null;se('invStartReview').hidden=true;
+  se('invStartCounted').checked=false;se('invStartNoPending').checked=false;
+  const list=se('invStartItems');list.replaceChildren();
+  if(v.existing){ss('Punto inicial registrado: '+new Date(v.existing.cutoff).toLocaleString('es-CL',{timeZone:'America/Santiago'})+'. El descuento automático sigue desactivado.');return;}
+  const items=v.snapshot?.items||[];
+  if(!items.length){ss('No hay artículos configurados.');return;}
+  for(const i of items){const row=document.createElement('p');row.textContent=i.name+' · '+Number(i.quantity).toLocaleString('es-CL',{maximumFractionDigits:4})+' '+i.unit;list.append(row);}
+  startToken=v.token;se('invStartReview').hidden=false;ss('Revisa '+items.length+' artículos antes de confirmar.');
+ }
+ se('invStartLoad').onclick=async()=>{
+  if(startBusy)return;startBusy=true;se('invStartLoad').disabled=true;se('invStartConfirm').disabled=true;startToken=null;se('invStartReview').hidden=true;ss('Consultando…');
+  try{showStart(await call('consultar-inicio'));}catch(e){ss(e.message);}
+  finally{startBusy=false;if(within()){se('invStartLoad').disabled=false;se('invStartConfirm').disabled=false;}}
+ };
+ se('invStartConfirm').onclick=async()=>{
+  if(startBusy||!within()||!startToken)return;
+  if(!se('invStartCounted').checked||!se('invStartNoPending').checked){ss('Confirma ambas verificaciones.');return;}
+  if(!window.confirm('¿Registrar este conteo como punto de inicio? No se descontará stock ni se habilitará consumo automático.'))return;
+  startBusy=true;se('invStartLoad').disabled=true;se('invStartConfirm').disabled=true;ss('Registrando…');
+  try{showStart(await call('confirmar-inicio',{token:startToken,confirmar:true,sinPendientes:true}));}
+  catch(e){startToken=null;se('invStartReview').hidden=true;ss(e.message+' Consulta nuevamente el inventario.');}
+  finally{startBusy=false;if(within()){se('invStartLoad').disabled=false;se('invStartConfirm').disabled=false;}}
+ };
+
+}
+
 function mount(){
  const root=$('invRoot');if(!root||root===mountedRoot)return;mountedRoot=root;
  const active=panelBranch();
  if(X.branch!==active){X.items=[];X.reports=[];X.selected='';X.loaded=false;X.romoRevision=null;X.romoPlantilla=[];}
  X.branch=active;
+ mountCosteo();
  $('invBranch').value=active;
  $('invBranch').disabled=true;
  $('ukiInvSucursalActual').textContent=active==='romo'?'Romo’s Sushi La Serena':
