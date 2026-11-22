@@ -2547,7 +2547,17 @@ montoProductosOtroLocal:p.productosPagadosOtroLocal?Math.min(Number(p.subtotal)|
 envioPagadoOtroLocal:ukiMontoEnvioOtroLocal(p,Number(p.envio)||0,Number(p.subtotal)||0)>0,
 montoEnvioOtroLocal:p.montoEnvioOtroLocal??"",
 localPagoExterno:p.localPagoExterno||"",propinaModo:p.propinaModo||((Number(p.propina)||0)>0?"otro":"ninguna"),propinaPersonalizada:p.propinaModo==="otro"||!p.propinaModo?p.propina||"": "",medioPropina:p.medioPropina||"Efectivo",
-items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),ajusteCajaRegularizado:false,responsableEdicion:"",editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}]; modoNuevo="manual";ir("nuevo"); aviso(`Editando pedido #${id}`);}
+items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||""})),ajusteCajaRegularizado:false,responsableEdicion:"",editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}];
+ if(S.suc===ROMO_SUCURSAL_QA&&p.pagado){
+  // El guardado de Romo puede representar un medio único como una línea.
+  // Mostrarlo como medio único, no como pago mixto, y conservar su importe real.
+  for(const [key,flag,medio] of [['pagosProductos','mixtoProductos','medio'],['pagosEnvio','mixtoEnvio','medioEnvio']]){
+   if(Array.isArray(D[key])&&D[key].length===1){D[medio]=D[key][0].medio||D[medio];D[key]=[];D[flag]=false;}
+  }
+  // La propina ya recibida no debe recalcularse al corregir el precio.
+  if(D.propinaModo==='diez'){D.propinaModo='otro';D.propinaPersonalizada=Number(p.propina)||0;}
+ }
+ modoNuevo="manual";ir("nuevo"); aviso(`Editando pedido #${id}`);}
 function reanalizar(){leerTextoD();}
 
 // La propina es opcional (sugerencia 10% de productos), fuera de la venta.

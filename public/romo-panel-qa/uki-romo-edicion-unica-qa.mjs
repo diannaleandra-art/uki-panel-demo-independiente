@@ -12,7 +12,6 @@ const amount=(x,label,max=3000000)=>{
 const phone=x=>String(x??'').replace(/\D/g,'').replace(/^56(?=9\d{8}$)/,'');
 const copy=x=>JSON.parse(JSON.stringify(x));
 const ordered=x=>Object.fromEntries(Object.entries(x).filter(([,v])=>v>0).sort(([a],[b])=>a.localeCompare(b)));
-const mode=x=>x.propinaModo||(n(x.propina)>0?'otro':'ninguna');
 function afuera(p,sub,env){
  const raw=p.montoProductosOtroLocal;
  const prod=p.productosPagadosOtroLocal?Math.max(0,Math.min(sub,raw===undefined||raw===null||raw===''?sub:n(raw))):0;
@@ -51,7 +50,7 @@ export function prepararEdicionUnicaRomoQA({estado,pedidoId,draft,responsable,me
  const found=estado.pedidos.filter(p=>p.id===pedidoId);
  if(found.length!==1||Number(draft?.editando)!==pedidoId)fail('El pedido ya no está disponible.');
  const p=found[0],autor=t(responsable),turno=t(p.turnoClave),caja=estado.cajasDiarias?.[SUC+'|'+turno.slice(0,10)];
- if(!p.pagado||p.estado==='Cancelado'||p.esPremio||turnoCerrado||!turno||caja?.turnoAbierto!==true||caja.baseConfirmada!==true||caja.turnoId!==turno)
+ if(!p.pagado||p.estado==='Cancelado'||p.esPremio||/^PRUEBA\b/i.test(t(p.cliente))||turnoCerrado||!turno||caja?.turnoAbierto!==true||caja.baseConfirmada!==true||caja.turnoId!==turno||(estado.cierres||[]).some(c=>c.suc===SUC&&c.turnoClave===turno))
   fail('Solo puedes editar directamente pedidos pagados de la caja abierta.');
  if(autor.length<2||autor.length>80)fail('Escribe quién realiza la modificación.');
  if(p.ajusteCobroPendiente)fail('Regulariza primero la diferencia pendiente del pedido.');
