@@ -1869,6 +1869,143 @@ $('ukiCosteoConsultar').onclick=async()=>{
  }catch(e){if(valid())result.textContent=e.message;}
  finally{if(valid())button.disabled=false;}
 };
+
+const costData={insumos:[],facturas:[],fichas:[],ingEdit:null,recipeEdit:null,source:null,seq:0};
+const cMoney=x=>'$'+Number(x||0).toLocaleString('es-CL',{maximumFractionDigits:2});
+const cNum=x=>Number(String(x??'').trim().replace(',','.'));
+const cBase=unit=>['kg','g'].includes(unit)?'g':['l','ml'].includes(unit)?'ml':'un';
+const cFactor=unit=>['kg','l'].includes(unit)?1000:1;
+const cLocal=()=>({negocio_id:value('costBiz'),sucursal_id:value('costBranch')});
+const cUnitCost=ins=>{
+ if(!ins)return null;
+ const q=cNum(ins.cantidad_compra)*cFactor(ins.unidad_compra)*cNum(ins.rendimiento_pct)/100;
+ const p=cNum(ins.precio_compra);
+ return q>0&&p>0?p/q:null;
+};
+const cIngredientCost=(ins,qty)=>{
+ const unit=cUnitCost(ins),q=cNum(qty);
+ return unit!==null&&q>0?unit*q:null;
+};
+function costIngClear(){
+ costData.ingEdit=null;costData.source=null;
+ for(const id of ['costIngNombre','costIngQty','costIngPrice','costIngRoll'])$(id).value='';
+ $('costIngUnit').value='kg';$('costIngYield').value='100';
+ $('costIngPrice').readOnly=false;$('costIngConfirmed').checked=false;
+ $('costFacturaItem').value='';$('costIngSave').textContent='Guardar ingrediente';
+ $('costFacturaAviso').textContent='Confirma el contenido de cada envase de factura antes de guardar.';
+ renderIngredientPreview();
+}
+function renderIngredientPreview(){
+ const ins={unidad_compra:value('costIngUnit'),cantidad_compra:cNum(value('costIngQty')),
+  precio_compra:cNum(value('costIngPrice')),rendimiento_pct:cNum(value('costIngYield'))};
+ const price=cUnitCost(ins),per=cIngredientCost(ins,value('costIngRoll')),u=cBase(ins.unidad_compra);
+ $('costIngPreview').textContent=price===null?'Completa cantidad, precio y rendimiento.':
+  'Costo por '+u+': '+cMoney(price)+(per===null?' · Falta consumo por roll.':
+   ' · '+value('costIngRoll')+' '+u+' por roll = '+cMoney(per)+' por roll.');
+}
+for(const id of ['costIngQty','costIngPrice','costIngYield','costIngRoll'])
+ $(id).addEventListener('input',renderIngredientPreview);
+$('costIngUnit').onchange=renderIngredientPreview;
+$('costIngCancel').onclick=costIngClear;
+function chooseInvoice(){
+ const f=costData.facturas.find(x=>String(x.item_id)===$('costFacturaItem').value);
+ if(!f){costData.source=null;$('costIngPrice').readOnly=false;return;}
+ costData.source=f;$('costIngNombre').value=String(f.descripcion||'').slice(0,100);
+ $('costIngPrice').value=String(f.total_linea);$('costIngPrice').readOnly=true;
+ $('costIngQty').value=String(f.cantidad_factura);
+ $('costIngUnit').value=['kg','g','l','ml','un'].includes(f.unidad)?f.unidad:'un';
+ $('costIngConfirmed').checked=false;
+ $('costFacturaAviso').textContent='Precio de línea de '+f.fecha+' · '+f.proveedor+
+  '. Factura '+f.alcance+'. Confirma cuántos kilos, gramos, litros o unidades contiene toda la compra. Puede no incluir IVA, descuentos ni fletes.';
+ renderIngredientPreview();
+}
+$('costFacturaUsar').onclick=chooseInvoice;
+$('costFacturaItem').onchange=chooseInvoice;
+function editIngredient(i){
+ costData.ingEdit={id:i.id,version:i.actualizado_en};
+ costData.source=costData.facturas.find(x=>String(x.item_id)===String(i.origen_item_id))||null;
+ $('costIngNombre').value=i.nombre;$('costIngUnit').value=i.unidad_compra;
+ $('costIngQty').value=String(i.cantidad_compra);$('costIngPrice').value=String(i.precio_compra);
+ $('costIngYield').value=String(i.rendimiento_pct);
+ $('costIngRoll').value=i.cantidad_roll==null?'':String(i.cantidad_roll);
+ $('costFacturaItem').value=costData.source?String(costData.source.item_id):'';
+ $('costIngPrice').readOnly=!!costData.source;
+ $('costIngConfirmed').checked=false;$('costIngSave').textContent='Guardar cambio de ingrediente';
+ $('costFacturaAviso').textContent='Revisa y confirma el precio. Las recetas vinculadas se recalcularán al consultar.';
+ renderIngredientPreview();$('costIngNombre').scrollIntoView({behavior:'smooth',block:'center'});
+}
+function drawIngredientList(){
+ const list=$('costIngList');list.replaceChildren();
+ if(!costData.insumos.length){list.textContent='Sin ingredientes guardados para este local.';return;}
+ for(const i of costData.insumos){
+  const card=document.createElement('div');card.className='line';
+  const h=document.createElement('b');h.textContent=i.nombre;
+  const p=document.createElement('p');p.className='hint';
+  const unit=cBase(i.unidad_compra),cost=cUnitCost(i),per=cIngredientCost(i,i.cantidad_roll);
+  p.textContent=i.cantidad_compra+' '+i.unidad_compra+' = '+cMoney(i.precio_compra)+
+   ' · '+(cost==null?'Costo sin validar':cMoney(cost)+'/'+unit)+
+   (per==null?'':' · Por roll: '+cMoney(per));
+  const b=document.createElement('button');b.className='soft';b.textContent='Editar precio';
+  b.onclick=()=>editIngredient(i);card.append(h,p,b);list.append(card);
+ }
+}
+async function loadCostIngredients(){
+ const seq=++costData.seq,local=cLocal(),active=session;
+ costData.insumos=[];costData.facturas=[];costData.fichas=[];
+ costIngClear();cRecipeClear();
+ $('costIngList').replaceChildren();$('costRecList').replaceChildren();
+ const select=$('costFacturaItem');select.replaceChildren(new Option('Precio manual / sin factura',''));
+ if(!local.negocio_id||!local.sucursal_id){
+  $('costIngredientesEstado').textContent='Selecciona primero marca y sucursal.';return;
+ }
+ $('costIngredientesEstado').textContent='Consultando ingredientes y facturas…';
+ try{
+  const r=await api('costeo_insumos_listar',local);
+  if(seq!==costData.seq||active!==session||value('costBiz')!==local.negocio_id||
+     value('costBranch')!==local.sucursal_id)return;
+  if(r.sucursal_id!==local.sucursal_id||!Array.isArray(r.insumos)||!Array.isArray(r.facturas)||
+     !Array.isArray(r.fichas)||r.insumos.some(x=>x.sucursal_id!==local.sucursal_id)||
+     r.fichas.some(x=>x.sucursal_id!==local.sucursal_id))
+   throw Error('El sistema no confirmó la separación de los costos por sucursal.');
+  costData.insumos=r.insumos;costData.facturas=r.facturas;costData.fichas=r.fichas;
+  for(const x of r.facturas)select.add(new Option(
+   x.fecha+' · '+x.descripcion+' · '+x.cantidad_factura+' '+x.unidad+' · '+
+   cMoney(x.total_linea)+(x.alcance==='local'?'':' · '+x.alcance),String(x.item_id)));
+  $('costIngredientesEstado').textContent=r.insumos.length+' ingredientes · '+
+   r.fichas.length+' recetas · '+r.facturas.length+' artículos de facturas disponibles.';
+  drawIngredientList();drawRecipeList();
+ }catch(e){
+  if(seq===costData.seq&&active===session)
+   $('costIngredientesEstado').textContent='No se pudo consultar: '+e.message;
+ }
+}
+$('costIngredientesRefresh').onclick=()=>void loadCostIngredients();
+$('costIngSave').onclick=async()=>{
+ const local=cLocal(),nombre=value('costIngNombre').trim(),
+  unidad_compra=value('costIngUnit'),cantidad_compra=cNum(value('costIngQty')),
+  rendimiento_pct=cNum(value('costIngYield')),precio_compra=cNum(value('costIngPrice')),
+  cantidad_roll=value('costIngRoll').trim()===''?null:cNum(value('costIngRoll'));
+ if(!local.negocio_id||!local.sucursal_id)return notify('Selecciona el local.','error');
+ if(nombre.length<2||!(cantidad_compra>0)||!(rendimiento_pct>0&&rendimiento_pct<=100)||
+    !Number.isSafeInteger(precio_compra)||precio_compra<=0||
+    (cantidad_roll!==null&&!(cantidad_roll>0)))
+  return notify('Revisa cantidad, precio y rendimiento.','error');
+ if(!$('costIngConfirmed').checked)
+  return notify('Confirma primero el contenido real del envase y su precio.','error');
+ if(costData.source?.unidad==='un'&&unidad_compra==='un'&&cantidad_roll>10)
+  return notify('La factura dice unidades; para gramos debes convertir primero el peso total a kg o g.','error');
+ if(!confirm('¿Guardar '+nombre+' en '+branchName(local.sucursal_id)+
+  '? Actualizará el costo de sus recetas sin tocar pedidos, caja ni inventario.'))return;
+ const button=$('costIngSave');button.disabled=true;
+ try{
+  await api('costeo_insumo_guardar',{...local,nombre,unidad_compra,cantidad_compra,
+   rendimiento_pct,precio_compra,cantidad_roll,origen_item_id:costData.source?.item_id||null,
+   ...(costData.ingEdit?{id:costData.ingEdit.id,version:costData.ingEdit.version}:{})});
+  notify('Ingrediente guardado correctamente.','success');await loadCostIngredients();
+ }catch(e){notify(e.message,'error');}
+ finally{button.disabled=false;}
+};
+
 let costEdit=null,costQuerySeq=0;
 function pintarCostoPreview(){
  const venta=Number(value('costPrice')),costo=Number(value('costAmount'));
