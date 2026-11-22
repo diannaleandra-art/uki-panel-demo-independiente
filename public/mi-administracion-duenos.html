@@ -590,6 +590,7 @@ function pintarResumenPorNegocio(data,cierresSumables){
   const isUki=/\buki\b/i.test(name);
   if(isUki&&/arica|regimiento/i.test(branchName))return 'uki-arica';
   if(isUki&&/serena/i.test(branchName))return 'uki-serena';
+  if(/\bromo(?:[’']?s)?\b/i.test(name)&&/serena/i.test(branchName))return 'romo-serena';
   return 'manual-'+String(t.negocio_id)+'-'+String(t.sucursal_id||'general');
  };
  const entry=(key,label)=>{
@@ -614,7 +615,7 @@ function pintarResumenPorNegocio(data,cierresSumables){
  for(const t of transactions){
   if(t.estado==='anulado')continue;
   const k=keyForManual(t),row=entry(k,k==='uki-arica'?'Uki Sushi · Regimiento Arica':
-   k==='uki-serena'?'Uki Sushi · La Serena':labelFor(t));
+   k==='uki-serena'?'Uki Sushi · La Serena':k==='romo-serena'?'Romo’s Sushi · La Serena':labelFor(t));
   const amt=money(t.monto);
   if(t.tipo==='venta'&&manualIncluded.has(String(t.id)))row.venta+=amt;
   if(esGastoOperativo(t)){
