@@ -55,7 +55,7 @@ module.exports=async function romoCajaAcumuladaQA(req,res){
     JSON.stringify(body).length>3000||typeof body.action!=='string')
   return fail(res,400,'Solicitud inválida');
  const action=body.action;
- const write=['inicializar','entrada','gasto','retiro','sincronizar_cierre'].includes(action);
+ const write=['inicializar','entrada','gasto','retiro','sincronizar_cierre','marcar_revision'].includes(action);
  if(!['saldo','movimientos','libro'].includes(action)&&!write)
   return fail(res,400,'Operación no autorizada');
  if(write&&!conf.write)return fail(res,503,'Caja acumulada Romo solo consulta');
@@ -63,12 +63,14 @@ module.exports=async function romoCajaAcumuladaQA(req,res){
  if(write){
   const fields=action==='sincronizar_cierre'?
    ['action','source_key','concepto','responsable','op_key']:
+   action==='marcar_revision'?
+   ['action','source_key','estado','motivo','responsable','op_key']:
    ['action','monto','concepto','responsable','op_key'];
   if(!only(body,fields)||!UUID.test(String(body.op_key||''))||
-     !trim(body.responsable,2,80)||!trim(body.concepto,3,240))
+     !trim(body.responsable,2,80)||(action==='marcar_revision'?!trim(body.motivo,3,240):!trim(body.concepto,3,240)))
    return fail(res,400,'Faltan datos del movimiento');
-  if(action==='sincronizar_cierre'){
-   if(!CLOSE_KEY.test(String(body.source_key||'')))
+  if(action==='sincronizar_cierre'||action==='marcar_revision'){
+   if(!CLOSE_KEY.test(String(body.source_key||''))||(action==='marcar_revision'&&!['ya_incluido','pendiente'].includes(body.estado)))
     return fail(res,400,'Referencia de cierre inválida');
   }else if(!Number.isSafeInteger(body.monto)||body.monto<0||
     body.monto>100000000||(action!=='inicializar'&&body.monto===0)){
@@ -85,6 +87,13 @@ module.exports=async function romoCajaAcumuladaQA(req,res){
   });
   if(!identity||identity.brand!=='romo'||identity.role!=='duenos')
    return fail(res,403,'Solo dueños de Romo pueden consultar o mover caja acumulada');
+  if(action==='marcar_revision'){
+   const rows=await db.query(
+    'SELECT public.romo_caja_acum_marcar_revision_v1($1,$2,$3::uuid,$4,$5,$6) AS resultado',
+    [body.source_key,body.estado,body.op_key,String(identity.userId),
+     body.responsable.trim(),body.motivo.trim()]);
+   return res.status(200).json({ok:true,storeId:STORE,soloRomo:true,...rows[0].resultado});
+  }
   if(action==='libro'){
    // Una sola fotografía consistente: no escribe ni acredita cierres al consultar.
    const rows=await db.query(`SELECT
@@ -92,7 +101,11 @@ module.exports=async function romoCajaAcumuladaQA(req,res){
       json_build_object('store_id',$1::text,'balance',0,'initialized',false)) AS cuenta,
     COALESCE((SELECT json_agg(m ORDER BY m.creado_en DESC,m.id DESC) FROM
       (SELECT id,tipo,monto,saldo_resultante,concepto,responsable,source_key,creado_en FROM public.romo_caja_acum_movimientos_v1 WHERE store_id=$1 ORDER BY creado_en DESC,id DESC LIMIT 250) m),'[]'::json) AS movimientos,
-    COALESCE((SELECT json_agg(c.source_key) FROM public.romo_caja_acum_cierres_v1 c WHERE c.store_id=$1),'[]'::json) AS cierres_acreditados`,[STORE]);
+    COALESCE((SELECT json_agg(c.source_key) FROM public.romo_caja_acum_cierres_v1 c WHERE c.store_id=$1),'[]'::json) AS cierres_acreditados,
+    COALESCE((SELECT json_agg(r) FROM (SELECT DISTINCT ON (source_key)
+      source_key,estado,responsable,motivo,creado_en
+      FROM public.romo_caja_acum_revisiones_v1 WHERE store_id=$1
+      ORDER BY source_key,id DESC) r),'[]'::json) AS revisiones`,[STORE]);
    if(!Array.isArray(rows)||rows.length!==1)throw Error('Libro no verificado');
    return res.status(200).json({ok:true,storeId:STORE,soloRomo:true,escrituraHabilitada:conf.write,...rows[0]});
   }
