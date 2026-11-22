@@ -13,6 +13,20 @@ const money=v=>'$'+Number(v||0).toLocaleString('es-CL',{maximumFractionDigits:0}
 const branchFromPanel=()=>typeof S!=='undefined'&&S?.suc==='Uki La Serena'?'serena':'arica';
 const date=v=>new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',
  day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(v));
+const movimientoFechaChile=new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',weekday:'long',day:'numeric',month:'long',year:'numeric'});
+const movimientoHoraChile=new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+const primeraMayuscula=s=>String(s).charAt(0).toLocaleUpperCase('es-CL')+String(s).slice(1);
+function fechaHoraMovimiento(v){
+ const d=new Date(v);
+ if(!Number.isFinite(d.getTime()))return 'Fecha y hora sin registrar';
+ return primeraMayuscula(movimientoFechaChile.format(d))+' · '+movimientoHoraChile.format(d);
+}
+function fechaOperativaLegible(raw){
+ if(typeof raw!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(raw))return null;
+ const [y,m,d]=raw.split('-').map(Number),utc=new Date(Date.UTC(y,m-1,d,12));
+ if(utc.getUTCFullYear()!==y||utc.getUTCMonth()+1!==m||utc.getUTCDate()!==d)return null;
+ return primeraMayuscula(movimientoFechaChile.format(utc));
+}
 function status(msg,kind=''){
  const el=$('ukiAcumStatus');if(!el)return;
  el.textContent=msg;el.dataset.kind=kind;
@@ -163,10 +177,20 @@ function draw(){
  for(const x of state.history){
   const row=document.createElement('div');row.className='row';
   const left=document.createElement('div'),title=document.createElement('b'),info=document.createElement('small'),sum=document.createElement('b');
+  const registrado=document.createElement('small');
   title.textContent=TYPES[x.tipo]||String(x.tipo);
-  info.style.display='block';info.textContent=x.concepto+' · '+String(x.responsable||'Responsable no registrado')+' · '+date(x.creado_en);
+  registrado.style.cssText='display:block;font-weight:700;margin:5px 0 3px;line-height:1.45';
+  registrado.textContent='📅 Registrado: '+fechaHoraMovimiento(x.creado_en);
+  const diaTurno=['cierre','ajuste_cierre'].includes(x.tipo)?fechaOperativaLegible(x.fecha_operativa):null;
+  if(diaTurno){
+   const turno=document.createElement('small');
+   turno.style.cssText='display:block;margin:3px 0;font-weight:700';
+   turno.textContent='Turno: '+diaTurno;
+   left.append(title,turno,registrado);
+  }else left.append(title,registrado);
+  info.style.display='block';info.textContent=String(x.concepto||'Sin concepto')+' · '+String(x.responsable||'Responsable no registrado');
   sum.textContent=(Number(x.monto)>0?'+':'')+money(x.monto);
-  left.append(title,info);row.append(left,sum);root.append(row);
+  left.append(info);row.append(left,sum);root.append(row);
  }
 }
 async function load(){
