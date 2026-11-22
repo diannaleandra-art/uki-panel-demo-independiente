@@ -4381,7 +4381,6 @@ function vPedidos(){
   if(!S.suc) return vInicio();
   const fechaTurno=fechaOperativaActual();
   const pedidos=pedidosSuc();
-  const anterioresPendientes=pedidos.filter(p=>!esDelPeriodo(p)&&p.estado!=='Cancelado'&&(!p.pagado||p.estado!=='Entregado')&&!p.esPremio);
   const buscando=!!(filtroCodigoCarta||filtroDiaPedidos);
   const todos=pedidos.filter(p=>{
     if(buscando)return ukiPedidoCoincideBusqueda(p,filtroCodigoCarta)&&
@@ -4459,7 +4458,6 @@ function vPedidos(){
   const categoriaExtraActiva=!filtrosPrincipales.has(filtroCategoriaPedidos);
   const titulo=buscando?"Resultados de búsqueda":pedidosArchivoDia?"Pedidos del turno "+pedidosArchivoDia:"Pedidos del turno abierto · "+fechaTurno;
   return `<div class="section-head"><h2>Pedidos</h2><p>${esc(titulo)} · ${todos.length} registrados · ${pagados} pagados · ${solicitudesActivas.length+remotasActivas.length} solicitudes pendientes o rechazadas · ${borradoresEnAtencion.length} en atención</p></div>
-  ${!buscando&&!pedidosArchivoDia&&anterioresPendientes.length?`<details class="card"><summary><b>📚 Pendientes de turnos anteriores (${anterioresPendientes.length})</b></summary><p class="muted">No pertenecen al turno actual. Consulta su pedido original sin volver a registrarlo.</p>${anterioresPendientes.slice().reverse().map(p=>`<div class="row"><span>${esc(ukiReferenciaConCarta(p))} · ${esc(p.cliente||"Sin nombre")} · ${p.pagado?"Por entregar":"Por cobrar"}</span><button class="sm" type="button" onclick="verArchivoPedidos(\'${esc(fechaTurnoRegistro(p))}\')">Ver día</button></div>`).join("")}</details>`:""}
   ${mostrarPrioridad?`<section class="uki-urgentes-carta" aria-label="Solicitudes nuevas por confirmar">
     <div class="uki-urgentes-titulo">🔔 ${urgentesCarta.length+urgentesManuales.length} solicitud(es) por confirmar</div>
     <p class="uki-urgentes-subtitulo">Revisa el WhatsApp recibido y acepta o rechaza. No se suman a ventas, caja ni timbres hasta registrar el pedido.</p>
@@ -5944,6 +5942,36 @@ function ukiArchivoRechazadosHistorialUI(){
  '</details>';
 }
 
+let ukiPendientesHistoricosDia='';
+function ukiAbrirHistoricoPendiente(fecha){
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(String(fecha||'')))return;
+ pedidosArchivoDia=fecha;filtroCodigoCarta='';filtroDiaPedidos='';
+ ir('pedidos');
+}
+function ukiHistorialPendientesAnterioresUI(){
+ if(!S.suc)return '';
+ // Solo consulta: las ventas y estados históricos no se modifican.
+ const lista=pedidosSuc().filter(p=>!esDelPeriodo(p)&&p.estado!=='Cancelado'&&
+  (!p.pagado||p.estado!=='Entregado')&&!p.esPremio).slice().reverse();
+ if(!lista.length)return '';
+ const dia=ukiPendientesHistoricosDia;
+ const filtrados=dia?lista.filter(p=>fechaTurnoRegistro(p)===dia):lista;
+ const visibles=filtrados.slice(0,25);
+ return '<details class="card" '+(dia?'open':'')+'><summary><b>📚 Pedidos de otras jornadas por revisar · '+lista.length+'</b></summary>'+
+  '<p class="muted">Solo archivo histórico. No pertenece al turno abierto, no se registra de nuevo y no cambia pagos ni entregas.</p>'+
+  '<label for="ukiPendientesHistoricosDia">Buscar un día</label><input id="ukiPendientesHistoricosDia" type="date" value="'+esc(dia)+'" onchange="ukiPendientesHistoricosDia=this.value;render()">'+
+  (dia?'<button class="sm" type="button" onclick="ukiPendientesHistoricosDia=\'\';render()">Quitar fecha</button>':'')+
+  (visibles.map(p=>{
+   const fecha=fechaTurnoRegistro(p);
+   return '<div class="row"><span>'+esc(ukiReferenciaConCarta(p))+' · '+esc(p.cliente||'Sin nombre')+
+    ' · '+esc(fecha)+' · '+(p.pagado?'Por entregar':'Por cobrar')+'</span>'+
+    (/^\d{4}-\d{2}-\d{2}$/.test(fecha)?'<button class="sm" type="button" onclick="ukiAbrirHistoricoPendiente(\''+esc(fecha)+'\')">Ver día</button>':'')+
+    '</div>';
+  }).join('')||'<p class="muted">No hay registros para esta fecha.</p>')+
+  (filtrados.length>25?'<p class="muted">Se muestran 25 de '+filtrados.length+'. Usa el calendario para otras fechas.</p>':'')+
+  '</details>';
+}
+
 function vHistorialCompacto(){
   const tmp=document.createElement('div');tmp.innerHTML=vHistorial();
   Array.from(tmp.children).forEach((card,i)=>{
@@ -5955,7 +5983,7 @@ function vHistorialCompacto(){
     while(card.firstChild)d.appendChild(card.firstChild);
     card.replaceWith(d);
   });
-  return vHistorialPrecierres()+ukiVAgregarPedidoOlvidado()+ukiArchivoRechazadosHistorialUI()+tmp.innerHTML;
+  return vHistorialPrecierres()+ukiVAgregarPedidoOlvidado()+ukiHistorialPendientesAnterioresUI()+ukiArchivoRechazadosHistorialUI()+tmp.innerHTML;
 }
 
 function vHistorial(){
