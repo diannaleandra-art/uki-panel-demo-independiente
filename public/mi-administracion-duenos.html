@@ -529,10 +529,12 @@ label{color:#66574c}
 <details id="costRecetasPanel" open style="margin-top:15px">
  <summary><b>🍣 Recetas vinculadas y ganancias automáticas</b></summary>
  <p class="hint">Define los ingredientes de cada roll o promoción. Al actualizar un precio de compra, se recalculan las recetas vinculadas de este local sin descontar inventario ni modificar ventas.</p>
- <label for="costRecName">Nombre del roll o promoción</label><input id="costRecName" maxlength="120" placeholder="Ej.: 36 piezas pollo panko">
+ <label for="costRecProduct">Producto o promoción de la carta digital</label>
+ <select id="costRecProduct"><option value="">Selecciona primero la sucursal</option></select>
+ <p id="costRecCatalogStatus" class="hint" role="status">Se consultarán los productos y los precios de la carta vigente de este local.</p>
  <div class="grid2">
-  <div><label for="costRecRolls">Rolls del producto</label><input id="costRecRolls" type="number" min="1" max="100" inputmode="numeric" value="1"></div>
-  <div><label for="costRecPrice">Precio de venta ($)</label><input id="costRecPrice" type="number" min="1" inputmode="numeric"></div>
+  <div><label for="costRecRolls">Rolls o unidades del producto</label><input id="costRecRolls" type="number" min="1" max="100" readonly placeholder="Desde la carta"></div>
+  <div><label for="costRecPrice">Precio de venta en la carta ($)</label><input id="costRecPrice" type="number" min="1" readonly placeholder="Automático"></div>
  </div>
  <div id="costRecLines"></div><button class="soft" type="button" id="costRecAdd">＋ Agregar ingrediente a la receta</button>
  <p class="hint">Elige «por roll» para los 45 g de pollo que se multiplican por el número de rolls; «por promoción» para un envase o salsa que se usa una sola vez.</p>
@@ -1870,7 +1872,7 @@ $('ukiCosteoConsultar').onclick=async()=>{
  finally{if(valid())button.disabled=false;}
 };
 
-const costData={insumos:[],facturas:[],fichas:[],ingEdit:null,recipeEdit:null,source:null,seq:0};
+const costData={insumos:[],facturas:[],fichas:[],catalog:[],catalogError:'',ingEdit:null,recipeEdit:null,source:null,seq:0};
 const cMoney=x=>'$'+Number(x||0).toLocaleString('es-CL',{maximumFractionDigits:2});
 const cNum=x=>Number(String(x??'').trim().replace(',','.'));
 const cBase=unit=>['kg','g'].includes(unit)?'g':['l','ml'].includes(unit)?'ml':'un';
@@ -2009,10 +2011,26 @@ $('costIngSave').onclick=async()=>{
 
 function cRecipeClear(){
  costData.recipeEdit=null;
- $('costRecName').value='';$('costRecRolls').value='1';$('costRecPrice').value='';
+ $('costRecProduct').value='';$('costRecRolls').value='';$('costRecPrice').value='';
  $('costRecComplete').checked=false;$('costRecLines').replaceChildren();
  $('costRecSave').textContent='Guardar receta';renderRecipePreview();
 }
+function currentCartaProduct(){
+ return costData.catalog.find(p=>p.sku===$('costRecProduct').value)||null;
+}
+function mostrarProductoCarta(){
+ const p=currentCartaProduct();
+ $('costRecRolls').value=p?.rolls==null?'':String(p.rolls);
+ $('costRecPrice').value=p?String(p.price):'';
+ $('costRecCatalogStatus').textContent=p?
+  'Precio tomado de la carta vigente: '+cMoney(p.price)+
+  (p.rolls==null?' · Cantidad de rolls no confirmada en la carta.':
+   ' · '+p.rolls+' roll(s) o unidad(es).')+
+  ' No se puede cambiar aquí; se modifica desde Carta y precios.':
+  (costData.catalogError||'Elige un producto de la carta para utilizar su precio automáticamente.');
+ renderRecipePreview();
+}
+$('costRecProduct').onchange=mostrarProductoCarta;
 $('costRecCancel').onclick=cRecipeClear;
 function cAddRecipeLine(line=null){
  const row=document.createElement('div');row.className='line';
@@ -2051,7 +2069,10 @@ function cRecipeLines(){
  });
 }
 function cRecipeCost(f){
- const count=Number(f.rolls),sale=Number(f.precio_venta),lines=f.lineas;
+ // Precio y rolls siempre se consultan del catálogo actual, nunca del borrador guardado.
+ const p=costData.catalog.find(x=>x.sku===f.catalog_sku);
+ if(!p)return null;
+ const count=Number(p.rolls),sale=Number(p.price),lines=f.lineas;
  if(!Number.isSafeInteger(count)||count<1||!Number.isSafeInteger(sale)||sale<1||
     !Array.isArray(lines)||!lines.length)return null;
  let cost=0;
@@ -2062,64 +2083,65 @@ function cRecipeCost(f){
   if(part===null)return null;
   cost+=part*(x.modo==='roll'?count:1);
  }
- return {cost:Math.round(cost),margin:sale-Math.round(cost)};
+ return {cost:Math.round(cost),margin:sale-Math.round(cost),precio: sale,rolls:count};
 }
 function renderRecipePreview(){
- const sale=cNum(value('costRecPrice')),complete=$('costRecComplete').checked;
- const r=cRecipeCost({rolls:cNum(value('costRecRolls')),precio_venta:sale,lineas:cRecipeLines()});
+ const product=currentCartaProduct(),complete=$('costRecComplete').checked;
+ const r=cRecipeCost({catalog_sku:product?.sku,lineas:cRecipeLines()});
  const target=$('costRecPreview');
- if(!r){target.textContent='Agrega ingredientes y cantidades para calcular el costo estimado.';return;}
- target.textContent='Costo de ingredientes e insumos: '+cMoney(r.cost)+
+ if(!product){target.textContent='Primero selecciona un producto de la carta. Su precio se completará automáticamente.';return;}
+ if(product.rolls==null){target.textContent='El producto no tiene la cantidad de rolls confirmada en la carta. No se calculará una ganancia falsa.';return;}
+ if(!r){target.textContent='Agrega ingredientes y cantidades para calcular el costo de '+product.name+'.';return;}
+ target.textContent='Venta según carta: '+cMoney(r.precio)+
+  ' · Costo de ingredientes e insumos: '+cMoney(r.cost)+
   (complete?' · Ganancia bruta estimada: ':' · Diferencia parcial (faltan insumos): ')+cMoney(r.margin)+
-  ' · '+(r.margin/sale*100).toLocaleString('es-CL',{maximumFractionDigits:1})+'%.'+
+  ' · '+(r.margin/r.precio*100).toLocaleString('es-CL',{maximumFractionDigits:1})+'%.'+
   (complete?' Confirmaste que la receta incluye todos sus insumos.':
-  ' Marca la receta completa solo cuando hayas incluido TODOS los ingredientes, envases y salsas.')+
+   ' Marca la receta completa solo cuando hayas incluido TODOS los ingredientes, envases y salsas.')+
   ' No se incluyen sueldos, comisiones ni impuestos.';
 }
-for(const id of ['costRecRolls','costRecPrice'])
- $(id).addEventListener('input',renderRecipePreview);
 $('costRecComplete').addEventListener('change',renderRecipePreview);
 function drawRecipeList(){
  const list=$('costRecList');list.replaceChildren();
  if(!costData.fichas.length){list.textContent='Sin recetas vinculadas en este local.';return;}
  for(const f of costData.fichas){
   const row=document.createElement('div');row.className='line';
-  const title=document.createElement('b');title.textContent=f.nombre+' · '+f.rolls+' roll(s)';
+  const carta=costData.catalog.find(p=>p.sku===f.catalog_sku);
+  const title=document.createElement('b');
+  title.textContent=carta?carta.name+' · '+(carta.rolls||'?')+' roll(s)':f.nombre+' · Precio por confirmar';
   const p=document.createElement('p');p.className='hint';
   const r=cRecipeCost(f);
-  p.textContent=r===null?'Costo pendiente: algún ingrediente o unidad no está disponible.':
-   'Venta '+cMoney(f.precio_venta)+' · Elaboración '+cMoney(r.cost)+' · '+
+  p.textContent=r===null?
+   'Sin precio/cantidad de rolls confirmado en la carta actual, o faltan ingredientes válidos.':
+   'Venta vigente de carta '+cMoney(r.precio)+' · Elaboración '+cMoney(r.cost)+' · '+
    (f.completa?'Ganancia bruta estimada ':'Diferencia parcial ')+cMoney(r.margin);
   const b=document.createElement('button');b.type='button';b.className='soft';
   b.textContent='Editar receta';b.onclick=()=>{
    costData.recipeEdit={id:f.id,version:f.actualizado_en};
-   $('costRecName').value=f.nombre;$('costRecRolls').value=String(f.rolls);
-   $('costRecPrice').value=String(f.precio_venta);
+   $('costRecProduct').value=carta?carta.sku:'';
+   mostrarProductoCarta();
    $('costRecComplete').checked=f.completa===true;
    $('costRecLines').replaceChildren();for(const l of f.lineas||[])cAddRecipeLine(l);
    $('costRecSave').textContent='Guardar cambios';renderRecipePreview();
-   $('costRecName').scrollIntoView({behavior:'smooth',block:'center'});
+   $('costRecProduct').scrollIntoView({behavior:'smooth',block:'center'});
   };
   row.append(title,p,b);list.append(row);
  }
 }
 $('costRecSave').onclick=async()=>{
- const local=cLocal(),nombre=value('costRecName').trim(),
-  rolls=cNum(value('costRecRolls')),precio_venta=cNum(value('costRecPrice')),
-  lineas=cRecipeLines(),completa=$('costRecComplete').checked,
-  r=cRecipeCost({rolls,precio_venta,lineas});
+ const local=cLocal(),producto=currentCartaProduct(),lineas=cRecipeLines(),
+  completa=$('costRecComplete').checked,r=cRecipeCost({catalog_sku:producto?.sku,lineas});
  if(!local.negocio_id||!local.sucursal_id)return notify('Selecciona la sucursal.','error');
- if(nombre.length<2||!Number.isSafeInteger(rolls)||rolls<1||rolls>100||
-    !Number.isSafeInteger(precio_venta)||precio_venta<=0||!r||
-    lineas.some(x=>!Number.isFinite(x.cantidad)||x.cantidad<=0))
-  return notify('Revisa nombre, precio, rolls y todos los ingredientes.','error');
- if(!confirm('¿Guardar la receta '+nombre+' de '+branchName(local.sucursal_id)+
-  '? Costo estimado '+cMoney(r.cost)+'. No cambiará inventario, caja ni ventas.'))return;
+ if(!producto||!r||lineas.some(x=>!Number.isFinite(x.cantidad)||x.cantidad<=0))
+  return notify('Selecciona un producto de la carta y completa sus ingredientes.','error');
+ if(!confirm('¿Guardar la receta de '+producto.name+' para '+branchName(local.sucursal_id)+
+  '? Venta de carta '+cMoney(producto.price)+' · Costo estimado '+cMoney(r.cost)+
+  '. No cambiará inventario, caja ni ventas.'))return;
  const button=$('costRecSave');button.disabled=true;
  try{
-  await api('costeo_ficha_guardar',{...local,nombre,rolls,precio_venta,lineas,completa,
+  await api('costeo_ficha_guardar',{...local,catalog_sku:producto.sku,lineas,completa,
    ...(costData.recipeEdit?{id:costData.recipeEdit.id,version:costData.recipeEdit.version}:{})});
-  notify('Receta guardada y vinculada a los precios de ingredientes.','success');
+  notify('Receta vinculada a la carta. El precio de venta se consulta automáticamente.','success');
   await loadCostIngredients();
  }catch(e){notify(e.message,'error');}
  finally{button.disabled=false;}
