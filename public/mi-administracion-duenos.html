@@ -275,8 +275,9 @@ label{color:#66574c}
 <details class="card" id="ukiArchivoMensualPrivado">
 <summary>🗄️ Archivo mensual permanente · tres sucursales</summary>
 <p class="hint">Aquí se conservan los cierres, pedidos, ventas, WhatsApp, clientes y timbres de cada mes, separados por local. Este archivo no se limpia automáticamente ni duplica ventas contables.</p>
-<button type="button" class="primary" id="ukiArchivoConsultar" style="width:100%">Consultar meses archivados</button>
+<button type="button" class="primary" id="ukiArchivoConsultar" style="width:100%">Consultar y verificar respaldos</button>
 <p id="ukiArchivoEstadoAdmin" class="hint" role="status">Primer archivo: noviembre de 2026, disponible desde el 5 de diciembre.</p>
+<div id="ukiArchivoControlAdmin" role="status" aria-live="polite"></div>
 <div id="ukiArchivoMesesAdmin"></div>
 </details>
 <div class="owner-section-label">Detalle de ventas</div>
@@ -1860,7 +1861,7 @@ $('enter').onclick=()=>safe('enter',async()=>{
 });
 $('exit').onclick=async()=>{
  if(session)try{await api('salir')}catch{}
- session='';limpiarInformes();await signOut(auth);show('login');notify('Acceso privado cerrado.','success');
+ session='';$('ukiArchivoControlAdmin').replaceChildren();$('ukiArchivoMesesAdmin').replaceChildren();limpiarInformes();await signOut(auth);show('login');notify('Acceso privado cerrado.','success');
 };
 // El fragmento nunca viaja al servidor y se conserva mientras Google completa
 // su inicio de sesión (Safari puede recargar la página durante ese proceso).
@@ -1916,8 +1917,46 @@ function mesArchivoExigible(fecha=today()){
  const mes=new Date(Date.UTC(y,m-1-mesesAtras,1)).toISOString().slice(0,7);
  return mes>='2026-11'?mes:null;
 }
+// Verificar recuperación de los tres archivos del último mes exigible.
+// No genera un archivo nuevo, no modifica los registros ni permite limpiar.
+async function archivoControlRecuperacion(mes,labels,sesionInicial){
+ const host=$('ukiArchivoControlAdmin');
+ host.replaceChildren();
+ if(!mes){host.textContent='La primera comprobación será desde el 5 de diciembre.';return;}
+ const h=document.createElement('strong');h.textContent='Recuperación de respaldos · '+mes;host.append(h);
+ const core=window.UkiArchivoMensual;
+ const vigente=()=>session===sesionInicial&&!!auth.currentUser;
+ let confirmados=0;
+ for(const [sucursal,nombre] of Object.entries(labels)){
+  if(!vigente()){host.replaceChildren();return;}
+  const p=document.createElement('p');p.className='hint';p.textContent=nombre+' · verificando…';host.append(p);
+  try{
+   const v=await archivoMensualApi('verificar',{sucursal,mes});
+   if(!vigente()){host.replaceChildren();return;}
+   if(v.confirmado!==true){p.textContent=nombre+' · pendiente de respaldo';continue;}
+   const {archivo:x}=await archivoMensualApi('consultar',{sucursal,mes});
+   if(!vigente()){host.replaceChildren();return;}
+   if(!x||x.sha256!==v.sha256||x.sucursal!==sucursal||x.mes!==mes||x.total_registros!==v.totalRegistros||!core)
+    throw Error('Referencia o conteo no coincide');
+   const doc=await core.desempaquetar(x.base64,x.encoding,x.sha256);
+   if(!vigente()){host.replaceChildren();return;}
+   const periodo=core.periodo(mes);
+   if(doc.sucursal!==sucursal||doc.mes!==mes||doc.desde!==periodo.desde||doc.hasta!==periodo.hasta||
+    Object.values(doc.sinFecha||{}).some(n=>n!==0)||!Array.isArray(doc.clientes))
+     throw Error('Contenido no coincide');
+   const total=Object.values(doc.registros||{}).reduce((n,rows)=>n+(Array.isArray(rows)?rows.length:NaN),doc.clientes.length);
+   if(total!==v.totalRegistros)throw Error('Conteo recuperado no coincide');
+   p.textContent=nombre+' · recuperable y verificado';confirmados++;
+  }catch(e){if(!vigente()){host.replaceChildren();return;}p.textContent=nombre+' · no se pudo verificar; conservar registros';}
+ }
+ const resumen=document.createElement('p');resumen.className='hint';
+ resumen.textContent=confirmados+'/3 archivos recuperables y verificados. La limpieza continúa desactivada.';host.append(resumen);
+}
 async function archivoMensualListar(){
  const btn=$('ukiArchivoConsultar'),host=$('ukiArchivoMesesAdmin'),estado=$('ukiArchivoEstadoAdmin');
+ if(btn.disabled)return;
+ const sesionInicial=session;
+ $('ukiArchivoControlAdmin').replaceChildren();
  btn.disabled=true;estado.textContent='Consultando archivos privados…';
  try{
   const data=await archivoMensualApi('listar');
@@ -1933,6 +1972,8 @@ async function archivoMensualListar(){
    'Control mensual '+ultimoMes+' · '+(3-sinArchivo.length)+
    '/3 sucursales con respaldo. '+(sinArchivo.length?'Pendientes: '+sinArchivo.join(', ')+'.':'Tres sucursales archivadas. Revisar descargas y recuperación antes de cualquier limpieza.');
   host.append(indicador);
+  await archivoControlRecuperacion(mesArchivoExigible(),labels,sesionInicial);
+  if(session!==sesionInicial||!auth.currentUser){host.replaceChildren();return;}
   if(!data.archivos.length){estado.textContent='Aún no hay meses archivados. El primero corresponde a noviembre de 2026.';return;}
   for(const r of data.archivos){
    if(!labels[r.sucursal]||!/^\d{4}-\d{2}$/.test(r.mes)||!/^[a-f0-9]{64}$/.test(r.sha256))continue;
