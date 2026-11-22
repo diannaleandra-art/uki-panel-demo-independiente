@@ -284,6 +284,97 @@ async function romoPinInventarioCrear(){
  finally{button.disabled=false}
 }
 let mountedRoot=null;
+
+// Costos privados: solo lectura y cambios de precio, nunca modifica stock.
+function mountCosteo(){
+ const root=$('invRoot');if(!root||$('invCosteo'))return;
+ const active=X.branch;
+ const isRomo=active==='romo';
+ const store=isRomo?'romo:serena':'uki:'+active;
+ const api=isRomo?'/api/romo-costeo-v1':'https://uki-sushi-inventario.vercel.app/api/uki-costeo-v1';
+ const card=document.createElement('details');card.className='card';card.id='invCosteo';
+ card.innerHTML='<summary><b>💰 Precios de compra y costos · Administración</b></summary><p class="muted">Registra el precio de una cantidad comprada. No cambia existencias ni precios de venta.</p><button type="button" class="sm" id="invCostLoad">Consultar costos</button><p role="status" id="invCostStatus" class="mini-help">Consulta con Google autorizado.</p><div id="invCostFields" hidden><label for="invCostItem">Ingrediente o insumo</label><select id="invCostItem"></select><label for="invCostUnit">Unidad de compra</label><select id="invCostUnit"></select><label for="invCostQty">Cantidad comprada</label><input id="invCostQty" inputmode="decimal"><label for="invCostPrice">Precio total en pesos</label><input id="invCostPrice" inputmode="numeric"><p id="invCostResult" class="mini-help"></p><button type="button" class="big" id="invCostSave">Guardar precio de compra</button></div>';
+ root.after(card);
+ let rows=[],prices=[],busy=false;
+ const within=()=>card.isConnected&&X.branch===active&&panelBranch()===active;
+ const el=id=>card.querySelector('#'+id);
+ const status=s=>{if(within())el('invCostStatus').textContent=s;};
+ const groups={kg:['kg','g'],g:['kg','g'],l:['l','ml'],ml:['l','ml'],un:['un']};
+ const labels={kg:'Kilogramos',g:'Gramos',l:'Litros',ml:'Mililitros',un:'Unidades'};
+ const numeric=s=>{const t=String(s).trim();return /^\d+(?:[.,]\d{1,6})?$/.test(t)?Number(t.replace(',','.')):NaN;};
+ async function call(action,extra={}){
+  if(!within())throw Error('Cambió la sucursal.');
+  const token=await window.ukiInventarioToken?.();if(!token||!within())throw Error('Ingresa con Google autorizado.');
+  const response=await fetch(api,{method:'POST',cache:'no-store',credentials:'omit',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({branch:active,action,...extra})});
+  const result=await response.json().catch(()=>null);
+  if(!response.ok||result?.ok!==true||result.store!==store)throw Error(typeof result?.error==='string'?result.error:'Costos todavía no disponibles.');
+  if(!within())throw Error('Cambió la sucursal.');
+  return result;
+ }
+ function opt(select,value,name){const o=document.createElement('option');o.value=value;o.textContent=name;select.append(o);}
+ function preview(){const n=numeric(el('invCostQty').value),p=numeric(el('invCostPrice').value),unit=el('invCostUnit').value;el('invCostResult').textContent=n>0&&Number.isSafeInteger(p)&&p>0?'Costo por '+unit+': 
+ const root=$('invRoot');if(!root||root===mountedRoot)return;mountedRoot=root;
+ const active=panelBranch();
+ if(X.branch!==active){X.items=[];X.reports=[];X.selected='';X.loaded=false;X.romoRevision=null;X.romoPlantilla=[];}
+ X.branch=active;
+ mountCosteo();
+ $('invBranch').value=active;
+ $('invBranch').disabled=true;
+ $('ukiInvSucursalActual').textContent=active==='romo'?'Romo’s Sushi La Serena':
+  active==='serena'?'Uki La Serena':'Uki Regimiento Arica';
+ if($('ukiInvWorkerAccess'))$('ukiInvWorkerAccess').hidden=active==='romo';
+ if($('romoInvWorkerAccess'))$('romoInvWorkerAccess').hidden=active!=='romo';
+ if(active==='romo'){
+  $('romoPinInventarioCrear').onclick=()=>void romoPinInventarioCrear();
+  void romoPinInventarioCargar();
+ }
+ $('invRefresh').onclick=()=>void load();$('invSearch').oninput=populate;
+ if($('romoInvPlantillaCargar'))$('romoInvPlantillaCargar').onclick=()=>void romoInicializarInventarioPlantilla();
+ $('invSelect').onchange=e=>{X.selected=e.target.value;selection();};
+ $('invSave').onclick=()=>void save();$('invCreate').onclick=()=>void create();
+ if($('romoInvDisponible'))$('romoInvDisponible').onclick=()=>void romoArticuloOperacion('romo-disponibilidad');
+ if($('romoInvArchivar'))$('romoInvArchivar').onclick=()=>void romoArticuloOperacion('romo-archivar');
+ if(X.loaded){$('invAdmin').hidden=false;$('invNewBox').hidden=false;$('invReportsBox').hidden=false;populate();reports();status('Inventario listo.');}
+ else void load();
+}
+// Lectura local, sin token nuevo ni acceso a otras sucursales.
+window.romoInventarioFaltantesSoloLecturaQA=function(){
+ if(X.branch!=='romo'||S?.suc!=='Romo’s Sushi La Serena'||!X.loaded)return null;
+ return Object.freeze({storeId:'romo:serena',revision:X.romoRevision,
+   items:X.items.filter(v=>v.archived!==true).map(v=>Object.freeze({
+     sku:String(v.sku),name:String(v.name),stock_unit:String(v.stock_unit||'un'),
+     stock_qty:Number(v.stock_qty)||0,min_stock_qty:Number(v.min_stock_qty)||0
+   }))});
+};
+window.ukiInventarioPanelHTML=panel;window.ukiInventarioMontar=mount;
+})();+(p/n).toLocaleString('es-CL',{maximumFractionDigits:4}):'Completa cantidad y precio.';}
+ function select(){
+  const item=rows.find(x=>x.sku===el('invCostItem').value),p=prices.find(x=>x.sku===item?.sku);
+  el('invCostUnit').replaceChildren();for(const u of groups[item?.stock_unit]||[])opt(el('invCostUnit'),u,labels[u]);
+  el('invCostUnit').value=p&&groups[item?.stock_unit]?.includes(p.unit)?p.unit:item?.stock_unit||'';
+  el('invCostQty').value=p?String(p.quantity):'';el('invCostPrice').value=p?String(p.price):'';preview();
+ }
+ async function loadCosts(){
+  if(busy)return;busy=true;el('invCostLoad').disabled=true;el('invCostSave').disabled=true;status('Consultando…');
+  try{const a=await call('listar');rows=(a.items||[]).filter(x=>groups[x.stock_unit]);prices=a.prices||[];const field=el('invCostItem');const prev=field.value;field.replaceChildren();for(const i of rows)opt(field,i.sku,i.name);if(rows.some(i=>i.sku===prev))field.value=prev;el('invCostFields').hidden=!rows.length;select();status(rows.length?'Costos de esta sucursal.':'No hay insumos con unidades compatibles.');}
+  catch(e){if(within()){el('invCostFields').hidden=true;status(e.message);}}
+  finally{busy=false;if(within()){el('invCostLoad').disabled=false;el('invCostSave').disabled=false;}}
+ }
+ async function saveCost(){
+  if(busy||!within())return;const sku=el('invCostItem').value,unit=el('invCostUnit').value,quantity=numeric(el('invCostQty').value),price=numeric(el('invCostPrice').value);
+  if(!(quantity>0)||!Number.isSafeInteger(price)||price<=0){status('Revisa cantidad y precio total.');return;}
+  const revision=Number(prices.find(x=>x.sku===sku)?.revision||0);
+  busy=true;el('invCostSave').disabled=true;el('invCostLoad').disabled=true;status('Guardando precio…');
+  try{const a=await call('guardar-precio',{sku,unit,quantity,price,revision});prices=prices.filter(x=>x.sku!==sku).concat(a.price);status('Precio confirmado. Existencias sin cambios.');}
+  catch(e){status(e.message);}
+  finally{busy=false;if(within()){el('invCostSave').disabled=false;el('invCostLoad').disabled=false;}}
+ }
+ el('invCostLoad').onclick=()=>void loadCosts();
+ el('invCostSave').onclick=()=>void saveCost();
+ el('invCostItem').onchange=select;
+ for(const id of ['invCostQty','invCostPrice','invCostUnit'])el(id).oninput=preview;
+}
+
 function mount(){
  const root=$('invRoot');if(!root||root===mountedRoot)return;mountedRoot=root;
  const active=panelBranch();
