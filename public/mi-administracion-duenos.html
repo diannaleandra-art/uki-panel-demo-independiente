@@ -536,6 +536,11 @@ label{color:#66574c}
   <div><label for="costRecRolls">Rolls o unidades del producto</label><input id="costRecRolls" type="number" min="1" max="100" readonly placeholder="Desde la carta"></div>
   <div><label for="costRecPrice">Precio de venta en la carta ($)</label><input id="costRecPrice" type="number" min="1" readonly placeholder="Automático"></div>
  </div>
+ <div id="costRecGuide" class="hint" role="status" style="padding:12px;margin:10px 0;border:1px solid var(--line);border-radius:10px">
+ <b>Guía sugerida · Roll clásico de pollo (12 piezas)</b>
+ <p>Arroz cocido: 180 g · Pollo: 45 g · Queso crema: 25 g · Vegetal: 25 g sugeridos, por confirmar.</p>
+ <p>Los 180 g son de arroz COCIDO: para calcular su costo se necesita conocer el rendimiento del arroz crudo después de cocinarlo y aliñarlo.</p>
+ </div>
  <div id="costRecLines"></div><button class="soft" type="button" id="costRecAdd">＋ Agregar ingrediente a la receta</button>
  <p class="hint">Elige «por roll» para los 45 g de pollo que se multiplican por el número de rolls; «por promoción» para un envase o salsa que se usa una sola vez.</p>
  <label style="display:flex;gap:8px;align-items:flex-start"><input id="costRecComplete" type="checkbox" style="width:20px;min-width:20px;margin-top:3px">Confirmo que incluí TODOS los ingredientes, envolturas, envases e insumos de esta receta.</label>
@@ -2001,7 +2006,7 @@ async function loadCostIngredients(){
     ' · '+branchName(local.sucursal_id)+'. Actualiza cuando esté disponible; no escribas un precio manual.';
    $('costRecCatalogStatus').textContent=costData.catalogError;
   }
-  drawIngredientList();drawRecipeList();renderRecipePreview();
+  drawIngredientList();drawRecipeList();renderRecipePreview();actualizarGuiaCostoCarta();
  }catch(e){
   if(seq===costData.seq&&active===session){
    $('costIngredientesEstado').textContent='No se pudo consultar: '+e.message;
@@ -2041,10 +2046,35 @@ function cRecipeClear(){
  costData.recipeEdit=null;
  $('costRecProduct').value='';$('costRecRolls').value='';$('costRecPrice').value='';
  $('costRecComplete').checked=false;$('costRecLines').replaceChildren();
- $('costRecSave').textContent='Guardar receta';renderRecipePreview();
+ $('costRecSave').textContent='Guardar receta';renderRecipePreview();actualizarGuiaCostoCarta();
 }
 function currentCartaProduct(){
  return costData.catalog.find(p=>p.sku===$('costRecProduct').value)||null;
+}
+function actualizarGuiaCostoCarta(){
+ const host=$('costRecGuide');if(!host)return;
+ host.replaceChildren();
+ const title=document.createElement('b');
+ title.textContent='Gramajes y costo sugerido · Solo referencia';
+ host.append(title);
+ const putText=value=>{const p=document.createElement('p');p.textContent=value;host.append(p);};
+ const item=currentCartaProduct();
+ if(!item){putText('Selecciona un producto de la carta para ver los gramos sugeridos y su costo objetivo.');return;}
+ if(item.piecesPerRoll!==12||!Number.isSafeInteger(item.rolls)||item.rolls<1){
+  putText('Los 180 g de arroz cocido corresponden al roll clásico de 12 piezas. Handrolls, gohan, premium de 10 piezas y otros productos requieren su propia receta.');
+  return;
+ }
+ const n=item.rolls;
+ putText('Base de un roll de pollo (12 piezas): 180 g de arroz cocido, 45 g de pollo, 25 g de queso crema; 25 g de vegetal sugeridos (aún por confirmar).');
+ putText('En '+n+' roll(s) de pollo: arroz cocido '+(180*n)+' g; pollo '+(45*n)+
+  ' g; queso crema '+(25*n)+' g; vegetal sugerido '+(25*n)+
+  ' g. Subtotal '+(275*n)+' g, sin envoltura, apanizado ni salsas.');
+ const low=Math.round(item.price*.30),high=Math.round(item.price*.35);
+ putText('Precio vigente de la carta: '+cMoney(item.price)+
+  '. Presupuesto orientativo para ingredientes, salsas, envases y extras (30–35%): '+
+  cMoney(low)+' a '+cMoney(high)+' para todo el producto. Repartido entre los rolls: '+
+  cMoney(low/n)+' a '+cMoney(high/n)+' por roll.');
+ putText('Es un objetivo de referencia, NO un costo confirmado ni utilidad real. Para costear 180 g de arroz COCIDO hay que medir el rendimiento del arroz comprado CRUDO.');
 }
 function mostrarProductoCarta(){
  const p=currentCartaProduct();
@@ -2056,7 +2086,7 @@ function mostrarProductoCarta(){
    ' · '+p.rolls+' roll(s) o unidad(es).')+
   ' No se puede cambiar aquí; se modifica desde Carta y precios.':
   (costData.catalogError||'Elige un producto de la carta para utilizar su precio automáticamente.');
- renderRecipePreview();
+ renderRecipePreview();actualizarGuiaCostoCarta();
 }
 $('costRecProduct').onchange=mostrarProductoCarta;
 $('costRecCancel').onclick=cRecipeClear;
