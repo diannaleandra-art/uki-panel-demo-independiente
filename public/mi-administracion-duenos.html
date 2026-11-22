@@ -483,7 +483,7 @@ label{color:#66574c}
 <section class="view" id="v-negocios" hidden><div class="card"><div class="eyebrow">ORGANIZACIÓN</div><h2>🏪 Mis negocios y locales</h2><p class="steps">Aquí puedes agregar más negocios, sucursales y costos de sus productos.</p><div id="businessList"></div>
 <details><summary>＋ Agregar negocio</summary><label>Nombre</label><input id="newBizName" placeholder="Ej.: Crepe Pop"><label>Razón social de referencia (opcional)</label><input id="newBizReason"><p class="hint">Para el control contable, registra y vincula la razón social desde Facturas.</p><button class="primary" id="newBiz">Crear negocio</button></details>
 <details><summary>＋ Agregar sucursal</summary><label>Negocio</label><select id="newBranchBiz"></select><label>Nombre de sucursal</label><input id="newBranchName" placeholder="Ej.: La Serena"><button class="primary" id="newBranch">Crear sucursal</button></details></div>
-<div class="card"><h2>🍣 Costos y ganancias por producto</h2>
+<div class="card"><details id="costManualBox"><summary><b>Costeo manual sin receta (opcional)</b></summary><h2>Costos manuales por producto</h2>
 <p class="hint">Control privado de dueños. Los costos son exclusivos de cada sucursal. La ganancia mostrada es <b>bruta estimada por unidad</b>; no es utilidad neta ni se descuenta de caja o inventario.</p>
 <label for="costBiz">Marca</label><select id="costBiz"></select>
 <label for="costBranch">Sucursal</label><select id="costBranch"><option value="">Selecciona la sucursal</option></select>
@@ -494,8 +494,8 @@ label{color:#66574c}
 <p class="hint" id="costPreview">Completa el precio y el costo para ver la ganancia bruta estimada por unidad.</p>
 <div class="row" style="gap:8px;justify-content:flex-start;flex-wrap:wrap"><button class="primary" id="saveCost">Guardar costo</button><button type="button" class="soft" id="costCancel" hidden>Cancelar edición</button></div>
 <p id="costStatus" class="hint" role="status">Selecciona uno de los tres locales antes de registrar costos.</p>
-<div id="costList"></div>
-<details id="costInsumosPanel" style="margin-top:15px">
+<div id="costList"></div></details>
+<details id="costInsumosPanel" open style="margin-top:15px">
  <summary><b>🥬 Ingredientes y precios desde facturas</b></summary>
  <p class="hint">Los artículos provienen de facturas que ya confirmaste por foto. Revisa el peso o contenido de cada envase: muchas facturas dicen «un» aunque sea una bolsa de 1 kg. Los precios se vinculan solo cuando tú los confirmes.</p>
  <button type="button" class="soft" id="costIngredientesRefresh">Actualizar precios y recetas</button>
@@ -526,7 +526,7 @@ label{color:#66574c}
   <button class="soft" type="button" id="costIngCancel">Limpiar formulario</button></div>
  <h3>Ingredientes de este local</h3><div id="costIngList"></div>
 </details>
-<details id="costRecetasPanel" style="margin-top:15px">
+<details id="costRecetasPanel" open style="margin-top:15px">
  <summary><b>🍣 Recetas vinculadas y ganancias automáticas</b></summary>
  <p class="hint">Define los ingredientes de cada roll o promoción. Al actualizar un precio de compra, se recalculan las recetas vinculadas de este local sin descontar inventario ni modificar ventas.</p>
  <label for="costRecName">Nombre del roll o promoción</label><input id="costRecName" maxlength="120" placeholder="Ej.: 36 piezas pollo panko">
@@ -1174,9 +1174,9 @@ function options(){
   selected('costBranch','Selecciona sucursal',locales);
   if(locales.length===1)$('costBranch').value=locales[0].id;
   resetCostEditor();
-  if(tab==='negocios')void loadCosts();
+  if(tab==='negocios'){void loadCostIngredients();void loadCosts();}
  };
- $('costBranch').onchange=()=>{resetCostEditor();if(tab==='negocios')void loadCosts();};
+ $('costBranch').onchange=()=>{resetCostEditor();if(tab==='negocios'){void loadCostIngredients();void loadCosts();}};
  if(costosMarcas.length){$('costBiz').value=costosMarcas[0].id;$('costBiz').onchange();}
  chooseBranch('scopeBranch','','Todas las sucursales');
  renderBusinessList();
@@ -1331,7 +1331,7 @@ function switchTab(name){
  syncSelectedBusiness(name);
  window.scrollTo({top:0,behavior:'smooth'});
  if(name==='facturas'){vistaCompras('historial',false);void loadDocs();}
- if(name==='negocios')void loadCosts();
+ if(name==='negocios'){void loadCostIngredients();void loadCosts();}
 }
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
 document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>switchTab(b.dataset.go));
