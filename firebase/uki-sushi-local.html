@@ -3387,7 +3387,7 @@ function vCajaResumen(){
      ${ukiCobrosExternosTurno(t)}
      ${ukiAuditoriaPagosUI()}
      ${ukiAuditoriaTimbresUI()}
-    <div class="quick-grid"><button class="quick" onclick="cambiarCajaTab('movimientos')">✎ Agregar movimiento <span>›</span></button><button class="quick" onclick="cambiarCajaTab('precierre')">🕒 Precierre trabajador <span>›</span></button><button class="quick" onclick="cambiarCajaTab('cierre')">🔒 Cierre definitivo <span>›</span></button><button class="quick" onclick="cambiarCajaTab('historial')">◷ Historial <span>›</span></button><button class="quick" onclick="descargarRespaldoCompleto()">⇩ Descargar respaldo <span>›</span></button></div>`;
+`;
 }
 function vMovimientos(){
   // Reutiliza intactas las siete tarjetas de movimientos de vRegistros.
@@ -3395,7 +3395,7 @@ function vMovimientos(){
   const cards=Array.from(tmp.children);
   const index={apps:1,delivery:2,gastos:3,repartidor:4,propinas:5,retiros:6,chica:7}[movimientoTab];
   const selected=cards[index];
-  return `<div class="card uki-navegacion-compacta uki-navegacion-movimientos"><h2>Movimientos del turno</h2><div class="movement-tabs" role="group" aria-label="Tipos de movimiento visibles">${MOV_TABS.map(([k,l])=>`<button type="button" class="${movimientoTab===k?'selected':''}" onclick="cambiarMovimientoTab('${k}')">${l}</button>`).join('')}</div></div>
+  return `<div class="card uki-navegacion-compacta uki-navegacion-movimientos"><h2>Movimientos del turno</h2><div class="movement-tabs" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px" role="group" aria-label="Tipos de movimiento visibles">${MOV_TABS.map(([k,l])=>`<button type="button" class="${movimientoTab===k?'selected':''}" onclick="cambiarMovimientoTab('${k}')">${l}</button>`).join('')}</div></div>
     ${selected?selected.outerHTML:'<div class="card">No se encontró esta sección. Regresa al resumen.</div>'}`;
 }
 
@@ -4167,6 +4167,7 @@ function vPedidos(){
   if(!S.suc) return vInicio();
   const fechaTurno=fechaOperativaActual();
   const pedidos=pedidosSuc();
+  const anterioresPendientes=pedidos.filter(p=>!esDelPeriodo(p)&&p.estado!=='Cancelado'&&(!p.pagado||p.estado!=='Entregado')&&!p.esPremio);
   const buscando=!!(filtroCodigoCarta||filtroDiaPedidos);
   const todos=pedidos.filter(p=>{
     if(buscando)return ukiPedidoCoincideBusqueda(p,filtroCodigoCarta)&&
@@ -4176,7 +4177,7 @@ function vPedidos(){
   const grupos=new Map();
   for(const p of pedidos){
     const f=fechaTurnoRegistro(p);
-    if(f!==fechaTurno)grupos.set(f,(grupos.get(f)||0)+1);
+    if(f!==fechaTurno||!esDelPeriodo(p))grupos.set(f,(grupos.get(f)||0)+1);
   }
   const dias=[...grupos.entries()].sort((a,b)=>b[0].localeCompare(a[0]));
   const incidencias=(S.incidencias||[]).filter(x=>x.suc===S.suc && (!filtroCodigoCarta || String(x.codigoCarta||x.pedidoId).toLowerCase().includes(filtroCodigoCarta.toLowerCase())) && (!filtroDiaIncidencias || fechaLocalRegistro(x.fecha)===filtroDiaIncidencias)).slice().reverse();
@@ -4244,6 +4245,7 @@ function vPedidos(){
   const categoriaExtraActiva=!filtrosPrincipales.has(filtroCategoriaPedidos);
   const titulo=buscando?"Resultados de búsqueda":pedidosArchivoDia?"Pedidos del turno "+pedidosArchivoDia:"Pedidos del turno abierto · "+fechaTurno;
   return `<div class="section-head"><h2>Pedidos</h2><p>${esc(titulo)} · ${todos.length} registrados · ${pagados} pagados · ${solicitudesActivas.length+remotasActivas.length} solicitudes pendientes o rechazadas · ${borradoresEnAtencion.length} en atención</p></div>
+  ${!buscando&&!pedidosArchivoDia&&anterioresPendientes.length?`<details class="card"><summary><b>📚 Pendientes de turnos anteriores (${anterioresPendientes.length})</b></summary><p class="muted">No pertenecen al turno actual. Consulta su pedido original sin volver a registrarlo.</p>${anterioresPendientes.slice().reverse().map(p=>`<div class="row"><span>${esc(ukiReferenciaConCarta(p))} · ${esc(p.cliente||"Sin nombre")} · ${p.pagado?"Por entregar":"Por cobrar"}</span><button class="sm" type="button" onclick="verArchivoPedidos(\'${esc(fechaTurnoRegistro(p))}\')">Ver día</button></div>`).join("")}</details>`:""}
   ${mostrarPrioridad?`<section class="uki-urgentes-carta" aria-label="Solicitudes nuevas por confirmar">
     <div class="uki-urgentes-titulo">🔔 ${urgentesCarta.length+urgentesManuales.length} solicitud(es) por confirmar</div>
     <p class="uki-urgentes-subtitulo">Revisa el WhatsApp recibido y acepta o rechaza. No se suman a ventas, caja ni timbres hasta registrar el pedido.</p>
