@@ -62,9 +62,10 @@ function proponerMixto(draft,old,sub,env,oldSub,oldEnv){
  }
  return {d,propuestas};
 }
+function catalogMeta(x){return {...(typeof x?.skuCarta==='string'&&x.skuCarta.length<=150?{skuCarta:x.skuCarta}:{}),...(Number.isSafeInteger(x?.piezasUnidad)&&x.piezasUnidad>0?{piezasUnidad:x.piezasUnidad}:{}),...(Number.isSafeInteger(x?.rollsUnidad)&&x.rollsUnidad>0?{rollsUnidad:x.rollsUnidad}:{})};}
 function productos(d){
  if(!Array.isArray(d.items))fail('Agrega productos.');
- const items=d.items.filter(x=>t(x.nombre)).map(x=>({nombre:t(x.nombre),cantidad:amount(x.cant,'cantidad',100),precioUnit:amount(x.precio,'precio',1000000),detalle:String(x.det??'')}));
+ const items=d.items.filter(x=>t(x.nombre)).map(x=>({nombre:t(x.nombre),cantidad:amount(x.cant,'cantidad',100),precioUnit:amount(x.precio,'precio',1000000),detalle:String(x.det??''),...catalogMeta(x)}));
  if(!items.length||items.length>60||items.some(x=>!x.cantidad||!x.precioUnit))fail('Revisa las cantidades y precios.');
  const total=items.reduce((a,x)=>a+x.cantidad*x.precioUnit,0);
  amount(total,'subtotal');
@@ -98,7 +99,7 @@ export function prepararEdicionUnicaRomoQA({estado,pedidoId,draft,responsable,me
  const next=medios(propuesto,sub,env,true,mediosProductos,mediosDelivery);
  const canonicalLines=x=>ordered(x.reduce((a,v)=>(a[v.medio]=(a[v.medio]||0)+v.monto,a),{}));
  const payChanged=!equal(canonicalLines(old.porTipo.Productos),canonicalLines(next.porTipo.Productos))||!equal(canonicalLines(old.porTipo.Envio),canonicalLines(next.porTipo.Envio))||!equal(old.ext,next.ext);
- const productChanged=!equal((p.productos||[]).map(x=>({nombre:t(x.nombre),cantidad:n(x.cantidad),precioUnit:n(x.precioUnit),detalle:String(x.detalle||'')})),items);
+ const productChanged=!equal((p.productos||[]).map(x=>({nombre:t(x.nombre),cantidad:n(x.cantidad),precioUnit:n(x.precioUnit),detalle:String(x.detalle||''),...catalogMeta(x)})),items);
  const kmCanon=x=>x===null||x===undefined||x===''?null:Number(String(x).replace(',','.'));
  const newKm=draft.modalidad==='Delivery'?kmCanon(km):null;
  const oldKm=p.modalidad==='Delivery'?kmCanon(p.kmRecorrido):null;
