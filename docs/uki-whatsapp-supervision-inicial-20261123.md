@@ -16,6 +16,13 @@ Mostrar en **Mi Administración** conversaciones de trabajo de **Uki Regimiento 
 - No se ha ejecutado la migración, no hay números conectados, no hay información real sincronizada, no se ha publicado.
 - No se incorporó un modelo externo de IA ni un gasto por consumo de IA: primero probar reglas claras y baratas.
 
+## Orden de implementación confirmado
+1. **Romo Sushi · La Serena**: primer piloto y primer número que se conectaría.
+2. **Uki Regimiento Arica**: segundo, después de probar Romo.
+3. **Uki La Serena**: tercero, después de validar los dos anteriores.
+
+No conectar ni publicar números sin confirmar antes que WhatsApp Business y WhatsApp Web siguen funcionando.
+
 ## Antes de conectar cualquier número
 1. Hacer una prueba de coexistencia oficial con **un número**, confirmando que la agendadora conserva el celular, sus respuestas rápidas y WhatsApp Web; confirmar las condiciones económicas del proveedor.
 2. Verificar en pruebas la recepción de mensajes de clientes y los ecos de respuestas desde el dispositivo que usa la agendadora. Puede haber ecos faltantes de dispositivos vinculados: **nunca marcar "sin contestar" sólo por ausencia del eco**.
