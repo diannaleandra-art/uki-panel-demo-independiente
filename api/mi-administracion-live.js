@@ -868,6 +868,83 @@ module.exports=async(req,res)=>{
     modificado_en:updated[0].modificado_en,soloCosteo:true,afectaCaja:false,
     afectaPedidos:false,afectaInventario:false});
   }
+
+  // Solo lectura: compara precios actuales con partes del costo respaldadas por facturas.
+  if(action==='costeo_comparar_precios_v1'){
+   const localId=String(body.sucursal_id||''),local=CARTA_LOCAL_OFICIAL[localId];
+   if(!local)return fail(res,400,'Selecciona una sucursal de Uki o Romo.');
+   await belongs(sql,local.biz,localId);
+   let catalog;
+   try{catalog=await obtenerCartaCosto(req,local.biz,localId);}
+   catch(e){return fail(res,503,'No pude confirmar la carta de esta sucursal. No mostraré precios desactualizados.');}
+   const compras=await sql.query(
+    "SELECT i.descripcion,i.precio_unitario,m.fecha::text AS fecha,n.nombre AS negocio "+
+    "FROM public.fin_compra_items i JOIN public.fin_movimientos m ON m.id=i.compra_id "+
+    "JOIN public.fin_negocios n ON n.id=m.negocio_id "+
+    "WHERE m.tipo='compra' AND m.fuente='factura' AND m.estado<>'anulado' "+
+    "AND m.negocio_id=ANY($1::uuid[]) ORDER BY m.fecha DESC,m.creado_en DESC,i.id DESC LIMIT 300",
+    [[CARTA_LOCAL_OFICIAL['47278e71-42d5-4156-8d07-6d1d2101d50b'].biz,
+      CARTA_LOCAL_OFICIAL['e8c2323c-030c-48c6-8861-64029df112fe'].biz]]);
+   const packs=[
+    ['arroz','ARROZ TUCAPEL FOOD SERVICE NACIONAL G2',10000,'g','Supuesto: precio de caja de 10 kg; 1 g crudo rinde 2,7 g cocidos'],
+    ['pollo','PECHUGA DE POLLO S/HUESO S/PIEL 12 KG',12000,'g','Supuesto: caja 12 kg; rendimiento cocido 75 %'],
+    ['queso','QUESO CREMA TOSHIKO BARRAS DE 1,36KG',1360,'g','Barra de queso crema de 1,36 kg'],
+    ['nori','NORI GOLD YAKI 100 HOJAS',100,'hojas','Paquete de 100 hojas'],
+    ['panko','PANKO AMARILLO X 1 KG',1000,'g','Bolsa de 1 kg'],
+    ['soya','SALSA DE SOYA BIDON 5LT',5000,'ml','Bidón de 5 litros']
+   ];
+   const precios={};
+   for(const [key,pattern,contenido,unidad,nota] of packs){
+    const found=compras.find(x=>String(x.descripcion||'').toUpperCase().includes(pattern) && Number(x.precio_unitario)>0);
+    if(found)precios[key]={precio_por_unidad:Number(found.precio_unitario)/contenido,
+     contenido,unidad,nota,fecha:found.fecha,descripcion:found.descripcion,
+     negocio:found.negocio,confirmacion_pendiente:true};
+   }
+   function calc(item){
+    const kind=String(item.kind||''),name=String(item.name||''),sku=String(item.sku||'');
+    const n=Number(item.rolls||1);
+    let rice=0,pollo=0,queso=0,kindReal='otros',faltan='';
+    if(kind==='classic'||sku.startsWith('classic:')){
+      kindReal='clasico';rice=180*n;pollo=45*n;queso=25*n;
+      faltan='Vegetales, envolturas, aceite, salsa, aliño y envases; los otros rellenos cambian el costo.';
+    }else if(kind==='premium'||sku.startsWith('premium:')){
+      kindReal='premium';rice=180*n;pollo=60*n;queso=25*n;
+      faltan='Dos vegetales, cobertura premium, aceite, salsas, envases y proteínas distintas del pollo.';
+    }else if(/handroll|antojo doble/i.test(name)||/handroll/i.test(sku)){
+      kindReal='handroll';rice=180*n;pollo=45*n;queso=25*n;
+      faltan='Vegetal, aceite, tempura o panko, salsa, envase y posibles korokes.';
+    }else if(/gohan/i.test(name)){
+      kindReal='gohan';rice=150;queso=40;pollo=/pollo/i.test(name)?80:0;
+      faltan='Palta, cebollín, proteína si no es pollo, salsa y envase.';
+    }else if(/sushi b[uo]rg/i.test(name)){
+      kindReal='burger';rice=180;pollo=90;queso=30;
+      faltan='Dos vegetales, apanizado, aceite, envase y papas si se incluyen.';
+    }else if(kind==='monthly'&&item.piecesPerRoll===12&&Number.isInteger(item.rolls)&&item.rolls>0){
+      kindReal='promocion';rice=180*n;pollo=45*n;queso=25*n;
+      faltan='Vegetales, envolturas, aceite, salsas, envases, korokes y otros acompañamientos.';
+    }else{
+      faltan='Ingredientes, preparación y envase aún sin calcular.';
+    }
+    const desglose=[];
+    for(const [key,quantity,ratio] of [['arroz',rice,2.7],['pollo',pollo,0.75],['queso',queso,1]]){
+      if(!quantity||!precios[key])continue;
+      desglose.push({ingrediente:key,gramos:quantity,
+       valor:Math.round(quantity*precios[key].precio_por_unidad/ratio),
+       origen:precios[key].descripcion,notas:precios[key].nota});
+    }
+    const subtotal=desglose.length?desglose.reduce((a,x)=>a+x.valor,0):null;
+    return {sku:item.sku,nombre:item.name,tipo:kindReal,precio_carta:item.price,
+      rolls:item.rolls,subtotal_facturas_estimado:subtotal,
+      desglose,faltan,completo:false,
+      receta_con_pollo_hipotetica:pollo>0,
+      precio_minimo_definitivo:null,precio_maximo_definitivo:null};
+   }
+   return ok(res,{local:local.brand+':'+local.branch,
+    productos:catalog.items.map(calc),fuentes:precios,
+    consultado_en:new Date().toISOString(),
+    aviso:'Los subtotales de facturas usan supuestos de rendimiento; NO incluyen todos los insumos ni gastos de vender y NO son costo final.',
+    soloLectura:true,afectaCarta:false,afectaCaja:false,afectaInventario:false});
+  }
   if(action==='costeo_carta_productos'){
    const negocio=body.negocio_id,sucursal=body.sucursal_id;
    await belongs(sql,negocio,sucursal);
