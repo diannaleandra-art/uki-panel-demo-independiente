@@ -930,7 +930,8 @@ module.exports=async(req,res)=>{
       if(!quantity||!precios[key])continue;
       desglose.push({ingrediente:key,gramos:quantity,
        valor:Math.round(quantity*precios[key].precio_por_unidad/ratio),
-       origen:precios[key].descripcion,notas:precios[key].nota});
+       origen:precios[key].descripcion,notas:precios[key].nota,
+       fecha_compra:precios[key].fecha,negocio_compra:precios[key].negocio});
     }
     const subtotal=desglose.length?desglose.reduce((a,x)=>a+x.valor,0):null;
     return {sku:item.sku,nombre:item.name,tipo:kindReal,precio_carta:item.price,
