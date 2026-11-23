@@ -201,6 +201,21 @@ nav button{font-size:10px;min-width:0}
 #v-recetas .rx-edit-actions label{margin:0;display:flex;gap:7px;align-items:center}
 #v-recetas .rx-edit-actions input{width:18px;min-height:18px;margin:0}
 #v-recetas .rx-edit-actions button{min-height:32px;font-size:12px;padding:3px 10px}
+
+#v-recetas .rx-price-header{padding:13px;margin:14px 0;background:#fff6ec;border:1px solid var(--line);border-radius:13px}
+#v-recetas .rx-price-header small{display:block;color:var(--muted);font-size:12px}
+#v-recetas .rx-price-header strong{font-size:27px;font-weight:800}
+#v-recetas .rx-cost-line{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13px;border-bottom:1px solid var(--line);padding:9px 0}
+#v-recetas .rx-cost-line strong{white-space:nowrap}
+#v-recetas .rx-extra-costs{border:1px solid #e8d7c7;padding:11px;border-radius:12px;margin:10px 0}
+#v-recetas .rx-extra-costs label{font-size:12px}
+#v-recetas .rx-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:14px 0}
+#v-recetas .rx-results>div{padding:12px 10px;background:#fff8f2;border:1px solid #efe1d5;border-radius:13px}
+#v-recetas .rx-results>div:nth-child(3){grid-column:1/-1;background:#fff}
+#v-recetas .rx-results small{display:block;color:var(--muted);font-size:12px;line-height:1.3;margin-bottom:8px}
+#v-recetas .rx-results strong{display:block;font-size:19px;overflow-wrap:anywhere}
+#v-recetas .rx-all-product{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px;padding:9px 1px;border-bottom:1px solid var(--line);font-size:13px}
+#v-recetas .rx-all-product button{min-height:32px;padding:4px 8px;font-size:12px}
 </style></head><body>
 <header><div><h1>🔒 Mi Administración</h1><small>Acceso de dueños · Solo personal autorizado</small></div><button id="exit" hidden>Salir</button></header>
 <main><p id="notice" role="status" aria-live="polite">Conectando acceso privado…</p>
@@ -605,29 +620,54 @@ nav button{font-size:10px;min-width:0}
   <details class="rx-recipe"><summary>📋 Productos que todavía debemos revisar</summary><p class="hint">Gohan vegetariano; vegetal y apanizado del roll clásico; tempura del handroll; costos de proteínas y envolturas; promociones de 24, 36, 60 y 108 piezas; korokes, gyozas, papas, pollo furay, alitas y toppings; pizzas, jugos y postres de Regimiento Arica. Estos productos aún no tienen un costo completo confirmado.</p></details>
   <button class="soft" id="rxGoCosts" type="button" style="width:100%;margin-top:12px">✏️ Revisar ingredientes y guardar costos en Negocios</button>
  </div>
- <div class="card">
-  <h2>💰 ¿Cuánto gasto y cuánto me queda?</h2>
-  <p class="hint">Haz una prueba en pesos chilenos. El precio es de referencia, <b>no modifica la carta</b>. El costo se completa cuando registremos todos los ingredientes y envases.</p>
-  <label for="rxProduct">Producto para revisar</label>
-  <select id="rxProduct"></select>
+
+ <div class="card" id="rxComparador">
+  <div class="eyebrow">PRECIOS, COSTOS Y GANANCIAS</div>
+  <h2>💰 ¿Cuánto cuesta y a cuánto lo vendo?</h2>
+  <p>Elige un local y un producto. <b>El precio actual lo consultamos en tu carta</b>. Los valores de las facturas se calculan sin que tengas que sumarlos tú.</p>
+  <label for="rxBranch">Sucursal</label>
+  <select id="rxBranch">
+   <option value="47278e71-42d5-4156-8d07-6d1d2101d50b">Uki Regimiento Arica</option>
+   <option value="94560de2-f0dd-4ea3-8a9c-b84dc7787cdc">Uki La Serena</option>
+   <option value="e8c2323c-030c-48c6-8861-64029df112fe">Romo Sushi La Serena</option>
+  </select>
+  <label for="rxSearch">Buscar producto</label>
+  <input id="rxSearch" type="search" placeholder="36 piezas, Gohan, Premium...">
+  <label for="rxProduct">Producto</label>
+  <select id="rxProduct"><option value="">Consultando carta…</option></select>
+  <p id="rxCatalogStatus" class="hint" role="status">Selecciona una sucursal para consultar precios actuales.</p>
+  <button id="rxReload" class="soft" type="button" style="width:100%">Actualizar carta y costos</button>
   <label for="rxTax">Mostrar valores</label>
   <select id="rxTax"><option value="con">Con IVA</option><option value="sin">Sin IVA</option></select>
-  <div class="grid2">
-   <div><label for="rxPrice">Precio que paga el cliente ($)</label><input type="number" inputmode="numeric" min="1" id="rxPrice"></div>
-   <div><label for="rxCost" id="rxCostInputLabel">Me cuesta prepararlo, con IVA ($)</label><input type="number" inputmode="numeric" min="1" id="rxCost" placeholder="Pendiente de calcular"></div>
+  <div class="rx-price-header"><small id="rxSaleLabel">Precio de venta de la carta</small>
+   <strong id="rxSale">—</strong><p id="rxProductNote" class="hint"></p></div>
+  <h3>¿Cuánto me cuesta?</h3>
+  <div id="rxCostBreakdown"></div>
+  <div class="rx-extra-costs">
+   <label for="rxExtraEstimate">Otros ingredientes y envase: valor de prueba ($, sin IVA)</label>
+   <input id="rxExtraEstimate" inputmode="numeric" type="number" min="0" max="10000000" step="1" placeholder="Pendiente de valorizar">
+   <p id="rxExtraHelp" class="hint">El sistema sugerirá una cifra de prueba cuando sea posible. No es un costo comprobado; puedes modificarla.</p>
+   <label for="rxSaleExpense">Otros gastos por venderlo ($, sin IVA)</label>
+   <input id="rxSaleExpense" inputmode="numeric" type="number" min="0" max="10000000" step="1" value="0">
+   <p class="hint">Comisiones u otros gastos que conozcas por pedido. No incluye automáticamente sueldos, arriendo, luz ni todos los gastos del negocio.</p>
   </div>
-  <p class="hint">No introduzcas el precio de la factura completa: aquí va <b>cuánto cuesta elaborar una sola unidad o promoción</b>, con todos sus ingredientes y envases. Puedes cambiar entre Con IVA y Sin IVA; el importe se convierte automáticamente. Esta simulación no se guarda; los costos definitivos se registran en Negocios.</p>
-  <div class="metrics">
-   <div class="metric"><small id="rxSaleLabel">Lo vendo en</small><b id="rxSale">—</b></div>
-   <div class="metric"><small id="rxCostLabel">Me cuesta prepararlo</small><b id="rxCostShown">—</b></div>
-   <div class="metric"><small>Me queda después de ingredientes e IVA</small><b id="rxMargin">—</b></div>
-   <div class="metric"><small>Precio orientativo si insumos son el 30 % de venta sin IVA</small><b id="rxPriceSuggested">—</b></div>
+  <div class="rx-results">
+   <div><small>Calculado parcialmente con facturas*</small><strong id="rxFactored">—</strong></div>
+   <div><small>Me cuesta prepararlo (ejemplo)</small><strong id="rxTotalCost">—</strong></div>
+   <div><small>Me queda antes de gastos generales (ejemplo)</small><strong id="rxMargin">—</strong></div>
+   <div><small>Precio mínimo orientativo</small><strong id="rxPriceLow">—</strong></div>
+   <div><small>Precio máximo orientativo</small><strong id="rxPriceSuggested">—</strong></div>
   </div>
-  <div class="owner-finance-note"><b>Precio orientativo con un 35 % para insumos:</b> <span id="rxPriceLow">—</span><p id="rxMarginDescription" class="hint"></p></div>
+  <p id="rxMarginDescription" class="owner-finance-note" role="status">No mostraremos una ganancia real hasta completar todos los costos.</p>
   <p id="rxTaxExplanation" class="hint"></p>
-  <p class="hint"><b>Ganancia final:</b> pendiente hasta descontar también sueldos, arriendo, luz, comisiones, delivery y otros gastos. No interpretamos lo que queda después de insumos como utilidad neta.</p>
-  <button class="soft" id="rxGoPurchases" type="button" style="width:100%">🧾 Consultar mis compras y facturas</button>
+  <details class="rx-recipe"><summary>📋 Ver todos los productos y precios de esta sucursal</summary>
+   <div id="rxAllProducts">Sin consultar.</div>
+  </details>
+  <button class="soft" id="rxGoCostDetails" type="button" style="width:100%;margin-top:12px">🥬 Revisar precios de ingredientes pendientes</button>
+  <button class="soft" id="rxGoPurchases" type="button" style="width:100%;margin-top:8px">🧾 Consultar facturas guardadas</button>
+  <p class="hint">*Los costos de facturas usan supuestos de presentación y rendimiento. Los precios mínimo y máximo representan un <b>rango financiero de referencia</b> (35 % a 25 % de los ingresos netos para insumos), no límites del mercado ni ganancias garantizadas.</p>
  </div>
+
 </section>
 <footer>Mi Administración · Acceso exclusivo de dueños</footer>
 </main><nav id="tabs" hidden><button data-tab="resumen" class="active"><i>⌂</i>Inicio</button><button data-tab="ventas"><i>＄</i>Ventas</button><button data-tab="gastos"><i>▣</i>Gastos</button><button data-tab="facturas"><i>▥</i>Compras</button><button data-tab="negocios"><i>◫</i>Negocios</button><button data-tab="recetas"><i>🍣</i>Recetas</button></nav>
