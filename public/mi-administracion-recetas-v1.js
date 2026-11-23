@@ -245,6 +245,7 @@
       const sample=other===null?null:Number(subtotal)+other;
       price.textContent='Lo vendes en '+fmt(p.precio_carta)+
         ' · Costos con facturas: '+(subtotal===null?'pendientes':fmt(subtotal)+' (parcial)');
+      info.append(name,price);
       if(sample!==null){
         const detail=document.createElement('small');
         detail.textContent='Costo total de EJEMPLO: '+fmt(sample)+
@@ -252,7 +253,6 @@
           ' · Máximo orientativo: '+fmt(Math.ceil(sample*1.19/.25/100)*100);
         info.append(detail);
       }
-      info.append(name,price);
       const btn=document.createElement('button');btn.type='button';btn.className='soft';
       btn.textContent='Revisar';
       btn.onclick=()=>{
