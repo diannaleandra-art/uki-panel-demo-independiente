@@ -205,19 +205,19 @@
       'Vista CON IVA: precio que cobra la carta al cliente; costos comprados se muestran con IVA del 19 % supuesto recuperable.':
       'Vista SIN IVA: venta y compras expresadas sin IVA. La cantidad que queda se calcula siempre con ingresos y costos netos, si el IVA es recuperable.';
   }
+  function defaultExtraFor(p){
+    if(!p||p.subtotal_facturas_estimado===null||
+       proteinNotPricedLabel(p)||otherEstimateByType[p.tipo]===undefined)return null;
+    const count=['clasico','premium','handroll','promocion'].includes(p.tipo)?
+      Math.max(1,Number(p.rolls)||1):1;
+    let value=otherEstimateByType[p.tipo]*count;
+    if(p.tipo==='promocion'&&/koroke/i.test(p.nombre))value+=300;
+    return value;
+  }
   function choosePrice(sku){
     chosenProduct=prices.find(x=>x.sku===sku)||null;
-    const p=chosenProduct;
-    let defaultExtra=null;
-    const proteinNotPriced=p?.tipo==='gohan'&&/camar[oó]n|salm[oó]n/i.test(p.nombre);
-    if(p&&p.subtotal_facturas_estimado!==null&&!proteinNotPriced&&otherEstimateByType[p.tipo]!==undefined){
-      const rolls=p.tipo==='clasico'||p.tipo==='premium'||p.tipo==='handroll'||p.tipo==='promocion'?
-        Math.max(1,Number(p.rolls)||1):1;
-      defaultExtra=otherEstimateByType[p.tipo]*rolls;
-      // Korokes y salsas agregadas aún no cuentan como costos confirmados.
-      if(p.tipo==='promocion'&&/koroke/i.test(p.nombre))defaultExtra+=300;
-    }
-    $('rxExtraEstimate').value=defaultExtra===null?'':String(defaultExtra);
+    const extra=defaultExtraFor(chosenProduct);
+    $('rxExtraEstimate').value=extra===null?'':String(extra);
     $('rxSaleExpense').value='0';
     renderComparison();
   }
@@ -241,8 +241,17 @@
       const info=document.createElement('div');const name=document.createElement('strong');
       name.textContent=p.nombre;
       const price=document.createElement('small');
+      const other=defaultExtraFor(p),subtotal=p.subtotal_facturas_estimado;
+      const sample=other===null?null:Number(subtotal)+other;
       price.textContent='Lo vendes en '+fmt(p.precio_carta)+
-        ' · Costo con facturas: '+(p.subtotal_facturas_estimado===null?'pendiente':fmt(p.subtotal_facturas_estimado)+' (parcial)');
+        ' · Costos con facturas: '+(subtotal===null?'pendientes':fmt(subtotal)+' (parcial)');
+      if(sample!==null){
+        const detail=document.createElement('small');
+        detail.textContent='Costo total de EJEMPLO: '+fmt(sample)+
+          ' · Mínimo orientativo: '+fmt(Math.ceil(sample*1.19/.35/100)*100)+
+          ' · Máximo orientativo: '+fmt(Math.ceil(sample*1.19/.25/100)*100);
+        info.append(detail);
+      }
       info.append(name,price);
       const btn=document.createElement('button');btn.type='button';btn.className='soft';
       btn.textContent='Revisar';
