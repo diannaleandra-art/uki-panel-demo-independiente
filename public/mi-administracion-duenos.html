@@ -1245,7 +1245,8 @@ async function api(action,fields={}){
 }
 window.ukiRecetasPrivadas={
  consultar:ambito=>api('recetas_estandar_listar',{ambito}),
- guardar:payload=>api('recetas_estandar_guardar',payload)
+ guardar:payload=>api('recetas_estandar_guardar',payload),
+ comparar:sucursal_id=>api('costeo_comparar_precios_v1',{sucursal_id})
 };
 const value=id=>$(id).value,amount=id=>{const n=Number(value(id)||0);if(!Number.isSafeInteger(n)||n<0||n>1000000000)throw Error('Importe inválido.');return n;};
 const selected=(id,label,arr)=>{const t=$(id);t.replaceChildren(new Option(label,''));arr.forEach(x=>t.add(new Option(x.nombre,x.id)));};
