@@ -37,3 +37,6 @@ No conectar ni publicar números sin confirmar antes que WhatsApp Business y Wha
 - Diseñar una cola de incidencias verificables y métricas de conversaciones sin inferir falsos errores.
 - Política de retención: mostrar los últimos 35 días por ahora. **No borrar datos** hasta comprobar el respaldo mensual y el procedimiento de conservación acordado. El almacenamiento real todavía no tiene purga habilitada.
 - Pruebas manuales end-to-end y publicación única agrupada, sólo después de autorización.
+
+## Decisión de presupuesto · 23/11/2026
+La propietaria rechazó la alternativa PipesBot desde US$17/mes por número por ser demasiado cara. **No contratar, conectar ni desplegar PipesBot**. Conservar código previo solo como prueba aislada sin activación. Priorizar investigación de **Make Free** (1.000 créditos/mes, integración WhatsApp Business Cloud con modo Coexistence según sus documentos) para un ensayo limitado con Romo, sin tarjeta ni compromisos de pago. Es indispensable comprobar que la modalidad funciona para el número, que los eventos entrantes y ecos llegan al panel, que WhatsApp Web sigue activo y cuánto consume el escenario. Si no resulta viable, alternativa totalmente gratuita: enlace a WhatsApp Web y contraste manual/copiar mensajes; esto NO ofrece monitoreo automático. No confundir prueba gratuita con servicio ilimitado de coste cero.
