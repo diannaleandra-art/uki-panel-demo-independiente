@@ -10,6 +10,6 @@
     "jose": "6.2.15"
   },
   "scripts": {
-    "test": "node --test tests/inventario-live.test.cjs tests/mi-administracion-informes.test.cjs tests/uki-facturas-ambos-paneles.test.cjs tests/uki-inventario-informe-ordenado.test.cjs tests/costeo-regresion-v1.test.cjs tests/seleccion-y-producto-manual-visible-20261122.test.cjs tests/uki-seleccion-visible-historial-20261122.test.cjs tests/uki-dia-fecha-caja-acumulada-20261122.test.cjs tests/uki-whatsapp-supervision.test.cjs"
+    "test": "node --test tests/inventario-live.test.cjs tests/mi-administracion-informes.test.cjs tests/uki-facturas-ambos-paneles.test.cjs tests/uki-inventario-informe-ordenado.test.cjs tests/costeo-regresion-v1.test.cjs tests/seleccion-y-producto-manual-visible-20261122.test.cjs tests/uki-seleccion-visible-historial-20261122.test.cjs tests/uki-dia-fecha-caja-acumulada-20261122.test.cjs tests/uki-whatsapp-supervision.test.cjs tests/uki-whatsapp-pipes.test.cjs"
   }
 }
