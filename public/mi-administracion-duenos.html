@@ -216,6 +216,34 @@ nav button{font-size:10px;min-width:0}
 #v-recetas .rx-results strong{display:block;font-size:19px;overflow-wrap:anywhere}
 #v-recetas .rx-all-product{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px;padding:9px 1px;border-bottom:1px solid var(--line);font-size:13px}
 #v-recetas .rx-all-product button{min-height:32px;padding:4px 8px;font-size:12px}
+
+/* Mi Administración: vista simple para dueños, detalles secundarios ocultos al abrir. */
+#v-recetas .rx-simple{padding:17px 14px}
+#v-recetas .rx-simple h2{font-size:20px;margin:0 0 5px}
+#v-recetas .rx-simple>label{font-size:13px;margin:14px 0 3px}
+#v-recetas .rx-simple select,#v-recetas .rx-simple input{min-height:47px}
+#v-recetas .rx-iva-row{display:flex;align-items:center;gap:10px;justify-content:space-between;margin:12px 0}
+#v-recetas .rx-iva-row label{margin:0;font-size:13px}
+#v-recetas .rx-iva-row select{width:143px;margin:0}
+#v-recetas .rx-simple-results{border:1px solid #ead9c9;border-radius:15px;background:#fff;padding:0 14px 10px;margin:11px 0 16px}
+#v-recetas .rx-result-primary{text-align:center;padding:17px 4px 15px;border-bottom:1px solid #eee4da}
+#v-recetas .rx-result-primary small{display:block;font-size:13px;color:#725b4c}
+#v-recetas .rx-result-primary strong{display:block;font-size:31px;line-height:1.1;margin:5px 0}
+#v-recetas .rx-result-line{display:flex;justify-content:space-between;gap:13px;align-items:center;border-bottom:1px solid #eee4da;padding:14px 0}
+#v-recetas .rx-result-line span{font-size:13px;line-height:1.35;flex:1}
+#v-recetas .rx-result-line strong{font-size:17px;white-space:nowrap;text-align:right}
+#v-recetas .rx-result-range{padding:15px 0 6px}
+#v-recetas .rx-result-range>p{font-size:14px;font-weight:750;margin:0 0 9px}
+#v-recetas .rx-range-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#v-recetas .rx-range-grid>div{background:#fff5eb;border-radius:11px;padding:11px 9px}
+#v-recetas .rx-range-grid small{display:block;font-size:11px;line-height:1.35;color:#735a47}
+#v-recetas .rx-range-grid strong{display:block;font-size:18px;margin-top:7px}
+#v-recetas .rx-result-range>small{display:block;color:var(--muted);font-size:11px;margin:9px 0 0}
+#v-recetas .rx-honesty{font-size:12px;line-height:1.5;padding:11px;background:#f8f3ec;border-radius:10px;margin:10px 0 0}
+#v-recetas .rx-recipes-library>summary{font-size:16px;padding:2px 0 9px}
+#v-recetas .rx-cost-line{font-size:13px}
+#v-recetas .rx-simple details.rx-recipe{padding:0 9px;margin:9px 0}
+@media(max-width:390px){#v-recetas .rx-result-line strong{font-size:15px}#v-recetas .rx-range-grid strong{font-size:16px}}
 </style></head><body>
 <header><div><h1>🔒 Mi Administración</h1><small>Acceso de dueños · Solo personal autorizado</small></div><button id="exit" hidden>Salir</button></header>
 <main><p id="notice" role="status" aria-live="polite">Conectando acceso privado…</p>
@@ -585,7 +613,70 @@ nav button{font-size:10px;min-width:0}
 </section>
 
 <section class="view" id="v-recetas" hidden>
- <div class="card">
+ <div class="card rx-simple" id="rxComparador">
+  <h2>🍣 Costos y ganancias</h2>
+  <p class="hint">Elige un producto para saber lo que cobras y cuánto podría dejarte. No tienes que hacer las cuentas.</p>
+  <label for="rxBranch">1. Local</label>
+  <select id="rxBranch">
+   <option value="47278e71-42d5-4156-8d07-6d1d2101d50b">Uki Regimiento Arica</option>
+   <option value="94560de2-f0dd-4ea3-8a9c-b84dc7787cdc">Uki La Serena</option>
+   <option value="e8c2323c-030c-48c6-8861-64029df112fe">Romo Sushi La Serena</option>
+  </select>
+  <label for="rxSearch">2. Busca el producto</label>
+  <input id="rxSearch" type="search" placeholder="Escribe: 36 piezas, Gohan, premium…">
+  <select id="rxProduct" aria-label="Producto a revisar"><option value="">Consultando carta…</option></select>
+  <p id="rxCatalogStatus" class="hint" role="status">Consultaremos los precios que tienes en tu carta.</p>
+  <div class="rx-iva-row">
+   <label for="rxTax">Mostrar precios</label>
+   <select id="rxTax"><option value="con">Con IVA</option><option value="sin">Sin IVA</option></select>
+  </div>
+  <div class="rx-simple-results">
+   <div class="rx-result-primary">
+    <small id="rxSaleLabel">Lo vendes en</small>
+    <strong id="rxSale">—</strong>
+   </div>
+   <div class="rx-result-line"><span>Me cuesta prepararlo y venderlo</span><strong id="rxTotalCost">—</strong></div>
+   <div class="rx-result-line"><span>Me queda después de esos gastos</span><strong id="rxMargin">—</strong></div>
+   <div class="rx-result-range">
+    <p>¿A cuánto conviene venderlo?</p>
+    <div class="rx-range-grid">
+     <div><small>Precio mínimo orientativo</small><strong id="rxPriceLow">—</strong></div>
+     <div><small>Precio máximo orientativo</small><strong id="rxPriceSuggested">—</strong></div>
+    </div>
+    <small>Son referencias para comparar, no un precio máximo impuesto por el mercado.</small>
+   </div>
+   <p id="rxMarginDescription" class="rx-honesty" role="status">Aún falta información de algunas compras. No se mostrarán ganancias definitivas hasta completar los costos.</p>
+  </div>
+  <details class="rx-recipe">
+   <summary>🔎 Ver qué ingredientes cuesta y cuáles faltan</summary>
+   <p id="rxProductNote" class="hint"></p>
+   <div id="rxCostBreakdown"></div>
+   <p class="hint">Valor calculado con facturas, todavía parcial: <strong id="rxFactored">—</strong></p>
+   <p id="rxAssumptionNote" class="hint"></p>
+   <p id="rxTaxExplanation" class="hint"></p>
+  </details>
+  <details class="rx-recipe">
+   <summary>✏️ Cambiar los valores de prueba (opcional)</summary>
+   <label for="rxExtraEstimate">Costo estimado de ingredientes y envases pendientes ($, sin IVA)</label>
+   <input id="rxExtraEstimate" inputmode="numeric" type="number" min="0" max="10000000" step="1" placeholder="Pendiente">
+   <p id="rxExtraHelp" class="hint">Solo para hacer una simulación. No modifica el costo guardado.</p>
+   <label for="rxSaleExpense">Otros gastos por vender el producto ($, sin IVA)</label>
+   <input id="rxSaleExpense" inputmode="numeric" type="number" min="0" max="10000000" step="1" value="0">
+   <p class="hint">Por ejemplo, una comisión. No cuenta automáticamente sueldos, arriendo ni otros gastos generales.</p>
+  </details>
+  <details class="rx-recipe">
+   <summary>📋 Ver todos los productos de este local</summary>
+   <div id="rxAllProducts">Consulta primero tu carta.</div>
+  </details>
+  <details class="rx-recipe">
+   <summary>⚙️ Facturas, precios de ingredientes y actualización</summary>
+   <button id="rxReload" class="soft" type="button" style="width:100%">Actualizar los precios</button>
+   <button class="soft" id="rxGoCostDetails" type="button" style="width:100%;margin-top:8px">Revisar precios de ingredientes</button>
+   <button class="soft" id="rxGoPurchases" type="button" style="width:100%;margin-top:8px">Ver facturas guardadas</button>
+  </details>
+ </div>
+ <details class="card rx-recipes-library" id="rxRecipeLibrary">
+  <summary>📒 Recetas y gramajes que hemos aprobado</summary>
   <div class="eyebrow">CONTROL PRIVADO DE LOS TRES LOCALES</div>
   <h2>🍣 Recetas, costos y ganancias</h2>
   <p>Consulta aquí los gramajes que hemos aprobado y los productos que faltan por revisar. No cambia la carta de los clientes ni las preparaciones del personal.</p>
@@ -619,56 +710,7 @@ nav button{font-size:10px;min-width:0}
   <details class="rx-recipe"><summary>🕘 Últimos cambios de gramajes</summary><div id="rxHistory" class="hint">Sin cambios desde la carga inicial.</div></details>
   <details class="rx-recipe"><summary>📋 Productos que todavía debemos revisar</summary><p class="hint">Gohan vegetariano; vegetal y apanizado del roll clásico; tempura del handroll; costos de proteínas y envolturas; promociones de 24, 36, 60 y 108 piezas; korokes, gyozas, papas, pollo furay, alitas y toppings; pizzas, jugos y postres de Regimiento Arica. Estos productos aún no tienen un costo completo confirmado.</p></details>
   <button class="soft" id="rxGoCosts" type="button" style="width:100%;margin-top:12px">✏️ Revisar ingredientes y guardar costos en Negocios</button>
- </div>
-
- <div class="card" id="rxComparador">
-  <div class="eyebrow">PRECIOS, COSTOS Y GANANCIAS</div>
-  <h2>💰 ¿Cuánto cuesta y a cuánto lo vendo?</h2>
-  <p>Elige un local y un producto. <b>El precio actual lo consultamos en tu carta</b>. Los valores de las facturas se calculan sin que tengas que sumarlos tú.</p>
-  <label for="rxBranch">Sucursal</label>
-  <select id="rxBranch">
-   <option value="47278e71-42d5-4156-8d07-6d1d2101d50b">Uki Regimiento Arica</option>
-   <option value="94560de2-f0dd-4ea3-8a9c-b84dc7787cdc">Uki La Serena</option>
-   <option value="e8c2323c-030c-48c6-8861-64029df112fe">Romo Sushi La Serena</option>
-  </select>
-  <label for="rxSearch">Buscar producto</label>
-  <input id="rxSearch" type="search" placeholder="36 piezas, Gohan, Premium...">
-  <label for="rxProduct">Producto</label>
-  <select id="rxProduct"><option value="">Consultando carta…</option></select>
-  <p id="rxCatalogStatus" class="hint" role="status">Selecciona una sucursal para consultar precios actuales.</p>
-  <button id="rxReload" class="soft" type="button" style="width:100%">Actualizar carta y costos</button>
-  <label for="rxTax">Mostrar valores</label>
-  <select id="rxTax"><option value="con">Con IVA</option><option value="sin">Sin IVA</option></select>
-  <div class="rx-price-header"><small id="rxSaleLabel">Precio de venta de la carta</small>
-   <strong id="rxSale">—</strong><p id="rxProductNote" class="hint"></p></div>
-  <h3>¿Cuánto me cuesta?</h3>
-  <div id="rxCostBreakdown"></div>
-  <p id="rxAssumptionNote" class="hint"></p>
-  <details class="rx-extra-costs"><summary>✏️ Cambiar costos o gastos del ejemplo (opcional)</summary>
-   <label for="rxExtraEstimate">Otros ingredientes y envase: valor de prueba ($, sin IVA)</label>
-   <input id="rxExtraEstimate" inputmode="numeric" type="number" min="0" max="10000000" step="1" placeholder="Pendiente de valorizar">
-   <p id="rxExtraHelp" class="hint">El sistema sugerirá una cifra de prueba cuando sea posible. No es un costo comprobado; puedes modificarla.</p>
-   <label for="rxSaleExpense">Otros gastos por venderlo ($, sin IVA)</label>
-   <input id="rxSaleExpense" inputmode="numeric" type="number" min="0" max="10000000" step="1" value="0">
-   <p class="hint">Comisiones u otros gastos que conozcas por pedido. No incluye automáticamente sueldos, arriendo, luz ni todos los gastos del negocio.</p>
-  </details>
-  <div class="rx-results">
-   <div><small>Calculado parcialmente con facturas*</small><strong id="rxFactored">—</strong></div>
-   <div><small>Me cuesta prepararlo y venderlo (ejemplo)</small><strong id="rxTotalCost">—</strong></div>
-   <div><small>Me queda después de esos costos (ejemplo)</small><strong id="rxMargin">—</strong></div>
-   <div><small>Precio mínimo orientativo</small><strong id="rxPriceLow">—</strong></div>
-   <div><small>Precio máximo orientativo</small><strong id="rxPriceSuggested">—</strong></div>
-  </div>
-  <p id="rxMarginDescription" class="owner-finance-note" role="status">No mostraremos una ganancia real hasta completar todos los costos.</p>
-  <p id="rxTaxExplanation" class="hint"></p>
-  <details class="rx-recipe"><summary>📋 Ver todos los productos y precios de esta sucursal</summary>
-   <div id="rxAllProducts">Sin consultar.</div>
-  </details>
-  <button class="soft" id="rxGoCostDetails" type="button" style="width:100%;margin-top:12px">🥬 Revisar precios de ingredientes pendientes</button>
-  <button class="soft" id="rxGoPurchases" type="button" style="width:100%;margin-top:8px">🧾 Consultar facturas guardadas</button>
-  <p class="hint">*Los costos de facturas usan supuestos de presentación y rendimiento. Los precios mínimo y máximo representan un <b>rango financiero de referencia</b> (35 % a 25 % de los ingresos netos para insumos), no límites del mercado ni ganancias garantizadas.</p>
- </div>
-
+ </details>
 </section>
 <footer>Mi Administración · Acceso exclusivo de dueños</footer>
 </main><nav id="tabs" hidden><button data-tab="resumen" class="active"><i>⌂</i>Inicio</button><button data-tab="ventas"><i>＄</i>Ventas</button><button data-tab="gastos"><i>▣</i>Gastos</button><button data-tab="facturas"><i>▥</i>Compras</button><button data-tab="negocios"><i>◫</i>Negocios</button><button data-tab="recetas"><i>🍣</i>Recetas</button></nav>
