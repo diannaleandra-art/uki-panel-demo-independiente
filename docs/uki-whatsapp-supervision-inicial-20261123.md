@@ -40,3 +40,18 @@ No conectar ni publicar números sin confirmar antes que WhatsApp Business y Wha
 
 ## Decisión de presupuesto · 23/11/2026
 La propietaria rechazó la alternativa PipesBot desde US$17/mes por número por ser demasiado cara. **No contratar, conectar ni desplegar PipesBot**. Conservar código previo solo como prueba aislada sin activación. Priorizar investigación de **Make Free** (1.000 créditos/mes, integración WhatsApp Business Cloud con modo Coexistence según sus documentos) para un ensayo limitado con Romo, sin tarjeta ni compromisos de pago. Es indispensable comprobar que la modalidad funciona para el número, que los eventos entrantes y ecos llegan al panel, que WhatsApp Web sigue activo y cuánto consume el escenario. Si no resulta viable, alternativa totalmente gratuita: enlace a WhatsApp Web y contraste manual/copiar mensajes; esto NO ofrece monitoreo automático. No confundir prueba gratuita con servicio ilimitado de coste cero.
+
+
+## Revisión de conexión directa Meta → Vercel (23 de noviembre de 2026)
+
+**Resultado: viable técnicamente, no activable únicamente con las credenciales de un desarrollador directo que quiera conservar WhatsApp Business.** Meta exige que quien realiza Embedded Signup de un número WhatsApp Business existente sea Solution Partner o Tech Provider. Enlace oficial: https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/onboarding-business-app-users
+
+Para convertirse en Tech Provider Meta exige cuenta de desarrollador + portafolio empresarial, verificación de negocio, revisión de aplicación y evidencia del envío de mensajes/creación de plantillas. Enlace oficial: https://developers.facebook.com/documentation/business-messaging/whatsapp/solution-providers/get-started-for-tech-providers
+
+**Costos:** Meta no cobra al negocio por mensajes entrantes, ni por mensajes enviados desde la app WhatsApp Business con coexistencia. Los mensajes salientes por Cloud API sí se rigen por tarifas por categoría, con un cupo distinto de 1.000 mensajes de servicio gratuitos por número al mes; NO confundir con créditos de Make. Nuestra supervisión no requiere ningún envío por API. Enlace oficial: https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing
+
+**Riesgos funcionales:** la app y sus respuestas rápidas se mantienen; WhatsApp Web browser es compatible pero al activar coexistencia se desvinculan los dispositivos y hay que enlazarlos otra vez. WhatsApp para Windows no está admitido como dispositivo compañero; sus mensajes pueden faltar en webhooks. Las listas de difusión dejan de ser editables; tampoco se sincronizan grupos. Por tanto NO se debe mostrar “sin responder” ni “error confirmado” si no hay evidencia suficiente. Enlace oficial: https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/onboarding-business-app-users
+
+**Decisión técnica pendiente:** antes de pedir cualquier código al WhatsApp de Romo, verificar la posibilidad real de acreditar el proyecto como Tech Provider (o identificar un socio que incorpore el número sin mensualidad aceptable). Sólo después preparar la vinculación oficial de Romo, el webhook seguro y pruebas manuales. No prometer supervisión completa mientras existan eventos faltantes. Código de receptor en rama de pruebas, flags desactivados, no ejecutar migraciones ni despliegue.
+
+**Conclusión económica:** evitar Make por créditos y PipesBot por la mensualidad rechazada; conexión directa elimina el intermediario, pero no los requisitos de Meta ni posibles costos variables de Vercel, base de datos y análisis IA. No hay evidencia de que el número de Romo tenga la aprobación necesaria para conectar ahora.
