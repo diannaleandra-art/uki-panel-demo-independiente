@@ -181,7 +181,12 @@
     missing.textContent='Falta confirmar: '+p.faltan;
     costLines.append(missing);
     $('rxFactored').textContent=partial===null?'Sin valor confirmado':shown(partial);
-    $('rxTotalCost').textContent=total===null?'Por completar':shown(total);
+    $('rxTotalCost').textContent=all===null?'Por completar':shown(all);
+    $('rxAssumptionNote').textContent=other===null?
+      'Falta información para estimar el costo completo. No voy a inventar la ganancia de este producto.':
+      'Para este EJEMPLO he supuesto '+fmt(other)+' netos para ingredientes y envases pendientes'+
+       (expense>0?', más '+fmt(expense)+' de otros gastos por venderlo.':'.')+
+       ' Todavía no están confirmados con facturas.';
     $('rxMargin').textContent=all===null?'Por calcular':fmt(price/1.19-all);
     $('rxPriceLow').textContent=all===null?'Por calcular':fmt(Math.ceil(all*1.19/.35/100)*100/(gross?1:1.19));
     $('rxPriceSuggested').textContent=all===null?'Por calcular':fmt(Math.ceil(all*1.19/.25/100)*100/(gross?1:1.19));
@@ -193,7 +198,7 @@
       ' No está comprobado en facturas; puedes corregirlo sin modificar la carta.';
     $('rxMarginDescription').textContent=all===null?
       'Faltan ingredientes valorizados, por lo tanto no sería correcto calcular una ganancia ni un precio mínimo/máximo para este producto.':
-      'EJEMPLO, NO GANANCIA REAL: si la preparación cuesta '+fmt(total)+' netos y hay '+
+      'EJEMPLO, NO GANANCIA REAL: si prepararlo cuesta '+fmt(total)+' netos y hay '+
       fmt(expense)+' de otros gastos por unidad, te quedarían '+fmt(price/1.19-all)+
       ' antes de sueldos, arriendo y demás gastos no incluidos. El mínimo y máximo son una BANDA FINANCIERA ORIENTATIVA, no precios máximos del mercado.';
     $('rxTaxExplanation').textContent=gross?
