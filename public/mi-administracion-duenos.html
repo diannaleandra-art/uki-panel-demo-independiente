@@ -643,18 +643,19 @@ nav button{font-size:10px;min-width:0}
    <strong id="rxSale">—</strong><p id="rxProductNote" class="hint"></p></div>
   <h3>¿Cuánto me cuesta?</h3>
   <div id="rxCostBreakdown"></div>
-  <div class="rx-extra-costs">
+  <p id="rxAssumptionNote" class="hint"></p>
+  <details class="rx-extra-costs"><summary>✏️ Cambiar costos o gastos del ejemplo (opcional)</summary>
    <label for="rxExtraEstimate">Otros ingredientes y envase: valor de prueba ($, sin IVA)</label>
    <input id="rxExtraEstimate" inputmode="numeric" type="number" min="0" max="10000000" step="1" placeholder="Pendiente de valorizar">
    <p id="rxExtraHelp" class="hint">El sistema sugerirá una cifra de prueba cuando sea posible. No es un costo comprobado; puedes modificarla.</p>
    <label for="rxSaleExpense">Otros gastos por venderlo ($, sin IVA)</label>
    <input id="rxSaleExpense" inputmode="numeric" type="number" min="0" max="10000000" step="1" value="0">
    <p class="hint">Comisiones u otros gastos que conozcas por pedido. No incluye automáticamente sueldos, arriendo, luz ni todos los gastos del negocio.</p>
-  </div>
+  </details>
   <div class="rx-results">
    <div><small>Calculado parcialmente con facturas*</small><strong id="rxFactored">—</strong></div>
-   <div><small>Me cuesta prepararlo (ejemplo)</small><strong id="rxTotalCost">—</strong></div>
-   <div><small>Me queda antes de gastos generales (ejemplo)</small><strong id="rxMargin">—</strong></div>
+   <div><small>Me cuesta prepararlo y venderlo (ejemplo)</small><strong id="rxTotalCost">—</strong></div>
+   <div><small>Me queda después de esos costos (ejemplo)</small><strong id="rxMargin">—</strong></div>
    <div><small>Precio mínimo orientativo</small><strong id="rxPriceLow">—</strong></div>
    <div><small>Precio máximo orientativo</small><strong id="rxPriceSuggested">—</strong></div>
   </div>
