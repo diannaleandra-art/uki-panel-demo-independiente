@@ -7,16 +7,10 @@
   let recipes=[];
   let changing=null;
   let readEpoch=0;
-  const products = [
-    {name:'Roll clásico de pollo · 12 piezas',price:3800},
-    {name:'Handroll grande',price:3800},
-    {name:'Premium · 20 piezas',price:13000},
-    {name:'Gohan de pollo',price:6500},
-    {name:'Gohan de camarón',price:7200},
-    {name:'Gohan de salmón',price:8000},
-    {name:'Sushi burger con papas',price:8000},
-    {name:'Romo · Promoción 36 piezas',price:9500}
-  ];
+  let prices=[];
+  let chosenProduct=null;
+  let priceSeq=0;
+  const otherEstimateByType={clasico:400,premium:750,handroll:450,gohan:700,burger:950,promocion:470};
   const states={confirmada:'Confirmada',parcial:'En revisión',pendiente:'Pendiente'};
   const scope=()=>$('rxScope').value;
   function renderRecipes() {
@@ -130,67 +124,165 @@
     }catch(e){notice.textContent='No se pudo guardar: '+String(e.message||e)}
     finally{btn.disabled=false;}
   }
-  function renderExample(){
-    const p=$('rxProduct'),price=$('rxPrice'),cost=$('rxCost'),tax=$('rxTax');
-    if(!p||!price||!cost||!tax)return;
-    const n=Number(price.value),cShown=Number(cost.value),hasPrice=price.value.trim()!==''&&Number.isFinite(n)&&n>0;
-    const hasCost=cost.value.trim()!==''&&Number.isFinite(cShown)&&cShown>0;
-    const gross=tax.value==='con';
-    const saleNet=hasPrice?n/1.19:NaN;
-    const cNet=hasCost?(gross?cShown/1.19:cShown):NaN;
-    const costShown=hasCost?cShown:NaN;
-    $('rxCostInputLabel').textContent=gross?'Me cuesta prepararlo, con IVA ($)':'Me cuesta prepararlo, sin IVA ($)';
-    $('rxSaleLabel').textContent=gross?'Lo vendo en (con IVA)':'Lo vendo en (sin IVA)';
-    $('rxSale').textContent=fmt(gross?n:saleNet);
-    $('rxCostLabel').textContent=gross?'Me cuesta prepararlo (con IVA estimado)':'Me cuesta prepararlo (sin IVA)';
-    $('rxCostShown').textContent=fmt(costShown);
-    $('rxMargin').textContent=hasPrice&&hasCost?fmt(saleNet-cNet):'Sin costo completo';
-    $('rxPriceSuggested').textContent=hasCost?fmt(Math.ceil((cNet*1.19/0.30)/100)*100):'Sin costo completo';
-    $('rxPriceLow').textContent=hasCost?fmt(Math.ceil((cNet*1.19/0.35)/100)*100):'—';
-    $('rxMarginDescription').textContent=hasCost?
-      'Queda después de ingredientes e IVA, pero ANTES de sueldos, arriendo, comisiones y otros gastos. No es ganancia final.':
-      'Para saber cuánto deja, registra primero todos los ingredientes y envases en Negocios → Costos.';
+
+  function formatPrice(value){
+    return Number.isFinite(Number(value))&&value!==null&&value!==''?fmt(Number(value)):'—';
+  }
+  function renderComparison(){
+    const p=chosenProduct,gross=$('rxTax').value==='con',
+      value=$('rxSale'),costLines=$('rxCostBreakdown');
+    costLines.replaceChildren();
+    if(!p){
+      value.textContent='—';$('rxFactored').textContent='—';
+      $('rxTotalCost').textContent='—';$('rxMargin').textContent='—';
+      $('rxPriceLow').textContent='—';$('rxPriceSuggested').textContent='—';
+      $('rxProductNote').textContent='Elige un producto para ver su precio de venta y cuánto se conoce de su costo.';
+      $('rxMarginDescription').textContent='No se han seleccionado datos de un producto.';
+      return;
+    }
+    const price=Number(p.precio_carta),
+      partial=p.subtotal_facturas_estimado===null?null:Number(p.subtotal_facturas_estimado),
+      entered=$('rxExtraEstimate').value.trim(),
+      other=entered===''?null:Number(entered),
+      expense=Number($('rxSaleExpense').value||0);
+    const valid=Number.isFinite(other)&&other>=0&&Number.isFinite(expense)&&expense>=0;
+    const total=valid?(partial||0)+other:null,
+      all=valid?total+expense:null;
+    const shown=n=>n===null?'Pendiente':fmt(gross?n*1.19:n);
+    $('rxSaleLabel').textContent=gross?'Lo vendes actualmente, con IVA':'Lo vendes actualmente, sin IVA';
+    value.textContent=fmt(gross?price:price/1.19);
+    $('rxProductNote').textContent=p.nombre+' · Precio leído de la carta actual. No es una venta histórica.';
+    for(const line of p.desglose||[]){
+      const row=document.createElement('div');row.className='rx-cost-line';
+      const left=document.createElement('span');
+      left.textContent=line.ingrediente.charAt(0).toUpperCase()+line.ingrediente.slice(1)+
+        ' · '+line.gramos+' g';
+      const right=document.createElement('strong');
+      right.textContent=shown(Number(line.valor));
+      row.append(left,right);costLines.append(row);
+    }
+    if(!(p.desglose||[]).length){
+      const info=document.createElement('p');info.className='hint';
+      info.textContent='No hay ingredientes de este producto valorados con las facturas disponibles.';
+      costLines.append(info);
+    }
+    const missing=document.createElement('p');missing.className='hint';
+    missing.textContent='Falta confirmar: '+p.faltan;
+    costLines.append(missing);
+    $('rxFactored').textContent=partial===null?'Sin valor confirmado':shown(partial);
+    $('rxTotalCost').textContent=total===null?'Por completar':shown(total);
+    $('rxMargin').textContent=all===null?'Por calcular':fmt(price/1.19-all);
+    $('rxPriceLow').textContent=all===null?'Por calcular':fmt(Math.ceil(all*1.19/.35/100)*100/(gross?1:1.19));
+    $('rxPriceSuggested').textContent=all===null?'Por calcular':fmt(Math.ceil(all*1.19/.25/100)*100/(gross?1:1.19));
+    $('rxExtraHelp').textContent=p.tipo==='otros'?
+      'Todavía no hay una receta con costo para este producto. Solo se puede simular si conocemos todos sus ingredientes y sus gastos.':
+      'El valor sugerido es un SUPUESTO de prueba para lo que falta: '+p.faltan+
+      ' No está comprobado en facturas; puedes corregirlo sin modificar la carta.';
+    $('rxMarginDescription').textContent=all===null?
+      'Faltan ingredientes valorizados, por lo tanto no sería correcto calcular una ganancia ni un precio mínimo/máximo para este producto.':
+      'EJEMPLO, NO GANANCIA REAL: si la preparación cuesta '+fmt(total)+' netos y hay '+
+      fmt(expense)+' de otros gastos por unidad, te quedarían '+fmt(price/1.19-all)+
+      ' antes de sueldos, arriendo y demás gastos no incluidos. El mínimo y máximo son una BANDA FINANCIERA ORIENTATIVA, no precios máximos del mercado.';
     $('rxTaxExplanation').textContent=gross?
-      'La vista con IVA considera una compra con IVA recuperable del 19 %. El IVA que efectivamente se pague se calcula por período.':
-      'La vista sin IVA compara la venta neta con el costo neto de insumos. El resultado final es el mismo en ambas vistas.';
+      'Vista CON IVA: precio que cobra la carta al cliente; costos comprados se muestran con IVA del 19 % supuesto recuperable.':
+      'Vista SIN IVA: venta y compras expresadas sin IVA. La cantidad que queda se calcula siempre con ingresos y costos netos, si el IVA es recuperable.';
+  }
+  function choosePrice(sku){
+    chosenProduct=prices.find(x=>x.sku===sku)||null;
+    const p=chosenProduct;
+    let defaultExtra=null;
+    if(p&&p.subtotal_facturas_estimado!==null&&otherEstimateByType[p.tipo]!==undefined){
+      const rolls=p.tipo==='clasico'||p.tipo==='premium'||p.tipo==='handroll'||p.tipo==='promocion'?
+        Math.max(1,Number(p.rolls)||1):1;
+      defaultExtra=otherEstimateByType[p.tipo]*rolls;
+      // Korokes y salsas agregadas aún no cuentan como costos confirmados.
+      if(p.tipo==='promocion'&&/koroke/i.test(p.nombre))defaultExtra+=300;
+    }
+    $('rxExtraEstimate').value=defaultExtra===null?'':String(defaultExtra);
+    $('rxSaleExpense').value='0';
+    renderComparison();
+  }
+  function showAllProducts(){
+    const root=$('rxAllProducts');root.replaceChildren();
+    const search=$('rxSearch').value.trim().toLocaleLowerCase('es');
+    const selected=$('rxProduct'),current=selected.value;
+    const filtered=prices.filter(p=>p.nombre.toLocaleLowerCase('es').includes(search));
+    selected.replaceChildren();
+    selected.add(new Option('Selecciona un producto',''));
+    for(const p of filtered)selected.add(new Option(p.nombre+' · '+fmt(p.precio_carta),p.sku));
+    if(filtered.some(p=>p.sku===current))selected.value=current;
+    else if(filtered.length)selected.value=filtered[0].sku;
+    if(!filtered.length){
+      const p=document.createElement('p');p.className='hint';
+      p.textContent=prices.length?'No se encontraron productos. Prueba otra palabra.':'Aún no se ha consultado la carta.';
+      root.append(p);
+    }
+    for(const p of filtered){
+      const row=document.createElement('div');row.className='rx-all-product';
+      const info=document.createElement('div');const name=document.createElement('strong');
+      name.textContent=p.nombre;
+      const price=document.createElement('small');
+      price.textContent='Lo vendes en '+fmt(p.precio_carta)+
+        ' · Costo con facturas: '+(p.subtotal_facturas_estimado===null?'pendiente':fmt(p.subtotal_facturas_estimado)+' (parcial)');
+      info.append(name,price);
+      const btn=document.createElement('button');btn.type='button';btn.className='soft';
+      btn.textContent='Revisar';
+      btn.onclick=()=>{
+        selected.value=p.sku;
+        choosePrice(p.sku);
+        $('rxComparador').scrollIntoView({behavior:'smooth',block:'start'});
+      };
+      row.append(info,btn);root.append(row);
+    }
+    const target=selected.value;
+    if(target!==chosenProduct?.sku)choosePrice(target);
+  }
+  async function loadPrices(){
+    const seq=++priceSeq,branch=$('rxBranch').value,status=$('rxCatalogStatus');
+    status.textContent='Consultando la carta y las facturas guardadas…';
+    prices=[];chosenProduct=null;
+    showAllProducts();renderComparison();
+    try{
+      if(!window.ukiRecetasPrivadas?.comparar)throw Error('Primero ingresa con Google y tu PIN de dueños.');
+      const data=await window.ukiRecetasPrivadas.comparar(branch);
+      if(seq!==priceSeq||branch!==$('rxBranch').value)return;
+      if(!data||!Array.isArray(data.productos)||!data.soloLectura)
+        throw Error('No fue posible verificar los precios.');
+      prices=data.productos;
+      prices.sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre),'es'));
+      status.textContent=prices.length+' productos consultados. Los precios son de la carta; los costos todavía pueden ser parciales.';
+      showAllProducts();
+    }catch(e){
+      if(seq!==priceSeq)return;
+      status.textContent='No pudimos consultar los precios: '+String(e.message||e);
+    }
   }
   function init(){
     if(!$('rxRecipes'))return;
     renderRecipes();
-    window.ukiRecetarioAdmin={refresh};
+    window.ukiRecetarioAdmin={refresh:()=>{void refresh();void loadPrices();}};
     $('rxScope').addEventListener('change',()=>void refresh());
     $('rxRefresh').addEventListener('click',()=>void refresh());
     $('rxAddLine').addEventListener('click',()=>makeLine());
     $('rxCancel').addEventListener('click',closeEdit);
     $('rxSave').addEventListener('click',()=>void saveRecipe());
-    const select=$('rxProduct');
-    let previousTax=$('rxTax').value;
-    $('rxTax').addEventListener('change',()=>{
-      const input=$('rxCost');
-      if(input.value.trim()!=='' && Number.isFinite(Number(input.value)) && Number(input.value)>0){
-        input.value=String(Math.round(Number(input.value)*(previousTax==='con'?1/1.19:1.19)));
-      }
-      previousTax=$('rxTax').value;
-      renderExample();
-    });
-    for(let i=0;i<products.length;i++) select.add(new Option(products[i].name,String(i)));
-    function chosen(){
-      $('rxPrice').value=String(products[Number(select.value)||0].price);
-      $('rxCost').value='';
-      renderExample();
-    }
-    select.onchange=chosen;
-    for(const id of ['rxCost','rxPrice'])$(id).addEventListener('input',renderExample);
-    $('rxGoCosts').addEventListener('click',()=>{
-      const tab=document.querySelector('button[data-tab="negocios"]');
-      if(!tab)return;tab.click();
+    $('rxBranch').addEventListener('change',()=>void loadPrices());
+    $('rxReload').addEventListener('click',()=>void loadPrices());
+    $('rxSearch').addEventListener('input',showAllProducts);
+    $('rxProduct').addEventListener('change',()=>choosePrice($('rxProduct').value));
+    for(const id of ['rxExtraEstimate','rxSaleExpense'])$(id).addEventListener('input',renderComparison);
+    $('rxTax').addEventListener('change',renderComparison);
+    const goCosts=()=>{
+      document.querySelector('button[data-tab="negocios"]')?.click();
       const recipe=$('costRecetasPanel');
       if(recipe){recipe.open=true;recipe.scrollIntoView({behavior:'smooth',block:'start'});}
-    });
+    };
+    $('rxGoCosts').addEventListener('click',goCosts);
+    $('rxGoCostDetails').addEventListener('click',goCosts);
     $('rxGoPurchases').addEventListener('click',()=>{
       document.querySelector('button[data-tab="facturas"]')?.click();
     });
-    chosen();
+    showAllProducts();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
