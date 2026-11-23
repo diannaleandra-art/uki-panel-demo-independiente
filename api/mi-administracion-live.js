@@ -782,6 +782,92 @@ module.exports=async(req,res)=>{
 
   // Costeo por insumos y factura: solo uso privado tras sesión Google + PIN.
   // Las fotos nunca modifican precios sin validación explícita del dueño.
+
+  // Recetario acordado: se consulta/edita solo con Google + PIN privado de dueños.
+  // No interviene en la carta pública, los pedidos, el inventario o la caja.
+  if(action==='recetas_estandar_listar'){
+   const ambito=String(body.ambito||'todos');
+   if(!['todos','uki:arica','uki:serena','romo:serena'].includes(ambito))
+    return fail(res,400,'Selecciona un local válido.');
+   const rows=await sql.query(
+    'SELECT sku,ambito,nombre,estado,notas,lineas,version,modificado_por,modificado_en '+
+    'FROM public.fin_recetas_estandar_v1 WHERE ambito=$1 OR ambito=\'todos\' '+
+    'ORDER BY nombre,ambito',[ambito]);
+   const map=new Map();
+   for(const row of rows){
+    const key=String(row.sku);
+    if(row.ambito==='todos'&&!map.has(key))map.set(key,row);
+    if(row.ambito===ambito)map.set(key,row);
+   }
+   const recetas=[...map.values()].map(row=>({
+    sku:row.sku,ambito,origen:row.ambito,version:row.ambito===ambito?Number(row.version):0,
+    nombre:row.nombre,estado:row.estado,notas:row.notas,lineas:row.lineas,
+    modificado_en:row.modificado_en,modificado_por:row.modificado_por
+   })).sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre),'es'));
+   const cambios=await sql.query(
+    "SELECT sku,ambito,version_nueva,cambiado_en FROM public.fin_recetas_estandar_historial_v1 "+
+    "WHERE ambito='todos' OR ambito=$1 ORDER BY cambiado_en DESC LIMIT 12",[ambito]);
+   return ok(res,{ambito,recetas,cambios,soloDueños:true,afectaCaja:false});
+  }
+  if(action==='recetas_estandar_guardar'){
+   const ambito=String(body.ambito||''),sku=String(body.sku||''),
+    estado=String(body.estado||''),version=Number(body.version),
+    notas=typeof body.notas==='string'?body.notas.trim():'',lineas=body.lineas;
+   if(!['todos','uki:arica','uki:serena','romo:serena'].includes(ambito)||
+      !/^[a-z0-9-]{2,50}$/.test(sku)||
+      !['confirmada','parcial','pendiente'].includes(estado)||
+      !Number.isSafeInteger(version)||version<0||
+      notas.length>500||!Array.isArray(lineas)||lineas.length<1||lineas.length>40)
+    return fail(res,400,'Revisa los datos de la receta.');
+   const clean=[];
+   for(const line of lineas){
+    const nombre=typeof line?.nombre==='string'?line.nombre.trim():'';
+    const gramos=Number(line?.gramos);
+    if(nombre.length<2||nombre.length>85||!Number.isFinite(gramos)||gramos<=0||gramos>5000||
+       Math.abs(gramos*100-Math.round(gramos*100))>1e-6)
+      return fail(res,400,'Revisa el nombre y los gramos de cada ingrediente.');
+    clean.push({nombre,gramos,pendiente:line?.pendiente===true});
+   }
+   if(estado==='confirmada'&&clean.some(x=>x.pendiente))
+    return fail(res,400,'Hay ingredientes pendientes. Márcalos como confirmados o mantén la receta parcial.');
+   const base=await sql.query(
+    "SELECT nombre FROM public.fin_recetas_estandar_v1 WHERE sku=$1 AND ambito='todos' LIMIT 1",[sku]);
+   if(!base.length)return fail(res,404,'La receta base no existe.');
+   const previous=await sql.query(
+    'SELECT version,nombre,estado,notas,lineas,modificado_por,modificado_en '+
+    'FROM public.fin_recetas_estandar_v1 WHERE sku=$1 AND ambito=$2 LIMIT 1',[sku,ambito]);
+   let updated;
+   if(version===0){
+    if(ambito==='todos'||previous.length)
+     return fail(res,409,'La receta fue modificada. Vuelve a consultar antes de guardar.');
+    updated=await sql.query(
+     'INSERT INTO public.fin_recetas_estandar_v1 '+
+     '(sku,ambito,nombre,estado,notas,lineas,version,modificado_por) '+
+     'VALUES($1,$2,$3,$4,$5,$6::jsonb,1,$7) ON CONFLICT DO NOTHING RETURNING version,modificado_en',
+     [sku,ambito,base[0].nombre,estado,notas,JSON.stringify(clean),who.uid]);
+   }else{
+    if(!previous.length||Number(previous[0].version)!==version)
+     return fail(res,409,'La receta cambió en otro dispositivo. Actualiza para editar.');
+    updated=await sql.query(
+     'UPDATE public.fin_recetas_estandar_v1 SET estado=$3,notas=$4,lineas=$5::jsonb,'+
+     'version=version+1,modificado_por=$6,modificado_en=now() '+
+     'WHERE sku=$1 AND ambito=$2 AND version=$7 RETURNING version,modificado_en',
+     [sku,ambito,estado,notas,JSON.stringify(clean),who.uid,version]);
+   }
+   if(!updated.length)return fail(res,409,'No fue posible guardar. Actualiza y vuelve a revisar.');
+   await sql.query(
+    'INSERT INTO public.fin_recetas_estandar_historial_v1 '+
+    '(sku,ambito,version_anterior,version_nueva,receta_anterior,receta_nueva,actor_uid) '+
+    'VALUES($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7)',
+    [sku,ambito,previous.length?Number(previous[0].version):null,Number(updated[0].version),
+     previous.length?JSON.stringify(previous[0]):null,
+     JSON.stringify({nombre:base[0].nombre,estado,notas,lineas:clean}),who.uid]);
+   await audit(sql,'receta_estandar',sku,version===0?'crear_sucursal':'editar',who,
+    {ambito,version:Number(updated[0].version),estado});
+   return ok(res,{sku,ambito,version:Number(updated[0].version),
+    modificado_en:updated[0].modificado_en,soloCosteo:true,afectaCaja:false,
+    afectaPedidos:false,afectaInventario:false});
+  }
   if(action==='costeo_carta_productos'){
    const negocio=body.negocio_id,sucursal=body.sucursal_id;
    await belongs(sql,negocio,sucursal);
