@@ -128,6 +128,9 @@
   function formatPrice(value){
     return Number.isFinite(Number(value))&&value!==null&&value!==''?fmt(Number(value)):'—';
   }
+  function proteinNotPricedLabel(p){
+    return p?.tipo==='gohan'&&/camar[oó]n|salm[oó]n/i.test(p.nombre);
+  }
   function renderComparison(){
     const p=chosenProduct,gross=$('rxTax').value==='con',
       value=$('rxSale'),costLines=$('rxCostBreakdown');
@@ -174,7 +177,9 @@
     $('rxMargin').textContent=all===null?'Por calcular':fmt(price/1.19-all);
     $('rxPriceLow').textContent=all===null?'Por calcular':fmt(Math.ceil(all*1.19/.35/100)*100/(gross?1:1.19));
     $('rxPriceSuggested').textContent=all===null?'Por calcular':fmt(Math.ceil(all*1.19/.25/100)*100/(gross?1:1.19));
-    $('rxExtraHelp').textContent=p.tipo==='otros'?
+    $('rxExtraHelp').textContent=proteinNotPricedLabel(p)?
+      'Todavía no conocemos el costo de esta proteína. No es seguro sugerir un costo completo ni un precio mínimo/máximo hasta registrar su compra.':
+      p.tipo==='otros'?
       'Todavía no hay una receta con costo para este producto. Solo se puede simular si conocemos todos sus ingredientes y sus gastos.':
       'El valor sugerido es un SUPUESTO de prueba para lo que falta: '+p.faltan+
       ' No está comprobado en facturas; puedes corregirlo sin modificar la carta.';
@@ -191,7 +196,8 @@
     chosenProduct=prices.find(x=>x.sku===sku)||null;
     const p=chosenProduct;
     let defaultExtra=null;
-    if(p&&p.subtotal_facturas_estimado!==null&&otherEstimateByType[p.tipo]!==undefined){
+    const proteinNotPriced=p?.tipo==='gohan'&&/camar[oó]n|salm[oó]n/i.test(p.nombre);
+    if(p&&p.subtotal_facturas_estimado!==null&&!proteinNotPriced&&otherEstimateByType[p.tipo]!==undefined){
       const rolls=p.tipo==='clasico'||p.tipo==='premium'||p.tipo==='handroll'||p.tipo==='promocion'?
         Math.max(1,Number(p.rolls)||1):1;
       defaultExtra=otherEstimateByType[p.tipo]*rolls;
