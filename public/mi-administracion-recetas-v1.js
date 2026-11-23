@@ -160,6 +160,14 @@
       const left=document.createElement('span');
       left.textContent=line.ingrediente.charAt(0).toUpperCase()+line.ingrediente.slice(1)+
         ' · '+line.gramos+' g';
+      if(line.negocio_compra||line.fecha_compra){
+        const source=document.createElement('small');source.style.display='block';
+        source.style.color='var(--muted)';
+        source.textContent='Factura de '+(line.negocio_compra||'proveedor')+
+          (line.fecha_compra?' · '+line.fecha_compra.split('-').reverse().join('/'):'')+
+          '. Presentación y rendimiento por confirmar.';
+        left.append(source);
+      }
       const right=document.createElement('strong');
       right.textContent=shown(Number(line.valor));
       row.append(left,right);costLines.append(row);
