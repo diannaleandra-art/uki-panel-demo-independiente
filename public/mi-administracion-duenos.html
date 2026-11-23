@@ -280,6 +280,16 @@ nav button{font-size:10px;min-width:0}
   <button class="owner-branch-button" type="button" data-owner-branch="romo"><strong>Romo · La Serena</strong><small id="romoAutoSerena">Sin cierres confirmados en estas fechas</small></button>
  </div>
 </section>
+<details class="card" id="ukiWaSupervisionPrivada" aria-label="Supervisión privada de WhatsApp">
+ <summary>💬 WhatsApp · Supervisión inteligente (solo dueños)</summary>
+ <p class="hint">La agendadora seguirá respondiendo en WhatsApp Business y WhatsApp Web. Aquí se mostrarán los mensajes disponibles y posibles incidencias, sin respuestas automáticas ni cambios en pedidos.</p>
+ <label for="ukiWaSucursal">Sucursal</label>
+ <select id="ukiWaSucursal"><option value="">Los tres locales</option><option value="uki:arica">Uki · Regimiento Arica</option><option value="uki:serena">Uki · La Serena</option><option value="romo:serena">Romo · La Serena</option></select>
+ <button type="button" class="soft" id="ukiWaConsultar">Consultar mensajes</button>
+ <p class="hint" id="ukiWaEstado" role="status">Aún sin conectar: no se están leyendo conversaciones reales.</p>
+ <div id="ukiWaMensajes"></div>
+ <p class="hint">Las alertas son para revisar, no errores confirmados. Algunas respuestas por dispositivos vinculados podrían no llegar al panel.</p>
+</details>
 <details class="card" id="romoCierresPrivadosQA" aria-label="Cierres Romo La Serena">
  <summary>🍣 Cierres definitivos de Romo · ver detalle</summary>
  <p class="hint" role="status" id="romoCierresEstadoQA">Inicia sesión privada para consultar los cierres.</p>
@@ -2786,6 +2796,50 @@ async function archivoMensualListar(){
 }
 $('ukiArchivoConsultar').onclick=()=>void archivoMensualListar();
 
+
+ // WhatsApp: consulta exclusiva de dueños, sin acciones de envío ni edición.
+ let ukiWaSeq=0;
+ async function ukiWaConsultar(){
+  const estado=$('ukiWaEstado'),host=$('ukiWaMensajes');
+  host.replaceChildren();
+  if(!session||!auth.currentUser){estado.textContent='Inicia sesión con Google y PIN privado.';return;}
+  const seq=++ukiWaSeq,usuario=session;
+  $('ukiWaConsultar').disabled=true;estado.textContent='Consultando mensajes disponibles…';
+  try{
+   const bearer=await auth.currentUser.getIdToken();
+   const response=await fetch('https://uki-sushi-inventario.vercel.app/api/uki-whatsapp-supervision-duenos',{
+    method:'POST',cache:'no-store',credentials:'omit',
+    headers:{Authorization:'Bearer '+bearer,'Content-Type':'application/json','X-Fin-Session':session},
+    body:JSON.stringify({action:'listar',sucursal:$('ukiWaSucursal').value})
+   });
+   const result=await response.json().catch(()=>null);
+   if(!response.ok||result?.ok!==true||result.soloLectura!==true||!Array.isArray(result.mensajes))
+    throw Error(result?.error||'Supervisión no disponible.');
+   if(seq!==ukiWaSeq||usuario!==session||!auth.currentUser)return;
+   estado.textContent=result.mensajes.length+' mensajes disponibles · Solo lectura y cobertura parcial.';
+   const alerts={posible_reclamo:'Posible reclamo',posible_cambio:'Posible cambio',posible_pedido:'Posible pedido',general:'Sin alerta'};
+   for(const m of result.mensajes.slice(0,80)){
+    const line=document.createElement('div');line.className='line';
+    const when=new Date(m.fecha);
+    const title=document.createElement('strong');title.textContent=
+     String(m.sucursal||'Local')+' · '+(Number.isFinite(when.getTime())?when.toLocaleString('es-CL',{timeZone:'America/Santiago'}):'Sin fecha')+
+     ' · '+(m.direccion==='cliente'?'Cliente':'Agendadora');
+    const body=document.createElement('p');body.textContent=String(m.texto||'(Mensaje sin texto)').slice(0,1800);
+    body.style.whiteSpace='pre-wrap';
+    const note=document.createElement('p');note.className='hint';
+    note.textContent=String(m.cliente||'Cliente')+' · '+(alerts[m.clasificacion]||'Por revisar');
+    line.append(title,body,note);host.append(line);
+   }
+   if(!result.mensajes.length){const p=document.createElement('p');p.className='hint';
+    p.textContent='Sin mensajes sincronizados; esto no confirma que no haya conversaciones.';host.append(p);}
+  }catch(e){
+   if(seq===ukiWaSeq&&usuario===session)estado.textContent=String(e.message||e)+'. La atención habitual no se modifica.';
+  }finally{if(seq===ukiWaSeq)$('ukiWaConsultar').disabled=false;}
+ }
+ $('ukiWaConsultar').onclick=()=>void ukiWaConsultar();
+ $('ukiWaSucursal').onchange=()=>{if(session&&auth.currentUser)void ukiWaConsultar();};
+ $('exit').addEventListener('click',()=>{++ukiWaSeq;$('ukiWaMensajes').replaceChildren();
+  $('ukiWaEstado').textContent='Sesión cerrada. Conversaciones ocultas.';});
 onAuthStateChanged(auth,user=>{
  if(!user){session='';limpiarInformes();show('login');}
  if(!session)void checkState();
