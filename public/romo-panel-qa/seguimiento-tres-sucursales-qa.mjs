@@ -143,6 +143,20 @@ async function loadDetail(id){
   detail.append(chat);
  }catch(e){tell(e.message);detail.replaceChildren();}
 }
+// Acceso rápido desde el pedido existente: no pide buscar otra sección.
+window.ukiQAOpenOrderTracking=async function(orderId){
+ if(!root||!dialog||!detail||!store())return false;
+ const id=String(orderId||'');
+ if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[0-9a-f]{12}$/i.test(id)){
+  tell('Este pedido aún no tiene seguimiento vinculado.');return false;
+ }
+ visibility();
+ if(root.hidden)return false;
+ dialog.open=true;
+ await loadDetail(id);
+ root.scrollIntoView({block:'start',behavior:'smooth'});
+ return true;
+};
 if(root&&dialog&&list&&detail&&notice){
  $('romo-seguimiento-actualizar-qa')?.addEventListener('click',loadList);
  dialog.addEventListener('toggle',()=>{if(dialog.open)loadList();});
