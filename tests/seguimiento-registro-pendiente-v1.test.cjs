@@ -55,6 +55,8 @@ for(const [storeId,branch] of stores){
   const repeat=await S.issueForRegistered({db:m.db,storeId,orderId:id,requestKey:key,secret,nowSeconds:at+25});
   assert.equal(repeat.token,first.token,'El enlace no cambia en un reintento');
   assert.equal(m.state.changes,1,'No se inserta otra fila ni se cambia el hash');
+  const pending=await S.verifyCustomer({db:m.db,token:first.token,secret,nowSeconds:at+26});
+  assert.equal(pending.order.estado,'pendiente');
   m.state.estado='aceptada';
   const staff=await S.issueAccepted({db:m.db,storeId,orderId:id,
    staff:{storeId,userId:'worker-authorized-qa',role:'agendador'},
@@ -62,8 +64,8 @@ for(const [storeId,branch] of stores){
   assert.equal(staff.token,first.token,'Aceptar no invalida el enlace del cliente');
   assert.equal(m.state.changes,1,'El panel no cambia el enlace ni la caja');
   const found=await S.verifyCustomer({db:m.db,token:first.token,secret,nowSeconds:at+25});
-  assert.equal(found.order.estado,'pendiente');
-  assert.equal(found.order.estadoTexto,'Esperando confirmación del local');
+  assert.equal(found.order.estado,'aceptada');
+  assert.equal(found.order.estadoTexto,'Pedido aceptado');
   assert.equal(S.TABLES[storeId].branch,branch);
  });
  test(storeId+' · no emitir sin clave fuerte de solicitud',async()=>{
