@@ -80,13 +80,13 @@ test('confirmacion previa solo es reutilizable si el total y la preferencia sigu
    medioPago:'transferencia',medioPagoPreferenciaOriginal:'transferencia',medioPagoConfirmadoPor:staff.userId,medioPagoConfirmadoTotal:18000}};
  let calls=0;
  const db={query:async(sql)=>{calls++;if(sql.startsWith('SELECT'))return [base];throw Error('No se debe actualizar de nuevo')}};
- const repeated=await P.confirmPreferred({db,storeId,orderId,staff,metodo:'transferencia'});
+ const repeated=await P.confirmPreferred({db,storeId,orderId,staff,metodo:'transferencia',totalValidado:18000});
  assert.equal(repeated.repeated,true);
  assert.equal(calls,1);
  base.total_indicado=19000;
- await assert.rejects(()=>P.confirmPreferred({db,storeId,orderId,staff,metodo:'transferencia'}),{status:409});
+ await assert.rejects(()=>P.confirmPreferred({db,storeId,orderId,staff,metodo:'transferencia',totalValidado:18000}),{status:409});
  base.total_indicado=18000;base.datos.pagoPreferido='efectivo';
- await assert.rejects(()=>P.confirmPreferred({db,storeId,orderId,staff,metodo:'transferencia'}),{status:409});
+ await assert.rejects(()=>P.confirmPreferred({db,storeId,orderId,staff,metodo:'transferencia',totalValidado:18000}),{status:409});
  assert.equal(calls,3);
 });
 
@@ -104,7 +104,7 @@ test('Romo: agendadora corrige el medio elegido en carta, sin registrar pago ni 
   if(sql.startsWith('UPDATE public.romo_solicitudes_carta_v1'))return [{id:orderId}];
   throw Error('SQL inesperada');
  }};
- const result=await P.confirmPreferred({db,storeId,orderId,staff,metodo:'efectivo'});
+ const result=await P.confirmPreferred({db,storeId,orderId,staff,metodo:'efectivo',totalValidado:16000});
  assert.equal(result.ok,true);
  assert.equal(result.montoTransferencia,0);
  assert.equal(queries.length,2);
