@@ -82,7 +82,9 @@ async function loadDetail(id){
   const p=data.pedido;
   detail.replaceChildren(text('h3','Pedido '+(p.codigoPedido||'')),text('p',p.descripcionPedido||p.estadoPedido));
   const link=section('Seguimiento del cliente');
-  link.append(text('p','El cliente recibe su enlace al registrar la solicitud cuando el seguimiento está habilitado. Aquí puedes copiar el mismo enlace si necesita recuperarlo.'));
+  link.append(text('p',p.estadoPedido==='pendiente'?
+   'Solicitud pendiente de aceptación. El cliente ya puede seguirla desde su enlace privado.':
+   'El cliente conserva su enlace. Puedes copiarlo aquí si necesita recuperarlo.'));
   const linkButton=btn('Copiar enlace del pedido',async()=>{
    linkButton.disabled=true;
    try{
@@ -95,7 +97,8 @@ async function loadDetail(id){
     }
    }catch(e){tell(e.message);}finally{linkButton.disabled=false;}
   });
-  link.append(linkButton);detail.append(link);
+  if(p.estadoPedido==='aceptada')link.append(linkButton);
+  detail.append(link);
   const payment=section('Transferencia');
   if(Number.isSafeInteger(p.montoTransferencia)&&p.montoTransferencia>0){
    payment.append(text('p','Monto de transferencia: '+pesos(p.montoTransferencia)));
