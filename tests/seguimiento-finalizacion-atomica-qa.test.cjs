@@ -15,6 +15,7 @@ function fake(storeId,branch,{bankStatus='avisada',method='transferencia',stored
   if(query.startsWith('SELECT id,branch,estado,datos'))return [row];
   if(query.startsWith('WITH source_order AS')){
    assert.match(query,/s\.total_indicado=\$4::integer AND s\.datos=\$5::jsonb/);
+   assert.match(query,/FOR UPDATE OF s/); // El total no cambia entre revisión y registro
    assert.match(query,/t\.estado_pago='confirmada'/);
    assert.match(query,/t\.confirmada_en IS NOT NULL AND t\.abono_verificado_en IS NOT NULL/);
    assert.match(query,/ON CONFLICT \(solicitud_id\) DO UPDATE/);
