@@ -41,3 +41,28 @@ test('no inferir transferencias de texto libre ni de datos incompletos',()=>{
  assert.equal(p.canClientNotify({order:o,paymentStatus:'pendiente',bank:{storeId:'uki:serena',verified:true}}),false);
  assert.equal(chat.seal({storeId:'uki:serena',orderId:id,from:'cliente',body:'x'.repeat(801)},secret),null);
 });
+
+
+for(const [storeId,branch] of [['uki:arica','arica'],['uki:serena','serena'],['romo:serena','serena']]){
+ test(storeId+' muestra transferencia seleccionada, pero no habilita banco ni aviso antes de validar el medio',()=>{
+  const data=storeId==='romo:serena'?
+   {origen:'carta-normal',medioPago:'transferencia',cotizacion:{payment:'transferencia'}}:
+   {origen:'carta-normal',pagoPreferido:'transferencia',pagoDeclaracion:'cliente_no_verificado'};
+  const order=p.normalizeOrder(storeId,{
+   id,branch,store_id:storeId,estado:'pendiente',total_indicado:18000,
+   codigo_pedido:'QA-TEST',datos:data
+  });
+  assert.equal(order.pagoSinDeterminar,true);
+  assert.equal(order.metodoPago,null);
+  assert.equal(order.pagoDeclarado,'transferencia');
+  const view=p.view({order,paymentStatus:'pendiente',
+   bank:{storeId,verified:true,datos:{banco:'Demo QA',cuenta:'NO MOSTRAR'}}});
+  assert.equal(view.pagoDeclarado,'transferencia');
+  assert.equal(view.metodoPago,null);
+  assert.equal(view.estadoPago,'requiere_revision');
+  assert.equal(view.datosBancarios,null);
+  assert.equal(view.datosBancariosVerificados,false);
+  assert.equal(view.puedeAvisarTransferencia,false);
+  assert.equal(view.chatHabilitado,false);
+ });
+}
