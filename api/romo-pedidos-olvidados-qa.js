@@ -53,6 +53,8 @@ module.exports=async function romoPedidosOlvidadosQA(req,res){
   !['confirmar','consultar'].includes(b.action))
   return fail(res,400,'Operación de historial no permitida');
  const write=b.action==='confirmar';
+ const MIGRACION=require('../lib/seguimiento-aislar-escrituras-legadas-qa.cjs');
+ if(MIGRACION.blocked({route:'olvido-snapshot',method,action:b.action}))return MIGRACION.denial(res);
  if(write&&!cfg.write)return fail(res,503,
   'Los recibos versionados de Romo siguen solo consulta');
  if(write&&(!keys(b,['action','expectedRevision','snapshot','resumen'])||
