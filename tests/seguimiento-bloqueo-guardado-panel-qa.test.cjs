@@ -64,3 +64,22 @@ test('panel usa guardia en marcar pagado, confirmar cobro y marcar entregado',()
  assert.match(code,/No se pudo consultar la verificación bancaria/);
  assert.match(code,/cartaSolicitudRemotaId/);
 });
+
+test('aceptación de carta y pedido manual Romo no esquivan verificación',()=>{
+ const code=fs.readFileSync(path.join(base,'public/romo-panel-qa/index.html'),'utf8');
+ const between=(start,end)=>{
+  const i=code.indexOf(start),j=code.indexOf(end,i+1);
+  assert.ok(i>=0&&j>i,'Flujo de Romo no encontrado: '+start);
+  return code.slice(i,j);
+ };
+ const carta=between('async function ukiRomoAceptarSolicitudCartaQA()',
+  'function candidatoEstadoPagadoRomoQA');
+ const manual=between('async function ukiRomoGuardarPedidoPendienteQA()',
+  'async function ukiRomoGuardarEdicionUnicaQA()');
+ for(const flow of [carta,manual]){
+  assert.match(flow,/D\.pagado&&ukiSeguimientoHayTransferenciaQA\(D\)/);
+  assert.match(flow,/!await ukiSeguimientoPermitirCerrarQA\(D\)\)return/);
+ }
+ assert.match(carta,/Se guardará PENDIENTE de pago/);
+ assert.match(manual,/pagado:false,estado:'Pendiente'/);
+});
