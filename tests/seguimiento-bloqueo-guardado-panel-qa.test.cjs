@@ -151,3 +151,34 @@ test('el servidor niega cambio de transferencia a efectivo aunque banco esté co
  assert.equal(gate.verdict({order:cash,paymentState:'pendiente',requiereTransferencia:false}).permitido,true);
  assert.equal(gate.verdict({order:cash,paymentState:'pendiente',requiereTransferencia:true}).permitido,false);
 });
+
+
+
+test('en edición Uki/Romo se conserva el ID original sin pedir otro paso al trabajador',()=>{
+ const src=fs.readFileSync(path.join(base,'public/romo-panel-qa/index.html'),'utf8');
+ const start=src.indexOf('function ukiSeguimientoConservarOrigenEdicionQA(){');
+ const end=src.indexOf('async function ndGuardar(){',start);
+ assert.ok(start>0&&end>start);
+ const code=src.slice(start,end)+'\nreturn ukiSeguimientoConservarOrigenEdicionQA;';
+ const id='621bd292-2153-4160-9e85-375978e10352';
+ for(const shop of ['Uki Regimiento Arica','Uki La Serena','Romo’s Sushi La Serena']){
+  const old={suc:shop,id:22,cartaSolicitudRemotaId:id,
+   seguimientoSolicitudId:id,pagado:false,medio:'Transferencia'};
+  const S={suc:shop,pedidos:[old]};
+  const alerts=[];
+  const draft={editando:22,medio:'Efectivo',pagado:false};
+  const helper=new Function('S','D','aviso',code)(S,draft,m=>alerts.push(m));
+  assert.equal(helper(),true);
+  assert.equal(draft.cartaSolicitudRemotaId,id);
+  assert.equal(draft.seguimientoSolicitudId,id);
+  assert.equal(alerts.length,0);
+  const altered={editando:22,cartaSolicitudRemotaId:
+   'f04cbd3f-b14c-40d3-bb79-9461fd5ad122'};
+  const no=new Function('S','D','aviso',code)(S,altered,m=>alerts.push(m));
+  assert.equal(no(),false);
+  assert.match(alerts.at(-1),/referencia original/i);
+  assert.equal(altered.cartaSolicitudRemotaId,
+   'f04cbd3f-b14c-40d3-bb79-9461fd5ad122');
+ }
+ assert.match(src,/async function ndGuardar\(\)\{\s*if\(!ukiSeguimientoConservarOrigenEdicionQA\(\)\)return/);
+});
