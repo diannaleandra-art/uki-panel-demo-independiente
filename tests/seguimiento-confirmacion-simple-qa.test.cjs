@@ -16,7 +16,7 @@ test('el servidor nunca acepta sólo Ya transferí como pago confirmado',()=>{
  assert.match(server,/t\.monto_transferencia=\$6/);
  assert.match(server,/t\.confirmada_en IS NOT NULL/);
  assert.match(server,/t\.abono_verificado_en IS NOT NULL/);
- assert.match(server,/AND b\.verified/);
+ assert.match(server,/WHERE b\.verified/);
  assert.match(server,/EXCLUDED\.estado='entregado'/);
  assert.match(server,/source_order/);
 });
