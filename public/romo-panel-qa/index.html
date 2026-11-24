@@ -4662,6 +4662,12 @@ function ukiOrigenPedido(p){
    if(!response.ok||data?.ok!==true||data.storeId!==storeId||data.orderId!==id||
       data.permitido!==true){
     aviso(data?.razon||data?.error||'No se comprobó la transferencia. Deja este pedido pendiente.');
+    // Si la agendadora intentó finalizar una transferencia aún no verificada,
+    // abrir ESA transferencia en el mismo panel. Sin ventanas ni formularios extra.
+    // No se abre si la API falló, no autorizó al usuario o el pedido no coincide.
+    if(requiresTransfer&&response.ok&&data?.ok===true&&
+       data.storeId===storeId&&data.orderId===id&&data.permitido===false)
+      void window.ukiQAOpenOrderTracking?.(id);
     return false;
    }
    return true;
