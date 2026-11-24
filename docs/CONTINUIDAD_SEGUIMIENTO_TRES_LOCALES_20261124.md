@@ -58,3 +58,14 @@ En el repo separado \`diannaleandra-art/uki-sushi-respaldo\`, rama \`preparacion
 - \`public/candidata/seguimiento-pedido.html\`: nombre del botón simplificado a «Guardar enlace».
 - CI \`45349725455\`: 8 pruebas de Uki exitosas.
 - **Limitación pendiente crucial**: \`api/carta-solicitudes-live.js\` de Uki todavía NO devuelve el campo \`seguimientoEnlace\`, de manera que esta interfaz no mostrará enlace en pedidos reales hasta conectar el emisor autorizado del servidor. No se añadió integración con base de datos comercial ni se publicó.
+
+## Comprobación adicional 24/11 · continuidad en la misma carta
+**Acuerdo definitivo:** seguimiento, chat y avisos EN LA MISMA CARTA digital, sin abrir otra página ni enviar otro enlace por WhatsApp. «Guardar mi pedido» regresa a esa carta. Los paneles y cajas existentes se conservan.
+
+- Cartas preparadas, no publicadas: Uki Arica y Uki Serena en uki-sushi-respaldo, rama preparacion/seguimiento-en-misma-carta-20261124; Romo en romos-sushi-qa., rama preparacion/romo-seguimiento-en-misma-carta-20261124.
+- Bandeja de chat preparada en otro desarrollo QA del panel Romo; no mezclar ramas anteriores con esta rama avanzada sin revisar los contratos.
+- Inspección READ-ONLY de Neon QA: Uki 3 solicitudes (2 aceptadas, 1 pendiente), Romo 1 aceptada. En ambas, 0 transferencias, 0 chats, 0 finalizaciones. Ninguna solicitud de prueba tiene pagos o medioPago estructurados; no se pueden certificar pagos reales.
+- Corregido lib/seguimiento-operacion-unificada-qa.cjs: ahora devuelve puedeAvisarTransferencia sólo con importe válido, banco de la propia sucursal verificado y estado de pedido compatible. Las cartas embebidas esperan este dato.
+- Ejecutadas 30 comprobaciones puras sobre código de la rama para las tres sucursales: 30/30, sin escribir en bases ni bancos. Cubren pago mixto, estado de aviso, banco ajeno/ausente/no verificado, finalización pendiente y conciliación del resto. Preview Vercel alcanzó READY; no equivale a publicación ni prueba operativa iPhone.
+- Persisten bloqueos: verificar titular y cuenta por local, guardar los medios definitivos desde el panel (no sólo preferencia de carta), conectar API cliente y personal, estados reales y guardado servidor atómico sin rutas antiguas que permitan marcar pagado o entregado.
+- No activar producción ni ejecutar migraciones comerciales hasta completar las pruebas manuales del lote para los tres locales.
