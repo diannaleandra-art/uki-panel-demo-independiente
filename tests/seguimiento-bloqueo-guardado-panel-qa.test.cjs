@@ -209,7 +209,7 @@ test('el cambio de medio en edición normal no permite retirar una transferencia
 });
 
 test('transferencia manual no necesita enlace de carta, sólo comprobación y mismo importe',async()=>{
- const src=fs.readFileSync(path.join(root,'public/romo-panel-qa/index.html'),'utf8');
+ const src=fs.readFileSync(path.join(base,'public/romo-panel-qa/index.html'),'utf8');
  const start=src.indexOf('function ukiSeguimientoHayTransferenciaQA(');
  const end=src.indexOf('async function ukiMarcarPedidoEntregado(',start);
  const code=src.slice(start,end)+'\nreturn {prepare:ukiSeguimientoPrepararManualQA,valid:ukiSeguimientoManualValidaQA,gate:ukiSeguimientoPermitirCerrarQA,attach:ukiSeguimientoAnotarManualQA};';
