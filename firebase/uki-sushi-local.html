@@ -4009,12 +4009,20 @@ function ukiSeguimientoHayTransferenciaQA(p){
    const actual=S.suc==='Uki Regimiento Arica'?'uki:arica':S.suc==='Uki La Serena'?'uki:serena':null;
    if(actual!==storeId)throw Error('La sucursal cambió durante la comprobación.');
    const query=new URLSearchParams({storeId,id,requiereTransferencia:requiresTransfer?'1':'0'});
-   const response=await fetch('https://uki-sushi-pedidos.vercel.app/api/seguimiento-verificar-cierre-live?'+query.toString(),{
+   const consultar=()=>fetch('https://uki-sushi-pedidos.vercel.app/api/seguimiento-verificar-cierre-live?'+query.toString(),{
     method:'GET',cache:'no-store',credentials:'omit',
     headers:{Authorization:'Bearer '+token,Accept:'application/json'},
     signal:AbortSignal.timeout(14000)
    });
-   const data=await response.json().catch(()=>null);
+   let response=await consultar();
+   let data=await response.json().catch(()=>null);
+   // Actualizar la distribución de un pedido ya aceptado, sin confirmar el abono.
+   if(response.ok&&data?.ok===true&&data.storeId===storeId&&data.orderId===id&&!data.sinEnlaceAnterior&&
+    (data.permitido!==true||importes&&(data.total!==importes.total||data.montoTransferencia!==importes.montoTransferencia))&&
+    await window.ukiQASyncDistributionBeforePayment?.(p)){
+    if((S.suc==='Uki Regimiento Arica'?'uki:arica':S.suc==='Uki La Serena'?'uki:serena':null)!==storeId)return false;
+    response=await consultar();data=await response.json().catch(()=>null);
+   }
    if(response.ok&&data?.ok===true&&data.storeId===storeId&&data.orderId===id&&data.sinEnlaceAnterior===true){
     if(!requiresTransfer)return data.permitido===true;
     if(data.requiereConfirmacionManual!==true)return false;
