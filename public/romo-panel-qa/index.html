@@ -9059,6 +9059,10 @@ async function ukiRomoAceptarSolicitudCartaQA(){
    String(D.romoResponsableCobro||'').trim().length<2)){
   aviso('Para registrar pago recibido identifica al responsable y confirma el timbre obligatorio.');return;
  }
+ // No se acepta una transferencia como pagada sin consultar al banco,
+ // incluso si se abre esta función directamente y no desde ndGuardar.
+ if(D.pagado&&ukiSeguimientoHayTransferenciaQA(D)&&
+    !await ukiSeguimientoPermitirCerrarQA(D))return;
  const pedido=(D.items||[]).filter(x=>String(x?.nombre||'').trim());
  if(!pedido.length||pedido.length>80||pedido.some(x=>
     !Number.isSafeInteger(Number(x.cant))||Number(x.cant)<1||Number(x.cant)>100||
@@ -9925,6 +9929,10 @@ async function ukiRomoGuardarPedidoPendienteQA(){
   aviso('Indica el responsable del dinero recibido, igual que en Caja.');return;
  }
  if(D.pagado&&!ukiValidarTimbreAntesGuardar(D,null))return;
+ // El formulario manual no debe ser una alternativa para acreditar
+ // transferencias; efectivo y tarjeta conservan el procedimiento normal.
+ if(D.pagado&&ukiSeguimientoHayTransferenciaQA(D)&&
+    !await ukiSeguimientoPermitirCerrarQA(D))return;
  const remotas=Array.isArray(ukiRomoSolicitudesCartaQA)?ukiRomoSolicitudesCartaQA:[];
  if(D.codigoCarta&&remotas.some(r=>r.branch==='serena'&&
     ['pendiente','aceptada'].includes(r.estado)&&
