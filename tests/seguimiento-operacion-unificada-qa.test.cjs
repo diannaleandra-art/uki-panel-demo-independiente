@@ -22,6 +22,9 @@ for(const [storeId,branch] of [['romo:serena','serena'],['uki:serena','serena'],
   assert.equal(p.canSendMessage({order:o,sender:'agendador',body:'Listo',staff}),true);
   assert.equal(p.canSendMessage({order:o,sender:'agendador',body:'Listo'}),false);
   assert.equal(p.view({order:o,paymentStatus:'avisada',bank}).estadoPago,'avisada');
+  assert.equal(p.view({order:o,paymentStatus:'pendiente',bank}).puedeAvisarTransferencia,true);
+  assert.equal(p.view({order:o,paymentStatus:'avisada',bank}).puedeAvisarTransferencia,false);
+  assert.equal(p.view({order:o,paymentStatus:'pendiente',bank:{...bank,storeId:'otro'}}).puedeAvisarTransferencia,false);
   assert.equal(p.view({order:o,paymentStatus:'avisada',bank:{...bank,storeId:'otro'}}).datosBancarios,null);
   const sealed=chat.seal({storeId,orderId:id,from:'cliente',body:'¿Está listo?'},secret);
   assert.ok(sealed);
