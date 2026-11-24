@@ -101,22 +101,22 @@ async function loadDetail(id){
    payment.append(text('p','Monto de transferencia: '+pesos(p.montoTransferencia)));
    payment.append(text('p',p.descripcionPago||'Transferencia por revisar'));
    if(data.puedeConfirmar&&p.estadoPago!=='confirmada'&&p.estadoPago!=='requiere_revision'){
-    const amount=document.createElement('input');amount.type='number';amount.min=1;amount.step=1;
-    amount.placeholder='Monto efectivamente recibido';
-    const checked=document.createElement('input');checked.type='checkbox';checked.style.width='auto';
-    const button=btn('Confirmar abono revisado',async()=>{
-     const n=Number(amount.value);
-     if(!checked.checked||!Number.isSafeInteger(n)||n!==p.montoTransferencia){
-      tell('Comprueba el abono en el banco y escribe el monto exacto.');return;
+    // Un solo toque DESPUÉS de mirar el abono real en el banco.
+    // El importe proviene del servidor, nunca se permite escribir otro valor.
+    const button=btn('Confirmar: vi '+pesos(p.montoTransferencia)+' abonados',async()=>{
+     if(!Number.isSafeInteger(p.montoTransferencia)||p.montoTransferencia<=0){
+      tell('El importe del pedido debe revisarse antes de confirmar.');return;
      }
      button.disabled=true;
      try{
-      await doAction('confirmar_transferencia',id,{montoRecibido:n,verificadoEnBanco:true});
-      tell('Verificación manual guardada. No se agregó dinero a caja.');await loadDetail(id);
+      await doAction('confirmar_transferencia',id,{
+       montoRecibido:p.montoTransferencia,verificadoEnBanco:true
+      });
+      tell('Transferencia verificada. No se sumó un cobro nuevo a caja.');
+      await loadDetail(id);
      }catch(e){tell(e.message);}finally{button.disabled=false;}
     });
-    payment.append(field('Monto recibido en el banco',amount),
-     field(' Comprobé directamente el abono real',checked),button);
+    payment.append(text('p','Primero comprueba en el banco que llegó exactamente '+pesos(p.montoTransferencia)+'.'),button);
    }
   }else payment.append(text('p','Transferencia no registrada o aún por revisar.'));
   detail.append(payment);
