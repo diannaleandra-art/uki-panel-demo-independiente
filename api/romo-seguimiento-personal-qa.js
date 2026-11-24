@@ -7,7 +7,7 @@ const readConfig=require('./romo-seguimiento-cliente-qa.js')._testing.config;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const fail=(res,code,message)=>res.status(code).json({ok:false,error:message});
 function configured(env=process.env){
- if(env.VERCEL_ENV!=='preview'||env.VERCEL_GIT_COMMIT_REF!=='preparacion/romo-seguimiento-transferencia-20261124'||
+ if(env.VERCEL_ENV!=='preview'||env.VERCEL_GIT_COMMIT_REF!=='preparacion/panel-chat-transferencia-integrado-20261124'||
    env.ROMO_SEGUIMIENTO_PERSONAL_QA_ENABLED!=='true')return null;
  return readConfig(env);
 }
