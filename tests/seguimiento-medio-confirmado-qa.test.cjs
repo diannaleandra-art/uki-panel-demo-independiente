@@ -89,3 +89,33 @@ test('confirmacion previa solo es reutilizable si el total y la preferencia sigu
  await assert.rejects(()=>P.confirmPreferred({db,storeId,orderId,staff,metodo:'transferencia'}),{status:409});
  assert.equal(calls,3);
 });
+
+
+test('Romo: agendadora corrige el medio elegido en carta, sin registrar pago ni alterar cotización',async()=>{
+ const storeId='romo:serena',staff={storeId,role:'agendador',userId:'worker-test-qa-321'};
+ const datos={origen:'carta-normal',medioPago:'transferencia',
+  cotizacion:{payment:'transferencia'},detalleVerificado:[{nombre:'Sushi QA',cantidad:1}]};
+ const row={id:orderId,store_id:storeId,branch:'serena',estado:'aceptada',codigo_pedido:'QA',
+  total_indicado:16000,datos};
+ const queries=[];
+ const db={query:async(sql,args)=>{
+  queries.push({sql,args});
+  if(sql.startsWith('SELECT id,branch,codigo_pedido,estado,total_indicado,datos'))return [row];
+  if(sql.startsWith('UPDATE public.romo_solicitudes_carta_v1'))return [{id:orderId}];
+  throw Error('SQL inesperada');
+ }};
+ const result=await P.confirmPreferred({db,storeId,orderId,staff,metodo:'efectivo'});
+ assert.equal(result.ok,true);
+ assert.equal(result.montoTransferencia,0);
+ assert.equal(queries.length,2);
+ const {sql,args}=queries[1];
+ assert.match(sql,/s\.datos->>'origen'='carta-normal'/);
+ assert.match(sql,/medioPagoPreferenciaOriginal/);
+ assert.match(sql,/medioPagoConfirmadoPor/);
+ assert.match(sql,/medioPagoConfirmadoTotal/);
+ assert.match(sql,/NOT EXISTS/);
+ assert.equal(args[3],16000);
+ assert.equal(args[5],'efectivo');
+ assert.equal(JSON.parse(args[4]).medioPago,'transferencia');
+ assert.equal(JSON.parse(args[4]).cotizacion.payment,'transferencia');
+});
