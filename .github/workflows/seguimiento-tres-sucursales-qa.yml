@@ -19,3 +19,5 @@ jobs:
           node-version: "22"
       - name: Enlaces, mensajes y transferencias sin conectarse a bancos ni producción
         run: npm run test:seguimiento
+      - name: Regresiones de Romo sin modificar pedidos ni cajas
+        run: node --test tests/romo-production-admin-guards-qa.test.mjs tests/romo-solicitudes-reintentos-concurrentes-qa.test.mjs tests/romo-aceptacion-codigo-unico-qa.test.mjs tests/romo-cierre-preparacion-qa.test.mjs
