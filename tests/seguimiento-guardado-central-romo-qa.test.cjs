@@ -33,6 +33,10 @@ const cases=[
  ['efectivo manual sin cambio de otro pedido',
   {...base,medio:'Efectivo',cartaSolicitudRemotaId:''},{},false,true,0],
  ['transferencia pendiente no se cobra',base,{pagado:true},false,false,1],
+ ['transferencia pendiente no se elimina en una edición anterior al cobro',
+  base,{medio:'Efectivo',pagado:false},false,false,1],
+ ['transferencia manual sin solicitud no se elimina antes de cobrar',
+  {...base,cartaSolicitudRemotaId:''},{medio:'Efectivo',pagado:false},false,false,1],
  ['transferencia confirmada se cobra',base,{pagado:true},true,true,1],
  ['pedido no se entrega con transferencia pendiente',base,{estado:'Entregado'},false,false,1],
  ['cambiar transferencia por efectivo no evita revisión',base,{medio:'Efectivo',pagado:true},false,false,1],
@@ -70,4 +74,22 @@ test('las dos rutas de guardado cifrado deben llamar a la guardia antes de persi
  for(const pattern of patterns)assert.match(segment,pattern);
  assert.match(segment,/session\.estado\(\)\?\.revision!==anterior\.revision/);
  assert.match(segment,/session\.estado\(\)\?\.revision!==expected\.revision/);
+});
+
+
+test('un pedido de carta no pierde su identificador al editarlo antes del pago',async()=>{
+ const r=runner([base]);
+ await assert.rejects(()=>r.check({pedidos:[{...base,cartaSolicitudRemotaId:''}]}),
+  /no se puede quitar su referencia/i);
+ assert.equal(r.calls.length,0);
+ await assert.rejects(()=>r.check({pedidos:[{...base,cartaSolicitudRemotaId:
+  'f04cbd3f-b14c-40d3-bb79-9461fd5ad122'}]}),/no se puede quitar su referencia/i);
+ assert.equal(r.calls.length,0);
+});
+test('el identificador alternativo de seguimiento tampoco se puede borrar',async()=>{
+ const original={...base,seguimientoSolicitudId:id};
+ const r=runner([original]);
+ await assert.rejects(()=>r.check({pedidos:[{...original,seguimientoSolicitudId:''}]}),
+  /no se puede quitar su referencia/i);
+ assert.equal(r.calls.length,0);
 });
