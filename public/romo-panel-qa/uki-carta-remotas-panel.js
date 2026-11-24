@@ -282,3 +282,85 @@ async function ukiCartaRemotaRechazar(id){
 }
 setInterval(()=>{if(ukiCartaRemotas.used&&!ukiCartaRemotas.busy&&S.suc&&S.vista==='pedidos')
   void ukiCartaRemotasActualizar();},45000);
+
+
+/* Seguimiento en el mismo panel de Pedidos de Uki.
+ * Preparación QA: oculto hasta que backend, permisos, cifrado y tablas
+ * estén verificados para ambas sucursales. No crea otra pantalla.
+ */
+let ukiChatActivo=null,ukiChatConsultaEnCurso=false;
+function ukiCartaChatBandejaQA(){
+ if(window.UKI_SEGUIMIENTO_CHAT_QA_VISIBLE!==true)return '';
+ const accepted=ukiCartaRemotasSucursal().filter(x=>x.estado==='aceptada');
+ if(!accepted.length)return '';
+ return '<details class="card" aria-label="Mensajes de pedidos de carta">'+
+  '<summary><b>💬 Mensajes de pedidos</b> · '+accepted.length+' pedido(s) aceptado(s)</summary>'+
+  '<p class="muted">Revisa los mensajes del pedido sin salir del panel.</p>'+
+  accepted.map(x=>'<button class="sm" type="button" onclick="ukiCartaChatAbrirQA('+
+   esc(JSON.stringify(x.id))+')">'+esc(x.codigo_pedido||'Pedido')+
+   ' · '+esc(x.cliente||'Cliente')+'</button>').join('')+
+  '<section id="uki-carta-chat-detalle-qa" aria-live="polite" style="margin-top:12px"></section></details>';
+}
+async function ukiCartaChatRequestQA(branch,id,method='GET',body=null){
+ const token=await ukiCartaApiSesion();
+ const url=UKI_CARTA_REMOTAS_API+(method==='GET'?'?branch='+
+  encodeURIComponent(branch)+'&modo=chat&id='+encodeURIComponent(id):'');
+ const response=await fetch(url,{method,cache:'no-store',
+  headers:{Authorization:'Bearer '+token,Accept:'application/json',
+   ...(method==='PATCH'?{'Content-Type':'application/json'}:{})},
+  ...(method==='PATCH'?{body:JSON.stringify({action:'responder_mensaje',branch,id,texto:body})}:{}),
+  signal:AbortSignal.timeout(15000)});
+ const data=await response.json().catch(()=>null);
+ if(!response.ok||data?.ok!==true||data.branch!==branch||
+    data.storeId!==(branch==='arica'?'uki:arica':'uki:serena')||
+    data.id!==id)throw Error(data?.error||'No se pudo consultar este pedido');
+ return data;
+}
+async function ukiCartaChatAbrirQA(id){
+ const branch=ukiMesaBranch();
+ const original=ukiCartaRemotasSucursal().find(r=>r.id===id&&r.estado==='aceptada'&&r.branch===branch);
+ const target=document.getElementById('uki-carta-chat-detalle-qa');
+ if(!target||!original||!['arica','serena'].includes(branch)||ukiChatConsultaEnCurso)return;
+ ukiChatActivo={branch,id};ukiChatConsultaEnCurso=true;
+ target.replaceChildren(document.createTextNode('Consultando mensajes…'));
+ try{
+  const data=await ukiCartaChatRequestQA(branch,id);
+  if(ukiChatActivo?.id!==id||ukiMesaBranch()!==branch||!target.isConnected)return;
+  target.replaceChildren();
+  if(data.chatHabilitado!==true){
+   target.textContent='El chat aún no está habilitado para este pedido.';return;
+  }
+  const heading=document.createElement('strong');
+  heading.textContent='Pedido '+(original.codigo_pedido||'')+' · '+(original.cliente||'');
+  const list=document.createElement('ul');
+  list.style.cssText='list-style:none;padding:0;max-height:220px;overflow:auto';
+  for(const msg of data.mensajes||[]){
+   if(!msg||!['cliente','agendador'].includes(msg.remitente)||typeof msg.texto!=='string')continue;
+   const li=document.createElement('li');
+   li.textContent=(msg.remitente==='cliente'?'Cliente: ':'Local: ')+msg.texto.slice(0,800);
+   li.style.cssText='padding:8px;background:#f7f5f2;margin:5px 0;border-radius:9px;white-space:pre-wrap;overflow-wrap:anywhere';
+   list.append(li);
+  }
+  const input=document.createElement('textarea');
+  input.placeholder='Respuesta breve sobre el pedido';input.maxLength=800;input.rows=2;
+  input.setAttribute('aria-label','Responder a este pedido');
+  const button=document.createElement('button');button.type='button';button.className='sm';
+  button.textContent='Enviar respuesta';
+  const notice=document.createElement('p');notice.setAttribute('role','status');notice.className='muted';
+  button.addEventListener('click',async()=>{
+   const texto=input.value.trim();
+   if(!texto||texto.length>800||ukiMesaBranch()!==branch)return;
+   button.disabled=true;notice.textContent='Enviando…';
+   try{
+    await ukiCartaChatRequestQA(branch,id,'PATCH',texto);
+    if(ukiMesaBranch()===branch){
+     notice.textContent='Mensaje enviado al cliente.';
+     await ukiCartaChatAbrirQA(id);
+    }
+   }catch(e){notice.textContent=e.message||'No se pudo confirmar el mensaje.';}
+   finally{button.disabled=false;}
+  });
+  target.append(heading,list,input,button,notice);
+ }catch(e){if(target.isConnected)target.textContent=e.message||'No se pudo consultar el chat.';}
+ finally{ukiChatConsultaEnCurso=false;}
+}
