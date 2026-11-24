@@ -7185,12 +7185,21 @@ async function ukiSeguimientoValidarAntesDeCifrarRomoQA(copia){
   if(!Number.isSafeInteger(id)||id<1||comprobados.has(id))
    throw Error('Pedido duplicado o sin identificación en copia operativa');
   comprobados.add(id);
+  // Mantener la vinculación con la solicitud original aun si el pedido
+  // todavía no se ha cobrado. Quitar el ID no puede saltarse Santander.
+  if(viejo&&['cartaSolicitudRemotaId','seguimientoSolicitudId'].some(k=>
+     String(viejo[k]||'')&&String(nuevo[k]||'')!==String(viejo[k]||'')))
+   throw Error('Este pedido está vinculado a una solicitud de carta. No se puede quitar su referencia.');
   const sePaga=nuevo.pagado===true&&viejo?.pagado!==true;
   const seEntrega=nuevo.estado==='Entregado'&&viejo?.estado!=='Entregado';
   const pagoReclasificado=nuevo.pagado===true&&!!viejo&&
    detallePago(viejo)!==detallePago(nuevo);
-  if(!sePaga&&!seEntrega&&!pagoReclasificado)continue;
-  const previoTransfer=!!viejo&&ukiSeguimientoHayTransferenciaQA(viejo);
+  // Evitar el bypass en dos ediciones: primero borrar la transferencia
+  // mientras está pendiente, después marcarla pagada como efectivo.
+  const transferAnterior=!!viejo&&ukiSeguimientoHayTransferenciaQA(viejo);
+  const transferenciaQuitada=transferAnterior&&!ukiSeguimientoHayTransferenciaQA(nuevo);
+  if(!sePaga&&!seEntrega&&!pagoReclasificado&&!transferenciaQuitada)continue;
+  const previoTransfer=transferAnterior;
   const candidato={
    ...nuevo,
    cartaSolicitudRemotaId:nuevo.cartaSolicitudRemotaId||
