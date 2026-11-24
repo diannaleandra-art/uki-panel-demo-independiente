@@ -82,12 +82,12 @@ async function loadDetail(id){
   const p=data.pedido;
   detail.replaceChildren(text('h3','Pedido '+(p.codigoPedido||'')),text('p',p.descripcionPedido||p.estadoPedido));
   const link=section('Seguimiento del cliente');
-  link.append(text('p','Genera el enlace sólo después de aceptar y guardar. Un enlace nuevo invalida el anterior.'));
-  const linkButton=btn('Generar y copiar enlace',async()=>{
+  link.append(text('p','El cliente recibe su enlace al registrar la solicitud cuando el seguimiento está habilitado. Aquí puedes copiar el mismo enlace si necesita recuperarlo.'));
+  const linkButton=btn('Copiar enlace del pedido',async()=>{
    linkButton.disabled=true;
    try{
     const address=await doAction('generar_enlace',id);
-    try{await navigator.clipboard.writeText(address);tell('Enlace copiado. Envíalo sólo al cliente de este pedido.');}
+    try{await navigator.clipboard.writeText(address);tell('Enlace copiado. Se conserva el mismo enlace del cliente.');}
     catch{
      const input=text('textarea',address);input.readOnly=true;input.style.width='100%';
      link.append(field('Copia este enlace privado',input));
