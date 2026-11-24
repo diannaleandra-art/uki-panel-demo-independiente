@@ -120,7 +120,14 @@ test('No se entrega enlace si el pedido no está aceptado o el personal no perte
 });
 test('Los enlaces y mensajes no se pueden trasladar a otra sucursal',async()=>{
  const origin=mockDb('uki:arica','arica');
- const other=mockDb('uki:serena','serena');
+ // La firma obliga a buscar EXCLUSIVAMENTE Arica, aunque el servidor use
+ // una conexión con solicitudes de ambas sucursales. Si no está su huella,
+ // el acceso debe rechazarse, sin reinterpretar el enlace como Serena.
+ const other={query:async(query,params)=>{
+  assert.match(query,/uki_seguimiento_enlaces_qa_v1/);
+  assert.deepEqual(params,[id,'uki:arica','arica']);
+  return [];
+ }};
  const created=await S.issueAccepted({db:origin,storeId:'uki:arica',orderId:id,staff:{storeId:'uki:arica',role:'duenos',userId:'owner-qa'},secret:TOKEN_SECRET,nowSeconds:NOW});
  await assert.rejects(()=>S.verifyCustomer({db:other,token:created.token,secret:TOKEN_SECRET,nowSeconds:NOW+3}),/revocado/);
  const link=LINKS.verifyLink(created.token,TOKEN_SECRET,{atSeconds:NOW+1});
