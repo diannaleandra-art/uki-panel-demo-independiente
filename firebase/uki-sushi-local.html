@@ -3922,35 +3922,37 @@ function ukiSeguimientoHayTransferenciaQA(p){
 
  // Pedido pegado de WhatsApp o ingresado manualmente: la misma confirmación
  // operativa del timbre, sin crear una solicitud remota ni cobrar otra vez.
- function ukiSeguimientoFirmaManualQA(p,importePropuesto=null){
-  if(!p||p.cartaSolicitudRemotaId||p.seguimientoSolicitudId||
-     (p.suc&&p.suc!==S.suc))return null;
+ function ukiSeguimientoFirmaManualQA(p,importePropuesto=null,solicitudSinEnlace=''){
+  const origen=String(p?.cartaSolicitudRemotaId||p?.seguimientoSolicitudId||'');
+  if(!p||origen!==solicitudSinEnlace||(p.suc&&p.suc!==S.suc))return null;
   const pedidoId=Number(p.id??p.editando??S.nextId);
   const importes=importePropuesto||ukiSeguimientoImportesCajaQA(p);
   if(!Number.isSafeInteger(pedidoId)||pedidoId<1||!importes||
      !Number.isSafeInteger(importes.total)||importes.total<1||
      !Number.isSafeInteger(importes.montoTransferencia)||importes.montoTransferencia<1||
      importes.montoTransferencia>importes.total)return null;
-  return {suc:S.suc,pedidoId,total:importes.total,monto:importes.montoTransferencia,
+  return {suc:S.suc,pedidoId,...(solicitudSinEnlace?{solicitudId:solicitudSinEnlace}:{}),total:importes.total,monto:importes.montoTransferencia,
    cliente:String(p.cliente||'').trim(),telefono:String(p.telefono||'').trim()};
  }
- function ukiSeguimientoManualValidaQA(p,importePropuesto=null){
-  const firma=ukiSeguimientoFirmaManualQA(p,importePropuesto),proof=p?.transferenciaManualQA;
+ function ukiSeguimientoManualValidaQA(p,importePropuesto=null,solicitudSinEnlace=''){
+  const firma=ukiSeguimientoFirmaManualQA(p,importePropuesto,solicitudSinEnlace),proof=p?.transferenciaManualQA;
   return !!(firma&&proof&&JSON.stringify(proof.firma)===JSON.stringify(firma)&&
     typeof proof.por==='string'&&proof.por.trim()&&Number.isFinite(Date.parse(proof.en)));
  }
- function ukiSeguimientoPrepararManualQA(p,{importePropuesto=null,responsable=''}={}){
-  if(!p||p.cartaSolicitudRemotaId||p.seguimientoSolicitudId)return true;
+ function ukiSeguimientoPrepararManualQA(p,{importePropuesto=null,responsable='',solicitudSinEnlace=''}={}){
+  if(!p)return true;
+  const origen=String(p.cartaSolicitudRemotaId||p.seguimientoSolicitudId||'');
+  if(origen!==solicitudSinEnlace)return !solicitudSinEnlace;
   const importes=importePropuesto||ukiSeguimientoImportesCajaQA(p);
   if(!ukiSeguimientoHayTransferenciaQA(p)&&!(importes?.montoTransferencia>0))return true;
   if(!importes)return aviso('Revisa el monto de transferencia antes de guardar.'),false;
   if(importes.montoTransferencia===0)return true;
-  const firma=ukiSeguimientoFirmaManualQA(p,importes);
+  const firma=ukiSeguimientoFirmaManualQA(p,importes,solicitudSinEnlace);
   if(!firma)return aviso('No se pudo identificar el pedido de transferencia.'),false;
-  if(ukiSeguimientoManualValidaQA(p,importes))return true;
+  if(ukiSeguimientoManualValidaQA(p,importes,solicitudSinEnlace))return true;
   const anterior=(S.pedidos||[]).find(x=>x.suc===S.suc&&Number(x.id)===firma.pedidoId);
   if(anterior?.transferenciaManualQA&&ukiSeguimientoManualValidaQA(
-     {...p,transferenciaManualQA:anterior.transferenciaManualQA},importes)){
+     {...p,transferenciaManualQA:anterior.transferenciaManualQA},importes,solicitudSinEnlace)){
    p.transferenciaManualQA=anterior.transferenciaManualQA;return true;
   }
   if(!window.confirm('TRANSFERENCIA · '+S.suc+'\n¿Confirmas que comprobaste en Santander el abono de '+fmt(firma.monto)+' de este pedido?\nAceptar registra tu comprobación; no genera otro cobro.')){
@@ -3960,10 +3962,11 @@ function ukiSeguimientoHayTransferenciaQA(p){
   return true;
  }
  function ukiSeguimientoAnotarManualQA(p,d){
-  if(!p||!d?.transferenciaManualQA||p.cartaSolicitudRemotaId||p.seguimientoSolicitudId)return;
+  if(!p||!d?.transferenciaManualQA)return;
   // Se copia la constatación sólo a la versión normal del MISMO pedido.
   const candidato={...p,transferenciaManualQA:d.transferenciaManualQA};
-  if(ukiSeguimientoManualValidaQA(candidato))p.transferenciaManualQA=d.transferenciaManualQA;
+  const origen=String(d.transferenciaManualQA.firma?.solicitudId||'');
+  if(ukiSeguimientoManualValidaQA(candidato,null,origen))p.transferenciaManualQA=d.transferenciaManualQA;
  }
  async function ukiSeguimientoPermitirCerrarQA(p,{metodosAdicionales=[],importePropuesto=null}={}){
   const storeId=S.suc==='Uki Regimiento Arica'?'uki:arica':
@@ -4012,6 +4015,13 @@ function ukiSeguimientoHayTransferenciaQA(p){
     signal:AbortSignal.timeout(14000)
    });
    const data=await response.json().catch(()=>null);
+   if(response.ok&&data?.ok===true&&data.storeId===storeId&&data.orderId===id&&data.sinEnlaceAnterior===true){
+    if(!requiresTransfer)return data.permitido===true;
+    if(data.requiereConfirmacionManual!==true)return false;
+    if(ukiSeguimientoManualValidaQA(p,importes,id))return true;
+    if(p.pagado!==true){aviso('Primero registra el pago del pedido tras verificar el banco.');return false;}
+    return ukiSeguimientoPrepararManualQA(p,{importePropuesto:importes,solicitudSinEnlace:id});
+   }
    if(!response.ok||data?.ok!==true||data.storeId!==storeId||data.orderId!==id||
       data.permitido!==true){
     aviso(data?.razon||data?.error||'No se comprobó la transferencia. Deja este pedido pendiente.');
@@ -4881,9 +4891,9 @@ async function ndGuardar(){
   if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED===true){
    if(!ukiSeguimientoConservarOrigenEdicionQA()||!ukiSeguimientoValidarCambioMedioQA(originalQR,D))return;
    if(D.pagado&&!ukiSeguimientoPrepararManualQA(D))return;
-   const firmaPago=JSON.stringify({suc:S.suc,draft:D});
+   const firmaPago=JSON.stringify({suc:S.suc,draft:{...D,transferenciaManualQA:undefined}});
    if(D.pagado&&!await ukiSeguimientoPermitirCerrarQA(D))return;
-   if(firmaPago!==JSON.stringify({suc:S.suc,draft:D})){
+   if(firmaPago!==JSON.stringify({suc:S.suc,draft:{...D,transferenciaManualQA:undefined}})){
     aviso('El pedido cambió durante la comprobación. Revisa antes de guardar.');return;
    }
   }
