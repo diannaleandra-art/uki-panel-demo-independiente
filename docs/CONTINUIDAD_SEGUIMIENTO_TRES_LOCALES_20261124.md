@@ -34,3 +34,11 @@
 - Los enlaces caducan; al reintentar en un plazo válido NO deben cambiar. Si ya hay un enlace activo distinto, \`issueForRegistered\` falla sin invalidarlo.
 - La bandera Vercel \`SEGUIMIENTO_BLOQUEAR_SNAPSHOT_LEGACY_QA_ENABLED=true\` está limitada a la rama preview exacta. No copiarla a producción.
 - No crear otra rama/proyecto/app ni más pantallas demo si no hace falta. Priorizar terminar la función concreta con UX simple.
+
+
+## Avance de usabilidad QA 24/11/2026
+- En `public/romo-panel-qa/index.html` la ficha del pedido de carta con UUID válido, tanto en la vista Uki como en la vista Romo, muestra «💬 Mensajes y transferencia». Abre el detalle en el MISMO panel; no requiere otra pantalla ni otro formulario.
+- `public/romo-panel-qa/seguimiento-tres-sucursales-qa.mjs` añade el acceso directo a ese pedido y conserva la confirmación de abono con un solo botón con monto exacto.
+- `api/seguimiento-personal-tres-qa.js` incluye solicitudes `pendiente` y `aceptada` en la bandeja. El aviso temprano no autoriza confirmar pagos de solicitudes todavía pendientes.
+- Se probaron los cambios con CI en la rama Preview. Nada de esto está desplegado en los paneles de caja de producción ni activa transferencia bancaria real.
+- Persisten bloqueos para publicación: datos bancarios verificados por sucursal, integración real con Uki/Firestore y Romo/snapshot cifrado, y pruebas manuales de iPhone/PC. El bloqueo bruto de snapshots QA no puede llevarse a producción.
