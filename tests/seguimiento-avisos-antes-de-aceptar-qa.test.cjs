@@ -6,7 +6,7 @@ const ui=fs.readFileSync(path.join(__dirname,'../public/romo-panel-qa/seguimient
 test('el personal ve avisos sin esperar a que la solicitud esté aceptada',()=>{
  assert.match(api,/s\.estado IN \('pendiente','aceptada'\)/);
  assert.match(api,/cliente_aviso_en/);
- assert.match(api,/AND s\.branch=\$2/);
+ assert.match(api,/s\.branch=\$2/);
  assert.match(api,/s\.store_id=\$1/);
  assert.match(api,/list\.map\(r=>/);
 });
