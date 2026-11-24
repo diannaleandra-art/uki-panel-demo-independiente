@@ -103,7 +103,7 @@ async function ukiCartaConfirmarRespaldados(){
     // El pedido ya está confirmado en el servidor. En QA, confirmar
     // el método desde el mismo formulario, sin añadir pasos ni cobrar.
     if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED===true&&p){
-     const storeId=branch==='arica'?'uki:arica':'uki:serena';
+     const storeId=r.branch==='arica'?'uki:arica':'uki:serena';
      void window.ukiQAConfirmPaymentMethodAfterSave?.({
       storeId,solicitudId:String(r.id),pedido:p
      });

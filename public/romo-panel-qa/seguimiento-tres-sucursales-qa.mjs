@@ -13,7 +13,10 @@ const NAMES=Object.freeze({
 const TRACKING_PAYMENT_PREVIEW_QA=location.protocol==='https:'&&
  /^romos-sushi-panel-[a-z0-9-]+-diannaleandra-7046\.vercel\.app$/.test(location.hostname)&&
  location.pathname.startsWith('/romo-panel-qa/');
-window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED=TRACKING_PAYMENT_PREVIEW_QA;
+const TRACKING_PAYMENT_ROMO_LIVE=location.protocol==='https:'&&
+ location.hostname==='romos-sushi-panel.vercel.app'&&
+ window.ROMO_SEGUIMIENTO_RELEASE_AUTORIZADO===true;
+window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED=TRACKING_PAYMENT_PREVIEW_QA||TRACKING_PAYMENT_ROMO_LIVE;
 const API='/api/seguimiento-personal-tres-qa';
 const $=id=>document.getElementById(id);
 const root=$('romo-seguimiento-bandeja-qa'),dialog=$('romo-seguimiento-abrir-qa');
@@ -119,7 +122,7 @@ window.ukiQAConfirmPaymentMethodAfterSave=async function({storeId,solicitudId,pe
  // en el preview exacto y cuando QA la habilite de forma explícita.
  if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true||
     location.protocol!=='https:'||
-    !/^romos-sushi-panel-[a-z0-9-]+-diannaleandra-7046\.vercel\.app$/.test(location.hostname))
+    (!TRACKING_PAYMENT_PREVIEW_QA&&!TRACKING_PAYMENT_ROMO_LIVE))
   return {attempted:false,reason:'qa_disabled'};
  if(!storeId||store()!==storeId||
     typeof solicitudId!=='string'||
