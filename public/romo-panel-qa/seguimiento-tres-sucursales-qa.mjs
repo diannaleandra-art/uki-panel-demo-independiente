@@ -246,7 +246,7 @@ window.ukiQAConfirmTransferBeforePayment=async function({storeId,id,total,monto}
    '\nSólo acepta si verificaste el dinero en el banco.'))
    return 'cancelada';
   if(store()!==storeId||inReview()||window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true)return 'no_disponible';
-  const saved=await query('POST',{action:'confirmar_transferencia',id,montoRecibido:monto,verificadoEnBanco:true});
+  const saved=await doAction('confirmar_transferencia',id,{montoRecibido:monto,verificadoEnBanco:true});
   return saved.estadoPago==='confirmada'&&store()===storeId?'confirmada':'no_disponible';
  }catch{return 'no_disponible';}
  finally{actionBusy=false;}
