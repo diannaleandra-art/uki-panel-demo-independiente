@@ -6736,7 +6736,10 @@ function ukiRomoPedidosPendientesHTMLQA(){
      entrega_confirmada:'Entrega',cancelacion:'Cancelación'}[h.tipo]||h.tipo||'Movimiento'))+
    (h.responsable?' · '+esc(h.responsable):'')+
    (h.motivo?' · '+esc(h.motivo):'')+'</p>').join('');
-  return resumen+entrega+ukiRomoDiferenciaPendienteHTMLQA(p,cerrado,tst)+acciones+
+  const seguimientoDirecto=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(p.cartaSolicitudRemotaId||''))?
+   '<button type="button" class="sm" onclick="window.ukiQAOpenOrderTracking?.(&quot;'+
+    esc(p.cartaSolicitudRemotaId)+'&quot;)">💬 Mensajes y transferencia</button>':'';
+  return resumen+entrega+ukiRomoDiferenciaPendienteHTMLQA(p,cerrado,tst)+seguimientoDirecto+acciones+
    (window.ukiRomoHistorialEdicionQA?.(p)||'')+
    (historial?'<details class="inner-details"><summary>🕘 Historial completo del pedido</summary>'+
     historial+'</details>':'')+
