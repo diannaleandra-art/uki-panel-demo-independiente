@@ -1,0 +1,21 @@
+name: Seguimiento de pedidos - QA sin datos reales
+on:
+  push:
+    branches:
+      - preparacion/enlaces-seguros-3-sucursales-20261124
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  reglas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout de rama de pruebas
+        uses: actions/checkout@v4
+      - name: Node.js para pruebas puras
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Enlaces, mensajes y transferencias sin conectarse a bancos ni producción
+        run: npm run test:seguimiento
