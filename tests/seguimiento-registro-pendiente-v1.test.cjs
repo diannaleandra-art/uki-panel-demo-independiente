@@ -5,7 +5,7 @@ const secret='c'.repeat(64),id='621bd292-2153-4160-9e85-375978e10352';
 const key='this_is_a_private_request_key_with_48_chars_1234',at=1795500000;
 const stores=[['uki:arica','arica'],['uki:serena','serena'],['romo:serena','serena']];
 function database(storeId,branch,{existingOther=false}={}){
- const m=S.TABLES[storeId],state={link:existingOther?{
+ const m=S.TABLES[storeId],state={estado:'pendiente',link:existingOther?{
   tokenHash:'a'.repeat(64),expiresAtSeconds:at+259200,storeId,
   orderId:id,status:'active',revokedAt:null}:null,changes:0,queries:[]};
  const db={query:async(q,params=[])=>{
@@ -40,7 +40,7 @@ function database(storeId,branch,{existingOther=false}={}){
   if(q.startsWith('SELECT id,branch,codigo_pedido')){
    assert.deepEqual(params,m.uki?[id,branch]:[id,branch,storeId]);
    return [{id,branch,store_id:m.uki?null:storeId,codigo_pedido:'QA-001',
-    estado:'pendiente',total_indicado:10000,datos:{medioPago:'transferencia'}}];
+    estado:state.estado,total_indicado:10000,datos:{medioPago:'transferencia'}}];
   }
   throw Error('Consulta no contemplada: '+q.slice(0,95));
  }};
@@ -55,6 +55,12 @@ for(const [storeId,branch] of stores){
   const repeat=await S.issueForRegistered({db:m.db,storeId,orderId:id,requestKey:key,secret,nowSeconds:at+25});
   assert.equal(repeat.token,first.token,'El enlace no cambia en un reintento');
   assert.equal(m.state.changes,1,'No se inserta otra fila ni se cambia el hash');
+  m.state.estado='aceptada';
+  const staff=await S.issueAccepted({db:m.db,storeId,orderId:id,
+   staff:{storeId,userId:'worker-authorized-qa',role:'agendador'},
+   secret,nowSeconds:at+40});
+  assert.equal(staff.token,first.token,'Aceptar no invalida el enlace del cliente');
+  assert.equal(m.state.changes,1,'El panel no cambia el enlace ni la caja');
   const found=await S.verifyCustomer({db:m.db,token:first.token,secret,nowSeconds:at+25});
   assert.equal(found.order.estado,'pendiente');
   assert.equal(found.order.estadoTexto,'Esperando confirmación del local');
