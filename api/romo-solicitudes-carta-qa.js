@@ -93,6 +93,8 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
  if(method==='OPTIONS')return res.status(204).end();
  if(method==='POST'&&process.env.ROMO_SOLICITUDES_PUBLICO_QA_ENABLED!=='true')
   return fail(res,503,'La carta de Romo todavía no registra solicitudes en QA');
+ const MIGRACION=require('../lib/seguimiento-aislar-escrituras-legadas-qa.cjs');
+ if(MIGRACION.blocked({route:'aceptacion-con-snapshot',method,action:req.body?.estado}))return MIGRACION.denial(res);
  if(method==='PATCH'&&process.env.ROMO_SOLICITUDES_ACEPTACION_QA_ENABLED!=='true')
   return fail(res,503,'La aceptación de carta de Romo todavía no está activada');
  if(method!=='GET'&&!String(req.headers?.['content-type']||'').toLowerCase().startsWith('application/json'))
