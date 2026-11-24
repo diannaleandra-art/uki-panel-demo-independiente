@@ -53,6 +53,11 @@ test('panel usa guardia en marcar pagado, confirmar cobro y marcar entregado',()
  const code=fs.readFileSync(path.join(base,'public/romo-panel-qa/index.html'),'utf8');
  assert.match(code,/async function ukiMarcarPedidoEntregado\(id\)/);
  assert.match(code,/if\(!await ukiSeguimientoPermitirCerrarQA\(p\)\)return/);
+ const entregaRomo=code.slice(code.indexOf("async function ukiRomoCambiarEstadoQA(id,accion)"),
+  code.indexOf("const ROMO_MEDIOS_SALIDAS_QA="));
+ assert.match(entregaRomo,/else if\(accion==='entregar'\)/);
+ assert.match(entregaRomo,/if\(!await ukiSeguimientoPermitirCerrarQA\(p\)\)return/);
+ assert.match(entregaRomo,/if\(S\.suc!==ROMO_SUCURSAL_QA\|\|p\.estado!=='Pendiente'/);
  assert.match(code,/if\(D\.pagado&&!await ukiSeguimientoPermitirCerrarQA\(D\)\)return/);
  assert.match(code,/if\(!await ukiSeguimientoPermitirCerrarQA\(original,\{/);
  assert.match(code,/!response\.ok\|\|data\?\.ok!==true/);
