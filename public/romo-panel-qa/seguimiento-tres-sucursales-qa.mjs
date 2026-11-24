@@ -25,18 +25,53 @@ const section=title=>{const el=text('section','');el.style.cssText='padding:12px
 const btn=(name,callback)=>{const el=text('button',name);el.type='button';el.className='sm';el.addEventListener('click',callback);return el};
 const field=(title,input)=>{const el=text('label',title);el.style.cssText='display:block;margin:9px 0';el.append(input);return el};
 const store=()=>NAMES[window.ukiQAGet?.()?.suc]||null;
-const tell=message=>{notice.textContent=String(message||'')};
-let busy=false,selectedId=null;
+let busy=false,selectedId=null,activeDetail=null,activeStore=null,loadingDetail=false,actionBusy=false,lastDetailSignature='';
+const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const tell=(message,target=detail)=>{
+ const node=target&&target!==detail?target.parentElement?.querySelector('[data-seguimiento-status]'):notice;
+ if(node)node.textContent=String(message||'');
+};
+function inlineFor(id){
+ return Array.from(document.querySelectorAll('[data-seguimiento-id]')).find(el=>el.dataset.seguimientoId===id)||null;
+}
+function isActive(target,id,shop){
+ return target?.isConnected&&activeDetail===target&&selectedId===id&&activeStore===shop&&store()===shop;
+}
+function hideActive(){
+ if(activeDetail){
+  activeDetail.hidden=true;
+  if(activeDetail!==detail)activeDetail.parentElement?.querySelector('button')?.setAttribute('aria-expanded','false');
+ }
+ activeDetail=null;selectedId=null;activeStore=null;lastDetailSignature='';
+}
+function badgeText(entry){
+ if(!entry)return '';
+ if(entry.estadoPago==='avisada')return '🔔 Cliente avisó: falta verificar';
+ if(entry.estadoPago==='confirmada')return '✓ Transferencia verificada';
+ if(entry.ultimaConsulta)return '💬 Mensajes del pedido';
+ if(entry.montoTransferencia>0||entry.pagoDeclarado==='transferencia')return 'Transferencia pendiente';
+ return '';
+}
+function paintBadges(orders,shop){
+ if(store()!==shop)return;
+ const entries=new Map(orders.map(x=>[x.id,x]));
+ for(const card of document.querySelectorAll('[data-seguimiento-id]')){
+  const label=card.querySelector('[data-seguimiento-aviso]');
+  if(label)label.textContent=badgeText(entries.get(card.dataset.seguimientoId));
+ }
+}
 function visibility(){
  if(!root||!dialog)return;
  root.hidden=!store();
- if(root.hidden){dialog.open=false;selectedId=null;}
+ if(root.hidden){dialog.open=false;hideActive();}
+ else if(activeStore&&activeStore!==store())hideActive();
 }
 async function query(method='GET',body={},id=''){
  const storeId=store();if(!storeId)throw Error('Selecciona el local.');
  const getToken=window.ukiMesasTokenConfirmar;
  const token=typeof getToken==='function'?await getToken():null;
  if(typeof token!=='string'||!token)throw Error('Inicia sesión con Google desde el panel.');
+ if(store()!==storeId)throw Error('Cambió la sucursal. Abre el pedido nuevamente.');
  const params=new URLSearchParams({storeId,...(id?{id}:{})});
  const response=await fetch(API+(method==='GET'?'?'+params.toString():''),{
   method,cache:'no-store',credentials:'same-origin',
@@ -46,7 +81,7 @@ async function query(method='GET',body={},id=''){
   signal:AbortSignal.timeout(15000)
  });
  const data=await response.json().catch(()=>null);
- if(!response.ok||data?.ok!==true||data.storeId!==storeId)
+ if(store()!==storeId||!response.ok||data?.ok!==true||data.storeId!==storeId)
   throw Error(data?.error||'No se pudo consultar el pedido.');
  return data;
 }
@@ -107,9 +142,14 @@ function line(title,body){
  const div=section(title);div.append(text('p',body));return div;
 }
 async function loadList(){
- if(!store()||!dialog.open||busy)return;busy=true;tell('Consultando avisos…');
+ const shop=store();
+ if(!shop||busy||(!dialog.open&&!document.querySelector('[data-seguimiento-id]')))return;
+ busy=true;if(dialog.open)tell('Consultando avisos…');
  try{
   const data=await query();
+  if(store()!==shop)return;
+  paintBadges(data.orders||[],shop);
+  if(!dialog.open)return;
   list.replaceChildren();
   const sorted=[...(data.orders||[])].sort((a,b)=>
    Number(Boolean(b.clienteAvisoEn||b.ultimaConsulta))-Number(Boolean(a.clienteAvisoEn||a.ultimaConsulta)));
@@ -121,10 +161,10 @@ async function loadList(){
       'El cliente avisó; falta verificar':entry.estadoPago==='requiere_revision'?'Requiere revisión':'Pendiente'):
      entry.pagoDeclarado==='transferencia'?'Cliente seleccionó transferencia · monto por verificar':
      'Sin transferencia pendiente registrada');
-   item.append(btn('Ver seguimiento y mensajes',()=>loadDetail(entry.id)));
+   item.append(btn('Ver seguimiento y mensajes',()=>window.ukiQAOpenOrderTracking(entry.id)));
    list.append(item);
   }
- }catch(e){tell(e.message);}finally{busy=false;}
+ }catch(e){if(dialog.open&&store()===shop)tell(e.message);}finally{busy=false;}
 }
 async function doAction(action,id,extra={}){
  const result=await query('POST',{action,id,...extra});
@@ -134,20 +174,27 @@ async function doAction(action,id,extra={}){
  }
  return result;
 }
-async function loadDetail(id){
- if(!/^[a-f0-9-]{36}$/i.test(String(id||'')))return;
- selectedId=id;detail.hidden=false;detail.replaceChildren(text('p','Consultando pedido…'));
+async function loadDetail(id,target=activeDetail,refresh=false){
+ const shop=store();
+ if(!UUID.test(String(id||''))||!target||!shop||loadingDetail||actionBusy||!isActive(target,id,shop))return;
+ // No borrar la respuesta que el trabajador está escribiendo.
+ if(refresh&&(target.querySelector('textarea')?.value||target.contains(document.activeElement)))return;
+ loadingDetail=true;target.hidden=false;
+ if(!refresh)target.replaceChildren(text('p','Consultando pedido…'));
  try{
-  const data=await query('GET',{},id);if(selectedId!==id)return;
-  const p=data.pedido;
-  detail.replaceChildren(text('h3','Pedido '+(p.codigoPedido||'')),text('p',p.descripcionPedido||p.estadoPedido));
+  const data=await query('GET',{},id);if(!isActive(target,id,shop))return;
+  if(refresh&&(target.querySelector('textarea')?.value||target.contains(document.activeElement)))return;
+  const p=data.pedido,signature=JSON.stringify([p,data.puedeConfirmar]);
+  if(refresh&&signature===lastDetailSignature)return;
+  lastDetailSignature=signature;
+  target.replaceChildren(text('h3','Pedido '+(p.codigoPedido||'')),text('p',p.descripcionPedido||p.estadoPedido));
   // No crear pantallas ni enlaces nuevos para el personal. El cliente
   // mantiene su acceso privado dentro de la carta que ya utilizó.
   const seguimiento=section('Seguimiento del cliente');
   seguimiento.append(text('p',p.estadoPedido==='pendiente'?
    'Solicitud pendiente de aceptación. El cliente puede conservar esta carta para seguir el pedido.':
    'El cliente sigue este pedido directamente en la carta. Puede dejarla abierta o guardar el acceso en su celular.'));
-  detail.append(seguimiento);
+  target.append(seguimiento);
   const payment=section('Transferencia');
   if(Number.isSafeInteger(p.montoTransferencia)&&p.montoTransferencia>0){
    payment.append(text('p','Monto de transferencia: '+pesos(p.montoTransferencia)));
@@ -157,21 +204,25 @@ async function loadDetail(id){
     // El importe proviene del servidor, nunca se permite escribir otro valor.
     const button=btn('Confirmar: vi '+pesos(p.montoTransferencia)+' abonados',async()=>{
      if(!Number.isSafeInteger(p.montoTransferencia)||p.montoTransferencia<=0){
-      tell('El importe del pedido debe revisarse antes de confirmar.');return;
+      tell('El importe del pedido debe revisarse antes de confirmar.',target);return;
      }
-     button.disabled=true;
+     if(!isActive(target,id,shop)||actionBusy||loadingDetail)return;
+     button.disabled=true;actionBusy=true;
      try{
       await doAction('confirmar_transferencia',id,{
        montoRecibido:p.montoTransferencia,verificadoEnBanco:true
       });
-      tell('Transferencia verificada. No se sumó un cobro nuevo a caja.');
-      await loadDetail(id);
-     }catch(e){tell(e.message);}finally{button.disabled=false;}
+      if(isActive(target,id,shop))tell('Transferencia verificada. Continúa con el cierre habitual.',target);
+     }catch(e){if(isActive(target,id,shop))tell(e.message,target);}
+     finally{
+      button.disabled=false;actionBusy=false;
+      if(isActive(target,id,shop)){await loadDetail(id,target);void loadList();}
+     }
     });
     payment.append(text('p','Primero comprueba en el banco que llegó exactamente '+pesos(p.montoTransferencia)+'.'),button);
    }
   }else payment.append(text('p','Transferencia no registrada o aún por revisar.'));
-  detail.append(payment);
+  target.append(payment);
   const chat=section('Mensajes del pedido');
   if(p.chatHabilitado===true){
    const ul=document.createElement('ul');ul.style.cssText='padding-left:18px;max-height:260px;overflow:auto';
@@ -184,35 +235,59 @@ async function loadDetail(id){
    const reply=document.createElement('textarea');reply.rows=2;reply.maxLength=800;
    reply.placeholder='Respuesta breve para este pedido';
    const send=btn('Responder',async()=>{
-    const value=reply.value.trim();if(!value)return;
-    send.disabled=true;
-    try{await doAction('responder_mensaje',id,{texto:value});
-     tell('Respuesta enviada.');await loadDetail(id);}
-    catch(e){tell(e.message);}finally{send.disabled=false;}
+    const value=reply.value.trim();if(!value||!isActive(target,id,shop)||actionBusy||loadingDetail)return;
+    send.disabled=true;actionBusy=true;let sent=false;
+    try{await doAction('responder_mensaje',id,{texto:value});sent=true;
+     if(isActive(target,id,shop)){reply.value='';tell('Respuesta enviada.',target);}}
+    catch(e){if(isActive(target,id,shop))tell(e.message,target);}
+    finally{
+     send.disabled=false;actionBusy=false;
+     if(sent&&isActive(target,id,shop))await loadDetail(id,target);
+    }
    });
    chat.append(field('Respuesta para el cliente',reply),send);
   }else chat.append(text('p','El chat todavía no está habilitado en este entorno.'));
-  detail.append(chat);
- }catch(e){tell(e.message);detail.replaceChildren();}
+  target.append(chat);
+ }catch(e){if(isActive(target,id,shop)){tell(e.message,target);if(!refresh)target.replaceChildren();}}
+ finally{loadingDetail=false;
+  if(activeDetail&&(activeDetail!==target||selectedId!==id)&&selectedId&&store()===activeStore)
+   void loadDetail(selectedId,activeDetail);
+ }
 }
 // Acceso rápido desde el pedido existente: no pide buscar otra sección.
 window.ukiQAOpenOrderTracking=async function(orderId){
  if(!root||!dialog||!detail||!store())return false;
  const id=String(orderId||'');
- if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[0-9a-f]{12}$/i.test(id)){
-  tell('Este pedido aún no tiene seguimiento vinculado.');return false;
+ if(!UUID.test(id)){tell('Este pedido aún no tiene seguimiento vinculado.');return false;}
+ visibility();if(root.hidden||actionBusy)return false;
+ const card=inlineFor(id),target=card?.querySelector('[data-seguimiento-detalle]')||detail;
+ if(activeDetail!==target||selectedId!==id)hideActive();
+ activeDetail=target;selectedId=id;activeStore=store();lastDetailSignature='';
+ if(card&&target!==detail){
+  // La ficha ya contiene chat y confirmación. No abrir otra bandeja.
+  let parent=card.parentElement;
+  while(parent){if(parent.tagName==='DETAILS')parent.open=true;parent=parent.parentElement;}
+  card.querySelector('button')?.setAttribute('aria-expanded','true');
+  target.hidden=false;
+  await loadDetail(id,target);
+  card.scrollIntoView({block:'nearest',behavior:'smooth'});
+ }else{
+  // Sólo solicitudes sin ficha existente conservan su bandeja habitual.
+  dialog.open=true;
+  await loadDetail(id,target);
+  root.scrollIntoView({block:'start',behavior:'smooth'});
  }
- visibility();
- if(root.hidden)return false;
- dialog.open=true;
- await loadDetail(id);
- root.scrollIntoView({block:'start',behavior:'smooth'});
  return true;
 };
 if(root&&dialog&&list&&detail&&notice){
  $('romo-seguimiento-actualizar-qa')?.addEventListener('click',loadList);
  dialog.addEventListener('toggle',()=>{if(dialog.open)loadList();});
  document.addEventListener('click',visibility);
- setInterval(()=>{visibility();if(store()&&dialog.open&&!document.hidden)loadList();},30000);
+ setInterval(()=>{
+  visibility();if(!store()||document.hidden)return;
+  if(dialog.open||document.querySelector('[data-seguimiento-id]'))void loadList();
+  if(activeDetail&&selectedId&&isActive(activeDetail,selectedId,activeStore)&&!activeDetail.hidden)
+   void loadDetail(selectedId,activeDetail,true);
+ },15000);
  visibility();
 }
