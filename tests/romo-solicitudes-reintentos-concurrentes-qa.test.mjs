@@ -45,7 +45,8 @@ test('dos POST simultáneos: segundo obtiene la MISMA solicitud pendiente sin ot
  const {db,stats}=simulate();
  const r=await registrarSolicitudRomo({db,body,ipHash,cotizador});
  assert.deepEqual(r,{ok:true,storeId:STORE,estado:'pendiente',repetido:true,
-  countsAsSale:false,whatsappConfirmado:false});
+  countsAsSale:false,whatsappConfirmado:false,
+  trackingId:row().id});
  assert.deepEqual(stats(),{lookups:2,inserts:1,calls:4});
 });
 
