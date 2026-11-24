@@ -4643,13 +4643,16 @@ function ukiOrigenPedido(p){
   const extraTransfer=metodosAdicionales.some(v=>
    String(v||'').trim().toLowerCase()==='transferencia');
   const requiresTransfer=extraTransfer||ukiSeguimientoHayTransferenciaQA(p);
-  // Solo la transferencia requiere comprobación bancaria. Efectivo, tarjeta
-  // y beneficios conservan su procedimiento normal de pago y caja.
-  if(!requiresTransfer)return true;
   const id=String(p?.cartaSolicitudRemotaId||p?.seguimientoSolicitudId||'');
+  // Un pedido MANUAL sin transferencia conserva su caja habitual.
+  // Los pedidos de carta vinculados SIEMPRE contrastan el medio definitivo
+  // del servidor, incluso si la agendadora seleccionó efectivo o tarjeta.
+  // Así no puede saltarse una transferencia cambiando el medio en pantalla.
+  if(!requiresTransfer&&!id)return true;
   if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[0-9a-f]{12}$/i.test(id)){
-   if(!requiresTransfer)return true; // efectivo/tarjeta mantienen controles vigentes
-   aviso('Transferencia por verificar. No se puede marcar pagado ni entregado hasta comprobar el abono de este pedido.');
+   aviso(requiresTransfer?
+    'Transferencia por verificar. No se puede marcar pagado ni entregado hasta comprobar el abono de este pedido.':
+    'No se pudo vincular el pedido con su solicitud de carta. Actualiza antes de cerrar.');
    return false;
   }
   try{
