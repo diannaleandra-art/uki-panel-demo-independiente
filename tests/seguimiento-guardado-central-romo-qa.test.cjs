@@ -34,12 +34,13 @@ const cases=[
   {...base,medio:'Efectivo',cartaSolicitudRemotaId:''},{},false,true,0],
  ['transferencia pendiente no se cobra',base,{pagado:true},false,false,1],
  ['transferencia pendiente no se elimina en una edición anterior al cobro',
-  base,{medio:'Efectivo',pagado:false},false,false,1],
+  base,{medio:'Efectivo',pagado:false},false,false,0],
  ['transferencia manual sin solicitud no se elimina antes de cobrar',
-  {...base,cartaSolicitudRemotaId:''},{medio:'Efectivo',pagado:false},false,false,1],
+  {...base,cartaSolicitudRemotaId:''},{medio:'Efectivo',pagado:false},false,false,0],
  ['transferencia confirmada se cobra',base,{pagado:true},true,true,1],
  ['pedido no se entrega con transferencia pendiente',base,{estado:'Entregado'},false,false,1],
- ['cambiar transferencia por efectivo no evita revisión',base,{medio:'Efectivo',pagado:true},false,false,1],
+ ['cambiar transferencia por efectivo no evita revisión',base,{medio:'Efectivo',pagado:true},false,false,0],
+ ['ni una transferencia confirmada se reclasifica a efectivo en una edición normal',base,{medio:'Efectivo',pagado:true},true,false,0],
  ['editar monto de pedido ya pagado exige nueva comprobación',
   {...base,pagado:true},{total:19000},false,false,1],
  ['sin cambios financieros no consulta otra vez',
@@ -57,7 +58,7 @@ for(const [name,original,change,allow,expected,calls] of cases){
   if(expected)assert.equal(await r.check(proposed),true);
   else await assert.rejects(()=>r.check(proposed),/transferencia no está verificada/i);
   assert.equal(r.calls.length,calls);
-  if(name.includes('cambiar transferencia'))assert.deepEqual(r.calls[0].extra.metodosAdicionales,['transferencia']);
+  if(name.includes('cambiar transferencia'))assert.equal(r.calls.length,0);
  });
 }
 test('no permite duplicar identificadores de pedido al preparar el cifrado',async()=>{

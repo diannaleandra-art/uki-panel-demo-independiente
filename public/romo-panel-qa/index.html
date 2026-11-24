@@ -4635,7 +4635,24 @@ function ukiOrigenPedido(p){
   return values.some(v=>String(v||'').trim().toLowerCase().normalize('NFD')
    .replace(/[\u0300-\u036f]/g,'')==='transferencia');
  }
- async function ukiSeguimientoPermitirCerrarQA(p,{metodosAdicionales=[]}={}){
+ // Contrastar el importe realmente destinado a la caja con el de la solicitud.
+ function ukiSeguimientoImportesCajaQA(p){
+  const sub=Array.isArray(p?.items)?
+   p.items.filter(x=>x.nombre).reduce((sum,x)=>sum+Number(x.cant)*Number(x.precio),0):
+   Number(p?.subtotal);
+  const envio=p?.modalidad==='Delivery'?Number(p.envio):0;
+  const total=sub+envio;
+  if(!Number.isSafeInteger(sub)||sub<1||!Number.isSafeInteger(envio)||envio<0||
+     !Number.isSafeInteger(total)||(p.total!==undefined&&Number(p.total)!==total))
+   return null;
+  const pedido={...p,subtotal:sub,envio,total};
+  const lines=[...ukiLineasPago(pedido,'productos',sub),...ukiLineasPago(pedido,'envio',envio)];
+  if(lines.some(x=>!Number.isSafeInteger(x.monto)||x.monto<=0))return null;
+  const montoTransferencia=lines.filter(x=>String(x.medio||'').trim().toLowerCase()==='transferencia')
+   .reduce((sum,x)=>sum+x.monto,0);
+  return {total,montoTransferencia};
+ }
+ async function ukiSeguimientoPermitirCerrarQA(p,{metodosAdicionales=[],importePropuesto=null}={}){
   const storeId=S.suc==='Uki Regimiento Arica'?'uki:arica':
     S.suc==='Uki La Serena'?'uki:serena':
     S.suc===ROMO_SUCURSAL_QA?'romo:serena':null;
@@ -4656,6 +4673,13 @@ function ukiOrigenPedido(p){
    return false;
   }
   try{
+   const importes=requiresTransfer?(importePropuesto||ukiSeguimientoImportesCajaQA(p)):null;
+   if(requiresTransfer&&(!importes||!Number.isSafeInteger(importes.total)||importes.total<1||
+      !Number.isSafeInteger(importes.montoTransferencia)||importes.montoTransferencia<1||
+      importes.montoTransferencia>importes.total)){
+    aviso('El monto de transferencia del pedido no cuadra. Revisa el pago antes de guardar.');
+    return false;
+   }
    const token=await window.ukiMesasTokenConfirmar?.();
    if(typeof token!=='string'||token.length<20)throw Error('No se pudo validar la sesión del personal.');
    const query=new URLSearchParams({storeId,id,requiereTransferencia:requiresTransfer?'1':'0'});
@@ -4674,6 +4698,10 @@ function ukiOrigenPedido(p){
     if(requiresTransfer&&response.ok&&data?.ok===true&&
        data.storeId===storeId&&data.orderId===id&&data.permitido===false)
       void window.ukiQAOpenOrderTracking?.(id);
+    return false;
+   }
+   if(importes&&(data.total!==importes.total||data.montoTransferencia!==importes.montoTransferencia)){
+    aviso('El monto de la transferencia o el total del pedido no coincide con lo verificado. No se guardó el cobro.');
     return false;
    }
    return true;
@@ -7198,7 +7226,9 @@ async function ukiSeguimientoValidarAntesDeCifrarRomoQA(copia){
   // mientras está pendiente, después marcarla pagada como efectivo.
   const transferAnterior=!!viejo&&ukiSeguimientoHayTransferenciaQA(viejo);
   const transferenciaQuitada=transferAnterior&&!ukiSeguimientoHayTransferenciaQA(nuevo);
-  if(!sePaga&&!seEntrega&&!pagoReclasificado&&!transferenciaQuitada)continue;
+  if(transferenciaQuitada)
+   throw Error('La transferencia no está verificada para cambiar de medio: requiere una corrección autorizada.');
+  if(!sePaga&&!seEntrega&&!pagoReclasificado)continue;
   const previoTransfer=transferAnterior;
   const candidato={
    ...nuevo,
@@ -7288,7 +7318,10 @@ async function ukiRomoConfirmarCobroQA(id){
   delivery=ukiRomoLeerDistribucionQA(pedidoId,'Envio',env-b);
  }catch(e){aviso(String(e.message||e));return;}
  if(!await ukiSeguimientoPermitirCerrarQA(original,{
-  metodosAdicionales:[...productos,...delivery].map(x=>x.medio)
+  metodosAdicionales:[...productos,...delivery].map(x=>x.medio),
+  importePropuesto:{total:sub+env,montoTransferencia:[...productos,...delivery]
+   .filter(x=>String(x.medio||'').trim().toLowerCase()==='transferencia')
+   .reduce((sum,x)=>sum+x.monto,0)}
  }))return;
  const datos={
   pedidoId,responsable,registradoEn:Date.now(),confirmoRecepcion:true,
@@ -10161,9 +10194,23 @@ function ukiSeguimientoConservarOrigenEdicionQA(){
  }
  return true;
 }
+// La misma protección se usa en ambos Uki y Romo, antes de modificar caja.
+function ukiSeguimientoValidarCambioMedioQA(original,nuevo){
+ if(original&&ukiSeguimientoHayTransferenciaQA(original)&&!ukiSeguimientoHayTransferenciaQA(nuevo)){
+  aviso('No se puede quitar una transferencia registrada desde la edición normal. Requiere una corrección autorizada.');
+  return false;
+ }
+ return true;
+}
 async function ndGuardar(){
   if(!ukiSeguimientoConservarOrigenEdicionQA())return;
+  const pedidoAnteriorQA=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(D.editando)):null;
+  if(!ukiSeguimientoValidarCambioMedioQA(pedidoAnteriorQA,D))return;
+  const firmaPagoQA=JSON.stringify({suc:S.suc,draft:D});
   if(D.pagado&&!await ukiSeguimientoPermitirCerrarQA(D))return;
+  if(firmaPagoQA!==JSON.stringify({suc:S.suc,draft:D})){
+   aviso('El pedido cambió durante la comprobación. Revisa antes de guardar.');return;
+  }
   if(S.suc===ROMO_SUCURSAL_QA)
    return D.editando?
     ((S.pedidos||[]).find(p=>p.suc===ROMO_SUCURSAL_QA&&p.id===Number(D.editando))?.pagado?

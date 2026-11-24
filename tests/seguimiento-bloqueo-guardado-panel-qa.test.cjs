@@ -104,16 +104,21 @@ test('efectivo y tarjeta no pasan por el banco; transferencia pendiente se bloqu
    ukiMesasTokenConfirmar:async()=> 'qa-identity-not-real-12345678901234567',
    ukiQAOpenOrderTracking:async()=>{opened++}
   };
+  let montoConfirmado=16000;
   const fetchMock=async()=>{
    apiCalls++;
    return {ok:true,json:async()=>({ok:true,storeId,orderId:id,
-    permitido:allowed,razon:allowed?'verificado':'pendiente'})};
+    permitido:allowed,razon:allowed?'verificado':'pendiente',total:16000,montoTransferencia:montoConfirmado})};
   };
   const messages=[];
   const {check,has}=new Function('S','ROMO_SUCURSAL_QA','aviso','window',
-   'fetch','URLSearchParams','AbortSignal',body)(
+   'fetch','URLSearchParams','AbortSignal','ukiLineasPago',body)(
    {suc:shop},'Romo’s Sushi La Serena',
-   x=>messages.push(x),mockWindow,fetchMock,URLSearchParams,AbortSignal);
+   x=>messages.push(x),mockWindow,fetchMock,URLSearchParams,AbortSignal,
+   (p,tipo,monto)=>monto>0?(p[tipo==='productos'?'pagosProductos':'pagosEnvio']?.length?
+    p[tipo==='productos'?'pagosProductos':'pagosEnvio']:[{medio:tipo==='productos'?p.medio:p.medioEnvio,monto}]):[]);
+  const transferencia={medio:'Transferencia',cartaSolicitudRemotaId:id,
+   subtotal:16000,total:16000,modalidad:'Retiro'};
   assert.equal(await check({medio:'Efectivo'}),true);
   assert.equal(apiCalls,0,'Los pedidos manuales en efectivo no consultan banco');
   // El pedido de carta sí contrasta su medio en el servidor, sin pedirle
@@ -124,16 +129,23 @@ test('efectivo y tarjeta no pasan por el banco; transferencia pendiente se bloqu
   assert.equal(await check({medio:'Transferencia'}),false);
   assert.equal(apiCalls,1,'Transferencia sin identificador se bloquea localmente');
   allowed=false;
-  assert.equal(await check({medio:'Transferencia',cartaSolicitudRemotaId:id}),false);
+  assert.equal(await check(transferencia),false);
   assert.equal(apiCalls,2);
   assert.equal(opened,1);
   allowed=true;
-  assert.equal(await check({medio:'Transferencia',cartaSolicitudRemotaId:id}),true);
+  assert.equal(await check(transferencia),true);
   assert.equal(apiCalls,3);
   allowed=false;
   assert.equal(await check({medio:'Efectivo',cartaSolicitudRemotaId:id}),false);
   assert.equal(apiCalls,4,'Cambiar a efectivo no evita la consulta al servidor');
   assert.equal(has({medio:'Débito',pagosProductos:[{medio:'Transferencia',monto:1000}]}),true);
+  allowed=true;
+  assert.equal(await check({...transferencia,subtotal:18000,total:18000}),false);
+  const mixto={...transferencia,medio:'Débito',pagosProductos:[{medio:'Transferencia',monto:6000},{medio:'Débito',monto:10000}]};
+  assert.equal(await check(mixto),false,'No reutilizar abono de otro importe');
+  montoConfirmado=6000;
+  assert.equal(await check(mixto),true,'Solo coincide el importe exacto de transferencia');
+  assert.equal(await check(transferencia),false,'No usar el abono parcial para todo el pedido');
  }
 });
 
@@ -181,4 +193,17 @@ test('en edición Uki/Romo se conserva el ID original sin pedir otro paso al tra
    'f04cbd3f-b14c-40d3-bb79-9461fd5ad122');
  }
  assert.match(src,/async function ndGuardar\(\)\{\s*if\(!ukiSeguimientoConservarOrigenEdicionQA\(\)\)return/);
+});
+
+test('el cambio de medio en edición normal no permite retirar una transferencia, en las tres sucursales',()=>{
+ const src=fs.readFileSync(path.join(base,'public/romo-panel-qa/index.html'),'utf8');
+ const start=src.indexOf('function ukiSeguimientoValidarCambioMedioQA('),end=src.indexOf('async function ndGuardar(){',start);
+ const guard=new Function('ukiSeguimientoHayTransferenciaQA','aviso',src.slice(start,end)+'\nreturn ukiSeguimientoValidarCambioMedioQA;')(
+  p=>p?.medio==='Transferencia',()=>{});
+ for(const [shop] of stores){
+  assert.equal(guard({suc:shop,medio:'Transferencia'},{medio:'Efectivo'}),false);
+  assert.equal(guard({suc:shop,medio:'Transferencia'},{medio:'Transferencia'}),true);
+  assert.equal(guard({suc:shop,medio:'Efectivo'},{medio:'Débito'}),true);
+ }
+ assert.match(src,/async function ndGuardar\(\)\{[\s\S]{0,450}if\(!ukiSeguimientoValidarCambioMedioQA\(pedidoAnteriorQA,D\)\)return/);
 });
