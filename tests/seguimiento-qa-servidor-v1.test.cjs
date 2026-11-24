@@ -12,11 +12,25 @@ const cases=[['uki:arica','arica'],['uki:serena','serena'],['romo:serena','seren
 function mockDb(storeId,branch){
  const meta=S.TABLES[storeId];
  const row={id,branch,store_id:storeId,codigo_pedido:'P-201',estado:'aceptada',total_indicado:18000,
+  request_key:'private_strong_request_key_12345678901234567890',
   datos:{pagos:[{medio:'transferencia',monto:12000},{medio:'efectivo',monto:6000}]}};
  const state={row,link:null,payment:null,chats:[],calls:[]};
  const query=async(query,params=[])=>{
   state.calls.push({query,params});
   // Todas las consultas de lectura y escritura deben conservar rama y sucursal.
+  if(query.startsWith('SELECT request_key FROM '+meta.source)){
+   assert.deepEqual(params,meta.uki?[id,branch]:[id,branch,storeId]);
+   return [{request_key:row.request_key}];
+  }
+  if(query.startsWith('SELECT EXTRACT(EPOCH FROM s.creado_en)')){
+   assert.deepEqual(params,meta.uki?[id,row.request_key,branch]:[id,row.request_key,branch,storeId]);
+   return [{issued_at:NOW}];
+  }
+  if(query.startsWith('SELECT token_hash::text AS token_hash')){
+   assert.deepEqual(params,[id,storeId,branch]);
+   return state.link?[{token_hash:state.link.tokenHash,estado:state.link.status,
+    expires_at:state.link.expiresAtSeconds,revocado_en:state.link.revokedAt}]:[];
+  }
   if(query.includes(' FROM '+meta.source+' WHERE id=')){
    assert.deepEqual(params,meta.uki?[id,branch]:[id,branch,storeId]);
    return [{...row,store_id:meta.uki?null:storeId}];
@@ -25,6 +39,7 @@ function mockDb(storeId,branch){
    assert.equal(params[0],id);
    assert.equal(params[1],storeId);
    assert.equal(params[2],branch);
+   if(state.link)return [];
    state.link={tokenHash:params[3],expiresAtSeconds:params[5],storeId,orderId:id,status:'active',revokedAt:null};
    return [{solicitud_id:id}];
   }
