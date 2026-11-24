@@ -54,4 +54,8 @@ GRANT USAGE,SELECT ON SEQUENCE public.romo_seguimiento_chat_cifrado_v1_id_seq TO
 
 REVOKE ALL ON public.romo_seguimiento_transferencia_v1, public.romo_seguimiento_chat_cifrado_v1 FROM PUBLIC;
 GRANT SELECT,INSERT ON public.romo_seguimiento_enlaces_v1 TO romos_app_service;
+-- Los privilegios por defecto del propietario incluyen DELETE y UPDATE.
+-- Limitar exclusivamente las tablas nuevas; no cambiar permisos de tablas existentes.
+REVOKE DELETE ON public.romo_seguimiento_enlaces_v1, public.romo_seguimiento_transferencia_v1, public.romo_seguimiento_chat_cifrado_v1 FROM romos_app_service;
+REVOKE UPDATE ON public.romo_seguimiento_enlaces_v1, public.romo_seguimiento_chat_cifrado_v1 FROM romos_app_service;
 COMMIT;
