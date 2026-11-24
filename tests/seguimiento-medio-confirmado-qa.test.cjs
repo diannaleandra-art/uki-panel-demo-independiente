@@ -18,7 +18,7 @@ for(const [storeId,branch] of [['uki:arica','arica'],['uki:serena','serena'],['r
  }
  test(storeId+' forma de pago: confirma preferencia sólo con validación de personal, sin marcar cobro',async()=>{
   const q=mock();
-  const result=await P.confirmPreferred({db:q.db,storeId,orderId,staff,metodo:'transferencia'});
+  const result=await P.confirmPreferred({db:q.db,storeId,orderId,staff,metodo:'transferencia',totalValidado:18000});
   assert.equal(result.ok,true);
   assert.equal(result.repeated,false);
   assert.equal(result.montoTransferencia,18000);
@@ -41,11 +41,11 @@ for(const [storeId,branch] of [['uki:arica','arica'],['uki:serena','serena'],['r
  });
  test(storeId+' impide registrar forma de pago cuando cambió el pedido',async()=>{
   const f=mock(true);
-  await assert.rejects(()=>P.confirmPreferred({db:f.db,storeId,orderId,staff,metodo:'transferencia'}),{status:409});
+  await assert.rejects(()=>P.confirmPreferred({db:f.db,storeId,orderId,staff,metodo:'transferencia',totalValidado:18000}),{status:409});
  });
  test(storeId+' permite cambiar transferencia declarada por efectivo sin marcar pago recibido',async()=>{
   const f=mock();
-  const result=await P.confirmPreferred({db:f.db,storeId,orderId,staff,metodo:'efectivo'});
+  const result=await P.confirmPreferred({db:f.db,storeId,orderId,staff,metodo:'efectivo',totalValidado:18000});
   assert.equal(result.ok,true);
   assert.equal(result.montoTransferencia,0);
   assert.equal(f.calls.length,2);
@@ -58,7 +58,7 @@ for(const [storeId,branch] of [['uki:arica','arica'],['uki:serena','serena'],['r
  test(storeId+' exige trabajador de la misma tienda',async()=>{
   const f=mock();
   await assert.rejects(()=>P.confirmPreferred({db:f.db,storeId,orderId,
-   staff:{...staff,storeId:'otra'},metodo:'transferencia'}),{status:403});
+   staff:{...staff,storeId:'otra'},metodo:'transferencia',totalValidado:18000}),{status:403});
   assert.equal(f.calls.length,0);
  });
 }
@@ -118,4 +118,17 @@ test('Romo: agendadora corrige el medio elegido en carta, sin registrar pago ni 
  assert.equal(args[5],'efectivo');
  assert.equal(JSON.parse(args[4]).medioPago,'transferencia');
  assert.equal(JSON.parse(args[4]).cotizacion.payment,'transferencia');
+});
+
+test('sin importe comprobado o con importe distinto, jamás valida el medio en ninguno de los locales',async()=>{
+ for(const [storeId,branch] of [['uki:arica','arica'],['uki:serena','serena'],['romo:serena','serena']]){
+  const staff={storeId,role:'agendador',userId:'worker-test-qa'};
+  let called=0;
+  const row={id:orderId,store_id:storeId,branch,estado:'aceptada',codigo_pedido:'QA-100',
+   total_indicado:18000,datos:{origen:'carta-normal',medioPago:'transferencia',pagoPreferido:'transferencia'}};
+  const db={query:async()=>{called++;return [row]}};
+  await assert.rejects(()=>P.confirmPreferred({db,storeId,orderId,staff,metodo:'transferencia'}),{status:400});
+  await assert.rejects(()=>P.confirmPreferred({db,storeId,orderId,staff,metodo:'transferencia',totalValidado:19000}),{status:409});
+  assert.equal(called,1);
+ }
 });
