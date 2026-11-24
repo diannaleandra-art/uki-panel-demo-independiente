@@ -7,6 +7,8 @@ test('el pedido ofrece abrir mensajes y transferencia en el mismo panel',()=>{
  assert.match(index,/💬 Mensajes y transferencia/);
  assert.match(index,/window\.ukiQAOpenOrderTracking/);
  assert.match(index,/cartaSolicitudRemotaId/);
+ assert.match(index,/const seguimientoDirecto=/);
+ assert.match(index,/seguimientoDirecto\+acciones/);
  assert.match(index,/\^\[0-9a-f\]\{8\}/);
  assert.match(ui,/window\.ukiQAOpenOrderTracking=async function/);
  assert.match(ui,/dialog\.open=true/);
