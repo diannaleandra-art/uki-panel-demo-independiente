@@ -205,6 +205,38 @@ window.ukiQASyncDistributionBeforePayment=async function(pedido){
   return result?.ok===true;
  }catch{return false;}
 };
+
+/* Confirmación bancaria desde el guardado habitual del pedido.
+ * Una sola pregunta expresa al trabajador, no confirma por el aviso del cliente.
+ * La verificación del servidor NO registra una venta; el guardado habitual sigue.
+ */
+window.ukiQAConfirmTransferBeforePayment=async function({storeId,id,total,monto}={}){
+ if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true||actionBusy||
+    !storeId||store()!==storeId||!UUID.test(String(id||''))||
+    !Number.isSafeInteger(total)||total<1||!Number.isSafeInteger(monto)||monto<1)
+  return 'no_disponible';
+ actionBusy=true;
+ try{
+  const result=await query('GET',{},id),p=result.pedido;
+  if(store()!==storeId||result.orderId!==id||result.totalPedido!==total||
+     p?.storeId!==storeId||p.estadoPedido!=='aceptada'||p.montoTransferencia!==monto)
+   return 'no_disponible';
+  if(p.estadoPago==='confirmada')return 'confirmada';
+  if(result.puedeConfirmar!==true||!['pendiente','avisada'].includes(p.estadoPago)||
+     p.datosBancariosVerificados!==true||p.datosBancariosSucursal!==storeId)
+   return 'no_disponible';
+  const nombre=Object.keys(NAMES).find(k=>NAMES[k]===storeId)||storeId;
+  if(!window.confirm('TRANSFERENCIA · '+nombre+' · Pedido '+(p.codigoPedido||'')+
+   '\n¿Confirmas que viste abonados '+pesos(monto)+' en la cuenta bancaria de este pedido?'+
+   '\nSólo acepta si verificaste el dinero en el banco.'))
+   return 'cancelada';
+  if(store()!==storeId||window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true)return 'no_disponible';
+  const saved=await query('POST',{action:'confirmar_transferencia',id,montoRecibido:monto,verificadoEnBanco:true});
+  return saved.estadoPago==='confirmada'&&store()===storeId?'confirmada':'no_disponible';
+ }catch{return 'no_disponible';}
+ finally{actionBusy=false;}
+};
+
 function line(title,body){
  const div=section(title);div.append(text('p',body));return div;
 }

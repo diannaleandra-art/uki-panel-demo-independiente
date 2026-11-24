@@ -4045,6 +4045,23 @@ function seguimientoPropinaTransferenciaQA(order,subtotal){
     if(p.pagado!==true){aviso('Primero registra el pago del pedido tras verificar el banco.');return false;}
     return ukiSeguimientoPrepararManualQA(p,{importePropuesto:importes,solicitudSinEnlace:id});
    }
+   // Al guardar el cobro, ofrecer la confirmación exacta aquí mismo.
+   // El guardado central que no permite preguntar sólo vuelve a verificar.
+   if(requiresTransfer&&(p.pagado===true||importePropuesto)&&
+      response.ok&&data?.ok===true&&data.storeId===storeId&&data.orderId===id&&
+      data.permitido===false&&!data.sinEnlaceAnterior&&
+      typeof window.ukiQAConfirmTransferBeforePayment==='function'){
+    const confirmed=await window.ukiQAConfirmTransferBeforePayment({
+     storeId,id,total:importes.total,monto:importes.montoTransferencia
+    });
+    if(confirmed==='cancelada'){
+     aviso('Transferencia pendiente. No se guardó el pago.');return false;
+    }
+    if(confirmed==='confirmada'){
+     if(S.suc!==(storeId==='uki:arica'?'Uki Regimiento Arica':storeId==='uki:serena'?'Uki La Serena':null))return false;
+     response=await consultar();data=await response.json().catch(()=>null);
+    }
+   }
    if(!response.ok||data?.ok!==true||data.storeId!==storeId||data.orderId!==id||
       data.permitido!==true){
     aviso(data?.razon||data?.error||'No se comprobó la transferencia. Deja este pedido pendiente.');
