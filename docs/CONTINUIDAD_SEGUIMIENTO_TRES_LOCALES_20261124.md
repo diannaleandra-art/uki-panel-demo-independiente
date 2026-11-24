@@ -89,3 +89,12 @@ Fecha: 24/11/2026. PREPARACIÓN QA, NO PUBLICADA EN LOS TRES LOCALES.
 7. AÚN BLOQUEA PUBLICACIÓN: verificar las cuentas bancarias por local, habilitar y probar el flujo con Google del personal en QA, enlazar estados reales y cerrar las rutas legadas que puedan registrar pagado/entregado por snapshots cifrados o Firestore sin la misma transacción de pago. El bloqueo actual de QA no protege por sí solo los guardados comerciales. Probar manualmente iPhone/PC, reintentos, pagos mixtos y caja antes de activar para los tres locales.
 
 Conservar el trabajo aprobado y no habilitar banderas en producción ni ejecutar SQL comercial sin validación.
+
+## Contrato simple de la carta y el panel · revisión 24/11
+- El pedido del cliente se consulta en la misma carta; no se crea otra página ni otro registro. Tres locales: Uki Regimiento Arica, Uki La Serena y Romo Sushi La Serena.
+- El estado de la carta ahora distingue **medio elegido por el cliente** de **medio validado por la agendadora**. El servidor QA devuelve `pagoDeclarado` para que la carta muestre «Transferencia» incluso antes de la aceptación, sin fingir que se verificó el dinero.
+- Hasta que exista validación del importe y cuenta bancaria de esa sucursal, no se muestran datos bancarios ni se habilita «Ya transferí»; ese aviso nunca acredita el pago.
+- Romo muestra datos bancarios comprobados tanto con solicitud pendiente como aceptada, si el propio servidor autoriza ese estado. La respuesta de otra sucursal se rechaza.
+- En Romo se eliminó la bandera de interfaz adicional `ROMO_SEGUIMIENTO_EN_CARTA_QA_ENABLED`: el paso entre WhatsApp habitual y recepción de la carta se decide solo por el estado real de la recepción del panel. Al quedar inactiva la recepción, no se rompe WhatsApp.
+- **Pruebas:** 15/15 comprobaciones de datos de las tres sucursales con medios seleccionados pero no validados. Se verificó la interfaz de Romo con los datos de prueba: selección pendiente visible sin mostrar cuenta ni botón; cuenta y aviso visibles cuando el servidor los autoriza; otra sucursal bloqueada. Compilación automática de Preview, no prueba real de clientes.
+- **Aún no publicar como operativo:** no están activados los permisos del proxy de Romo para la nueva rama, faltan las cuentas bancarias reales validadas por local y el control atómico del pago en todos los guardados de caja existentes. Ninguna de estas pruebas cambió las ventas comerciales.
