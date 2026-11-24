@@ -156,12 +156,8 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
    // El identificador interno no se entrega públicamente. El seguimiento
    // sólo se emite cuando está configurado en QA y el registro ya existe.
    const {trackingId,...publicResult}=result;
-   if(process.env.ROMO_SEGUIMIENTO_QA_ENABLED==='true'&&trackingId){
-    const c=require('../lib/romo-seguimiento-transferencia-v1.cjs');
-    if(c.secretReady(process.env.ROMO_SEGUIMIENTO_TOKEN_SECRET)){
-     publicResult.seguimientoToken=c.issueToken(trackingId,req.body.key,process.env.ROMO_SEGUIMIENTO_TOKEN_SECRET);
-    }
-   }
+   if(process.env.ROMO_SEGUIMIENTO_QA_ENABLED==='true'&&trackingId)
+    publicResult.seguimientoEstado='esperando_aceptacion';
    return res.status(result.repetido?200:201).json(publicResult);
   }
   const identityModule=await import('../lib/romo-identidad-servidor-qa.mjs');
@@ -193,7 +189,25 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
    action==='recuperar'?await core.recuperarReservaRomo(args):
    action==='rechazada'?await core.rechazarSolicitudRomo(args):
    await core.aceptarYGuardarSolicitudRomo(args);
-  return res.status(200).json(result);
+  // En QA aislada, el enlace se emite solo DESPUÉS de aceptar y guardar.
+  let output=result;
+  if(action==='aceptada'&&result?.ok===true){
+   const stage=require('../lib/seguimiento-qa-entorno-v1.cjs').config();
+   if(stage&&stage.urls[STORE]===conf.write&&process.env.SEGUIMIENTO_PERSONAL_QA_ENABLED==='true'){
+    try{
+     const seguimiento=require('../lib/seguimiento-qa-servidor-v1.cjs');
+     const link=await seguimiento.issueAccepted({
+      db:writer,storeId:STORE,orderId:result.id,
+      staff:{storeId:STORE,role:identity.role,userId:identity.userId},
+      secret:stage.tokenSecret
+     });
+     output={...result,seguimientoEnlace:stage.origin+'/seguimiento-pedido-qa.html#t='+encodeURIComponent(link.token)};
+    }catch(error){
+     output={...result,seguimientoAviso:'Pedido aceptado; enlace privado aún no disponible. Revisa la bandeja.'};
+    }
+   }
+  }
+  return res.status(200).json(output);
  }catch(e){
   const code=[400,403,409,429,503].includes(e?.status)?e.status:
     e?.code==='REVISION_CONFLICTO'?409:503;
