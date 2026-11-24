@@ -5211,6 +5211,7 @@ function vPedidos(){
     <p class="muted">El servidor las identifica como aceptadas, pero no se encuentra su pedido vinculado en esta copia del panel. Primero sincroniza Firebase y verifica el historial. No las ingreses otra vez ni las marques pagadas.</p>
     ${aceptadasPendientesDeConciliar.map(r=>'<p><b>'+esc(ukiRomoFolioCartaVisibleQA(r)?'Carta #'+ukiRomoFolioCartaVisibleQA(r):'Carta · solicitud registrada')+'</b> · '+esc(r.cliente||'Cliente sin identificar')+' · WhatsApp '+esc(r.telefono||'por verificar')+'</p>').join('')}
     </details>`:''}
+  ${ukiCartaChatBandejaQA()}
   <button class="big cta" onclick="ir('nuevo')">＋ Nuevo pedido</button>
   <div class="card uki-filtros-pedidos uki-bloque-filtros"><div class="row" style="align-items:center"><h2 style="margin:0;font-size:15px">Pedidos por estado</h2><span class="muted" style="font-size:12px">${visibles.length} a la vista</span></div>
     <div class="chips" role="group" aria-label="Filtrar pedidos por estado y pago">${categorias}</div>
