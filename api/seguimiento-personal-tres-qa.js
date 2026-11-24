@@ -1,0 +1,78 @@
+'use strict';
+/* Bandeja de seguimiento por local, separada de caja y cobro comercial. */
+const ENV=require('../lib/seguimiento-qa-entorno-v1.cjs');
+const AUTH=require('../lib/seguimiento-qa-personal-auth-v1.cjs');
+const S=require('../lib/seguimiento-qa-servidor-v1.cjs');
+const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+const fail=(r,c,m)=>r.status(c).json({ok:false,error:m});
+module.exports=async(req,res)=>{
+ res.setHeader('Cache-Control','private,no-store,max-age=0');
+ res.setHeader('Referrer-Policy','no-referrer');
+ res.setHeader('X-Content-Type-Options','nosniff');
+ const cfg=ENV.config();
+ if(!cfg||process.env.SEGUIMIENTO_PERSONAL_QA_ENABLED!=='true')
+  return fail(res,503,'Bandeja de seguimiento en preparación');
+ if(!ENV.validOrigin(req,cfg))return fail(res,403,'Origen no autorizado');
+ if(!['GET','POST'].includes(req.method))return fail(res,405,'Acción no autorizada');
+ if(req.method==='POST'&&(!String(req.headers['content-type']||'').startsWith('application/json')||
+  !req.body||typeof req.body!=='object'||Array.isArray(req.body)||
+  JSON.stringify(req.body).length>1500))return fail(res,400,'Formulario inválido');
+ const storeId=String(req.method==='GET'?req.query?.storeId:req.body?.storeId||'');
+ if(!S.TABLES[storeId])return fail(res,400,'Sucursal inválida');
+ try{
+  const db=ENV.makeDb(cfg,storeId);
+  const actor=await AUTH.authorized(req,db,storeId).catch(()=>null);
+  if(!actor)return fail(res,403,'Sesión sin permiso para esta sucursal');
+  const meta=S.TABLES[storeId];
+  if(req.method==='GET'&&!req.query?.id){
+   const list=await db.query(
+    'SELECT s.id,s.codigo_pedido,s.estado,s.total_indicado,s.creado_en,'+
+    "(SELECT max(m.creado_en) FROM "+meta.messages+
+    ' m WHERE m.solicitud_id=s.id AND m.store_id=$1'+(meta.uki?' AND m.branch=$2':'')+
+    ") AS ultima_consulta FROM "+meta.source+
+    " s WHERE s.branch=$"+(meta.uki?'2':'2')+
+    (meta.uki?'':' AND s.store_id=$1')+
+    " AND s.estado='aceptada' AND s.creado_en>now()-interval '7 days'"+
+    ' ORDER BY s.creado_en DESC LIMIT 80',[storeId,meta.branch]);
+   return res.status(200).json({ok:true,storeId,orders:list});
+  }
+  const id=String(req.method==='GET'?req.query?.id:req.body?.id||'');
+  if(!UUID.test(id))return fail(res,400,'Pedido inválido');
+  const order=await S.loadOne(db,storeId,id);
+  if(!order||order.estado!=='aceptada')return fail(res,404,'Pedido no aceptado o no encontrado');
+  if(req.method==='POST'){
+   const action=req.body.action;
+   if(action==='generar_enlace'){
+    if(Object.keys(req.body).sort().join('|')!=='action|id|storeId')
+     return fail(res,400,'Datos de enlace no válidos');
+    const created=await S.issueAccepted({db,storeId,orderId:id,staff:actor,secret:cfg.tokenSecret});
+    // No reenviar por WhatsApp automáticamente: el personal decide compartir.
+    return res.status(200).json({ok:true,storeId,
+     enlace:cfg.origin+'/seguimiento-pedido-qa.html#t='+encodeURIComponent(created.token),
+     venceEn:new Date(created.expiresAtSeconds*1000).toISOString()});
+   }
+   if(action==='confirmar_transferencia'){
+    if(Object.keys(req.body).sort().join('|')!=='action|id|montoRecibido|storeId|verificadoEnBanco')
+     return fail(res,400,'Datos bancarios incompletos');
+    const result=await S.staffConfirm({db,order,staff:actor,bank:cfg.banks[storeId],
+     receivedAmount:req.body.montoRecibido,seenBankCredit:req.body.verificadoEnBanco===true});
+    return res.status(200).json({ok:true,storeId,estadoPago:result.status,
+     nota:'Verificación manual registrada. Sin modificar caja ni venta'});
+   }
+   if(action==='responder_mensaje'){
+    if(Object.keys(req.body).sort().join('|')!=='action|id|storeId|texto')
+     return fail(res,400,'Mensaje inválido');
+    await S.sendMessage({db,order,from:'agendador',body:req.body.texto,staff:actor,chatSecret:cfg.chatSecret});
+    return res.status(200).json({ok:true,storeId,enviado:true});
+   }
+   return fail(res,400,'Acción no autorizada');
+  }
+  const details=await S.snapshot({db,order,bank:cfg.banks[storeId],chatSecret:cfg.chatSecret});
+  return res.status(200).json({ok:true,storeId,pedido:details,
+   puedeConfirmar:details.montoTransferencia>0&&!!cfg.banks[storeId]});
+ }catch(error){
+  const c=[400,403,404,409,429].includes(error?.code)?error.code:503;
+  return fail(res,c,c===503?'No se pudo guardar o leer. Revisa el pedido antes de reintentar.':
+   String(error?.message||'No disponible').slice(0,200));
+ }
+};
