@@ -64,3 +64,9 @@ test('la respuesta de bloqueo no acredita caja o transferencias',()=>{
  assert.equal(result.body.ok,false);
  assert.match(result.body.error,/No se modificó el pedido ni la caja/);
 });
+
+test('panel recibe escrituraHabilitada=false durante el corte QA',()=>{
+ const src=fs.readFileSync(path.join(__dirname,'../api/romo-estado-cifrado-panel-qa.js'),'utf8');
+ assert.match(src,/escrituraHabilitada:Boolean\(conf\.writer&&/);
+ assert.match(src,/!MIGRACION\.strictMode\(\)/);
+});
