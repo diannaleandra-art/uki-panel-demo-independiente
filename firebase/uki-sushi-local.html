@@ -4856,6 +4856,11 @@ async function ndGuardar(){
       p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||"";p.codigoCarta=D.codigoCarta||"";p.codigoCliente=D.codigoCliente||"";p.qrSolicitudes=Array.isArray(D.qrSolicitudes)?[...new Set(D.qrSolicitudes)]:[];p.sucursalCarta=D.sucursalCarta||""; p.mesaReferencia=D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():""; p.modalidad=D.modalidad; p.envio=envio; p.kmRecorrido=kmRecorrido; p.medio=D.medio; p.medioEnvio=D.medioEnvio; Object.assign(p,datosPago); p.estado=ukiEstadoTrasRetirarPago(snapshot,D.pagado);p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det,...ukiDatosCatalogoItem(x)})); p.total=total; p.subtotal=sub; p.propina=propina;p.propinaModo=D.propinaModo;p.medioPropina=D.medioPropina;p.textoOriginal=D.texto;
       if(!cierreHistorico&&snapshot.pagado&&!D.pagado)
         ukiTransferenciaRetirarRevision(p,'Se retiró la confirmación del pago.');
+      if(!cierreHistorico&&p.transferenciaVerificacion){
+        const revisionActual=ukiTransferenciaContexto(p);
+        if(p.transferenciaVerificacion.monto!==revisionActual.monto||p.transferenciaVerificacion.firmaDistribucion!==revisionActual.firmaDistribucion)
+          ukiTransferenciaRetirarRevision(p,'Se modificó el importe o la distribución del pago. Requiere nueva revisión.');
+      }
       // Un cierre confirmado mantiene intactos sus movimientos de propina y fidelidad.
       if(!cierreHistorico)ukiSincronizarPropinaPedido(p);
       if(!cierreHistorico){
