@@ -7,6 +7,13 @@ const NAMES=Object.freeze({
  'Uki La Serena':'uki:serena',
  'Romo’s Sushi La Serena':'romo:serena'
 });
+// Conectar automáticamente la forma de pago al aceptar el pedido existente,
+// SOLO en la copia privada de Preview. No es confirmación de transferencia,
+// no marca pagado y no se activa en el panel comercial de producción.
+const TRACKING_PAYMENT_PREVIEW_QA=location.protocol==='https:'&&
+ /^romos-sushi-panel-[a-z0-9-]+-diannaleandra-7046\.vercel\.app$/.test(location.hostname)&&
+ location.pathname.startsWith('/romo-panel-qa/');
+window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED=TRACKING_PAYMENT_PREVIEW_QA;
 const API='/api/seguimiento-personal-tres-qa';
 const $=id=>document.getElementById(id);
 const root=$('romo-seguimiento-bandeja-qa'),dialog=$('romo-seguimiento-abrir-qa');
@@ -47,12 +54,14 @@ async function query(method='GET',body={},id=''){
 /*
  * Después de que el panel confirmó el guardado, validar automáticamente
  * EL MEDIO (jamás el abono) con el servidor de QA. No añade otro botón.
- * Cerrado por defecto y deshabilitado en producción. Sólo pedido de carta
+ * Solo habilitado en Preview privado; deshabilitado en producción. Sólo pedido de carta
  * pendiente, sin propina ni pagos mixtos cuya distribución no esté validada.
  */
 function seguimientoMedioSimpleQA(order){
  if(!order||typeof order!=='object'||order.pagado!==false||
     order.mixtoProductos===true||order.mixtoEnvio===true||
+    (Array.isArray(order.pagosProductos)&&order.pagosProductos.length>0)||
+    (Array.isArray(order.pagosEnvio)&&order.pagosEnvio.length>0)||
     order.productosPagadosOtroLocal===true||order.envioPagadoOtroLocal===true||
     !Number.isSafeInteger(order.subtotal)||order.subtotal<0||
     !Number.isSafeInteger(Number(order.envio))||Number(order.envio)<0||
