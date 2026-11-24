@@ -25,9 +25,11 @@ module.exports=async(req,res)=>{
   const db=ENV.makeDb(cfg,storeId);
   const actor=await AUTH.authorized(req,db,storeId).catch(()=>null);
   if(!actor)return respond(res,403,{permitido:false,error:'Personal sin permiso para esta sucursal'});
-  const result=await GUARD.check({db,storeId,orderId,requiereTransferencia:transferFlag==='1'});
+  const result=await GUARD.check({db,storeId,orderId,requiereTransferencia:transferFlag==='1',legacyBefore:cfg.legacyBefore});
   return respond(res,200,{storeId,orderId,permitido:result.permitido,razon:result.razon,
    ...(result.permitido?{total:result.total,montoTransferencia:result.montoTransferencia}:{}),
+   sinEnlaceAnterior:result.sinEnlaceAnterior===true,
+   requiereConfirmacionManual:result.requiereConfirmacionManual===true,
    soloVerificacionQA:true,noRegistraPago:true,noCierraPedido:true});
  }catch(error){
   console.error('Guardia de cierre QA:',String(error?.code||error?.name||'error').slice(0,50));

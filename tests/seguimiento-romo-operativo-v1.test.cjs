@@ -29,3 +29,29 @@ test('el origen válido queda limitado al panel autorizado',()=>{
  assert.equal(ENV.validOrigin({headers:{host:'uki-sushi-panel.vercel.app'}},found),false);
  assert.equal(ENV.validOrigin({headers:{host:'romos-sushi-panel.vercel.app',origin:'https://otro.example'}},found),false);
 });
+
+
+test('pedido anterior sin enlace exige confirmación manual si se cobra transferencia',async()=>{
+ const guard=require('../lib/seguimiento-verificar-cierre-qa.cjs');
+ const storeId='romo:serena',branch='serena';
+ const id='621bd292-2153-4160-9e85-375978e10352';
+ let prior=true,method='transferencia',rowState='aceptada',queries=0;
+ const db={query:async(sql,args)=>{
+  if(sql.startsWith('SELECT id,branch,codigo_pedido,estado,total_indicado,datos,'))return [{id,store_id:storeId,branch,estado:rowState,total_indicado:16000,datos:{medioPago:method}}];
+  if(sql.startsWith('SELECT s.id FROM')){
+   queries++;assert.match(sql,/s\.creado_en<\$4::timestamptz/);
+   assert.equal((sql.match(/NOT EXISTS/g)||[]).length,2);
+   assert.deepEqual(args.slice(0,3),[id,storeId,branch]);
+   return prior?[{id}]:[];
+  }
+  if(sql.startsWith('SELECT estado_pago,monto_transferencia'))return [];
+  throw Error('consulta no prevista');
+ }};
+ const check=requiereTransferencia=>guard.check({db,storeId,orderId:id,requiereTransferencia,legacyBefore:'2020-01-01T00:00:00.000Z'});
+ let r=await check(true);assert.equal(r.sinEnlaceAnterior,true);assert.equal(r.permitido,false);assert.equal(r.requiereConfirmacionManual,true);
+ r=await check(false);assert.equal(r.permitido,false);assert.notEqual(r.sinEnlaceAnterior,true);
+ method='efectivo';r=await check(false);assert.equal(r.permitido,true);assert.equal(r.sinEnlaceAnterior,true);
+ prior=false;method='transferencia';r=await check(true);assert.equal(r.permitido,false);assert.notEqual(r.sinEnlaceAnterior,true);
+ rowState='pendiente';prior=true;r=await check(true);assert.equal(r.permitido,false);assert.notEqual(r.sinEnlaceAnterior,true);
+ assert.equal(queries,4);
+});
