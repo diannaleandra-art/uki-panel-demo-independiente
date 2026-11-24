@@ -105,6 +105,8 @@ module.exports=async function endpoint(req,res){
   return res.status(204).end();
  }
  if(!['GET','POST'].includes(req.method))return send(res,405,'Método no permitido');
+ const MIGRACION=require('../lib/seguimiento-aislar-escrituras-legadas-qa.cjs');
+ if(MIGRACION.blocked({route:'cancelacion-snapshot',method:req.method}))return MIGRACION.denial(res);
  if(req.method==='POST'&&
     (String(req.headers?.['content-type']||'').split(';')[0]!=='application/json'||
      !req.body||typeof req.body!=='object'||Array.isArray(req.body)||
