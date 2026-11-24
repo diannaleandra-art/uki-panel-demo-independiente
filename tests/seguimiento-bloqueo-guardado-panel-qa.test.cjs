@@ -115,16 +115,39 @@ test('efectivo y tarjeta no pasan por el banco; transferencia pendiente se bloqu
    {suc:shop},'Romo’s Sushi La Serena',
    x=>messages.push(x),mockWindow,fetchMock,URLSearchParams,AbortSignal);
   assert.equal(await check({medio:'Efectivo'}),true);
+  assert.equal(apiCalls,0,'Los pedidos manuales en efectivo no consultan banco');
+  // El pedido de carta sí contrasta su medio en el servidor, sin pedirle
+  // un paso adicional al trabajador ni exigir banco para la tarjeta.
+  allowed=true;
   assert.equal(await check({medio:'Débito',cartaSolicitudRemotaId:id}),true);
-  assert.equal(apiCalls,0,'Ningún pago en efectivo/tarjeta debe consultar el banco');
+  assert.equal(apiCalls,1,'Pedido de carta: comprobar medio definitivo en servidor');
   assert.equal(await check({medio:'Transferencia'}),false);
-  assert.equal(apiCalls,0,'Transferencia sin identificador se bloquea localmente');
+  assert.equal(apiCalls,1,'Transferencia sin identificador se bloquea localmente');
+  allowed=false;
   assert.equal(await check({medio:'Transferencia',cartaSolicitudRemotaId:id}),false);
-  assert.equal(apiCalls,1);
+  assert.equal(apiCalls,2);
   assert.equal(opened,1);
   allowed=true;
   assert.equal(await check({medio:'Transferencia',cartaSolicitudRemotaId:id}),true);
-  assert.equal(apiCalls,2);
+  assert.equal(apiCalls,3);
+  allowed=false;
+  assert.equal(await check({medio:'Efectivo',cartaSolicitudRemotaId:id}),false);
+  assert.equal(apiCalls,4,'Cambiar a efectivo no evita la consulta al servidor');
   assert.equal(has({medio:'Débito',pagosProductos:[{medio:'Transferencia',monto:1000}]}),true);
  }
+});
+
+
+test('el servidor niega cambio de transferencia a efectivo aunque banco esté confirmado',()=>{
+ const order={
+  storeId:'uki:arica',estado:'aceptada',montoTransferencia:12000,
+  pagoSinDeterminar:false
+ };
+ assert.equal(gate.verdict({order,paymentState:'confirmada',requiereTransferencia:true}).permitido,true);
+ const mismatch=gate.verdict({order,paymentState:'confirmada',requiereTransferencia:false});
+ assert.equal(mismatch.permitido,false);
+ assert.match(mismatch.razon,/otro medio|registra transferencia/i);
+ const cash={...order,montoTransferencia:0};
+ assert.equal(gate.verdict({order:cash,paymentState:'pendiente',requiereTransferencia:false}).permitido,true);
+ assert.equal(gate.verdict({order:cash,paymentState:'pendiente',requiereTransferencia:true}).permitido,false);
 });
