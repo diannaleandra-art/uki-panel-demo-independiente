@@ -7388,6 +7388,13 @@ async function ukiRomoCambiarEstadoQA(id,accion){
     ukiNumeroTimbreWhatsApp(p.telefono)&&!p.timbreEnviadoEn){
    aviso('Primero envía y confirma el timbre WhatsApp de este pedido.');return;
   }
+  // Mismo control ya aplicado al cobro: entregar desde Romo no debe
+  // saltar la comprobación de transferencia de este pedido.
+  if(!await ukiSeguimientoPermitirCerrarQA(p))return;
+  if(S.suc!==ROMO_SUCURSAL_QA||p.estado!=='Pendiente'||
+     (S.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&x.id===pedidoId)!==p){
+   aviso('El pedido cambió. Actualiza antes de confirmar la entrega.');return;
+  }
   const sugerido=String(ukiTimbreResponsableActual?.()||'');
   responsable=String(window.prompt('¿Quién confirma la entrega del pedido #'+pedidoId+'?',
     sugerido==='Sin turno identificado'?'':sugerido)||'').trim();
