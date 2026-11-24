@@ -6,6 +6,7 @@ import {calcularDiferenciaPagadaRomoQA} from './uki-romo-diferencias-financieras
  * del panel confirma un registro REAL y único, aparte de ventas/delivery.
  */
 const SUC='Romo’s Sushi La Serena';
+import './uki-romo-transferencias-qa.js';
 const MEDIOS=['Efectivo','Transferencia','Débito','Edenred','Otros'];
 const assert=(ok,msg)=>{if(!ok)throw Error(msg)};
 const n=x=>String(x??'').trim();
@@ -167,6 +168,7 @@ export function prepararCorreccionPropinaPagadaRomoQA(estado,{
  const actualizado={...p,propina:nuevoMonto,medioPropina:medioNuevo,
   propinaModo:modo,propinaPersonalizada:modo==='otro'?nuevoMonto:'',
   total:nuevoTotal};
+ globalThis.ukiRomoTransferenciasQA.invalidar(p,actualizado,registradoEn);
  const after=foto(actualizado);
  const evento={
   tipo:'correccion_propina_pagada',fecha:fechaISO,fechaISO,registradoEn,

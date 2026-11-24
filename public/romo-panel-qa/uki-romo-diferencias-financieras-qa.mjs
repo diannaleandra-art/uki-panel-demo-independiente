@@ -1,4 +1,5 @@
 import {clasificarCorreccionPagadaRomoQA} from './uki-romo-edicion-pagada-qa.mjs';
+import './uki-romo-transferencias-qa.js';
 /**
  * Romo — cálculo SOLO DE CONSULTA previo a corregir un pedido pagado.
  * Reutiliza las reglas de monto del formulario oficial de Uki:
@@ -208,6 +209,7 @@ export function prepararRectificacionMediosRomoQA({
   pagosProductos:draft.mixtoProductos?prod.map(x=>({...x})):[],
   pagosEnvio:draft.mixtoEnvio?del.map(x=>({...x})):[]
  };
+ globalThis.ukiRomoTransferenciasQA.invalidar(previo,nuevo,registradoEn);
  const antes=foto(previo),despues=foto(nuevo);
  if(JSON.stringify(antes)===JSON.stringify(despues))
   err('No cambió la forma de pago registrada');
@@ -326,6 +328,7 @@ export function prepararDiferenciaPrecioPagadoRomoQA({
  nuevo.ajusteCobroPendiente={
   estado:'pendiente',recibido,saldo,fechaISO
  };
+ globalThis.ukiRomoTransferenciasQA.invalidar(p,nuevo,registradoEn);
  const despues=foto(nuevo);
  const ev={
   tipo:'correccion_precio_pagado_pendiente',
