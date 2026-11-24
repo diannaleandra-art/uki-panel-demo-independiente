@@ -88,7 +88,7 @@ module.exports=async function romoEstadoCifradoPanelQA(req,res){
    // Comunicar capacidad real al panel, sin abrir escrituras ni exponer secretos.
    // Las banderas de Vercel y el rol del servidor deciden; el navegador no autoriza.
    return res.status(200).json({...result,
-    escrituraHabilitada:Boolean(conf.writer&&['duenos','agendador'].includes(identity.role))
+    escrituraHabilitada:Boolean(conf.writer&&['duenos','agendador'].includes(identity.role)&&!MIGRACION.strictMode())
    });
   }
   if(String(req.headers?.['content-type']||'').split(';')[0]!=='application/json')
