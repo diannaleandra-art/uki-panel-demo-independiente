@@ -140,8 +140,13 @@ for(const [storeId,branch] of stores){
   assert.equal(view.chatHabilitado,false);
   assert.equal(view.datosBancarios,null);
   await assert.rejects(()=>S.clientNotice({db,order:opened.order,bank}),{code:409});
+  await assert.rejects(()=>S.sendMessage({db,order:opened.order,from:'cliente',
+   body:'Mensaje antes de aceptación',chatSecret}),{code:400});
   // 2. La agendadora acepta el pedido en el panel habitual.
   state.row.estado='aceptada';
+  const accepted=await S.issueAccepted({db,storeId,orderId:id,
+   staff,secret,nowSeconds:NOW+1});
+  assert.equal(accepted.token,created.token,'La aceptación no cambia el enlace del cliente');
   await assert.rejects(()=>TX.commit({db,storeId,orderId:id,action:'confirmar_cobro',
    staff,restoPagoVerificado:true}),{status:409});
   // 3. Se guarda el medio definitivo, NO el cobro.
