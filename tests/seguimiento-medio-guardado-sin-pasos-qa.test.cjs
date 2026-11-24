@@ -92,7 +92,7 @@ test('la bandera de pago automático no se activa en dominio de producción ni e
 });
 
 test('la distribución real valida productos y delivery por separado antes de comprobar banco',()=>{
- const a=client.indexOf('function seguimientoDistribucionRealQA(order){');
+ const a=client.indexOf('function seguimientoPropinaTransferenciaQA(order,subtotal){');
  const b=client.indexOf('window.ukiQAConfirmPaymentMethodAfterSave=',a);
  const parse=new Function(client.slice(a,b)+'\nreturn seguimientoDistribucionRealQA;')();
  const p={...order,modalidad:'Delivery',medio:'Transferencia',medioEnvio:'Efectivo',
@@ -104,4 +104,21 @@ test('la distribución real valida productos y delivery por separado antes de co
  }
  assert.match(view,/ukiQASyncDistributionBeforePayment/);
  assert.match(client,/action:'confirmar_distribucion_pago'/);
+});
+
+test('seguimiento suma sólo lo transferido a este local incluida la propina, sin cambiar total de venta',()=>{
+ const a=client.indexOf('function seguimientoPropinaTransferenciaQA(order,subtotal){');
+ const b=client.indexOf('window.ukiQAConfirmPaymentMethodAfterSave=',a);
+ const parse=new Function(client.slice(a,b)+'\nreturn seguimientoDistribucionRealQA;')();
+ const p={...order,modalidad:'Delivery',medio:'Transferencia',medioEnvio:'Efectivo',
+  productosPagadosOtroLocal:true,montoProductosOtroLocal:2000,
+  pagosProductos:[{medio:'Transferencia',monto:6000},{medio:'Débito',monto:6000}],
+  mixtoProductos:true,propina:1500,propinaModo:'otro',medioPropina:'Transferencia'};
+ assert.deepEqual(parse(p),{pagos:[{medio:'transferencia',monto:6000},{medio:'debito',monto:6000},{medio:'efectivo',monto:2000}],
+  totalValidado:16000,montoOtroLocal:2000,propinaTransferencia:1500});
+ assert.equal(parse({...p,montoProductosOtroLocal:15000}),null);
+ assert.equal(parse({...p,propina:-10}),null);
+ assert.equal(parse({...p,pagosProductos:[{medio:'Transferencia',monto:14000}]}),null);
+ assert.deepEqual(parse({...p,productosPagadosOtroLocal:true,montoProductosOtroLocal:14000,pagosProductos:[],mixtoProductos:false,envioPagadoOtroLocal:true,montoEnvioOtroLocal:2000}),
+  {pagos:[],totalValidado:16000,montoOtroLocal:16000,propinaTransferencia:1500});
 });

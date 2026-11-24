@@ -4643,7 +4643,7 @@ function ukiOrigenPedido(p){
  function ukiSeguimientoHayTransferenciaQA(p){
   if(!p||typeof p!=='object')return false;
   const values=[p.medio,p.medioEnvio,p.romoPagoIndicadoQA,p.pagoDeclarado,
-   p.medioProductos,p.medioDelivery];
+   p.medioProductos,p.medioDelivery,p.medioPropina];
   for(const campo of [p.pagosProductos,p.pagosEnvio,p.pagos,p.pagosMixtos]){
    if(Array.isArray(campo))for(const item of campo)
     values.push(typeof item==='string'?item:item?.medio);
@@ -4652,6 +4652,15 @@ function ukiOrigenPedido(p){
    .replace(/[\u0300-\u036f]/g,'')==='transferencia');
  }
  // Contrastar el importe realmente destinado a la caja con el de la solicitud.
+// Mantener la propina fuera del precio de venta. Si se recibe por
+// transferencia, forma parte del abono que se debe comprobar.
+function seguimientoPropinaTransferenciaQA(order,subtotal){
+ const mode=order?.propinaModo||'ninguna';
+ const value=order?.propina!==undefined?Number(order.propina):
+  mode==='diez'?Math.round(subtotal*.1):mode==='otro'?Number(order.propinaPersonalizada):0;
+ if(!['ninguna','diez','otro'].includes(mode)||!Number.isSafeInteger(value)||value<0||value>1000000)return null;
+ return String(order?.medioPropina||'').trim().toLowerCase()==='transferencia'?value:0;
+}
  function ukiSeguimientoImportesCajaQA(p){
   const sub=Array.isArray(p?.items)?
    p.items.filter(x=>x.nombre).reduce((sum,x)=>sum+Number(x.cant)*Number(x.precio),0):
@@ -4664,9 +4673,11 @@ function ukiOrigenPedido(p){
   const pedido={...p,subtotal:sub,envio,total};
   const lines=[...ukiLineasPago(pedido,'productos',sub),...ukiLineasPago(pedido,'envio',envio)];
   if(lines.some(x=>!Number.isSafeInteger(x.monto)||x.monto<=0))return null;
+  const tip=seguimientoPropinaTransferenciaQA(p,sub);
+  if(tip===null)return null;
   const montoTransferencia=lines.filter(x=>String(x.medio||'').trim().toLowerCase()==='transferencia')
-   .reduce((sum,x)=>sum+x.monto,0);
-  return {total,montoTransferencia};
+   .reduce((sum,x)=>sum+x.monto,0)+tip;
+  return {total,montoTransferencia,...(tip?{propinaTransferencia:tip}:{})};
  }
 
  // Pedido pegado de WhatsApp o ingresado manualmente: la misma confirmación
@@ -4679,7 +4690,7 @@ function ukiOrigenPedido(p){
   if(!Number.isSafeInteger(pedidoId)||pedidoId<1||!importes||
      !Number.isSafeInteger(importes.total)||importes.total<1||
      !Number.isSafeInteger(importes.montoTransferencia)||importes.montoTransferencia<1||
-     importes.montoTransferencia>importes.total)return null;
+     importes.montoTransferencia>importes.total+Number(importes.propinaTransferencia||0))return null;
   return {suc:S.suc,pedidoId,...(solicitudSinEnlace?{solicitudId:solicitudSinEnlace}:{}),total:importes.total,monto:importes.montoTransferencia,
    cliente:String(p.cliente||'').trim(),telefono:String(p.telefono||'').trim()};
  }
@@ -4750,7 +4761,7 @@ function ukiOrigenPedido(p){
    const importes=requiresTransfer?(importePropuesto||ukiSeguimientoImportesCajaQA(p)):null;
    if(requiresTransfer&&(!importes||!Number.isSafeInteger(importes.total)||importes.total<1||
       !Number.isSafeInteger(importes.montoTransferencia)||importes.montoTransferencia<1||
-      importes.montoTransferencia>importes.total)){
+      importes.montoTransferencia>importes.total+Number(importes.propinaTransferencia||0))){
     aviso('El monto de transferencia del pedido no cuadra. Revisa el pago antes de guardar.');
     return false;
    }
@@ -7305,7 +7316,8 @@ async function ukiSeguimientoValidarAntesDeCifrarRomoQA(copia){
   pagosProductos:p?.pagosProductos,pagosEnvio:p?.pagosEnvio,
   productosPagadosOtroLocal:p?.productosPagadosOtroLocal,
   envioPagadoOtroLocal:p?.envioPagadoOtroLocal,
-  subtotal:p?.subtotal,total:p?.total,
+  subtotal:p?.subtotal,total:p?.total,propina:p?.propina,medioPropina:p?.medioPropina,
+  montoProductosOtroLocal:p?.montoProductosOtroLocal,montoEnvioOtroLocal:p?.montoEnvioOtroLocal,
   cartaSolicitudRemotaId:p?.cartaSolicitudRemotaId,
   seguimientoSolicitudId:p?.seguimientoSolicitudId
  });
@@ -7420,17 +7432,19 @@ async function ukiRomoConfirmarCobroQA(id){
   productos=ukiRomoLeerDistribucionQA(pedidoId,'Producto',sub-a);
   delivery=ukiRomoLeerDistribucionQA(pedidoId,'Envio',env-b);
  }catch(e){aviso(String(e.message||e));return;}
+ const tipTransferencia=String(medioPropina).trim().toLowerCase()==='transferencia'?propinaMonto:0;
  const importePropuesto={total:sub+env,montoTransferencia:[...productos,...delivery]
    .filter(x=>String(x.medio||'').trim().toLowerCase()==='transferencia')
-   .reduce((sum,x)=>sum+x.monto,0)};
+   .reduce((sum,x)=>sum+x.monto,0)+tipTransferencia,...(tipTransferencia?{propinaTransferencia:tipTransferencia}:{})};
  const comprobacionManual={...original};
  if(!ukiSeguimientoPrepararManualQA(comprobacionManual,{importePropuesto,responsable}))return;
  if(!await ukiSeguimientoPermitirCerrarQA(comprobacionManual,{
-  metodosAdicionales:[...productos,...delivery].map(x=>x.medio),importePropuesto,
+  metodosAdicionales:[...productos,...delivery].map(x=>x.medio).concat(tipTransferencia?['Transferencia']:[]),importePropuesto,
   pagoPropuesto:{...original,medio:productos[0]?.medio||'Efectivo',
    medioEnvio:delivery[0]?.medio||'Efectivo',pagosProductos:productos,pagosEnvio:delivery,
    productosPagadosOtroLocal:a>0,envioPagadoOtroLocal:b>0,
-   propina:propinaMonto,propinaModo:modo}
+   montoProductosOtroLocal:a,montoEnvioOtroLocal:b,
+   propina:propinaMonto,propinaModo:modo,medioPropina}
  }))return;
  const datos={
   pedidoId,responsable,registradoEn:Date.now(),confirmoRecepcion:true,

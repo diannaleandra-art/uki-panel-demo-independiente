@@ -127,22 +127,45 @@ function seguimientoMedioSimpleQA(order){
  return Object.freeze({metodo:method,totalValidado:expected});
 }
 
+// Mantener la propina fuera del precio de venta. Si se recibe por
+// transferencia, forma parte del abono que se debe comprobar.
+function seguimientoPropinaTransferenciaQA(order,subtotal){
+ const mode=order?.propinaModo||'ninguna';
+ const value=order?.propina!==undefined?Number(order.propina):
+  mode==='diez'?Math.round(subtotal*.1):mode==='otro'?Number(order.propinaPersonalizada):0;
+ if(!['ninguna','diez','otro'].includes(mode)||!Number.isSafeInteger(value)||value<0||value>1000000)return null;
+ return String(order?.medioPropina||'').trim().toLowerCase()==='transferencia'?value:0;
+}
 function seguimientoDistribucionRealQA(order){
- if(!order||order.productosPagadosOtroLocal===true||order.envioPagadoOtroLocal===true||
-  Number(order.propina||0)!==0||order.propinaModo&&order.propinaModo!=='ninguna')return null;
+ if(!order)return null;
  const sub=Array.isArray(order.items)?order.items.filter(x=>x.nombre).reduce((n,x)=>n+Number(x.cant)*Number(x.precio),0):Number(order.subtotal);
  const env=order.modalidad==='Delivery'?Number(order.envio):0;
  const total=sub+env;
  if(!Number.isSafeInteger(sub)||sub<1||!Number.isSafeInteger(env)||env<0||
   !Number.isSafeInteger(total)||total>100000000||order.total!==undefined&&Number(order.total)!==total)return null;
+ const external=(flag,value,limit)=>{
+  if(!flag)return 0;
+  if(value===undefined||value===null||value==='')return limit;
+  const n=Number(value);
+  return Number.isSafeInteger(n)&&n>=0&&n<=limit?n:null;
+ };
+ let a=external(order.productosPagadosOtroLocal,order.montoProductosOtroLocal,sub);
+ let b=external(order.envioPagadoOtroLocal,order.montoEnvioOtroLocal,env);
+ const legacy=Number(order.montoProductosOtroLocal);
+ if(order.envioPagadoOtroLocal===undefined&&order.productosPagadosOtroLocal&&
+  Number.isSafeInteger(legacy)&&legacy>sub&&legacy<=total){a=sub;b=legacy-sub;}
+ if(a===null||b===null)return null;
+ const montoOtroLocal=a+b;
+ const propinaTransferencia=seguimientoPropinaTransferenciaQA(order,sub);
+ if(propinaTransferencia===null)return null;
  const aliases={'efectivo':'efectivo','transferencia':'transferencia','debito':'debito',
   'tarjeta debito':'debito','tarjeta de debito':'debito','credito':'credito',
   'tarjeta credito':'credito','tarjeta de credito':'credito','edenred':'edenred',
   'junaeb':'junaeb','otro':'otro','otros':'otro'};
  const lines=[];
- for(const [amount,items,medium,mixto] of [[sub,order.pagosProductos,order.medio,order.mixtoProductos],
-  [env,order.pagosEnvio,order.medioEnvio,order.mixtoEnvio]]){
-  if(amount===0)continue;
+ for(const [amount,items,medium,mixto] of [[sub-a,order.pagosProductos,order.medio,order.mixtoProductos],
+  [env-b,order.pagosEnvio,order.medioEnvio,order.mixtoEnvio]]){
+  if(amount===0){if(Array.isArray(items)&&items.length)return null;continue;}
   if(mixto===true&&(!Array.isArray(items)||!items.length))return null;
   const source=Array.isArray(items)&&items.length?items:[{medio:medium,monto:amount}];
   let sum=0;
@@ -154,8 +177,8 @@ function seguimientoDistribucionRealQA(order){
   }
   if(sum!==amount)return null;
  }
- if(!lines.length||lines.length>8)return null;
- return {pagos:lines,totalValidado:total};
+ if(lines.length>8)return null;
+ return {pagos:lines,totalValidado:total,...(montoOtroLocal||propinaTransferencia?{montoOtroLocal,propinaTransferencia}:{})};
 }
 window.ukiQAConfirmPaymentMethodAfterSave=async function({storeId,solicitudId,pedido}={}){
  // El mismo panel sigue guardando normalmente; esta acción sólo existe
