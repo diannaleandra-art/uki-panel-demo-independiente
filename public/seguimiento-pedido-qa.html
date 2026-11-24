@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="es-CL">
+<head>
+ <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+ <meta name="referrer" content="no-referrer"><meta name="robots" content="noindex,nofollow">
+ <title>Ver mi pedido · Uki / Romo</title>
+ <style>
+ :root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#231f25;background:#f5f3f1}
+ *{box-sizing:border-box}body{margin:0}header{background:#231d22;color:white;padding:24px 18px 19px}
+ header h1{margin:5px 0;font-size:23px}header p{font-size:13px;margin:3px 0;opacity:.9}
+ main{max-width:620px;margin:0 auto;padding:15px 14px 52px}.card{background:white;border:1px solid #e6dfe2;border-radius:16px;padding:17px;margin-bottom:14px}
+ h2{font-size:17px;margin:0 0 9px}h3{font-size:14px;margin:12px 0}
+ .state{font-weight:800;font-size:18px;line-height:1.45}
+ .muted{color:#645e65;font-size:13px;line-height:1.55}.notice{background:#f5f0e7;border:1px solid #e7d9c4;padding:11px;border-radius:10px}
+ button{border:0;background:#af2533;color:#fff;padding:12px 15px;border-radius:11px;font-size:14px;font-weight:750;cursor:pointer;min-height:44px}
+ button.secondary{background:#eee9eb;color:#322c31}button:disabled{opacity:.48}
+ input,textarea{width:100%;border:1px solid #cec8cb;border-radius:10px;padding:10px;font:inherit}
+ textarea{min-height:83px;resize:vertical}label{display:block;font-weight:700;font-size:13px;margin:8px 0}
+ .actions{display:flex;gap:9px;flex-wrap:wrap}.message{list-style:none;margin:0;padding:0;max-height:300px;overflow-y:auto}
+ .message li{padding:10px 12px;margin:6px 0;background:#f2f0f1;border-radius:11px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px}
+ .message li.mine{background:#eee4e6}.message strong{display:block;margin-bottom:4px;font-size:11px}
+ [hidden]{display:none!important}#alert{font-size:13px;color:#7a2634;line-height:1.5}
+ body[data-brand="uki"] button:not(.secondary){background:#9e263c}
+ body[data-brand="romo"] header{background:#19191d;border-bottom:4px solid #bc232a}
+ body[data-brand="romo"] button:not(.secondary){background:#b91f28}
+ </style>
+</head>
+<body>
+<header><p>SEGUIMIENTO DE PEDIDO</p><h1 id="store">Uki / Romo Sushi</h1>
+ <p id="folio">Consulta privada desde tu carta digital</p></header>
+<main>
+ <section class="card"><h2>¿Cómo va mi pedido?</h2><p id="status" class="state">Consultando…</p>
+  <p class="muted">El local actualizará el estado cuando confirme tu pedido.</p>
+  <div class="actions"><button class="secondary" id="refresh" type="button">Actualizar estado</button>
+  <button class="secondary" id="copy" type="button">Guardar enlace</button></div>
+  <p class="muted notice">Para hacer seguimiento, conserva esta página abierta o guarda el enlace para regresar. No necesitas registrarte ni instalar nada.</p>
+ </section>
+ <section id="payment" class="card" hidden>
+  <h2>Pago por transferencia</h2><p id="payment-status"></p><p id="amount"></p>
+  <div id="bank" hidden></div>
+  <p id="bank-note" class="muted"></p>
+  <button type="button" id="notice" disabled>Ya transferí</button>
+  <p class="muted">Este botón sólo avisa al local. El pago queda pendiente hasta que el personal compruebe el abono en el banco.</p>
+ </section>
+ <section id="chat" class="card" hidden>
+  <h2>Hablar con el local</h2><p class="muted">Chat sobre este pedido, sin salir de la carta ni abrir WhatsApp.</p>
+  <ul id="messages" class="message"></ul>
+  <form id="message-form"><label for="message">Escribe tu mensaje</label>
+   <textarea id="message" maxlength="800" placeholder="¿Cuánto falta para mi pedido?"></textarea>
+   <button type="submit" id="send">Enviar mensaje</button></form>
+ </section>
+ <p id="alert" role="status"></p>
+</main>
+<script>
+'use strict';
+const API='/api/seguimiento-cliente-tres-qa';
+const names={'uki:arica':'Uki Regimiento Arica','uki:serena':'Uki La Serena','romo:serena':'Romo Sushi La Serena'};
+const $=id=>document.getElementById(id);
+const token=new URLSearchParams(location.hash.slice(1)).get('t');
+const okay=typeof token==='string'&&token.length>=70&&token.length<=320&&/^[A-Za-z0-9_.-]+$/.test(token);
+const money=n=>new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0}).format(n);
+let busy=false,latest=null;
+const set=(id,text)=>{$(id).textContent=String(text??'')};
+const show=(id,v)=>{$(id).hidden=!v};
+async function request(action,body){
+ const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),14000);
+ try{
+  const resp=await fetch(API,{method:action?'POST':'GET',credentials:'same-origin',cache:'no-store',
+   headers:{'Accept':'application/json','X-Seguimiento-Pedido':token,
+    ...(action?{'Content-Type':'application/json'}:{})},
+   ...(action?{body:JSON.stringify({action,...body})}:{}),signal:ctl.signal});
+  const data=await resp.json().catch(()=>null);
+  if(!resp.ok||data?.ok!==true||!names[data.storeId])
+   throw Error(data?.error||'No se pudo consultar este pedido');
+  return data;
+ }finally{clearTimeout(timer);}
+}
+function render(data){
+ latest=data;
+ set('store',names[data.storeId]);set('folio',data.codigoPedido?'Pedido '+data.codigoPedido:'Pedido en seguimiento');
+ document.body.dataset.brand=data.storeId.startsWith('romo:')?'romo':'uki';
+ set('status',data.descripcionPedido||'En revisión');
+ const transfer=data.montoTransferencia>0;
+ show('payment',transfer);
+ if(transfer){
+  set('payment-status',data.descripcionPago||'Transferencia por verificar');
+  set('amount','Monto a transferir: '+money(data.montoTransferencia));
+  const account=data.datosBancariosVerificados===true&&
+   data.datosBancariosSucursal===data.storeId?data.datosBancarios:null;
+  show('bank',Boolean(account));
+  $('bank').replaceChildren();
+  if(account){
+   for(const [label,value] of [['Banco',account.banco],['Titular',account.titular],
+    ['RUT',account.rut],['Tipo de cuenta',account.tipo],['Cuenta',account.cuenta],['Correo',account.correo]]){
+    const p=document.createElement('p'),b=document.createElement('strong');
+    b.textContent=label+': ';p.append(b,document.createTextNode(String(value||'')));$('bank').append(p);
+   }
+  }
+  set('bank-note',account?'Utiliza únicamente estos datos confirmados para el local.':
+   'Datos bancarios aún no verificados. Consulta directamente al local antes de transferir.');
+  $('notice').disabled=!account||data.estadoPedido!=='aceptada'||data.estadoPago!=='pendiente'||busy;
+  $('notice').textContent=data.estadoPago==='confirmada'?'Transferencia confirmada':
+   data.estadoPago==='avisada'?'Aviso enviado':'Ya transferí';
+ }
+ show('chat',data.chatHabilitado===true);
+ $('messages').replaceChildren();
+ if(data.chatHabilitado===true&&Array.isArray(data.mensajes)){
+  for(const m of data.mensajes.slice(-30)){
+   if(!m||!['cliente','agendador'].includes(m.remitente)||typeof m.texto!=='string')continue;
+   const li=document.createElement('li'),strong=document.createElement('strong');
+   li.className=m.remitente==='cliente'?'mine':'';
+   strong.textContent=m.remitente==='cliente'?'Tú':'Local';
+   li.append(strong,document.createTextNode(m.texto.slice(0,800)));$('messages').append(li);
+  }
+ }
+}
+async function refresh(){
+ if(!okay){set('status','No se encontró un enlace válido');set('alert','Solicita el enlace al local.');return}
+ if(busy)return;busy=true;
+ try{render(await request());set('alert','Estado actualizado.')}
+ catch(e){set('alert',e.message||'No se pudo actualizar.')}
+ finally{busy=false;if(latest)render(latest)}
+}
+async function send(action,extra){
+ if(!okay||busy)return false;
+ busy=true;$('send').disabled=true;$('notice').disabled=true;
+ try{render(await request(action,extra));set('alert',action==='avisar_transferencia'?
+  'Aviso enviado, falta verificar el abono en el banco.':'Mensaje enviado.');return true}
+ catch(e){set('alert',e.message||'No se confirmó el envío; revisa antes de repetir.');return false}
+ finally{busy=false;$('send').disabled=false;if(latest)render(latest)}
+}
+$('refresh').addEventListener('click',refresh);
+$('copy').addEventListener('click',async()=>{
+ try{await navigator.clipboard.writeText(location.href);set('alert','Enlace copiado. Puedes guardarlo para volver.')}
+ catch{set('alert','Usa la función Compartir del navegador para guardar este enlace.')}
+});
+$('notice').addEventListener('click',()=>{if(latest?.estadoPago==='pendiente')send('avisar_transferencia',{})});
+$('message-form').addEventListener('submit',async e=>{
+ e.preventDefault();
+ const value=$('message').value.trim();if(!value||value.length>800)return;
+ if(await send('enviar_mensaje',{texto:value})&&$('message').value.trim()===value)$('message').value='';
+});
+refresh();
+setInterval(()=>{if(!document.hidden&&okay&&!busy&&latest?.estadoPedido!=='entregada')refresh()},30000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&okay)refresh()});
+</script></body></html>
