@@ -88,11 +88,12 @@ module.exports=async(req,res)=>{
     return res.status(200).json(result);
    }
    if(action==='confirmar_distribucion_pago'){
-    if(Object.keys(req.body).sort().join('|')!=='action|id|pagos|storeId|totalValidado')
+    if(!['action|id|pagos|storeId|totalValidado','action|id|montoOtroLocal|pagos|propinaTransferencia|storeId|totalValidado'].includes(Object.keys(req.body).sort().join('|')))
      return fail(res,400,'Distribución inválida');
     const PAY=require('../lib/seguimiento-confirmar-medio-pago-qa.cjs');
     const result=await PAY.confirmDistribution({db,storeId,orderId:id,staff:actor,
-     pagos:req.body.pagos,totalValidado:req.body.totalValidado});
+     pagos:req.body.pagos,totalValidado:req.body.totalValidado,
+     montoOtroLocal:req.body.montoOtroLocal??0,propinaTransferencia:req.body.propinaTransferencia??0});
     return res.status(200).json(result);
    }
    if(action==='confirmar_transferencia'){

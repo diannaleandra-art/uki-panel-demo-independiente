@@ -89,3 +89,20 @@ test('Romo y Uki: reparto mixto exacto no registra dinero ni permite quitar tran
   assert.equal(saved,1);
  }
 });
+
+test('dinero en otro local y propina por transferencia se mantienen separados de la venta',()=>{
+ const PAY=require('../lib/seguimiento-confirmar-medio-pago-qa.cjs');
+ const source=require('../lib/seguimiento-solicitudes-fuente-v1.cjs');
+ const d=PAY.detalleDistribucion([{medio:'transferencia',monto:6000},{medio:'efectivo',monto:8000}],16000,2000,1500);
+ assert.equal(d.montoTransferencia,7500);
+ assert.equal(PAY.detalleDistribucion([{medio:'transferencia',monto:6000}],16000,2000,1500),null);
+ assert.equal(PAY.detalleDistribucion([],16000,16000,0).montoTransferencia,0);
+ assert.equal(PAY.detalleDistribucion([],16000,16000,1000).montoTransferencia,1000);
+ assert.equal(PAY.detalleDistribucion([],16000,17000,0),null);
+ const data={origen:'carta-normal',medioPagoConfirmadoPor:'QA-agendador',medioPagoConfirmadoTotal:16000,
+  medioPagoConfirmadoEn:'2026-11-24T12:00:00Z',pagos:d.pagos,montoOtroLocalSeguimiento:2000,propinaTransferenciaSeguimiento:1500};
+ assert.equal(source.paymentFromSavedData(data,16000).transferAmount,7500);
+ assert.equal(source.paymentFromSavedData({...data,montoOtroLocalSeguimiento:3000},16000),null);
+ assert.equal(source.paymentFromSavedData({...data,propinaTransferenciaSeguimiento:-1},16000),null);
+ assert.equal(source.paymentFromSavedData({...data,medioPagoConfirmadoPor:null},16000),null);
+});
