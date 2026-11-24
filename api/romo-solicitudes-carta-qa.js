@@ -155,11 +155,26 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
      db:writer,body:req.body,ipHash,
      cotizador:args=>quote.cotizarSolicitudRomoServidorQA(args)
    });
-   // El identificador interno no se entrega públicamente. El seguimiento
-   // sólo se emite cuando está configurado en QA y el registro ya existe.
+   // El cliente recibe su enlace desde la carta en cuanto se guarda la solicitud.
+   // El token nunca se gira de nuevo al reintentar el mismo pedido.
    const {trackingId,...publicResult}=result;
-   if(process.env.ROMO_SEGUIMIENTO_QA_ENABLED==='true'&&trackingId)
-    publicResult.seguimientoEstado='esperando_aceptacion';
+   if(process.env.ROMO_SEGUIMIENTO_QA_ENABLED==='true'&&trackingId){
+    const stage=require('../lib/seguimiento-qa-entorno-v1.cjs').config();
+    if(stage&&stage.urls[STORE]===conf.write){
+     try{
+      const tracker=require('../lib/seguimiento-qa-servidor-v1.cjs');
+      const item=await tracker.issueForRegistered({
+       db:writer,storeId:STORE,orderId:trackingId,requestKey:req.body.key,
+       secret:stage.tokenSecret
+      });
+      publicResult.seguimientoEnlace=stage.origin+
+       '/seguimiento-pedido-qa.html#t='+encodeURIComponent(item.token);
+      publicResult.seguimientoEstado='esperando_aceptacion';
+     }catch{
+      publicResult.seguimientoEstado='no_disponible';
+     }
+    }
+   }
    return res.status(result.repetido?200:201).json(publicResult);
   }
   const identityModule=await import('../lib/romo-identidad-servidor-qa.mjs');
