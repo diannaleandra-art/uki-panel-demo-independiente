@@ -41,7 +41,7 @@ module.exports=async(req,res)=>{
     const plan=OP.normalizeOrder(storeId,r);
     return plan?{
      id:r.id,codigoPedido:plan.codigo,cliente:String(r.cliente||'').slice(0,80),
-     estadoPedido:plan.estado,metodoPago:plan.metodoPago,
+     estadoPedido:plan.estado,metodoPago:plan.metodoPago,pagoDeclarado:plan.pagoDeclarado,
      montoTransferencia:plan.montoTransferencia,
      estadoPago:!r.estado_pago?'pendiente':r.monto_transferencia===plan.montoTransferencia?r.estado_pago:'requiere_revision',
      clienteAvisoEn:r.cliente_aviso_en||null,ultimaConsulta:r.ultima_consulta||null
