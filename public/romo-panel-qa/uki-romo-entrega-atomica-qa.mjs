@@ -4,6 +4,7 @@
  * No cambia pagado, importes ni caja. Historial de modificación y
  * persistencia CAS + AES-GCM, sin escribir en Uki.
  */
+import './uki-romo-transferencias-qa.js';
 export const ROMO_ENTREGAS_HABILITADAS_QA=false;
 const SUC='Romo’s Sushi La Serena';
 const fail=msg=>{throw Error(msg)};
@@ -32,6 +33,8 @@ export function prepararEntregaRomoQA(estado,{pedidoId,responsable,registradoEn}
   fail('No se identifica el turno original de Romo');
  if(estado.cierres.some(c=>c?.suc===SUC&&c.turnoClave===pedido.turnoClave))
   fail('No se modifica un pedido después del cierre definitivo de su turno');
+ const bloqueoTransferencia=globalThis.ukiRomoTransferenciasQA.bloqueo(pedido);
+ if(bloqueoTransferencia)fail(bloqueoTransferencia);
  const numero=String(pedido.telefono||'').replace(/\D/g,'');
  if(pedido.timbreReglaObligatoria===true&&pedido.pagado===true&&
     numero.length>=8&&!pedido.timbreEnviadoEn)

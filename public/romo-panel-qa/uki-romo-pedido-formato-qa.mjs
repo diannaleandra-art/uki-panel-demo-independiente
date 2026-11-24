@@ -191,7 +191,7 @@ export async function construirCandidatoRomoFormatoUkiQA({estado,draft,contexto}
      envio:entero(draft.montoEnvioOtroLocal,'delivery en otro local',1)):0,
    localPagoExterno:draft.localPagoExterno||'',
    confirmoPagoExterno:!!(draft.productosPagadosOtroLocal||draft.envioPagadoOtroLocal),
-   propinaMonto:propina,medioPropina
+   propinaMonto:propina,medioPropina,revisionTransferencia:draft.romoRevisionTransferencia
   });
   timbreQA(p,draft);
  }else{

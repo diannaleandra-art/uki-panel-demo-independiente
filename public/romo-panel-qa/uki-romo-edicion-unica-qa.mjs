@@ -1,5 +1,6 @@
 /* Edición pagada en un solo paso: guarda la misma venta, conserva la identidad
    del pedido y el timbre, y deja las diferencias reales pendientes. Copia pura. */
+import './uki-romo-transferencias-qa.js';
 const SUC='Romo’s Sushi La Serena';
 const fail=m=>{throw Error(m);};
 const t=x=>String(x??'').trim();
@@ -128,6 +129,7 @@ export function prepararEdicionUnicaRomoQA({estado,pedidoId,draft,responsable,me
  const saldo=suma(oldReceived)-suma(expected);
  if(saldo)nuevo.ajusteCobroPendiente={estado:'pendiente',recibido:copy(oldReceived),saldo,fechaISO:new Date(registradoEn).toISOString()};
  const reclasificar=saldo===0&&!equal(oldReceived,expected);
+ globalThis.ukiRomoTransferenciasQA.invalidar(p,nuevo,registradoEn);
  const antes=foto(p),despues=foto(nuevo),fechaISO=new Date(registradoEn).toISOString();
  const ev={tipo:'edicion_unica_turno_abierto',responsable:autor,fecha:fechaISO,fechaISO,registradoEn,
   motivo:'Corrección del mismo pedido; sin nuevo cobro ni timbre',anterior:antes,nuevo:despues,recibidoOriginal:oldReceived,distribucionNueva:expected,saldoPendiente:saldo};

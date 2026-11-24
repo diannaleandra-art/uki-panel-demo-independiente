@@ -5,6 +5,7 @@
  */
 import {efectosEnCopia} from './uki-romo-pedido-formato-qa.mjs';
 import {telefonoTimbreRomoValidoQA} from './uki-romo-timbres-atomicos-qa.mjs';
+import './uki-romo-transferencias-qa.js';
 export const ROMO_COBRO_PENDIENTE_HABILITADO_QA=false;
 const SUC='Romo’s Sushi La Serena';
 const METODOS=['Efectivo','Transferencia','Débito','Edenred','Junaeb','Otros','Uber Eats','PedidosYa','Rappi'];
@@ -47,7 +48,7 @@ export function prepararCobroPendienteRomoQA(estado,{
  medioProductos='Efectivo',medioEnvio='Efectivo',
  pagosProductos=[],pagosEnvio=[],
  productosOtroLocal=0,envioOtroLocal=0,localPagoExterno='',
- confirmoPagoExterno=false,propinaMonto=0,medioPropina='Efectivo'
+ confirmoPagoExterno=false,propinaMonto=0,medioPropina='Efectivo',revisionTransferencia=null
 }={}){
  need(estado?.suc===SUC&&Array.isArray(estado.pedidos)&&
   Array.isArray(estado.propinas)&&Array.isArray(estado.cierres)&&
@@ -120,6 +121,12 @@ export function prepararCobroPendienteRomoQA(estado,{
   total:subtotal-prodFuera,permitidos:METODOS,nombre:'productos'});
  const del=mediosConfirmados({lineas:pagosEnvio,medio:medioEnvio,
   total:envio-envFuera,permitidos:METODOS_ENVIO,nombre:'delivery'});
+ const revision=globalThis.ukiRomoTransferenciasQA.preparar({...p,
+  medio:prod.medio,medioEnvio:del.medio,pagosProductos:prod.lineas,pagosEnvio:del.lineas,
+  productosPagadosOtroLocal:prodFuera>0,montoProductosOtroLocal:prodFuera,
+  envioPagadoOtroLocal:envFuera>0,montoEnvioOtroLocal:envFuera,
+  propina,medioPropina},revisionTransferencia,stamp);
+ globalThis.ukiRomoTransferenciasQA.validarReferencia(estado.pedidos,id,revision,SUC);
  p.pagado=true;p.medio=prod.medio;p.medioEnvio=del.medio;
  p.productosPagadosOtroLocal=prodFuera>0;
  p.montoProductosOtroLocal=prodFuera;
@@ -142,6 +149,7 @@ export function prepararCobroPendienteRomoQA(estado,{
    productosOtroLocal:prodFuera,envioOtroLocal:envFuera,
    localPagoExterno:p.localPagoExterno,propina,medioPropina}};
  p.historialCambios=[...(p.historialCambios||[]),evento].slice(-100);
+ globalThis.ukiRomoTransferenciasQA.registrar(p,revision);
  // Misma contabilidad auxiliar de cliente/propina que el pedido pagado de Romo.
  efectosEnCopia(estado,p,stamp);
  return Object.freeze({pedidoId:id,total:p.total,propina,externo:prodFuera+envFuera,
