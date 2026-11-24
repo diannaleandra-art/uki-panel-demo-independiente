@@ -16,13 +16,16 @@ module.exports=async(req,res)=>{
  if(!ENV.validOrigin(req,cfg))return respond(res,403,{permitido:false,error:'Origen no autorizado'});
  if(req.method!=='GET')return respond(res,405,{permitido:false,error:'Método no permitido'});
  const storeId=req.query?.storeId,orderId=req.query?.id;
+ const transferFlag=req.query?.requiereTransferencia;
+ if(transferFlag!==undefined&&!['0','1'].includes(transferFlag))
+  return respond(res,400,{permitido:false,error:'Verificación de pago inválida'});
  if(typeof storeId!=='string'||!TABLES[storeId]||typeof orderId!=='string'||!UUID.test(orderId))
   return respond(res,400,{permitido:false,error:'Pedido y sucursal inválidos'});
  try{
   const db=ENV.makeDb(cfg,storeId);
   const actor=await AUTH.authorized(req,db,storeId).catch(()=>null);
   if(!actor)return respond(res,403,{permitido:false,error:'Personal sin permiso para esta sucursal'});
-  const result=await GUARD.check({db,storeId,orderId});
+  const result=await GUARD.check({db,storeId,orderId,requiereTransferencia:transferFlag==='1'});
   return respond(res,200,{storeId,orderId,permitido:result.permitido,razon:result.razon,
    soloVerificacionQA:true,noRegistraPago:true,noCierraPedido:true});
  }catch(error){
