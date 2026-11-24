@@ -9146,6 +9146,18 @@ async function ukiRomoAceptarSolicitudCartaQA(){
    confirmoArmado:true,confirmoImportes:true,confirmoPago:pagoConfirmadoAhora
   });
   if(result?.estado!=='aceptada')throw Error('No se confirmó la aceptación.');
+  // Sólo tras el guardado atómico confirmado, enlazar en QA el medio
+  // del pedido habitual, NUNCA el dinero recibido ni la caja.
+  // Se mantiene cerrado hasta aprobar la prueba en las 3 sucursales.
+  if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED===true){
+   const acceptedOrder=(S.pedidos||[]).find(p=>
+    p.suc===ROMO_SUCURSAL_QA&&Number(p.id)===Number(result.pedidoId)&&
+    String(p.cartaSolicitudRemotaId||'')===requestId);
+   if(acceptedOrder)
+    void window.ukiQAConfirmPaymentMethodAfterSave?.({
+     storeId:'romo:serena',solicitudId:requestId,pedido:acceptedOrder
+    });
+  }
  }catch(e){
   aviso('La aceptación no está confirmada en pantalla. NO repitas ni cobres sin revisar bandeja y Neon: '+
    String(e?.message||e));
