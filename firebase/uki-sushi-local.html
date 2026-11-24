@@ -285,6 +285,7 @@ color:#955115;box-shadow:0 2px 10px rgba(0,0,0,.12);font-weight:800;font-size:19
 </section>
 <button id="ukiMostrarConfig" type="button" hidden aria-expanded="false" aria-controls="ukiNubeSeccion">⚙️ Configuración de nube</button>
 <div id="ukiAvisoInterno" class="aviso" style="margin:10px 12px 0;background:#fce8d7;border:1px solid #efb57c;font-weight:600">USO INTERNO · SOLO PERSONAL AUTORIZADO · NO COMPARTIR CON CLIENTES</div><main id="app"><div class="aviso">✅ v8 Timbres - 6 ventas = 12 piezas / 10 ventas = 36 + 2 korokes</div><div class="card"><h2>Bienvenida a Uki Sushi</h2><p class="muted">Tarjeta de timbres: 6 ventas = 12 piezas gratis, 10 ventas = 36 piezas + 2 korokes</p><button class="big" onclick="pedirPin('Uki Regimiento Arica')">Uki Regimiento Arica</button><button class="big" onclick="pedirPin('Uki La Serena')">Uki La Serena</button><button class="big" onclick="location.assign('https://romos-sushi-panel.vercel.app/')">Romo’s Sushi La Serena</button></div><div class="card"><h2>💾 Respaldo para computador</h2><button class="big" onclick="descargarRespaldoCompleto()">💾 Descargar respaldo con tarjetas</button><label class="muted">Cargar respaldo</label><input type="file" accept=".json" onchange="cargarRespaldo(event)"></div></main>
+<script src="./uki-transferencias.js?v=20261124"></script>
 <script>
 const SUCURSALES=["Uki Regimiento Arica","Uki La Serena"];
 const MEDIOS=["Efectivo","Transferencia","Débito","Edenred","Otros","Uber Eats","PedidosYa","Rappi"];
@@ -670,7 +671,7 @@ function ukiCapturarVistaAntesRender(){
  if(!app||S.vista!==ukiUltimaVistaRender||S.suc!==ukiUltimaSucursalRender)return null;
  const abiertas=new Map(),campos=new Map();
  for(const d of app.querySelectorAll('details'))abiertas.set(ukiClaveVentanaDetalle(d,app),d.open);
- for(const el of app.querySelectorAll('[id^="motivoCancelacion"],[id^="detalleCancelacion"],[id^="cobroCancelacion"],[id^="respCancelacion"]'))
+ for(const el of app.querySelectorAll('[id^="motivoCancelacion"],[id^="detalleCancelacion"],[id^="cobroCancelacion"],[id^="respCancelacion"],[id^="ukiTransferenciaResponsable"],[id^="ukiTransferenciaReferencia"]'))
   campos.set(el.id,el.value);
  const focus=document.activeElement,focusId=focus&&app.contains(focus)?focus.id:null;
  let seleccion=null;
@@ -700,7 +701,7 @@ function ukiEscribiendoCancelacion(){
  const el=document.activeElement,app=$('app');
  return S.vista==="pedidos"&&!S.msg&&!cancelacionGuardando&&
   !!el&&!!app&&app.contains(el)&&
-  /^(motivoCancelacion|detalleCancelacion|cobroCancelacion|respCancelacion)\d+$/.test(String(el.id||""));
+  /^(motivoCancelacion|detalleCancelacion|cobroCancelacion|respCancelacion|ukiTransferenciaResponsable|ukiTransferenciaReferencia)\d+$/.test(String(el.id||""));
 }
 function render(){
   // Una notificación de nube no debe destruir el campo mientras se está escribiendo.
@@ -1787,6 +1788,7 @@ function vNuevo(){
   const pendienteEdicion=!!ukiCobroPendiente(pedidoEdicion);
    const entregaUI=`<label>Tipo de entrega</label><div class="chips">${["Retiro","Delivery","Consumo en local"].map(m=>`<button ${chip(D.modalidad===m)} onclick="setModalidad('${m}')">${m}</button>`).join("")}</div>${D.modalidad==="Consumo en local"?`<label>Mesa o referencia (opcional)</label><input maxlength="50" value="${esc(D.mesaReferencia||"")}" placeholder="Ej: Mesa 2" oninput="D.mesaReferencia=this.value">`:""}${D.modalidad==="Delivery"?`<label>💰 Valor delivery (se suma)</label><input type="number" inputmode="numeric" value="${D.envio||""}" placeholder="Ej: 2000" oninput="setEnvioManual(this.value)"><p class="muted" id="pedidoEnvioAyuda">Delivery seleccionado - ${D.envio||0} se suma al total</p><label>🛵 Kilómetros del recorrido (opcional, no cambia el precio)</label><input id="ukiKmRecorrido" type="text" inputmode="decimal" value="${esc(D.kmRecorrido??"")}" placeholder="Ej: 4,5" onchange="D.kmRecorrido=this.value.trim();render()"><p class="muted">Si el recorrido viene escrito en el mensaje original, el panel también puede leerlo. No modifica el valor del delivery.</p>`:""}`;
   return `<div class="section-head"><h2>${D.editando?`Editar pedido #${D.editando}`:revisandoSolicitud?"Revisar solicitud":"Nuevo pedido"}</h2><p>${D.editando?"Corrige los datos y el medio de pago del pedido existente. Guardar cambios no genera otro pedido ni otro cobro.":revisandoSolicitud?"Solicitud recibida: verifica el detalle y la forma de entrega. Todavía NO es un pedido registrado ni un pago confirmado.":"Completa los datos y guarda el pedido una sola vez."}</p></div>
+  ${revisandoSolicitud?`<div class="card" style="border:2px solid var(--accent)"><b>Solicitud lista para aceptar · ${fmt(total)}</b><p class="muted">Acepta el pedido cuando lo acuerdes por WhatsApp. La transferencia se revisa por separado y el pedido puede quedar por cobrar.</p><button class="big" type="button" onclick="ndGuardar()">${D.pagado?'Aceptar pedido · pago confirmado':'Aceptar pedido · por cobrar'}</button></div>`:''}
   ${ukiVistaBorradores()}
   <details class="uki-modos-ingreso" ${revisandoSolicitud?'':'open'} style="${D.editando?'display:none;':'margin:10px 0'}"><summary><b>${revisandoSolicitud?'Ver mensaje original':'Opciones de ingreso · WhatsApp o manual'}</b></summary>
    ${revisandoSolicitud?'':`<div class="mode-switch" role="group" aria-label="Modo de ingresar pedido"><button type="button" class="${modoNuevo==='whatsapp'?'selected':''}" onclick="cambiarModoNuevo('whatsapp')">📋 Pegar WhatsApp</button><button type="button" class="${modoNuevo==='manual'?'selected':''}" onclick="cambiarModoNuevo('manual')">✎ Manual</button></div>`}
@@ -1826,6 +1828,7 @@ function vNuevo(){
     ${D.modalidad==="Delivery"?(D.envioPagadoOtroLocal?
       `<p class="muted"><b>Delivery ${fmt(envio)}:</b> se incluirá en los deliverys de Uki para el repartidor, pero NO como ingreso de la caja porque lo cobraron en otro local.</p>`:
       `<label>Pago del delivery recibido en Uki · ${fmt(envio)}</label>${ukiPagoUI("envio",envio)}`):""}
+    ${ukiTransferenciaUI(D,true)}
     <label class="check"><input type="checkbox" ${D.pagado?"checked":""} onchange="D.pagado=this.checked;render()"> <b>Pago completo confirmado</b></label>
     <p class="muted">Solo se consideran ventas los pagos completos confirmados. Los montos mixtos deben sumar exactamente lo que corresponde.</p></div>
   ${pedidoEdicion?.pagado&&(deltaEdicion!==0||pendienteEdicion)?
@@ -1848,7 +1851,7 @@ function ukiFotoCorreccionPedido(p){
   "mesaReferencia","envio","kmRecorrido","medio","medioEnvio","pagado","pagosProductos","pagosEnvio",
   "productosPagadosOtroLocal","montoProductosOtroLocal","envioPagadoOtroLocal",
   "montoEnvioOtroLocal","localPagoExterno","productos","total","subtotal","propina",
-  "propinaModo","propinaPersonalizada","medioPropina","textoOriginal"];
+  "propinaModo","propinaPersonalizada","medioPropina","textoOriginal","transferenciaVerificacion","historialTransferencias"];
  const foto={};
  for(const k of campos)foto[k]=p[k]===undefined?null:JSON.parse(JSON.stringify(p[k]));
  return foto;
@@ -1993,6 +1996,7 @@ function ukiVCorreccionesPedidoCierre(c){
   '</div>').join("")+'</details>';
 }
 function editarPedido(id){const p=S.pedidos.find(x=>x.id===id); if(!p)return; if(p.estado==="Cancelado"){aviso("El pedido cancelado permanece en el historial y no se puede editar.");return;} D={texto:p.textoOriginal||"",fecha:p.fechaISO||ahora(),cliente:p.cliente||"",telefono:p.telefono||"",codigoCarta:p.codigoCarta||"",codigoCliente:p.codigoCliente||"",qrSolicitudes:Array.isArray(p.qrSolicitudes)?p.qrSolicitudes.slice():[],sucursalCarta:p.sucursalCarta||"",mesaReferencia:p.mesaReferencia||"",modalidad:p.modalidad||"Retiro",envio:p.envio||0,kmRecorrido:p.kmRecorrido??"",medio:p.medio||"Efectivo",medioEnvio:p.medioEnvio||"Efectivo",pagado:!!p.pagado,
+...ukiTransferenciaCampos(p),
 mixtoProductos:Array.isArray(p.pagosProductos)&&p.pagosProductos.length>0,
 mixtoEnvio:Array.isArray(p.pagosEnvio)&&p.pagosEnvio.length>0,
 pagosProductos:(p.pagosProductos||[]).map(x=>({...x})),
@@ -3074,7 +3078,7 @@ function ukiErrorDistribucionPago(p,sub,envio){
 }
 function ukiDatosPago(d,sub){
  const externo=ukiMontoProductosOtroLocal(d,sub);
- return {pagosProductos:d.mixtoProductos&&sub>externo?(d.pagosProductos||[]).map(x=>({medio:x.medio,monto:Number(x.monto)})):[],
+ return {...ukiTransferenciaCampos(d),pagosProductos:d.mixtoProductos&&sub>externo?(d.pagosProductos||[]).map(x=>({medio:x.medio,monto:Number(x.monto)})):[],
    pagosEnvio:(d.mixtoEnvio&&ukiMontoEnvioOtroLocal(d,Number(d.envio)||0,sub)<(Number(d.envio)||0))?(d.pagosEnvio||[]).map(x=>({medio:x.medio,monto:Number(x.monto)})):[],
    envioPagadoOtroLocal:!!(d.modalidad==="Delivery"&&d.envioPagadoOtroLocal),
    montoEnvioOtroLocal:d.envioPagadoOtroLocal&&d.montoEnvioOtroLocal!==undefined&&d.montoEnvioOtroLocal!==null&&d.montoEnvioOtroLocal!==""?Number(d.montoEnvioOtroLocal):"",
@@ -3106,9 +3110,9 @@ function ukiPagoUI(tipo,total){
  if(!D[flag])return toggle+'<div class="chips">'+choices.map(m=>'<button class="chip'+(D[single]===m?' on':'')+'" onclick="D.'+single+'=this.textContent;render()">'+esc(m)+'</button>').join("")+'</div>';
  const lines=D[key]||[];
  return toggle+'<p class="muted">Los montos deben sumar '+fmt(total)+'.</p>'+
-   lines.map((x,i)=>'<div style="display:grid;grid-template-columns:1fr 110px auto;gap:6px;align-items:end;margin:8px 0"><select onchange="D.'+key+'['+i+'].medio=this.value" aria-label="Medio '+(i+1)+'">'+
+   lines.map((x,i)=>'<div style="display:grid;grid-template-columns:1fr 110px auto;gap:6px;align-items:end;margin:8px 0"><select onchange="D.'+key+'['+i+'].medio=this.value;render()" aria-label="Medio '+(i+1)+'">'+
      choices.map(m=>'<option '+(x.medio===m?'selected ':'')+'value="'+esc(m)+'">'+esc(m)+'</option>').join("")+
-     '</select><input type="number" inputmode="numeric" min="1" step="1" placeholder="Monto" aria-label="Monto '+(i+1)+'" value="'+esc(x.monto||"")+'" oninput="D.'+key+'['+i+'].monto=this.value">'+
+     '</select><input type="number" inputmode="numeric" min="1" step="1" placeholder="Monto" aria-label="Monto '+(i+1)+'" value="'+esc(x.monto||"")+'" oninput="D.'+key+'['+i+'].monto=this.value" onchange="render()">'+
      (lines.length>2?'<button class="sm" onclick="ukiQuitarPago(\''+tipo+'\','+i+')">✕</button>':'<span></span>')+'</div>').join("")+
    (lines.length<6?'<button class="sm" onclick="ukiAgregarPago(\''+tipo+'\')">+ Otro medio</button>':"");
 }
@@ -3882,6 +3886,8 @@ function ukiOrigenPedido(p){
 function ukiMarcarPedidoEntregado(id){
  const p=(S.pedidos||[]).find(x=>x.id===Number(id)&&x.suc===S.suc);
  if(!p||p.estado!=='Pendiente'||p.esPremio)return aviso('Solo puedes confirmar la entrega de un pedido pendiente.');
+ const errorTransferencia=ukiTransferenciaErrorFinalizar(p);
+ if(errorTransferencia)return aviso(errorTransferencia);
  if(p.timbreReglaObligatoria&&p.pagado&&ukiNumeroTimbreWhatsApp(p.telefono)&&!p.timbreEnviadoEn)
   return aviso('Antes de finalizar este pedido, envía y confirma su timbre por WhatsApp.');
  if(!window.confirm('¿Confirmas que el cliente recibió este pedido? Su pago y caja no cambiarán.'))return;
@@ -4268,7 +4274,7 @@ async function ukiMesaCerrarPagadasCentralSeguro(){
   // Solo liberar cuando el pedido CIFRADO ya está pagado y contiene
   // todas las rondas QR de esa cuenta, sin otras cuentas mezcladas.
   return saved.pedidos.some(p=>
-   p.suc===S.suc&&p.modalidad==='Consumo en local'&&p.pagado===true&&
+   p.suc===S.suc&&p.modalidad==='Consumo en local'&&p.pagado===true&&!ukiTransferenciaErrorFinalizar(p)&&
    p.estado!=='Cancelado'&&ukiMesaNumeroReferencia(p.mesaReferencia)===Number(c.mesa)&&
    Number(p.subtotal)>=Number(c.total)&&
    detalle.every(r=>ukiPedidoTieneQR(p,ukiMesaCode(r.id)))&&
@@ -4494,7 +4500,7 @@ function vPedidos(){
   </details>
   <details class="card uki-bloque-incidencias" ${erroresAbiertos?'open':''}><summary onclick="erroresAbiertos=!erroresAbiertos"><b>⚠️ Errores e incidencias</b> · ${pendientes} pendientes</summary><label>Buscar errores por dia de reporte</label><input id="diaErrorFiltro" type="date" value="${esc(filtroDiaIncidencias)}"><button class="sm ok" onclick="aplicarDiaIncidencias()">Buscar errores</button><p class="muted">Los reportes se conservan aunque se cierre la caja del dia.</p>${incidencias.length?incidencias.map(x=>renderIncidencia(x,"lista")).join(""):"<p class='muted'>No hay errores para esta busqueda.</p>"}</details>
   ${visibles.map(p=>`<details data-uki-pedido-id="${p.id}" class="card order-card ${p.estado==="Cancelado"?"uki-pedido-cancelado":p.esPremio?"uki-pedido-premio":p.estado==="Entregado"&&p.pagado?"uki-pedido-entregado":p.pagado?"uki-pedido-pagado":"uki-pedido-cobrar"}">
-    <summary><div class="order-head"><div><b>${esc(ukiReferenciaConCarta(p))} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)} · Origen: ${esc(ukiOrigenPedido(p))}${p.modalidad==="Delivery"?" · 🛵 "+esc(ukiKmTexto(p)):""}${ukiPropinaVisiblePedido(p)>0?" · 💝 Propina "+fmt(ukiPropinaVisiblePedido(p)):""}${ukiCodigoClienteVisible(p)?" · Código cliente: "+esc(ukiCodigoClienteVisible(p)):""}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small class="uki-estado-badge">${p.esPremio?'🎁 Premio':p.estado==="Cancelado"?'Cancelado':p.estado==="Entregado"&&p.pagado?'✓ Entregado':p.pagado?'✓ Pagado · por entregar':'$ Por cobrar'}${erroresPedidos.has(p.id)?' · ⚠️ Con error':''}</small></div></div></summary>
+    <summary><div class="order-head"><div><b>${esc(ukiReferenciaConCarta(p))} · ${esc(p.cliente||"Sin nombre")}</b><span class="muted">${fechaTxt(p.fechaISO)} · ${esc(p.modalidad)} · Origen: ${esc(ukiOrigenPedido(p))}${p.modalidad==="Delivery"?" · 🛵 "+esc(ukiKmTexto(p)):""}${ukiPropinaVisiblePedido(p)>0?" · 💝 Propina "+fmt(ukiPropinaVisiblePedido(p)):""}${ukiCodigoClienteVisible(p)?" · Código cliente: "+esc(ukiCodigoClienteVisible(p)):""}</span></div><div class="order-right"><strong>${fmt(p.total)}</strong><small class="uki-estado-badge">${p.esPremio?'🎁 Premio':p.estado==="Cancelado"?'Cancelado':p.estado==="Entregado"&&p.pagado?'✓ Entregado':p.pagado?(ukiTransferenciaVigente(p)?'✓ Pagado · por entregar':'Transferencia por revisar'):'$ Por cobrar'}${erroresPedidos.has(p.id)?' · ⚠️ Con error':''}</small></div></div></summary>
     <div class="order-body"><p class="muted">${esc(p.estado==="Entregado"&&!p.pagado?"Pendiente de pago · Entrega anterior por revisar":p.estado||"Pendiente")} · ${esc(p.medio||'Efectivo')}${p.telefono?' · '+esc(p.telefono):''}</p>${p.estado==="Cancelado"?`<p class="muted"><b>Motivo:</b> ${esc(p.motivoCancelacion==="cliente"?"Cancelado por el cliente":p.motivoCancelacion==="local"?"Cancelado por el local":"No informado")}${p.motivoDetalleCancelacion?" · "+esc(p.motivoDetalleCancelacion):""}${p.canceladoEn?" · "+esc(fechaTxt(p.canceladoEn)):""}</p>`:""}
     ${(p.productos||[]).map(pr=>`<div class="row"><span>${pr.cantidad}x ${esc(pr.nombre)}${pr.detalle?` · ${esc(pr.detalle)}`:''}</span><b>${fmt(pr.cantidad*pr.precioUnit)}</b></div>`).join('')}
     ${p.envio?row('Delivery',fmt(p.envio)):''}
@@ -4507,6 +4513,7 @@ function vPedidos(){
     ${p.mesaReferencia?`<p class="muted">Mesa: ${esc(p.mesaReferencia)}</p>`:""}
     ${!p.esPremio?ukiDetalleCuentaVista(p):""}
     ${ukiDetallePago(p,"productos")}${ukiDetallePago(p,"envio")}
+    ${p.esPremio?'':ukiTransferenciaUI(p)}
     ${ukiCodigoClienteVisible(p)?`<p class='muted'>Código cliente: ${esc(ukiCodigoClienteVisible(p))}</p>`:''}
     ${p.textoOriginal&&!p.esPremio?`<details class="inner-details"><summary>Ver WhatsApp original</summary><p style="white-space:pre-wrap">${esc(p.textoOriginal)}</p></details>`:''}
     ${ukiVCorreccionesPedido(p)}
@@ -4548,16 +4555,22 @@ function ukiImporteMedios(x){return Object.values(x||{}).reduce((t,n)=>t+(Number
 function ukiCobroFisicoPedido(p){return ukiCobroPendiente(p)?.recibido||ukiCobrosRealesMedios(p);}
 function ukiPrepararAjusteCobro(antes,despues,yaRegularizado){
  const recibido=ukiCobroFisicoPedido(antes),corregido=ukiCobrosRealesMedios(despues);
- if(yaRegularizado||ukiImporteMedios(recibido)===ukiImporteMedios(corregido))return null;
+ if(yaRegularizado)return null;
+ const saldo=ukiImporteMedios(recibido)-ukiImporteMedios(corregido);
+ const mediosDistintos=[...new Set([...Object.keys(recibido),...Object.keys(corregido)])]
+  .some(m=>Number(recibido[m]||0)!==Number(corregido[m]||0));
+ const cambiaTransferencia=mediosDistintos&&(Number(recibido.Transferencia)>0||Number(corregido.Transferencia)>0);
+ if(saldo===0&&!cambiaTransferencia)return null;
  return {estado:"pendiente",recibido:{...recibido},
-  saldo:ukiImporteMedios(recibido)-ukiImporteMedios(corregido),fechaISO:ahora()};
+  saldo,tipo:saldo===0?'redistribucion_medios':'diferencia_importe',fechaISO:ahora()};
 }
 function ukiDiferenciaPedidoUI(p){
  const q=ukiCobroPendiente(p);if(!q)return '';
- const n=Number(q.saldo)||0,txt=n>0&&!p.pagado?'Cobro anterior por aclarar (no necesariamente devolución)':n>0?'Por devolver al cliente':n<0?'Por cobrar al cliente':'Diferencia de cobro';
+ const n=Number(q.saldo)||0,txt=n>0&&!p.pagado?'Cobro anterior por aclarar (no necesariamente devolución)':n>0?'Por devolver al cliente':n<0?'Por cobrar al cliente':'Medios de pago por conciliar';
  const accion=n>0?'Confirmar devolución realizada':n<0?'Confirmar cobro adicional realizado':'Regularizar diferencia';
  return '<div class="card" style="padding:12px;border-left:3px solid var(--accent)">'+
-  '<p class="muted"><b>⚠️ '+txt+': '+fmt(Math.abs(n))+'</b></p>'+
+  '<p class="muted"><b>⚠️ '+txt+(n!==0?': '+fmt(Math.abs(n)):'')+'</b></p>'+
+  (n===0?'<p class="muted">Se conserva el dinero registrado: '+Object.entries(q.recibido||{}).map(([m,v])=>esc(m)+' '+fmt(v)).join(' + ')+'. Confirma los medios correctos antes de actualizar la caja.</p>':'')+
   '<p class="muted">'+(n>0&&!p.pagado?'Si se marcó Pagado por error, acláralo dentro de «Cancelar pedido». ':'')+'Confirma una devolución solo si realmente se entregó dinero al cliente. El panel no mueve dinero automáticamente.</p>'+
   (esDelPeriodo(p)&&!ukiCierreConfirmadoPedido(p)?
    '<button class="sm ok" type="button" onclick="ukiConfirmarDiferenciaPedido('+Number(p.id)+')">'+accion+'</button>':
@@ -4573,6 +4586,9 @@ function ukiConfirmarDiferenciaPedido(id){
  }
  const n=Number(q.saldo)||0;
  if(!Number.isSafeInteger(n)){aviso('Monto pendiente inválido. Revisa el pedido.');return;}
+ if(n<=0&&!ukiTransferenciaVigente(p)){
+  aviso('Antes de confirmar el cobro o sus medios, registra la revisión del importe actual por transferencia en el detalle del pedido.');return;
+ }
  const accion=n>0?'¿Confirmas que YA devolviste '+fmt(n)+' al cliente?':
   n<0?'¿Confirmas que YA recibiste '+fmt(-n)+' del cliente?':
   '¿Confirmas que el medio y el cobro ya fueron conciliados?';
@@ -4683,6 +4699,8 @@ async function ndGuardar(){
   if(D.editando&&!originalQR){
     aviso('No se encontró el pedido original. Actualiza la lista antes de editar.');return;
   }
+  const errorTransferencia=ukiTransferenciaErrorNuevoPago(D,originalQR);
+  if(errorTransferencia){aviso(errorTransferencia);return;}
   const editandoPagoQRConfirmado=ukiQREsCorreccionDePagoExistente(D,originalQR);
   const editandoQRRegistrado=!!(originalQR&&originalQR.suc===S.suc&&
     Number(D.editando)===Number(originalQR.id)&&
@@ -4836,6 +4854,8 @@ async function ndGuardar(){
         }
       }
       p.fechaISO=D.fecha; p.cliente=D.cliente; p.telefono=D.telefono||"";p.codigoCarta=D.codigoCarta||"";p.codigoCliente=D.codigoCliente||"";p.qrSolicitudes=Array.isArray(D.qrSolicitudes)?[...new Set(D.qrSolicitudes)]:[];p.sucursalCarta=D.sucursalCarta||""; p.mesaReferencia=D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():""; p.modalidad=D.modalidad; p.envio=envio; p.kmRecorrido=kmRecorrido; p.medio=D.medio; p.medioEnvio=D.medioEnvio; Object.assign(p,datosPago); p.estado=ukiEstadoTrasRetirarPago(snapshot,D.pagado);p.pagado=D.pagado; p.productos=D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det,...ukiDatosCatalogoItem(x)})); p.total=total; p.subtotal=sub; p.propina=propina;p.propinaModo=D.propinaModo;p.medioPropina=D.medioPropina;p.textoOriginal=D.texto;
+      if(!cierreHistorico&&snapshot.pagado&&!D.pagado)
+        ukiTransferenciaRetirarRevision(p,'Se retiró la confirmación del pago.');
       // Un cierre confirmado mantiene intactos sus movimientos de propina y fidelidad.
       if(!cierreHistorico)ukiSincronizarPropinaPedido(p);
       if(!cierreHistorico){
@@ -4848,6 +4868,7 @@ async function ndGuardar(){
             estado:'pendiente',recibido,saldo,fechaISO:ahora()
           };
         }
+        if(p.estado==='Entregado'&&ukiTransferenciaErrorFinalizar(p))p.estado='Pendiente';
         const antes=ukiFotoCorreccionPedido(snapshot),despues=ukiFotoCorreccionPedido(p);
         if(JSON.stringify(antes)!==JSON.stringify(despues)){
           if(!Array.isArray(p.correccionesTurno))p.correccionesTurno=[];
@@ -5401,6 +5422,17 @@ function ukiAjustePedidoOlvidado(){
   const responsable=val("ukiOlvidoResponsable").slice(0,80);
   const motivo=val("ukiOlvidoMotivo").slice(0,300);
   if(!responsable||!motivo)throw Error("Indica quién realiza la corrección y por qué se omitió el pedido.");
+  const medioUki=val("ukiOlvidoMedio");
+  let transferenciaVerificacion=null;
+  if(medioUki==='Transferencia'&&recibidoUki>0){
+    const revision=$('ukiOlvidoTransferenciaRevisada'),referencia=val('ukiOlvidoTransferenciaReferencia').slice(0,120);
+    if(!revision?.checked||Number(revision.dataset.monto)!==recibidoUki)
+      throw Error('Revisa en Santander el abono de '+fmt(recibidoUki)+' y confirma la revisión antes de registrar esta transferencia.');
+    if(responsable.length<2)throw Error('Escribe el nombre de quien revisó la transferencia y registra la corrección.');
+    if(ukiTransferenciaReferenciaUsada(referencia))throw Error('Esa referencia ya está registrada en otro pedido de esta sucursal.');
+    transferenciaVerificacion={version:1,tipo:'manual',monto:recibidoUki,responsable,confirmadoEn:new Date().toISOString(),referencia,
+      firmaDistribucion:JSON.stringify({suc:S.suc,tipo:'pedido_olvidado',medioUki,monto:recibidoUki})};
+  }
   if(codigoCarta){
     const duplicado=(S.pedidos||[]).some(p=>p.suc===S.suc&&String(p.codigoCarta||"").trim()===codigoCarta)||
      (S.ajustesHistoricos||[]).some(p=>p.suc===S.suc&&String(p.codigoCarta||"").trim()===codigoCarta);
@@ -5414,7 +5446,7 @@ function ukiAjustePedidoOlvidado(){
   const item={id:S.nextId++,suc:S.suc,tipo:"pedido_olvidado",cierreMs,fechaOperativa:fechaTurno,
     fechaPedido,fechaISO:new Date().toISOString(),registradoEn:Date.now(),cliente,detalle,codigoCarta,
     modalidad,subtotal,envio,total,pagado:true,recibidoUki,recibidoOtroLocal,deliveryCobradoUki,
-    medioUki:val("ukiOlvidoMedio"),localExterno,repartoRealizado,responsable,motivo};
+    medioUki,localExterno,repartoRealizado,responsable,motivo,transferenciaVerificacion};
   S.ajustesHistoricos.push(item);
   S.filtroFecha=fechaTurno;S.filtro="";
   render();
@@ -5442,9 +5474,13 @@ function ukiVAgregarPedidoOlvidado(){
   input("ukiOlvidoProductos","Total productos ($)","number","7000")+
   '<div id="ukiOlvidoEnvioBloque" style="display:none">'+input("ukiOlvidoEnvio","Valor delivery ($)","number","2000")+
   '<label class="check"><input type="checkbox" id="ukiOlvidoRepartido"> Delivery realmente realizado por repartidor Uki</label></div>'+
-  input("ukiOlvidoUki","Monto cobrado en Uki ($)","number","0 si todo se pagó en otro local")+
+  input("ukiOlvidoUki","Monto cobrado en Uki ($)","number","0 si todo se pagó en otro local").replace('id="ukiOlvidoUki"','id="ukiOlvidoUki" oninput="ukiOlvidoActualizarTransferencia()"')+
   '<div id="ukiOlvidoDeliveryUkiBloque" style="display:none">'+input("ukiOlvidoDeliveryUki","De lo cobrado en Uki, cuánto corresponde a delivery ($)","number","0 si aquí no cobraron delivery")+'</div>'+
-  '<label>Medio recibido en Uki (si cobró)</label><select id="ukiOlvidoMedio">'+medios.map(m=>'<option>'+esc(m)+'</option>').join("")+'</select>'+
+  '<label>Medio recibido en Uki (si cobró)</label><select id="ukiOlvidoMedio" onchange="ukiOlvidoActualizarTransferencia()">'+medios.map(m=>'<option>'+esc(m)+'</option>').join("")+'</select>'+
+  '<div id="ukiOlvidoTransferenciaBloque" style="display:none;padding:12px;border:2px solid #d6aa69;border-radius:10px;margin:10px 0">'+
+  '<label class="check"><input type="checkbox" id="ukiOlvidoTransferenciaRevisada"> Revisé en Santander el abono de <span id="ukiOlvidoTransferenciaMonto">$0</span></label>'+
+  '<p class="muted">La revisión manual quedará a nombre del responsable de esta corrección. Comprueba el dinero recibido en el banco.</p>'+
+  input('ukiOlvidoTransferenciaReferencia','Número de operación (opcional)','text','Referencia en Santander')+'</div>'+
   input("ukiOlvidoExterno","Local que cobró el resto (si corresponde)","text","Ej: Romo")+
   '<label class="check"><input type="checkbox" id="ukiOlvidoPagado"> Pago completo confirmado</label>'+
   input("ukiOlvidoResponsable","Responsable de la corrección","text","Nombre de quien registra")+
@@ -5467,7 +5503,8 @@ function ukiVHistorialCorreccionesCierre(c){
   row("Cobrado en Uki",fmt(x.recibidoUki))+
   row("Cobrado en "+(x.localExterno||"otro local"),fmt(x.recibidoOtroLocal))+
   (x.modalidad==="Delivery"?row("Delivery para conciliar con repartidor",fmt(x.repartoRealizado?x.envio:0)):"")+
-  '<p class="muted">Registrado por '+esc(x.responsable)+' · Motivo: '+esc(x.motivo)+'</p></div>').join("");
+  '<p class="muted">Registrado por '+esc(x.responsable)+' · Motivo: '+esc(x.motivo)+'</p>'+
+  (x.transferenciaVerificacion?'<p class="muted">Transferencia revisada manualmente por '+esc(x.transferenciaVerificacion.responsable)+' · '+fmt(x.transferenciaVerificacion.monto)+' · '+esc(ukiTransferenciaFecha(x.transferenciaVerificacion))+(x.transferenciaVerificacion.referencia?' · Referencia: '+esc(x.transferenciaVerificacion.referencia):'')+'</p>':'')+'</div>').join("");
  return '<details style="margin-top:14px;border:1px solid var(--line);border-radius:12px;padding:12px">'+
   '<summary style="cursor:pointer;font-weight:700">📝 Ajustes posteriores al cierre · '+ajustes.length+'</summary>'+
   '<p class="muted">El cierre original se conserva. Estos importes se registraron después y NO están incluidos en la venta original ni en el pago ya efectuado al repartidor.</p>'+
