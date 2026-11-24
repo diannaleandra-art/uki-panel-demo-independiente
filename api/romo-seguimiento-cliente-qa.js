@@ -4,7 +4,7 @@ const C=require('../lib/romo-seguimiento-transferencia-v1.cjs');
 const CHAT=require('../lib/romo-seguimiento-chat-qa.cjs');
 const {entornoPanelRomoAutorizado}=require('../lib/romo-entorno-panel.cjs');
 function config(e=process.env){
- if(e.VERCEL_ENV!=='preview'||e.VERCEL_GIT_COMMIT_REF!=='preparacion/romo-seguimiento-transferencia-20261124'||!entornoPanelRomoAutorizado(e)||e.ROMO_SEGUIMIENTO_QA_ENABLED!=='true')return null;
+ if(e.VERCEL_ENV!=='preview'||e.VERCEL_GIT_COMMIT_REF!=='preparacion/panel-chat-transferencia-integrado-20261124'||!entornoPanelRomoAutorizado(e)||e.ROMO_SEGUIMIENTO_QA_ENABLED!=='true')return null;
  const origin=String(e.ROMO_CARTA_ALLOWED_ORIGIN||''),panel=String(e.ROMO_PANEL_ALLOWED_ORIGIN||'');
  if(!/^https:\/\/[a-z0-9.-]+$/i.test(origin)||!/^https:\/\/[a-z0-9.-]+$/i.test(panel))return null;
  let url;try{url=new URL(String(e.ROMO_PRIVATE_DATABASE_URL||''))}catch{return null}
@@ -97,7 +97,9 @@ module.exports=async(req,res)=>{
    estadoPedido:s.estado,estadoPago:st,descripcionPedido:view.order,descripcionPago:view.payment,
    pagoConfirmado:view.paid,metodoPago:metodo,montoTransferencia:total,
    datosBancarios:metodo==='transferencia'&&s.estado==='aceptada'?cfg.bank:null,
-   datosBancariosDisponibles:!!cfg.bank,datosBancariosVerificados:!!cfg.bank,datosBancariosSucursal:cfg.bank?'romo:serena':null,chatHabilitado:chatEnabled,mensajes:messages,soloSeguimiento:true,
+   datosBancariosDisponibles:!!cfg.bank,datosBancariosVerificados:!!cfg.bank,datosBancariosSucursal:cfg.bank?'romo:serena':null,
+   puedeAvisarTransferencia:!!cfg.bank&&metodo==='transferencia'&&s.estado==='aceptada'&&st==='pendiente'&&Number.isSafeInteger(total)&&total>0,
+   chatHabilitado:chatEnabled,mensajes:messages,soloSeguimiento:true,
    nota:'Avisar que transferiste no acredita un abono en Santander.'
   });
  }catch(err){
