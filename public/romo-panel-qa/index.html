@@ -10143,7 +10143,26 @@ async function ukiRomoGuardarEdicionUnicaQA(){
  finally{ukiRomoGuardandoManualQA=false;}
 }
 
+// En edición se conserva la identidad de la solicitud que ya está
+// vinculada al pedido. No pide otro dato ni agrega controles en pantalla.
+function ukiSeguimientoConservarOrigenEdicionQA(){
+ if(!D.editando)return true;
+ const original=(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(D.editando));
+ if(!original)return true;
+ for(const field of ['cartaSolicitudRemotaId','seguimientoSolicitudId']){
+  const stored=String(original[field]||'');
+  if(!stored)continue;
+  const current=String(D[field]||'');
+  if(current&&current!==stored){
+   aviso('La referencia original del pedido no coincide. Actualiza antes de editar.');
+   return false;
+  }
+  D[field]=stored;
+ }
+ return true;
+}
 async function ndGuardar(){
+  if(!ukiSeguimientoConservarOrigenEdicionQA())return;
   if(D.pagado&&!await ukiSeguimientoPermitirCerrarQA(D))return;
   if(S.suc===ROMO_SUCURSAL_QA)
    return D.editando?
