@@ -35,7 +35,7 @@ module.exports=async(req,res)=>{
     ') AS ultima_consulta FROM '+meta.source+' s LEFT JOIN '+meta.payment+
     ' p ON p.solicitud_id=s.id AND p.store_id=$1'+(meta.uki?' AND p.branch=$2':'')+
     ' WHERE s.branch=$2'+(meta.uki?'':' AND s.store_id=$1')+
-    " AND s.estado='aceptada' AND s.creado_en>now()-interval '7 days'"+
+    " AND s.estado IN ('pendiente','aceptada') AND s.creado_en>now()-interval '7 days'"+
     ' ORDER BY s.creado_en DESC LIMIT 80',[storeId,meta.branch]);
    const orders=list.map(r=>{
     const plan=OP.normalizeOrder(storeId,r);
@@ -52,7 +52,9 @@ module.exports=async(req,res)=>{
   const id=String(req.method==='GET'?req.query?.id:req.body?.id||'');
   if(!UUID.test(id))return fail(res,400,'Pedido inválido');
   const order=await S.loadOne(db,storeId,id);
-  if(!order||order.estado!=='aceptada')return fail(res,404,'Pedido no aceptado o no encontrado');
+  if(!order||!['pendiente','aceptada'].includes(order.estado))return fail(res,404,'Pedido no disponible en esta sucursal');
+  if(req.method==='POST'&&order.estado!=='aceptada')
+   return fail(res,409,'La solicitud sigue pendiente: primero acepta el pedido y valida su importe');
   if(req.method==='POST'){
    const action=req.body.action;
    if(action==='generar_enlace'){
@@ -82,7 +84,8 @@ module.exports=async(req,res)=>{
   }
   const details=await S.snapshot({db,order,bank:cfg.banks[storeId],chatSecret:cfg.chatSecret});
   return res.status(200).json({ok:true,storeId,pedido:details,
-   puedeConfirmar:details.montoTransferencia>0&&!!cfg.banks[storeId]});
+   puedeConfirmar:order.estado==='aceptada'&&details.estadoPago!=='requiere_revision'&&
+    details.montoTransferencia>0&&!!cfg.banks[storeId]});
  }catch(error){
   const c=[400,403,404,409,429].includes(error?.code)?error.code:503;
   return fail(res,c,c===503?'No se pudo guardar o leer. Revisa el pedido antes de reintentar.':
