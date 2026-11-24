@@ -7160,6 +7160,51 @@ function ukiRomoLeerDistribucionQA(id,tipo,monto){
  return lineas;
 }
 
+// Guardia final de la copia operativa de Romo (solo PREVIEW):
+// comprueba cambios de pago/entrega sin agregar botones ni bloquear pedidos
+// que no cambiaron. No sustituye un guardado transaccional del servidor.
+async function ukiSeguimientoValidarAntesDeCifrarRomoQA(copia){
+ if(S.suc!==ROMO_SUCURSAL_QA||!copia||!Array.isArray(copia.pedidos))
+  throw Error('No se puede identificar la sucursal de la copia');
+ const anteriores=new Map((S.pedidos||[])
+  .filter(p=>p?.suc===ROMO_SUCURSAL_QA&&Number.isSafeInteger(Number(p.id)))
+  .map(p=>[Number(p.id),p]));
+ const detallePago=p=>JSON.stringify({
+  medio:p?.medio,medioEnvio:p?.medioEnvio,
+  pagosProductos:p?.pagosProductos,pagosEnvio:p?.pagosEnvio,
+  productosPagadosOtroLocal:p?.productosPagadosOtroLocal,
+  envioPagadoOtroLocal:p?.envioPagadoOtroLocal,
+  subtotal:p?.subtotal,total:p?.total,
+  cartaSolicitudRemotaId:p?.cartaSolicitudRemotaId,
+  seguimientoSolicitudId:p?.seguimientoSolicitudId
+ });
+ const comprobados=new Set();
+ for(const nuevo of copia.pedidos){
+  if(!nuevo||nuevo.suc!==ROMO_SUCURSAL_QA||nuevo.esPremio===true)continue;
+  const id=Number(nuevo.id),viejo=anteriores.get(id);
+  if(!Number.isSafeInteger(id)||id<1||comprobados.has(id))
+   throw Error('Pedido duplicado o sin identificación en copia operativa');
+  comprobados.add(id);
+  const sePaga=nuevo.pagado===true&&viejo?.pagado!==true;
+  const seEntrega=nuevo.estado==='Entregado'&&viejo?.estado!=='Entregado';
+  const pagoReclasificado=nuevo.pagado===true&&!!viejo&&
+   detallePago(viejo)!==detallePago(nuevo);
+  if(!sePaga&&!seEntrega&&!pagoReclasificado)continue;
+  const previoTransfer=!!viejo&&ukiSeguimientoHayTransferenciaQA(viejo);
+  const candidato={
+   ...nuevo,
+   cartaSolicitudRemotaId:nuevo.cartaSolicitudRemotaId||
+    viejo?.cartaSolicitudRemotaId||'',
+   seguimientoSolicitudId:nuevo.seguimientoSolicitudId||
+    viejo?.seguimientoSolicitudId||''
+  };
+  if(!await ukiSeguimientoPermitirCerrarQA(candidato,{
+   metodosAdicionales:previoTransfer?['transferencia']:[]
+  }))throw Error('La transferencia no está verificada: el pedido se mantiene pendiente.');
+ }
+ return true;
+}
+
 async function ukiRomoGuardarOperacionQA(copia,descripcion,orden,vista='pedidos'){
  // Evitar el POST si el GET autorizado confirma que el guardado está cerrado.
  if(window.ukiRomoGuardadoHabilitadoQA?.()!==true)
@@ -7171,6 +7216,11 @@ async function ukiRomoGuardarOperacionQA(copia,descripcion,orden,vista='pedidos'
  if(anterior.conflicto)throw Error('La base cambió; sal y vuelve a ingresar para conciliar.');
  if(!validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
   throw Error('No se pudo validar el estado independiente de Romo.');
+ const firma=JSON.stringify(copia);
+ await ukiSeguimientoValidarAntesDeCifrarRomoQA(copia);
+ if(JSON.stringify(copia)!==firma||session.estado()?.revision!==anterior.revision||
+    session.estado()?.conflicto)
+  throw Error('El pedido cambió durante la verificación del pago. Actualiza antes de guardar.');
  const res=await session.guardar(copia);
  if(res?.changed!==true||res.revision!==anterior.revision+1)
   throw Error('No se confirmó una revisión nueva. Verifica antes de volver a intentar.');
@@ -10027,6 +10077,12 @@ async function ukiRomoGuardarPedidoPendienteQA(){
   }
   if(JSON.stringify(D)!==firmaGuardado)throw Error('El formulario cambió antes del guardado.');
   if(!validarEstadoSucursal(clone,s))throw Error('La información de Romo no pasó la validación.');
+  // También protege el guardado DIRECTO de pedidos manuales de Romo.
+  const firmaCopia=JSON.stringify(clone);
+  await ukiSeguimientoValidarAntesDeCifrarRomoQA(clone);
+  if(JSON.stringify(clone)!==firmaCopia||
+     session.estado()?.revision!==expected.revision||session.estado()?.conflicto)
+   throw Error('El pedido cambió durante la revisión del medio de pago. Actualiza antes de guardar.');
   // No actualizar S.pedidos hasta obtener nueva revisión desde Neon.
   const saved=await session.guardar(clone);
   if(saved?.changed!==true||saved.revision!==expected.revision+1)
