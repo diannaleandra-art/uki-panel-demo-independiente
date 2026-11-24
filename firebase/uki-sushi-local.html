@@ -3893,6 +3893,11 @@ function ukiOrigenPedido(p){
 }
 function ukiSeguimientoHayTransferenciaQA(p){
   if(!p||typeof p!=='object')return false;
+  // Usar la distribución real de caja: un medio seleccionado sin monto local
+  // (por ejemplo, delivery pagado en otro local) no crea una transferencia.
+  const importes=ukiSeguimientoImportesCajaQA(p);
+  if(importes)return importes.montoTransferencia>0;
+  // Si el detalle es inválido, conservar la detección conservadora.
   const values=[p.medio,p.medioEnvio,p.romoPagoIndicadoQA,p.pagoDeclarado,
    p.medioProductos,p.medioDelivery,p.medioPropina];
   for(const campo of [p.pagosProductos,p.pagosEnvio,p.pagos,p.pagosMixtos]){
@@ -3920,6 +3925,7 @@ function seguimientoPropinaTransferenciaQA(order,subtotal){
      !Number.isSafeInteger(total)||(p.total!==undefined&&Number(p.total)!==total))
    return null;
   const pedido={...p,subtotal:sub,envio,total};
+  if(ukiErrorDistribucionPago(pedido,sub,envio))return null;
   const lines=[...ukiLineasPago(pedido,'productos',sub),...ukiLineasPago(pedido,'envio',envio)];
   if(lines.some(x=>!Number.isSafeInteger(x.monto)||x.monto<=0))return null;
   const tip=seguimientoPropinaTransferenciaQA(p,sub);
