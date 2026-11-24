@@ -14,6 +14,7 @@ test('ninguna transferencia de pedido pendiente puede confirmarse como cobrada',
  assert.match(api,/if\(req\.method==='POST'&&order\.estado!=='aceptada'\)/);
  assert.match(api,/return fail\(res,409,'La solicitud sigue pendiente/);
  assert.match(api,/puedeConfirmar:order\.estado==='aceptada'/);
- assert.match(ui,/if\(p\.estadoPedido==='aceptada'\)link\.append\(linkButton\)/);
+ assert.match(ui,/El cliente sigue este pedido directamente en la carta/);
+ assert.doesNotMatch(ui,/Copiar enlace del pedido|linkButton/);
  assert.match(ui,/p\.estadoPedido==='pendiente'/);
 });
