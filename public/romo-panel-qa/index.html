@@ -4642,6 +4642,10 @@ function ukiOrigenPedido(p){
  // atómica del guardado definitivo en el servidor.
  function ukiSeguimientoHayTransferenciaQA(p){
   if(!p||typeof p!=='object')return false;
+  // Si los importes son válidos, cuenta el abono local real, no el medio
+  // de un componente sin cobro local ni una propina de valor cero.
+  const importes=ukiSeguimientoImportesCajaQA(p);
+  if(importes)return importes.montoTransferencia>0;
   const values=[p.medio,p.medioEnvio,p.romoPagoIndicadoQA,p.pagoDeclarado,
    p.medioProductos,p.medioDelivery,p.medioPropina];
   for(const campo of [p.pagosProductos,p.pagosEnvio,p.pagos,p.pagosMixtos]){
@@ -4737,7 +4741,15 @@ function seguimientoPropinaTransferenciaQA(order,subtotal){
   if(!storeId){aviso('No se pudo validar la sucursal del pedido.');return false;}
   const extraTransfer=metodosAdicionales.some(v=>
    String(v||'').trim().toLowerCase()==='transferencia');
-  const requiresTransfer=extraTransfer||ukiSeguimientoHayTransferenciaQA(p);
+  // En el cobro de un pedido pendiente Romo, la distribución propuesta es
+  // la que se guarda; no usar el medio seleccionado en el pedido anterior.
+  if(importePropuesto&&(!Number.isSafeInteger(importePropuesto.total)||importePropuesto.total<1||
+     !Number.isSafeInteger(importePropuesto.montoTransferencia)||importePropuesto.montoTransferencia<0||
+     importePropuesto.montoTransferencia>importePropuesto.total+Number(importePropuesto.propinaTransferencia||0))){
+   aviso('El monto del cobro propuesto no cuadra. Revisa el pago antes de guardar.');return false;
+  }
+  const requiresTransfer=importePropuesto?importePropuesto.montoTransferencia>0:
+   extraTransfer||ukiSeguimientoHayTransferenciaQA(p);
   const id=String(p?.cartaSolicitudRemotaId||p?.seguimientoSolicitudId||'');
   // Un pedido MANUAL sin transferencia conserva su caja habitual.
   // Los pedidos de carta vinculados SIEMPRE contrastan el medio definitivo

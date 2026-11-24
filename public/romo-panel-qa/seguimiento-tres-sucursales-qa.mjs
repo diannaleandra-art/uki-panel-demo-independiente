@@ -112,7 +112,8 @@ function seguimientoMedioSimpleQA(order){
     order.productosPagadosOtroLocal===true||order.envioPagadoOtroLocal===true||
     !Number.isSafeInteger(order.subtotal)||order.subtotal<0||
     !Number.isSafeInteger(Number(order.envio))||Number(order.envio)<0||
-    !Number.isSafeInteger(order.total)||Number(order.propina||0)!==0)return null;
+    !Number.isSafeInteger(order.total)||Number(order.propina||0)!==0||
+    (order.propinaModo||'ninguna')!=='ninguna')return null;
  const expected=order.subtotal+Number(order.envio);
  if(!Number.isSafeInteger(expected)||expected<=0||expected!==order.total)return null;
  const normalize=value=>String(value||'').trim().toLowerCase()
