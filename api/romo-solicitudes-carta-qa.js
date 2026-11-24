@@ -153,7 +153,16 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
      db:writer,body:req.body,ipHash,
      cotizador:args=>quote.cotizarSolicitudRomoServidorQA(args)
    });
-   return res.status(result.repetido?200:201).json(result);
+   // El identificador interno no se entrega públicamente. El seguimiento
+   // sólo se emite cuando está configurado en QA y el registro ya existe.
+   const {trackingId,...publicResult}=result;
+   if(process.env.ROMO_SEGUIMIENTO_QA_ENABLED==='true'&&trackingId){
+    const c=require('../lib/romo-seguimiento-transferencia-v1.cjs');
+    if(c.secretReady(process.env.ROMO_SEGUIMIENTO_TOKEN_SECRET)){
+     publicResult.seguimientoToken=c.issueToken(trackingId,req.body.key,process.env.ROMO_SEGUIMIENTO_TOKEN_SECRET);
+    }
+   }
+   return res.status(result.repetido?200:201).json(publicResult);
   }
   const identityModule=await import('../lib/romo-identidad-servidor-qa.mjs');
   const identity=await identityModule.resolveRomoIdentity({

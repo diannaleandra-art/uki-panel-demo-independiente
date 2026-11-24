@@ -13,7 +13,7 @@ function config(e=process.env){
  let bank=null;
  try{
   const b=JSON.parse(String(e.ROMO_SANTANDER_DATOS_VERIFICADOS_JSON||'null'));
-  if(b&&b.verificado===true&&String(b.banco).toLowerCase().includes('santander')&&
+  if(b&&b.verificado===true&&b.sucursal==='romo:serena'&&String(b.banco).toLowerCase().includes('santander')&&
     typeof b.titular==='string'&&b.titular.length<=100&&
     typeof b.cuenta==='string'&&b.cuenta.length<=40&&
     typeof b.rut==='string'&&b.rut.length<=18&&
@@ -34,14 +34,14 @@ module.exports=async(req,res)=>{
  const origin=String(req.headers.origin||'');
  if(origin!==cfg.origin)return respond(res,403,{error:'Origen no autorizado.'});
  res.setHeader('Access-Control-Allow-Origin',cfg.origin);
- res.setHeader('Access-Control-Allow-Headers','Content-Type,X-Romo-Tracking');
+ res.setHeader('Access-Control-Allow-Headers','Content-Type,X-Seguimiento-Pedido');
  res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');
  if(req.method==='OPTIONS')return res.status(204).end();
  if(!['GET','POST'].includes(req.method))return respond(res,405,{error:'Método no permitido.'});
- const identity=C.readToken(req.headers['x-romo-tracking'],cfg.secret);
+ const identity=C.readToken(req.headers['x-seguimiento-pedido'],cfg.secret);
  if(!identity)return respond(res,403,{error:'Enlace inválido o caducado.'});
  if(req.method==='POST'&&(!String(req.headers['content-type']||'').startsWith('application/json')||
-  JSON.stringify(req.body||{}).length>1000||req.body?.action!=='avisar'))
+  JSON.stringify(req.body||{}).length>1000||req.body?.action!=='avisar_transferencia'))
   return respond(res,400,{error:'Acción no permitida.'});
  try{
   const sql=require('@neondatabase/serverless').neon(cfg.db);
@@ -52,7 +52,7 @@ module.exports=async(req,res)=>{
   if(lookup.length!==1)return respond(res,404,{error:'Solicitud no encontrada.'});
   const s=lookup[0],metodo=C.normalizeMethod(s.metodo),total=C.transferAmount({metodo,total:Number(s.total_indicado)});
   if(req.method==='POST'){
-   if(metodo!=='transferencia'||total===null||s.estado!=='aceptada')
+   if(metodo!=='transferencia'||total===null||!cfg.bank||s.estado!=='aceptada')
     return respond(res,409,{error:'Primero confirma que el local aceptó tu pedido por transferencia.'});
    // No cobra, ni suma caja; sólo crea señal de "cliente indicó que transfirió".
    await sql.query(
@@ -67,7 +67,7 @@ module.exports=async(req,res)=>{
    estadoPedido:s.estado,estadoPago:st,descripcionPedido:view.order,descripcionPago:view.payment,
    pagoConfirmado:view.paid,metodoPago:metodo,montoTransferencia:total,
    datosBancarios:metodo==='transferencia'&&s.estado==='aceptada'?cfg.bank:null,
-   datosBancariosDisponibles:!!cfg.bank,soloSeguimiento:true,
+   datosBancariosDisponibles:!!cfg.bank,datosBancariosVerificados:!!cfg.bank,datosBancariosSucursal:cfg.bank?'romo:serena':null,chatHabilitado:false,soloSeguimiento:true,
    nota:'Avisar que transferiste no acredita un abono en Santander.'
   });
  }catch(err){
