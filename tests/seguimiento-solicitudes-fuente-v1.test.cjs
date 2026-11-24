@@ -37,3 +37,31 @@ test('mensaje, comanda o comprobante de cliente no demuestran transferencia',()=
  assert.equal(s.montoTransferencia,null);
  assert.equal(prepareStoredRequest({storeId:'uki:arica',row:{...row('arica'),estado:'en_camino'}}),null);
 });
+
+
+test('Romo: la transferencia elegida por el cliente no es una validación de personal',()=>{
+ const source={...row(),datos:{origen:'carta-normal',medioPago:'transferencia',
+  cotizacion:{payment:'transferencia'}}};
+ const pedido=prepareStoredRequest({storeId:'romo:serena',row:source});
+ assert.equal(pedido.montoTransferencia,null);
+ assert.equal(pedido.requiereVerificacionPago,true);
+ assert.equal(pedido.metodoPago,null);
+});
+test('Carta digital: sólo después de validar trabajador, fecha y total se autoriza el método',()=>{
+ const datos={origen:'carta-normal',medioPago:'transferencia',
+  medioPagoConfirmadoPor:'qa-worker-123',medioPagoConfirmadoTotal:16000,
+  medioPagoConfirmadoEn:'2026-11-24T12:00:00Z'};
+ const pedido=prepareStoredRequest({storeId:'romo:serena',row:{...row(),datos}});
+ assert.equal(pedido.montoTransferencia,16000);
+ assert.equal(pedido.requiereVerificacionPago,false);
+ assert.equal(paymentFromSavedData({...datos,medioPagoConfirmadoTotal:15000},16000),null);
+ assert.equal(paymentFromSavedData({...datos,medioPagoConfirmadoPor:''},16000),null);
+ assert.equal(paymentFromSavedData({...datos,medioPagoConfirmadoEn:'invalida'},16000),null);
+});
+test('Los desgloses mixtos que llegaron desde la carta también requieren personal',()=>{
+ const pagos=[{medio:'transferencia',monto:8000},{medio:'efectivo',monto:8000}];
+ assert.equal(paymentFromSavedData({origen:'carta-normal',pagos},16000),null);
+ assert.equal(paymentFromSavedData({origen:'carta-normal',pagos,
+  medioPagoConfirmadoPor:'qa-worker-123',medioPagoConfirmadoTotal:16000,
+  medioPagoConfirmadoEn:'2026-11-24T12:00:00Z'},16000).transferAmount,8000);
+});
