@@ -4620,11 +4620,65 @@ function ukiOrigenPedido(p){
  if(String(p.textoOriginal||"").trim())return "WhatsApp";
  return "Manual";
 }
-function ukiMarcarPedidoEntregado(id){
+// QA: una transferencia no puede marcarse pagada/entregada con una casilla.
+ // Consulta el estado REAL de la verificación en la base de la sucursal.
+ // Esto es un control preventivo de interfaz, no sustituye la validación
+ // atómica del guardado definitivo en el servidor.
+ function ukiSeguimientoHayTransferenciaQA(p){
+  if(!p||typeof p!=='object')return false;
+  const values=[p.medio,p.medioEnvio,p.romoPagoIndicadoQA,p.pagoDeclarado,
+   p.medioProductos,p.medioDelivery];
+  for(const campo of [p.pagosProductos,p.pagosEnvio,p.pagos,p.pagosMixtos]){
+   if(Array.isArray(campo))for(const item of campo)
+    values.push(typeof item==='string'?item:item?.medio);
+  }
+  return values.some(v=>String(v||'').trim().toLowerCase().normalize('NFD')
+   .replace(/[\u0300-\u036f]/g,'')==='transferencia');
+ }
+ async function ukiSeguimientoPermitirCerrarQA(p,{metodosAdicionales=[]}={}){
+  const storeId=S.suc==='Uki Regimiento Arica'?'uki:arica':
+    S.suc==='Uki La Serena'?'uki:serena':
+    S.suc===ROMO_SUCURSAL_QA?'romo:serena':null;
+  if(!storeId){aviso('No se pudo validar la sucursal del pedido.');return false;}
+  const extraTransfer=metodosAdicionales.some(v=>
+   String(v||'').trim().toLowerCase()==='transferencia');
+  const requiresTransfer=extraTransfer||ukiSeguimientoHayTransferenciaQA(p);
+  const id=String(p?.cartaSolicitudRemotaId||p?.seguimientoSolicitudId||'');
+  if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[0-9a-f]{12}$/i.test(id)){
+   if(!requiresTransfer)return true; // efectivo/tarjeta mantienen controles vigentes
+   aviso('Transferencia por verificar. No se puede marcar pagado ni entregado hasta comprobar el abono de este pedido.');
+   return false;
+  }
+  try{
+   const token=await window.ukiMesasTokenConfirmar?.();
+   if(typeof token!=='string'||token.length<20)throw Error('No se pudo validar la sesión del personal.');
+   const query=new URLSearchParams({storeId,id,requiereTransferencia:requiresTransfer?'1':'0'});
+   const response=await fetch('/api/seguimiento-verificar-cierre-qa?'+query.toString(),{
+    method:'GET',cache:'no-store',credentials:'same-origin',
+    headers:{Authorization:'Bearer '+token,Accept:'application/json'},
+    signal:AbortSignal.timeout(14000)
+   });
+   const data=await response.json().catch(()=>null);
+   if(!response.ok||data?.ok!==true||data.storeId!==storeId||data.orderId!==id||
+      data.permitido!==true){
+    aviso(data?.razon||data?.error||'No se comprobó la transferencia. Deja este pedido pendiente.');
+    return false;
+   }
+   return true;
+  }catch{
+   aviso('No se pudo consultar la verificación bancaria. El pedido sigue pendiente; no intentes cobrar nuevamente.');
+   return false;
+  }
+ }
+
+async function ukiMarcarPedidoEntregado(id){
  const p=(S.pedidos||[]).find(x=>x.id===Number(id)&&x.suc===S.suc);
  if(!p||p.estado!=='Pendiente'||p.esPremio)return aviso('Solo puedes confirmar la entrega de un pedido pendiente.');
  if(p.timbreReglaObligatoria&&p.pagado&&ukiNumeroTimbreWhatsApp(p.telefono)&&!p.timbreEnviadoEn)
   return aviso('Antes de finalizar este pedido, envía y confirma su timbre por WhatsApp.');
+ if(!await ukiSeguimientoPermitirCerrarQA(p))return;
+ if(S.suc!==p.suc||p.estado!=='Pendiente'||(S.pedidos||[]).find(x=>x.suc===p.suc&&x.id===p.id)!==p)
+  return aviso('El pedido cambió. Revisa su estado antes de entregar.');
  if(!window.confirm('¿Confirmas que el cliente recibió este pedido? Su pago y caja no cambiarán.'))return;
  p.estado='Entregado';p.entregadoEn=new Date().toISOString();
  p.entregadoPor=ukiTimbreResponsableActual();
@@ -7159,6 +7213,9 @@ async function ukiRomoConfirmarCobroQA(id){
   productos=ukiRomoLeerDistribucionQA(pedidoId,'Producto',sub-a);
   delivery=ukiRomoLeerDistribucionQA(pedidoId,'Envio',env-b);
  }catch(e){aviso(String(e.message||e));return;}
+ if(!await ukiSeguimientoPermitirCerrarQA(original,{
+  metodosAdicionales:[...productos,...delivery].map(x=>x.medio)
+ }))return;
  const datos={
   pedidoId,responsable,registradoEn:Date.now(),confirmoRecepcion:true,
   medioProductos:productos[0]?.medio||'Efectivo',medioEnvio:delivery[0]?.medio||'Efectivo',
@@ -9980,6 +10037,7 @@ async function ukiRomoGuardarEdicionUnicaQA(){
 }
 
 async function ndGuardar(){
+  if(D.pagado&&!await ukiSeguimientoPermitirCerrarQA(D))return;
   if(S.suc===ROMO_SUCURSAL_QA)
    return D.editando?
     ((S.pedidos||[]).find(p=>p.suc===ROMO_SUCURSAL_QA&&p.id===Number(D.editando))?.pagado?
