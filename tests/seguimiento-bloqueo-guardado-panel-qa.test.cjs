@@ -52,14 +52,14 @@ test('API exige sesión y sólo consulta, no modifica ventas o caja',()=>{
 test('panel usa guardia en marcar pagado, confirmar cobro y marcar entregado',()=>{
  const code=fs.readFileSync(path.join(base,'public/romo-panel-qa/index.html'),'utf8');
  assert.match(code,/async function ukiMarcarPedidoEntregado\(id\)/);
- assert.match(code,/if\(!await ukiSeguimientoPermitirCerrarQA\(p\)\)return/);
+ assert.match(code,/if\(!await ukiSeguimientoPermitirCerrarQA\(comprobacionManual\)\)return/);
  const entregaRomo=code.slice(code.indexOf("async function ukiRomoCambiarEstadoQA(id,accion)"),
   code.indexOf("const ROMO_MEDIOS_SALIDAS_QA="));
  assert.match(entregaRomo,/else if\(accion==='entregar'\)/);
- assert.match(entregaRomo,/if\(!await ukiSeguimientoPermitirCerrarQA\(p\)\)return/);
+ assert.match(entregaRomo,/if\(!await ukiSeguimientoPermitirCerrarQA\(comprobacionManual\)\)return/);
  assert.match(entregaRomo,/if\(S\.suc!==ROMO_SUCURSAL_QA\|\|p\.estado!=='Pendiente'/);
  assert.match(code,/if\(D\.pagado&&!await ukiSeguimientoPermitirCerrarQA\(D\)\)return/);
- assert.match(code,/if\(!await ukiSeguimientoPermitirCerrarQA\(original,\{/);
+ assert.match(code,/if\(!await ukiSeguimientoPermitirCerrarQA\(comprobacionManual,\{/);
  assert.match(code,/!response\.ok\|\|data\?\.ok!==true/);
  assert.match(code,/No se pudo consultar la verificación bancaria/);
  assert.match(code,/cartaSolicitudRemotaId/);
@@ -206,4 +206,33 @@ test('el cambio de medio en edición normal no permite retirar una transferencia
   assert.equal(guard({suc:shop,medio:'Efectivo'},{medio:'Débito'}),true);
  }
  assert.match(src,/async function ndGuardar\(\)\{[\s\S]{0,450}if\(!ukiSeguimientoValidarCambioMedioQA\(pedidoAnteriorQA,D\)\)return/);
+});
+
+test('transferencia manual no necesita enlace de carta, sólo comprobación y mismo importe',async()=>{
+ const src=fs.readFileSync(path.join(root,'public/romo-panel-qa/index.html'),'utf8');
+ const start=src.indexOf('function ukiSeguimientoHayTransferenciaQA(');
+ const end=src.indexOf('async function ukiMarcarPedidoEntregado(',start);
+ const code=src.slice(start,end)+'\nreturn {prepare:ukiSeguimientoPrepararManualQA,valid:ukiSeguimientoManualValidaQA,gate:ukiSeguimientoPermitirCerrarQA,attach:ukiSeguimientoAnotarManualQA};';
+ for(const suc of ['Uki Regimiento Arica','Uki La Serena','Romo’s Sushi La Serena']){
+  const S={suc,nextId:15,pedidos:[]};let calls=0,accept=false;
+  const line=(p,t,m)=>m>0?[{medio:t==='productos'?p.medio:p.medioEnvio,monto:m}]:[];
+  const f=new Function('S','ROMO_SUCURSAL_QA','ukiLineasPago','window','aviso','fmt','ukiTimbreResponsableActual',code)(
+   S,'Romo’s Sushi La Serena',line,{confirm:()=>{calls++;return accept}},()=>{},String,()=> 'Agendadora QA');
+  const p={cliente:'Cliente QA',telefono:'',items:[{nombre:'Pedido',cant:1,precio:16000}],modalidad:'Retiro',medio:'Transferencia',pagado:true};
+  assert.equal(f.prepare(p),false);
+  assert.equal(await f.gate(p),false);
+  accept=true;
+  assert.equal(f.prepare(p),true);
+  assert.equal(await f.gate(p),true);
+  assert.equal(calls,2);
+  assert.equal(f.prepare(p),true);assert.equal(calls,2);
+  const saved={id:15,suc,cliente:'Cliente QA',telefono:'',subtotal:16000,total:16000,envio:0,modalidad:'Retiro',medio:'Transferencia',pagado:true};
+  f.attach(saved,p);
+  assert.equal(f.valid(saved),true);
+  assert.equal(await f.gate(saved),true);
+  assert.equal(f.valid({...saved,id:16}),false);
+  assert.equal(f.valid({...saved,subtotal:17000,total:17000}),false);
+  assert.equal(f.valid({...saved,suc:'otra'}),false);
+  assert.equal(f.valid({...saved,cartaSolicitudRemotaId:'123'}),false);
+ }
 });

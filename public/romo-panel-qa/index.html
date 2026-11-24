@@ -4652,6 +4652,52 @@ function ukiOrigenPedido(p){
    .reduce((sum,x)=>sum+x.monto,0);
   return {total,montoTransferencia};
  }
+
+ // Pedido pegado de WhatsApp o ingresado manualmente: la misma confirmación
+ // operativa del timbre, sin crear una solicitud remota ni cobrar otra vez.
+ function ukiSeguimientoFirmaManualQA(p,importePropuesto=null){
+  if(!p||p.cartaSolicitudRemotaId||p.seguimientoSolicitudId||
+     (p.suc&&p.suc!==S.suc))return null;
+  const pedidoId=Number(p.id??p.editando??S.nextId);
+  const importes=importePropuesto||ukiSeguimientoImportesCajaQA(p);
+  if(!Number.isSafeInteger(pedidoId)||pedidoId<1||!importes||
+     !Number.isSafeInteger(importes.total)||importes.total<1||
+     !Number.isSafeInteger(importes.montoTransferencia)||importes.montoTransferencia<1||
+     importes.montoTransferencia>importes.total)return null;
+  return {suc:S.suc,pedidoId,total:importes.total,monto:importes.montoTransferencia,
+   cliente:String(p.cliente||'').trim(),telefono:String(p.telefono||'').trim()};
+ }
+ function ukiSeguimientoManualValidaQA(p,importePropuesto=null){
+  const firma=ukiSeguimientoFirmaManualQA(p,importePropuesto),proof=p?.transferenciaManualQA;
+  return !!(firma&&proof&&JSON.stringify(proof.firma)===JSON.stringify(firma)&&
+    typeof proof.por==='string'&&proof.por.trim()&&Number.isFinite(Date.parse(proof.en)));
+ }
+ function ukiSeguimientoPrepararManualQA(p,{importePropuesto=null,responsable=''}={}){
+  if(!p||p.cartaSolicitudRemotaId||p.seguimientoSolicitudId)return true;
+  const importes=importePropuesto||ukiSeguimientoImportesCajaQA(p);
+  if(!ukiSeguimientoHayTransferenciaQA(p)&&!(importes?.montoTransferencia>0))return true;
+  if(!importes)return aviso('Revisa el monto de transferencia antes de guardar.'),false;
+  if(importes.montoTransferencia===0)return true;
+  const firma=ukiSeguimientoFirmaManualQA(p,importes);
+  if(!firma)return aviso('No se pudo identificar el pedido de transferencia.'),false;
+  if(ukiSeguimientoManualValidaQA(p,importes))return true;
+  const anterior=(S.pedidos||[]).find(x=>x.suc===S.suc&&Number(x.id)===firma.pedidoId);
+  if(anterior?.transferenciaManualQA&&ukiSeguimientoManualValidaQA(
+     {...p,transferenciaManualQA:anterior.transferenciaManualQA},importes)){
+   p.transferenciaManualQA=anterior.transferenciaManualQA;return true;
+  }
+  if(!window.confirm('TRANSFERENCIA · '+S.suc+'\n¿Confirmas que comprobaste en Santander el abono de '+fmt(firma.monto)+' de este pedido?\nAceptar registra tu comprobación; no genera otro cobro.')){
+   aviso('Transferencia pendiente. No se guardó el pago.');return false;
+  }
+  p.transferenciaManualQA={firma,por:String(responsable||ukiTimbreResponsableActual()).trim(),en:new Date().toISOString()};
+  return true;
+ }
+ function ukiSeguimientoAnotarManualQA(p,d){
+  if(!p||!d?.transferenciaManualQA||p.cartaSolicitudRemotaId||p.seguimientoSolicitudId)return;
+  // Se copia la constatación sólo a la versión normal del MISMO pedido.
+  const candidato={...p,transferenciaManualQA:d.transferenciaManualQA};
+  if(ukiSeguimientoManualValidaQA(candidato))p.transferenciaManualQA=d.transferenciaManualQA;
+ }
  async function ukiSeguimientoPermitirCerrarQA(p,{metodosAdicionales=[],importePropuesto=null}={}){
   const storeId=S.suc==='Uki Regimiento Arica'?'uki:arica':
     S.suc==='Uki La Serena'?'uki:serena':
@@ -4666,6 +4712,13 @@ function ukiOrigenPedido(p){
   // del servidor, incluso si la agendadora seleccionó efectivo o tarjeta.
   // Así no puede saltarse una transferencia cambiando el medio en pantalla.
   if(!requiresTransfer&&!id)return true;
+  if(!id){
+   const importes=importePropuesto||ukiSeguimientoImportesCajaQA(p);
+   if(importes?.montoTransferencia===0)return true;
+   if(ukiSeguimientoManualValidaQA(p,importes))return true;
+   aviso('Primero confirma el abono de esta transferencia en el pago del pedido.');
+   return false;
+  }
   if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[0-9a-f]{12}$/i.test(id)){
    aviso(requiresTransfer?
     'Transferencia por verificar. No se puede marcar pagado ni entregado hasta comprobar el abono de este pedido.':
@@ -4716,10 +4769,13 @@ async function ukiMarcarPedidoEntregado(id){
  if(!p||p.estado!=='Pendiente'||p.esPremio)return aviso('Solo puedes confirmar la entrega de un pedido pendiente.');
  if(p.timbreReglaObligatoria&&p.pagado&&ukiNumeroTimbreWhatsApp(p.telefono)&&!p.timbreEnviadoEn)
   return aviso('Antes de finalizar este pedido, envía y confirma su timbre por WhatsApp.');
- if(!await ukiSeguimientoPermitirCerrarQA(p))return;
+ const comprobacionManual={...p};
+ if(p.pagado&&!ukiSeguimientoPrepararManualQA(comprobacionManual))return;
+ if(!await ukiSeguimientoPermitirCerrarQA(comprobacionManual))return;
  if(S.suc!==p.suc||p.estado!=='Pendiente'||(S.pedidos||[]).find(x=>x.suc===p.suc&&x.id===p.id)!==p)
   return aviso('El pedido cambió. Revisa su estado antes de entregar.');
  if(!window.confirm('¿Confirmas que el cliente recibió este pedido? Su pago y caja no cambiarán.'))return;
+ ukiSeguimientoAnotarManualQA(p,comprobacionManual);
  p.estado='Entregado';p.entregadoEn=new Date().toISOString();
  p.entregadoPor=ukiTimbreResponsableActual();
  void guardarEnLocalStorage();render();
@@ -7324,11 +7380,13 @@ async function ukiRomoConfirmarCobroQA(id){
   productos=ukiRomoLeerDistribucionQA(pedidoId,'Producto',sub-a);
   delivery=ukiRomoLeerDistribucionQA(pedidoId,'Envio',env-b);
  }catch(e){aviso(String(e.message||e));return;}
- if(!await ukiSeguimientoPermitirCerrarQA(original,{
-  metodosAdicionales:[...productos,...delivery].map(x=>x.medio),
-  importePropuesto:{total:sub+env,montoTransferencia:[...productos,...delivery]
+ const importePropuesto={total:sub+env,montoTransferencia:[...productos,...delivery]
    .filter(x=>String(x.medio||'').trim().toLowerCase()==='transferencia')
-   .reduce((sum,x)=>sum+x.monto,0)}
+   .reduce((sum,x)=>sum+x.monto,0)};
+ const comprobacionManual={...original};
+ if(!ukiSeguimientoPrepararManualQA(comprobacionManual,{importePropuesto,responsable}))return;
+ if(!await ukiSeguimientoPermitirCerrarQA(comprobacionManual,{
+  metodosAdicionales:[...productos,...delivery].map(x=>x.medio),importePropuesto
  }))return;
  const datos={
   pedidoId,responsable,registradoEn:Date.now(),confirmoRecepcion:true,
@@ -7352,6 +7410,7 @@ async function ukiRomoConfirmarCobroQA(id){
   const mod=await import('./uki-romo-cobro-pendiente-qa.mjs?v=romo-paridad-pagos-20261118');
   mod.prepararCobroPendienteRomoQA(copia,datos);
   const cobrado=copia.pedidos.find(p=>p.suc===ROMO_SUCURSAL_QA&&p.id===pedidoId);
+  ukiSeguimientoAnotarManualQA(cobrado,comprobacionManual);
   if(ukiTimbreObligatorioGuardar(timbreDraft,original))ukiAnotarTimbreConfirmadoEnPedido(cobrado,timbreDraft);
   if(!validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
    throw Error('La copia de cobro no pertenece a Romo.');
@@ -7480,6 +7539,7 @@ async function ukiRomoCambiarEstadoQA(id,accion){
   aviso('Romo necesita conexión cifrada vigente. Reabre y revisa Neon.');return;
  }
  let responsable='',motivo='',categoria='';
+ const comprobacionManual={...p};
  if(accion==='cancelar'){
   if(p.estado!=='Pendiente'||p.pagado){
    aviso('Pedido con pago o entrega: requiere conciliación, no se canceló.');return;
@@ -7501,7 +7561,8 @@ async function ukiRomoCambiarEstadoQA(id,accion){
   }
   // Mismo control ya aplicado al cobro: entregar desde Romo no debe
   // saltar la comprobación de transferencia de este pedido.
-  if(!await ukiSeguimientoPermitirCerrarQA(p))return;
+  if(p.pagado&&!ukiSeguimientoPrepararManualQA(comprobacionManual))return;
+  if(!await ukiSeguimientoPermitirCerrarQA(comprobacionManual))return;
   if(S.suc!==ROMO_SUCURSAL_QA||p.estado!=='Pendiente'||
      (S.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&x.id===pedidoId)!==p){
    aviso('El pedido cambió. Actualiza antes de confirmar la entrega.');return;
@@ -7547,6 +7608,7 @@ async function ukiRomoCambiarEstadoQA(id,accion){
    mod.prepararEntregaRomoQA(copia,{
     pedidoId,responsable,registradoEn:ahoraMs
    });
+   ukiSeguimientoAnotarManualQA(copia.pedidos.find(x=>x.suc===S.suc&&Number(x.id)===pedidoId),comprobacionManual);
   }
   await ukiRomoGuardarOperacionQA(copia,
    accion==='cancelar'?'Cancelación auditada confirmada':'Entrega auditada confirmada',
@@ -10123,6 +10185,7 @@ async function ukiRomoGuardarPedidoPendienteQA(){
     propinaMonto:propina,medioPropina:D.medioPropina||'Efectivo'
    });
    if(ukiTimbreBorradorConfirmado(D))ukiAnotarTimbreConfirmadoEnPedido(pedido,D);
+   ukiSeguimientoAnotarManualQA(pedido,D);
   }
   if(JSON.stringify(D)!==firmaGuardado)throw Error('El formulario cambió antes del guardado.');
   if(!validarEstadoSucursal(clone,s))throw Error('La información de Romo no pasó la validación.');
@@ -10178,6 +10241,8 @@ async function ukiRomoGuardarEdicionUnicaQA(){
   if((medio||diferencia||reparto)&&!window.confirm('Guardar cambios del pedido #'+id+'?'+medio+diferencia+reparto))return;
   if(JSON.stringify(D)!==firma||JSON.stringify(datosSoloSucursal())!==estadoFirma||sesion.estado()?.revision!==anterior.revision||sesion.estado()?.conflicto)
    throw Error('El pedido cambió antes de guardar.');
+  const editado=copia.pedidos.find(x=>x.suc===S.suc&&Number(x.id)===id);
+  if(D.pagado)ukiSeguimientoAnotarManualQA(editado,D);
   await ukiRomoGuardarOperacionQA(copia,'Pedido actualizado'+(resultado.saldo?' · diferencia pendiente':''),id,'pedidos');nuevoDraft();
  }catch(e){aviso('No se pudo confirmar el cambio. '+String(e?.message||e));}
  finally{ukiRomoGuardandoManualQA=false;}
@@ -10213,6 +10278,7 @@ async function ndGuardar(){
   if(!ukiSeguimientoConservarOrigenEdicionQA())return;
   const pedidoAnteriorQA=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(D.editando)):null;
   if(!ukiSeguimientoValidarCambioMedioQA(pedidoAnteriorQA,D))return;
+  if(D.pagado&&!ukiSeguimientoPrepararManualQA(D))return;
   const firmaPagoQA=JSON.stringify({suc:S.suc,draft:D});
   if(D.pagado&&!await ukiSeguimientoPermitirCerrarQA(D))return;
   if(firmaPagoQA!==JSON.stringify({suc:S.suc,draft:D})){
@@ -10407,6 +10473,7 @@ async function ndGuardar(){
             saldoPendiente:p.ajusteCobroPendiente?.saldo||0});
         }
       }
+      if(D.pagado)ukiSeguimientoAnotarManualQA(p,D);
       if(!ukiTimbreYaEnviadoPedido(p)&&ukiTimbreBorradorConfirmado(D))
         ukiAnotarTimbreConfirmadoEnPedido(p,D);
       if(!cierreHistorico && !p.esPremio && D.cliente && D.pagado && !D.productosPagadosOtroLocal){
@@ -10460,6 +10527,7 @@ async function ndGuardar(){
   const {numero:numeroTurno,clave:turnoClave}=ukiTurnoFolioActual();
   const idNuevo=S.nextId++;
   const nuevoPedido={id:idNuevo,numeroTurno,turnoClave,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),cliente:D.cliente,telefono:D.telefono||"",codigoCarta:D.codigoCarta||"",codigoCliente:D.codigoCliente||"",cartaSolicitudRemotaId:String(D.cartaSolicitudRemotaId||""),cartaReservaToken:String(D.cartaReservaToken||""),qrSolicitudes:Array.isArray(D.qrSolicitudes)?[...new Set(D.qrSolicitudes)]:[],sucursalCarta:D.sucursalCarta||"",mesaReferencia:D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():"",modalidad:D.modalidad,envio:envio,kmRecorrido,medio:D.medio,medioEnvio:D.medioEnvio,...datosPago,pagado:D.pagado,estado:"Pendiente",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det,...ukiDatosCatalogoItem(x)})),total:total,subtotal:sub,propina:propina,propinaModo:D.propinaModo,medioPropina:D.medioPropina,textoOriginal:D.texto,esPremio:false};
+  if(D.pagado)ukiSeguimientoAnotarManualQA(nuevoPedido,D);
   S.pedidos.push(nuevoPedido);
   // Incluso si el pago se desmarcó tras enviar WhatsApp, conservar la marca enviada.
   // No suma timbres de fidelidad mientras la compra continúe sin pagar.
