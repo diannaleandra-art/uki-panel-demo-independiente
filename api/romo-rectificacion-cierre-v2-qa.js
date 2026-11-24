@@ -51,6 +51,8 @@ module.exports=async function romoRectificacionCierreV2QA(req,res){
   !['confirmar','consultar'].includes(body.action))
   return fail(res,400,'Operación de Romo inválida');
  const write=body.action==='confirmar';
+ const MIGRACION=require('../lib/seguimiento-aislar-escrituras-legadas-qa.cjs');
+ if(MIGRACION.blocked({route:'rectificacion-snapshot',method,action:body.action}))return MIGRACION.denial(res);
  if(write&&!cfg.write)return fail(res,503,'Rectificación solo consulta; sin autorización de escritura');
  if(write&&(!hasOnly(body,['action','expectedRevision','snapshot','resumen'])||
     !Number.isSafeInteger(body.expectedRevision)||body.expectedRevision<1))
