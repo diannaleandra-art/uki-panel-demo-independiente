@@ -42,3 +42,10 @@
 - `api/seguimiento-personal-tres-qa.js` incluye solicitudes `pendiente` y `aceptada` en la bandeja. El aviso temprano no autoriza confirmar pagos de solicitudes todavía pendientes.
 - Se probaron los cambios con CI en la rama Preview. Nada de esto está desplegado en los paneles de caja de producción ni activa transferencia bancaria real.
 - Persisten bloqueos para publicación: datos bancarios verificados por sucursal, integración real con Uki/Firestore y Romo/snapshot cifrado, y pruebas manuales de iPhone/PC. El bloqueo bruto de snapshots QA no puede llevarse a producción.
+
+## Ajuste concreto de cierre Romo (misma fecha)
+- Se detectó que `ukiRomoCambiarEstadoQA(id,'entregar')` en el listado de Romo era una segunda vía para marcar Entregado que no consultaba el estado bancario.
+- Se añadió `ukiSeguimientoPermitirCerrarQA(p)` en esa rama de entrega **antes** de solicitar responsable o guardar, manteniendo cancelaciones y cobros existentes independientes.
+- Test de regresión específico en `tests/seguimiento-bloqueo-guardado-panel-qa.test.cjs` verifica ambos caminos de entrega; GitHub Actions `45347823432` aprobó 94 pruebas de seguimiento y 23 de regresión Romo (117/117).
+- Vercel Preview privado: commit `a7ad274ee6a6203ada350a86a1a2d583fe7f97e5`, no producción.
+- **Todavía no es bloqueo transaccional comercial**: para producción quedan migración de guardado cifrado, integración en Uki/Firestore y datos bancarios correctos. No prometer cumplimiento operativo mientras existan rutas que escriben snapshots opacos.
