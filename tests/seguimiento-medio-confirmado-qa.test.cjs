@@ -43,10 +43,17 @@ for(const [storeId,branch] of [['uki:arica','arica'],['uki:serena','serena'],['r
   const f=mock(true);
   await assert.rejects(()=>P.confirmPreferred({db:f.db,storeId,orderId,staff,metodo:'transferencia'}),{status:409});
  });
- test(storeId+' impide guardar pago seleccionado distinto del declarado',async()=>{
+ test(storeId+' permite cambiar transferencia declarada por efectivo sin marcar pago recibido',async()=>{
   const f=mock();
-  await assert.rejects(()=>P.confirmPreferred({db:f.db,storeId,orderId,staff,metodo:'efectivo'}),{status:409});
-  assert.equal(f.calls.length,1);
+  const result=await P.confirmPreferred({db:f.db,storeId,orderId,staff,metodo:'efectivo'});
+  assert.equal(result.ok,true);
+  assert.equal(result.montoTransferencia,0);
+  assert.equal(f.calls.length,2);
+  const {sql,args}=f.calls[1];
+  assert.match(sql,/medioPagoPreferenciaOriginal/);
+  assert.doesNotMatch(sql,/s\\.datos->>'pagoPreferido'=\\$6/);
+  assert.equal(args[5],'efectivo');
+  assert.equal(JSON.parse(args[4]).pagoPreferido,'transferencia');
  });
  test(storeId+' exige trabajador de la misma tienda',async()=>{
   const f=mock();
@@ -70,7 +77,7 @@ test('confirmacion previa solo es reutilizable si el total y la preferencia sigu
  const base={id:orderId,store_id:storeId,branch,estado:'aceptada',codigo_pedido:'QA',
   total_indicado:18000,
   datos:{pagoPreferido:'transferencia',pagoDeclaracion:'cliente_no_verificado',
-   medioPago:'transferencia',medioPagoConfirmadoPor:staff.userId,medioPagoConfirmadoTotal:18000}};
+   medioPago:'transferencia',medioPagoPreferenciaOriginal:'transferencia',medioPagoConfirmadoPor:staff.userId,medioPagoConfirmadoTotal:18000}};
  let calls=0;
  const db={query:async(sql)=>{calls++;if(sql.startsWith('SELECT'))return [base];throw Error('No se debe actualizar de nuevo')}};
  const repeated=await P.confirmPreferred({db,storeId,orderId,staff,metodo:'transferencia'});
