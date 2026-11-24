@@ -55,3 +55,37 @@ test('pedido anterior sin enlace exige confirmación manual si se cobra transfer
  rowState='pendiente';prior=true;r=await check(true);assert.equal(r.permitido,false);assert.notEqual(r.sinEnlaceAnterior,true);
  assert.equal(queries,4);
 });
+
+test('Romo y Uki: reparto mixto exacto no registra dinero ni permite quitar transferencia',async()=>{
+ const pay=require('../lib/seguimiento-confirmar-medio-pago-qa.cjs');
+ for(const storeId of ['uki:arica','uki:serena','romo:serena']){
+  const branch=storeId.split(':')[1],id='621bd292-2153-4160-9e85-375978e10352';
+  const staff={storeId,role:'agendador',userId:'QA-actor-0001'};
+  let saved=0,previous={origen:'carta-normal',medioPago:'transferencia'},canChange=true;
+  const db={query:async(sql,args)=>{
+   if(sql.startsWith('SELECT id,branch,codigo_pedido,estado,total_indicado,datos,'))return [{
+    id,store_id:storeId,branch,estado:'aceptada',codigo_pedido:'QA-mixto',total_indicado:16000,datos:previous
+   }];
+   assert.match(sql,/UPDATE public\.(uki_carta_solicitudes_live|romo_solicitudes_carta_v1)/);
+   assert.match(sql,/s\.datos=\$5::jsonb/);
+   assert.match(sql,/l\.vence_en>now\(\)/);
+   assert.match(sql,/NOT EXISTS \(SELECT 1 FROM public\.(uki_seguimiento_transferencias_qa_v1|romo_seguimiento_transferencia_v1)/);
+   assert.doesNotMatch(sql,/caja|ventas/);
+   if(!canChange)return [];
+   saved++;previous={...previous,pagos:JSON.parse(args[5]),medioPago:args[6],
+    medioPagoConfirmadoPor:args[7],medioPagoConfirmadoTotal:args[3],medioPagoConfirmadoEn:'2026-11-24T12:00:00Z'};
+   return [{id}];
+  }};
+  const go=pagos=>pay.confirmDistribution({db,storeId,orderId:id,staff,pagos,totalValidado:16000});
+  assert.equal(pay.normalizarDistribucion([{medio:'transferencia',monto:6000}],16000),null);
+  const payments=[{medio:'transferencia',monto:6000},{medio:'efectivo',monto:10000}];
+  assert.equal((await go(payments)).montoTransferencia,6000);
+  assert.equal(saved,1);
+  assert.equal((await go([...payments].reverse())).repeated,true);
+  assert.equal(saved,1);
+  await assert.rejects(()=>go([{medio:'efectivo',monto:16000}]),/eliminar una transferencia/);
+  canChange=false;
+  await assert.rejects(()=>go([{medio:'transferencia',monto:7000},{medio:'efectivo',monto:9000}]),/aviso\/abono/);
+  assert.equal(saved,1);
+ }
+});

@@ -87,6 +87,14 @@ module.exports=async(req,res)=>{
     });
     return res.status(200).json(result);
    }
+   if(action==='confirmar_distribucion_pago'){
+    if(Object.keys(req.body).sort().join('|')!=='action|id|pagos|storeId|totalValidado')
+     return fail(res,400,'Distribución inválida');
+    const PAY=require('../lib/seguimiento-confirmar-medio-pago-qa.cjs');
+    const result=await PAY.confirmDistribution({db,storeId,orderId:id,staff:actor,
+     pagos:req.body.pagos,totalValidado:req.body.totalValidado});
+    return res.status(200).json(result);
+   }
    if(action==='confirmar_transferencia'){
     if(Object.keys(req.body).sort().join('|')!=='action|id|montoRecibido|storeId|verificadoEnBanco')
      return fail(res,400,'Datos bancarios incompletos');
