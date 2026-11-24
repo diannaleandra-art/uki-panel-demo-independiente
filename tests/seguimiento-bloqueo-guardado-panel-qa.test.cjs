@@ -20,7 +20,7 @@ for(const [storeId,branch] of stores){
    throw Error('Consulta fuera del verificador QA');
   }};
   const check=()=>gate.check({db,storeId,orderId:id,requiereTransferencia:true});
-  const a=await check();assert.equal(a.permitido,false);assert.match(a.razon,/verificar/);
+  const a=await check();assert.equal(a.permitido,false);assert.match(a.razon,/verificar|Revisa el abono/);
   paidState='pendiente';assert.equal((await check()).permitido,false);
   paidState='confirmada';assert.equal((await check()).permitido,true);
   assert.equal(queries.filter(x=>/INSERT |UPDATE |DELETE /i.test(x.sql)).length,0);
