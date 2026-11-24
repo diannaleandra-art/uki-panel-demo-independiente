@@ -37,8 +37,11 @@ test('ambos módulos Uki sólo validan tras confirmación de aceptación',()=>{
   assert.ok(block.indexOf('await ukiCartaApiCambio')<block.indexOf('window.ukiQAConfirmPaymentMethodAfterSave'));
  }
 });
-test('preview deshabilitado por defecto, nunca activa producción o pagos por selección del cliente',()=>{
+test('el medio de pago se valida automáticamente solo en preview del panel, nunca en producción',()=>{
  assert.match(client,/window\.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true/);
+ assert.match(client,/const TRACKING_PAYMENT_PREVIEW_QA=location\.protocol==='https:'/);
+ assert.match(client,/location\.pathname\.startsWith\('\/romo-panel-qa\/'\)/);
+ assert.match(client,/window\.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED=TRACKING_PAYMENT_PREVIEW_QA/);
  assert.match(client,/romos-sushi-panel-\[a-z0-9-\]\+-diannaleandra-7046/);
  assert.match(client,/action:'confirmar_medio_de_pago'/);
  assert.doesNotMatch(client,/action:'confirmar_transferencia'/);
@@ -57,6 +60,8 @@ for(const store of ['uki:arica','uki:serena','romo:serena']){
 test('pagos mixtos, propinas, otro local, entrega distinta y pagos antiguos nunca se validan automáticamente',()=>{
  assert.equal(detector({...order,mixtoProductos:true}),null);
  assert.equal(detector({...order,mixtoEnvio:true}),null);
+ assert.equal(detector({...order,pagosProductos:[{medio:'Transferencia',monto:14000}]}),null);
+ assert.equal(detector({...order,pagosEnvio:[{medio:'Efectivo',monto:2000}]}),null);
  assert.equal(detector({...order,productosPagadosOtroLocal:true}),null);
  assert.equal(detector({...order,envioPagadoOtroLocal:true}),null);
  assert.equal(detector({...order,pagado:true}),null);
@@ -65,4 +70,23 @@ test('pagos mixtos, propinas, otro local, entrega distinta y pagos antiguos nunc
  assert.equal(detector({...order,medioEnvio:'Efectivo'}),null);
  assert.equal(detector({...order,medio:'Tarjeta'}),null);
  assert.equal(detector({...order,subtotal:0,envio:0,total:0}),null);
+});
+
+
+test('la bandera de pago automático no se activa en dominio de producción ni en otra ruta',()=>{
+ const start=client.indexOf('const TRACKING_PAYMENT_PREVIEW_QA=');
+ const end=client.indexOf("const API='/api/seguimiento-personal-tres-qa';",start);
+ assert.ok(start>=0&&end>start);
+ const snippet=client.slice(start,end);
+ const calculate=({protocol,hostname,pathname})=>{
+  const context={protocol,hostname,pathname};
+  const window={};
+  const enabled=new Function('location','window',snippet+
+   '\nreturn window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED;')(context,window);
+  return enabled;
+ };
+ assert.equal(calculate({protocol:'https:',hostname:'romos-sushi-panel-test123-diannaleandra-7046.vercel.app',pathname:'/romo-panel-qa/index.html'}),true);
+ assert.equal(calculate({protocol:'https:',hostname:'romos-sushi-panel.vercel.app',pathname:'/romo-panel-qa/index.html'}),false);
+ assert.equal(calculate({protocol:'https:',hostname:'romos-sushi-panel-test123-diannaleandra-7046.vercel.app',pathname:'/otro-panel/'}),false);
+ assert.equal(calculate({protocol:'http:',hostname:'romos-sushi-panel-test123-diannaleandra-7046.vercel.app',pathname:'/romo-panel-qa/'}),false);
 });
