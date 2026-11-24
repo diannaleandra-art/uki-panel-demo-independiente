@@ -4643,6 +4643,9 @@ function ukiOrigenPedido(p){
   const extraTransfer=metodosAdicionales.some(v=>
    String(v||'').trim().toLowerCase()==='transferencia');
   const requiresTransfer=extraTransfer||ukiSeguimientoHayTransferenciaQA(p);
+  // Solo la transferencia requiere comprobación bancaria. Efectivo, tarjeta
+  // y beneficios conservan su procedimiento normal de pago y caja.
+  if(!requiresTransfer)return true;
   const id=String(p?.cartaSolicitudRemotaId||p?.seguimientoSolicitudId||'');
   if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[0-9a-f]{12}$/i.test(id)){
    if(!requiresTransfer)return true; // efectivo/tarjeta mantienen controles vigentes
