@@ -42,6 +42,8 @@ module.exports=async function romoCierreQA(req,res){
  const cfg=config(process.env);
  if(!cfg)return fail(res,503,'Cierre Romo no autorizado para este entorno');
  if(req.method!=='POST')return fail(res,405,'Solo cierres explícitos');
+ const MIGRACION=require('../lib/seguimiento-aislar-escrituras-legadas-qa.cjs');
+ if(MIGRACION.blocked({route:'cierre-snapshot',method:req.method}))return MIGRACION.denial(res);
  if(String(req.headers?.origin||'')!==cfg.origin)return fail(res,403,'Origen no autorizado');
  res.setHeader('Access-Control-Allow-Origin',cfg.origin);
  if(String(req.headers?.['content-type']||'').split(';')[0]!=='application/json')
