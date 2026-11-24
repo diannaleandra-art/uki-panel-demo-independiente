@@ -269,6 +269,18 @@ color:#955115;box-shadow:0 2px 10px rgba(0,0,0,.12);font-weight:800;font-size:19
 <body>
 <header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.16 · LOCALES</h1><small id="ukiEstadoOperativo" role="status">Nube: desactivada · Abre tu sucursal y carga Firebase</small></header>
 <nav id="nav" class="app-nav" aria-label="Navegación de Uki Sushi"></nav>
+<!-- Seguimiento en preparación para las tres sucursales; no altera caja ni pedidos. -->
+<section id="romo-seguimiento-bandeja-qa" hidden style="max-width:650px;margin:12px auto;padding:12px;border:1px solid #d0b9c0;border-radius:14px;background:#fff;color:#29242a">
+ <details id="romo-seguimiento-abrir-qa">
+  <summary style="font-weight:750;padding:8px 4px;cursor:pointer">Mensajes y transferencias del pedido</summary>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0">
+   <button id="romo-seguimiento-actualizar-qa" type="button" class="sm">Actualizar avisos</button>
+   <small id="romo-seguimiento-resumen-qa" role="status"></small>
+  </div>
+  <div id="romo-seguimiento-lista-qa"></div>
+  <div id="romo-seguimiento-detalle-qa" hidden></div>
+ </details>
+</section>
 <section id="ukiNubeSeccion" style="margin:12px;padding:14px;background:#fff0dd;border:2px solid #b55e25;border-radius:14px">
 <b>PANEL INTERNO DE UKI SUSHI · DOS SUCURSALES</b>
 <p>Inicia sesión con Google, abre tu sucursal y pulsa «Cargar nube». Solo registra pedidos cuando aparezca «Nube: sincronizado». Si dice «pendiente», «error» o «conflicto», conserva el teléfono y comprueba el guardado antes de seguir.</p>
@@ -3879,12 +3891,159 @@ function ukiOrigenPedido(p){
  if(String(p.textoOriginal||"").trim())return "WhatsApp";
  return "Manual";
 }
-function ukiMarcarPedidoEntregado(id){
+function ukiSeguimientoHayTransferenciaQA(p){
+  if(!p||typeof p!=='object')return false;
+  const values=[p.medio,p.medioEnvio,p.romoPagoIndicadoQA,p.pagoDeclarado,
+   p.medioProductos,p.medioDelivery];
+  for(const campo of [p.pagosProductos,p.pagosEnvio,p.pagos,p.pagosMixtos]){
+   if(Array.isArray(campo))for(const item of campo)
+    values.push(typeof item==='string'?item:item?.medio);
+  }
+  return values.some(v=>String(v||'').trim().toLowerCase().normalize('NFD')
+   .replace(/[\u0300-\u036f]/g,'')==='transferencia');
+ }
+ // Contrastar el importe realmente destinado a la caja con el de la solicitud.
+ function ukiSeguimientoImportesCajaQA(p){
+  const sub=Array.isArray(p?.items)?
+   p.items.filter(x=>x.nombre).reduce((sum,x)=>sum+Number(x.cant)*Number(x.precio),0):
+   Number(p?.subtotal);
+  const envio=p?.modalidad==='Delivery'?Number(p.envio):0;
+  const total=sub+envio;
+  if(!Number.isSafeInteger(sub)||sub<1||!Number.isSafeInteger(envio)||envio<0||
+     !Number.isSafeInteger(total)||(p.total!==undefined&&Number(p.total)!==total))
+   return null;
+  const pedido={...p,subtotal:sub,envio,total};
+  const lines=[...ukiLineasPago(pedido,'productos',sub),...ukiLineasPago(pedido,'envio',envio)];
+  if(lines.some(x=>!Number.isSafeInteger(x.monto)||x.monto<=0))return null;
+  const montoTransferencia=lines.filter(x=>String(x.medio||'').trim().toLowerCase()==='transferencia')
+   .reduce((sum,x)=>sum+x.monto,0);
+  return {total,montoTransferencia};
+ }
+
+ // Pedido pegado de WhatsApp o ingresado manualmente: la misma confirmación
+ // operativa del timbre, sin crear una solicitud remota ni cobrar otra vez.
+ function ukiSeguimientoFirmaManualQA(p,importePropuesto=null){
+  if(!p||p.cartaSolicitudRemotaId||p.seguimientoSolicitudId||
+     (p.suc&&p.suc!==S.suc))return null;
+  const pedidoId=Number(p.id??p.editando??S.nextId);
+  const importes=importePropuesto||ukiSeguimientoImportesCajaQA(p);
+  if(!Number.isSafeInteger(pedidoId)||pedidoId<1||!importes||
+     !Number.isSafeInteger(importes.total)||importes.total<1||
+     !Number.isSafeInteger(importes.montoTransferencia)||importes.montoTransferencia<1||
+     importes.montoTransferencia>importes.total)return null;
+  return {suc:S.suc,pedidoId,total:importes.total,monto:importes.montoTransferencia,
+   cliente:String(p.cliente||'').trim(),telefono:String(p.telefono||'').trim()};
+ }
+ function ukiSeguimientoManualValidaQA(p,importePropuesto=null){
+  const firma=ukiSeguimientoFirmaManualQA(p,importePropuesto),proof=p?.transferenciaManualQA;
+  return !!(firma&&proof&&JSON.stringify(proof.firma)===JSON.stringify(firma)&&
+    typeof proof.por==='string'&&proof.por.trim()&&Number.isFinite(Date.parse(proof.en)));
+ }
+ function ukiSeguimientoPrepararManualQA(p,{importePropuesto=null,responsable=''}={}){
+  if(!p||p.cartaSolicitudRemotaId||p.seguimientoSolicitudId)return true;
+  const importes=importePropuesto||ukiSeguimientoImportesCajaQA(p);
+  if(!ukiSeguimientoHayTransferenciaQA(p)&&!(importes?.montoTransferencia>0))return true;
+  if(!importes)return aviso('Revisa el monto de transferencia antes de guardar.'),false;
+  if(importes.montoTransferencia===0)return true;
+  const firma=ukiSeguimientoFirmaManualQA(p,importes);
+  if(!firma)return aviso('No se pudo identificar el pedido de transferencia.'),false;
+  if(ukiSeguimientoManualValidaQA(p,importes))return true;
+  const anterior=(S.pedidos||[]).find(x=>x.suc===S.suc&&Number(x.id)===firma.pedidoId);
+  if(anterior?.transferenciaManualQA&&ukiSeguimientoManualValidaQA(
+     {...p,transferenciaManualQA:anterior.transferenciaManualQA},importes)){
+   p.transferenciaManualQA=anterior.transferenciaManualQA;return true;
+  }
+  if(!window.confirm('TRANSFERENCIA · '+S.suc+'\n¿Confirmas que comprobaste en Santander el abono de '+fmt(firma.monto)+' de este pedido?\nAceptar registra tu comprobación; no genera otro cobro.')){
+   aviso('Transferencia pendiente. No se guardó el pago.');return false;
+  }
+  p.transferenciaManualQA={firma,por:String(responsable||ukiTimbreResponsableActual()).trim(),en:new Date().toISOString()};
+  return true;
+ }
+ function ukiSeguimientoAnotarManualQA(p,d){
+  if(!p||!d?.transferenciaManualQA||p.cartaSolicitudRemotaId||p.seguimientoSolicitudId)return;
+  // Se copia la constatación sólo a la versión normal del MISMO pedido.
+  const candidato={...p,transferenciaManualQA:d.transferenciaManualQA};
+  if(ukiSeguimientoManualValidaQA(candidato))p.transferenciaManualQA=d.transferenciaManualQA;
+ }
+ async function ukiSeguimientoPermitirCerrarQA(p,{metodosAdicionales=[],importePropuesto=null}={}){
+  const storeId=S.suc==='Uki Regimiento Arica'?'uki:arica':
+    S.suc==='Uki La Serena'?'uki:serena':
+    null;
+  if(!storeId){aviso('No se pudo validar la sucursal del pedido.');return false;}
+  const extraTransfer=metodosAdicionales.some(v=>
+   String(v||'').trim().toLowerCase()==='transferencia');
+  const requiresTransfer=extraTransfer||ukiSeguimientoHayTransferenciaQA(p);
+  const id=String(p?.cartaSolicitudRemotaId||p?.seguimientoSolicitudId||'');
+  // Un pedido MANUAL sin transferencia conserva su caja habitual.
+  // Los pedidos de carta vinculados SIEMPRE contrastan el medio definitivo
+  // del servidor, incluso si la agendadora seleccionó efectivo o tarjeta.
+  // Así no puede saltarse una transferencia cambiando el medio en pantalla.
+  if(!requiresTransfer&&!id)return true;
+  if(!id){
+   const importes=importePropuesto||ukiSeguimientoImportesCajaQA(p);
+   if(importes?.montoTransferencia===0)return true;
+   if(ukiSeguimientoManualValidaQA(p,importes))return true;
+   aviso('Primero confirma el abono de esta transferencia en el pago del pedido.');
+   return false;
+  }
+  if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[0-9a-f]{12}$/i.test(id)){
+   aviso(requiresTransfer?
+    'Transferencia por verificar. No se puede marcar pagado ni entregado hasta comprobar el abono de este pedido.':
+    'No se pudo vincular el pedido con su solicitud de carta. Actualiza antes de cerrar.');
+   return false;
+  }
+  try{
+   const importes=requiresTransfer?(importePropuesto||ukiSeguimientoImportesCajaQA(p)):null;
+   if(requiresTransfer&&(!importes||!Number.isSafeInteger(importes.total)||importes.total<1||
+      !Number.isSafeInteger(importes.montoTransferencia)||importes.montoTransferencia<1||
+      importes.montoTransferencia>importes.total)){
+    aviso('El monto de transferencia del pedido no cuadra. Revisa el pago antes de guardar.');
+    return false;
+   }
+   const token=await window.ukiMesasTokenConfirmar?.();
+   if(typeof token!=='string'||token.length<20)throw Error('No se pudo validar la sesión del personal.');
+   const query=new URLSearchParams({storeId,id,requiereTransferencia:requiresTransfer?'1':'0'});
+   const response=await fetch('https://uki-sushi-pedidos.vercel.app/api/seguimiento-verificar-cierre-live?'+query.toString(),{
+    method:'GET',cache:'no-store',credentials:'omit',
+    headers:{Authorization:'Bearer '+token,Accept:'application/json'},
+    signal:AbortSignal.timeout(14000)
+   });
+   const data=await response.json().catch(()=>null);
+   if(!response.ok||data?.ok!==true||data.storeId!==storeId||data.orderId!==id||
+      data.permitido!==true){
+    aviso(data?.razon||data?.error||'No se comprobó la transferencia. Deja este pedido pendiente.');
+    // Si la agendadora intentó finalizar una transferencia aún no verificada,
+    // abrir ESA transferencia en el mismo panel. Sin ventanas ni formularios extra.
+    // No se abre si la API falló, no autorizó al usuario o el pedido no coincide.
+    if(requiresTransfer&&response.ok&&data?.ok===true&&
+       data.storeId===storeId&&data.orderId===id&&data.permitido===false)
+      void window.ukiQAOpenOrderTracking?.(id);
+    return false;
+   }
+   if(importes&&(data.total!==importes.total||data.montoTransferencia!==importes.montoTransferencia)){
+    aviso('El monto de la transferencia o el total del pedido no coincide con lo verificado. No se guardó el cobro.');
+    return false;
+   }
+   return true;
+  }catch{
+   aviso('No se pudo consultar la verificación bancaria. El pedido sigue pendiente; no intentes cobrar nuevamente.');
+   return false;
+  }
+ }
+
+async function ukiMarcarPedidoEntregado(id){
  const p=(S.pedidos||[]).find(x=>x.id===Number(id)&&x.suc===S.suc);
  if(!p||p.estado!=='Pendiente'||p.esPremio)return aviso('Solo puedes confirmar la entrega de un pedido pendiente.');
  if(p.timbreReglaObligatoria&&p.pagado&&ukiNumeroTimbreWhatsApp(p.telefono)&&!p.timbreEnviadoEn)
   return aviso('Antes de finalizar este pedido, envía y confirma su timbre por WhatsApp.');
- if(!window.confirm('¿Confirmas que el cliente recibió este pedido? Su pago y caja no cambiarán.'))return;
+ if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED===true){
+  const comprobacionManual={...p};
+  if(p.pagado&&!ukiSeguimientoPrepararManualQA(comprobacionManual))return;
+  if(!await ukiSeguimientoPermitirCerrarQA(comprobacionManual))return;
+  if(S.suc!==p.suc||(S.pedidos||[]).find(x=>x.suc===p.suc&&x.id===p.id)!==p)return aviso('El pedido cambió. Revisa antes de entregar.');
+  if(!window.confirm('¿Confirmas que el cliente recibió este pedido? Su pago y caja no cambiarán.'))return;
+  ukiSeguimientoAnotarManualQA(p,comprobacionManual);
+ }else if(!window.confirm('¿Confirmas que el cliente recibió este pedido? Su pago y caja no cambiarán.'))return;
  p.estado='Entregado';p.entregadoEn=new Date().toISOString();
  p.entregadoPor=ukiTimbreResponsableActual();
  void guardarEnLocalStorage();render();
@@ -4377,6 +4536,15 @@ async function ukiMesaConfirmarGuardadosSeguro(){
 }
 setInterval(()=>{if(ukiMesas.used&&!ukiMesas.busy&&S.suc&&S.vista==='pedidos')ukiMesaActualizar();},45000);
 
+function ukiSeguimientoEnPedidoQA(p){
+ const id=String(p?.cartaSolicitudRemotaId||p?.seguimientoSolicitudId||'');
+ if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)||p.suc!==S.suc||p.estado==='Cancelado')return '';
+ return '<div data-seguimiento-id="'+id+'" style="flex-basis:100%;margin:8px 0">'+
+  '<button class="sm" type="button" onclick="window.ukiQAOpenOrderTracking?.(&quot;'+id+'&quot;)" aria-expanded="false">💬 Mensajes y transferencia</button>'+
+  ' <small data-seguimiento-aviso role="status"></small>'+
+  '<small data-seguimiento-status role="status" style="display:block"></small>'+
+  '<div data-seguimiento-detalle hidden style="margin-top:8px;padding:10px;border:1px solid #ddd;border-radius:10px"></div></div>';
+}
 function vPedidos(){
   if(!S.suc) return vInicio();
   const fechaTurno=fechaOperativaActual();
@@ -4518,7 +4686,7 @@ function vPedidos(){
     <label>Que ocurrio</label><textarea rows="2" id="incProblema${p.id}" placeholder="Ej: falto una salsa"></textarea>
     <label>Solucion (opcional)</label><textarea rows="2" id="incSolucion${p.id}" placeholder="Ej: reposicion enviada"></textarea>
     <button class="sm ok" onclick="anotarIncidencia(${p.id})">Guardar error</button></details>
-    <div class="order-actions">${ukiCuentaAbierta(p)&&esDelPeriodo(p)?`<button class="sm ok" onclick="ukiAgregarACuenta(${p.id})">+ Agregar a cuenta</button>`:""}${p.estado!=="Cancelado"?`<button class="sm ok" onclick="editarPedido(${p.id})">Editar</button><button class="sm" onclick="togglePagado(${p.id})">${p.pagado?'Quitar pagado':'Marcar pagado'}</button>${p.estado==="Pendiente"?`<button class="sm ok" onclick="ukiMarcarPedidoEntregado(${p.id})">✓ Marcar entregado</button>`:""}`:""}<button class="sm" onclick="copiarComanda(${p.id})">Copiar comanda</button></div>
+    <div class="order-actions">${ukiCuentaAbierta(p)&&esDelPeriodo(p)?`<button class="sm ok" onclick="ukiAgregarACuenta(${p.id})">+ Agregar a cuenta</button>`:""}${p.estado!=="Cancelado"?`<button class="sm ok" onclick="editarPedido(${p.id})">Editar</button><button class="sm" onclick="togglePagado(${p.id})">${p.pagado?'Quitar pagado':'Marcar pagado'}</button>${p.estado==="Pendiente"?`<button class="sm ok" onclick="ukiMarcarPedidoEntregado(${p.id})">✓ Marcar entregado</button>`:""}`:""}${window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED===true?ukiSeguimientoEnPedidoQA(p):""}<button class="sm" onclick="copiarComanda(${p.id})">Copiar comanda</button></div>
     ${p.estado!=="Cancelado"&&!p.esPremio?`<details class="inner-details uki-cancelar-pedido" style="padding:12px;margin-top:12px;border:1px solid #e7c8b3;border-radius:12px"><summary style="cursor:pointer;color:#9b3328;font-weight:750">❌ Cancelar pedido</summary>${ukiFormularioCancelarDisponible(p)?`<div style="margin-top:12px"><label for="motivoCancelacion${p.id}">¿Quién canceló? · Obligatorio</label><select id="motivoCancelacion${p.id}"><option value="">Selecciona una opción</option><option value="cliente">Lo canceló el cliente</option><option value="local">Lo canceló el local</option></select><label for="detalleCancelacion${p.id}">¿Por qué se cancela? · Motivo obligatorio</label><textarea id="detalleCancelacion${p.id}" rows="2" maxlength="300" placeholder="Ej.: El cliente desistió del pedido"></textarea>${ukiCobroPendiente(p)?`<div class="mini-help" style="padding:10px;margin-top:12px;border-left:3px solid var(--accent)"><b>¿Qué pasó con el dinero que figuraba pagado? · ${fmt(Number(ukiCobroPendiente(p).saldo))}</b><p class="muted">El pago anterior puede haberse marcado por error. No significa que haya devolución.</p><select id="cobroCancelacion${p.id}"><option value="">Selecciona qué ocurrió</option><option value="no_recibido">Nunca recibimos ese dinero; se marcó pagado por error</option><option value="devuelto">Sí se cobró, pero YA lo devolvimos al cliente</option><option value="pendiente">Sí se cobró y todavía falta devolverlo</option></select><label for="respCancelacion${p.id}">¿Quién verificó el dinero? · Obligatorio</label><input id="respCancelacion${p.id}" maxlength="80" autocomplete="off" placeholder="Nombre del responsable"><p class="muted">No se puede cancelar si falta devolver dinero. El panel no realiza devoluciones.</p></div>`:""}<p id="ukiErrorCancelar${p.id}" role="alert" hidden style="padding:10px;border-radius:10px;background:#ffece4;color:#863417;margin:10px 0"></p><button class="sm" type="button" onclick="cancelarPedido(${p.id})" style="color:#9b3328;border-color:#dcb4a5">Confirmar cancelación del pedido</button><p class="muted">El motivo queda guardado y no crea otro cobro.</p></div>`:`<p class="muted" style="margin-top:10px">${esc(ukiAyudaCancelarPedido(p))}</p>`}</details>`:""}
     </div></details>`).join('')}
   ${visiblesRemotas.filter(r=>!mostrarPrioridad||r.estado!=='pendiente').map(r=>ukiCartaRemotaFicha(r)).join('')}
@@ -4674,6 +4842,30 @@ async function ukiQRPermitirCobroDefinitivo(d){
   return false;
  }
 }
+function ukiSeguimientoConservarOrigenEdicionQA(){
+ if(!D.editando)return true;
+ const original=(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(D.editando));
+ if(!original)return true;
+ for(const field of ['cartaSolicitudRemotaId','seguimientoSolicitudId']){
+  const stored=String(original[field]||'');
+  if(!stored)continue;
+  const current=String(D[field]||'');
+  if(current&&current!==stored){
+   aviso('La referencia original del pedido no coincide. Actualiza antes de editar.');
+   return false;
+  }
+  D[field]=stored;
+ }
+ return true;
+}
+// La misma protección se usa en ambos Uki y Romo, antes de modificar caja.
+function ukiSeguimientoValidarCambioMedioQA(original,nuevo){
+ if(original&&ukiSeguimientoHayTransferenciaQA(original)&&!ukiSeguimientoHayTransferenciaQA(nuevo)){
+  aviso('No se puede quitar una transferencia registrada desde la edición normal. Requiere una corrección autorizada.');
+  return false;
+ }
+ return true;
+}
 async function ndGuardar(){
   if(ukiGuardadoSolicitudEnCurso)return;
   ukiGuardadoSolicitudEnCurso=true;
@@ -4682,6 +4874,15 @@ async function ndGuardar(){
   const originalQR=D.editando?S.pedidos.find(p=>p.suc===S.suc&&p.id===D.editando):null;
   if(D.editando&&!originalQR){
     aviso('No se encontró el pedido original. Actualiza la lista antes de editar.');return;
+  }
+  if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED===true){
+   if(!ukiSeguimientoConservarOrigenEdicionQA()||!ukiSeguimientoValidarCambioMedioQA(originalQR,D))return;
+   if(D.pagado&&!ukiSeguimientoPrepararManualQA(D))return;
+   const firmaPago=JSON.stringify({suc:S.suc,draft:D});
+   if(D.pagado&&!await ukiSeguimientoPermitirCerrarQA(D))return;
+   if(firmaPago!==JSON.stringify({suc:S.suc,draft:D})){
+    aviso('El pedido cambió durante la comprobación. Revisa antes de guardar.');return;
+   }
   }
   const editandoPagoQRConfirmado=ukiQREsCorreccionDePagoExistente(D,originalQR);
   const editandoQRRegistrado=!!(originalQR&&originalQR.suc===S.suc&&
@@ -4858,6 +5059,7 @@ async function ndGuardar(){
             saldoPendiente:p.ajusteCobroPendiente?.saldo||0});
         }
       }
+      if(D.pagado&&window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED===true)ukiSeguimientoAnotarManualQA(p,D);
       if(!ukiTimbreYaEnviadoPedido(p)&&ukiTimbreBorradorConfirmado(D))
         ukiAnotarTimbreConfirmadoEnPedido(p,D);
       if(!cierreHistorico && !p.esPremio && D.cliente && D.pagado && !D.productosPagadosOtroLocal){
@@ -4911,6 +5113,7 @@ async function ndGuardar(){
   const {numero:numeroTurno,clave:turnoClave}=ukiTurnoFolioActual();
   const idNuevo=S.nextId++;
   const nuevoPedido={id:idNuevo,numeroTurno,turnoClave,suc:S.suc,fechaISO:D.fecha,registradoEn:Date.now(),cliente:D.cliente,telefono:D.telefono||"",codigoCarta:D.codigoCarta||"",codigoCliente:D.codigoCliente||"",cartaSolicitudRemotaId:String(D.cartaSolicitudRemotaId||""),cartaReservaToken:String(D.cartaReservaToken||""),qrSolicitudes:Array.isArray(D.qrSolicitudes)?[...new Set(D.qrSolicitudes)]:[],sucursalCarta:D.sucursalCarta||"",mesaReferencia:D.modalidad==="Consumo en local"?String(D.mesaReferencia||"").trim():"",modalidad:D.modalidad,envio:envio,kmRecorrido,medio:D.medio,medioEnvio:D.medioEnvio,...datosPago,pagado:D.pagado,estado:"Pendiente",productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det,...ukiDatosCatalogoItem(x)})),total:total,subtotal:sub,propina:propina,propinaModo:D.propinaModo,medioPropina:D.medioPropina,textoOriginal:D.texto,esPremio:false};
+  if(D.pagado&&window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED===true)ukiSeguimientoAnotarManualQA(nuevoPedido,D);
   S.pedidos.push(nuevoPedido);
   // Incluso si el pago se desmarcó tras enviar WhatsApp, conservar la marca enviada.
   // No suma timbres de fidelidad mientras la compra continúe sin pagar.
@@ -6055,6 +6258,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 <script src="./uki-caja-acumulada-admin.js?v=20261122-calendario1" defer></script>
 <script src="./uki-control-turnos.js" defer></script>
 <script src="./uki-carta-remotas-panel.js" defer></script>
+<script type="module" src="./uki-seguimiento-operativo-panel-v1.mjs"></script>
 <script src="./uki-archivo-mensual-core.js?v=20261121-retencion-simulada-v2" defer></script>
 <script src="./uki-archivo-agenda.js?v=20261121-agenda-v1" defer></script>
 <script src="./uki-archivo-mensual-panel.js?v=20261121-agenda-v1" defer></script>

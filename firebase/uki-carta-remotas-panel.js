@@ -180,6 +180,8 @@ async function ukiCartaConfirmarRespaldados(){
     const p=S.pedidos.find(p=>p.suc===S.suc&&p.estado!=='Cancelado'&&String(p.cartaSolicitudRemotaId||'')===String(r.id));
     const extra=p?.cartaReservaToken?{claimToken:p.cartaReservaToken,pedidoId:String(p.id)}:{};
     await ukiCartaApiCambio(r.id,'aceptada','',extra);r.estado='aceptada';
+    if(p&&window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED===true)
+     void window.ukiQAConfirmPaymentMethodAfterSave?.({storeId:r.branch==='arica'?'uki:arica':'uki:serena',solicitudId:r.id,pedido:p});
    }
    catch(e){ukiCartaRemotas.status='Pedido registrado en Uki; el estado de la bandeja sigue pendiente: '+String(e?.message||e);break}
   }
