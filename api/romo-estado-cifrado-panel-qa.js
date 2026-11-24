@@ -57,6 +57,8 @@ module.exports=async function romoEstadoCifradoPanelQA(req,res){
  res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type');
  if(req.method==='OPTIONS')return res.status(204).end();
  if(!['GET','POST'].includes(req.method))return send(res,405,'Método no permitido');
+ const MIGRACION=require('../lib/seguimiento-aislar-escrituras-legadas-qa.cjs');
+ if(MIGRACION.blocked({route:'estado-cifrado',method:req.method}))return MIGRACION.denial(res);
  if(req.method==='POST'&&(
     process.env.ROMO_ESTADO_CIFRADO_ESCRITURA_QA_ENABLED!=='true'||
     process.env.ROMO_PANEL_PILOTO_MANUAL_QA_ENABLED!=='true'||!conf.writer))
