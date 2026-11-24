@@ -81,6 +81,7 @@ body.uki header{background:linear-gradient(120deg,#3d182c,#9a3750)}
    <div class="actions">
     <button class="action secondary" id="next-status">Simular siguiente estado</button>
    </div>
+   <p id="finish-warning" class="small" role="status" style="font-weight:750;color:#9a2736"></p>
    <div class="notebox" style="margin-top:13px">Si quieres hacer seguimiento, conserva esta página abierta o guarda el enlace. No necesitas instalar nada.</div>
   </section>
   <section class="card" aria-label="Pantalla de agendadora">
@@ -102,6 +103,7 @@ body.uki header{background:linear-gradient(120deg,#3d182c,#9a3750)}
  </div>
  <section class="card">
   <h2>Pago y mensajes desde la carta</h2>
+  <p class="notebox"><strong>¿Cuándo aparece?</strong> Justo después de que el cliente elige «Transferencia» y confirma su pedido, siempre que el local tenga su cuenta bancaria verificada y el sistema haya validado el monto. No debe esperar a que esté en preparación.</p>
   <p class="small">Monto de transferencia de prueba (no hay cuentas bancarias ni datos de pago reales).</p>
   <p class="money">$12.000</p>
   <p id="customer-payment" class="status">Transferencia pendiente</p>
@@ -138,6 +140,7 @@ function payment(){
 function reset(){
  stage=0;transfer=0;
  $('state').textContent=statuses[stage];$('next-status').disabled=false;
+ $('finish-warning').textContent='';
  $('customer-messages').replaceChildren(bubble('Tú','Hola, ¿cuánto falta?',true));
  $('staff-messages').replaceChildren(bubble('Cliente','Hola, ¿cuánto falta?',false));
  $('chat-text').value='';payment();
@@ -148,11 +151,16 @@ document.querySelectorAll('[data-store]').forEach(b=>b.addEventListener('click',
  $('customer-store').textContent=names[store];reset();
 }));
 $('next-status').addEventListener('click',()=>{
+ if(stage===statuses.length-2&&transfer!==2){
+  $('finish-warning').textContent='Bloqueado: la agendadora debe verificar en el banco y confirmar la transferencia antes de finalizar este pedido.';
+  return;
+ }
+ $('finish-warning').textContent='';
  stage=Math.min(statuses.length-1,stage+1);$('state').textContent=statuses[stage];
  $('next-status').disabled=stage===statuses.length-1;
 });
 $('customer-notice').addEventListener('click',()=>{transfer=1;payment();});
-$('verify').addEventListener('click',()=>{transfer=2;payment();});
+$('verify').addEventListener('click',()=>{transfer=2;payment();$('finish-warning').textContent='Transferencia confirmada (simulación): ahora puede finalizarse el pedido.';});
 $('send').addEventListener('click',()=>{
  const val=$('chat-text').value.trim();if(!val)return;
  $('customer-messages').append(bubble('Tú',val,true));
