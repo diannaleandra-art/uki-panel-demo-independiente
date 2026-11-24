@@ -98,7 +98,7 @@ function render(data){
   }
   set('bank-note',account?'Utiliza únicamente estos datos confirmados para el local.':
    'Datos bancarios aún no verificados. Consulta directamente al local antes de transferir.');
-  $('notice').disabled=!account||data.estadoPedido!=='aceptada'||data.estadoPago!=='pendiente'||busy;
+  $('notice').disabled=!account||!['pendiente','aceptada'].includes(data.estadoPedido)||data.estadoPago!=='pendiente'||busy;
   $('notice').textContent=data.estadoPago==='confirmada'?'Transferencia confirmada':
    data.estadoPago==='avisada'?'Aviso enviado':'Ya transferí';
  }
