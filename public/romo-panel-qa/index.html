@@ -418,6 +418,18 @@ body.romo-operativo-preparacion #app .uki-urgentes-carta .card button.sm.ok{
 
 <header><small id="suc">Elige una sucursal para empezar</small><h1>Romo’s Sushi · Panel v8.16 · LA SERENA</h1><small id="ukiEstadoOperativo" role="status">Nube: desactivada · Abre tu sucursal y carga Firebase</small><small id="romoNeonEstadoQA" role="status" style="display:none">Romo · verificación Neon pendiente</small></header>
 <nav id="nav" class="app-nav" aria-label="Navegación de Uki Sushi"></nav>
+<!-- QA seguimiento Romo: oculto fuera de la sucursal y sin cambiar el panel operativo. -->
+<section id="romo-seguimiento-bandeja-qa" hidden style="max-width:650px;margin:12px auto;padding:12px;border:1px solid #d0b9c0;border-radius:14px;background:#fff;color:#29242a">
+ <details id="romo-seguimiento-abrir-qa">
+  <summary style="font-weight:750;padding:8px 4px;cursor:pointer">Mensajes y transferencias del pedido</summary>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0">
+   <button id="romo-seguimiento-actualizar-qa" type="button" class="sm">Actualizar avisos</button>
+   <small id="romo-seguimiento-resumen-qa" role="status"></small>
+  </div>
+  <div id="romo-seguimiento-lista-qa"></div>
+  <div id="romo-seguimiento-detalle-qa" hidden></div>
+ </details>
+</section>
 <section id="ukiNubeSeccion" style="margin:12px;padding:14px;background:#fff0dd;border:2px solid #b55e25;border-radius:14px">
 <b>PANEL INTERNO DE UKI SUSHI · DOS SUCURSALES</b>
 <p>Inicia sesión con Google, abre tu sucursal y pulsa «Cargar nube». Solo registra pedidos cuando aparezca «Nube: sincronizado». Si dice «pendiente», «error» o «conflicto», conserva el teléfono y comprueba el guardado antes de seguir.</p>
@@ -11658,4 +11670,4 @@ el("ukiAutoCheck").addEventListener("change",()=>{
 <script src="/romo-panel-qa/romo-caja-acumulada-operativa.js?v=20261122-calendario1" defer></script>
 <script src="/romo-panel-qa/romo-movimientos-paridad-qa.js?v=20261115a" defer></script>
 <script src="/romo-panel-qa/romo-edicion-en-panel-qa.js?v=20261114c" defer></script>
-<script src="/romo-panel-qa/romo-carta-editor-seguro-qa.js?v=20261121carta-orden-v7" defer></script><script src="/romo-panel-qa/romo-carta-gestion-completa-qa.js?v=20261121productos-claros-v1" defer></script><script src="/romo-panel-qa/romo-banner-admin.js?v=20261114b" defer></script></body></html>
+<script src="/romo-panel-qa/romo-carta-editor-seguro-qa.js?v=20261121carta-orden-v7" defer></script><script src="/romo-panel-qa/romo-carta-gestion-completa-qa.js?v=20261121productos-claros-v1" defer></script><script src="/romo-panel-qa/romo-banner-admin.js?v=20261114b" defer></script><script type="module" src="/romo-panel-qa/romo-seguimiento-personal-qa.mjs"></script></body></html>
