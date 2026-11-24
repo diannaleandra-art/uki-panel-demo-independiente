@@ -49,3 +49,12 @@
 - Test de regresión específico en `tests/seguimiento-bloqueo-guardado-panel-qa.test.cjs` verifica ambos caminos de entrega; GitHub Actions `45347823432` aprobó 94 pruebas de seguimiento y 23 de regresión Romo (117/117).
 - Vercel Preview privado: commit `a7ad274ee6a6203ada350a86a1a2d583fe7f97e5`, no producción.
 - **Todavía no es bloqueo transaccional comercial**: para producción quedan migración de guardado cifrado, integración en Uki/Firestore y datos bancarios correctos. No prometer cumplimiento operativo mientras existan rutas que escriben snapshots opacos.
+
+
+## Continuación 24/11 · pantalla cliente Uki, sin publicación
+En el repo separado \`diannaleandra-art/uki-sushi-respaldo\`, rama \`preparacion/uki-pago-declarado-seguimiento-20261124\`:
+- \`public/candidata/app.js\`: tras el POST de carta, si la respuesta **válida** del servidor trae \`seguimientoEnlace\`, crea un solo aviso «🍣 Sigue tu pedido aquí» con «Ver seguimiento» y «Guardar enlace». Valida HTTPS, dominio y ruta antes de mostrar; si el servidor NO ofrece enlace, no inventa uno. **Mantiene** \`window.location.assign(href)\` hacia WhatsApp y no considera cobrada la orden.
+- \`public/candidata/seguimiento-pedido-v1.mjs\`: permite mostrar cuenta bancaria **verificada y de la sucursal** al estar la solicitud pendiente o aceptada; «Ya transferí» es sólo aviso. El botón de guardar usa Compartir nativo del iPhone, o copiar como alternativa.
+- \`public/candidata/seguimiento-pedido.html\`: nombre del botón simplificado a «Guardar enlace».
+- CI \`45349725455\`: 8 pruebas de Uki exitosas.
+- **Limitación pendiente crucial**: \`api/carta-solicitudes-live.js\` de Uki todavía NO devuelve el campo \`seguimientoEnlace\`, de manera que esta interfaz no mostrará enlace en pedidos reales hasta conectar el emisor autorizado del servidor. No se añadió integración con base de datos comercial ni se publicó.
