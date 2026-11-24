@@ -4655,35 +4655,38 @@ function ukiOrigenPedido(p){
 
  // Pedido pegado de WhatsApp o ingresado manualmente: la misma confirmación
  // operativa del timbre, sin crear una solicitud remota ni cobrar otra vez.
- function ukiSeguimientoFirmaManualQA(p,importePropuesto=null){
-  if(!p||p.cartaSolicitudRemotaId||p.seguimientoSolicitudId||
-     (p.suc&&p.suc!==S.suc))return null;
+ function ukiSeguimientoFirmaManualQA(p,importePropuesto=null,solicitudSinEnlace=''){
+  const origen=String(p?.cartaSolicitudRemotaId||p?.seguimientoSolicitudId||'');
+  if(!p||origen!==solicitudSinEnlace||(p.suc&&p.suc!==S.suc))return null;
   const pedidoId=Number(p.id??p.editando??S.nextId);
   const importes=importePropuesto||ukiSeguimientoImportesCajaQA(p);
   if(!Number.isSafeInteger(pedidoId)||pedidoId<1||!importes||
      !Number.isSafeInteger(importes.total)||importes.total<1||
      !Number.isSafeInteger(importes.montoTransferencia)||importes.montoTransferencia<1||
      importes.montoTransferencia>importes.total)return null;
-  return {suc:S.suc,pedidoId,total:importes.total,monto:importes.montoTransferencia,
+  return {suc:S.suc,pedidoId,...(solicitudSinEnlace?{solicitudId:solicitudSinEnlace}:{}),total:importes.total,monto:importes.montoTransferencia,
    cliente:String(p.cliente||'').trim(),telefono:String(p.telefono||'').trim()};
  }
- function ukiSeguimientoManualValidaQA(p,importePropuesto=null){
-  const firma=ukiSeguimientoFirmaManualQA(p,importePropuesto),proof=p?.transferenciaManualQA;
+ function ukiSeguimientoManualValidaQA(p,importePropuesto=null,solicitudSinEnlace=''){
+  const firma=ukiSeguimientoFirmaManualQA(p,importePropuesto,solicitudSinEnlace),proof=p?.transferenciaManualQA;
   return !!(firma&&proof&&JSON.stringify(proof.firma)===JSON.stringify(firma)&&
     typeof proof.por==='string'&&proof.por.trim()&&Number.isFinite(Date.parse(proof.en)));
  }
- function ukiSeguimientoPrepararManualQA(p,{importePropuesto=null,responsable=''}={}){
-  if(!p||p.cartaSolicitudRemotaId||p.seguimientoSolicitudId)return true;
+ function ukiSeguimientoPrepararManualQA(p,{importePropuesto=null,responsable='',solicitudSinEnlace=''}={}){
+  if(!p)return true;
+  if(typeof location!=='undefined'&&location.hostname==='romos-sushi-panel.vercel.app'&&window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true)return true;
+  const origen=String(p.cartaSolicitudRemotaId||p.seguimientoSolicitudId||'');
+  if(origen!==solicitudSinEnlace)return !solicitudSinEnlace;
   const importes=importePropuesto||ukiSeguimientoImportesCajaQA(p);
   if(!ukiSeguimientoHayTransferenciaQA(p)&&!(importes?.montoTransferencia>0))return true;
   if(!importes)return aviso('Revisa el monto de transferencia antes de guardar.'),false;
   if(importes.montoTransferencia===0)return true;
-  const firma=ukiSeguimientoFirmaManualQA(p,importes);
+  const firma=ukiSeguimientoFirmaManualQA(p,importes,solicitudSinEnlace);
   if(!firma)return aviso('No se pudo identificar el pedido de transferencia.'),false;
-  if(ukiSeguimientoManualValidaQA(p,importes))return true;
+  if(ukiSeguimientoManualValidaQA(p,importes,solicitudSinEnlace))return true;
   const anterior=(S.pedidos||[]).find(x=>x.suc===S.suc&&Number(x.id)===firma.pedidoId);
   if(anterior?.transferenciaManualQA&&ukiSeguimientoManualValidaQA(
-     {...p,transferenciaManualQA:anterior.transferenciaManualQA},importes)){
+     {...p,transferenciaManualQA:anterior.transferenciaManualQA},importes,solicitudSinEnlace)){
    p.transferenciaManualQA=anterior.transferenciaManualQA;return true;
   }
   if(!window.confirm('TRANSFERENCIA · '+S.suc+'\n¿Confirmas que comprobaste en Santander el abono de '+fmt(firma.monto)+' de este pedido?\nAceptar registra tu comprobación; no genera otro cobro.')){
@@ -4693,12 +4696,14 @@ function ukiOrigenPedido(p){
   return true;
  }
  function ukiSeguimientoAnotarManualQA(p,d){
-  if(!p||!d?.transferenciaManualQA||p.cartaSolicitudRemotaId||p.seguimientoSolicitudId)return;
+  if(!p||!d?.transferenciaManualQA)return;
   // Se copia la constatación sólo a la versión normal del MISMO pedido.
   const candidato={...p,transferenciaManualQA:d.transferenciaManualQA};
-  if(ukiSeguimientoManualValidaQA(candidato))p.transferenciaManualQA=d.transferenciaManualQA;
+  const origen=String(d.transferenciaManualQA.firma?.solicitudId||'');
+  if(ukiSeguimientoManualValidaQA(candidato,null,origen))p.transferenciaManualQA=d.transferenciaManualQA;
  }
- async function ukiSeguimientoPermitirCerrarQA(p,{metodosAdicionales=[],importePropuesto=null}={}){
+ async function ukiSeguimientoPermitirCerrarQA(p,{metodosAdicionales=[],importePropuesto=null,permitirConfirmacionManual=true}={}){
+  if(typeof location!=='undefined'&&location.hostname==='romos-sushi-panel.vercel.app'&&window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true)return true;
   const storeId=S.suc==='Uki Regimiento Arica'?'uki:arica':
     S.suc==='Uki La Serena'?'uki:serena':
     S.suc===ROMO_SUCURSAL_QA?'romo:serena':null;
@@ -4742,6 +4747,13 @@ function ukiOrigenPedido(p){
     signal:AbortSignal.timeout(14000)
    });
    const data=await response.json().catch(()=>null);
+   if(response.ok&&data?.ok===true&&data.storeId===storeId&&data.orderId===id&&data.sinEnlaceAnterior===true){
+    if(!requiresTransfer)return data.permitido===true;
+    if(data.requiereConfirmacionManual!==true)return false;
+    if(ukiSeguimientoManualValidaQA(p,importes,id))return true;
+    if(!permitirConfirmacionManual||(p.pagado!==true&&!importePropuesto)){aviso('Primero registra el pago del pedido tras verificar el banco.');return false;}
+    return ukiSeguimientoPrepararManualQA(p,{importePropuesto:importes,solicitudSinEnlace:id});
+   }
    if(!response.ok||data?.ok!==true||data.storeId!==storeId||data.orderId!==id||
       data.permitido!==true){
     aviso(data?.razon||data?.error||'No se comprobó la transferencia. Deja este pedido pendiente.');
@@ -5269,6 +5281,7 @@ async function ukiMesaConfirmarGuardadosSeguro(){
 setInterval(()=>{if(ukiMesas.used&&!ukiMesas.busy&&S.suc&&S.vista==='pedidos')ukiMesaActualizar();},45000);
 
 function ukiSeguimientoEnPedidoQA(p){
+ if(typeof location!=='undefined'&&location.hostname==='romos-sushi-panel.vercel.app'&&window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true)return '';
  const id=String(p?.cartaSolicitudRemotaId||p?.seguimientoSolicitudId||'');
  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)||p.suc!==S.suc||p.estado==='Cancelado')return '';
  return '<div data-seguimiento-id="'+id+'" style="flex-basis:100%;margin:8px 0">'+
@@ -7255,6 +7268,7 @@ function ukiRomoLeerDistribucionQA(id,tipo,monto){
 // comprueba cambios de pago/entrega sin agregar botones ni bloquear pedidos
 // que no cambiaron. No sustituye un guardado transaccional del servidor.
 async function ukiSeguimientoValidarAntesDeCifrarRomoQA(copia){
+ if(typeof location!=='undefined'&&location.hostname==='romos-sushi-panel.vercel.app'&&window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true)return true;
  if(S.suc!==ROMO_SUCURSAL_QA||!copia||!Array.isArray(copia.pedidos))
   throw Error('No se puede identificar la sucursal de la copia');
  const anteriores=new Map((S.pedidos||[])
@@ -7301,7 +7315,7 @@ async function ukiSeguimientoValidarAntesDeCifrarRomoQA(copia){
     viejo?.seguimientoSolicitudId||''
   };
   if(!await ukiSeguimientoPermitirCerrarQA(candidato,{
-   metodosAdicionales:previoTransfer?['transferencia']:[]
+   metodosAdicionales:previoTransfer?['transferencia']:[],permitirConfirmacionManual:false
   }))throw Error('La transferencia no está verificada: el pedido se mantiene pendiente.');
  }
  return true;
@@ -10268,6 +10282,7 @@ function ukiSeguimientoConservarOrigenEdicionQA(){
 }
 // La misma protección se usa en ambos Uki y Romo, antes de modificar caja.
 function ukiSeguimientoValidarCambioMedioQA(original,nuevo){
+ if(typeof location!=='undefined'&&location.hostname==='romos-sushi-panel.vercel.app'&&window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true)return true;
  if(original&&ukiSeguimientoHayTransferenciaQA(original)&&!ukiSeguimientoHayTransferenciaQA(nuevo)){
   aviso('No se puede quitar una transferencia registrada desde la edición normal. Requiere una corrección autorizada.');
   return false;
@@ -10279,9 +10294,9 @@ async function ndGuardar(){
   const pedidoAnteriorQA=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(D.editando)):null;
   if(!ukiSeguimientoValidarCambioMedioQA(pedidoAnteriorQA,D))return;
   if(D.pagado&&!ukiSeguimientoPrepararManualQA(D))return;
-  const firmaPagoQA=JSON.stringify({suc:S.suc,draft:D});
+  const firmaPagoQA=JSON.stringify({suc:S.suc,draft:{...D,transferenciaManualQA:undefined}});
   if(D.pagado&&!await ukiSeguimientoPermitirCerrarQA(D))return;
-  if(firmaPagoQA!==JSON.stringify({suc:S.suc,draft:D})){
+  if(firmaPagoQA!==JSON.stringify({suc:S.suc,draft:{...D,transferenciaManualQA:undefined}})){
    aviso('El pedido cambió durante la comprobación. Revisa antes de guardar.');return;
   }
   if(S.suc===ROMO_SUCURSAL_QA)
