@@ -4000,8 +4000,11 @@ function ukiSeguimientoHayTransferenciaQA(p){
     aviso('El monto de transferencia del pedido no cuadra. Revisa el pago antes de guardar.');
     return false;
    }
-   const token=await window.ukiMesasTokenConfirmar?.();
+   // Misma autorización Google o equipo registrado que recibe la carta.
+   const token=await window.ukiMesasQAToken?.();
    if(typeof token!=='string'||token.length<20)throw Error('No se pudo validar la sesión del personal.');
+   const actual=S.suc==='Uki Regimiento Arica'?'uki:arica':S.suc==='Uki La Serena'?'uki:serena':null;
+   if(actual!==storeId)throw Error('La sucursal cambió durante la comprobación.');
    const query=new URLSearchParams({storeId,id,requiereTransferencia:requiresTransfer?'1':'0'});
    const response=await fetch('https://uki-sushi-pedidos.vercel.app/api/seguimiento-verificar-cierre-live?'+query.toString(),{
     method:'GET',cache:'no-store',credentials:'omit',

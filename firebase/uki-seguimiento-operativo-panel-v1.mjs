@@ -67,9 +67,10 @@ function visibility(){
 }
 async function query(method='GET',body={},id=''){
  const storeId=store();if(!storeId)throw Error('Selecciona el local.');
- const getToken=window.ukiMesasTokenConfirmar;
+ // Usa exactamente la sesión de recepción existente; no obliga a abrir Google.
+ const getToken=window.ukiMesasQAToken;
  const token=typeof getToken==='function'?await getToken():null;
- if(typeof token!=='string'||!token)throw Error('Inicia sesión con Google desde el panel.');
+ if(typeof token!=='string'||!token)throw Error('El equipo debe estar autorizado en el panel habitual.');
  if(store()!==storeId)throw Error('Cambió la sucursal. Abre el pedido nuevamente.');
  const params=new URLSearchParams({storeId,...(id?{id}:{})});
  const response=await fetch(API+(method==='GET'?'?'+params.toString():''),{
