@@ -20,7 +20,7 @@ function fake(storeId,branch,{bankStatus='avisada',method='transferencia',stored
    assert.match(query,/ON CONFLICT \(solicitud_id\) DO UPDATE/);
    assert.match(query,/prior\.estado='pagado'/);
    assert.match(query,/EXCLUDED\.estado='entregado'/);
-   assert.match(query,/AND b\.verified/);
+   assert.match(query,/WHERE b\.verified/);
    assert.equal(args[1],storeId);
    assert.equal(args[2],branch);
    assert.equal(args[3],storedTotal);
