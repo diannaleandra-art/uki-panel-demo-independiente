@@ -113,7 +113,7 @@ module.exports=async(req,res)=>{
    return fail(res,400,'Acción no autorizada');
   }
   const details=await S.snapshot({db,order,bank:cfg.banks[storeId],chatSecret:cfg.chatSecret});
-  return res.status(200).json({ok:true,storeId,pedido:details,
+  return res.status(200).json({ok:true,storeId,orderId:id,totalPedido:order.total,pedido:details,
    puedeConfirmar:order.estado==='aceptada'&&details.estadoPago!=='requiere_revision'&&
     details.montoTransferencia>0&&!!cfg.banks[storeId]});
  }catch(error){
