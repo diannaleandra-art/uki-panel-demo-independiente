@@ -141,24 +141,13 @@ async function loadDetail(id){
   const data=await query('GET',{},id);if(selectedId!==id)return;
   const p=data.pedido;
   detail.replaceChildren(text('h3','Pedido '+(p.codigoPedido||'')),text('p',p.descripcionPedido||p.estadoPedido));
-  const link=section('Seguimiento del cliente');
-  link.append(text('p',p.estadoPedido==='pendiente'?
-   'Solicitud pendiente de aceptación. El cliente ya puede seguirla desde su enlace privado.':
-   'El cliente conserva su enlace. Puedes copiarlo aquí si necesita recuperarlo.'));
-  const linkButton=btn('Copiar enlace del pedido',async()=>{
-   linkButton.disabled=true;
-   try{
-    const address=await doAction('generar_enlace',id);
-    try{await navigator.clipboard.writeText(address);tell('Enlace copiado. Se conserva el mismo enlace del cliente.');}
-    catch{
-     const input=text('textarea',address);input.readOnly=true;input.style.width='100%';
-     link.append(field('Copia este enlace privado',input));
-     tell('Copia manualmente el enlace para enviarlo al cliente.');
-    }
-   }catch(e){tell(e.message);}finally{linkButton.disabled=false;}
-  });
-  if(p.estadoPedido==='aceptada')link.append(linkButton);
-  detail.append(link);
+  // No crear pantallas ni enlaces nuevos para el personal. El cliente
+  // mantiene su acceso privado dentro de la carta que ya utilizó.
+  const seguimiento=section('Seguimiento del cliente');
+  seguimiento.append(text('p',p.estadoPedido==='pendiente'?
+   'Solicitud pendiente de aceptación. El cliente puede conservar esta carta para seguir el pedido.':
+   'El cliente sigue este pedido directamente en la carta. Puede dejarla abierta o guardar el acceso en su celular.'));
+  detail.append(seguimiento);
   const payment=section('Transferencia');
   if(Number.isSafeInteger(p.montoTransferencia)&&p.montoTransferencia>0){
    payment.append(text('p','Monto de transferencia: '+pesos(p.montoTransferencia)));
