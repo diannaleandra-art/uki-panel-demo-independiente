@@ -83,3 +83,48 @@ test('aceptación de carta y pedido manual Romo no esquivan verificación',()=>{
  assert.match(carta,/Se guardará PENDIENTE de pago/);
  assert.match(manual,/pagado:false,estado:'Pendiente'/);
 });
+
+
+test('efectivo y tarjeta no pasan por el banco; transferencia pendiente se bloquea en los tres locales',async()=>{
+ const src=fs.readFileSync(path.join(base,'public/romo-panel-qa/index.html'),'utf8');
+ const h1=src.indexOf('function ukiSeguimientoHayTransferenciaQA(');
+ const h2=src.indexOf('\n async function ukiSeguimientoPermitirCerrarQA(',h1);
+ const g1=src.indexOf('async function ukiSeguimientoPermitirCerrarQA(');
+ const g2=src.indexOf('\nasync function ukiMarcarPedidoEntregado(',g1);
+ assert.ok(h1>=0&&h2>h1&&g1>=0&&g2>g1);
+ const body=src.slice(h1,h2)+'\n'+src.slice(g1,g2)+
+  '\nreturn {check:ukiSeguimientoPermitirCerrarQA,has:ukiSeguimientoHayTransferenciaQA};';
+ for(const [shop,storeId] of [
+  ['Uki Regimiento Arica','uki:arica'],
+  ['Uki La Serena','uki:serena'],
+  ['Romo’s Sushi La Serena','romo:serena']
+ ]){
+  let apiCalls=0,allowed=false,opened=0;
+  const mockWindow={
+   ukiMesasTokenConfirmar:async()=> 'qa-identity-not-real-12345678901234567',
+   ukiQAOpenOrderTracking:async()=>{opened++}
+  };
+  const fetchMock=async()=>{
+   apiCalls++;
+   return {ok:true,json:async()=>({ok:true,storeId,orderId:id,
+    permitido:allowed,razon:allowed?'verificado':'pendiente'})};
+  };
+  const messages=[];
+  const {check,has}=new Function('S','ROMO_SUCURSAL_QA','aviso','window',
+   'fetch','URLSearchParams','AbortSignal',body)(
+   {suc:shop},'Romo’s Sushi La Serena',
+   x=>messages.push(x),mockWindow,fetchMock,URLSearchParams,AbortSignal);
+  assert.equal(await check({medio:'Efectivo'}),true);
+  assert.equal(await check({medio:'Débito',cartaSolicitudRemotaId:id}),true);
+  assert.equal(apiCalls,0,'Ningún pago en efectivo/tarjeta debe consultar el banco');
+  assert.equal(await check({medio:'Transferencia'}),false);
+  assert.equal(apiCalls,0,'Transferencia sin identificador se bloquea localmente');
+  assert.equal(await check({medio:'Transferencia',cartaSolicitudRemotaId:id}),false);
+  assert.equal(apiCalls,1);
+  assert.equal(opened,1);
+  allowed=true;
+  assert.equal(await check({medio:'Transferencia',cartaSolicitudRemotaId:id}),true);
+  assert.equal(apiCalls,2);
+  assert.equal(has({medio:'Débito',pagosProductos:[{medio:'Transferencia',monto:1000}]}),true);
+ }
+});
