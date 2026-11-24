@@ -43,6 +43,57 @@ async function query(method='GET',body={},id=''){
   throw Error(data?.error||'No se pudo consultar el pedido.');
  return data;
 }
+
+/*
+ * Después de que el panel confirmó el guardado, validar automáticamente
+ * EL MEDIO (jamás el abono) con el servidor de QA. No añade otro botón.
+ * Cerrado por defecto y deshabilitado en producción. Sólo pedido de carta
+ * pendiente, sin propina ni pagos mixtos cuya distribución no esté validada.
+ */
+function seguimientoMedioSimpleQA(order){
+ if(!order||typeof order!=='object'||order.pagado!==false||
+    order.mixtoProductos===true||order.mixtoEnvio===true||
+    order.productosPagadosOtroLocal===true||order.envioPagadoOtroLocal===true||
+    !Number.isSafeInteger(order.subtotal)||order.subtotal<0||
+    !Number.isSafeInteger(Number(order.envio))||Number(order.envio)<0||
+    !Number.isSafeInteger(order.total)||Number(order.propina||0)!==0)return null;
+ const expected=order.subtotal+Number(order.envio);
+ if(!Number.isSafeInteger(expected)||expected<=0||expected!==order.total)return null;
+ const normalize=value=>String(value||'').trim().toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ');
+ const methods={'efectivo':'efectivo','transferencia':'transferencia',
+  'debito':'debito','tarjeta debito':'debito','tarjeta de debito':'debito',
+  'credito':'credito','tarjeta credito':'credito','tarjeta de credito':'credito',
+  'edenred':'edenred','junaeb':'junaeb','otros':'otro','otro':'otro'};
+ const method=methods[normalize(order.medio)];
+ if(!method)return null;
+ if(Number(order.envio)>0&&methods[normalize(order.medioEnvio)]!==method)return null;
+ return Object.freeze({metodo:method,totalValidado:expected});
+}
+window.ukiQAConfirmPaymentMethodAfterSave=async function({storeId,solicitudId,pedido}={}){
+ // El mismo panel sigue guardando normalmente; esta acción sólo existe
+ // en el preview exacto y cuando QA la habilite de forma explícita.
+ if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true||
+    location.protocol!=='https:'||
+    !/^romos-sushi-panel-[a-z0-9-]+-diannaleandra-7046\.vercel\.app$/.test(location.hostname))
+  return {attempted:false,reason:'qa_disabled'};
+ if(!storeId||store()!==storeId||
+    typeof solicitudId!=='string'||
+    !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[0-9a-f]{12}$/i.test(solicitudId)||
+    !pedido||String(pedido.cartaSolicitudRemotaId||'')!==solicitudId)
+  return {attempted:false,reason:'identity_missing'};
+ const payment=seguimientoMedioSimpleQA(pedido);
+ if(!payment)return {attempted:false,reason:'manual_review_required'};
+ try{
+  const data=await query('POST',{action:'confirmar_medio_de_pago',id:solicitudId,...payment});
+  return {attempted:true,ok:true,repeated:data.repeated===true};
+ }catch(e){
+  // Un fallo de QA no convierte un pedido guardado en un cobro confirmado.
+  if(notice)tell('El pedido está guardado; queda por verificar su medio de pago en seguimiento.');
+  return {attempted:true,ok:false,error:'payment_method_unverified'};
+ }
+};
+
 function line(title,body){
  const div=section(title);div.append(text('p',body));return div;
 }
