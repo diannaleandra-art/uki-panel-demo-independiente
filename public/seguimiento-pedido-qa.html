@@ -31,9 +31,9 @@
 <main>
  <section class="card"><h2>¿Cómo va mi pedido?</h2><p id="status" class="state">Consultando…</p>
   <p class="muted">El local actualizará el estado cuando confirme tu pedido.</p>
+  <p class="muted notice"><strong>Sigue tu pedido aquí.</strong> Deja esta ventana abierta o guarda el enlace en tu celular para volver cuando quieras.</p>
   <div class="actions"><button class="secondary" id="refresh" type="button">Actualizar estado</button>
   <button class="secondary" id="copy" type="button">Guardar enlace</button></div>
-  <p class="muted notice">Para hacer seguimiento, conserva esta página abierta o guarda el enlace para regresar. No necesitas registrarte ni instalar nada.</p>
  </section>
  <section id="payment" class="card" hidden>
   <h2>Pago por transferencia</h2><p id="payment-status"></p><p id="amount"></p>
@@ -131,8 +131,21 @@ async function send(action,extra){
 }
 $('refresh').addEventListener('click',refresh);
 $('copy').addEventListener('click',async()=>{
- try{await navigator.clipboard.writeText(location.href);set('alert','Enlace copiado. Puedes guardarlo para volver.')}
- catch{set('alert','Usa la función Compartir del navegador para guardar este enlace.')}
+ if(!okay){set('alert','Este pedido todavía no tiene un enlace válido.');return;}
+ // En iPhone se abre Compartir para que el cliente elija dónde guardarlo.
+ if(typeof navigator.share==='function'){
+  try{
+   await navigator.share({title:'Seguimiento de mi pedido',url:location.href});
+   set('alert','Conserva este enlace para volver a consultar tu pedido.');
+  }catch(e){
+   if(e?.name!=='AbortError')set('alert','Usa Compartir de tu navegador para guardar el enlace.');
+  }
+  return;
+ }
+ try{
+  await navigator.clipboard.writeText(location.href);
+  set('alert','Enlace copiado. Guárdalo en tus notas o mensajes para volver después.');
+ }catch{set('alert','Usa Compartir de tu navegador para guardar este enlace.');}
 });
 $('notice').addEventListener('click',()=>{if(latest?.estadoPago==='pendiente')send('avisar_transferencia',{})});
 $('message-form').addEventListener('submit',async e=>{
