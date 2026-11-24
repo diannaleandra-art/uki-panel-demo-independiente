@@ -66,6 +66,17 @@ module.exports=async(req,res)=>{
      enlace:cfg.origin+'/seguimiento-pedido-qa.html#t='+encodeURIComponent(created.token),
      venceEn:new Date(created.expiresAtSeconds*1000).toISOString()});
    }
+   if(action==='confirmar_medio_de_pago'){
+    // QA únicamente: el medio queda validado por el agendador, no pagado.
+    // La implementación comercial debe integrarse en su guardado habitual.
+    if(Object.keys(req.body).sort().join('|')!=='action|id|metodo|storeId')
+     return fail(res,400,'Revisa la forma de pago');
+    const PAY=require('../lib/seguimiento-confirmar-medio-pago-qa.cjs');
+    const result=await PAY.confirmPreferred({
+     db,storeId,orderId:id,staff:actor,metodo:req.body.metodo
+    });
+    return res.status(200).json(result);
+   }
    if(action==='confirmar_transferencia'){
     if(Object.keys(req.body).sort().join('|')!=='action|id|montoRecibido|storeId|verificadoEnBanco')
      return fail(res,400,'Datos bancarios incompletos');
