@@ -90,3 +90,18 @@ test('la bandera de pago automático no se activa en dominio de producción ni e
  assert.equal(calculate({protocol:'https:',hostname:'romos-sushi-panel-test123-diannaleandra-7046.vercel.app',pathname:'/otro-panel/'}),false);
  assert.equal(calculate({protocol:'http:',hostname:'romos-sushi-panel-test123-diannaleandra-7046.vercel.app',pathname:'/romo-panel-qa/'}),false);
 });
+
+test('la distribución real valida productos y delivery por separado antes de comprobar banco',()=>{
+ const a=client.indexOf('function seguimientoDistribucionRealQA(order){');
+ const b=client.indexOf('window.ukiQAConfirmPaymentMethodAfterSave=',a);
+ const parse=new Function(client.slice(a,b)+'\nreturn seguimientoDistribucionRealQA;')();
+ const p={...order,modalidad:'Delivery',medio:'Transferencia',medioEnvio:'Efectivo',
+  pagosProductos:[{medio:'Transferencia',monto:6000},{medio:'Débito',monto:8000}],mixtoProductos:true};
+ for(const suc of ['uki:arica','uki:serena','romo:serena']){
+  assert.deepEqual(parse({...p,suc}),{pagos:[{medio:'transferencia',monto:6000},{medio:'debito',monto:8000},{medio:'efectivo',monto:2000}],totalValidado:16000});
+  assert.equal(parse({...p,suc,pagosProductos:[{medio:'Transferencia',monto:6000}]}),null);
+  assert.equal(parse({...p,suc,productosPagadosOtroLocal:true}),null);
+ }
+ assert.match(view,/ukiQASyncDistributionBeforePayment/);
+ assert.match(client,/action:'confirmar_distribucion_pago'/);
+});

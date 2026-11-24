@@ -126,6 +126,37 @@ function seguimientoMedioSimpleQA(order){
  if(Number(order.envio)>0&&methods[normalize(order.medioEnvio)]!==method)return null;
  return Object.freeze({metodo:method,totalValidado:expected});
 }
+
+function seguimientoDistribucionRealQA(order){
+ if(!order||order.productosPagadosOtroLocal===true||order.envioPagadoOtroLocal===true||
+  Number(order.propina||0)!==0||order.propinaModo&&order.propinaModo!=='ninguna')return null;
+ const sub=Array.isArray(order.items)?order.items.filter(x=>x.nombre).reduce((n,x)=>n+Number(x.cant)*Number(x.precio),0):Number(order.subtotal);
+ const env=order.modalidad==='Delivery'?Number(order.envio):0;
+ const total=sub+env;
+ if(!Number.isSafeInteger(sub)||sub<1||!Number.isSafeInteger(env)||env<0||
+  !Number.isSafeInteger(total)||total>100000000||order.total!==undefined&&Number(order.total)!==total)return null;
+ const aliases={'efectivo':'efectivo','transferencia':'transferencia','debito':'debito',
+  'tarjeta debito':'debito','tarjeta de debito':'debito','credito':'credito',
+  'tarjeta credito':'credito','tarjeta de credito':'credito','edenred':'edenred',
+  'junaeb':'junaeb','otro':'otro','otros':'otro'};
+ const lines=[];
+ for(const [amount,items,medium,mixto] of [[sub,order.pagosProductos,order.medio,order.mixtoProductos],
+  [env,order.pagosEnvio,order.medioEnvio,order.mixtoEnvio]]){
+  if(amount===0)continue;
+  if(mixto===true&&(!Array.isArray(items)||!items.length))return null;
+  const source=Array.isArray(items)&&items.length?items:[{medio:medium,monto:amount}];
+  let sum=0;
+  for(const x of source){
+   const medio=aliases[String(x?.medio||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ')];
+   const monto=Number(x?.monto);
+   if(!medio||!Number.isSafeInteger(monto)||monto<=0||monto>amount)return null;
+   lines.push({medio,monto});sum+=monto;
+  }
+  if(sum!==amount)return null;
+ }
+ if(!lines.length||lines.length>8)return null;
+ return {pagos:lines,totalValidado:total};
+}
 window.ukiQAConfirmPaymentMethodAfterSave=async function({storeId,solicitudId,pedido}={}){
  // El mismo panel sigue guardando normalmente; esta acción sólo existe
  // en el preview exacto y cuando QA la habilite de forma explícita.
@@ -139,9 +170,12 @@ window.ukiQAConfirmPaymentMethodAfterSave=async function({storeId,solicitudId,pe
     !pedido||String(pedido.cartaSolicitudRemotaId||'')!==solicitudId)
   return {attempted:false,reason:'identity_missing'};
  const payment=seguimientoMedioSimpleQA(pedido);
- if(!payment)return {attempted:false,reason:'manual_review_required'};
+ const distribution=pedido.pagado===false&&!payment?seguimientoDistribucionRealQA(pedido):null;
+ if(!payment&&!distribution)return {attempted:false,reason:'manual_review_required'};
  try{
-  const data=await query('POST',{action:'confirmar_medio_de_pago',id:solicitudId,...payment});
+  const payload=payment?{action:'confirmar_medio_de_pago',id:solicitudId,...payment}:
+   {action:'confirmar_distribucion_pago',id:solicitudId,...distribution};
+  const data=await query('POST',payload);
   return {attempted:true,ok:true,repeated:data.repeated===true};
  }catch(e){
   // Un fallo de QA no convierte un pedido guardado en un cobro confirmado.
@@ -150,6 +184,18 @@ window.ukiQAConfirmPaymentMethodAfterSave=async function({storeId,solicitudId,pe
  }
 };
 
+window.ukiQASyncDistributionBeforePayment=async function(pedido){
+ if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true||inReview()||!store()||
+  !Number.isSafeInteger(Number(pedido?.id??pedido?.editando))||Number(pedido.id??pedido.editando)<1)return false;
+ const id=String(pedido.cartaSolicitudRemotaId||pedido.seguimientoSolicitudId||'');
+ if(!UUID.test(id))return false;
+ const distribution=seguimientoDistribucionRealQA(pedido);
+ if(!distribution)return false;
+ try{
+  const result=await query('POST',{action:'confirmar_distribucion_pago',id,...distribution});
+  return result?.ok===true;
+ }catch{return false;}
+};
 function line(title,body){
  const div=section(title);div.append(text('p',body));return div;
 }

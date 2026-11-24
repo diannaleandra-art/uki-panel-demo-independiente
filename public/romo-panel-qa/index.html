@@ -4718,7 +4718,7 @@ function ukiOrigenPedido(p){
   const origen=String(d.transferenciaManualQA.firma?.solicitudId||'');
   if(ukiSeguimientoManualValidaQA(candidato,null,origen))p.transferenciaManualQA=d.transferenciaManualQA;
  }
- async function ukiSeguimientoPermitirCerrarQA(p,{metodosAdicionales=[],importePropuesto=null,permitirConfirmacionManual=true}={}){
+ async function ukiSeguimientoPermitirCerrarQA(p,{metodosAdicionales=[],importePropuesto=null,permitirConfirmacionManual=true,pagoPropuesto=null}={}){
   if(typeof location!=='undefined'&&location.hostname==='romos-sushi-panel.vercel.app'&&window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true)return true;
   const storeId=S.suc==='Uki Regimiento Arica'?'uki:arica':
     S.suc==='Uki La Serena'?'uki:serena':
@@ -4757,12 +4757,22 @@ function ukiOrigenPedido(p){
    const token=await window.ukiMesasTokenConfirmar?.();
    if(typeof token!=='string'||token.length<20)throw Error('No se pudo validar la sesión del personal.');
    const query=new URLSearchParams({storeId,id,requiereTransferencia:requiresTransfer?'1':'0'});
-   const response=await fetch('/api/seguimiento-verificar-cierre-qa?'+query.toString(),{
+   const consultar=()=>fetch('/api/seguimiento-verificar-cierre-qa?'+query.toString(),{
     method:'GET',cache:'no-store',credentials:'same-origin',
     headers:{Authorization:'Bearer '+token,Accept:'application/json'},
     signal:AbortSignal.timeout(14000)
    });
-   const data=await response.json().catch(()=>null);
+   let response=await consultar();
+   let data=await response.json().catch(()=>null);
+   // Actualizar únicamente la distribución del pedido ya aceptado si el
+   // servidor no reconoce sus importes. Jamás confirma el abono.
+   if(permitirConfirmacionManual&&response.ok&&data?.ok===true&&
+    data.storeId===storeId&&data.orderId===id&&!data.sinEnlaceAnterior&&
+    (data.permitido!==true||importes&&(data.total!==importes.total||data.montoTransferencia!==importes.montoTransferencia))&&
+    await window.ukiQASyncDistributionBeforePayment?.(pagoPropuesto||p)){
+    if(S.suc!==p.suc&&p.suc)return false;
+    response=await consultar();data=await response.json().catch(()=>null);
+   }
    if(response.ok&&data?.ok===true&&data.storeId===storeId&&data.orderId===id&&data.sinEnlaceAnterior===true){
     if(!requiresTransfer)return data.permitido===true;
     if(data.requiereConfirmacionManual!==true)return false;
@@ -7416,7 +7426,11 @@ async function ukiRomoConfirmarCobroQA(id){
  const comprobacionManual={...original};
  if(!ukiSeguimientoPrepararManualQA(comprobacionManual,{importePropuesto,responsable}))return;
  if(!await ukiSeguimientoPermitirCerrarQA(comprobacionManual,{
-  metodosAdicionales:[...productos,...delivery].map(x=>x.medio),importePropuesto
+  metodosAdicionales:[...productos,...delivery].map(x=>x.medio),importePropuesto,
+  pagoPropuesto:{...original,medio:productos[0]?.medio||'Efectivo',
+   medioEnvio:delivery[0]?.medio||'Efectivo',pagosProductos:productos,pagosEnvio:delivery,
+   productosPagadosOtroLocal:a>0,envioPagadoOtroLocal:b>0,
+   propina:propinaMonto,propinaModo:modo}
  }))return;
  const datos={
   pedidoId,responsable,registradoEn:Date.now(),confirmoRecepcion:true,
