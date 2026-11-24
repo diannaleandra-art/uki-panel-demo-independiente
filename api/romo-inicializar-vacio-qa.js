@@ -46,6 +46,8 @@ module.exports=async function romoInicializarVacioQA(req,res){
  res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type');
  if(req.method==='OPTIONS')return res.status(204).end();
  if(req.method!=='POST')return fail(res,405,'Solo preparación inicial por dueños');
+ const MIGRACION=require('../lib/seguimiento-aislar-escrituras-legadas-qa.cjs');
+ if(MIGRACION.blocked({route:'inicializar-snapshot',method:req.method}))return MIGRACION.denial(res);
  if(String(req.headers?.['content-type']||'').split(';')[0]!=='application/json')
   return fail(res,415,'Se requiere JSON');
  const body=req.body;
