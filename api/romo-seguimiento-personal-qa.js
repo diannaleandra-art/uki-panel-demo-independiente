@@ -30,7 +30,12 @@ module.exports=async(req,res)=>{
   !req.body||typeof req.body!=='object'||Array.isArray(req.body)||
   JSON.stringify(req.body).length>1300))return fail(res,400,'Formulario inválido');
  const origin=String(req.headers.origin||'');
- if(origin&&origin!==String(process.env.ROMO_PANEL_ALLOWED_ORIGIN||''))return fail(res,403,'Origen no autorizado');
+ const host=String(req.headers.host||'').toLowerCase();
+ const preview='https://'+host;
+ const exactPreview=String(process.env.VERCEL_URL||'').toLowerCase()===host&&
+  /^romos-sushi-panel-[a-z0-9-]+-diannaleandra-7046\.vercel\.app$/.test(host);
+ if(!exactPreview||origin&&origin!==preview&&origin!==String(process.env.ROMO_PANEL_ALLOWED_ORIGIN||''))
+  return fail(res,403,'Origen no autorizado');
  try{
   const sql=require('@neondatabase/serverless').neon(cfg.db);
   const db={query:(query,params)=>sql.query(query,params)};
