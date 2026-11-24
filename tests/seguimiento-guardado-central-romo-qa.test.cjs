@@ -1,0 +1,73 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const html=fs.readFileSync(path.join(__dirname,'../public/romo-panel-qa/index.html'),'utf8');
+const begin=html.indexOf('async function ukiSeguimientoValidarAntesDeCifrarRomoQA(copia){');
+const finish=html.indexOf('\nasync function ukiRomoGuardarOperacionQA(',begin);
+assert.ok(begin>0&&finish>begin,'El mismo guardado central debe incluir la revisión');
+const code=html.slice(begin,finish);
+const branch='Romo’s Sushi La Serena';
+const id='621bd292-2153-4160-9e85-375978e10352';
+const base={id:34,suc:branch,medio:'Transferencia',medioEnvio:'Efectivo',
+ pagado:false,estado:'Pendiente',cartaSolicitudRemotaId:id,subtotal:17000,total:17000};
+function runner(older,{allow=false}={}){
+ let calls=[];
+ const has=p=>[p?.medio,p?.medioEnvio,...(p?.pagosProductos||[]).map(x=>x.medio),
+  ...(p?.pagosEnvio||[]).map(x=>x.medio)].some(v=>
+  String(v||'').trim().toLowerCase()==='transferencia');
+ const S={suc:branch,pedidos:older};
+ const guard=async(p,extra)=>{
+  calls.push({p,extra});
+  return allow;
+ };
+ const check=new Function('S','ROMO_SUCURSAL_QA',
+  'ukiSeguimientoHayTransferenciaQA','ukiSeguimientoPermitirCerrarQA',
+  code+'\nreturn ukiSeguimientoValidarAntesDeCifrarRomoQA;')(
+    S,branch,has,guard);
+ return {check,calls};
+}
+const cases=[
+ ['pedido sin cambios',base,{},false,true,0],
+ ['efectivo manual sin cambio de otro pedido',
+  {...base,medio:'Efectivo',cartaSolicitudRemotaId:''},{},false,true,0],
+ ['transferencia pendiente no se cobra',base,{pagado:true},false,false,1],
+ ['transferencia confirmada se cobra',base,{pagado:true},true,true,1],
+ ['pedido no se entrega con transferencia pendiente',base,{estado:'Entregado'},false,false,1],
+ ['cambiar transferencia por efectivo no evita revisión',base,{medio:'Efectivo',pagado:true},false,false,1],
+ ['editar monto de pedido ya pagado exige nueva comprobación',
+  {...base,pagado:true},{total:19000},false,false,1],
+ ['sin cambios financieros no consulta otra vez',
+  {...base,pagado:true},{},false,true,0],
+ ['transferencia mixta pendiente queda bloqueada',
+  base,{pagado:true,medio:'Débito',
+   pagosProductos:[{medio:'Transferencia',monto:9000}]},false,false,1],
+ ['transferencia manual sin solicitud vinculada no inventa confirmación',
+  {...base,cartaSolicitudRemotaId:''},{pagado:true},false,false,1]
+];
+for(const [name,original,change,allow,expected,calls] of cases){
+ test(name,async()=>{
+  const r=runner([original],{allow});
+  const proposed={pedidos:[{...original,...change}]};
+  if(expected)assert.equal(await r.check(proposed),true);
+  else await assert.rejects(()=>r.check(proposed),/transferencia no está verificada/i);
+  assert.equal(r.calls.length,calls);
+  if(name.includes('cambiar transferencia'))assert.deepEqual(r.calls[0].extra.metodosAdicionales,['transferencia']);
+ });
+}
+test('no permite duplicar identificadores de pedido al preparar el cifrado',async()=>{
+ const r=runner([base]);
+ await assert.rejects(()=>r.check({pedidos:[base,{...base,estado:'Entregado'}]}),
+  /duplicado/i);
+});
+test('las dos rutas de guardado cifrado deben llamar a la guardia antes de persistir',()=>{
+ const segment=html.slice(begin);
+ const patterns=[
+  /await ukiSeguimientoValidarAntesDeCifrarRomoQA\(copia\);[\s\S]{0,310}const res=await session\.guardar\(copia\);/,
+  /await ukiSeguimientoValidarAntesDeCifrarRomoQA\(clone\);[\s\S]{0,380}const saved=await session\.guardar\(clone\);/
+ ];
+ for(const pattern of patterns)assert.match(segment,pattern);
+ assert.match(segment,/session\.estado\(\)\?\.revision!==anterior\.revision/);
+ assert.match(segment,/session\.estado\(\)\?\.revision!==expected\.revision/);
+});
