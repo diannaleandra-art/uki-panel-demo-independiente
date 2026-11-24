@@ -25,16 +25,29 @@ module.exports=async(req,res)=>{
   if(!actor)return fail(res,403,'Sesión sin permiso para esta sucursal');
   const meta=S.TABLES[storeId];
   if(req.method==='GET'&&!req.query?.id){
+   const OP=require('../lib/seguimiento-operacion-unificada-qa.cjs');
    const list=await db.query(
-    'SELECT s.id,s.codigo_pedido,s.estado,s.total_indicado,s.creado_en,'+
-    "(SELECT max(m.creado_en) FROM "+meta.messages+
+    'SELECT s.id,s.branch,s.codigo_pedido,s.cliente,s.estado,s.total_indicado,s.datos,s.creado_en,'+
+    (meta.uki?'NULL::text AS store_id,':'s.store_id,')+
+    'p.estado_pago,p.monto_transferencia,p.cliente_aviso_en,'+
+    '(SELECT max(m.creado_en) FROM '+meta.messages+
     ' m WHERE m.solicitud_id=s.id AND m.store_id=$1'+(meta.uki?' AND m.branch=$2':'')+
-    ") AS ultima_consulta FROM "+meta.source+
-    " s WHERE s.branch=$"+(meta.uki?'2':'2')+
-    (meta.uki?'':' AND s.store_id=$1')+
+    ') AS ultima_consulta FROM '+meta.source+' s LEFT JOIN '+meta.payment+
+    ' p ON p.solicitud_id=s.id AND p.store_id=$1'+(meta.uki?' AND p.branch=$2':'')+
+    ' WHERE s.branch=$2'+(meta.uki?'':' AND s.store_id=$1')+
     " AND s.estado='aceptada' AND s.creado_en>now()-interval '7 days'"+
     ' ORDER BY s.creado_en DESC LIMIT 80',[storeId,meta.branch]);
-   return res.status(200).json({ok:true,storeId,orders:list});
+   const orders=list.map(r=>{
+    const plan=OP.normalizeOrder(storeId,r);
+    return plan?{
+     id:r.id,codigoPedido:plan.codigo,cliente:String(r.cliente||'').slice(0,80),
+     estadoPedido:plan.estado,metodoPago:plan.metodoPago,
+     montoTransferencia:plan.montoTransferencia,
+     estadoPago:r.monto_transferencia===plan.montoTransferencia?(r.estado_pago||'pendiente'):'requiere_revision',
+     clienteAvisoEn:r.cliente_aviso_en||null,ultimaConsulta:r.ultima_consulta||null
+    }:null;
+   }).filter(Boolean);
+   return res.status(200).json({ok:true,storeId,orders});
   }
   const id=String(req.method==='GET'?req.query?.id:req.body?.id||'');
   if(!UUID.test(id))return fail(res,400,'Pedido inválido');
