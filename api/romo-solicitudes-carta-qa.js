@@ -158,7 +158,7 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
    // El cliente recibe su enlace desde la carta en cuanto se guarda la solicitud.
    // El token nunca se gira de nuevo al reintentar el mismo pedido.
    const {trackingId,...publicResult}=result;
-   if(process.env.ROMO_SEGUIMIENTO_QA_ENABLED==='true'&&trackingId){
+   if((process.env.ROMO_SEGUIMIENTO_QA_ENABLED==='true'||process.env.ROMO_SEGUIMIENTO_OPERATIVO_ENABLED==='true')&&trackingId){
     const stage=require('../lib/seguimiento-qa-entorno-v1.cjs').config();
     if(stage&&stage.urls[STORE]===conf.write){
      try{
@@ -167,7 +167,8 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
        db:writer,storeId:STORE,orderId:trackingId,requestKey:req.body.key,
        secret:stage.tokenSecret
       });
-      publicResult.seguimientoEnlace=stage.origin+
+      if(stage.live)publicResult.seguimientoToken=item.token;
+      else publicResult.seguimientoEnlace=stage.origin+
        '/seguimiento-pedido-qa.html#t='+encodeURIComponent(item.token);
       publicResult.seguimientoEstado='esperando_aceptacion';
      }catch{
@@ -210,7 +211,7 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
   let output=result;
   if(action==='aceptada'&&result?.ok===true){
    const stage=require('../lib/seguimiento-qa-entorno-v1.cjs').config();
-   if(stage&&stage.urls[STORE]===conf.write&&process.env.SEGUIMIENTO_PERSONAL_QA_ENABLED==='true'){
+   if(stage&&stage.urls[STORE]===conf.write&&(stage.live||process.env.SEGUIMIENTO_PERSONAL_QA_ENABLED==='true')){
     try{
      const seguimiento=require('../lib/seguimiento-qa-servidor-v1.cjs');
      const link=await seguimiento.issueAccepted({
@@ -218,7 +219,7 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
       staff:{storeId:STORE,role:identity.role,userId:identity.userId},
       secret:stage.tokenSecret
      });
-     output={...result,seguimientoEnlace:stage.origin+'/seguimiento-pedido-qa.html#t='+encodeURIComponent(link.token)};
+     output=stage.live?{...result,seguimientoToken:link.token}:{...result,seguimientoEnlace:stage.origin+'/seguimiento-pedido-qa.html#t='+encodeURIComponent(link.token)};
     }catch(error){
      output={...result,seguimientoAviso:'Pedido aceptado; enlace privado aún no disponible. Revisa la bandeja.'};
     }

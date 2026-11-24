@@ -11,7 +11,7 @@ module.exports=async(req,res)=>{
  res.setHeader('Referrer-Policy','no-referrer');
  res.setHeader('X-Content-Type-Options','nosniff');
  const cfg=ENV.config();
- if(!cfg||process.env.SEGUIMIENTO_PERSONAL_QA_ENABLED!=='true')
+ if(!cfg||(!cfg.live&&process.env.SEGUIMIENTO_PERSONAL_QA_ENABLED!=='true'))
   return respond(res,503,{permitido:false,error:'Verificación sólo disponible en QA'});
  if(!ENV.validOrigin(req,cfg))return respond(res,403,{permitido:false,error:'Origen no autorizado'});
  if(req.method!=='GET')return respond(res,405,{permitido:false,error:'Método no permitido'});

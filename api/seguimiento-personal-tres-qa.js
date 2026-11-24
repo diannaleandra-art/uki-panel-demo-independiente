@@ -10,7 +10,7 @@ module.exports=async(req,res)=>{
  res.setHeader('Referrer-Policy','no-referrer');
  res.setHeader('X-Content-Type-Options','nosniff');
  const cfg=ENV.config();
- if(!cfg||process.env.SEGUIMIENTO_PERSONAL_QA_ENABLED!=='true')
+ if(!cfg||(!cfg.live&&process.env.SEGUIMIENTO_PERSONAL_QA_ENABLED!=='true'))
   return fail(res,503,'Bandeja de seguimiento en preparación');
  if(!ENV.validOrigin(req,cfg))return fail(res,403,'Origen no autorizado');
  if(!['GET','POST'].includes(req.method))return fail(res,405,'Acción no autorizada');
