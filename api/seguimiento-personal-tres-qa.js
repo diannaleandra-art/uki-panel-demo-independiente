@@ -69,11 +69,12 @@ module.exports=async(req,res)=>{
    if(action==='confirmar_medio_de_pago'){
     // QA únicamente: el medio queda validado por el agendador, no pagado.
     // La implementación comercial debe integrarse en su guardado habitual.
-    if(Object.keys(req.body).sort().join('|')!=='action|id|metodo|storeId')
+    if(Object.keys(req.body).sort().join('|')!=='action|id|metodo|storeId|totalValidado')
      return fail(res,400,'Revisa la forma de pago');
     const PAY=require('../lib/seguimiento-confirmar-medio-pago-qa.cjs');
     const result=await PAY.confirmPreferred({
-     db,storeId,orderId:id,staff:actor,metodo:req.body.metodo
+     db,storeId,orderId:id,staff:actor,metodo:req.body.metodo,
+     totalValidado:req.body.totalValidado
     });
     return res.status(200).json(result);
    }
