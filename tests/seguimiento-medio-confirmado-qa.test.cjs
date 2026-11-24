@@ -64,3 +64,21 @@ test('endpoint se limita al panel autorizado en QA y no confirma abonos bancario
  assert.match(c,/PAY\.confirmPreferred/);
  assert.doesNotMatch(c,/confirmar_medio_de_pago[\s\S]*?estadoPago:'confirmada'/);
 });
+
+test('confirmacion previa solo es reutilizable si el total y la preferencia siguen iguales',async()=>{
+ const storeId='uki:arica',branch='arica',staff={storeId,role:'agendador',userId:'trabajador-qa-123'};
+ const base={id:orderId,store_id:storeId,branch,estado:'aceptada',codigo_pedido:'QA',
+  total_indicado:18000,
+  datos:{pagoPreferido:'transferencia',pagoDeclaracion:'cliente_no_verificado',
+   medioPago:'transferencia',medioPagoConfirmadoPor:staff.userId,medioPagoConfirmadoTotal:18000}};
+ let calls=0;
+ const db={query:async(sql)=>{calls++;if(sql.startsWith('SELECT'))return [base];throw Error('No se debe actualizar de nuevo')}};
+ const repeated=await P.confirmPreferred({db,storeId,orderId,staff,metodo:'transferencia'});
+ assert.equal(repeated.repeated,true);
+ assert.equal(calls,1);
+ base.total_indicado=19000;
+ await assert.rejects(()=>P.confirmPreferred({db,storeId,orderId,staff,metodo:'transferencia'}),{status:409});
+ base.total_indicado=18000;base.datos.pagoPreferido='efectivo';
+ await assert.rejects(()=>P.confirmPreferred({db,storeId,orderId,staff,metodo:'transferencia'}),{status:409});
+ assert.equal(calls,3);
+});
