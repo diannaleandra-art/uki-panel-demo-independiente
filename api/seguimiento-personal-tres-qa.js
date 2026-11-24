@@ -17,6 +17,8 @@ module.exports=async(req,res)=>{
  if(req.method==='POST'&&(!String(req.headers['content-type']||'').startsWith('application/json')||
   !req.body||typeof req.body!=='object'||Array.isArray(req.body)||
   JSON.stringify(req.body).length>1500))return fail(res,400,'Formulario inválido');
+ const revision=req.query?.revision==='1';
+ if(revision&&cfg.live)return fail(res,403,'Revisión aislada no disponible en producción');
  const storeId=String(req.method==='GET'?req.query?.storeId:req.body?.storeId||'');
  if(!S.TABLES[storeId])return fail(res,400,'Sucursal inválida');
  try{
@@ -24,6 +26,7 @@ module.exports=async(req,res)=>{
   const actor=await AUTH.authorized(req,db,storeId).catch(()=>null);
   if(!actor)return fail(res,403,'Sesión sin permiso para esta sucursal');
   const meta=S.TABLES[storeId];
+  const ficticio=" AND s.codigo_pedido ~* '^(QA|PRUEBA|TEST|DEMO)[-_ ]' AND s.cliente ~* '^(QA|PRUEBA|TEST|DEMO|CLIENTE (QA|PRUEBA|TEST|DEMO))'";
   if(req.method==='GET'&&!req.query?.id){
    const OP=require('../lib/seguimiento-operacion-unificada-qa.cjs');
    const list=await db.query(
@@ -36,7 +39,7 @@ module.exports=async(req,res)=>{
     ' p ON p.solicitud_id=s.id AND p.store_id=$1'+(meta.uki?' AND p.branch=$2':'')+
     ' WHERE s.branch=$2'+(meta.uki?'':' AND s.store_id=$1')+
     " AND s.estado IN ('pendiente','aceptada') AND s.creado_en>now()-interval '7 days'"+
-    ' ORDER BY s.creado_en DESC LIMIT 80',[storeId,meta.branch]);
+    (revision?ficticio:'')+' ORDER BY s.creado_en DESC LIMIT 80',[storeId,meta.branch]);
    const orders=list.map(r=>{
     const plan=OP.normalizeOrder(storeId,r);
     return plan?{
@@ -47,10 +50,16 @@ module.exports=async(req,res)=>{
      clienteAvisoEn:r.cliente_aviso_en||null,ultimaConsulta:r.ultima_consulta||null
     }:null;
    }).filter(Boolean);
-   return res.status(200).json({ok:true,storeId,orders});
+   return res.status(200).json({ok:true,storeId,orders,...(revision?{revisionAislada:true}:{})});
   }
   const id=String(req.method==='GET'?req.query?.id:req.body?.id||'');
   if(!UUID.test(id))return fail(res,400,'Pedido inválido');
+  if(revision){
+   const rows=await db.query('SELECT s.id FROM '+meta.source+
+    ' s WHERE s.id=$1::uuid AND s.branch=$2'+(meta.uki?'':' AND s.store_id=$3')+
+    ficticio+' LIMIT 1',meta.uki?[id,meta.branch]:[id,meta.branch,storeId]);
+   if(rows.length!==1)return fail(res,404,'Sólo pedidos ficticios en revisión');
+  }
   const order=await S.loadOne(db,storeId,id);
   if(!order||!['pendiente','aceptada'].includes(order.estado))return fail(res,404,'Pedido no disponible en esta sucursal');
   if(req.method==='POST'&&order.estado!=='aceptada')

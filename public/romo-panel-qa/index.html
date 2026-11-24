@@ -1395,7 +1395,23 @@ function ukiRomoFormularioVinculacionQA(){
      '<button class="big" type="button" onclick="ukiRomoDarAltaClaveQA()">Vincular acceso de Romo</button></details>':'')
 }
 
+// Esta revisión de seguimiento no abre cajas ni verifica claves operativas.
+function ukiEsRevisionSeguimientoQA(){
+ return location.protocol==='https:'&&
+  location.hostname==='romos-sushi-panel-git-preparacion-enl-341d68-diannaleandra-7046.vercel.app'&&
+  location.pathname.startsWith('/romo-panel-qa/');
+}
 function vInicio(){
+ if(!S.suc&&S.pinSuc&&ukiEsRevisionSeguimientoQA()){
+  return '<section class="card" id="ukiAccesoRevisionSeguimientoQA" style="max-width:480px;margin:10px auto;padding:20px 17px">'+
+   '<h2>Revisar seguimiento</h2><p><b>'+esc(S.pinSuc)+'</b></p>'+
+   '<p class="muted">Acceso de revisión aislada. Utiliza Google, sin contraseña de caja. Sólo se muestran pedidos ficticios; no se abren ventas ni cajas reales.</p>'+
+   '<button type="button" class="big" onclick="document.getElementById(\'ukiLoginQA\')?.click()">Ingresar con Google</button>'+
+   '<p id="romoGoogleEstadoQA" class="muted" role="status">Inicia sesión para continuar.</p>'+
+   '<button type="button" class="big" onclick="window.ukiQAEntrarSeguimientoRevision?.()">Abrir seguimiento con mi sesión</button>'+
+   '<p id="ukiRevisionSeguimientoEstadoQA" class="muted" role="status"></p>'+
+   '<button type="button" class="sm" onclick="ukiVolverAlSelectorLocales()">Cambiar local</button></section>';
+ }
  if(!S.suc&&!S.pinSuc&&S.romoSeleccionadoQA&&romoVistaPreliminarQA)
   return ukiRomoVistaPreliminarHTMLQA();
  if(!S.suc&&!S.pinSuc&&S.romoSeleccionadoQA){
@@ -11664,6 +11680,8 @@ function vHistorial(){
 }
 
 window.ukiQAGet=()=>S.suc?{suc:S.suc,estado:datosSoloSucursal()}:null;
+window.ukiSeguimientoContextoRevisionQA=()=>ukiEsRevisionSeguimientoQA()&&!S.suc&&
+ SUCURSALES_PANEL_QA.includes(S.pinSuc)?S.pinSuc:null;
 window.ukiQASet=async(data)=>{
  // La restauración Firebase/local de Uki NUNCA confirma ni sustituye Neon Romo.
  if(S.suc===ROMO_SUCURSAL_QA)
@@ -11941,6 +11959,8 @@ onAuthStateChanged(auth,user=>{
 el("ukiLoginQA").addEventListener("click",()=>accion(async()=>{
  await signInWithPopup(auth,new GoogleAuthProvider());
  msg("Google conectado. Abre la sucursal y carga su nube.");
+ if(window.ukiSeguimientoContextoRevisionQA?.())
+  await window.ukiQAEntrarSeguimientoRevision?.();
 }));
 el("ukiLoadQA").addEventListener("click",()=>accion(async()=>{
  const x=contexto();

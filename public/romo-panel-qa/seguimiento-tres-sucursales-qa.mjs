@@ -27,7 +27,15 @@ const text=(tag,value)=>{const el=document.createElement(tag);el.textContent=Str
 const section=title=>{const el=text('section','');el.style.cssText='padding:12px 0;border-bottom:1px solid #ddd';el.append(text('h3',title));return el};
 const btn=(name,callback)=>{const el=text('button',name);el.type='button';el.className='sm';el.addEventListener('click',callback);return el};
 const field=(title,input)=>{const el=text('label',title);el.style.cssText='display:block;margin:9px 0';el.append(input);return el};
-const store=()=>NAMES[window.ukiQAGet?.()?.suc]||null;
+const REVISION_HOST='romos-sushi-panel-git-preparacion-enl-341d68-diannaleandra-7046.vercel.app';
+let reviewShop=null;
+function reviewSelected(){
+ return location.protocol==='https:'&&location.hostname===REVISION_HOST&&
+  location.pathname.startsWith('/romo-panel-qa/')?
+  NAMES[window.ukiSeguimientoContextoRevisionQA?.()]||null:null;
+}
+const inReview=()=>!!reviewShop&&reviewShop===reviewSelected()&&!window.ukiQAGet?.()?.suc;
+const store=()=>NAMES[window.ukiQAGet?.()?.suc]||(inReview()?reviewShop:null);
 let busy=false,selectedId=null,activeDetail=null,activeStore=null,loadingDetail=false,actionBusy=false,lastDetailSignature='';
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const tell=(message,target=detail)=>{
@@ -75,8 +83,9 @@ async function query(method='GET',body={},id=''){
  const token=typeof getToken==='function'?await getToken():null;
  if(typeof token!=='string'||!token)throw Error('Inicia sesión con Google desde el panel.');
  if(store()!==storeId)throw Error('Cambió la sucursal. Abre el pedido nuevamente.');
- const params=new URLSearchParams({storeId,...(id?{id}:{})});
- const response=await fetch(API+(method==='GET'?'?'+params.toString():''),{
+ const review=inReview();
+ const params=new URLSearchParams({storeId,...(id?{id}:{}),...(review?{revision:'1'}:{})});
+ const response=await fetch(API+(method==='GET'?'?'+params.toString():review?'?revision=1':''),{
   method,cache:'no-store',credentials:'same-origin',
   headers:{Authorization:'Bearer '+token,'Accept':'application/json',
    ...(method==='POST'?{'Content-Type':'application/json'}:{})},
@@ -257,6 +266,29 @@ async function loadDetail(id,target=activeDetail,refresh=false){
    void loadDetail(selectedId,activeDetail);
  }
 }
+// Acceso autorizado sólo al seguimiento en la base aislada: sin abrir el
+// estado operativo ni cargar/cifrar/guardar cajas o pedidos comerciales.
+window.ukiQAEntrarSeguimientoRevision=async function(){
+ const selected=reviewSelected(),status=$('ukiRevisionSeguimientoEstadoQA');
+ if(!selected||window.ukiQAGet?.()?.suc)return false;
+ if(!status)return false;
+ status.textContent='Comprobando tu permiso de seguimiento…';
+ try{
+  reviewShop=selected;
+  const result=await query();
+  if(!inReview()||result.storeId!==selected||result.revisionAislada!==true)
+   throw Error('No se confirmó la revisión aislada de esta sucursal.');
+  status.textContent='Acceso autorizado. Sólo seguimiento de prueba; caja sin abrir.';
+  visibility();dialog.open=true;
+  await loadList();
+  root.scrollIntoView({block:'start',behavior:'smooth'});
+  return true;
+ }catch(err){
+  reviewShop=null;visibility();
+  status.textContent=String(err?.message||'No se confirmó tu acceso Google.');
+  return false;
+ }
+};
 // Acceso rápido desde el pedido existente: no pide buscar otra sección.
 window.ukiQAOpenOrderTracking=async function(orderId){
  if(!root||!dialog||!detail||!store())return false;
