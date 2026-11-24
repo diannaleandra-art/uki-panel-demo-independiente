@@ -20,10 +20,12 @@ for(const [storeId,branch] of stores){
   assert.equal(display.datosBancariosVerificados,true);
   assert.equal(display.datosBancariosSucursal,storeId);
   assert.equal(display.estadoPago,'pendiente');
+  assert.equal(display.puedeAvisarTransferencia,true);
   assert.equal(OP.canClientNotify({order,paymentStatus:'pendiente',bank}),true);
   assert.equal(shared.clientTransferNotice({storeId,estado:'pendiente',pagos:source.datos.pagos,total:18000},'avisar_transferencia'),true);
   const withoutBank=OP.view({order,paymentStatus:'pendiente',bank:null});
   assert.equal(withoutBank.datosBancarios,null);
+  assert.equal(withoutBank.puedeAvisarTransferencia,false);
   assert.equal(OP.canClientNotify({order,paymentStatus:'pendiente',bank:null}),false);
   const wrongBank=OP.view({order,paymentStatus:'pendiente',
    bank:{...bank,storeId:storeId==='uki:arica'?'uki:serena':'uki:arica'}});
