@@ -59,6 +59,7 @@ async function loadList(){
     entry.montoTransferencia>0?'Transferencia '+pesos(entry.montoTransferencia)+' · '+
      (entry.estadoPago==='confirmada'?'Verificada':entry.estadoPago==='avisada'?
       'El cliente avisó; falta verificar':entry.estadoPago==='requiere_revision'?'Requiere revisión':'Pendiente'):
+     entry.pagoDeclarado==='transferencia'?'Cliente seleccionó transferencia · monto por verificar':
      'Sin transferencia pendiente registrada');
    item.append(btn('Ver seguimiento y mensajes',()=>loadDetail(entry.id)));
    list.append(item);
