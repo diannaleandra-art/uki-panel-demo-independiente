@@ -1,0 +1,78 @@
+'use strict';
+/* Estado mínimo para clientes. NO contiene API de cobro, no escribe caja y no envía WhatsApp. */
+const C=require('../lib/romo-seguimiento-transferencia-v1.cjs');
+const {entornoPanelRomoAutorizado}=require('../lib/romo-entorno-panel.cjs');
+function config(e=process.env){
+ if(!entornoPanelRomoAutorizado(e)||e.ROMO_SEGUIMIENTO_QA_ENABLED!=='true')return null;
+ const origin=String(e.ROMO_CARTA_ALLOWED_ORIGIN||''),panel=String(e.ROMO_PANEL_ALLOWED_ORIGIN||'');
+ if(!/^https:\/\/[a-z0-9.-]+$/i.test(origin)||!/^https:\/\/[a-z0-9.-]+$/i.test(panel))return null;
+ let url;try{url=new URL(String(e.ROMO_PRIVATE_DATABASE_URL||''))}catch{return null}
+ if(!['postgres:','postgresql:'].includes(url.protocol)||url.hostname!==String(e.ROMO_PRIVATE_DATABASE_HOST||'')||
+   url.pathname!=='/romos_sushi'||url.username!=='romos_app_service'||!url.password||
+   !C.secretReady(e.ROMO_SEGUIMIENTO_TOKEN_SECRET))return null;
+ let bank=null;
+ try{
+  const b=JSON.parse(String(e.ROMO_SANTANDER_DATOS_VERIFICADOS_JSON||'null'));
+  if(b&&b.verificado===true&&String(b.banco).toLowerCase().includes('santander')&&
+    typeof b.titular==='string'&&b.titular.length<=100&&
+    typeof b.cuenta==='string'&&b.cuenta.length<=40&&
+    typeof b.rut==='string'&&b.rut.length<=18&&
+    typeof b.tipo==='string'&&b.tipo.length<=50&&
+    typeof b.correo==='string'&&b.correo.length<=100)
+    bank={banco:b.banco,titular:b.titular,rut:b.rut,tipo:b.tipo,cuenta:b.cuenta,correo:b.correo};
+ }catch{}
+ return {origin,db:url.toString(),secret:e.ROMO_SEGUIMIENTO_TOKEN_SECRET,bank};
+}
+function respond(res,status,body){return res.status(status).json({ok:status<400,...body});}
+module.exports=async(req,res)=>{
+ res.setHeader('Cache-Control','private, no-store, max-age=0');
+ res.setHeader('X-Content-Type-Options','nosniff');
+ res.setHeader('Referrer-Policy','no-referrer');
+ res.setHeader('Vary','Origin');
+ const cfg=config();
+ if(!cfg)return respond(res,503,{error:'Seguimiento todavía no habilitado.'});
+ const origin=String(req.headers.origin||'');
+ if(origin!==cfg.origin)return respond(res,403,{error:'Origen no autorizado.'});
+ res.setHeader('Access-Control-Allow-Origin',cfg.origin);
+ res.setHeader('Access-Control-Allow-Headers','Content-Type,X-Romo-Tracking');
+ res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');
+ if(req.method==='OPTIONS')return res.status(204).end();
+ if(!['GET','POST'].includes(req.method))return respond(res,405,{error:'Método no permitido.'});
+ const identity=C.readToken(req.headers['x-romo-tracking'],cfg.secret);
+ if(!identity)return respond(res,403,{error:'Enlace inválido o caducado.'});
+ if(req.method==='POST'&&(!String(req.headers['content-type']||'').startsWith('application/json')||
+  JSON.stringify(req.body||{}).length>1000||req.body?.action!=='avisar'))
+  return respond(res,400,{error:'Acción no permitida.'});
+ try{
+  const sql=require('@neondatabase/serverless').neon(cfg.db);
+  const lookup=await sql.query(
+   "SELECT id,codigo_pedido,estado,total_indicado,datos->>'medioPago' AS metodo FROM public.romo_solicitudes_carta_v1 WHERE id=$1::uuid AND request_key=$2 AND store_id='romo:serena' AND branch='serena' LIMIT 1",
+   [identity.id,identity.key]
+  );
+  if(lookup.length!==1)return respond(res,404,{error:'Solicitud no encontrada.'});
+  const s=lookup[0],metodo=C.normalizeMethod(s.metodo),total=C.transferAmount({metodo,total:Number(s.total_indicado)});
+  if(req.method==='POST'){
+   if(metodo!=='transferencia'||total===null||s.estado!=='aceptada')
+    return respond(res,409,{error:'Primero confirma que el local aceptó tu pedido por transferencia.'});
+   // No cobra, ni suma caja; sólo crea señal de "cliente indicó que transfirió".
+   await sql.query(
+    "INSERT INTO public.romo_seguimiento_transferencia_v1(solicitud_id,store_id,monto_transferencia,estado_pago,cliente_aviso_en) VALUES($1::uuid,'romo:serena',$2,'avisada',now()) ON CONFLICT (solicitud_id) DO UPDATE SET estado_pago=CASE WHEN romo_seguimiento_transferencia_v1.estado_pago='confirmada' THEN 'confirmada' ELSE 'avisada' END,cliente_aviso_en=COALESCE(romo_seguimiento_transferencia_v1.cliente_aviso_en,now())",
+    [identity.id,total]
+   );
+  }
+  const rows=await sql.query("SELECT estado_pago,cliente_aviso_en,confirmada_en FROM public.romo_seguimiento_transferencia_v1 WHERE solicitud_id=$1::uuid AND store_id='romo:serena' LIMIT 1",[identity.id]);
+  const st=rows[0]?.estado_pago||'pendiente',view=C.customerStatus({orderStatus:s.estado,transferStatus:st,method:metodo});
+  return respond(res,200,{
+   storeId:'romo:serena',codigoPedido:String(s.codigo_pedido||'').slice(0,60),
+   estadoPedido:s.estado,estadoPago:st,descripcionPedido:view.order,descripcionPago:view.payment,
+   pagoConfirmado:view.paid,metodoPago:metodo,montoTransferencia:total,
+   datosBancarios:metodo==='transferencia'&&s.estado==='aceptada'?cfg.bank:null,
+   datosBancariosDisponibles:!!cfg.bank,soloSeguimiento:true,
+   nota:'Avisar que transferiste no acredita un abono en Santander.'
+  });
+ }catch(err){
+  console.error('Romo seguimiento:',String(err.code||err.name||'error').slice(0,50));
+  return respond(res,503,{error:'No se pudo actualizar el seguimiento. Vuelve a consultar sin repetir el pago.'});
+ }
+};
+module.exports._testing={config};
