@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="es-CL">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Vista de revisión · Seguimiento Uki y Romo</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#24212a;background:#f6f5f3;font-synthesis:none}
+*{box-sizing:border-box}
+body{margin:0;min-width:320px}
+header{background:#17171b;color:#fff;padding:24px 20px}
+header .wrap,main{max-width:730px;margin:auto}
+header h1{font-size:23px;line-height:1.15;margin:8px 0 10px}
+header p{font-size:13px;color:#e9e0e0;line-height:1.4;margin:0}
+.eyebrow{letter-spacing:.11em;font-size:11px;font-weight:800;text-transform:uppercase;color:#e4a4ae}
+main{padding:18px 16px 50px}
+.card{background:#fff;border:1px solid #e5e0df;border-radius:16px;padding:17px;margin-bottom:14px}
+.card h2{margin:0 0 12px;font-size:17px}
+.card h3{font-size:14px;margin:12px 0 9px}
+.small{color:#716c73;font-size:13px;line-height:1.5}
+.preview{border:1px dashed #c8bec1;border-radius:12px;background:#faf7f6;padding:12px;font-size:12px;line-height:1.5}
+.tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:3px}
+button{font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.tab{padding:12px 15px;white-space:nowrap;border:1px solid #c8c2c5;border-radius:999px;background:white;color:#383238;font-size:12px;font-weight:700}
+.tab[aria-pressed=true]{background:#ad1e32;color:#fff;border-color:#ad1e32}
+.pill{display:inline-flex;padding:5px 9px;border-radius:999px;background:#f9eced;color:#9b2435;font-size:11px;font-weight:750}
+.stage{font-size:21px;font-weight:800;margin:11px 0 5px}
+.step{display:grid;grid-template-columns:28px 1fr;align-items:start;gap:10px;padding:9px 0;border-bottom:1px solid #efebea;font-size:13px}
+.step:last-child{border-bottom:0}
+.circle{display:flex;justify-content:center;align-items:center;border-radius:50%;height:26px;width:26px;background:#f2e1e4;color:#ae2137;font-size:11px;font-weight:800}
+.step.active .circle{background:#ad1e32;color:white}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}
+.action{padding:11px 13px;border-radius:10px;border:0;background:#ad1e32;color:#fff;font-size:13px;font-weight:750;min-height:43px}
+.action.secondary{background:#f1ebeb;color:#3d3437}
+.action:disabled{opacity:.5;cursor:not-allowed}
+fieldset{border:0;padding:0;margin:0}
+textarea{border-radius:10px;border:1px solid #c8c1c3;padding:11px;width:100%;min-height:62px;font:inherit;font-size:14px;resize:vertical}
+label{display:block;margin:10px 0 7px;font-size:12px;font-weight:750}
+.chat{background:#f9f7f7;padding:11px;border-radius:11px;display:flex;flex-direction:column;gap:8px}
+.bubble{background:white;border-radius:11px;padding:10px;align-self:flex-start;max-width:89%;font-size:13px;line-height:1.4}
+.bubble.mine{background:#f3e0e5;align-self:flex-end}
+.bubble strong{display:block;font-size:10px;margin-bottom:4px;opacity:.7}
+.money{font-size:20px;font-weight:850;margin:7px 0}
+.status{font-size:13px;font-weight:750}
+.notebox{background:#fbf6e9;border:1px solid #e7dbbf;border-radius:10px;padding:10px;font-size:12px;line-height:1.5}
+hr{border:0;border-top:1px solid #eee9e8;margin:16px 0}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+[hidden]{display:none!important}
+body.romo header{background:linear-gradient(120deg,#111217,#7d1527)}
+body.uki header{background:linear-gradient(120deg,#3d182c,#9a3750)}
+@media(max-width:520px){.two{grid-template-columns:1fr}.tab{padding:10px 12px}}
+</style>
+</head>
+<body class="romo">
+<header><div class="wrap">
+ <span class="eyebrow">Vista de revisión · Datos ficticios</span>
+ <h1>Seguimiento del pedido</h1>
+ <p>Así se verán los avisos y el chat entre el cliente y tu panel. No se registra ni modifica ningún pedido real.</p>
+</div></header>
+<main>
+ <section class="card">
+  <h2>Elige una sucursal</h2>
+  <div class="tabs">
+   <button class="tab" data-store="romo:serena" aria-pressed="true">Romo La Serena</button>
+   <button class="tab" data-store="uki:arica" aria-pressed="false">Uki Regimiento</button>
+   <button class="tab" data-store="uki:serena" aria-pressed="false">Uki La Serena</button>
+  </div>
+ </section>
+ <div class="two">
+  <section class="card" aria-label="Pantalla cliente">
+   <span class="pill">Lo que ve el cliente</span>
+   <h2 style="margin-top:13px" id="customer-store">Romo Sushi La Serena</h2>
+   <p class="small">Pedido ficticio #A-104 · Retiro</p>
+   <p id="state" class="stage">Pedido aceptado</p>
+   <div class="step"><span class="circle">1</span><span>Solicitud recibida</span></div>
+   <div class="step active"><span class="circle">2</span><span>Pedido aceptado</span></div>
+   <div class="step"><span class="circle">3</span><span>En preparación</span></div>
+   <div class="step"><span class="circle">4</span><span>Listo para retirar</span></div>
+   <div class="actions">
+    <button class="action secondary" id="next-status">Simular siguiente estado</button>
+   </div>
+   <div class="notebox" style="margin-top:13px">Si quieres hacer seguimiento, conserva esta página abierta o guarda el enlace. No necesitas instalar nada.</div>
+  </section>
+  <section class="card" aria-label="Pantalla de agendadora">
+   <span class="pill">Lo que ve la agendadora</span>
+   <h2 style="margin-top:13px">Pedido #A-104</h2>
+   <p class="small">Cliente de ejemplo · mismo pedido, misma sucursal</p>
+   <h3>Transferencia</h3>
+   <p class="money">$12.000</p>
+   <p class="small">Ejemplo de pago mixto: transferencia $12.000 + efectivo $6.000.</p>
+   <p id="staff-payment" class="status">Esperando aviso del cliente</p>
+   <div class="actions">
+    <button id="verify" class="action" disabled>Verificar abono (simulación)</button>
+   </div>
+   <p class="small">En el panel real se comprueba el dinero recibido antes de confirmar. Aquí no se consulta ningún banco.</p>
+   <hr>
+   <h3>Mensajes del pedido</h3>
+   <div class="chat" id="staff-messages"><div class="bubble"><strong>Cliente</strong>Hola, ¿cuánto falta?</div></div>
+  </section>
+ </div>
+ <section class="card">
+  <h2>Pago y mensajes desde la carta</h2>
+  <p class="small">Monto de transferencia de prueba (no hay cuentas bancarias ni datos de pago reales).</p>
+  <p class="money">$12.000</p>
+  <p id="customer-payment" class="status">Transferencia pendiente</p>
+  <div class="actions"><button class="action" id="customer-notice">Ya transferí (simulación)</button></div>
+  <p class="small">El aviso no marca el pedido como pagado: únicamente alerta a la agendadora.</p>
+  <hr>
+  <h3>Chat del cliente</h3>
+  <div class="chat" id="customer-messages"><div class="bubble mine"><strong>Tú</strong>Hola, ¿cuánto falta?</div></div>
+  <label for="chat-text">Mensaje de prueba</label>
+  <textarea id="chat-text" maxlength="160" placeholder="Escribe aquí para probar el chat"></textarea>
+  <div class="actions"><button class="action" id="send">Enviar mensaje de prueba</button>
+  <button class="action secondary" id="reset">Reiniciar simulación</button></div>
+ </section>
+ <div class="preview"><strong>IMPORTANTE:</strong> Esta es únicamente una demostración visual sin registro, sin Google, sin conexión a pedidos ni a Santander. El sistema real todavía conserva el acceso privado y requiere las pruebas de seguridad antes de publicarse.</div>
+</main>
+<script>
+'use strict';
+const names={'romo:serena':'Romo Sushi La Serena','uki:arica':'Uki Regimiento Arica','uki:serena':'Uki La Serena'};
+const statuses=['Pedido aceptado','En preparación','Listo para retirar','Entregado'];
+const $=id=>document.getElementById(id);
+let store='romo:serena',stage=0,transfer=0;
+function bubble(label,body,mine){
+ const div=document.createElement('div');div.className='bubble'+(mine?' mine':'');
+ const strong=document.createElement('strong');strong.textContent=label;
+ div.append(strong,document.createTextNode(body));return div;
+}
+function payment(){
+ const states=['Transferencia pendiente','Aviso recibido · falta verificar','Transferencia confirmada (sólo simulación)'];
+ $('customer-payment').textContent=states[transfer];
+ $('staff-payment').textContent=['Esperando aviso del cliente','Cliente avisó · verificar abono','Abono confirmado en simulación'][transfer];
+ $('customer-notice').disabled=transfer!==0;
+ $('verify').disabled=transfer!==1;
+}
+function reset(){
+ stage=0;transfer=0;
+ $('state').textContent=statuses[stage];$('next-status').disabled=false;
+ $('customer-messages').replaceChildren(bubble('Tú','Hola, ¿cuánto falta?',true));
+ $('staff-messages').replaceChildren(bubble('Cliente','Hola, ¿cuánto falta?',false));
+ $('chat-text').value='';payment();
+}
+document.querySelectorAll('[data-store]').forEach(b=>b.addEventListener('click',()=>{
+ store=b.dataset.store;document.querySelectorAll('[data-store]').forEach(t=>t.setAttribute('aria-pressed',String(t===b)));
+ document.body.className=store.startsWith('romo')?'romo':'uki';
+ $('customer-store').textContent=names[store];reset();
+}));
+$('next-status').addEventListener('click',()=>{
+ stage=Math.min(statuses.length-1,stage+1);$('state').textContent=statuses[stage];
+ $('next-status').disabled=stage===statuses.length-1;
+});
+$('customer-notice').addEventListener('click',()=>{transfer=1;payment();});
+$('verify').addEventListener('click',()=>{transfer=2;payment();});
+$('send').addEventListener('click',()=>{
+ const val=$('chat-text').value.trim();if(!val)return;
+ $('customer-messages').append(bubble('Tú',val,true));
+ $('staff-messages').append(bubble('Cliente',val,false));
+ $('chat-text').value='';
+});
+$('reset').addEventListener('click',reset);
+</script>
+</body></html>
