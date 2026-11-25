@@ -68,11 +68,15 @@ test('no permite duplicar identificadores de pedido al preparar el cifrado',asyn
 });
 test('las dos rutas de guardado cifrado deben llamar a la guardia antes de persistir',()=>{
  const segment=html.slice(begin);
- const patterns=[
-  /await ukiSeguimientoValidarAntesDeCifrarRomoQA\(copia\);[\s\S]{0,310}const res=await session\.guardar\(copia\);/,
-  /await ukiSeguimientoValidarAntesDeCifrarRomoQA\(clone\);[\s\S]{0,380}const saved=await session\.guardar\(clone\);/
- ];
- for(const pattern of patterns)assert.match(segment,pattern);
+ const saveStart=html.indexOf('async function ukiRomoGuardarOperacionQA(',begin);
+ const saveEnd=html.indexOf('async function ukiRomoConfirmarCobroQA(',saveStart);
+ assert.ok(saveStart>=0&&saveEnd>saveStart);
+ const central=html.slice(saveStart,saveEnd);
+ assert.match(central,/await ukiSeguimientoValidarAntesDeCifrarRomoQA\(copia\);/);
+ assert.match(central,/const res=await session\.guardar\(copia,\{guardarConjunto\}\);/);
+ assert.ok(central.indexOf('await ukiSeguimientoValidarAntesDeCifrarRomoQA(copia)')<central.indexOf('const res=await session.guardar(copia,{guardarConjunto})'));
+ assert.match(central,/guardarConjunto=paquete=>window\.ukiQAGuardarRomoConjunto/);
+ assert.match(segment,/await ukiSeguimientoValidarAntesDeCifrarRomoQA\(clone\);[\s\S]{0,380}const saved=await session\.guardar\(clone\);/);
  assert.match(segment,/session\.estado\(\)\?\.revision!==anterior\.revision/);
  assert.match(segment,/session\.estado\(\)\?\.revision!==expected\.revision/);
 });

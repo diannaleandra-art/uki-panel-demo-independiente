@@ -12,17 +12,21 @@ const orders=(storeId,branch,medio='transferencia')=>({
 for(const [storeId,branch] of stores){
  test(storeId+' - bloquea entrega y cobro si transferencia pendiente o avisada',async()=>{
   const queries=[];
-  let paidState='avisada';
+  let paidState='avisada',actor='worker-fixture-42';
   const db={query:async(sql,args)=>{
    queries.push({sql,args});
    if(sql.includes('SELECT id,branch,codigo_pedido,estado,total_indicado,datos'))return [orders(storeId,branch)];
-   if(sql.includes('SELECT estado_pago,monto_transferencia'))return [{estado_pago:paidState,monto_transferencia:16000}];
+   if(sql.includes('SELECT estado_pago,monto_transferencia'))return [{estado_pago:paidState,monto_transferencia:16000,
+    confirmada_en:paidState==='confirmada'?'2026-11-24T12:00:00Z':null,
+    abono_verificado_en:paidState==='confirmada'?'2026-11-24T12:00:00Z':null,
+    confirmada_por:paidState==='confirmada'?actor:null}];
    throw Error('Consulta fuera del verificador QA');
   }};
   const check=()=>gate.check({db,storeId,orderId:id,requiereTransferencia:true});
   const a=await check();assert.equal(a.permitido,false);assert.match(a.razon,/verificar|Revisa el abono/);
   paidState='pendiente';assert.equal((await check()).permitido,false);
-  paidState='confirmada';assert.equal((await check()).permitido,true);
+  paidState='confirmada';actor='QA_SIMULACION:worker-fixture-42';assert.equal((await check()).permitido,false);
+  actor='worker-fixture-42';assert.equal((await check()).permitido,true);
   assert.equal(queries.filter(x=>/INSERT |UPDATE |DELETE /i.test(x.sql)).length,0);
   const first=queries[0];
   assert.ok(first.sql.includes('branch=$2'));
@@ -192,7 +196,10 @@ test('en edición Uki/Romo se conserva el ID original sin pedir otro paso al tra
   assert.equal(altered.cartaSolicitudRemotaId,
    'f04cbd3f-b14c-40d3-bb79-9461fd5ad122');
  }
- assert.match(src,/async function ndGuardar\(\)\{\s*if\(!ukiSeguimientoConservarOrigenEdicionQA\(\)\)return/);
+ const save=src.slice(end,src.indexOf('\n',end)+1000);
+ assert.match(save,/async function ndGuardar\(\)\{/);
+ assert.match(save,/if\(!ukiSeguimientoConservarOrigenEdicionQA\(\)\)return/);
+ assert.ok(save.indexOf('ukiSeguimientoConservarOrigenEdicionQA()')<save.indexOf('ukiSeguimientoValidarCambioMedioQA('));
 });
 
 test('el cambio de medio en edición normal no permite retirar una transferencia, en las tres sucursales',()=>{

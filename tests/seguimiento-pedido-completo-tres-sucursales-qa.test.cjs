@@ -79,7 +79,8 @@ function build(storeId,branch){
    if(confirmed&&state.payment?.estado_pago==='confirmada')return [];
    if(!confirmed&&state.payment?.estado_pago==='confirmada')return [];
    state.payment={estado_pago:confirmed?'confirmada':'avisada',
-    monto_transferencia:18000,confirmada_en:confirmed?new Date().toISOString():null};
+    monto_transferencia:18000,confirmada_en:confirmed?new Date().toISOString():null,
+    abono_verificado_en:confirmed?new Date().toISOString():null,confirmada_por:confirmed?args[index+1]:null};
    return [{estado_pago:state.payment.estado_pago}];
   }
   if(sql.startsWith('SELECT COUNT(*)::integer AS n FROM '+m.messages))
@@ -101,7 +102,8 @@ function build(storeId,branch){
    assert.equal(args[3],18000);assert.equal(args[4],JSON.stringify(row.datos));
    assert.equal(args[5],18000);
    if(row.estado!=='aceptada'||state.payment?.estado_pago!=='confirmada'||
-      state.payment.monto_transferencia!==args[5])return [];
+      state.payment.monto_transferencia!==args[5]||!state.payment.confirmada_en||!state.payment.abono_verificado_en||
+      !state.payment.confirmada_por||state.payment.confirmada_por.startsWith('QA_SIMULACION:'))return [];
    if(args[6]==='confirmar_cobro'){
     if(state.ledger)return [];
     state.ledger={estado:'pagado',revision:1};
@@ -193,6 +195,11 @@ for(const [storeId,branch] of stores){
   assert.equal((await S.clientNotice({db,order:opened.order,bank})).repeated,true);
   view=await S.snapshot({db,order:opened.order,bank,chatSecret});
   assert.equal(view.estadoPago,'confirmada');
+  assert.equal(view.datosBancarios,null,'No indicar otro pago tras confirmar el abono');
+  const actorReal=state.payment.confirmada_por;
+  state.payment.confirmada_por='QA_SIMULACION:'+actorReal;
+  await assert.rejects(()=>TX.commit({db,storeId,orderId:id,action:'confirmar_cobro',staff,restoPagoVerificado:true}),{status:409});
+  state.payment.confirmada_por=actorReal;
   // 7. Solo después: pagado y luego entregado. En el libro de PRUEBAS.
   await assert.rejects(()=>TX.commit({db,storeId,orderId:id,action:'entregar',
    staff,restoPagoVerificado:true}),{status:409});

@@ -56,8 +56,9 @@ function mockDb(storeId,branch){
    assert.equal(params[1],storeId);
    const amount=meta.uki?params[3]:params[2];
    assert.equal(amount,12000);
-   if(query.includes("'avisada'"))state.payment={monto_transferencia:12000,estado_pago:'avisada'};
-   if(query.includes("'confirmada'"))state.payment={monto_transferencia:12000,estado_pago:'confirmada'};
+   if(query.includes('abono_verificado_en'))state.payment={monto_transferencia:12000,estado_pago:'confirmada',
+    confirmada_en:'2026-11-24T12:00:00Z',abono_verificado_en:'2026-11-24T12:00:00Z',confirmada_por:params[meta.uki?4:3]};
+   else state.payment={monto_transferencia:12000,estado_pago:'avisada'};
    return [{estado_pago:state.payment.estado_pago}];
   }
   if(query.startsWith('SELECT COUNT(*)::integer AS n FROM '+meta.messages)){
