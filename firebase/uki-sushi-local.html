@@ -6397,6 +6397,32 @@ function vHistorial(){
 }
 
 window.ukiQAGet=()=>S.suc?{suc:S.suc,estado:datosSoloSucursal()}:null;
+// Una revisión remota solo sustituye una copia local limpia. Conserva la vista y no envía escrituras a Firebase.
+window.ukiPuedeRecargarRemoto=()=>{
+ const app=$("app"),focus=document.activeElement;
+ return ["inicio","pedidos"].includes(S.vista)&&!S.busy&&!cancelacionGuardando&&
+  !D.editando&&!ukiSolicitudWhatsAppActiva&&!ukiCartaRemotaActiva&&
+  !(app?.contains(focus)&&focus?.matches?.("input,textarea,select,[contenteditable=true]"))&&
+  !app?.querySelector("details.uki-cancelar-pedido[open]");
+};
+window.ukiAplicarRemotoLimpio=async(data,vigente)=>{
+ const suc=S.suc,key=claveSesion,salt=saltSesion;
+ if(!key||sucursalSesion!==suc||!validarEstadoSucursal(data,suc)||!vigente())return false;
+ await colaGuardado.catch(()=>{});
+ if(!vigente()||claveSesion!==key||sucursalSesion!==suc)return false;
+ const siguiente={...estadoVacioSucursal(suc),...data,suc,vista:S.vista,
+  filtro:S.filtro,filtroFecha:S.filtroFecha,filtroCliente:S.filtroCliente,
+  pinSuc:null,codigos:{},busy:false,msg:null,confirmCierre:false};
+ const datos=JSON.parse(JSON.stringify(siguiente));
+ for(const k of ["codigos","pinSuc","msg","busy","confirmCierre"])delete datos[k];
+ const paquete=await cifrarLocal(datos,suc,key,salt);
+ if(!vigente()||claveSesion!==key||sucursalSesion!==suc)return false;
+ revisionGuardado++;
+ localStorage.setItem(claveLocal(suc),JSON.stringify(paquete));
+ S=siguiente;
+ return true;
+};
+window.ukiRenderRemotoLimpio=()=>render();
 window.ukiQASet=async(data)=>{
  if(!S.suc||!validarEstadoSucursal(data,S.suc))throw Error("Estado inválido para esta sucursal");
  const prev=S;S={...estadoVacioSucursal(S.suc),...data,suc:S.suc,vista:"inicio",
@@ -6435,7 +6461,7 @@ import {dividirEstado,reunirEstado} from "./uki-particion-local.js";
 import {nuevaSal,nuevaGeneracion,derivarClave,cifrarBloque,descifrarBloque} from "./uki-cifrado-bloques.js";
 import {crearSnapshotsUki} from "./uki-sushi-nube.js?v=seguimiento-guardado-20261125";
 import {verificarGuardadoUki} from "./uki-seguimiento-guardado-nube-v1.mjs";
-import {crearAutoGuardadoOperativo} from "./uki-sushi-autoguardado.js?v=refrescos-20261125";
+import {crearAutoGuardadoOperativo,huellaOperativa} from "./uki-sushi-autoguardado.js?v=refrescos-20261125";
 import {prepararCierreParaDuenos,sincronizarCierreDuenos} from "./uki-duenos-cierre-publicador-live.mjs";
 import {autorizarEquipoQR,obtenerSesionQR,estadoEquipoQR} from "./uki-mesas-dispositivo-live.js";
 const config={
@@ -6531,6 +6557,8 @@ const auto=crearAutoGuardadoOperativo({
    el("ukiSaveQA").disabled=auto.resumen().activo;
    actualizarBloqueo();
    if(estado==='sincronizado')Promise.resolve().then(async()=>{
+    // Solo una revisión respaldada puede confirmar QR, cierres o seguimiento.
+    if(recargaRemotaEnCurso||auto.resumen().actualRespaldado!==true)return;
     // Consultar la revisión y generación remota exactas. Un fallo de
     // seguimiento nunca interrumpe cierres ni la conciliación de mesas.
     if(window.UKI_SEGUIMIENTO_ESTADO_GUARDADO_AUTORIZADO===true){
@@ -6569,6 +6597,37 @@ function claveNube(){
 function dejarDeVigilar(){
  if(desuscribir){desuscribir();desuscribir=null;}
 }
+let recargaRemotaEnCurso=false;
+async function recargarRemotoLimpio(sucursal,revMinima,base,uid,huella){
+ if(recargaRemotaEnCurso)return;
+ recargaRemotaEnCurso=true;
+ const vigente=()=>{
+  const a=auto.resumen(),ctx=window.ukiQAGet?.();
+  return !ocupado&&auth.currentUser?.uid===uid&&a.activo&&a.bloqueado&&a.estado==="conflicto"&&
+   a.revision===base&&a.sucursal===sucursal&&ctx?.suc===sucursal&&
+   huellaOperativa(ctx.estado)===huella&&window.ukiPuedeRecargarRemoto?.()===true;
+ };
+ try{
+  if(!vigente())return;
+  actualizarPresentacionNube();
+  el("ukiEstadoOperativo").textContent="Nube: actualizando cambios de otro equipo…";
+  const data=await cloud.cargar(sucursal,claveNube());
+  if(!data.estado||data.revision<revMinima||!vigente())return;
+  const rama={"Uki Regimiento Arica":"regimiento","Uki La Serena":"la-serena"}[sucursal];
+  const snap=await getDocFromServer(doc(db,"uki_operacion_v1",rama));
+  if(!snap.exists()||snap.data()?.rev!==data.revision||!vigente())return;
+  if(!await window.ukiAplicarRemotoLimpio(data.estado,vigente))return;
+  const actual=window.ukiQAGet?.(),a=auto.resumen();
+  if(auth.currentUser?.uid!==uid||actual?.suc!==sucursal||!a.activo||a.revision!==base)return;
+  revision=data.revision;sucursalCargada=sucursal;
+  auto.activar({suc:sucursal,rev:data.revision,estadoBase:actual.estado});
+  vigilarRevisiones(sucursal);
+  window.ukiRenderRemotoLimpio?.();
+  msg("Nube actualizada automáticamente: "+data.revision);
+ }catch(e){msg("Atención: no se pudo actualizar sin riesgo. Conserva esta sesión y revisa la nube.");}
+ finally{recargaRemotaEnCurso=false;actualizarBloqueo();
+  const a=auto.resumen();if(a.estado==="conflicto")el("ukiEstadoOperativo").textContent="Nube: conflicto · revisión "+a.revision;}
+}
 function vigilarRevisiones(sucursal){
  dejarDeVigilar();
  const mapa={"Uki Regimiento Arica":"regimiento","Uki La Serena":"la-serena"};
@@ -6577,7 +6636,11 @@ function vigilarRevisiones(sucursal){
     {includeMetadataChanges:true},snap=>{
       if(snap.metadata.fromCache||snap.metadata.hasPendingWrites)return;
       const n=snap.exists()?snap.data()?.rev:0;
+      const a=auto.resumen(),ctx=window.ukiQAGet?.();
+      const limpia=Number.isSafeInteger(n)&&n>a.revision&&a.actualRespaldado===true&&ctx?.suc===sucursal&&window.ukiPuedeRecargarRemoto?.()===true;
+      const huella=limpia?huellaOperativa(ctx.estado):null,uid=auth.currentUser?.uid;
       auto.revisionRemota(n);
+      if(limpia&&uid)void recargarRemotoLimpio(sucursal,n,a.revision,uid,huella);
     },e=>{
       const estado=auto.resumen();
       if(estado.activo)auto.revisionRemota(estado.revision+1);
@@ -6598,7 +6661,7 @@ function actualizarPresentacionNube(){
  const estado=auto.resumen();
  const haySucursal=!!window.ukiQAGet?.()?.suc;
  const errorMensaje=/error|atenci[oó]n|no se pudo|cancelad/i.test(el("ukiNubeEstado").textContent||"");
- const conexionActiva=haySucursal&&estado.activo&&!estado.bloqueado&&!errorMensaje;
+ const conexionActiva=haySucursal&&estado.activo&&(!estado.bloqueado||recargaRemotaEnCurso)&&!errorMensaje;
  const esAlerta=estado.bloqueado||["error","conflicto","pendiente","guardando"].includes(estado.estado)||errorMensaje;
  document.body.classList.toggle("uki-nube-alerta",esAlerta);
  el("ukiNubeSeccion").hidden=conexionActiva&&!nubeConfigAbiertaPorUsuario;
@@ -6653,7 +6716,7 @@ function contexto(){
  return {...x,clave};
 }
 async function accion(action){
- if(ocupado)return;
+ if(ocupado||recargaRemotaEnCurso)return;
  ocupado=true;el("ukiLoadQA").disabled=true;el("ukiSaveQA").disabled=true;
  try{await action()}catch(e){msg("Error de Firebase: "+String(e?.code||"")+": "+String(e?.message||e))}
  finally{ocupado=false;el("ukiLoadQA").disabled=false;el("ukiSaveQA").disabled=auto.resumen().activo}
