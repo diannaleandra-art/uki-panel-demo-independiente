@@ -2269,6 +2269,7 @@ function ukiAbrirTimbreBorrador(){
  const firma=ukiFirmaTimbreBorrador(D);
  D.timbreAvisoAbiertoFirma=firma;D.timbreAvisoConfirmadoFirma="";
  D.timbreAvisoAbiertoEn=new Date().toISOString();D.timbreAvisoConfirmadoEn="";
+ if(original&&S.suc===ROMO_SUCURSAL_QA)ukiRomoRecordarTimbreEdicionQA(D);
  const mensaje=ukiTimbreTextoPedido(D.cliente,acumulados+1);
  render(); // Habilita la confirmación al regresar de WhatsApp sin refrescar ni perder el pedido.
  window.open("https://wa.me/"+numero+"?text="+encodeURIComponent(mensaje),"_blank","noopener,noreferrer");
@@ -2277,13 +2278,18 @@ function ukiConfirmarTimbreBorrador(marcado){
  if(!marcado&&ukiTimbreBorradorConfirmado(D)){
   return aviso("✅ Este timbre ya fue declarado enviado. Editar el pago no obliga a reenviarlo.");
  }
- if(!marcado){D.timbreAvisoConfirmadoFirma="";D.timbreAvisoConfirmadoEn="";render();return;}
+ if(!marcado){
+  D.timbreAvisoConfirmadoFirma="";D.timbreAvisoConfirmadoEn="";
+  if(S.suc===ROMO_SUCURSAL_QA&&D.editando)ukiRomoRecordarTimbreEdicionQA(D);
+  render();return;
+ }
  const firma=ukiFirmaTimbreBorrador(D);
  if(!D.timbreAvisoAbiertoEn||D.timbreAvisoAbiertoFirma!==firma){
   aviso("Primero pulsa Enviar timbre por WhatsApp. No basta con marcar la casilla.");return;
  }
  D.timbreAvisoConfirmadoFirma=firma;D.timbreAvisoConfirmadoEn=new Date().toISOString();
  D.timbreAvisoConfirmadoPor=ukiTimbreResponsableActual();
+ if(S.suc===ROMO_SUCURSAL_QA&&D.editando)ukiRomoRecordarTimbreEdicionQA(D);
  render();
 }
 function ukiRevisionBancoFirmaQA(p,importe=null){
@@ -2758,6 +2764,13 @@ envioPagadoOtroLocal:ukiMontoEnvioOtroLocal(p,Number(p.envio)||0,Number(p.subtot
 montoEnvioOtroLocal:p.montoEnvioOtroLocal??"",
 localPagoExterno:p.localPagoExterno||"",propinaModo:p.propinaModo||((Number(p.propina)||0)>0?"otro":"ninguna"),propinaPersonalizada:p.propinaModo==="otro"||!p.propinaModo?p.propina||"": "",medioPropina:p.medioPropina||"Efectivo",
 items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||"",...ukiDatosCatalogoItem(pr)})),ajusteCajaRegularizado:false,responsableEdicion:"",editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}];
+ if(S.suc===ROMO_SUCURSAL_QA){
+  // La casilla del banco debe firmar la identidad original desde el primer dibujo.
+  for(const campo of ['cartaSolicitudRemotaId','seguimientoSolicitudId']){
+   if(p[campo])D[campo]=String(p[campo]);
+  }
+  if(!ukiTimbreYaEnviadoPedido(p))ukiRomoRecuperarTimbreEdicionQA(D);
+ }
  if(S.suc===ROMO_SUCURSAL_QA&&p.pagado){
   // El guardado de Romo puede representar un medio único como una línea.
   // Mostrarlo como medio único, no como pago mixto, y conservar su importe real.
@@ -5874,6 +5887,23 @@ function ukiRomoCambiarFiltroQA(tipo){
  ukiRomoFiltroPedidosQA=tipo;render();
 }
 const ukiRomoTimbreCobroQA=new Map();
+const UKI_ROMO_TIMBRE_EDICION_CAMPOS_QA=[
+ 'timbreAvisoAbiertoFirma','timbreAvisoAbiertoEn','timbreAvisoConfirmadoFirma',
+ 'timbreAvisoConfirmadoEn','timbreAvisoConfirmadoPor'
+];
+function ukiRomoRecordarTimbreEdicionQA(d){
+ const sesion=window.ukiRomoSesionRemotaQA;
+ if(!sesion?.disponible?.()||!d.editando||d.timbreAvisoAbiertoFirma!==ukiFirmaTimbreBorrador(d))return;
+ const registro={sesion};
+ for(const campo of UKI_ROMO_TIMBRE_EDICION_CAMPOS_QA)registro[campo]=d[campo];
+ ukiRomoTimbreCobroQA.set(Number(d.editando),registro);
+}
+function ukiRomoRecuperarTimbreEdicionQA(d){
+ const registro=ukiRomoTimbreCobroQA.get(Number(d.editando));
+ if(!registro||!window.ukiRomoSesionRemotaQA?.disponible?.()||
+    registro.sesion!==window.ukiRomoSesionRemotaQA||registro.timbreAvisoAbiertoFirma!==ukiFirmaTimbreBorrador(d))return;
+ for(const campo of UKI_ROMO_TIMBRE_EDICION_CAMPOS_QA)d[campo]=registro[campo];
+}
 function ukiRomoTimbreCobroDraftQA(p,externo=0){
  const d={pagado:true,productosPagadosOtroLocal:externo>0,telefono:p.telefono,cliente:p.cliente,editando:p.id};
  const r=ukiRomoTimbreCobroQA.get(Number(p.id));
@@ -10306,7 +10336,10 @@ async function ukiRomoEditarPedidoPendienteQA(){
  const responsable=String(D.responsableEdicion||'').trim();
  if(responsable.length<2||responsable.length>80){aviso('Escribe quién realiza la modificación del pedido.');return;}
  const cobrar=D.pagado===true;
- if(cobrar&&(!ukiValidarTimbreAntesGuardar(D,original)||!ukiRevisionBancoBorradorValidaQA(D,original)))return;
+ if(cobrar&&!ukiValidarTimbreAntesGuardar(D,original))return;
+ if(cobrar&&!ukiRevisionBancoBorradorValidaQA(D,original)){
+  aviso('Marca la revisión bancaria obligatoria antes de guardar como pagado.');return;
+ }
  const firma=JSON.stringify(D),base=session.estado(),estadoFirma=JSON.stringify(datosSoloSucursal());
  if(base.conflicto)return aviso('Actualiza Romo antes de guardar.');
  ukiRomoGuardandoManualQA=true;
@@ -10334,6 +10367,7 @@ async function ukiRomoEditarPedidoPendienteQA(){
   }
   if(firma!==JSON.stringify(D)||estadoFirma!==JSON.stringify(datosSoloSucursal())||session.estado().revision!==base.revision||!validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))throw Error('El pedido cambió antes de guardar.');
   await ukiRomoGuardarOperacionQA(copia,cobrar?'Pago confirmado':'Pedido actualizado',id,'pedidos',cobrar?'confirmar_cobro':null);
+  if(cobrar)ukiRomoTimbreCobroQA.delete(id);
   nuevoDraft();
  }catch(error){aviso('No se confirmó el cambio. Revisa el pedido antes de repetir. '+String(error?.message||error));}
  finally{ukiRomoGuardandoManualQA=false;}
@@ -10544,6 +10578,7 @@ function ukiSeguimientoValidarCambioMedioQA(original,nuevo){
  return true;
 }
 async function ndGuardar(){
+  if(S.suc===ROMO_SUCURSAL_QA&&!ukiSeguimientoConservarOrigenEdicionQA())return;
   const originalRevisionBanco=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(D.editando)):null;
   if(D.pagado&&ukiSeguimientoHayTransferenciaQA(D)){
    if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true){aviso('Actualiza el panel para verificar la transferencia antes de guardar.');return;}
