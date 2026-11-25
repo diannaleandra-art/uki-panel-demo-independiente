@@ -123,7 +123,7 @@ test('No publica rondas ni libera mesas desde un guardado solo local',()=>{
  assert.doesNotMatch(localCallback,/ukiMesaCerrarPagadasCentralSeguro\(/);
  const trigger=html.indexOf("if(estado==='sincronizado')");
  assert.ok(trigger>0);
- const endTrigger=html.indexOf('\n });',trigger);
+ const endTrigger=html.indexOf('\n   });\n }\n});',trigger);
  assert.ok(endTrigger>trigger,'Falta el cierre del callback de sincronización');
  assert.match(html.slice(trigger,endTrigger),/await ukiMesaConfirmarGuardadosSeguro\(\)/);
  assert.match(html,/!window\.ukiCancelacionNubeLista\?\.\(\)/);
