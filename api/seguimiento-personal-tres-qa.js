@@ -39,7 +39,7 @@ module.exports=async(req,res)=>{
    const list=await db.query(
     'SELECT s.id,s.branch,s.codigo_pedido,s.cliente,s.estado,s.total_indicado,s.datos,s.creado_en,'+
     (meta.uki?'NULL::text AS store_id,':'s.store_id,')+
-    'p.estado_pago,p.monto_transferencia,p.cliente_aviso_en,'+
+    'p.estado_pago,p.monto_transferencia,p.cliente_aviso_en,p.confirmada_por,p.confirmada_en,p.abono_verificado_en,'+
     '(SELECT max(m.creado_en) FROM '+meta.messages+
     ' m WHERE m.solicitud_id=s.id AND m.store_id=$1'+(meta.uki?' AND m.branch=$2':'')+
     ') AS ultima_consulta FROM '+meta.source+' s LEFT JOIN '+meta.payment+
@@ -53,7 +53,9 @@ module.exports=async(req,res)=>{
      id:r.id,codigoPedido:plan.codigo,cliente:String(r.cliente||'').slice(0,80),
      estadoPedido:plan.estado,metodoPago:plan.metodoPago,pagoDeclarado:plan.pagoDeclarado,
      montoTransferencia:plan.montoTransferencia,
-     estadoPago:!r.estado_pago?'pendiente':r.monto_transferencia===plan.montoTransferencia?r.estado_pago:'requiere_revision',
+     estadoPago:!r.estado_pago?'pendiente':r.monto_transferencia!==plan.montoTransferencia?'requiere_revision':
+      r.estado_pago==='confirmada'&&(!r.confirmada_en||!r.abono_verificado_en||!r.confirmada_por||
+       String(r.confirmada_por).startsWith('QA_SIMULACION:')!==revision)?'requiere_revision':r.estado_pago,
      clienteAvisoEn:r.cliente_aviso_en||null,ultimaConsulta:r.ultima_consulta||null
     }:null;
    }).filter(Boolean);
@@ -115,7 +117,7 @@ module.exports=async(req,res)=>{
     // Reutiliza la validación y persistencia reales del módulo, únicamente en QA.
     // Identifica el registro en auditoría como SIMULADO; no consulta una cuenta real.
     const result=await S.staffConfirm({db,order,staff:{...actor,userId:'QA_SIMULACION:'+actor.userId},
-     bank:{storeId,verified:true},receivedAmount:req.body.montoRecibido,seenBankCredit:true});
+     bank:{storeId,verified:true},receivedAmount:req.body.montoRecibido,seenBankCredit:true,simulationOnly:true});
     return res.status(200).json({ok:true,storeId,estadoPago:result.status,simulado:true,
      nota:'Simulación aislada, sin abono bancario ni movimiento de caja'});
    }
@@ -145,7 +147,7 @@ module.exports=async(req,res)=>{
    }
    return fail(res,400,'Acción no autorizada');
   }
-  const details=await S.snapshot({db,order,bank:cfg.banks[storeId],chatSecret:cfg.chatSecret});
+  const details=await S.snapshot({db,order,bank:revision?null:cfg.banks[storeId],chatSecret:cfg.chatSecret,simulationOnly:simulacion});
   return res.status(200).json({ok:true,storeId,orderId:id,totalPedido:order.total,pedido:details,
    ...(revision?{revisionAislada:true,puedeSimular:simulacion&&order.estado==='aceptada'&&
     ['pendiente','avisada'].includes(details.estadoPago)&&details.montoTransferencia>0}:{}),

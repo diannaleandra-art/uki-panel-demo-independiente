@@ -1,0 +1,24 @@
+'use strict';
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const S=require('../lib/seguimiento-qa-servidor-v1.cjs');
+const TX=require('../lib/seguimiento-finalizacion-atomica-qa.cjs');
+const OP=require('../lib/seguimiento-operacion-unificada-qa.cjs');
+const guard=require('../lib/seguimiento-verificar-cierre-qa.cjs');
+for(const storeId of ['uki:arica','uki:serena','romo:serena'])test(storeId+' conserva simulación sin autorizar cobro',async()=>{
+ const order={storeId,orderId:'621bd292-2153-4160-9e85-375978e10352',estado:'aceptada',total:12000,montoTransferencia:12000,pagoSinDeterminar:false,estadoTexto:'Pedido aceptado',snapshotDatos:'{}'};
+ const paid={estado_pago:'confirmada',monto_transferencia:12000,confirmada_por:'QA_SIMULACION:owner',confirmada_en:'2026-11-25T00:00:00Z',abono_verificado_en:'2026-11-25T00:00:00Z'};
+ const db={query:async()=>[paid]};
+ const state=await S.paymentState(db,order);
+ assert.equal(state,'requiere_revision');
+ assert.equal(await S.paymentState(db,order,{simulationOnly:true}),'confirmada');
+ assert.equal(guard.verdict({order,paymentState:state,requiereTransferencia:true}).permitido,false);
+ assert.match(TX.sqlFor(storeId),/t\.confirmada_por NOT LIKE 'QA_SIMULACION:%'/);
+ const view=OP.view({order:{...order,seguimientoGuardado:{revision:1,estado:'Entregado',total:12000,montoTransferencia:12000,pagado:true}},paymentStatus:state,bank:{storeId,verified:true,datos:{}}});
+ assert.equal(view.estadoPedido,'aceptada');assert.equal(view.pagoRegistrado,false);assert.equal(view.datosBancarios,null);
+ await assert.rejects(S.publishSavedPayment({db,order,staff:{storeId,role:'duenos',userId:'owner-auth'},revision:1,total:12000,montoTransferencia:12000,estado:'Entregado',pagado:true}),{code:409});
+ const actual=await S.paymentState({query:async()=>[{...paid,confirmada_por:'staff-authenticated'}]},order);
+ assert.equal(actual,'confirmada');
+ assert.equal(guard.verdict({order,paymentState:actual,requiereTransferencia:true}).permitido,true);
+ assert.equal(OP.view({order,paymentStatus:actual,bank:{storeId,verified:true,datos:{}}}).datosBancarios,null);
+});

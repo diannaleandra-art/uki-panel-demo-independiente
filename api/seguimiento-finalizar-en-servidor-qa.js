@@ -9,7 +9,7 @@ module.exports=async(req,res)=>{
  res.setHeader('Referrer-Policy','no-referrer');
  res.setHeader('X-Content-Type-Options','nosniff');
  const cfg=ENV.config();
- if(!cfg||process.env.SEGUIMIENTO_CIERRE_ATOMICO_QA_ENABLED!=='true')
+ if(!cfg||cfg.live||process.env.VERCEL_ENV!=='preview'||process.env.SEGUIMIENTO_CIERRE_ATOMICO_QA_ENABLED!=='true')
   return fail(res,503,'Finalización protegida sólo disponible en pruebas');
  if(!ENV.validOrigin(req,cfg))return fail(res,403,'Origen no autorizado');
  if(req.method!=='POST')return fail(res,405,'Método no permitido');
