@@ -16,7 +16,7 @@ module.exports=async(req,res)=>{
  if(!String(req.headers?.['content-type']||'').startsWith('application/json')||
   !req.body||typeof req.body!=='object'||Array.isArray(req.body)||
   JSON.stringify(req.body).length>2000000||
-  !['action|id|restoPagoVerificado|storeId','action|expectedRevision|id|restoPagoVerificado|snapshot|storeId'].includes(Object.keys(req.body).sort().join('|')))
+  !['action|id|restoPagoVerificado|storeId','action|expectedRevision|id|montoTransferencia|pedidoInterno|restoPagoVerificado|snapshot|storeId|total'].includes(Object.keys(req.body).sort().join('|')))
   return fail(res,400,'Datos del pedido inválidos');
  const {storeId,id,action,restoPagoVerificado}=req.body;
  const conjunto=Object.hasOwn(req.body,'snapshot');
@@ -31,7 +31,8 @@ module.exports=async(req,res)=>{
   const staff=await AUTH.authorized(req,db,storeId).catch(()=>null);
   if(!staff)return fail(res,403,'Personal sin permiso en esta sucursal');
   const result=conjunto?await require('../lib/seguimiento-romo-guardado-conjunto-qa.cjs').save({
-   db,staff,orderId:id,action,expectedRevision:req.body.expectedRevision,snapshot:req.body.snapshot,restoPagoVerificado:true
+   db,staff,orderId:id,action,expectedRevision:req.body.expectedRevision,snapshot:req.body.snapshot,
+   pedidoInterno:req.body.pedidoInterno,total:req.body.total,montoTransferencia:req.body.montoTransferencia,restoPagoVerificado:true
   }):await TX.commit({db,storeId,orderId:id,action,staff,restoPagoVerificado:true});
   return res.status(200).json(result);
  }catch(error){

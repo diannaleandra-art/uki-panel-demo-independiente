@@ -253,6 +253,35 @@ window.ukiQAConfirmTransferBeforePayment=async function({storeId,id,total,monto}
 };
 
 
+/* Conector del MISMO botón de cobro/entrega, exclusivamente en Preview QA.
+ * No hay fallback al guardado antiguo después de iniciar esta operación.
+ */
+window.ukiQAGuardarRomoConjunto=async function({pedido,accion,expectedRevision,snapshot}={}){
+ if(window.UKI_SEGUIMIENTO_ROMO_GUARDADO_CONJUNTO_AUTORIZADO!==true||!TRACKING_PAYMENT_PREVIEW_QA||inReview()||store()!=='romo:serena'||
+    !['confirmar_cobro','entregar'].includes(accion)||!Number.isSafeInteger(expectedRevision)||expectedRevision<1||
+    pedido?.suc!=='Romo’s Sushi La Serena'||pedido.pagado!==true||
+    pedido.estado!==(accion==='entregar'?'Entregado':'Pendiente'))throw Error('Guardado protegido Romo no disponible');
+ const id=String(pedido.cartaSolicitudRemotaId||'');
+ const pedidoInterno=String(pedido.id||'');
+ if(!UUID.test(id)||! /^[1-9][0-9]{0,11}$/.test(pedidoInterno))throw Error('Pedido original no identificado');
+ const d=seguimientoDistribucionRealQA(pedido);
+ if(!d)throw Error('Revisa la distribución del pago');
+ const monto=d.pagos.filter(x=>x.medio==='transferencia').reduce((sum,x)=>sum+x.monto,0)+Number(d.propinaTransferencia||0);
+ const token=await window.ukiMesasTokenConfirmar?.();
+ if(typeof token!=='string'||!token||store()!=='romo:serena')throw Error('Sesión de Romo no disponible');
+ const result=await fetch('/api/seguimiento-finalizar-en-servidor-qa',{
+  method:'POST',cache:'no-store',credentials:'same-origin',
+  headers:{Authorization:'Bearer '+token,'Content-Type':'application/json',Accept:'application/json'},
+  body:JSON.stringify({storeId:'romo:serena',id,action:accion,expectedRevision,snapshot,pedidoInterno,total:d.totalValidado,montoTransferencia:monto,restoPagoVerificado:true}),
+  signal:AbortSignal.timeout(20000)
+ });
+ const saved=await result.json().catch(()=>null);
+ if(!result.ok||saved?.ok!==true||saved.soloQA!==true||saved.storeId!=='romo:serena'||saved.orderId!==id||
+    saved.revision!==expectedRevision+1||saved.estado!==(accion==='entregar'?'entregado':'pagado'))
+  throw Error(saved?.error||'No se confirmó el guardado protegido');
+ return {revision:saved.revision};
+};
+
 /* Proyección informativa: sólo DESPUÉS de confirmación de la caja/nube habitual.
  * No vuelve a cobrar ni hace que una operación ya guardada se repita.
  * Deshabilitado hasta aprobar el guardado y la publicación comercial.

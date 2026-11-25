@@ -7392,7 +7392,7 @@ async function ukiSeguimientoValidarAntesDeCifrarRomoQA(copia){
  return true;
 }
 
-async function ukiRomoGuardarOperacionQA(copia,descripcion,orden,vista='pedidos'){
+async function ukiRomoGuardarOperacionQA(copia,descripcion,orden,vista='pedidos',accionProtegida=null){
  // Evitar el POST si el GET autorizado confirma que el guardado está cerrado.
  if(window.ukiRomoGuardadoHabilitadoQA?.()!==true)
   throw Error('Romo sigue en modo consulta. No se envió ningún cambio a Neon.');
@@ -7408,14 +7408,25 @@ async function ukiRomoGuardarOperacionQA(copia,descripcion,orden,vista='pedidos'
  if(JSON.stringify(copia)!==firma||session.estado()?.revision!==anterior.revision||
     session.estado()?.conflicto)
   throw Error('El pedido cambió durante la verificación del pago. Actualiza antes de guardar.');
- const res=await session.guardar(copia);
+ // Solo los botones normales de cobro/entrega del pedido de carta usan la
+ // operación conjunta. La bandera queda apagada hasta probar el conector.
+ const conjunto=window.UKI_SEGUIMIENTO_ROMO_GUARDADO_CONJUNTO_AUTORIZADO===true&&
+  ['confirmar_cobro','entregar'].includes(accionProtegida)&&
+  (S.pedidos||[]).some(p=>p.suc===ROMO_SUCURSAL_QA&&Number(p.id)===Number(orden)&&p.cartaSolicitudRemotaId);
+ let guardarConjunto=null;
+ if(conjunto){
+  const pedido=(copia.pedidos||[]).find(p=>p.suc===ROMO_SUCURSAL_QA&&Number(p.id)===Number(orden));
+  if(!pedido||typeof window.ukiQAGuardarRomoConjunto!=='function')throw Error('Guardado protegido no disponible. No repitas el cobro.');
+  guardarConjunto=paquete=>window.ukiQAGuardarRomoConjunto({pedido,accion:accionProtegida,...paquete});
+ }
+ const res=await session.guardar(copia,{guardarConjunto});
  if(res?.changed!==true||res.revision!==anterior.revision+1)
   throw Error('No se confirmó una revisión nueva. Verifica antes de volver a intentar.');
  S={...S,...copia,suc:ROMO_SUCURSAL_QA,pinSuc:null,vista,msg:null};
  S.msg=descripcion+(orden===null?'':' · Pedido #'+orden)+' · revisión '+res.revision+'.';
  render();
  // La proyección se ejecuta sólo tras el CAS confirmado, nunca antes de guardar.
- if(window.UKI_SEGUIMIENTO_ESTADO_GUARDADO_AUTORIZADO===true&&Number.isSafeInteger(Number(orden))&&Number(orden)>0){
+ if(!conjunto&&window.UKI_SEGUIMIENTO_ESTADO_GUARDADO_AUTORIZADO===true&&Number.isSafeInteger(Number(orden))&&Number(orden)>0){
   const p=(copia.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&Number(x.id)===Number(orden));
   if(p)void window.ukiQAPublishSavedState?.({pedidos:[p],revision:res.revision});
  }
@@ -7510,7 +7521,7 @@ async function ukiRomoConfirmarCobroQA(id){
   if(ukiTimbreObligatorioGuardar(timbreDraft,original))ukiAnotarTimbreConfirmadoEnPedido(cobrado,timbreDraft);
   if(!validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
    throw Error('La copia de cobro no pertenece a Romo.');
-  await ukiRomoGuardarOperacionQA(copia,'Cobro confirmado',pedidoId);
+  await ukiRomoGuardarOperacionQA(copia,'Cobro confirmado',pedidoId,'pedidos','confirmar_cobro');
   ukiRomoTimbreCobroQA.delete(pedidoId);
  }catch(e){
   aviso('NO SE CONFIRMÓ el cobro en Neon. Antes de repetir, revisa Pedidos, Caja e Historial: '+String(e.message||e));
@@ -7708,7 +7719,7 @@ async function ukiRomoCambiarEstadoQA(id,accion){
   }
   await ukiRomoGuardarOperacionQA(copia,
    accion==='cancelar'?'Cancelación auditada confirmada':'Entrega auditada confirmada',
-   pedidoId);
+   pedidoId,'pedidos',accion==='entregar'?'entregar':null);
  }catch(e){
   aviso('No se confirmó '+(accion==='cancelar'?'la cancelación':'la entrega')+
    '. Revisa el estado en Neon antes de repetir: '+String(e?.message||e));

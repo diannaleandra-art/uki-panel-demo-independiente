@@ -139,7 +139,7 @@ export function crearSesionPanelUnicoRomoQA({
    sesion={revision:remote.revision,cifrar:opened.cifrar,ultimoEstado:serialized,conflicto:false};
    return Object.freeze({revision:remote.revision,estado});
   },
-  async guardar(estado){
+  async guardar(estado,{guardarConjunto=null}={}){
    // Un teléfono no puede solapar dos escrituras con la misma revisión CAS.
    if(guardadoEnCurso||operacionAtomicaPendiente)throw Error('Romo tiene una operación pendiente. Consulta Neon antes de intentar otra.');
    guardadoEnCurso=true;
@@ -159,7 +159,10 @@ export function crearSesionPanelUnicoRomoQA({
     throw Error('La preparación cifrada es de otra sucursal');
    let result;
    try{
-    result=await vault.guardarSobre({expectedRevision:current.revision,snapshot});
+    // El guardado especial sustituye el POST habitual; jamás ejecuta ambos.
+    result=typeof guardarConjunto==='function'?
+     await guardarConjunto({expectedRevision:current.revision,snapshot}):
+     await vault.guardarSobre({expectedRevision:current.revision,snapshot});
    }catch(error){
     // Un corte de red puede ocultar un guardado que Neon sí aceptó.
     // No repetir operaciones comerciales hasta reabrir y consultar la revisión.
