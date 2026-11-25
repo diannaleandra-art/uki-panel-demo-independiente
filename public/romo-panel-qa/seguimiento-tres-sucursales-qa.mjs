@@ -77,14 +77,14 @@ function visibility(){
  if(root.hidden){dialog.open=false;hideActive();}
  else if(activeStore&&activeStore!==store())hideActive();
 }
-async function query(method='GET',body={},id=''){
+async function query(method='GET',body={},id='',modo=''){
  const storeId=store();if(!storeId)throw Error('Selecciona el local.');
  const getToken=window.ukiMesasTokenConfirmar;
  const token=typeof getToken==='function'?await getToken():null;
  if(typeof token!=='string'||!token)throw Error('Inicia sesión con Google desde el panel.');
  if(store()!==storeId)throw Error('Cambió la sucursal. Abre el pedido nuevamente.');
  const review=inReview();
- const params=new URLSearchParams({storeId,...(id?{id}:{}),...(review?{revision:'1'}:{})});
+ const params=new URLSearchParams({storeId,...(id?{id}:{}),...(review?{revision:'1'}:{}),...(review&&modo==='comprobar_nube'?{modo}:{})});
  const response=await fetch(API+(method==='GET'?'?'+params.toString():review?'?revision=1':''),{
   method,cache:'no-store',credentials:'same-origin',
   headers:{Authorization:'Bearer '+token,'Accept':'application/json',
@@ -467,6 +467,28 @@ window.ukiQAEntrarSeguimientoRevision=async function(){
   status.textContent='Acceso autorizado. Sólo seguimiento de prueba; caja sin abrir.';
   visibility();dialog.open=true;
   await loadList();
+  const nube=$('ukiRevisionDiagnosticoNubeQA');
+  if(nube){
+   nube.hidden=!selected.startsWith('uki:');nube.textContent='';
+   if(!nube.hidden){
+    nube.textContent='Comprobando la conexión Firebase de ambos locales (solo lectura)…';
+    try{
+     const diagnostic=await query('GET',{},'','comprobar_nube');
+     if(inReview()&&store()===selected){
+      const results=diagnostic.resultadoNube;
+      if(diagnostic.soloLectura!==true||!Array.isArray(results)||results.length!==2)throw Error('No se confirmó la lectura');
+      const labels={'uki:arica':'Uki Regimiento Arica','uki:serena':'Uki La Serena'};
+      const estados={lectura_correcta:'Conexión de lectura correcta',sin_permiso:'Sin permiso de lectura',sin_manifiesto:'Revisión remota no encontrada',sesion_no_valida:'Sesión no válida',formato_no_valido:'Revisión no válida',no_disponible:'No se pudo consultar'};
+      nube.replaceChildren(text('strong','Comprobación Firebase · solo lectura'));
+      for(const s of ['uki:arica','uki:serena']){
+       const result=results.find(x=>x.storeId===s);
+       nube.append(text('p',labels[s]+': '+(estados[result?.estado]||'No comprobado')));
+      }
+      nube.append(text('small','No se abrió ni modificó ninguna caja. Esto comprueba conexión, no el cobro comercial.'));
+     }
+    }catch(e){if(inReview()&&store()===selected)nube.textContent='No se confirmó la lectura de Firebase: '+String(e?.message||'Sesión no disponible');}
+   }
+  }
   root.scrollIntoView({block:'start',behavior:'smooth'});
   return true;
  }catch(err){

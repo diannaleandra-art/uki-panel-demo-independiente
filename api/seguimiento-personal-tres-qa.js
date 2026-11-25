@@ -24,6 +24,16 @@ module.exports=async(req,res)=>{
  const storeId=String(req.method==='GET'?req.query?.storeId:req.body?.storeId||'');
  if(!S.TABLES[storeId])return fail(res,400,'Sucursal inválida');
  try{
+  if(req.query?.modo==='comprobar_nube'){
+   // Exclusivo de la dueña ya autorizada en la revisión de Uki. Firebase
+   // conserva sus propias reglas; no se otorga ningún permiso nuevo.
+   if(req.method!=='GET'||!revision||cfg.live||req.query?.id||!['uki:arica','uki:serena'].includes(storeId))
+    return fail(res,403,'Diagnóstico sólo disponible en la revisión Uki');
+   const owner=await AUTH.authorizedRevisionOwner(req,storeId).catch(()=>null);
+   if(!owner||owner.revisionOnly!==true)return fail(res,403,'Sesión de dueña requerida para comprobar Firebase');
+   const result=await require('../lib/seguimiento-firebase-lectura-revision-qa.cjs').check({authorization:req.headers.authorization});
+   return res.status(200).json({ok:true,storeId,soloLectura:true,resultadoNube:result});
+  }
   const db=ENV.makeDb(cfg,storeId);
   let actor=await AUTH.authorized(req,db,storeId).catch(()=>null);
   if(!actor&&revision&&!cfg.live)actor=await AUTH.authorizedRevisionOwner(req,storeId).catch(()=>null);
