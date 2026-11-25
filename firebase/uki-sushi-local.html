@@ -1575,6 +1575,32 @@ function ukiConfirmarTimbreBorrador(marcado){
  D.timbreAvisoConfirmadoPor=ukiTimbreResponsableActual();
  render();
 }
+function ukiRevisionBancoFirmaQA(p,importe=null){
+ const i=importe||ukiSeguimientoImportesCajaQA(p);
+ if(!p||!i||!Number.isSafeInteger(i.total)||!Number.isSafeInteger(i.montoTransferencia)||i.montoTransferencia<=0)return '';
+ return JSON.stringify([S.suc,String(p.cartaSolicitudRemotaId||p.seguimientoSolicitudId||''),String(p.id??p.editando??S.nextId),String(p.cliente||''),String(p.telefono||''),i.total,i.montoTransferencia]);
+}
+function ukiRevisionBancoBorradorValidaQA(d,original=null){
+ if(!d.pagado||!ukiSeguimientoHayTransferenciaQA(d))return true;
+ const firma=ukiRevisionBancoFirmaQA(d);
+ if(!firma)return false;
+ if(d.revisionBancoUIQA===firma)return true;
+ const origen=String(d.cartaSolicitudRemotaId||d.seguimientoSolicitudId||'');
+ return !!(original?.transferenciaManualQA&&ukiSeguimientoManualValidaQA({...d,transferenciaManualQA:original.transferenciaManualQA},null,origen));
+}
+function ukiRevisionBancoMarcarBorradorQA(check){
+ D.revisionBancoUIQA=check.checked?ukiRevisionBancoFirmaQA(D):'';
+ render();
+}
+function ukiRevisionBancoBorradorUIQA(d,original){
+ if(!d.pagado||!ukiSeguimientoHayTransferenciaQA(d))return '';
+ const firma=ukiRevisionBancoFirmaQA(d),valid=ukiRevisionBancoBorradorValidaQA(d,original);
+ return '<div class="card" style="border:1px solid var(--accent);padding:10px"><b>Verificación bancaria obligatoria</b>'+
+ '<label class="check"><input type="checkbox" '+(valid?'checked ':'')+(!firma?'disabled ':'')+
+ 'onchange="ukiRevisionBancoMarcarBorradorQA(this)"> He revisado en Santander que ingresó la transferencia'+
+ (firma?' · '+fmt(ukiSeguimientoImportesCajaQA(d).montoTransferencia):'')+'</label>'+
+ '<small class="muted">'+(valid?'Revisión marcada. Se validará al guardar.':'Revisa el abono real y marca la casilla antes de guardar como pagado.')+'</small></div>';
+}
 function ukiPasoTimbreAntesDeGuardar(pedidoEdicion){
  if(ukiTimbreYaEnviadoPedido(pedidoEdicion)||ukiTimbreBorradorConfirmado(D))
   return '<div class="card uki-timbre-confirmado"><h2>✅ Timbre enviado · NO reenviar</h2>'+
@@ -1846,9 +1872,10 @@ function vNuevo(){
     <p class="muted">Solo se consideran ventas los pagos completos confirmados. Los montos mixtos deben sumar exactamente lo que corresponde.</p></div>
   ${pedidoEdicion?.pagado&&(deltaEdicion!==0||pendienteEdicion)?
     '<p class="muted">La diferencia del cobro quedará registrada automáticamente; editar no declara una devolución.</p>':''}
+   ${ukiRevisionBancoBorradorUIQA(D,pedidoEdicion)}
    ${ukiPasoTimbreAntesDeGuardar(pedidoEdicion)}
    ${D.editando?'<div class="card"><h2>Responsable de la corrección</h2><p><b>✍️ SOLO CUANDO MODIFICAS UN PEDIDO EXISTENTE</b></p><label for="ukiResponsableEdicion"><b>¿Quién está haciendo este cambio? · Obligatorio</b></label><input id="ukiResponsableEdicion" maxlength="80" autocomplete="off" placeholder="Nombre de quien corrige" value="'+esc(D.responsableEdicion||"")+'" oninput="D.responsableEdicion=this.value"><p class="muted">El nombre, la fecha y el detalle del cambio quedarán en el historial del pedido. En el primer registro NO es necesario este nombre.</p></div>':''}
-   <button class="big" onclick="ndGuardar()" ${ukiTimbreObligatorioGuardar(D,pedidoEdicion)&&!ukiTimbreBorradorConfirmado(D)?'disabled title="Primero confirma el envío del timbre"':''}>${D.editando?`💾 Guardar cambios #${D.editando}`:D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición (no cancela el pedido)</button><p class="muted">Para cancelar el pedido, guarda primero cualquier corrección de pago. Luego vuelve a Pedidos, abre Ver detalle y selecciona ❌ Cancelar pedido. Si hay una devolución, regularízala primero.</p>`:""}`;
+   <button class="big" onclick="ndGuardar()" ${(ukiTimbreObligatorioGuardar(D,pedidoEdicion)&&!ukiTimbreBorradorConfirmado(D)||!ukiRevisionBancoBorradorValidaQA(D,pedidoEdicion))?'disabled title="Completa las confirmaciones obligatorias antes de guardar"':''}>${D.editando?`💾 Guardar cambios #${D.editando}`:D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición (no cancela el pedido)</button><p class="muted">Para cancelar el pedido, guarda primero cualquier corrección de pago. Luego vuelve a Pedidos, abre Ver detalle y selecciona ❌ Cancelar pedido. Si hay una devolución, regularízala primero.</p>`:""}`;
 }
 
 // Corrección histórica: el pedido muestra los datos corregidos, pero el cierre ya emitido nunca cambia.
@@ -3958,7 +3985,7 @@ function seguimientoPropinaTransferenciaQA(order,subtotal){
   return !!(firma&&proof&&JSON.stringify(proof.firma)===JSON.stringify(firma)&&
     typeof proof.por==='string'&&proof.por.trim()&&Number.isFinite(Date.parse(proof.en)));
  }
- function ukiSeguimientoPrepararManualQA(p,{importePropuesto=null,responsable='',solicitudSinEnlace=''}={}){
+ function ukiSeguimientoPrepararManualQA(p,{importePropuesto=null,responsable='',solicitudSinEnlace='',revisionBancoMarcada=false}={}){
   if(!p)return true;
   const origen=String(p.cartaSolicitudRemotaId||p.seguimientoSolicitudId||'');
   if(origen!==solicitudSinEnlace)return !solicitudSinEnlace;
@@ -3974,7 +4001,7 @@ function seguimientoPropinaTransferenciaQA(order,subtotal){
      {...p,transferenciaManualQA:anterior.transferenciaManualQA},importes,solicitudSinEnlace)){
    p.transferenciaManualQA=anterior.transferenciaManualQA;return true;
   }
-  if(!window.confirm('TRANSFERENCIA · '+S.suc+'\n¿Confirmas que comprobaste en Santander el abono de '+fmt(firma.monto)+' de este pedido?\nAceptar registra tu comprobación; no genera otro cobro.')){
+  if(!revisionBancoMarcada&&!window.confirm('TRANSFERENCIA · '+S.suc+'\n¿Confirmas que comprobaste en Santander el abono de '+fmt(firma.monto)+' de este pedido?\nAceptar registra tu comprobación; no genera otro cobro.')){
    aviso('Transferencia pendiente. No se guardó el pago.');return false;
   }
   p.transferenciaManualQA={firma,por:String(responsable||ukiTimbreResponsableActual()).trim(),en:new Date().toISOString()};
@@ -3987,7 +4014,7 @@ function seguimientoPropinaTransferenciaQA(order,subtotal){
   const origen=String(d.transferenciaManualQA.firma?.solicitudId||'');
   if(ukiSeguimientoManualValidaQA(candidato,null,origen))p.transferenciaManualQA=d.transferenciaManualQA;
  }
- async function ukiSeguimientoPermitirCerrarQA(p,{metodosAdicionales=[],importePropuesto=null}={}){
+ async function ukiSeguimientoPermitirCerrarQA(p,{metodosAdicionales=[],importePropuesto=null,revisionBancoMarcada=false}={}){
   const storeId=S.suc==='Uki Regimiento Arica'?'uki:arica':
     S.suc==='Uki La Serena'?'uki:serena':
     null;
@@ -4047,7 +4074,7 @@ function seguimientoPropinaTransferenciaQA(order,subtotal){
     if(data.requiereConfirmacionManual!==true)return false;
     if(ukiSeguimientoManualValidaQA(p,importes,id))return true;
     if(p.pagado!==true){aviso('Primero registra el pago del pedido tras verificar el banco.');return false;}
-    return ukiSeguimientoPrepararManualQA(p,{importePropuesto:importes,solicitudSinEnlace:id});
+    return ukiSeguimientoPrepararManualQA(p,{importePropuesto:importes,solicitudSinEnlace:id,revisionBancoMarcada});
    }
    // Al guardar el cobro, ofrecer la confirmación exacta aquí mismo.
    // El guardado central que no permite preguntar sólo vuelve a verificar.
@@ -4056,7 +4083,7 @@ function seguimientoPropinaTransferenciaQA(order,subtotal){
       data.permitido===false&&!data.sinEnlaceAnterior&&
       typeof window.ukiQAConfirmTransferBeforePayment==='function'){
     const confirmed=await window.ukiQAConfirmTransferBeforePayment({
-     storeId,id,total:importes.total,monto:importes.montoTransferencia
+     storeId,id,total:importes.total,monto:importes.montoTransferencia,revisionBancoMarcada
     });
     if(confirmed==='cancelada'){
      aviso('Transferencia pendiente. No se guardó el pago.');return false;
@@ -4932,6 +4959,12 @@ function ukiSeguimientoValidarCambioMedioQA(original,nuevo){
  return true;
 }
 async function ndGuardar(){
+  const originalRevisionBanco=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(D.editando)):null;
+  if(D.pagado&&ukiSeguimientoHayTransferenciaQA(D)){
+   if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true){aviso('Actualiza el panel para verificar la transferencia antes de guardar.');return;}
+   if(!ukiRevisionBancoBorradorValidaQA(D,originalRevisionBanco)){aviso('Marca la revisión bancaria obligatoria antes de guardar como pagado.');return;}
+  }
+
   if(ukiGuardadoSolicitudEnCurso)return;
   ukiGuardadoSolicitudEnCurso=true;
   try{
@@ -4945,9 +4978,9 @@ async function ndGuardar(){
     aviso('Primero acepta este pedido de carta sin marcarlo pagado. Confirma el abono desde el pedido guardado.');return;
    }
    if(!ukiSeguimientoConservarOrigenEdicionQA()||!ukiSeguimientoValidarCambioMedioQA(originalQR,D))return;
-   if(D.pagado&&!ukiSeguimientoPrepararManualQA(D))return;
+   if(D.pagado&&!ukiSeguimientoPrepararManualQA(D,{revisionBancoMarcada:ukiRevisionBancoBorradorValidaQA(D,originalRevisionBanco)}))return;
    const firmaPago=JSON.stringify({suc:S.suc,draft:{...D,transferenciaManualQA:undefined}});
-   if(D.pagado&&!await ukiSeguimientoPermitirCerrarQA(D))return;
+   if(D.pagado&&!await ukiSeguimientoPermitirCerrarQA(D,{revisionBancoMarcada:ukiRevisionBancoBorradorValidaQA(D,originalRevisionBanco)}))return;
    if(firmaPago!==JSON.stringify({suc:S.suc,draft:{...D,transferenciaManualQA:undefined}})){
     aviso('El pedido cambió durante la comprobación. Revisa antes de guardar.');return;
    }
@@ -6326,7 +6359,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 <script src="./uki-caja-acumulada-admin.js?v=20261122-calendario1" defer></script>
 <script src="./uki-control-turnos.js" defer></script>
 <script src="./uki-carta-remotas-panel.js" defer></script>
-<script type="module" src="./uki-seguimiento-operativo-panel-v1.mjs?v=solo-seguimiento-20261125"></script>
+<script type="module" src="./uki-seguimiento-operativo-panel-v1.mjs?v=revision-banco-obligatoria-20261125"></script>
 <script src="./uki-archivo-mensual-core.js?v=20261121-retencion-simulada-v2" defer></script>
 <script src="./uki-archivo-agenda.js?v=20261121-agenda-v1" defer></script>
 <script src="./uki-archivo-mensual-panel.js?v=20261121-agenda-v1" defer></script>
