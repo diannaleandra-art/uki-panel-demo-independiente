@@ -6329,7 +6329,8 @@ import {getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged} from "htt
 import {getFirestore,doc,getDocFromServer,writeBatch,runTransaction,onSnapshot} from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 import {dividirEstado,reunirEstado} from "./uki-particion-local.js";
 import {nuevaSal,nuevaGeneracion,derivarClave,cifrarBloque,descifrarBloque} from "./uki-cifrado-bloques.js";
-import {crearSnapshotsUki} from "./uki-sushi-nube.js";
+import {crearSnapshotsUki} from "./uki-sushi-nube.js?v=seguimiento-guardado-20261125";
+import {verificarGuardadoUki} from "./uki-seguimiento-guardado-nube-v1.mjs";
 import {crearAutoGuardadoOperativo} from "./uki-sushi-autoguardado.js";
 import {prepararCierreParaDuenos,sincronizarCierreDuenos} from "./uki-duenos-cierre-publicador-live.mjs";
 import {autorizarEquipoQR,obtenerSesionQR,estadoEquipoQR} from "./uki-mesas-dispositivo-live.js";
@@ -6347,7 +6348,29 @@ const auth=getAuth(initializeApp(config)),db=getFirestore(auth.app);
 window.ukiInventarioToken=async()=>auth.currentUser?auth.currentUser.getIdToken():null;
 const cloud=crearSnapshotsUki({db,auth,api:{doc,getDocFromServer,writeBatch,runTransaction},
  blocks:{dividirEstado,reunirEstado},
- codec:{nuevaSal,nuevaGeneracion,derivarClave,cifrarBloque,descifrarBloque}});
+ codec:{nuevaSal,nuevaGeneracion,derivarClave,cifrarBloque,descifrarBloque},
+ controlGuardado:{
+  activo:()=>UKI_OPERACION_HABILITADA&&window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED===true&&
+   window.UKI_SEGUIMIENTO_GUARDADO_NUBE_AUTORIZADO===true,
+  validar:({anterior,nuevo,sucursal})=>verificarGuardadoUki({
+   anterior,nuevo,sucursal,importes:ukiSeguimientoImportesCajaQA,
+   hayTransferencia:ukiSeguimientoHayTransferenciaQA,
+   manualValido:(p,monto,id)=>window.ukiQAGet?.()?.suc===sucursal&&ukiSeguimientoManualValidaQA(p,monto,id),
+   consultar:async({storeId,id,pedidoInterno,requiereTransferencia})=>{
+    if(window.ukiQAGet?.()?.suc!==sucursal)throw Error('Cambió la sucursal');
+    const token=await window.ukiMesasQAToken?.();
+    if(typeof token!=='string'||!token)throw Error('Sesión del panel no disponible');
+    const params=new URLSearchParams({storeId,id,pedidoInterno,requiereTransferencia:requiereTransferencia?'1':'0'});
+    const r=await fetch('https://uki-sushi-pedidos.vercel.app/api/seguimiento-verificar-cierre-live?'+params,{
+     method:'GET',cache:'no-store',credentials:'omit',headers:{Authorization:'Bearer '+token,Accept:'application/json'},
+     signal:AbortSignal.timeout(14000)
+    });
+    const result=await r.json().catch(()=>null);
+    if(!r.ok||window.ukiQAGet?.()?.suc!==sucursal)throw Error('No se confirmó el pago');
+    return result;
+   }
+  })
+ }});
 const el=id=>document.getElementById(id);
 let revision=null,sucursalCargada=null,ocupado=false,desuscribir=null;
 let nubeConfigAbiertaPorUsuario=false;

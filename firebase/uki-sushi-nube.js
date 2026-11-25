@@ -25,7 +25,7 @@ const camposManifiesto=data=>data&&
  esGeneracion(data.generacion)&&
  typeof data.salt==="string"&&data.salt.length>=20&&data.salt.length<=28&&
  Number.isSafeInteger(data.totalBloques)&&data.totalBloques>=1&&data.totalBloques<=LIMITE_BLOQUES;
-export function crearSnapshotsUki({db,auth,api,blocks,codec}){
+export function crearSnapshotsUki({db,auth,api,blocks,codec,controlGuardado=null}){
  if(!db||!auth||!api||!blocks||!codec)fail("CONFIG","Falta configuración");
  for(const p of ["doc","getDocFromServer","writeBatch","runTransaction"])
    if(typeof api[p]!=="function")fail("SDK","Falta API "+p);
@@ -91,6 +91,19 @@ export function crearSnapshotsUki({db,auth,api,blocks,codec}){
    const origen=validarManifest(manifestSnap.exists()?manifestSnap.data():null,branch);
    if(origen.revision!==revisionEsperada)
      fail("CONFLICTO","Otro equipo guardó cambios. Recarga antes de intentar guardar.");
+   // Usa la última revisión realmente almacenada, no el borrador visible.
+   const proteger=controlGuardado?.activo?.()===true;
+   let anterior=null,firmaPropuesta=null;
+   if(proteger){
+     if(typeof controlGuardado.validar!=='function')fail('TRANSFERENCIA_PENDIENTE','Control de guardado no disponible');
+     firmaPropuesta=JSON.stringify(estado);
+     if(origen.revision===0)fail('TRANSFERENCIA_PENDIENTE','Primero valida la revisión inicial de esta sucursal');
+     const base=await cargar(sucursal,password);
+     if(base.revision!==revisionEsperada||!base.estado)fail('CONFLICTO','La caja cambió durante la comprobación');
+     anterior=base.estado;
+     const checked=await controlGuardado.validar({anterior,nuevo:estado,sucursal});
+     if(checked?.ok!==true||JSON.stringify(estado)!==firmaPropuesta)fail('TRANSFERENCIA_PENDIENTE','No se confirmó el estado propuesto');
+   }
    const salt=origen.manifest?origen.manifest.salt:codec.nuevaSal();
    const clave=await codec.derivarClave(password,salt);
    // Comprobar que la clave sea correcta si ya existe un manifiesto. No basta
@@ -122,6 +135,16 @@ export function crearSnapshotsUki({db,auth,api,blocks,codec}){
      for(let j=start;j<Math.min(start+BATCH_SIZE,encrypted.length);j++)
        batch.set(refBloque(branch,generacion,j),encrypted[j]);
      await batch.commit();
+   }
+   // Verificación final de solo lectura; ninguna confirmación de banco se
+   // solicita aquí ni se vuelve a cobrar. No hacer llamadas externas dentro
+   // de la transacción reintentable de Firestore.
+   if(proteger){
+     if(controlGuardado.activo()!==true||JSON.stringify(estado)!==firmaPropuesta)
+       fail('TRANSFERENCIA_PENDIENTE','El pedido cambió durante el guardado');
+     const checked=await controlGuardado.validar({anterior,nuevo:estado,sucursal});
+     if(checked?.ok!==true||JSON.stringify(estado)!==firmaPropuesta)
+       fail('TRANSFERENCIA_PENDIENTE','No se pudo verificar el abono antes de confirmar la caja');
    }
    // Commit final de solo un documento. Firestore reintenta la transacción
    // y vuelve a leer la revisión, impidiendo perder modificaciones concurrentes.
