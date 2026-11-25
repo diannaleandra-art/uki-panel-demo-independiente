@@ -63,3 +63,13 @@ ese botón solamente registra aviso y abre una revisión para personal.
 
 El objetivo visible NO cambia: un botón para la agendadora, sin formularios
 repetidos ni cuentas nuevas para clientes.
+
+
+## Evidencia manual de las tres sucursales
+- Safari iPhone: la propietaria autorizó el dominio exacto de revisión en Firebase e ingresó con Google. Se corrigió el acceso a los dos pedidos ficticios Uki, limitado a la identidad previamente verificada y a la rama de revisión.
+- Romo La Serena, QA-REV-ROMO: mensaje del local conservado (1); simulación de $12.000 confirmada (1); finalizaciones (0).
+- Uki Regimiento Arica, QA-REV-ARICA: simulación de $12.000 confirmada (1); finalizaciones (0).
+- Uki La Serena, QA-REV-SERENA: simulación de $12.000 confirmada (1); finalizaciones (0).
+- Verificado mediante lectura de las dos bases Neon QA, con coincidencia de pedido, sucursal, importe, estado y responsable marcado QA_SIMULACION. No volver a pedir estas simulaciones a la propietaria.
+- Resultado: 3/3 registros de simulación únicos. No se probó ni registró un abono bancario real; no se validó el guardado de caja ni la recepción del mensaje del lado del cliente.
+- Siguiente alcance: conectar estados y comprobación bancaria al guardado comercial habitual de cada local, conservar las reglas de caja y timbres, y vincular las cartas reales. Mantener desactivado el cierre autoritativo y las migraciones comerciales hasta comprobar esa integración. No promover el panel QA ni trasladar sus registros ficticios o permisos de revisión a producción.
