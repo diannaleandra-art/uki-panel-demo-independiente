@@ -61,7 +61,7 @@ module.exports=async(req,res)=>{
     const plan=OP.normalizeOrder(storeId,r);
     return plan?{
      id:r.id,codigoPedido:plan.codigo,cliente:String(r.cliente||'').slice(0,80),
-     estadoPedido:plan.estado,enCamino:plan.enCamino===true,metodoPago:plan.metodoPago,pagoDeclarado:plan.pagoDeclarado,
+     estadoPedido:plan.estado,enCamino:plan.enCamino===true,preparacion:plan.preparacion,calificacion:plan.calificacion,modalidad:plan.modalidad,metodoPago:plan.metodoPago,pagoDeclarado:plan.pagoDeclarado,
      montoTransferencia:plan.montoTransferencia,
      estadoPago:!r.estado_pago?'pendiente':r.monto_transferencia!==plan.montoTransferencia?'requiere_revision':
       r.estado_pago==='confirmada'&&(!r.confirmada_en||!r.abono_verificado_en||!r.confirmada_por||
@@ -88,6 +88,25 @@ module.exports=async(req,res)=>{
    return fail(res,409,'La solicitud sigue pendiente: primero acepta el pedido y valida su importe');
   if(req.method==='POST'){
    const action=req.body.action;
+   if(action==='actualizar_preparacion'){
+    if(revision||actor.revisionOnly===true||!cfg.live)return fail(res,403,'Acción comercial no disponible');
+    if(Object.keys(req.body).sort().join('|')!=='action|id|storeId|valor'||actor.storeId!==storeId||!['duenos','agendador'].includes(actor.role))
+     return fail(res,403,'Acción no autorizada');
+    const valor=req.body.valor,prev=order.preparacion||{};
+    if(order.seguimientoGuardado?.estado==='Entregado'||order.seguimientoGuardado?.estado==='Cancelado'||order.enCamino||prev.lista===true)
+     return fail(res,409,'El pedido ya salió o está finalizado');
+    if(![20,30,45,60,90,'demora','lista'].includes(valor))return fail(res,400,'Selecciona un tiempo válido');
+    if(valor==='lista'&&order.modalidad!=='retiro')return fail(res,409,'Sólo pedidos para retirar');
+    const now=Date.now(),anterior=Date.parse(prev.estimadoEn);
+    if(valor==='demora'&&!Number.isFinite(anterior))return fail(res,409,'Primero selecciona un tiempo estimado');
+    const fecha=valor==='lista'?null:new Date(valor==='demora'?Math.max(now,anterior)+15*60000:now+valor*60000).toISOString();
+    if(fecha&&Date.parse(fecha)>now+180*60000)return fail(res,409,'El tiempo supera tres horas; revisa el pedido');
+    const prep={estimadoEn:fecha,demora:valor==='demora',lista:valor==='lista',actualizadoEn:new Date(now).toISOString()};
+    const sql="UPDATE "+meta.source+" s SET datos=s.datos||jsonb_build_object('seguimientoPreparacion',$5::jsonb) WHERE s.id=$1::uuid AND s.branch=$2 AND s.estado='aceptada' AND s.datos=$4::jsonb"+(meta.uki?" AND $3::text='uki:'||s.branch":" AND s.store_id=$3")+" AND EXISTS (SELECT 1 FROM "+meta.link+" l WHERE l.solicitud_id=s.id AND l.store_id=$3 AND l.branch=$2 AND l.estado='active' AND l.revocado_en IS NULL AND l.vence_en>now()) RETURNING s.id";
+    const changed=await db.query(sql,[id,meta.branch,storeId,order.snapshotDatos,JSON.stringify(prep)]);
+    if(changed.length!==1)return fail(res,409,'El pedido cambió; actualiza antes de repetir');
+    return res.status(200).json({ok:true,storeId,preparacion:prep});
+   }
    if(action==='marcar_en_camino'){
     if(revision||actor.revisionOnly===true||!cfg.live)return fail(res,403,'Acción comercial no disponible');
     if(Object.keys(req.body).sort().join('|')!=='action|id|storeId'||actor.storeId!==storeId||!['duenos','agendador'].includes(actor.role))
