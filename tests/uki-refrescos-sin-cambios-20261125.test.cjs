@@ -4,7 +4,7 @@ const html=fs.readFileSync('firebase/uki-sushi-local.html','utf8');
 const remote=fs.readFileSync('firebase/uki-carta-remotas-panel.js','utf8');
 const extract=(s,a,b)=>{const i=s.indexOf(a),j=s.indexOf(b,i);assert.ok(i>=0&&j>i);return s.slice(i,j)};
 test('Sin cambios no hay nuevos avisos, escrituras ni temporizadores de nube',async()=>{
- const mod=await import('../firebase/uki-sushi-autoguardado.js');
+ const mod=await import('data:text/javascript;charset=utf-8,'+encodeURIComponent(fs.readFileSync('firebase/uki-sushi-autoguardado.js','utf8')));
  let notices=[],writes=0,timers=new Map(),seq=0,st={suc:'regimiento',pedidos:[]};
  const a=mod.crearAutoGuardadoOperativo({getEstado:()=>st,
   avisar:x=>notices.push(x.estado),guardar:async({revisionEsperada})=>{writes++;return {revision:revisionEsperada+1}},
