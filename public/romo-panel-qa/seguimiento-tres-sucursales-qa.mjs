@@ -81,7 +81,8 @@ function pintarPreparacion(summary,entry,shop){
   summary.append(box);
  }
  if(box.dataset.saving==='1')return;
- const p=entry.preparacion||{},firma=JSON.stringify([p,entry.modalidad]);
+ const modalidad=String(summary.dataset.seguimientoModalidad||'').toLowerCase();
+ const p=entry.preparacion||{},firma=JSON.stringify([p,modalidad]);
  if(box.dataset.firma===firma)return;box.dataset.firma=firma;box.replaceChildren();
  const label=text('small',p.lista?'✓ Listo para retirar':p.estimadoEn?'Estimado '+new Date(p.estimadoEn).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})+(p.demora?' · Demora avisada':''):'Tiempo estimado:');
  label.style.fontWeight='600';box.append(label);
@@ -91,7 +92,7 @@ function pintarPreparacion(summary,entry,shop){
   box.dataset.saving='1';
   for(const b of box.querySelectorAll('button'))b.disabled=true;
   try{
-   const result=await doAction('actualizar_preparacion',entry.id,{valor});
+   const result=await doAction('actualizar_preparacion',entry.id,{valor,modalidad});
    if(result?.ok!==true||!result.preparacion)throw Error('No se confirmó el cambio');
    if(store()===shop)label.textContent='✓ Aviso enviado a la carta';
   }catch(e){label.textContent=String(e?.message||'No se pudo actualizar');}
@@ -99,7 +100,7 @@ function pintarPreparacion(summary,entry,shop){
  };
  for(const n of [20,30,45,60,90])box.append(btn(n+' min',e=>{e?.preventDefault();void enviar(n)}));
  if(p.estimadoEn)box.append(btn('Demora +15 min',e=>{e?.preventDefault();void enviar('demora')}));
- if(entry.modalidad==='retiro')box.append(btn('✓ Listo para retirar',e=>{e?.preventDefault();void enviar('lista')}));
+ if(modalidad==='retiro')box.append(btn('✓ Listo para retirar',e=>{e?.preventDefault();void enviar('lista')}));
 }
 
 function paintBadges(orders,shop){
