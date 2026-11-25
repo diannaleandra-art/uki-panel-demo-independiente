@@ -2494,6 +2494,9 @@ function vNuevo(){
   const cli=getCliente(D.cliente,D.codigoCliente,D.telefono);
   const ventasCli=cli?ventasValidas(cli):0;
   const revisandoSolicitud=!D.editando&&!!(D.cartaSolicitudRemotaId||ukiSolicitudWhatsAppActiva);
+  // La carta todavía no es una venta: aceptar primero en el mismo formulario.
+  const aceptarCartaAntesDeCobrar=window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED===true&&
+   !D.editando&&!!D.cartaSolicitudRemotaId;
   const pedidoEdicion=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&p.id===D.editando):null;
   const deltaEdicion=pedidoEdicion?.pagado?Number(pedidoEdicion.total||0)-total:0;
   const pendienteEdicion=!!ukiCobroPendiente(pedidoEdicion);
@@ -2538,7 +2541,8 @@ function vNuevo(){
     ${D.modalidad==="Delivery"?(D.envioPagadoOtroLocal?
       `<p class="muted"><b>Delivery ${fmt(envio)}:</b> se incluirá en los deliverys de ${S.suc===ROMO_SUCURSAL_QA?"Romo":"Uki"} para el repartidor, pero NO como ingreso de la caja porque lo cobraron en otro local.</p>`:
       `<label>Pago del delivery recibido en ${S.suc===ROMO_SUCURSAL_QA?"Romo":"Uki"} · ${fmt(envio)}</label>${ukiPagoUI("envio",envio)}`):""}
-    <label class="check"><input type="checkbox" ${D.pagado?"checked":""} onchange="D.pagado=this.checked;render()"> <b>Pago completo confirmado</b></label>
+    <label class="check"><input type="checkbox" ${D.pagado?"checked":""} ${aceptarCartaAntesDeCobrar?'disabled title="Primero acepta el pedido de carta"':''} onchange="D.pagado=this.checked;render()"> <b>Pago completo confirmado</b></label>
+    ${aceptarCartaAntesDeCobrar?'<p class="muted">Primero acepta este pedido. Después confirma el abono y el pago desde el mismo pedido, en Pedidos. No se registra una venta al aceptar.</p>':""}
     ${S.suc===ROMO_SUCURSAL_QA&&D.pagado&&!pedidoEdicion?.pagado?`<label>Responsable que recibió el dinero</label><input maxlength="80" placeholder="Nombre de quien confirma el cobro" value="${esc(D.romoResponsableCobro||"")}" oninput="D.romoResponsableCobro=this.value"><p class="muted">Solo marca esta casilla después de recibir el dinero. Se guarda en Neon Romo en una sola operación y no se cobrará nuevamente.</p>`:""}
     <p class="muted">Solo se consideran ventas los pagos completos confirmados. Los montos mixtos deben sumar exactamente lo que corresponde.</p></div>
   ${pedidoEdicion?.pagado&&(deltaEdicion!==0||pendienteEdicion)?
@@ -9303,6 +9307,9 @@ function ukiRomoFechaOperativaActualSeguraQA(){
 async function ukiRomoAceptarSolicitudCartaQA(){
  const requestId=String(D.cartaSolicitudRemotaId||'');
  if(!requestId||S.suc!==ROMO_SUCURSAL_QA||S.vista!=='nuevo')return;
+ if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED===true&&D.pagado){
+  aviso('Primero acepta la solicitud pendiente. Confirma el pago en ese mismo pedido después de verificar el abono.');return;
+ }
  if(!ukiRomoFechaOperativaActualSeguraQA()){
   aviso('Romo conserva una jornada antigua. Revisa Caja y regulariza el turno antes de aceptar pedidos nuevos. No se duplicó el pedido.');return;
  }
@@ -10363,6 +10370,9 @@ function ukiSeguimientoValidarCambioMedioQA(original,nuevo){
  return true;
 }
 async function ndGuardar(){
+  if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED===true&&D.pagado&&!D.editando&&D.cartaSolicitudRemotaId){
+   aviso('Primero acepta este pedido de carta sin marcarlo pagado. Confirma el abono desde el pedido guardado.');return;
+  }
   if(!ukiSeguimientoConservarOrigenEdicionQA())return;
   const pedidoAnteriorQA=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(D.editando)):null;
   if(!ukiSeguimientoValidarCambioMedioQA(pedidoAnteriorQA,D))return;
