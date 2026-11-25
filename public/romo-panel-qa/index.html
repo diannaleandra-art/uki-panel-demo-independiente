@@ -7414,6 +7414,11 @@ async function ukiRomoGuardarOperacionQA(copia,descripcion,orden,vista='pedidos'
  S={...S,...copia,suc:ROMO_SUCURSAL_QA,pinSuc:null,vista,msg:null};
  S.msg=descripcion+(orden===null?'':' · Pedido #'+orden)+' · revisión '+res.revision+'.';
  render();
+ // La proyección se ejecuta sólo tras el CAS confirmado, nunca antes de guardar.
+ if(window.UKI_SEGUIMIENTO_ESTADO_GUARDADO_AUTORIZADO===true&&Number.isSafeInteger(Number(orden))&&Number(orden)>0){
+  const p=(copia.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&Number(x.id)===Number(orden));
+  if(p)void window.ukiQAPublishSavedState?.({pedidos:[p],revision:res.revision});
+ }
 }
 async function ukiRomoConfirmarCobroQA(id){
  if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA)return;

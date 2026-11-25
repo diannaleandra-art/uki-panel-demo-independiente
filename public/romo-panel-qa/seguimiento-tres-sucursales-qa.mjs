@@ -252,6 +252,45 @@ window.ukiQAConfirmTransferBeforePayment=async function({storeId,id,total,monto}
  finally{actionBusy=false;}
 };
 
+
+/* Proyección informativa: sólo DESPUÉS de confirmación de la caja/nube habitual.
+ * No vuelve a cobrar ni hace que una operación ya guardada se repita.
+ * Deshabilitado hasta aprobar el guardado y la publicación comercial.
+ */
+const estadosPublicados=new Map();
+let publicandoEstado=false;
+window.ukiQAPublishSavedState=async function({pedidos,revision}={}){
+ const shop=store();
+ if(window.UKI_SEGUIMIENTO_ESTADO_GUARDADO_AUTORIZADO!==true||
+    window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true||inReview()||publicandoEstado||!shop||
+    !Number.isSafeInteger(revision)||revision<1||!Array.isArray(pedidos))return false;
+ publicandoEstado=true;let ok=true;
+ try{
+  for(const p of pedidos){
+   if(store()!==shop)return false;
+   if(NAMES[p?.suc]!==shop||p.esPremio||typeof p.pagado!=='boolean'||
+      !['Pendiente','Entregado','Cancelado'].includes(p.estado))continue;
+   const id=String(p.cartaSolicitudRemotaId||'');
+   if(!UUID.test(id)||(!p.pagado&&p.estado==='Pendiente'&&!estadosPublicados.has(shop+'|'+id)))continue;
+   const d=seguimientoDistribucionRealQA(p);
+   if(!d){ok=false;continue;}
+   const monto=d.pagos.filter(x=>x.medio==='transferencia').reduce((sum,x)=>sum+x.monto,0)+Number(d.propinaTransferencia||0);
+   const payload={id,revision,total:d.totalValidado,montoTransferencia:monto,estado:p.estado,pagado:p.pagado};
+   const key=shop+'|'+id;
+   const firma=JSON.stringify([payload.total,monto,p.estado,p.pagado]);
+   if(estadosPublicados.get(key)===firma)continue;
+   try{
+    const result=await doAction('publicar_estado_guardado',id,{
+     revision:payload.revision,total:payload.total,montoTransferencia:monto,estado:p.estado,pagado:p.pagado
+    });
+    if(result?.ok===true)estadosPublicados.set(key,firma);else ok=false;
+   }catch{ok=false;}
+  }
+  if(!ok&&store()===shop&&notice)tell('El pedido ya se guardó en caja. El seguimiento aún necesita sincronizarse; no vuelvas a cobrar.');
+  return ok;
+ }finally{publicandoEstado=false;}
+};
+
 function line(title,body){
  const div=section(title);div.append(text('p',body));return div;
 }
