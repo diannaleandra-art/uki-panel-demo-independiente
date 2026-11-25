@@ -4719,15 +4719,28 @@ function ukiSeguimientoEnPedidoQA(p){
   '<small data-seguimiento-status role="status" style="display:block"></small>'+
   '<div data-seguimiento-detalle hidden style="margin-top:8px;padding:10px;border:1px solid #ddd;border-radius:10px"></div></div>';
 }
+// Esta proyección solo despeja la lista del turno. El historial y la caja leen el registro original.
+function ukiPruebasRegimientoApartadas(sucursal,pedidos){
+ const ids=[655,656,657,658,659,660,661,662,663];
+ if(sucursal!=='Uki Regimiento Arica')return new Set();
+ const lote=pedidos.filter(p=>p.suc===sucursal&&ids.includes(Number(p.id)));
+ if(lote.length!==9||new Set(lote.map(p=>Number(p.id))).size!==9||
+    !['413','977','980','156','347'].every(f=>lote.some(p=>String(p.codigoCarta||'').trim()===f))||
+    new Set(lote.map(p=>p.cartaSolicitudRemotaId)).size!==9||
+    lote.some(p=>p.estado!=='Cancelado'||p.pagado!==false||!Number.isFinite(Date.parse(p.canceladoEn))||
+     !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(p.cartaSolicitudRemotaId||'')))return new Set();
+ return new Set(lote);
+}
 function vPedidos(){
   if(!S.suc) return vInicio();
   const fechaTurno=fechaOperativaActual();
   const pedidos=pedidosSuc();
   const buscando=!!(filtroCodigoCarta||filtroDiaPedidos);
+  const apartados=buscando||pedidosArchivoDia?new Set():ukiPruebasRegimientoApartadas(S.suc,pedidos);
   const todos=pedidos.filter(p=>{
     if(buscando)return ukiPedidoCoincideBusqueda(p,filtroCodigoCarta)&&
       (!filtroDiaPedidos||fechaTurnoRegistro(p)===filtroDiaPedidos||String(p.fechaISO||"").slice(0,10)===filtroDiaPedidos);
-    return pedidosArchivoDia?fechaTurnoRegistro(p)===pedidosArchivoDia:esDelPeriodo(p);
+    return pedidosArchivoDia?fechaTurnoRegistro(p)===pedidosArchivoDia:esDelPeriodo(p)&&!apartados.has(p);
   }).slice().reverse();
   const grupos=new Map();
   for(const p of pedidos){

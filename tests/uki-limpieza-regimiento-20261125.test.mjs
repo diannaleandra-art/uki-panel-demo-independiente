@@ -138,6 +138,29 @@ test('La ruta pide el PIN de dueños y solo escribe después de validar la copia
  const carta=readFileSync(new URL('../firebase/uki-carta-remotas-panel.js',import.meta.url),'utf8');
  assert.match(carta,/ukiSolicitudPruebaRetirada\?\.\(r.id,r.codigo_pedido\)/);
 });
+function abrirListado({sucursal=SUCURSAL,pedidos=estado().pedidos,busqueda='',archivo=''}={}){
+ const html=readFileSync(new URL('../firebase/uki-sushi-local.html',import.meta.url),'utf8');
+ const proyeccion=html.slice(html.indexOf('function ukiPruebasRegimientoApartadas'),html.indexOf('  const grupos=new Map();',html.indexOf('function ukiPruebasRegimientoApartadas')));
+ return runInNewContext(proyeccion+'\nreturn todos;\n}\nvPedidos();',{
+  S:{suc:sucursal},filtroCodigoCarta:busqueda,filtroDiaPedidos:'',pedidosArchivoDia:archivo,
+  pedidosSuc:()=>pedidos,fechaOperativaActual:()=>stamp.slice(0,10),esDelPeriodo:()=>true,
+  fechaTurnoRegistro:()=>stamp.slice(0,10),ukiPedidoCoincideBusqueda:(p,t)=>p.codigoCarta===t,
+ });
+}
+test('El turno de Regimiento aparta exactamente los nueve y conserva búsquedas, archivo y datos originales',()=>{
+ const s=estado();s.pedidos[4].codigoCarta='347';
+ const antes=clone(s),seleccion=pedidos=>Array.from(pedidos,p=>p.id);
+ assert.deepEqual(seleccion(abrirListado({pedidos:s.pedidos})),[664]);
+ assert.deepEqual(seleccion(abrirListado({pedidos:s.pedidos,busqueda:'347'})),[659]);
+ assert.equal(abrirListado({pedidos:s.pedidos,archivo:'2026-11-25'}).length,10);
+ assert.equal(abrirListado({sucursal:'Uki La Serena',pedidos:s.pedidos}).length,10);
+ assert.deepEqual(s,antes);
+ for(const cambio of [ps=>{ps[0].pagado=true;},ps=>{ps[0].suc='Uki La Serena';},ps=>{ps[0].id=656;},
+  ps=>{ps[0].codigoCarta='111';},ps=>{ps[0].cartaSolicitudRemotaId=ps[1].cartaSolicitudRemotaId;}]){
+  const pedidos=clone(s.pedidos);cambio(pedidos);
+  assert.equal(abrirListado({pedidos}).length,10);
+ }
+});
 
 function probarCarga({leer,clave='clave-simulada',suc=SUCURSAL,limpieza=true,plazo=25000}={}){
  const html=readFileSync(new URL('../firebase/uki-sushi-local.html',import.meta.url),'utf8');
