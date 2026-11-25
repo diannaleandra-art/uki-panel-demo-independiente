@@ -68,7 +68,7 @@ test('Otra cuenta que usa una ronda QR existente bloquea liberación',()=>{
  assert.equal(fn(c(),{pedidos:[p(),{...p(),id:114,estado:'Pendiente',pagado:false}]},'arica',[]),null);
 });
 test('La liberación requiere confirmación humana, nube sincronizada y doble consulta de Neon',()=>{
- const action=extraer('async function ukiMesaLiberarCuentaCancelada(','\nasync function ukiMesaActualizar(){');
+ const action=extraer('async function ukiMesaLiberarCuentaCancelada(','\nasync function ukiMesaActualizar(automatico=false){');
  assert.match(action,/window\.ukiCancelacionNubeLista/);
  assert.match(action,/confirm\('¿Liberar la Mesa/);
  assert.match(action,/ukiMesaEstadoLocalGuardado\(\)/);

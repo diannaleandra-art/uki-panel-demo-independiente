@@ -78,7 +78,7 @@ test('Si existen dos candidatos históricos ambiguos, se conserva el aviso para 
  assert.equal(ctx.ukiCartaAceptadasSinVinculo().length,1);
 });
 test('Solicitud pendiente vinculada a pedido CANCELADO no se confirma de nuevo ni se duplica',()=>{
- const solicitudes=extraer('async function ukiCartaConfirmarRespaldados(){','async function ukiCartaRemotasActualizar(){');
+ const solicitudes=extraer('async function ukiCartaConfirmarRespaldados(){','async function ukiCartaRemotasActualizar(');
  assert.match(solicitudes,/r\.estado==='pendiente'&&ukiCartaPedidoAceptadoEnCaja\(r\)/);
  assert.match(carta,/p\.estado!=='Cancelado'/);
  assert.match(panel,/S\.pedidos\.push\(nuevoPedido\)/);

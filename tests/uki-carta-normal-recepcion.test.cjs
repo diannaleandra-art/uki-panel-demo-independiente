@@ -4,9 +4,9 @@ const fs=require('node:fs'),vm=require('node:vm');
 const html=fs.readFileSync('firebase/uki-sushi-local.html','utf8');
 const remoteModule=fs.readFileSync('firebase/uki-carta-remotas-panel.js','utf8');
 test('La página carga las solicitudes desde un módulo, sin duplicar el formulario existente',()=>{
- assert.match(html,/<script src="\.\/uki-carta-remotas-panel\.js" defer><\/script>/);
+ assert.match(html,/<script src="\.\/uki-carta-remotas-panel\.js(?:\?v=[^"]+)?" defer><\/script>/);
  assert.match(html,/ukiCartaRemotasActualizar\(\)/);
- assert.match(html,/visiblesRemotas\.map\(r=>ukiCartaRemotaFicha\(r\)\)/);
+ assert.match(html,/visiblesRemotas\.filter\(r=>!mostrarPrioridad\|\|r\.estado!=='pendiente'\)\.map\(r=>ukiCartaRemotaFicha\(r\)\)/);
  assert.match(html,/ukiCartaRemotaActiva\)\{ukiCartaRemotaActiva=null/);
  assert.match(html,/cartaSolicitudRemotaId:String\(D.cartaSolicitudRemotaId\|\|""\)/);
  assert.match(html,/ukiWhatsAppMarcarAceptada\(nuevoPedido\)/);
@@ -27,6 +27,6 @@ test('La solicitud sigue separada de caja hasta aceptación y sincronización',(
  assert.match(remoteModule,/window\.ukiCancelacionNubeLista\?\.\(\)/);
  assert.match(remoteModule,/cartaSolicitudRemotaId=id/);
  assert.match(remoteModule,/estado==='pendiente'/);
- assert.match(remoteModule,/ukiCartaApiCambio\(r.id,'aceptada'\)/);
+ assert.match(remoteModule,/ukiCartaApiCambio\(r.id,'aceptada','',extra\)/);
  assert.match(remoteModule,/r\.estado==='pendiente'/);
 });

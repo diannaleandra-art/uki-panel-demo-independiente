@@ -190,9 +190,10 @@ async function ukiCartaConfirmarRespaldados(){
   }
  }finally{ukiCartaConfirmando=false;if(S.vista==='pedidos')render()}
 }
-async function ukiCartaRemotasActualizar(){
+async function ukiCartaRemotasActualizar(automatico=false){
  if(!S.suc||ukiCartaRemotas.busy||document.body.classList.contains('uki-operativo-bloqueado'))return;
  const branch=ukiMesaBranch();if(!branch)return;
+ const antes=JSON.stringify([ukiCartaRemotas.branch,ukiCartaRemotas.rows,ukiCartaRemotas.status]);
  ukiCartaRemotas.busy=true;ukiCartaRemotas.used=true;ukiCartaRemotas.status='Consultando solicitudes…';
  try{
   const token=await ukiCartaApiSesion();
@@ -217,7 +218,7 @@ async function ukiCartaRemotasActualizar(){
    if(sinVinculo)ukiCartaRemotas.status+=' · '+sinVinculo+' aceptada(s) por revisar tras sincronizar la caja.';
   }
  }catch(e){ukiCartaRemotas.status='Recepción de carta no disponible: '+String(e?.message||e)}
- finally{ukiCartaRemotas.busy=false;if(S.vista==='pedidos')render()}
+ finally{ukiCartaRemotas.busy=false;if(S.vista==='pedidos'&&(!automatico||antes!==JSON.stringify([ukiCartaRemotas.branch,ukiCartaRemotas.rows,ukiCartaRemotas.status])))render()}
  void ukiCartaConfirmarRespaldados();
 }
 // Comprobación estricta del cierre: no usar una copia antigua de la bandeja.
@@ -368,4 +369,4 @@ async function ukiCartaRemotaRechazar(id){
  }catch(e){aviso('No se pudo rechazar: '+String(e?.message||e))}
 }
 setInterval(()=>{if(ukiCartaRemotas.used&&!ukiCartaRemotas.busy&&S.suc&&S.vista==='pedidos')
-  void ukiCartaRemotasActualizar();},45000);
+  void ukiCartaRemotasActualizar(true);},45000);
