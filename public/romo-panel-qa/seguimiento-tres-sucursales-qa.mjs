@@ -64,7 +64,7 @@ function badgeText(entry){
  if(!entry)return '';
  if(entry.estadoPago==='avisada')return '🔔 Cliente avisó: falta verificar';
  if(entry.estadoPago==='confirmada')return '✓ Transferencia verificada';
- if(entry.ultimaConsulta)return '💬 Mensajes del pedido';
+
  if(entry.montoTransferencia>0||entry.pagoDeclarado==='transferencia')return 'Transferencia pendiente';
  return '';
 }
@@ -343,8 +343,8 @@ async function loadList(){
   if(!dialog.open)return;
   list.replaceChildren();
   const sorted=[...(data.orders||[])].sort((a,b)=>
-   Number(Boolean(b.clienteAvisoEn||b.ultimaConsulta))-Number(Boolean(a.clienteAvisoEn||a.ultimaConsulta)));
-  tell(sorted.length?'Solicitudes aceptadas: '+sorted.length:'No hay mensajes recientes.');
+   Number(Boolean(b.clienteAvisoEn))-Number(Boolean(a.clienteAvisoEn)));
+  tell(sorted.length?'Solicitudes aceptadas: '+sorted.length:'No hay pedidos con seguimiento.');
   for(const entry of sorted){
    const item=line((entry.codigoPedido||'Pedido')+' · '+(entry.cliente||'Cliente'),
     entry.montoTransferencia>0?'Transferencia '+pesos(entry.montoTransferencia)+' · '+
@@ -352,7 +352,7 @@ async function loadList(){
       'El cliente avisó; falta verificar':entry.estadoPago==='requiere_revision'?'Requiere revisión':'Pendiente'):
      entry.pagoDeclarado==='transferencia'?'Cliente seleccionó transferencia · monto por verificar':
      'Sin transferencia pendiente registrada');
-   item.append(btn('Ver seguimiento y mensajes',()=>window.ukiQAOpenOrderTracking(entry.id)));
+   item.append(btn('Ver seguimiento',()=>window.ukiQAOpenOrderTracking(entry.id)));
    list.append(item);
   }
  }catch(e){if(dialog.open&&store()===shop)tell(e.message);}finally{busy=false;}
@@ -435,31 +435,17 @@ async function loadDetail(id,target=activeDetail,refresh=false){
    }
   }else payment.append(text('p','Transferencia no registrada o aún por revisar.'));
   target.append(payment);
-  const chat=section('Mensajes del pedido');
-  if(p.chatHabilitado===true){
-   const ul=document.createElement('ul');ul.style.cssText='padding-left:18px;max-height:260px;overflow:auto';
-   for(const message of p.mensajes||[]){
-    if(!message||typeof message.texto!=='string')continue;
-    const li=text('li',(message.remitente==='cliente'?'Cliente: ':'Local: ')+message.texto);
-    li.style.cssText='margin:8px 0;white-space:pre-wrap;overflow-wrap:anywhere';ul.append(li);
+  // Historial de mensajes anteriores: sólo lectura, sin nuevo canal de atención.
+  if(Array.isArray(p.mensajes)&&p.mensajes.length){
+   const history=document.createElement('details');
+   history.append(text('summary','Mensajes anteriores (sólo lectura)'));
+   const ul=document.createElement('ul');
+   for(const message of p.mensajes){
+    if(message&&typeof message.texto==='string')ul.append(text('li',(message.remitente==='cliente'?'Cliente: ':'Local: ')+message.texto));
    }
-   chat.append(ul);
-   const reply=document.createElement('textarea');reply.rows=2;reply.maxLength=800;
-   reply.placeholder='Respuesta breve para este pedido';
-   const send=btn('Responder',async()=>{
-    const value=reply.value.trim();if(!value||!isActive(target,id,shop)||actionBusy||loadingDetail)return;
-    send.disabled=true;actionBusy=true;let sent=false;
-    try{await doAction('responder_mensaje',id,{texto:value});sent=true;
-     if(isActive(target,id,shop)){reply.value='';tell('Respuesta enviada.',target);}}
-    catch(e){if(isActive(target,id,shop))tell(e.message,target);}
-    finally{
-     send.disabled=false;actionBusy=false;
-     if(sent&&isActive(target,id,shop))await loadDetail(id,target);
-    }
-   });
-   chat.append(field('Respuesta para el cliente',reply),send);
-  }else chat.append(text('p','El chat todavía no está habilitado en este entorno.'));
-  target.append(chat);
+   history.append(ul);target.append(history);
+  }
+  
  }catch(e){if(isActive(target,id,shop)){tell(e.message,target);if(!refresh)target.replaceChildren();}}
  finally{loadingDetail=false;
   if(activeDetail&&(activeDetail!==target||selectedId!==id)&&selectedId&&store()===activeStore)
