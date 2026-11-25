@@ -283,7 +283,8 @@ color:#955115;box-shadow:0 2px 10px rgba(0,0,0,.12);font-weight:800;font-size:19
 </section>
 <section id="ukiLimpiezaPruebasReg" hidden class="card" style="margin:12px auto;max-width:620px">
  <h2>Retirar nueve pedidos de prueba</h2>
- <p class="muted">Solo para dueños. Abre Uki Regimiento Arica con la nube sincronizada. Se revisarán los pedidos 655 a 663 antes de retirarlos del registro activo.</p>
+ <p class="muted">Solo para dueños de Uki Regimiento Arica. Se revisarán los pedidos 655 a 663 antes de retirarlos del registro activo.</p>
+ <p id="ukiLimpiezaPruebasRegGuia">Primero toca «Cargar nube» arriba. Aquí aparecerá el paso del PIN cuando Regimiento quede sincronizado.</p>
  <form id="ukiLimpiezaPruebasRegForm">
   <label for="ukiLimpiezaPruebasRegPin">PIN privado de Mi Administración</label>
   <input id="ukiLimpiezaPruebasRegPin" type="password" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" required autocomplete="off">
@@ -299,6 +300,11 @@ color:#955115;box-shadow:0 2px 10px rgba(0,0,0,.12);font-weight:800;font-size:19
 <label for="ukiCloudPass" style="display:block">Clave de nube de tu sucursal (12+ caracteres)</label>
 <input id="ukiCloudPass" type="password" autocomplete="off" placeholder="Clave de nube">
 <div><button id="ukiLoadQA" type="button">Cargar nube</button> <button id="ukiSaveQA" type="button">Guardar manualmente</button></div>
+<div id="ukiConfirmarNubeLimpieza" hidden>
+ <p>La nube de Regimiento está lista. Usar el respaldo reemplaza solo la copia de este dispositivo. No guarda cambios en la nube ni retira pedidos.</p>
+ <button id="ukiAplicarNubeLimpieza" class="big" type="button">Usar respaldo de Regimiento</button>
+ <button id="ukiCancelarNubeLimpieza" type="button">Volver</button>
+</div>
 <label style="display:block;margin-top:12px">
  <input id="ukiAutoCheck" type="checkbox" disabled> Autoguardado obligatorio (se activa al cargar la nube)
 </label>
@@ -6684,6 +6690,11 @@ function actualizarPresentacionNube(){
  el("ukiMostrarConfig").textContent=nubeConfigAbiertaPorUsuario?"Ocultar configuración de nube":"⚙️ Configuración de nube";
  el("ukiMostrarConfig").setAttribute("aria-expanded",String(conexionActiva&&nubeConfigAbiertaPorUsuario));
  el("ukiAvisoInterno").hidden=conexionActiva&&!nubeConfigAbiertaPorUsuario;
+ if(!el('ukiLimpiezaPruebasReg').hidden){
+  const lista=window.ukiQAGet?.()?.suc==='Uki Regimiento Arica'&&window.ukiCancelacionNubeLista?.()===true;
+  el('ukiLimpiezaPruebasRegForm').hidden=!lista;
+  el('ukiLimpiezaPruebasRegGuia').hidden=lista;
+ }
  if(!conexionActiva)nubeConfigAbiertaPorUsuario=false;
 }
 el("ukiMostrarConfig").addEventListener("click",()=>{
@@ -6725,7 +6736,10 @@ window.ukiArchivoComprobarNube=async(sucursal)=>{
 if(UKI_OPERACION_HABILITADA&&new URLSearchParams(location.search).get('limpieza-pruebas')==='regimiento'){
  const root=el('ukiLimpiezaPruebasReg'), form=el('ukiLimpiezaPruebasRegForm');
  const info=el('ukiLimpiezaPruebasRegEstado'),input=el('ukiLimpiezaPruebasRegPin'),boton=el('ukiLimpiezaPruebasRegBoton');
+ root.before(el('ukiNubeSeccion'));
+ el('ukiLoadQA').classList.add('big');
  root.hidden=false;
+ actualizarPresentacionNube();
  form.addEventListener('submit',ev=>{
   ev.preventDefault();
   if(ocupado||recargaRemotaEnCurso||boton.disabled)return;
@@ -6872,10 +6886,36 @@ el("ukiLoginQA").addEventListener("click",()=>accion(async()=>{
 }));
 el("ukiLoadQA").addEventListener("click",()=>accion(async()=>{
  const x=contexto();
- const data=await cloud.cargar(x.suc,x.clave);
+ const esLimpieza=!el('ukiLimpiezaPruebasReg').hidden&&x.suc==='Uki Regimiento Arica';
+ let timer;
+ const comienzo=esLimpieza?huellaOperativa(x.estado):null,uid=auth.currentUser?.uid;
+ const vigente=()=>auth.currentUser?.uid===uid&&window.ukiQAGet?.()?.suc===x.suc&&
+  el('ukiCloudPass').value===x.clave&&huellaOperativa(window.ukiQAGet().estado)===comienzo;
+ let data;
+ if(esLimpieza){
+  msg('Conectando con la nube de Regimiento. Espera unos segundos…');
+  try{
+   data=await Promise.race([cloud.cargar(x.suc,x.clave),new Promise((_,reject)=>{
+    timer=setTimeout(()=>reject(Error('La nube no respondió a tiempo. Vuelve a tocar Cargar nube. Si vuelve a ocurrir, abre este enlace en Safari.')),25000);
+   })]);
+  }catch(e){
+   if(e?.name==='OperationError')throw Error('La clave de nube no permite abrir Regimiento. Revisa la clave larga, no el PIN de Mi Administración.');
+   throw e;
+  }finally{clearTimeout(timer);}
+  if(!data.estado)throw Error('No se encontró un respaldo de Regimiento. No se reemplazó la copia de este dispositivo.');
+  if(!vigente())throw Error('Cambió la sesión, la clave o el registro. Vuelve a cargar la nube.');
+  const panel=el('ukiConfirmarNubeLimpieza'),usar=el('ukiAplicarNubeLimpieza'),volver=el('ukiCancelarNubeLimpieza');
+  msg('Respaldo de Regimiento encontrado. Toca Usar respaldo de Regimiento para continuar.');
+  const acepta=await new Promise(resolve=>{
+   const terminar=valor=>{panel.hidden=true;usar.onclick=null;volver.onclick=null;resolve(valor);};
+   usar.onclick=()=>terminar(true);volver.onclick=()=>terminar(false);panel.hidden=false;
+  });
+  if(!acepta){msg('Carga cancelada. No se modificaron registros.');return;}
+  if(!vigente())throw Error('Cambió la sesión, la clave o el registro. Vuelve a cargar la nube.');
+ }else data=await cloud.cargar(x.suc,x.clave);
  auto.desactivar();dejarDeVigilar();
  if(data.estado){
-  if(!confirm("Esto sustituye SOLO los registros locales de esta sucursal por el respaldo operativo de la nube. ¿Confirmar?")){
+  if(!esLimpieza&&!confirm("Esto sustituye SOLO los registros locales de esta sucursal por el respaldo operativo de la nube. ¿Confirmar?")){
     msg("Carga cancelada. No se modificaron registros.");return;
   }
   await window.ukiQASet(data.estado);

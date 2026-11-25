@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
 import {planRegimiento,prepararRetiroRegimiento,SUCURSAL,PEDIDOS} from '../firebase/uki-limpieza-regimiento-v1.mjs';
 
 const clone=x=>JSON.parse(JSON.stringify(x));
@@ -61,5 +62,57 @@ test('La ruta pide el PIN de dueños y solo escribe después de validar la copia
  assert.match(html,/pedidosSuc\(\),\.\.\.retirados/);
  const carta=readFileSync(new URL('../firebase/uki-carta-remotas-panel.js',import.meta.url),'utf8');
  assert.match(carta,/ukiSolicitudPruebaRetirada\?\.\(r.id,r.codigo_pedido\)/);
+});
+
+function probarCarga({leer,clave='clave-simulada',suc=SUCURSAL,limpieza=true,plazo=25000}={}){
+ const html=readFileSync(new URL('../firebase/uki-sushi-local.html',import.meta.url),'utf8');
+ const accion=html.slice(html.indexOf('el("ukiLoadQA").addEventListener'),html.indexOf('el("ukiSaveQA").addEventListener'));
+ const elements=new Map(), mensajes=[], llamadas=[];
+ const el=id=>{
+  if(!elements.has(id))elements.set(id,{hidden:true,addEventListener(_,fn){this.click=fn;}});
+  return elements.get(id);
+ };
+ const estado={pedidos:[]},auth={currentUser:{uid:'simulado'}};
+ el('ukiLimpiezaPruebasReg').hidden=!limpieza;el('ukiCloudPass').value=clave;
+ const env={el,accion:fn=>fn(),contexto:()=>({suc,clave,estado}),huellaOperativa:JSON.stringify,auth,
+  msg:s=>mensajes.push(s),window:{ukiQAGet:()=>({suc,estado}),ukiQASet:async data=>llamadas.push(['local',data])},
+  setTimeout:(fn,ms)=>setTimeout(fn,Math.min(ms,plazo)),clearTimeout,Error,
+  cloud:{cargar:leer??(async()=>({revision:1732,estado}))},auto:{desactivar:()=>llamadas.push('off'),activar:()=>llamadas.push('on')},
+  dejarDeVigilar:()=>{},vigilarRevisiones:()=>{},confirm:()=>{llamadas.push('aviso-nativo');return true;},
+  revision:null,sucursalCargada:null};
+ runInNewContext(accion,env);
+ return {el,mensajes,llamadas,auth,click:()=>el('ukiLoadQA').click()};
+}
+test('Regimiento confirma dentro de la página y solo aplica la copia al tocar Usar respaldo',async()=>{
+ const f=probarCarga();
+ const done=f.click();
+ assert.match(f.mensajes[0],/Conectando/);
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(f.el('ukiConfirmarNubeLimpieza').hidden,false);
+ assert.deepEqual(f.llamadas,[]);
+ f.el('ukiAplicarNubeLimpieza').onclick();
+ await done;
+ assert.equal(f.el('ukiConfirmarNubeLimpieza').hidden,true);
+ assert.deepEqual(f.llamadas,['off',['local',{pedidos:[]}],'on']);
+});
+test('Una lectura que no responde, una cancelación o un cambio de sesión no aplica datos',async()=>{
+ const tarde=probarCarga({leer:()=>new Promise(()=>{}),plazo:2});
+ await assert.rejects(tarde.click(),/no respondió a tiempo/);
+ assert.deepEqual(tarde.llamadas,[]);
+ for(const cancelar of [true,false]){
+  const f=probarCarga(),done=f.click();
+  await new Promise(resolve=>setImmediate(resolve));
+  if(cancelar){f.el('ukiCancelarNubeLimpieza').onclick();await done;}
+  else{f.auth.currentUser=null;f.el('ukiAplicarNubeLimpieza').onclick();await assert.rejects(done,/Cambió la sesión/);}
+  assert.deepEqual(f.llamadas,[]);
+ }
+});
+test('El panel habitual y La Serena conservan la confirmación normal',async()=>{
+ for(const opts of [{limpieza:false},{suc:'Uki La Serena'}]){
+  const f=probarCarga(opts);
+  await f.click();
+  assert.ok(f.llamadas.includes('aviso-nativo'));
+  assert.equal(f.el('ukiConfirmarNubeLimpieza').hidden,true);
+ }
 });
 
