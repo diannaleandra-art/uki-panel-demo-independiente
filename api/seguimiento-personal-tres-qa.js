@@ -103,7 +103,8 @@ module.exports=async(req,res)=>{
     if(valor==='demora'&&!Number.isFinite(anterior))return fail(res,409,'Primero selecciona un tiempo estimado');
     const fecha=valor==='lista'?null:new Date(valor==='demora'?Math.max(now,anterior)+15*60000:now+valor*60000).toISOString();
     if(fecha&&Date.parse(fecha)>now+180*60000)return fail(res,409,'El tiempo supera tres horas; revisa el pedido');
-    const prep={estimadoEn:fecha,demora:valor==='demora',lista:valor==='lista',actualizadoEn:new Date(now).toISOString()};
+    const minutosSeleccionados=Number.isInteger(valor)?valor:([20,30,45,60,90].includes(prev.minutosSeleccionados)?prev.minutosSeleccionados:null);
+    const prep={estimadoEn:fecha,minutosSeleccionados,demora:valor==='demora',lista:valor==='lista',actualizadoEn:new Date(now).toISOString()};
     const sql="UPDATE "+meta.source+" s SET datos=s.datos||jsonb_build_object('seguimientoPreparacion',$5::jsonb) WHERE s.id=$1::uuid AND s.branch=$2 AND s.estado='aceptada' AND s.datos=$4::jsonb"+(meta.uki?" AND $3::text='uki:'||s.branch":" AND s.store_id=$3")+" AND EXISTS (SELECT 1 FROM "+meta.link+" l WHERE l.solicitud_id=s.id AND l.store_id=$3 AND l.branch=$2 AND l.estado='active' AND l.revocado_en IS NULL AND l.vence_en>now()) RETURNING s.id";
     const changed=await db.query(sql,[id,meta.branch,storeId,order.snapshotDatos,JSON.stringify(prep)]);
     if(changed.length!==1)return fail(res,409,'El pedido cambió; actualiza antes de repetir');
