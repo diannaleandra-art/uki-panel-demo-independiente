@@ -9,6 +9,11 @@ const NAMES=Object.freeze({
 // Conectar automáticamente la forma de pago al aceptar el pedido existente,
 // SOLO en la copia privada de Preview. No es confirmación de transferencia,
 // no marca pagado y no se activa en el panel comercial de producción.
+// Autorización de la versión candidata: sólo el dominio del panel Uki vigente.
+// La rama de preparación no se publica hasta coordinar el servicio de pedidos.
+if(location.protocol==='https:'&&location.hostname==='diannaleandra-art.github.io'){
+ window.UKI_SEGUIMIENTO_RELEASE_AUTORIZADO=true;
+}
 const TRACKING_PAYMENT_PREVIEW_QA=location.protocol==='https:'&&
  location.hostname==='diannaleandra-art.github.io'&&
  window.UKI_SEGUIMIENTO_RELEASE_AUTORIZADO===true;
