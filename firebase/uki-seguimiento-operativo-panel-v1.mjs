@@ -300,20 +300,54 @@ window.ukiQAPublishSavedState=async function({pedidos,revision,generacion}={}){
 function line(title,body){
  const div=section(title);div.append(text('p',body));return div;
 }
-// Sonido discreto para solicitudes pendientes. Sólo se habilita tras un gesto del usuario.
+// Alarma de pedidos de carta. Se repite hasta la aceptación o rechazo confirmado.
 let audioPedido=null,pendientesSonido=new Set(),tiendaSonido=null,ultimoTono=0;
+const resueltasSonido=new Set(),vocesPedido=new Set();
+function detenerTonoPedido(){
+ for(const o of vocesPedido){try{o.stop();}catch{}}
+ vocesPedido.clear();ultimoTono=0;
+}
+function cambiarTiendaSonido(shop){
+ if(tiendaSonido===shop)return;
+ detenerTonoPedido();pendientesSonido.clear();resueltasSonido.clear();tiendaSonido=shop;
+}
 function tonoPedido(){
- if(!audioPedido||audioPedido.state!=='running'||!pendientesSonido.size||tiendaSonido!==store()||document.hidden||Date.now()-ultimoTono<7000)return;
+ if(!audioPedido||audioPedido.state!=='running'||!pendientesSonido.size||tiendaSonido!==store()||document.hidden||Date.now()-ultimoTono<2700)return;
  ultimoTono=Date.now();
- try{for(const [i,f] of [660,880].entries()){const o=audioPedido.createOscillator(),g=audioPedido.createGain(),t=audioPedido.currentTime+i*.18;o.type='sine';o.frequency.value=f;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.07,t+.025);g.gain.exponentialRampToValueAtTime(.0001,t+.14);o.connect(g);g.connect(audioPedido.destination);o.start(t);o.stop(t+.15);}}catch{}
+ try{
+  for(const [i,f] of [740,1040,880,1170].entries()){
+   const o=audioPedido.createOscillator(),g=audioPedido.createGain(),t=audioPedido.currentTime+i*.24;
+   o.type='triangle';o.frequency.value=f;
+   g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.28,t+.035);
+   g.gain.exponentialRampToValueAtTime(.0001,t+.21);
+   o.connect(g);g.connect(audioPedido.destination);vocesPedido.add(o);
+   o.onended=()=>{vocesPedido.delete(o);o.disconnect();g.disconnect();};
+   o.start(t);o.stop(t+.22);
+  }
+ }catch{}
 }
 function actualizarAvisoSonoro(rows,shop){
  if(store()!==shop)return;
- tiendaSonido=shop;pendientesSonido=new Set(rows.filter(x=>x.estadoPedido==='pendiente').map(x=>x.id));
- if(pendientesSonido.size)tonoPedido();
+ cambiarTiendaSonido(shop);
+ pendientesSonido=new Set(rows.filter(x=>x.estadoPedido==='pendiente'&&!resueltasSonido.has(x.id)).map(x=>x.id));
+ if(pendientesSonido.size)tonoPedido();else detenerTonoPedido();
 }
-document.addEventListener('pointerdown',()=>{if(!store()||window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true)return;try{const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio)return;if(!audioPedido)audioPedido=new Audio();if(audioPedido.state!=='running')void audioPedido.resume().then(tonoPedido).catch(()=>{});}catch{}},{passive:true});
-setInterval(()=>{if(tiendaSonido!==store()){pendientesSonido.clear();return;}tonoPedido();},8000);
+window.ukiSeguimientoSolicitudResuelta=function(id,shop){
+ if(shop!==store()||!UUID.test(String(id||'')))return;
+ cambiarTiendaSonido(shop);
+ resueltasSonido.add(id);pendientesSonido.delete(id);
+ if(!pendientesSonido.size)detenerTonoPedido();
+ void loadList();
+};
+document.addEventListener('pointerdown',()=>{
+ if(!store()||window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true)return;
+ try{const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio)return;
+  if(!audioPedido)audioPedido=new Audio();
+  if(audioPedido.state!=='running')void audioPedido.resume().then(tonoPedido).catch(()=>{});
+ }catch{}
+},{passive:true});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){void loadList();tonoPedido();}});
+setInterval(()=>{cambiarTiendaSonido(store());tonoPedido();},1000);
 window.ukiSeguimientoMarcarRuta=async function(button,id){
  if(!button||button.disabled||!UUID.test(String(id||''))||!store()||actionBusy)return;
  const shop=store(),label=button.closest('[data-seguimiento-resumen-id]')?.querySelector('[data-seguimiento-resumen-aviso]');
@@ -345,7 +379,7 @@ async function loadList(){
    item.append(btn('Ver seguimiento',()=>window.ukiQAOpenOrderTracking(entry.id)));
    list.append(item);
   }
- }catch(e){if(store()===shop)pendientesSonido.clear();if(dialog.open&&store()===shop)tell(e.message);}finally{busy=false;}
+ }catch(e){/* Un error de red no confirma aceptación; conservar alarma pendiente. */if(dialog.open&&store()===shop)tell(e.message);}finally{busy=false;}
 }
 async function doAction(action,id,extra={}){
  const result=await query('POST',{action,id,...extra});
@@ -461,6 +495,6 @@ if(root&&dialog&&list&&detail&&notice){
   void loadList();
   if(activeDetail&&selectedId&&isActive(activeDetail,selectedId,activeStore)&&!activeDetail.hidden)
    void loadDetail(selectedId,activeDetail,true);
- },15000);
+ },5000);
  visibility();
 }
