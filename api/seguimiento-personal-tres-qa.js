@@ -128,6 +128,15 @@ module.exports=async(req,res)=>{
     return res.status(200).json({ok:true,storeId,estadoPago:result.status,
      nota:'Verificación manual registrada. Sin modificar caja ni venta'});
    }
+   if(action==='publicar_estado_guardado'){
+    if(revision||actor.revisionOnly===true||process.env.SEGUIMIENTO_ESTADO_GUARDADO_ENABLED!=='true')
+     return fail(res,503,'Actualización de estado guardado no habilitada');
+    if(Object.keys(req.body).sort().join('|')!=='action|estado|id|montoTransferencia|pagado|revision|storeId|total')
+     return fail(res,400,'Estado guardado incompleto');
+    const result=await S.publishSavedPayment({db,order,staff:actor,revision:req.body.revision,
+     total:req.body.total,montoTransferencia:req.body.montoTransferencia,estado:req.body.estado,pagado:req.body.pagado});
+    return res.status(200).json(result);
+   }
    if(action==='responder_mensaje'){
     if(Object.keys(req.body).sort().join('|')!=='action|id|storeId|texto')
      return fail(res,400,'Mensaje inválido');
