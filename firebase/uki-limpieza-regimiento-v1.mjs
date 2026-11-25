@@ -4,6 +4,14 @@ const FOLIOS_CAPTURA=Object.freeze(['413','977','980','156']);
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const estr=x=>String(x??'').trim();
 const exigir=(ok,msg)=>{if(!ok)throw Error(msg);};
+// La partición cifrada reagrupa las claves de los objetos, no las filas de los pedidos.
+// Normalizar su orden permite comparar el contenido sin ignorar valores ni listas.
+export function mismaHuellaRegimiento(local,nube){
+ if(typeof local!=='string'||typeof nube!=='string')return false;
+ const ordenar=x=>JSON.stringify(JSON.parse(x),(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?
+  Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
+ return local===nube||ordenar(local)===ordenar(nube);
+}
 export function planRegimiento(estado,revisarCierre=()=>false){
  exigir(estado?.suc===SUCURSAL&&Array.isArray(estado.pedidos)&&Number.isSafeInteger(estado.nextId)&&estado.nextId>663,'No es el respaldo sincronizado de Regimiento.');
  const marcas=estado.pedidosPruebaRetirados||[];

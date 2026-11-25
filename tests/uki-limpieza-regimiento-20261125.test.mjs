@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
-import {planRegimiento,prepararRetiroRegimiento,SUCURSAL,PEDIDOS} from '../firebase/uki-limpieza-regimiento-v1.mjs';
+import {planRegimiento,prepararRetiroRegimiento,mismaHuellaRegimiento,SUCURSAL,PEDIDOS} from '../firebase/uki-limpieza-regimiento-v1.mjs';
+import {dividirEstado,reunirEstado} from '../firebase/uki-particion-local.js';
+import {huellaOperativa} from '../firebase/uki-sushi-autoguardado.js';
 
 const clone=x=>JSON.parse(JSON.stringify(x));
 const stamp='2026-11-25T11:30:00-03:00';
@@ -54,11 +56,30 @@ test('La carta también debe confirmar cancelación sin pago ni abono',()=>{
   assert.throws(()=>retirar(estado(),r),/La carta no confirma/);
  }
 });
+test('La revisión 1740 no se confunde con un cambio si la nube solo reordenó claves',()=>{
+ const local={...estado(),borradores:[],solicitudesWhatsApp:[],incidencias:[],deliveriesManuales:[],ajustesHistoricos:[],
+  propinas:[{suc:SUCURSAL,pedidoId:664,monto:1200}],
+  vista:'inicio',filtro:'turno actual',clientes:{a:{nombre:'A'},b:{nombre:'B'},c:{nombre:'C'}}};
+ const datosNube=reunirEstado(dividirEstado(local,SUCURSAL),SUCURSAL);
+ datosNube.vista='pedidos';datosNube.filtro='últimos';
+ const base=huellaOperativa(local),remota=huellaOperativa(datosNube);
+ assert.notEqual(base,remota);
+ assert.equal(mismaHuellaRegimiento(base,remota),true);
+ const variantes=[s=>{s.nextId++;},s=>{s.pedidos[0].pagado=true;},s=>{s.pedidos.reverse();},
+  s=>{s.clientes.a.nombre='cambio';},s=>{delete s.cajasDiarias.arica;}];
+ for(const cambiar of variantes){
+  const copia=clone(datosNube);cambiar(copia);
+  assert.equal(mismaHuellaRegimiento(base,huellaOperativa(copia)),false);
+ }
+});
 test('La ruta pide el PIN de dueños y solo escribe después de validar la copia de Regimiento',()=>{
  const html=readFileSync(new URL('../firebase/uki-sushi-local.html',import.meta.url),'utf8');
  const route=html.slice(html.indexOf("if(UKI_OPERACION_HABILITADA&&new URLSearchParams(location.search).get('limpieza-pruebas')"),html.indexOf('window.ukiOperativoActualizar=actualizarBloqueo;'));
  for(const s of ["'regimiento'","action:'ingresar_pin'","window.ukiCancelacionNubeLista","carta-solicitudes-live","seguimiento-personal-live","revisionEsperada:actual.revision","mod.planRegimiento(final.estado).hecho"])assert.ok(route.includes(s));
  assert.ok(route.indexOf('prepararRetiroRegimiento')<route.indexOf('cloud.guardar'));
+ assert.ok(route.indexOf('actual.revision!==base.revision||!vigente()')<route.indexOf('mismaHuellaRegimiento'));
+ assert.ok(route.indexOf('mismaHuellaRegimiento')<route.indexOf('cloud.guardar'));
+ assert.match(route,/revisionEsperada:actual.revision/);
  assert.match(html,/pedidosSuc\(\),\.\.\.retirados/);
  const carta=readFileSync(new URL('../firebase/uki-carta-remotas-panel.js',import.meta.url),'utf8');
  assert.match(carta,/ukiSolicitudPruebaRetirada\?\.\(r.id,r.codigo_pedido\)/);

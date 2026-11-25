@@ -6766,11 +6766,15 @@ if(UKI_OPERACION_HABILITADA&&new URLSearchParams(location.search).get('limpieza-
     const sesion=await respuesta.json().catch(()=>null);
     if(!respuesta.ok||sesion?.ok!==true||!(/^[a-f0-9]{64}$/i).test(sesion.sesion||''))
      throw Error('No se confirmó el PIN de dueños.');
-    const mod=await import('./uki-limpieza-regimiento-v1.mjs');
+    const mod=await import('./uki-limpieza-regimiento-v1.mjs?v=huella-regimiento-20261125');
     const clave=contexto().clave;
+    info.textContent='Comparando la copia de Regimiento con la nube. Aún no se han retirado pedidos.';
     const actual=await cloud.cargar(origen,clave);
-    if(actual.revision!==base.revision||!vigente()||huellaOperativa(actual.estado)!==huella)
-     throw Error('Cambió el registro de Regimiento. Vuelve a cargar su nube antes de continuar.');
+    if(actual.revision!==base.revision||!vigente())
+     throw Error('Se actualizó Regimiento durante la comprobación. No se retiró ningún pedido. Carga la nube antes de intentar de nuevo.');
+    if(!validarEstadoSucursal(actual.estado,origen)||!mod.mismaHuellaRegimiento(huella,
+       huellaOperativa({...estadoVacioSucursal(origen),...actual.estado})))
+     throw Error('La copia del dispositivo no coincide con la nube de Regimiento. No se retiró ningún pedido.');
     const revisarCierre=p=>!!ukiCierreConfirmadoPedido(p);
     const plan=mod.planRegimiento(actual.estado,revisarCierre);
     if(plan.hecho){info.textContent='Los nueve pedidos de prueba ya están fuera del panel. No se guardó otra revisión.';return;}
@@ -6784,20 +6788,26 @@ if(UKI_OPERACION_HABILITADA&&new URLSearchParams(location.search).get('limpieza-
     };
     const carta=await pedir('carta-solicitudes-live',{branch:'arica'});
     if(carta.branch!=='arica'||!Array.isArray(carta.orders))throw Error('No se pudo verificar la carta de Regimiento.');
-    const consultas=[];
-    for(const p of plan.filas){
+    const verificarFila=async p=>{
      const x=carta.orders.filter(r=>r.branch==='arica'&&r.id===p.cartaSolicitudRemotaId&&r.estado==='aceptada');
      if(x.length!==1||String(x[0].pedido_interno)!==String(p.id)||String(x[0].codigo_pedido)!==p.codigoCarta)
       throw Error('La carta no reconoce el pedido interno '+p.id+' y su folio. No se retiró ningún pedido.');
      const d=await pedir('seguimiento-personal-live',{storeId:'uki:arica',id:p.cartaSolicitudRemotaId});
-     consultas.push({orderId:d.orderId,storeId:d.storeId,pedidoInterno:x[0].pedido_interno,
+     return {orderId:d.orderId,storeId:d.storeId,pedidoInterno:x[0].pedido_interno,
       codigoCarta:d.pedido?.codigoPedido,total:d.totalPedido,estadoPago:d.pedido?.estadoPago,
       estadoPedido:d.pedido?.estadoPedido,pagoRegistrado:d.pedido?.pagoRegistrado,
-      montoTransferencia:d.pedido?.montoTransferencia});
+      montoTransferencia:d.pedido?.montoTransferencia};
+    };
+    const consultas=[];
+    for(let i=0;i<plan.filas.length;i+=3){
+     if(!vigente())throw Error('Se actualizó Regimiento durante la comprobación. No se retiró ningún pedido.');
+     info.textContent='Comprobando que los pedidos de prueba no tengan pagos ('+i+' de 9 revisados).';
+     consultas.push(...await Promise.all(plan.filas.slice(i,i+3).map(verificarFila)));
     }
     const r=mod.prepararRetiroRegimiento({estado:actual.estado,consultas,revision:actual.revision,
      identidad:user.uid,fecha:new Date().toISOString(),revisarCierre});
     if(!vigente())throw Error('Otro equipo cambió la revisión. Actualiza antes de volver a ejecutar.');
+    info.textContent='Los nueve pedidos pasaron la revisión. Guardando y verificando en la nube…';
     dejarDeVigilar();auto.desactivar();abandonado=true;actualizarBloqueo();
     const guardado=await cloud.guardar({sucursal:origen,password:clave,revisionEsperada:actual.revision,estado:r.estado});
     const final=await cloud.cargar(origen,clave);
