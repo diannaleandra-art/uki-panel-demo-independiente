@@ -2999,6 +2999,36 @@ function ukiUltimoPedidoConTimbre(cli){
 
 
 function ukiModalidadComanda(p){const m=String(p?.modalidad||'').trim().toLowerCase();return {'retiro':'RETIRO','consumo en local':'CONSUMO EN LOCAL','delivery':'DELIVERY'}[m]||'POR CONFIRMAR';}
+
+// La comanda es una proyección del pedido guardado: no crea otra edición ni otro cobro.
+function ukiCambioComandaCocina(p){
+ if(!p||p.esPremio||p.estado==='Cancelado')return null;
+ const firma=q=>JSON.stringify([String(q?.modalidad||'').trim().toLowerCase(),String(q?.mesaReferencia||'').trim(),(Array.isArray(q?.productos)?q.productos:[]).map(x=>[String(x.nombre||'').trim(),Number(x.cantidad),String(x.detalle||'').trim()])]);
+ const historicos=(S.ajustesHistoricos||[]).filter(a=>a.suc===p.suc&&a.tipo==='pedido_corregido'&&Number(a.pedidoId)===Number(p.id));
+ const eventos=[...(Array.isArray(p.correccionesTurno)?p.correccionesTurno:[]),...(Array.isArray(p.historialCambios)?p.historialCambios:[]),...historicos];
+ let ultimo=null;
+ for(const ev of eventos){
+  const antes=ev?.antes||ev?.anterior,despues=ev?.despues||ev?.nuevo;
+  if(!antes||!despues||typeof antes!=='object'||typeof despues!=='object')continue;
+  const tipo=String(ev.tipo||ev.accion||'');
+  const edicion=/^edici[oó]n|^pedido_corregido$/.test(tipo)||(!tipo&&!!ev.responsable);
+  const cocinaCambio=firma(antes)!==firma(despues);
+  if(!cocinaCambio&&(!edicion||JSON.stringify(antes)===JSON.stringify(despues)))continue;
+  const fecha=ev.fechaISO||ev.fecha||'',marca=Number(ev.registradoEn)||Date.parse(fecha)||0;
+  if(!ultimo||marca>=ultimo.marca)ultimo={marca,fecha:Number.isFinite(Date.parse(fecha))?fecha:null};
+ }
+ if(ultimo)return ultimo;
+ // Para solicitudes anteriores al historial, conservar la comparación con la carta.
+ const original=extraerMensajeCartaUki(String(p.textoOriginal||''));
+ if(!original.lineasCocina.length)return null;
+ const prev=original.items.map(x=>[String(x.nombre||'').trim(),Number(x.cant),String(x.det||'').trim()]);
+ const actual=(p.productos||[]).filter(x=>x&&x.nombre).map(x=>[String(x.nombre||'').trim(),Number(x.cantidad),String(x.detalle||'').trim()]);
+ const modoOriginal=String(original.modalidad||'').trim().toLowerCase();
+ const modoExplicito=/(?:^|\n)\s*\*?ENTREGA\*?\s*\n\s*(Delivery|Retiro|Consumo en local)/i.test(String(p.textoOriginal||''));
+ return JSON.stringify(prev)!==JSON.stringify(actual)||(modoExplicito&&modoOriginal!==String(p.modalidad||'').trim().toLowerCase())?{marca:0,fecha:null}:null;
+}
+function ukiEtiquetaComandaCocina(p){return (ukiCambioComandaCocina(p)?'⚠️ Copiar comanda actualizada':'📋 Copiar comanda cocina')+' · '+ukiModalidadComanda(p);}
+
 function ukiTextoComandaCocina(p){
  const items=(p.productos||[]).filter(x=>x&&x.nombre);
  const original=extraerMensajeCartaUki(String(p.textoOriginal||''));
@@ -3007,16 +3037,16 @@ function ukiTextoComandaCocina(p){
  const limpia=s=>String(s||'').replace(/\*/g,'').replace(/\s*\$\s*\d[\d.,]*/g,'').trim();
  const lineas=coincide?original.lineasCocina.map(limpia):items.flatMap(x=>[Number(x.cantidad)+' × '+limpia(x.nombre),limpia(x.detalle)].filter(Boolean));
  if(!lineas.length)return '';
- const modalidad=ukiModalidadComanda(p);
- return ['MODALIDAD: '+modalidad,String(p.suc||''),'COCINA · '+ukiReferenciaConCarta(p),fechaTxt(p.fechaISO),modalidad==='CONSUMO EN LOCAL'&&p.mesaReferencia?'MESA: '+p.mesaReferencia:'',original.lineasCocina.length&&!coincide?'PEDIDO MODIFICADO · Revisar detalle confirmado':'','────────────────',...lineas,'────────────────','Revisar pedido completo antes de entregar.'].filter(Boolean).join('\n');
+ const modalidad=ukiModalidadComanda(p),cambio=ukiCambioComandaCocina(p);
+ return [cambio?'⚠ COMANDA MODIFICADA':'','MODALIDAD: '+modalidad,String(p.suc||''),'COCINA · '+ukiReferenciaConCarta(p),fechaTxt(p.fechaISO),modalidad==='CONSUMO EN LOCAL'&&p.mesaReferencia?'MESA: '+p.mesaReferencia:'',cambio?.fecha?'Modificación guardada: '+fechaTxt(cambio.fecha):'',cambio?'REEMPLAZA LA COMANDA ANTERIOR':'','────────────────',...lineas,'────────────────','Revisar pedido completo antes de entregar.'].filter(Boolean).join('\n');
 }
 async function ukiCopiarComandaCocina(id){
  const p=(S.pedidos||[]).find(x=>Number(x.id)===Number(id)&&x.suc===S.suc);
  if(!p||p.estado==='Cancelado'||p.esPremio)return aviso('Este pedido no permite copiar una comanda de cocina.');
  const txt=ukiTextoComandaCocina(p);if(!txt)return aviso('Revisa los productos antes de copiar la comanda.');
- try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(txt);aviso('✅ Comanda de cocina copiada · '+ukiModalidadComanda(p));return;}}catch{}
+ try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(txt);aviso(ukiCambioComandaCocina(p)?'✅ Comanda actualizada copiada · Reemplaza la anterior en cocina.':'✅ Comanda de cocina copiada · '+ukiModalidadComanda(p));return;}}catch{}
  const f=document.createElement('textarea');f.value=txt;f.setAttribute('readonly','');f.style.cssText='position:fixed;left:0;top:0;opacity:0';document.body.append(f);f.select();f.setSelectionRange(0,txt.length);let ok=false;try{ok=document.execCommand('copy')}catch{}f.remove();
- if(ok)aviso('✅ Comanda de cocina copiada · '+ukiModalidadComanda(p));else window.prompt('Copia esta comanda para cocina:',txt);
+ if(ok)aviso(ukiCambioComandaCocina(p)?'✅ Comanda actualizada copiada · Reemplaza la anterior en cocina.':'✅ Comanda de cocina copiada · '+ukiModalidadComanda(p));else window.prompt('Copia esta comanda para cocina:',txt);
 }
 
 function copiarComanda(id){const p=(S.pedidos||[]).find(x=>Number(x.id)===Number(id)&&x.suc===S.suc);if(!p)return;if(!p.esPremio&&p.estado!=='Cancelado')return ukiCopiarComandaCocina(id);const txt=[`${ukiReferenciaConCarta(p)} · ${p.modalidad}`, ...(p.productos||[]).map(pr=>`${pr.cantidad}x ${pr.nombre}${pr.detalle?` (${pr.detalle})`:""}`), p.envio?`Delivery ${fmt(p.envio)}`:"", `Total ${fmt(p.total)}`].filter(Boolean).join("\n"); if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>aviso("Comanda copiada")).catch(()=>aviso(txt)); else aviso(txt);}
@@ -5413,7 +5443,7 @@ function ukiSeguimientoAccesoVisibleQA(p){
  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))return '';
  return '<div data-seguimiento-resumen-id="'+id+'" data-seguimiento-estado="'+(p.estado==='Entregado'?'Entregado':'Pendiente')+'" data-seguimiento-modalidad="'+(p.modalidad==='Retiro'?'retiro':p.modalidad==='Delivery'?'delivery':p.modalidad==='Consumo en local'?'consumo en local':'')+'" style="margin:5px 0 2px;display:flex;align-items:center;gap:7px;flex-wrap:wrap">'+
  '<small data-seguimiento-resumen-aviso role="status" style="font-size:12px;font-weight:600">Consultando seguimiento…</small>'+
- (p.estado==='Pendiente'&&!p.esPremio&&Number.isSafeInteger(Number(p.id))?'<button type="button" class="sm" style="margin:0;min-height:38px;font-weight:700" onclick="event.preventDefault();event.stopPropagation();ukiCopiarComandaCocina('+Number(p.id)+')">📋 Copiar comanda cocina · '+ukiModalidadComanda(p)+'</button>':'')+
+ (p.estado==='Pendiente'&&!p.esPremio&&Number.isSafeInteger(Number(p.id))?'<button type="button" class="sm" style="margin:0;min-height:38px;font-weight:700" onclick="event.preventDefault();event.stopPropagation();ukiCopiarComandaCocina('+Number(p.id)+')">' + ukiEtiquetaComandaCocina(p) + '</button>':'')+
  (p.modalidad==='Delivery'&&p.estado==='Pendiente'?'<button type="button" class="sm" data-seguimiento-ruta disabled style="margin:0;min-height:38px" onclick="event.preventDefault();event.stopPropagation();window.ukiSeguimientoMarcarRuta?.(this,&quot;'+id+'&quot;)">🛵 Pedido en camino</button>':'')+'</div>';
 }
 function ukiSeguimientoEnPedidoQA(p){
@@ -5570,7 +5600,7 @@ function vPedidos(){
     <label>Que ocurrio</label><textarea rows="2" id="incProblema${p.id}" placeholder="Ej: falto una salsa"></textarea>
     <label>Solucion (opcional)</label><textarea rows="2" id="incSolucion${p.id}" placeholder="Ej: reposicion enviada"></textarea>
     <button class="sm ok" onclick="anotarIncidencia(${p.id})">Guardar error</button></details>
-    <div class="order-actions">${ukiCuentaAbierta(p)&&esDelPeriodo(p)?`<button class="sm ok" onclick="ukiAgregarACuenta(${p.id})">+ Agregar a cuenta</button>`:""}${p.estado!=="Cancelado"?`<button class="sm ok" onclick="editarPedido(${p.id})">Editar</button><button class="sm" onclick="togglePagado(${p.id})">${p.pagado?'Quitar pagado':'Marcar pagado'}</button>${p.estado==="Pendiente"?`<button class="sm ok" onclick="ukiMarcarPedidoEntregado(${p.id})">✓ Marcar entregado</button>`:""}`:""}${ukiSeguimientoEnPedidoQA(p)}<button class="sm" onclick="copiarComanda(${p.id})">Copiar comanda</button></div>
+    <div class="order-actions">${ukiCuentaAbierta(p)&&esDelPeriodo(p)?`<button class="sm ok" onclick="ukiAgregarACuenta(${p.id})">+ Agregar a cuenta</button>`:""}${p.estado!=="Cancelado"?`<button class="sm ok" onclick="editarPedido(${p.id})">Editar</button><button class="sm" onclick="togglePagado(${p.id})">${p.pagado?'Quitar pagado':'Marcar pagado'}</button>${p.estado==="Pendiente"?`<button class="sm ok" onclick="ukiMarcarPedidoEntregado(${p.id})">✓ Marcar entregado</button>`:""}`:""}${ukiSeguimientoEnPedidoQA(p)}<button class="sm" onclick="copiarComanda(${p.id})">${!p.esPremio&&p.estado!=='Cancelado'?esc(ukiEtiquetaComandaCocina(p)):'Copiar comanda'}</button></div>
     ${p.estado!=="Cancelado"&&!p.esPremio?`<details class="inner-details uki-cancelar-pedido" style="padding:12px;margin-top:12px;border:1px solid #e7c8b3;border-radius:12px"><summary style="cursor:pointer;color:#9b3328;font-weight:750">❌ Cancelar pedido</summary>${ukiFormularioCancelarDisponible(p)?`<div style="margin-top:12px"><label for="motivoCancelacion${p.id}">¿Quién canceló? · Obligatorio</label><select id="motivoCancelacion${p.id}"><option value="">Selecciona una opción</option><option value="cliente">Lo canceló el cliente</option><option value="local">Lo canceló el local</option></select><label for="detalleCancelacion${p.id}">¿Por qué se cancela? · Motivo obligatorio</label><textarea id="detalleCancelacion${p.id}" rows="2" maxlength="300" placeholder="Ej.: El cliente desistió del pedido"></textarea>${ukiCobroPendiente(p)?`<div class="mini-help" style="padding:10px;margin-top:12px;border-left:3px solid var(--accent)"><b>¿Qué pasó con el dinero que figuraba pagado? · ${fmt(Number(ukiCobroPendiente(p).saldo))}</b><p class="muted">El pago anterior puede haberse marcado por error. No significa que haya devolución.</p><select id="cobroCancelacion${p.id}"><option value="">Selecciona qué ocurrió</option><option value="no_recibido">Nunca recibimos ese dinero; se marcó pagado por error</option><option value="devuelto">Sí se cobró, pero YA lo devolvimos al cliente</option><option value="pendiente">Sí se cobró y todavía falta devolverlo</option></select><label for="respCancelacion${p.id}">¿Quién verificó el dinero? · Obligatorio</label><input id="respCancelacion${p.id}" maxlength="80" autocomplete="off" placeholder="Nombre del responsable"><p class="muted">No se puede cancelar si falta devolver dinero. El panel no realiza devoluciones.</p></div>`:""}<p id="ukiErrorCancelar${p.id}" role="alert" hidden style="padding:10px;border-radius:10px;background:#ffece4;color:#863417;margin:10px 0"></p><button class="sm" type="button" onclick="cancelarPedido(${p.id})" style="color:#9b3328;border-color:#dcb4a5">Confirmar cancelación del pedido</button><p class="muted">El motivo queda guardado y no crea otro cobro.</p></div>`:`<p class="muted" style="margin-top:10px">${esc(ukiAyudaCancelarPedido(p))}</p>`}</details>`:""}
     </div></details>`).join('')}
   ${visiblesRemotas.filter(r=>!mostrarPrioridad||r.estado!=='pendiente').map(r=>ukiCartaRemotaFicha(r)).join('')}
@@ -6964,7 +6994,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
     '</p>':'')+
    (p.textoOriginal?'<details class="inner-details"><summary>📲 Ver WhatsApp original</summary>'+
     '<p style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(p.textoOriginal)+'</p></details>':'')+
-   '<button type="button" class="sm" onclick="copiarComanda('+id+')">Copiar comanda</button>'+ukiRomoIncidenciasPedidoQA(p);
+   '<button type="button" class="sm" onclick="copiarComanda('+id+')">'+esc(!p.esPremio&&p.estado!=='Cancelado'?ukiEtiquetaComandaCocina(p):'Copiar comanda')+'</button>'+ukiRomoIncidenciasPedidoQA(p);
   let acciones='';
   if(p.estado==='Cancelado'){
    acciones='<p class="muted">Cancelado · '+esc(p.motivoDetalleCancelacion||p.motivoCancelacion||'Motivo registrado')+
