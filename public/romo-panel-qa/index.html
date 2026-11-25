@@ -11931,7 +11931,9 @@ const msg=s=>{
   const unauthorized=/auth\/unauthorized-domain/i.test(String(s));
   romo.textContent=unauthorized?
    'Google no puede iniciar: este dominio de Romo aún no está autorizado en Firebase Authentication. No es un error de tu contraseña.':
-   String(s).replace(/Uki Sushi/g,'Romo Sushi').replace(/Abre la sucursal y carga su nube\./g,'Ahora abre Romo con tu contraseña habitual.');
+   window.ukiSeguimientoContextoRevisionQA?.()?
+    String(s).replace(/Abre la sucursal y carga su nube\./g,'Abre el seguimiento con tu sesión de Google. No necesitas contraseña de caja.'):
+    String(s).replace(/Uki Sushi/g,'Romo Sushi').replace(/Abre la sucursal y carga su nube\./g,'Ahora abre Romo con tu contraseña habitual.');
  }
  actualizarPresentacionNube();
 };

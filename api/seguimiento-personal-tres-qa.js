@@ -25,10 +25,15 @@ module.exports=async(req,res)=>{
  if(!S.TABLES[storeId])return fail(res,400,'Sucursal inválida');
  try{
   const db=ENV.makeDb(cfg,storeId);
-  const actor=await AUTH.authorized(req,db,storeId).catch(()=>null);
+  let actor=await AUTH.authorized(req,db,storeId).catch(()=>null);
+  if(!actor&&revision&&!cfg.live)actor=await AUTH.authorizedRevisionOwner(req,storeId).catch(()=>null);
   if(!actor)return fail(res,403,'Sesión sin permiso para esta sucursal');
+  if(actor.revisionOnly===true&&(!revision||cfg.live||!REVISION_CODES[storeId]||
+     (req.method==='POST'&&!['simular_transferencia','responder_mensaje'].includes(req.body.action))))
+   return fail(res,403,'Permiso limitado a la revisión ficticia de esta sucursal');
   const meta=S.TABLES[storeId];
-  const ficticio=" AND s.codigo_pedido ~* '^(QA|PRUEBA|TEST|DEMO)[-_ ]' AND s.cliente ~* '^(QA|PRUEBA|TEST|DEMO|CLIENTE (QA|PRUEBA|TEST|DEMO))'";
+  const ficticio=" AND s.codigo_pedido ~* '^(QA|PRUEBA|TEST|DEMO)[-_ ]' AND s.cliente ~* '^(QA|PRUEBA|TEST|DEMO|CLIENTE (QA|PRUEBA|TEST|DEMO))'"+
+   (actor.revisionOnly===true?" AND s.codigo_pedido='"+REVISION_CODES[storeId]+"'":"");
   if(req.method==='GET'&&!req.query?.id){
    const OP=require('../lib/seguimiento-operacion-unificada-qa.cjs');
    const list=await db.query(
