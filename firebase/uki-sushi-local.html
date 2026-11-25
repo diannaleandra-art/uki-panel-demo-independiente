@@ -6556,7 +6556,9 @@ const auto=crearAutoGuardadoOperativo({
    if(encabezado)encabezado.textContent="Nube: "+estado+(rev===null?"":" · revisión "+rev);
    el("ukiSaveQA").disabled=auto.resumen().activo;
    actualizarBloqueo();
-   if(estado==='sincronizado'&&!recargaRemotaEnCurso)Promise.resolve().then(async()=>{
+   if(estado==='sincronizado')Promise.resolve().then(async()=>{
+    // Solo una revisión respaldada puede confirmar QR, cierres o seguimiento.
+    if(recargaRemotaEnCurso||auto.resumen().actualRespaldado!==true)return;
     // Consultar la revisión y generación remota exactas. Un fallo de
     // seguimiento nunca interrumpe cierres ni la conciliación de mesas.
     if(window.UKI_SEGUIMIENTO_ESTADO_GUARDADO_AUTORIZADO===true){
