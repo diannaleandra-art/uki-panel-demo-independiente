@@ -4722,14 +4722,24 @@ function ukiSeguimientoEnPedidoQA(p){
 // Esta proyección solo despeja la lista del turno. El historial y la caja leen el registro original.
 function ukiPruebasRegimientoApartadas(sucursal,pedidos){
  const ids=[655,656,657,658,659,660,661,662,663];
- if(sucursal!=='Uki Regimiento Arica')return new Set();
+ const apartados=new Set();
+ if(sucursal!=='Uki Regimiento Arica')return apartados;
  const lote=pedidos.filter(p=>p.suc===sucursal&&ids.includes(Number(p.id)));
- if(lote.length!==9||new Set(lote.map(p=>Number(p.id))).size!==9||
-    !['413','977','980','156','347'].every(f=>lote.some(p=>String(p.codigoCarta||'').trim()===f))||
-    new Set(lote.map(p=>p.cartaSolicitudRemotaId)).size!==9||
-    lote.some(p=>p.estado!=='Cancelado'||p.pagado!==false||!Number.isFinite(Date.parse(p.canceladoEn))||
-     !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(p.cartaSolicitudRemotaId||'')))return new Set();
- return new Set(lote);
+ if(lote.length===9&&new Set(lote.map(p=>Number(p.id))).size===9&&
+    ['413','977','980','156','347'].every(f=>lote.some(p=>String(p.codigoCarta||'').trim()===f))&&
+    new Set(lote.map(p=>p.cartaSolicitudRemotaId)).size===9&&
+    lote.every(p=>p.estado==='Cancelado'&&p.pagado===false&&Number.isFinite(Date.parse(p.canceladoEn))&&
+     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(p.cartaSolicitudRemotaId||'')))
+  lote.forEach(p=>apartados.add(p));
+ // #665 es un folio de Carta, no necesariamente el ID interno del pedido.
+ const minuto=Date.parse('2026-11-25T02:40:00-03:00');
+ const ultimo=pedidos.filter(p=>{
+  const t=Date.parse(p.fechaISO);
+  return p.suc===sucursal&&String(p.codigoCarta||'').trim()==='665'&&t>=minuto&&t<minuto+60000&&
+   p.estado==='Cancelado'&&p.pagado===false&&Number(p.total)===2500&&p.modalidad==='Retiro'&&ukiCodigoClienteVisible(p)==='7362';
+ });
+ if(ultimo.length===1)apartados.add(ultimo[0]);
+ return apartados;
 }
 function vPedidos(){
   if(!S.suc) return vInicio();

@@ -145,6 +145,7 @@ function abrirListado({sucursal=SUCURSAL,pedidos=estado().pedidos,busqueda='',ar
   S:{suc:sucursal},filtroCodigoCarta:busqueda,filtroDiaPedidos:'',pedidosArchivoDia:archivo,
   pedidosSuc:()=>pedidos,fechaOperativaActual:()=>stamp.slice(0,10),esDelPeriodo:()=>true,
   fechaTurnoRegistro:()=>stamp.slice(0,10),ukiPedidoCoincideBusqueda:(p,t)=>p.codigoCarta===t,
+  ukiCodigoClienteVisible:p=>(String(p.telefono||'').slice(-4)||String(p.codigoCliente||'')),
  });
 }
 test('El turno de Regimiento aparta exactamente los nueve y conserva búsquedas, archivo y datos originales',()=>{
@@ -159,6 +160,18 @@ test('El turno de Regimiento aparta exactamente los nueve y conserva búsquedas,
   ps=>{ps[0].codigoCarta='111';},ps=>{ps[0].cartaSolicitudRemotaId=ps[1].cartaSolicitudRemotaId;}]){
   const pedidos=clone(s.pedidos);cambio(pedidos);
   assert.equal(abrirListado({pedidos}).length,10);
+ }
+});
+test('Solo se aparta Carta #665 si es la ficha cancelada y coincide su sucursal, hora, importe y cliente',()=>{
+ const p={id:654,suc:SUCURSAL,codigoCarta:'665',fechaISO:'2026-11-25T05:40:28Z',estado:'Cancelado',
+  total:2500,codigoCliente:'7362',modalidad:'Retiro',pagado:false};
+ assert.equal(abrirListado({pedidos:[p]}).length,0);
+ assert.equal(abrirListado({pedidos:[p],busqueda:'665'}).length,1);
+ assert.equal(abrirListado({pedidos:[p],archivo:'2026-11-25'}).length,1);
+ assert.equal(abrirListado({pedidos:[p,{...p,id:665}]}).length,2);
+ for(const datos of [{codigoCarta:'664',id:665},{fechaISO:'2026-11-24T05:40:28Z'},{codigoCliente:'1000'},
+  {total:2600},{suc:'Uki La Serena'},{estado:'Entregado'},{pagado:true}]){
+  assert.equal(abrirListado({pedidos:[{...p,...datos}]}).length,1);
  }
 });
 
