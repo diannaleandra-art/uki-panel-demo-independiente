@@ -5,6 +5,8 @@ const AUTH=require('../lib/seguimiento-qa-personal-auth-v1.cjs');
 const S=require('../lib/seguimiento-qa-servidor-v1.cjs');
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const fail=(r,c,m)=>r.status(c).json({ok:false,error:m});
+// Exclusivamente los tres pedidos ficticios existentes en las bases QA aisladas.
+const REVISION_CODES=Object.freeze({'uki:arica':'QA-REV-ARICA','uki:serena':'QA-REV-SERENA','romo:serena':'QA-REV-ROMO'});
 module.exports=async(req,res)=>{
  res.setHeader('Cache-Control','private,no-store,max-age=0');
  res.setHeader('Referrer-Policy','no-referrer');
@@ -62,6 +64,9 @@ module.exports=async(req,res)=>{
   }
   const order=await S.loadOne(db,storeId,id);
   if(!order||!['pendiente','aceptada'].includes(order.estado))return fail(res,404,'Pedido no disponible en esta sucursal');
+  const simulacion=revision&&!cfg.live&&!!cfg.revisionOrigin&&
+   String(req.headers.host||'').toLowerCase()===new URL(cfg.revisionOrigin).hostname&&
+   order.codigo===REVISION_CODES[storeId];
   if(req.method==='POST'&&order.estado!=='aceptada')
    return fail(res,409,'La solicitud sigue pendiente: primero acepta el pedido y valida su importe');
   if(req.method==='POST'){
@@ -96,7 +101,21 @@ module.exports=async(req,res)=>{
      montoOtroLocal:req.body.montoOtroLocal??0,propinaTransferencia:req.body.propinaTransferencia??0});
     return res.status(200).json(result);
    }
+   if(action==='simular_transferencia'){
+    if(!simulacion)return fail(res,403,'Simulación sólo disponible para el pedido ficticio de revisión');
+    if(Object.keys(req.body).sort().join('|')!=='action|confirmoSimulacion|id|montoRecibido|storeId'||
+       req.body.confirmoSimulacion!==true||!Number.isSafeInteger(req.body.montoRecibido)||
+       req.body.montoRecibido!==order.montoTransferencia||order.montoTransferencia<=0)
+     return fail(res,400,'Revisa el importe ficticio');
+    // Reutiliza la validación y persistencia reales del módulo, únicamente en QA.
+    // Identifica el registro en auditoría como SIMULADO; no consulta una cuenta real.
+    const result=await S.staffConfirm({db,order,staff:{...actor,userId:'QA_SIMULACION:'+actor.userId},
+     bank:{storeId,verified:true},receivedAmount:req.body.montoRecibido,seenBankCredit:true});
+    return res.status(200).json({ok:true,storeId,estadoPago:result.status,simulado:true,
+     nota:'Simulación aislada, sin abono bancario ni movimiento de caja'});
+   }
    if(action==='confirmar_transferencia'){
+    if(revision)return fail(res,409,'En revisión aislada utiliza exclusivamente la simulación de transferencia');
     if(Object.keys(req.body).sort().join('|')!=='action|id|montoRecibido|storeId|verificadoEnBanco')
      return fail(res,400,'Datos bancarios incompletos');
     const result=await S.staffConfirm({db,order,staff:actor,bank:cfg.banks[storeId],
@@ -114,7 +133,9 @@ module.exports=async(req,res)=>{
   }
   const details=await S.snapshot({db,order,bank:cfg.banks[storeId],chatSecret:cfg.chatSecret});
   return res.status(200).json({ok:true,storeId,orderId:id,totalPedido:order.total,pedido:details,
-   puedeConfirmar:order.estado==='aceptada'&&details.estadoPago!=='requiere_revision'&&
+   ...(revision?{revisionAislada:true,puedeSimular:simulacion&&order.estado==='aceptada'&&
+    ['pendiente','avisada'].includes(details.estadoPago)&&details.montoTransferencia>0}:{}),
+   puedeConfirmar:!revision&&order.estado==='aceptada'&&details.estadoPago!=='requiere_revision'&&
     details.montoTransferencia>0&&!!cfg.banks[storeId]});
  }catch(error){
   const c=[400,403,404,409,429].includes(error?.code)?error.code:503;

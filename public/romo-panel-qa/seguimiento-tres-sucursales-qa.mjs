@@ -271,7 +271,7 @@ async function loadList(){
   for(const entry of sorted){
    const item=line((entry.codigoPedido||'Pedido')+' · '+(entry.cliente||'Cliente'),
     entry.montoTransferencia>0?'Transferencia '+pesos(entry.montoTransferencia)+' · '+
-     (entry.estadoPago==='confirmada'?'Verificada':entry.estadoPago==='avisada'?
+     (entry.estadoPago==='confirmada'?(inReview()?'Simulación registrada':'Verificada'):entry.estadoPago==='avisada'?
       'El cliente avisó; falta verificar':entry.estadoPago==='requiere_revision'?'Requiere revisión':'Pendiente'):
      entry.pagoDeclarado==='transferencia'?'Cliente seleccionó transferencia · monto por verificar':
      'Sin transferencia pendiente registrada');
@@ -298,7 +298,8 @@ async function loadDetail(id,target=activeDetail,refresh=false){
  try{
   const data=await query('GET',{},id);if(!isActive(target,id,shop))return;
   if(refresh&&(target.querySelector('textarea')?.value||target.contains(document.activeElement)))return;
-  const p=data.pedido,signature=JSON.stringify([p,data.puedeConfirmar]);
+  const p=data.pedido,revisionAislada=inReview()&&data.revisionAislada===true;
+  const signature=JSON.stringify([p,data.puedeConfirmar,data.puedeSimular,revisionAislada]);
   if(refresh&&signature===lastDetailSignature)return;
   lastDetailSignature=signature;
   target.replaceChildren(text('h3','Pedido '+(p.codigoPedido||'')),text('p',p.descripcionPedido||p.estadoPedido));
@@ -312,8 +313,23 @@ async function loadDetail(id,target=activeDetail,refresh=false){
   const payment=section('Transferencia');
   if(Number.isSafeInteger(p.montoTransferencia)&&p.montoTransferencia>0){
    payment.append(text('p','Monto de transferencia: '+pesos(p.montoTransferencia)));
-   payment.append(text('p',p.descripcionPago||'Transferencia por revisar'));
-   if(data.puedeConfirmar&&p.estadoPago!=='confirmada'&&p.estadoPago!=='requiere_revision'){
+   payment.append(text('p',revisionAislada&&p.estadoPago==='confirmada'?
+    'Simulación registrada · sin abono ni cobro real':p.descripcionPago||'Transferencia por revisar'));
+   if(revisionAislada&&data.puedeSimular===true){
+    const simular=btn('Simular confirmación · '+pesos(p.montoTransferencia),async()=>{
+     if(!inReview()||!isActive(target,id,shop)||actionBusy||loadingDetail)return;
+     if(!window.confirm('PRUEBA FICTICIA. ¿Simular la confirmación de '+pesos(p.montoTransferencia)+'? No es un abono bancario real.'))return;
+     simular.disabled=true;actionBusy=true;
+     try{
+      const saved=await doAction('simular_transferencia',id,{montoRecibido:p.montoTransferencia,confirmoSimulacion:true});
+      if(saved.simulado!==true||saved.estadoPago!=='confirmada')throw Error('No se confirmó la simulación.');
+      if(isActive(target,id,shop))tell('Simulación registrada. No se modificaron ventas ni caja.',target);
+     }catch(e){if(isActive(target,id,shop))tell(e.message,target);}
+     finally{simular.disabled=false;actionBusy=false;
+      if(isActive(target,id,shop)){await loadDetail(id,target);void loadList();}}
+    });
+    payment.append(text('p','Sólo prueba del pedido ficticio; no necesitas hacer ni verificar una transferencia real.'),simular);
+   }else if(data.puedeConfirmar&&p.estadoPago!=='confirmada'&&p.estadoPago!=='requiere_revision'){
     // Un solo toque DESPUÉS de mirar el abono real en el banco.
     // El importe proviene del servidor, nunca se permite escribir otro valor.
     const button=btn('Confirmar: vi '+pesos(p.montoTransferencia)+' abonados',async()=>{
