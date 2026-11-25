@@ -16,7 +16,7 @@ const TRACKING_PAYMENT_PREVIEW_QA=location.protocol==='https:'&&
 // Autorización de la versión candidata: únicamente el panel comercial Romo.
 // No habilita guardado conjunto QA ni reemplaza las operaciones de caja.
 if(location.protocol==='https:'&&location.hostname==='romos-sushi-panel.vercel.app'){
- window.ROMO_SEGUIMIENTO_RELEASE_AUTORIZADO=true;
+ window.ROMO_SEGUIMIENTO_RELEASE_AUTORIZADO=false;
 }
 const TRACKING_PAYMENT_ROMO_LIVE=location.protocol==='https:'&&
  location.hostname==='romos-sushi-panel.vercel.app'&&
@@ -78,7 +78,7 @@ function paintBadges(orders,shop){
 }
 function visibility(){
  if(!root||!dialog)return;
- root.hidden=!store();
+ root.hidden=!store()||window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true;
  if(root.hidden){dialog.open=false;hideActive();}
  else if(activeStore&&activeStore!==store())hideActive();
 }
