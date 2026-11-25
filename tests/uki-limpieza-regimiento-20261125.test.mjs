@@ -68,6 +68,44 @@ test('El diagnóstico diferencia un aviso de timbre de una marca de pago, sin re
  assert.throws(()=>retirar(s),/655: timbre marcado como enviado/);
  assert.deepEqual(s,original);
 });
+function pruebaConTimbre(p){
+ p.timbreEnviadoEn=stamp;
+ p.correccionesTurno=[
+  {antes:{pagado:true},despues:{pagado:false},saldoPendiente:p.total,conciliacionQRManual:false,cobroRecibidoQR:null},
+  {accion:'pago_erroneo_no_cobrado',importe:p.total,recibidoRegistrado:{Efectivo:p.total},saldoPendiente:0,
+   fechaISO:stamp,responsable:'Operadora de QA',antes:{pagado:false,estado:'Pendiente'},despues:{pagado:false,estado:'Cancelado'}}
+ ];
+}
+test('Los seis timbres de prueba no bloquean si quedó registrado que nadie recibió dinero',()=>{
+ const s=estado(),ids=[655,656,659,660,662,663];
+ s.pedidos.filter(p=>ids.includes(p.id)).forEach(pruebaConTimbre);
+ const original=clone(s);
+ assert.deepEqual(diagnosticarRetiroRegimiento(s),[]);
+ const {estado:resultado}=retirar(s,remoto(s));
+ assert.deepEqual(s,original);
+ assert.deepEqual(resultado.pedidos,[s.pedidos.at(-1)]);
+ const constancias=resultado.pedidosPruebaRetirados.filter(p=>p.aclaracionSinCobro);
+ assert.deepEqual(constancias.map(p=>p.id),ids);
+ assert.ok(constancias.every(p=>p.aclaracionSinCobro.accion==='pago_erroneo_no_cobrado'&&p.aclaracionSinCobro.importeMarcadoPorError===9000));
+ const seguimiento=remoto(s);seguimiento[0].pagoRegistrado=true;
+ assert.throws(()=>retirar(s,seguimiento),/La carta no confirma/);
+});
+test('No se omiten devoluciones, dinero recibido, cambios sin aclarar ni otros pedidos con timbre',()=>{
+ for(const cambiar of [
+  p=>{p.correccionesTurno.pop();},
+  p=>{p.correccionesTurno[1].accion='devolucion_cancelacion_confirmada';},
+  p=>{p.correccionesTurno[0].accion='diferencia_regularizada';},
+  p=>{p.correccionesTurno[1].saldoPendiente=100;},
+  p=>{p.correccionesTurno[0].cobroRecibidoQR={medio:'Efectivo',monto:9000};},
+  p=>{p.correccionesTurno[1].recibidoRegistrado.Efectivo=0;},
+  p=>{p.pagoConfirmadoEn=stamp;}
+ ]){
+  const s=estado();pruebaConTimbre(s.pedidos[0]);cambiar(s.pedidos[0]);
+  assert.throws(()=>retirar(s),/Pedido 655/);
+ }
+ const s=estado();pruebaConTimbre(s.pedidos[2]);
+ assert.throws(()=>retirar(s),/Pedido 657/);
+});
 test('La revisión 1740 no se confunde con un cambio si la nube solo reordenó claves',()=>{
  const local={...estado(),borradores:[],solicitudesWhatsApp:[],incidencias:[],deliveriesManuales:[],ajustesHistoricos:[],
   propinas:[{suc:SUCURSAL,pedidoId:664,monto:1200}],

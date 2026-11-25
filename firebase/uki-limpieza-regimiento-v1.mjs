@@ -1,6 +1,8 @@
 export const SUCURSAL='Uki Regimiento Arica';
 export const PEDIDOS=Object.freeze([655,656,657,658,659,660,661,662,663]);
 const FOLIOS_CAPTURA=Object.freeze(['413','977','980','156']);
+// Estos son los únicos seis envíos de prueba señalados en el diagnóstico de Regimiento.
+const TIMBRES_PRUEBA=new Set([655,656,659,660,662,663]);
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const estr=x=>String(x??'').trim();
 const exigir=(ok,msg)=>{if(!ok)throw Error(msg);};
@@ -12,16 +14,36 @@ export function mismaHuellaRegimiento(local,nube){
   Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
  return local===nube||ordenar(local)===ordenar(nube);
 }
-function bloqueosRetiro(p){
+function bloqueosRetiro(p,aclaracion=aclaracionPruebaSinCobro(p)){
  return [
   [p.esPremio,'pedido marcado como premio'],[p.qrSolicitudes?.length,'vínculo con mesa QR'],
-  [p.timbreEnviadoEn,'timbre marcado como enviado'],[p.ajusteCobroPendiente,'registro de ajuste de cobro'],
-  [p.correccionesTurno?.length,'corrección registrada en el turno'],[p.correccionesHistoricas?.length,'corrección histórica'],
+  [p.timbreEnviadoEn&&!aclaracion,'timbre marcado como enviado'],[p.ajusteCobroPendiente,'registro de ajuste de cobro'],
+  [p.correccionesTurno?.length&&!aclaracion,'corrección de turno sin una aclaración verificable de que no se recibió dinero'],[p.correccionesHistoricas?.length,'corrección histórica'],
   [Number(p.propina||0),'propina registrada'],[p.pagosProductos?.length,'desglose de medios para productos'],
   [p.pagosEnvio?.length,'desglose de medios para delivery'],[p.productosPagadosOtroLocal,'productos marcados como pagados en otro local'],
   [p.envioPagadoOtroLocal,'delivery marcado como pagado en otro local'],[p.transferenciaManualQA,'registro de revisión de transferencia'],
   [p.cobroConfirmadoEn,'marca de cobro confirmado'],[p.pagoConfirmadoEn,'marca de pago confirmado']
  ].filter(([activo])=>activo).map(([,texto])=>texto);
+}
+function aclaracionPruebaSinCobro(p){
+ const cambios=p.correccionesTurno;
+ if(!TIMBRES_PRUEBA.has(Number(p.id))||p.suc!==SUCURSAL||p.pagado!==false||p.estado!=='Cancelado'||
+    !Number.isFinite(Date.parse(p.timbreEnviadoEn))||!Array.isArray(cambios)||!cambios.length)return null;
+ // Una devolución, cobro adicional o conciliación QR no es equivalente a «nunca se recibió».
+ const ultimo=cambios.at(-1);
+ if(ultimo?.accion!=='pago_erroneo_no_cobrado'||ultimo.saldoPendiente!==0||
+    ultimo.antes?.pagado!==false||ultimo.despues?.pagado!==false||ultimo.despues?.estado!=='Cancelado'||
+    !Number.isSafeInteger(ultimo.importe)||ultimo.importe<=0||!estr(ultimo.responsable)||
+    !Number.isFinite(Date.parse(ultimo.fechaISO))||ultimo.conciliacionQRManual||ultimo.cobroRecibidoQR)return null;
+ const recibido=ultimo.recibidoRegistrado;
+ if(!recibido||typeof recibido!=='object'||Array.isArray(recibido)||
+    Object.values(recibido).some(n=>!Number.isSafeInteger(n)||n<0)||
+    Object.values(recibido).reduce((a,b)=>a+b,0)!==ultimo.importe)return null;
+ if(!cambios.slice(0,-1).every(c=>c?.antes&&c?.despues&&!c.accion&&!c.conciliacionQRManual&&!c.cobroRecibidoQR&&
+    !c.recibidoRegistrado&&(c.saldoPendiente===0||
+     (c.antes.pagado===true&&c.despues.pagado===false&&c.saldoPendiente===ultimo.importe))))return null;
+ return {timbrePruebaMarcadoEn:p.timbreEnviadoEn,aclaradoEn:ultimo.fechaISO,aclaradoPor:estr(ultimo.responsable),
+  importeMarcadoPorError:ultimo.importe,accion:ultimo.accion};
 }
 export function diagnosticarRetiroRegimiento(estado,revisarCierre=()=>false){
  exigir(estado?.suc===SUCURSAL&&Array.isArray(estado.pedidos),'Primero carga la nube de Regimiento.');
@@ -63,11 +85,12 @@ export function planRegimiento(estado,revisarCierre=()=>false){
    'No se pudo comprobar la identidad del pedido '+n+'.');
   exigir(p.pagado===false&&p.estado==='Cancelado'&&Number.isFinite(Date.parse(p.canceladoEn)),
    'El pedido '+n+' no figura como cancelado sin pago.');
-  const bloqueos=bloqueosRetiro(p);
+  const aclaracion=aclaracionPruebaSinCobro(p),bloqueos=bloqueosRetiro(p,aclaracion);
   exigir(!bloqueos.length,'No se retiró ningún pedido. Pedido '+n+': '+bloqueos.join(', ')+'.');
   exigir(revisarCierre(p)===false,'El pedido '+n+' está asociado a un cierre.');
   return {id:n,suc:SUCURSAL,codigoCarta:codigo,cartaSolicitudRemotaId:p.cartaSolicitudRemotaId,
-   numeroTurno:p.numeroTurno,turnoClave:p.turnoClave,registradoEn:p.registradoEn,fechaISO:p.fechaISO,total};
+   numeroTurno:p.numeroTurno,turnoClave:p.turnoClave,registradoEn:p.registradoEn,fechaISO:p.fechaISO,total,
+   ...(aclaracion?{aclaracionSinCobro:aclaracion}:{})};
  }).sort((a,b)=>a.id-b.id);
  return {filas,hecho:false};
 }

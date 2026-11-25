@@ -6738,7 +6738,7 @@ window.ukiArchivoComprobarNube=async(sucursal)=>{
 if(UKI_OPERACION_HABILITADA&&new URLSearchParams(location.search).get('limpieza-pruebas')==='regimiento'){
  const root=el('ukiLimpiezaPruebasReg'), form=el('ukiLimpiezaPruebasRegForm');
  const info=el('ukiLimpiezaPruebasRegEstado'),input=el('ukiLimpiezaPruebasRegPin'),boton=el('ukiLimpiezaPruebasRegBoton');
- const ver=el('ukiRevisarPruebasReg'), cargarModulo=()=>import('./uki-limpieza-regimiento-v1.mjs?v=diagnostico-20261125');
+ const ver=el('ukiRevisarPruebasReg'), cargarModulo=()=>import('./uki-limpieza-regimiento-v1.mjs?v=timbres-prueba-20261125');
  root.before(el('ukiNubeSeccion'));
  el('ukiLoadQA').classList.add('big');
  root.hidden=false;
