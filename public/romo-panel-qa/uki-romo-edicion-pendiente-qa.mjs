@@ -29,7 +29,7 @@ function noCobros(o){
 export function prepararEdicionPendienteRomoQA({
  estado,pedidoId,draft,responsable,foto,turnoCerrado=false,
  registradoEn=Date.now(),ahoraISO=new Date().toISOString(),
- codigoWhatsApp=()=>'',referenciaVisible=()=>true
+ codigoWhatsApp=()=>'',referenciaVisible=()=>true,permitirSinCambios=false,permitirEntregado=false
 }={}){
  required(estado?.suc===SUC&&Array.isArray(estado.pedidos),'Copia de Romo requerida');
  required(int(pedidoId)&&pedidoId>0&&draft&&typeof draft==='object',
@@ -38,12 +38,13 @@ export function prepararEdicionPendienteRomoQA({
  const matches=estado.pedidos.filter(p=>p?.suc===SUC&&p.id===pedidoId);
  required(matches.length===1,'El pedido se modificó o ya no existe en Romo');
  const previo=matches[0];
- required(!turnoCerrado&&previo.estado==='Pendiente'&&noCobros(previo),
+ required(!turnoCerrado&&(previo.estado==='Pendiente'||permitirEntregado===true&&previo.estado==='Entregado')&&noCobros(previo),
    'Esta edición no puede modificar pedidos pagados, entregados o de turnos cerrados');
  required(!Array.isArray(previo.qrSolicitudes)||previo.qrSolicitudes.length===0,
    'Las cuentas QR se editan mediante el procedimiento de mesas');
- required(draft.editando===pedidoId&&!draft.cartaSolicitudRemotaId&&
-   !draft.cartaReservaToken&&
+ required(draft.editando===pedidoId&&
+   (!draft.cartaSolicitudRemotaId||String(draft.cartaSolicitudRemotaId)===String(previo.cartaSolicitudRemotaId||''))&&
+   (!draft.cartaReservaToken||String(draft.cartaReservaToken)===String(previo.cartaReservaToken||''))&&
    (!Array.isArray(draft.qrSolicitudes)||draft.qrSolicitudes.length===0),
    'La edición está vinculada a otra solicitud o mesa QR');
  required(noCobros(draft)&&!draft.mixtoProductos&&!draft.mixtoEnvio&&
@@ -84,7 +85,10 @@ export function prepararEdicionPendienteRomoQA({
     !BAD.test(nombre)&&int(cantidad)&&cantidad>0&&cantidad<=100&&
     int(unitario)&&unitario>=1&&unitario<=1000000&&detalle.length<=900,
     'Revisa cantidades, importes y armado de cada producto');
-  return {nombre,cantidad,precioUnit:unitario,detalle};
+  return {nombre,cantidad,precioUnit:unitario,detalle,
+   ...(typeof p.skuCarta==='string'&&p.skuCarta.length<=150?{skuCarta:p.skuCarta}:{}),
+   ...(int(p.piezasUnidad)&&p.piezasUnidad>0?{piezasUnidad:p.piezasUnidad}:{}),
+   ...(int(p.rollsUnidad)&&p.rollsUnidad>0?{rollsUnidad:p.rollsUnidad}:{})};
  });
  const subtotal=productos.reduce((a,p)=>a+p.cantidad*p.precioUnit,0);
  const total=subtotal+envio;
@@ -102,8 +106,10 @@ export function prepararEdicionPendienteRomoQA({
    // Las ventas, estados y pagos del pedido original permanecen intactos.
  };
  const antes=foto(previo),despues=foto(nuevo);
- required(JSON.stringify(antes)!==JSON.stringify(despues),
-   'No hay cambios para guardar');
+ if(JSON.stringify(antes)===JSON.stringify(despues)){
+  required(permitirSinCambios===true,'No hay cambios para guardar');
+  return Object.freeze({pedidoId,estado:estado.suc,autor,subtotal,total,sinCobro:true,sinCambios:true,antes,despues});
+ }
  nuevo.correccionesTurno=[
    ...(Array.isArray(previo.correccionesTurno)?previo.correccionesTurno:[]),
    {tipo:'edicion_pedido_sin_pago',fechaISO:ahoraISO,
