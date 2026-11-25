@@ -4867,6 +4867,13 @@ function seguimientoPropinaTransferenciaQA(order,subtotal){
     aviso('El monto de la transferencia o el total del pedido no coincide con lo verificado. No se guardó el cobro.');
     return false;
    }
+   // La prueba local sirve sólo para reconocer una revisión previa en la interfaz.
+   // El permiso de cobro de una carta sigue dependiendo del servidor.
+   if(requiresTransfer&&importes&&revisionBancoMarcada){
+    const firma=ukiSeguimientoFirmaManualQA(p,importes,id);
+    if(firma&&!ukiSeguimientoManualValidaQA(p,importes,id))
+     p.transferenciaManualQA={firma,por:String(ukiTimbreResponsableActual()).trim(),en:new Date().toISOString()};
+   }
    return true;
   }catch{
    aviso('No se pudo consultar la verificación bancaria. El pedido sigue pendiente; no intentes cobrar nuevamente.');
@@ -5912,7 +5919,7 @@ function ukiRomoCamposCobroQA(p){
  };
  const propinas=['Efectivo','Transferencia','Débito','Edenred','Otros'];
  const decimo=Math.round(sub*0.1);
- return '<details class="card" style="border-color:#a91936" ontoggle="if(this.open)ukiRomoActualizarTimbreCobroQA('+id+')" onchange="ukiRomoActualizarTimbreCobroQA('+id+')" oninput="ukiRomoActualizarTimbreCobroQA('+id+')"><summary><b>💳 3 · Pago del pedido · Romo</b></summary>'+
+ return '<details class="card" style="border-color:#a91936" ontoggle="if(this.open)ukiRomoActualizarTimbreCobroQA('+id+')" onchange="ukiRomoActualizarTimbreCobroQA('+id+')" oninput="if(event.target.id!==\'romoBancoCheck'+id+'\')ukiRomoActualizarTimbreCobroQA('+id+')"><summary><b>💳 3 · Pago del pedido · Romo</b></summary>'+
   '<p class="muted">Igual que Uki: confirma SOLO el dinero que ya fue recibido. No cobrar ni registrar transferencias de prueba.</p>'+
   '<div class="card"><h3>Cobro por confirmar en Romo</h3>'+
   '<p>Productos '+fmt(sub)+' · Delivery '+fmt(env)+' · Total sin propina '+fmt(sub+env)+'</p>'+
