@@ -9,7 +9,7 @@ const idOf=p=>String(p?.id??'');
 const refOf=p=>String(p?.cartaSolicitudRemotaId||p?.seguimientoSolicitudId||'');
 const fields=['medio','medioEnvio','pagosProductos','pagosEnvio','mixtoProductos','mixtoEnvio',
  'productosPagadosOtroLocal','envioPagadoOtroLocal','montoProductosOtroLocal','montoEnvioOtroLocal',
- 'subtotal','envio','total','modalidad','propina','propinaModo','propinaPersonalizada','medioPropina','cliente','telefono'];
+ 'subtotal','envio','total','modalidad','propina','propinaModo','medioPropina','cliente','telefono'];
 const firma=p=>JSON.stringify(fields.map(k=>p?.[k]??null));
 const fail=message=>{throw Object.assign(Error(message),{code:'TRANSFERENCIA_PENDIENTE'});};
 function index(estado,suc){
