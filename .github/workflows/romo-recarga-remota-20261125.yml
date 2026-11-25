@@ -13,4 +13,10 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+          fetch-depth: 0
+      - name: Comparar regresiones históricas con producción anterior
+        run: |
+          git worktree add --detach /tmp/romo-base 3afcf059cd291c8b8a495277e6962d2dee553371
+          cd /tmp/romo-base
+          node --test tests/romo-caja-movimientos-paridad.test.mjs tests/romo-pedidos-busqueda-paridad.test.mjs || true
       - run: node --test tests/romo-recarga-remota-20261125.test.mjs tests/romo-sesion-estado-confirmado-qa.test.mjs tests/romo-edicion-unica-qa.test.cjs tests/romo-caja-movimientos-paridad.test.mjs tests/romo-cierre-pedidos-previos-qa.test.mjs tests/romo-finanzas-cierres-sin-duplicar-qa.test.mjs tests/romo-paridad-cobros-qa.test.mjs tests/romo-pedidos-busqueda-paridad.test.mjs tests/seguimiento-romo-operativo-v1.test.cjs
