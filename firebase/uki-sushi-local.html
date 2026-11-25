@@ -290,7 +290,8 @@ color:#955115;box-shadow:0 2px 10px rgba(0,0,0,.12);font-weight:800;font-size:19
   <input id="ukiLimpiezaPruebasRegPin" type="password" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" required autocomplete="off">
   <button id="ukiLimpiezaPruebasRegBoton" class="big" type="submit">Retirar los nueve pedidos de prueba</button>
  </form>
- <p id="ukiLimpiezaPruebasRegEstado" role="status" aria-live="polite"></p>
+ <button id="ukiRevisarPruebasReg" class="big" type="button" hidden>Ver qué bloquea la limpieza</button>
+ <div id="ukiLimpiezaPruebasRegEstado" style="margin:12px 0" role="status" aria-live="polite"></div>
 </section>
 <section id="ukiNubeSeccion" style="margin:12px;padding:14px;background:#fff0dd;border:2px solid #b55e25;border-radius:14px">
 <b>PANEL INTERNO DE UKI SUSHI · DOS SUCURSALES</b>
@@ -6693,6 +6694,7 @@ function actualizarPresentacionNube(){
  if(!el('ukiLimpiezaPruebasReg').hidden){
   const lista=window.ukiQAGet?.()?.suc==='Uki Regimiento Arica'&&window.ukiCancelacionNubeLista?.()===true;
   el('ukiLimpiezaPruebasRegForm').hidden=!lista;
+  el('ukiRevisarPruebasReg').hidden=!lista;
   el('ukiLimpiezaPruebasRegGuia').hidden=lista;
  }
  if(!conexionActiva)nubeConfigAbiertaPorUsuario=false;
@@ -6736,14 +6738,33 @@ window.ukiArchivoComprobarNube=async(sucursal)=>{
 if(UKI_OPERACION_HABILITADA&&new URLSearchParams(location.search).get('limpieza-pruebas')==='regimiento'){
  const root=el('ukiLimpiezaPruebasReg'), form=el('ukiLimpiezaPruebasRegForm');
  const info=el('ukiLimpiezaPruebasRegEstado'),input=el('ukiLimpiezaPruebasRegPin'),boton=el('ukiLimpiezaPruebasRegBoton');
+ const ver=el('ukiRevisarPruebasReg'), cargarModulo=()=>import('./uki-limpieza-regimiento-v1.mjs?v=diagnostico-20261125');
  root.before(el('ukiNubeSeccion'));
  el('ukiLoadQA').classList.add('big');
  root.hidden=false;
  actualizarPresentacionNube();
+ ver.addEventListener('click',async()=>{
+  if(ocupado||ver.disabled||!window.ukiCancelacionNubeLista?.())return;
+  ver.disabled=true;
+  try{
+   const mod=await cargarModulo(),local=window.ukiQAGet?.();
+   if(local?.suc!=='Uki Regimiento Arica'||!window.ukiCancelacionNubeLista?.())
+    throw Error('Primero carga la nube de Regimiento.');
+   const detalles=mod.diagnosticarRetiroRegimiento(local.estado,p=>!!ukiCierreConfirmadoPedido(p));
+   info.replaceChildren(document.createTextNode(detalles.length?'El panel detectó lo siguiente. No se cambió ningún pedido.':
+    'No se detectaron estas marcas en la copia sincronizada. No se cambió ningún pedido.'));
+   if(detalles.length){
+    const lista=document.createElement('ul');
+    for(const detalle of detalles){const item=document.createElement('li');item.textContent=detalle;lista.append(item);}
+    info.append(lista);
+   }
+  }catch(e){info.textContent=String(e?.message||'No se pudo leer el diagnóstico.');}
+  finally{ver.disabled=false;}
+ });
  form.addEventListener('submit',ev=>{
   ev.preventDefault();
   if(ocupado||recargaRemotaEnCurso||boton.disabled)return;
-  const pin=input.value;input.value='';boton.disabled=true;
+  const pin=input.value;input.value='';boton.disabled=true;ver.disabled=true;
   void accion(async()=>{
    const origen='Uki Regimiento Arica';
    let abandonado=false;
@@ -6766,7 +6787,7 @@ if(UKI_OPERACION_HABILITADA&&new URLSearchParams(location.search).get('limpieza-
     const sesion=await respuesta.json().catch(()=>null);
     if(!respuesta.ok||sesion?.ok!==true||!(/^[a-f0-9]{64}$/i).test(sesion.sesion||''))
      throw Error('No se confirmó el PIN de dueños.');
-    const mod=await import('./uki-limpieza-regimiento-v1.mjs?v=huella-regimiento-20261125');
+    const mod=await cargarModulo();
     const clave=contexto().clave;
     info.textContent='Comparando la copia de Regimiento con la nube. Aún no se han retirado pedidos.';
     const actual=await cloud.cargar(origen,clave);
@@ -6824,7 +6845,7 @@ if(UKI_OPERACION_HABILITADA&&new URLSearchParams(location.search).get('limpieza-
     info.textContent=String(e?.message||'No se confirmó la limpieza.')+
      (abandonado?' Pulsa Cargar nube antes de intentar de nuevo.':'');
     if(abandonado)actualizarBloqueo();
-   }finally{boton.disabled=false;}
+   }finally{boton.disabled=false;ver.disabled=false;}
   });
  });
 }

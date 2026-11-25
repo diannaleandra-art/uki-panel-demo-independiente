@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
-import {planRegimiento,prepararRetiroRegimiento,mismaHuellaRegimiento,SUCURSAL,PEDIDOS} from '../firebase/uki-limpieza-regimiento-v1.mjs';
+import {planRegimiento,prepararRetiroRegimiento,mismaHuellaRegimiento,diagnosticarRetiroRegimiento,SUCURSAL,PEDIDOS} from '../firebase/uki-limpieza-regimiento-v1.mjs';
 import {dividirEstado,reunirEstado} from '../firebase/uki-particion-local.js';
 import {huellaOperativa} from '../firebase/uki-sushi-autoguardado.js';
 
@@ -56,6 +56,18 @@ test('La carta también debe confirmar cancelación sin pago ni abono',()=>{
   assert.throws(()=>retirar(estado(),r),/La carta no confirma/);
  }
 });
+test('El diagnóstico diferencia un aviso de timbre de una marca de pago, sin retirar pedidos',()=>{
+ const s=estado();
+ s.pedidos[0].timbreEnviadoEn=stamp;
+ s.pedidos[1].pagoConfirmadoEn=stamp;
+ s.pedidos[2].ajusteCobroPendiente={estado:'pendiente'};
+ const original=clone(s);
+ assert.deepEqual(diagnosticarRetiroRegimiento(s,p=>p.id===658),[
+  'Pedido 655: timbre marcado como enviado','Pedido 656: marca de pago confirmado',
+  'Pedido 657: registro de ajuste de cobro','Pedido 658: asociado a un cierre']);
+ assert.throws(()=>retirar(s),/655: timbre marcado como enviado/);
+ assert.deepEqual(s,original);
+});
 test('La revisión 1740 no se confunde con un cambio si la nube solo reordenó claves',()=>{
  const local={...estado(),borradores:[],solicitudesWhatsApp:[],incidencias:[],deliveriesManuales:[],ajustesHistoricos:[],
   propinas:[{suc:SUCURSAL,pedidoId:664,monto:1200}],
@@ -80,6 +92,9 @@ test('La ruta pide el PIN de dueños y solo escribe después de validar la copia
  assert.ok(route.indexOf('actual.revision!==base.revision||!vigente()')<route.indexOf('mismaHuellaRegimiento'));
  assert.ok(route.indexOf('mismaHuellaRegimiento')<route.indexOf('cloud.guardar'));
  assert.match(route,/revisionEsperada:actual.revision/);
+ const diagnostico=route.slice(route.indexOf("ver.addEventListener('click'"),route.indexOf("form.addEventListener('submit'"));
+ assert.match(diagnostico,/diagnosticarRetiroRegimiento/);
+ assert.doesNotMatch(diagnostico,/cloud\.guardar|ukiQASet|fetch\(/);
  assert.match(html,/pedidosSuc\(\),\.\.\.retirados/);
  const carta=readFileSync(new URL('../firebase/uki-carta-remotas-panel.js',import.meta.url),'utf8');
  assert.match(carta,/ukiSolicitudPruebaRetirada\?\.\(r.id,r.codigo_pedido\)/);

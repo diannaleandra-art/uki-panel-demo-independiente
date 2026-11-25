@@ -12,6 +12,29 @@ export function mismaHuellaRegimiento(local,nube){
   Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
  return local===nube||ordenar(local)===ordenar(nube);
 }
+function bloqueosRetiro(p){
+ return [
+  [p.esPremio,'pedido marcado como premio'],[p.qrSolicitudes?.length,'vínculo con mesa QR'],
+  [p.timbreEnviadoEn,'timbre marcado como enviado'],[p.ajusteCobroPendiente,'registro de ajuste de cobro'],
+  [p.correccionesTurno?.length,'corrección registrada en el turno'],[p.correccionesHistoricas?.length,'corrección histórica'],
+  [Number(p.propina||0),'propina registrada'],[p.pagosProductos?.length,'desglose de medios para productos'],
+  [p.pagosEnvio?.length,'desglose de medios para delivery'],[p.productosPagadosOtroLocal,'productos marcados como pagados en otro local'],
+  [p.envioPagadoOtroLocal,'delivery marcado como pagado en otro local'],[p.transferenciaManualQA,'registro de revisión de transferencia'],
+  [p.cobroConfirmadoEn,'marca de cobro confirmado'],[p.pagoConfirmadoEn,'marca de pago confirmado']
+ ].filter(([activo])=>activo).map(([,texto])=>texto);
+}
+export function diagnosticarRetiroRegimiento(estado,revisarCierre=()=>false){
+ exigir(estado?.suc===SUCURSAL&&Array.isArray(estado.pedidos),'Primero carga la nube de Regimiento.');
+ return PEDIDOS.flatMap(id=>{
+  const filas=estado.pedidos.filter(p=>p?.suc===SUCURSAL&&Number(p.id)===id);
+  if(filas.length!==1)return [`Pedido ${id}: ${filas.length?'duplicado':'no está en esta copia'}`];
+  const p=filas[0],motivos=bloqueosRetiro(p);
+  if(p.estado!=='Cancelado')motivos.unshift('no figura como cancelado');
+  if(p.pagado!==false)motivos.unshift('no figura como impago');
+  if(revisarCierre(p)!==false)motivos.push('asociado a un cierre');
+  return motivos.length?[`Pedido ${id}: ${motivos.join(', ')}`]:[];
+ });
+}
 export function planRegimiento(estado,revisarCierre=()=>false){
  exigir(estado?.suc===SUCURSAL&&Array.isArray(estado.pedidos)&&Number.isSafeInteger(estado.nextId)&&estado.nextId>663,'No es el respaldo sincronizado de Regimiento.');
  const marcas=estado.pedidosPruebaRetirados||[];
@@ -40,11 +63,8 @@ export function planRegimiento(estado,revisarCierre=()=>false){
    'No se pudo comprobar la identidad del pedido '+n+'.');
   exigir(p.pagado===false&&p.estado==='Cancelado'&&Number.isFinite(Date.parse(p.canceladoEn)),
    'El pedido '+n+' no figura como cancelado sin pago.');
-  exigir(!p.esPremio&&!p.qrSolicitudes?.length&&!p.timbreEnviadoEn&&!p.ajusteCobroPendiente&&
-   !p.correccionesTurno?.length&&!p.correccionesHistoricas?.length&&!Number(p.propina||0)&&
-   !p.pagosProductos?.length&&!p.pagosEnvio?.length&&!p.productosPagadosOtroLocal&&!p.envioPagadoOtroLocal&&
-   !p.transferenciaManualQA&&!p.cobroConfirmadoEn&&!p.pagoConfirmadoEn,
-   'El pedido '+n+' tiene un pago, corrección o vínculo que debe revisarse.');
+  const bloqueos=bloqueosRetiro(p);
+  exigir(!bloqueos.length,'No se retiró ningún pedido. Pedido '+n+': '+bloqueos.join(', ')+'.');
   exigir(revisarCierre(p)===false,'El pedido '+n+' está asociado a un cierre.');
   return {id:n,suc:SUCURSAL,codigoCarta:codigo,cartaSolicitudRemotaId:p.cartaSolicitudRemotaId,
    numeroTurno:p.numeroTurno,turnoClave:p.turnoClave,registradoEn:p.registradoEn,fechaISO:p.fechaISO,total};
