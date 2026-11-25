@@ -14,9 +14,34 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - name: Comparar regresiones históricas con producción anterior
+      - name: Comparación reproducible con producción y pruebas actuales
         run: |
           git worktree add --detach /tmp/romo-base 3afcf059cd291c8b8a495277e6962d2dee553371
-          cd /tmp/romo-base
-          node --test tests/romo-caja-movimientos-paridad.test.mjs tests/romo-pedidos-busqueda-paridad.test.mjs || true
-      - run: node --test tests/romo-recarga-remota-20261125.test.mjs tests/romo-sesion-estado-confirmado-qa.test.mjs tests/romo-edicion-unica-qa.test.cjs tests/romo-caja-movimientos-paridad.test.mjs tests/romo-cierre-pedidos-previos-qa.test.mjs tests/romo-finanzas-cierres-sin-duplicar-qa.test.mjs tests/romo-paridad-cobros-qa.test.mjs tests/romo-pedidos-busqueda-paridad.test.mjs tests/seguimiento-romo-operativo-v1.test.cjs
+          set +e
+          (cd /tmp/romo-base && node --test --test-reporter=spec tests/romo-caja-movimientos-paridad.test.mjs tests/romo-pedidos-busqueda-paridad.test.mjs) >/tmp/base.log 2>&1
+          BASE_EXIT=$?
+          node --test --test-reporter=spec tests/romo-recarga-remota-20261125.test.mjs tests/romo-recarga-controles-vigentes-20261125.test.mjs tests/romo-sesion-estado-confirmado-qa.test.mjs tests/romo-edicion-unica-qa.test.cjs tests/romo-caja-movimientos-paridad.test.mjs tests/romo-cierre-pedidos-previos-qa.test.mjs tests/romo-finanzas-cierres-sin-duplicar-qa.test.mjs tests/romo-paridad-cobros-qa.test.mjs tests/romo-pedidos-busqueda-paridad.test.mjs tests/seguimiento-romo-operativo-v1.test.cjs >/tmp/candidate.log 2>&1
+          CANDIDATE_EXIT=$?
+          set -e
+          cat /tmp/base.log /tmp/candidate.log
+          export BASE_EXIT CANDIDATE_EXIT
+          python3 - <<'PY'
+          import re, os
+          from pathlib import Path
+          def results(path):
+              txt=Path(path).read_text()
+              lines=txt.split('failing tests:')[0].splitlines()
+              names={re.sub(r' \([0-9.]+ms\)$','',line[2:]) for line in lines if line.startswith('✖ ')}
+              total=re.search(r'ℹ tests (\d+)',txt)
+              passed=re.search(r'ℹ pass (\d+)',txt)
+              failed=re.search(r'ℹ fail (\d+)',txt)
+              assert total and passed and failed, 'Faltan resultados de pruebas'
+              return names, int(total[1]), int(passed[1]), int(failed[1])
+          base=results('/tmp/base.log')
+          new=results('/tmp/candidate.log')
+          assert int(os.environ['BASE_EXIT'])==1 and int(os.environ['CANDIDATE_EXIT'])==1
+          assert base[1:]==(11,6,5),base
+          assert new[1:]==(72,67,5),new
+          assert base[0]==new[0] and len(new[0])==5,(base,new)
+          print('67 pruebas aprobadas; cinco fallos preexistentes idénticos, conservados explícitamente. Sin regresiones nuevas.')
+          PY
