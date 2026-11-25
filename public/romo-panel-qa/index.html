@@ -5356,7 +5356,7 @@ function ukiSeguimientoAccesoVisibleQA(p){
  const id=String(p.cartaSolicitudRemotaId||p.seguimientoSolicitudId||'');
  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))return '';
  return '<div data-seguimiento-resumen-id="'+id+'" style="margin:5px 0 2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">'+
- '<button type="button" class="sm" style="margin:0;min-height:38px" onclick="event.preventDefault();event.stopPropagation();window.ukiQAOpenOrderTracking?.(&quot;'+id+'&quot;)">💬 Chat</button>'+
+ '<button type="button" class="sm" style="margin:0;min-height:38px" onclick="event.preventDefault();event.stopPropagation();window.ukiQAOpenOrderTracking?.(&quot;'+id+'&quot;)">📋 Seguimiento</button>'+
  '<small data-seguimiento-resumen-aviso role="status" style="font-size:12px"></small></div>';
 }
 function ukiSeguimientoEnPedidoQA(p){
@@ -5364,7 +5364,7 @@ function ukiSeguimientoEnPedidoQA(p){
  const id=String(p?.cartaSolicitudRemotaId||p?.seguimientoSolicitudId||'');
  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)||p.suc!==S.suc||p.estado==='Cancelado')return '';
  return '<div data-seguimiento-id="'+id+'" style="flex-basis:100%;margin:8px 0">'+
-  '<button class="sm" type="button" onclick="window.ukiQAOpenOrderTracking?.(&quot;'+id+'&quot;)" aria-expanded="false">💬 Mensajes y transferencia</button>'+
+  '<button class="sm" type="button" onclick="window.ukiQAOpenOrderTracking?.(&quot;'+id+'&quot;)" aria-expanded="false">Seguimiento y transferencia</button>'+
   ' <small data-seguimiento-aviso role="status"></small>'+
   '<small data-seguimiento-status role="status" style="display:block"></small>'+
   '<div data-seguimiento-detalle hidden style="margin-top:8px;padding:10px;border:1px solid #ddd;border-radius:10px"></div></div>';
@@ -12107,4 +12107,4 @@ el("ukiAutoCheck").addEventListener("change",()=>{
 <script src="/romo-panel-qa/romo-caja-acumulada-operativa.js?v=20261122-calendario1" defer></script>
 <script src="/romo-panel-qa/romo-movimientos-paridad-qa.js?v=20261115a" defer></script>
 <script src="/romo-panel-qa/romo-edicion-en-panel-qa.js?v=20261114c" defer></script>
-<script src="/romo-panel-qa/romo-carta-editor-seguro-qa.js?v=20261121carta-orden-v7" defer></script><script src="/romo-panel-qa/romo-carta-gestion-completa-qa.js?v=20261121productos-claros-v1" defer></script><script src="/romo-panel-qa/romo-banner-admin.js?v=20261114b" defer></script><script type="module" src="/romo-panel-qa/seguimiento-tres-sucursales-qa.mjs?v=chat-visible-20261125"></script></body></html>
+<script src="/romo-panel-qa/romo-carta-editor-seguro-qa.js?v=20261121carta-orden-v7" defer></script><script src="/romo-panel-qa/romo-carta-gestion-completa-qa.js?v=20261121productos-claros-v1" defer></script><script src="/romo-panel-qa/romo-banner-admin.js?v=20261114b" defer></script><script type="module" src="/romo-panel-qa/seguimiento-tres-sucursales-qa.mjs?v=solo-seguimiento-20261125"></script></body></html>
