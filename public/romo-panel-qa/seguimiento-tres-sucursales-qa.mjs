@@ -353,7 +353,7 @@ window.ukiQAGuardarRomoConjunto=async function({pedido,accion,expectedRevision,s
  */
 const estadosPublicados=new Map();
 let publicandoEstado=false;
-window.ukiQAPublishSavedState=async function({pedidos,revision}={}){
+window.ukiQAPublishSavedState=async function({pedidos,revision,pendienteExplicito=false}={}){
  const shop=store();
  if(window.UKI_SEGUIMIENTO_ESTADO_GUARDADO_AUTORIZADO!==true||
     window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true||inReview()||publicandoEstado||!shop||
@@ -365,7 +365,8 @@ window.ukiQAPublishSavedState=async function({pedidos,revision}={}){
    if(NAMES[p?.suc]!==shop||p.esPremio||typeof p.pagado!=='boolean'||
       !['Pendiente','Entregado','Cancelado'].includes(p.estado))continue;
    const id=String(p.cartaSolicitudRemotaId||'');
-   if(!UUID.test(id)||(!p.pagado&&p.estado==='Pendiente'&&!estadosPublicados.has(shop+'|'+id)))continue;
+   const rectificacionRomo=pendienteExplicito===true&&shop==='romo:serena'&&p.ajusteCobroPendiente?.tipo==='pago_desmarcado';
+   if(!UUID.test(id)||(!p.pagado&&p.estado==='Pendiente'&&!rectificacionRomo&&!estadosPublicados.has(shop+'|'+id)))continue;
    const d=seguimientoDistribucionRealQA(p);
    if(!d){ok=false;continue;}
    const monto=d.pagos.filter(x=>x.medio==='transferencia').reduce((sum,x)=>sum+x.monto,0)+Number(d.propinaTransferencia||0);

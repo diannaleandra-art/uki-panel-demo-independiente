@@ -2779,6 +2779,7 @@ items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.pr
   }
   // La propina ya recibida no debe recalcularse al corregir el precio.
   if(D.propinaModo==='diez'){D.propinaModo='otro';D.propinaPersonalizada=Number(p.propina)||0;}
+  D.romoFirmaAntesQuitarPagoQA=ukiRomoFirmaSoloQuitarPagoQA(D);
  }
  modoNuevo="manual";ir("nuevo"); aviso(`Editando pedido #${id}`);}
 function reanalizar(){leerTextoD();}
@@ -3075,6 +3076,8 @@ function copiarComanda(id){const p=(S.pedidos||[]).find(x=>Number(x.id)===Number
 function togglePagado(id){
  const p=(S.pedidos||[]).find(x=>x.suc===S.suc&&x.id===Number(id));
  if(!p||p.esPremio||p.estado==="Cancelado")return;
+ if(S.suc===ROMO_SUCURSAL_QA&&p.ajusteCobroPendiente?.tipo==='pago_desmarcado')
+  return aviso('Aclara el cobro anterior en «Cancelar pedido» antes de marcar pagado otra vez.');
  if(ukiCierreConfirmadoPedido(p)){
   aviso("Este pedido pertenece a un cierre confirmado. Usa Editar para dejar constancia sin modificar su cierre.");return;
  }
@@ -6727,6 +6730,9 @@ async function ukiRomoIncidenciaAccionQA(id,accion){
 function ukiRomoDiferenciaPendienteHTMLQA(p,cerrado,esPrueba){
  const q=p?.ajusteCobroPendiente;
  if(!q)return '';
+ if(ukiRomoCobroDesmarcadoPendienteQA(p))
+  return '<div class="card" style="border-left:3px solid #ad102b"><b>⚠️ Cobro anterior por aclarar · '+fmt(q.saldo)+'</b>'+
+   '<p class="muted">Quitar Pagado no declara una devolución. Abre «Cancelar pedido» para aclarar el dinero, con o sin cancelar el pedido.</p></div>';
  if(q.estado!=='pendiente'||!Number.isSafeInteger(q.saldo)||!q.saldo)
   return '<div class="card" role="alert"><b>⚠️ Diferencia de caja sin conciliar</b>'+
    '<p class="muted">La referencia de cobro necesita revisión manual antes del cierre.</p></div>';
@@ -6821,13 +6827,18 @@ async function ukiRomoConciliarDiferenciaRealQA(id){
  }
 }
 
+function ukiRomoCobroDesmarcadoPendienteQA(p){
+ const q=p?.ajusteCobroPendiente;
+ return p?.pagado===false&&q?.tipo==='pago_desmarcado'&&q.estado==='pendiente'&&
+  Number.isSafeInteger(q.saldo)&&q.saldo>0;
+}
 function ukiRomoCancelacionBloqueoQA(p){
  const dia=fechaOperativaActual(),caja=S.cajasDiarias?.[S.suc+'|'+dia];
  if(ukiCierreConfirmadoPedido(p)||caja?.turnoAbierto!==true||!p.turnoClave||p.turnoClave!==caja.turnoId)
   return 'Pedido de un turno cerrado o anterior. No se cancela desde la caja abierta.';
  if(p.pagado)
-  return 'Figura pagado. Hay que revisar el pago antes de cancelar. Este botón no anula ni devuelve dinero.';
- if(p.ajusteCobroPendiente||p.productosPagadosOtroLocal||p.envioPagadoOtroLocal||
+  return 'Figura pagado. Si hay que corregirlo, usa «Quitar pagado» y guarda el cambio antes de cancelar. Este botón no devuelve dinero.';
+ if((p.ajusteCobroPendiente&&!ukiRomoCobroDesmarcadoPendienteQA(p))||p.productosPagadosOtroLocal||p.envioPagadoOtroLocal||
     p.pagosProductos?.length||p.pagosEnvio?.length||Number(p.propina)||
     (S.propinas||[]).some(x=>Number(x.pedidoId)===Number(p.id)))
   return 'Hay un cobro o una diferencia que requiere revisión antes de cancelar.';
@@ -6839,6 +6850,7 @@ function ukiRomoCancelarPedidoHTMLQA(p){
  if(!p||p.estado==='Cancelado'||p.esPremio)return '';
  const id=Number(p.id),bloqueo=ukiRomoCancelacionBloqueoQA(p);
  const puedeGuardar=window.ukiRomoGuardadoHabilitadoQA?.()===true;
+ const aclarar=ukiRomoCobroDesmarcadoPendienteQA(p);
  const responsable=ukiTimbreResponsableActual();
  const identificado=responsable!=='Sin turno identificado'&&responsable.trim().length>=2;
  return '<details class="inner-details uki-cancelar-pedido" style="padding:12px;margin-top:12px;border:1px solid #e7c8b3;border-radius:12px">'+
@@ -6849,6 +6861,11 @@ function ukiRomoCancelarPedidoHTMLQA(p){
    '<option value="cliente">Lo canceló el cliente</option><option value="local">Lo canceló el local</option></select>'+
    '<label for="detalleCancelacion'+id+'">¿Por qué se cancela? · Motivo obligatorio</label>'+
    '<textarea id="detalleCancelacion'+id+'" rows="2" maxlength="300" placeholder="Ej.: El cliente desistió del pedido"></textarea>'+
+   (aclarar?'<label for="cobroCancelacion'+id+'">¿Qué pasó con el dinero que figuraba pagado? · '+fmt(p.ajusteCobroPendiente.saldo)+'</label>'+
+    '<select id="cobroCancelacion'+id+'"><option value="">Selecciona qué ocurrió</option>'+
+    '<option value="no_recibido">Nunca recibimos ese dinero; se marcó pagado por error</option>'+
+    '<option value="devuelto">Sí se cobró, pero ya lo devolvimos al cliente</option>'+
+    '<option value="pendiente">Sí se cobró y aún falta devolverlo</option></select>':'')+
    (identificado?'':'<label for="respCancelacion'+id+'">Responsable del registro</label>'+
     '<input id="respCancelacion'+id+'" maxlength="80" autocomplete="off" placeholder="Nombre del responsable">')+
    '<p id="ukiErrorCancelar'+id+'" role="alert" hidden style="padding:10px;border-radius:10px;background:#ffece4;color:#863417;margin:10px 0"></p>'+
@@ -6856,6 +6873,7 @@ function ukiRomoCancelarPedidoHTMLQA(p){
    (puedeGuardar?'':'disabled title="Guardado de Romo desactivado" ')+
    'onclick="ukiRomoCambiarEstadoQA('+id+',\'cancelar\')">'+
    (puedeGuardar?'Confirmar cancelación del pedido':'Solo consulta · cancelación bloqueada')+'</button>'+
+   (aclarar&&puedeGuardar?' <button class="sm" type="button" onclick="ukiRomoCambiarEstadoQA('+id+',\'aclarar_pago\')">Guardar solo la aclaración</button>':'')+
    '<p class="muted">El motivo queda guardado y no crea otro cobro.</p></div>')+'</details>';
 }
 function ukiRomoPedidosPendientesHTMLQA(){
@@ -7648,7 +7666,8 @@ async function ukiRomoGuardarOperacionQA(copia,descripcion,orden,vista='pedidos'
  // La proyección se ejecuta sólo tras el CAS confirmado, nunca antes de guardar.
  if(!conjunto&&window.UKI_SEGUIMIENTO_ESTADO_GUARDADO_AUTORIZADO===true&&Number.isSafeInteger(Number(orden))&&Number(orden)>0){
   const p=(copia.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&Number(x.id)===Number(orden));
-  if(p)void window.ukiQAPublishSavedState?.({pedidos:[p],revision:res.revision});
+  if(p)void window.ukiQAPublishSavedState?.({pedidos:[p],revision:res.revision,
+   pendienteExplicito:accionProtegida==='quitar_pagado'});
  }
 }
 async function ukiRomoConfirmarCobroQA(id){
@@ -7870,9 +7889,10 @@ async function ukiRomoCambiarEstadoQA(id,accion){
  if(!sesion?.disponible?.()||sesion.estado().conflicto){
   aviso('Romo necesita conexión cifrada vigente. Reabre y revisa Neon.');return;
  }
- let responsable='',motivo='',categoria='';
+ const esAclaracion=accion==='aclarar_pago',esCancelacion=accion==='cancelar';
+ let responsable='',motivo='',categoria='',decisionCobro='';
  const comprobacionManual={...p};
- if(accion==='cancelar'){
+ if(esAclaracion||esCancelacion){
   const bloqueo=ukiRomoCancelacionBloqueoQA(p);
   if(bloqueo)return ukiErrorCancelarPedido(pedidoId,bloqueo);
   categoria=String(document.getElementById('motivoCancelacion'+pedidoId)?.value||'');
@@ -7880,12 +7900,18 @@ async function ukiRomoCambiarEstadoQA(id,accion){
   const responsableTurno=ukiTimbreResponsableActual();
   responsable=String(responsableTurno==='Sin turno identificado'?
    document.getElementById('respCancelacion'+pedidoId)?.value||'':responsableTurno).trim().slice(0,80);
-  if(!['cliente','local'].includes(categoria))
+  if(esCancelacion&&!['cliente','local'].includes(categoria))
    return ukiErrorCancelarPedido(pedidoId,'Selecciona si canceló el cliente o el local.');
-  if(!motivo||motivo.length>300)
+  if(esCancelacion&&(!motivo||motivo.length>300))
    return ukiErrorCancelarPedido(pedidoId,'Escribe por qué se cancela el pedido.');
   if(responsable.length<2)
-   return ukiErrorCancelarPedido(pedidoId,'Escribe quién registra la cancelación.');
+   return ukiErrorCancelarPedido(pedidoId,esAclaracion?'Escribe quién verificó el dinero.':'Escribe quién registra la cancelación.');
+  if(ukiRomoCobroDesmarcadoPendienteQA(p)){
+   decisionCobro=String(document.getElementById('cobroCancelacion'+pedidoId)?.value||'');
+   if(decisionCobro==='pendiente')return ukiErrorCancelarPedido(pedidoId,'Si todavía falta devolver el dinero, deja el cobro por aclarar.');
+   if(!['no_recibido','devuelto'].includes(decisionCobro))
+    return ukiErrorCancelarPedido(pedidoId,'Selecciona si nunca se recibió el dinero o si ya fue devuelto.');
+  }else if(esAclaracion)return ukiErrorCancelarPedido(pedidoId,'No hay un cobro anterior por aclarar.');
  }else if(accion==='entregar'){
   if(p.estado!=='Pendiente'){
    aviso('Solo puede confirmarse la entrega de un pedido pendiente.');return;
@@ -7908,35 +7934,44 @@ async function ukiRomoCambiarEstadoQA(id,accion){
    aviso('Para entregar, identifica al responsable. No se guardó nada.');return;
   }
  }else return;
- const mensaje=accion==='cancelar'?
+ const aclaracion=decisionCobro==='no_recibido'?'Confirmas que nunca se recibió el dinero. ':
+  decisionCobro==='devuelto'?'Confirmas que la devolución ya se hizo. ':'';
+ const mensaje=esCancelacion?
   '¿Cancelar el pedido #'+pedidoId+'? Motivo: '+motivo+'. '+
    (p.estado==='Entregado'?'Antes figuraba entregado: verifica que se deba anular. ':'')+
-   'Se conservará el historial. No se mueve dinero automáticamente.':
+   aclaracion+'Se conservará el historial. No se mueve dinero automáticamente.':
+  esAclaracion?'¿Guardar la aclaración sin cancelar el pedido? '+aclaracion+'No se mueve dinero automáticamente.':
   '¿Confirmas que el cliente recibió este pedido? Su pago y caja no cambiarán.';
  if(!window.confirm(mensaje))return;
  ukiRomoOperandoPedidoQA=true;
  try{
   const visible=datosSoloSucursal();
+  const revisionInicial=sesion.estado().revision,firmaVisible=JSON.stringify(visible);
   // La pantalla de Uki puede generar una caja vacía al navegar.
   // Compararla con la última copia confirmada, pero nunca cifrarla
   // accidentalmente como parte de una cancelación.
-  if(accion==='cancelar'&&
+  if((esAclaracion||esCancelacion)&&
      (typeof sesion.coincideEstadoOperativo!=='function'||
       sesion.coincideEstadoOperativo(visible)!==true||
       typeof sesion.estadoOperativoConfirmado!=='function'))
    throw Error('Hay cambios operativos sin conciliar. Reabre Romo antes de cancelar.');
-  const anterior=accion==='cancelar'?sesion.estadoOperativoConfirmado():visible;
+  const anterior=accion==='cancelar'?sesion.estadoOperativoConfirmado():
+   esAclaracion?sesion.estadoOperativoConfirmado():visible;
   let copia=JSON.parse(JSON.stringify(anterior));
   const ahoraMs=Date.now();
-  if(accion==='cancelar'){
+  if(esCancelacion){
    const conciliador=await import('./uki-romo-conciliacion-cancelacion-qa.mjs');
    const propuesta=conciliador.prepararConciliacionCancelacionRomoQA(anterior,{
-    pedidoId,responsable,motivo,categoria,registradoEn:ahoraMs
+    pedidoId,responsable,motivo,categoria,registradoEn:ahoraMs,
+    decisionCobro,confirmaCobro:!!decisionCobro
    });
    if(propuesta.resumen?.guardadoEnNeon!==false||
       propuesta.resumen?.modificacionCaja!==false)
     throw Error('La conciliación no está preparada para guardar con seguridad');
    copia=propuesta.estadoPropuesto;
+  }else if(esAclaracion){
+   const mod=await import('./uki-romo-quitar-pagado-qa.mjs');
+   mod.aclararPagoDesmarcadoRomoQA(copia,{pedidoId,responsable,registradoEn:ahoraMs,decision:decisionCobro,confirmado:true});
   }else{
    const mod=await import('./uki-romo-entrega-atomica-qa.mjs');
    mod.prepararEntregaRomoQA(copia,{
@@ -7944,11 +7979,14 @@ async function ukiRomoCambiarEstadoQA(id,accion){
    });
    ukiSeguimientoAnotarManualQA(copia.pedidos.find(x=>x.suc===S.suc&&Number(x.id)===pedidoId),comprobacionManual);
   }
+  if(sesion.estado().revision!==revisionInicial||sesion.estado().conflicto||
+     JSON.stringify(datosSoloSucursal())!==firmaVisible)
+   throw Error('El pedido cambió mientras se preparaba el cambio. Reabre el pedido y revisa.');
   await ukiRomoGuardarOperacionQA(copia,
-   accion==='cancelar'?'Cancelación auditada confirmada':'Entrega auditada confirmada',
+   esCancelacion?'Cancelación auditada confirmada':esAclaracion?'Cobro anterior aclarado · Pedido sigue activo':'Entrega auditada confirmada',
    pedidoId,'pedidos',accion==='entregar'?'entregar':null);
  }catch(e){
-  aviso('No se confirmó '+(accion==='cancelar'?'la cancelación':'la entrega')+
+  aviso('No se confirmó '+(esCancelacion?'la cancelación':esAclaracion?'la aclaración':'la entrega')+
    '. Revisa el estado en Neon antes de repetir: '+String(e?.message||e));
  }finally{ukiRomoOperandoPedidoQA=false;}
 }
@@ -10537,6 +10575,14 @@ async function ukiRomoGuardarPedidoPendienteQA(){
  }finally{ukiRomoGuardandoManualQA=false;}
 }
 
+function ukiRomoFirmaSoloQuitarPagoQA(d){
+ return JSON.stringify([d.editando,d.fecha,d.cliente,d.telefono,d.codigoCarta,d.codigoCliente,d.texto,
+  d.cartaSolicitudRemotaId,d.seguimientoSolicitudId,d.sucursalCarta,d.qrSolicitudes,d.modalidad,
+  d.mesaReferencia,d.envio,d.kmRecorrido,d.items,d.medio,d.medioEnvio,d.mixtoProductos,d.mixtoEnvio,
+  d.pagosProductos,d.pagosEnvio,d.productosPagadosOtroLocal,d.envioPagadoOtroLocal,
+  d.montoProductosOtroLocal,d.montoEnvioOtroLocal,d.localPagoExterno,d.propinaModo,
+  d.propinaPersonalizada,d.medioPropina]);
+}
 async function ukiRomoGuardarEdicionUnicaQA(){
  if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA||S.vista!=='nuevo'||!D.editando)return;
  const id=Number(D.editando),sesion=window.ukiRomoSesionRemotaQA;
@@ -10546,6 +10592,20 @@ async function ukiRomoGuardarEdicionUnicaQA(){
  const firma=JSON.stringify(D),anterior=sesion.estado(),estadoFirma=JSON.stringify(datosSoloSucursal());
  ukiRomoGuardandoManualQA=true;
  try{
+  if(D.pagado===false){
+   if(D.romoFirmaAntesQuitarPagoQA!==ukiRomoFirmaSoloQuitarPagoQA(D))
+    throw Error('Para quitar Pagado, conserva los demás datos del pedido y guarda la corrección por separado.');
+   if(ukiCierreConfirmadoPedido(p)||String(p.turnoClave||'').slice(0,10)!==fechaOperativaActual())
+    throw Error('Solo se corrige el pago del turno abierto.');
+   const quitar=await import('./uki-romo-quitar-pagado-qa.mjs');
+   if(JSON.stringify(D)!==firma||JSON.stringify(datosSoloSucursal())!==estadoFirma||
+      sesion.estado()?.revision!==anterior.revision||sesion.estado()?.conflicto)
+    throw Error('El pedido cambió. Reabre y revisa antes de guardar.');
+   const copia=datosSoloSucursal();
+   quitar.prepararQuitarPagadoRomoQA(copia,{pedidoId:id,responsable:D.responsableEdicion,registradoEn:Date.now()});
+   await ukiRomoGuardarOperacionQA(copia,'Pedido por cobrar · Cobro anterior por aclarar',id,'pedidos','quitar_pagado');
+   nuevoDraft();return;
+  }
   const mod=await import('./uki-romo-edicion-unica-qa.mjs?v=20261121v2');
   if(JSON.stringify(D)!==firma||JSON.stringify(datosSoloSucursal())!==estadoFirma||sesion.estado()?.revision!==anterior.revision||sesion.estado()?.conflicto)
    throw Error('El pedido cambió. Reabre y revisa antes de guardar.');
@@ -10604,6 +10664,8 @@ function ukiSeguimientoValidarCambioMedioQA(original,nuevo){
 async function ndGuardar(){
   if(S.suc===ROMO_SUCURSAL_QA&&!ukiSeguimientoConservarOrigenEdicionQA())return;
   const originalRevisionBanco=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(D.editando)):null;
+  if(S.suc===ROMO_SUCURSAL_QA&&D.pagado&&originalRevisionBanco?.ajusteCobroPendiente?.tipo==='pago_desmarcado')
+   return aviso('Aclara el cobro anterior en «Cancelar pedido» antes de marcar pagado otra vez.');
   if(D.pagado&&ukiSeguimientoHayTransferenciaQA(D)){
    if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true){aviso('Actualiza el panel para verificar la transferencia antes de guardar.');return;}
    if(!ukiRevisionBancoBorradorValidaQA(D,originalRevisionBanco)){aviso('Marca la revisión bancaria obligatoria antes de guardar como pagado.');return;}
@@ -12321,4 +12383,4 @@ el("ukiAutoCheck").addEventListener("change",()=>{
 <script src="/romo-panel-qa/romo-caja-acumulada-operativa.js?v=20261122-calendario1" defer></script>
 <script src="/romo-panel-qa/romo-movimientos-paridad-qa.js?v=20261115a" defer></script>
 <script src="/romo-panel-qa/romo-edicion-en-panel-qa.js?v=20261114c" defer></script>
-<script src="/romo-panel-qa/romo-carta-editor-seguro-qa.js?v=20261121carta-orden-v7" defer></script><script src="/romo-panel-qa/romo-carta-gestion-completa-qa.js?v=20261121productos-claros-v1" defer></script><script src="/romo-panel-qa/romo-banner-admin.js?v=20261114b" defer></script><script type="module" src="/romo-panel-qa/seguimiento-tres-sucursales-qa.mjs?v=timbre-suave-20261125"></script></body></html>
+<script src="/romo-panel-qa/romo-carta-editor-seguro-qa.js?v=20261121carta-orden-v7" defer></script><script src="/romo-panel-qa/romo-carta-gestion-completa-qa.js?v=20261121productos-claros-v1" defer></script><script src="/romo-panel-qa/romo-banner-admin.js?v=20261114b" defer></script><script type="module" src="/romo-panel-qa/seguimiento-tres-sucursales-qa.mjs?v=rectificar-pago-20261125"></script></body></html>

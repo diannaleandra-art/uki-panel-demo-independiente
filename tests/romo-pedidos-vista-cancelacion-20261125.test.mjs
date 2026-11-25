@@ -9,7 +9,7 @@ const suc='Romo’s Sushi La Serena', dia='2026-11-25', turno=dia+'@179562100000
 const activo={id:23,suc,turnoClave:turno,estado:'Pendiente',pagado:false,total:10000};
 const clone=x=>JSON.parse(JSON.stringify(x));
 const take=(a,b)=>html.slice(html.indexOf(a),html.indexOf(b,html.indexOf(a)+a.length));
-const interfaz=take('function ukiRomoCancelacionBloqueoQA','function ukiRomoPedidosPendientesHTMLQA');
+const interfaz=take('function ukiRomoCobroDesmarcadoPendienteQA','function ukiRomoPedidosPendientesHTMLQA');
 const controlador=take('async function ukiRomoCambiarEstadoQA','const ROMO_MEDIOS_SALIDAS_QA')
  .replace("await import('./uki-romo-conciliacion-cancelacion-qa.mjs')",'moduloCancelacion');
 function setup({worker='Agendadora de prueba',write=true,pedido=activo,cerrado=false}={}){

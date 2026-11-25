@@ -69,6 +69,7 @@ export function prepararCobroPendienteRomoQA(estado,{
  need(p.pagado===false&&!p.productosPagadosOtroLocal&&!p.envioPagadoOtroLocal&&
   !(p.pagosProductos||[]).length&&!(p.pagosEnvio||[]).length,
   'Pedido ya pagado, parcial o con cobro externo: requiere conciliación');
+ need(!p.ajusteCobroPendiente,'Aclara el cobro anterior antes de registrar otro pago');
  need(typeof p.turnoClave==='string'&&/^\d{4}-\d{2}-\d{2}@\d+$/.test(p.turnoClave),
   'Turno de pedido inválido');
  const dia=p.turnoClave.slice(0,10),caja=estado.cajasDiarias[SUC+'|'+dia];

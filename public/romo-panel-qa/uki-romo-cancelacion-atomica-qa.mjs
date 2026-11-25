@@ -3,6 +3,7 @@
  * Prohibido inferir devoluciones de dinero cuando no existió cobro.
  * Usa copia, AES-GCM y CAS en Neon, sin tocar Uki ni balances.
  */
+import {aclararPagoDesmarcadoRomoQA,revisarAclaracionPagoRomoQA} from './uki-romo-quitar-pagado-qa.mjs';
 export const ROMO_CANCELACION_HABILITADA_QA=false;
 const SUC='Romo’s Sushi La Serena';
 const fail=m=>{throw Error(m)};
@@ -15,7 +16,7 @@ export class RomoCancelacionConfirmadaReleerQA extends Error{
   this.code='ROMO_CANCELACION_CONFIRMADA_RECARGAR';}
 }
 export function prepararCancelacionRomoQA(estado,{
- pedidoId,responsable,motivo,categoria='',registradoEn
+ pedidoId,responsable,motivo,categoria='',registradoEn,decisionCobro,confirmaCobro=false
 }={}){
  if(estado?.suc!==SUC||!Array.isArray(estado.pedidos)||
     !Array.isArray(estado.cierres)||!Array.isArray(estado.propinas))
@@ -31,8 +32,9 @@ export function prepararCancelacionRomoQA(estado,{
  const pedido=estado.pedidos.find(p=>p?.id===id&&p.suc===SUC);
  if(!pedido||!['Pendiente','Entregado'].includes(pedido.estado)||pedido.esPremio)
   fail('Solo se puede cancelar un pedido en curso de Romo');
+ const porAclarar=revisarAclaracionPagoRomoQA(pedido);
  // Si hubo cualquier cobro, necesita el flujo de reembolso y conciliación.
- if(pedido.pagado===true||pedido.ajusteCobroPendiente||Number(pedido.propina)||pedido.productosPagadosOtroLocal||
+ if(pedido.pagado===true||(pedido.ajusteCobroPendiente&&!porAclarar)||Number(pedido.propina)||pedido.productosPagadosOtroLocal||
     pedido.envioPagadoOtroLocal||
     (Array.isArray(pedido.pagosProductos)&&pedido.pagosProductos.length>0)||
     (Array.isArray(pedido.pagosEnvio)&&pedido.pagosEnvio.length>0)||
@@ -43,6 +45,9 @@ export function prepararCancelacionRomoQA(estado,{
  if(pedido.historialCambios!==undefined&&!Array.isArray(pedido.historialCambios))
   fail('Historial del pedido inválido');
  const momento=new Date(registradoEn).toISOString(),anterior=pedido.estado;
+ if(!porAclarar&&(decisionCobro||confirmaCobro))fail('Este pedido no tiene un cobro anterior por aclarar');
+ const aclaracion=porAclarar?aclararPagoDesmarcadoRomoQA(estado,{pedidoId:id,responsable:actor,
+  registradoEn,decision:decisionCobro,confirmado:confirmaCobro,paraCancelar:true}):null;
  pedido.estado='Cancelado';
  pedido.canceladoEn=momento;pedido.canceladoPor=actor;
  pedido.motivoCancelacion=quien||razon;
@@ -50,7 +55,7 @@ export function prepararCancelacionRomoQA(estado,{
  // En un pedido sin pago no inventamos una devolución pendiente ni movemos dinero.
  pedido.historialCambios=[...(pedido.historialCambios||[]),{
   tipo:'cancelacion',fecha:momento,responsable:actor,categoria:quien||null,motivo:razon,
-  anterior,nuevo:'Cancelado'
+  anterior,nuevo:'Cancelado',...(aclaracion?{aclaracion}:{})
  }].slice(-100);
  return Object.freeze({pedidoId:id,estado:'Cancelado',responsable:actor,motivo:razon});
 }
