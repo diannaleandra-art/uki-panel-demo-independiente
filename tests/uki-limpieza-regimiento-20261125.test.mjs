@@ -1,0 +1,65 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {planRegimiento,prepararRetiroRegimiento,SUCURSAL,PEDIDOS} from '../firebase/uki-limpieza-regimiento-v1.mjs';
+
+const clone=x=>JSON.parse(JSON.stringify(x));
+const stamp='2026-11-25T11:30:00-03:00';
+const codes=['413','977','980','156','515','516','517','518','519'];
+function estado(){
+ return {suc:SUCURSAL,nextId:665,pedidos:[
+  ...PEDIDOS.map((id,i)=>({id,suc:SUCURSAL,codigoCarta:codes[i],cartaSolicitudRemotaId:'00000000-0000-4000-8000-00000000000'+(i+1),
+   numeroTurno:i+1,turnoClave:'2026-11-25@0',fechaISO:stamp,canceladoEn:stamp,estado:'Cancelado',total:9000,pagado:false})),
+  {id:664,suc:SUCURSAL,estado:'Pendiente',codigoCarta:'413',pagado:false}],
+  cierres:[{id:55,suc:SUCURSAL,efectivo:8000}],gastos:[],retiros:[],propinas:[{pedidoId:664,monto:1200}],
+  clientes:{a:{movimientos:[{tipo:'venta',pedidoId:664}]}},cajasDiarias:{arica:{ventas:8000}},};
+}
+function remoto(s=estado()){
+ return s.pedidos.slice(0,9).map(p=>({orderId:p.cartaSolicitudRemotaId,storeId:'uki:arica',pedidoInterno:p.id,
+  codigoCarta:p.codigoCarta,total:9000,estadoPedido:'cancelada',estadoPago:'sin_transferencia',montoTransferencia:0,pagoRegistrado:false}));
+}
+function retirar(s=estado(),r=remoto(),extras={}){
+ return prepararRetiroRegimiento({estado:s,consultas:r,revision:1732,identidad:'dueño simulado',fecha:stamp,...extras});
+}
+test('Elimina únicamente 655–663 de la copia operativa y mantiene caja, folios, timbres y otro pedido',()=>{
+ const s=estado(),original=clone(s),{estado:candidato,filas}=retirar(s);
+ assert.deepEqual(s,original);
+ assert.deepEqual(filas.map(p=>p.id),PEDIDOS);
+ assert.deepEqual(candidato.pedidos,[s.pedidos.at(-1)]);
+ assert.deepEqual(candidato.pedidosPruebaRetirados.map(m=>m.numeroTurno),[1,2,3,4,5,6,7,8,9]);
+ assert.ok(candidato.pedidosPruebaRetirados.every(m=>!Object.hasOwn(m,'total')));
+ for(const k of ['nextId','clientes','cierres','gastos','retiros','propinas','cajasDiarias'])assert.deepEqual(candidato[k],s[k]);
+ assert.equal(planRegimiento(candidato).hecho,true);
+ assert.equal(retirar(candidato,[]).hecho,true);
+});
+test('Bloquea todo el lote si hay una identidad errónea, falta un folio o hay otro estado',()=>{
+ for(const alter of [
+  s=>{s.pedidos.splice(0,1);},s=>{s.suc='Uki La Serena';},s=>{s.pedidos[3].codigoCarta='923';},
+  s=>{s.pedidos[0].estado='Entregado';},s=>{s.pedidos[0].pagado=true;},
+  s=>{s.pedidos[0].timbreEnviadoEn=stamp;},s=>{s.pedidos[0].pagoConfirmadoEn=stamp;},
+  s=>{s.propinas.push({pedidoId:655});},s=>{s.clientes.a.movimientos.push({tipo:'venta',pedidoId:655});},
+  s=>{s.cajasDiarias.arica.otro={pedidoInterno:659};},s=>{s.pedidos[1].cartaSolicitudRemotaId=s.pedidos[0].cartaSolicitudRemotaId;}
+ ]){
+  const s=estado();alter(s);const original=clone(s);
+  assert.throws(()=>retirar(s),undefined);
+  assert.deepEqual(s,original);
+ }
+ assert.throws(()=>retirar(estado(),remoto(),{revisarCierre:p=>p.id===655}),/cierre/);
+});
+test('La carta también debe confirmar cancelación sin pago ni abono',()=>{
+ for(const patch of [{estadoPago:'confirmada'},{estadoPago:'pendiente'},{pagoRegistrado:true},{montoTransferencia:2000},
+  {pedidoInterno:654},{estadoPedido:'aceptada'},{storeId:'uki:serena'},{total:8999},{codigoCarta:'123'}]){
+  const r=remoto();r[2]={...r[2],...patch};
+  assert.throws(()=>retirar(estado(),r),/La carta no confirma/);
+ }
+});
+test('La ruta pide el PIN de dueños y solo escribe después de validar la copia de Regimiento',()=>{
+ const html=readFileSync(new URL('../firebase/uki-sushi-local.html',import.meta.url),'utf8');
+ const route=html.slice(html.indexOf("if(UKI_OPERACION_HABILITADA&&new URLSearchParams(location.search).get('limpieza-pruebas')"),html.indexOf('window.ukiOperativoActualizar=actualizarBloqueo;'));
+ for(const s of ["'regimiento'","action:'ingresar_pin'","window.ukiCancelacionNubeLista","carta-solicitudes-live","seguimiento-personal-live","revisionEsperada:actual.revision","mod.planRegimiento(final.estado).hecho"])assert.ok(route.includes(s));
+ assert.ok(route.indexOf('prepararRetiroRegimiento')<route.indexOf('cloud.guardar'));
+ assert.match(html,/pedidosSuc\(\),\.\.\.retirados/);
+ const carta=readFileSync(new URL('../firebase/uki-carta-remotas-panel.js',import.meta.url),'utf8');
+ assert.match(carta,/ukiSolicitudPruebaRetirada\?\.\(r.id,r.codigo_pedido\)/);
+});
+

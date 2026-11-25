@@ -147,6 +147,7 @@ function ukiCartaPedidoAceptadoEnCaja(r){
 // remota es un hecho histórico; NO debe generar una alerta ni otra venta.
 function ukiCartaSolicitudYaRegistrada(r){
  if(!r?.id)return false;
+ if(window.ukiSolicitudPruebaRetirada?.(r.id,r.codigo_pedido))return true;
  const pedidos=(S.pedidos||[]).filter(p=>p.suc===S.suc);
  const remoto=String(r.id);
  if(pedidos.some(p=>String(p.cartaSolicitudRemotaId||'')===remoto))return true;
@@ -278,6 +279,7 @@ function ukiCartaRemotaFicha(r){
 function ukiCartaRemotaAbrir(id){
  const r=ukiCartaRemotasSucursal().find(x=>x.id===id&&x.estado==='pendiente');
  if(!r)return aviso('La solicitud ya no está pendiente. Actualiza la bandeja.');
+ if(window.ukiSolicitudPruebaRetirada?.(r.id,r.codigo_pedido))return aviso('Esta solicitud era un pedido de prueba y ya fue retirada.');
  if(r.en_reserva===true)return aviso('Esta solicitud se está revisando en otro equipo. Actualiza y verifica antes de continuar.');
  if(ukiCartaPedidoAceptadoEnCaja(r)){aviso('Este pedido ya figura en caja. Se confirmará tras sincronizar Firebase.');void ukiCartaConfirmarRespaldados();return}
  const folio=String(r.codigo_pedido||'').trim().toLowerCase();

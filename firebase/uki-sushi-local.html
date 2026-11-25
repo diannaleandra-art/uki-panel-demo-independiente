@@ -281,6 +281,16 @@ color:#955115;box-shadow:0 2px 10px rgba(0,0,0,.12);font-weight:800;font-size:19
   <div id="romo-seguimiento-detalle-qa" hidden></div>
  </details>
 </section>
+<section id="ukiLimpiezaPruebasReg" hidden class="card" style="margin:12px auto;max-width:620px">
+ <h2>Retirar nueve pedidos de prueba</h2>
+ <p class="muted">Solo para dueños. Abre Uki Regimiento Arica con la nube sincronizada. Se revisarán los pedidos 655 a 663 antes de retirarlos del registro activo.</p>
+ <form id="ukiLimpiezaPruebasRegForm">
+  <label for="ukiLimpiezaPruebasRegPin">PIN privado de Mi Administración</label>
+  <input id="ukiLimpiezaPruebasRegPin" type="password" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" required autocomplete="off">
+  <button id="ukiLimpiezaPruebasRegBoton" class="big" type="submit">Retirar los nueve pedidos de prueba</button>
+ </form>
+ <p id="ukiLimpiezaPruebasRegEstado" role="status" aria-live="polite"></p>
+</section>
 <section id="ukiNubeSeccion" style="margin:12px;padding:14px;background:#fff0dd;border:2px solid #b55e25;border-radius:14px">
 <b>PANEL INTERNO DE UKI SUSHI · DOS SUCURSALES</b>
 <p>Inicia sesión con Google, abre tu sucursal y pulsa «Cargar nube». Solo registra pedidos cuando aparezca «Nube: sincronizado». Si dice «pendiente», «error» o «conflicto», conserva el teléfono y comprueba el guardado antes de seguir.</p>
@@ -320,7 +330,9 @@ function ukiTurnoFolioActual(){
  // Inclúyelos sin tocar su ID, pero nunca mezcles períodos ya cerrados ni precierres.
  const desdeHistorico=Math.max(Number(caja.desdeMs)||0,
   ...(caja.precierres||[]).filter(x=>x?.fechaOperativa===dia).map(x=>Number(x.finMs)||0));
- const actuales=pedidosSuc().filter(p=>{
+ const retirados=S.suc==='Uki Regimiento Arica'&&Array.isArray(S.pedidosPruebaRetirados)?
+  S.pedidosPruebaRetirados.filter(p=>p.suc===S.suc):[];
+ const actuales=[...pedidosSuc(),...retirados].filter(p=>{
    const registrado=fechaRegistroMs(p);
    return p.turnoClave===clave ? registrado>=inicio :
      !p.turnoClave&&registrado>=desdeHistorico&&esDelPeriodo(p);
@@ -6397,6 +6409,9 @@ function vHistorial(){
 }
 
 window.ukiQAGet=()=>S.suc?{suc:S.suc,estado:datosSoloSucursal()}:null;
+window.ukiSolicitudPruebaRetirada=(id,folio='')=>S.suc==='Uki Regimiento Arica'&&!!id&&
+ Array.isArray(S.pedidosPruebaRetirados)&&S.pedidosPruebaRetirados.some(p=>
+  p.suc===S.suc&&p.cartaSolicitudRemotaId===String(id)&&(!folio||p.codigoCarta===String(folio)));
 // Una revisión remota solo sustituye una copia local limpia. Conserva la vista y no envía escrituras a Firebase.
 window.ukiPuedeRecargarRemoto=()=>{
  const app=$("app"),focus=document.activeElement;
@@ -6447,7 +6462,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 <script src="./uki-caja-acumulada-exportar.js" defer></script>
 <script src="./uki-caja-acumulada-admin.js?v=20261122-calendario1" defer></script>
 <script src="./uki-control-turnos.js" defer></script>
-<script src="./uki-carta-remotas-panel.js?v=refrescos-20261125" defer></script>
+<script src="./uki-carta-remotas-panel.js?v=limpieza-regimiento-20261125" defer></script>
 <script type="module" src="./uki-seguimiento-operativo-panel-v1.mjs?v=timbre-suave-20261125"></script>
 <script src="./uki-archivo-mensual-core.js?v=20261121-retencion-simulada-v2" defer></script>
 <script src="./uki-archivo-agenda.js?v=20261121-agenda-v1" defer></script>
@@ -6705,6 +6720,90 @@ window.ukiArchivoComprobarNube=async(sucursal)=>{
   remoto.rev===antes.revision&&despues.revision===antes.revision&&
   despues.actualRespaldado===true&&window.ukiCancelacionNubeLista?.()===true);
 };
+// Ruta de mantenimiento de una sola sucursal. Usa la misma sesión y el
+// mismo guardado cifrado, sin enviar el estado de pedidos a administración.
+if(UKI_OPERACION_HABILITADA&&new URLSearchParams(location.search).get('limpieza-pruebas')==='regimiento'){
+ const root=el('ukiLimpiezaPruebasReg'), form=el('ukiLimpiezaPruebasRegForm');
+ const info=el('ukiLimpiezaPruebasRegEstado'),input=el('ukiLimpiezaPruebasRegPin'),boton=el('ukiLimpiezaPruebasRegBoton');
+ root.hidden=false;
+ form.addEventListener('submit',ev=>{
+  ev.preventDefault();
+  if(ocupado||recargaRemotaEnCurso||boton.disabled)return;
+  const pin=input.value;input.value='';boton.disabled=true;
+  void accion(async()=>{
+   const origen='Uki Regimiento Arica';
+   let abandonado=false;
+   try{
+    info.textContent='Comprobando los nueve pedidos. No se ha eliminado nada todavía.';
+    const user=auth.currentUser,base=auto.resumen();
+    const local=window.ukiQAGet?.();
+    if(!user||local?.suc!==origen||!window.ukiCancelacionNubeLista?.()||!Number.isSafeInteger(base.revision))
+     throw Error('Entra a Uki Regimiento Arica y carga su nube antes de continuar.');
+    const huella=huellaOperativa(local.estado);
+    const vigente=()=>auth.currentUser?.uid===user.uid&&window.ukiQAGet?.()?.suc===origen&&
+     huellaOperativa(window.ukiQAGet().estado)===huella&&auto.resumen().revision===base.revision&&
+     window.ukiCancelacionNubeLista?.()===true;
+    const token=await user.getIdToken();
+    const headers={Authorization:'Bearer '+token};
+    const respuesta=await fetch('https://uki-sushi-inventario.vercel.app/api/mi-administracion-live',{
+     method:'POST',cache:'no-store',credentials:'omit',headers:{...headers,'Content-Type':'application/json'},
+     body:JSON.stringify({action:'ingresar_pin',pin}),signal:AbortSignal.timeout(10000)
+    });
+    const sesion=await respuesta.json().catch(()=>null);
+    if(!respuesta.ok||sesion?.ok!==true||!(/^[a-f0-9]{64}$/i).test(sesion.sesion||''))
+     throw Error('No se confirmó el PIN de dueños.');
+    const mod=await import('./uki-limpieza-regimiento-v1.mjs');
+    const clave=contexto().clave;
+    const actual=await cloud.cargar(origen,clave);
+    if(actual.revision!==base.revision||!vigente()||huellaOperativa(actual.estado)!==huella)
+     throw Error('Cambió el registro de Regimiento. Vuelve a cargar su nube antes de continuar.');
+    const revisarCierre=p=>!!ukiCierreConfirmadoPedido(p);
+    const plan=mod.planRegimiento(actual.estado,revisarCierre);
+    if(plan.hecho){info.textContent='Los nueve pedidos de prueba ya están fuera del panel. No se guardó otra revisión.';return;}
+    const pedir=async(path,params)=>{
+     const r=await fetch('https://uki-sushi-pedidos.vercel.app/api/'+path+'?'+new URLSearchParams(params),{
+      headers,credentials:'omit',cache:'no-store',signal:AbortSignal.timeout(10000)
+     });
+     const j=await r.json().catch(()=>null);
+     if(!r.ok||j?.ok!==true)throw Error('No se completó la comprobación de la carta. No se retiró ningún pedido.');
+     return j;
+    };
+    const carta=await pedir('carta-solicitudes-live',{branch:'arica'});
+    if(carta.branch!=='arica'||!Array.isArray(carta.orders))throw Error('No se pudo verificar la carta de Regimiento.');
+    const consultas=[];
+    for(const p of plan.filas){
+     const x=carta.orders.filter(r=>r.branch==='arica'&&r.id===p.cartaSolicitudRemotaId&&r.estado==='aceptada');
+     if(x.length!==1||String(x[0].pedido_interno)!==String(p.id)||String(x[0].codigo_pedido)!==p.codigoCarta)
+      throw Error('La carta no reconoce el pedido interno '+p.id+' y su folio. No se retiró ningún pedido.');
+     const d=await pedir('seguimiento-personal-live',{storeId:'uki:arica',id:p.cartaSolicitudRemotaId});
+     consultas.push({orderId:d.orderId,storeId:d.storeId,pedidoInterno:x[0].pedido_interno,
+      codigoCarta:d.pedido?.codigoPedido,total:d.totalPedido,estadoPago:d.pedido?.estadoPago,
+      estadoPedido:d.pedido?.estadoPedido,pagoRegistrado:d.pedido?.pagoRegistrado,
+      montoTransferencia:d.pedido?.montoTransferencia});
+    }
+    const r=mod.prepararRetiroRegimiento({estado:actual.estado,consultas,revision:actual.revision,
+     identidad:user.uid,fecha:new Date().toISOString(),revisarCierre});
+    if(!vigente())throw Error('Otro equipo cambió la revisión. Actualiza antes de volver a ejecutar.');
+    dejarDeVigilar();auto.desactivar();abandonado=true;actualizarBloqueo();
+    const guardado=await cloud.guardar({sucursal:origen,password:clave,revisionEsperada:actual.revision,estado:r.estado});
+    const final=await cloud.cargar(origen,clave);
+    if(final.revision!==guardado.revision||!mod.planRegimiento(final.estado).hecho||
+       !await window.ukiAplicarRemotoLimpio(final.estado,()=>auth.currentUser?.uid===user.uid&&
+        window.ukiQAGet?.()?.suc===origen&&huellaOperativa(window.ukiQAGet().estado)===huella))
+     throw Error('No se pudo confirmar la vista local. Carga la nube antes de volver a intentar.');
+    revision=final.revision;sucursalCargada=origen;
+    auto.activar({suc:origen,rev:revision,estadoBase:window.ukiQAGet().estado});
+    vigilarRevisiones(origen);abandonado=false;
+    window.ukiRenderRemotoLimpio?.();
+    info.textContent='Listo. Retirados los nueve pedidos 655 a 663. Nube confirmada, revisión '+revision+'.';
+   }catch(e){
+    info.textContent=String(e?.message||'No se confirmó la limpieza.')+
+     (abandonado?' Pulsa Cargar nube antes de intentar de nuevo.':'');
+    if(abandonado)actualizarBloqueo();
+   }finally{boton.disabled=false;}
+  });
+ });
+}
 window.ukiOperativoActualizar=actualizarBloqueo;
 function contexto(){
  if(!UKI_OPERACION_HABILITADA)throw Error("Versión sin activar: falta aprobar reglas, pruebas y lanzamiento.");
