@@ -1794,6 +1794,9 @@ function vNuevo(){
   const cli=getCliente(D.cliente,D.codigoCliente,D.telefono);
   const ventasCli=cli?ventasValidas(cli):0;
   const revisandoSolicitud=!D.editando&&!!(D.cartaSolicitudRemotaId||ukiSolicitudWhatsAppActiva);
+  // La carta todavía no es una venta: aceptar primero en el mismo formulario.
+  const aceptarCartaAntesDeCobrar=window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED===true&&
+   !D.editando&&!!D.cartaSolicitudRemotaId;
   const pedidoEdicion=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&p.id===D.editando):null;
   const deltaEdicion=pedidoEdicion?.pagado?Number(pedidoEdicion.total||0)-total:0;
   const pendienteEdicion=!!ukiCobroPendiente(pedidoEdicion);
@@ -1838,7 +1841,8 @@ function vNuevo(){
     ${D.modalidad==="Delivery"?(D.envioPagadoOtroLocal?
       `<p class="muted"><b>Delivery ${fmt(envio)}:</b> se incluirá en los deliverys de Uki para el repartidor, pero NO como ingreso de la caja porque lo cobraron en otro local.</p>`:
       `<label>Pago del delivery recibido en Uki · ${fmt(envio)}</label>${ukiPagoUI("envio",envio)}`):""}
-    <label class="check"><input type="checkbox" ${D.pagado?"checked":""} onchange="D.pagado=this.checked;render()"> <b>Pago completo confirmado</b></label>
+    <label class="check"><input type="checkbox" ${D.pagado?"checked":""} ${aceptarCartaAntesDeCobrar?'disabled title="Primero acepta el pedido de carta"':''} onchange="D.pagado=this.checked;render()"> <b>Pago completo confirmado</b></label>
+    ${aceptarCartaAntesDeCobrar?'<p class="muted">Primero acepta este pedido. Después confirma el abono y el pago desde el mismo pedido, en Pedidos. No se registra una venta al aceptar.</p>':""}
     <p class="muted">Solo se consideran ventas los pagos completos confirmados. Los montos mixtos deben sumar exactamente lo que corresponde.</p></div>
   ${pedidoEdicion?.pagado&&(deltaEdicion!==0||pendienteEdicion)?
     '<p class="muted">La diferencia del cobro quedará registrada automáticamente; editar no declara una devolución.</p>':''}
@@ -4929,6 +4933,9 @@ async function ndGuardar(){
     aviso('No se encontró el pedido original. Actualiza la lista antes de editar.');return;
   }
   if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED===true){
+   if(D.pagado&&!D.editando&&D.cartaSolicitudRemotaId){
+    aviso('Primero acepta este pedido de carta sin marcarlo pagado. Confirma el abono desde el pedido guardado.');return;
+   }
    if(!ukiSeguimientoConservarOrigenEdicionQA()||!ukiSeguimientoValidarCambioMedioQA(originalQR,D))return;
    if(D.pagado&&!ukiSeguimientoPrepararManualQA(D))return;
    const firmaPago=JSON.stringify({suc:S.suc,draft:{...D,transferenciaManualQA:undefined}});
