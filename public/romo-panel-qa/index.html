@@ -6821,6 +6821,43 @@ async function ukiRomoConciliarDiferenciaRealQA(id){
  }
 }
 
+function ukiRomoCancelacionBloqueoQA(p){
+ const dia=fechaOperativaActual(),caja=S.cajasDiarias?.[S.suc+'|'+dia];
+ if(ukiCierreConfirmadoPedido(p)||caja?.turnoAbierto!==true||!p.turnoClave||p.turnoClave!==caja.turnoId)
+  return 'Pedido de un turno cerrado o anterior. No se cancela desde la caja abierta.';
+ if(p.pagado)
+  return 'Figura pagado. Hay que revisar el pago antes de cancelar. Este botón no anula ni devuelve dinero.';
+ if(p.ajusteCobroPendiente||p.productosPagadosOtroLocal||p.envioPagadoOtroLocal||
+    p.pagosProductos?.length||p.pagosEnvio?.length||Number(p.propina)||
+    (S.propinas||[]).some(x=>Number(x.pedidoId)===Number(p.id)))
+  return 'Hay un cobro o una diferencia que requiere revisión antes de cancelar.';
+ if(!['Pendiente','Entregado'].includes(p.estado))
+  return 'Este pedido no se puede cancelar desde la caja abierta.';
+ return '';
+}
+function ukiRomoCancelarPedidoHTMLQA(p){
+ if(!p||p.estado==='Cancelado'||p.esPremio)return '';
+ const id=Number(p.id),bloqueo=ukiRomoCancelacionBloqueoQA(p);
+ const puedeGuardar=window.ukiRomoGuardadoHabilitadoQA?.()===true;
+ const responsable=ukiTimbreResponsableActual();
+ const identificado=responsable!=='Sin turno identificado'&&responsable.trim().length>=2;
+ return '<details class="inner-details uki-cancelar-pedido" style="padding:12px;margin-top:12px;border:1px solid #e7c8b3;border-radius:12px">'+
+  '<summary style="cursor:pointer;color:#9b3328;font-weight:750">❌ Cancelar pedido</summary>'+
+  (bloqueo?'<p class="muted" style="margin-top:10px">'+esc(bloqueo)+'</p>':
+   '<div style="margin-top:12px"><label for="motivoCancelacion'+id+'">¿Quién canceló? · Obligatorio</label>'+
+   '<select id="motivoCancelacion'+id+'"><option value="">Selecciona una opción</option>'+
+   '<option value="cliente">Lo canceló el cliente</option><option value="local">Lo canceló el local</option></select>'+
+   '<label for="detalleCancelacion'+id+'">¿Por qué se cancela? · Motivo obligatorio</label>'+
+   '<textarea id="detalleCancelacion'+id+'" rows="2" maxlength="300" placeholder="Ej.: El cliente desistió del pedido"></textarea>'+
+   (identificado?'':'<label for="respCancelacion'+id+'">Responsable del registro</label>'+
+    '<input id="respCancelacion'+id+'" maxlength="80" autocomplete="off" placeholder="Nombre del responsable">')+
+   '<p id="ukiErrorCancelar'+id+'" role="alert" hidden style="padding:10px;border-radius:10px;background:#ffece4;color:#863417;margin:10px 0"></p>'+
+   '<button class="sm" type="button" style="color:#9b3328;border-color:#dcb4a5" '+
+   (puedeGuardar?'':'disabled title="Guardado de Romo desactivado" ')+
+   'onclick="ukiRomoCambiarEstadoQA('+id+',\'cancelar\')">'+
+   (puedeGuardar?'Confirmar cancelación del pedido':'Solo consulta · cancelación bloqueada')+'</button>'+
+   '<p class="muted">El motivo queda guardado y no crea otro cobro.</p></div>')+'</details>';
+}
 function ukiRomoPedidosPendientesHTMLQA(){
  // Se leen únicamente registros ya cargados de la sucursal Romo.
  // No se usa fechaTurnoRegistro(), que puede inicializar caja por render.
@@ -6885,10 +6922,10 @@ function ukiRomoPedidosPendientesHTMLQA(){
  const etiquetasExtra=UKI_CATEGORIAS_PEDIDOS.filter(([tipo])=>!filtrosPrincipales.has(tipo)&&tipo!=='cuentas')
   .map(([tipo,nombre])=>[tipo,nombre+' ('+numeroCategoria(tipo)+')']);
  const listado=visibles.filter(p=>coincide(p,ukiRomoFiltroPedidosQA));
- const enCurso=todos.filter(p=>enOperacion(p)&&ukiRomoPedidoPendienteQA(p)).length;
  const pendientesAnteriores=todos.filter(pendienteAnterior).length;
  const anteriores=todos.filter(p=>!enOperacion(p)).length;
- const nav='<div class="card"><b>🗂️ Pedidos de Romo</b>'+
+ const nav='<div role="group" aria-label="Consultar pedidos de otros turnos" style="margin-top:10px">'+
+  '<b>Turno e historial</b>'+
   '<div class="chips">'+
    [['operacion','Operación ('+(todos.filter(enOperacion).length+pendientesSolicitudes.length)+')'],
     ['pendientes-anteriores','Pendientes anteriores ('+pendientesAnteriores+')'],
@@ -6896,8 +6933,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
     ['todos','Todos ('+todos.length+')']].map(([v,t])=>
      '<button type="button" class="chip'+(ukiRomoVistaPedidosQA===v?' on':'')+
      '" onclick="ukiRomoCambiarVistaPedidosQA(\''+v+'\')">'+t+'</button>').join('')+
-   '</div><p class="muted">'+enCurso+
-   ' pendiente(s) del turno actual. Los anteriores se consultan aparte y no se borran.</p></div>';
+   '</div></div>';
  const buscar='<details class="card uki-bloque-busqueda" '+
   (ukiRomoBusquedaPedidosQA||ukiRomoFechaPedidosQA?'open':'')+'>'+
   '<summary style="cursor:pointer"><b>🔎 Buscar por nombre, WhatsApp, código del cliente, pedido o fecha</b></summary>'+
@@ -6944,13 +6980,13 @@ function ukiRomoPedidosPendientesHTMLQA(){
    (ukiRomoFiltroPedidosQA===k?' on':'')+
    '" onclick="ukiRomoCambiarFiltroQA(\''+k+'\')">'+esc(t)+'</button>').join('')+
   '</div><details style="margin-top:10px" '+
-  (etiquetasExtra.some(([k])=>k===ukiRomoFiltroPedidosQA)?'open':'')+
+  (etiquetasExtra.some(([k])=>k===ukiRomoFiltroPedidosQA)||ukiRomoVistaPedidosQA!=='operacion'?'open':'')+
   '><summary style="cursor:pointer"><b>Más filtros</b></summary>'+
   '<div class="chips" role="group" aria-label="Otros estados de pedidos">'+
   etiquetasExtra.map(([k,t])=>'<button type="button" class="chip'+
    (ukiRomoFiltroPedidosQA===k?' on':'')+
    '" onclick="ukiRomoCambiarFiltroQA(\''+k+'\')">'+esc(t)+'</button>').join('')+
-  '</div></details>'+
+  '</div>'+nav+'</details>'+
   '<details class="uki-carta-estado-compacto" style="margin-top:8px">'+
   '<summary>📲 Carta digital · '+esc(Array.isArray(ukiRomoSolicitudesCartaQA)?
    pendientesSolicitudes.length+' solicitud(es) pendientes. Comprueba que el WhatsApp del cliente también haya llegado.':
@@ -7063,7 +7099,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
    (Array.isArray(p.pagosEnvio)&&p.pagosEnvio.length>1?
     '<p class="muted"><b>Pago mixto delivery:</b> '+
     p.pagosEnvio.map(x=>esc(x.medio)+' '+fmt(x.monto)).join(' + ')+'</p>':'')+
-   (p.entregadoEn?'<p class="muted">Entregado: '+esc(fechaTxt(p.entregadoEn))+
+   (p.estado!=='Cancelado'&&p.entregadoEn?'<p class="muted">Entregado: '+esc(fechaTxt(p.entregadoEn))+
     (p.entregadoPor?' · '+esc(p.entregadoPor):'')+'</p>':'')+
    (p.timbreReglaObligatoria?'<p class="muted">Timbre WhatsApp: '+
     (p.timbreEnviadoEn?'Confirmado · '+esc(fechaTxt(p.timbreEnviadoEn)):'Pendiente de enviar')+
@@ -7082,23 +7118,6 @@ function ukiRomoPedidosPendientesHTMLQA(){
     ((!Array.isArray(p.qrSolicitudes)||p.qrSolicitudes.length===0)?
       '<div class="order-actions"><button type="button" class="sm ok" onclick="editarPedido('+id+')">Editar</button><button type="button" class="sm" onclick="togglePagado('+id+')">Marcar pagado</button></div>':'')+
     '')+
-    (p.estado==='Pendiente'?
-    '<details class="inner-details"><summary>❌ Cancelar pedido sin cobro</summary>'+
-    (tst?'<p class="muted">Pedido de prueba sin pago: puedes cancelarlo con motivo y responsable, conservando su historial. No se realizará ningún cobro, entrega ni devolución.</p>':'')+
-    '<label>¿Quién canceló?</label><select id="romoCancelarTipo'+id+'">'+
-    '<option value="">Selecciona</option><option value="cliente">Cliente</option>'+
-    '<option value="local">Local</option></select>'+
-    '<label>Motivo obligatorio</label><textarea id="romoCancelarDetalle'+id+
-    '" rows="2" maxlength="300" placeholder="Describe por qué se cancela"></textarea>'+
-    '<label>Responsable del registro</label><input id="romoCancelarResponsable'+id+
-    '" maxlength="80" autocomplete="off">'+
-    '<button type="button" class="sm" '+
-     (window.ukiRomoGuardadoHabilitadoQA?.()===true?'':'disabled title="Guardado de Romo desactivado" ')+
-     'onclick="ukiRomoCambiarEstadoQA('+id+
-     ',\'cancelar\')">'+
-     (window.ukiRomoGuardadoHabilitadoQA?.()===true?
-      'Confirmar cancelación':'Solo consulta · cancelación bloqueada')+
-     '</button></details>':'')+
     (p.estado==='Pendiente'&&!tst?
      '<button type="button" class="sm ok" onclick="ukiRomoCambiarEstadoQA('+id+
      ',\'entregar\')">✓ Marcar entregado (sin cambiar pago)</button>':'');
@@ -7127,7 +7146,8 @@ function ukiRomoPedidosPendientesHTMLQA(){
    (h.responsable?' · '+esc(h.responsable):'')+
    (h.motivo?' · '+esc(h.motivo):'')+'</p>').join('');
   const seguimientoDirecto=ukiSeguimientoEnPedidoQA(p);
-  return resumen+entrega+ukiRomoDiferenciaPendienteHTMLQA(p,cerrado,tst)+seguimientoDirecto+acciones+
+   return resumen+entrega+ukiRomoDiferenciaPendienteHTMLQA(p,cerrado,tst)+seguimientoDirecto+acciones+
+   ukiRomoCancelarPedidoHTMLQA(p)+
    (window.ukiRomoHistorialEdicionQA?.(p)||'')+
    (historial?'<details class="inner-details"><summary>🕘 Historial completo del pedido</summary>'+
     historial+'</details>':'')+
@@ -7167,8 +7187,8 @@ function ukiRomoPedidosPendientesHTMLQA(){
   ukiRomoVistaPedidosQA==='pendientes-anteriores'?'Pendientes de turnos anteriores':ukiRomoVistaPedidosQA==='historial'?'Historial de pedidos':ukiRomoVistaPedidosQA==='todos'?'Todos los pedidos':'Pedidos del turno abierto · '+fechaActual;
  return '<div class="section-head"><h2>Pedidos</h2>'+
   '<p>'+esc(titulo)+' · '+base.length+' registrados · '+pagados+' pagados · '+
-   pendientesSolicitudes.length+' solicitudes pendientes · '+enCurso+' en atención o por finalizar</p></div>'+
-  nav+ukiRomoSolicitudesHTMLQA()+
+   pendientesSolicitudes.length+' solicitudes pendientes</p></div>'+
+  ukiRomoSolicitudesHTMLQA()+
   (ukiRomoVistaPedidosQA==='operacion'?ukiRomoBorradoresResumenQA():'')+
   '<button class="big cta" type="button" onclick="nuevoDraft();modoNuevo=&quot;manual&quot;;ir(&quot;nuevo&quot;)">＋ Nuevo pedido</button>'+
   filtros+
@@ -7853,16 +7873,19 @@ async function ukiRomoCambiarEstadoQA(id,accion){
  let responsable='',motivo='',categoria='';
  const comprobacionManual={...p};
  if(accion==='cancelar'){
-  if(p.estado!=='Pendiente'||p.pagado){
-   aviso('Pedido con pago o entrega: requiere conciliación, no se canceló.');return;
-  }
-  categoria=String(document.getElementById('romoCancelarTipo'+pedidoId)?.value||'');
-  motivo=String(document.getElementById('romoCancelarDetalle'+pedidoId)?.value||'').trim();
-  responsable=String(document.getElementById('romoCancelarResponsable'+pedidoId)?.value||'').trim();
-  if(!['cliente','local'].includes(categoria)||motivo.length<4||motivo.length>300||
-     responsable.length<2||responsable.length>80){
-   aviso('Indica quién canceló, motivo de 4 a 300 caracteres y responsable.');return;
-  }
+  const bloqueo=ukiRomoCancelacionBloqueoQA(p);
+  if(bloqueo)return ukiErrorCancelarPedido(pedidoId,bloqueo);
+  categoria=String(document.getElementById('motivoCancelacion'+pedidoId)?.value||'');
+  motivo=String(document.getElementById('detalleCancelacion'+pedidoId)?.value||'').trim();
+  const responsableTurno=ukiTimbreResponsableActual();
+  responsable=String(responsableTurno==='Sin turno identificado'?
+   document.getElementById('respCancelacion'+pedidoId)?.value||'':responsableTurno).trim().slice(0,80);
+  if(!['cliente','local'].includes(categoria))
+   return ukiErrorCancelarPedido(pedidoId,'Selecciona si canceló el cliente o el local.');
+  if(!motivo||motivo.length>300)
+   return ukiErrorCancelarPedido(pedidoId,'Escribe por qué se cancela el pedido.');
+  if(responsable.length<2)
+   return ukiErrorCancelarPedido(pedidoId,'Escribe quién registra la cancelación.');
  }else if(accion==='entregar'){
   if(p.estado!=='Pendiente'){
    aviso('Solo puede confirmarse la entrega de un pedido pendiente.');return;
@@ -7886,8 +7909,9 @@ async function ukiRomoCambiarEstadoQA(id,accion){
   }
  }else return;
  const mensaje=accion==='cancelar'?
-  '¿Cancelar el pedido #'+pedidoId+'? '+motivo+
-   ' No se registra cobro ni devolución.':
+  '¿Cancelar el pedido #'+pedidoId+'? Motivo: '+motivo+'. '+
+   (p.estado==='Entregado'?'Antes figuraba entregado: verifica que se deba anular. ':'')+
+   'Se conservará el historial. No se mueve dinero automáticamente.':
   '¿Confirmas que el cliente recibió este pedido? Su pago y caja no cambiarán.';
  if(!window.confirm(mensaje))return;
  ukiRomoOperandoPedidoQA=true;

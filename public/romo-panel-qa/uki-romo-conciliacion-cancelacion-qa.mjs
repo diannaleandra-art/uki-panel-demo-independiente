@@ -30,11 +30,11 @@ export function prepararConciliacionCancelacionRomoQA(estado,datos={}){
  const siguiente=copia.pedidos.find(p=>p?.id===pedidoId&&p?.suc===SUC);
  const historialDespues=siguiente?.historialCambios;
  const evento=historialDespues?.[historialDespues.length-1];
- if(estadoAnterior!=='Pendiente'||siguiente?.estado!=='Cancelado'||
+ if(!['Pendiente','Entregado'].includes(estadoAnterior)||siguiente?.estado!=='Cancelado'||
     !Array.isArray(historialDespues)||
     historialDespues.length!==Math.min(100,historialAntes+1)||
     evento?.tipo!=='cancelacion'||
-    evento?.anterior!=='Pendiente'||evento?.nuevo!=='Cancelado'||
+    evento?.anterior!==estadoAnterior||evento?.nuevo!=='Cancelado'||
     evento?.responsable!==String(datos.responsable||'').trim()||
     evento?.motivo!==String(datos.motivo||'').trim()||
     evento?.categoria!==String(datos.categoria||'').trim().toLowerCase())
@@ -44,7 +44,7 @@ export function prepararConciliacionCancelacionRomoQA(estado,datos={}){
  return Object.freeze({
   estadoPropuesto:copia,
   resumen:Object.freeze({
-   pedidoId,categoria:evento.categoria,antes:'Pendiente',despues:'Cancelado',
+   pedidoId,categoria:evento.categoria,antes:estadoAnterior,despues:'Cancelado',
    historialAntes,historialDespues:historialDespues.length,
    cobro:false,devolucion:false,modificacionCaja:false,
    guardadoEnNeon:false,verificacion:'solo_preparacion_local',

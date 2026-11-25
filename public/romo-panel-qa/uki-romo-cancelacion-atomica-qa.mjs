@@ -25,24 +25,24 @@ export function prepararCancelacionRomoQA(estado,{
  if(quien&&!['cliente','local'].includes(quien))fail('Indica si canceló el cliente o el local');
  if(!Number.isSafeInteger(id)||id<1)fail('Número de pedido inválido');
  if(actor.length<2||actor.length>80)fail('Indica quién cancela el pedido');
- if(razon.length<4||razon.length>300)fail('Motivo de cancelación obligatorio');
+ if(!razon||razon.length>300)fail('Motivo de cancelación obligatorio');
  if(!Number.isSafeInteger(registradoEn)||registradoEn<1||
     !Number.isFinite(new Date(registradoEn).getTime()))fail('Fecha de cancelación inválida');
  const pedido=estado.pedidos.find(p=>p?.id===id&&p.suc===SUC);
- if(!pedido||pedido.estado!=='Pendiente'||pedido.esPremio)
-  fail('Solo se puede cancelar un pedido pendiente de Romo');
+ if(!pedido||!['Pendiente','Entregado'].includes(pedido.estado)||pedido.esPremio)
+  fail('Solo se puede cancelar un pedido en curso de Romo');
  // Si hubo cualquier cobro, necesita el flujo de reembolso y conciliación.
- if(pedido.pagado===true||pedido.productosPagadosOtroLocal||
+ if(pedido.pagado===true||pedido.ajusteCobroPendiente||Number(pedido.propina)||pedido.productosPagadosOtroLocal||
     pedido.envioPagadoOtroLocal||
     (Array.isArray(pedido.pagosProductos)&&pedido.pagosProductos.length>0)||
     (Array.isArray(pedido.pagosEnvio)&&pedido.pagosEnvio.length>0)||
-    estado.propinas.some(p=>p?.pedidoId===id))
+    estado.propinas.some(p=>Number(p?.pedidoId)===id))
   fail('Pedido con pagos: requiere conciliación antes de cancelar');
  if(estado.cierres.some(c=>c?.suc===SUC&&c.turnoClave===pedido.turnoClave))
   fail('El pedido pertenece a un turno ya cerrado');
  if(pedido.historialCambios!==undefined&&!Array.isArray(pedido.historialCambios))
   fail('Historial del pedido inválido');
- const momento=new Date(registradoEn).toISOString();
+ const momento=new Date(registradoEn).toISOString(),anterior=pedido.estado;
  pedido.estado='Cancelado';
  pedido.canceladoEn=momento;pedido.canceladoPor=actor;
  pedido.motivoCancelacion=quien||razon;
@@ -50,7 +50,7 @@ export function prepararCancelacionRomoQA(estado,{
  // En un pedido sin pago no inventamos una devolución pendiente ni movemos dinero.
  pedido.historialCambios=[...(pedido.historialCambios||[]),{
   tipo:'cancelacion',fecha:momento,responsable:actor,categoria:quien||null,motivo:razon,
-  anterior:'Pendiente',nuevo:'Cancelado'
+  anterior,nuevo:'Cancelado'
  }].slice(-100);
  return Object.freeze({pedidoId:id,estado:'Cancelado',responsable:actor,motivo:razon});
 }
