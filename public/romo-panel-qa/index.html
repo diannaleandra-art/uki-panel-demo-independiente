@@ -2580,7 +2580,6 @@ function vNuevo(){
       `<label>Pago del delivery recibido en ${S.suc===ROMO_SUCURSAL_QA?"Romo":"Uki"} · ${fmt(envio)}</label>${ukiPagoUI("envio",envio)}`):""}
     <label class="check"><input type="checkbox" ${D.pagado?"checked":""} ${aceptarCartaAntesDeCobrar?'disabled title="Primero acepta el pedido de carta"':''} onchange="D.pagado=this.checked;render()"> <b>Pago completo confirmado</b></label>
     ${aceptarCartaAntesDeCobrar?'<p class="muted">Primero acepta este pedido. Después confirma el abono y el pago desde el mismo pedido, en Pedidos. No se registra una venta al aceptar.</p>':""}
-    ${S.suc===ROMO_SUCURSAL_QA&&D.pagado&&!pedidoEdicion?.pagado?`<label>Responsable que recibió el dinero</label><input maxlength="80" placeholder="Nombre de quien confirma el cobro" value="${esc(D.romoResponsableCobro||"")}" oninput="D.romoResponsableCobro=this.value"><p class="muted">Solo marca esta casilla después de recibir el dinero. Se guarda en Neon Romo en una sola operación y no se cobrará nuevamente.</p>`:""}
     <p class="muted">Solo se consideran ventas los pagos completos confirmados. Los montos mixtos deben sumar exactamente lo que corresponde.</p></div>
   ${pedidoEdicion?.pagado&&(deltaEdicion!==0||pendienteEdicion)?
     '<p class="muted">La diferencia del cobro quedará registrada automáticamente; editar no declara una devolución.</p>':''}
@@ -7050,10 +7049,8 @@ function ukiRomoPedidosPendientesHTMLQA(){
    acciones='<p class="muted">🔒 Turno cerrado · Solo consulta. No se altera un cierre histórico.</p>';
   }else if(!p.pagado){
    acciones=(tst?'<p class="muted">Pedido de prueba: movimientos comerciales bloqueados.</p>':
-    ukiRomoCamposCobroQA(p)+
-    (p.estado==='Pendiente'&&
-     (!Array.isArray(p.qrSolicitudes)||p.qrSolicitudes.length===0)?
-      '<button type="button" class="sm ok" onclick="editarPedido('+id+')">✏️ Editar pedido pendiente</button>':'')+
+    ((!Array.isArray(p.qrSolicitudes)||p.qrSolicitudes.length===0)?
+      '<div class="order-actions"><button type="button" class="sm ok" onclick="editarPedido('+id+')">Editar</button><button type="button" class="sm" onclick="togglePagado('+id+')">Marcar pagado</button></div>':'')+
     '')+
     (p.estado==='Pendiente'?
     '<details class="inner-details"><summary>❌ Cancelar pedido sin cobro</summary>'+
@@ -7078,7 +7075,7 @@ function ukiRomoPedidosPendientesHTMLQA(){
   }else{
    acciones='<p class="muted">Pago guardado en Romo. No se realiza otro cobro.</p>'+
     (!tst&&(!Array.isArray(p.qrSolicitudes)||p.qrSolicitudes.length===0)?
-      '<button type="button" class="sm" onclick="editarPedido('+id+')">✏️ Editar pedido pagado</button>':'')+
+      '<div class="order-actions"><button type="button" class="sm ok" onclick="editarPedido('+id+')">Editar</button><button type="button" class="sm" onclick="togglePagado('+id+')">Quitar pagado</button></div>':'')+
     (p.timbreReglaObligatoria&&!p.timbreEnviadoEn?
      (ukiTimbreMovimientoRegistrado(p)&&ukiNumeroTimbreWhatsApp(p.telefono)?
       '<div class="card" style="padding:12px"><b>🎫 Timbre por enviar</b>'+
@@ -7470,18 +7467,16 @@ async function ukiRomoConfirmarTimbreQA(id){
  const p=S.pedidos.find(x=>x.suc===S.suc&&x.id===Number(id));
  if(!registro||!p||p.timbreEnviadoEn||registro.numero!==ukiNumeroTimbreWhatsApp(p.telefono))
   return aviso('Abre primero el WhatsApp de este pedido.');
- const responsable=window.prompt('Nombre de quien envió el timbre por WhatsApp');
- if(responsable===null)return;
+ const responsable=String(ukiTimbreResponsableActual()).trim().slice(0,80);
  if(String(responsable).trim().length<2||String(responsable).trim().length>80)
   return aviso('Indica el nombre del responsable.');
- if(!window.confirm('¿Ya presionaste Enviar en WhatsApp? Abrir el enlace no confirma el envío.'))return;
  ukiRomoTimbreBusyQA=true;
  try{
   const copy=datosSoloSucursal();
   const lib=await import('./uki-romo-timbres-atomicos-qa.mjs');
   lib.prepararTimbreRomoQA(copy,{pedidoId:Number(id),responsable:String(responsable).trim(),
    whatsappAbiertoEn:registro.abiertoEn,whatsappConfirmadoEn:new Date().toISOString(),envioConfirmado:true});
-  await ukiRomoGuardarOperacionQA(copy,'Timbre enviado por WhatsApp',Number(id),'clientes');
+  await ukiRomoGuardarOperacionQA(copy,'Timbre enviado por WhatsApp',Number(id),S.vista);
   ukiRomoWAAbiertosQA.delete(Number(id));
  }catch(error){
   aviso('No se confirmó el timbre. Revisa Neon antes de repetir. '+String(error?.message||error));
@@ -7855,8 +7850,7 @@ async function ukiRomoCambiarEstadoQA(id,accion){
    aviso('El pedido cambió. Actualiza antes de confirmar la entrega.');return;
   }
   const sugerido=String(ukiTimbreResponsableActual?.()||'');
-  responsable=String(window.prompt('¿Quién confirma la entrega del pedido #'+pedidoId+'?',
-    sugerido==='Sin turno identificado'?'':sugerido)||'').trim();
+  responsable=String(sugerido||'Sin turno identificado').trim().slice(0,80);
   if(responsable.length<2||responsable.length>80){
    aviso('Para entregar, identifica al responsable. No se guardó nada.');return;
   }
@@ -7864,8 +7858,7 @@ async function ukiRomoCambiarEstadoQA(id,accion){
  const mensaje=accion==='cancelar'?
   '¿Cancelar el pedido #'+pedidoId+'? '+motivo+
    ' No se registra cobro ni devolución.':
-  '¿Confirmas que el cliente YA recibió el pedido #'+pedidoId+
-   '? No se registra ni modifica ningún pago.';
+  '¿Confirmas que el cliente recibió este pedido? Su pago y caja no cambiarán.';
  if(!window.confirm(mensaje))return;
  ukiRomoOperandoPedidoQA=true;
  try{
@@ -10303,54 +10296,47 @@ async function ukiRomoCorregirReferenciaPagadaQA(){
 }
 
 async function ukiRomoEditarPedidoPendienteQA(){
- if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA||
-    S.vista!=='nuevo'||!D.editando)return;
- const id=Number(D.editando);
+ if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA||S.vista!=='nuevo'||!D.editando)return;
+ const id=Number(D.editando),session=window.ukiRomoSesionRemotaQA;
  const original=(S.pedidos||[]).find(p=>p.suc===ROMO_SUCURSAL_QA&&p.id===id);
- if(!original){
-  aviso('El pedido original ya no está disponible. Actualiza antes de editar.');return;
- }
- if(original.pagado||original.estado!=='Pendiente'||
-    ukiCierreConfirmadoPedido(original)){
-  aviso('Este pedido ya fue cobrado, entregado o cerrado. Requiere la corrección financiera autorizada; no se modificó.');return;
+ if(!original||original.pagado||!['Pendiente','Entregado'].includes(original.estado)||
+    original.esPremio||ukiCierreConfirmadoPedido(original)||!session?.disponible?.()){
+  aviso('El pedido no está disponible para editar en este turno.');return;
  }
  const responsable=String(D.responsableEdicion||'').trim();
- if(responsable.length<2||responsable.length>80){
-  aviso('Escribe quién realiza la modificación del pedido.');return;
- }
- if(!window.ukiRomoSesionRemotaQA?.disponible?.()){
-  aviso('Reabre Romo con tu acceso Google autorizado antes de guardar.');return;
- }
- const firma=JSON.stringify(D);
- if(!window.confirm('¿Guardar la edición del pedido #'+id+
-   ' SIN registrar un cobro ni alterar timbres, caja o historial de cierre?\n'+
-   'Responsable: '+responsable+'\nLos cambios se auditarán en Neon Romo.'))return;
+ if(responsable.length<2||responsable.length>80){aviso('Escribe quién realiza la modificación del pedido.');return;}
+ const cobrar=D.pagado===true;
+ if(cobrar&&(!ukiValidarTimbreAntesGuardar(D,original)||!ukiRevisionBancoBorradorValidaQA(D,original)))return;
+ const firma=JSON.stringify(D),base=session.estado(),estadoFirma=JSON.stringify(datosSoloSucursal());
+ if(base.conflicto)return aviso('Actualiza Romo antes de guardar.');
  ukiRomoGuardandoManualQA=true;
  try{
-  const session=window.ukiRomoSesionRemotaQA;
-  const base=session.estado();
-  if(base.conflicto===true)throw Error('El estado de Romo presenta un conflicto. Actualiza antes de editar.');
-  const module=await import('./uki-romo-edicion-pendiente-qa.mjs');
-  if(firma!==JSON.stringify(D)||!session.disponible()||
-     session.estado().revision!==base.revision)
-    throw Error('El formulario o el estado cambiaron antes de guardar');
-  const copia=datosSoloSucursal();
-  const resultado=module.prepararEdicionPendienteRomoQA({
-   estado:copia,pedidoId:id,draft:D,responsable,
-   foto:ukiFotoCorreccionPedido,
-   turnoCerrado:!!ukiCierreConfirmadoPedido(original),
-   codigoWhatsApp:ukiCodigoWhatsApp
-  });
-  if(resultado.sinCobro!==true||resultado.pedidoId!==id||
-     copia.pedidos.length!==(S.pedidos||[]).length||
-     !validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
-    throw Error('La edición no conserva el pedido original de Romo');
-  await ukiRomoGuardarOperacionQA(copia,'Edición pendiente auditada, sin cobro',id,'pedidos');
+  const modulo=await import('./uki-romo-edicion-pendiente-qa.mjs?v=recorrido-uki-20261125');
+  const cobro=cobrar?await import('./uki-romo-cobro-pendiente-qa.mjs?v=romo-paridad-pagos-20261118'):null;
+  if(firma!==JSON.stringify(D)||estadoFirma!==JSON.stringify(datosSoloSucursal())||session.estado().revision!==base.revision||session.estado().conflicto)throw Error('El formulario o el estado cambiaron antes de guardar.');
+  const copia=datosSoloSucursal(),edicion=cobrar?{...D,pagado:false,productosPagadosOtroLocal:false,envioPagadoOtroLocal:false,mixtoProductos:false,mixtoEnvio:false,pagosProductos:[],pagosEnvio:[],propina:0,propinaModo:'ninguna',propinaPersonalizada:0,ajusteCobroPendiente:null}:D;
+  const resultado=modulo.prepararEdicionPendienteRomoQA({estado:copia,pedidoId:id,draft:edicion,responsable,foto:ukiFotoCorreccionPedido,turnoCerrado:false,codigoWhatsApp:ukiCodigoWhatsApp,permitirSinCambios:cobrar,permitirEntregado:true});
+  if(resultado.sinCobro!==true||resultado.pedidoId!==id||copia.pedidos.length!==S.pedidos.length)throw Error('No se conservó el pedido original.');
+  const pedido=copia.pedidos.find(p=>p.suc===S.suc&&p.id===id);
+  if(cobrar){
+   const sub=pedido.subtotal,envio=pedido.envio;
+   const externoP=D.productosPagadosOtroLocal?ukiMontoProductosOtroLocal(D,sub):0;
+   const externoE=D.envioPagadoOtroLocal?ukiMontoEnvioOtroLocal(D,envio,sub):0;
+   cobro.prepararCobroPendienteRomoQA(copia,{pedidoId:id,responsable,registradoEn:Date.now(),confirmoRecepcion:true,
+    medioProductos:D.medio,medioEnvio:D.medioEnvio||'Efectivo',
+    pagosProductos:D.mixtoProductos?(D.pagosProductos||[]).map(x=>({...x})):[],
+    pagosEnvio:D.mixtoEnvio?(D.pagosEnvio||[]).map(x=>({...x})):[],
+    productosOtroLocal:externoP,envioOtroLocal:externoE,
+    localPagoExterno:externoP||externoE?String(D.localPagoExterno||'').trim():'',
+    confirmoPagoExterno:externoP+externoE>0,propinaMonto:ukiMontoPropina(D,sub),medioPropina:D.medioPropina||'Efectivo'});
+   if(ukiTimbreBorradorConfirmado(D))ukiAnotarTimbreConfirmadoEnPedido(pedido,D);
+   ukiSeguimientoAnotarManualQA(pedido,D);
+  }
+  if(firma!==JSON.stringify(D)||estadoFirma!==JSON.stringify(datosSoloSucursal())||session.estado().revision!==base.revision||!validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))throw Error('El pedido cambió antes de guardar.');
+  await ukiRomoGuardarOperacionQA(copia,cobrar?'Pago confirmado':'Pedido actualizado',id,'pedidos',cobrar?'confirmar_cobro':null);
   nuevoDraft();
- }catch(error){
-  aviso('No se confirmó la edición en Neon. Revisa el pedido antes de intentarlo otra vez. '+
-    String(error?.message||error));
- }finally{ukiRomoGuardandoManualQA=false;}
+ }catch(error){aviso('No se confirmó el cambio. Revisa el pedido antes de repetir. '+String(error?.message||error));}
+ finally{ukiRomoGuardandoManualQA=false;}
 }
 
 async function ukiRomoGuardarPedidoPendienteQA(){
@@ -10399,10 +10385,7 @@ async function ukiRomoGuardarPedidoPendienteQA(){
     !Number.isSafeInteger(propina)||propina<0||propina>1000000){
   aviso('El total o la propina no es válido. Comprueba los precios.');return;
  }
- const responsable=String(D.romoResponsableCobro||'').trim();
- if(D.pagado&&(responsable.length<2||responsable.length>80)){
-  aviso('Indica el responsable del dinero recibido, igual que en Caja.');return;
- }
+ const responsable=String(ukiTimbreResponsableActual()).trim().slice(0,80);
  if(D.pagado&&!ukiValidarTimbreAntesGuardar(D,null))return;
  // El formulario manual no debe ser una alternativa para acreditar
  // transferencias; efectivo y tarjeta conservan el procedimiento normal.
@@ -10419,11 +10402,6 @@ async function ukiRomoGuardarPedidoPendienteQA(){
   String(p.codigoCarta||'').trim().toLowerCase()===String(D.codigoCarta).trim().toLowerCase())){
   aviso('Ese código de pedido ya está registrado en Romo. Revisa la bandeja.');return;
  }
- if(!window.confirm('Romo La Serena: guardar este pedido por '+fmt(total)+
-  (D.pagado?' con PAGO COMPLETO REALMENTE RECIBIDO. Responsable: '+responsable+
-   '. Productos y delivery: '+fmt(subtotal+envio)+'; propina aparte: '+fmt(propina)+
-   '. Se registrará UNA sola vez en Neon Romo.':
-   ' como PENDIENTE: no se registra dinero.')+' ¿Confirmar?'))return;
  const firmaGuardado=JSON.stringify(D);
  ukiRomoGuardandoManualQA=true;
  try{
