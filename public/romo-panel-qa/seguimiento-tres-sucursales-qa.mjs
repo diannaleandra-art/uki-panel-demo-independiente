@@ -247,7 +247,7 @@ window.ukiQAConfirmTransferBeforePayment=async function({storeId,id,total,monto,
  try{
   const result=await query('GET',{},id),p=result.pedido;
   if(store()!==storeId||result.orderId!==id||result.totalPedido!==total||
-     p?.storeId!==storeId||p.estadoPedido!=='aceptada'||p.montoTransferencia!==monto)
+     p?.storeId!==storeId||!['aceptada','en_camino'].includes(p.estadoPedido)||p.montoTransferencia!==monto)
    return 'no_disponible';
   if(p.estadoPago==='confirmada')return 'confirmada';
   if(result.puedeConfirmar!==true||!['pendiente','avisada'].includes(p.estadoPago)||
