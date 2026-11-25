@@ -68,7 +68,9 @@ function visibility(){
 async function query(method='GET',body={},id=''){
  const storeId=store();if(!storeId)throw Error('Selecciona el local.');
  // Usa exactamente la sesión de recepción existente; no obliga a abrir Google.
- const getToken=window.ukiMesasQAToken;
+ // Sólo la proyección de un guardado Firebase usa su propia sesión Google.
+ // Recepción, mensajes y transferencia conservan su autorización de equipo.
+ const getToken=method==='POST'&&body.action==='publicar_estado_guardado'?window.ukiInventarioToken:window.ukiMesasQAToken;
  const token=typeof getToken==='function'?await getToken():null;
  if(typeof token!=='string'||!token)throw Error('El equipo debe estar autorizado en el panel habitual.');
  if(store()!==storeId)throw Error('Cambió la sucursal. Abre el pedido nuevamente.');
@@ -244,19 +246,25 @@ window.ukiQAConfirmTransferBeforePayment=async function({storeId,id,total,monto}
  */
 const estadosPublicados=new Map();
 let publicandoEstado=false;
-window.ukiQAPublishSavedState=async function({pedidos,revision}={}){
+window.ukiQAPublishSavedState=async function({pedidos,revision,generacion}={}){
  const shop=store();
  if(window.UKI_SEGUIMIENTO_ESTADO_GUARDADO_AUTORIZADO!==true||
     window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true||publicandoEstado||!shop||
-    !Number.isSafeInteger(revision)||revision<1||!Array.isArray(pedidos))return false;
+    !Number.isSafeInteger(revision)||revision<1||! /^[a-f0-9]{32}$/.test(generacion||'')||!Array.isArray(pedidos))return false;
  publicandoEstado=true;let ok=true;
  try{
   for(const p of pedidos){
    if(store()!==shop)return false;
    if(NAMES[p?.suc]!==shop||p.esPremio||typeof p.pagado!=='boolean'||
       !['Pendiente','Entregado','Cancelado'].includes(p.estado))continue;
-   const id=String(p.cartaSolicitudRemotaId||'');
-   if(!UUID.test(id)||(!p.pagado&&p.estado==='Pendiente'&&!estadosPublicados.has(shop+'|'+id)))continue;
+   const id=String(p.cartaSolicitudRemotaId||''),pedidoInterno=String(p.id||'');
+   if(!UUID.test(id)||! /^[1-9][0-9]{0,11}$/.test(pedidoInterno))continue;
+   // Tras recargar el panel, comprobar si un pedido vuelto a pendiente
+   // tenía un pago/entrega publicado. No mantener un estado pagado obsoleto.
+   if(!p.pagado&&p.estado==='Pendiente'&&!estadosPublicados.has(shop+'|'+id)){
+    try{const prior=await query('GET',{},id);if(prior?.pedido?.pagoRegistrado!==true&&
+     !['entregada','cancelada'].includes(prior?.pedido?.estadoPedido))continue;}catch{ok=false;continue;}
+   }
    const d=seguimientoDistribucionRealQA(p);
    if(!d){ok=false;continue;}
    const monto=d.pagos.filter(x=>x.medio==='transferencia').reduce((sum,x)=>sum+x.monto,0)+Number(d.propinaTransferencia||0);
@@ -266,9 +274,9 @@ window.ukiQAPublishSavedState=async function({pedidos,revision}={}){
    if(estadosPublicados.get(key)===firma)continue;
    try{
     const result=await doAction('publicar_estado_guardado',id,{
-     revision:payload.revision,total:payload.total,montoTransferencia:monto,estado:p.estado,pagado:p.pagado
+     revision:payload.revision,generacion,pedidoInterno,total:payload.total,montoTransferencia:monto,estado:p.estado,pagado:p.pagado
     });
-    if(result?.ok===true)estadosPublicados.set(key,firma);else ok=false;
+    if(result?.ok===true&&result.obsolete!==true)estadosPublicados.set(key,firma);else ok=false;
    }catch{ok=false;}
   }
   if(!ok&&store()===shop&&notice)tell('El pedido ya se guardó en caja. El seguimiento aún necesita sincronizarse; no vuelvas a cobrar.');

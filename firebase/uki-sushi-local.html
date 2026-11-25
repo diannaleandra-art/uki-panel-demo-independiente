@@ -6318,7 +6318,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 <script src="./uki-caja-acumulada-admin.js?v=20261122-calendario1" defer></script>
 <script src="./uki-control-turnos.js" defer></script>
 <script src="./uki-carta-remotas-panel.js" defer></script>
-<script type="module" src="./uki-seguimiento-operativo-panel-v1.mjs"></script>
+<script type="module" src="./uki-seguimiento-operativo-panel-v1.mjs?v=revision-firebase-20261125"></script>
 <script src="./uki-archivo-mensual-core.js?v=20261121-retencion-simulada-v2" defer></script>
 <script src="./uki-archivo-agenda.js?v=20261121-agenda-v1" defer></script>
 <script src="./uki-archivo-mensual-panel.js?v=20261121-agenda-v1" defer></script>
@@ -6427,21 +6427,28 @@ const auto=crearAutoGuardadoOperativo({
    el("ukiSaveQA").disabled=auto.resumen().activo;
    actualizarBloqueo();
    if(estado==='sincronizado')Promise.resolve().then(async()=>{
-    // Primero se confirma el respaldo remoto real de la sucursal Uki.
+    // Consultar la revisión y generación remota exactas. Un fallo de
+    // seguimiento nunca interrumpe cierres ni la conciliación de mesas.
     if(window.UKI_SEGUIMIENTO_ESTADO_GUARDADO_AUTORIZADO===true){
-     const ctx=window.ukiQAGet?.(),revisionConfirmada=auto.resumen().revision;
-     if(ctx&&Number.isSafeInteger(revisionConfirmada)&&revisionConfirmada>0&&
-        await window.ukiArchivoComprobarNube?.(ctx.suc)&&
-        auto.resumen().revision===revisionConfirmada&&window.ukiCancelacionNubeLista?.()===true){
-      const actual=window.ukiQAGet?.();
-      if(actual?.suc===ctx.suc){
-       const ahora=Date.now();
-       const pedidos=(actual.estado?.pedidos||[]).filter(p=>{
-        const stamp=Number(p.registradoEn);return Number.isFinite(stamp)&&stamp<=ahora&&ahora-stamp<7*86400000;
-       }).slice(-80);
-       void window.ukiQAPublishSavedState?.({pedidos,revision:revisionConfirmada});
+     try{
+      const ctx=window.ukiQAGet?.(),antes=auto.resumen();
+      const rama={"Uki Regimiento Arica":"regimiento","Uki La Serena":"la-serena"}[ctx?.suc];
+      if(rama&&antes.sucursal===ctx.suc&&Number.isSafeInteger(antes.revision)&&antes.revision>0&&
+         window.ukiCancelacionNubeLista?.()===true){
+       const snap=await getDocFromServer(doc(db,"uki_operacion_v1",rama));
+       const remoto=snap.exists()?snap.data():null;
+       const despues=auto.resumen(),actual=window.ukiQAGet?.();
+       if(remoto?.branch===rama&&remoto.schemaVersion===2&&remoto.rev===antes.revision&&
+          /^[a-f0-9]{32}$/.test(remoto.generacion||"")&&despues.revision===antes.revision&&
+          despues.actualRespaldado===true&&actual?.suc===ctx.suc&&window.ukiCancelacionNubeLista?.()===true){
+        const ahora=Date.now();
+        const pedidos=(actual.estado?.pedidos||[]).filter(p=>{
+         const stamp=Number(p.registradoEn);return Number.isFinite(stamp)&&stamp<=ahora&&ahora-stamp<7*86400000;
+        }).slice(-80);
+        void window.ukiQAPublishSavedState?.({pedidos,revision:remoto.rev,generacion:remoto.generacion});
+       }
       }
-     }
+     }catch{console.warn("Seguimiento pendiente de sincronización; no repetir el cobro.");}
     }
     void ukiConciliarCierresDuenos();
     await ukiMesaConfirmarGuardadosSeguro();
