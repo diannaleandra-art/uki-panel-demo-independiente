@@ -68,6 +68,7 @@ function badgeText(entry,localState){
  if(entry.estadoPago==='confirmada')labels.push('✓ Transferencia verificada');
  else if(entry.estadoPago==='avisada')labels.push('Transferencia avisada · por revisar');
  else if(entry.montoTransferencia>0||entry.pagoDeclarado==='transferencia')labels.push('Transferencia pendiente');
+ if(Number.isInteger(entry.calificacion)&&entry.calificacion>=1&&entry.calificacion<=5)labels.push('★ '+entry.calificacion+'/5');
  return labels.join(' · ');
 }
 
@@ -79,7 +80,7 @@ function pintarPreparacion(summary,entry,shop){
   box.addEventListener('click',e=>e.stopPropagation());
   summary.append(box);
  }
- if(box.dataset.saving==='1'||box.contains(document.activeElement))return;
+ if(box.dataset.saving==='1')return;
  const p=entry.preparacion||{},firma=JSON.stringify([p,entry.modalidad]);
  if(box.dataset.firma===firma)return;box.dataset.firma=firma;box.replaceChildren();
  const label=text('small',p.lista?'✓ Listo para retirar':p.estimadoEn?'Estimado '+new Date(p.estimadoEn).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})+(p.demora?' · Demora avisada':''):'Tiempo estimado:');
