@@ -6481,7 +6481,7 @@ import {getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged} from "htt
 import {getFirestore,doc,getDocFromServer,writeBatch,runTransaction,onSnapshot} from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 import {dividirEstado,reunirEstado} from "./uki-particion-local.js";
 import {nuevaSal,nuevaGeneracion,derivarClave,cifrarBloque,descifrarBloque} from "./uki-cifrado-bloques.js";
-import {crearSnapshotsUki} from "./uki-sushi-nube.js?v=seguimiento-guardado-20261125";
+import {crearSnapshotsUki} from "./uki-sushi-nube.js?v=progreso-recuperacion-20261125";
 import {verificarGuardadoUki} from "./uki-seguimiento-guardado-nube-v1.mjs";
 import {crearAutoGuardadoOperativo,huellaOperativa} from "./uki-sushi-autoguardado.js?v=refrescos-20261125";
 import {prepararCierreParaDuenos,sincronizarCierreDuenos} from "./uki-duenos-cierre-publicador-live.mjs";
@@ -6918,21 +6918,35 @@ el("ukiLoginQA").addEventListener("click",()=>accion(async()=>{
 el("ukiLoadQA").addEventListener("click",()=>accion(async()=>{
  const x=contexto();
  const esLimpieza=!el('ukiLimpiezaPruebasReg').hidden&&x.suc==='Uki Regimiento Arica';
- let timer;
  const comienzo=esLimpieza?huellaOperativa(x.estado):null,uid=auth.currentUser?.uid;
  const vigente=()=>auth.currentUser?.uid===uid&&window.ukiQAGet?.()?.suc===x.suc&&
   el('ukiCloudPass').value===x.clave&&huellaOperativa(window.ukiQAGet().estado)===comienzo;
  let data;
  if(esLimpieza){
-  msg('Conectando con la nube de Regimiento. Espera unos segundos…');
+  msg('Conectando con la nube de Regimiento. Mantén abierta esta pantalla…');
+  const controlador=new AbortController();
+  let timer,reiniciarEspera;
+  const sinAvances=new Promise((_,reject)=>{
+   reiniciarEspera=()=>{
+    clearTimeout(timer);
+    timer=setTimeout(()=>{
+     reject(Error('La nube no respondió a tiempo. No se cambió nada. Revisa la conexión y toca Cargar nube para volver a probar.'));
+     controlador.abort();
+    },90000);
+   };
+   reiniciarEspera();
+  });
   try{
-   data=await Promise.race([cloud.cargar(x.suc,x.clave),new Promise((_,reject)=>{
-    timer=setTimeout(()=>reject(Error('La nube no respondió a tiempo. Vuelve a tocar Cargar nube. Si vuelve a ocurrir, abre este enlace en Safari.')),25000);
-   })]);
+   data=await Promise.race([cloud.cargar(x.suc,x.clave,{
+    signal:controlador.signal,informa:(listos,total)=>{
+     reiniciarEspera();
+     el('ukiNubeEstado').textContent='Cargando el respaldo de Regimiento · '+listos+' de '+total+' partes.';
+    }
+   }),sinAvances]);
   }catch(e){
    if(e?.name==='OperationError')throw Error('La clave de nube no permite abrir Regimiento. Revisa la clave larga, no el PIN de Mi Administración.');
    throw e;
-  }finally{clearTimeout(timer);}
+  }finally{clearTimeout(timer);controlador.abort();}
   if(!data.estado)throw Error('No se encontró un respaldo de Regimiento. No se reemplazó la copia de este dispositivo.');
   if(!vigente())throw Error('Cambió la sesión, la clave o el registro. Vuelve a cargar la nube.');
   const panel=el('ukiConfirmarNubeLimpieza'),usar=el('ukiAplicarNubeLimpieza'),volver=el('ukiCancelarNubeLimpieza');

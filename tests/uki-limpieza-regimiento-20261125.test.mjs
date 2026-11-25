@@ -5,6 +5,7 @@ import {runInNewContext} from 'node:vm';
 import {planRegimiento,prepararRetiroRegimiento,mismaHuellaRegimiento,diagnosticarRetiroRegimiento,SUCURSAL,PEDIDOS} from '../firebase/uki-limpieza-regimiento-v1.mjs';
 import {dividirEstado,reunirEstado} from '../firebase/uki-particion-local.js';
 import {huellaOperativa} from '../firebase/uki-sushi-autoguardado.js';
+import {crearSnapshotsUki} from '../firebase/uki-sushi-nube.js';
 
 const clone=x=>JSON.parse(JSON.stringify(x));
 const stamp='2026-11-25T11:30:00-03:00';
@@ -150,7 +151,7 @@ function probarCarga({leer,clave='clave-simulada',suc=SUCURSAL,limpieza=true,pla
  el('ukiLimpiezaPruebasReg').hidden=!limpieza;el('ukiCloudPass').value=clave;
  const env={el,accion:fn=>fn(),contexto:()=>({suc,clave,estado}),huellaOperativa:JSON.stringify,auth,
   msg:s=>mensajes.push(s),window:{ukiQAGet:()=>({suc,estado}),ukiQASet:async data=>llamadas.push(['local',data])},
-  setTimeout:(fn,ms)=>setTimeout(fn,Math.min(ms,plazo)),clearTimeout,Error,
+  setTimeout:(fn,ms)=>setTimeout(fn,Math.min(ms,plazo)),clearTimeout,Error,AbortController,
   cloud:{cargar:leer??(async()=>({revision:1732,estado}))},auto:{desactivar:()=>llamadas.push('off'),activar:()=>llamadas.push('on')},
   dejarDeVigilar:()=>{},vigilarRevisiones:()=>{},confirm:()=>{llamadas.push('aviso-nativo');return true;},
   revision:null,sucursalCargada:null};
@@ -188,5 +189,36 @@ test('El panel habitual y La Serena conservan la confirmación normal',async()=>
   assert.ok(f.llamadas.includes('aviso-nativo'));
   assert.equal(f.el('ukiConfirmarNubeLimpieza').hidden,true);
  }
+});
+function nubeDePrueba({demorar=false}={}){
+ const gen='f'.repeat(32),rama='regimiento',bloques=7,consultas=[],pendientes=[];
+ const fake=crearSnapshotsUki({db:{},auth:{currentUser:{uid:'solo-lectura'}},
+  api:{doc:(_, ...ruta)=>ruta,getDocFromServer:async ruta=>{
+   if(ruta.length===2)return {exists:()=>true,data:()=>({branch:rama,schemaVersion:2,rev:1740,generacion:gen,salt:'a'.repeat(22),totalBloques:bloques})};
+   const [,,,id]=ruta,indice=Number(id.split('_')[1]);
+   consultas.push(indice);
+   if(demorar)await new Promise(resolve=>pendientes.push(resolve));
+   return {exists:()=>true,data:()=>({branch:rama,generacion:gen,indice,formato:'uki-cloud-chunk-v1',paquete:JSON.stringify(indice)})};
+  },writeBatch:()=>{throw Error('No debe escribir');},runTransaction:()=>{throw Error('No debe escribir');}},
+  blocks:{dividirEstado:()=>{},reunirEstado:(partes,suc)=>({suc,partes})},
+  codec:{nuevaSal:()=>{},nuevaGeneracion:()=>{},cifrarBloque:()=>{},derivarClave:async()=>{},descifrarBloque:async({registro})=>registro}});
+ return {fake,consultas,pendientes};
+}
+test('La lectura informa progreso real y conserva el orden de las partes',async()=>{
+ const {fake}=nubeDePrueba(),pasos=[];
+ const datos=await fake.cargar(SUCURSAL,'clave-simulada',{informa:(n,total)=>pasos.push([n,total])});
+ assert.deepEqual(pasos,Array.from({length:8},(_,i)=>[i,7]));
+ assert.deepEqual(datos.estado.partes,[0,1,2,3,4,5,6]);
+});
+test('Una lectura cancelada no inicia más consultas ni reconstruye una copia parcial',async()=>{
+ const {fake,consultas,pendientes}=nubeDePrueba({demorar:true}),control=new AbortController(),pasos=[];
+ const lectura=fake.cargar(SUCURSAL,'clave-simulada',{signal:control.signal,informa:n=>pasos.push(n)});
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(consultas.length,6);
+ control.abort();
+ pendientes.forEach(resolver=>resolver());
+ await assert.rejects(lectura,e=>e.code==='CARGA_CANCELADA');
+ assert.equal(consultas.length,6);
+ assert.deepEqual(pasos,[0]);
 });
 

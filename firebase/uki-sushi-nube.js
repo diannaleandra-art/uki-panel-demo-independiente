@@ -48,18 +48,24 @@ export function crearSnapshotsUki({db,auth,api,blocks,codec,controlGuardado=null
    if(!camposManifiesto(data)||data.branch!==branch)fail("FORMATO","Manifiesto remoto incorrecto");
    return {revision:data.rev,manifest:data};
  };
- async function cargar(sucursal,password){
+ async function cargar(sucursal,password,{signal,informa}={}){
    verificarSesion();const branch=nombreRama(sucursal);
+   const quedoVigente=()=>{if(signal?.aborted)fail('CARGA_CANCELADA','Se interrumpió la lectura de la nube.');};
+   quedoVigente();
    const manifestSnap=await api.getDocFromServer(refManifiesto(branch));
+   quedoVigente();
    const {revision,manifest}=validarManifest(manifestSnap.exists()?manifestSnap.data():null,branch);
    if(!manifest)return {revision:0,estado:null};
+   informa?.(0,manifest.totalBloques);
    const clave=await codec.derivarClave(password,manifest.salt);
    const resultados=new Array(manifest.totalBloques);
-   let siguiente=0;
+   let siguiente=0,leidos=0;
    async function trabajador(){
      while(siguiente<manifest.totalBloques){
+       quedoVigente();
        const i=siguiente++;
        const snap=await api.getDocFromServer(refBloque(branch,manifest.generacion,i));
+       quedoVigente();
        if(!snap.exists())fail("INCOMPLETO","Falta parte "+i+" del respaldo remoto");
        const doc=snap.data();
        if(doc.branch!==branch||doc.generacion!==manifest.generacion||
@@ -69,10 +75,13 @@ export function crearSnapshotsUki({db,auth,api,blocks,codec,controlGuardado=null
        const decrypted=await codec.descifrarBloque({
          clave,branch,generacion:manifest.generacion,registro:JSON.parse(doc.paquete)
        });
+       quedoVigente();
        resultados[i]=decrypted;
+       if(informa)informa(++leidos,manifest.totalBloques);
      }
    }
    await Promise.all(Array.from({length:Math.min(manifest.totalBloques,MAX_PARALELO_LECTURA)},()=>trabajador()));
+   quedoVigente();
    const estado=blocks.reunirEstado(resultados,sucursal);
    if(!estado||estado.suc!==sucursal)fail("SUCURSAL","Los datos corresponden a otra sucursal");
    return {revision,estado};
