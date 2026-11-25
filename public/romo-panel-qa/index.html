@@ -5410,7 +5410,7 @@ function ukiSeguimientoAccesoVisibleQA(p){
  if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true||!p||p.suc!==S.suc||p.estado==='Cancelado')return '';
  const id=String(p.cartaSolicitudRemotaId||p.seguimientoSolicitudId||'');
  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))return '';
- return '<div data-seguimiento-resumen-id="'+id+'" data-seguimiento-estado="'+(p.estado==='Entregado'?'Entregado':'Pendiente')+'" style="margin:5px 0 2px;display:flex;align-items:center;gap:7px;flex-wrap:wrap">'+
+ return '<div data-seguimiento-resumen-id="'+id+'" data-seguimiento-estado="'+(p.estado==='Entregado'?'Entregado':'Pendiente')+'" data-seguimiento-modalidad="'+(p.modalidad==='Retiro'?'retiro':p.modalidad==='Delivery'?'delivery':p.modalidad==='Consumo en local'?'consumo en local':'')+'" style="margin:5px 0 2px;display:flex;align-items:center;gap:7px;flex-wrap:wrap">'+
  '<small data-seguimiento-resumen-aviso role="status" style="font-size:12px;font-weight:600">Consultando seguimiento…</small>'+
  (p.estado==='Pendiente'&&!p.esPremio&&Number.isSafeInteger(Number(p.id))?'<button type="button" class="sm" style="margin:0;min-height:38px;font-weight:700" onclick="event.preventDefault();event.stopPropagation();ukiCopiarComandaCocina('+Number(p.id)+')">📋 Copiar comanda cocina</button>':'')+
  (p.modalidad==='Delivery'&&p.estado==='Pendiente'?'<button type="button" class="sm" data-seguimiento-ruta disabled style="margin:0;min-height:38px" onclick="event.preventDefault();event.stopPropagation();window.ukiSeguimientoMarcarRuta?.(this,&quot;'+id+'&quot;)">🛵 Pedido en camino</button>':'')+'</div>';
