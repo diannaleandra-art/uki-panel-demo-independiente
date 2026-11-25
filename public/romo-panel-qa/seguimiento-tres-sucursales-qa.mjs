@@ -64,12 +64,43 @@ function hideActive(){
 }
 function badgeText(entry,localState){
  if(!entry)return localState==='Entregado'?'✓ Entregado · Seguimiento por sincronizar':'Seguimiento no disponible';
- const labels=[localState==='Entregado'||entry.estadoPedido==='entregada'?'✓ Entregado':entry.estadoPedido==='cancelada'?'Pedido cancelado':entry.enCamino?'🛵 Pedido en camino':entry.estadoPedido==='aceptada'?'✓ Pedido aceptado':'Pendiente de aceptación'];
+ const labels=[localState==='Entregado'||entry.estadoPedido==='entregada'?'✓ Entregado':entry.estadoPedido==='cancelada'?'Pedido cancelado':entry.enCamino?'🛵 Pedido en camino':entry.preparacion?.lista===true?'✓ Listo para retirar':entry.estadoPedido==='aceptada'?'✓ Pedido aceptado':'Pendiente de aceptación'];
  if(entry.estadoPago==='confirmada')labels.push('✓ Transferencia verificada');
  else if(entry.estadoPago==='avisada')labels.push('Transferencia avisada · por revisar');
  else if(entry.montoTransferencia>0||entry.pagoDeclarado==='transferencia')labels.push('Transferencia pendiente');
  return labels.join(' · ');
 }
+
+function pintarPreparacion(summary,entry,shop){
+ let box=summary.querySelector('[data-preparacion-controles]');
+ if(!entry||summary.dataset.seguimientoEstado==='Entregado'||entry.estadoPedido!=='aceptada'||entry.enCamino===true){box?.remove();return;}
+ if(!box){
+  box=document.createElement('div');box.dataset.preparacionControles='1';box.style.cssText='display:flex;flex-basis:100%;flex-wrap:wrap;align-items:center;gap:5px';
+  box.addEventListener('click',e=>e.stopPropagation());
+  summary.append(box);
+ }
+ if(box.dataset.saving==='1'||box.contains(document.activeElement))return;
+ const p=entry.preparacion||{},firma=JSON.stringify([p,entry.modalidad]);
+ if(box.dataset.firma===firma)return;box.dataset.firma=firma;box.replaceChildren();
+ const label=text('small',p.lista?'✓ Listo para retirar':p.estimadoEn?'Estimado '+new Date(p.estimadoEn).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})+(p.demora?' · Demora avisada':''):'Tiempo estimado:');
+ label.style.fontWeight='600';box.append(label);
+ if(p.lista)return;
+ const enviar=async valor=>{
+  if(shop!==store()||box.dataset.saving==='1')return;
+  box.dataset.saving='1';
+  for(const b of box.querySelectorAll('button'))b.disabled=true;
+  try{
+   const result=await doAction('actualizar_preparacion',entry.id,{valor});
+   if(result?.ok!==true||!result.preparacion)throw Error('No se confirmó el cambio');
+   if(store()===shop)label.textContent='✓ Aviso enviado a la carta';
+  }catch(e){label.textContent=String(e?.message||'No se pudo actualizar');}
+  finally{delete box.dataset.saving;delete box.dataset.firma;for(const b of box.querySelectorAll('button'))b.disabled=false;void loadList();}
+ };
+ for(const n of [20,30,45,60,90])box.append(btn(n+' min',e=>{e?.preventDefault();void enviar(n)}));
+ if(p.estimadoEn)box.append(btn('Demora +15 min',e=>{e?.preventDefault();void enviar('demora')}));
+ if(entry.modalidad==='retiro')box.append(btn('✓ Listo para retirar',e=>{e?.preventDefault();void enviar('lista')}));
+}
+
 function paintBadges(orders,shop){
  if(store()!==shop)return;
  const entries=new Map(orders.map(x=>[x.id,x]));
@@ -77,6 +108,7 @@ function paintBadges(orders,shop){
   const label=summary.querySelector('[data-seguimiento-resumen-aviso]');
   const entry=entries.get(summary.dataset.seguimientoResumenId);
   if(label)label.textContent=badgeText(entry,summary.dataset.seguimientoEstado);
+  pintarPreparacion(summary,entry,shop);
   const route=summary.querySelector('[data-seguimiento-ruta]');if(route){route.disabled=summary.dataset.seguimientoEstado==='Entregado'||!entry||entry.estadoPedido!=='aceptada'||entry.enCamino===true;route.textContent=entry?.enCamino?'✓ En camino':'🛵 Pedido en camino';}
  }
  for(const card of document.querySelectorAll('[data-seguimiento-id]')){
@@ -249,7 +281,7 @@ window.ukiQAConfirmTransferBeforePayment=async function({storeId,id,total,monto,
  try{
   const result=await query('GET',{},id),p=result.pedido;
   if(store()!==storeId||result.orderId!==id||result.totalPedido!==total||
-     p?.storeId!==storeId||!['aceptada','en_camino'].includes(p.estadoPedido)||p.montoTransferencia!==monto)
+     p?.storeId!==storeId||!['aceptada','lista','en_camino'].includes(p.estadoPedido)||p.montoTransferencia!==monto)
    return 'no_disponible';
   if(p.estadoPago==='confirmada')return 'confirmada';
   if(result.puedeConfirmar!==true||!['pendiente','avisada'].includes(p.estadoPago)||
