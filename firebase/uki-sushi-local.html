@@ -4598,14 +4598,14 @@ function ukiSeguimientoAccesoVisibleQA(p){
  const id=String(p.cartaSolicitudRemotaId||p.seguimientoSolicitudId||'');
  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))return '';
  return '<div data-seguimiento-resumen-id="'+id+'" style="margin:5px 0 2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">'+
- '<button type="button" class="sm" style="margin:0;min-height:38px" onclick="event.preventDefault();event.stopPropagation();window.ukiQAOpenOrderTracking?.(&quot;'+id+'&quot;)">💬 Chat</button>'+
+ '<button type="button" class="sm" style="margin:0;min-height:38px" onclick="event.preventDefault();event.stopPropagation();window.ukiQAOpenOrderTracking?.(&quot;'+id+'&quot;)">📋 Seguimiento</button>'+
  '<small data-seguimiento-resumen-aviso role="status" style="font-size:12px"></small></div>';
 }
 function ukiSeguimientoEnPedidoQA(p){
  const id=String(p?.cartaSolicitudRemotaId||p?.seguimientoSolicitudId||'');
  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)||p.suc!==S.suc||p.estado==='Cancelado')return '';
  return '<div data-seguimiento-id="'+id+'" style="flex-basis:100%;margin:8px 0">'+
-  '<button class="sm" type="button" onclick="window.ukiQAOpenOrderTracking?.(&quot;'+id+'&quot;)" aria-expanded="false">💬 Mensajes y transferencia</button>'+
+  '<button class="sm" type="button" onclick="window.ukiQAOpenOrderTracking?.(&quot;'+id+'&quot;)" aria-expanded="false">Seguimiento y transferencia</button>'+
   ' <small data-seguimiento-aviso role="status"></small>'+
   '<small data-seguimiento-status role="status" style="display:block"></small>'+
   '<div data-seguimiento-detalle hidden style="margin-top:8px;padding:10px;border:1px solid #ddd;border-radius:10px"></div></div>';
@@ -6326,7 +6326,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 <script src="./uki-caja-acumulada-admin.js?v=20261122-calendario1" defer></script>
 <script src="./uki-control-turnos.js" defer></script>
 <script src="./uki-carta-remotas-panel.js" defer></script>
-<script type="module" src="./uki-seguimiento-operativo-panel-v1.mjs?v=chat-visible-20261125"></script>
+<script type="module" src="./uki-seguimiento-operativo-panel-v1.mjs?v=solo-seguimiento-20261125"></script>
 <script src="./uki-archivo-mensual-core.js?v=20261121-retencion-simulada-v2" defer></script>
 <script src="./uki-archivo-agenda.js?v=20261121-agenda-v1" defer></script>
 <script src="./uki-archivo-mensual-panel.js?v=20261121-agenda-v1" defer></script>
