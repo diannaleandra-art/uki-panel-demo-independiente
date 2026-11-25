@@ -61,7 +61,7 @@ module.exports=async(req,res)=>{
     const plan=OP.normalizeOrder(storeId,r);
     return plan?{
      id:r.id,codigoPedido:plan.codigo,cliente:String(r.cliente||'').slice(0,80),
-     estadoPedido:plan.estado,metodoPago:plan.metodoPago,pagoDeclarado:plan.pagoDeclarado,
+     estadoPedido:plan.estado,enCamino:plan.enCamino===true,metodoPago:plan.metodoPago,pagoDeclarado:plan.pagoDeclarado,
      montoTransferencia:plan.montoTransferencia,
      estadoPago:!r.estado_pago?'pendiente':r.monto_transferencia!==plan.montoTransferencia?'requiere_revision':
       r.estado_pago==='confirmada'&&(!r.confirmada_en||!r.abono_verificado_en||!r.confirmada_por||
@@ -88,6 +88,19 @@ module.exports=async(req,res)=>{
    return fail(res,409,'La solicitud sigue pendiente: primero acepta el pedido y valida su importe');
   if(req.method==='POST'){
    const action=req.body.action;
+   if(action==='marcar_en_camino'){
+    if(revision||actor.revisionOnly===true||!cfg.live)return fail(res,403,'Acción comercial no disponible');
+    if(Object.keys(req.body).sort().join('|')!=='action|id|storeId'||actor.storeId!==storeId||!['duenos','agendador'].includes(actor.role))
+     return fail(res,403,'Acción no autorizada');
+    if(order.modalidad&&order.modalidad!=='delivery')return fail(res,409,'El pedido no es de delivery');
+    if(order.seguimientoGuardado?.estado==='Entregado'||order.seguimientoGuardado?.estado==='Cancelado')return fail(res,409,'El pedido ya está finalizado');
+    if(order.enCamino)return res.status(200).json({ok:true,storeId,enCamino:true});
+    // Sólo una etapa informativa: no modifica pagos, caja, estado de aceptación ni entrega.
+    const sql="UPDATE "+meta.source+" s SET datos=s.datos||jsonb_build_object('seguimientoRuta',jsonb_build_object('estado','en_camino','en',now(),'por',$5::text)) WHERE s.id=$1::uuid AND s.branch=$2 AND s.estado='aceptada' AND s.datos=$4::jsonb"+(meta.uki?" AND $3::text='uki:'||s.branch":" AND s.store_id=$3")+" AND EXISTS (SELECT 1 FROM "+meta.link+" l WHERE l.solicitud_id=s.id AND l.store_id=$3 AND l.branch=$2 AND l.estado='active' AND l.revocado_en IS NULL AND l.vence_en>now()) RETURNING s.id";
+    const changed=await db.query(sql,[id,meta.branch,storeId,order.snapshotDatos,actor.userId]);
+    if(changed.length!==1)return fail(res,409,'El pedido cambió o su seguimiento no está vigente. Actualiza.');
+    return res.status(200).json({ok:true,storeId,enCamino:true});
+   }
    if(action==='generar_enlace'){
     if(Object.keys(req.body).sort().join('|')!=='action|id|storeId')
      return fail(res,400,'Datos de enlace no válidos');
@@ -149,7 +162,8 @@ module.exports=async(req,res)=>{
      total:req.body.total,montoTransferencia:req.body.montoTransferencia,estado:req.body.estado,pagado:req.body.pagado});
     return res.status(200).json(result);
    }
-   if(action==='responder_mensaje'){
+   if(action==='responder_mensaje')return fail(res,403,'Las consultas se atienden por WhatsApp');
+   if(false&&action==='responder_mensaje'){
     if(Object.keys(req.body).sort().join('|')!=='action|id|storeId|texto')
      return fail(res,400,'Mensaje inválido');
     await S.sendMessage({db,order,from:'agendador',body:req.body.texto,staff:actor,chatSecret:cfg.chatSecret});
