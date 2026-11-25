@@ -13,6 +13,12 @@ const monto=(v,label)=>{
     Number(v)<0||Number(v)>100000000)err('Importe '+label+' inválido');
  return Number(v);
 };
+// Saldo teórico firmado; no es efectivo físico contado.
+const saldoCierre=v=>{
+ if(v===''||v===undefined||v===null||!Number.isSafeInteger(Number(v))||
+    Math.abs(Number(v))>100000000)err('Importe efectivo de cierre inválido');
+ return Number(v);
+};
 const optional=(v,fallback,label)=>v===''||v===undefined||v===null?
  fallback:monto(v,label);
 const assertOwn=(record,label)=>{
@@ -177,7 +183,7 @@ export function consultarCajaRomoQA(estado,{fechaOperativa}={}){
   .slice(0,25).map(c=>({
    fecha:String(c.fechaOperativa||c.fechaISO||c.fecha||'').slice(0,40),
    venta:c.venta===undefined?null:monto(c.venta,'venta de cierre'),
-   efectivo:c.efectivo===undefined?null:monto(c.efectivo,'efectivo de cierre')
+   efectivo:c.efectivo===undefined||c.efectivo===null?null:saldoCierre(c.efectivo)
   }));
  return Object.freeze({...result,medios:Object.freeze({...medios}),
   historial:Object.freeze(historial)});
