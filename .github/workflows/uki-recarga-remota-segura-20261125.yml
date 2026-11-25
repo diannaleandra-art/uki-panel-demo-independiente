@@ -1,0 +1,16 @@
+name: Uki - recarga remota segura
+on:
+  push:
+    branches:
+      - fix/uki-recarga-remota-validacion-20261125
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: node --test tests/uki-recarga-remota-segura-20261125.test.cjs tests/uki-refrescos-sin-cambios-20261125.test.cjs tests/uki-cancelacion-no-cierra-refresco-20261109.test.cjs tests/uki-cancelar-estado-impago-20261109.test.cjs tests/uki-carta-aceptadas-canceladas-sin-alerta-20261109.test.cjs tests/uki-carta-normal-recepcion.test.cjs tests/uki-qr-huella-nube.test.cjs tests/uki-mesas-autoconfirmar.test.cjs tests/uki-qr-cancelacion-mesa.test.cjs
