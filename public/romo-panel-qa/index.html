@@ -2997,6 +2997,26 @@ function ukiUltimoPedidoConTimbre(cli){
   .sort((a,b)=>fechaRegistroMs(b)-fechaRegistroMs(a)||(Number(b.id)||0)-(Number(a.id)||0))[0]||null;
 }
 
+
+function ukiTextoComandaCocina(p){
+ const items=(p.productos||[]).filter(x=>x&&x.nombre);
+ const original=extraerMensajeCartaUki(String(p.textoOriginal||''));
+ const firma=(nombre,cantidad,detalle)=>JSON.stringify([String(nombre||'').trim(),Number(cantidad),String(detalle||'').trim()]);
+ const coincide=original.lineasCocina.length>0&&original.items.length===items.length&&items.every((x,i)=>firma(x.nombre,x.cantidad,x.detalle)===firma(original.items[i].nombre,original.items[i].cant,original.items[i].det));
+ const limpia=s=>String(s||'').replace(/\*/g,'').replace(/\s*\$\s*\d[\d.,]*/g,'').trim();
+ const lineas=coincide?original.lineasCocina.map(limpia):items.flatMap(x=>[Number(x.cantidad)+' × '+limpia(x.nombre),limpia(x.detalle)].filter(Boolean));
+ if(!lineas.length)return '';
+ return [String(p.suc||''),'COCINA · '+ukiReferenciaConCarta(p),fechaTxt(p.fechaISO)+' · '+String(p.modalidad||''),p.modalidad==='Consumo en local'&&p.mesaReferencia?'Mesa: '+p.mesaReferencia:'',original.lineasCocina.length&&!coincide?'PEDIDO MODIFICADO · Revisar detalle confirmado':'','────────────────',...lineas,'────────────────','Revisar pedido completo antes de entregar.'].filter(Boolean).join('\n');
+}
+async function ukiCopiarComandaCocina(id){
+ const p=(S.pedidos||[]).find(x=>Number(x.id)===Number(id)&&x.suc===S.suc);
+ if(!p||p.estado==='Cancelado'||p.esPremio)return aviso('Este pedido no permite copiar una comanda de cocina.');
+ const txt=ukiTextoComandaCocina(p);if(!txt)return aviso('Revisa los productos antes de copiar la comanda.');
+ try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(txt);aviso('✅ Comanda de cocina copiada. Pégala donde la necesites.');return;}}catch{}
+ const f=document.createElement('textarea');f.value=txt;f.setAttribute('readonly','');f.style.cssText='position:fixed;left:0;top:0;opacity:0';document.body.append(f);f.select();f.setSelectionRange(0,txt.length);let ok=false;try{ok=document.execCommand('copy')}catch{}f.remove();
+ if(ok)aviso('✅ Comanda de cocina copiada.');else window.prompt('Copia esta comanda para cocina:',txt);
+}
+
 function copiarComanda(id){const p=S.pedidos.find(x=>x.id===id); if(!p) return; const txt=[`${ukiReferenciaConCarta(p)} · ${p.modalidad}`, ...(p.productos||[]).map(pr=>`${pr.cantidad}x ${pr.nombre}${pr.detalle?` (${pr.detalle})`:""}`), p.envio?`Delivery ${fmt(p.envio)}`:"", `Total ${fmt(p.total)}`].filter(Boolean).join("\n"); if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>aviso("Comanda copiada")).catch(()=>aviso(txt)); else aviso(txt);}
 function togglePagado(id){
  const p=(S.pedidos||[]).find(x=>x.suc===S.suc&&x.id===Number(id));
@@ -5391,6 +5411,7 @@ function ukiSeguimientoAccesoVisibleQA(p){
  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))return '';
  return '<div data-seguimiento-resumen-id="'+id+'" data-seguimiento-estado="'+(p.estado==='Entregado'?'Entregado':'Pendiente')+'" style="margin:5px 0 2px;display:flex;align-items:center;gap:7px;flex-wrap:wrap">'+
  '<small data-seguimiento-resumen-aviso role="status" style="font-size:12px;font-weight:600">Consultando seguimiento…</small>'+
+ (p.estado==='Pendiente'&&!p.esPremio&&Number.isSafeInteger(Number(p.id))?'<button type="button" class="sm" style="margin:0;min-height:38px;font-weight:700" onclick="event.preventDefault();event.stopPropagation();ukiCopiarComandaCocina('+Number(p.id)+')">📋 Copiar comanda cocina</button>':'')+
  (p.modalidad==='Delivery'&&p.estado==='Pendiente'?'<button type="button" class="sm" data-seguimiento-ruta disabled style="margin:0;min-height:38px" onclick="event.preventDefault();event.stopPropagation();window.ukiSeguimientoMarcarRuta?.(this,&quot;'+id+'&quot;)">🛵 Pedido en camino</button>':'')+'</div>';
 }
 function ukiSeguimientoEnPedidoQA(p){
