@@ -364,18 +364,18 @@ function cambiarTiendaSonido(shop){
  detenerTonoPedido();pendientesSonido.clear();resueltasSonido.clear();tiendaSonido=shop;
 }
 function tonoPedido(){
- if(!audioPedido||audioPedido.state!=='running'||!pendientesSonido.size||tiendaSonido!==store()||Date.now()-ultimoTono<4000)return;
+ if(!audioPedido||audioPedido.state!=='running'||!pendientesSonido.size||tiendaSonido!==store()||Date.now()-ultimoTono<6000)return;
  ultimoTono=Date.now();
  try{
-  const duracion=2.1,t=audioPedido.currentTime+.02;
+  const duracion=1.65,t=audioPedido.currentTime+.02;
   const o=audioPedido.createOscillator(),g=audioPedido.createGain(),filtro=audioPedido.createBiquadFilter();
-  o.type='square';o.frequency.value=780;
-  filtro.type='lowpass';filtro.frequency.value=2400;filtro.Q.value=.7;
+  o.type='triangle';o.frequency.value=660;
+  filtro.type='lowpass';filtro.frequency.value=1500;filtro.Q.value=.7;
   const curva=new Float32Array(1024);
   for(let i=0;i<curva.length;i++){
    const s=duracion*i/(curva.length-1);
-   const envolvente=Math.max(0,Math.min(1,s/.035,(duracion-s)/.07));
-   curva[i]=.0001+.46*envolvente*(.65+.35*Math.sin(2*Math.PI*24*s));
+   const envolvente=Math.max(0,Math.min(1,s/.08,(duracion-s)/.14));
+   curva[i]=.0001+.20*envolvente*(.78+.22*Math.sin(2*Math.PI*16*s));
   }
   g.gain.setValueCurveAtTime(curva,t,duracion);
   o.connect(filtro);filtro.connect(g);g.connect(audioPedido.destination);
