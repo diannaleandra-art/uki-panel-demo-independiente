@@ -59,6 +59,10 @@ function badgeText(entry){
 function paintBadges(orders,shop){
  if(store()!==shop)return;
  const entries=new Map(orders.map(x=>[x.id,x]));
+ for(const summary of document.querySelectorAll('[data-seguimiento-resumen-id]')){
+  const label=summary.querySelector('[data-seguimiento-resumen-aviso]');
+  if(label)label.textContent=badgeText(entries.get(summary.dataset.seguimientoResumenId));
+ }
  for(const card of document.querySelectorAll('[data-seguimiento-id]')){
   const label=card.querySelector('[data-seguimiento-aviso]');
   if(label)label.textContent=badgeText(entries.get(card.dataset.seguimientoId));
@@ -353,24 +357,29 @@ async function loadDetail(id,target=activeDetail,refresh=false){
    if(data.puedeConfirmar&&p.estadoPago!=='confirmada'&&p.estadoPago!=='requiere_revision'){
     // Un solo toque DESPUÉS de mirar el abono real en el banco.
     // El importe proviene del servidor, nunca se permite escribir otro valor.
-    const button=btn('Confirmar: vi '+pesos(p.montoTransferencia)+' abonados',async()=>{
+    const button=document.createElement('input');button.type='checkbox';button.style.cssText='width:20px;height:20px;flex:none;margin:0';
+    const checkLabel=document.createElement('label');checkLabel.style.cssText='display:flex;align-items:center;gap:8px;padding:9px;border:1px solid #d3b99d;border-radius:8px;font-weight:600';
+    checkLabel.append(button,document.createTextNode('Transferencia revisada en el banco · '+pesos(p.montoTransferencia)));
+    button.addEventListener('change',async()=>{
+     if(!button.checked)return;
      if(!Number.isSafeInteger(p.montoTransferencia)||p.montoTransferencia<=0){
       tell('El importe del pedido debe revisarse antes de confirmar.',target);return;
      }
-     if(!isActive(target,id,shop)||actionBusy||loadingDetail)return;
+     if(!isActive(target,id,shop)||actionBusy||loadingDetail){button.checked=false;return;}
      button.disabled=true;actionBusy=true;
      try{
-      await doAction('confirmar_transferencia',id,{
+      const saved=await doAction('confirmar_transferencia',id,{
        montoRecibido:p.montoTransferencia,verificadoEnBanco:true
       });
+      if(saved.estadoPago!=='confirmada')throw Error('No se confirmó la revisión bancaria.');
       if(isActive(target,id,shop))tell('Transferencia verificada. Continúa con el cierre habitual.',target);
-     }catch(e){if(isActive(target,id,shop))tell(e.message,target);}
+     }catch(e){button.checked=false;if(isActive(target,id,shop))tell(e.message,target);}
      finally{
       button.disabled=false;actionBusy=false;
       if(isActive(target,id,shop)){await loadDetail(id,target);void loadList();}
      }
     });
-    payment.append(text('p','Primero comprueba en el banco que llegó exactamente '+pesos(p.montoTransferencia)+'.'),button);
+    payment.append(checkLabel);
    }
   }else payment.append(text('p','Transferencia no registrada o aún por revisar.'));
   target.append(payment);
