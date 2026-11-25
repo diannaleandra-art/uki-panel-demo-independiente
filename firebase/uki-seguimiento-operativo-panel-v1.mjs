@@ -70,9 +70,11 @@ function paintBadges(orders,shop){
 }
 function visibility(){
  if(!root||!dialog)return;
- root.hidden=!store()||window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true;
- if(root.hidden){dialog.open=false;hideActive();}
- else if(activeStore&&activeStore!==store())hideActive();
+ const enabled=!!store()&&window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED===true;
+ root.hidden=true;
+ root.style.display=root.hidden?'none':'';
+ if(root.hidden)dialog.open=false;
+ if(!enabled||(activeStore&&activeStore!==store()))hideActive();
 }
 async function query(method='GET',body={},id=''){
  const storeId=store();if(!storeId)throw Error('Selecciona el local.');
@@ -405,8 +407,9 @@ window.ukiQAOpenOrderTracking=async function(orderId){
  if(!root||!dialog||!detail||!store())return false;
  const id=String(orderId||'');
  if(!UUID.test(id)){tell('Este pedido aún no tiene seguimiento vinculado.');return false;}
- visibility();if(root.hidden||actionBusy)return false;
+ visibility();if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true||actionBusy)return false;
  const card=inlineFor(id),target=card?.querySelector('[data-seguimiento-detalle]')||detail;
+ if(target===detail&&root.hidden)return false;
  if(activeDetail!==target||selectedId!==id)hideActive();
  activeDetail=target;selectedId=id;activeStore=store();lastDetailSignature='';
  if(card&&target!==detail){
