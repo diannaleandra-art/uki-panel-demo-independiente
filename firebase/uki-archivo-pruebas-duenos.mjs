@@ -30,7 +30,8 @@ export function planificarArchivoPruebas({estado,seleccion,solicitudes,revision}
    if(estado[k]!==undefined&&!Array.isArray(estado[k]))throw Error('Colección inválida: '+k);
    if((estado[k]||[]).some(v=>v.suc===estado.suc&&Number(v.pedidoId)===id))bloqueos.push('Movimiento vinculado: '+k);
   }
-  const vinculos=solicitudes.filter(r=>r.branch===branch&&folio(r.pedido_interno)===String(id)&&folio(r.codigo_pedido)===codigo);
+  const storeId={'Uki Regimiento Arica':'uki:arica','Uki La Serena':'uki:serena','Romo’s Sushi La Serena':'romo:serena'}[estado.suc];
+  const vinculos=solicitudes.filter(r=>r.store_id===storeId&&r.branch===branch&&folio(r.pedido_interno)===String(id)&&folio(r.codigo_pedido)===codigo);
   if(vinculos.length!==1||vinculos[0].estado!=='aceptada'||
      vinculos[0].estado_guardado!=='Cancelado'||String(vinculos[0].pagado)!=='false')
    bloqueos.push('Seguimiento de carta no confirmado como cancelado sin pago');
