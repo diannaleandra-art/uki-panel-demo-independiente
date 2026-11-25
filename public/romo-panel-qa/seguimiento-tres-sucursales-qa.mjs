@@ -72,45 +72,61 @@ function badgeText(entry,localState){
  return labels.join(' · ');
 }
 
-function pintarPreparacion(summary,entry,shop){
+
+const preparacionConfirmada=new Map(),preparacionErrores=new Map();
+function pintarPreparacion(summary,entry,shop,local){
  let box=summary.querySelector('[data-preparacion-controles]');
- if(!entry||summary.dataset.seguimientoEstado==='Entregado'||entry.estadoPedido!=='aceptada'||entry.enCamino===true){box?.remove();return;}
+ if(!entry||local?.estado==='Entregado'||local?.estado==='Cancelado'||summary.dataset.seguimientoEstado==='Entregado'||entry.estadoPedido!=='aceptada'||entry.enCamino===true){box?.remove();return;}
  if(!box){
   box=document.createElement('div');box.dataset.preparacionControles='1';box.style.cssText='display:flex;flex-basis:100%;flex-wrap:wrap;align-items:center;gap:5px';
-  box.addEventListener('click',e=>e.stopPropagation());
-  summary.append(box);
+  box.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();});summary.append(box);
  }
  if(box.dataset.saving==='1')return;
- const modalidad=String(summary.dataset.seguimientoModalidad||'').toLowerCase();
- const p=entry.preparacion||{},firma=JSON.stringify([p,modalidad]);
- if(box.dataset.firma===firma)return;box.dataset.firma=firma;box.replaceChildren();
- const label=text('small',p.lista?'✓ Listo para retirar':p.estimadoEn?'Estimado '+new Date(p.estimadoEn).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})+(p.demora?' · Demora avisada':''):'Tiempo estimado:');
- label.style.fontWeight='600';box.append(label);
+ const modalidad=[local?.modalidad,summary.dataset.seguimientoModalidad,entry.modalidad].map(v=>String(v||'').trim().toLowerCase()).find(v=>['retiro','delivery','consumo en local'].includes(v))||'';
+ const key=shop+'|'+entry.id,server=entry.preparacion||{},cached=preparacionConfirmada.get(key);
+ const p=cached&&Date.parse(cached.actualizadoEn)>=(Date.parse(server.actualizadoEn)||0)?cached:server;
+ const error=preparacionErrores.get(key)||'';
+ const firma=JSON.stringify([p,modalidad,error]);if(box.dataset.firma===firma)return;box.dataset.firma=firma;box.replaceChildren();
+ const opciones=[20,30,45,60,90],inferido=Math.round((Date.parse(p.estimadoEn)-Date.parse(p.actualizadoEn))/60000);
+ const seleccionado=opciones.includes(p.minutosSeleccionados)?p.minutosSeleccionados:!p.demora&&opciones.includes(inferido)?inferido:null;
+ const label=text('small',p.lista?'✓ Listo para retirar · avisado':p.estimadoEn?'✓ '+(seleccionado?seleccionado+' min seleccionados · ':'')+'Estimado '+new Date(p.estimadoEn).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})+(p.demora?' · Demora avisada':''):'Tiempo estimado:');
+ label.style.cssText='font-weight:700;flex-basis:100%';label.setAttribute('role','status');box.append(label);
  if(p.lista)return;
+ const estado=text('small',error);estado.style.cssText='flex-basis:100%;font-weight:650;color:#a02720';estado.setAttribute('role','status');estado.hidden=!error;
  const enviar=async valor=>{
   if(shop!==store()||box.dataset.saving==='1')return;
-  box.dataset.saving='1';
+  if(!modalidad){estado.hidden=false;estado.textContent='No se identificó la modalidad. Actualiza el panel.';return;}
+  box.dataset.saving='1';preparacionErrores.delete(key);estado.hidden=false;estado.style.color='inherit';estado.textContent='Guardando aviso…';
   for(const b of box.querySelectorAll('button'))b.disabled=true;
   try{
    const result=await doAction('actualizar_preparacion',entry.id,{valor,modalidad});
    if(result?.ok!==true||!result.preparacion)throw Error('No se confirmó el cambio');
-   if(store()===shop)label.textContent='✓ Aviso enviado a la carta';
-  }catch(e){label.textContent=String(e?.message||'No se pudo actualizar');}
-  finally{delete box.dataset.saving;delete box.dataset.firma;for(const b of box.querySelectorAll('button'))b.disabled=false;void loadList();}
+   preparacionConfirmada.set(key,result.preparacion);
+   if(preparacionConfirmada.size>160)preparacionConfirmada.delete(preparacionConfirmada.keys().next().value);
+  }catch(e){preparacionErrores.set(key,String(e?.message||'No se pudo actualizar'));if(preparacionErrores.size>160)preparacionErrores.delete(preparacionErrores.keys().next().value);}
+  finally{delete box.dataset.saving;delete box.dataset.firma;if(summary.isConnected&&store()===shop)pintarPreparacion(summary,entry,shop,local);void loadList();}
  };
- for(const n of [20,30,45,60,90])box.append(btn(n+' min',e=>{e?.preventDefault();void enviar(n)}));
+ for(const n of opciones){
+  const b=btn((n===seleccionado?'✓ ':'')+n+' min',e=>{e?.preventDefault();void enviar(n)});
+  b.setAttribute('aria-pressed',String(n===seleccionado));
+  if(n===seleccionado)b.style.cssText='background:#286640;color:white;border:2px solid #286640;font-weight:800';
+  box.append(b);
+ }
  if(p.estimadoEn)box.append(btn('Demora +15 min',e=>{e?.preventDefault();void enviar('demora')}));
  if(modalidad==='retiro')box.append(btn('✓ Listo para retirar',e=>{e?.preventDefault();void enviar('lista')}));
+ box.append(estado);
 }
 
 function paintBadges(orders,shop){
  if(store()!==shop)return;
  const entries=new Map(orders.map(x=>[x.id,x]));
+ const ctx=window.ukiQAGet?.();
+ const locales=new Map((ctx?.suc&&store()===shop?ctx.estado?.pedidos||[]:[]).filter(p=>p.suc===ctx.suc).map(p=>[String(p.cartaSolicitudRemotaId||p.seguimientoSolicitudId||''),p]));
  for(const summary of document.querySelectorAll('[data-seguimiento-resumen-id]')){
   const label=summary.querySelector('[data-seguimiento-resumen-aviso]');
   const entry=entries.get(summary.dataset.seguimientoResumenId);
   if(label)label.textContent=badgeText(entry,summary.dataset.seguimientoEstado);
-  pintarPreparacion(summary,entry,shop);
+  pintarPreparacion(summary,entry,shop,locales.get(summary.dataset.seguimientoResumenId));
   const route=summary.querySelector('[data-seguimiento-ruta]');if(route){route.disabled=summary.dataset.seguimientoEstado==='Entregado'||!entry||entry.estadoPedido!=='aceptada'||entry.enCamino===true;route.textContent=entry?.enCamino?'✓ En camino':'🛵 Pedido en camino';}
  }
  for(const card of document.querySelectorAll('[data-seguimiento-id]')){
