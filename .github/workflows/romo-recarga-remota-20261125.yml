@@ -30,7 +30,7 @@ jobs:
           from pathlib import Path
           def results(path):
               txt=Path(path).read_text()
-              lines=txt.split('failing tests:')[0].splitlines()
+              lines=txt.split('✖ failing tests:')[0].splitlines()
               names={re.sub(r' \([0-9.]+ms\)$','',line[2:]) for line in lines if line.startswith('✖ ')}
               total=re.search(r'ℹ tests (\d+)',txt)
               passed=re.search(r'ℹ pass (\d+)',txt)
