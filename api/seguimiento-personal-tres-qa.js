@@ -90,13 +90,15 @@ module.exports=async(req,res)=>{
    const action=req.body.action;
    if(action==='actualizar_preparacion'){
     if(revision||actor.revisionOnly===true||!cfg.live)return fail(res,403,'Acción comercial no disponible');
-    if(Object.keys(req.body).sort().join('|')!=='action|id|storeId|valor'||actor.storeId!==storeId||!['duenos','agendador'].includes(actor.role))
+    if(Object.keys(req.body).sort().join('|')!=='action|id|modalidad|storeId|valor'||actor.storeId!==storeId||!['duenos','agendador'].includes(actor.role))
      return fail(res,403,'Acción no autorizada');
     const valor=req.body.valor,prev=order.preparacion||{};
+    const modalidad=req.body.modalidad;
+    if(!['retiro','delivery','consumo en local'].includes(modalidad))return fail(res,400,'Modalidad de pedido no válida');
     if(order.seguimientoGuardado?.estado==='Entregado'||order.seguimientoGuardado?.estado==='Cancelado'||order.enCamino||prev.lista===true)
      return fail(res,409,'El pedido ya salió o está finalizado');
     if(![20,30,45,60,90,'demora','lista'].includes(valor))return fail(res,400,'Selecciona un tiempo válido');
-    if(valor==='lista'&&order.modalidad!=='retiro')return fail(res,409,'Sólo pedidos para retirar');
+    if(valor==='lista'&&(modalidad!=='retiro'||(order.modalidad&&order.modalidad!=='retiro')))return fail(res,409,'Sólo pedidos para retirar');
     const now=Date.now(),anterior=Date.parse(prev.estimadoEn);
     if(valor==='demora'&&!Number.isFinite(anterior))return fail(res,409,'Primero selecciona un tiempo estimado');
     const fecha=valor==='lista'?null:new Date(valor==='demora'?Math.max(now,anterior)+15*60000:now+valor*60000).toISOString();
