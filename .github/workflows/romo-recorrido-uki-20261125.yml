@@ -1,0 +1,16 @@
+name: Romo - recorrido de Uki
+on:
+  push:
+    branches:
+      - fix/romo-recorrido-uki-validacion-20261125
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: node --test tests/romo-recorrido-uki-20261125.test.mjs tests/romo-paridad-cobros-qa.test.mjs tests/romo-edicion-unica-qa.test.cjs tests/romo-sesion-estado-confirmado-qa.test.mjs tests/romo-cierre-pedidos-previos-qa.test.mjs tests/seguimiento-romo-operativo-v1.test.cjs tests/romo-recarga-remota-20261125.test.mjs
