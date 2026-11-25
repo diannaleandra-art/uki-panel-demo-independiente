@@ -4108,6 +4108,13 @@ function seguimientoPropinaTransferenciaQA(order,subtotal){
     aviso('El monto de la transferencia o el total del pedido no coincide con lo verificado. No se guardó el cobro.');
     return false;
    }
+   // La prueba local sirve sólo para reconocer una revisión previa en la interfaz.
+   // El permiso de cobro de una carta sigue dependiendo del servidor.
+   if(requiresTransfer&&importes&&revisionBancoMarcada){
+    const firma=ukiSeguimientoFirmaManualQA(p,importes,id);
+    if(firma&&!ukiSeguimientoManualValidaQA(p,importes,id))
+     p.transferenciaManualQA={firma,por:String(ukiTimbreResponsableActual()).trim(),en:new Date().toISOString()};
+   }
    return true;
   }catch{
    aviso('No se pudo consultar la verificación bancaria. El pedido sigue pendiente; no intentes cobrar nuevamente.');
