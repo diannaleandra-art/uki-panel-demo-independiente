@@ -12,7 +12,7 @@ const NAMES=Object.freeze({
 // Autorización de la versión candidata: sólo el dominio del panel Uki vigente.
 // La rama de preparación no se publica hasta coordinar el servicio de pedidos.
 if(location.protocol==='https:'&&location.hostname==='diannaleandra-art.github.io'){
- window.UKI_SEGUIMIENTO_RELEASE_AUTORIZADO=true;
+ window.UKI_SEGUIMIENTO_RELEASE_AUTORIZADO=false;
 }
 const TRACKING_PAYMENT_PREVIEW_QA=location.protocol==='https:'&&
  location.hostname==='diannaleandra-art.github.io'&&
