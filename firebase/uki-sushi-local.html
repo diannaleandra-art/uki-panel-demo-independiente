@@ -6404,6 +6404,22 @@ const auto=crearAutoGuardadoOperativo({
    el("ukiSaveQA").disabled=auto.resumen().activo;
    actualizarBloqueo();
    if(estado==='sincronizado')Promise.resolve().then(async()=>{
+    // Primero se confirma el respaldo remoto real de la sucursal Uki.
+    if(window.UKI_SEGUIMIENTO_ESTADO_GUARDADO_AUTORIZADO===true){
+     const ctx=window.ukiQAGet?.(),revisionConfirmada=auto.resumen().revision;
+     if(ctx&&Number.isSafeInteger(revisionConfirmada)&&revisionConfirmada>0&&
+        await window.ukiArchivoComprobarNube?.(ctx.suc)&&
+        auto.resumen().revision===revisionConfirmada&&window.ukiCancelacionNubeLista?.()===true){
+      const actual=window.ukiQAGet?.();
+      if(actual?.suc===ctx.suc){
+       const ahora=Date.now();
+       const pedidos=(actual.estado?.pedidos||[]).filter(p=>{
+        const stamp=Number(p.registradoEn);return Number.isFinite(stamp)&&stamp<=ahora&&ahora-stamp<7*86400000;
+       }).slice(-80);
+       void window.ukiQAPublishSavedState?.({pedidos,revision:revisionConfirmada});
+      }
+     }
+    }
     void ukiConciliarCierresDuenos();
     await ukiMesaConfirmarGuardadosSeguro();
     if(UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL)
