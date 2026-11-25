@@ -314,18 +314,24 @@ function cambiarTiendaSonido(shop){
  detenerTonoPedido();pendientesSonido.clear();resueltasSonido.clear();tiendaSonido=shop;
 }
 function tonoPedido(){
- if(!audioPedido||audioPedido.state!=='running'||!pendientesSonido.size||tiendaSonido!==store()||document.hidden||Date.now()-ultimoTono<2700)return;
+ if(!audioPedido||audioPedido.state!=='running'||!pendientesSonido.size||tiendaSonido!==store()||Date.now()-ultimoTono<4000)return;
  ultimoTono=Date.now();
  try{
-  for(const [i,f] of [740,1040,880,1170].entries()){
-   const o=audioPedido.createOscillator(),g=audioPedido.createGain(),t=audioPedido.currentTime+i*.24;
-   o.type='triangle';o.frequency.value=f;
-   g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.28,t+.035);
-   g.gain.exponentialRampToValueAtTime(.0001,t+.21);
-   o.connect(g);g.connect(audioPedido.destination);vocesPedido.add(o);
-   o.onended=()=>{vocesPedido.delete(o);o.disconnect();g.disconnect();};
-   o.start(t);o.stop(t+.22);
+  const duracion=2.1,t=audioPedido.currentTime+.02;
+  const o=audioPedido.createOscillator(),g=audioPedido.createGain(),filtro=audioPedido.createBiquadFilter();
+  o.type='square';o.frequency.value=780;
+  filtro.type='lowpass';filtro.frequency.value=2400;filtro.Q.value=.7;
+  const curva=new Float32Array(1024);
+  for(let i=0;i<curva.length;i++){
+   const s=duracion*i/(curva.length-1);
+   const envolvente=Math.max(0,Math.min(1,s/.035,(duracion-s)/.07));
+   curva[i]=.0001+.46*envolvente*(.65+.35*Math.sin(2*Math.PI*24*s));
   }
+  g.gain.setValueCurveAtTime(curva,t,duracion);
+  o.connect(filtro);filtro.connect(g);g.connect(audioPedido.destination);
+  vocesPedido.add(o);
+  o.onended=()=>{vocesPedido.delete(o);o.disconnect();filtro.disconnect();g.disconnect();};
+  o.start(t);o.stop(t+duracion);
  }catch{}
 }
 function actualizarAvisoSonoro(rows,shop){
@@ -493,9 +499,9 @@ if(root&&dialog&&list&&detail&&notice){
  dialog.addEventListener('toggle',()=>{if(dialog.open)loadList();});
  document.addEventListener('click',visibility);
  setInterval(()=>{
-  visibility();if(!store()||document.hidden)return;
+  visibility();if(!store())return;
   void loadList();
-  if(activeDetail&&selectedId&&isActive(activeDetail,selectedId,activeStore)&&!activeDetail.hidden)
+  if(!document.hidden&&activeDetail&&selectedId&&isActive(activeDetail,selectedId,activeStore)&&!activeDetail.hidden)
    void loadDetail(selectedId,activeDetail,true);
  },5000);
  visibility();
