@@ -15,10 +15,13 @@ module.exports=async(req,res)=>{
  if(req.method!=='POST')return fail(res,405,'Método no permitido');
  if(!String(req.headers?.['content-type']||'').startsWith('application/json')||
   !req.body||typeof req.body!=='object'||Array.isArray(req.body)||
-  JSON.stringify(req.body).length>1000||
-  Object.keys(req.body).sort().join('|')!=='action|id|restoPagoVerificado|storeId')
+  JSON.stringify(req.body).length>2000000||
+  !['action|id|restoPagoVerificado|storeId','action|expectedRevision|id|restoPagoVerificado|snapshot|storeId'].includes(Object.keys(req.body).sort().join('|')))
   return fail(res,400,'Datos del pedido inválidos');
  const {storeId,id,action,restoPagoVerificado}=req.body;
+ const conjunto=Object.hasOwn(req.body,'snapshot');
+ if(conjunto&&(storeId!=='romo:serena'||process.env.SEGUIMIENTO_ROMO_GUARDADO_CONJUNTO_QA_ENABLED!=='true'))
+  return fail(res,503,'Guardado conjunto Romo aún no habilitado en QA');
  if(!TX.LEDGERS[storeId]||typeof id!=='string'||
   !['confirmar_cobro','entregar'].includes(action)||
   restoPagoVerificado!==true)
@@ -27,7 +30,9 @@ module.exports=async(req,res)=>{
   const db=ENV.makeDb(cfg,storeId);
   const staff=await AUTH.authorized(req,db,storeId).catch(()=>null);
   if(!staff)return fail(res,403,'Personal sin permiso en esta sucursal');
-  const result=await TX.commit({db,storeId,orderId:id,action,staff,restoPagoVerificado:true});
+  const result=conjunto?await require('../lib/seguimiento-romo-guardado-conjunto-qa.cjs').save({
+   db,staff,orderId:id,action,expectedRevision:req.body.expectedRevision,snapshot:req.body.snapshot,restoPagoVerificado:true
+  }):await TX.commit({db,storeId,orderId:id,action,staff,restoPagoVerificado:true});
   return res.status(200).json(result);
  }catch(error){
   const code=[400,403,409].includes(error?.status)?error.status:503;
