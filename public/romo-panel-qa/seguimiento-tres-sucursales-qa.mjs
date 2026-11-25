@@ -234,7 +234,7 @@ window.ukiQASyncDistributionBeforePayment=async function(pedido){
  * Una sola pregunta expresa al trabajador, no confirma por el aviso del cliente.
  * La verificación del servidor NO registra una venta; el guardado habitual sigue.
  */
-window.ukiQAConfirmTransferBeforePayment=async function({storeId,id,total,monto}={}){
+window.ukiQAConfirmTransferBeforePayment=async function({storeId,id,total,monto,revisionBancoMarcada=false}={}){
  if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true||inReview()||actionBusy||
     !storeId||store()!==storeId||!UUID.test(String(id||''))||
     !Number.isSafeInteger(total)||total<1||!Number.isSafeInteger(monto)||monto<1)
@@ -250,7 +250,7 @@ window.ukiQAConfirmTransferBeforePayment=async function({storeId,id,total,monto}
      p.datosBancariosVerificados!==true||p.datosBancariosSucursal!==storeId)
    return 'no_disponible';
   const nombre=Object.keys(NAMES).find(k=>NAMES[k]===storeId)||storeId;
-  if(!window.confirm('TRANSFERENCIA · '+nombre+' · Pedido '+(p.codigoPedido||'')+
+  if(!revisionBancoMarcada&&!window.confirm('TRANSFERENCIA · '+nombre+' · Pedido '+(p.codigoPedido||'')+
    '\n¿Confirmas que viste abonados '+pesos(monto)+' en la cuenta bancaria de este pedido?'+
    '\nSólo acepta si verificaste el dinero en el banco.'))
    return 'cancelada';
