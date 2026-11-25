@@ -4374,10 +4374,11 @@ async function ukiMesaLiberarCuentaCancelada(id){
   aviso('La mesa QR sigue sin liberar: '+String(e?.message||e));
  }finally{ukiMesasLiberandoCancelacion=false;}
 }
-async function ukiMesaActualizar(){
+async function ukiMesaActualizar(automatico=false){
  if(!UKI_MESAS_PANEL_ACTIVADO||!UKI_MESAS_ENDPOINT)return;
  const branch=ukiMesaBranch();if(!branch||ukiMesas.busy)return;
- ukiMesas.busy=true;ukiMesas.used=true;ukiMesas.status='Consultando bandeja…';render();
+ const antes=JSON.stringify([ukiMesas.branch,ukiMesas.rows,ukiMesas.cuentas,ukiMesas.status]);
+ ukiMesas.busy=true;ukiMesas.used=true;ukiMesas.status='Consultando bandeja…';if(!automatico)render();
  try{
   const token=await window.ukiMesasQAToken?.();if(!token)throw Error('Autoriza este equipo una sola vez para consultar los QR.');
   const r=await fetch(UKI_MESAS_ENDPOINT+'?branch='+branch,{
@@ -4403,7 +4404,7 @@ async function ukiMesaActualizar(){
    }
   }
  }catch(e){ukiMesas.status='Recepción todavía no habilitada: '+String(e?.message||e);}
- finally{ukiMesas.busy=false;if(S.vista==='pedidos')render();}
+ finally{ukiMesas.busy=false;if(S.vista==='pedidos'&&(!automatico||antes!==JSON.stringify([ukiMesas.branch,ukiMesas.rows,ukiMesas.cuentas,ukiMesas.status])))render();}
  // Si la ronda ya está guardada en la nube, confirmar el QR sin un segundo paso.
  void ukiMesaConfirmarGuardadosSeguro();
 }
@@ -4677,7 +4678,7 @@ async function ukiMesaConfirmarGuardadosSeguro(){
   }
  }finally{ukiMesasConfirmando=false;}
 }
-setInterval(()=>{if(ukiMesas.used&&!ukiMesas.busy&&S.suc&&S.vista==='pedidos')ukiMesaActualizar();},45000);
+setInterval(()=>{if(ukiMesas.used&&!ukiMesas.busy&&S.suc&&S.vista==='pedidos')ukiMesaActualizar(true);},45000);
 
 function ukiSeguimientoAccesoVisibleQA(p){
  if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true||!p||p.suc!==S.suc||p.estado==='Cancelado')return '';
