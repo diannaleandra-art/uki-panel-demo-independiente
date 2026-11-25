@@ -2,7 +2,7 @@ name: Uki - recarga remota segura
 on:
   push:
     branches:
-      - fix/uki-recarga-remota-validacion-20261125
+      - fix/uki-recarga-remota-final-20261125
 permissions:
   contents: read
 jobs:
