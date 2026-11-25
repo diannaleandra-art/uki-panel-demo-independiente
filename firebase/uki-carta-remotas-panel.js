@@ -129,6 +129,9 @@ async function ukiCartaApiCambio(id,estado,motivo='',extra={}){
  });
  const data=await r.json().catch(()=>({}));
  if(!r.ok||!data.ok)throw Error(String(data.error||'El servidor no confirmó la operación'));
+ if(['aceptada','rechazada'].includes(estado)){
+  try{window.ukiSeguimientoSolicitudResuelta?.(id,branch==='arica'?'uki:arica':branch==='serena'?'uki:serena':null);}catch{}
+ }
  return data;
 }
 async function ukiCartaReservarRegistro(id,claimToken){
