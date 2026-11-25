@@ -3006,7 +3006,8 @@ function ukiTextoComandaCocina(p){
  const limpia=s=>String(s||'').replace(/\*/g,'').replace(/\s*\$\s*\d[\d.,]*/g,'').trim();
  const lineas=coincide?original.lineasCocina.map(limpia):items.flatMap(x=>[Number(x.cantidad)+' × '+limpia(x.nombre),limpia(x.detalle)].filter(Boolean));
  if(!lineas.length)return '';
- return [String(p.suc||''),'COCINA · '+ukiReferenciaConCarta(p),fechaTxt(p.fechaISO)+' · '+String(p.modalidad||''),p.modalidad==='Consumo en local'&&p.mesaReferencia?'Mesa: '+p.mesaReferencia:'',original.lineasCocina.length&&!coincide?'PEDIDO MODIFICADO · Revisar detalle confirmado':'','────────────────',...lineas,'────────────────','Revisar pedido completo antes de entregar.'].filter(Boolean).join('\n');
+ const modalidad={'Retiro':'RETIRO','Consumo en local':'CONSUMO EN LOCAL','Delivery':'DELIVERY'}[p.modalidad]||'POR CONFIRMAR';
+ return ['MODALIDAD: '+modalidad,String(p.suc||''),'COCINA · '+ukiReferenciaConCarta(p),fechaTxt(p.fechaISO),p.modalidad==='Consumo en local'&&p.mesaReferencia?'MESA: '+p.mesaReferencia:'',original.lineasCocina.length&&!coincide?'PEDIDO MODIFICADO · Revisar detalle confirmado':'','────────────────',...lineas,'────────────────','Revisar pedido completo antes de entregar.'].filter(Boolean).join('\n');
 }
 async function ukiCopiarComandaCocina(id){
  const p=(S.pedidos||[]).find(x=>Number(x.id)===Number(id)&&x.suc===S.suc);
