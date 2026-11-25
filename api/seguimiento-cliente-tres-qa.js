@@ -19,14 +19,28 @@ module.exports=async(req,res)=>{
   !String(req.headers['content-type']||'').startsWith('application/json')||
   !req.body||typeof req.body!=='object'||Array.isArray(req.body)||
   JSON.stringify(req.body).length>1100||
-  !['avisar_transferencia','enviar_mensaje'].includes(req.body.action)))
+  !['avisar_transferencia','enviar_mensaje','calificar_pedido'].includes(req.body.action)))
   return done(res,400,{error:'Acción inválida'});
  try{
   const db=ENV.makeDb(cfg,verified.storeId);
   if(!db)return done(res,503,{error:'Sucursal no disponible'});
   const {order}=await S.verifyCustomer({db,token:raw,secret:cfg.tokenSecret});
   if(req.method==='POST'){
-   if(req.body.action==='avisar_transferencia'){
+   if(req.body.action==='calificar_pedido'){
+    const stars=req.body.estrellas;
+    if(Object.keys(req.body).sort().join('|')!=='action|estrellas'||!Number.isInteger(stars)||stars<1||stars>5)return done(res,400,{error:'Selecciona entre 1 y 5 estrellas'});
+    const before=await S.snapshot({db,order,bank:cfg.banks[order.storeId],chatSecret:cfg.chatSecret});
+    if(before.estadoPedido!=='entregada')return done(res,409,{error:'La valoración se habilita después de la entrega'});
+    if(before.calificacion!==null)return done(res,200,before);
+    const m=S.TABLES[order.storeId];
+    if(!m)return done(res,403,{error:'Sucursal no disponible'});
+    const sql="UPDATE "+m.source+" s SET datos=s.datos||jsonb_build_object('seguimientoCalificacion',jsonb_build_object('estrellas',$5::integer,'en',now())) WHERE s.id=$1::uuid AND s.branch=$2 AND s.estado='aceptada' AND s.datos=$4::jsonb"+(m.uki?" AND $3::text='uki:'||s.branch":" AND s.store_id=$3")+" AND NOT (s.datos ? 'seguimientoCalificacion') RETURNING s.id";
+    const rows=await db.query(sql,[order.orderId,m.branch,order.storeId,order.snapshotDatos,stars]);
+    if(rows.length!==1)return done(res,409,{error:'No se pudo registrar la valoración; actualiza el pedido'});
+    const actual=await S.loadOne(db,order.storeId,order.orderId);
+    const saved=await S.snapshot({db,order:actual,bank:cfg.banks[order.storeId],chatSecret:cfg.chatSecret});
+    return done(res,200,saved);
+   }else if(req.body.action==='avisar_transferencia'){
     if(Object.keys(req.body).length!==1)return done(res,400,{error:'Aviso inválido'});
     await S.clientNotice({db,order,bank:cfg.banks[order.storeId]});
    }else{
