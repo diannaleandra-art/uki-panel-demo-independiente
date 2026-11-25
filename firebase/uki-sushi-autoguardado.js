@@ -40,7 +40,7 @@ export function crearAutoGuardadoOperativo({guardar,getEstado,avisar,delay=1500,
   const actual=getEstado();
   if(!actual||actual.suc!==sucursal){desactivar();return;}
   if(huellaOperativa(actual)===huellaGuardada){
-   if(!ocupado)informar("sincronizado");return;
+   if(!ocupado){pararTimer();if(estado!=="sincronizado")informar("sincronizado");}return;
   }
   pararTimer();informar("pendiente","Cambios guardados solo en este dispositivo");
   timer=scheduler(()=>{timer=null;return enviar()},delay);
@@ -51,7 +51,7 @@ export function crearAutoGuardadoOperativo({guardar,getEstado,avisar,delay=1500,
   const copia=getEstado();
   if(!copia||copia.suc!==sucursal){desactivar();return;}
   const huella=huellaOperativa(copia);
-  if(huella===huellaGuardada){informar("sincronizado");return;}
+  if(huella===huellaGuardada){if(estado!=="sincronizado")informar("sincronizado");return;}
   const revisionOriginal=revision,id=token;
   ocupado=true;informar("guardando","Guardando copia cifrada");
   try{
