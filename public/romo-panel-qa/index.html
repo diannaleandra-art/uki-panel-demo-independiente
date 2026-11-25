@@ -6142,7 +6142,8 @@ function ukiRomoVistaLimpiaParaActualizarQA(){
  const app=$('app'),focus=document.activeElement;
  return S.suc===ROMO_SUCURSAL_QA&&['inicio','pedidos'].includes(S.vista)&&
   !S.busy&&!S.msg&&!D.editando&&!ukiRomoOperacionesEnCursoQA()&&!ukiRomoSolicitudesActualizandoQA&&
-  !cancelacionGuardando&&!ukiSolicitudWhatsAppActiva&&!ukiCartaRemotaActiva&&
+  !cancelacionGuardando&&!ukiSolicitudWhatsAppActiva&&
+  (typeof ukiCartaRemotaActiva==='undefined'||!ukiCartaRemotaActiva)&&
   !app?.querySelector('.romo-pedido-card[open],.uki-cancelar-pedido[open]')&&
   ![...(app?.querySelectorAll('.romo-solicitud-card select')||[])].some(sel=>String(sel.value||'').trim())&&
   !(app?.contains(focus)&&focus?.matches?.('input,textarea,select,[contenteditable=true]'));
@@ -6165,7 +6166,8 @@ async function ukiRomoActualizarCopiaLimpiaQA(){
   if(cambiado&&S.suc===ROMO_SUCURSAL_QA)render();
  }catch(e){console.warn('Romo: consulta automática sin cambios locales',e?.message||e);}
 }
-setInterval(()=>void ukiRomoActualizarCopiaLimpiaQA(),45000);
+// Separar la consulta cifrada de la bandeja de carta (45 s).
+setInterval(()=>void ukiRomoActualizarCopiaLimpiaQA(),30000);
 // Réplica del contador aprobado en Uki. Solo informa: nunca libera una reserva.
 function ukiRomoReservaAhoraQA(){return Date.now()+ukiRomoReservaDesfaseServidorQA;}
 function ukiRomoReservaVencidaQA(o){
