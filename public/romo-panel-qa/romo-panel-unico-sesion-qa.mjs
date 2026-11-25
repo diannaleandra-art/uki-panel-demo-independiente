@@ -112,7 +112,7 @@ export function crearSesionPanelUnicoRomoQA({
     !vault||typeof vault.cargarSobre!=='function'||typeof vault.guardarSobre!=='function'||
     typeof vault.disponible!=='function')
   throw Error('Faltan los conectores del panel existente');
- let sesion=null,guardadoEnCurso=false,operacionAtomicaPendiente=false;
+ let sesion=null,guardadoEnCurso=false,operacionAtomicaPendiente=false,refrescoEnCurso=false;
  const disponible=()=>vault.disponible()===true;
  function requireSession(){
   if(!sesion)throw Error('Abre Romo con Google y su clave habitual antes de operar');
@@ -136,7 +136,7 @@ export function crearSesionPanelUnicoRomoQA({
     throw Error('No se puede reutilizar el cifrado existente del panel');
    const estado=validarDatosRomo(opened.estado,validarEstado);
    const serialized=JSON.stringify(estado);
-   sesion={revision:remote.revision,cifrar:opened.cifrar,ultimoEstado:serialized,conflicto:false};
+   sesion={revision:remote.revision,cifrar:opened.cifrar,abrirSiguiente:opened.abrirSiguiente,ultimoEstado:serialized,conflicto:false};
    return Object.freeze({revision:remote.revision,estado});
   },
   async guardar(estado,{guardarConjunto=null}={}){
@@ -241,6 +241,35 @@ export function crearSesionPanelUnicoRomoQA({
     return firmaOperativaRomo(datos,esperado)!==null&&
      firmaOperativaRomo(datos,esperado)===firmaOperativaRomo(esperado,esperado);
    }catch{return false;}
+  },
+  // Sólo lectura. No reintenta operaciones de resultado incierto ni mezcla datos.
+  async refrescarSiLimpio({getEstado,puedeAplicar,aplicar}={}){
+   if(refrescoEnCurso||guardadoEnCurso||operacionAtomicaPendiente||
+      !sesion||sesion.conflicto||!disponible()||sesion.revision<1||
+      typeof sesion.abrirSiguiente!=='function'||
+      typeof getEstado!=='function'||typeof puedeAplicar!=='function'||typeof aplicar!=='function')
+    return false;
+   const local=sesion,base=local.revision,original=JSON.parse(local.ultimoEstado);
+   const firma=firmaOperativaRomo(original,original);
+   const vigente=()=>sesion===local&&local.revision===base&&!local.conflicto&&
+    !guardadoEnCurso&&!operacionAtomicaPendiente&&disponible()&&
+    puedeAplicar()===true&&firmaOperativaRomo(getEstado(),original)===firma;
+   if(!vigente())return false;
+   refrescoEnCurso=true;
+   try{
+    const remoto=await vault.cargarSobre();
+    if(!vigente()||!Number.isSafeInteger(remoto?.revision)||remoto.revision<=base)return false;
+    const datos=validarDatosRomo(await local.abrirSiguiente(remoto.snapshot),validarEstado);
+    if(!vigente())return false;
+    // Comprobar que la revisión no avanzó durante el descifrado.
+    const confirmado=await vault.cargarSobre();
+    if(!vigente()||confirmado.revision!==remoto.revision)return false;
+    const serial=JSON.stringify(datos);
+    // La aplicación de UI es síncrona: no hay espera entre validar y adoptar.
+    if(aplicar(datos)!==true)return false;
+    local.revision=remoto.revision;local.ultimoEstado=serial;
+    return true;
+   }finally{refrescoEnCurso=false;}
   },
   // Verificar en Neon la última revisión antes de subir un archivo mensual.
   // Es solo lectura y no cambia pedidos, caja ni estado guardado.
