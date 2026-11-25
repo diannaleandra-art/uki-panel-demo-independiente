@@ -18,6 +18,8 @@ const TRACKING_PAYMENT_PREVIEW_QA=location.protocol==='https:'&&
  location.hostname==='diannaleandra-art.github.io'&&
  window.UKI_SEGUIMIENTO_RELEASE_AUTORIZADO===true;
 window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED=TRACKING_PAYMENT_PREVIEW_QA;
+// Sólo la revisión de caja ya confirmada puede proyectarse al seguimiento.
+if(TRACKING_PAYMENT_PREVIEW_QA)window.UKI_SEGUIMIENTO_ESTADO_GUARDADO_AUTORIZADO=true;
 const API='https://uki-sushi-pedidos.vercel.app/api/seguimiento-personal-live';
 const $=id=>document.getElementById(id);
 const root=$('romo-seguimiento-bandeja-qa'),dialog=$('romo-seguimiento-abrir-qa');
@@ -48,9 +50,9 @@ function hideActive(){
  }
  activeDetail=null;selectedId=null;activeStore=null;lastDetailSignature='';
 }
-function badgeText(entry){
- if(!entry)return 'Seguimiento no disponible';
- const labels=[entry.enCamino?'🛵 Pedido en camino':entry.estadoPedido==='aceptada'?'✓ Pedido aceptado':'Pendiente de aceptación'];
+function badgeText(entry,localState){
+ if(!entry)return localState==='Entregado'?'✓ Entregado · Seguimiento por sincronizar':'Seguimiento no disponible';
+ const labels=[localState==='Entregado'||entry.estadoPedido==='entregada'?'✓ Entregado':entry.estadoPedido==='cancelada'?'Pedido cancelado':entry.enCamino?'🛵 Pedido en camino':entry.estadoPedido==='aceptada'?'✓ Pedido aceptado':'Pendiente de aceptación'];
  if(entry.estadoPago==='confirmada')labels.push('✓ Transferencia verificada');
  else if(entry.estadoPago==='avisada')labels.push('Transferencia avisada · por revisar');
  else if(entry.montoTransferencia>0||entry.pagoDeclarado==='transferencia')labels.push('Transferencia pendiente');
@@ -62,8 +64,8 @@ function paintBadges(orders,shop){
  for(const summary of document.querySelectorAll('[data-seguimiento-resumen-id]')){
   const label=summary.querySelector('[data-seguimiento-resumen-aviso]');
   const entry=entries.get(summary.dataset.seguimientoResumenId);
-  if(label)label.textContent=badgeText(entry);
-  const route=summary.querySelector('[data-seguimiento-ruta]');if(route){route.disabled=!entry||entry.estadoPedido!=='aceptada'||entry.enCamino===true;route.textContent=entry?.enCamino?'✓ En camino':'🛵 Pedido en camino';}
+  if(label)label.textContent=badgeText(entry,summary.dataset.seguimientoEstado);
+  const route=summary.querySelector('[data-seguimiento-ruta]');if(route){route.disabled=summary.dataset.seguimientoEstado==='Entregado'||!entry||entry.estadoPedido!=='aceptada'||entry.enCamino===true;route.textContent=entry?.enCamino?'✓ En camino':'🛵 Pedido en camino';}
  }
  for(const card of document.querySelectorAll('[data-seguimiento-id]')){
   const label=card.querySelector('[data-seguimiento-aviso]');
