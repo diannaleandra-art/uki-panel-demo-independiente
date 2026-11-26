@@ -121,7 +121,7 @@ module.exports=async(req,res)=>{
   return fail(res,400,'Solicitud de inventario inválida');
  const branch=String(input.branch||''),action=String(input.action||'');
  if(!BRANCHES.has(branch))return fail(res,400,'Sucursal no válida');
- if(!['estado','crear-codigo','listar','contar','recibir','factura-consultar','factura-preparar-articulos','factura-recibir','finalizar','reportes','historial','revision','articulos','crear-articulo','editar-articulo','configurar-unidad','justificar','crear-insumo-trabajador'].includes(action))
+ if(!['estado','crear-codigo','listar','contar','recibir','factura-consultar','factura-preparar-articulos','factura-recibir','finalizar','reportes','historial','revision','articulos','crear-articulo','editar-articulo','configurar-unidad','justificar','crear-insumo-trabajador','movimientos-trabajador','revisiones-trabajador','revision-trabajador'].includes(action))
   return fail(res,400,'Acción no permitida');
  const dbUrl=liveDbUrl();
  if(!dbUrl)return fail(res,503,'Base de inventario no habilitada');
@@ -221,6 +221,24 @@ module.exports=async(req,res)=>{
     return fail(res,403,'Código incorrecto o temporalmente bloqueado');
   }
   etapa='consulta-catalogo';
+  if(action==='movimientos-trabajador'){
+   const [base,added]=await Promise.all([leerInventario(sql,branch),extra.listar(sql,branch)]);
+   const report=await require('../lib/inventario-movimientos-reporte-v1.cjs').read(sql,branch,input,[...base,...added],process.env.UKI_INVENTARIO_JUSTIFICACIONES_ENABLED==='true');
+   return res.status(200).json({ok:true,...report});
+  }
+  if(action==='revisiones-trabajador'){
+   const {desde,hasta}=require('../lib/inventario-movimientos-reporte-v1.cjs').range({...input,tipo:'todos'});
+   const rows=await sql.query("SELECT id,worker_name,summary,created_at FROM public.uki_inventario_revisiones_live WHERE branch=$1 AND (created_at AT TIME ZONE 'America/Santiago')::date BETWEEN $2::date AND $3::date ORDER BY created_at DESC,id DESC LIMIT 201",[branch,desde,hasta]);
+   if(rows.length>200)return fail(res,400,'Consulta un período más corto.');
+   return res.status(200).json({ok:true,branch,revisiones:rows});
+  }
+  if(action==='revision-trabajador'){
+   const id=String(input.id||'');
+   if(!/^[a-zA-Z0-9-]{1,60}$/.test(id))return fail(res,400,'Revisión inválida.');
+   const rows=await sql.query('SELECT id,worker_name,summary,items,created_at FROM public.uki_inventario_revisiones_live WHERE branch=$1 AND id::text=$2 LIMIT 1',[branch,id]);
+   if(!rows.length)return fail(res,404,'Revisión no encontrada en esta bodega.');
+   return res.status(200).json({ok:true,branch,reporte:{branch,...rows[0]}});
+  }
   if(action==='crear-insumo-trabajador'){
    // Alta exclusivamente de inventario con el PIN habitual. Reutiliza el
    // servicio de artículos adicionales; el primer conteo se guarda aparte.
