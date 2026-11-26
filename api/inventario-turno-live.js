@@ -210,7 +210,14 @@ module.exports=async(req,res)=>{
    // El trabajador sigue entrando exclusivamente con su código de inventario.
    // Nunca recibe permisos de pedidos, caja, ni acceso Google de administración.
    worker=nombre(input.worker_name);
-   if(!await pin.autorizar(sql,input.codigo,branch,'inventario-compartido'))
+   if(input.acceso==='romo'){
+    if(branch!=='serena'||process.env.UKI_BODEGA_SERENA_COMPARTIDA!=='true')return fail(res,403,'Acceso Romo disponible únicamente en la bodega compartida La Serena.');
+    if(!/^\d{6}$/.test(String(input.codigo||'')))return fail(res,400,'Código de inventario inválido.');
+    const resp=await fetch('https://romos-sushi-panel.vercel.app/api/romo-pin-inventario-qa',{method:'POST',redirect:'error',cache:'no-store',headers:{'Content-Type':'application/json',Origin:'https://romos-sushi-panel.vercel.app'},body:JSON.stringify({action:'verificar-bodega-compartida',codigo:input.codigo,worker_name:worker}),signal:AbortSignal.timeout(8000)});
+    const verified=await resp.json().catch(()=>null);
+    if(!resp.ok||verified?.authorized!==true||verified.storeId!=='romo:serena'||verified.warehouse!=='serena')return fail(res,403,'Código Romo no autorizado o temporalmente bloqueado.');
+   }else if(input.acceso!=null&&input.acceso!=='uki')return fail(res,403,'Acceso de inventario inválido.');
+   else if(!await pin.autorizar(sql,input.codigo,branch,'inventario-compartido'))
     return fail(res,403,'Código incorrecto o temporalmente bloqueado');
   }
   etapa='consulta-catalogo';
