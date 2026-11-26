@@ -24,6 +24,10 @@ test('Edita desde el mismo pago de Uki y Romo, y captura la autorización antes 
    window:{ukiCancelacionNubeLista:()=>true,ukiRespaldarRectificacionDelivery:async()=>true,
     ukiAutorizarRectificacionPagoV2:async ({plan})=>({recibo:{id:'constancia',firma:'prueba',motivo:'Medio de pago incorrecto',en:'2026-11-25T17:00:00Z'}})}});
   vm.runInContext(code,c);
+  assert.match(html,/onclick="ukiMostrarCorreccionPago\(\)"/);
+  assert.match(c.ukiRectificacionPagoEdicionUI(p,{...D,medio:'Transferencia'}),/Corregir transferencia.*Productos 12000/);
+  assert.match(c.ukiRectificacionPagoEdicionUI({...p,medio:'Edenred',medioEnvio:'Transferencia'},{...D,medio:'Edenred',medioEnvio:'Transferencia'}),/Corregir transferencia.*Delivery 2500/);
+  assert.match(c.ukiRectificacionPagoEdicionUI({...p,medio:'Edenred'},{...D,medio:'Edenred',mostrarRectificacionPago:true}),/no tiene un pago.*registrado como transferencia/);
   assert.match(html,/ukiRectificacionPagoEdicionUI\(pedidoEdicion,D\)/);
   assert.match(html,/ukiPideRectificacionPago\((?:originalQR|pedidoRectificacion),D\)/);
   assert.match(c.ukiRectificacionPagoEdicionUI(p,D),/Autorizar corrección de transferencia/);
