@@ -4460,24 +4460,73 @@ function ukiStatsArmadoNombre(name){
  if(!m||m.length!==1||/\b(?:hasta|desde|o bien)\b/.test(n))return {piezas:null,rolls:null};
  const piezas=Number(m[0].match(/\d+/)[0]);
  if(piezas<1||piezas>240)return {piezas:null,rolls:null};
- const unidad=/\bpremium\b/.test(n)?10:/\bclasic[oa]\b/.test(n)?12:0;
+ const unidad=/\bpremium\b/.test(n)?10:/\bclasic[oa]s?\b/.test(n)?12:0;
  return {piezas,rolls:unidad&&piezas%unidad===0?piezas/unidad:null};
 }
 function ukiStatsArmadoDigital(texto){
- const block=String(texto||'').match(/(?:^|\n)\s*\*?COCINA\*?\s*\n([\s\S]*?)(?=\n\s*\*?ENTREGA\*?\s*(?:\n|$))/i);
+ const source=String(texto||'');
+ const block=source.match(/(?:^|\n)\s*\*?COCINA\*?\s*\n([\s\S]*?)(?=\n\s*\*?ENTREGA\*?\s*(?:\n|$))/i);
  if(!block)return null;
  const groups=[];let current=null;
+ const peso=v=>Number(v.replace(/[^\d]/g,''));
  for(const line of block[1].split(/\r?\n/)){
   const heading=line.trim().match(/^\*?[−–-]\s*(\d{1,3})\s*[×x]\s*(.+?)\*?\s*$/);
-  if(heading){current={nombre:heading[2],cantidad:Number(heading[1]),importe:null,rollRows:[]};groups.push(current);continue;}
+  if(heading){current={nombre:heading[2],cantidad:Number(heading[1]),importe:null,rollRows:[],lines:[]};groups.push(current);continue;}
   if(!current)continue;
+  if(line.trim())current.lines.push(line.trim());
   const amount=line.trim().match(/^Importe l[ií]nea:\s*\$?\s*([\d.,]+)$/i);
-  if(amount){current.importe=Number(amount[1].replace(/\D/g,''));continue;}
+  if(amount){current.importe=peso(amount[1]);continue;}
   const roll=line.trim().match(/^(?:(\d{1,3})\s*[×x]\s*)?Roll\s+(\d{1,3}):\s*([^/]+)\s*\/\s*[^/]+\s*\/\s*.+$/i);
   if(roll)current.rollRows.push({cantidad:roll[1]?Number(roll[1]):1,index:Number(roll[2]),proteina:roll[3].trim().split(/\s+\+\s+/)[0].trim()});
  }
- if(!groups.length||groups.some(g=>!Number.isSafeInteger(g.cantidad)||g.cantidad<1||g.cantidad>100||!Number.isSafeInteger(g.importe)||g.importe<0))return null;
- return groups;
+ if(!groups.length||groups.some(g=>!Number.isSafeInteger(g.cantidad)||g.cantidad<1||g.cantidad>100||(g.importe!==null&&!Number.isSafeInteger(g.importe))))return null;
+ const afterKitchen=source.slice(block.index+block[0].length);
+ const payment=afterKitchen.match(/(?:^|\n)\s*\*?PAGO\*?\s*\n([\s\S]*)$/i);
+ const total=payment?.[1].match(/^\s*Total\s+productos\s*:\s*\$?\s*([\d.,]+)\s*$/im);
+ const header=source.slice(0,block.index);
+ const branded=/^\s*\*?\s*(?:UKI|ROMO[’']?S)\s+SUSHI(?:\s*\*?\s*$|\s*[·•#:-])/im.test(header);
+ const code=header.match(/^\s*(?:N[.°ºo\s]*|N[uú]mero)\s+de\s+pedido\s*:\s*([\w-]+)/im)?.[1];
+ return {groups,branded,code,total:total?peso(total[1]):null};
+}
+function ukiStatsClaveProducto(nombre){
+ const n=ukiNombreStats(nombre).replace(/^\*+|\*+$/g,'').trim();
+ const m=n.match(/^(clasico|premium)\s+(\d{1,3})\s+piezas$/)||n.match(/^(?:(\d{1,3})\s+piezas\s+(clasicos?|clasicas?|premium))$/);
+ if(!m)return n;
+ const [tipo,cantidad]=/^\d+$/.test(m[1])?[m[2],m[1]]:[m[1],m[2]];
+ return (tipo==='premium'?'premium':'clasico')+' '+Number(cantidad)+' piezas';
+}
+function ukiStatsGruposRegistrados(p,items,digital){
+ if(!digital||!items.length)return null;
+ const {groups,branded,code,total}=digital;
+ if(code&&p.codigoCarta&&String(p.codigoCarta).toLowerCase()!==code.toLowerCase())return null;
+ const values=items.map(x=>Number(x.cantidad)*Number(x.precioUnit));
+ if(values.some(v=>!Number.isSafeInteger(v)||v<0))return null;
+ const subtotal=values.reduce((a,v)=>a+v,0);
+ const completos=groups.every(g=>g.importe!==null);
+ if(total!==null&&total!==subtotal)return null;
+ if(completos?groups.reduce((a,g)=>a+g.importe,0)!==subtotal:!branded||total===null)return null;
+ const generic=/^(productos de carta digital(?: \(ver detalle\))?|pedido desde carta digital)$/i;
+ const collapsed=items.length===1&&Number(items[0].cantidad)===1;
+ const detailMatches=(item,lines)=>{
+  const detail=ukiNombreStats(item.detalle);
+  // Un detalle editado que contradice la comanda no debe reutilizar el armado original.
+  return !detail||ukiNombreStats(lines.join(' · ')).startsWith(detail);
+ };
+ if(collapsed&&generic.test(String(items[0].nombre||'').trim())){
+  const lines=groups.flatMap(g=>['*− '+g.cantidad+' × '+g.nombre+'*',...g.lines]);
+  return detailMatches(items[0],lines)?groups:null;
+ }
+ if(groups.length!==items.length)return null;
+ const matches=items.every((item,i)=>{
+  const g=groups[i];
+  const n=String(item.nombre||'').trim(), decorated=n.match(/^\*?[−–-]\s*(\d{1,3})\s*[×x]\s*(.+?)\*?$/);
+  if(decorated&&Number(decorated[1])!==g.cantidad)return false;
+  if(!decorated&&Number(item.cantidad)!==g.cantidad)return false;
+  if(decorated&&Number(item.cantidad)!==g.cantidad&&!collapsed)return false;
+  if(g.importe!==null&&values[i]!==g.importe)return false;
+  return ukiStatsClaveProducto(decorated?decorated[2]:n)===ukiStatsClaveProducto(g.nombre)&&detailMatches(item,g.lines);
+ });
+ return matches?groups:null;
 }
 function ukiStatsVentas(pedidos){
  const out={pedidos:0,piezas:0,rolls:0,rollsIdentificados:0,lineasSinPiezas:0,lineasRollsSinConfirmar:0,pedidosSinDetalle:0,porProducto:[],porProteina:[]},prod=new Map(),proteins=new Map();
@@ -4499,13 +4548,10 @@ function ukiStatsVentas(pedidos){
   out.pedidos++;
   const items=Array.isArray(p.productos)?p.productos:[];
   if(!items.length){out.pedidosSinDetalle++;continue;}
-  const digital=ukiStatsArmadoDigital(p.textoOriginal);
-  const importeItems=items.reduce((n,x)=>n+Number(x.cantidad)*Number(x.precioUnit),0);
-  // El parser previo guarda varios productos de carta como UNA línea. Únicamente
-  // desglosar ese mensaje si su importe aún coincide con el pedido guardado.
-  if(items.length===1&&Number(items[0].cantidad)===1&&digital&&digital.reduce((n,g)=>n+g.importe,0)===importeItems&&/(productos de carta digital|pedido desde carta digital|^[*−–-]+\s*\d+\s*[×x])/i.test(String(items[0].nombre||''))){
+  const digital=ukiStatsGruposRegistrados(p,items,ukiStatsArmadoDigital(p.textoOriginal));
+  if(digital){
    for(const g of digital){const a=ukiStatsArmadoNombre(g.nombre),r=g.rollRows.length;
-    const valid=r>0&&g.rollRows.every((x,i)=>x.index===i+1&&x.cantidad===g.cantidad);
+    const valid=r>0&&(a.rolls===null||a.rolls===r)&&g.rollRows.every((x,i)=>x.index===i+1&&x.cantidad===g.cantidad);
     add(g.nombre,g.cantidad,a.piezas,valid?r:a.rolls,valid?g.rollRows:[]);
    }
    continue;
