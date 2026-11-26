@@ -52,6 +52,7 @@ module.exports=async function romoPinInventarioQA(req,res){
  res.setHeader('X-Content-Type-Options','nosniff');
  const cfg=configuration(process.env);
  if(!cfg)return fail(res,503,'Acceso del trabajador Romo todavía no habilitado');
+ if(req.method==='GET'&&req.query?.vista==='bodega')return res.status(200).json({ok:true,compartida:process.env.ROMO_BODEGA_SERENA_COMPARTIDA==='true'});
  const origin=String(req.headers?.origin||'');
  if(origin!==cfg.origin)return fail(res,403,'Origen de inventario no autorizado');
  res.setHeader('Access-Control-Allow-Origin',cfg.origin);
