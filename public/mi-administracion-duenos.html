@@ -2071,7 +2071,26 @@ $('ukiFisicoConsultar').onclick=async()=>{
   const fmt=(n,u)=>n===null||n===undefined?'Pendiente':Number(n).toLocaleString('es-CL',{maximumFractionDigits:3})+' '+u;
   const date=t=>new Date(t).toLocaleString('es-CL',{timeZone:'America/Santiago'});
   result.replaceChildren();
-  for(const store of Object.keys(names)){
+  const compartida=data.compartida===true;
+  if(compartida){
+   names['uki:serena']='Bodega La Serena · Uki y Romo';
+   add(result,'p','Dos bodegas físicas y tres operaciones de venta. La Serena se cuenta una sola vez.');
+   for(const b of data.bodegas||[]){
+    if(b.warehouse!=='serena')continue;
+    const sec=document.createElement('details');sec.className='line';result.append(sec);add(sec,'summary','La Serena · Consumo conjunto de Uki y Romo');
+    add(sec,'p',b.sales?.reason||'Sin datos sincronizados.');
+    if(b.sales?.available){
+     add(sec,'p',date(b.sales.start)+' — '+date(b.sales.end));
+     for(const i of b.sales.ingredients||[])add(sec,'p',i.name+' · '+fmt(i.quantity/1000,'kg preparados'));
+    }
+    for(const source of b.sales?.sources||[]){
+     const label=source.store==='uki:serena'?'Uki La Serena':'Romo La Serena';
+     add(sec,'p',label+' · '+(source.sale?.available?'Sincronizado (parcial)':source.sale?.reason||'Pendiente'));
+     if(source.sale?.available&&!b.sales.available)for(const i of source.sale.ingredients||[])add(sec,'p',i.name+' · '+fmt(i.quantity/1000,'kg preparados'));
+    }
+   }
+  }
+  for(const store of Object.keys(names).filter(x=>!compartida||x!=='romo:serena')){
    const matches=data.locales.filter(r=>r.store===store),r=matches.length===1?matches[0]:null;
    const box=document.createElement('details');box.className='line';result.append(box);add(box,'summary',names[store]);
    function renderYields(){
