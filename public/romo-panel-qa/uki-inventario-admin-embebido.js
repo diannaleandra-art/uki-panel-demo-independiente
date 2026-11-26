@@ -603,11 +603,35 @@ window.romoInventarioFaltantesSoloLecturaQA=function(){
 window.ukiInventarioPanelHTML=panel;window.ukiInventarioMontar=mount;
 })();
 // Consumo informativo posterior a guardado confirmado; no modifica pedidos.
-const ukiConsumoSyncRev=new Map(),ukiConsumoSyncBusy=new Set();
+const ukiConsumoSyncRev=new Map(),ukiConsumoSyncBusy=new Set(),ukiConsumoPending=new Map();
+async function ukiConsumoDrain(store){
+ if(ukiConsumoSyncBusy.has(store))return;
+ ukiConsumoSyncBusy.add(store);
+ try{
+  while(ukiConsumoPending.has(store)){
+   const entry=ukiConsumoPending.get(store),payload=entry.payload,revision=payload.revision;
+   if((ukiConsumoSyncRev.get(store)||0)>=revision){ukiConsumoPending.delete(store);continue;}
+   let ok=false;
+   try{
+    const token=await window.ukiInventarioToken?.();
+    if(token){
+     const response=await fetch('https://uki-sushi-inventario.vercel.app/api/inventario-ventas-live',{method:'POST',cache:'no-store',credentials:'omit',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(10000)});
+     if(response.ok){const result=await response.json();ok=result.ok===true&&result.store===store&&(result.registered===true||result.unchanged===true);}
+    }
+   }catch{}
+   if(ok)ukiConsumoSyncRev.set(store,revision);
+   if(ukiConsumoPending.get(store)!==entry)continue;
+   if(ok){ukiConsumoPending.delete(store);continue;}
+   // Keep the last confirmed snapshot for the next event; one bounded retry.
+   if(entry.attempts<1){entry.attempts++;setTimeout(()=>void ukiConsumoDrain(store),5000);}
+   break;
+  }
+ }finally{ukiConsumoSyncBusy.delete(store);}
+}
 window.ukiPublicarConsumoLive=async function(state,suc,revision){
  const store={'Uki Regimiento Arica':'uki:arica','Uki La Serena':'uki:serena','Romo’s Sushi La Serena':'romo:serena'}[suc];
- if(!store||!Number.isSafeInteger(revision)||revision<1||!Array.isArray(state?.pedidos)||ukiConsumoSyncBusy.has(store)||(ukiConsumoSyncRev.get(store)||0)>=revision)return;
- ukiConsumoSyncBusy.add(store);
+ if(!store||!Number.isSafeInteger(revision)||revision<1||!Array.isArray(state?.pedidos)||(ukiConsumoSyncRev.get(store)||0)>=revision)return;
+ if((ukiConsumoPending.get(store)?.payload.revision||0)>revision)return;
  try{
   const now=Date.now(),start=now-7*86400000,facts=[],seen=new Set();
   for(const p of state.pedidos){
@@ -635,10 +659,9 @@ window.ukiPublicarConsumoLive=async function(state,suc,revision){
    facts.push(fact);
   }
   if(facts.length>2000)return;
-  const token=await window.ukiInventarioToken?.();if(!token)return;
   const payload={store,revision,start:new Date(start).toISOString(),capturedAt:new Date(now).toISOString(),facts};
   if(JSON.stringify(payload).length>400000)return;
-  const response=await fetch('https://uki-sushi-inventario.vercel.app/api/inventario-ventas-live',{method:'POST',cache:'no-store',credentials:'omit',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(10000)});
-  if(response.ok){const result=await response.json();if(result.ok&&result.store===store)ukiConsumoSyncRev.set(store,revision);}
- }catch{}finally{ukiConsumoSyncBusy.delete(store);}
+  ukiConsumoPending.set(store,{payload,attempts:0});
+  await ukiConsumoDrain(store);
+ }catch{}
 };
