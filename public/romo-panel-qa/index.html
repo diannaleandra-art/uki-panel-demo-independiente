@@ -2541,6 +2541,7 @@ function vNuevo(){
   const aceptarCartaAntesDeCobrar=window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED===true&&
    !D.editando&&!!D.cartaSolicitudRemotaId;
   const pedidoEdicion=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&p.id===D.editando):null;
+  const guardaRectificacion=D.rectificacionNubePendiente||ukiPideRectificacionPago(pedidoEdicion,D);
   const deltaEdicion=pedidoEdicion?.pagado?Number(pedidoEdicion.total||0)-total:0;
   const pendienteEdicion=!!ukiCobroPendiente(pedidoEdicion);
    const entregaUI=`<label>Tipo de entrega</label><div class="chips">${(S.suc===ROMO_SUCURSAL_QA&&D.modalidad!=="Consumo en local"?["Retiro","Delivery"]:["Retiro","Delivery","Consumo en local"]).map(m=>`<button ${chip(D.modalidad===m)} onclick="setModalidad('${m}')">${m}</button>`).join("")}</div>${S.suc===ROMO_SUCURSAL_QA&&revisandoSolicitud?ukiRomoDetalleEntregaCartaHTMLQA(D.texto):""}${D.modalidad==="Consumo en local"?`<label>Mesa o referencia (opcional)</label><input maxlength="50" value="${esc(D.mesaReferencia||"")}" placeholder="Ej: Mesa 2" oninput="D.mesaReferencia=this.value">`:""}${D.modalidad==="Delivery"?`<label>💰 Valor delivery (se suma)</label><input type="number" inputmode="numeric" value="${D.envio||""}" placeholder="Ej: 2000" oninput="setEnvioManual(this.value)"><p class="muted" id="pedidoEnvioAyuda">Delivery seleccionado - ${D.envio||0} se suma al total</p><label>🛵 Kilómetros del recorrido (opcional, no cambia el precio)</label><input id="ukiKmRecorrido" type="text" inputmode="decimal" value="${esc(D.kmRecorrido??"")}" placeholder="Ej: 4,5" onchange="D.kmRecorrido=this.value.trim();render()"><p class="muted">Si el recorrido viene escrito en el mensaje original, el panel también puede leerlo. No modifica el valor del delivery.</p>`:""}`;
@@ -2584,6 +2585,7 @@ function vNuevo(){
     ${D.modalidad==="Delivery"?(D.envioPagadoOtroLocal?
       `<p class="muted"><b>Delivery ${fmt(envio)}:</b> se incluirá en los deliverys de ${S.suc===ROMO_SUCURSAL_QA?"Romo":"Uki"} para el repartidor, pero NO como ingreso de la caja porque lo cobraron en otro local.</p>`:
       `<label>Pago del delivery recibido en ${S.suc===ROMO_SUCURSAL_QA?"Romo":"Uki"} · ${fmt(envio)}</label>${ukiPagoUI("envio",envio)}`):""}
+    <div id="ukiRectificacionPagoEdicion">${ukiRectificacionPagoEdicionUI(pedidoEdicion,D)}</div>
     <label class="check"><input type="checkbox" ${D.pagado?"checked":""} ${aceptarCartaAntesDeCobrar?'disabled title="Primero acepta el pedido de carta"':''} onchange="D.pagado=this.checked;render()"> <b>Pago completo confirmado</b></label>
     ${aceptarCartaAntesDeCobrar?'<p class="muted">Primero acepta este pedido. Después confirma el abono y el pago desde el mismo pedido, en Pedidos. No se registra una venta al aceptar.</p>':""}
     <p class="muted">Solo se consideran ventas los pagos completos confirmados. Los montos mixtos deben sumar exactamente lo que corresponde.</p></div>
@@ -2593,7 +2595,7 @@ function vNuevo(){
    ${ukiPasoTimbreAntesDeGuardar(pedidoEdicion)}
    ${D.editando?'<div class="card"><h2>Responsable de la corrección</h2><p><b>✍️ SOLO CUANDO MODIFICAS UN PEDIDO EXISTENTE</b></p><label for="ukiResponsableEdicion"><b>¿Quién está haciendo este cambio? · Obligatorio</b></label><input id="ukiResponsableEdicion" maxlength="80" autocomplete="off" placeholder="Nombre de quien corrige" value="'+esc(D.responsableEdicion||"")+'" oninput="D.responsableEdicion=this.value"><p class="muted">El nombre, la fecha y el detalle del cambio quedarán en el historial del pedido. En el primer registro NO es necesario este nombre.</p></div>':''}
 
-   <button class="big" onclick="ndGuardar()" ${(ukiTimbreObligatorioGuardar(D,pedidoEdicion)&&!ukiTimbreBorradorConfirmado(D)||!ukiRevisionBancoBorradorValidaQA(D,pedidoEdicion))?'disabled title="Completa las confirmaciones obligatorias antes de guardar"':''}>${D.editando?`💾 Guardar cambios #${D.editando}`:D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición (no cancela el pedido)</button><p class="muted">Para cancelar el pedido, guarda primero cualquier corrección de pago. Luego vuelve a Pedidos, abre Ver detalle y selecciona ❌ Cancelar pedido. Si hay una devolución, regularízala primero.</p>`:""}`;
+   <button id="ukiGuardarPedido" class="big" onclick="ndGuardar()" ${(!guardaRectificacion&&(ukiTimbreObligatorioGuardar(D,pedidoEdicion)&&!ukiTimbreBorradorConfirmado(D)||!ukiRevisionBancoBorradorValidaQA(D,pedidoEdicion)))?'disabled title="Completa las confirmaciones obligatorias antes de guardar"':''}>${D.editando?`💾 Guardar cambios #${D.editando}`:D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición (no cancela el pedido)</button><p class="muted">Para cancelar el pedido, guarda primero cualquier corrección de pago. Luego vuelve a Pedidos, abre Ver detalle y selecciona ❌ Cancelar pedido. Si hay una devolución, regularízala primero.</p>`:""}`;
 }
 
 // Corrección histórica: el pedido muestra los datos corregidos, pero el cierre ya emitido nunca cambia.
@@ -2635,6 +2637,154 @@ function ukiDiferenciaDeliveryOriginalUI(p){
   'Solo los cambios guardados como ediciones tienen responsable y hora. No modifica la caja.</p></div>';
 }
 // Auditoría de cambios por pedido (se muestran los registros existentes, sin alterar caja).
+// El cambio de medio se autoriza en Editar pedido, con la venta original intacta.
+let ukiBaseRectificacionEdicion=null,ukiRectificacionGuardando=false;
+function ukiPagoTransferenciaMonto(p){
+ try{return (ukiLineasPago(p,'productos',Number(p.subtotal)||0).concat(
+  ukiLineasPago(p,'envio',p.modalidad==='Delivery'?Number(p.envio)||0:0)))
+  .filter(x=>String(x.medio).trim().toLowerCase()==='transferencia')
+  .reduce((n,x)=>n+(Number(x.monto)||0),0);
+ }catch{return 0;}
+}
+function ukiPuedeRectificarPago(p,d){
+ return !!(p&&Number(p.id)===Number(d.editando)&&p.suc===S.suc&&p.estado!=='Cancelado'&&!p.esPremio&&
+  ukiPagoTransferenciaMonto(p)>0);
+}
+function ukiPideRectificacionPago(p,d){
+ if(!ukiPuedeRectificarPago(p,d))return false;
+ const propuesta={...p,medio:d.medio,medioEnvio:d.medioEnvio,
+  pagosProductos:d.mixtoProductos?d.pagosProductos:[],pagosEnvio:d.mixtoEnvio?d.pagosEnvio:[]};
+ return ukiPagoTransferenciaMonto(propuesta)<ukiPagoTransferenciaMonto(p);
+}
+function ukiFirmaOtrosCambiosRectificacion(d){
+ const {medio,medioEnvio,mixtoProductos,mixtoEnvio,pagosProductos,pagosEnvio,responsableEdicion,
+  rectificacionMotivo,rectificacionConfirmada,rectificacionFirmaReparto,rectificacionMensaje,rectificacionError,rectificacionNubePendiente,...resto}=d;
+ return JSON.stringify(resto);
+}
+function ukiFirmaRepartoRectificacion(d){
+ return JSON.stringify([d.medio,d.medioEnvio,d.mixtoProductos,d.mixtoEnvio,d.pagosProductos,d.pagosEnvio]);
+}
+function ukiRectificacionDeliveryUI(p){
+ const recibos=p?.rectificacionesTransferenciaV2||[];
+ const anterior=p?.rectificacionTransferenciaDeliveryV1;
+ return (anterior?.id?'<p class="muted"><b>Transferencia del delivery rectificada:</b> '+fmt(anterior.monto)+' en efectivo · '+esc(anterior.motivo||'')+'</p>':'')+
+  recibos.map(r=>'<p class="muted"><b>Pago rectificado:</b> '+esc(r.responsable)+' · '+esc(r.motivo)+' · '+esc(new Date(r.en).toLocaleString('es-CL'))+'</p>').join('');
+}
+function ukiRectificacionPagoEdicionUI(p,d){
+ if(!p)return '';
+ const estado='<p id="ukiEstadoRectificacionEdicion" role="status" tabindex="-1" style="'+
+  (d.rectificacionError?'color:#9a3412;font-weight:700;':'')+'margin:8px 0">'+esc(d.rectificacionMensaje||'')+'</p>';
+ if(!ukiPideRectificacionPago(p,d)){
+  if(d.rectificacionMensaje)return estado;
+  if(ukiPuedeRectificarPago(p,d))return '<p class="muted">Si marcaste como transferencia un pago recibido por otro medio, corrige el medio en este bloque para autorizar el cambio.</p>';
+  return ukiRectificacionDeliveryUI(p);
+ }
+ return '<div class="card" style="padding:12px;border:1px solid var(--accent);margin:12px 0">'+
+  '<h3 style="margin:0">Autorizar corrección de transferencia</h3>'+
+  '<p class="muted">Cambia solo el medio que recibiste. No modifica el importe ni registra otra venta. Guarda con la cuenta Google de administración.</p>'+
+  '<label for="ukiMotivoRectificacionEdicion">Motivo de la corrección</label>'+
+  '<textarea id="ukiMotivoRectificacionEdicion" maxlength="140" rows="2" oninput="D.rectificacionMotivo=this.value">'+esc(d.rectificacionMotivo||'')+'</textarea>'+
+  '<label class="check"><input id="ukiConfirmarRectificacionEdicion" type="checkbox" '+
+  (d.rectificacionFirmaReparto===ukiFirmaRepartoRectificacion(d)&&d.rectificacionConfirmada?'checked ':'')+
+  'onchange="D.rectificacionConfirmada=this.checked;D.rectificacionFirmaReparto=ukiFirmaRepartoRectificacion(D)"> '+
+  'Confirmo que la parte que corrijo no entró al banco y que los medios y montos que dejé reflejan lo que realmente recibimos.</label>'+
+  '<p class="muted">Completa el nombre del responsable y pulsa <b>Guardar cambios</b>.</p>'+estado+'</div>';
+}
+function ukiRefrescarCorreccionPagoDirecta(){
+ const zona=document.getElementById('ukiRectificacionPagoEdicion');
+ if(!zona||!D.editando)return;
+ const p=(S.pedidos||[]).find(x=>x.suc===S.suc&&Number(x.id)===Number(D.editando));
+ zona.innerHTML=ukiRectificacionPagoEdicionUI(p,D);
+ const boton=document.getElementById('ukiGuardarPedido');
+ if(boton)boton.disabled=ukiRectificacionGuardando||(!D.rectificacionNubePendiente&&!ukiPideRectificacionPago(p,D)&&
+  (ukiTimbreObligatorioGuardar(D,p)&&!ukiTimbreBorradorConfirmado(D)||!ukiRevisionBancoBorradorValidaQA(D,p)));
+}
+function ukiMensajeRectificacionEdicion(d,mensaje,error=false,irAlId=''){
+ d.rectificacionMensaje=mensaje;d.rectificacionError=error;
+ if(D!==d||S.vista!=="nuevo")return;
+ const estado=document.getElementById('ukiEstadoRectificacionEdicion');
+ if(estado){
+  estado.textContent=mensaje;estado.style.color=error?'#9a3412':'';
+  estado.style.fontWeight=error?'700':'';
+ }
+ if(error||irAlId){
+  const destino=document.getElementById(irAlId)||estado;
+  destino?.focus({preventScroll:true});
+  destino?.scrollIntoView({block:'center',behavior:'smooth'});
+ }
+}
+async function ukiRectificarPagoEnEdicion(original,d){
+ if(ukiRectificacionGuardando)return;
+ ukiRectificacionGuardando=true;
+ const estado=S,sucursal=S.suc,id=d.editando;
+ const enEdicion=()=>S.suc===sucursal&&S.vista==="nuevo"&&D===d;
+ const boton=document.getElementById('ukiGuardarPedido');
+ if(boton)boton.disabled=true;
+ let aplicado=!!d.rectificacionNubePendiente,autorizado=false;
+ try{
+  const lib=await import('./rectificacion-pago-edicion-v2.mjs?v=2');
+  if(!d.rectificacionNubePendiente){
+   const motivo=String(d.rectificacionMotivo||'').trim(),responsable=String(d.responsableEdicion||'').trim();
+   if(motivo.length<8||motivo.length>140)
+    return ukiMensajeRectificacionEdicion(d,'Escribe el motivo de la corrección (al menos 8 caracteres).',true,'ukiMotivoRectificacionEdicion');
+   if(!d.rectificacionConfirmada||d.rectificacionFirmaReparto!==ukiFirmaRepartoRectificacion(d))
+    return ukiMensajeRectificacionEdicion(d,'Confirma los importes y medios de pago que realmente se recibieron.',true,'ukiConfirmarRectificacionEdicion');
+   if(!responsable||responsable.length>80)
+    return ukiMensajeRectificacionEdicion(d,'Escribe quién autoriza la corrección.',true,'ukiResponsableEdicion');
+   const firmado=JSON.stringify(original),draftFirmado=JSON.stringify({...d,rectificacionMensaje:null,rectificacionError:null});
+   const sub=d.items.reduce((n,i)=>n+(i.nombre?(Number(i.cant)||0)*(Number(i.precio)||0):0),0);
+   const montoEnvio=d.modalidad==='Delivery'?Number(d.envio):0;
+   if(d.pagado!==Boolean(original.pagado)||sub!==Number(original.subtotal)||montoEnvio!==Number(original.envio||0)||d.modalidad!==original.modalidad||
+      d.productosPagadosOtroLocal!==!!original.productosPagadosOtroLocal||
+      ukiMontoEnvioOtroLocal(d,montoEnvio,sub)!==ukiMontoEnvioOtroLocal(original,montoEnvio,sub)||
+      ukiMontoProductosOtroLocal(d,sub)!==ukiMontoProductosOtroLocal(original,sub))
+    throw Error('Primero corrige solo el medio de pago. Deja el valor, el tipo de entrega y el estado de pago sin cambios.');
+   const propuesta=lib.pagoCorregido(original,{...d,...ukiDatosPago(d,sub),
+    pagosProductos:d.mixtoProductos?d.pagosProductos.map(x=>({...x,monto:Number(x.monto)})):[],
+    pagosEnvio:d.mixtoEnvio?d.pagosEnvio.map(x=>({...x,monto:Number(x.monto)})):[]});
+   const plan=lib.exigirPlan(original,propuesta,ukiLineasPago);
+   if(!enEdicion()||S!==estado||!S.pedidos.includes(original))throw Error('El pedido cambió. Vuelve a abrirlo.');
+   ukiMensajeRectificacionEdicion(d,'Comprobando la autorización…');
+   const r=await window.ukiAutorizarRectificacionPagoV2({plan,motivo,responsable,sinAbonoRectificado:true,abonoRestante:plan.montoRestante});
+   autorizado=true;
+   if(!enEdicion()||S!==estado||!S.pedidos.includes(original)||firmado!==JSON.stringify(original)||
+      draftFirmado!==JSON.stringify({...d,rectificacionMensaje:null,rectificacionError:null}))
+    throw Error('El pedido o el formulario cambiaron durante la comprobación.');
+   propuesta.rectificacionesTransferenciaV2=[...(original.rectificacionesTransferenciaV2||[]),r.recibo];
+   if(!lib.comprobarCambio(original,propuesta,ukiLineasPago))throw Error('La autorización no coincide con el cambio de pago.');
+   const copia=datosSoloSucursal();
+   const i=copia.pedidos.findIndex(p=>p.id===original.id&&p.suc===sucursal);
+   if(i<0)throw Error('No se encontró el pedido original de Romo.');
+   copia.pedidos[i]=propuesta;
+   await ukiRomoGuardarOperacionQA(copia,'Pago rectificado',id,'nuevo','rectificar_pago_v2');
+   original=propuesta;
+   aplicado=true;
+  }
+
+  d.rectificacionNubePendiente=false;d.rectificacionConfirmada=false;d.rectificacionMotivo='';
+  const quedan=ukiBaseRectificacionEdicion?.draft===d&&ukiBaseRectificacionEdicion.firma!==ukiFirmaOtrosCambiosRectificacion(d);
+  if(enEdicion()){
+   ukiMensajeRectificacionEdicion(d,'Pago del pedido #'+id+' corregido y guardado.'+
+    (ukiCierreConfirmadoPedido(original)?' El cierre anterior no cambió.':'')+
+    (quedan?' Los otros cambios siguen en el formulario para guardarlos aparte.':''));
+   render();
+   document.getElementById('ukiEstadoRectificacionEdicion')?.scrollIntoView({block:'center',behavior:'smooth'});
+  }
+ }catch(e){
+  if(!enEdicion())return;
+  if(aplicado)render();
+  ukiMensajeRectificacionEdicion(d,String(e?.message||e)+(aplicado?
+   ' Vuelve a pulsar Guardar cambios para confirmar el respaldo.':autorizado?
+   ' Vuelve a guardar la misma corrección para terminar de aplicarla.':''),true);
+ }finally{
+  ukiRectificacionGuardando=false;
+  if(boton)boton.disabled=false;
+  if(enEdicion()){
+   const actual=document.getElementById('ukiGuardarPedido');
+   if(actual&&aplicado)actual.disabled=false;
+  }
+ }
+}
 function ukiCorreccionesTurnoUI(p){
  // Solo vista de auditoría: no cambia productos, cobros, caja ni el pedido.
  // Siempre visible para distinguir entre "sin cambios registrados" y una sección oculta.
@@ -2781,6 +2931,7 @@ items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.pr
   if(D.propinaModo==='diez'){D.propinaModo='otro';D.propinaPersonalizada=Number(p.propina)||0;}
   D.romoFirmaAntesQuitarPagoQA=ukiRomoFirmaSoloQuitarPagoQA(D);
  }
+ ukiBaseRectificacionEdicion={draft:D,firma:ukiFirmaOtrosCambiosRectificacion(D)};
  modoNuevo="manual";ir("nuevo"); aviso(`Editando pedido #${id}`);}
 function reanalizar(){leerTextoD();}
 
@@ -3954,9 +4105,9 @@ function ukiPagoUI(tipo,total){
  if(!D[flag])return toggle+'<div class="chips">'+choices.map(m=>'<button class="chip'+(D[single]===m?' on':'')+'" onclick="D.'+single+'=this.textContent;render()">'+esc(m)+'</button>').join("")+'</div>';
  const lines=D[key]||[];
  return toggle+'<p class="muted">Los montos deben sumar '+fmt(total)+'.</p>'+
-   lines.map((x,i)=>'<div style="display:grid;grid-template-columns:1fr 110px auto;gap:6px;align-items:end;margin:8px 0"><select onchange="D.'+key+'['+i+'].medio=this.value" aria-label="Medio '+(i+1)+'">'+
+   lines.map((x,i)=>'<div style="display:grid;grid-template-columns:1fr 110px auto;gap:6px;align-items:end;margin:8px 0"><select onchange="D.'+key+'['+i+'].medio=this.value;ukiRefrescarCorreccionPagoDirecta()" aria-label="Medio '+(i+1)+'">'+
      choices.map(m=>'<option '+(x.medio===m?'selected ':'')+'value="'+esc(m)+'">'+esc(m)+'</option>').join("")+
-     '</select><input type="number" inputmode="numeric" min="1" step="1" placeholder="Monto" aria-label="Monto '+(i+1)+'" value="'+esc(x.monto||"")+'" oninput="D.'+key+'['+i+'].monto=this.value">'+
+     '</select><input type="number" inputmode="numeric" min="1" step="1" placeholder="Monto" aria-label="Monto '+(i+1)+'" value="'+esc(x.monto||"")+'" oninput="D.'+key+'['+i+'].monto=this.value;ukiRefrescarCorreccionPagoDirecta()">'+
      (lines.length>2?'<button class="sm" onclick="ukiQuitarPago(\''+tipo+'\','+i+')">✕</button>':'<span></span>')+'</div>').join("")+
    (lines.length<6?'<button class="sm" onclick="ukiAgregarPago(\''+tipo+'\')">+ Otro medio</button>':"");
 }
@@ -5619,6 +5770,7 @@ function vPedidos(){
     ${ukiVCorreccionesPedido(p)}
     ${ukiDiferenciaPedidoUI(p)}
     ${ukiCorreccionesTurnoUI(p)}
+    ${ukiRectificacionDeliveryUI(p)}
     ${ukiTimbrePedidoUI(p)}
     <details class="inner-details"><summary>⚠️ Registrar error / ver soluciones</summary>
     ${(S.incidencias||[]).filter(x=>x.suc===p.suc && x.pedidoId===p.id).map(x=>renderIncidencia(x,"orden")).join("")}
@@ -5876,7 +6028,7 @@ let ukiRomoAclaracionGuardandoQA=false;
 // En la copia Romo bloquea salir/navegar mientras una acción explícita
 // todavía espera confirmación de Neon. No cambia la navegación de Uki.
 function ukiRomoOperacionesEnCursoQA(){
- return ukiRomoOperandoPedidoQA||ukiRomoBorradorGuardandoQA||ukiRomoGuardandoManualQA||
+ return ukiRectificacionGuardando||ukiRomoOperandoPedidoQA||ukiRomoBorradorGuardandoQA||ukiRomoGuardandoManualQA||
   ukiRomoSolicitudCartaOcupadaQA||ukiRomoTurnoOcupadoQA||
   ukiRomoPrecierreOcupadoQA||ukiRomoTimbreBusyQA||
   ukiRomoClienteGuardandoQA||ukiRomoCanjeEnCursoQA||
@@ -7642,7 +7794,14 @@ async function ukiRomoGuardarOperacionQA(copia,descripcion,orden,vista='pedidos'
  if(!validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))
   throw Error('No se pudo validar el estado independiente de Romo.');
  const firma=JSON.stringify(copia);
- await ukiSeguimientoValidarAntesDeCifrarRomoQA(copia);
+  if(accionProtegida==='rectificar_pago_v2'){
+   const lib=await import('./rectificacion-pago-edicion-v2.mjs?v=2');
+   const antes=S.pedidos.find(p=>p.id===Number(orden)&&p.suc===S.suc);
+   const despues=copia.pedidos.find(p=>p.id===Number(orden)&&p.suc===S.suc);
+   const prueba=lib.comprobarCambio(antes,despues,ukiLineasPago);
+   if(!prueba)throw Error('No coincide el cambio autorizado del pedido.');
+   await window.ukiVerificarRectificacionPagoV2(prueba);
+  }else await ukiSeguimientoValidarAntesDeCifrarRomoQA(copia);
  if(JSON.stringify(copia)!==firma||session.estado()?.revision!==anterior.revision||
     session.estado()?.conflicto)
   throw Error('El pedido cambió durante la verificación del pago. Actualiza antes de guardar.');
@@ -7664,7 +7823,7 @@ async function ukiRomoGuardarOperacionQA(copia,descripcion,orden,vista='pedidos'
  S.msg=descripcion+(orden===null?'':' · Pedido #'+orden)+' · revisión '+res.revision+'.';
  render();
  // La proyección se ejecuta sólo tras el CAS confirmado, nunca antes de guardar.
- if(!conjunto&&window.UKI_SEGUIMIENTO_ESTADO_GUARDADO_AUTORIZADO===true&&Number.isSafeInteger(Number(orden))&&Number(orden)>0){
+ if(!conjunto&&accionProtegida!=='rectificar_pago_v2'&&window.UKI_SEGUIMIENTO_ESTADO_GUARDADO_AUTORIZADO===true&&Number.isSafeInteger(Number(orden))&&Number(orden)>0){
   const p=(copia.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&Number(x.id)===Number(orden));
   if(p)void window.ukiQAPublishSavedState?.({pedidos:[p],revision:res.revision,
    pendienteExplicito:accionProtegida==='quitar_pagado'});
@@ -10662,6 +10821,11 @@ function ukiSeguimientoValidarCambioMedioQA(original,nuevo){
  return true;
 }
 async function ndGuardar(){
+  const pedidoRectificacion=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(D.editando)):null;
+  if(S.suc===ROMO_SUCURSAL_QA&&ukiPideRectificacionPago(pedidoRectificacion,D)){
+   if(ukiRomoOperacionesEnCursoQA())return;
+   return ukiRectificarPagoEnEdicion(pedidoRectificacion,D);
+  }
   if(S.suc===ROMO_SUCURSAL_QA&&!ukiSeguimientoConservarOrigenEdicionQA())return;
   const originalRevisionBanco=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(D.editando)):null;
   if(S.suc===ROMO_SUCURSAL_QA&&D.pagado&&originalRevisionBanco?.ajusteCobroPendiente?.tipo==='pago_desmarcado')
@@ -12111,6 +12275,33 @@ const config={
 const UKI_OPERACION_HABILITADA=location.hostname==='diannaleandra-art.github.io'; // Solo dominio del panel vigente: Preview no escribe caja real.
 const auth=getAuth(initializeApp(config)),db=getFirestore(auth.app);
 // Para inventario se utiliza esta misma sesión Google, nunca el PIN del trabajador.
+async function ukiSolicitarCambioPagoV2(action,datos,extra={}){
+ const storeId=datos.plan.storeId;
+ const token=await window.ukiInventarioToken?.();
+ if(typeof token!=='string'||!token)throw Error('Abre el panel con la cuenta Google de administración.');
+ const r=await fetch('/api/seguimiento-personal-tres-qa',{method:'POST',cache:'no-store',redirect:'error',
+  headers:{Authorization:'Bearer '+token,Accept:'application/json','Content-Type':'application/json'},
+  body:JSON.stringify({action,storeId,...datos,...extra}),signal:AbortSignal.timeout(18000)});
+ const result=await r.json().catch(()=>null);
+ if(!r.ok||result?.ok!==true||result.storeId!==storeId)
+  throw Error(result?.error||'No se pudo confirmar la autorización del pago.');
+ return result;
+}
+window.ukiVerificarRectificacionPagoV2=async prueba=>{
+ const r=await ukiSolicitarCambioPagoV2('verificar_rectificacion_v2',prueba);
+ if(r.confirmado!==true)throw Error('No se pudo verificar la corrección.');
+ return true;
+};
+window.ukiAutorizarRectificacionPagoV2=async datos=>{
+ const sesion=window.ukiRomoSesionRemotaQA;
+ if(window.ukiQAGet?.()?.suc!==ROMO_SUCURSAL_QA||
+    !sesion?.disponible?.()||sesion.estado()?.conflicto)
+  throw Error('Carga la nube de Romo antes de guardar.');
+ const extra={revision:sesion.estado().revision};
+ const r=await ukiSolicitarCambioPagoV2('rectificar_pago_v2',datos,extra);
+ if(!r.recibo?.id||!r.recibo?.firma)throw Error('No se confirmó la autorización.');
+ return r;
+};
 window.ukiInventarioToken=async()=>auth.currentUser?auth.currentUser.getIdToken():null;
 const cloud=crearSnapshotsUki({db,auth,api:{doc,getDocFromServer,writeBatch,runTransaction},
  blocks:{dividirEstado,reunirEstado},

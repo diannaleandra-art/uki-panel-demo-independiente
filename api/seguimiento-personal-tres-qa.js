@@ -18,7 +18,7 @@ module.exports=async(req,res)=>{
  if(!['GET','POST'].includes(req.method))return fail(res,405,'Acción no autorizada');
  if(req.method==='POST'&&(!String(req.headers['content-type']||'').startsWith('application/json')||
   !req.body||typeof req.body!=='object'||Array.isArray(req.body)||
-  JSON.stringify(req.body).length>1500))return fail(res,400,'Formulario inválido');
+  JSON.stringify(req.body).length>4096))return fail(res,400,'Formulario inválido');
  const revision=req.query?.revision==='1';
  if(revision&&cfg.live)return fail(res,403,'Revisión aislada no disponible en producción');
  const storeId=String(req.method==='GET'?req.query?.storeId:req.body?.storeId||'');
@@ -42,6 +42,25 @@ module.exports=async(req,res)=>{
      (req.method==='POST'&&!['simular_transferencia','responder_mensaje'].includes(req.body.action))))
    return fail(res,403,'Permiso limitado a la revisión ficticia de esta sucursal');
   const meta=S.TABLES[storeId];
+  if(req.method==='POST'&&['rectificar_pago_v2','verificar_rectificacion_v2'].includes(req.body.action)){
+   const body=req.body;
+   if(body.plan?.storeId!==storeId)return fail(res,400,'La sucursal del pedido no coincide.');
+   const R=require('../lib/rectificacion-pago-edicion-v2.cjs');
+   const {detalleDistribucion}=require('../lib/seguimiento-confirmar-medio-pago-qa.cjs');
+   if(body.action==='verificar_rectificacion_v2')
+    return res.status(200).json(R.verificar({secret:cfg.tokenSecret,body,actor,detalleDistribucion}));
+   if(!cfg.live||storeId!=='romo:serena')return fail(res,403,'Rectificación no habilitada en esta sucursal.');
+   const admin=actor;
+   if(admin?.role!=='duenos')return fail(res,403,'Usa la cuenta Google de administración de este local.');
+   const order=body.plan.id&&UUID.test(body.plan.id)?await S.loadOne(db,storeId,body.plan.id):null;
+   const comprobarRevision=()=>{return db.query('SELECT revision FROM public.romo_estado_operativo_v1 WHERE store_id=$1',[storeId]).then(rows=>{
+    if(rows.length!==1||!Number.isSafeInteger(body.revision)||Number(rows[0].revision)!==body.revision)
+     throw Object.assign(Error('La revisión guardada de Romo cambió. Actualiza y vuelve a intentar.'),{code:409});
+   });};
+   const result=await R.registrar({db,meta,order,actor:admin,secret:cfg.tokenSecret,body,comprobarRevision,detalleDistribucion});
+   return res.status(200).json(result);
+  }
+
   const ficticio=" AND s.codigo_pedido ~* '^(QA|PRUEBA|TEST|DEMO)[-_ ]' AND s.cliente ~* '^(QA|PRUEBA|TEST|DEMO|CLIENTE (QA|PRUEBA|TEST|DEMO))'"+
    (actor.revisionOnly===true?" AND s.codigo_pedido='"+REVISION_CODES[storeId]+"'":"");
   if(req.method==='GET'&&!req.query?.id){
@@ -63,9 +82,9 @@ module.exports=async(req,res)=>{
      id:r.id,codigoPedido:plan.codigo,cliente:String(r.cliente||'').slice(0,80),
      estadoPedido:plan.estado,enCamino:plan.enCamino===true,preparacion:plan.preparacion,calificacion:plan.calificacion,modalidad:plan.modalidad,metodoPago:plan.metodoPago,pagoDeclarado:plan.pagoDeclarado,
      montoTransferencia:plan.montoTransferencia,
-     estadoPago:!r.estado_pago?'pendiente':r.monto_transferencia!==plan.montoTransferencia?'requiere_revision':
+     estadoPago:(r.datos?.rectificacionTransferenciaV2?require('../lib/rectificacion-pago-edicion-v2.cjs').estadoRectificado(r.datos,r,plan.montoTransferencia):null)||(!r.estado_pago?'pendiente':r.monto_transferencia!==plan.montoTransferencia?'requiere_revision':
       r.estado_pago==='confirmada'&&(!r.confirmada_en||!r.abono_verificado_en||!r.confirmada_por||
-       String(r.confirmada_por).startsWith('QA_SIMULACION:')!==revision)?'requiere_revision':r.estado_pago,
+       String(r.confirmada_por).startsWith('QA_SIMULACION:')!==revision)?'requiere_revision':r.estado_pago),
      clienteAvisoEn:r.cliente_aviso_en||null,ultimaConsulta:r.ultima_consulta||null
     }:null;
    }).filter(Boolean);
