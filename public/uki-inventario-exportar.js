@@ -161,6 +161,9 @@
   lines.push('-- = No se dispone del detalle de entradas en esta revision.');
   lines.push('Pedir segun minimo. Al alcanzar el minimo: revisar compra.');
   lines.push('El stock corresponde al momento guardado, no a la existencia actual.');
+  return pdfLineas(lines,head);
+ }
+ function pdfLineas(lines,head){
   // Páginas con encabezado repetido para que siempre se identifique el informe.
   const chunks=[];let idx=0;
   while(idx<lines.length){
@@ -202,6 +205,32 @@
   document.body.append(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),20000);
  }
+ function reporteMovimientos(report){
+  if(!report||!Array.isArray(report.movimientos)||report.movimientos.length>2000)throw Error('Movimientos no verificables');
+  const title='INVENTARIO | MOVIMIENTOS REGISTRADOS';
+  const head=[title,branchName(report.branch)+' | '+report.desde+' a '+report.hasta,'Tipo: '+report.tipo+' | '+report.movimientos.length+' registros',''];
+  const labels={entrada:'Entrada',conteo:'Conteo',merma:'Merma',personal:'Consumo personal',traspaso_salida:'Traspaso enviado',traspaso_entrada:'Traspaso recibido'};
+  const field=x=>String(x??'').replace(/[\r\n\t]+/g,' ');
+  const text=[...head],rows=[['Fecha','Tipo','Insumo','Cantidad','Unidad','Responsable','Motivo','Folio','Contraparte']];
+  for(const m of report.movimientos){
+   const fecha=fechaChile(m.fecha);
+   const row=[fecha.fecha+' '+fecha.hora,labels[m.tipo]||m.tipo,m.name,m.cantidad,m.unidad,m.responsable,m.motivo,m.folio,m.contraparte].map(field);
+   rows.push(row);
+   text.push(row[0]+' | '+row[1]+' | '+row[2]+' | '+row[3]+' '+row[4], 'Responsable: '+row[5]+(row[6]?' | '+row[6]:'')+(row[7]?' | Folio '+row[7]+' | '+row[8]:''));
+  }
+  if(!report.movimientos.length)text.push('No se encontraron movimientos en el período.');
+  if(!report.justificacionesDisponibles)text.push('Los movimientos justificados no están disponibles.');
+  const guard=x=>{let v=String(x);if(/^\s*[=+\-@]/.test(v))v="'"+v;return '"'+v.replace(/"/g,'""')+'"';};
+  const csv='\uFEFFsep=;\r\n'+rows.map(row=>row.map(guard).join(';')).join('\r\n')+'\r\n';
+  const lines=text.flatMap(line=>line.match(/.{1,85}/gu)||['']);
+  return {texto:text.join('\n'),csv,pdf:pdfLineas(lines,head),filename:'movimientos-'+fileSafe(report.branch)+'-'+report.desde+'-'+report.hasta};
+ }
+ function descargarMovimientos(report,format){
+  const r=reporteMovimientos(report);
+  if(format==='pdf')descargar(new Blob([r.pdf],{type:'application/pdf'}),r.filename+'.pdf');
+  else if(format==='csv')descargar(new Blob([r.csv],{type:'text/csv;charset=utf-8'}),r.filename+'.csv');
+  else throw Error('Formato inválido');
+ }
  function excel(report){descargar(new Blob([csv(report)],{type:'text/csv;charset=utf-8'}),nombreArchivo(report,'csv'));}
  function guardarPDF(report){descargar(new Blob([pdf(report)],{type:'application/pdf'}),nombreArchivo(report,'pdf'));}
  async function whatsapp(report){
@@ -217,5 +246,5 @@
   window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank','noopener');
   return 'texto';
  }
- return {fechaChile,branchName,filas,tabla,csv,pdf,mensaje,mensajeCompras,nombreArchivo,excel,guardarPDF,compartirPDF,whatsapp};
+ return {fechaChile,branchName,filas,tabla,csv,pdf,mensaje,mensajeCompras,nombreArchivo,excel,guardarPDF,compartirPDF,whatsapp,reporteMovimientos,descargarMovimientos};
 });
