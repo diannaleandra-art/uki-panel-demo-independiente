@@ -1,4 +1,4 @@
-import {comprobarCambio} from './rectificacion-pago-edicion-v2.mjs?v=2';
+import {comprobarCambio} from './rectificacion-pago-edicion-v2.mjs?v=reparto-cero-v3';
 import {comprobarRectificacionLocal,coincideConstancia} from './uki-rectificar-transferencia-v1.mjs';
 /* Control del guardado habitual, no una segunda caja.
  * Firebase y Neon son servicios distintos: esta comprobación en el cliente
@@ -26,7 +26,7 @@ function index(estado,suc){
  }
  return map;
 }
-export async function verificarGuardadoUki({anterior,nuevo,sucursal,importes,hayTransferencia,manualValido,consultar,leerLineasPago,verificarRectificacion}={}){
+export async function verificarGuardadoUki({anterior,nuevo,sucursal,importes,hayTransferencia,manualValido,consultar,leerLineasPago,leerLineasPagoAnterior,verificarRectificacion}={}){
  const storeId=STORES[sucursal];
  if(!storeId||[importes,hayTransferencia,manualValido,consultar].some(x=>typeof x!=='function'))
   fail('Faltan controles de pago para esta sucursal');
@@ -42,7 +42,7 @@ export async function verificarGuardadoUki({anterior,nuevo,sucursal,importes,hay
   const cambioRectificado=JSON.stringify(prev?.rectificacionesTransferenciaV2??[])!==
    JSON.stringify(p.rectificacionesTransferenciaV2??[]);
   if(cambioRectificado){
-   const prueba=comprobarCambio(prev,p,leerLineasPago);
+   const prueba=comprobarCambio(prev,p,leerLineasPago,leerLineasPagoAnterior);
    if(!prueba||await verificarRectificacion?.(prueba)!==true)
     fail('No se confirmó la corrección autorizada de este pago');
    checked++;continue;
