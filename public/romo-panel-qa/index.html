@@ -2297,8 +2297,27 @@ function ukiRevisionBancoFirmaQA(p,importe=null){
  if(!p||!i||!Number.isSafeInteger(i.total)||!Number.isSafeInteger(i.montoTransferencia)||i.montoTransferencia<=0)return '';
  return JSON.stringify([S.suc,String(p.cartaSolicitudRemotaId||p.seguimientoSolicitudId||''),String(p.id??p.editando??S.nextId),String(p.cliente||''),String(p.telefono||''),i.total,i.montoTransferencia]);
 }
+// Una edición que deja intacto el cobro ya registrado no vuelve a verificar el banco.
+function ukiEdicionMantieneCobro(d,p){
+ if(!d?.pagado||!p?.pagado||p.suc!==S.suc||Number(d.editando)!==Number(p.id)||
+    p.estado==='Cancelado'||d.modalidad!==p.modalidad)return false;
+ if(['cartaSolicitudRemotaId','seguimientoSolicitudId','localPagoExterno'].some(k=>String(d[k]||'')!==String(p[k]||'')))return false;
+ const subtotal=d.items.reduce((s,i)=>s+(i.nombre?(Number(i.cant)||0)*(Number(i.precio)||0):0),0);
+ const envio=d.modalidad==='Delivery'?Number(d.envio):0,propina=ukiMontoPropina(d,subtotal);
+ if(subtotal!==Number(p.subtotal)||envio!==Number(p.envio||0)||propina!==Number(p.propina||0)||
+    subtotal+envio+propina!==Number(p.total)||(propina>0&&d.medioPropina!==p.medioPropina))return false;
+ if(ukiMontoProductosOtroLocal(d,subtotal)!==ukiMontoProductosOtroLocal(p,subtotal)||
+    ukiMontoEnvioOtroLocal(d,envio,subtotal)!==ukiMontoEnvioOtroLocal(p,envio,subtotal))return false;
+ const nuevo={...d,subtotal,pagosProductos:d.mixtoProductos?d.pagosProductos:[],pagosEnvio:d.mixtoEnvio?d.pagosEnvio:[]};
+ const firma=(x,t,m)=>JSON.stringify(ukiLineasPago(x,t,m).map(l=>[l.medio,l.monto]).sort());
+ return firma(p,'productos',subtotal)===firma(nuevo,'productos',subtotal)&&
+  firma(p,'envio',envio)===firma(nuevo,'envio',envio);
+}
+function ukiResponsableEdicionUI(d){
+ return '<label for="ukiResponsableEdicion">Responsable</label><input id="ukiResponsableEdicion" maxlength="80" autocomplete="off" placeholder="Nombre de quien edita" value="'+esc(d.responsableEdicion||'')+'" oninput="D.responsableEdicion=this.value">';
+}
 function ukiRevisionBancoBorradorValidaQA(d,original=null){
- if(!d.pagado||!ukiSeguimientoHayTransferenciaQA(d))return true;
+ if(!d.pagado||!ukiSeguimientoHayTransferenciaQA(d)||ukiEdicionMantieneCobro(d,original))return true;
  const firma=ukiRevisionBancoFirmaQA(d);
  if(!firma)return false;
  if(d.revisionBancoUIQA===firma)return true;
@@ -2310,7 +2329,7 @@ function ukiRevisionBancoMarcarBorradorQA(check){
  render();
 }
 function ukiRevisionBancoBorradorUIQA(d,original){
- if(!d.pagado||!ukiSeguimientoHayTransferenciaQA(d))return '';
+ if(!d.pagado||!ukiSeguimientoHayTransferenciaQA(d)||ukiEdicionMantieneCobro(d,original))return '';
  const firma=ukiRevisionBancoFirmaQA(d),valid=ukiRevisionBancoBorradorValidaQA(d,original);
  return '<div class="card" style="border:1px solid var(--accent);padding:10px"><b>Verificación bancaria obligatoria</b>'+
  '<label class="check"><input type="checkbox" '+(valid?'checked ':'')+(!firma?'disabled ':'')+
@@ -2594,7 +2613,7 @@ function vNuevo(){
     '<p class="muted">La diferencia del cobro quedará registrada automáticamente; editar no declara una devolución.</p>':''}
    ${ukiRevisionBancoBorradorUIQA(D,pedidoEdicion)}
    ${ukiPasoTimbreAntesDeGuardar(pedidoEdicion)}
-   ${D.editando?'<div class="card"><h2>Responsable de la corrección</h2><p><b>✍️ SOLO CUANDO MODIFICAS UN PEDIDO EXISTENTE</b></p><label for="ukiResponsableEdicion"><b>¿Quién está haciendo este cambio? · Obligatorio</b></label><input id="ukiResponsableEdicion" maxlength="80" autocomplete="off" placeholder="Nombre de quien corrige" value="'+esc(D.responsableEdicion||"")+'" oninput="D.responsableEdicion=this.value"><p class="muted">El nombre, la fecha y el detalle del cambio quedarán en el historial del pedido. En el primer registro NO es necesario este nombre.</p></div>':''}
+   ${D.editando&&(!guardaRectificacion||D.rectificacionNubePendiente)?'<div class="card">'+ukiResponsableEdicionUI(D)+'</div>':''}
 
    <button id="ukiGuardarPedido" class="big" onclick="ndGuardar()" ${(!guardaRectificacion&&(ukiTimbreObligatorioGuardar(D,pedidoEdicion)&&!ukiTimbreBorradorConfirmado(D)||!ukiRevisionBancoBorradorValidaQA(D,pedidoEdicion)))?'disabled title="Completa las confirmaciones obligatorias antes de guardar"':''}>${D.editando?`💾 Guardar cambios #${D.editando}`:D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición (no cancela el pedido)</button><p class="muted">Para cancelar el pedido, guarda primero cualquier corrección de pago. Luego vuelve a Pedidos, abre Ver detalle y selecciona ❌ Cancelar pedido. Si hay una devolución, regularízala primero.</p>`:""}`;
 }
@@ -2737,15 +2756,15 @@ function ukiRectificacionPagoEdicionUI(p,d){
  }
  return caja+
   '<h3 style="margin:0">Autorizar corrección de transferencia</h3>'+guardado+
-  '<p class="muted"><b>Tu selección aún no está guardada.</b></p>'+
-  '<p class="muted">Cambia solo el medio que recibiste. No modifica el importe ni registra otra venta. Guarda con la cuenta Google de administración.</p>'+
-  '<label for="ukiMotivoRectificacionEdicion">Motivo de la corrección</label>'+
+  '<p class="muted">Revisa el medio recibido y guarda con la cuenta de administración. No se genera otra venta.</p>'+
+  ukiResponsableEdicionUI(d)+
+  '<label for="ukiMotivoRectificacionEdicion">Motivo (opcional)</label>'+
   '<textarea id="ukiMotivoRectificacionEdicion" maxlength="140" rows="2" oninput="D.rectificacionMotivo=this.value">'+esc(d.rectificacionMotivo||'')+'</textarea>'+
   '<label class="check"><input id="ukiConfirmarRectificacionEdicion" type="checkbox" '+
   (d.rectificacionFirmaReparto===ukiFirmaRepartoRectificacion(d)&&d.rectificacionConfirmada?'checked ':'')+
   'onchange="D.rectificacionConfirmada=this.checked;D.rectificacionFirmaReparto=ukiFirmaRepartoRectificacion(D)"> '+
   'Confirmo que la parte que corrijo no entró al banco y que los medios y montos que dejé reflejan lo que realmente recibimos.</label>'+
-  '<p class="muted">Completa el nombre del responsable y pulsa <b>Guardar cambios</b>.</p>'+estado+'</div>';
+  estado+'</div>';
 }
 function ukiMostrarCorreccionPago(){
  if(!D.editando)return;
@@ -2786,9 +2805,9 @@ async function ukiRectificarPagoEnEdicion(original,d){
  if(boton)boton.disabled=true;
  let aplicado=!!d.rectificacionNubePendiente,autorizado=false;
  try{
-  const lib=await import('./rectificacion-pago-edicion-v2.mjs?v=reparto-rescate-v4');
+  const lib=await import('./rectificacion-pago-edicion-v2.mjs?v=edicion-clara-v5');
   if(!d.rectificacionNubePendiente){
-   const motivo=String(d.rectificacionMotivo||'').trim(),responsable=String(d.responsableEdicion||'').trim();
+   const motivo=(String(d.rectificacionMotivo||'').trim()||'Se corrigió el medio de pago recibido.'),responsable=String(d.responsableEdicion||'').trim();
    if(motivo.length<8||motivo.length>140)
     return ukiMensajeRectificacionEdicion(d,'Escribe el motivo de la corrección (al menos 8 caracteres).',true,'ukiMotivoRectificacionEdicion');
    if(!d.rectificacionConfirmada||d.rectificacionFirmaReparto!==ukiFirmaRepartoRectificacion(d))
@@ -2980,7 +2999,7 @@ montoProductosOtroLocal:p.productosPagadosOtroLocal?Math.min(Number(p.subtotal)|
 envioPagadoOtroLocal:ukiMontoEnvioOtroLocal(p,Number(p.envio)||0,Number(p.subtotal)||0)>0,
 montoEnvioOtroLocal:p.montoEnvioOtroLocal??"",
 localPagoExterno:p.localPagoExterno||"",propinaModo:p.propinaModo||((Number(p.propina)||0)>0?"otro":"ninguna"),propinaPersonalizada:p.propinaModo==="otro"||!p.propinaModo?p.propina||"": "",medioPropina:p.medioPropina||"Efectivo",
-items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||"",...ukiDatosCatalogoItem(pr)})),ajusteCajaRegularizado:false,responsableEdicion:"",editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}];
+items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||"",...ukiDatosCatalogoItem(pr)})),ajusteCajaRegularizado:false,responsableEdicion:window.ukiIdentidadEdicionQA?.()||"",editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}];
  if(S.suc===ROMO_SUCURSAL_QA){
   // La casilla del banco debe firmar la identidad original desde el primer dibujo.
   for(const campo of ['cartaSolicitudRemotaId','seguimientoSolicitudId']){
@@ -7862,7 +7881,7 @@ async function ukiRomoGuardarOperacionQA(copia,descripcion,orden,vista='pedidos'
   throw Error('No se pudo validar el estado independiente de Romo.');
  const firma=JSON.stringify(copia);
   if(accionProtegida==='rectificar_pago_v2'){
-   const lib=await import('./rectificacion-pago-edicion-v2.mjs?v=reparto-rescate-v4');
+   const lib=await import('./rectificacion-pago-edicion-v2.mjs?v=edicion-clara-v5');
    const antes=S.pedidos.find(p=>p.id===Number(orden)&&p.suc===S.suc);
    const despues=copia.pedidos.find(p=>p.id===Number(orden)&&p.suc===S.suc);
    const prueba=lib.comprobarCambio(antes,despues,ukiLineasPago,ukiPagoAnteriorRectificacion);
@@ -10897,7 +10916,8 @@ async function ndGuardar(){
   const originalRevisionBanco=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(D.editando)):null;
   if(S.suc===ROMO_SUCURSAL_QA&&D.pagado&&originalRevisionBanco?.ajusteCobroPendiente?.tipo==='pago_desmarcado')
    return aviso('Aclara el cobro anterior en «Cancelar pedido» antes de marcar pagado otra vez.');
-  if(D.pagado&&ukiSeguimientoHayTransferenciaQA(D)){
+  const conservaCobro=ukiEdicionMantieneCobro(D,originalRevisionBanco);
+  if(D.pagado&&!conservaCobro&&ukiSeguimientoHayTransferenciaQA(D)){
    if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true){aviso('Actualiza el panel para verificar la transferencia antes de guardar.');return;}
    if(!ukiRevisionBancoBorradorValidaQA(D,originalRevisionBanco)){aviso('Marca la revisión bancaria obligatoria antes de guardar como pagado.');return;}
   }
@@ -10908,9 +10928,9 @@ async function ndGuardar(){
   if(!ukiSeguimientoConservarOrigenEdicionQA())return;
   const pedidoAnteriorQA=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(D.editando)):null;
   if(!ukiSeguimientoValidarCambioMedioQA(pedidoAnteriorQA,D))return;
-  if(D.pagado&&!ukiSeguimientoPrepararManualQA(D,{revisionBancoMarcada:ukiRevisionBancoBorradorValidaQA(D,originalRevisionBanco)}))return;
+  if(D.pagado&&!conservaCobro&&!ukiSeguimientoPrepararManualQA(D,{revisionBancoMarcada:ukiRevisionBancoBorradorValidaQA(D,originalRevisionBanco)}))return;
   const firmaPagoQA=JSON.stringify({suc:S.suc,draft:{...D,transferenciaManualQA:undefined}});
-  if(D.pagado&&!await ukiSeguimientoPermitirCerrarQA(D,{revisionBancoMarcada:ukiRevisionBancoBorradorValidaQA(D,originalRevisionBanco)}))return;
+  if(D.pagado&&!conservaCobro&&!await ukiSeguimientoPermitirCerrarQA(D,{revisionBancoMarcada:ukiRevisionBancoBorradorValidaQA(D,originalRevisionBanco)}))return;
   if(firmaPagoQA!==JSON.stringify({suc:S.suc,draft:{...D,transferenciaManualQA:undefined}})){
    aviso('El pedido cambió durante la comprobación. Revisa antes de guardar.');return;
   }
@@ -12370,6 +12390,7 @@ window.ukiAutorizarRectificacionPagoV2=async datos=>{
  return r;
 };
 window.ukiInventarioToken=async()=>auth.currentUser?auth.currentUser.getIdToken():null;
+window.ukiIdentidadEdicionQA=()=>String(auth.currentUser?.displayName||auth.currentUser?.email||'').trim().slice(0,80);
 const cloud=crearSnapshotsUki({db,auth,api:{doc,getDocFromServer,writeBatch,runTransaction},
  blocks:{dividirEstado,reunirEstado},
  codec:{nuevaSal,nuevaGeneracion,derivarClave,cifrarBloque,descifrarBloque}});
