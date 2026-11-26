@@ -66,6 +66,11 @@ module.exports=async function romoInventarioQA(req,res){
   if(!identity||!['duenos','agendador','inventario'].includes(identity.role))
    return fail(res,403,'Sin permiso de inventario de Romo');
   const inv=await import('../lib/romo-inventario-qa.mjs');
+  if(method==='GET'&&req.query?.vista==='conciliacion'){
+   if(identity.role!=='duenos')return fail(res,403,'Solo dueños pueden consultar conciliación.');
+   const result=await require('../lib/inventario-periodo-fisico-v1.cjs').readPhysical(reader,STORE);
+   return res.status(200).json({...result,storeId:STORE});
+  }
   if(method==='GET'){
    const result=await inv.readInventarioRomoQA({db:reader,identity});
    const plantilla=identity.role==='duenos'?
