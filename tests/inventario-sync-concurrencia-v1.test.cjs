@@ -1,0 +1,22 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const rel=fs.existsSync(path.join(__dirname,'../public/romo-panel-qa/uki-inventario-admin-embebido.js'))?'../public/romo-panel-qa/uki-inventario-admin-embebido.js':'../firebase/uki-inventario-admin-embebido.js';
+const src=fs.readFileSync(path.join(__dirname,rel),'utf8');
+const marker='// Consumo informativo posterior a guardado confirmado; no modifica pedidos.';
+const client=src.slice(src.indexOf(marker));
+const tick=async()=>{for(let i=0;i<12;i++)await Promise.resolve();};
+test('conserva revisión nueva mientras se envía una anterior, evita duplicados y reintenta un fallo',async()=>{
+ assert.ok(src.includes(marker));
+ const w={ukiInventarioToken:async()=>'token-prueba'},sent=[],deferred=[],timers=[];
+ const f=async(u,o)=>{const p=JSON.parse(o.body);sent.push(p);return new Promise(resolve=>deferred.push(resolve));};
+ new Function('window','fetch','AbortSignal','setTimeout','ukiStatsGruposRegistrados','ukiStatsArmadoDigital','ukiStatsClaveProducto','ukiNombreStats',client)(w,f,{timeout:()=>({})},fn=>timers.push(fn),()=>null,()=>null,x=>x,x=>x);
+ const suc=rel.includes('romo-panel')?'Romo’s Sushi La Serena':'Uki Regimiento Arica',state={pedidos:[]};
+ const a=w.ukiPublicarConsumoLive(state,suc,1);await tick();
+ await w.ukiPublicarConsumoLive(state,suc,2);
+ assert.deepEqual(sent.map(x=>x.revision),[1]);
+ const finish=()=>deferred.shift()({ok:true,json:async()=>({ok:true,store:sent.at(-1).store,registered:true})});
+ finish();await tick();assert.deepEqual(sent.map(x=>x.revision),[1,2]);finish();await a;
+ await w.ukiPublicarConsumoLive(state,suc,2);assert.equal(sent.length,2);
+ const b=w.ukiPublicarConsumoLive(state,suc,3);await tick();deferred.shift()({ok:false});await b;
+ assert.equal(timers.length,1);timers.shift()();await tick();assert.deepEqual(sent.map(x=>x.revision),[1,2,3,3]);finish();await tick();
+});
