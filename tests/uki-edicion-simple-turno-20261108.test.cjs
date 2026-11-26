@@ -7,7 +7,8 @@ test('Editar funciona sin casilla de devolución, sin pedir motivo ni segundo co
  assert.doesNotMatch(h,/¿Confirmar corrección del pedido/);
  assert.match(h,/onclick="ndGuardar\(\)"/);
  assert.match(h,/id="ukiResponsableEdicion"/);
- assert.match(h,/¿Quién está haciendo este cambio\?/);
+ assert.match(h,/placeholder="Nombre de quien edita"/);
+ assert.match(h,/D\.editando&&[\s\S]*?ukiResponsableEdicionUI\(D\)/);
 });
 test('Guarda auditoría de todos los cambios y conserva caja real',()=>{
  const save=h.slice(h.indexOf('async function ndGuardar(){'),h.indexOf('\nfunction cerrar(){'));
