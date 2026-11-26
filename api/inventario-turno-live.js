@@ -315,6 +315,7 @@ module.exports=async(req,res)=>{
    const base=unidades.convertir(n,unidadOrigen,actual.stock_unit);
    if(action==='recibir'&&base===0)return fail(res,400,'La entrada debe ser mayor que cero.');
    const detalle={cantidad:n,unidad:unidadOrigen,base,unidadBase:actual.stock_unit};
+   etapa='guardar-movimiento';
    if(esInsumo){
     const item=await extra.guardarMovimiento(sql,branch,sku,action==='contar'?'conteo':'entrada',base,input.expected_version,worker,detalle);
     return res.status(200).json({ok:true,branch,item,registro:detalle});
@@ -372,9 +373,10 @@ module.exports=async(req,res)=>{
  }catch(e){
   const status=e?.status||(['23505','40001','P0001'].includes(e?.code)?409:e?.code==='22023'?400:(String(e?.message||'').includes('código')?400:503));
   // Solo identificador de etapa: no mostrar SQL, datos ni el código privado.
-  const etiqueta=etapa==='consulta-catalogo'?'INV-CAT':etapa==='verificando-codigo'?'INV-PIN':'INV-API';
+  const etiqueta=etapa==='guardar-movimiento'?'INV-GUARDAR':etapa==='consulta-catalogo'?'INV-CAT':etapa==='verificando-codigo'?'INV-PIN':'INV-API';
   console.error('Inventario LIVE error etapa',etiqueta,'tipo',String(e?.code||e?.name||'error').slice(0,70));
-  return fail(res,status,status===503?'No se pudo abrir el inventario de pruebas ('+etiqueta+'). No se modificó la caja.':String(e.message));
+  return fail(res,status,status===503?
+   (etapa==='guardar-movimiento'?'No se pudo confirmar el movimiento.':'No se pudo abrir el inventario.')+' ('+etiqueta+').':String(e.message));
  }
 };
 module.exports._testing={permitido,admin,resumen,textoReporte,validDate,fechaHoraChile,entradasDesdeUltimaRevision,conteosDesdeUltimaRevision};

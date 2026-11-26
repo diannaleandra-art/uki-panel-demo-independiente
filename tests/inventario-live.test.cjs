@@ -53,12 +53,32 @@ test('ingredientes base independientes por sucursal; cantidades iniciales cero',
 });
 test('guardado de conteo de ingrediente requiere versión y registra auditoría atómica',async()=>{
  let statement;
- const sql={query:async(q,args)=>{statement=q;assert.equal(args[0],'arica');return [{sku:'ingredient:proteina-pollo',name:'Pollo',stock_unit:'un',stock_qty:4,min_stock_qty:0,version:1}]}};
- const row=await core.guardarMovimiento(sql,'arica','ingredient:proteina-pollo','conteo',4,0,'Dayana',{cantidad:4,unidad:'un'});
+ const sql={query:async(q,args)=>{
+  statement=q;
+  assert.deepEqual(args,['arica','ingredient:proteina-pollo','conteo',4,'Agendador',4,'un','Pollo']);
+  assert.deepEqual([...new Set([...q.matchAll(/\$(\d+)/g)].map(m=>Number(m[1])))].sort((a,b)=>a-b),args.map((_,i)=>i+1));
+  return [{sku:'ingredient:proteina-pollo',name:'Pollo',stock_unit:'un',stock_qty:4,min_stock_qty:0,version:1}];
+ }};
+ const row=await core.guardarMovimiento(sql,'arica','ingredient:proteina-pollo','conteo',4,0,'Agendador',{cantidad:4,unidad:'un'});
  assert.equal(row.stock_qty,4);
  assert.match(statement,/WITH changed AS/);
  assert.match(statement,/JOIN logged ON TRUE/);
  assert.doesNotMatch(statement,/uki_carta_items_v1/);
+});
+test('bodega La Serena: conteo y entrada de 125 g en la ficha existente en kg sin parámetros omitidos',async()=>{
+ const {convertir}=require('../lib/uki-inventario-unidades-live.cjs');
+ const sku='ingredient:vegetal-aceituna-amarga',base=convertir(125,'g','kg');
+ for(const action of ['conteo','entrada']){
+  const sql={query:async(q,args)=>{
+   assert.deepEqual(args,['serena',sku,action,0.125,'Agendador',125,'g',1]);
+   assert.deepEqual([...new Set([...q.matchAll(/\$(\d+)/g)].map(m=>Number(m[1])))].sort((a,b)=>a-b),args.map((_,i)=>i+1));
+   assert.match(q,/WHERE branch=\$1 AND sku=\$2 AND version=\$8/);
+   assert.match(q,/JOIN logged ON TRUE/);
+   return [{sku,name:'Aceituna amarga',stock_unit:'kg',stock_qty:0.125,min_stock_qty:0,version:2}];
+  }};
+  const r=await core.guardarMovimiento(sql,'serena',sku,action,base,1,'Agendador',{cantidad:125,unidad:'g'});
+  assert.equal(r.stock_qty,0.125);assert.equal(r.stock_unit,'kg');
+ }
 });
 test('admin puede configurar gramos, litros o kilos sin cambiar disponible/agota-do',async()=>{
  const sql={query:async(q,args)=>[{sku:'ingredient:proteina-pollo',name:'Pollo',stock_unit:'kg',stock_qty:10,min_stock_qty:2,version:1}]};
