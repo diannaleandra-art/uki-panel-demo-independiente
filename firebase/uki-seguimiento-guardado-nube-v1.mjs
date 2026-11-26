@@ -52,16 +52,24 @@ export async function verificarGuardadoUki({anterior,nuevo,sucursal,importes,hay
   // Quitar únicamente el delivery antes del cobro exige constancia del
   // servidor, ligada al pedido interno. No autoriza una transferencia pendiente.
   let retiroVerificado=false;
-  const retiro=prev?.pagado===false&&prev.estado==='Pendiente'&&prev.modalidad==='Delivery'&&p.modalidad==='Retiro'&&
-   ref&&oldRef===ref&&Number(prev.envio)>0&&Number(p.envio||0)===0&&Number(prev.subtotal)===Number(p.subtotal)&&
-   Number(prev.propina||0)===0&&Number(p.propina||0)===0&&p.estado!=='Cancelado';
+  const constancia=p.cambioRetiroSinAbonoQA??null;
+  const nuevaConstancia=JSON.stringify(prev?.cambioRetiroSinAbonoQA??null)!==JSON.stringify(constancia);
+  const retiro=prev?.pagado===false&&prev.estado==='Pendiente'&&p.modalidad==='Retiro'&&
+   ref&&oldRef===ref&&UUID.test(ref)&&Number(p.envio||0)===0&&Number(prev.subtotal)===Number(p.subtotal)&&
+   Number(prev.propina||0)===0&&Number(p.propina||0)===0&&p.estado!=='Cancelado'&&
+   (prev.modalidad==='Delivery'&&Number(prev.envio)>0||
+    prev.modalidad==='Retiro'&&nuevaConstancia&&constancia&&Number(prev.envio||0)===0&&Number(prev.total)===Number(p.subtotal));
+  if(nuevaConstancia&&(!retiro||!constancia||prev.cambioRetiroSinAbonoQA))fail('No se puede modificar el historial del cambio a retiro.');
   if(retiro){
    const m=importes(p);
    const proof=await consultar({storeId,id:ref,pedidoInterno,requiereTransferencia:transfer});
    const c=proof?.cambioRetiro;
+   const delivery=prev.modalidad==='Delivery'?Number(prev.envio):constancia.delivery;
    retiroVerificado=proof?.ok===true&&proof.storeId===storeId&&proof.orderId===ref&&proof.pedidoInterno===pedidoInterno&&
-    c?.pedidoInterno===pedidoInterno&&c.totalAnterior===Number(prev.subtotal)+Number(prev.envio)&&c.delivery===Number(prev.envio)&&
-    c.totalNuevo===Number(p.subtotal)&&m&&c.montoTransferencia===m.montoTransferencia;
+    Number.isSafeInteger(delivery)&&delivery>0&&c?.pedidoInterno===pedidoInterno&&
+    c.totalAnterior===Number(prev.subtotal)+delivery&&c.delivery===delivery&&
+    c.totalNuevo===Number(p.subtotal)&&m&&c.montoTransferencia===m.montoTransferencia&&
+    (!constancia||['pedidoInterno','totalAnterior','totalNuevo','delivery','montoTransferencia'].every(k=>c[k]===constancia[k]));
    if(!retiroVerificado)fail('No se confirmó el cambio a retiro en la solicitud original.');
   }
   if(!retiroVerificado&&oldTransfer&&transfer&&Number.isSafeInteger(anteriorMonto)&&Number.isSafeInteger(nuevoMonto)&&nuevoMonto<anteriorMonto)
