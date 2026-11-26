@@ -326,6 +326,12 @@ nav button{font-size:10px;min-width:0}
 <button class="soft" type="button" id="ukiCosteoConsultar">Consultar rentabilidad</button>
 <div id="ukiCosteoResultado" role="status" aria-live="polite"><p class="hint">Sin consultar.</p></div>
 </details>
+<details class="card" id="ukiControlConsumoFisico">
+<summary>📦 Control de inventario · tres sucursales</summary>
+<p class="hint">Compara las últimas dos revisiones guardadas en cada local. Consulta independiente de las fechas de ventas y de la caja. Salida física provisional: todavía no acredita pérdidas ni cobertura completa de recetas.</p>
+<button class="soft" type="button" id="ukiFisicoConsultar">Consultar inventario de los tres locales</button>
+<div id="ukiFisicoResultado" role="status" aria-live="polite"><p class="hint">Sin consultar.</p></div>
+</details>
 <details class="card" id="ukiInformesDuenos">
 <summary>📄 Informes privados · PDF, Excel y WhatsApp</summary>
 <p class="hint">Usa las fechas y el negocio seleccionados arriba. Los pagos pendientes se incluyen de todas las fechas. Los informes se generan solo al solicitarlos y no se guardan en el servidor.</p>
@@ -2008,6 +2014,7 @@ async function openDoc(id){
 
 let costeoConsultaSeq=0;
 function limpiarCosteoResumen(){
+ limpiarFisicoResumen();
  ++costeoConsultaSeq;
  $('ukiCosteoConsultar').disabled=false;
  $('ukiCosteoResultado').textContent='Consulta la rentabilidad para el período seleccionado.';
@@ -2044,6 +2051,46 @@ $('ukiCosteoConsultar').onclick=async()=>{
  finally{if(valid())button.disabled=false;}
 };
 
+let fisicoConsultaSeq=0;
+function limpiarFisicoResumen(){
+ ++fisicoConsultaSeq;
+ $('ukiFisicoConsultar').disabled=false;
+ $('ukiFisicoResultado').textContent='Consulta las últimas revisiones de inventario.';
+}
+$('ukiFisicoConsultar').onclick=async()=>{
+ if(!session)return;
+ const seq=++fisicoConsultaSeq,active=session,result=$('ukiFisicoResultado'),button=$('ukiFisicoConsultar');
+ const valid=()=>seq===fisicoConsultaSeq&&session===active;
+ button.disabled=true;result.textContent='Consultando…';
+ try{
+  const data=await api('resumen_conteos_inventario',{});
+  if(!valid())return;
+  if(data.soloLectura!==true||!Array.isArray(data.locales))throw Error('Consulta no verificable.');
+  const names={'uki:arica':'Uki Regimiento Arica','uki:serena':'Uki La Serena','romo:serena':'Romo La Serena'};
+  const add=(parent,tag,value)=>{const node=document.createElement(tag);node.textContent=value;parent.append(node);return node;};
+  const fmt=(n,u)=>n===null||n===undefined?'Pendiente':Number(n).toLocaleString('es-CL',{maximumFractionDigits:3})+' '+u;
+  const date=t=>new Date(t).toLocaleString('es-CL',{timeZone:'America/Santiago'});
+  result.replaceChildren();
+  for(const store of Object.keys(names)){
+   const matches=data.locales.filter(r=>r.store===store),r=matches.length===1?matches[0]:null;
+   const box=document.createElement('details');box.className='line';result.append(box);add(box,'summary',names[store]);
+   if(!r?.available||!Array.isArray(r.rows)){add(box,'p',r?.reason||'Sin información verificable.');continue;}
+   add(box,'p',date(r.start)+' — '+date(r.end));
+   add(box,'p',r.rows.filter(x=>x.status==='provisional').length+' insumos con salida física estimada; '+r.rows.filter(x=>x.status!=='provisional').length+' por revisar.');
+   const wrap=document.createElement('div');wrap.style.overflowX='auto';box.append(wrap);
+   const table=document.createElement('table');wrap.append(table);
+   const head=document.createElement('tr');table.append(head);
+   for(const t of ['Insumo','Inicial','Recibido','Conteo final','Salida física','Estado'])add(head,'th',t);
+   for(const row of r.rows){
+    const tr=document.createElement('tr');table.append(tr);
+    for(const x of [row.name,fmt(row.opening,row.unit),fmt(row.received,row.unit),fmt(row.closing,row.unit),fmt(row.outflow,row.unit),row.status==='provisional'?'Provisional':'Revisar'])add(tr,'td',x);
+   }
+   add(box,'p',r.warning||'Salida física provisional. No acredita pérdidas.');
+  }
+  add(result,'p','Sin cambios en inventario, compras, ventas ni resultados de caja. El consumo esperado según ventas se consulta en el panel operativo de cada local.');
+ }catch(e){if(valid())result.textContent=e.message;}
+ finally{if(valid())button.disabled=false;}
+};
 const costData={insumos:[],facturas:[],fichas:[],catalog:[],catalogError:'',ingEdit:null,recipeEdit:null,source:null,seq:0};
 const cMoney=x=>'$'+Number(x||0).toLocaleString('es-CL',{maximumFractionDigits:2});
 const cNum=x=>Number(String(x??'').trim().replace(',','.'));
@@ -2619,7 +2666,7 @@ function marcarPeriodoSeleccionado(){
  }
 }
 function show(id){for(const x of ['login','setup','unlock','app'])$(x).hidden=x!==id;$('tabs').hidden=id!=='app';$('exit').hidden=id==='login';}
-function lock(){session='';romoCierresPrivadosSecuencia++;
+function lock(){session='';limpiarFisicoResumen();romoCierresPrivadosSecuencia++;
  cierresConfirmadosRomoQA=[];romoCierresConsultaValidaQA=false;
  movimientosFinancierosCargadosQA=false;
  if($('romoCierresFilasQA'))$('romoCierresFilasQA').replaceChildren();
