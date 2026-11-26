@@ -32,7 +32,12 @@ test('El nombre aparece solo al editar y se registra en el historial de correcci
  assert.match(html,/D\.editando&&[\s\S]*?ukiResponsableEdicionUI\(D\)/);
  assert.match(html,/function ukiResponsableEdicionUI\(d\)\{[\s\S]*?id="ukiResponsableEdicion"/);
  assert.match(html,/oninput="D.responsableEdicion=this.value"/);
- assert.match(html,/responsableEdicion:"",editando:id/);
+ // La identidad Google verificada se precarga; sin identidad, el campo queda vacío.
+ assert.match(html,/responsableEdicion:window\.ukiIdentidadEdicionQA\?\.\(\)\|\|"",editando:id/);
+ const input=html.slice(html.indexOf('function ukiResponsableEdicionUI(d){'),html.indexOf('function ukiRevisionBancoBorradorValidaQA('));
+ const render=vm.runInNewContext(input+'\nukiResponsableEdicionUI',{esc:x=>String(x)});
+ assert.match(render({responsableEdicion:''}),/value=""/);
+ assert.match(render({responsableEdicion:'María Agendadora'}),/value="María Agendadora"/);
  assert.match(html,/responsable:autorizacion,antes,despues/);
  assert.match(html,/\$\{ukiCorreccionesTurnoUI\(p\)\}/);
 });
