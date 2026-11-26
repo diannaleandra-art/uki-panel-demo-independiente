@@ -1707,7 +1707,7 @@ function ukiExportarPrecierres(){
 
 function setModalidad(modalidad){
   D.modalidad=modalidad;
-  if(modalidad!=="Delivery"){D.envio=0;D.envioPagadoOtroLocal=false;D.montoEnvioOtroLocal="";}
+  if(modalidad!=="Delivery"){D.envio=0;D.envioPagadoOtroLocal=false;D.montoEnvioOtroLocal="";D.mixtoEnvio=false;D.pagosEnvio=[];}
   render();
 }
 function setEnvioManual(valor){
@@ -2225,7 +2225,8 @@ function ukiTimbreYaEnviadoPedido(p){
 }
 function ukiTimbreObligatorioGuardar(d,original){
  return !!d?.pagado&&!d.productosPagadosOtroLocal&&!!String(d.telefono||'').trim()&&
-   !ukiTimbreYaEnviadoPedido(original)&&(!d.editando||!original?.pagado);
+   !ukiTimbreYaEnviadoPedido(original)&&(!d.editando||!original?.pagado)&&
+   !d.cambioRetiroSinAbonoQA&&!(typeof ukiCambioRetiroSinAbonoQA==='function'&&ukiCambioRetiroSinAbonoQA(original,d));
 }
 function ukiFirmaTimbreBorrador(d){
  // La prueba de envío se vincula a esta sucursal/pedido y al WhatsApp DESTINO.
@@ -2726,7 +2727,32 @@ function ukiPuedeRectificarPago(p,d){
  return !!(p&&Number(p.id)===Number(d.editando)&&p.suc===S.suc&&p.estado!=='Cancelado'&&!p.esPremio&&
   ukiPagoTransferenciaMonto(p,ukiPagoAnteriorRectificacion)>0);
 }
+function ukiPlanRetiroSinAbonoQA(p,d){
+ if(!p||!d||p.pagado!==false||p.estado!=='Pendiente'||p.esPremio||p.suc!==S.suc||
+    Number(p.id)!==Number(d.editando)||!['Delivery','Retiro'].includes(p.modalidad)||d.modalidad!=='Retiro'||
+    Number(d.envio||0)!==0||ukiSeguimientoHayTransferenciaQA(p)&&!ukiSeguimientoHayTransferenciaQA(d)||p.ajusteCobroPendiente||p.cambioRetiroSinAbonoQA||
+    Number(p.propina||0)!==0||ukiMontoPropina(d,Number(p.subtotal))!==0||
+    p.productosPagadosOtroLocal||p.envioPagadoOtroLocal||d.productosPagadosOtroLocal||d.envioPagadoOtroLocal||
+    (p.qrSolicitudes||[]).length||(d.qrSolicitudes||[]).length)return null;
+ const id=String(p.cartaSolicitudRemotaId||p.seguimientoSolicitudId||'');
+ if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(id)||
+    id!==String(d.cartaSolicitudRemotaId||d.seguimientoSolicitudId||''))return null;
+ const sub=(d.items||[]).reduce((n,i)=>n+(i.nombre?(Number(i.cant)||0)*(Number(i.precio)||0):0),0);
+ if(sub!==Number(p.subtotal)||!Number.isSafeInteger(sub)||sub<=0)return null;
+ const original=p.modalidad==='Retiro'&&p.textoOriginal&&typeof extraerMensajeCartaUki==='function'?extraerMensajeCartaUki(p.textoOriginal):null;
+ const delivery=p.modalidad==='Delivery'?Number(p.envio):original?.delivery;
+ if(!Number.isSafeInteger(delivery)||delivery<=0)return null;
+ if(p.modalidad==='Retiro'){
+  if(original?.modalidad!=='Delivery'||original.productos!==sub||original.total!==sub+delivery||
+     Number(p.total)!==sub||Number(p.envio||0)!==0)return null;
+ }else if(Number(p.total)!==sub+delivery)return null;
+ return {id,subtotal:sub,delivery};
+}
+function ukiCambioRetiroSinAbonoQA(p,d){
+ return ukiPlanRetiroSinAbonoQA(p,d)!==null;
+}
 function ukiPideRectificacionPago(p,d){
+ if(typeof ukiCambioRetiroSinAbonoQA==='function'&&ukiCambioRetiroSinAbonoQA(p,d))return false;
  if(!ukiPuedeRectificarPago(p,d))return false;
  const propuesta={...p,medio:d.medio,medioEnvio:d.medioEnvio,
   pagosProductos:d.mixtoProductos?d.pagosProductos:[],pagosEnvio:d.mixtoEnvio?d.pagosEnvio:[]};
@@ -10776,6 +10802,7 @@ async function ukiRomoEditarPedidoPendienteQA(){
   const resultado=modulo.prepararEdicionPendienteRomoQA({estado:copia,pedidoId:id,draft:edicion,responsable,foto:ukiFotoCorreccionPedido,turnoCerrado:false,codigoWhatsApp:ukiCodigoWhatsApp,permitirSinCambios:cobrar,permitirEntregado:true});
   if(resultado.sinCobro!==true||resultado.pedidoId!==id||copia.pedidos.length!==S.pedidos.length)throw Error('No se conservó el pedido original.');
   const pedido=copia.pedidos.find(p=>p.suc===S.suc&&p.id===id);
+  if(D.cambioRetiroSinAbonoQA)pedido.cambioRetiroSinAbonoQA=D.cambioRetiroSinAbonoQA;
   if(cobrar){
    const sub=pedido.subtotal,envio=pedido.envio;
    const externoP=D.productosPagadosOtroLocal?ukiMontoProductosOtroLocal(D,sub):0;
@@ -11043,6 +11070,21 @@ async function ndGuardar(){
  ukiRomoFormularioGuardandoQA=true;
  try{
   const pedidoRectificacion=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(D.editando)):null;
+  const planRetiro=ukiPlanRetiroSinAbonoQA(pedidoRectificacion,D);
+  if(planRetiro&&window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED===true){
+   const d=D,sucursal=S.suc,firma=JSON.stringify(D);
+   const session=window.ukiRomoSesionRemotaQA;
+   if(!esDelPeriodo(pedidoRectificacion)||ukiCierreConfirmadoPedido(pedidoRectificacion)||!session?.disponible?.())
+    return aviso('Este pedido no está disponible para editar en la caja abierta.');
+   if(String(d.responsableEdicion||'').trim().length<2)return aviso('Identifica quién realiza el cambio de entrega.');
+   if(d.pagado&&!ukiRevisionBancoBorradorValidaQA(d,pedidoRectificacion))return aviso('Confirma el abono real antes de guardar como pagado.');
+   try{
+    const proof=await window.ukiQACambiarRetiroSinAbono(pedidoRectificacion,d,planRetiro);
+    if(S.suc!==sucursal||D!==d||!S.pedidos.includes(pedidoRectificacion)||JSON.stringify(d)!==firma)
+     return aviso('El pedido cambió. Reabre la edición antes de guardar.');
+    d.cambioRetiroSinAbonoQA=proof;
+   }catch(e){return aviso(String(e?.message||e));}
+  }
   if(D.rectificacionNubePendiente||ukiPideRectificacionPago(pedidoRectificacion,D)){
    const sucursal=S.suc,d=D;
    const firma=JSON.stringify([ukiFirmaOtrosCambiosRectificacion(d),ukiFirmaRepartoRectificacion(d)]);
@@ -12803,4 +12845,4 @@ el("ukiAutoCheck").addEventListener("change",()=>{
 <script src="/romo-panel-qa/romo-caja-acumulada-operativa.js?v=20261122-calendario1" defer></script>
 <script src="/romo-panel-qa/romo-movimientos-paridad-qa.js?v=20261115a" defer></script>
 <script src="/romo-panel-qa/romo-edicion-en-panel-qa.js?v=20261114c" defer></script>
-<script src="/romo-panel-qa/romo-carta-editor-seguro-qa.js?v=20261121carta-orden-v7" defer></script><script src="/romo-panel-qa/romo-carta-gestion-completa-qa.js?v=20261121productos-claros-v1" defer></script><script src="/romo-panel-qa/romo-banner-admin.js?v=20261114b" defer></script><script type="module" src="/romo-panel-qa/seguimiento-tres-sucursales-qa.mjs?v=rectificar-pago-20261125"></script></body></html>
+<script src="/romo-panel-qa/romo-carta-editor-seguro-qa.js?v=20261121carta-orden-v7" defer></script><script src="/romo-panel-qa/romo-carta-gestion-completa-qa.js?v=20261121productos-claros-v1" defer></script><script src="/romo-panel-qa/romo-banner-admin.js?v=20261114b" defer></script><script type="module" src="/romo-panel-qa/seguimiento-tres-sucursales-qa.mjs?v=retiro-por-cobrar-20261126"></script></body></html>

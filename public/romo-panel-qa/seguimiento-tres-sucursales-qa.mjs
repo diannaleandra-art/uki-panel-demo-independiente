@@ -273,6 +273,26 @@ window.ukiQAConfirmPaymentMethodAfterSave=async function({storeId,solicitudId,pe
  }
 };
 
+window.ukiQACambiarRetiroSinAbono=async function(original,draft,plan){
+ if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true||store()!=='romo:serena'||inReview()||
+    original?.pagado!==false||original?.estado!=='Pendiente'||!['Delivery','Retiro'].includes(original.modalidad)||draft?.modalidad!=='Retiro'||
+    Number(original.id)!==Number(draft.editando))throw Error('El cambio no corresponde a un pedido pendiente de cobro.');
+ const id=String(original.cartaSolicitudRemotaId||original.seguimientoSolicitudId||'');
+ if(!UUID.test(id)||id!==plan?.id||id!==String(draft.cartaSolicitudRemotaId||draft.seguimientoSolicitudId||''))throw Error('No se encontró la solicitud original.');
+ const distribution=seguimientoDistribucionRealQA({...draft,pagosEnvio:[],mixtoEnvio:false,envioPagadoOtroLocal:false,montoEnvioOtroLocal:'',envio:0});
+ const {subtotal,delivery}=plan;
+ if(!distribution||!Number.isSafeInteger(delivery)||delivery<=0||distribution.totalValidado!==subtotal||
+    !Number.isSafeInteger(subtotal)||subtotal<=0||subtotal!==Number(original.subtotal)||
+    (original.modalidad==='Delivery'&&delivery!==Number(original.envio)))throw Error('Revisa el importe de los productos antes de cambiar a retiro.');
+ const response=await query('POST',{action:'cambiar_a_retiro_sin_abono',id,pedidoInterno:String(original.id),
+   totalAnterior:subtotal+delivery,delivery,...distribution,montoOtroLocal:distribution.montoOtroLocal??0,propinaTransferencia:distribution.propinaTransferencia??0});
+ const proof=response.cambioRetiro;
+ const montoTransferencia=distribution.pagos.filter(x=>x.medio==='transferencia').reduce((n,x)=>n+x.monto,0);
+ if(response?.ok!==true||response.storeId!==store()||response.orderId!==id||proof?.pedidoInterno!==String(original.id)||
+    proof.totalAnterior!==subtotal+delivery||proof.totalNuevo!==subtotal||proof.delivery!==delivery||proof.montoTransferencia!==montoTransferencia)
+  throw Error('No se confirmó el cambio de entrega. No se registró otro cobro.');
+ return {pedidoInterno:proof.pedidoInterno,totalAnterior:proof.totalAnterior,totalNuevo:proof.totalNuevo,delivery:proof.delivery,montoTransferencia};
+};
 window.ukiQASyncDistributionBeforePayment=async function(pedido){
  if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true||inReview()||!store()||
   !Number.isSafeInteger(Number(pedido?.id??pedido?.editando))||Number(pedido.id??pedido.editando)<1)return false;

@@ -163,6 +163,14 @@ module.exports=async(req,res)=>{
     });
     return res.status(200).json(result);
    }
+   if(action==='cambiar_a_retiro_sin_abono'){
+    if(storeId!=='romo:serena'||revision||meta.uki||
+       Object.keys(req.body).sort().join('|')!=='action|delivery|id|montoOtroLocal|pagos|pedidoInterno|propinaTransferencia|storeId|totalAnterior|totalValidado')
+     return fail(res,400,'Datos del cambio incompletos.');
+    const detail=require('../lib/seguimiento-confirmar-medio-pago-qa.cjs').detalleDistribucion(req.body.pagos,req.body.totalValidado,req.body.montoOtroLocal,req.body.propinaTransferencia);
+    const result=await require('../lib/seguimiento-cambio-retiro-v1.cjs').apply({db,meta,order,actor,body:req.body,detail});
+    return res.status(200).json(result);
+   }
    if(action==='confirmar_distribucion_pago'){
     if(!['action|id|pagos|storeId|totalValidado','action|id|montoOtroLocal|pagos|propinaTransferencia|storeId|totalValidado'].includes(Object.keys(req.body).sort().join('|')))
      return fail(res,400,'Distribución inválida');
