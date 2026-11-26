@@ -29,7 +29,8 @@ test('Guarda exactamente la identidad escrita, no la del turno',()=>{
  assert.equal(x.avisos.length,0);
 });
 test('El nombre aparece solo al editar y se registra en el historial de correcciones',()=>{
- assert.match(html,/D.editando\?'<div class="card"><h2>Responsable de la corrección/);
+ assert.match(html,/D\.editando&&[\s\S]*?ukiResponsableEdicionUI\(D\)/);
+ assert.match(html,/function ukiResponsableEdicionUI\(d\)\{[\s\S]*?id="ukiResponsableEdicion"/);
  assert.match(html,/oninput="D.responsableEdicion=this.value"/);
  assert.match(html,/responsableEdicion:"",editando:id/);
  assert.match(html,/responsable:autorizacion,antes,despues/);
