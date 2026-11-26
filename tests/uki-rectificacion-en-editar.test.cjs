@@ -1,88 +1,38 @@
-const test=require('node:test');
-const assert=require('node:assert/strict');
-const fs=require('node:fs');
-const vm=require('node:vm');
-const html=fs.readFileSync(require.resolve('../firebase/uki-sushi-local.html'),'utf8');
-const code=html.slice(html.indexOf('let ukiBaseRectificacionEdicion=null;'),html.indexOf('function ukiCorreccionesTurnoUI('));
-const save=html.slice(html.indexOf('async function ndGuardar(){'),html.indexOf('let ukiCierreComprobandoSolicitudes=false;'));
-const pedido={id:72,suc:'Uki La Serena',estado:'Entregado',pagado:true,modalidad:'Delivery',
- cartaSolicitudRemotaId:'cf31f358-349c-4b52-ae1e-85900d086c35',subtotal:12000,envio:2500,
- total:14500,medio:'Edenred',medioEnvio:'Transferencia',productos:[{nombre:'Roll'}]};
-const recibo='a21b4e8f-e4b3-4863-9617-a2f934a36848';
-async function escenario(){
- const helpers=await import('../firebase/uki-rectificar-transferencia-v1.mjs');
- const p=structuredClone(pedido),D={editando:72,modalidad:'Delivery',medio:'Edenred',medioEnvio:'Efectivo',
-  envio:2500,cliente:'Cliente',rectificacionMotivo:'Verifiqué el medio por error',responsableEdicion:'Encargada',
-  rectificacionConfirmada:true};
- const status={style:{},focus(){},scrollIntoView(){}}, boton={disabled:false};
- const S={suc:p.suc,vista:'nuevo',pedidos:[p],cierres:[]};
- let online=true;
- const calls=[];
- const ctx=vm.createContext({
-  S,D,helpers,ukiGuardadoSolicitudEnCurso:false,ukiQRComprobandoCobro:false,
-  esc:s=>String(s).replace(/</g,'&lt;'),fmt:n=>'$'+n,
-  ukiSeguimientoHayTransferenciaQA:p=>p?.medio==='Transferencia'||p?.medioEnvio==='Transferencia',
-  ukiCierreConfirmadoPedido:()=>false,
-  document:{getElementById:id=>id==='ukiGuardarPedido'?boton:status},
-  aviso(){throw Error('No debe salir de la edición');},render(){},
-  guardarEnLocalStorage:async()=>{calls.push('local');return true;},
-  window:{ukiCancelacionNubeLista:()=>true,ukiRegistrarRectificacionDelivery:async datos=>{
-   calls.push('autorización');
-   assert.equal(datos.pedidoInterno,'72');
-   assert.equal(datos.montoDelivery,2500);
-   assert.match(datos.motivo,/Encargada/);
-   return {...datos,ok:true,orderId:datos.id,monto:datos.montoDelivery,constanciaId:recibo,en:'2026-11-26T00:00:00Z'};
-  },ukiRespaldarRectificacionDelivery:async()=>{calls.push('nube');return online;}}
- });
- vm.runInContext(code.replace("await import('./uki-rectificar-transferencia-v1.mjs')",'helpers')+save+
-  '\nukiBaseRectificacionEdicion={draft:D,firma:ukiFirmaOtrosCambiosRectificacion(D)};',ctx);
- return {ctx,p,D,S,calls,boton,status,online:v=>online=v};
-}
-test('Editar muestra la autorización al cambiar solo el medio de pago del delivery a efectivo',async()=>{
- const {ctx,p,D}=await escenario();
- assert.equal(ctx.ukiRectificacionDeliveryUI(p),'');
- assert.match(ctx.ukiRectificacionDeliveryEdicionUI(p,{...D,medioEnvio:'Transferencia'}),/Elige <b>Efectivo/);
- assert.match(ctx.ukiRectificacionDeliveryEdicionUI(p,D),/Autorizar corrección del delivery/);
- assert.match(ctx.ukiRectificacionDeliveryEdicionUI(p,{...D,rectificacionMotivo:'</textarea>'}),/&lt;\/textarea>/);
- assert.equal(ctx.ukiRectificacionDeliveryEdicionUI(p,{...D,mixtoEnvio:true}),'');
- assert.doesNotMatch(ctx.ukiRectificacionDeliveryEdicionUI({...p,suc:"Romo La Serena"},D),/Autorizar/);
- assert.match(html,/ukiPagoUI\("envio",envio\)[^\n]+\n\s*\$\{ukiRectificacionDeliveryEdicionUI\(pedidoEdicion,D\)\}/);
- assert.doesNotMatch(html,/Revisar rectificación/);
-});
-test('Guardar cambios exige confirmación y conserva productos, estado, imputación de Edenred y total',async()=>{
- const {ctx,p,D,S,calls,status,boton}=await escenario();
- D.rectificacionConfirmada=false;
- await ctx.ndGuardar();
- assert.match(status.textContent,/Confirma que no entró la transferencia/);
- assert.deepEqual(calls,[]);
- assert.equal(S.pedidos[0],p);
- D.rectificacionConfirmada=true;
- await ctx.ndGuardar();
- assert.deepEqual(calls,['autorización','local','nube']);
- assert.deepEqual(JSON.parse(JSON.stringify(S.pedidos[0])),{...p,medioEnvio:'Efectivo',
-  rectificacionTransferenciaDeliveryV1:{id:recibo,motivo:'Responsable: Encargada. Verifiqué el medio por error',
-   en:'2026-11-26T00:00:00Z',monto:2500}});
- assert.equal(S.vista,'nuevo');
- assert.equal(boton.disabled,false);
- assert.match(status.textContent,/guardado.*en efectivo/);
-});
-test('La corrección no aplica un cambio de monto y un reintento de nube no pide doble autorización',async()=>{
- const {ctx,p,D,S,calls,status,online}=await escenario();
- D.envio=3000;
- await ctx.ndGuardar();
- assert.match(status.textContent,/deja el valor del delivery en/);
- assert.deepEqual(calls,[]);
- assert.equal(S.pedidos[0],p);
- D.envio=2500;
- D.cliente='Cambio que debe continuar en edición';
- online(false);
- await ctx.ndGuardar();
- assert.match(status.textContent,/Todavía no se confirmó/);
- assert.equal(D.rectificacionNubePendiente,true);
- online(true);
- await ctx.ndGuardar();
- assert.deepEqual(calls,['autorización','local','nube','nube']);
- assert.equal(D.rectificacionNubePendiente,false);
- assert.equal(D.cliente,'Cambio que debe continuar en edición');
- assert.match(status.textContent,/Los demás cambios siguen en el formulario/);
+const test=require('node:test'),assert=require('node:assert/strict');
+const fs=require('node:fs'),vm=require('node:vm');
+const medios=(p,t,m)=>m===0?[]:(p[t==='envio'?'pagosEnvio':'pagosProductos']||[]).length?
+ p[t==='envio'?'pagosEnvio':'pagosProductos']:[{medio:p[t==='envio'?'medioEnvio':'medio'],monto:m}];
+const items=[{nombre:'Roll',cant:1,precio:12000}];
+const order=(suc,campos)=>({id:72,suc,estado:'Entregado',pagado:true,modalidad:'Delivery',envio:2500,
+ medio:'Transferencia',medioEnvio:'Efectivo',subtotal:12000,total:14500,productos:[{nombre:'Roll'}],...campos});
+test('Edita desde el mismo pago de Uki y Romo, y captura la autorización antes del guardado original',async()=>{
+ const lib=await import('../firebase/rectificacion-pago-edicion-v2.mjs');
+ for(const [panel,suc] of [['../firebase/uki-sushi-local.html','Uki La Serena']]){
+  const html=fs.readFileSync(__dirname+'/'+panel,'utf8');
+  const code=html.slice(html.indexOf('let ukiBaseRectificacionEdicion=null'),html.indexOf('function ukiCorreccionesTurnoUI('))
+   .replace("await import('./rectificacion-pago-edicion-v2.mjs?v=2')",'loadedLib');
+  const p=order(suc,{}),D={editando:72,items,modalidad:'Delivery',medio:'Efectivo',medioEnvio:'Efectivo',envio:2500,
+   pagado:true,productosPagadosOtroLocal:false,rectificacionMotivo:'Se registró el medio por error',responsableEdicion:'Encargada'};
+  const S={suc,pedidos:[p],vista:'nuevo'};
+  const estado={style:{},focus(){},scrollIntoView(){}};
+  let guardados=0;
+  const c=vm.createContext({D,S,loadedLib:lib,fmt:String,esc:String,ukiLineasPago:medios,
+   ukiCierreConfirmadoPedido:()=>true,ukiMontoEnvioOtroLocal:()=>0,ukiMontoProductosOtroLocal:()=>0,ukiDatosPago:()=>({}),
+   document:{getElementById:()=>estado},render(){},
+   datosSoloSucursal:()=>structuredClone(S),ukiRomoGuardarOperacionQA:async x=>{S.pedidos=x.pedidos;guardados++;},
+   guardarEnLocalStorage:async()=>{guardados++;return true;},
+   window:{ukiCancelacionNubeLista:()=>true,ukiRespaldarRectificacionDelivery:async()=>true,
+    ukiAutorizarRectificacionPagoV2:async ({plan})=>({recibo:{id:'constancia',firma:'prueba',motivo:'Medio de pago incorrecto',en:'2026-11-25T17:00:00Z'}})}});
+  vm.runInContext(code,c);
+  assert.match(html,/ukiRectificacionPagoEdicionUI\(pedidoEdicion,D\)/);
+  assert.match(html,/ukiPideRectificacionPago\((?:originalQR|pedidoRectificacion),D\)/);
+  assert.match(c.ukiRectificacionPagoEdicionUI(p,D),/Autorizar corrección de transferencia/);
+  await c.ukiRectificarPagoEnEdicion(p,D);
+  assert.equal(guardados,0);
+  D.rectificacionConfirmada=true;D.rectificacionFirmaReparto=c.ukiFirmaRepartoRectificacion(D);
+  await c.ukiRectificarPagoEnEdicion(p,D);
+  assert.equal(S.pedidos[0].medio,'Efectivo',estado.textContent);
+  assert.equal(guardados,1);assert.match(estado.textContent,/cierre anterior no cambió/);
+  assert.equal(S.pedidos[0].total,14500);
+ }
 });

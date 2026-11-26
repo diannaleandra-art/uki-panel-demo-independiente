@@ -1,3 +1,4 @@
+import {comprobarCambio} from './rectificacion-pago-edicion-v2.mjs?v=2';
 import {comprobarRectificacionLocal,coincideConstancia} from './uki-rectificar-transferencia-v1.mjs';
 /* Control del guardado habitual, no una segunda caja.
  * Firebase y Neon son servicios distintos: esta comprobación en el cliente
@@ -25,7 +26,7 @@ function index(estado,suc){
  }
  return map;
 }
-export async function verificarGuardadoUki({anterior,nuevo,sucursal,importes,hayTransferencia,manualValido,consultar}={}){
+export async function verificarGuardadoUki({anterior,nuevo,sucursal,importes,hayTransferencia,manualValido,consultar,leerLineasPago,verificarRectificacion}={}){
  const storeId=STORES[sucursal];
  if(!storeId||[importes,hayTransferencia,manualValido,consultar].some(x=>typeof x!=='function'))
   fail('Faltan controles de pago para esta sucursal');
@@ -38,6 +39,18 @@ export async function verificarGuardadoUki({anterior,nuevo,sucursal,importes,hay
   if(prev?.esPremio!==true&&p.esPremio===true&&prev)fail('Un pedido existente no se convierte en premio');
   if(p.esPremio===true)continue;
   const oldTransfer=!!prev&&hayTransferencia(prev),transfer=hayTransferencia(p);
+  const cambioRectificado=JSON.stringify(prev?.rectificacionesTransferenciaV2??[])!==
+   JSON.stringify(p.rectificacionesTransferenciaV2??[]);
+  if(cambioRectificado){
+   const prueba=comprobarCambio(prev,p,leerLineasPago);
+   if(!prueba||await verificarRectificacion?.(prueba)!==true)
+    fail('No se confirmó la corrección autorizada de este pago');
+   checked++;continue;
+  }
+  const anteriorMonto=oldTransfer?importes(prev)?.montoTransferencia:null;
+  const nuevoMonto=transfer?importes(p)?.montoTransferencia:null;
+  if(oldTransfer&&transfer&&Number.isSafeInteger(anteriorMonto)&&Number.isSafeInteger(nuevoMonto)&&nuevoMonto<anteriorMonto)
+   fail('Reducir una transferencia registrada requiere una corrección autorizada');
   if(oldTransfer&&!transfer){
    const plan=comprobarRectificacionLocal(prev,p);
    if(!plan)fail('La transferencia requiere una corrección autorizada');
