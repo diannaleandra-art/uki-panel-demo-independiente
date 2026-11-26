@@ -71,7 +71,11 @@ async function conteosDesdeUltimaRevision(sql,branch){
  const prev=await sql.query('SELECT created_at FROM public.uki_inventario_revisiones_live WHERE branch=$1 ORDER BY created_at DESC LIMIT 1',[branch]);
  const cutoff=prev[0]?.created_at||null;
  const desde="COALESCE($2::timestamptz, date_trunc('day',now() AT TIME ZONE 'America/Santiago') AT TIME ZONE 'America/Santiago')";
- const rows=await sql.query("SELECT sku, MAX(creado_en) AS contado_en FROM public.uki_inventario_movimientos_live WHERE branch=$1 AND accion='conteo' AND creado_en > "+desde+" GROUP BY sku",[branch,cutoff]);
+ const [base,extras]=await Promise.all([
+ sql.query("SELECT sku, MAX(creado_en) AS contado_en FROM public.uki_inventario_movimientos_live WHERE branch=$1 AND accion='conteo' AND creado_en > "+desde+" GROUP BY sku",[branch,cutoff]),
+ sql.query("SELECT sku, MAX(created_at) AS contado_en FROM public.uki_inventario_extras_movimientos_live WHERE branch=$1 AND action='conteo' AND created_at > "+desde+" GROUP BY sku",[branch,cutoff])
+ ]);
+ const rows=[...base,...extras];
  return new Map(rows.map(r=>[String(r.sku),r.contado_en]));
 }
 function textoReporte(branch,worker,summary,fecha){
@@ -292,7 +296,7 @@ module.exports=async(req,res)=>{
    data.summary.entradas_periodo='No verificadas';
    data.summary.entradas_verificadas=false;
   }
-  // Solo se certifica evidencia disponible; los extras requieren su propio historial.
+  // Se consulta evidencia de catálogo y artículos adicionales.
   try{
    const counts=await conteosDesdeUltimaRevision(sql,branch);
    data.items=data.items.map(i=>({...i,conteo_registrado:counts.has(i.sku),conteo_fecha:counts.get(i.sku)||null}));
@@ -325,4 +329,4 @@ module.exports=async(req,res)=>{
   return fail(res,status,status===503?'No se pudo abrir el inventario de pruebas ('+etiqueta+'). No se modificó la caja.':String(e.message));
  }
 };
-module.exports._testing={permitido,admin,resumen,textoReporte,validDate,fechaHoraChile,entradasDesdeUltimaRevision};
+module.exports._testing={permitido,admin,resumen,textoReporte,validDate,fechaHoraChile,entradasDesdeUltimaRevision,conteosDesdeUltimaRevision};
