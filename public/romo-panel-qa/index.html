@@ -1707,7 +1707,7 @@ function ukiExportarPrecierres(){
 
 function setModalidad(modalidad){
   D.modalidad=modalidad;
-  if(modalidad!=="Delivery"){D.envio=0;D.envioPagadoOtroLocal=false;D.montoEnvioOtroLocal="";}
+  if(modalidad!=="Delivery"){D.envio=0;D.envioPagadoOtroLocal=false;D.montoEnvioOtroLocal="";D.mixtoEnvio=false;D.pagosEnvio=[];}
   render();
 }
 function setEnvioManual(valor){
@@ -2225,7 +2225,7 @@ function ukiTimbreYaEnviadoPedido(p){
 }
 function ukiTimbreObligatorioGuardar(d,original){
  return !!d?.pagado&&!d.productosPagadosOtroLocal&&!!String(d.telefono||'').trim()&&
-   !ukiTimbreYaEnviadoPedido(original)&&(!d.editando||!original?.pagado);
+   !ukiTimbreYaEnviadoPedido(original)&&(!d.editando||(d.cobroDirectoQA===true&&!original?.pagado));
 }
 function ukiFirmaTimbreBorrador(d){
  // La prueba de envío se vincula a esta sucursal/pedido y al WhatsApp DESTINO.
@@ -2366,7 +2366,7 @@ function ukiPasoTimbreAntesDeGuardar(pedidoEdicion){
  if(!String(D.telefono||'').trim())
   return '<div class="card"><h2>4 · Timbre del pedido</h2><p class="muted">Sin WhatsApp registrado: el pedido se puede guardar normalmente. La tarjeta de timbres queda acumulada para consultar después.</p></div>';
  if(!ukiTimbreObligatorioGuardar(D,pedidoEdicion))
-  return '<div class="card"><h2>4 · Timbre del pedido</h2><p class="muted">Esta compra ya estaba pagada. No es necesario reenviar el timbre por editarla.</p></div>';
+  return '<div class="card"><h2>4 · Timbre del pedido</h2><p class="muted">No es necesario reenviar el timbre por editar un pedido registrado. Si nunca se envió, se puede consultar desde Timbres.</p></div>';
  const firma=ukiFirmaTimbreBorrador(D);
  const abierto=D.timbreAvisoAbiertoFirma===firma&&!!D.timbreAvisoAbiertoEn;
  const enviado=ukiTimbreBorradorConfirmado(D);
@@ -6232,7 +6232,7 @@ function ukiRomoRecuperarTimbreEdicionQA(d){
  for(const campo of UKI_ROMO_TIMBRE_EDICION_CAMPOS_QA)d[campo]=registro[campo];
 }
 function ukiRomoTimbreCobroDraftQA(p,externo=0){
- const d={pagado:true,productosPagadosOtroLocal:externo>0,telefono:p.telefono,cliente:p.cliente,editando:p.id};
+ const d={pagado:true,productosPagadosOtroLocal:externo>0,telefono:p.telefono,cliente:p.cliente,editando:p.id,cobroDirectoQA:true};
  const r=ukiRomoTimbreCobroQA.get(Number(p.id));
  if(r?.sesion===window.ukiRomoSesionRemotaQA&&r.timbreAvisoAbiertoFirma===ukiFirmaTimbreBorrador(d))Object.assign(d,r);
  return d;
