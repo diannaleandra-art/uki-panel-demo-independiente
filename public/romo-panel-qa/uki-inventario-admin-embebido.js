@@ -602,3 +602,43 @@ window.romoInventarioFaltantesSoloLecturaQA=function(){
 };
 window.ukiInventarioPanelHTML=panel;window.ukiInventarioMontar=mount;
 })();
+// Consumo informativo posterior a guardado confirmado; no modifica pedidos.
+const ukiConsumoSyncRev=new Map(),ukiConsumoSyncBusy=new Set();
+window.ukiPublicarConsumoLive=async function(state,suc,revision){
+ const store={'Uki Regimiento Arica':'uki:arica','Uki La Serena':'uki:serena','Romo’s Sushi La Serena':'romo:serena'}[suc];
+ if(!store||!Number.isSafeInteger(revision)||revision<1||!Array.isArray(state?.pedidos)||ukiConsumoSyncBusy.has(store)||(ukiConsumoSyncRev.get(store)||0)>=revision)return;
+ ukiConsumoSyncBusy.add(store);
+ try{
+  const now=Date.now(),start=now-7*86400000,facts=[],seen=new Set();
+  for(const p of state.pedidos){
+   const stamp=Date.parse(p?.fechaISO);
+   if(p?.suc!==suc||!Number.isFinite(stamp)||stamp<=start||stamp>now)continue;
+   const id=Number(p.id),at=new Date(stamp).toISOString(),key=id+'|'+at;
+   if(!Number.isSafeInteger(id)||id<1||seen.has(key))continue;seen.add(key);
+   const fact={id,at,state:p.estado==='Entregado'?'prepared':'review',rolls:[]};
+   if(fact.state==='prepared'){
+    const groups=ukiStatsGruposRegistrados(p,Array.isArray(p.productos)?p.productos:[],ukiStatsArmadoDigital(p.textoOriginal));
+    if(groups)for(const g of groups){
+     const match=ukiStatsClaveProducto(g.nombre).match(/^(clasico|premium) (\d{1,3}) piezas$/);
+     if(!match)continue;
+     const type=match[1]==='clasico'?'roll-clasico':'premium',n=Number(match[2])/(type==='premium'?10:12);
+     if(!Number.isInteger(n)||n<1||g.rollRows.length!==n||!g.rollRows.every((r,i)=>r.index===i+1&&r.cantidad===g.cantidad))continue;
+     const raw=g.lines.filter(l=>/^(?:(\d{1,3})\s*[×x]\s*)?Roll\s+\d{1,3}:/i.test(l));
+     for(const [i,r] of g.rollRows.entries()){
+      const name=ukiNombreStats(r.proteina),known=['pollo','carne','kanicama','camaron','cerdo','salmon','pulpo','berenjena crispy','vegetariano'];
+      const protein=known.includes(name)&&raw.length===n&&!/\+/.test(raw[i].split('/')[0])?name:'desconocida';
+      fact.rolls.push({type,protein,count:r.cantidad});
+     }
+    }
+   }
+   if(fact.rolls.length>120)fact.rolls=[];
+   facts.push(fact);
+  }
+  if(facts.length>2000)return;
+  const token=await window.ukiInventarioToken?.();if(!token)return;
+  const payload={store,revision,start:new Date(start).toISOString(),capturedAt:new Date(now).toISOString(),facts};
+  if(JSON.stringify(payload).length>400000)return;
+  const response=await fetch('https://uki-sushi-inventario.vercel.app/api/inventario-ventas-live',{method:'POST',cache:'no-store',credentials:'omit',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(10000)});
+  if(response.ok){const result=await response.json();if(result.ok&&result.store===store)ukiConsumoSyncRev.set(store,revision);}
+ }catch{}finally{ukiConsumoSyncBusy.delete(store);}
+};
