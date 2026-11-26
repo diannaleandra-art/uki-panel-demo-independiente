@@ -121,7 +121,7 @@ module.exports=async(req,res)=>{
   return fail(res,400,'Solicitud de inventario inválida');
  const branch=String(input.branch||''),action=String(input.action||'');
  if(!BRANCHES.has(branch))return fail(res,400,'Sucursal no válida');
- if(!['estado','crear-codigo','listar','contar','recibir','factura-consultar','factura-preparar-articulos','factura-recibir','finalizar','reportes','historial','revision','articulos','crear-articulo','editar-articulo','configurar-unidad'].includes(action))
+ if(!['estado','crear-codigo','listar','contar','recibir','factura-consultar','factura-preparar-articulos','factura-recibir','finalizar','reportes','historial','revision','articulos','crear-articulo','editar-articulo','configurar-unidad','justificar'].includes(action))
   return fail(res,400,'Acción no permitida');
  const dbUrl=liveDbUrl();
  if(!dbUrl)return fail(res,503,'Base de inventario no habilitada');
@@ -252,6 +252,15 @@ module.exports=async(req,res)=>{
    const saved=rows[0]?.resultado;
    if(!saved?.guardada)return fail(res,503,'No se pudo verificar el ingreso de la factura.');
    return res.status(200).json({ok:true,branch,...saved});
+  }
+  if(action==='justificar'){
+   if(process.env.UKI_INVENTARIO_JUSTIFICACIONES_ENABLED!=='true')return fail(res,503,'Registro de movimientos aún no habilitado.');
+   const sku=String(input.sku||''),list=sku.startsWith('inv:')?await extra.listar(sql,branch):await leerInventario(sql,branch);
+   const item=list.find(x=>x.sku===sku);
+   if(!item||!['ingredient','inventory'].includes(item.kind))return fail(res,404,'Insumo no encontrado en esta sucursal.');
+   const lib=require('../lib/inventario-justificaciones-v1.cjs');
+   const data=lib.validate('uki:'+branch,input,item,worker);
+   return res.status(200).json({...await lib.save(sql,data),branch});
   }
   if(action==='contar'||action==='recibir'){
    const sku=String(input.sku||''),n=input.cantidad;
