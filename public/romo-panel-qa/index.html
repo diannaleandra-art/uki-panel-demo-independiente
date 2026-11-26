@@ -2640,16 +2640,39 @@ function ukiDiferenciaDeliveryOriginalUI(p){
 // Auditoría de cambios por pedido (se muestran los registros existentes, sin alterar caja).
 // El cambio de medio se autoriza en Editar pedido, con la venta original intacta.
 let ukiBaseRectificacionEdicion=null,ukiRectificacionGuardando=false;
-// Un reparto mixto sin ningún importe no acredita un abono, pero si conserva
-// una marca de transferencia debe pasar por autorización, no por edición normal.
+// Identificar los repartos guardados con casillas vacías. No son abonos.
+function ukiMarcaTransferenciaRectificacion(medio){
+ return String(medio||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')==='transferencia';
+}
+function ukiComponentesSinImporteRectificacion(p){
+ if(!p)return [];
+ return [['productos',Number(p.subtotal)],['envio',p.modalidad==='Delivery'?Number(p.envio):0]].filter(([tipo,monto])=>{
+  if(!Number.isSafeInteger(monto)||monto<=0)return false;
+  const lineas=ukiLineasPago(p,tipo,monto);
+  return lineas.length>0&&lineas.length<=6&&lineas.every(x=>x.monto===0);
+ });
+}
+function ukiComponentesReparablesRectificacion(p){
+ const incompletos=ukiComponentesSinImporteRectificacion(p);
+ if(!incompletos.length)return [];
+ const marcados=incompletos.filter(([tipo,monto])=>{
+  const medio=tipo==='envio'?'medioEnvio':'medio';
+  const alterno=tipo==='envio'?'medioDelivery':'medioProductos';
+  return [p[medio],p[alterno],...ukiLineasPago(p,tipo,monto).map(x=>x.medio)].some(ukiMarcaTransferenciaRectificacion);
+ });
+ if(marcados.length)return marcados;
+ // Algunos registros antiguos sólo guardaban la marca de transferencia a nivel
+ // de pedido. Con un solo componente vacío se puede ofrecer la autorización,
+ // siempre que no haya una transferencia cuantificada en el otro componente.
+ return incompletos.length===1&&ukiPagoTransferenciaMonto(p)===0&&ukiSeguimientoHayTransferenciaQA(p)?incompletos:[];
+}
 function ukiPagoAnteriorRectificacion(p,tipo,monto){
  const lineas=ukiLineasPago(p,tipo,monto);
- if(p?.pagado!==true||!Number.isSafeInteger(monto)||monto<=0||!lineas.length||lineas.length>6||
-    !lineas.every(x=>x.monto===0)||
-    !lineas.some(x=>String(x.medio).trim().toLowerCase()==='transferencia'))return lineas;
+ if(!ukiComponentesReparablesRectificacion(p).some(([k,v])=>k===tipo&&v===monto))return lineas;
  const pagos=tipo==='envio'?'pagosEnvio':'pagosProductos';
  const medio=tipo==='envio'?'medioEnvio':'medio';
- // Solo para construir y verificar el plan autorizado. No toca la caja ni el original.
+ // Importe provisional solo para verificar el plan firmado. No registra abono
+ // ni modifica caja. Si hay enlace, el servidor comprueba el reparto original.
  return ukiLineasPago({...p,[pagos]:[],[medio]:'Transferencia'},tipo,monto);
 }
 function ukiPagoTransferenciaMonto(p,leer=ukiLineasPago){
@@ -2699,7 +2722,8 @@ function ukiRectificacionPagoEdicionUI(p,d){
  if(!ukiPideRectificacionPago(p,d)){
   if(d.rectificacionMensaje)return caja+'<h3 style="margin:0">Pago del pedido</h3>'+guardado+estado+'</div>';
   if(ukiPuedeRectificarPago(p,d)){
-   const montoProductos=ukiPagoTransferenciaMonto({...p,modalidad:'Retiro'},ukiPagoAnteriorRectificacion);
+   const montoProductos=ukiPagoAnteriorRectificacion(p,'productos',Number(p.subtotal)||0)
+    .filter(x=>ukiMarcaTransferenciaRectificacion(x.medio)).reduce((n,x)=>n+Number(x.monto),0);
    const montoDelivery=ukiPagoTransferenciaMonto(p,ukiPagoAnteriorRectificacion)-montoProductos;
    const detalle=[montoProductos>0?'Productos '+fmt(montoProductos):'',montoDelivery>0?'Delivery '+fmt(montoDelivery):''].filter(Boolean).join(' · ');
    return caja+'<h3 style="margin:0">Corregir transferencia</h3>'+
@@ -2762,7 +2786,7 @@ async function ukiRectificarPagoEnEdicion(original,d){
  if(boton)boton.disabled=true;
  let aplicado=!!d.rectificacionNubePendiente,autorizado=false;
  try{
-  const lib=await import('./rectificacion-pago-edicion-v2.mjs?v=reparto-cero-v3');
+  const lib=await import('./rectificacion-pago-edicion-v2.mjs?v=reparto-rescate-v4');
   if(!d.rectificacionNubePendiente){
    const motivo=String(d.rectificacionMotivo||'').trim(),responsable=String(d.responsableEdicion||'').trim();
    if(motivo.length<8||motivo.length>140)
@@ -2774,7 +2798,8 @@ async function ukiRectificarPagoEnEdicion(original,d){
    const firmado=JSON.stringify(original),draftFirmado=JSON.stringify({...d,rectificacionMensaje:null,rectificacionError:null});
    const sub=d.items.reduce((n,i)=>n+(i.nombre?(Number(i.cant)||0)*(Number(i.precio)||0):0),0);
    const montoEnvio=d.modalidad==='Delivery'?Number(d.envio):0;
-   if(d.pagado!==Boolean(original.pagado)||sub!==Number(original.subtotal)||montoEnvio!==Number(original.envio||0)||d.modalidad!==original.modalidad||
+   const repartoIncompleto=ukiComponentesReparablesRectificacion(original).length>0;
+   if((d.pagado!==Boolean(original.pagado)&&!repartoIncompleto)||sub!==Number(original.subtotal)||montoEnvio!==Number(original.envio||0)||d.modalidad!==original.modalidad||
       d.productosPagadosOtroLocal!==!!original.productosPagadosOtroLocal||
       ukiMontoEnvioOtroLocal(d,montoEnvio,sub)!==ukiMontoEnvioOtroLocal(original,montoEnvio,sub)||
       ukiMontoProductosOtroLocal(d,sub)!==ukiMontoProductosOtroLocal(original,sub))
@@ -2804,9 +2829,11 @@ async function ukiRectificarPagoEnEdicion(original,d){
   d.rectificacionNubePendiente=false;d.rectificacionConfirmada=false;d.rectificacionMotivo='';
   const quedan=ukiBaseRectificacionEdicion?.draft===d&&ukiBaseRectificacionEdicion.firma!==ukiFirmaOtrosCambiosRectificacion(d);
   if(enEdicion()){
-   ukiMensajeRectificacionEdicion(d,'Pago del pedido #'+id+' corregido y guardado.'+
+   const faltaConfirmarPago=!original.pagado&&d.pagado;
+   ukiMensajeRectificacionEdicion(d,'Medios de pago del pedido #'+id+' corregidos y guardados.'+
     (ukiCierreConfirmadoPedido(original)?' El cierre anterior no cambió.':'')+
-    (quedan?' Los otros cambios siguen en el formulario para guardarlos aparte.':''));
+    (faltaConfirmarPago?' El pedido estaba pendiente de pago. Pulsa Guardar cambios otra vez para confirmar el pago completo.':
+     quedan?' Los otros cambios siguen en el formulario para guardarlos aparte.':''));
    render();
    document.getElementById('ukiEstadoRectificacionEdicion')?.scrollIntoView({block:'center',behavior:'smooth'});
   }
@@ -7835,7 +7862,7 @@ async function ukiRomoGuardarOperacionQA(copia,descripcion,orden,vista='pedidos'
   throw Error('No se pudo validar el estado independiente de Romo.');
  const firma=JSON.stringify(copia);
   if(accionProtegida==='rectificar_pago_v2'){
-   const lib=await import('./rectificacion-pago-edicion-v2.mjs?v=reparto-cero-v3');
+   const lib=await import('./rectificacion-pago-edicion-v2.mjs?v=reparto-rescate-v4');
    const antes=S.pedidos.find(p=>p.id===Number(orden)&&p.suc===S.suc);
    const despues=copia.pedidos.find(p=>p.id===Number(orden)&&p.suc===S.suc);
    const prueba=lib.comprobarCambio(antes,despues,ukiLineasPago,ukiPagoAnteriorRectificacion);
