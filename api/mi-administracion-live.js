@@ -208,7 +208,8 @@ module.exports=async(req,res)=>{
   if(action==='resumen_conteos_inventario'){
    if(process.env.UKI_CONSUMO_VENTAS_LIVE_ENABLED!=='true')return fail(res,404,'Control de consumo todavía no habilitado.');
    const locales=await require('../lib/costeo-admin-resumen-v1.cjs').physicalReport(sql,process.env,req.headers.authorization);
-   return ok(res,{locales,soloLectura:true,totalesFinancierosModificados:false,coberturaVentasCompleta:false});
+   const traspasos=require('../lib/inventario-traspasos-conciliacion-v1.cjs').compareTransfers(locales);
+   return ok(res,{locales,traspasos,soloLectura:true,totalesFinancierosModificados:false,coberturaVentasCompleta:false});
   }
   if(action==='resumen_costeo_inventario'){
    if(process.env.UKI_COSTEO_ADMIN_V1_ENABLED!=='true')return fail(res,404,'Rentabilidad de inventario todavía no habilitada.');
