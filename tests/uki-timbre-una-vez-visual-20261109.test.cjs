@@ -71,7 +71,8 @@ test('Cambio de estado del pago se realiza a través de editar y exige responsab
  assert.match(src,/autorizacion=String\(D\.responsableEdicion\|\|''\)/);
  assert.match(src,/if\(!autorizacion\)/);
  const nuevo=chunk('function vNuevo(){','function uki');
- assert.ok(html.includes("D.editando?'<div class=\"card\"><h2>Responsable de la corrección"));
+ assert.match(html,/D\.editando&&[\s\S]*?ukiResponsableEdicionUI\(D\)/);
+ assert.match(html,/function ukiResponsableEdicionUI\(d\)\{[\s\S]*?id="ukiResponsableEdicion"/);
 });
 test('Primera creación no exige nombre de edición y conserva aviso aunque guarde como no pagado',()=>{
  const src=chunk('function ndGuardar(){','function cerrar(){');
