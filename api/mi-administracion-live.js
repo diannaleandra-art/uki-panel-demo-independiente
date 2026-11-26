@@ -205,6 +205,11 @@ module.exports=async(req,res)=>{
    return ok(res,{sesion:token,minutos:30});
   }
   if(!await authorized(sql,req,who))return fail(res,401,'Introduce el código privado para continuar.');
+  if(action==='resumen_conteos_inventario'){
+   if(process.env.UKI_COSTEO_ADMIN_V1_ENABLED!=='true')return fail(res,404,'Control de consumo todavía no habilitado.');
+   const locales=await require('../lib/costeo-admin-resumen-v1.cjs').physicalReport();
+   return ok(res,{locales,soloLectura:true,totalesFinancierosModificados:false,coberturaVentasCompleta:false});
+  }
   if(action==='resumen_costeo_inventario'){
    if(process.env.UKI_COSTEO_ADMIN_V1_ENABLED!=='true')return fail(res,404,'Rentabilidad de inventario todavía no habilitada.');
    if(!validDate(body.desde)||!validDate(body.hasta)||body.desde>body.hasta)return fail(res,400,'Selecciona fechas válidas.');
