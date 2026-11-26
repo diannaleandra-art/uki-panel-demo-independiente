@@ -10,7 +10,7 @@ test('Edita desde el mismo pago de Uki y Romo, y captura la autorización antes 
  for(const [panel,suc] of [['../firebase/uki-sushi-local.html','Uki La Serena']]){
   const html=fs.readFileSync(__dirname+'/'+panel,'utf8');
   const code=html.slice(html.indexOf('let ukiBaseRectificacionEdicion=null'),html.indexOf('function ukiCorreccionesTurnoUI('))
-   .replace("await import('./rectificacion-pago-edicion-v2.mjs?v=reparto-cero-v3')",'loadedLib');
+   .replace("await import('./rectificacion-pago-edicion-v2.mjs?v=reparto-rescate-v4')",'loadedLib');
   const p=order(suc,{}),D={editando:72,items,modalidad:'Delivery',medio:'Efectivo',medioEnvio:'Efectivo',envio:2500,
    pagado:true,productosPagadosOtroLocal:false,rectificacionMotivo:'Se registró el medio por error',responsableEdicion:'Encargada'};
   const S={suc,pedidos:[p],vista:'nuevo'};
@@ -23,7 +23,14 @@ test('Edita desde el mismo pago de Uki y Romo, y captura la autorización antes 
    guardarEnLocalStorage:async()=>{guardados++;return true;},
    window:{ukiCancelacionNubeLista:()=>true,ukiRespaldarRectificacionDelivery:async()=>true,
     ukiAutorizarRectificacionPagoV2:async ({plan})=>(planes.push(plan),{recibo:{id:'constancia',firma:'prueba',motivo:'Medio de pago incorrecto',en:'2026-11-25T17:00:00Z'}})}});
-  vm.runInContext(code,c);
+  const desdeGuardar=html.indexOf('async function ndGuardar(){');
+  const hastaGuardar=html.slice(desdeGuardar+1).search(/\n(?:async )?function /)+desdeGuardar+1;
+  const desdeBandera=html.indexOf('function ukiSeguimientoHayTransferenciaQA(');
+  const hastaBandera=html.indexOf('function seguimientoPropinaTransferenciaQA(',desdeBandera);
+  Object.assign(c,{ukiGuardadoSolicitudEnCurso:false,ukiQRComprobandoCobro:false,ROMO_SUCURSAL_QA:suc,
+    ukiRomoOperacionesEnCursoQA:()=>false,ukiSeguimientoImportesCajaQA:()=>null,
+    aviso:mensaje=>{throw Error('No se esperaba el bloqueo de edición normal: '+mensaje);}});
+  vm.runInContext(code+'\n'+html.slice(desdeGuardar,hastaGuardar)+'\n'+html.slice(desdeBandera,hastaBandera),c);
   assert.match(html,/onclick="ukiMostrarCorreccionPago\(\)"/);
   assert.match(c.ukiRectificacionPagoEdicionUI(p,{...D,medio:'Transferencia'}),/Corregir transferencia.*Productos 12000/);
   assert.match(c.ukiRectificacionPagoEdicionUI({...p,medio:'Edenred',medioEnvio:'Transferencia'},{...D,medio:'Edenred',medioEnvio:'Transferencia'}),/Corregir transferencia.*Delivery 2500/);
@@ -87,8 +94,28 @@ test('Edita desde el mismo pago de Uki y Romo, y captura la autorización antes 
    assert.equal(p.plan.repartoDespues[1][0].medio,'efectivo');
    return true;
   }}),{ok:true,checked:1});
-  const cerrado={...repartoCero,pagado:false};
-  assert.equal(c.ukiPideRectificacionPago(cerrado,formularioCero),false);
+  // Caso que no cubría el arreglo anterior: el registro está pendiente,
+  // aunque en el formulario se haya marcado Pago completo confirmado.
+  const pendiente={...repartoCero,pagado:false,estado:'Pendiente'};
+  const nuevoFormulario={...formularioCero,rectificacionConfirmada:true,
+   rectificacionMotivo:'Delivery recibido en efectivo, sin abono bancario.',
+   rectificacionMensaje:'',rectificacionError:false,rectificacionNubePendiente:false};
+  S.pedidos=[pendiente];c.D=nuevoFormulario;
+  nuevoFormulario.rectificacionFirmaReparto=c.ukiFirmaRepartoRectificacion(nuevoFormulario);
+  assert.match(c.ukiRectificacionPagoEdicionUI(pendiente,nuevoFormulario),/Autorizar corrección de transferencia/);
+  await c.ndGuardar();
+  assert.equal(guardados,3,estado.textContent);
+  assert.equal(S.pedidos[0].medioEnvio,'Efectivo');
+  assert.equal(S.pedidos[0].pagado,false,'Primero guarda solo los medios, sin declarar un abono nuevo.');
+  assert.match(estado.textContent,/pendiente de pago/);
+  // Variante antigua donde la marca existe en el pedido, no en la línea a $0.
+  const incompletoAntiguo={...pendiente,pagoDeclarado:'transferencia',
+    pagosEnvio:[{medio:'Edenred',monto:0},{medio:'Efectivo',monto:0}]};
+  assert.equal(c.ukiPideRectificacionPago(incompletoAntiguo,nuevoFormulario),true);
+  assert.deepEqual(JSON.parse(JSON.stringify(c.ukiPagoAnteriorRectificacion(incompletoAntiguo,'envio',2500))),
+    [{medio:'Transferencia',monto:2500}]);
+  const repartosAmbiguos={...incompletoAntiguo,pagosProductos:[{medio:'Edenred',monto:0}]};
+  assert.equal(c.ukiPideRectificacionPago(repartosAmbiguos,nuevoFormulario),false,'No atribuye una marca global a dos repartos vacíos.');
   const parteValida={...repartoCero,pagosEnvio:[{medio:'Edenred',monto:2000},{medio:'Transferencia',monto:0}]};
   assert.equal(c.ukiPideRectificacionPago(parteValida,formularioCero),false,'No reconstruye un pago con importe positivo.');
   const sinMarca={...repartoCero,pagosEnvio:[{medio:'Edenred',monto:0},{medio:'Efectivo',monto:0}]};

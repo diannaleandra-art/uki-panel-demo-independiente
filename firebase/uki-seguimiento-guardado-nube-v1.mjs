@@ -1,4 +1,4 @@
-import {comprobarCambio} from './rectificacion-pago-edicion-v2.mjs?v=reparto-cero-v3';
+import {comprobarCambio} from './rectificacion-pago-edicion-v2.mjs?v=reparto-rescate-v4';
 import {comprobarRectificacionLocal,coincideConstancia} from './uki-rectificar-transferencia-v1.mjs';
 /* Control del guardado habitual, no una segunda caja.
  * Firebase y Neon son servicios distintos: esta comprobación en el cliente

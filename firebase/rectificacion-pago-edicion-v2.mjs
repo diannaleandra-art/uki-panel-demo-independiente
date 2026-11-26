@@ -33,9 +33,13 @@ export function exigirPlan(prev,nuevo,leer,leerAnterior=leer){
  const storeId=SUCURSALES[prev?.suc],pedidoInterno=String(prev?.id??'');
  if(!storeId||!/^[1-9][0-9]{0,11}$/.test(pedidoInterno)||prev.suc!==nuevo.suc||
     prev.id!==nuevo.id||ref(prev)!==ref(nuevo)||!['Pendiente','Entregado'].includes(prev.estado)||
-    prev.esPremio||prev.ajusteCobroPendiente?.estado==='pendiente'||(!prev.pagado&&!ref(prev)))
+    prev.esPremio||prev.ajusteCobroPendiente?.estado==='pendiente'||prev.pagado!==nuevo.pagado)
   throw Error('El pedido no tiene un cobro que se pueda corregir desde esta edición.');
  const a=fotoPago(prev,leerAnterior),b=fotoPago(nuevo,leer);
+ // Una reparación no cambia si el pedido estaba o no pagado. Para una venta
+ // manual pendiente solo admite el caso cuyo reparto anterior estaba incompleto.
+ if(!prev.pagado&&!ref(prev)&&(leerAnterior===leer||fotoPago(prev,leer)||!a))
+  throw Error('El pedido aún no tiene un cobro que rectificar.');
  if(!a||!b||a.total!==b.total||a.montoOtroLocal!==b.montoOtroLocal||a.propinaTransferencia!==b.propinaTransferencia)
   throw Error('Revisa el reparto de los pagos. Esta corrección conserva los importes del pedido.');
  for(const tipo of ['productos','delivery']){
