@@ -66,6 +66,14 @@ async function entradasDesdeUltimaRevision(sql,branch){
  }
  return {bySku,periodo:cutoff?'Desde revisión anterior':'Hoy desde 00:00 (Chile)'};
 }
+// Evidencia de conteo desde la revisión anterior. No presume conteo por saldo existente.
+async function conteosDesdeUltimaRevision(sql,branch){
+ const prev=await sql.query('SELECT created_at FROM public.uki_inventario_revisiones_live WHERE branch=$1 ORDER BY created_at DESC LIMIT 1',[branch]);
+ const cutoff=prev[0]?.created_at||null;
+ const desde="COALESCE($2::timestamptz, date_trunc('day',now() AT TIME ZONE 'America/Santiago') AT TIME ZONE 'America/Santiago')";
+ const rows=await sql.query("SELECT sku, MAX(creado_en) AS contado_en FROM public.uki_inventario_movimientos_live WHERE branch=$1 AND accion='conteo' AND creado_en > "+desde+" GROUP BY sku",[branch,cutoff]);
+ return new Map(rows.map(r=>[String(r.sku),r.contado_en]));
+}
 function textoReporte(branch,worker,summary,fecha){
  const date=fechaHoraChile(fecha);
  const a=['📦 UKI SUSHI · LISTA PARA REPONER','Sucursal: '+BRANCH_NAME[branch],
@@ -283,6 +291,15 @@ module.exports=async(req,res)=>{
    // Si falta un registro histórico, no afirmar que hubo cero entradas.
    data.summary.entradas_periodo='No verificadas';
    data.summary.entradas_verificadas=false;
+  }
+  // Solo se certifica evidencia disponible; los extras requieren su propio historial.
+  try{
+   const counts=await conteosDesdeUltimaRevision(sql,branch);
+   data.items=data.items.map(i=>({...i,conteo_registrado:counts.has(i.sku),conteo_fecha:counts.get(i.sku)||null}));
+   data.summary.conteos_verificados=true;
+   data.summary.articulos_sin_conteo=data.items.filter(i=>!i.conteo_registrado).length;
+  }catch{
+   data.summary.conteos_verificados=false;
   }
   const created=await sql.query(`INSERT INTO public.uki_inventario_revisiones_live
    (branch,request_id,worker_name,identity,items,summary)
