@@ -61,7 +61,7 @@ test("UI incluye validación antes del guardado y timbre por pedido exacto",()=>
  assert.match(html,/if\(!ukiValidarTimbreAntesGuardar\(D,originalQR\)\)return/);
  assert.match(html,/if\(ukiTimbreBorradorConfirmado\(D\)\)ukiAnotarTimbreConfirmadoEnPedido\(nuevoPedido,D\)/);
  assert.match(html,/if\(!ukiTimbreYaEnviadoPedido\(p\)&&ukiTimbreBorradorConfirmado\(D\)\)/);
- assert.match(html,/function ukiAbrirTimbrePedido\(id\)/);
+ assert.match(html,/function ukiAbrirTimbrePedido\(id,comoImagen=false\)/);
  assert.match(html,/pedidosSinTimbreDelDia/);
  assert.match(html,/pendientesTimbreDelDia/);
  assert.match(html,/p\.timbreReglaObligatoria&&p\.pagado/);
