@@ -205,6 +205,16 @@ module.exports=async(req,res)=>{
    return ok(res,{sesion:token,minutos:30});
   }
   if(!await authorized(sql,req,who))return fail(res,401,'Introduce el código privado para continuar.');
+  if(action==='guardar_rendimiento_consumo'){
+   if(process.env.UKI_CONSUMO_VENTAS_LIVE_ENABLED!=='true')return fail(res,404,'Control de consumo todavía no habilitado.');
+   if(!['uki:arica','uki:serena','romo:serena'].includes(body.store))return fail(res,400,'Local inválido.');
+   const report=await require('../lib/costeo-admin-resumen-v1.cjs').physicalReport(sql,process.env,req.headers.authorization);
+   const local=report.find(r=>r.store===body.store);
+   if(!local?.available)return fail(res,409,'Se requiere un conteo físico verificable de este local.');
+   const lib=require('../lib/inventario-rendimientos-v1.cjs');
+   try{const v=lib.validate(body,local.rows||[]);const saved=await lib.save(sql,v,who.uid);return ok(res,{saved:true,store:v.store,ingredient:v.name,revision:Number(saved.revision)});}
+   catch(e){if([400,409].includes(e.status))return fail(res,e.status,e.message);if(e.code==='23505')return fail(res,409,'Este insumo ya tiene otra equivalencia.');throw e;}
+  }
   if(action==='resumen_conteos_inventario'){
    if(process.env.UKI_CONSUMO_VENTAS_LIVE_ENABLED!=='true')return fail(res,404,'Control de consumo todavía no habilitado.');
    const locales=await require('../lib/costeo-admin-resumen-v1.cjs').physicalReport(sql,process.env,req.headers.authorization);
