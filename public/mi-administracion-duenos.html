@@ -2071,7 +2071,26 @@ $('ukiFisicoConsultar').onclick=async()=>{
   const fmt=(n,u)=>n===null||n===undefined?'Pendiente':Number(n).toLocaleString('es-CL',{maximumFractionDigits:3})+' '+u;
   const date=t=>new Date(t).toLocaleString('es-CL',{timeZone:'America/Santiago'});
   result.replaceChildren();
-  for(const store of Object.keys(names)){
+  const compartida=data.compartida===true;
+  if(compartida){
+   names['uki:serena']='Bodega La Serena · Uki y Romo';
+   add(result,'p','Dos bodegas físicas y tres operaciones de venta. La Serena se cuenta una sola vez.');
+   for(const b of data.bodegas||[]){
+    if(b.warehouse!=='serena')continue;
+    const sec=document.createElement('details');sec.className='line';result.append(sec);add(sec,'summary','La Serena · Consumo conjunto de Uki y Romo');
+    add(sec,'p',b.sales?.reason||'Sin datos sincronizados.');
+    if(b.sales?.available){
+     add(sec,'p',date(b.sales.start)+' — '+date(b.sales.end));
+     for(const i of b.sales.ingredients||[])add(sec,'p',i.name+' · '+fmt(i.quantity/1000,'kg preparados'));
+    }
+    for(const source of b.sales?.sources||[]){
+     const label=source.store==='uki:serena'?'Uki La Serena':'Romo La Serena';
+     add(sec,'p',label+' · '+(source.sale?.available?'Sincronizado (parcial)':source.sale?.reason||'Pendiente'));
+     if(source.sale?.available&&!b.sales.available)for(const i of source.sale.ingredients||[])add(sec,'p',i.name+' · '+fmt(i.quantity/1000,'kg preparados'));
+    }
+   }
+  }
+  for(const store of Object.keys(names).filter(x=>!compartida||x!=='romo:serena')){
    const matches=data.locales.filter(r=>r.store===store),r=matches.length===1?matches[0]:null;
    const box=document.createElement('details');box.className='line';result.append(box);add(box,'summary',names[store]);
    function renderYields(){
@@ -2121,15 +2140,23 @@ $('ukiFisicoConsultar').onclick=async()=>{
    if(!r?.available||!Array.isArray(r.rows)){add(box,'p',r?.reason||'Sin información verificable.');renderLive();renderYields();continue;}
    add(box,'p',date(r.start)+' — '+date(r.end));
    add(box,'p',r.rows.filter(x=>x.status==='provisional').length+' insumos con salida física estimada; '+r.rows.filter(x=>x.status!=='provisional').length+' por revisar.');
-   const wrap=document.createElement('div');wrap.style.overflowX='auto';box.append(wrap);
-   const table=document.createElement('table');wrap.append(table);
-   const head=document.createElement('tr');table.append(head);
-   if(r.sales?.available)add(box,'p',r.sales.calculated+' pedidos calculados · '+r.sales.pending+' pendientes · '+r.sales.reason);else add(box,'p',r.sales?.reason||'Consumo según ventas no disponible.');
-   for(const t of ['Insumo','Inicial','Recibido','Conteo final','Salida física','Merma registrada','Consumo personal','Traspaso enviado','Traspaso recibido','Consumo identificado','Saldo estimado parcial','Diferencia preliminar','Valor preliminar','Estado'])add(head,'th',t);
-   for(const row of r.rows){
-    const tr=document.createElement('tr');table.append(tr);
-    for(const x of [row.name,fmt(row.opening,row.unit),fmt(row.received,row.unit),fmt(row.closing,row.unit),fmt(row.outflow,row.unit),fmt(row.justified?.waste,row.unit),fmt(row.justified?.staff,row.unit),fmt(row.justified?.transferOut,row.unit),fmt(row.justified?.transferIn,row.unit),fmt(row.salesIdentified,row.unit),fmt(row.expectedPartial,row.unit),fmt(row.differencePartial,row.unit),row.differenceValuePartial==null?'Pendiente':pesos(row.differenceValuePartial),row.status==='provisional'?'Provisional':'Revisar'])add(tr,'td',x);
-   }
+   const summary=document.createElement('div');summary.className='line';box.append(summary);
+   if(r.sales?.available)add(summary,'p',r.sales.calculated+' pedidos calculados · '+r.sales.pending+' pendientes · '+r.sales.reason);else add(summary,'p',r.sales?.reason||'Consumo según ventas no disponible.');
+   const search=document.createElement('input');search.type='search';search.placeholder='Buscar ingrediente';search.setAttribute('aria-label','Buscar ingrediente del local');box.append(search);
+   const filter=document.createElement('select');filter.setAttribute('aria-label','Estado del insumo');for(const [v,t] of [['all','Todos los insumos'],['pending','Por revisar'],['provisional','Con salida física estimada']])filter.add(new Option(t,v));box.append(filter);
+   const list=document.createElement('div');box.append(list);
+   const draw=()=>{
+    list.replaceChildren();
+    const term=search.value.trim().toLocaleLowerCase('es-CL');
+    for(const row of r.rows.filter(x=>(!term||String(x.name).toLocaleLowerCase('es-CL').includes(term))&&(filter.value==='all'||(filter.value==='pending'?x.status!=='provisional':x.status==='provisional')))){
+     const card=document.createElement('details');card.className='line';list.append(card);
+     add(card,'summary',row.name+' · '+(row.status==='provisional'?fmt(row.outflow,row.unit)+' salida física':'Pendiente de comparar'));
+     const fields=[['Inicial',fmt(row.opening,row.unit)],['Recibido',fmt(row.received,row.unit)],['Conteo final',fmt(row.closing,row.unit)],['Salida física',fmt(row.outflow,row.unit)],['Merma',fmt(row.justified?.waste,row.unit)],['Consumo personal',fmt(row.justified?.staff,row.unit)],['Traspaso enviado',fmt(row.justified?.transferOut,row.unit)],['Traspaso recibido',fmt(row.justified?.transferIn,row.unit)],['Consumo identificado',fmt(row.salesIdentified,row.unit)],['Saldo estimado parcial',fmt(row.expectedPartial,row.unit)],['Diferencia preliminar',fmt(row.differencePartial,row.unit)],['Valor preliminar',row.differenceValuePartial==null?'Pendiente':pesos(row.differenceValuePartial)]];
+     for(const [key,value] of fields)add(card,'p',key+': '+value);
+    }
+    if(!list.children.length)add(list,'p','Sin insumos en este filtro.');
+   };
+   search.oninput=draw;filter.onchange=draw;draw();
    if(r.justifications?.available){
     add(box,'p','Movimientos registrados por el trabajador. Los traspasos todavía requieren conciliación del folio entre locales; los importes no modifican automáticamente el saldo esperado.');
     for(const movement of r.justifications.rows||[]){

@@ -105,7 +105,8 @@ module.exports=async(req,res)=>{
  res.setHeader('Cache-Control','no-store');
  res.setHeader('X-Content-Type-Options','nosniff');
  res.setHeader('Vary','Origin');
- const origin=String(req.headers?.origin||''),allow=permitido(origin);
+ const origin=String(req.headers?.origin||''),romoOrigin=origin==='https://romos-sushi-panel.vercel.app';
+ const allow=permitido(origin)||(romoOrigin&&process.env.UKI_BODEGA_SERENA_COMPARTIDA==='true');
  if(allow){
   res.setHeader('Access-Control-Allow-Origin',origin);
   res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type');
@@ -121,7 +122,8 @@ module.exports=async(req,res)=>{
   return fail(res,400,'Solicitud de inventario inválida');
  const branch=String(input.branch||''),action=String(input.action||'');
  if(!BRANCHES.has(branch))return fail(res,400,'Sucursal no válida');
- if(!['estado','crear-codigo','listar','contar','recibir','factura-consultar','factura-preparar-articulos','factura-recibir','finalizar','reportes','historial','revision','articulos','crear-articulo','editar-articulo','configurar-unidad','justificar'].includes(action))
+ if(romoOrigin&&(branch!=='serena'||!['articulos','reportes','historial','revision','crear-articulo','editar-articulo','configurar-unidad'].includes(action)))return fail(res,403,'Romo solo puede administrar la bodega compartida La Serena con Google autorizado.');
+ if(!['estado','crear-codigo','listar','contar','recibir','factura-consultar','factura-preparar-articulos','factura-recibir','finalizar','reportes','historial','revision','articulos','crear-articulo','editar-articulo','configurar-unidad','justificar','crear-insumo-trabajador','movimientos-trabajador','revisiones-trabajador','revision-trabajador'].includes(action))
   return fail(res,400,'Acción no permitida');
  const dbUrl=liveDbUrl();
  if(!dbUrl)return fail(res,503,'Base de inventario no habilitada');
@@ -210,13 +212,48 @@ module.exports=async(req,res)=>{
    // El trabajador sigue entrando exclusivamente con su código de inventario.
    // Nunca recibe permisos de pedidos, caja, ni acceso Google de administración.
    worker=nombre(input.worker_name);
-   if(!await pin.autorizar(sql,input.codigo,branch,'inventario-compartido'))
+   if(input.acceso==='romo'){
+    if(branch!=='serena'||process.env.UKI_BODEGA_SERENA_COMPARTIDA!=='true')return fail(res,403,'Acceso Romo disponible únicamente en la bodega compartida La Serena.');
+    if(!/^\d{6}$/.test(String(input.codigo||'')))return fail(res,400,'Código de inventario inválido.');
+    const resp=await fetch('https://romos-sushi-panel.vercel.app/api/romo-pin-inventario-qa',{method:'POST',redirect:'error',cache:'no-store',headers:{'Content-Type':'application/json',Origin:'https://romos-sushi-panel.vercel.app'},body:JSON.stringify({action:'verificar-bodega-compartida',codigo:input.codigo,worker_name:worker}),signal:AbortSignal.timeout(8000)});
+    const verified=await resp.json().catch(()=>null);
+    if(!resp.ok||verified?.authorized!==true||verified.storeId!=='romo:serena'||verified.warehouse!=='serena')return fail(res,403,'Código Romo no autorizado o temporalmente bloqueado.');
+   }else if(input.acceso!=null&&input.acceso!=='uki')return fail(res,403,'Acceso de inventario inválido.');
+   else if(!await pin.autorizar(sql,input.codigo,branch,'inventario-compartido'))
     return fail(res,403,'Código incorrecto o temporalmente bloqueado');
   }
   etapa='consulta-catalogo';
+  if(action==='movimientos-trabajador'){
+   const [base,added]=await Promise.all([leerInventario(sql,branch),extra.listar(sql,branch)]);
+   const report=await require('../lib/inventario-movimientos-reporte-v1.cjs').read(sql,branch,input,[...base,...added],process.env.UKI_INVENTARIO_JUSTIFICACIONES_ENABLED==='true');
+   return res.status(200).json({ok:true,...report});
+  }
+  if(action==='revisiones-trabajador'){
+   const {desde,hasta}=require('../lib/inventario-movimientos-reporte-v1.cjs').range({...input,tipo:'todos'});
+   const rows=await sql.query("SELECT id,worker_name,summary,created_at FROM public.uki_inventario_revisiones_live WHERE branch=$1 AND (created_at AT TIME ZONE 'America/Santiago')::date BETWEEN $2::date AND $3::date ORDER BY created_at DESC,id DESC LIMIT 201",[branch,desde,hasta]);
+   if(rows.length>200)return fail(res,400,'Consulta un período más corto.');
+   return res.status(200).json({ok:true,branch,revisiones:rows});
+  }
+  if(action==='revision-trabajador'){
+   const id=String(input.id||'');
+   if(!/^[a-zA-Z0-9-]{1,60}$/.test(id))return fail(res,400,'Revisión inválida.');
+   const rows=await sql.query('SELECT id,worker_name,summary,items,created_at FROM public.uki_inventario_revisiones_live WHERE branch=$1 AND id::text=$2 LIMIT 1',[branch,id]);
+   if(!rows.length)return fail(res,404,'Revisión no encontrada en esta bodega.');
+   return res.status(200).json({ok:true,branch,reporte:{branch,...rows[0]}});
+  }
+  if(action==='crear-insumo-trabajador'){
+   // Alta exclusivamente de inventario con el PIN habitual. Reutiliza el
+   // servicio de artículos adicionales; el primer conteo se guarda aparte.
+   const data=extra.crearDatos({...input.item,stock_qty:0,min_stock_qty:0});
+   const [base,added]=await Promise.all([leerInventario(sql,branch),extra.listar(sql,branch)]);
+   const same=[...base,...added].find(x=>altasFactura.normalizar(x.name)===altasFactura.normalizar(data.name));
+   if(same)return fail(res,409,'Ya existe «'+same.name+'». Busca el artículo antes de crear otro.');
+   const item=await extra.crear(sql,branch,data,worker);
+   return res.status(201).json({ok:true,branch,item});
+  }
   if(action==='listar'){
    const [data,added]=await Promise.all([leerInventario(sql,branch),extra.listar(sql,branch)]);
-   return res.status(200).json({ok:true,branch,items:[...data.map(i=>({
+   return res.status(200).json({ok:true,branch,bodegaCompartida:process.env.UKI_BODEGA_SERENA_COMPARTIDA==='true',items:[...data.map(i=>({
     sku:i.sku,kind:i.kind,group_key:i.group_key,name:i.name,available:i.available,
     stock_qty:i.stock_qty,stock_unit:i.stock_unit,min_stock_qty:i.min_stock_qty,version:i.version
    })),...added]});
@@ -259,6 +296,8 @@ module.exports=async(req,res)=>{
    const item=list.find(x=>x.sku===sku);
    if(!item||!['ingredient','inventory'].includes(item.kind))return fail(res,404,'Insumo no encontrado en esta sucursal.');
    const lib=require('../lib/inventario-justificaciones-v1.cjs');
+   if(process.env.UKI_BODEGA_SERENA_COMPARTIDA==='true'&&input.contraparte==='romo:serena')
+    return fail(res,400,'Uki y Romo La Serena comparten bodega. Selecciona La Serena o Regimiento.');
    const data=lib.validate('uki:'+branch,input,item,worker);
    return res.status(200).json({...await lib.save(sql,data),branch});
   }

@@ -46,6 +46,13 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
  .descargas-turno .grid{margin-top:8px}.descargas-turno button{width:100%;min-height:45px}
  @media(max-width:430px){.resumen-indicador{padding:8px 5px}.resumen-indicador .detalle{font-size:11px}}
  [hidden]{display:none!important}
+</style><style>
+.inv-app-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.inv-app-grid button{min-height:112px;text-align:left;background:#fff;border:1px solid #ead5c4;color:#704222;padding:14px;font-size:22px;border-radius:14px;box-shadow:0 2px 6px #5433120b}
+.inv-app-grid strong,.inv-app-grid small{display:block}.inv-app-grid strong{font-size:15px;margin-top:7px}.inv-app-grid small{font-weight:400;color:#766252;font-size:12px;margin-top:5px}
+#activo[data-inv-mode="entrada"] #items .inv-count-control{display:none}
+#activo[data-inv-mode="conteo"] #items .inv-receive-control{display:none}
+#activo[data-inv-mode="compras"] #enviar,#activo[data-inv-mode="compras"] #descargasTurno{display:none!important}
 </style></head>
 <body><header><h1>🍣 Uki Sushi · Inventario</h1><div>Conteo del turno · sin caja, ventas ni cierres</div></header>
 <main>
@@ -58,11 +65,22 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 <p class="muted">Este código solo permite contar, registrar mercadería y enviar la revisión. No abre el panel de pedidos.</p>
 <button id="abrir">Abrir inventario</button><p id="estado" role="status" class="muted"></p>
 </section>
-<div id="activo" hidden>
-<section class="card"><h2>2. Contar lo que queda</h2>
+<div id="activo" hidden><section id="invAppHome" class="card inv-app-home">
+<h2>Mi inventario</h2><p id="invAppLocal" class="muted"></p>
+<nav class="inv-app-grid" aria-label="Funciones del inventario">
+<button type="button" data-inv-view="conteo">📋<strong>Contar existencias</strong><small>Lo que tenemos</small></button>
+<button type="button" data-inv-view="entrada">📦<strong>Recibir mercadería</strong><small>Ingreso manual o factura</small></button>
+<button type="button" data-inv-view="alta">➕<strong>Agregar insumo</strong><small>Preparar artículos nuevos</small></button>
+<button type="button" data-inv-view="merma">🗑<strong>Merma</strong><small>Producto perdido</small></button>
+<button type="button" data-inv-view="personal">🍽<strong>Consumo personal</strong><small>Alimentación del equipo</small></button>
+<button type="button" data-inv-view="traspaso">⇄<strong>Traspasos</strong><small>Entre bodegas</small></button>
+<button type="button" data-inv-view="compras">🛒<strong>Lista de compras</strong><small>Lo que falta</small></button>
+<button type="button" data-inv-view="historial">🗓<strong>Historial y reportes</strong><small>Consultar por fecha</small></button><button type="button" data-inv-view="reporte">📄<strong>Guardar y compartir</strong><small>PDF, Excel y WhatsApp</small></button>
+</nav></section><section id="invAppBar" class="card" hidden><button type="button" id="invAppBack" class="secondary">‹ Inicio</button><h2 id="invAppTitle" style="margin-top:12px"></h2></section>
+<section class="card" id="invQuickAdd" hidden><h2>Nuevo insumo</h2><p class="muted">Si falta un insumo, agrégalo aquí. Luego registra el conteo físico o la entrada, según corresponda.</p><label for="invQuickName">Nombre</label><input id="invQuickName" maxlength="100" placeholder="Ej. Harina"><label for="invQuickCat">Categoría</label><select id="invQuickCat"><option value="ingrediente">Ingrediente</option><option value="envase">Envase</option><option value="otro">Limpieza u otros</option></select><label for="invQuickUnit">Unidad</label><select id="invQuickUnit"><option value="kg">Kilos</option><option value="g">Gramos</option><option value="l">Litros</option><option value="ml">Mililitros</option><option value="un">Unidades</option><option value="porciones">Porciones</option></select><button type="button" id="invQuickSave">Agregar insumo</button><p id="invQuickStatus" role="status" class="muted"></p></section><section class="card" id="invListHeader"><h2>Ingredientes e insumos</h2>
 <div class="grid"><select id="tipo" aria-label="Tipo de artículo">
 <option value="ingredientes">Ingredientes e insumos</option><option value="productos">Productos para contar</option><option value="todos">Todos</option></select>
-<input id="buscar" placeholder="Buscar pollo, palta…"></div>
+<input id="buscar" placeholder="Buscar pollo, palta…"></div><label for="invCategory">Categoría</label><select id="invCategory"><option value="todos">Todas</option><option value="ingrediente">Ingredientes</option><option value="envase">Envases</option><option value="otro">Limpieza u otros</option></select>
 <div class="grid" style="margin-top:10px"><select id="estadoLista" aria-label="Filtrar inventario por estado">
 <option value="pendiente">Pendientes de contar</option><option value="todos">Todos los artículos</option>
 <option value="contados">Contados en esta sesión</option><option value="reponer">Para reponer</option>
@@ -74,7 +92,7 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
  <p id="turnoUltimoRegistro" class="muted small">Aún no hay artículos guardados en esta sesión.</p>
  </div>
 <p class="muted">Al cierre cuenta lo que realmente queda y pulsa <b>Guardar conteo</b> en cada artículo. Cuando llega mercadería, usa <b>Registrar entrada</b>. Solo administración decide Disponible / Agotado en la carta.</p><p id="turnoProgreso" role="status" class="pill">Todavía no hay conteos guardados en este turno.</p></section>
-<div id="items"></div><div style="text-align:center;margin:10px 16px"><button type="button" id="mostrarMas" class="secondary" hidden>Mostrar 12 artículos más</button></div>
+<div id="items"></div><div id="invMoreWrap" style="text-align:center;margin:10px 16px"><button type="button" id="mostrarMas" class="secondary" hidden>Mostrar 12 artículos más</button></div>
 <details class="card" id="justMov"><summary><b>Registrar merma, consumo del personal o traspaso</b></summary>
 <p class="muted">Solo deja constancia. No cambia las existencias: cuenta lo que queda al final. Si recibes un traspaso, usa este registro y no lo repitas como compra o entrada de mercadería. Ambas sucursales deben usar el mismo folio.</p>
 <label for="justSku">Insumo</label><select id="justSku"></select>
@@ -84,7 +102,7 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 <label for="justReason">Motivo</label><input id="justReason" maxlength="180" placeholder="Ej. Producto dañado">
 <button type="button" id="justSave">Guardar registro</button><p id="justStatus" role="status" class="muted"></p>
 </details>
-<section class="card"><h2>3. Terminar el turno</h2><p class="muted">Confirma los conteos guardados. Si faltan artículos por revisar, puedes completar el conteo antes de terminar.</p><p id="resumen" class="muted"></p><div id="resumenIndicadores" class="reporte-colores" aria-label="Resumen del inventario"></div><div id="resumenArticulos" class="reporte-lista" aria-label="Artículos que requieren reposición"></div>
+<section class="card" id="invHistory" hidden><h2>Reportes por fecha</h2><div class="grid"><div><label for="invHistFrom">Desde</label><input id="invHistFrom" type="date"></div><div><label for="invHistTo">Hasta</label><input id="invHistTo" type="date"></div></div><label for="invHistKind">Informe</label><select id="invHistKind"><option value="revision">Inventario guardado</option><option value="compras">Lista de compras guardada</option><option value="todos">Todos los movimientos</option><option value="entrada">Mercadería recibida</option><option value="conteo">Conteos</option><option value="merma">Mermas</option><option value="personal">Consumo personal</option><option value="traspasos">Traspasos</option></select><button id="invHistLoad" type="button">Consultar</button><p id="invHistStatus" role="status" class="muted"></p><div id="invHistList"></div><div id="invHistActions" hidden><div class="grid"><button type="button" id="invHistPDF">PDF</button><button type="button" id="invHistExcel" class="secondary">Excel (.csv)</button></div><button type="button" id="invHistText" style="margin-top:10px">Enviar por WhatsApp en texto</button></div></section><section class="card" id="invFinish"><h2>Guardar inventario y reportes</h2><p class="muted">Confirma los conteos guardados. Si faltan artículos por revisar, puedes completar el conteo antes de terminar.</p><p id="resumen" class="muted"></p><div id="resumenIndicadores" class="reporte-colores" aria-label="Resumen del inventario"></div><div id="resumenArticulos" class="reporte-lista" aria-label="Artículos que requieren reposición"></div>
 <button id="enviar">Guardar inventario en el panel</button>
 <p class="muted">Primero guarda la revisión. Después podrás enviar el PDF completo y, por separado, el texto de los productos que hay que comprar.</p>
 <p id="confirmacion" role="status"></p>
@@ -93,7 +111,7 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
  <p class="muted">Dos envíos distintos: el informe completo en PDF y la lista de compras en un mensaje de WhatsApp.</p>
  <div style="display:grid;grid-template-columns:1fr;gap:9px;margin:12px 0">
   <button type="button" id="compartirPDFWhatsApp">📄 Compartir PDF por WhatsApp</button>
-  <button type="button" id="enviarComprasTexto" class="secondary">🛒 Enviar lista de compras por WhatsApp (texto)</button>
+  <button type="button" id="enviarInventarioTexto" class="secondary">Enviar inventario completo por WhatsApp (texto)</button><button type="button" id="enviarComprasTexto" class="secondary">🛒 Enviar lista de compras por WhatsApp (texto)</button>
  </div>
  <p class="muted" id="compartirAyuda">En el iPhone, selecciona WhatsApp al compartir el PDF. El mensaje de compras se envía aparte, con las cantidades para pedir.</p>
  <p class="muted">También puedes descargar los archivos para guardarlos:</p>
@@ -108,7 +126,9 @@ import {iniciarFacturaLive} from './uki-factura-interfaz-live.mjs';
 const $=id=>document.getElementById(id);
 const isLive=['uki-sushi-inventario.vercel.app','uki-sushi-inventario-diannaleandra-7046.vercel.app'].includes(location.hostname);
 const API='/api/inventario-turno-live';
-let branch='',items=[],busy=false,requestId=null,lastSaved=null,reporteFinal=null;
+let branch='',items=[],busy=false,requestId=null,lastSaved=null,reporteFinal=null,bodegaCompartida=false;
+const accesoRomo=new URLSearchParams(location.search).get('acceso')==='romo';
+if(accesoRomo){$('branch').value='serena';$('branch').disabled=true;document.querySelector('header h1').textContent='La Serena · Inventario Uki y Romo';document.querySelector('label[for="codigo"]').textContent='PIN habitual de inventario Romo';}
 const entradasSesion=new Map();
 const stockAlAbrir=new Map();
 const status=s=>{$('estado').textContent=s;};
@@ -119,7 +139,7 @@ async function api(action,extra={}){
  if(!isLive)throw Error('Esta página está disponible únicamente en producción.');
  const response=await fetch(API,{method:'POST',cache:'no-store',credentials:'omit',mode:'cors',
   headers:{'Content-Type':'application/json'},body:JSON.stringify({
-   branch:branch||$('branch').value,action,codigo:codigo(),worker_name:nombre(),...extra
+   branch:branch||$('branch').value,action,codigo:codigo(),worker_name:nombre(),...(accesoRomo?{acceso:'romo'}:{}),...extra
   }),signal:AbortSignal.timeout(20000)});
  const body=await response.json().catch(()=>({}));
  if(!response.ok||!body.ok)throw Error(body.error||'No se pudo guardar. No reintentes sin revisar el estado.');
@@ -227,8 +247,9 @@ function render(){
  justRefresh();
  const box=$('items');box.replaceChildren();
  const kind=$('tipo').value,term=$('buscar').value.trim().toLocaleLowerCase('es-CL');
- const progress=$('estadoLista').value;
+ const progress=$('estadoLista').value,category=$('invCategory').value;
  const visible=items.filter(i=>(kind==='todos'||(kind==='ingredientes'?['ingredient','inventory'].includes(i.kind):!['ingredient','inventory'].includes(i.kind)))&&
+  (category==='todos'||(i.category||(i.kind==='ingredient'?'ingrediente':i.group_key))===category)&&
   (!term||String(i.name).toLocaleLowerCase('es-CL').includes(term))&&
   (progress==='todos'||(progress==='pendiente'&&!revisados.has(i.sku))||
   (progress==='contados'&&revisados.has(i.sku))||
@@ -318,7 +339,7 @@ function render(){
    await save(item,'recibir',n,recUnit.value);
   };
   details.append(summary,recRow,recHint,receive);
-  card.append(elt('p','Conteo real · reemplaza el saldo anterior','action-label'),countRow,countHint,count,details);
+  const countLabel=elt('p','Conteo real · reemplaza el saldo anterior','action-label');for(const el of [countLabel,countRow,countHint,count])el.classList.add('inv-count-control');details.classList.add('inv-receive-control');card.append(countLabel,countRow,countHint,count,details);
   if(lastSaved?.sku===item.sku){
    const note=elt('p',lastSaved.message,lastSaved.ok?'confirmacion-item':'error-item');
    note.setAttribute('role','status');card.append(note);
@@ -360,20 +381,133 @@ async function abrir(){
  setBusy(true);status('Cargando inventario…');
  try{
   const result=await api('listar');
-  branch=$('branch').value;items=result.items||[];stockAlAbrir.clear();
+  branch=$('branch').value;bodegaCompartida=result.bodegaCompartida===true;items=result.items||[];stockAlAbrir.clear();
   for(const item of items)stockAlAbrir.set(item.sku,{qty:Number(item.stock_qty)||0,unit:item.stock_unit});
   revisados.clear();horaConteos.clear();entradasSesion.clear();visibleLimit=12;requestId=null;lastSaved=null;reporteFinal=null;$('descargasTurno').hidden=true;factura.reset();
   $('activo').hidden=false;$('confirmacion').textContent='';
   $('turnoFechaChile').textContent='Inicio del conteo: '+formatoFechaHoraChile(new Date())+' (Chile).';
   $('turnoUltimoRegistro').textContent='Aún no hay artículos guardados en esta sesión.';
   iniciarReloj();
-  render();status('Inventario del turno listo.');
+  render();status('Inventario del turno listo.');invHistInit();invAppView('inicio');
  }catch(e){branch='';items=[];$('activo').hidden=true;status(String(e.message));}
  finally{setBusy(false);}
 }
 
 // Registro independiente: nunca cambia la cantidad de existencias.
 let justPending=null;
+
+let invAppMode='inicio';
+function invAppView(mode){
+ if(busy&&mode!=='inicio')return;
+ invAppMode=mode;
+ $('activo').dataset.invMode=mode;
+ $('invAppLocal').textContent=branch==='arica'?'Regimiento Arica':bodegaCompartida?'La Serena · Uki y Romo (bodega compartida)':'La Serena';
+ $('invAppHome').hidden=mode!=='inicio';$('invAppBar').hidden=mode==='inicio';
+ const titles={conteo:'Contar existencias',entrada:'Recibir mercadería',alta:'Agregar insumo',merma:'Registrar merma',personal:'Consumo del personal',traspaso:'Traspasos',compras:'Lista de compras',reporte:'Guardar y compartir',historial:'Historial y reportes'};
+ $('invAppTitle').textContent=titles[mode]||'';
+ const list=['conteo','entrada'].includes(mode);
+ $('invListHeader').hidden=!list;$('items').hidden=!list;$('invMoreWrap').hidden=!list;
+ $('facturaQA').hidden=!['entrada','alta'].includes(mode);$('invQuickAdd').hidden=mode!=='alta';
+ $('justMov').hidden=!['merma','personal','traspaso'].includes(mode);
+ $('invFinish').hidden=!['compras','reporte'].includes(mode);$('invHistory').hidden=mode!=='historial';
+ if(mode==='entrada'||mode==='conteo'){$('estadoLista').value=mode==='entrada'?'todos':'pendiente';visibleLimit=12;render();}
+ if(mode==='alta'){$('factModoPreparar')?.click();$('factAltasDetalles').open=true;}
+ if(mode==='entrada')$('factModoRecibir')?.click();
+ if(['merma','personal','traspaso'].includes(mode)){
+  $('justKind').value=mode==='traspaso'?'traspaso_salida':mode;$('justKind').onchange();$('justMov').open=true;
+ }
+ if(mode==='compras'||mode==='reporte')resumen();
+ window.scrollTo({top:0,behavior:'instant'});
+}
+
+$('invQuickSave').onclick=async()=>{
+ if(busy||!branch)return;
+ const name=$('invQuickName').value.trim().replace(/\s+/g,' '),msg=$('invQuickStatus');
+ if(name.length<2){msg.textContent='Escribe el nombre del insumo.';return;}
+ const category=$('invQuickCat').value,stock_unit=$('invQuickUnit').value;
+ setBusy(true);$('invQuickSave').disabled=true;
+ try{
+  const v=await api('crear-insumo-trabajador',{item:{name,category,stock_unit}});
+  if(!v.item?.sku)throw Error('No se confirmó el alta. Actualiza la lista antes de repetir.');
+  items=[...items.filter(i=>i.sku!==v.item.sku),v.item];stockAlAbrir.set(v.item.sku,{qty:0,unit:v.item.stock_unit});
+  $('invQuickName').value='';requestId=null;reporteFinal=null;$('descargasTurno').hidden=true;
+  render();msg.textContent='✓ Insumo agregado. Registra su conteo o entrada desde el menú.';
+ }catch(e){msg.textContent=e.message;}
+ finally{setBusy(false);$('invQuickSave').disabled=false;}
+};
+$('invCategory').onchange=()=>{visibleLimit=12;render();};
+
+
+let invHistReport=null,invHistMode='';
+function invHistClear(){
+ invHistReport=null;invHistMode='';$('invHistList').replaceChildren();$('invHistActions').hidden=true;$('invHistStatus').textContent='';
+}
+for(const id of ['invHistFrom','invHistTo','invHistKind'])$(id).onchange=invHistClear;
+function invHistInit(){
+ const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+ $('invHistFrom').value=today;$('invHistTo').value=today;invHistClear();
+}
+$('invHistLoad').onclick=async()=>{
+ if(busy||!branch)return;
+ const current=branch,kind=$('invHistKind').value,desde=$('invHistFrom').value,hasta=$('invHistTo').value;
+ invHistClear();setBusy(true);$('invHistLoad').disabled=true;
+ try{
+  if(kind==='revision'||kind==='compras'){
+   const v=await api('revisiones-trabajador',{desde,hasta});
+   if(current!==branch)return;
+   $('invHistStatus').textContent=v.revisiones.length+' revisiones guardadas. Selecciona una.';
+   for(const row of v.revisiones){
+    const b=elt('button',new Date(row.created_at).toLocaleString('es-CL',{timeZone:'America/Santiago'})+' · '+row.worker_name,'secondary');
+    b.type='button';b.style.cssText='display:block;width:100%;margin:7px 0';
+    b.onclick=async()=>{
+     if(busy||current!==branch)return;setBusy(true);$('invHistActions').hidden=true;invHistReport=null;
+     try{
+      const report=await api('revision-trabajador',{id:row.id});
+      if(current!==branch)return;
+      invHistMode=kind;invHistReport=report.reporte;
+      if(kind==='compras')invHistReport={...invHistReport,items:invHistReport.items.filter(i=>Number(i.min_stock_qty)>0&&Number(i.stock_qty)<=Number(i.min_stock_qty))};
+      $('invHistActions').hidden=false;$('invHistStatus').textContent='Informe seleccionado: '+b.textContent;
+     }catch(e){$('invHistStatus').textContent=e.message;}
+     finally{setBusy(false);}
+    };
+    $('invHistList').append(b);
+   }
+  }else{
+   const v=await api('movimientos-trabajador',{desde,hasta,tipo:kind});
+   if(current!==branch)return;
+   invHistReport=v;invHistMode='movimientos';$('invHistStatus').textContent=v.movimientos.length+' movimientos registrados.'+(!v.justificacionesDisponibles?' Salidas justificadas no disponibles.':'');
+   for(const m of v.movimientos.slice(0,30))$('invHistList').append(elt('p',new Date(m.fecha).toLocaleString('es-CL',{timeZone:'America/Santiago'})+' · '+m.name+' · '+m.cantidad+' '+m.unidad+' · '+m.tipo,'small'));
+   if(v.movimientos.length>30)$('invHistList').append(elt('p','Vista previa de 30 registros; los archivos contienen todos.','muted'));
+   $('invHistActions').hidden=false;
+  }
+ }catch(e){$('invHistStatus').textContent=e.message;}
+ finally{setBusy(false);$('invHistLoad').disabled=false;}
+};
+function invHistExport(format){
+ if(busy||!invHistReport)return;
+ try{
+  const f=window.ukiInventarioExportar;
+  if(format==='texto'){
+   const text=invHistMode==='movimientos'?f.reporteMovimientos(invHistReport).texto:invHistMode==='compras'?f.mensajeCompras(invHistReport):['INVENTARIO COMPLETO',f.branchName(invHistReport.branch),new Date(invHistReport.created_at).toLocaleString('es-CL',{timeZone:'America/Santiago'}),invHistReport.worker_name,...f.filas(invHistReport).map(x=>'• '+x.name+': '+x.stock+' '+x.unit)].join('\n');
+   if(text.length>12000){$('invHistStatus').textContent='El mensaje es demasiado largo. Elige fechas más cortas o descarga PDF/Excel.';return;}
+   const url='https://wa.me/?text='+encodeURIComponent(text),w=window.open(url,'_blank');if(w)w.opener=null;else window.location.href=url;
+  }else if(invHistMode==='movimientos')f.descargarMovimientos(invHistReport,format);
+  else if(format==='pdf')f.guardarPDF(invHistReport);else f.excel(invHistReport);
+ }catch(e){$('invHistStatus').textContent=e.message;}
+}
+$('invHistPDF').onclick=()=>invHistExport('pdf');$('invHistExcel').onclick=()=>invHistExport('csv');$('invHistText').onclick=()=>invHistExport('texto');
+
+$('invAppBack').onclick=()=>invAppView('inicio');
+document.querySelectorAll('[data-inv-view]').forEach(b=>b.onclick=()=>invAppView(b.dataset.invView));
+$('enviarInventarioTexto').onclick=()=>{
+ if(!reporteFinal||!window.ukiInventarioExportar)return;
+ const f=window.ukiInventarioExportar,lines=['📦 INVENTARIO COMPLETO', 'Sucursal: '+f.branchName(reporteFinal.branch),'Fecha: '+new Date(reporteFinal.created_at).toLocaleString('es-CL',{timeZone:'America/Santiago'}),'Responsable: '+reporteFinal.worker_name,''];
+ for(const row of f.filas(reporteFinal))lines.push('• '+row.name+': '+row.stock+' '+row.unit+(row.received===null?'':' · recibido '+row.received+' '+row.unit));
+ const text=lines.join('\n');
+ if(text.length>12000){$('compartirAyuda').textContent='Informe muy largo: utiliza PDF o Excel para no perder información.';return;}
+ const opened=window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank');if(opened)opened.opener=null;else window.location.href='https://wa.me/?text='+encodeURIComponent(text);
+};
+
 function justRefresh(){
  const local='uki:'+branch,sel=$('justSku'),prev=sel.value;
  sel.replaceChildren(new Option('Selecciona insumo',''));
@@ -381,7 +515,8 @@ function justRefresh(){
  if([...sel.options].some(x=>x.value===prev))sel.value=prev;
  const other=$('justOther'),prior=other.value;
  other.replaceChildren(new Option('Selecciona sucursal',''));
- for(const [id,name] of [['uki:arica','Uki Regimiento Arica'],['uki:serena','Uki La Serena'],['romo:serena','Romo La Serena']])if(id!==local)other.add(new Option(name,id));
+ const destinos=bodegaCompartida?[['uki:arica','Regimiento Arica'],['uki:serena','La Serena · Uki y Romo']]:[['uki:arica','Uki Regimiento Arica'],['uki:serena','Uki La Serena'],['romo:serena','Romo La Serena']];
+ for(const [id,name] of destinos)if(id!==local)other.add(new Option(name,id));
  if([...other.options].some(x=>x.value===prior))other.value=prior;
 }
 $('justKind').onchange=()=>{$('justTransfer').hidden=!$('justKind').value.startsWith('traspaso_');};
