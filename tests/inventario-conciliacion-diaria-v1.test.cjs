@@ -1,0 +1,11 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict');
+const {reconcile}=require('../lib/inventario-conciliacion-diaria-v1.cjs');
+const store='uki:arica';
+const item={store,sku:'pollo',unit:'kg',opening:5,received:5,transferIn:0,transferOut:0,waste:0,staff:0,closing:6,unitCost:5000};
+const p={orderKey:store+'|1|fecha',status:'ready',consumption:[{sku:'pollo',unit:'g',quantity:3200}]};
+test('concilia kilos y costo sin modificar entradas',()=>{const r=reconcile({store,items:[item],plans:[p],coverageComplete:true}).rows[0];assert.ok(Math.abs(r.expected-6.8)<1e-9);assert.equal(r.actual,4);assert.equal(r.differenceCost,4000);});
+test('sin cobertura no inventa faltantes',()=>{assert.equal(reconcile({store,items:[item],plans:[p]}).rows[0].difference,null);});
+test('rechaza duplicados y sucursales cruzadas',()=>{assert.throws(()=>reconcile({store,items:[item],plans:[p,p]}));assert.throws(()=>reconcile({store,items:[{...item,store:'romo:serena'}]}));});
+test('sin precio conserva cantidades',()=>{const r=reconcile({store,items:[{...item,unitCost:null}],plans:[p],coverageComplete:true}).rows[0];assert.equal(r.sales,3.2);assert.equal(r.differenceCost,null);});
+test('mermas y personal explican diferencias',()=>{const r=reconcile({store,items:[{...item,waste:.5,staff:.3}],plans:[p],coverageComplete:true}).rows[0];assert.ok(Math.abs(r.difference)<1e-9);});

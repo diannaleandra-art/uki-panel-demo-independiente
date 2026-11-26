@@ -65,7 +65,7 @@ module.exports=async function romoPinInventarioQA(req,res){
  if(reject(body)||JSON.stringify(body).length>5000)
   return fail(res,400,'Formulario de inventario inválido');
  const action=String(body.action||'');
- if(!['estado','crear-codigo','listar','conteo','entrada','finalizar'].includes(action))
+ if(!['estado','crear-codigo','listar','conteo','entrada','finalizar','justificar'].includes(action))
   return fail(res,400,'Operación no permitida');
  try{
   const neon=require('@neondatabase/serverless').neon(cfg.database);
@@ -106,6 +106,15 @@ module.exports=async function romoPinInventarioQA(req,res){
    return res.status(200).json({ok:true,...data,contenido});
   }
   if(!cfg.write)return fail(res,503,'El inventario Romo está en consulta');
+  if(action==='justificar'){
+   if(process.env.ROMO_INVENTARIO_JUSTIFICACIONES_ENABLED!=='true')return fail(res,503,'Registro de movimientos aún no habilitado.');
+   const data=await inv.readInventarioRomoQA({db,identity});
+   const item=data.contenido.items.find(x=>x.sku===body.sku&&!x.archived);
+   if(!item)return fail(res,404,'Insumo no encontrado en esta sucursal.');
+   const lib=require('../lib/inventario-justificaciones-v1.cjs');
+   const result=await lib.save(db,lib.validate(STORE,body,item,name));
+   return res.status(200).json({...result,storeId:STORE});
+  }
   if(!Number.isSafeInteger(body.expectedRevision)||body.expectedRevision<0)
    return fail(res,400,'Actualiza el inventario antes de guardar');
   let operation,args;
@@ -125,6 +134,7 @@ module.exports=async function romoPinInventarioQA(req,res){
    expectedRevision:body.expectedRevision,action:operation,args});
   return res.status(200).json({ok:true,...saved,guardado:true});
  }catch(e){
+  if([400,409].includes(e?.status))return fail(res,e.status,String(e.message));
   if(e?.code==='REVISION_CONFLICTO')return fail(res,409,'Otro equipo cambió el inventario; actualiza antes de volver a guardar');
   if(/Cantidad|entrada|no existe|archivado|Revisión|Resumen|SKU|inválido|artículo|nombre/i.test(String(e?.message||'')))
    return fail(res,400,'Revisa las cantidades y actualiza el inventario');

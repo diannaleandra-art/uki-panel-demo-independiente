@@ -8019,6 +8019,7 @@ async function ukiRomoGuardarOperacionQA(copia,descripcion,orden,vista='pedidos'
  if(res?.changed!==true||res.revision!==anterior.revision+1)
   throw Error('No se confirmó una revisión nueva. Verifica antes de volver a intentar.');
  S={...S,...copia,suc:ROMO_SUCURSAL_QA,pinSuc:null,vista,msg:null};
+ void window.ukiPublicarConsumoLive?.(copia,ROMO_SUCURSAL_QA,res.revision);
  S.msg=descripcion+(orden===null?'':' · Pedido #'+orden)+' · revisión '+res.revision+'.';
  render();
  // La proyección se ejecuta sólo tras el CAS confirmado, nunca antes de guardar.
@@ -9019,6 +9020,7 @@ async function ukiRomoConfirmarOlvidoQA(solicitudId){
     result.revision!==revision.revision+1)
    throw Error(result?.error||'No se confirmó una constancia inmutable en Neon');
   sesion.confirmarSobreAceptado({estado:copia,revision:result.revision});
+  void window.ukiPublicarConsumoLive?.(copia,ROMO_SUCURSAL_QA,result.revision);
   S={...S,...copia,suc:ROMO_SUCURSAL_QA,pinSuc:null,vista:'caja',
    msg:'Pedido olvidado confirmado como versión '+result.version+
     ' del cierre original · Neon revisión '+result.revision};
@@ -9307,6 +9309,7 @@ async function ukiRomoConfirmarRectificacionQA(solicitudId){
     result.revision!==before.revision+1)
    throw Error(result?.error||'No se recibió constancia v2 verificable');
   sesion.confirmarSobreAceptado({estado:copia,revision:result.revision});
+  void window.ukiPublicarConsumoLive?.(copia,ROMO_SUCURSAL_QA,result.revision);
   preparado=false;
   S={...S,...copia,suc:ROMO_SUCURSAL_QA,pinSuc:null,vista:'caja',
      msg:'Rectificación v2 confirmada · '+result.fuenteRectificacion};
@@ -10031,6 +10034,7 @@ async function ukiRomoAceptarSolicitudCartaQA(){
    },
    aplicarConfirmado:async({estado,revision,pedidoId})=>{
     session.confirmarSobreAceptado({estado,revision});
+    void window.ukiPublicarConsumoLive?.(estado,ROMO_SUCURSAL_QA,revision);
     S={...S,...estado,suc:ROMO_SUCURSAL_QA,pinSuc:null,vista:'pedidos',msg:null};
     nuevoDraft();
     const aceptado=candidatoEstadoPagadoRomoQA(estado,pedidoId);
@@ -10379,6 +10383,7 @@ async function ukiRomoCerrarTurnoQA(){
      result.constancia!==true)
    throw Error(result?.error||'Respuesta de cierre no confirmada');
   session.confirmarSobreAceptado({estado:copia,revision:result.revision});
+  void window.ukiPublicarConsumoLive?.(copia,ROMO_SUCURSAL_QA,result.revision);
   S={...S,...copia,suc:ROMO_SUCURSAL_QA,pinSuc:null,vista:'caja',msg:null};
   ukiCierreReciente={suc:S.suc,ms:fechaCierreMs(closing.cierre)};
   cajaTab='resumen';
@@ -10921,6 +10926,7 @@ async function ukiRomoGuardarPedidoPendienteQA(){
   const saved=await session.guardar(clone);
   if(saved?.changed!==true||saved.revision!==expected.revision+1)
    throw Error('El servidor no confirmó la revisión del pedido; conserva este formulario.');
+  void window.ukiPublicarConsumoLive?.(clone,ROMO_SUCURSAL_QA,saved.revision);
   const quedoPagado=pedido.pagado===true;
   S={...S,...clone,suc:s,pinSuc:null,msg:null,vista:'pedidos'};
   nuevoDraft();ukiRomoBorradorActivoQA=null;
@@ -12464,7 +12470,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 <script type="module" src="./uki-romo-vinculo-duenos-qa.mjs"></script>
 <script src="./uki-tarjeta-cliente.js?v=imagen-en-pedido-v2" defer></script>
 <script src="./uki-cierre-detallado.js" defer></script>
-<script src="./uki-inventario-admin-embebido.js?v=20261122-costeo-v1" defer></script>
+<script src="./uki-inventario-admin-embebido.js?v=20261126-consumo-v1" defer></script>
 <script src="./uki-disponibilidad-admin.js?v=romo-disponibilidad-20261121" defer></script>
 <script src="./uki-carta-precios-admin.js?v=romo-secciones-20261121" defer></script>
 <script src="./uki-armado-ingredientes-admin.js?v=uki-tres-vistas-qa-20261109" defer></script>

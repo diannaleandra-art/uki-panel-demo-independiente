@@ -59,7 +59,7 @@ test('cancelaciones y pendientes nunca generan consumo',()=>{
 test('cambios de detalle o receta desactualizada exigen revisión',()=>{
  assert.equal(plan({...data,order:{...order,productos:[{...order.productos[0],detalle:'camarón'}]}}).status,'review');
  assert.equal(plan({...data,assignments:[{...assignments[0],recipeRevision:2}]}).status,'review');
- assert.equal(plan({...data,prices:[]}).status,'review');
+ const unpriced=plan({...data,prices:[]});assert.equal(unpriced.status,'ready');assert.equal(unpriced.cost,null);assert.equal(unpriced.costComplete,false);assert.deepEqual(unpriced.consumption,plan(data).consumption);
 });
 test('el pedido pertenece estrictamente al local confirmado',()=>{
  assert.throws(()=>plan({...data,store:'uki:serena'}));

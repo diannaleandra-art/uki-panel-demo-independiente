@@ -1,0 +1,24 @@
+name: Conciliacion inventario - pruebas sin produccion
+on:
+  pull_request:
+    branches: [main, release/romos-panel-v816]
+    types: [opened, synchronize, reopened, ready_for_review]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Node y dependencias
+        run: |
+          node --version
+          npm install --ignore-scripts --no-audit --no-fund --package-lock=false
+      - name: Pruebas de regresion
+        run: npm test
+      - name: Validacion de sintaxis del JavaScript servidor
+        run: |
+          for f in lib/inventario-*.cjs lib/costeo-*.cjs; do node --check "$f"; done
