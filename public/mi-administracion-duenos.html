@@ -2107,6 +2107,16 @@ $('ukiFisicoConsultar').onclick=async()=>{
    renderLive();
    add(box,'p',r.warning||'Salida física provisional. No acredita pérdidas.');
   }
+  if(data.traspasos?.readOnly===true){
+   const sec=document.createElement('details');sec.className='line';result.append(sec);add(sec,'summary','Conciliación de traspasos por folio');
+   const states={coincide:'Envío y recepción coinciden',cantidad_distinta:'Cantidad distinta',unidad_distinta:'Unidad distinta',contraparte_no_visible:'Contraparte no visible',duplicado_revisar:'Duplicado por revisar',equivalencia_pendiente:'Equivalencia de insumo pendiente'};
+   for(const t of data.traspasos.rows||[]){
+    const info=(t.sent?'Enviado '+fmt(t.sent.quantity,t.sent.unit):'Sin envío visible')+' · '+(t.received?'Recibido '+fmt(t.received.quantity,t.received.unit):'Sin recepción visible');
+    add(sec,'p',t.folio+' · '+(names[t.from]||t.from)+' → '+(names[t.to]||t.to)+' · '+(t.ingredient||t.sku||'Insumo')+' · '+(states[t.status]||'Revisar')+' · '+info);
+   }
+   if(!data.traspasos.rows?.length)add(sec,'p','No se encontraron traspasos en las revisiones consultadas.');
+   add(sec,'p',data.traspasos.warning);
+  }
   add(result,'p','Sin cambios en inventario, compras, ventas ni resultados de caja. Los pedidos sin respaldo o receta verificable quedan pendientes.');
  }catch(e){if(valid())result.textContent=e.message;}
  finally{if(valid())button.disabled=false;}
