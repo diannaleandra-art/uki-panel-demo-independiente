@@ -66,7 +66,7 @@ test('La edición termina antes de añadir un pedido nuevo a la caja',()=>{
  const save=html.slice(html.indexOf('async function ndGuardar(){'),html.indexOf('\nfunction cerrar(){'));
  const edit=save.indexOf('if(D.editando){\n    const p=');
  assert.ok(edit>0);
- assert.match(save.slice(edit),/S\.vista="pedidos"; render\(\); return;/);
+ assert.match(save.slice(edit,save.indexOf('S.pedidos.push(nuevoPedido)')), /S\.vista="pedidos"; render\(\);[\s\S]*?return;\s*\}/);
  assert.ok(edit<save.indexOf('S.pedidos.push(nuevoPedido)'));
 });
 
@@ -81,14 +81,15 @@ function guardScenario({originalPagado=true,editando=true,paid=true,approval=fal
   ukiMesaNumeroReferencia:x=>Number(String(x).replace(/\D/g,''))||null,
   ukiMontoPropina:(d,sub)=>d.propinaModo==='diez'?Math.round(sub*0.1):d.propinaModo==='otro'?Number(d.propinaPersonalizada||0):0,
   UKI_MESAS_ENDPOINT:'live',UKI_MESAS_LIVE_URL:'live',
-  ukiGuardadoSolicitudEnCurso:false,ukiQRComprobandoCobro:false,
+  ukiGuardadoSolicitudEnCurso:false,ukiQRComprobandoCobro:false,window:{},ukiEdicionMantieneCobro:()=>false,ukiSeguimientoHayTransferenciaQA:()=>false,
   aviso:m=>log.push(String(m)),ukiQRPermitirCobroDefinitivo:async()=>{log.push('QR_VERIFICADO');return approval;}
  };
- const start=html.indexOf('async function ndGuardar(){');
+ assert.match(html,/return await ukiGuardarFormularioQA\(originalQR\)/);
+ const start=html.indexOf('async function ukiGuardarFormularioQA(');
  const stop=html.indexOf('  if(D.sucursalCarta &&',start);
  assert.ok(start>0&&stop>start);
  const excerpt=html.slice(start,stop);
- const f=vm.runInNewContext(html.slice(a,b)+'\n'+excerpt+'  return true;\n  }finally{ukiGuardadoSolicitudEnCurso=false;}\n}\nndGuardar;',context);
+ const f=vm.runInNewContext(html.slice(a,b)+'\n'+excerpt+'  return true;\n}\n()=>ukiGuardarFormularioQA(D.editando?S.pedidos.find(p=>p.id===D.editando):null);',context);
  return {f,log,context};
 }
 test('Integración: guardar corrección de pago ya cobrado no llama validación remota QR',async()=>{

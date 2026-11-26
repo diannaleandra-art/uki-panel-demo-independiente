@@ -11,7 +11,7 @@ const extraer=(a,b)=>{
 };
 function escenario({pedidos=[],remotas=[]}={}){
  const S={suc:'Uki Regimiento Arica',pedidos};
- const ctx={S,ukiCartaRemotasSucursal:()=>remotas,
+ const ctx={S,window:{},ukiCartaRemotasSucursal:()=>remotas,
   ukiTelefonoNormalizado:v=>{
    const n=String(v||'').replace(/\D/g,'');
    return /^9\d{8}$/.test(n)?'56'+n:n;

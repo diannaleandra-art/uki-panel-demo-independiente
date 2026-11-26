@@ -245,7 +245,7 @@ function mountCosteo(){
  const pe=id=>report.querySelector('#'+id);
  const ps=s=>{if(within())pe('invProfitStatus').textContent=s;};
  const localDate=v=>{try{return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(v));}catch{return '';}};
- const fmtMoney=v=>'$'+Number(v).toLocaleString('es-CL');
+ const fmtMoney=v=>v==null?'Pendiente de precio':'$'+Number(v).toLocaleString('es-CL');
  const countFmt=v=>Number(v).toLocaleString('es-CL',{maximumFractionDigits:4});
  let orders=[],confirmed=[],profitBusy=false,totals=new Map();
  pe('invProfitFrom').value=pe('invProfitTo').value=localDate(Date.now());
@@ -264,8 +264,8 @@ function mountCosteo(){
  }
  function showTotals(){
   const a=[...totals.values()].filter(x=>x.status==='ready'),p=pe('invProfitTotal');p.replaceChildren();
-  const rev=a.reduce((n,x)=>n+x.revenue,0),cost=a.reduce((n,x)=>n+x.cost,0);
-  p.append(make('h3','Resumen de pedidos calculados'),make('p',a.length+' de '+orders.length+' pedidos identificados del período · '+(orders.length-a.length)+' pendientes de cálculo'),make('p','Venta de productos: '+fmtMoney(rev)),make('p','Costo estimado: '+fmtMoney(cost)),make('b','Ganancia bruta estimada: '+fmtMoney(rev-cost)),make('p','Solo incluye pedidos completos revisados en esta consulta. Excluye delivery, propinas, comisiones y otros gastos.'));
+  const rev=a.reduce((n,x)=>n+x.revenue,0),cost=a.length&&a.every(x=>x.cost!==null)?a.reduce((n,x)=>n+x.cost,0):null;
+  p.append(make('h3','Resumen de pedidos calculados'),make('p',a.length+' de '+orders.length+' pedidos identificados del período · '+(orders.length-a.length)+' pendientes de cálculo'),make('p','Venta de productos: '+fmtMoney(rev)),make('p','Costo estimado: '+fmtMoney(cost)),make('b','Ganancia bruta estimada: '+fmtMoney(cost===null?null:rev-cost)),make('p','Solo incluye pedidos completos revisados en esta consulta. Excluye delivery, propinas, comisiones y otros gastos.'));
  }
  function showOrder(){
   const o=selectedOrder(),area=pe('invProfitChoices');area.replaceChildren();pe('invProfitResult').replaceChildren();if(!o)return;
@@ -307,6 +307,60 @@ function mountCosteo(){
 
 
  // Punto de partida del consumo: solo preparación del registro, no activa descuentos.
+ // Consulta automática de los pedidos disponibles; no certifica cobertura total.
+ const daily=document.createElement('details');daily.style.marginTop='16px';
+ daily.innerHTML='<summary><b>Consumo estimado por período · automático</b></summary><p>Usa las fechas del informe de pedidos anterior. Las recetas y precios son los vigentes; no descuenta stock ni confirma faltantes.</p><button type="button" class="sm ok">Calcular consumo</button> <button type="button" class="sm" id="invPhysicalCompare">Comparar últimos conteos</button><div role="status"></div><div class="daily-result"></div>';
+ card.append(daily);
+ const dailyBtn=daily.querySelector('button'),dailyStatus=daily.querySelector('[role=status]'),dailyOut=daily.querySelector('.daily-result');
+ const physicalBtn=daily.querySelector('#invPhysicalCompare');
+ async function runDaily(comparePhysical){
+  if(!within()||dailyBtn.disabled||physicalBtn.disabled)return;
+  dailyBtn.disabled=physicalBtn.disabled=true;dailyOut.replaceChildren();dailyStatus.textContent='Calculando consumo…';
+  try{
+   const start=pe('invProfitFrom').value,end=pe('invProfitTo').value;
+   if(!start||!end||start>end)throw Error('Selecciona un período válido.');
+   const suc=S.suc,store=suc==='Romo’s Sushi La Serena'?'romo:serena':suc==='Uki La Serena'?'uki:serena':'uki:arica';
+   const physical=comparePhysical?await call('consultar-periodo-fisico'):null;
+   if(physical&&!physical.available){dailyStatus.textContent=physical.reason;return;}
+   const source=(Array.isArray(S.pedidos)?S.pedidos:[]).filter(p=>p.suc===suc&&(physical?Date.parse(p.fechaISO)>Date.parse(physical.start)&&Date.parse(p.fechaISO)<=Date.parse(physical.end):localDate(p.fechaISO)>=start&&localDate(p.fechaISO)<=end));
+   const seen=new Set(),list=[];let duplicates=0;
+   for(const p of source){const key=String(p.id)+'|'+String(p.fechaISO);if(seen.has(key)){duplicates++;continue;}seen.add(key);list.push({...sanitized(p),esPremio:p.esPremio===true});}
+   const ingredients=new Map();let calculated=0,pending=0,cost=0,allPriced=true;
+   const inv=await call('listar');const names=new Map((inv.items||[]).map(i=>[i.sku,i.name]));
+   for(let n=0;n<list.length;){
+    const batch=[];while(n<list.length&&batch.length<20&&JSON.stringify({orders:[...batch,list[n]]}).length<38000){batch.push(list[n++]);}
+    if(!batch.length){pending++;n++;continue;}
+    const a=await call('proyectar-periodo',{orders:batch});
+    if(!within()||S.suc!==suc||pe('invProfitFrom').value!==start||pe('invProfitTo').value!==end)throw Error('Cambió el período o la sucursal. Vuelve a calcular.');
+    if(a.store!==store||!Array.isArray(a.consumption))throw Error('Respuesta no verificable.');
+    calculated+=a.calculated;pending+=a.pending;
+    if(a.calculated){if(a.cost===null)allPriced=false;else cost+=a.cost;}
+    for(const x of a.consumption){const k=x.sku+'|'+x.unit,v=ingredients.get(k)||{...x,quantity:0};v.quantity+=x.quantity;ingredients.set(k,v);}
+   }
+   dailyOut.append(make('h3','Consumo identificado · '+(physical?new Date(physical.start).toLocaleString('es-CL',{timeZone:'America/Santiago'})+' a '+new Date(physical.end).toLocaleString('es-CL',{timeZone:'America/Santiago'}):start+' a '+end)),make('p',calculated+' pedidos calculados · '+pending+' pendientes · '+duplicates+' duplicados omitidos'),make('p','Costo estimado de pedidos calculados: '+(calculated&&allPriced?fmtMoney(cost):'No completo')));
+   for(const x of ingredients.values()){const scale=['g','ml'].includes(x.unit)?1000:1;dailyOut.append(make('p',(names.get(x.sku)||x.sku)+' · '+countFmt(x.quantity/scale)+' '+(x.unit==='g'?'kg':x.unit==='ml'?'l':x.unit)));}
+   if(physical){
+    const u={kg:['g',1000],g:['g',1],l:['ml',1000],ml:['ml',1],un:['un',1],porciones:['porciones',1]};
+    dailyOut.append(make('h3','Comparación con conteos físicos'),make('p','Período delimitado por revisiones de inventario; pedidos según fecha de registro, no hora de preparación. Las diferencias son orientativas.'));
+    const table=make('table'),head=make('tr');
+    for(const title of ['Insumo','Inicial','Recibido','Quedó','Salida física','Venta identificada','Saldo estimado parcial','Diferencia preliminar'])head.append(make('th',title));table.append(head);
+    for(const row of physical.rows||[]){
+     const unit=u[row.unit],compatible=unit?[...ingredients.values()].filter(i=>i.sku===row.sku&&u[i.unit]?.[0]===unit[0]):[];
+     const sales=compatible.length?compatible.reduce((v,i)=>v+i.quantity*u[i.unit][1]/unit[1],0):null;
+     const estimated=row.outflow!==null&&sales!==null?row.opening+row.received-sales:null;
+     const diff=estimated===null?null:estimated-row.closing;
+     const qty=v=>v===null||v===undefined?'Pendiente':countFmt(v)+' '+row.unit;
+     const tr=make('tr');for(const val of [row.name,qty(row.opening),qty(row.received),qty(row.closing),qty(row.outflow),qty(sales),qty(estimated),qty(diff)+(diff!==null&&row.unitCost!==null?' · '+fmtMoney(Math.round(diff*row.unitCost)):'')])tr.append(make('td',val));table.append(tr);
+    }
+    const scroll=make('div');scroll.style.overflowX='auto';scroll.append(table);dailyOut.append(scroll,make('p',physical.warning||'Comparación provisional; no acredita pérdidas.'));
+   }
+   dailyOut.append(make('p','Informe parcial de pedidos disponibles en el panel. No incluye ventas ausentes, ni permite determinar faltantes definitivos.'));
+   dailyStatus.textContent='Consulta finalizada. No se modificaron existencias.';
+  }catch(e){dailyOut.replaceChildren();dailyStatus.textContent=e.message;}
+  finally{dailyBtn.disabled=physicalBtn.disabled=false;}
+ }
+ dailyBtn.onclick=()=>void runDaily(false);
+ physicalBtn.onclick=()=>void runDaily(true);
  const startBox=document.createElement('details');startBox.style.marginTop='16px';
  startBox.innerHTML='<summary><b>Inicio del control de consumo</b></summary><p class="muted">Preparar el conteo físico inicial. Solo confirma al terminar la jornada, sin pedidos preparados pendientes. Esta etapa no activa descuentos de stock.</p><button type="button" class="sm" id="invStartLoad">Consultar inventario inicial</button><p role="status" id="invStartStatus"></p><div id="invStartReview" hidden><div id="invStartItems"></div><label><input id="invStartCounted" type="checkbox"> Confirmo que las cantidades coinciden con el conteo físico.</label><label><input id="invStartNoPending" type="checkbox"> No quedan pedidos preparados pendientes de registrar.</label><button type="button" class="sm ok" id="invStartConfirm">Registrar punto inicial</button></div>';
  card.append(startBox);
@@ -357,3 +411,67 @@ function mount(){
 }
 window.ukiInventarioPanelHTML=panel;window.ukiInventarioMontar=mount;
 })();
+// Consumo informativo posterior a guardado confirmado; no modifica pedidos.
+const ukiConsumoSyncRev=new Map(),ukiConsumoSyncBusy=new Set(),ukiConsumoPending=new Map();
+async function ukiConsumoDrain(store){
+ if(ukiConsumoSyncBusy.has(store))return;
+ ukiConsumoSyncBusy.add(store);
+ try{
+  while(ukiConsumoPending.has(store)){
+   const entry=ukiConsumoPending.get(store),payload=entry.payload,revision=payload.revision;
+   if((ukiConsumoSyncRev.get(store)||0)>=revision){ukiConsumoPending.delete(store);continue;}
+   let ok=false;
+   try{
+    const token=await window.ukiInventarioToken?.();
+    if(token){
+     const response=await fetch('https://uki-sushi-inventario.vercel.app/api/inventario-ventas-live',{method:'POST',cache:'no-store',credentials:'omit',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(10000)});
+     if(response.ok){const result=await response.json();ok=result.ok===true&&result.store===store&&(result.registered===true||result.unchanged===true);}
+    }
+   }catch{}
+   if(ok)ukiConsumoSyncRev.set(store,revision);
+   if(ukiConsumoPending.get(store)!==entry)continue;
+   if(ok){ukiConsumoPending.delete(store);continue;}
+   // Keep the last confirmed snapshot for the next event; one bounded retry.
+   if(entry.attempts<1){entry.attempts++;setTimeout(()=>void ukiConsumoDrain(store),5000);}
+   break;
+  }
+ }finally{ukiConsumoSyncBusy.delete(store);}
+}
+window.ukiPublicarConsumoLive=async function(state,suc,revision){
+ const store={'Uki Regimiento Arica':'uki:arica','Uki La Serena':'uki:serena','Romo’s Sushi La Serena':'romo:serena'}[suc];
+ if(!store||!Number.isSafeInteger(revision)||revision<1||!Array.isArray(state?.pedidos)||(ukiConsumoSyncRev.get(store)||0)>=revision)return;
+ const pending=ukiConsumoPending.get(store);
+ if(pending?.payload.revision>=revision){if(pending.payload.revision===revision)await ukiConsumoDrain(store);return;}
+ try{
+  const now=Date.now(),start=now-7*86400000,facts=[],seen=new Set();
+  for(const p of state.pedidos){
+   const stamp=Date.parse(p?.fechaISO);
+   if(p?.suc!==suc||!Number.isFinite(stamp)||stamp<=start||stamp>now)continue;
+   const id=Number(p.id),at=new Date(stamp).toISOString(),key=id+'|'+at;
+   if(!Number.isSafeInteger(id)||id<1||seen.has(key))continue;seen.add(key);
+   const fact={id,at,state:p.estado==='Entregado'?'prepared':'review',rolls:[]};
+   if(fact.state==='prepared'){
+    const groups=ukiStatsGruposRegistrados(p,Array.isArray(p.productos)?p.productos:[],ukiStatsArmadoDigital(p.textoOriginal));
+    if(groups)for(const g of groups){
+     const match=ukiStatsClaveProducto(g.nombre).match(/^(clasico|premium) (\d{1,3}) piezas$/);
+     if(!match)continue;
+     const type=match[1]==='clasico'?'roll-clasico':'premium',n=Number(match[2])/(type==='premium'?10:12);
+     if(!Number.isInteger(n)||n<1||g.rollRows.length!==n||!g.rollRows.every((r,i)=>r.index===i+1&&r.cantidad===g.cantidad))continue;
+     const raw=g.lines.filter(l=>/^(?:(\d{1,3})\s*[×x]\s*)?Roll\s+\d{1,3}:/i.test(l));
+     for(const [i,r] of g.rollRows.entries()){
+      const name=ukiNombreStats(r.proteina),known=['pollo','carne','kanicama','camaron','cerdo','salmon','pulpo','berenjena crispy','vegetariano'];
+      const protein=known.includes(name)&&raw.length===n&&!/\+/.test(raw[i].split('/')[0])?name:'desconocida';
+      fact.rolls.push({type,protein,count:r.cantidad});
+     }
+    }
+   }
+   if(fact.rolls.length>120)fact.rolls=[];
+   facts.push(fact);
+  }
+  if(facts.length>2000)return;
+  const payload={store,revision,start:new Date(start).toISOString(),capturedAt:new Date(now).toISOString(),facts};
+  if(JSON.stringify(payload).length>400000)return;
+  ukiConsumoPending.set(store,{payload,attempts:0});
+  await ukiConsumoDrain(store);
+ }catch{}
+};

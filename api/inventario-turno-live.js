@@ -66,6 +66,18 @@ async function entradasDesdeUltimaRevision(sql,branch){
  }
  return {bySku,periodo:cutoff?'Desde revisión anterior':'Hoy desde 00:00 (Chile)'};
 }
+// Evidencia de conteo desde la revisión anterior. No presume conteo por saldo existente.
+async function conteosDesdeUltimaRevision(sql,branch){
+ const prev=await sql.query('SELECT created_at FROM public.uki_inventario_revisiones_live WHERE branch=$1 ORDER BY created_at DESC LIMIT 1',[branch]);
+ const cutoff=prev[0]?.created_at||null;
+ const desde="COALESCE($2::timestamptz, date_trunc('day',now() AT TIME ZONE 'America/Santiago') AT TIME ZONE 'America/Santiago')";
+ const [base,extras]=await Promise.all([
+ sql.query("SELECT sku, MAX(creado_en) AS contado_en FROM public.uki_inventario_movimientos_live WHERE branch=$1 AND accion='conteo' AND creado_en > "+desde+" GROUP BY sku",[branch,cutoff]),
+ sql.query("SELECT sku, MAX(created_at) AS contado_en FROM public.uki_inventario_extras_movimientos_live WHERE branch=$1 AND action='conteo' AND created_at > "+desde+" GROUP BY sku",[branch,cutoff])
+ ]);
+ const rows=[...base,...extras];
+ return new Map(rows.map(r=>[String(r.sku),r.contado_en]));
+}
 function textoReporte(branch,worker,summary,fecha){
  const date=fechaHoraChile(fecha);
  const a=['📦 UKI SUSHI · LISTA PARA REPONER','Sucursal: '+BRANCH_NAME[branch],
@@ -109,7 +121,7 @@ module.exports=async(req,res)=>{
   return fail(res,400,'Solicitud de inventario inválida');
  const branch=String(input.branch||''),action=String(input.action||'');
  if(!BRANCHES.has(branch))return fail(res,400,'Sucursal no válida');
- if(!['estado','crear-codigo','listar','contar','recibir','factura-consultar','factura-preparar-articulos','factura-recibir','finalizar','reportes','historial','revision','articulos','crear-articulo','editar-articulo','configurar-unidad'].includes(action))
+ if(!['estado','crear-codigo','listar','contar','recibir','factura-consultar','factura-preparar-articulos','factura-recibir','finalizar','reportes','historial','revision','articulos','crear-articulo','editar-articulo','configurar-unidad','justificar'].includes(action))
   return fail(res,400,'Acción no permitida');
  const dbUrl=liveDbUrl();
  if(!dbUrl)return fail(res,503,'Base de inventario no habilitada');
@@ -241,6 +253,15 @@ module.exports=async(req,res)=>{
    if(!saved?.guardada)return fail(res,503,'No se pudo verificar el ingreso de la factura.');
    return res.status(200).json({ok:true,branch,...saved});
   }
+  if(action==='justificar'){
+   if(process.env.UKI_INVENTARIO_JUSTIFICACIONES_ENABLED!=='true')return fail(res,503,'Registro de movimientos aún no habilitado.');
+   const sku=String(input.sku||''),list=sku.startsWith('inv:')?await extra.listar(sql,branch):await leerInventario(sql,branch);
+   const item=list.find(x=>x.sku===sku);
+   if(!item||!['ingredient','inventory'].includes(item.kind))return fail(res,404,'Insumo no encontrado en esta sucursal.');
+   const lib=require('../lib/inventario-justificaciones-v1.cjs');
+   const data=lib.validate('uki:'+branch,input,item,worker);
+   return res.status(200).json({...await lib.save(sql,data),branch});
+  }
   if(action==='contar'||action==='recibir'){
    const sku=String(input.sku||''),n=input.cantidad;
    if(!/^[a-z0-9:-]{3,120}$/.test(sku)||!enteroVersion(input.expected_version))
@@ -284,6 +305,15 @@ module.exports=async(req,res)=>{
    data.summary.entradas_periodo='No verificadas';
    data.summary.entradas_verificadas=false;
   }
+  // Se consulta evidencia de catálogo y artículos adicionales.
+  try{
+   const counts=await conteosDesdeUltimaRevision(sql,branch);
+   data.items=data.items.map(i=>({...i,conteo_registrado:counts.has(i.sku),conteo_fecha:counts.get(i.sku)||null}));
+   data.summary.conteos_verificados=true;
+   data.summary.articulos_sin_conteo=data.items.filter(i=>!i.conteo_registrado).length;
+  }catch{
+   data.summary.conteos_verificados=false;
+  }
   const created=await sql.query(`INSERT INTO public.uki_inventario_revisiones_live
    (branch,request_id,worker_name,identity,items,summary)
    VALUES($1,$2::uuid,$3,$4,$5::jsonb,$6::jsonb)
@@ -308,4 +338,4 @@ module.exports=async(req,res)=>{
   return fail(res,status,status===503?'No se pudo abrir el inventario de pruebas ('+etiqueta+'). No se modificó la caja.':String(e.message));
  }
 };
-module.exports._testing={permitido,admin,resumen,textoReporte,validDate,fechaHoraChile,entradasDesdeUltimaRevision};
+module.exports._testing={permitido,admin,resumen,textoReporte,validDate,fechaHoraChile,entradasDesdeUltimaRevision,conteosDesdeUltimaRevision};

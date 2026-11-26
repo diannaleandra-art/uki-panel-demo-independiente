@@ -158,7 +158,8 @@ test('Una edición indica que cancelar edición NO cancela pedido y exige respon
  const form=segment('function vNuevo(){','// Corrección histórica:');
  assert.match(form,/Cancelar edición \(no cancela el pedido\)/);
  assert.match(form,/Para cancelar el pedido, guarda primero/);
- assert.match(form,/id="ukiResponsableEdicion"/);
+ assert.match(form,/ukiResponsableEdicionUI\(D\)/);
+ assert.match(segment('function ukiResponsableEdicionUI(d){','function ukiRevisionBancoBorradorValidaQA('),/id="ukiResponsableEdicion"/);
 });
 test('Auditoría conserva Entregado → Pendiente y caja intacta',()=>{
  const foto=segment('function ukiFotoCorreccionPedido(p){','function ukiVCorreccionesPedido(p){');

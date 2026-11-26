@@ -75,6 +75,15 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
  </div>
 <p class="muted">Al cierre cuenta lo que realmente queda y pulsa <b>Guardar conteo</b> en cada artículo. Cuando llega mercadería, usa <b>Registrar entrada</b>. Solo administración decide Disponible / Agotado en la carta.</p><p id="turnoProgreso" role="status" class="pill">Todavía no hay conteos guardados en este turno.</p></section>
 <div id="items"></div><div style="text-align:center;margin:10px 16px"><button type="button" id="mostrarMas" class="secondary" hidden>Mostrar 12 artículos más</button></div>
+<details class="card" id="justMov"><summary><b>Registrar merma, consumo del personal o traspaso</b></summary>
+<p class="muted">Solo deja constancia. No cambia las existencias: cuenta lo que queda al final. Si recibes un traspaso, usa este registro y no lo repitas como compra o entrada de mercadería. Ambas sucursales deben usar el mismo folio.</p>
+<label for="justSku">Insumo</label><select id="justSku"></select>
+<label for="justKind">Tipo</label><select id="justKind"><option value="merma">Merma</option><option value="personal">Consumo del personal</option><option value="traspaso_salida">Traspaso enviado</option><option value="traspaso_entrada">Traspaso recibido</option></select>
+<label for="justQty">Cantidad (unidad del insumo)</label><input id="justQty" inputmode="decimal" placeholder="0">
+<div id="justTransfer" hidden><label for="justOther">Otra sucursal</label><select id="justOther"></select><label for="justRef">Folio común del traspaso</label><input id="justRef" maxlength="40" placeholder="Ej. TR-1234"></div>
+<label for="justReason">Motivo</label><input id="justReason" maxlength="180" placeholder="Ej. Producto dañado">
+<button type="button" id="justSave">Guardar registro</button><p id="justStatus" role="status" class="muted"></p>
+</details>
 <section class="card"><h2>3. Terminar el turno</h2><p class="muted">Confirma los conteos guardados. Si faltan artículos por revisar, puedes completar el conteo antes de terminar.</p><p id="resumen" class="muted"></p><div id="resumenIndicadores" class="reporte-colores" aria-label="Resumen del inventario"></div><div id="resumenArticulos" class="reporte-lista" aria-label="Artículos que requieren reposición"></div>
 <button id="enviar">Guardar inventario en el panel</button>
 <p class="muted">Primero guarda la revisión. Después podrás enviar el PDF completo y, por separado, el texto de los productos que hay que comprar.</p>
@@ -215,6 +224,7 @@ document.addEventListener('visibilitychange',()=>{
  if(!document.hidden)actualizarReloj();
 });
 function render(){
+ justRefresh();
  const box=$('items');box.replaceChildren();
  const kind=$('tipo').value,term=$('buscar').value.trim().toLocaleLowerCase('es-CL');
  const progress=$('estadoLista').value;
@@ -361,6 +371,41 @@ async function abrir(){
  }catch(e){branch='';items=[];$('activo').hidden=true;status(String(e.message));}
  finally{setBusy(false);}
 }
+
+// Registro independiente: nunca cambia la cantidad de existencias.
+let justPending=null;
+function justRefresh(){
+ const local='uki:'+branch,sel=$('justSku'),prev=sel.value;
+ sel.replaceChildren(new Option('Selecciona insumo',''));
+ for(const i of items.filter(x=>['ingredient','inventory'].includes(x.kind)))sel.add(new Option(i.name+' · '+i.stock_unit,i.sku));
+ if([...sel.options].some(x=>x.value===prev))sel.value=prev;
+ const other=$('justOther'),prior=other.value;
+ other.replaceChildren(new Option('Selecciona sucursal',''));
+ for(const [id,name] of [['uki:arica','Uki Regimiento Arica'],['uki:serena','Uki La Serena'],['romo:serena','Romo La Serena']])if(id!==local)other.add(new Option(name,id));
+ if([...other.options].some(x=>x.value===prior))other.value=prior;
+}
+$('justKind').onchange=()=>{$('justTransfer').hidden=!$('justKind').value.startsWith('traspaso_');};
+$('justSave').onclick=async()=>{
+ if(busy||!branch||branch!==$('branch').value)return;
+ const item=items.find(x=>x.sku===$('justSku').value),kind=$('justKind').value,transfer=kind.startsWith('traspaso_');
+ let qty;try{qty=decimal($('justQty').value);}catch{qty=NaN;}
+ const reason=$('justReason').value.trim(),other=transfer?$('justOther').value:'',folio=transfer?$('justRef').value.trim().toUpperCase():'';
+ const msg=$('justStatus');
+ if(!item||!Number.isFinite(qty)||qty<=0||reason.length<3||transfer&&(!other||!/^[A-Z0-9-]{4,40}$/.test(folio))){msg.textContent='Completa el insumo, cantidad y motivo; para traspasos indica la sucursal y el folio.';return;}
+ const body={sku:item.sku,tipo:kind,cantidad:qty,unidad:item.stock_unit,motivo:reason,contraparte:other,folio};
+ const signature=JSON.stringify([branch,body]);
+ if(justPending&&justPending.signature!==signature){msg.textContent='Hay un registro pendiente de confirmar. Vuelve a introducir los mismos datos y verifica antes de enviar otro.';return;}
+ if(!justPending)justPending={signature,id:crypto.randomUUID()};
+ setBusy(true);$('justSave').disabled=true;msg.textContent='Guardando registro…';
+ try{
+  const r=await api('justificar',{...body,request_id:justPending.id});
+  if(r.registered!==true&&r.duplicated!==true)throw Error('Registro no confirmado.');
+  justPending=null;$('justQty').value='';$('justReason').value='';$('justRef').value='';
+  msg.textContent='✓ Registro confirmado. No se modificaron las existencias.';
+ }catch(e){msg.textContent=String(e.message)+' · Reintenta con los mismos datos.';}
+ finally{setBusy(false);$('justSave').disabled=false;}
+};
+
 $('abrir').onclick=abrir;
 $('branch').onchange=()=>{detenerReloj();branch='';items=[];stockAlAbrir.clear();revisados.clear();horaConteos.clear();entradasSesion.clear();visibleLimit=12;lastSaved=null;reporteFinal=null;$('descargasTurno').hidden=true;factura.reset();$('activo').hidden=true;status('');};
 $('codigo').oninput=()=>{if(branch){detenerReloj();branch='';items=[];stockAlAbrir.clear();revisados.clear();horaConteos.clear();entradasSesion.clear();reporteFinal=null;$('descargasTurno').hidden=true;factura.reset();$('activo').hidden=true;}};

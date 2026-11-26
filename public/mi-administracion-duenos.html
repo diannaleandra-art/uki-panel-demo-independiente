@@ -326,6 +326,12 @@ nav button{font-size:10px;min-width:0}
 <button class="soft" type="button" id="ukiCosteoConsultar">Consultar rentabilidad</button>
 <div id="ukiCosteoResultado" role="status" aria-live="polite"><p class="hint">Sin consultar.</p></div>
 </details>
+<details class="card" id="ukiControlConsumoFisico">
+<summary>📦 Control de inventario · tres sucursales</summary>
+<p class="hint">Compara las últimas dos revisiones guardadas en cada local. Consulta independiente de las fechas de ventas y de la caja. Consulta las salidas físicas y el consumo identificable de los pedidos respaldados, cuando estén disponibles. Los resultados parciales no acreditan pérdidas.</p>
+<button class="soft" type="button" id="ukiFisicoConsultar">Consultar inventario de los tres locales</button>
+<div id="ukiFisicoResultado" role="status" aria-live="polite"><p class="hint">Sin consultar.</p></div>
+</details>
 <details class="card" id="ukiInformesDuenos">
 <summary>📄 Informes privados · PDF, Excel y WhatsApp</summary>
 <p class="hint">Usa las fechas y el negocio seleccionados arriba. Los pagos pendientes se incluyen de todas las fechas. Los informes se generan solo al solicitarlos y no se guardan en el servidor.</p>
@@ -2008,6 +2014,7 @@ async function openDoc(id){
 
 let costeoConsultaSeq=0;
 function limpiarCosteoResumen(){
+ limpiarFisicoResumen();
  ++costeoConsultaSeq;
  $('ukiCosteoConsultar').disabled=false;
  $('ukiCosteoResultado').textContent='Consulta la rentabilidad para el período seleccionado.';
@@ -2044,6 +2051,110 @@ $('ukiCosteoConsultar').onclick=async()=>{
  finally{if(valid())button.disabled=false;}
 };
 
+let fisicoConsultaSeq=0;
+function limpiarFisicoResumen(){
+ ++fisicoConsultaSeq;
+ $('ukiFisicoConsultar').disabled=false;
+ $('ukiFisicoResultado').textContent='Consulta las últimas revisiones de inventario.';
+}
+$('ukiFisicoConsultar').onclick=async()=>{
+ if(!session)return;
+ const seq=++fisicoConsultaSeq,active=session,result=$('ukiFisicoResultado'),button=$('ukiFisicoConsultar');
+ const valid=()=>seq===fisicoConsultaSeq&&session===active;
+ button.disabled=true;result.textContent='Consultando…';
+ try{
+  const data=await api('resumen_conteos_inventario',{});
+  if(!valid())return;
+  if(data.soloLectura!==true||!Array.isArray(data.locales))throw Error('Consulta no verificable.');
+  const names={'uki:arica':'Uki Regimiento Arica','uki:serena':'Uki La Serena','romo:serena':'Romo La Serena'};
+  const add=(parent,tag,value)=>{const node=document.createElement(tag);node.textContent=value;parent.append(node);return node;};
+  const fmt=(n,u)=>n===null||n===undefined?'Pendiente':Number(n).toLocaleString('es-CL',{maximumFractionDigits:3})+' '+u;
+  const date=t=>new Date(t).toLocaleString('es-CL',{timeZone:'America/Santiago'});
+  result.replaceChildren();
+  for(const store of Object.keys(names)){
+   const matches=data.locales.filter(r=>r.store===store),r=matches.length===1?matches[0]:null;
+   const box=document.createElement('details');box.className='line';result.append(box);add(box,'summary',names[store]);
+   function renderYields(){
+    add(box,'h3','Rendimientos medidos de ingredientes');
+    if(!Array.isArray(r?.yields)){add(box,'p','Configuración de rendimientos no disponible.');return;}
+    for(const f of r.yields)add(box,'p',f.ingredient+' · '+fmt(f.raw_g,'g de compra')+' → '+fmt(f.prepared_g,'g preparados')+' · '+f.note);
+    for(const c of r.purchaseEstimates||[])add(box,'p',c.ingredient+' · '+(c.status==='estimated'?fmt(c.quantity,c.unit)+' equivalentes de compra (rendimiento vigente; no histórico)':'Pendiente de equivalencia'));
+    const weight=(r.rows||[]).filter(x=>['g','kg'].includes(x.unit));
+    if(!r.available||!weight.length){add(box,'p','Primero se necesita el inventario físico de este local para vincular un insumo.');return;}
+    const details=document.createElement('details');box.append(details);add(details,'summary','Registrar rendimiento medido');
+    add(details,'p','Pesa el ingrediente antes y después de prepararlo. No se guardan porcentajes supuestos ni se modifican existencias.');
+    const select=(label,options)=>{const l=add(details,'label',label),el=document.createElement('select');for(const [id,name] of options)el.add(new Option(name,id));l.append(el);return el;};
+    const field=(label,type)=>{const l=add(details,'label',label),el=document.createElement('input');el.type=type;l.append(el);return el;};
+    const ingredient=select('Ingrediente de la receta',[['','Seleccionar'],...['Arroz cocido y aliñado','pollo','carne','kanicama','camaron','cerdo','salmon','pulpo'].map(n=>[n,n])]);
+    const sku=select('Insumo del inventario',[['','Seleccionar'],...weight.map(i=>[i.sku,i.name+' · '+i.unit])]);
+    const raw=field('Peso inicial en gramos','number'),prepared=field('Peso final preparado en gramos','number'),note=field('Observación de la medición','text'),confirmed=field('Confirmo que son pesos medidos de este local','checkbox');
+    for(const el of [raw,prepared]){el.min='0.001';el.max='1000000';el.step='0.001';}
+    note.maxLength=180;
+    const button=add(details,'button','Guardar rendimiento');button.type='button';button.className='soft';
+    const msg=add(details,'p','');
+    ingredient.onchange=()=>{const old=r.yields.find(f=>f.ingredient===ingredient.value);sku.value=old?.sku||'';raw.value=old?.raw_g??'';prepared.value=old?.prepared_g??'';note.value=old?.note||'';confirmed.checked=false;};
+    button.onclick=async()=>{
+     if(!valid()||button.disabled)return;
+     if(!ingredient.value||!sku.value||!confirmed.checked||!(Number(raw.value)>0)||!(Number(prepared.value)>0)||note.value.trim().length<5){msg.textContent='Completa la medición y confirma los datos.';return;}
+     button.disabled=true;
+     try{
+      const old=r.yields.find(f=>f.ingredient===ingredient.value);
+      const answer=await api('guardar_rendimiento_consumo',{store,ingredient:ingredient.value,sku:sku.value,rawGrams:Number(raw.value),preparedGrams:Number(prepared.value),note:note.value.trim(),confirmed:true,version:Number(old?.revision||0)});
+      if(!valid())return;
+      if(answer.saved!==true||answer.store!==store)throw Error('No se confirmó el guardado.');
+      msg.textContent='Rendimiento guardado. Actualizando consulta…';
+      void $('ukiFisicoConsultar').onclick();
+     }catch(e){if(valid())msg.textContent=e.message;}
+     finally{button.disabled=false;}
+    };
+   }
+   function renderLive(){
+    if(!r?.liveSales)return;
+    add(box,'h3','Consumo de preparación · pedidos sincronizados');
+    add(box,'p',r.liveSales.reason||'Consulta parcial.');
+    if(r.liveSales.available){
+     add(box,'p',date(r.liveSales.start)+' — '+date(r.liveSales.end));
+     add(box,'p',r.liveSales.calculated+' pedidos con gramajes identificados · '+r.liveSales.pending+' sin cálculo.');
+     for(const item of r.liveSales.ingredients||[])add(box,'p',item.name+' · '+fmt(item.quantity/1000,'kg preparados'));
+    }
+   }
+   if(!r?.available||!Array.isArray(r.rows)){add(box,'p',r?.reason||'Sin información verificable.');renderLive();renderYields();continue;}
+   add(box,'p',date(r.start)+' — '+date(r.end));
+   add(box,'p',r.rows.filter(x=>x.status==='provisional').length+' insumos con salida física estimada; '+r.rows.filter(x=>x.status!=='provisional').length+' por revisar.');
+   const wrap=document.createElement('div');wrap.style.overflowX='auto';box.append(wrap);
+   const table=document.createElement('table');wrap.append(table);
+   const head=document.createElement('tr');table.append(head);
+   if(r.sales?.available)add(box,'p',r.sales.calculated+' pedidos calculados · '+r.sales.pending+' pendientes · '+r.sales.reason);else add(box,'p',r.sales?.reason||'Consumo según ventas no disponible.');
+   for(const t of ['Insumo','Inicial','Recibido','Conteo final','Salida física','Merma registrada','Consumo personal','Traspaso enviado','Traspaso recibido','Consumo identificado','Saldo estimado parcial','Diferencia preliminar','Valor preliminar','Estado'])add(head,'th',t);
+   for(const row of r.rows){
+    const tr=document.createElement('tr');table.append(tr);
+    for(const x of [row.name,fmt(row.opening,row.unit),fmt(row.received,row.unit),fmt(row.closing,row.unit),fmt(row.outflow,row.unit),fmt(row.justified?.waste,row.unit),fmt(row.justified?.staff,row.unit),fmt(row.justified?.transferOut,row.unit),fmt(row.justified?.transferIn,row.unit),fmt(row.salesIdentified,row.unit),fmt(row.expectedPartial,row.unit),fmt(row.differencePartial,row.unit),row.differenceValuePartial==null?'Pendiente':pesos(row.differenceValuePartial),row.status==='provisional'?'Provisional':'Revisar'])add(tr,'td',x);
+   }
+   if(r.justifications?.available){
+    add(box,'p','Movimientos registrados por el trabajador. Los traspasos todavía requieren conciliación del folio entre locales; los importes no modifican automáticamente el saldo esperado.');
+    for(const movement of r.justifications.rows||[]){
+     const names={merma:'Merma',personal:'Consumo personal',traspaso_salida:'Traspaso enviado',traspaso_entrada:'Traspaso recibido'};
+     const item=r.rows.find(x=>x.sku===movement.sku);
+     add(box,'p',date(movement.created_at)+' · '+(names[movement.kind]||movement.kind)+' · '+(item?.name||movement.sku)+' · '+fmt(movement.quantity,movement.unit)+' · '+movement.reason+(movement.transfer_ref?' · Folio '+movement.transfer_ref:''));
+    }
+   }else add(box,'p',r.justifications?.reason||'Salidas justificadas pendientes de consulta.');
+   renderLive();renderYields();
+   add(box,'p',r.warning||'Salida física provisional. No acredita pérdidas.');
+  }
+  if(data.traspasos?.readOnly===true){
+   const sec=document.createElement('details');sec.className='line';result.append(sec);add(sec,'summary','Conciliación de traspasos por folio');
+   const states={coincide:'Envío y recepción coinciden',cantidad_distinta:'Cantidad distinta',unidad_distinta:'Unidad distinta',contraparte_no_visible:'Contraparte no visible',duplicado_revisar:'Duplicado por revisar',equivalencia_pendiente:'Equivalencia de insumo pendiente'};
+   for(const t of data.traspasos.rows||[]){
+    const info=(t.sent?'Enviado '+fmt(t.sent.quantity,t.sent.unit):'Sin envío visible')+' · '+(t.received?'Recibido '+fmt(t.received.quantity,t.received.unit):'Sin recepción visible');
+    add(sec,'p',t.folio+' · '+(names[t.from]||t.from)+' → '+(names[t.to]||t.to)+' · '+(t.ingredient||t.sku||'Insumo')+' · '+(states[t.status]||'Revisar')+' · '+info);
+   }
+   if(!data.traspasos.rows?.length)add(sec,'p','No se encontraron traspasos en las revisiones consultadas.');
+   add(sec,'p',data.traspasos.warning);
+  }
+  add(result,'p','Sin cambios en inventario, compras, ventas ni resultados de caja. Los pedidos sin respaldo o receta verificable quedan pendientes.');
+ }catch(e){if(valid())result.textContent=e.message;}
+ finally{if(valid())button.disabled=false;}
+};
 const costData={insumos:[],facturas:[],fichas:[],catalog:[],catalogError:'',ingEdit:null,recipeEdit:null,source:null,seq:0};
 const cMoney=x=>'$'+Number(x||0).toLocaleString('es-CL',{maximumFractionDigits:2});
 const cNum=x=>Number(String(x??'').trim().replace(',','.'));
@@ -2619,7 +2730,7 @@ function marcarPeriodoSeleccionado(){
  }
 }
 function show(id){for(const x of ['login','setup','unlock','app'])$(x).hidden=x!==id;$('tabs').hidden=id!=='app';$('exit').hidden=id==='login';}
-function lock(){session='';romoCierresPrivadosSecuencia++;
+function lock(){session='';limpiarFisicoResumen();romoCierresPrivadosSecuencia++;
  cierresConfirmadosRomoQA=[];romoCierresConsultaValidaQA=false;
  movimientosFinancierosCargadosQA=false;
  if($('romoCierresFilasQA'))$('romoCierresFilasQA').replaceChildren();
