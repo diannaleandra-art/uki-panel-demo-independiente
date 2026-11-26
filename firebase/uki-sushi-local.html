@@ -1843,6 +1843,7 @@ function vNuevo(){
   const aceptarCartaAntesDeCobrar=window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED===true&&
    !D.editando&&!!D.cartaSolicitudRemotaId;
   const pedidoEdicion=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&p.id===D.editando):null;
+  const guardaRectificacion=D.rectificacionNubePendiente||ukiPideRectificacionDelivery(pedidoEdicion,D);
   const deltaEdicion=pedidoEdicion?.pagado?Number(pedidoEdicion.total||0)-total:0;
   const pendienteEdicion=!!ukiCobroPendiente(pedidoEdicion);
    const entregaUI=`<label>Tipo de entrega</label><div class="chips">${["Retiro","Delivery","Consumo en local"].map(m=>`<button ${chip(D.modalidad===m)} onclick="setModalidad('${m}')">${m}</button>`).join("")}</div>${D.modalidad==="Consumo en local"?`<label>Mesa o referencia (opcional)</label><input maxlength="50" value="${esc(D.mesaReferencia||"")}" placeholder="Ej: Mesa 2" oninput="D.mesaReferencia=this.value">`:""}${D.modalidad==="Delivery"?`<label>💰 Valor delivery (se suma)</label><input type="number" inputmode="numeric" value="${D.envio||""}" placeholder="Ej: 2000" oninput="setEnvioManual(this.value)"><p class="muted" id="pedidoEnvioAyuda">Delivery seleccionado - ${D.envio||0} se suma al total</p><label>🛵 Kilómetros del recorrido (opcional, no cambia el precio)</label><input id="ukiKmRecorrido" type="text" inputmode="decimal" value="${esc(D.kmRecorrido??"")}" placeholder="Ej: 4,5" onchange="D.kmRecorrido=this.value.trim();render()"><p class="muted">Si el recorrido viene escrito en el mensaje original, el panel también puede leerlo. No modifica el valor del delivery.</p>`:""}`;
@@ -1886,6 +1887,7 @@ function vNuevo(){
     ${D.modalidad==="Delivery"?(D.envioPagadoOtroLocal?
       `<p class="muted"><b>Delivery ${fmt(envio)}:</b> se incluirá en los deliverys de Uki para el repartidor, pero NO como ingreso de la caja porque lo cobraron en otro local.</p>`:
       `<label>Pago del delivery recibido en Uki · ${fmt(envio)}</label>${ukiPagoUI("envio",envio)}`):""}
+    ${ukiRectificacionDeliveryEdicionUI(pedidoEdicion,D)}
     <label class="check"><input type="checkbox" ${D.pagado?"checked":""} ${aceptarCartaAntesDeCobrar?'disabled title="Primero acepta el pedido de carta"':''} onchange="D.pagado=this.checked;render()"> <b>Pago completo confirmado</b></label>
     ${aceptarCartaAntesDeCobrar?'<p class="muted">Primero acepta este pedido. Después confirma el abono y el pago desde el mismo pedido, en Pedidos. No se registra una venta al aceptar.</p>':""}
     <p class="muted">Solo se consideran ventas los pagos completos confirmados. Los montos mixtos deben sumar exactamente lo que corresponde.</p></div>
@@ -1894,7 +1896,7 @@ function vNuevo(){
    ${ukiRevisionBancoBorradorUIQA(D,pedidoEdicion)}
    ${ukiPasoTimbreAntesDeGuardar(pedidoEdicion)}
    ${D.editando?'<div class="card"><h2>Responsable de la corrección</h2><p><b>✍️ SOLO CUANDO MODIFICAS UN PEDIDO EXISTENTE</b></p><label for="ukiResponsableEdicion"><b>¿Quién está haciendo este cambio? · Obligatorio</b></label><input id="ukiResponsableEdicion" maxlength="80" autocomplete="off" placeholder="Nombre de quien corrige" value="'+esc(D.responsableEdicion||"")+'" oninput="D.responsableEdicion=this.value"><p class="muted">El nombre, la fecha y el detalle del cambio quedarán en el historial del pedido. En el primer registro NO es necesario este nombre.</p></div>':''}
-   <button class="big" onclick="ndGuardar()" ${(ukiTimbreObligatorioGuardar(D,pedidoEdicion)&&!ukiTimbreBorradorConfirmado(D)||!ukiRevisionBancoBorradorValidaQA(D,pedidoEdicion))?'disabled title="Completa las confirmaciones obligatorias antes de guardar"':''}>${D.editando?`💾 Guardar cambios #${D.editando}`:D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición (no cancela el pedido)</button><p class="muted">Para cancelar el pedido, guarda primero cualquier corrección de pago. Luego vuelve a Pedidos, abre Ver detalle y selecciona ❌ Cancelar pedido. Si hay una devolución, regularízala primero.</p>`:""}`;
+   <button id="ukiGuardarPedido" class="big" onclick="ndGuardar()" ${(!guardaRectificacion&&(ukiTimbreObligatorioGuardar(D,pedidoEdicion)&&!ukiTimbreBorradorConfirmado(D)||!ukiRevisionBancoBorradorValidaQA(D,pedidoEdicion)))?'disabled title="Completa las confirmaciones obligatorias antes de guardar"':''}>${D.editando?`💾 Guardar cambios #${D.editando}`:D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición (no cancela el pedido)</button><p class="muted">Para cancelar el pedido, guarda primero cualquier corrección de pago. Luego vuelve a Pedidos, abre Ver detalle y selecciona ❌ Cancelar pedido. Si hay una devolución, regularízala primero.</p>`:""}`;
 }
 
 // Corrección histórica: el pedido muestra los datos corregidos, pero el cierre ya emitido nunca cambia.
@@ -1935,63 +1937,132 @@ function ukiDiferenciaDeliveryOriginalUI(p){
   '<p class="muted" style="margin:5px 0 0">Esta comparación no demuestra cuándo ni quién cambió el valor. '+
   'Solo los cambios guardados como ediciones tienen responsable y hora. No modifica la caja.</p></div>';
 }
-// Auditoría de cambios por pedido (se muestran los registros existentes, sin alterar caja).
-let ukiRectificacionDeliveryEnCurso=false;
+// La rectificación de un abono erróneo vive en la edición del pedido, no en Pedidos.
+let ukiBaseRectificacionEdicion=null;
 function ukiRectificacionDeliveryUI(p){
  const r=p.rectificacionTransferenciaDeliveryV1;
- if(r?.id)return '<p class="muted"><b>Transferencia del delivery rectificada:</b> '+fmt(r.monto)+' en efectivo · '+esc(r.motivo||'')+'</p>';
- if(!p.cartaSolicitudRemotaId||p.modalidad!=='Delivery'||p.estado==='Cancelado'||p.esPremio||
-    !ukiLineasPago(p,'envio',p.envio).some(x=>String(x.medio).toLowerCase()==='transferencia'))return '';
- return '<details class="inner-details"><summary>Rectificar transferencia del delivery</summary>'+
-  '<p class="muted">Solo si se verificó por error, no ingresó dinero al banco y el delivery se recibió en efectivo. Conserva el historial. Requiere la cuenta Google de administración y nube sincronizada.</p>'+
-  '<button class="sm" type="button" onclick="ukiRectificarDeliveryEfectivo('+Number(p.id)+')">Revisar rectificación</button></details>';
+ return r?.id?'<p class="muted"><b>Transferencia del delivery rectificada:</b> '+fmt(r.monto)+' en efectivo · '+esc(r.motivo||'')+'</p>':'';
 }
-async function ukiRectificarDeliveryEfectivo(id){
- if(ukiRectificacionDeliveryEnCurso||S.busy)return;
- const estado=S,sucursal=S.suc;
- const original=(S.pedidos||[]).find(p=>p.id===Number(id)&&p.suc===sucursal);
- if(!original)return aviso('No se encontró el pedido en esta sucursal.');
- ukiRectificacionDeliveryEnCurso=true;
- let guardadoServidor=false,aplicado=false;
+function ukiPuedeElegirRectificacionDelivery(p){
+ return !!(p&&["Uki La Serena","Uki Regimiento Arica"].includes(p.suc)&&p.cartaSolicitudRemotaId&&
+  p.modalidad==="Delivery"&&["Pendiente","Entregado"].includes(p.estado)&&
+  !p.esPremio&&!p.rectificacionTransferenciaDeliveryV1&&!p.mixtoEnvio&&!p.propina&&
+  !p.ajusteCobroPendiente&&!p.envioPagadoOtroLocal&&!p.productosPagadosOtroLocal&&
+  String(p.medioEnvio).toLowerCase()==="transferencia"&&
+  !ukiSeguimientoHayTransferenciaQA({...p,medioEnvio:"Efectivo",pagosEnvio:[]}));
+}
+function ukiPideRectificacionDelivery(p,d){
+ return ukiPuedeElegirRectificacionDelivery(p)&&Number(d.editando)===Number(p.id)&&
+  d.modalidad==="Delivery"&&!d.envioPagadoOtroLocal&&!d.mixtoEnvio&&d.medioEnvio==="Efectivo";
+}
+function ukiFirmaOtrosCambiosRectificacion(d){
+ const {medioEnvio,mixtoEnvio,pagosEnvio,responsableEdicion,rectificacionMotivo,
+  rectificacionConfirmada,rectificacionMensaje,rectificacionError,rectificacionNubePendiente,...otros}=d;
+ return JSON.stringify(otros);
+}
+function ukiRectificacionDeliveryEdicionUI(p,d){
+ if(!p)return '';
+ const disponible=ukiPuedeElegirRectificacionDelivery(p);
+ const rectificando=ukiPideRectificacionDelivery(p,d);
+ const estado='<p id="ukiEstadoRectificacionEdicion" role="status" tabindex="-1" style="'+
+  (d.rectificacionError?'color:#9a3412;font-weight:700;':'')+'margin:8px 0">'+esc(d.rectificacionMensaje||'')+'</p>';
+ if(d.rectificacionMensaje&&!rectificando)return estado;
+ if(!disponible)return ukiRectificacionDeliveryUI(p);
+ if(d.modalidad!=='Delivery'||d.envioPagadoOtroLocal||d.mixtoEnvio)return '';
+ if(!rectificando)return '<p class="muted">¿Marcaste la transferencia del delivery por error? Elige <b>Efectivo</b> aquí para autorizar la corrección.</p>';
+ return '<div class="card" style="padding:12px;border:1px solid var(--accent);margin:12px 0">'+
+  '<h3 style="margin:0">Autorizar corrección del delivery</h3>'+
+  '<p class="muted">Cambiará el delivery de '+fmt(p.envio)+' a efectivo. Los productos y el monto no cambian. Usa la cuenta Google de administración.</p>'+
+  '<label for="ukiMotivoRectificacionEdicion">Motivo de la corrección</label>'+
+  '<textarea id="ukiMotivoRectificacionEdicion" maxlength="140" rows="2" placeholder="Ej. Verifiqué por error. El delivery se recibió en efectivo." oninput="D.rectificacionMotivo=this.value">'+esc(d.rectificacionMotivo||'')+'</textarea>'+
+  '<label class="check"><input id="ukiConfirmarRectificacionEdicion" type="checkbox" '+(d.rectificacionConfirmada?'checked ':'')+'onchange="D.rectificacionConfirmada=this.checked"> Confirmo que no entró la transferencia y recibí el delivery en efectivo.</label>'+
+  '<p class="muted">Completa también el nombre del responsable y pulsa <b>Guardar cambios</b>.</p>'+estado+'</div>';
+}
+function ukiMensajeRectificacionEdicion(d,mensaje,error=false,irAlId=''){
+ d.rectificacionMensaje=mensaje;d.rectificacionError=error;
+ if(D!==d||S.vista!=="nuevo")return;
+ const estado=document.getElementById('ukiEstadoRectificacionEdicion');
+ if(estado){
+  estado.textContent=mensaje;estado.style.color=error?'#9a3412':'';
+  estado.style.fontWeight=error?'700':'';
+ }
+ if(error||irAlId){
+  const destino=document.getElementById(irAlId)||estado;
+  destino?.focus({preventScroll:true});
+  destino?.scrollIntoView({block:'center',behavior:'smooth'});
+ }
+}
+async function ukiRectificarDeliveryEnEdicion(original,d){
+ const estado=S,sucursal=S.suc,id=d.editando;
+ const enEdicion=()=>S===estado&&S.suc===sucursal&&S.vista==="nuevo"&&D===d;
+ let guardadoServidor=false,aplicado=!!d.rectificacionNubePendiente;
+ const boton=document.getElementById('ukiGuardarPedido');
+ if(boton)boton.disabled=true;
  try{
-  const {datosRectificables,aplicarRectificacion}=await import('./uki-rectificar-transferencia-v1.mjs');
-  const datos=datosRectificables(original);
-  if(!datos)throw Error('Esta opción solo permite pasar a efectivo una transferencia del delivery sin modificar los productos ni el total.');
-  if(!window.ukiCancelacionNubeLista?.())throw Error('Carga la nube de esta sucursal antes de rectificar.');
-  const motivo=window.prompt('Pedido #'+id+' · ¿Por qué se rectifica la verificación del delivery?','Verificación marcada por error. Delivery recibido en efectivo.');
-  if(motivo===null)return;
-  if(motivo.trim().length<8||motivo.trim().length>240)throw Error('Escribe un motivo entre 8 y 240 caracteres.');
-  const historico=!!ukiCierreConfirmadoPedido(original);
-  if(!window.confirm('Pedido #'+id+' · '+sucursal+'\n¿Confirmas que NO entró la transferencia y que recibiste '+fmt(datos.montoDelivery)+' en efectivo por el delivery? No se cobra ni devuelve dinero.'+
-   (historico?' El cierre anterior queda intacto.':'') ))return;
-  const vigente=()=>S===estado&&S.suc===sucursal&&!S.busy&&S.pedidos.find(p=>p.id===Number(id))===original;
-  const firma=JSON.stringify(original);
-  if(!vigente()||!window.ukiCancelacionNubeLista?.())throw Error('El pedido cambió. Vuelve a abrirlo.');
-  const result=await window.ukiRegistrarRectificacionDelivery?.({...datos,motivo:motivo.trim()});
-  if(result?.ok!==true||result.storeId!==datos.storeId||result.orderId!==datos.id||
-     result.monto!==datos.montoDelivery||result.pedidoInterno!==datos.pedidoInterno)
-   throw Error('No se confirmó la rectificación del pedido.');
-  guardadoServidor=true;
-  if(!vigente()||!window.ukiCancelacionNubeLista?.()||JSON.stringify(original)!==firma)
-   throw Error('El pedido o la nube cambiaron. Recarga y reintenta la misma rectificación.');
-  const revisado=aplicarRectificacion(original,{constanciaId:result.constanciaId,motivo:result.motivo,en:result.en});
-  const i=S.pedidos.indexOf(original);
-  S.pedidos[i]=revisado;
-  if(!await guardarEnLocalStorage()){
-   if(S===estado&&S.pedidos[i]===revisado)S.pedidos[i]=original;
-   throw Error('No se guardó la copia local. Recarga y reintenta la misma rectificación.');
+  if(!d.rectificacionNubePendiente){
+   const motivo=String(d.rectificacionMotivo||'').trim();
+   const responsable=String(d.responsableEdicion||'').trim();
+   if(motivo.length<8||motivo.length>140)
+    return ukiMensajeRectificacionEdicion(d,'Escribe un motivo de entre 8 y 140 caracteres.',true,'ukiMotivoRectificacionEdicion');
+   if(!d.rectificacionConfirmada)
+    return ukiMensajeRectificacionEdicion(d,'Confirma que no entró la transferencia y que recibiste efectivo.',true,'ukiConfirmarRectificacionEdicion');
+   if(!responsable||responsable.length>80)
+    return ukiMensajeRectificacionEdicion(d,'Escribe el nombre de quien autoriza la corrección.',true,'ukiResponsableEdicion');
+   if(!window.ukiCancelacionNubeLista?.())throw Error('Carga la nube de esta sucursal antes de guardar.');
+   if(Number(d.envio)!==Number(original.envio))
+    throw Error('Para autorizar esta corrección, deja el valor del delivery en '+fmt(original.envio)+'.');
+   const firma=JSON.stringify(original);
+   const datosEdicion=ukiFirmaOtrosCambiosRectificacion(d);
+   ukiMensajeRectificacionEdicion(d,'Comprobando la autorización y el pago del delivery…');
+   const {datosRectificables,aplicarRectificacion}=await import('./uki-rectificar-transferencia-v1.mjs');
+   const datos=datosRectificables(original);
+   if(!datos)throw Error('Esta autorización solo permite pasar a efectivo el delivery de carta, sin cambiar el importe ni los productos.');
+   const vigente=()=>S===estado&&S.suc===sucursal&&!S.busy&&S.pedidos.includes(original)&&JSON.stringify(original)===firma;
+   if(!enEdicion()||!vigente()||!ukiPideRectificacionDelivery(original,d)||!d.rectificacionConfirmada||
+      datosEdicion!==ukiFirmaOtrosCambiosRectificacion(d)||motivo!==String(d.rectificacionMotivo||'').trim()||
+      responsable!==String(d.responsableEdicion||'').trim()||!window.ukiCancelacionNubeLista?.())
+    throw Error('El pedido cambió durante la comprobación. Revísalo y vuelve a guardar.');
+   const result=await window.ukiRegistrarRectificacionDelivery?.({...datos,motivo:'Responsable: '+responsable+'. '+motivo});
+   if(result?.ok!==true||result.storeId!==datos.storeId||result.orderId!==datos.id||
+      result.monto!==datos.montoDelivery||result.pedidoInterno!==datos.pedidoInterno)
+    throw Error('No se confirmó la rectificación del pedido.');
+   guardadoServidor=true;
+   if(!vigente()||!window.ukiCancelacionNubeLista?.())
+    throw Error('El pedido o la nube cambiaron. Sincroniza y vuelve a guardar la misma corrección.');
+   const revisado=aplicarRectificacion(original,{constanciaId:result.constanciaId,motivo:result.motivo,en:result.en});
+   const i=S.pedidos.indexOf(original);
+   S.pedidos[i]=revisado;
+   if(!await guardarEnLocalStorage()){
+    if(S===estado&&S.pedidos[i]===revisado)S.pedidos[i]=original;
+    throw Error('No se guardó la copia local. Vuelve a intentar la misma corrección.');
+   }
+   aplicado=true;
+   d.rectificacionNubePendiente=true;
+   original=revisado;
   }
-  aplicado=true;
-  if(!await window.ukiRespaldarRectificacionDelivery?.(sucursal))
-   throw Error('Todavía no se confirmó el respaldo de la corrección en Firebase.');
-  if(S===estado)aviso('Pedido #'+id+' rectificado: delivery '+fmt(datos.montoDelivery)+' en efectivo.'+
-   (historico?' El cierre anterior no cambió.':''));
+  if(!original?.rectificacionTransferenciaDeliveryV1||!await window.ukiRespaldarRectificacionDelivery?.(sucursal))
+   throw Error('Todavía no se confirmó la corrección en la nube.');
+  d.rectificacionNubePendiente=false;
+  d.rectificacionConfirmada=false;
+  d.rectificacionMotivo='';
+  const quedan=ukiBaseRectificacionEdicion?.draft===d&&
+   ukiBaseRectificacionEdicion.firma!==ukiFirmaOtrosCambiosRectificacion(d);
+  if(enEdicion()){
+   ukiMensajeRectificacionEdicion(d,'Pedido #'+id+' guardado. Delivery de '+fmt(original.envio)+' en efectivo.'+
+    (ukiCierreConfirmadoPedido(original)?' El cierre anterior no cambió.':'')+
+    (quedan?' Los demás cambios siguen en el formulario. Pulsa Guardar cambios de nuevo para guardarlos.':''));
+   render();
+   document.getElementById('ukiEstadoRectificacionEdicion')?.scrollIntoView({block:'center',behavior:'smooth'});
+  }
  }catch(e){
-  if(S!==estado)return;
-  aviso(String(e?.message||e)+(guardadoServidor&&!aplicado?
-   ' El historial de rectificación está guardado; falta actualizar el pedido en este panel.':
-   aplicado?' Revisa el estado de la nube antes de darlo por terminado.':''));
- }finally{ukiRectificacionDeliveryEnCurso=false;}
+  if(!enEdicion())return;
+  if(aplicado)render();
+  ukiMensajeRectificacionEdicion(d,String(e?.message||e)+(guardadoServidor&&!aplicado?
+   ' La autorización quedó registrada. Falta aplicarla en el panel.':
+   aplicado?' Puedes volver a pulsar Guardar cambios para comprobar el respaldo.':''),true);
+ }finally{
+  if(boton)boton.disabled=false;
+ }
 }
 function ukiCorreccionesTurnoUI(p){
  // Solo vista de auditoría: no cambia productos, cobros, caja ni el pedido.
@@ -2121,7 +2192,7 @@ montoProductosOtroLocal:p.productosPagadosOtroLocal?Math.min(Number(p.subtotal)|
 envioPagadoOtroLocal:ukiMontoEnvioOtroLocal(p,Number(p.envio)||0,Number(p.subtotal)||0)>0,
 montoEnvioOtroLocal:p.montoEnvioOtroLocal??"",
 localPagoExterno:p.localPagoExterno||"",propinaModo:p.propinaModo||((Number(p.propina)||0)>0?"otro":"ninguna"),propinaPersonalizada:p.propinaModo==="otro"||!p.propinaModo?p.propina||"": "",medioPropina:p.medioPropina||"Efectivo",
-items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||"",...ukiDatosCatalogoItem(pr)})),ajusteCajaRegularizado:false,responsableEdicion:"",editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}]; modoNuevo="manual";ir("nuevo"); aviso(`Editando pedido #${id}`);}
+items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||"",...ukiDatosCatalogoItem(pr)})),ajusteCajaRegularizado:false,responsableEdicion:"",editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}]; ukiBaseRectificacionEdicion={draft:D,firma:ukiFirmaOtrosCambiosRectificacion(D)}; modoNuevo="manual";ir("nuevo"); aviso(`Editando pedido #${id}`);}
 function reanalizar(){leerTextoD();}
 
 // La propina es opcional (sugerencia 10% de productos), fuera de la venta.
@@ -5122,12 +5193,6 @@ function ukiSeguimientoValidarCambioMedioQA(original,nuevo){
  return true;
 }
 async function ndGuardar(){
-  const originalRevisionBanco=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(D.editando)):null;
-  if(D.pagado&&ukiSeguimientoHayTransferenciaQA(D)){
-   if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true){aviso('Actualiza el panel para verificar la transferencia antes de guardar.');return;}
-   if(!ukiRevisionBancoBorradorValidaQA(D,originalRevisionBanco)){aviso('Marca la revisión bancaria obligatoria antes de guardar como pagado.');return;}
-  }
-
   if(ukiGuardadoSolicitudEnCurso)return;
   ukiGuardadoSolicitudEnCurso=true;
   try{
@@ -5135,6 +5200,15 @@ async function ndGuardar(){
   const originalQR=D.editando?S.pedidos.find(p=>p.suc===S.suc&&p.id===D.editando):null;
   if(D.editando&&!originalQR){
     aviso('No se encontró el pedido original. Actualiza la lista antes de editar.');return;
+  }
+  if(D.rectificacionNubePendiente||ukiPideRectificacionDelivery(originalQR,D)){
+   await ukiRectificarDeliveryEnEdicion(originalQR,D);
+   return;
+  }
+  const originalRevisionBanco=originalQR;
+  if(D.pagado&&ukiSeguimientoHayTransferenciaQA(D)){
+   if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true){aviso('Actualiza el panel para verificar la transferencia antes de guardar.');return;}
+   if(!ukiRevisionBancoBorradorValidaQA(D,originalRevisionBanco)){aviso('Marca la revisión bancaria obligatoria antes de guardar como pagado.');return;}
   }
   if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED===true){
    if(D.pagado&&!D.editando&&D.cartaSolicitudRemotaId){
