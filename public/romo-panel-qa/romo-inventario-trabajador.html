@@ -33,6 +33,15 @@ footer{font-size:12px;color:#666;text-align:center;margin:20px}
 <p class="muted">Guarda cada conteo o entrada por separado. Cada movimiento queda confirmado en Neon Romo y registrado con el responsable.</p>
 <p id="progress" role="status"></p><p id="movementStatus" role="status" class="muted" aria-live="polite"></p></section>
 <div id="items"></div>
+<details class="card" id="justMov"><summary><b>Registrar merma, consumo del personal o traspaso</b></summary>
+<p class="muted">Solo deja constancia. No cambia las existencias: cuenta lo que queda al final. Si recibes un traspaso, usa este registro y no lo repitas como compra o entrada de mercadería. Ambas sucursales deben usar el mismo folio.</p>
+<label for="justSku">Insumo</label><select id="justSku"></select>
+<label for="justKind">Tipo</label><select id="justKind"><option value="merma">Merma</option><option value="personal">Consumo del personal</option><option value="traspaso_salida">Traspaso enviado</option><option value="traspaso_entrada">Traspaso recibido</option></select>
+<label for="justQty">Cantidad (unidad del insumo)</label><input id="justQty" inputmode="decimal" placeholder="0">
+<div id="justTransfer" hidden><label for="justOther">Otra sucursal</label><select id="justOther"></select><label for="justRef">Folio común del traspaso</label><input id="justRef" maxlength="40" placeholder="Ej. TR-1234"></div>
+<label for="justReason">Motivo</label><input id="justReason" maxlength="180" placeholder="Ej. Producto dañado">
+<button type="button" id="justSave">Guardar registro</button><p id="justStatus" role="status" class="muted"></p>
+</details>
 <section class="card"><h2>3. Terminar revisión</h2>
 <p id="summary" class="muted">No hay registros en esta sesión.</p>
 <button id="finish" type="button">Guardar revisión en el panel</button>
@@ -85,6 +94,7 @@ function summary(){
  $('progress').textContent='Guardados en esta sesión: '+counted.size+' de '+items.length+'.';
 }
 function render(){
+ justRefresh();
  const query=$('search').value.trim().toLowerCase(),filter=$('filter').value,host=$('items');
  const filtered=items.filter(x=>x.name.toLowerCase().includes(query)&&(
   filter==='todo'||filter==='pendiente'&&!counted.has(x.sku)||
@@ -126,6 +136,41 @@ async function save(button){
  }catch(e){show('No se confirmó. Revisa el inventario antes de reintentar: '+e.message)}
  finally{lock(false);render()}
 }
+
+// Registro independiente: nunca cambia la cantidad de existencias.
+let justPending=null;
+function justRefresh(){
+ const local=STORE,sel=$('justSku'),prev=sel.value;
+ sel.replaceChildren(new Option('Selecciona insumo',''));
+ for(const i of items.filter(x=>!x.archived))sel.add(new Option(i.name+' · '+i.stock_unit,i.sku));
+ if([...sel.options].some(x=>x.value===prev))sel.value=prev;
+ const other=$('justOther'),prior=other.value;
+ other.replaceChildren(new Option('Selecciona sucursal',''));
+ for(const [id,name] of [['uki:arica','Uki Regimiento Arica'],['uki:serena','Uki La Serena'],['romo:serena','Romo La Serena']])if(id!==local)other.add(new Option(name,id));
+ if([...other.options].some(x=>x.value===prior))other.value=prior;
+}
+$('justKind').onchange=()=>{$('justTransfer').hidden=!$('justKind').value.startsWith('traspaso_');};
+$('justSave').onclick=async()=>{
+ if(busy||closed)return;
+ const item=items.find(x=>x.sku===$('justSku').value),kind=$('justKind').value,transfer=kind.startsWith('traspaso_');
+ let qty;try{qty=validQty($('justQty').value);}catch{qty=NaN;}
+ const reason=$('justReason').value.trim(),other=transfer?$('justOther').value:'',folio=transfer?$('justRef').value.trim().toUpperCase():'';
+ const msg=$('justStatus');
+ if(!item||!Number.isFinite(qty)||qty<=0||reason.length<3||transfer&&(!other||!/^[A-Z0-9-]{4,40}$/.test(folio))){msg.textContent='Completa el insumo, cantidad y motivo; para traspasos indica la sucursal y el folio.';return;}
+ const body={sku:item.sku,tipo:kind,cantidad:qty,unidad:item.stock_unit,motivo:reason,contraparte:other,folio};
+ const signature=JSON.stringify([STORE,body]);
+ if(justPending&&justPending.signature!==signature){msg.textContent='Hay un registro pendiente de confirmar. Vuelve a introducir los mismos datos y verifica antes de enviar otro.';return;}
+ if(!justPending)justPending={signature,id:crypto.randomUUID()};
+ lock(true);$('justSave').disabled=true;msg.textContent='Guardando registro…';
+ try{
+  const r=await api('justificar',{...body,request_id:justPending.id});
+  if(r.registered!==true&&r.duplicated!==true)throw Error('Registro no confirmado.');
+  justPending=null;$('justQty').value='';$('justReason').value='';$('justRef').value='';
+  msg.textContent='✓ Registro confirmado. No se modificaron las existencias.';
+ }catch(e){msg.textContent=String(e.message)+' · Reintenta con los mismos datos.';}
+ finally{lock(false);$('justSave').disabled=closed;}
+};
+
 $('open').onclick=async()=>{
  if(busy)return;lock(true);show('Comprobando PIN e inventario Romo…');
  try{await reload();$('active').hidden=false;$('name').readOnly=true;$('pin').readOnly=true;
