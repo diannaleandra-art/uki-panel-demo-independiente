@@ -20,7 +20,8 @@ footer{font-size:12px;color:#666;text-align:center;margin:20px}
 </style></head>
 <body><header><h1>🍣 Romo’s Sushi · Inventario</h1><div>Balmaceda 1612 · La Serena · trabajador</div></header>
 <main>
-<section class="card"><h2>1. Abrir inventario</h2>
+<section class="card" id="sharedWarehouseAccess" hidden><h2>Inventario La Serena · Uki y Romo</h2><p>Ambas marcas usan una sola bodega. Ingresa con tu PIN habitual de Romo.</p><a class="button" href="https://uki-sushi-inventario.vercel.app/?acceso=romo">Abrir inventario compartido</a></section>
+<section class="card" id="legacyWarehouseAccess"><h2>1. Abrir inventario</h2>
 <p class="muted">Ingresa con tu nombre y el PIN habitual de inventario de Romo.</p>
 <label>Nombre del trabajador</label><input id="name" maxlength="60" autocomplete="name" placeholder="Nombre de quien cuenta">
 <label>PIN de inventario Romo (6 números)</label><input id="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="••••••">
@@ -58,6 +59,17 @@ footer{font-size:12px;color:#666;text-align:center;margin:20px}
 <script>
 'use strict';
 const $=id=>document.getElementById(id),STORE='romo:serena';
+async function checkSharedWarehouse(){
+ try{
+  const response=await fetch('/api/romo-pin-inventario-qa?vista=bodega',{method:'GET',cache:'no-store',credentials:'same-origin',signal:AbortSignal.timeout(5000)});
+  const data=await response.json();
+  if(response.ok&&data.ok===true&&data.compartida===true){
+   $('sharedWarehouseAccess').hidden=false;$('legacyWarehouseAccess').hidden=true;$('active').hidden=true;
+   location.replace('https://uki-sushi-inventario.vercel.app/?acceso=romo');
+  }
+ }catch{}
+}
+void checkSharedWarehouse();
 let revision=null,items=[],busy=false,report=null,closed=false;
 const counted=new Set(),arrived=new Map(),original=new Map();
 const show=x=>{ $('state').textContent=x;if(!$('active').hidden)$('movementStatus').textContent=x; };
