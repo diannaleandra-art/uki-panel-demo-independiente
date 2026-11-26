@@ -245,7 +245,150 @@ function mountCosteo(){
  const pe=id=>report.querySelector('#'+id);
  const ps=s=>{if(within())pe('invProfitStatus').textContent=s;};
  const localDate=v=>{try{return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(v));}catch{return '';}};
- const fmtMoney=v=>'$'+Number(v).toLocaleString('es-CL');
+ const fmtMoney=v=>v==null?'Pendiente de precio':'
+ const countFmt=v=>Number(v).toLocaleString('es-CL',{maximumFractionDigits:4});
+ let orders=[],confirmed=[],profitBusy=false,totals=new Map();
+ pe('invProfitFrom').value=pe('invProfitTo').value=localDate(Date.now());
+ const make=(tag,t)=>{const e=document.createElement(tag);if(t!=null)e.textContent=t;return e;};
+ function selectedOrder(){return orders[Number(pe('invProfitOrder').value)];}
+ function orderSignature(p){return JSON.stringify(p);}
+ function sanitized(p){
+  return {id:p.id,suc:p.suc,fechaISO:p.fechaISO,pagado:p.pagado,estado:p.estado,productos:(p.productos||[]).map(x=>({skuCarta:x.skuCarta,nombre:String(x.nombre||''),cantidad:Number(x.cantidad),precioUnit:Number(x.precioUnit),detalle:String(x.detalle||'')}))};
+ }
+ function currentOrders(){
+  const start=pe('invProfitFrom').value,end=pe('invProfitTo').value;
+  if(!start||!end||start>end)throw Error('Selecciona un período válido.');
+  const current=typeof S!=='undefined'&&Array.isArray(S.pedidos)?S.pedidos:[];
+  const seen=new Set();
+  return current.filter(p=>p.suc===S.suc&&p.pagado===true&&p.estado==='Entregado'&&!p.esPremio&&localDate(p.fechaISO)>=start&&localDate(p.fechaISO)<=end).filter(p=>{const k=String(p.id)+'|'+String(p.fechaISO);if(seen.has(k))return false;seen.add(k);return true;}).map(sanitized);
+ }
+ function showTotals(){
+  const a=[...totals.values()].filter(x=>x.status==='ready'),p=pe('invProfitTotal');p.replaceChildren();
+  const rev=a.reduce((n,x)=>n+x.revenue,0),cost=a.length&&a.every(x=>x.cost!==null)?a.reduce((n,x)=>n+x.cost,0):null;
+  p.append(make('h3','Resumen de pedidos calculados'),make('p',a.length+' de '+orders.length+' pedidos identificados del período · '+(orders.length-a.length)+' pendientes de cálculo'),make('p','Venta de productos: '+fmtMoney(rev)),make('p','Costo estimado: '+fmtMoney(cost)),make('b','Ganancia bruta estimada: '+fmtMoney(cost===null?null:rev-cost)),make('p','Solo incluye pedidos completos revisados en esta consulta. Excluye delivery, propinas, comisiones y otros gastos.'));
+ }
+ function showOrder(){
+  const o=selectedOrder(),area=pe('invProfitChoices');area.replaceChildren();pe('invProfitResult').replaceChildren();if(!o)return;
+  for(const [i,x] of o.productos.entries()){
+   const div=make('div');div.className='card';div.append(make('b',x.cantidad+' × '+x.nombre));if(x.detalle)div.append(make('p',x.detalle));
+   const select=make('select');select.setAttribute('aria-label','Variante para '+x.nombre);opt(select,'','Seleccionar receta comprobada');
+   const variants=confirmed.filter(r=>r.product_sku===x.skuCarta);
+   for(const [j,v] of variants.entries())opt(select,String(j),v.variant_key);
+   div.append(select);
+   div.getChoice=()=>{const v=select.value!==''?variants[Number(select.value)]:null;return v?{index:i,variant:v.variant_key,revision:Number(v.revision),verified:true}:null;};
+   if(!variants.length)div.append(make('p','Sin receta confirmada o producto sin código. El costo queda pendiente.'));
+   area.append(div);
+  }
+ }
+ pe('invProfitLoad').onclick=async()=>{
+  if(profitBusy)return;profitBusy=true;pe('invProfitLoad').disabled=true;pe('invProfitCalc').disabled=true;ps('Consultando…');
+  try{const a=await call('listar-recetas');confirmed=(a.recipes||[]).filter(r=>r.confirmed===true);orders=currentOrders();totals.clear();const field=pe('invProfitOrder');field.replaceChildren();for(const [i,p] of orders.entries())opt(field,String(i),'#'+p.id+' · '+localDate(p.fechaISO));pe('invProfitFields').hidden=!orders.length;showOrder();showTotals();ps(orders.length?orders.length+' pedidos disponibles. Revisa las variantes de cada pedido.':'No hay pedidos pagados y entregados disponibles en este período.');}
+  catch(e){if(within()){pe('invProfitFields').hidden=true;ps(e.message);}}
+  finally{profitBusy=false;if(within()){pe('invProfitLoad').disabled=false;pe('invProfitCalc').disabled=false;}}
+ };
+ for(const id of ['invProfitFrom','invProfitTo'])pe(id).onchange=()=>{orders=[];totals.clear();pe('invProfitFields').hidden=true;ps('Consulta el nuevo período.');};
+ pe('invProfitOrder').onchange=showOrder;
+ pe('invProfitCalc').onclick=async()=>{
+  if(profitBusy||!within())return;const order=selectedOrder();if(!order)return;
+  const real=(S.pedidos||[]).find(p=>p.suc===S.suc&&p.id===order.id&&p.fechaISO===order.fechaISO);
+  if(!real||orderSignature(sanitized(real))!==orderSignature(order)){ps('El pedido cambió. Consulta nuevamente el período.');return;}
+  const choices=Array.from(pe('invProfitChoices').children).map(x=>x.getChoice()).filter(Boolean);
+  profitBusy=true;pe('invProfitLoad').disabled=true;pe('invProfitCalc').disabled=true;pe('invProfitOrder').disabled=true;ps('Calculando…');
+  try{const a=await call('proyectar-pedido',{order,choices});const r=a.projection,out=pe('invProfitResult');out.replaceChildren();totals.set(r.orderKey,r);
+   if(r.status==='ready'){
+    out.append(make('h3','Costo estimado del pedido'),make('p','Costo: '+fmtMoney(r.cost)),make('b','Ganancia bruta: '+fmtMoney(r.grossProfit)),make('h3','Comparación con existencias actuales'));
+    for(const x of a.stock||[])out.append(make('p',x.name+' · consumo '+(x.required===null?'sin unidad compatible':countFmt(x.required)+' '+x.unit)+' · existencia '+(x.available===null?'sin dato':countFmt(x.available)+' '+x.unit)));
+    out.append(make('p','Comparación informativa: las existencias pueden haber sido contadas después de preparar este pedido.'));
+   }else out.append(make('p','Costo pendiente: completa la identificación de productos, recetas y precios de compra.'));
+   showTotals();ps('Consulta finalizada. No se modificaron existencias.');
+  }catch(e){ps(e.message);}
+  finally{profitBusy=false;if(within()){pe('invProfitLoad').disabled=false;pe('invProfitCalc').disabled=false;pe('invProfitOrder').disabled=false;}}
+ };
+
+
+ // Punto de partida del consumo: solo preparación del registro, no activa descuentos.
+ // Consulta automática de los pedidos disponibles; no certifica cobertura total.
+ const daily=document.createElement('details');daily.style.marginTop='16px';
+ daily.innerHTML='<summary><b>Consumo estimado por período · automático</b></summary><p>Usa las fechas del informe de pedidos anterior. Las recetas y precios son los vigentes; no descuenta stock ni confirma faltantes.</p><button type="button" class="sm ok">Calcular consumo</button><div role="status"></div><div class="daily-result"></div>';
+ card.append(daily);
+ const dailyBtn=daily.querySelector('button'),dailyStatus=daily.querySelector('[role=status]'),dailyOut=daily.querySelector('.daily-result');
+ dailyBtn.onclick=async()=>{
+  if(!within()||dailyBtn.disabled)return;
+  dailyBtn.disabled=true;dailyOut.replaceChildren();dailyStatus.textContent='Calculando consumo…';
+  try{
+   const start=pe('invProfitFrom').value,end=pe('invProfitTo').value;
+   if(!start||!end||start>end)throw Error('Selecciona un período válido.');
+   const suc=S.suc,store=suc==='Romo’s Sushi La Serena'?'romo:serena':suc==='Uki La Serena'?'uki:serena':'uki:arica';
+   const source=(Array.isArray(S.pedidos)?S.pedidos:[]).filter(p=>p.suc===suc&&localDate(p.fechaISO)>=start&&localDate(p.fechaISO)<=end);
+   const seen=new Set(),list=[];let duplicates=0;
+   for(const p of source){const key=String(p.id)+'|'+String(p.fechaISO);if(seen.has(key)){duplicates++;continue;}seen.add(key);list.push({...sanitized(p),esPremio:p.esPremio===true});}
+   const ingredients=new Map();let calculated=0,pending=0,cost=0,allPriced=true;
+   const inv=await call('listar');const names=new Map((inv.items||[]).map(i=>[i.sku,i.name]));
+   for(let n=0;n<list.length;n+=20){
+    const a=await call('proyectar-periodo',{orders:list.slice(n,n+20)});
+    if(!within()||S.suc!==suc||pe('invProfitFrom').value!==start||pe('invProfitTo').value!==end)throw Error('Cambió el período o la sucursal. Vuelve a calcular.');
+    if(a.store!==store||!Array.isArray(a.consumption))throw Error('Respuesta no verificable.');
+    calculated+=a.calculated;pending+=a.pending;
+    if(a.calculated){if(a.cost===null)allPriced=false;else cost+=a.cost;}
+    for(const x of a.consumption){const k=x.sku+'|'+x.unit,v=ingredients.get(k)||{...x,quantity:0};v.quantity+=x.quantity;ingredients.set(k,v);}
+   }
+   dailyOut.append(make('h3','Consumo identificado · '+start+' a '+end),make('p',calculated+' pedidos calculados · '+pending+' pendientes · '+duplicates+' duplicados omitidos'),make('p','Costo estimado de pedidos calculados: '+(calculated&&allPriced?fmtMoney(cost):'No completo')));
+   for(const x of ingredients.values()){const scale=['g','ml'].includes(x.unit)?1000:1;dailyOut.append(make('p',(names.get(x.sku)||x.sku)+' · '+countFmt(x.quantity/scale)+' '+(x.unit==='g'?'kg':x.unit==='ml'?'l':x.unit)));}
+   dailyOut.append(make('p','Informe parcial de pedidos disponibles en el panel. No incluye ventas ausentes, ni permite determinar faltantes definitivos.'));
+   dailyStatus.textContent='Consulta finalizada. No se modificaron existencias.';
+  }catch(e){dailyOut.replaceChildren();dailyStatus.textContent=e.message;}
+  finally{dailyBtn.disabled=false;}
+ };
+ const startBox=document.createElement('details');startBox.style.marginTop='16px';
+ startBox.innerHTML='<summary><b>Inicio del control de consumo</b></summary><p class="muted">Preparar el conteo físico inicial. Solo confirma al terminar la jornada, sin pedidos preparados pendientes. Esta etapa no activa descuentos de stock.</p><button type="button" class="sm" id="invStartLoad">Consultar inventario inicial</button><p role="status" id="invStartStatus"></p><div id="invStartReview" hidden><div id="invStartItems"></div><label><input id="invStartCounted" type="checkbox"> Confirmo que las cantidades coinciden con el conteo físico.</label><label><input id="invStartNoPending" type="checkbox"> No quedan pedidos preparados pendientes de registrar.</label><button type="button" class="sm ok" id="invStartConfirm">Registrar punto inicial</button></div>';
+ card.append(startBox);
+ const se=id=>startBox.querySelector('#'+id);
+ let startToken=null,startBusy=false;
+ const ss=v=>{if(within())se('invStartStatus').textContent=v;};
+ function showStart(v){
+  startToken=null;se('invStartReview').hidden=true;
+  se('invStartCounted').checked=false;se('invStartNoPending').checked=false;
+  const list=se('invStartItems');list.replaceChildren();
+  if(v.existing){ss('Punto inicial registrado: '+new Date(v.existing.cutoff).toLocaleString('es-CL',{timeZone:'America/Santiago'})+'. El descuento automático sigue desactivado.');return;}
+  const items=v.snapshot?.items||[];
+  if(!items.length){ss('No hay artículos configurados.');return;}
+  for(const i of items){const row=document.createElement('p');row.textContent=i.name+' · '+Number(i.quantity).toLocaleString('es-CL',{maximumFractionDigits:4})+' '+i.unit;list.append(row);}
+  startToken=v.token;se('invStartReview').hidden=false;ss('Revisa '+items.length+' artículos antes de confirmar.');
+ }
+ se('invStartLoad').onclick=async()=>{
+  if(startBusy)return;startBusy=true;se('invStartLoad').disabled=true;se('invStartConfirm').disabled=true;startToken=null;se('invStartReview').hidden=true;ss('Consultando…');
+  try{showStart(await call('consultar-inicio'));}catch(e){ss(e.message);}
+  finally{startBusy=false;if(within()){se('invStartLoad').disabled=false;se('invStartConfirm').disabled=false;}}
+ };
+ se('invStartConfirm').onclick=async()=>{
+  if(startBusy||!within()||!startToken)return;
+  if(!se('invStartCounted').checked||!se('invStartNoPending').checked){ss('Confirma ambas verificaciones.');return;}
+  if(!window.confirm('¿Registrar este conteo como punto de inicio? No se descontará stock ni se habilitará consumo automático.'))return;
+  startBusy=true;se('invStartLoad').disabled=true;se('invStartConfirm').disabled=true;ss('Registrando…');
+  try{showStart(await call('confirmar-inicio',{token:startToken,confirmar:true,sinPendientes:true}));}
+  catch(e){startToken=null;se('invStartReview').hidden=true;ss(e.message+' Consulta nuevamente el inventario.');}
+  finally{startBusy=false;if(within()){se('invStartLoad').disabled=false;se('invStartConfirm').disabled=false;}}
+ };
+
+}
+
+function mount(){
+ if(!$('invRoot'))return;
+ const active=panelBranch();
+ if(X.branch!==active){X.items=[];X.reports=[];X.selected='';X.loaded=false;}
+ X.branch=active;
+ mountCosteo();
+ $('invBranch').value=active;
+ $('invBranch').disabled=true;
+ $('ukiInvSucursalActual').textContent=active==='serena'?'Uki La Serena':'Uki Regimiento Arica';
+ $('invRefresh').onclick=()=>void load();$('invSearch').oninput=populate;
+ $('invSelect').onchange=e=>{X.selected=e.target.value;selection();};
+ $('invSave').onclick=()=>void save();$('invCreate').onclick=()=>void create();
+ if(X.loaded){$('invAdmin').hidden=false;$('invNewBox').hidden=false;$('invReportsBox').hidden=false;populate();reports();status('Inventario listo.');}
+ else void load();
+}
+window.ukiInventarioPanelHTML=panel;window.ukiInventarioMontar=mount;
+})();+Number(v).toLocaleString('es-CL');
  const countFmt=v=>Number(v).toLocaleString('es-CL',{maximumFractionDigits:4});
  let orders=[],confirmed=[],profitBusy=false,totals=new Map();
  pe('invProfitFrom').value=pe('invProfitTo').value=localDate(Date.now());
@@ -307,6 +450,38 @@ function mountCosteo(){
 
 
  // Punto de partida del consumo: solo preparación del registro, no activa descuentos.
+ // Consulta automática de los pedidos disponibles; no certifica cobertura total.
+ const daily=document.createElement('details');daily.style.marginTop='16px';
+ daily.innerHTML='<summary><b>Consumo estimado por período · automático</b></summary><p>Usa las fechas del informe de pedidos anterior. Las recetas y precios son los vigentes; no descuenta stock ni confirma faltantes.</p><button type="button" class="sm ok">Calcular consumo</button><div role="status"></div><div class="daily-result"></div>';
+ card.append(daily);
+ const dailyBtn=daily.querySelector('button'),dailyStatus=daily.querySelector('[role=status]'),dailyOut=daily.querySelector('.daily-result');
+ dailyBtn.onclick=async()=>{
+  if(!within()||dailyBtn.disabled)return;
+  dailyBtn.disabled=true;dailyOut.replaceChildren();dailyStatus.textContent='Calculando consumo…';
+  try{
+   const start=pe('invProfitFrom').value,end=pe('invProfitTo').value;
+   if(!start||!end||start>end)throw Error('Selecciona un período válido.');
+   const suc=S.suc,store=suc==='Romo’s Sushi La Serena'?'romo:serena':suc==='Uki La Serena'?'uki:serena':'uki:arica';
+   const source=(Array.isArray(S.pedidos)?S.pedidos:[]).filter(p=>p.suc===suc&&localDate(p.fechaISO)>=start&&localDate(p.fechaISO)<=end);
+   const seen=new Set(),list=[];let duplicates=0;
+   for(const p of source){const key=String(p.id)+'|'+String(p.fechaISO);if(seen.has(key)){duplicates++;continue;}seen.add(key);list.push({...sanitized(p),esPremio:p.esPremio===true});}
+   const ingredients=new Map();let calculated=0,pending=0,cost=0,allPriced=true;
+   const inv=await call('listar');const names=new Map((inv.items||[]).map(i=>[i.sku,i.name]));
+   for(let n=0;n<list.length;n+=20){
+    const a=await call('proyectar-periodo',{orders:list.slice(n,n+20)});
+    if(!within()||S.suc!==suc||pe('invProfitFrom').value!==start||pe('invProfitTo').value!==end)throw Error('Cambió el período o la sucursal. Vuelve a calcular.');
+    if(a.store!==store||!Array.isArray(a.consumption))throw Error('Respuesta no verificable.');
+    calculated+=a.calculated;pending+=a.pending;
+    if(a.calculated){if(a.cost===null)allPriced=false;else cost+=a.cost;}
+    for(const x of a.consumption){const k=x.sku+'|'+x.unit,v=ingredients.get(k)||{...x,quantity:0};v.quantity+=x.quantity;ingredients.set(k,v);}
+   }
+   dailyOut.append(make('h3','Consumo identificado · '+start+' a '+end),make('p',calculated+' pedidos calculados · '+pending+' pendientes · '+duplicates+' duplicados omitidos'),make('p','Costo estimado de pedidos calculados: '+(calculated&&allPriced?fmtMoney(cost):'No completo')));
+   for(const x of ingredients.values()){const scale=['g','ml'].includes(x.unit)?1000:1;dailyOut.append(make('p',(names.get(x.sku)||x.sku)+' · '+countFmt(x.quantity/scale)+' '+(x.unit==='g'?'kg':x.unit==='ml'?'l':x.unit)));}
+   dailyOut.append(make('p','Informe parcial de pedidos disponibles en el panel. No incluye ventas ausentes, ni permite determinar faltantes definitivos.'));
+   dailyStatus.textContent='Consulta finalizada. No se modificaron existencias.';
+  }catch(e){dailyOut.replaceChildren();dailyStatus.textContent=e.message;}
+  finally{dailyBtn.disabled=false;}
+ };
  const startBox=document.createElement('details');startBox.style.marginTop='16px';
  startBox.innerHTML='<summary><b>Inicio del control de consumo</b></summary><p class="muted">Preparar el conteo físico inicial. Solo confirma al terminar la jornada, sin pedidos preparados pendientes. Esta etapa no activa descuentos de stock.</p><button type="button" class="sm" id="invStartLoad">Consultar inventario inicial</button><p role="status" id="invStartStatus"></p><div id="invStartReview" hidden><div id="invStartItems"></div><label><input id="invStartCounted" type="checkbox"> Confirmo que las cantidades coinciden con el conteo físico.</label><label><input id="invStartNoPending" type="checkbox"> No quedan pedidos preparados pendientes de registrar.</label><button type="button" class="sm ok" id="invStartConfirm">Registrar punto inicial</button></div>';
  card.append(startBox);
