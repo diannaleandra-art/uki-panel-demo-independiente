@@ -33,7 +33,7 @@ test('Pedido existente con timbre enviado NO exige reenviar al volver a pagado',
  const original={id:77,pagado:false,timbreEnviadoEn:'2026-11-09T15:01:00Z'};
  assert.equal(ctx.ukiTimbreObligatorioGuardar(d,original),false);
  assert.equal(ctx.ukiTimbreObligatorioGuardar(d,{...original,pagado:true}),false);
- assert.equal(ctx.ukiTimbreObligatorioGuardar(d,{...original,timbreEnviadoEn:null}),true);
+ assert.equal(ctx.ukiTimbreObligatorioGuardar(d,{...original,timbreEnviadoEn:null}),false,'editar no exige otro envío; el envío pendiente se gestiona desde el pedido');
  assert.equal(ctx.ukiTimbreObligatorioGuardar({...d,telefono:''},null),false);
  assert.equal(ctx.ukiTimbreObligatorioGuardar({...d,pagado:false},null),false);
 });
@@ -112,4 +112,17 @@ test('Sintaxis JS del panel válido',()=>{
  const scripts=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
  const main=scripts.find(s=>s.includes('function vNuevo(){')&&s.includes('function vPedidos(){'));
  assert.ok(main);assert.doesNotThrow(()=>new vm.Script(main));
+});
+
+test('Retiro de pedido previamente pagado conserva el cobro y no solicita otra transferencia',()=>{
+ const c={S:{suc:'Uki Regimiento Arica'},ukiMontoPropina:()=>0,ukiErrorDistribucionPago:()=>'',ukiLineasPago:(p,t,n)=>n>0?[{medio:p.medio,monto:n}]:[]};
+ vm.createContext(c);vm.runInContext(chunk('function ukiRetiroConCobroPrevio(d,p){','function ukiEdicionMantieneCobro(d,p){'),c);
+ const p={id:688,suc:c.S.suc,estado:'Pendiente',pagado:true,modalidad:'Delivery',envio:2000,subtotal:10000,total:12000,medio:'Transferencia',propina:0};
+ const d={editando:688,pagado:true,modalidad:'Retiro',envio:0,items:[{nombre:'Sushi',cant:1,precio:10000}],medio:'Transferencia'};
+ assert.equal(c.ukiRetiroConCobroPrevio(d,p),true);
+ assert.equal(c.ukiRetiroConCobroPrevio(d,{...p,pagado:false}),false);
+ assert.equal(c.ukiRetiroConCobroPrevio({...d,medio:'Efectivo'},p),false);
+ assert.equal(c.ukiRetiroConCobroPrevio({...d,items:[{nombre:'Sushi',cant:1,precio:11000}]},p),false);
+ assert.equal(c.ukiRetiroConCobroPrevio({...d,editando:689},p),false);
+ assert.equal(c.ukiRetiroConCobroPrevio(d,{...p,qrSolicitudes:['mesa']}),false);
 });
