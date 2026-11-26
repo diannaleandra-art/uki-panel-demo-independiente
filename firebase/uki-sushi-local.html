@@ -2064,7 +2064,7 @@ function ukiCambioRetiroSinAbonoQA(p,d){
  return firma(p)===firma({...d,subtotal:sub,pagosProductos:d.mixtoProductos?d.pagosProductos:[]});
 }
 function ukiPideRectificacionPago(p,d){
- if(ukiCambioRetiroSinAbonoQA(p,d))return false;
+ if(typeof ukiCambioRetiroSinAbonoQA==='function'&&ukiCambioRetiroSinAbonoQA(p,d))return false;
  if(!ukiPuedeRectificarPago(p,d))return false;
  const propuesta={...p,medio:d.medio,medioEnvio:d.medioEnvio,
   pagosProductos:d.mixtoProductos?d.pagosProductos:[],pagosEnvio:d.mixtoEnvio?d.pagosEnvio:[]};
@@ -2086,6 +2086,7 @@ function ukiRectificacionDeliveryUI(p){
 }
 function ukiRectificacionPagoEdicionUI(p,d){
  if(!p)return '';
+ if(ukiCambioRetiroSinAbonoQA(p,d))return '<p class="muted">El valor del delivery se elimina al guardar. El abono del nuevo total se verifica únicamente si marcas el pedido pagado.</p>';
  const estado='<p id="ukiEstadoRectificacionEdicion" role="status" tabindex="-1" style="'+
   (d.rectificacionError?'color:#9a3412;font-weight:700;':'')+'margin:8px 0">'+esc(d.rectificacionMensaje||'')+'</p>';
  const lineas=(tipo,monto)=>{
