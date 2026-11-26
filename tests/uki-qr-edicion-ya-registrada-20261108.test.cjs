@@ -7,7 +7,8 @@ const helpers=html.slice(
  html.indexOf('function ukiQREsCorreccionDePagoExistente('),
  html.indexOf('let ukiQRComprobandoCobro=false;')
 );
-const start=html.indexOf('async function ndGuardar(){');
+assert.match(html,/return await ukiGuardarFormularioQA\(originalQR\)/);
+const start=html.indexOf('async function ukiGuardarFormularioQA(');
 const end=html.indexOf('  if(D.sucursalCarta &&',start);
 assert.ok(start>0&&end>start);
 const guard=html.slice(start,end);
@@ -20,14 +21,14 @@ function scenario({oldPaid=false,paid=true,accountError='No hay exactamente una 
    mesaReferencia:wrongMesa?'Mesa 3':'Mesa 2',qrSolicitudes:['MESA-abc123'],
    items:[{nombre:'producto corregido',cant:1,precio:10000}],envio:0,propinaModo:'ninguna'};
  const ctx={S:{suc:p.suc,pedidos:[p]},D:d,
-  ukiGuardadoSolicitudEnCurso:false,ukiQRComprobandoCobro:false,
+  ukiGuardadoSolicitudEnCurso:false,ukiQRComprobandoCobro:false,ukiEdicionMantieneCobro:()=>false,ukiSeguimientoHayTransferenciaQA:()=>false,
   UKI_MESAS_ENDPOINT:'live',UKI_MESAS_LIVE_URL:'live',
   ukiMesaNumeroReferencia:x=>Number(String(x).replace(/\D/g,''))||null,
   ukiMontoPropina:()=>0,
   aviso:m=>logs.push(String(m)),window:{prompt:(m,v)=>{prompts.push({mensaje:m,valorInicial:v});return montoRecibido;}}};
  const code=helpers+
    '\nasync function ukiQRPermitirCobroDefinitivo(d){ calls.push(\'verificar_cuenta\'); ukiUltimoErrorQR=cuentaError; return false; }\n'+
-   guard+'  return \'sigue_guardado\';\n  }finally{ukiGuardadoSolicitudEnCurso=false;}\n}\nndGuardar;';
+   guard+'  return \'sigue_guardado\';\n}\n()=>ukiGuardarFormularioQA(D.editando?S.pedidos.find(p=>p.id===D.editando):null);';
  ctx.calls=calls;ctx.cuentaError=accountError;
  const fn=vm.runInNewContext(code,ctx,{timeout:1000});
  return {fn,p,d,logs,prompts,calls};
@@ -73,7 +74,7 @@ test('Un QR ya pagado permite corregir producto y medio sin validar otra vez la 
 test('La edición existente no crea otro pedido y exige responsable antes de guardar',()=>{
  const save=html.slice(start,html.indexOf('\nfunction cerrar(){',start));
  assert.match(save,/autorizacion=String\(D\.responsableEdicion/);
- assert.match(save,/S\.vista="pedidos"; render\(\); return/);
+ assert.match(save.slice(save.indexOf('if(D.editando){\n    const p='),save.indexOf('S.pedidos.push(nuevoPedido)')), /S\.vista="pedidos"; render\(\);[\s\S]*?return;\s*\}/);
  assert.ok(save.indexOf('S.pedidos.push(nuevoPedido)')>save.indexOf('if(D.editando){\n    const p='));
  assert.match(save,/conciliacionQRManual:conciliacionQRManual/);
  assert.match(save,/cobroRecibidoQR:conciliacionQRManual/);
