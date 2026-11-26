@@ -105,7 +105,8 @@ module.exports=async(req,res)=>{
  res.setHeader('Cache-Control','no-store');
  res.setHeader('X-Content-Type-Options','nosniff');
  res.setHeader('Vary','Origin');
- const origin=String(req.headers?.origin||''),allow=permitido(origin);
+ const origin=String(req.headers?.origin||''),romoOrigin=origin==='https://romos-sushi-panel.vercel.app';
+ const allow=permitido(origin)||(romoOrigin&&process.env.UKI_BODEGA_SERENA_COMPARTIDA==='true');
  if(allow){
   res.setHeader('Access-Control-Allow-Origin',origin);
   res.setHeader('Access-Control-Allow-Headers','Authorization,Content-Type');
@@ -121,6 +122,7 @@ module.exports=async(req,res)=>{
   return fail(res,400,'Solicitud de inventario inválida');
  const branch=String(input.branch||''),action=String(input.action||'');
  if(!BRANCHES.has(branch))return fail(res,400,'Sucursal no válida');
+ if(romoOrigin&&(branch!=='serena'||!['articulos','reportes','historial','revision','crear-articulo','editar-articulo','configurar-unidad'].includes(action)))return fail(res,403,'Romo solo puede administrar la bodega compartida La Serena con Google autorizado.');
  if(!['estado','crear-codigo','listar','contar','recibir','factura-consultar','factura-preparar-articulos','factura-recibir','finalizar','reportes','historial','revision','articulos','crear-articulo','editar-articulo','configurar-unidad','justificar','crear-insumo-trabajador','movimientos-trabajador','revisiones-trabajador','revision-trabajador'].includes(action))
   return fail(res,400,'Acción no permitida');
  const dbUrl=liveDbUrl();
