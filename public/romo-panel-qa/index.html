@@ -2248,7 +2248,12 @@ function ukiTimbreTextoPedido(nombre,cantidad){
    "Sucursal: "+S.suc,
    "¡Gracias por preferir "+(S.suc===ROMO_SUCURSAL_QA?"Romo’s Sushi":"Uki Sushi")+"!"].join("\n");
 }
-function ukiAbrirTimbreBorrador(){
+function ukiMostrarImagenTimbrePedidoQA(p,timbres,telefonoChat,vigente,preparada){
+ if(!window.ukiTarjetaMostrar)return aviso("No se pudo cargar la tarjeta. Puedes enviar el timbre en texto.");
+ return window.ukiTarjetaMostrar({nombre:p.cliente,timbres,sucursal:S.suc,modoPedido:true},
+  {telefonoChat,vigente,preparada});
+}
+function ukiAbrirTimbreBorrador(comoImagen=false){
  const original=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&p.id===D.editando):null;
  if(ukiTimbreYaEnviadoPedido(original)||ukiTimbreBorradorConfirmado(D))
   return aviso("✅ Este pedido ya tiene timbre enviado. No abras WhatsApp nuevamente: evita duplicarlo.");
@@ -2267,6 +2272,21 @@ function ukiAbrirTimbreBorrador(){
  const cli=getCliente(D.cliente,D.codigoCliente,D.telefono);
  const acumulados=cli?ventasValidas(cli):0;
  const firma=ukiFirmaTimbreBorrador(D);
+ if(comoImagen){
+  const d=D,sucursal=S.suc;
+  const vigente=()=>D===d&&S.suc===sucursal&&S.vista==="nuevo"&&
+   ukiFirmaTimbreBorrador(d)===firma&&ukiTimbreObligatorioGuardar(d,
+    d.editando?(S.pedidos||[]).find(p=>p.suc===sucursal&&p.id===d.editando):null)&&
+   !ukiTimbreBorradorConfirmado(d);
+  return ukiMostrarImagenTimbrePedidoQA(d,acumulados+1,numero,vigente,()=>{
+   if(d.timbreAvisoAbiertoFirma!==firma||!d.timbreAvisoAbiertoEn){
+    d.timbreAvisoAbiertoFirma=firma;d.timbreAvisoAbiertoEn=new Date().toISOString();
+    d.timbreAvisoConfirmadoFirma="";d.timbreAvisoConfirmadoEn="";
+   }
+   if(d.editando&&S.suc===ROMO_SUCURSAL_QA)ukiRomoRecordarTimbreEdicionQA(d);
+   render();
+  });
+ }
  D.timbreAvisoAbiertoFirma=firma;D.timbreAvisoConfirmadoFirma="";
  D.timbreAvisoAbiertoEn=new Date().toISOString();D.timbreAvisoConfirmadoEn="";
  if(original&&S.suc===ROMO_SUCURSAL_QA)ukiRomoRecordarTimbreEdicionQA(D);
@@ -2285,7 +2305,7 @@ function ukiConfirmarTimbreBorrador(marcado){
  }
  const firma=ukiFirmaTimbreBorrador(D);
  if(!D.timbreAvisoAbiertoEn||D.timbreAvisoAbiertoFirma!==firma){
-  aviso("Primero pulsa Enviar timbre por WhatsApp. No basta con marcar la casilla.");return;
+  aviso("Primero abre WhatsApp para enviar el texto o usa Compartir imagen del timbre.");return;
  }
  D.timbreAvisoConfirmadoFirma=firma;D.timbreAvisoConfirmadoEn=new Date().toISOString();
  D.timbreAvisoConfirmadoPor=ukiTimbreResponsableActual();
@@ -2355,6 +2375,7 @@ function ukiPasoTimbreAntesDeGuardar(pedidoEdicion){
   '<p class="muted">Enviar un timbre no genera un segundo cobro. El registro del pago se realiza al guardar el pedido.</p>'+
   '<p><b>Cliente:</b> '+esc(D.cliente||'Sin nombre')+' · <b>WhatsApp:</b> '+esc(D.telefono||'')+'</p>'+
   '<button type="button" class="big" onclick="ukiAbrirTimbreBorrador()">📲 Enviar timbre por WhatsApp</button>'+
+  '<button type="button" class="sm" onclick="ukiAbrirTimbreBorrador(true)">Compartir imagen del timbre</button>'+
   '<label class="check" style="margin:12px 0"><input type="checkbox" '+(enviado?'checked':'')+
   ' '+(abierto&&!enviado?'':'disabled')+' onchange="ukiConfirmarTimbreBorrador(this.checked)">'+
   '<b>Confirmo que pulsé Enviar en WhatsApp</b></label>'+
@@ -3232,7 +3253,7 @@ function ukiTimbreMovimientoRegistrado(p){
  return Object.values(S.clientes||{}).some(c=>
   (c.movimientos||[]).some(m=>m.tipo==='venta'&&Number(m.pedidoId)===Number(p?.id)));
 }
-function ukiAbrirTimbrePedido(id){
+function ukiAbrirTimbrePedido(id,comoImagen=false){
  const p=(S.pedidos||[]).find(x=>x.suc===S.suc&&x.id===Number(id));
  if(ukiTimbreYaEnviadoPedido(p))return aviso("✅ Este pedido ya tiene timbre enviado. No se vuelve a enviar por una edición.");
  if(!ukiPedidoDaTimbre(p))return aviso("Este pedido no genera un timbre enviado.");
@@ -3242,6 +3263,13 @@ function ukiAbrirTimbrePedido(id){
   return aviso("Este pedido está pagado pero falta su movimiento de timbre. Revisa antes de enviar para evitar un saldo incorrecto.");
  const cli=getCliente(p.cliente,p.codigoCliente,p.telefono);
  const cantidad=cli?ventasValidas(cli):0;
+ if(comoImagen){
+  const sucursal=S.suc;
+  const vigente=()=>S.suc===sucursal&&(S.pedidos||[]).includes(p)&&
+   ukiPedidoDaTimbre(p)&&!ukiTimbreYaEnviadoPedido(p)&&
+   ukiNumeroTimbreWhatsApp(p.telefono)===numero&&ukiTimbreMovimientoRegistrado(p);
+  return ukiMostrarImagenTimbrePedidoQA(p,cantidad,numero,vigente,()=>{});
+ }
  const evento=ukiAnotarEventoTimbre(p,"whatsapp_abierto");
  p.timbreWhatsAppAbiertoEn=evento.fecha;p.timbreWhatsAppAbiertoPor=evento.responsable;
  void guardarEnLocalStorage();
@@ -3256,7 +3284,8 @@ function ukiTimbrePedidoUI(p){
    ' · '+esc(p.timbreEnviadoPor||"Sin turno identificado")+' (no verificado por WhatsApp)</p>':
    '<p class="muted">'+(p.timbreWhatsAppAbiertoEn?'WhatsApp abierto: '+esc(new Date(p.timbreWhatsAppAbiertoEn).toLocaleString('es-CL'))+'. ':'')+
    'Después de pulsar Enviar en WhatsApp, confirma manualmente. Abrir WhatsApp no prueba el envío.</p>')+
-  (!enviado&&ukiNumeroTimbreWhatsApp(p.telefono)?'<button type="button" class="sm ok" onclick="ukiAbrirTimbrePedido('+Number(p.id)+')">📲 Enviar timbre por WhatsApp</button>':enviado?'':'<p class="muted">Sin WhatsApp registrado · no bloquea el pedido.</p>')+
+  (!enviado&&ukiNumeroTimbreWhatsApp(p.telefono)?'<button type="button" class="sm ok" onclick="ukiAbrirTimbrePedido('+Number(p.id)+')">📲 Enviar timbre por WhatsApp</button> '+
+   '<button type="button" class="sm" onclick="ukiAbrirTimbrePedido('+Number(p.id)+',true)">Compartir imagen del timbre</button>':enviado?'':'<p class="muted">Sin WhatsApp registrado · no bloquea el pedido.</p>')+
   (enviado?'<p class="muted"><b>✅ Ya enviado · no volver a compartir por cambio de pago.</b></p>':
    '<button type="button" class="sm ok" onclick="ukiMarcarTimbreEnviado('+Number(p.id)+')">✓ Confirmar que lo envié</button>')+'</div>';
 }
@@ -3869,6 +3898,7 @@ function vClientes(){
       '</p>'+
       (m.pedido&&ukiNumeroTimbreWhatsApp(m.pedido.telefono)?
         '<button type="button" class="sm ok" onclick="ukiAbrirTimbrePedido('+Number(m.pedido.id)+')">📲 Abrir WhatsApp</button> '+
+        (!m.pedido.timbreEnviadoEn?'<button type="button" class="sm" onclick="ukiAbrirTimbrePedido('+Number(m.pedido.id)+',true)">Compartir imagen del timbre</button> ':'')+
         '<button type="button" class="sm" onclick="ukiMarcarTimbreEnviado('+Number(m.pedido.id)+')">'+
         (m.pedido.timbreEnviadoEn?'Desmarcar envío':'✓ Confirmar enviado')+'</button>':'')+'</div>').join('')||
       '<p class="muted">No hay movimientos de timbre registrados en esta fecha.</p>'}
@@ -6169,6 +6199,7 @@ function ukiRomoTimbreCobroUIQA(p){
  return '<div class="card uki-timbre-obligatorio" id="romoTimbreCobroBloque'+id+'"><h3>🎫 Paso obligatorio antes de guardar</h3>'+
   '<p>Envía el timbre por WhatsApp y confirma el envío antes de registrar el pago.</p>'+
   '<button class="big" type="button" id="romoTimbreCobroAbrir'+id+'" '+(enviado?'disabled':'')+' onclick="ukiRomoAbrirTimbreCobroQA('+id+')">📲 Enviar timbre por WhatsApp</button>'+
+  (!enviado?'<button class="sm" type="button" onclick="ukiRomoAbrirTimbreCobroQA('+id+',true)">Compartir imagen del timbre</button>':'')+
   '<label class="check"><input type="checkbox" id="romoTimbreCobroConfirmar'+id+'" '+(enviado?'checked disabled':abierto?'':'disabled')+
   ' onchange="ukiRomoConfirmarTimbreCobroQA('+id+',this.checked)"> Confirmo que pulsé Enviar en WhatsApp</label>'+
   '<p class="muted" id="romoTimbreCobroEstado'+id+'">'+(enviado?'✅ Envío confirmado. Ya puedes guardar.':'Primero abre WhatsApp y envía el mensaje.')+'</p></div>';
@@ -6186,7 +6217,7 @@ function ukiRomoActualizarTimbreCobroQA(id){
  if(abrir)abrir.disabled=enviado;
  if(estado)estado.textContent=enviado?'✅ Envío confirmado. Ya puedes guardar.':d.timbreAvisoAbiertoEn?'Regresa de WhatsApp y confirma que pulsaste Enviar.':'Primero abre WhatsApp y envía el mensaje.';
 }
-function ukiRomoAbrirTimbreCobroQA(id){
+function ukiRomoAbrirTimbreCobroQA(id,comoImagen=false){
  if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoOperacionesEnCursoQA())return;
  const p=(S.pedidos||[]).find(x=>x.suc===S.suc&&Number(x.id)===Number(id));
  if(!p||p.pagado||p.estado==='Cancelado'||p.esPremio||ukiCierreConfirmadoPedido(p))return aviso('El pedido no admite este timbre.');
@@ -6197,6 +6228,19 @@ function ukiRomoAbrirTimbreCobroQA(id){
  const numero=ukiNumeroTimbreWhatsApp(p.telefono);
  if(!numero||!String(p.cliente||'').trim())return aviso('Revisa el nombre y WhatsApp del cliente.');
  const cli=getCliente(p.cliente,p.codigoCliente,p.telefono);
+ if(comoImagen){
+  const sesion=window.ukiRomoSesionRemotaQA;
+  const vigente=()=>S.suc===ROMO_SUCURSAL_QA&&(S.pedidos||[]).includes(p)&&
+   sesion===window.ukiRomoSesionRemotaQA&&!ukiRomoOperacionesEnCursoQA()&&!p.pagado&&
+   p.estado!=='Cancelado'&&!ukiTimbreYaEnviadoPedido(p)&&
+   ukiNumeroTimbreWhatsApp(p.telefono)===numero&&
+   !ukiTimbreBorradorConfirmado(ukiRomoTimbreCobroDraftQA(p,Number($('romoCobroExternoProducto'+id)?.value||0)));
+  return ukiMostrarImagenTimbrePedidoQA(p,(cli?ventasValidas(cli):0)+1,numero,vigente,()=>{
+   ukiRomoTimbreCobroQA.set(Number(id),{sesion,timbreAvisoAbiertoFirma:ukiFirmaTimbreBorrador(d),
+    timbreAvisoAbiertoEn:new Date().toISOString(),timbreAvisoConfirmadoFirma:'',timbreAvisoConfirmadoEn:''});
+   ukiRomoActualizarTimbreCobroQA(id);
+  });
+ }
  ukiRomoTimbreCobroQA.set(Number(id),{sesion:window.ukiRomoSesionRemotaQA,timbreAvisoAbiertoFirma:ukiFirmaTimbreBorrador(d),timbreAvisoAbiertoEn:new Date().toISOString(),timbreAvisoConfirmadoFirma:'',timbreAvisoConfirmadoEn:''});
  ukiRomoActualizarTimbreCobroQA(id);
  window.open('https://wa.me/'+numero+'?text='+encodeURIComponent(ukiTimbreTextoPedido(p.cliente,(cli?ventasValidas(cli):0)+1)),'_blank','noopener,noreferrer');
@@ -7750,6 +7794,8 @@ function ukiRomoTimbresPanelQA(){
     ((!p.timbreEnviadoEn&&contado&&tel)?
      '<button type="button" class="sm ok" onclick="ukiRomoAbrirTimbreQA('+
      Number(p.id)+')">Abrir WhatsApp</button>'+
+     '<button type="button" class="sm" onclick="ukiRomoAbrirTimbreQA('+
+     Number(p.id)+',true)">Compartir imagen del timbre</button>'+
      (ukiRomoWAAbiertosQA.has(Number(p.id))?
       '<button type="button" class="sm" onclick="ukiRomoConfirmarTimbreQA('+
       Number(p.id)+')">Confirmar envío realizado</button>':'')
@@ -7757,7 +7803,7 @@ function ukiRomoTimbresPanelQA(){
   }).join('')||'<div class="card">Sin compras pagadas para esta consulta.</div>')+
   '</details>';
 }
-function ukiRomoAbrirTimbreQA(id){
+function ukiRomoAbrirTimbreQA(id,comoImagen=false){
  if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoTimbreBusyQA)return;
  const p=S.pedidos.find(x=>x.suc===S.suc&&x.id===Number(id));
  if(!p||!p.pagado||p.timbreEnviadoEn||p.estado==='Cancelado'||
@@ -7766,6 +7812,17 @@ function ukiRomoAbrirTimbreQA(id){
  if(!numero)return aviso('Falta WhatsApp válido.');
  const cli=getCliente(p.cliente,p.codigoCliente,p.telefono);
  const cantidad=Math.min(10,Math.max(0,cli?ventasValidas(cli):0));
+ if(comoImagen){
+  const sesion=window.ukiRomoSesionRemotaQA;
+  const vigente=()=>S.suc===ROMO_SUCURSAL_QA&&(S.pedidos||[]).includes(p)&&
+   sesion===window.ukiRomoSesionRemotaQA&&!ukiRomoTimbreBusyQA&&p.pagado&&
+   p.estado!=='Cancelado'&&!ukiTimbreYaEnviadoPedido(p)&&
+   ukiNumeroTimbreWhatsApp(p.telefono)===numero&&ukiTimbreMovimientoRegistrado(p);
+  return ukiMostrarImagenTimbrePedidoQA(p,cantidad,numero,vigente,()=>{
+   ukiRomoWAAbiertosQA.set(Number(id),{numero,abiertoEn:new Date().toISOString()});
+   render();
+  });
+ }
  const texto=['🍣 *ROMO’S SUSHI · TARJETA DE TIMBRES*',
   'Hola, '+String(p.cliente||'cliente').trim()+' 👋',
   'Tu compra suma 1 timbre. Tienes *'+cantidad+'/10 timbres* acumulados.',
@@ -12359,7 +12416,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 <script type="module" src="./uki-romo-inicializacion-vacia-qa.mjs"></script>
 <script type="module" src="./uki-romo-integracion-panel-qa.mjs"></script>
 <script type="module" src="./uki-romo-vinculo-duenos-qa.mjs"></script>
-<script src="./uki-tarjeta-cliente.js" defer></script>
+<script src="./uki-tarjeta-cliente.js?v=imagen-en-pedido-v1" defer></script>
 <script src="./uki-cierre-detallado.js" defer></script>
 <script src="./uki-inventario-admin-embebido.js?v=20261122-costeo-v1" defer></script>
 <script src="./uki-disponibilidad-admin.js?v=romo-disponibilidad-20261121" defer></script>
