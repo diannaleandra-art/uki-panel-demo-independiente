@@ -67,16 +67,29 @@ async function entradasDesdeUltimaRevision(sql,branch){
  return {bySku,periodo:cutoff?'Desde revisión anterior':'Hoy desde 00:00 (Chile)'};
 }
 // Evidencia de conteo desde la revisión anterior. No presume conteo por saldo existente.
-async function conteosDesdeUltimaRevision(sql,branch){
- const prev=await sql.query('SELECT created_at FROM public.uki_inventario_revisiones_live WHERE branch=$1 ORDER BY created_at DESC LIMIT 1',[branch]);
- const cutoff=prev[0]?.created_at||null;
+async function conteosDesdeUltimaRevision(sql,branch,cutoff){
+ if(cutoff===undefined){
+  const prev=await sql.query('SELECT created_at FROM public.uki_inventario_revisiones_live WHERE branch=$1 ORDER BY created_at DESC LIMIT 1',[branch]);
+  cutoff=prev[0]?.created_at||null;
+ }
  const desde="COALESCE($2::timestamptz, date_trunc('day',now() AT TIME ZONE 'America/Santiago') AT TIME ZONE 'America/Santiago')";
+ const conteos=(table,dt,action)=>sql.query(`SELECT sku, MAX(${dt}) FILTER (WHERE ${action}='conteo') AS contado_en
+  FROM public.${table} WHERE branch=$1 AND ${action} IN ('conteo','entrada') AND ${dt} > ${desde}
+  GROUP BY sku HAVING MAX(${dt}) FILTER (WHERE ${action}='conteo') >
+  COALESCE(MAX(${dt}) FILTER (WHERE ${action}='entrada'), '-infinity'::timestamptz)`,[branch,cutoff]);
  const [base,extras]=await Promise.all([
- sql.query("SELECT sku, MAX(creado_en) AS contado_en FROM public.uki_inventario_movimientos_live WHERE branch=$1 AND accion='conteo' AND creado_en > "+desde+" GROUP BY sku",[branch,cutoff]),
- sql.query("SELECT sku, MAX(created_at) AS contado_en FROM public.uki_inventario_extras_movimientos_live WHERE branch=$1 AND action='conteo' AND created_at > "+desde+" GROUP BY sku",[branch,cutoff])
+  conteos('uki_inventario_movimientos_live','creado_en','accion'),
+  conteos('uki_inventario_extras_movimientos_live','created_at','action')
  ]);
- const rows=[...base,...extras];
- return new Map(rows.map(r=>[String(r.sku),r.contado_en]));
+ return new Map([...base,...extras].map(r=>[String(r.sku),r.contado_en]));
+}
+// Consulta de solo lectura con el mismo PIN y la misma bodega que el inventario.
+async function flujoCierre(sql,branch){
+ const [cierre]=await sql.query(`SELECT id,created_at,worker_name,items,summary
+  FROM public.uki_inventario_revisiones_live WHERE branch=$1
+  ORDER BY created_at DESC,id DESC LIMIT 1`,[branch]);
+ const counts=await conteosDesdeUltimaRevision(sql,branch,cierre?.created_at||null).catch(()=>null);
+ return {cierre:cierre||null,conteos:counts?[...counts].map(([sku,fecha])=>({sku,fecha})):null};
 }
 function textoReporte(branch,worker,summary,fecha){
  const date=fechaHoraChile(fecha);
@@ -252,8 +265,11 @@ module.exports=async(req,res)=>{
    return res.status(201).json({ok:true,branch,item});
   }
   if(action==='listar'){
-   const [data,added]=await Promise.all([leerInventario(sql,branch),extra.listar(sql,branch)]);
-   return res.status(200).json({ok:true,branch,bodegaCompartida:process.env.UKI_BODEGA_SERENA_COMPARTIDA==='true',items:[...data.map(i=>({
+   const [data,added,flujo]=await Promise.all([
+    leerInventario(sql,branch),extra.listar(sql,branch),
+    input.flujo_cierre===true?flujoCierre(sql,branch).catch(()=>null):null
+   ]);
+   return res.status(200).json({ok:true,branch,...(input.flujo_cierre===true?{flujo}:{}),bodegaCompartida:process.env.UKI_BODEGA_SERENA_COMPARTIDA==='true',items:[...data.map(i=>({
     sku:i.sku,kind:i.kind,group_key:i.group_key,name:i.name,available:i.available,
     stock_qty:i.stock_qty,stock_unit:i.stock_unit,min_stock_qty:i.min_stock_qty,version:i.version
    })),...added]});
@@ -379,4 +395,4 @@ module.exports=async(req,res)=>{
    (etapa==='guardar-movimiento'?'No se pudo confirmar el movimiento.':'No se pudo abrir el inventario.')+' ('+etiqueta+').':String(e.message));
  }
 };
-module.exports._testing={permitido,admin,resumen,textoReporte,validDate,fechaHoraChile,entradasDesdeUltimaRevision,conteosDesdeUltimaRevision};
+module.exports._testing={permitido,admin,resumen,textoReporte,validDate,fechaHoraChile,entradasDesdeUltimaRevision,conteosDesdeUltimaRevision,flujoCierre};

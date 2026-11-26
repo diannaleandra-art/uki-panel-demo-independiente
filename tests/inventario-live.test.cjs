@@ -120,3 +120,54 @@ test('acceso Google iPhone por redirección con helper en el mismo dominio',()=>
  });
  assert.ok(routing.rewrites.every(x=>x.destination.startsWith('https://uki-panel-f4909.firebaseapp.com/__/')));
 });
+
+test('flujo de cierre consulta el último informe de su bodega y conteos posteriores, sin mutaciones',async()=>{
+ const cierre={id:'last',created_at:'2026-11-25T23:55:00Z',items:[{sku:'ingredient:arroz',stock_qty:10}]};
+ const calls=[];
+ const sql={query:async(statement,params)=>{
+  calls.push([statement,params]);
+  assert.match(statement,/^\s*SELECT\b/);
+  assert.match(statement,/WHERE branch=\$1/);
+  assert.equal(params[0],'serena');
+  if(statement.includes('uki_inventario_revisiones_live'))return [cierre];
+  assert.equal(params[1],cierre.created_at);
+  assert.match(statement,/HAVING MAX/);
+  assert.match(statement,/'entrada'/);
+  return statement.includes('_extras_')?[]:[{sku:'ingredient:arroz',contado_en:'2026-11-26T23:15:00Z'}];
+ }};
+ assert.deepEqual(await api._testing.flujoCierre(sql,'serena'),{
+  cierre,conteos:[{sku:'ingredient:arroz',fecha:'2026-11-26T23:15:00Z'}]
+ });
+ assert.equal(calls.length,3);
+});
+
+test('flujo de cierre distingue primer cierre, ningún conteo y conteos no consultados',async()=>{
+ let fail=false;
+ const sql={query:async(statement,params)=>{
+  assert.equal(params[0],'arica');
+  if(statement.includes('uki_inventario_revisiones_live'))return [];
+  assert.equal(params[1],null);
+  assert.match(statement,/America\/Santiago/);
+  if(fail)throw Error('DB error');
+  return [];
+ }};
+ assert.deepEqual(await api._testing.flujoCierre(sql,'arica'),{cierre:null,conteos:[]});
+ fail=true;
+ assert.deepEqual(await api._testing.flujoCierre(sql,'arica'),{cierre:null,conteos:null});
+});
+
+test('las dos entradas al inventario separan Compra, Cierre y consulta del cierre anterior',()=>{
+ for(const page of ['public/index.html','firebase/uki-inventario-turno.html']){
+  const html=fs.readFileSync(path.join(__dirname,'..',page),'utf8');
+  const source=html.match(/<script type="module">([\s\S]+?)<\/script>/)[1];
+  assert.doesNotThrow(()=>new (require('node:vm').Script)(source.replace(/^import .*$/gm,'')));
+  const purchases=html.match(/<section class="card" id="invPurchases" hidden>[\s\S]*?<\/section>/)[0];
+  assert.doesNotMatch(purchases,/enviar|cierre|reporte.*guardar/i);
+  assert.match(html,/No se puede calcular cuánto pedir/);
+  assert.match(html,/id="invPrevious"/);
+  assert.match(source,/invFinish'\)\.hidden=mode!=='reporte'/);
+  assert.match(source,/invPurchases'\)\.hidden=mode!=='compras'/);
+  assert.match(source,/api\('listar',\{flujo_cierre:true\}\)/);
+  assert.doesNotMatch(source,/countValue\.value\s*=\s*String\(qty\)/);
+ }
+});

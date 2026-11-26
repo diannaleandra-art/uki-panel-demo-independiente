@@ -16,35 +16,20 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
  .reloj-inventario strong{display:block;margin:5px 0;font-size:18px;color:#6c3c12;font-variant-numeric:tabular-nums;line-height:1.35}
  .reloj-inventario p{margin:6px 0 0}details{margin-top:10px}summary{cursor:pointer;color:#915a2b}footer{text-align:center;color:#826b58;font-size:12px}
 
- .card[data-estado="reponer"]{border:2px solid #d89e54;border-left:6px solid #c57c1a;background:#fffaf2}
- .card[data-estado="bien"]{border-left:6px solid #6da77e;background:#fcfffb}
- .card[data-estado="sin-minimo"]{border-left:6px solid #9b948a;background:#fcfbf9}
  #items>details>summary{display:flex;align-items:center;justify-content:space-between;gap:9px;list-style:none}
  #items>details>summary::-webkit-details-marker{display:none}
  #items>details>summary:after{content:"+";font-size:21px;color:#8a552d}
  #items>details[open]>summary:after{content:"−"}
  #items>details strong{font-size:17px}
- .estado-pill{display:inline-block;margin:6px 0;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:800}
- .estado-pill.reponer{background:#ffdda8;color:#764008}
- .estado-pill.bien{background:#dff4e5;color:#24633b}
- .estado-pill.sin-minimo{background:#f0ece6;color:#796a5e}
  .action-label{font-weight:800;border-top:1px solid #e6d8cc;padding-top:13px;margin:16px 0 6px;color:#744831}
  #items details details{border:1px solid #e8c7a8;border-radius:12px;background:#fff8f0;padding:12px;margin-top:16px}
  #items details details>summary{font-weight:800;color:#7b4527}
- .reporte-colores{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:12px 0}
- .resumen-indicador{border:1px solid #e5d5c6;border-radius:12px;padding:10px 7px;background:#f9f7f4}
- .resumen-indicador .valor{display:block;font-size:21px;font-weight:850}
- .resumen-indicador .detalle{display:block;font-size:12px;line-height:1.35}
- .resumen-indicador.verde{background:#edf8ef;border-color:#b4d9bd;color:#26683e}
- .resumen-indicador.naranja{background:#fff0dc;border-color:#e6bd84;color:#87510d}
- .resumen-indicador.gris{background:#f3f0ec;border-color:#d5c9bf;color:#655449}
  .reporte-lista{display:grid;gap:7px;margin:10px 0}
  .reporte-fila{border-left:4px solid #c4822c;border-radius:10px;background:#fff8ed;padding:10px 12px}
  .reporte-fila strong{display:block;font-size:14px}
  .reporte-fila small{display:block;font-size:13px;margin-top:3px;color:#7b542c}
  .descargas-turno{border:1px solid #b6d7b9;border-radius:13px;background:#f1faf3;padding:12px;margin-top:13px}
  .descargas-turno .grid{margin-top:8px}.descargas-turno button{width:100%;min-height:45px}
- @media(max-width:430px){.resumen-indicador{padding:8px 5px}.resumen-indicador .detalle{font-size:11px}}
  [hidden]{display:none!important}
 </style><style>
 .inv-app-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
@@ -52,12 +37,21 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 .inv-app-grid strong,.inv-app-grid small{display:block}.inv-app-grid strong{font-size:15px;margin-top:7px}.inv-app-grid small{font-weight:400;color:#766252;font-size:12px;margin-top:5px}
 #activo[data-inv-mode="entrada"] #items .inv-count-control{display:none}
 #activo[data-inv-mode="conteo"] #items .inv-receive-control{display:none}
-#activo[data-inv-mode="compras"] #enviar,#activo[data-inv-mode="compras"] #descargasTurno{display:none!important}
+.inv-lead{border-left:4px solid #d88134;background:#fff8ef;padding:13px 14px;border-radius:10px;margin:0 0 14px}
+.inv-lead strong,.inv-lead small{display:block}.inv-lead small{margin:4px 0 9px}
+.inv-app-grid.inv-principal{grid-template-columns:1fr;margin-bottom:18px}
+.inv-app-grid.inv-principal button{min-height:auto;padding:14px 16px;background:#fff4e8;border-color:#e7bc9c;font-size:16px}
+.inv-app-grid.inv-principal strong{margin-top:0;font-size:17px}
+.inv-app-grid.inv-principal small{font-size:14px}
+.inv-cerrar{position:sticky;bottom:8px;z-index:2;box-shadow:0 2px 12px #50301120;margin-top:12px}
+.inv-cerrar p{margin:0 0 8px}.inv-cerrar button,#enviar{width:100%}
+#invPrevList p{margin:7px 0}#activo[data-inv-mode="entrada"] .inv-solo-conteo{display:none!important}
+#activo[data-inv-mode="entrada"] #invListHeader h2{margin-top:6px}
 </style></head>
-<body><header><h1>🍣 Uki Sushi · Inventario</h1><div>Conteo del turno · sin caja, ventas ni cierres</div></header>
+<body><header><h1>🍣 Uki Sushi · Inventario</h1><div>Mercadería recibida y conteo al cierre</div></header>
 <main>
-<section class="card">
-<h2>1. Abrir inventario</h2>
+<section class="card" id="invAccess">
+<h2>Abrir inventario</h2>
 <label for="branch">Sucursal</label><select id="branch"><option value="arica">Regimiento Arica</option><option value="serena">La Serena</option></select>
 <label for="nombre">Nombre del trabajador</label><input id="nombre" maxlength="60" placeholder="Nombre de quien cuenta">
 <label for="codigo">Código exclusivo de inventario (6 números)</label>
@@ -67,32 +61,59 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 </section>
 <div id="activo" hidden><section id="invAppHome" class="card inv-app-home">
 <h2>Mi inventario</h2><p id="invAppLocal" class="muted"></p>
-<nav class="inv-app-grid" aria-label="Funciones del inventario">
-<button type="button" data-inv-view="conteo">📋<strong>Contar existencias</strong><small>Lo que tenemos</small></button>
-<button type="button" data-inv-view="entrada">📦<strong>Recibir mercadería</strong><small>Ingreso manual o factura</small></button>
+<div class="inv-lead">
+ <strong id="invPrevHomeTitle">Último cierre guardado</strong>
+ <small id="invPrevHomeStatus" class="muted" role="status"></small>
+ <button type="button" class="secondary" data-inv-view="anterior">Consultar último cierre</button>
+</div>
+<nav class="inv-app-grid inv-principal" aria-label="Tareas del día">
+ <button type="button" data-inv-view="entrada"><strong>📦 Llegó mercadería</strong><small>Registra solo lo que llegó. Puedes usar la foto de la factura.</small></button>
+ <button type="button" data-inv-view="conteo"><strong>📋 Cerrar inventario de hoy</strong><small id="invHomeCloseHelp">Al final del turno, cuenta únicamente lo que quedó.</small></button>
+</nav>
+<nav class="inv-app-grid" aria-label="Consultas">
+ <button type="button" data-inv-view="compras">🛒<strong>Lista de compras</strong><small>Consulta cuánto pedir</small></button>
+ <button type="button" data-inv-view="historial">🗓<strong>Historial y reportes</strong><small>Consulta y comparte por fecha</small></button>
+</nav>
+<details><summary>Otras tareas</summary><nav class="inv-app-grid" aria-label="Otras tareas">
 <button type="button" data-inv-view="alta">➕<strong>Agregar insumo</strong><small>Preparar artículos nuevos</small></button>
 <button type="button" data-inv-view="merma">🗑<strong>Merma</strong><small>Producto perdido</small></button>
 <button type="button" data-inv-view="personal">🍽<strong>Consumo personal</strong><small>Alimentación del equipo</small></button>
 <button type="button" data-inv-view="traspaso">⇄<strong>Traspasos</strong><small>Entre bodegas</small></button>
-<button type="button" data-inv-view="compras">🛒<strong>Lista de compras</strong><small>Lo que falta</small></button>
-<button type="button" data-inv-view="historial">🗓<strong>Historial y reportes</strong><small>Consultar por fecha</small></button><button type="button" data-inv-view="reporte">📄<strong>Guardar y compartir</strong><small>PDF, Excel y WhatsApp</small></button>
-</nav></section><section id="invAppBar" class="card" hidden><button type="button" id="invAppBack" class="secondary">‹ Inicio</button><h2 id="invAppTitle" style="margin-top:12px"></h2></section>
+</nav></details><button type="button" class="secondary" id="invChangeAccess" style="margin-top:14px">Cambiar acceso</button>
+</section><section id="invAppBar" class="card" hidden><button type="button" id="invAppBack" class="secondary">‹ Inicio</button><h2 id="invAppTitle" style="margin-top:12px"></h2><p id="invAppHint" class="muted" hidden></p></section>
+<section class="card" id="invPrevious" hidden>
+ <p id="invPrevStatus" role="status"></p><p id="invPrevNote" class="muted" hidden></p>
+ <button type="button" class="secondary" id="invPrevRefresh">Actualizar desde el historial</button>
+ <label for="invPrevSearch" id="invPrevSearchLabel" hidden>Buscar en este cierre</label>
+ <input id="invPrevSearch" type="search" placeholder="Ej. Aceitunas" hidden>
+ <div id="invPrevList" class="reporte-lista"></div>
+ <button type="button" class="secondary" id="invPrevMore" hidden>Mostrar más artículos</button>
+</section>
+<section class="card" id="invPurchases" hidden>
+ <p id="invPurchaseNote" role="status"></p>
+ <p id="resumen" class="muted"></p>
+ <div id="resumenArticulos" class="reporte-lista" aria-label="Artículos que requieren compra"></div>
+</section>
 <section class="card" id="invQuickAdd" hidden><h2>Nuevo insumo</h2><p class="muted">Si falta un insumo, agrégalo aquí. Luego registra el conteo físico o la entrada, según corresponda.</p><label for="invQuickName">Nombre</label><input id="invQuickName" maxlength="100" placeholder="Ej. Harina"><label for="invQuickCat">Categoría</label><select id="invQuickCat"><option value="ingrediente">Ingrediente</option><option value="envase">Envase</option><option value="otro">Limpieza u otros</option></select><label for="invQuickUnit">Unidad</label><select id="invQuickUnit"><option value="kg">Kilos</option><option value="g">Gramos</option><option value="l">Litros</option><option value="ml">Mililitros</option><option value="un">Unidades</option><option value="porciones">Porciones</option></select><button type="button" id="invQuickSave">Agregar insumo</button><p id="invQuickStatus" role="status" class="muted"></p></section><section class="card" id="invListHeader"><h2>Ingredientes e insumos</h2>
 <div class="grid"><select id="tipo" aria-label="Tipo de artículo">
 <option value="ingredientes">Ingredientes e insumos</option><option value="productos">Productos para contar</option><option value="todos">Todos</option></select>
 <input id="buscar" placeholder="Buscar pollo, palta…"></div><label for="invCategory">Categoría</label><select id="invCategory"><option value="todos">Todas</option><option value="ingrediente">Ingredientes</option><option value="envase">Envases</option><option value="otro">Limpieza u otros</option></select>
-<div class="grid" style="margin-top:10px"><select id="estadoLista" aria-label="Filtrar inventario por estado">
+<div class="grid inv-solo-conteo" style="margin-top:10px"><select id="estadoLista" aria-label="Filtrar inventario por estado">
 <option value="pendiente">Pendientes de contar</option><option value="todos">Todos los artículos</option>
-<option value="contados">Contados en esta sesión</option><option value="reponer">Para reponer</option>
+<option value="contados">Ya contados para este cierre</option>
 </select><p class="muted" id="listaAvance" role="status"></p></div>
-<div class="reloj-inventario" aria-label="Día, fecha y hora actual durante el inventario">
+<div class="reloj-inventario inv-solo-conteo" aria-label="Día, fecha y hora actual durante el inventario">
  <span class="small">Inventario en curso · hora de Chile</span>
  <strong id="turnoHoraActual">Consultando fecha y hora…</strong>
  <p id="turnoFechaChile" class="muted small">Hora de inicio: pendiente de abrir inventario.</p>
  <p id="turnoUltimoRegistro" class="muted small">Aún no hay artículos guardados en esta sesión.</p>
  </div>
-<p class="muted">Al cierre cuenta lo que realmente queda y pulsa <b>Guardar conteo</b> en cada artículo. Cuando llega mercadería, usa <b>Registrar entrada</b>. Solo administración decide Disponible / Agotado en la carta.</p><p id="turnoProgreso" role="status" class="pill">Todavía no hay conteos guardados en este turno.</p></section>
+<p class="muted inv-solo-conteo">Escribe la cantidad que quedó y pulsa <b>Guardar conteo</b> en cada artículo. Si no queda nada, escribe <b>0</b>. Dejar en blanco no cuenta como cero.</p></section>
 <div id="items"></div><div id="invMoreWrap" style="text-align:center;margin:10px 16px"><button type="button" id="mostrarMas" class="secondary" hidden>Mostrar 12 artículos más</button></div>
+<section class="card inv-cerrar" id="invCierreBar" hidden>
+ <p id="turnoProgreso" role="status" class="pill"></p>
+ <button type="button" data-inv-view="reporte">Revisar y guardar cierre</button>
+</section>
 <details class="card" id="justMov"><summary><b>Registrar merma, consumo del personal o traspaso</b></summary>
 <p class="muted">Solo deja constancia. No cambia las existencias: cuenta lo que queda al final. Si recibes un traspaso, usa este registro y no lo repitas como compra o entrada de mercadería. Ambas sucursales deben usar el mismo folio.</p>
 <label for="justSku">Insumo</label><select id="justSku"></select>
@@ -102,12 +123,13 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 <label for="justReason">Motivo</label><input id="justReason" maxlength="180" placeholder="Ej. Producto dañado">
 <button type="button" id="justSave">Guardar registro</button><p id="justStatus" role="status" class="muted"></p>
 </details>
-<section class="card" id="invHistory" hidden><h2>Reportes por fecha</h2><div class="grid"><div><label for="invHistFrom">Desde</label><input id="invHistFrom" type="date"></div><div><label for="invHistTo">Hasta</label><input id="invHistTo" type="date"></div></div><label for="invHistKind">Informe</label><select id="invHistKind"><option value="revision">Inventario guardado</option><option value="compras">Lista de compras guardada</option><option value="todos">Todos los movimientos</option><option value="entrada">Mercadería recibida</option><option value="conteo">Conteos</option><option value="merma">Mermas</option><option value="personal">Consumo personal</option><option value="traspasos">Traspasos</option></select><button id="invHistLoad" type="button">Consultar</button><p id="invHistStatus" role="status" class="muted"></p><div id="invHistList"></div><div id="invHistActions" hidden><div class="grid"><button type="button" id="invHistPDF">PDF</button><button type="button" id="invHistExcel" class="secondary">Excel (.csv)</button></div><button type="button" id="invHistText" style="margin-top:10px">Enviar por WhatsApp en texto</button></div></section><section class="card" id="invFinish"><h2>Guardar inventario y reportes</h2><p class="muted">Confirma los conteos guardados. Si faltan artículos por revisar, puedes completar el conteo antes de terminar.</p><p id="resumen" class="muted"></p><div id="resumenIndicadores" class="reporte-colores" aria-label="Resumen del inventario"></div><div id="resumenArticulos" class="reporte-lista" aria-label="Artículos que requieren reposición"></div>
-<button id="enviar">Guardar inventario en el panel</button>
-<p class="muted">Primero guarda la revisión. Después podrás enviar el PDF completo y, por separado, el texto de los productos que hay que comprar.</p>
+<section class="card" id="invHistory" hidden><h2>Reportes por fecha</h2><div class="grid"><div><label for="invHistFrom">Desde</label><input id="invHistFrom" type="date"></div><div><label for="invHistTo">Hasta</label><input id="invHistTo" type="date"></div></div><label for="invHistKind">Informe</label><select id="invHistKind"><option value="revision">Inventario guardado</option><option value="compras">Lista de compras guardada</option><option value="todos">Todos los movimientos</option><option value="entrada">Mercadería recibida</option><option value="conteo">Conteos</option><option value="merma">Mermas</option><option value="personal">Consumo personal</option><option value="traspasos">Traspasos</option></select><button id="invHistLoad" type="button">Consultar</button><p id="invHistStatus" role="status" class="muted"></p><div id="invHistList"></div><div id="invHistActions" hidden><div class="grid"><button type="button" id="invHistPDF">PDF</button><button type="button" id="invHistExcel" class="secondary">Excel (.csv)</button></div><button type="button" id="invHistText" style="margin-top:10px">Enviar por WhatsApp en texto</button></div></section><section class="card" id="invFinish" hidden><h2 id="invFinishTitle">Antes de guardar</h2>
+<p id="invFinishProgress" class="muted" role="status"></p>
+<button type="button" id="invReturnCount" class="secondary" data-inv-view="conteo">Volver al conteo</button>
+<button id="enviar" style="margin-top:10px">Guardar cierre</button>
 <p id="confirmacion" role="status"></p>
  <div id="descargasTurno" class="descargas-turno" hidden>
- <strong>✓ Inventario guardado en el panel</strong>
+ <strong>Compartir el cierre</strong>
  <p class="muted">Dos envíos distintos: el informe completo en PDF y la lista de compras en un mensaje de WhatsApp.</p>
  <div style="display:grid;grid-template-columns:1fr;gap:9px;margin:12px 0">
   <button type="button" id="compartirPDFWhatsApp">📄 Compartir PDF por WhatsApp</button>
@@ -127,10 +149,11 @@ const $=id=>document.getElementById(id);
 const isQA=['uki-sushi-panel.vercel.app','uki-sushi-panel-diannaleandra-7046.vercel.app'].includes(location.hostname);
 const API='/api/inventario-turno-live';
 let branch='',items=[],busy=false,requestId=null,lastSaved=null,reporteFinal=null,bodegaCompartida=false;
+let cierreGuardado=null,cierreConsultado=false,cierreLocalGuardado=false,conteosVerificados=false,prevLimit=12;
 const accesoRomo=new URLSearchParams(location.search).get('acceso')==='romo';
 if(accesoRomo){$('branch').value='serena';$('branch').disabled=true;document.querySelector('header h1').textContent='La Serena · Inventario Uki y Romo';document.querySelector('label[for="codigo"]').textContent='PIN habitual de inventario Romo';}
 const entradasSesion=new Map();
-const stockAlAbrir=new Map();
+
 const status=s=>{$('estado').textContent=s;};
 const elt=(type,text,cls)=>{const e=document.createElement(type);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
 function nombre(){const n=$('nombre').value.trim().replace(/\s+/g,' ');if(n.length<2||n.length>60)throw Error('Escribe el nombre de quien cuenta.');return n;}
@@ -163,11 +186,6 @@ function convertirVista(numero,origen,destino){
  return Math.round(resultado*1000)/1000;
 }
 const formato=(cantidad,unidad)=>Number(cantidad).toLocaleString('es-CL',{maximumFractionDigits:3})+' '+unidad;
-function diferenciaTurno(antes,llego,hay){
- const datos=[antes,llego,hay];
- if(datos.some(n=>!Number.isFinite(n)||n<0))return null;
- return Math.round((antes+llego-hay)*1000)/1000;
-}
 function selectorUnidad(item){
  const sel=elt('select');
  sel.setAttribute('aria-label','Unidad para '+item.name);
@@ -181,46 +199,111 @@ const factura=iniciarFacturaLive({getBranch:()=>branch,getItems:()=>items,
  onSaved:response=>{
  const original=items.find(x=>x.sku===response.item.sku);
  const diferencia=original?Number(response.item.stock_qty)-Number(original.stock_qty):0;
- if(!response.duplicada&&Number.isFinite(diferencia)&&diferencia>0)
-  entradasSesion.set(response.item.sku,Math.round(((entradasSesion.get(response.item.sku)||0)+diferencia)*1000)/1000);
+ if(!response.duplicada){
+  if(Number.isFinite(diferencia)&&diferencia>0)
+   entradasSesion.set(response.item.sku,Math.round(((entradasSesion.get(response.item.sku)||0)+diferencia)*1000)/1000);
+  revisados.delete(response.item.sku);horaConteos.delete(response.item.sku);
+ }
  items=items.map(x=>x.sku===response.item.sku?{...x,...response.item}:x);
- requestId=null;reporteFinal=null;$('descargasTurno').hidden=true;$('confirmacion').textContent='';render();},
+ requestId=null;reporteFinal=null;cierreLocalGuardado=false;$('descargasTurno').hidden=true;$('confirmacion').textContent='';render();},
  onItemsCreated:created=>{const union=new Map(items.map(i=>[i.sku,i]));
- for(const item of created){union.set(item.sku,item);
-  if(!stockAlAbrir.has(item.sku))stockAlAbrir.set(item.sku,{qty:Number(item.stock_qty)||0,unit:item.stock_unit});}
- items=[...union.values()];requestId=null;reporteFinal=null;$('descargasTurno').hidden=true;render();}
+ for(const item of created)union.set(item.sku,item);
+ items=[...union.values()];requestId=null;reporteFinal=null;cierreLocalGuardado=false;$('descargasTurno').hidden=true;render();}
 });
 const setBusy=value=>{
- busy=value;$('abrir').disabled=value;$('enviar').disabled=value;
- // Al terminar la carga, reactivar los botones creados durante render().
+ busy=value;$('abrir').disabled=value;$('invPrevRefresh').disabled=value;
  $('items').querySelectorAll('button').forEach(b=>{b.disabled=value;});
+ renderCierre();
 };
-function resumen(){
+function renderCompras(){
  const configured=items.filter(x=>Number(x.min_stock_qty)>0);
- const missing=configured.filter(x=>Number(x.stock_qty)<=Number(x.min_stock_qty));
- $('resumen').textContent=items.length+' artículos · '+configured.length+
-  ' mínimos configurados · '+(items.length-configured.length)+' sin mínimo.';
- const area=$('resumenIndicadores');area.replaceChildren();
- const stats=[
-  ['verde',items.filter(i=>Number(i.stock_qty)>0).length,'Con existencias'],
-  ['gris',entradasSesion.size,'Con entradas en este turno'],
-  ['naranja',missing.length,'Para reponer']
- ];
- for(const [color,quantity,title] of stats){
-  const card=elt('div',undefined,'resumen-indicador '+color);
-  card.append(elt('span',String(quantity),'valor'),elt('span',title,'detalle'));
-  area.append(card);
- }
+ const missing=configured.filter(x=>Number(x.stock_qty)<Number(x.min_stock_qty))
+  .sort((a,b)=>a.name.localeCompare(b.name,'es'));
+ $('resumen').textContent=configured.length?
+  (items.length-configured.length)+' artículos sin mínimo quedan fuera de esta lista.':'';
+ $('invPurchaseNote').textContent=!configured.length?
+  'No se puede calcular cuánto pedir. Administración aún no ha configurado los mínimos de esta bodega.':
+  missing.length?missing.length+' artículos para comprar según las existencias registradas.':
+  'No hay productos por debajo de los mínimos configurados.';
  const list=$('resumenArticulos');list.replaceChildren();
- for(const i of missing.slice(0,12)){
-  const hay=Number(i.stock_qty)||0,min=Number(i.min_stock_qty)||0,unit=i.stock_unit||'un';
-  const falta=Math.max(0,Math.round((min-hay)*1000)/1000);
+ for(const i of missing){
+  const hay=Number(i.stock_qty)||0,min=Number(i.min_stock_qty),unit=i.stock_unit||'un';
   const row=elt('div',undefined,'reporte-fila');
   row.append(elt('strong',i.name),elt('small','Hay '+formato(hay,unit)+' · Mínimo '+formato(min,unit)+
-   (falta>0?' · Falta / pedir '+formato(falta,unit):' · Mínimo alcanzado: revisar compra')));
+   ' · Pedir '+formato(Math.round((min-hay)*1000)/1000,unit)));
   list.append(row);
  }
- if(missing.length>12)list.append(elt('p','Y '+(missing.length-12)+' artículos más por revisar.','muted small'));
+}
+function fechaChile(date){
+ const fields=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);
+ const get=type=>fields.find(p=>p.type===type).value;
+ return get('year')+'-'+get('month')+'-'+get('day');
+}
+function cierreTitulo(cierre,now=new Date()){
+ if(!cierre?.created_at)return 'Último cierre guardado';
+ const yesterday=new Date(fechaChile(now)+'T12:00:00Z');
+ yesterday.setUTCDate(yesterday.getUTCDate()-1);
+ const day=fechaChile(new Date(cierre.created_at));
+ if(day===fechaChile(now))return 'Cierre guardado hoy';
+ if(day===yesterday.toISOString().slice(0,10))return 'Lo que quedó ayer';
+ return 'Último cierre guardado';
+}
+function aplicarFlujo(flujo){
+ cierreConsultado=!!flujo;
+ cierreGuardado=flujo?.cierre||null;
+ conteosVerificados=Array.isArray(flujo?.conteos);
+ if(conteosVerificados){
+  revisados.clear();horaConteos.clear();
+  for(const move of flujo.conteos){
+   revisados.add(move.sku);
+   if(move.fecha)horaConteos.set(move.sku,formatoFechaHoraChile(new Date(move.fecha)));
+  }
+ }
+}
+function renderAnterior(){
+ const local=cierreGuardado;
+ const date=local?.created_at?formatoFechaHoraChile(new Date(local.created_at)):'';
+ const pending=Number(local?.summary?.articulos_sin_conteo)||0;
+ const unverified=local&&local.summary?.conteos_verificados!==true;
+ const estado=!cierreConsultado?'No se pudo consultar el último cierre. Puedes actualizarlo.':
+  !local?'Todavía no hay un cierre anterior guardado. El primer cierre será el punto de partida.':
+  date+' · '+(pending?'Cierre parcial':unverified?'Sin verificación de conteos':'Cierre guardado');
+ $('invPrevHomeTitle').textContent=cierreTitulo(local);
+ $('invPrevHomeStatus').textContent=estado;
+ $('invPrevStatus').textContent=estado;
+ $('invPrevNote').hidden=!local;
+ $('invPrevNote').textContent=!local?'':pending?
+  'Solo se muestran cantidades verificadas por conteo. Los artículos sin conteo quedan marcados.':
+  unverified?'Son saldos guardados en el historial. Este informe no verifica cuáles artículos se contaron.':
+  'Este es el inventario guardado en ese cierre. No tienes que volver a ingresarlo.';
+ $('invPrevSearch').hidden=$('invPrevSearchLabel').hidden=!local;
+ const term=$('invPrevSearch').value.trim().toLocaleLowerCase('es-CL');
+ const rows=(Array.isArray(local?.items)?local.items:[]).filter(i=>String(i.name).toLocaleLowerCase('es-CL').includes(term))
+  .sort((a,b)=>a.name.localeCompare(b.name,'es'));
+ const list=$('invPrevList');list.replaceChildren();
+ for(const i of rows.slice(0,prevLimit)){
+  const row=elt('div',undefined,'reporte-fila');
+  row.append(elt('strong',i.name),elt('small',i.conteo_registrado===false?'Sin conteo en ese cierre':formato(i.stock_qty,i.stock_unit||'un')));
+  list.append(row);
+ }
+ if(local&&!rows.length)list.append(elt('p','No se encontraron artículos en este cierre.','muted'));
+ $('invPrevMore').hidden=rows.length<=prevLimit;
+}
+function renderCierre(){
+ const total=items.length,contados=items.filter(i=>revisados.has(i.sku)).length,pendientes=total-contados;
+ const progreso=contados+' de '+total+' artículos contados para este cierre.';
+ $('turnoProgreso').textContent=progreso;
+ $('invHomeCloseHelp').textContent=cierreLocalGuardado?
+  'Cierre guardado. Puedes ver o compartir el informe.':'Al final del turno, cuenta únicamente lo que quedó.';
+ $('invFinishTitle').textContent=cierreLocalGuardado?'Cierre guardado':'Antes de guardar';
+ $('invFinishProgress').textContent=cierreLocalGuardado?
+  (Number(cierreGuardado?.summary?.articulos_sin_conteo)>0?'Cierre parcial guardado en el historial.':'Quedó en el historial de esta bodega.'):
+  progreso+(pendientes?' Quedan '+pendientes+' por contar.':'')+
+  (!conteosVerificados?' Aquí solo se muestran los conteos confirmados en esta sesión.':'');
+ $('invReturnCount').hidden=cierreLocalGuardado;
+ $('enviar').hidden=cierreLocalGuardado;
+ $('enviar').disabled=busy||contados===0||cierreLocalGuardado;
+ $('enviar').textContent=pendientes?'Guardar cierre parcial':'Guardar cierre de hoy';
 }
 const revisados=new Set();let visibleLimit=12;
 const horaConteos=new Map();
@@ -252,41 +335,28 @@ function render(){
   (category==='todos'||(i.category||(i.kind==='ingredient'?'ingrediente':i.group_key))===category)&&
   (!term||String(i.name).toLocaleLowerCase('es-CL').includes(term))&&
   (progress==='todos'||(progress==='pendiente'&&!revisados.has(i.sku))||
-  (progress==='contados'&&revisados.has(i.sku))||
-  (progress==='reponer'&&Number(i.min_stock_qty)>0&&Number(i.stock_qty)<=Number(i.min_stock_qty))))
+  (progress==='contados'&&revisados.has(i.sku))))
   .sort((a,b)=>String(a.name).localeCompare(String(b.name),'es'));
  $('listaAvance').textContent='Mostrando '+Math.min(visible.length,visibleLimit)+' de '+visible.length+' resultados';
  for(const item of visible.slice(0,visibleLimit)){
   const card=elt('details',undefined,'card');
   const head=elt('summary');
   const description=elt('div'),name=elt('strong',item.name);
-  if(revisados.has(item.sku))description.append(elt('span',' · Contado ✓','pill small'));
- if(horaConteos.has(item.sku))description.append(elt('p','Registrado: '+horaConteos.get(item.sku)+' (Chile)','muted small'));
-  const min=Number(item.min_stock_qty)||0,qty=Number(item.stock_qty)||0;
-  const estado=min<=0?'sin-minimo':qty<=min?'reponer':'bien';
-  card.dataset.estado=estado;
-  description.append(name,elt('p','Hay: '+formato(qty,item.stock_unit||'un')+
-   ' · Mínimo: '+(min>0?formato(min,item.stock_unit||'un'):'sin configurar'),'muted small'));
-  const llegada=entradasSesion.get(item.sku)||0;
-  if(llegada>0)description.append(elt('p','Llegó en este turno: +'+formato(llegada,item.stock_unit||'un'),'pill small'));
-  const inicio=stockAlAbrir.get(item.sku);
-  if(inicio&&inicio.unit===item.stock_unit&&revisados.has(item.sku)){
-   const diferencia=diferenciaTurno(inicio.qty,llegada,qty);
-   if(diferencia>0)description.append(elt('p','Antes: '+formato(inicio.qty,item.stock_unit)+
-    ' + llegó '+formato(llegada,item.stock_unit)+' − hay '+formato(qty,item.stock_unit)+
-    ' = '+formato(diferencia,item.stock_unit)+' · posible consumo o diferencia de conteo','warn small'));
-   else if(diferencia<0)description.append(elt('p','Antes: '+formato(inicio.qty,item.stock_unit)+
-    ' + llegó '+formato(llegada,item.stock_unit)+' − hay '+formato(qty,item.stock_unit)+
-    ' = '+formato(diferencia,item.stock_unit)+' · revisar entrada o corrección de conteo','warn small'));
+  const qty=Number(item.stock_qty)||0;
+  description.append(name);
+  if(invAppMode==='conteo'&&revisados.has(item.sku)){
+   description.append(elt('p','Conteo guardado: '+formato(qty,item.stock_unit||'un'),'pill small'));
+   if(horaConteos.has(item.sku))description.append(elt('p',horaConteos.get(item.sku)+' (Chile)','muted small'));
   }
-  if(min>0&&qty<=min)description.append(elt('p',min===qty?'Mínimo alcanzado: revisar compra.' :
-   'Falta / pedir: '+formato(Math.round((min-qty)*1000)/1000,item.stock_unit||'un'),'warn small'));
-  description.append(elt('span',estado==='reponer'?'Para reponer':estado==='bien'?'Existencias suficientes':'Sin mínimo',
-   'estado-pill '+estado));
+  if(invAppMode==='entrada'){
+   description.append(elt('p','Saldo registrado: '+formato(qty,item.stock_unit||'un'),'muted small'));
+   const llegada=entradasSesion.get(item.sku)||0;
+   if(llegada>0)description.append(elt('p','Llegó en esta sesión: +'+formato(llegada,item.stock_unit||'un'),'pill small'));
+  }
   head.append(description);card.append(head);
   const countRow=elt('div',undefined,'unit-row'),countValue=elt('input'),countUnit=selectorUnidad(item);
-  countValue.type='text';countValue.inputMode='text';countValue.autocomplete='off';countValue.maxLength=12;
-  countValue.value=String(qty);countValue.setAttribute('aria-label','Cantidad contada de '+item.name);
+  countValue.type='text';countValue.inputMode='decimal';countValue.autocomplete='off';countValue.maxLength=12;
+  countValue.placeholder='Lo que quedó';countValue.setAttribute('aria-label','Cantidad contada de '+item.name);
   countRow.append(countValue,countUnit);
   const countHint=elt('p',undefined,'muted small');
   const limpiarConfirmacion=()=>{
@@ -314,9 +384,9 @@ function render(){
    }
    await save(item,'contar',n,countUnit.value);
   };
-  const details=elt('details'),summary=elt('summary','📦 Registrar mercadería recibida · suma existencias');
+  const details=elt('details'),summary=elt('summary','Registrar cantidad recibida');
   const recRow=elt('div',undefined,'unit-row'),received=elt('input'),recUnit=selectorUnidad(item);
-  received.type='text';received.inputMode='text';received.autocomplete='off';received.maxLength=12;
+  received.type='text';received.inputMode='decimal';received.autocomplete='off';received.maxLength=12;
   received.placeholder='Cantidad recibida';received.setAttribute('aria-label','Mercadería recibida de '+item.name);
   recRow.append(received,recUnit);
   const recHint=elt('p',undefined,'muted small');
@@ -339,7 +409,7 @@ function render(){
    await save(item,'recibir',n,recUnit.value);
   };
   details.append(summary,recRow,recHint,receive);
-  const countLabel=elt('p','Conteo real · reemplaza el saldo anterior','action-label');for(const el of [countLabel,countRow,countHint,count])el.classList.add('inv-count-control');details.classList.add('inv-receive-control');card.append(countLabel,countRow,countHint,count,details);
+  const countLabel=elt('p','Cantidad que quedó físicamente','action-label');for(const el of [countLabel,countRow,countHint,count])el.classList.add('inv-count-control');details.classList.add('inv-receive-control');card.append(countLabel,countRow,countHint,count,details);
   if(lastSaved?.sku===item.sku){
    const note=elt('p',lastSaved.message,lastSaved.ok?'confirmacion-item':'error-item');
    note.setAttribute('role','status');card.append(note);
@@ -348,9 +418,8 @@ function render(){
  }
  if(!visible.length)box.append(elt('p','No hay artículos en este filtro. Cambia a «Todos los artículos» si quieres verlos.','muted'));
  $('mostrarMas').hidden=visible.length<=visibleLimit;
- const faltantes=items.filter(i=>Number(i.min_stock_qty)>0&&Number(i.stock_qty)<=Number(i.min_stock_qty));
- $('turnoProgreso').textContent=revisados.size+' de '+items.length+' artículos contados durante este turno · '+faltantes.length+' para reponer.';
- resumen();
+ renderCierre();
+ if(invAppMode==='compras')renderCompras();
 }
 async function save(item,action,cantidad,unidad){
  if(busy)return;setBusy(true);status('Guardando '+item.name+'…');
@@ -359,9 +428,10 @@ async function save(item,action,cantidad,unidad){
   items=items.map(x=>x.sku===item.sku?{...x,...response.item}:x);
   const horaRegistro=formatoFechaHoraChile(new Date());
   if(action==='contar'){revisados.add(item.sku);horaConteos.set(item.sku,horaRegistro);}
+  else{revisados.delete(item.sku);horaConteos.delete(item.sku);}
   $('turnoUltimoRegistro').textContent='Último registro: '+item.name+' · '+horaRegistro+' (Chile).';
   actualizarReloj();
-  requestId=null;reporteFinal=null;$('descargasTurno').hidden=true;$('confirmacion').textContent='';
+  requestId=null;reporteFinal=null;cierreLocalGuardado=false;$('descargasTurno').hidden=true;$('confirmacion').textContent='';
   const registro=response.registro||{base:cantidad,unidadBase:item.stock_unit};
   if(action==='recibir'&&Number(registro.base)>0)
    entradasSesion.set(item.sku,Math.round(((entradasSesion.get(item.sku)||0)+Number(registro.base))*1000)/1000);
@@ -380,15 +450,14 @@ async function abrir(){
  try{nombre();codigo();}catch(e){status(e.message);return;}
  setBusy(true);status('Cargando inventario…');
  try{
-  const result=await api('listar');
-  branch=$('branch').value;bodegaCompartida=result.bodegaCompartida===true;items=result.items||[];stockAlAbrir.clear();
-  for(const item of items)stockAlAbrir.set(item.sku,{qty:Number(item.stock_qty)||0,unit:item.stock_unit});
+  const result=await api('listar',{flujo_cierre:true});
+  branch=result.branch;bodegaCompartida=result.bodegaCompartida===true;items=result.items||[];
   revisados.clear();horaConteos.clear();entradasSesion.clear();visibleLimit=12;requestId=null;lastSaved=null;reporteFinal=null;$('descargasTurno').hidden=true;factura.reset();
-  $('activo').hidden=false;$('confirmacion').textContent='';
+  aplicarFlujo(result.flujo);$('activo').hidden=false;$('invAccess').hidden=true;$('confirmacion').textContent='';
   $('turnoFechaChile').textContent='Inicio del conteo: '+formatoFechaHoraChile(new Date())+' (Chile).';
   $('turnoUltimoRegistro').textContent='Aún no hay artículos guardados en esta sesión.';
   iniciarReloj();
-  render();status('Inventario del turno listo.');invHistInit();invAppView('inicio');
+  justRefresh();status('Inventario del turno listo.');invHistInit();invAppView('inicio');
  }catch(e){branch='';items=[];$('activo').hidden=true;status(String(e.message));}
  finally{setBusy(false);}
 }
@@ -403,20 +472,30 @@ function invAppView(mode){
  $('activo').dataset.invMode=mode;
  $('invAppLocal').textContent=branch==='arica'?'Regimiento Arica':bodegaCompartida?'La Serena · Uki y Romo (bodega compartida)':'La Serena';
  $('invAppHome').hidden=mode!=='inicio';$('invAppBar').hidden=mode==='inicio';
- const titles={conteo:'Contar existencias',entrada:'Recibir mercadería',alta:'Agregar insumo',merma:'Registrar merma',personal:'Consumo del personal',traspaso:'Traspasos',compras:'Lista de compras',reporte:'Guardar y compartir',historial:'Historial y reportes'};
+ const titles={anterior:cierreTitulo(cierreGuardado),conteo:'Cerrar inventario de hoy',entrada:'Llegó mercadería',alta:'Agregar insumo',merma:'Registrar merma',personal:'Consumo del personal',traspaso:'Traspasos',compras:'Lista de compras',reporte:'Cierre de inventario',historial:'Historial y reportes'};
  $('invAppTitle').textContent=titles[mode]||'';
+ const hints={conteo:'Al terminar el turno, cuenta lo que realmente quedó.',entrada:'Registra solo lo que llegó. Usa la factura o busca el insumo para ingresar la cantidad manualmente.'};
+ $('invAppHint').textContent=hints[mode]||'';$('invAppHint').hidden=!hints[mode];
  const list=['conteo','entrada'].includes(mode);
  $('invListHeader').hidden=!list;$('items').hidden=!list;$('invMoreWrap').hidden=!list;
+ $('invCierreBar').hidden=mode!=='conteo';
+ $('invPrevious').hidden=mode!=='anterior';$('invPurchases').hidden=mode!=='compras';
  $('facturaQA').hidden=!['entrada','alta'].includes(mode);$('invQuickAdd').hidden=mode!=='alta';
  $('justMov').hidden=!['merma','personal','traspaso'].includes(mode);
- $('invFinish').hidden=!['compras','reporte'].includes(mode);$('invHistory').hidden=mode!=='historial';
- if(mode==='entrada'||mode==='conteo'){$('estadoLista').value=mode==='entrada'?'todos':'pendiente';visibleLimit=12;render();}
+ $('invFinish').hidden=mode!=='reporte';$('invHistory').hidden=mode!=='historial';
+ if(mode==='entrada'||mode==='conteo'){
+  $('estadoLista').value=mode==='entrada'?'todos':'pendiente';
+  $('tipo').value='todos';$('invCategory').value='todos';$('buscar').value='';
+  visibleLimit=12;render();
+ }
  if(mode==='alta'){$('factModoPreparar')?.click();$('factAltasDetalles').open=true;}
  if(mode==='entrada')$('factModoRecibir')?.click();
  if(['merma','personal','traspaso'].includes(mode)){
   $('justKind').value=mode==='traspaso'?'traspaso_salida':mode;$('justKind').onchange();$('justMov').open=true;
  }
- if(mode==='compras'||mode==='reporte')resumen();
+ if(mode==='inicio'||mode==='anterior')renderAnterior();
+ if(mode==='compras')renderCompras();
+ if(mode==='inicio'||mode==='reporte')renderCierre();
  window.scrollTo({top:0,behavior:'instant'});
 }
 
@@ -429,8 +508,8 @@ $('invQuickSave').onclick=async()=>{
  try{
   const v=await api('crear-insumo-trabajador',{item:{name,category,stock_unit}});
   if(!v.item?.sku)throw Error('No se confirmó el alta. Actualiza la lista antes de repetir.');
-  items=[...items.filter(i=>i.sku!==v.item.sku),v.item];stockAlAbrir.set(v.item.sku,{qty:0,unit:v.item.stock_unit});
-  $('invQuickName').value='';requestId=null;reporteFinal=null;$('descargasTurno').hidden=true;
+  items=[...items.filter(i=>i.sku!==v.item.sku),v.item];
+  $('invQuickName').value='';requestId=null;reporteFinal=null;cierreLocalGuardado=false;$('descargasTurno').hidden=true;
   render();msg.textContent='✓ Insumo agregado. Registra su conteo o entrada desde el menú.';
  }catch(e){msg.textContent=e.message;}
  finally{setBusy(false);$('invQuickSave').disabled=false;}
@@ -444,7 +523,7 @@ function invHistClear(){
 }
 for(const id of ['invHistFrom','invHistTo','invHistKind'])$(id).onchange=invHistClear;
 function invHistInit(){
- const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+ const today=fechaChile(new Date());
  $('invHistFrom').value=today;$('invHistTo').value=today;invHistClear();
 }
 $('invHistLoad').onclick=async()=>{
@@ -498,7 +577,30 @@ function invHistExport(format){
 $('invHistPDF').onclick=()=>invHistExport('pdf');$('invHistExcel').onclick=()=>invHistExport('csv');$('invHistText').onclick=()=>invHistExport('texto');
 
 $('invAppBack').onclick=()=>invAppView('inicio');
-document.querySelectorAll('[data-inv-view]').forEach(b=>b.onclick=()=>invAppView(b.dataset.invView));
+document.querySelectorAll('[data-inv-view]').forEach(b=>b.onclick=()=>{
+ const view=b.dataset.invView;
+ invAppView(view==='conteo'&&b.closest('#invAppHome')&&cierreLocalGuardado?'reporte':view);
+});
+$('invPrevSearch').oninput=()=>{prevLimit=12;renderAnterior();};
+$('invPrevMore').onclick=()=>{prevLimit+=12;renderAnterior();};
+$('invPrevRefresh').onclick=async()=>{
+ if(busy||!branch)return;
+ setBusy(true);$('invPrevStatus').textContent='Consultando el historial…';
+ try{
+  // También trae los saldos vigentes para que los conteos de otro equipo
+  // no se muestren sobre un saldo antiguo en esta pantalla.
+  const res=await api('listar',{flujo_cierre:true});
+  if(!res.flujo)throw Error('No se pudo consultar el cierre. Intenta de nuevo.');
+  items=res.items||[];
+  if(cierreGuardado?.id!==res.flujo.cierre?.id){
+   cierreLocalGuardado=false;reporteFinal=null;requestId=null;
+   $('confirmacion').textContent='';$('descargasTurno').hidden=true;entradasSesion.clear();
+  }
+  aplicarFlujo(res.flujo);prevLimit=12;renderAnterior();justRefresh();
+  $('invAppTitle').textContent=cierreTitulo(cierreGuardado);
+ }catch(e){$('invPrevStatus').textContent=e.message;}
+ finally{setBusy(false);}
+};
 $('enviarInventarioTexto').onclick=()=>{
  if(!reporteFinal||!window.ukiInventarioExportar)return;
  const f=window.ukiInventarioExportar,lines=['📦 INVENTARIO COMPLETO', 'Sucursal: '+f.branchName(reporteFinal.branch),'Fecha: '+new Date(reporteFinal.created_at).toLocaleString('es-CL',{timeZone:'America/Santiago'}),'Responsable: '+reporteFinal.worker_name,''];
@@ -542,8 +644,16 @@ $('justSave').onclick=async()=>{
 };
 
 $('abrir').onclick=abrir;
-$('branch').onchange=()=>{detenerReloj();branch='';items=[];stockAlAbrir.clear();revisados.clear();horaConteos.clear();entradasSesion.clear();visibleLimit=12;lastSaved=null;reporteFinal=null;$('descargasTurno').hidden=true;factura.reset();$('activo').hidden=true;status('');};
-$('codigo').oninput=()=>{if(branch){detenerReloj();branch='';items=[];stockAlAbrir.clear();revisados.clear();horaConteos.clear();entradasSesion.clear();reporteFinal=null;$('descargasTurno').hidden=true;factura.reset();$('activo').hidden=true;}};
+function cerrarAcceso(){
+ if(busy)return;
+ detenerReloj();branch='';items=[];revisados.clear();horaConteos.clear();entradasSesion.clear();
+ visibleLimit=12;prevLimit=12;lastSaved=null;requestId=null;reporteFinal=null;cierreLocalGuardado=false;
+ cierreGuardado=null;cierreConsultado=false;conteosVerificados=false;$('invPrevSearch').value='';
+ $('descargasTurno').hidden=true;factura.reset();$('activo').hidden=true;$('invAccess').hidden=false;status('');
+}
+$('branch').onchange=cerrarAcceso;
+$('codigo').oninput=()=>{if(branch)cerrarAcceso();};
+$('invChangeAccess').onclick=()=>{if(!busy){$('codigo').value='';cerrarAcceso();$('codigo').focus();}};
 $('tipo').onchange=()=>{visibleLimit=12;render();};
 $('buscar').oninput=()=>{visibleLimit=12;render();};
 $('estadoLista').onchange=()=>{visibleLimit=12;render();};
@@ -579,10 +689,11 @@ $('enviarComprasTexto').onclick=()=>{
  else window.location.href=enlace;
 };
 $('enviar').onclick=async()=>{
- if(busy||!branch||branch!==$('branch').value)return;
+ if(busy||!branch||branch!==$('branch').value||cierreLocalGuardado)return;
  const pendientes=items.filter(i=>!revisados.has(i.sku)).length;
+ if(pendientes===items.length)return;
  if(pendientes && !window.confirm('Faltan '+pendientes+' artículos por contar en este turno. ¿Guardar igualmente una revisión parcial?'))return;
- setBusy(true);$('confirmacion').textContent='Guardando revisión en el panel…';
+ setBusy(true);$('confirmacion').textContent='Guardando el cierre…';
  try{
   if(!requestId)requestId=crypto.randomUUID();
   const result=await api('finalizar',{request_id:requestId});
@@ -590,9 +701,11 @@ $('enviar').onclick=async()=>{
   const chile=new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',weekday:'long',day:'2-digit',
    month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(result.fecha));
   reporteFinal=result.reporte&&Array.isArray(result.reporte.items)?result.reporte:null;
+  cierreLocalGuardado=true;cierreConsultado=true;
+  cierreGuardado={id:result.id,created_at:result.fecha,...reporteFinal};
+  revisados.clear();horaConteos.clear();lastSaved=null;entradasSesion.clear();
   $('descargasTurno').hidden=!reporteFinal;
-  $('confirmacion').textContent='✓ Revisión guardada: '+chile+' (Chile). '+
-   (reporteFinal?'Elige enviar PDF o mensaje de compras por separado.':'El informe todavía no está disponible para compartir.');
+  $('confirmacion').textContent='✓ Cierre guardado el '+chile+' (Chile).';
  }catch(e){$('confirmacion').textContent='No se confirmó el envío al panel: '+String(e.message);}
  finally{setBusy(false);}
 };

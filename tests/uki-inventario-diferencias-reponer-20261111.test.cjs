@@ -1,26 +1,15 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const path=require('node:path');
-test('Trabajador muestra comparación orientativa únicamente con conteos guardados',()=>{
+test('El trabajador cuenta lo que quedó sin estimar consumo desde un saldo de apertura',()=>{
  for(const file of ['firebase/uki-inventario-turno.html','public/index.html']){
   const html=fs.readFileSync(path.join(__dirname,'..',file),'utf8');
   const src=html.match(/<script type="module">([\s\S]*?)<\/script>/)?.[1];
   assert.ok(src);
   assert.doesNotThrow(()=>new vm.Script(src.replace(/^import .*$/gm,'')));
-  const i=src.indexOf('function diferenciaTurno('),j=src.indexOf('const OPCIONES',i);
-  // La función pura no tiene efectos ni necesita base de datos.
-  const end=src.indexOf('}',i)+1;
-  assert.ok(i>=0&&end>i);
-  const diferencia=vm.runInNewContext(src.slice(i,end)+'\ndiferenciaTurno');
-  assert.equal(diferencia(0,5,2),3);
-  assert.equal(diferencia(2,1,2),1);
-  assert.equal(diferencia(5,2,7),0);
-  assert.equal(diferencia(5,0,7),-2);
-  assert.equal(diferencia(-1,5,2),null);
-  assert.match(src,/stockAlAbrir\.set\(item\.sku/);
   assert.match(src,/revisados\.has\(item\.sku\)/);
-  assert.match(src,/posible consumo o diferencia de conteo/);
-  assert.match(src,/revisar entrada o corrección de conteo/);
+  assert.doesNotMatch(src,/stockAlAbrir|posible consumo o diferencia de conteo/);
+  assert.match(src,/Dejar en blanco no cuenta como cero|countValue.placeholder='Lo que quedó'/);
  }
 });
 test('Administración muestra faltantes en tarjetas claras, busca y pagina',()=>{
