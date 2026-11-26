@@ -1,0 +1,12 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict');
+const {physicalRows}=require('../lib/inventario-periodo-fisico-v1.cjs');
+const a={sku:'pollo',name:'Pollo',unit:'kg',quantity:5,counted:true};
+const b={...a,quantity:6};
+const moves=[{sku:'pollo',action:'entrada',quantity:5000,unit:'g'},{sku:'pollo',action:'conteo',unit:'kg',after:6}];
+const price=[{sku:'pollo',unit:'kg',quantity:1,price:5000}];
+test('dos conteos físicos y entradas en gramos se convierten sin pérdida de unidad',()=>{const r=physicalRows([a],[b],moves,price)[0];assert.equal(r.outflow,4);assert.equal(r.received,5);assert.equal(r.unitCost,5000);assert.equal(r.status,'provisional');});
+test('conteo cero es válido y falta de conteo no equivale a cero',()=>{assert.equal(physicalRows([a],[{...b,counted:false}],moves,price)[0].outflow,null);assert.equal(physicalRows([a],[{...b,quantity:0}],[{...moves[0]},{...moves[1],after:0}],price)[0].outflow,10);});
+test('entrada posterior al conteo invalida cierre',()=>{assert.equal(physicalRows([a],[b],[...moves,moves[0]],price)[0].outflow,null);});
+test('unidad incompatible o ajuste sin clasificar queda pendiente',()=>{assert.equal(physicalRows([a],[b],[{...moves[0],unit:'l'},moves[1]],price)[0].outflow,null);assert.equal(physicalRows([a],[b],[{sku:'pollo',action:'editar_completo'},...moves],price)[0].outflow,null);});
+test('precio ausente no impide calcular salida física',()=>{const r=physicalRows([a],[b],moves,[])[0];assert.equal(r.outflow,4);assert.equal(r.unitCost,null);});
