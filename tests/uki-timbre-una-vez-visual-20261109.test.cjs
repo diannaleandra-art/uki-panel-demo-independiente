@@ -113,3 +113,16 @@ test('Sintaxis JS del panel válido',()=>{
  const main=scripts.find(s=>s.includes('function vNuevo(){')&&s.includes('function vPedidos(){'));
  assert.ok(main);assert.doesNotThrow(()=>new vm.Script(main));
 });
+
+test('Retiro de pedido previamente pagado conserva el cobro y no solicita otra transferencia',()=>{
+ const c={S:{suc:'Uki Regimiento Arica'},ukiMontoPropina:()=>0,ukiErrorDistribucionPago:()=>'',ukiLineasPago:(p,t,n)=>n>0?[{medio:p.medio,monto:n}]:[]};
+ vm.createContext(c);vm.runInContext(chunk('function ukiRetiroConCobroPrevio(d,p){','function ukiEdicionMantieneCobro(d,p){'),c);
+ const p={id:688,suc:c.S.suc,estado:'Pendiente',pagado:true,modalidad:'Delivery',envio:2000,subtotal:10000,total:12000,medio:'Transferencia',propina:0};
+ const d={editando:688,pagado:true,modalidad:'Retiro',envio:0,items:[{nombre:'Sushi',cant:1,precio:10000}],medio:'Transferencia'};
+ assert.equal(c.ukiRetiroConCobroPrevio(d,p),true);
+ assert.equal(c.ukiRetiroConCobroPrevio(d,{...p,pagado:false}),false);
+ assert.equal(c.ukiRetiroConCobroPrevio({...d,medio:'Efectivo'},p),false);
+ assert.equal(c.ukiRetiroConCobroPrevio({...d,items:[{nombre:'Sushi',cant:1,precio:11000}]},p),false);
+ assert.equal(c.ukiRetiroConCobroPrevio({...d,editando:689},p),false);
+ assert.equal(c.ukiRetiroConCobroPrevio(d,{...p,qrSolicitudes:['mesa']}),false);
+});
