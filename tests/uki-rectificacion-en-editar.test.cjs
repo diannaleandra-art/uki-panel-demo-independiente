@@ -10,7 +10,7 @@ test('Edita desde el mismo pago de Uki y Romo, y captura la autorización antes 
  for(const [panel,suc] of [['../firebase/uki-sushi-local.html','Uki La Serena']]){
   const html=fs.readFileSync(__dirname+'/'+panel,'utf8');
   const code=html.slice(html.indexOf('let ukiBaseRectificacionEdicion=null'),html.indexOf('function ukiCorreccionesTurnoUI('))
-   .replace("await import('./rectificacion-pago-edicion-v2.mjs?v=reparto-rescate-v4')",'loadedLib');
+   .replace("await import('./rectificacion-pago-edicion-v2.mjs?v=edicion-clara-v5')",'loadedLib');
   const p=order(suc,{}),D={editando:72,items,modalidad:'Delivery',medio:'Efectivo',medioEnvio:'Efectivo',envio:2500,
    pagado:true,productosPagadosOtroLocal:false,rectificacionMotivo:'Se registró el medio por error',responsableEdicion:'Encargada'};
   const S={suc,pedidos:[p],vista:'nuevo'};
@@ -30,7 +30,8 @@ test('Edita desde el mismo pago de Uki y Romo, y captura la autorización antes 
   Object.assign(c,{ukiGuardadoSolicitudEnCurso:false,ukiQRComprobandoCobro:false,ROMO_SUCURSAL_QA:suc,
     ukiRomoOperacionesEnCursoQA:()=>false,ukiSeguimientoImportesCajaQA:()=>null,
     aviso:mensaje=>{throw Error('No se esperaba el bloqueo de edición normal: '+mensaje);}});
-  vm.runInContext(code+'\n'+html.slice(desdeGuardar,hastaGuardar)+'\n'+html.slice(desdeBandera,hastaBandera),c);
+  const responsableUI=html.slice(html.indexOf('function ukiResponsableEdicionUI('),html.indexOf('function ukiRevisionBancoBorradorValidaQA('));
+  vm.runInContext(responsableUI+'\n'+code+'\n'+html.slice(desdeGuardar,hastaGuardar)+'\n'+html.slice(desdeBandera,hastaBandera),c);
   assert.match(html,/onclick="ukiMostrarCorreccionPago\(\)"/);
   assert.match(c.ukiRectificacionPagoEdicionUI(p,{...D,medio:'Transferencia'}),/Corregir transferencia.*Productos 12000/);
   assert.match(c.ukiRectificacionPagoEdicionUI({...p,medio:'Edenred',medioEnvio:'Transferencia'},{...D,medio:'Edenred',medioEnvio:'Transferencia'}),/Corregir transferencia.*Delivery 2500/);
@@ -38,7 +39,7 @@ test('Edita desde el mismo pago de Uki y Romo, y captura la autorización antes 
   const borrador72={...D,medio:'Edenred',medioEnvio:'Efectivo'};
   const autorizado=c.ukiRectificacionPagoEdicionUI(pedido72,borrador72);
   assert.match(autorizado,/Autorizar corrección de transferencia.*Pago guardado.*Delivery: Transferencia 2500/);
-  assert.match(autorizado,/selección aún no está guardada/);
+  assert.match(autorizado,/Motivo \(opcional\)/);
   const guardadoEfectivo=c.ukiRectificacionPagoEdicionUI({...pedido72,medioEnvio:'Efectivo'},borrador72);
   assert.match(guardadoEfectivo,/Pago guardado.*Delivery: Efectivo 2500/);
   assert.match(guardadoEfectivo,/No hay una transferencia guardada/);
@@ -73,6 +74,7 @@ test('Edita desde el mismo pago de Uki y Romo, y captura la autorización antes 
   const reparado=S.pedidos[0],plan=planes[1];
   assert.equal(plan.montoAnterior,2500);
   assert.equal(plan.montoRestante,0);
+  assert.deepEqual([...plan.sinDetalleAnterior],[1]);
   assert.equal(plan.montoOtroLocal,0);
   assert.deepEqual(JSON.parse(JSON.stringify(plan.repartoAntes)),
    [[{medio:'edenred',monto:8000}],[{medio:'transferencia',monto:2500}]]);
@@ -122,4 +124,23 @@ test('Edita desde el mismo pago de Uki y Romo, y captura la autorización antes 
   assert.equal(c.ukiPideRectificacionPago(sinMarca,formularioCero),false,'No atribuye una transferencia inexistente.');
 
  }
+});
+
+test('Cambiar datos del cliente no vuelve a pedir la revisión del mismo pago',()=>{
+ const suc='Uki La Serena',html=fs.readFileSync(__dirname+'/../firebase/uki-sushi-local.html','utf8');
+ const start=html.indexOf('function ukiEdicionMantieneCobro('),end=html.indexOf('function ukiRevisionBancoMarcarBorradorQA(',start);
+ const c=vm.createContext({S:{suc},ukiLineasPago:medios,ukiMontoPropina:d=>d.propina||0,
+  ukiMontoProductosOtroLocal:d=>d.montoProductosOtroLocal||0,ukiMontoEnvioOtroLocal:d=>d.montoEnvioOtroLocal||0,
+  ukiSeguimientoHayTransferenciaQA:()=>true,ukiRevisionBancoFirmaQA:()=>''});
+ vm.runInContext(html.slice(start,end),c);
+ const p=order(suc,{cliente:'Ana',telefono:'1111',cartaSolicitudRemotaId:'origen'});
+ const d={editando:72,items,modalidad:'Delivery',medio:'Transferencia',medioEnvio:'Efectivo',envio:2500,
+   pagado:true,cliente:'Ana María',telefono:'9999',kmRecorrido:2,cartaSolicitudRemotaId:'origen'};
+ assert.equal(c.ukiRevisionBancoBorradorValidaQA(d,p),true);
+ for(const cambio of [{envio:3500},{medio:'Efectivo'},{cartaSolicitudRemotaId:'otro'},
+   {propina:1000},{localPagoExterno:'Arica'},{montoProductosOtroLocal:1000}]){
+  assert.equal(c.ukiEdicionMantieneCobro({...d,...cambio},p),false);
+  assert.equal(c.ukiRevisionBancoBorradorValidaQA({...d,...cambio},p),false);
+ }
+ assert.equal(c.ukiEdicionMantieneCobro(d,{...p,pagado:false}),false);
 });

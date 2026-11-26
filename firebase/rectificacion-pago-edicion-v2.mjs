@@ -53,9 +53,19 @@ export function exigirPlan(prev,nuevo,leer,leerAnterior=leer){
  const montoRestante=transfer(b.productos)+transfer(b.delivery)+b.propinaTransferencia;
  if(montoAnterior<=montoRestante)throw Error('No se encontró una transferencia que retirar o reducir.');
  const pagos=canon([...b.productos,...b.delivery]),pagosAntes=canon([...a.productos,...a.delivery]);
+ // Distinguir un importe reconstruido para la autorización de una transferencia
+ // que realmente quedó registrada. La marca viaja firmada con los importes.
+ const sinDetalleAnterior=[];
+ for(const [i,tipo,monto] of [[0,'productos',Number(prev.subtotal)],[1,'envio',prev.modalidad==='Delivery'?Number(prev.envio):0]]){
+  const filas=leer(prev,tipo,monto);
+  const bloque=i===0?a.productos:a.delivery, propuesta=i===0?b.productos:b.delivery;
+  if(filas.length>0&&filas.every(x=>Number(x.monto)===0)&&bloque.length===1&&
+    bloque[0].medio==='transferencia'&&transfer(propuesta)<bloque[0].monto)sinDetalleAnterior.push(i);
+ }
  return {storeId,id:ref(prev),pedidoInterno,total:a.total,montoOtroLocal:a.montoOtroLocal,
   propinaTransferencia:a.propinaTransferencia,montoAnterior,montoRestante,pagosAntes,pagos,
-  repartoAntes:[a.productos,a.delivery],repartoDespues:[b.productos,b.delivery]};
+  repartoAntes:[a.productos,a.delivery],repartoDespues:[b.productos,b.delivery],
+  ...(sinDetalleAnterior.length?{sinDetalleAnterior}:{})};
 }
 export function pagoCorregido(prev,d) {
  const p={...prev};

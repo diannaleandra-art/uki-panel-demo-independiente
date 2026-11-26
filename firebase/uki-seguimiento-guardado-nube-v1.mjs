@@ -1,4 +1,4 @@
-import {comprobarCambio} from './rectificacion-pago-edicion-v2.mjs?v=reparto-rescate-v4';
+import {comprobarCambio} from './rectificacion-pago-edicion-v2.mjs?v=edicion-clara-v5';
 import {comprobarRectificacionLocal,coincideConstancia} from './uki-rectificar-transferencia-v1.mjs';
 /* Control del guardado habitual, no una segunda caja.
  * Firebase y Neon son servicios distintos: esta comprobación en el cliente
@@ -11,7 +11,7 @@ const idOf=p=>String(p?.id??'');
 const refOf=p=>String(p?.cartaSolicitudRemotaId||p?.seguimientoSolicitudId||'');
 const fields=['medio','medioEnvio','pagosProductos','pagosEnvio','mixtoProductos','mixtoEnvio',
  'productosPagadosOtroLocal','envioPagadoOtroLocal','montoProductosOtroLocal','montoEnvioOtroLocal',
- 'subtotal','envio','total','modalidad','propina','propinaModo','medioPropina','cliente','telefono'];
+ 'subtotal','envio','total','modalidad','propina','propinaModo','medioPropina','localPagoExterno'];
 const firma=p=>JSON.stringify(fields.map(k=>p?.[k]??null));
 const fail=message=>{throw Object.assign(Error(message),{code:'TRANSFERENCIA_PENDIENTE'});};
 function index(estado,suc){
