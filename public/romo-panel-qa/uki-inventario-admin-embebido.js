@@ -631,7 +631,8 @@ async function ukiConsumoDrain(store){
 window.ukiPublicarConsumoLive=async function(state,suc,revision){
  const store={'Uki Regimiento Arica':'uki:arica','Uki La Serena':'uki:serena','Romo’s Sushi La Serena':'romo:serena'}[suc];
  if(!store||!Number.isSafeInteger(revision)||revision<1||!Array.isArray(state?.pedidos)||(ukiConsumoSyncRev.get(store)||0)>=revision)return;
- if((ukiConsumoPending.get(store)?.payload.revision||0)>revision)return;
+ const pending=ukiConsumoPending.get(store);
+ if(pending?.payload.revision>=revision){if(pending.payload.revision===revision)await ukiConsumoDrain(store);return;}
  try{
   const now=Date.now(),start=now-7*86400000,facts=[],seen=new Set();
   for(const p of state.pedidos){
