@@ -260,6 +260,24 @@ window.ukiQAConfirmPaymentMethodAfterSave=async function({storeId,solicitudId,pe
  }
 };
 
+// Ajuste de delivery antes del abono. La carta conserva su identidad.
+window.ukiQACambiarRetiroSinAbono=async function(original,draft){
+ if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true||!store()||
+    original?.pagado!==false||original?.estado!=='Pendiente'||original.modalidad!=='Delivery'||draft?.modalidad!=='Retiro'||
+    Number(original.id)!==Number(draft.editando))throw Error('El cambio no corresponde a un pedido pendiente de cobro.');
+ const id=String(original.cartaSolicitudRemotaId||original.seguimientoSolicitudId||'');
+ if(!UUID.test(id)||id!==String(draft.cartaSolicitudRemotaId||draft.seguimientoSolicitudId||''))throw Error('No se encontró la solicitud original.');
+ const distribution=seguimientoDistribucionRealQA({...draft,pagosEnvio:[],mixtoEnvio:false,envioPagadoOtroLocal:false,montoEnvioOtroLocal:'',envio:0});
+ const subtotal=Number(original.subtotal),delivery=Number(original.envio);
+ if(!distribution||!Number.isSafeInteger(delivery)||delivery<=0||distribution.totalValidado!==subtotal||
+    !Number.isSafeInteger(subtotal)||subtotal<=0)throw Error('Revisa el importe de los productos antes de cambiar a retiro.');
+ const response=await query('POST',{action:'cambiar_a_retiro_sin_abono',id,pedidoInterno:String(original.id),
+   totalAnterior:subtotal+delivery,delivery,...distribution,montoOtroLocal:distribution.montoOtroLocal??0,propinaTransferencia:distribution.propinaTransferencia??0});
+ const proof=response.cambioRetiro;
+ if(response.orderId!==id||proof?.pedidoInterno!==String(original.id)||proof.totalAnterior!==subtotal+delivery||proof.totalNuevo!==subtotal||proof.delivery!==delivery)
+  throw Error('No se confirmó el cambio de entrega. No se registró otro cobro.');
+ return proof;
+};
 window.ukiQASyncDistributionBeforePayment=async function(pedido){
  if(window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true||!store()||
   !Number.isSafeInteger(Number(pedido?.id??pedido?.editando))||Number(pedido.id??pedido.editando)<1)return false;
