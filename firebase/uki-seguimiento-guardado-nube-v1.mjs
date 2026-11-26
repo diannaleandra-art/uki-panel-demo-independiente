@@ -49,9 +49,24 @@ export async function verificarGuardadoUki({anterior,nuevo,sucursal,importes,hay
   }
   const anteriorMonto=oldTransfer?importes(prev)?.montoTransferencia:null;
   const nuevoMonto=transfer?importes(p)?.montoTransferencia:null;
-  if(oldTransfer&&transfer&&Number.isSafeInteger(anteriorMonto)&&Number.isSafeInteger(nuevoMonto)&&nuevoMonto<anteriorMonto)
+  // Quitar únicamente el delivery antes del cobro exige constancia del
+  // servidor, ligada al pedido interno. No autoriza una transferencia pendiente.
+  let retiroVerificado=false;
+  const retiro=prev?.pagado===false&&prev.estado==='Pendiente'&&prev.modalidad==='Delivery'&&p.modalidad==='Retiro'&&
+   ref&&oldRef===ref&&Number(prev.envio)>0&&Number(p.envio||0)===0&&Number(prev.subtotal)===Number(p.subtotal)&&
+   Number(prev.propina||0)===0&&Number(p.propina||0)===0&&p.estado!=='Cancelado';
+  if(retiro){
+   const m=importes(p);
+   const proof=await consultar({storeId,id:ref,pedidoInterno,requiereTransferencia:transfer});
+   const c=proof?.cambioRetiro;
+   retiroVerificado=proof?.ok===true&&proof.storeId===storeId&&proof.orderId===ref&&proof.pedidoInterno===pedidoInterno&&
+    c?.pedidoInterno===pedidoInterno&&c.totalAnterior===Number(prev.subtotal)+Number(prev.envio)&&c.delivery===Number(prev.envio)&&
+    c.totalNuevo===Number(p.subtotal)&&m&&c.montoTransferencia===m.montoTransferencia;
+   if(!retiroVerificado)fail('No se confirmó el cambio a retiro en la solicitud original.');
+  }
+  if(!retiroVerificado&&oldTransfer&&transfer&&Number.isSafeInteger(anteriorMonto)&&Number.isSafeInteger(nuevoMonto)&&nuevoMonto<anteriorMonto)
    fail('Reducir una transferencia registrada requiere una corrección autorizada');
-  if(oldTransfer&&!transfer){
+  if(!retiroVerificado&&oldTransfer&&!transfer){
    const plan=comprobarRectificacionLocal(prev,p);
    if(!plan)fail('La transferencia requiere una corrección autorizada');
    const proof=await consultar({storeId,id:ref,pedidoInterno,requiereTransferencia:false});
