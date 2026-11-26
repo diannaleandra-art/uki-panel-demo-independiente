@@ -121,7 +121,7 @@ module.exports=async(req,res)=>{
   return fail(res,400,'Solicitud de inventario inválida');
  const branch=String(input.branch||''),action=String(input.action||'');
  if(!BRANCHES.has(branch))return fail(res,400,'Sucursal no válida');
- if(!['estado','crear-codigo','listar','contar','recibir','factura-consultar','factura-preparar-articulos','factura-recibir','finalizar','reportes','historial','revision','articulos','crear-articulo','editar-articulo','configurar-unidad','justificar'].includes(action))
+ if(!['estado','crear-codigo','listar','contar','recibir','factura-consultar','factura-preparar-articulos','factura-recibir','finalizar','reportes','historial','revision','articulos','crear-articulo','editar-articulo','configurar-unidad','justificar','crear-insumo-trabajador'].includes(action))
   return fail(res,400,'Acción no permitida');
  const dbUrl=liveDbUrl();
  if(!dbUrl)return fail(res,503,'Base de inventario no habilitada');
@@ -214,6 +214,16 @@ module.exports=async(req,res)=>{
     return fail(res,403,'Código incorrecto o temporalmente bloqueado');
   }
   etapa='consulta-catalogo';
+  if(action==='crear-insumo-trabajador'){
+   // Alta exclusivamente de inventario con el PIN habitual. Reutiliza el
+   // servicio de artículos adicionales; el primer conteo se guarda aparte.
+   const data=extra.crearDatos({...input.item,stock_qty:0,min_stock_qty:0});
+   const [base,added]=await Promise.all([leerInventario(sql,branch),extra.listar(sql,branch)]);
+   const same=[...base,...added].find(x=>altasFactura.normalizar(x.name)===altasFactura.normalizar(data.name));
+   if(same)return fail(res,409,'Ya existe «'+same.name+'». Busca el artículo antes de crear otro.');
+   const item=await extra.crear(sql,branch,data,worker);
+   return res.status(201).json({ok:true,branch,item});
+  }
   if(action==='listar'){
    const [data,added]=await Promise.all([leerInventario(sql,branch),extra.listar(sql,branch)]);
    return res.status(200).json({ok:true,branch,items:[...data.map(i=>({
