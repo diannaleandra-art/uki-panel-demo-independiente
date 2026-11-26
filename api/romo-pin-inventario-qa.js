@@ -65,7 +65,7 @@ module.exports=async function romoPinInventarioQA(req,res){
  if(reject(body)||JSON.stringify(body).length>5000)
   return fail(res,400,'Formulario de inventario inválido');
  const action=String(body.action||'');
- if(!['estado','crear-codigo','listar','conteo','entrada','finalizar','justificar'].includes(action))
+ if(!['estado','crear-codigo','listar','conteo','entrada','finalizar','justificar','verificar-bodega-compartida'].includes(action))
   return fail(res,400,'Operación no permitida');
  try{
   const neon=require('@neondatabase/serverless').neon(cfg.database);
@@ -96,6 +96,14 @@ module.exports=async function romoPinInventarioQA(req,res){
   const fp=fingerprint(req,cfg.salt);
   if(!await workerAuthorized(db,body.codigo,fp))
    return fail(res,403,'PIN incorrecto o temporalmente bloqueado');
+  // El PIN Romo permanece en su propia base y conserva su control de intentos.
+  // Solo se confirma identidad de inventario para la bodega física compartida.
+  if(action==='verificar-bodega-compartida'){
+   if(process.env.ROMO_BODEGA_SERENA_COMPARTIDA!=='true')return fail(res,403,'Bodega compartida todavía no habilitada.');
+   return res.status(200).json({ok:true,storeId:STORE,warehouse:'serena',authorized:true});
+  }
+  if(process.env.ROMO_BODEGA_SERENA_COMPARTIDA==='true')
+   return fail(res,409,'Utiliza el acceso unificado de inventario La Serena. No se modificó la bodega anterior.');
   const inv=await import('../lib/romo-inventario-qa.mjs');
   const slug=name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,45);
   const identity={brand:'romo',branches:['serena'],role:'inventario',
