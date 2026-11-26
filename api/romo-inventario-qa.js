@@ -78,7 +78,7 @@ module.exports=async function romoInventarioQA(req,res){
       x=>({name:x.name,unit:x.unit})
     ):undefined;
    const {facturas,...contenido}=result.contenido;
-   return res.status(200).json({ok:true,...result,contenido,plantilla_base:plantilla});
+   return res.status(200).json({ok:true,...result,contenido,plantilla_base:plantilla,bodegaCompartida:process.env.ROMO_BODEGA_SERENA_COMPARTIDA==='true'});
   }
   const body=req.body;
   if(!body||typeof body!=='object'||Array.isArray(body)||
@@ -87,6 +87,8 @@ module.exports=async function romoInventarioQA(req,res){
     !Number.isSafeInteger(body.expectedRevision)||body.expectedRevision<0||
     !body.args||typeof body.args!=='object'||Array.isArray(body.args))
    return fail(res,400,'Operación de inventario inválida');
+  if(process.env.ROMO_BODEGA_SERENA_COMPARTIDA==='true'&&body.action!=='disponibilidad')
+   return fail(res,409,'La existencia física se administra en la bodega compartida de La Serena. El historial anterior queda intacto.');
   if(body.action==='importar_base'&&identity.role!=='duenos')
    return fail(res,403,'Solo dueños pueden importar la lista inicial de Romo');
   const writer=reader; // Solo tabla Romo, con control de revisión en SQL.

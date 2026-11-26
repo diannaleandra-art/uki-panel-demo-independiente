@@ -4,7 +4,7 @@
 const API='https://uki-sushi-inventario.vercel.app/api/inventario-turno-live';
 const U=[['un','Unidades'],['kg','Kilos'],['g','Gramos'],['l','Litros'],['ml','Mililitros'],['porciones','Porciones']];
 const C=[['ingrediente','Ingrediente'],['envase','Envase'],['otro','Otro insumo']];
-const X={branch:'',items:[],reports:[],selected:'',busy:false,loaded:false,romoRevision:null,romoPlantilla:[]};
+const X={branch:'',items:[],reports:[],selected:'',busy:false,loaded:false,romoRevision:null,romoPlantilla:[],shared:false,legacyItems:[]};
 const $=id=>document.getElementById(id);
 const panelBranch=()=>typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena'?'romo':typeof S!=='undefined'&&S?.suc==='Uki La Serena'?'serena':'arica';
 function pick(xs){return xs.map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('');}
@@ -57,12 +57,23 @@ async function request(action,data={},branch=X.branch){
  return json;
 }
 
+async function requestSharedRomo(action,data,token){
+ const allowed=['articulos','reportes','historial','revision','crear-articulo','editar-articulo','configurar-unidad'];
+ if(!allowed.includes(action))throw Error('Esta operación no corresponde a las existencias de la bodega compartida.');
+ const response=await fetch(API,{method:'POST',mode:'cors',credentials:'omit',cache:'no-store',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({...data,branch:'serena',action})});
+ const value=await response.json().catch(()=>null);
+ if(!response.ok||value?.ok!==true||value.branch!=='serena')throw Error(value?.error||'No se confirmó la conexión con la bodega compartida.');
+ return value;
+}
 async function requestRomo(action,data={},branch=X.branch){
  if(branch!=='romo'||S?.suc!=='Romo’s Sushi La Serena')
   throw Error('Romo solo consulta y guarda su propio inventario.');
  const token=await window.ukiInventarioToken?.();
  if(typeof token!=='string'||token.length<30)
   throw Error('Inicia sesión con la cuenta Google autorizada de Romo.');
+ if(X.shared&&['crear-articulo','editar-articulo','configurar-unidad'].includes(action))
+  return requestSharedRomo(action,data,token);
+ if(X.shared&&['importar-base','romo-archivar'].includes(action))throw Error('La bodega es compartida. No se elimina ni duplica el catálogo físico desde Romo.');
  const revision=X.romoRevision;
  const isRead=action==='articulos'||action==='reportes'||action==='inventario-completo';
  let body=null;
@@ -106,6 +117,16 @@ async function requestRomo(action,data={},branch=X.branch){
      !Array.isArray(state.items)||!Array.isArray(state.movimientos))
    throw Error('La respuesta de inventario no corresponde a Romo.');
   X.romoRevision=version;
+  X.shared=dataRomo.bodegaCompartida===true;X.legacyItems=state.items.filter(v=>!v.archived);
+  if(X.shared){
+   const [a,b]=await Promise.all([requestSharedRomo('articulos',{},token),requestSharedRomo('reportes',{},token)]);
+   X.romoPlantilla=[];
+   const items=(a.items||[]).map(item=>{
+    const old=X.legacyItems.find(x=>x.sku==='r_base_'+String(item.sku).replace(/^ingredient:/,'').replaceAll('-','_'));
+    return {...item,legacySku:old?.sku||null,available:old?old.available:item.available};
+   });
+   return {items,revisiones:b.revisiones||[]};
+  }
   const items=state.items.filter(v=>!v.archived).map(v=>({...v,category:v.kind,inventory_only:true,version,available:v.available}));
   const porSku=new Map(state.items.map(v=>[v.sku,v]));
   const revisiones=state.movimientos.slice().reverse().map(m=>({
@@ -129,7 +150,7 @@ async function romoArticuloOperacion(action){
   '¿Confirmas que «'+i.name+'» estará '+(i.available?'NO disponible':'disponible')+' en Romo?'))return;
  X.busy=true;status('Guardando exclusivamente en Romo…');
  try{
-  await requestRomo(action,{sku:i.sku,available:!i.available});
+  await requestRomo(action,{sku:X.shared?i.legacySku:i.sku,available:!i.available});
   X.busy=false;
   await load();
   status('✓ Movimiento confirmado en inventario de Romo.');
@@ -141,7 +162,8 @@ function selection(){
  const item=X.items.find(v=>v.sku===X.selected);$('invEditor').hidden=!item;if(!item)return;
  $('invName').value=item.name;$('invName').disabled=!item.inventory_only;
  const romoOps=$('romoInvOperaciones');
- if(romoOps)romoOps.hidden=X.branch!=='romo';
+ if(romoOps)romoOps.hidden=X.branch!=='romo'||(X.shared&&!item.legacySku);
+ if($('romoInvArchivar'))$('romoInvArchivar').hidden=X.shared;
  $('invCategory').value=item.category||'ingrediente';$('invCategory').disabled=!item.inventory_only;
  $('invUnit').value=item.stock_unit;$('invStock').value=String(item.stock_qty).replace('.',',');$('invMin').value=String(item.min_stock_qty).replace('.',',');
 }
@@ -162,12 +184,12 @@ function reports(){
  for(const r of X.reports.slice(0,20)){
   const d=document.createElement('details');d.className='card';
   const title=document.createElement('summary'),s=r.summary||{},list=s.faltantes||[];
-  title.textContent=X.branch==='romo'?
+  title.textContent=X.branch==='romo'&&!X.shared?
    ({alta:'Artículo agregado',editar_completo:'Artículo editado',editar:'Edición',archivar:'Artículo eliminado',conteo:'Conteo',entrada:'Entrada',disponibilidad:'Disponibilidad',revision:'Revisión',importar_base:'Lista inicial'}[r.tipo]||r.tipo||'Movimiento')+' · '+(r.nombre||r.sku||'Inventario')+' · '+new Date(r.created_at).toLocaleString('es-CL',{timeZone:'America/Santiago'}):
    (r.worker_name||'Trabajador')+' · '+new Date(r.created_at).toLocaleString('es-CL',{timeZone:'America/Santiago'})+' · '+list.length+' para reponer';d.append(title);
-  let p=document.createElement('p');p.className='muted';p.textContent=X.branch==='romo'?
+  let p=document.createElement('p');p.className='muted';p.textContent=X.branch==='romo'&&!X.shared?
     'Registrado por: '+(r.worker_name||'Cuenta autorizada'):(s.sinMinimo||0)+' sin mínimo configurado';d.append(p);
-  if(X.branch==='romo'){
+  if(X.branch==='romo'&&!X.shared){
    const antes=r.antes,despues=r.despues;
    const cantidad=v=>v&&Number.isFinite(Number(v.stock_qty))?String(v.stock_qty)+' '+String(v.stock_unit||''):'—';
    if(antes||despues){
@@ -201,7 +223,8 @@ async function load(){
     }));
    }
   }
-  if(branch==='romo'&&$('invReportsBox'))$('invReportsBox').querySelector('h2').textContent='Historial de movimientos · Romo';
+  if(branch==='romo'&&$('invReportsBox'))$('invReportsBox').querySelector('h2').textContent=X.shared?'Revisiones · Bodega La Serena':'Historial de movimientos · Romo';
+  if(branch==='romo'&&X.shared)$('ukiInvSucursalActual').textContent='La Serena · Uki y Romo · bodega compartida';
   $('invAdmin').hidden=false;$('invNewBox').hidden=false;$('invReportsBox').hidden=false;
   populate();reports();status('✓ '+X.items.length+' artículos · '+X.reports.length+' revisiones consultadas.');
   // Solo lectura de los faltantes de la MISMA sucursal Romo. No copia
@@ -216,7 +239,7 @@ async function save(){
   const stock_unit=$('invUnit').value,stock_qty=number($('invStock').value),min_stock_qty=number($('invMin').value);
   if(stock_unit!==i.stock_unit&&!confirm('¿Confirmas que estas cantidades corresponden a '+stock_unit+'? No se convierten automáticamente.'))return;
   params={sku:i.sku,expected_version:i.version};
-  if(X.branch==='romo'&&!confirm('¿Confirmas que las cantidades y datos corresponden al inventario de Romo?'))return;
+  if(X.branch==='romo'&&!confirm(X.shared?'¿Confirmas las cantidades de la bodega compartida de La Serena?':'¿Confirmas que las cantidades y datos corresponden al inventario de Romo?'))return;
   if(i.inventory_only)params.item={name:$('invName').value.trim(),category:$('invCategory').value,stock_unit,stock_qty,min_stock_qty};
   else Object.assign(params,{stock_unit,stock_qty,min_stock_qty});
  }catch(e){status(String(e.message));return;}
@@ -569,7 +592,7 @@ function mountCosteo(){
 function mount(){
  const root=$('invRoot');if(!root||root===mountedRoot)return;mountedRoot=root;
  const active=panelBranch();
- if(X.branch!==active){X.items=[];X.reports=[];X.selected='';X.loaded=false;X.romoRevision=null;X.romoPlantilla=[];}
+ if(X.branch!==active){X.items=[];X.reports=[];X.selected='';X.loaded=false;X.romoRevision=null;X.romoPlantilla=[];X.shared=false;X.legacyItems=[];}
  X.branch=active;
  mountCosteo();
  $('invBranch').value=active;
