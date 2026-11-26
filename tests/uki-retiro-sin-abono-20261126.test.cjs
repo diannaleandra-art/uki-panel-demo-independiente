@@ -1,0 +1,22 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const html=fs.readFileSync('firebase/uki-sushi-local.html','utf8');
+const extract=(a,b)=>{const i=html.indexOf(a),j=html.indexOf(b,i+a.length);assert.ok(i>=0&&j>i);return html.slice(i,j)};
+const id='12345678-1234-4234-8234-123456789abc',suc='Uki Regimiento Arica';
+const old={id:688,suc,pagado:false,estado:'Pendiente',modalidad:'Delivery',envio:3100,subtotal:20000,total:23100,medio:'Transferencia',medioEnvio:'Transferencia',cartaSolicitudRemotaId:id};
+const draft={editando:688,modalidad:'Retiro',envio:0,items:[{nombre:'Roll',cant:1,precio:20000}],medio:'Transferencia',cartaSolicitudRemotaId:id};
+const ctx={S:{suc},ukiMontoPropina:()=>0,ukiLineasPago:(p,t,m)=>m?[{medio:t==='productos'?p.medio:p.medioEnvio,monto:m}]:[]};
+vm.createContext(ctx);vm.runInContext(extract('function ukiCambioRetiroSinAbonoQA','function ukiPideRectificacionPago'),ctx);
+test('cambio de entrega conserva productos y pedido, incluso si se confirma el pago nuevo',()=>{assert.equal(ctx.ukiCambioRetiroSinAbonoQA(old,draft),true);assert.equal(ctx.ukiCambioRetiroSinAbonoQA(old,{...draft,pagado:true}),true);});
+test('no usa la excepción en pedidos pagados, otra sucursal, distinto medio o productos',()=>{for(const p of [{...old,pagado:true},{...old,suc:'Uki La Serena'},{...old,estado:'Entregado'}])assert.equal(ctx.ukiCambioRetiroSinAbonoQA(p,draft),false);for(const d of [{...draft,medio:'Efectivo'},{...draft,items:[{nombre:'Roll',cant:1,precio:19000}]},{...draft,cartaSolicitudRemotaId:''}])assert.equal(ctx.ukiCambioRetiroSinAbonoQA(old,d),false);});
+test('respaldo rechaza reducción sin constancia y exige abono si se marca pagado',async()=>{
+ const {verificarGuardadoUki}=await import('../firebase/uki-seguimiento-guardado-nube-v1.mjs');
+ const edited={...old,modalidad:'Retiro',envio:0,total:20000};
+ const proof={ok:true,storeId:'uki:arica',orderId:id,pedidoInterno:'688',permitido:false,cambioRetiro:{pedidoInterno:'688',totalAnterior:23100,delivery:3100,totalNuevo:20000,montoTransferencia:20000}};
+ const run=(p,r)=>verificarGuardadoUki({anterior:{suc,pedidos:[old]},nuevo:{suc,pedidos:[p]},sucursal:suc,importes:x=>({total:x.total,montoTransferencia:x.total}),hayTransferencia:()=>true,manualValido:()=>false,consultar:async()=>r});
+ await assert.rejects(()=>run(edited,{...proof,cambioRetiro:undefined}),/cambio a retiro/);
+ assert.equal((await run(edited,proof)).ok,true);
+ await assert.rejects(()=>run({...edited,pagado:true},proof),/Transferencia pendiente/);
+ assert.equal((await run({...edited,pagado:true},{...proof,permitido:true,total:20000,montoTransferencia:20000})).ok,true);
+ await assert.rejects(()=>run({...edited,pagado:true},{...proof,permitido:true,total:23100,montoTransferencia:23100}),/importe modificado/);
+});
