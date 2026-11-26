@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {prepararEdicionPendienteRomoQA} from '../public/romo-panel-qa/uki-romo-edicion-pendiente-qa.mjs';
+import * as rectificar from '../public/romo-panel-qa/rectificacion-pago-edicion-v2.mjs';
 import {prepararCobroPendienteRomoQA} from '../public/romo-panel-qa/uki-romo-cobro-pendiente-qa.mjs';
 
 const html=readFileSync(process.env.ROMO_HTML_FIXTURE||new URL('../public/romo-panel-qa/index.html',import.meta.url),'utf8');
@@ -13,7 +14,7 @@ const take=(start,end)=>{
  assert.ok(a>=0&&b>a,'Falta el código de '+start);
  return html.slice(a,b);
 };
-const beforeUkiOnly=take('async function ndGuardar(){','  if(ukiGuardadoSolicitudEnCurso)return;')+'}';
+const beforeUkiOnly=take('let ukiRomoFormularioGuardandoQA=false;','  if(ukiGuardadoSolicitudEnCurso)return;')+'}';
 const codigo=[
  take('function ukiTimbreYaEnviadoPedido','// Distancia solo informativa'),
  take('function editarPedido','function reanalizar'),
@@ -24,32 +25,50 @@ const codigo=[
  take('async function ukiRomoEditarPedidoPendienteQA','async function ukiRomoGuardarPedidoPendienteQA')
   .replace(/await import\('\.\/uki-romo-edicion-pendiente-qa\.mjs\?[^']+'\)/,'__modEdit')
   .replace(/await import\('\.\/uki-romo-cobro-pendiente-qa\.mjs\?[^']+'\)/,'__modPay'),
- take('function ukiSeguimientoConservarOrigenEdicionQA','async function ndGuardar(){'),
+ take('let ukiBaseRectificacionEdicion=null','function ukiCorreccionesTurnoUI('),
+ take('function ukiSeguimientoConservarOrigenEdicionQA','let ukiRomoFormularioGuardandoQA=false;'),
  beforeUkiOnly
-].join('\n');
+].join('\n').replaceAll("await import('./rectificacion-pago-edicion-v2.mjs?v=edicion-clara-v5')",'__rectificar');
 
-function setup({method='Transferencia',hasPhone=true,linked=true,permitido=true,alreadySent=false}={}){
+function setup({method='Transferencia',hasPhone=true,linked=true,permitido=true,alreadySent=false,repartoIncompleto=false}={}){
  const phone=hasPhone?'+56900000001':'';
  const p={id:2,suc,numeroTurno:1,turnoClave:turno,codigoCarta:linked?'R2':'',cliente:'Cliente simulado',
   telefono:phone,modalidad:'Retiro',estado:'Pendiente',pagado:false,medio:method,medioEnvio:'Efectivo',
   subtotal:10000,total:10000,envio:0,productos:[{nombre:'Clásico',cantidad:1,precioUnit:10000}],
   ...(linked?{cartaSolicitudRemotaId:uuid}:{}),...(alreadySent?{timbreEnviadoEn:'2026-11-25T14:00:00Z'}:{})};
- let revision=5,saves=0,opens=0,confirmBank=0,bankAllowed=permitido;
+ if(repartoIncompleto)Object.assign(p,{modalidad:'Delivery',total:12500,envio:2500,medio:'Edenred',
+  medioEnvio:'Edenred',pagosEnvio:[{medio:'Edenred',monto:0},{medio:'Transferencia',monto:0}]});
+ let revision=5,saves=0,opens=0,confirmBank=0,bankAllowed=permitido,rectificaciones=0,comprobaciones=0;
+ const etapas=[];
  const queries=[],messages=[];
  const session={disponible:()=>true,estado:()=>({revision,conflicto:false}),guardar:async (copy)=>{
   assert.equal(copy.pedidos.length,1);
   assert.equal(copy.pedidos[0].id,2);
   assert.equal(copy.nextId,3);
-  saves++;
+  saves++; etapas.push({pagado:copy.pedidos[0].pagado,medio:copy.pedidos[0].medioEnvio});
   return {changed:true,revision:++revision};
  }};
  const context={
   ROMO_SUCURSAL_QA:suc,S:{suc,vista:'pedidos',nextId:3,pedidos:[p],propinas:[],clientes:{},cierres:[],
    cajasDiarias:{[suc+'|'+dia]:{turnoId:turno,turnoAbierto:true,baseConfirmada:true}}},
   D:{},modoNuevo:'manual',ukiRomoGuardandoManualQA:false,
+  __rectificar:rectificar,
+  document:{getElementById:()=>null},
   __modEdit:{prepararEdicionPendienteRomoQA},__modPay:{prepararCobroPendienteRomoQA},
   window:{ukiRomoSesionRemotaQA:session,ukiRomoGuardadoHabilitadoQA:()=>true,
-   UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED:true,open:()=>opens++,
+   UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED:true,
+   ukiAutorizarRectificacionPagoV2:async ({plan,sinAbonoRectificado,abonoRestante})=>{
+    assert.equal(plan.montoAnterior,2500);assert.equal(plan.pedidoInterno,'2');
+    assert.deepEqual(JSON.parse(JSON.stringify(plan.sinDetalleAnterior)),[1]);
+    assert.equal(sinAbonoRectificado,true);assert.equal(abonoRestante,0);
+    rectificaciones++;
+    return {recibo:{id:'recibo-1',firma:'prueba',motivo:'Delivery en efectivo',en:new Date(at).toISOString()}};
+   },
+   ukiVerificarRectificacionPagoV2:async ({plan,recibo})=>{
+    assert.equal(rectificaciones,1);assert.equal(plan.montoRestante,0);assert.equal(recibo.id,'recibo-1');
+    comprobaciones++;
+   },
+   open:()=>opens++,
    confirm:()=>{throw Error('No debe pedir una confirmación duplicada');},
    ukiMesasTokenConfirmar:async ()=>'token-simulado-para-prueba-sin-red',
    ukiQAConfirmTransferBeforePayment:async ({id,monto,revisionBancoMarcada})=>{
@@ -63,7 +82,7 @@ function setup({method='Transferencia',hasPhone=true,linked=true,permitido=true,
    const query=new URL(url,'https://test.example').searchParams;
    assert.equal(query.get('storeId'),'romo:serena');assert.equal(query.get('id'),uuid);
    queries.push(query.get('requiereTransferencia'));
-   return {ok:true,json:async ()=>({ok:true,storeId:'romo:serena',orderId:uuid,permitido:bankAllowed,total:10000,
+   return {ok:true,json:async ()=>({ok:true,storeId:'romo:serena',orderId:uuid,permitido:bankAllowed,total:repartoIncompleto?12500:10000,
     montoTransferencia:method==='Transferencia'?10000:0})};
   },
   validarEstadoSucursal:()=>true,ukiRomoOperacionesEnCursoQA:()=>false,
@@ -72,13 +91,13 @@ function setup({method='Transferencia',hasPhone=true,linked=true,permitido=true,
   ukiCodigoWhatsApp:()=>'',ukiTimbreResponsableActual:()=>'Agendadora simulada',
   ukiTelefonoNormalizado:x=>String(x||'').replace(/\D/g,''),ukiNumeroTimbreWhatsApp:x=>String(x||'').replace(/\D/g,''),
   esc:String,fmt:String,ukiFotoCorreccionPedido:p=>({cliente:p.cliente,telefono:p.telefono,productos:p.productos,total:p.total,medio:p.medio}),
-  ukiMontoPropina:()=>0,ukiMontoEnvioOtroLocal:()=>0,
-  ukiLineasPago:(p,t,total)=>total>0?[{monto:total,medio:t==='productos'?p.medio:p.medioEnvio}]:[],
+  ukiDatosPago:()=>({}),ukiMontoPropina:()=>0,ukiMontoEnvioOtroLocal:()=>0,ukiMontoProductosOtroLocal:()=>0,
+  ukiLineasPago:(p,t,total)=>total>0?(t==='envio'&&p.pagosEnvio?.length?p.pagosEnvio:[{monto:total,medio:t==='productos'?p.medio:p.medioEnvio}]):[],
   ahora:()=>new Date(at).toISOString(),render:()=>{},aviso:t=>messages.push(t)
  };
  runInNewContext(codigo+'\nfunction ir(v){S.vista=v;} function nuevoDraft(){D={};} function datosSoloSucursal(){return JSON.parse(JSON.stringify(S));}',context);
  const invoke=(code)=>runInNewContext(code,context);
- return {invoke,context,queries,messages,counts:()=>({saves,opens,confirmBank})};
+ return {invoke,context,queries,messages,etapas,rectificacion:()=>({rectificaciones,comprobaciones}),counts:()=>({saves,opens,confirmBank})};
 }
 
 test('Romo: Marcar pagado → revisión bancaria y timbre → Guardar conserva el pedido de carta',async()=>{
@@ -123,3 +142,20 @@ test('Romo: un timbre ya guardado no abre WhatsApp ni suma otro envío',async()=
  assert.equal(f.context.S.pedidos[0].timbreEnviadoEn,'2026-11-25T14:00:00Z');
 });
 
+
+test('Romo: corrige transferencia y confirma el pago de carta con un clic y sin reenviar el timbre',async()=>{
+ for(const alreadySent of [false,true]){
+  const f=setup({method:'Efectivo',repartoIncompleto:true,alreadySent});
+  f.invoke('togglePagado(2); D.responsableEdicion="Agendadora simulada"; D.medioEnvio="Efectivo"; D.mixtoEnvio=false; D.pagosEnvio=[]; D.rectificacionConfirmada=true; D.rectificacionFirmaReparto=ukiFirmaRepartoRectificacion(D);');
+  f.invoke('ukiAbrirTimbreBorrador(); if(!ukiTimbreYaEnviadoPedido(S.pedidos[0]))ukiConfirmarTimbreBorrador(true);');
+  await f.invoke('ndGuardar()');
+  assert.deepEqual(f.etapas,[{pagado:false,medio:'Efectivo'},{pagado:true,medio:'Efectivo'}],f.messages.join(' | '));
+  assert.equal(f.counts().opens,alreadySent?0:1);
+  assert.deepEqual(f.rectificacion(),{rectificaciones:1,comprobaciones:1});
+  assert.equal(f.context.S.pedidos.length,1);
+  assert.equal(f.context.S.pedidos[0].total,12500);
+  assert.ok(f.context.S.pedidos[0].timbreEnviadoEn);
+  const envios=(f.context.S.pedidos[0].timbreEventos||[]).filter(x=>x.tipo==='declarado_enviado');
+  assert.equal(envios.length,alreadySent?0:1);
+ }
+});

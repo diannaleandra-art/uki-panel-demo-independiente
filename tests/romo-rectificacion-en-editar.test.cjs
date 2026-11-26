@@ -15,23 +15,36 @@ test('Edita desde el mismo pago de Uki y Romo, y captura la autorización antes 
    pagado:true,productosPagadosOtroLocal:false,rectificacionMotivo:'Se registró el medio por error',responsableEdicion:'Encargada'};
   const S={suc,pedidos:[p],vista:'nuevo'};
   const estado={style:{},focus(){},scrollIntoView(){}};
-  let guardados=0,planes=[];
+  let guardados=0,planes=[],pagosFinalizados=0,enTurnoCerrado=true,importeYaRevisado=true;
   const c=vm.createContext({D,S,loadedLib:lib,fmt:String,esc:String,ukiLineasPago:medios,
-   ukiCierreConfirmadoPedido:()=>true,ukiMontoEnvioOtroLocal:()=>0,ukiMontoProductosOtroLocal:()=>0,ukiDatosPago:()=>({}),
+   ukiCierreConfirmadoPedido:()=>enTurnoCerrado,ukiMontoEnvioOtroLocal:()=>0,ukiMontoProductosOtroLocal:()=>0,ukiDatosPago:()=>({}),
    document:{getElementById:()=>estado},render(){},
    datosSoloSucursal:()=>structuredClone(S),ukiRomoGuardarOperacionQA:async x=>{S.pedidos=x.pedidos;guardados++;},
    guardarEnLocalStorage:async()=>{guardados++;return true;},
    window:{ukiCancelacionNubeLista:()=>true,ukiRespaldarRectificacionDelivery:async()=>true,
     ukiAutorizarRectificacionPagoV2:async ({plan})=>(planes.push(plan),{recibo:{id:'constancia',firma:'prueba',motivo:'Medio de pago incorrecto',en:'2026-11-25T17:00:00Z'}})}});
-  const desdeGuardar=html.indexOf('async function ndGuardar(){');
-  const hastaGuardar=html.slice(desdeGuardar+1).search(/\n(?:async )?function /)+desdeGuardar+1;
+  const desdeGuardar=html.indexOf('function ukiPedidoTrasRectificarParaConfirmarQA(');
+  const hastaGuardar=html.indexOf('async function ukiGuardarFormularioQA(',desdeGuardar);
   const desdeBandera=html.indexOf('function ukiSeguimientoHayTransferenciaQA(');
   const hastaBandera=html.indexOf('function seguimientoPropinaTransferenciaQA(',desdeBandera);
   Object.assign(c,{ukiGuardadoSolicitudEnCurso:false,ukiQRComprobandoCobro:false,ROMO_SUCURSAL_QA:suc,
     ukiRomoOperacionesEnCursoQA:()=>false,ukiSeguimientoImportesCajaQA:()=>null,
+    ukiRevisionBancoBorradorValidaQA:()=>importeYaRevisado,
+    ukiGuardarFormularioQA:async p=>{
+     const previo=p||S.pedidos[0];
+     assert.equal(previo.pagado,false,'El paso de rectificación no acredita el pago.');
+     assert.equal(c.ukiValidarTimbreAntesGuardar(c.D,previo),true);
+     assert.equal(previo.rectificacionesTransferenciaV2.at(-1).id,'constancia');
+     c.ukiAnotarTimbreConfirmadoEnPedido(previo,c.D);
+     previo.pagado=true;pagosFinalizados++;
+    },
     aviso:mensaje=>{throw Error('No se esperaba el bloqueo de edición normal: '+mensaje);}});
   const responsableUI=html.slice(html.indexOf('function ukiResponsableEdicionUI('),html.indexOf('function ukiRevisionBancoBorradorValidaQA('));
-  vm.runInContext(responsableUI+'\n'+code+'\n'+html.slice(desdeGuardar,hastaGuardar)+'\n'+html.slice(desdeBandera,hastaBandera),c);
+  const timbre1=html.slice(html.indexOf('function ukiTimbreYaEnviadoPedido('),html.indexOf('function ukiTimbreTextoPedido('));
+  const anotacion=html.indexOf('function ukiAnotarTimbreConfirmadoEnPedido(');
+  const timbre2=html.slice(html.indexOf('function ukiValidarTimbreAntesGuardar('),html.indexOf('\n}',anotacion)+2);
+  Object.assign(c,{ukiNumeroTimbreWhatsApp:x=>String(x||'').trim(),ukiTelefonoNormalizado:x=>String(x||'').trim()});
+  vm.runInContext(timbre1+'\n'+timbre2+'\n'+responsableUI+'\n'+code+'\n'+html.slice(desdeGuardar,hastaGuardar)+'\n'+html.slice(desdeBandera,hastaBandera),c);
   assert.match(html,/onclick="ukiMostrarCorreccionPago\(\)"/);
   assert.match(c.ukiRectificacionPagoEdicionUI(p,{...D,medio:'Transferencia'}),/Corregir transferencia.*Productos 12000/);
   assert.match(c.ukiRectificacionPagoEdicionUI({...p,medio:'Edenred',medioEnvio:'Transferencia'},{...D,medio:'Edenred',medioEnvio:'Transferencia'}),/Corregir transferencia.*Delivery 2500/);
@@ -85,20 +98,44 @@ test('Edita desde el mismo pago de Uki y Romo, y captura la autorización antes 
   assert.equal(reparado.medioEnvio,'Efectivo');
   assert.equal(reparado.pagosEnvio.length,0);
   assert.equal(repartoCero.pagosEnvio[1].monto,0,'No cambia el reparto anterior en memoria.');
-  // Caso que no cubría el arreglo anterior: el registro está pendiente,
-  // aunque en el formulario se haya marcado Pago completo confirmado.
-  const pendiente={...repartoCero,pagado:false,estado:'Pendiente'};
+  // Si marcó el dinero recibido, una pulsación continúa al guardado normal de caja.
+  const pendiente={...repartoCero,pagado:false,estado:'Pendiente',cliente:'Prueba',telefono:'+56900000123'};
   const nuevoFormulario={...formularioCero,rectificacionConfirmada:true,
    rectificacionMotivo:'Delivery recibido en efectivo, sin abono bancario.',
-   rectificacionMensaje:'',rectificacionError:false,rectificacionNubePendiente:false};
-  S.pedidos=[pendiente];c.D=nuevoFormulario;
+   rectificacionMensaje:'',rectificacionError:false,rectificacionNubePendiente:false,
+   cliente:pendiente.cliente,telefono:pendiente.telefono};
+  S.pedidos=[pendiente];c.D=nuevoFormulario;enTurnoCerrado=false;
   nuevoFormulario.rectificacionFirmaReparto=c.ukiFirmaRepartoRectificacion(nuevoFormulario);
   assert.match(c.ukiRectificacionPagoEdicionUI(pendiente,nuevoFormulario),/Autorizar corrección de transferencia/);
+  let bloqueoTimbre='';
+  const avisoAnterior=c.aviso;
+  c.aviso=m=>{bloqueoTimbre=m;};
   await c.ndGuardar();
+  assert.match(bloqueoTimbre,/envía el timbre/);
+  assert.equal(guardados,2,'El timbre obligatorio se comprueba antes de rectificar.');
+  const marca='2026-11-25T17:00:00Z',firma=c.ukiFirmaTimbreBorrador(nuevoFormulario);
+  Object.assign(nuevoFormulario,{timbreAvisoAbiertoEn:marca,timbreAvisoConfirmadoEn:marca,
+   timbreAvisoConfirmadoFirma:firma,timbreAvisoAbiertoFirma:firma});
+  importeYaRevisado=false;
+  await c.ndGuardar();
+  assert.match(estado.textContent,/confirma que el abono entró al banco/);
+  assert.equal(guardados,2);
+  importeYaRevisado=true;c.aviso=avisoAnterior;
+  await Promise.all([c.ndGuardar(),c.ndGuardar()]);
   assert.equal(guardados,3,estado.textContent);
+  assert.equal(pagosFinalizados,1);
   assert.equal(S.pedidos[0].medioEnvio,'Efectivo');
-  assert.equal(S.pedidos[0].pagado,false,'Primero guarda solo los medios, sin declarar un abono nuevo.');
-  assert.match(estado.textContent,/pendiente de pago/);
+  assert.equal(S.pedidos[0].pagado,true);
+  assert.equal(S.pedidos[0].timbreEnviadoEn,marca);
+  assert.equal(S.pedidos[0].timbreEventos.filter(x=>x.tipo==='declarado_enviado').length,1);
+
+  // Sin recepción del pago, se rectifica el medio sin crear una venta.
+  c.D={...nuevoFormulario,pagado:false,rectificacionConfirmada:true};S.pedidos=[pendiente];
+  c.D.rectificacionFirmaReparto=c.ukiFirmaRepartoRectificacion(c.D);
+  await c.ndGuardar();
+  assert.equal(pagosFinalizados,1);
+  assert.equal(S.pedidos[0].pagado,false);
+  assert.equal(S.pedidos[0].medioEnvio,'Efectivo');
   // Variante antigua donde la marca existe en el pedido, no en la línea a $0.
   const incompletoAntiguo={...pendiente,pagoDeclarado:'transferencia',
     pagosEnvio:[{medio:'Edenred',monto:0},{medio:'Efectivo',monto:0}]};
