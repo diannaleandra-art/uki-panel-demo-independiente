@@ -14,11 +14,11 @@
     if(stroke){c.strokeStyle=stroke;c.lineWidth=sw;c.stroke();}
   };
   const txt=(c,s,x,y,px=35,color=UKI.tinta,weight=600,align="left")=>{
-    c.font=weight+" "+px+"px system-ui, -apple-system, sans-serif";
+    c.font=(weight>=650?"bold ":"normal ")+px+"px Arial, sans-serif";
     c.fillStyle=color;c.textAlign=align;c.textBaseline="middle";c.fillText(s,x,y);
   };
   const ajustar=(c,s,max,base,min=20)=>{
-    for(let z=base;z>min;z-=2){c.font="700 "+z+"px system-ui";if(c.measureText(s).width<=max)return z;}
+    for(let z=base;z>min;z-=2){c.font="bold "+z+"px Arial, sans-serif";if(c.measureText(s).width<=max)return z;}
     return min;
   };
   const imagenLogo=logo=>new Promise(resolve=>{
