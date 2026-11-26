@@ -233,7 +233,7 @@ module.exports=async(req,res)=>{
   }
   if(action==='listar'){
    const [data,added]=await Promise.all([leerInventario(sql,branch),extra.listar(sql,branch)]);
-   return res.status(200).json({ok:true,branch,items:[...data.map(i=>({
+   return res.status(200).json({ok:true,branch,bodegaCompartida:process.env.UKI_BODEGA_SERENA_COMPARTIDA==='true',items:[...data.map(i=>({
     sku:i.sku,kind:i.kind,group_key:i.group_key,name:i.name,available:i.available,
     stock_qty:i.stock_qty,stock_unit:i.stock_unit,min_stock_qty:i.min_stock_qty,version:i.version
    })),...added]});
@@ -276,6 +276,8 @@ module.exports=async(req,res)=>{
    const item=list.find(x=>x.sku===sku);
    if(!item||!['ingredient','inventory'].includes(item.kind))return fail(res,404,'Insumo no encontrado en esta sucursal.');
    const lib=require('../lib/inventario-justificaciones-v1.cjs');
+   if(process.env.UKI_BODEGA_SERENA_COMPARTIDA==='true'&&input.contraparte==='romo:serena')
+    return fail(res,400,'Uki y Romo La Serena comparten bodega. Selecciona La Serena o Regimiento.');
    const data=lib.validate('uki:'+branch,input,item,worker);
    return res.status(200).json({...await lib.save(sql,data),branch});
   }
