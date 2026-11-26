@@ -1064,7 +1064,7 @@ function ukiExportarPrecierres(){
 
 function setModalidad(modalidad){
   D.modalidad=modalidad;
-  if(modalidad!=="Delivery"){D.envio=0;D.envioPagadoOtroLocal=false;D.montoEnvioOtroLocal="";}
+  if(modalidad!=="Delivery"){D.envio=0;D.envioPagadoOtroLocal=false;D.montoEnvioOtroLocal="";D.mixtoEnvio=false;D.pagosEnvio=[];}
   render();
 }
 function setEnvioManual(valor){
@@ -1540,7 +1540,7 @@ function ukiTimbreYaEnviadoPedido(p){
 }
 function ukiTimbreObligatorioGuardar(d,original){
  return !!d?.pagado&&!d.productosPagadosOtroLocal&&!!String(d.telefono||'').trim()&&
-   !ukiTimbreYaEnviadoPedido(original)&&(!d.editando||!original?.pagado);
+   !ukiTimbreYaEnviadoPedido(original)&&!d.editando;
 }
 function ukiFirmaTimbreBorrador(d){
  // La prueba de envío se vincula a esta sucursal/pedido y al WhatsApp DESTINO.
@@ -1642,7 +1642,23 @@ function ukiRevisionBancoFirmaQA(p,importe=null){
  return JSON.stringify([S.suc,String(p.cartaSolicitudRemotaId||p.seguimientoSolicitudId||''),String(p.id??p.editando??S.nextId),String(p.cliente||''),String(p.telefono||''),i.total,i.montoTransferencia]);
 }
 // Una edición que deja intacto el cobro ya registrado no vuelve a verificar el banco.
+// Cambiar un delivery ya cobrado a retiro no es un nuevo cobro.
+function ukiRetiroConCobroPrevio(d,p){
+ if(!d||!p||d.pagado!==true||p.pagado!==true||p.suc!==S.suc||Number(d.editando)!==Number(p.id)||
+    p.estado==='Cancelado'||p.esPremio||p.modalidad!=='Delivery'||d.modalidad!=='Retiro'||
+    !Number.isSafeInteger(Number(p.envio))||Number(p.envio)<0||Number(d.envio||0)!==0||
+    p.ajusteCobroPendiente||[p,d].some(x=>x.productosPagadosOtroLocal||x.envioPagadoOtroLocal||x.localPagoExterno||x.qrSolicitudes?.length))return false;
+ if(['cartaSolicitudRemotaId','seguimientoSolicitudId','telefono','cliente'].some(k=>String(d[k]||'').trim()!==String(p[k]||'').trim()))return false;
+ const sub=(d.items||[]).reduce((n,i)=>n+(i.nombre?Number(i.cant)*Number(i.precio):0),0);
+ const tip=ukiMontoPropina(d,sub);
+ if(!Number.isSafeInteger(sub)||sub<1||sub!==Number(p.subtotal)||tip!==Number(p.propina||0)||
+    (tip>0&&d.medioPropina!==p.medioPropina)||Number(p.total)!==sub+Number(p.envio)+tip)return false;
+ const nuevo={...d,subtotal:sub,pagosProductos:d.mixtoProductos?d.pagosProductos:[]};
+ const firma=x=>JSON.stringify(ukiLineasPago(x,'productos',sub).map(l=>[l.medio,l.monto]).sort());
+ return !ukiErrorDistribucionPago(p,sub,Number(p.envio))&&!ukiErrorDistribucionPago(nuevo,sub,0)&&firma(p)===firma(nuevo);
+}
 function ukiEdicionMantieneCobro(d,p){
+ if(ukiRetiroConCobroPrevio(d,p))return true;
  if(!d?.pagado||!p?.pagado||p.suc!==S.suc||Number(d.editando)!==Number(p.id)||
     p.estado==='Cancelado'||d.modalidad!==p.modalidad)return false;
  if(['cartaSolicitudRemotaId','seguimientoSolicitudId','localPagoExterno'].some(k=>String(d[k]||'')!==String(p[k]||'')))return false;
@@ -1690,7 +1706,7 @@ function ukiPasoTimbreAntesDeGuardar(pedidoEdicion){
  if(!String(D.telefono||'').trim())
   return '<div class="card"><h2>4 · Timbre del pedido</h2><p class="muted">Sin WhatsApp registrado: el pedido se puede guardar normalmente. La tarjeta de timbres queda acumulada para consultar después.</p></div>';
  if(!ukiTimbreObligatorioGuardar(D,pedidoEdicion))
-  return '<div class="card"><h2>4 · Timbre del pedido</h2><p class="muted">Esta compra ya estaba pagada. No es necesario reenviar el timbre por editarla.</p></div>';
+  return '<div class="card"><h2>4 · Timbre del pedido</h2><p class="muted">Editar no requiere reenviar el timbre. Si aún no se envió, puedes hacerlo desde el pedido guardado.</p></div>';
  const firma=ukiFirmaTimbreBorrador(D);
  const abierto=D.timbreAvisoAbiertoFirma===firma&&!!D.timbreAvisoAbiertoEn;
  const enviado=ukiTimbreBorradorConfirmado(D);
@@ -2050,7 +2066,7 @@ function ukiPuedeRectificarPago(p,d){
   ukiPagoTransferenciaMonto(p,ukiPagoAnteriorRectificacion)>0);
 }
 function ukiPideRectificacionPago(p,d){
- if(!ukiPuedeRectificarPago(p,d))return false;
+ if(ukiRetiroConCobroPrevio(d,p)||!ukiPuedeRectificarPago(p,d))return false;
  const propuesta={...p,medio:d.medio,medioEnvio:d.medioEnvio,
   pagosProductos:d.mixtoProductos?d.pagosProductos:[],pagosEnvio:d.mixtoEnvio?d.pagosEnvio:[]};
  return ukiPagoTransferenciaMonto(propuesta)<ukiPagoTransferenciaMonto(p,ukiPagoAnteriorRectificacion);
@@ -5413,6 +5429,7 @@ function ukiSeguimientoConservarOrigenEdicionQA(){
 }
 // La misma protección se usa en ambos Uki y Romo, antes de modificar caja.
 function ukiSeguimientoValidarCambioMedioQA(original,nuevo){
+ if(ukiRetiroConCobroPrevio(nuevo,original))return true;
  if(original&&ukiSeguimientoHayTransferenciaQA(original)&&!ukiSeguimientoHayTransferenciaQA(nuevo)){
   aviso('No se puede quitar una transferencia registrada desde la edición normal. Requiere una corrección autorizada.');
   return false;
