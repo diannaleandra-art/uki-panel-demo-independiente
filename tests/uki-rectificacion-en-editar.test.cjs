@@ -27,7 +27,15 @@ test('Edita desde el mismo pago de Uki y Romo, y captura la autorización antes 
   assert.match(html,/onclick="ukiMostrarCorreccionPago\(\)"/);
   assert.match(c.ukiRectificacionPagoEdicionUI(p,{...D,medio:'Transferencia'}),/Corregir transferencia.*Productos 12000/);
   assert.match(c.ukiRectificacionPagoEdicionUI({...p,medio:'Edenred',medioEnvio:'Transferencia'},{...D,medio:'Edenred',medioEnvio:'Transferencia'}),/Corregir transferencia.*Delivery 2500/);
-  assert.match(c.ukiRectificacionPagoEdicionUI({...p,medio:'Edenred'},{...D,medio:'Edenred',mostrarRectificacionPago:true}),/no tiene un pago.*registrado como transferencia/);
+  const pedido72={...p,subtotal:8000,total:10500,medio:'Edenred',medioEnvio:'Transferencia'};
+  const borrador72={...D,medio:'Edenred',medioEnvio:'Efectivo'};
+  const autorizado=c.ukiRectificacionPagoEdicionUI(pedido72,borrador72);
+  assert.match(autorizado,/Autorizar corrección de transferencia.*Pago guardado.*Delivery: Transferencia 2500/);
+  assert.match(autorizado,/selección aún no está guardada/);
+  const guardadoEfectivo=c.ukiRectificacionPagoEdicionUI({...pedido72,medioEnvio:'Efectivo'},borrador72);
+  assert.match(guardadoEfectivo,/Pago guardado.*Delivery: Efectivo 2500/);
+  assert.match(guardadoEfectivo,/No hay una transferencia guardada/);
+  assert.doesNotMatch(guardadoEfectivo,/Autorizar corrección de transferencia/);
   assert.match(html,/ukiRectificacionPagoEdicionUI\(pedidoEdicion,D\)/);
   assert.match(html,/ukiPideRectificacionPago\((?:originalQR|pedidoRectificacion),D\)/);
   assert.match(c.ukiRectificacionPagoEdicionUI(p,D),/Autorizar corrección de transferencia/);

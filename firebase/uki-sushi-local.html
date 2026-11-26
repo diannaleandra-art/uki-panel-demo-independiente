@@ -1959,7 +1959,7 @@ function ukiPideRectificacionPago(p,d){
 }
 function ukiFirmaOtrosCambiosRectificacion(d){
  const {medio,medioEnvio,mixtoProductos,mixtoEnvio,pagosProductos,pagosEnvio,responsableEdicion,
-  rectificacionMotivo,rectificacionConfirmada,rectificacionFirmaReparto,rectificacionMensaje,rectificacionError,rectificacionNubePendiente,mostrarRectificacionPago,...resto}=d;
+  rectificacionMotivo,rectificacionConfirmada,rectificacionFirmaReparto,rectificacionMensaje,rectificacionError,rectificacionNubePendiente,...resto}=d;
  return JSON.stringify(resto);
 }
 function ukiFirmaRepartoRectificacion(d){
@@ -1975,29 +1975,29 @@ function ukiRectificacionPagoEdicionUI(p,d){
  if(!p)return '';
  const estado='<p id="ukiEstadoRectificacionEdicion" role="status" tabindex="-1" style="'+
   (d.rectificacionError?'color:#9a3412;font-weight:700;':'')+'margin:8px 0">'+esc(d.rectificacionMensaje||'')+'</p>';
- if(!ukiPideRectificacionPago(p,d)){
-  if(d.rectificacionMensaje)return estado;
+ const lineas=(tipo,monto)=>ukiLineasPago(p,tipo,monto)
+  .map(({medio,monto})=>esc(medio)+' '+fmt(monto)).join(' + ')||'sin cobro en este local';
+ const guardado='<p class="muted"><b>Pago guardado</b><br>Productos: '+lineas('productos',Number(p.subtotal)||0)+
+  (p.modalidad==='Delivery'?'<br>Delivery: '+lineas('envio',Number(p.envio)||0):'')+'</p>';
   const caja='<div class="card" style="padding:12px;border:1px solid var(--accent);margin:12px 0">';
+ if(!ukiPideRectificacionPago(p,d)){
+  if(d.rectificacionMensaje)return caja+'<h3 style="margin:0">Pago del pedido</h3>'+guardado+estado+'</div>';
   if(ukiPuedeRectificarPago(p,d)){
    const montoProductos=ukiPagoTransferenciaMonto({...p,modalidad:'Retiro'});
    const montoDelivery=ukiPagoTransferenciaMonto(p)-montoProductos;
    const detalle=[montoProductos>0?'Productos '+fmt(montoProductos):'',montoDelivery>0?'Delivery '+fmt(montoDelivery):''].filter(Boolean).join(' · ');
    return caja+'<h3 style="margin:0">Corregir transferencia</h3>'+
-    '<p><b>Registrado como transferencia:</b> '+esc(detalle)+'</p>'+
+    guardado+'<p><b>Registrado como transferencia:</b> '+esc(detalle)+'</p>'+
     '<p class="muted">Arriba, en el pago de '+(montoProductos&&montoDelivery?'productos o delivery':montoDelivery?'delivery':'productos')+
     ', elige el medio que realmente recibiste. Si el pago es mixto, cambia solo la parte de transferencia. Aquí aparecerá la autorización antes de guardar.</p></div>';
   }
-  const historial=ukiRectificacionDeliveryUI(p);
-  if(!d.mostrarRectificacionPago)return historial;
-  const lineas=(tipo,monto)=>ukiLineasPago(p,tipo,monto).map(({medio,monto})=>esc(medio)+' '+fmt(monto)).join(' + ')||'sin cobro en este local';
-  return caja+'<h3 style="margin:0">Revisar transferencia</h3>'+
-   '<p>Este pedido no tiene un pago de productos o delivery registrado como transferencia en este local.</p>'+
-   '<p class="muted"><b>Productos:</b> '+lineas('productos',Number(p.subtotal)||0)+
-   (p.modalidad==='Delivery'?'<br><b>Delivery:</b> '+lineas('envio',Number(p.envio)||0):'')+
-   '</p>'+historial+'</div>';
+  return caja+'<h3 style="margin:0">Medios registrados</h3>'+guardado+
+   '<p class="muted">No hay una transferencia guardada de productos o delivery que autorizar en este local.</p>'+
+   ukiRectificacionDeliveryUI(p)+'</div>';
  }
- return '<div class="card" style="padding:12px;border:1px solid var(--accent);margin:12px 0">'+
-  '<h3 style="margin:0">Autorizar corrección de transferencia</h3>'+
+ return caja+
+  '<h3 style="margin:0">Autorizar corrección de transferencia</h3>'+guardado+
+  '<p class="muted"><b>Tu selección aún no está guardada.</b></p>'+
   '<p class="muted">Cambia solo el medio que recibiste. No modifica el importe ni registra otra venta. Guarda con la cuenta Google de administración.</p>'+
   '<label for="ukiMotivoRectificacionEdicion">Motivo de la corrección</label>'+
   '<textarea id="ukiMotivoRectificacionEdicion" maxlength="140" rows="2" oninput="D.rectificacionMotivo=this.value">'+esc(d.rectificacionMotivo||'')+'</textarea>'+
@@ -2009,7 +2009,6 @@ function ukiRectificacionPagoEdicionUI(p,d){
 }
 function ukiMostrarCorreccionPago(){
  if(!D.editando)return;
- D.mostrarRectificacionPago=true;
  ukiRefrescarCorreccionPagoDirecta();
  const zona=document.getElementById('ukiRectificacionPagoEdicion');
  zona?.focus({preventScroll:true});
