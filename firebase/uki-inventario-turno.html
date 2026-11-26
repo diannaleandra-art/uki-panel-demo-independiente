@@ -46,6 +46,13 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
  .descargas-turno .grid{margin-top:8px}.descargas-turno button{width:100%;min-height:45px}
  @media(max-width:430px){.resumen-indicador{padding:8px 5px}.resumen-indicador .detalle{font-size:11px}}
  [hidden]{display:none!important}
+</style><style>
+.inv-app-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.inv-app-grid button{min-height:112px;text-align:left;background:#fff;border:1px solid #ead5c4;color:#704222;padding:14px;font-size:22px;border-radius:14px;box-shadow:0 2px 6px #5433120b}
+.inv-app-grid strong,.inv-app-grid small{display:block}.inv-app-grid strong{font-size:15px;margin-top:7px}.inv-app-grid small{font-weight:400;color:#766252;font-size:12px;margin-top:5px}
+#activo[data-inv-mode="entrada"] #items .inv-count-control{display:none}
+#activo[data-inv-mode="conteo"] #items .inv-receive-control{display:none}
+#activo[data-inv-mode="compras"] #enviar,#activo[data-inv-mode="compras"] #descargasTurno{display:none!important}
 </style></head>
 <body><header><h1>🍣 Uki Sushi · Inventario</h1><div>Conteo del turno · sin caja, ventas ni cierres</div></header>
 <main>
@@ -58,8 +65,19 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 <p class="muted">Este código solo permite contar, registrar mercadería y enviar la revisión. No abre el panel de pedidos.</p>
 <button id="abrir">Abrir inventario</button><p id="estado" role="status" class="muted"></p>
 </section>
-<div id="activo" hidden>
-<section class="card"><h2>2. Contar lo que queda</h2>
+<div id="activo" hidden><section id="invAppHome" class="card inv-app-home">
+<h2>Mi inventario</h2><p id="invAppLocal" class="muted"></p>
+<nav class="inv-app-grid" aria-label="Funciones del inventario">
+<button type="button" data-inv-view="conteo">📋<strong>Contar existencias</strong><small>Lo que tenemos</small></button>
+<button type="button" data-inv-view="entrada">📦<strong>Recibir mercadería</strong><small>Ingreso manual o factura</small></button>
+<button type="button" data-inv-view="alta">➕<strong>Agregar insumo</strong><small>Preparar artículos nuevos</small></button>
+<button type="button" data-inv-view="merma">🗑<strong>Merma</strong><small>Producto perdido</small></button>
+<button type="button" data-inv-view="personal">🍽<strong>Consumo personal</strong><small>Alimentación del equipo</small></button>
+<button type="button" data-inv-view="traspaso">⇄<strong>Traspasos</strong><small>Entre bodegas</small></button>
+<button type="button" data-inv-view="compras">🛒<strong>Lista de compras</strong><small>Lo que falta</small></button>
+<button type="button" data-inv-view="reporte">📄<strong>Guardar y compartir</strong><small>PDF, Excel y WhatsApp</small></button>
+</nav></section><section id="invAppBar" class="card" hidden><button type="button" id="invAppBack" class="secondary">‹ Inicio</button><h2 id="invAppTitle" style="margin-top:12px"></h2></section>
+<section class="card" id="invListHeader"><h2>Ingredientes e insumos</h2>
 <div class="grid"><select id="tipo" aria-label="Tipo de artículo">
 <option value="ingredientes">Ingredientes e insumos</option><option value="productos">Productos para contar</option><option value="todos">Todos</option></select>
 <input id="buscar" placeholder="Buscar pollo, palta…"></div>
@@ -74,7 +92,7 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
  <p id="turnoUltimoRegistro" class="muted small">Aún no hay artículos guardados en esta sesión.</p>
  </div>
 <p class="muted">Al cierre cuenta lo que realmente queda y pulsa <b>Guardar conteo</b> en cada artículo. Cuando llega mercadería, usa <b>Registrar entrada</b>. Solo administración decide Disponible / Agotado en la carta.</p><p id="turnoProgreso" role="status" class="pill">Todavía no hay conteos guardados en este turno.</p></section>
-<div id="items"></div><div style="text-align:center;margin:10px 16px"><button type="button" id="mostrarMas" class="secondary" hidden>Mostrar 12 artículos más</button></div>
+<div id="items"></div><div id="invMoreWrap" style="text-align:center;margin:10px 16px"><button type="button" id="mostrarMas" class="secondary" hidden>Mostrar 12 artículos más</button></div>
 <details class="card" id="justMov"><summary><b>Registrar merma, consumo del personal o traspaso</b></summary>
 <p class="muted">Solo deja constancia. No cambia las existencias: cuenta lo que queda al final. Si recibes un traspaso, usa este registro y no lo repitas como compra o entrada de mercadería. Ambas sucursales deben usar el mismo folio.</p>
 <label for="justSku">Insumo</label><select id="justSku"></select>
@@ -84,7 +102,7 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 <label for="justReason">Motivo</label><input id="justReason" maxlength="180" placeholder="Ej. Producto dañado">
 <button type="button" id="justSave">Guardar registro</button><p id="justStatus" role="status" class="muted"></p>
 </details>
-<section class="card"><h2>3. Terminar el turno</h2><p class="muted">Confirma los conteos guardados. Si faltan artículos por revisar, puedes completar el conteo antes de terminar.</p><p id="resumen" class="muted"></p><div id="resumenIndicadores" class="reporte-colores" aria-label="Resumen del inventario"></div><div id="resumenArticulos" class="reporte-lista" aria-label="Artículos que requieren reposición"></div>
+<section class="card" id="invFinish"><h2>Guardar inventario y reportes</h2><p class="muted">Confirma los conteos guardados. Si faltan artículos por revisar, puedes completar el conteo antes de terminar.</p><p id="resumen" class="muted"></p><div id="resumenIndicadores" class="reporte-colores" aria-label="Resumen del inventario"></div><div id="resumenArticulos" class="reporte-lista" aria-label="Artículos que requieren reposición"></div>
 <button id="enviar">Guardar inventario en el panel</button>
 <p class="muted">Primero guarda la revisión. Después podrás enviar el PDF completo y, por separado, el texto de los productos que hay que comprar.</p>
 <p id="confirmacion" role="status"></p>
@@ -93,7 +111,7 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
  <p class="muted">Dos envíos distintos: el informe completo en PDF y la lista de compras en un mensaje de WhatsApp.</p>
  <div style="display:grid;grid-template-columns:1fr;gap:9px;margin:12px 0">
   <button type="button" id="compartirPDFWhatsApp">📄 Compartir PDF por WhatsApp</button>
-  <button type="button" id="enviarComprasTexto" class="secondary">🛒 Enviar lista de compras por WhatsApp (texto)</button>
+  <button type="button" id="enviarInventarioTexto" class="secondary">Enviar inventario completo por WhatsApp (texto)</button><button type="button" id="enviarComprasTexto" class="secondary">🛒 Enviar lista de compras por WhatsApp (texto)</button>
  </div>
  <p class="muted" id="compartirAyuda">En el iPhone, selecciona WhatsApp al compartir el PDF. El mensaje de compras se envía aparte, con las cantidades para pedir.</p>
  <p class="muted">También puedes descargar los archivos para guardarlos:</p>
@@ -318,7 +336,7 @@ function render(){
    await save(item,'recibir',n,recUnit.value);
   };
   details.append(summary,recRow,recHint,receive);
-  card.append(elt('p','Conteo real · reemplaza el saldo anterior','action-label'),countRow,countHint,count,details);
+  const countLabel=elt('p','Conteo real · reemplaza el saldo anterior','action-label');for(const el of [countLabel,countRow,countHint,count])el.classList.add('inv-count-control');details.classList.add('inv-receive-control');card.append(countLabel,countRow,countHint,count,details);
   if(lastSaved?.sku===item.sku){
    const note=elt('p',lastSaved.message,lastSaved.ok?'confirmacion-item':'error-item');
    note.setAttribute('role','status');card.append(note);
@@ -367,13 +385,48 @@ async function abrir(){
   $('turnoFechaChile').textContent='Inicio del conteo: '+formatoFechaHoraChile(new Date())+' (Chile).';
   $('turnoUltimoRegistro').textContent='Aún no hay artículos guardados en esta sesión.';
   iniciarReloj();
-  render();status('Inventario del turno listo.');
+  render();status('Inventario del turno listo.');invAppView('inicio');
  }catch(e){branch='';items=[];$('activo').hidden=true;status(String(e.message));}
  finally{setBusy(false);}
 }
 
 // Registro independiente: nunca cambia la cantidad de existencias.
 let justPending=null;
+
+let invAppMode='inicio';
+function invAppView(mode){
+ if(busy&&mode!=='inicio')return;
+ invAppMode=mode;
+ $('activo').dataset.invMode=mode;
+ $('invAppLocal').textContent=branch==='arica'?'Regimiento Arica':'La Serena';
+ $('invAppHome').hidden=mode!=='inicio';$('invAppBar').hidden=mode==='inicio';
+ const titles={conteo:'Contar existencias',entrada:'Recibir mercadería',alta:'Agregar insumo',merma:'Registrar merma',personal:'Consumo del personal',traspaso:'Traspasos',compras:'Lista de compras',reporte:'Guardar y compartir'};
+ $('invAppTitle').textContent=titles[mode]||'';
+ const list=['conteo','entrada'].includes(mode);
+ $('invListHeader').hidden=!list;$('items').hidden=!list;$('invMoreWrap').hidden=!list;
+ $('facturaQA').hidden=!['entrada','alta'].includes(mode);
+ $('justMov').hidden=!['merma','personal','traspaso'].includes(mode);
+ $('invFinish').hidden=!['compras','reporte'].includes(mode);
+ if(mode==='entrada'||mode==='conteo'){$('estadoLista').value=mode==='entrada'?'todos':'pendiente';visibleLimit=12;render();}
+ if(mode==='alta'){$('factModoPreparar')?.click();$('factAltasDetalles').open=true;}
+ if(mode==='entrada')$('factModoRecibir')?.click();
+ if(['merma','personal','traspaso'].includes(mode)){
+  $('justKind').value=mode==='traspaso'?'traspaso_salida':mode;$('justKind').onchange();$('justMov').open=true;
+ }
+ if(mode==='compras'||mode==='reporte')resumen();
+ window.scrollTo({top:0,behavior:'instant'});
+}
+$('invAppBack').onclick=()=>invAppView('inicio');
+document.querySelectorAll('[data-inv-view]').forEach(b=>b.onclick=()=>invAppView(b.dataset.invView));
+$('enviarInventarioTexto').onclick=()=>{
+ if(!reporteFinal||!window.ukiInventarioExportar)return;
+ const f=window.ukiInventarioExportar,lines=['📦 INVENTARIO COMPLETO', 'Sucursal: '+f.branchName(reporteFinal.branch),'Fecha: '+new Date(reporteFinal.created_at).toLocaleString('es-CL',{timeZone:'America/Santiago'}),'Responsable: '+reporteFinal.worker_name,''];
+ for(const row of f.filas(reporteFinal))lines.push('• '+row.name+': '+row.stock+' '+row.unit+(row.received===null?'':' · recibido '+row.received+' '+row.unit));
+ const text=lines.join('\n');
+ if(text.length>12000){$('compartirAyuda').textContent='Informe muy largo: utiliza PDF o Excel para no perder información.';return;}
+ const opened=window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank');if(opened)opened.opener=null;else window.location.href='https://wa.me/?text='+encodeURIComponent(text);
+};
+
 function justRefresh(){
  const local='uki:'+branch,sel=$('justSku'),prev=sel.value;
  sel.replaceChildren(new Option('Selecciona insumo',''));
