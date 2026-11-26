@@ -207,7 +207,7 @@ module.exports=async(req,res)=>{
   if(!await authorized(sql,req,who))return fail(res,401,'Introduce el código privado para continuar.');
   if(action==='resumen_conteos_inventario'){
    if(process.env.UKI_COSTEO_ADMIN_V1_ENABLED!=='true')return fail(res,404,'Control de consumo todavía no habilitado.');
-   const locales=await require('../lib/costeo-admin-resumen-v1.cjs').physicalReport(sql);
+   const locales=await require('../lib/costeo-admin-resumen-v1.cjs').physicalReport(sql,process.env,req.headers.authorization);
    return ok(res,{locales,soloLectura:true,totalesFinancierosModificados:false,coberturaVentasCompleta:false});
   }
   if(action==='resumen_costeo_inventario'){
