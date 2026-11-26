@@ -2074,7 +2074,17 @@ $('ukiFisicoConsultar').onclick=async()=>{
   for(const store of Object.keys(names)){
    const matches=data.locales.filter(r=>r.store===store),r=matches.length===1?matches[0]:null;
    const box=document.createElement('details');box.className='line';result.append(box);add(box,'summary',names[store]);
-   if(!r?.available||!Array.isArray(r.rows)){add(box,'p',r?.reason||'Sin información verificable.');continue;}
+   function renderLive(){
+    if(!r?.liveSales)return;
+    add(box,'h3','Consumo de preparación · pedidos sincronizados');
+    add(box,'p',r.liveSales.reason||'Consulta parcial.');
+    if(r.liveSales.available){
+     add(box,'p',date(r.liveSales.start)+' — '+date(r.liveSales.end));
+     add(box,'p',r.liveSales.calculated+' pedidos con gramajes identificados · '+r.liveSales.pending+' sin cálculo.');
+     for(const item of r.liveSales.ingredients||[])add(box,'p',item.name+' · '+fmt(item.quantity/1000,'kg preparados'));
+    }
+   }
+   if(!r?.available||!Array.isArray(r.rows)){add(box,'p',r?.reason||'Sin información verificable.');renderLive();continue;}
    add(box,'p',date(r.start)+' — '+date(r.end));
    add(box,'p',r.rows.filter(x=>x.status==='provisional').length+' insumos con salida física estimada; '+r.rows.filter(x=>x.status!=='provisional').length+' por revisar.');
    const wrap=document.createElement('div');wrap.style.overflowX='auto';box.append(wrap);
@@ -2086,14 +2096,7 @@ $('ukiFisicoConsultar').onclick=async()=>{
     const tr=document.createElement('tr');table.append(tr);
     for(const x of [row.name,fmt(row.opening,row.unit),fmt(row.received,row.unit),fmt(row.closing,row.unit),fmt(row.outflow,row.unit),fmt(row.salesIdentified,row.unit),fmt(row.expectedPartial,row.unit),fmt(row.differencePartial,row.unit),row.differenceValuePartial==null?'Pendiente':pesos(row.differenceValuePartial),row.status==='provisional'?'Provisional':'Revisar'])add(tr,'td',x);
    }
-   if(r.liveSales){
-    add(box,'h3','Consumo de preparación · pedidos sincronizados');
-    add(box,'p',r.liveSales.reason||'Consulta parcial.');
-    if(r.liveSales.available){
-     add(box,'p',r.liveSales.calculated+' pedidos con gramajes identificados · '+r.liveSales.pending+' sin cálculo.');
-     for(const item of r.liveSales.ingredients||[])add(box,'p',item.name+' · '+fmt(item.quantity/1000,'kg preparados'));
-    }
-   }
+   renderLive();
    add(box,'p',r.warning||'Salida física provisional. No acredita pérdidas.');
   }
   add(result,'p','Sin cambios en inventario, compras, ventas ni resultados de caja. Los pedidos sin respaldo o receta verificable quedan pendientes.');
