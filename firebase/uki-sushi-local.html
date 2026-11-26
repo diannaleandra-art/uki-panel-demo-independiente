@@ -1848,6 +1848,7 @@ function vNuevo(){
   const pendienteEdicion=!!ukiCobroPendiente(pedidoEdicion);
    const entregaUI=`<label>Tipo de entrega</label><div class="chips">${["Retiro","Delivery","Consumo en local"].map(m=>`<button ${chip(D.modalidad===m)} onclick="setModalidad('${m}')">${m}</button>`).join("")}</div>${D.modalidad==="Consumo en local"?`<label>Mesa o referencia (opcional)</label><input maxlength="50" value="${esc(D.mesaReferencia||"")}" placeholder="Ej: Mesa 2" oninput="D.mesaReferencia=this.value">`:""}${D.modalidad==="Delivery"?`<label>💰 Valor delivery (se suma)</label><input type="number" inputmode="numeric" value="${D.envio||""}" placeholder="Ej: 2000" oninput="setEnvioManual(this.value)"><p class="muted" id="pedidoEnvioAyuda">Delivery seleccionado - ${D.envio||0} se suma al total</p><label>🛵 Kilómetros del recorrido (opcional, no cambia el precio)</label><input id="ukiKmRecorrido" type="text" inputmode="decimal" value="${esc(D.kmRecorrido??"")}" placeholder="Ej: 4,5" onchange="D.kmRecorrido=this.value.trim();render()"><p class="muted">Si el recorrido viene escrito en el mensaje original, el panel también puede leerlo. No modifica el valor del delivery.</p>`:""}`;
   return `<div class="section-head"><h2>${D.editando?`Editar pedido #${D.editando}`:revisandoSolicitud?"Revisar solicitud":"Nuevo pedido"}</h2><p>${D.editando?"Corrige los datos y el medio de pago del pedido existente. Guardar cambios no genera otro pedido ni otro cobro.":revisandoSolicitud?"Solicitud recibida: verifica el detalle y la forma de entrega. Todavía NO es un pedido registrado ni un pago confirmado.":"Completa los datos y guarda el pedido una sola vez."}</p></div>
+  ${pedidoEdicion?`<button type="button" class="sm" style="margin:0 0 12px" onclick="ukiMostrarCorreccionPago()">${ukiPuedeRectificarPago(pedidoEdicion,D)?'Corregir transferencia':'Revisar transferencia'}</button>`:''}
   ${ukiVistaBorradores()}
   <details class="uki-modos-ingreso" ${revisandoSolicitud?'':'open'} style="${D.editando?'display:none;':'margin:10px 0'}"><summary><b>${revisandoSolicitud?'Ver mensaje original':'Opciones de ingreso · WhatsApp o manual'}</b></summary>
    ${revisandoSolicitud?'':`<div class="mode-switch" role="group" aria-label="Modo de ingresar pedido"><button type="button" class="${modoNuevo==='whatsapp'?'selected':''}" onclick="cambiarModoNuevo('whatsapp')">📋 Pegar WhatsApp</button><button type="button" class="${modoNuevo==='manual'?'selected':''}" onclick="cambiarModoNuevo('manual')">✎ Manual</button></div>`}
@@ -1887,7 +1888,7 @@ function vNuevo(){
     ${D.modalidad==="Delivery"?(D.envioPagadoOtroLocal?
       `<p class="muted"><b>Delivery ${fmt(envio)}:</b> se incluirá en los deliverys de Uki para el repartidor, pero NO como ingreso de la caja porque lo cobraron en otro local.</p>`:
       `<label>Pago del delivery recibido en Uki · ${fmt(envio)}</label>${ukiPagoUI("envio",envio)}`):""}
-    <div id="ukiRectificacionPagoEdicion">${ukiRectificacionPagoEdicionUI(pedidoEdicion,D)}</div>
+    <div id="ukiRectificacionPagoEdicion" tabindex="-1">${ukiRectificacionPagoEdicionUI(pedidoEdicion,D)}</div>
     <label class="check"><input type="checkbox" ${D.pagado?"checked":""} ${aceptarCartaAntesDeCobrar?'disabled title="Primero acepta el pedido de carta"':''} onchange="D.pagado=this.checked;render()"> <b>Pago completo confirmado</b></label>
     ${aceptarCartaAntesDeCobrar?'<p class="muted">Primero acepta este pedido. Después confirma el abono y el pago desde el mismo pedido, en Pedidos. No se registra una venta al aceptar.</p>':""}
     <p class="muted">Solo se consideran ventas los pagos completos confirmados. Los montos mixtos deben sumar exactamente lo que corresponde.</p></div>
@@ -1958,7 +1959,7 @@ function ukiPideRectificacionPago(p,d){
 }
 function ukiFirmaOtrosCambiosRectificacion(d){
  const {medio,medioEnvio,mixtoProductos,mixtoEnvio,pagosProductos,pagosEnvio,responsableEdicion,
-  rectificacionMotivo,rectificacionConfirmada,rectificacionFirmaReparto,rectificacionMensaje,rectificacionError,rectificacionNubePendiente,...resto}=d;
+  rectificacionMotivo,rectificacionConfirmada,rectificacionFirmaReparto,rectificacionMensaje,rectificacionError,rectificacionNubePendiente,mostrarRectificacionPago,...resto}=d;
  return JSON.stringify(resto);
 }
 function ukiFirmaRepartoRectificacion(d){
@@ -1976,8 +1977,24 @@ function ukiRectificacionPagoEdicionUI(p,d){
   (d.rectificacionError?'color:#9a3412;font-weight:700;':'')+'margin:8px 0">'+esc(d.rectificacionMensaje||'')+'</p>';
  if(!ukiPideRectificacionPago(p,d)){
   if(d.rectificacionMensaje)return estado;
-  if(ukiPuedeRectificarPago(p,d))return '<p class="muted">Si marcaste como transferencia un pago recibido por otro medio, corrige el medio en este bloque para autorizar el cambio.</p>';
-  return ukiRectificacionDeliveryUI(p);
+  const caja='<div class="card" style="padding:12px;border:1px solid var(--accent);margin:12px 0">';
+  if(ukiPuedeRectificarPago(p,d)){
+   const montoProductos=ukiPagoTransferenciaMonto({...p,modalidad:'Retiro'});
+   const montoDelivery=ukiPagoTransferenciaMonto(p)-montoProductos;
+   const detalle=[montoProductos>0?'Productos '+fmt(montoProductos):'',montoDelivery>0?'Delivery '+fmt(montoDelivery):''].filter(Boolean).join(' · ');
+   return caja+'<h3 style="margin:0">Corregir transferencia</h3>'+
+    '<p><b>Registrado como transferencia:</b> '+esc(detalle)+'</p>'+
+    '<p class="muted">Arriba, en el pago de '+(montoProductos&&montoDelivery?'productos o delivery':montoDelivery?'delivery':'productos')+
+    ', elige el medio que realmente recibiste. Si el pago es mixto, cambia solo la parte de transferencia. Aquí aparecerá la autorización antes de guardar.</p></div>';
+  }
+  const historial=ukiRectificacionDeliveryUI(p);
+  if(!d.mostrarRectificacionPago)return historial;
+  const lineas=(tipo,monto)=>ukiLineasPago(p,tipo,monto).map(({medio,monto})=>esc(medio)+' '+fmt(monto)).join(' + ')||'sin cobro en este local';
+  return caja+'<h3 style="margin:0">Revisar transferencia</h3>'+
+   '<p>Este pedido no tiene un pago de productos o delivery registrado como transferencia en este local.</p>'+
+   '<p class="muted"><b>Productos:</b> '+lineas('productos',Number(p.subtotal)||0)+
+   (p.modalidad==='Delivery'?'<br><b>Delivery:</b> '+lineas('envio',Number(p.envio)||0):'')+
+   '</p>'+historial+'</div>';
  }
  return '<div class="card" style="padding:12px;border:1px solid var(--accent);margin:12px 0">'+
   '<h3 style="margin:0">Autorizar corrección de transferencia</h3>'+
@@ -1989,6 +2006,14 @@ function ukiRectificacionPagoEdicionUI(p,d){
   'onchange="D.rectificacionConfirmada=this.checked;D.rectificacionFirmaReparto=ukiFirmaRepartoRectificacion(D)"> '+
   'Confirmo que la parte que corrijo no entró al banco y que los medios y montos que dejé reflejan lo que realmente recibimos.</label>'+
   '<p class="muted">Completa el nombre del responsable y pulsa <b>Guardar cambios</b>.</p>'+estado+'</div>';
+}
+function ukiMostrarCorreccionPago(){
+ if(!D.editando)return;
+ D.mostrarRectificacionPago=true;
+ ukiRefrescarCorreccionPagoDirecta();
+ const zona=document.getElementById('ukiRectificacionPagoEdicion');
+ zona?.focus({preventScroll:true});
+ zona?.scrollIntoView({block:'center',behavior:'smooth'});
 }
 function ukiRefrescarCorreccionPagoDirecta(){
  const zona=document.getElementById('ukiRectificacionPagoEdicion');
