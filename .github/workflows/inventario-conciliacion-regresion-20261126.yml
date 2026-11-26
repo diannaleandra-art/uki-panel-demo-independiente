@@ -16,7 +16,7 @@ jobs:
       - name: Node y dependencias
         run: |
           node --version
-          npm ci --ignore-scripts
+          npm install --ignore-scripts --no-audit --no-fund --package-lock=false
       - name: Pruebas de regresion
         run: npm test
       - name: Validacion de sintaxis del JavaScript servidor
