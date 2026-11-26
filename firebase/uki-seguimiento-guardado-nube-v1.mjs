@@ -1,3 +1,4 @@
+import {comprobarRectificacionLocal,coincideConstancia} from './uki-rectificar-transferencia-v1.mjs';
 /* Control del guardado habitual, no una segunda caja.
  * Firebase y Neon son servicios distintos: esta comprobación en el cliente
  * NO es una transacción distribuida ni protege contra un cliente modificado.
@@ -37,7 +38,16 @@ export async function verificarGuardadoUki({anterior,nuevo,sucursal,importes,hay
   if(prev?.esPremio!==true&&p.esPremio===true&&prev)fail('Un pedido existente no se convierte en premio');
   if(p.esPremio===true)continue;
   const oldTransfer=!!prev&&hayTransferencia(prev),transfer=hayTransferencia(p);
-  if(oldTransfer&&!transfer)fail('La transferencia requiere una corrección autorizada');
+  if(oldTransfer&&!transfer){
+   const plan=comprobarRectificacionLocal(prev,p);
+   if(!plan)fail('La transferencia requiere una corrección autorizada');
+   const proof=await consultar({storeId,id:ref,pedidoInterno,requiereTransferencia:false});
+   if(!coincideConstancia(plan,proof))fail('No se confirmó la rectificación autorizada para este pedido');
+   checked++;continue;
+  }
+  if(JSON.stringify(prev?.rectificacionTransferenciaDeliveryV1??null)!==
+     JSON.stringify(p.rectificacionTransferenciaDeliveryV1??null))
+   fail('No se puede modificar el historial de una rectificación');
   // No impedir una cancelación normal sin cobro ni una copia histórica sin cambios.
   if(p.estado==='Cancelado'&&p.pagado!==true)continue;
   const pagar=p.pagado===true&&prev?.pagado!==true;

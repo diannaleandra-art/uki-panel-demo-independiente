@@ -1936,6 +1936,63 @@ function ukiDiferenciaDeliveryOriginalUI(p){
   'Solo los cambios guardados como ediciones tienen responsable y hora. No modifica la caja.</p></div>';
 }
 // Auditoría de cambios por pedido (se muestran los registros existentes, sin alterar caja).
+let ukiRectificacionDeliveryEnCurso=false;
+function ukiRectificacionDeliveryUI(p){
+ const r=p.rectificacionTransferenciaDeliveryV1;
+ if(r?.id)return '<p class="muted"><b>Transferencia del delivery rectificada:</b> '+fmt(r.monto)+' en efectivo · '+esc(r.motivo||'')+'</p>';
+ if(!p.cartaSolicitudRemotaId||p.modalidad!=='Delivery'||p.estado==='Cancelado'||p.esPremio||
+    !ukiLineasPago(p,'envio',p.envio).some(x=>String(x.medio).toLowerCase()==='transferencia'))return '';
+ return '<details class="inner-details"><summary>Rectificar transferencia del delivery</summary>'+
+  '<p class="muted">Solo si se verificó por error, no ingresó dinero al banco y el delivery se recibió en efectivo. Conserva el historial. Requiere la cuenta Google de administración y nube sincronizada.</p>'+
+  '<button class="sm" type="button" onclick="ukiRectificarDeliveryEfectivo('+Number(p.id)+')">Revisar rectificación</button></details>';
+}
+async function ukiRectificarDeliveryEfectivo(id){
+ if(ukiRectificacionDeliveryEnCurso||S.busy)return;
+ const estado=S,sucursal=S.suc;
+ const original=(S.pedidos||[]).find(p=>p.id===Number(id)&&p.suc===sucursal);
+ if(!original)return aviso('No se encontró el pedido en esta sucursal.');
+ ukiRectificacionDeliveryEnCurso=true;
+ let guardadoServidor=false,aplicado=false;
+ try{
+  const {datosRectificables,aplicarRectificacion}=await import('./uki-rectificar-transferencia-v1.mjs');
+  const datos=datosRectificables(original);
+  if(!datos)throw Error('Esta opción solo permite pasar a efectivo una transferencia del delivery sin modificar los productos ni el total.');
+  if(!window.ukiCancelacionNubeLista?.())throw Error('Carga la nube de esta sucursal antes de rectificar.');
+  const motivo=window.prompt('Pedido #'+id+' · ¿Por qué se rectifica la verificación del delivery?','Verificación marcada por error. Delivery recibido en efectivo.');
+  if(motivo===null)return;
+  if(motivo.trim().length<8||motivo.trim().length>240)throw Error('Escribe un motivo entre 8 y 240 caracteres.');
+  const historico=!!ukiCierreConfirmadoPedido(original);
+  if(!window.confirm('Pedido #'+id+' · '+sucursal+'\n¿Confirmas que NO entró la transferencia y que recibiste '+fmt(datos.montoDelivery)+' en efectivo por el delivery? No se cobra ni devuelve dinero.'+
+   (historico?' El cierre anterior queda intacto.':'') ))return;
+  const vigente=()=>S===estado&&S.suc===sucursal&&!S.busy&&S.pedidos.find(p=>p.id===Number(id))===original;
+  const firma=JSON.stringify(original);
+  if(!vigente()||!window.ukiCancelacionNubeLista?.())throw Error('El pedido cambió. Vuelve a abrirlo.');
+  const result=await window.ukiRegistrarRectificacionDelivery?.({...datos,motivo:motivo.trim()});
+  if(result?.ok!==true||result.storeId!==datos.storeId||result.orderId!==datos.id||
+     result.monto!==datos.montoDelivery||result.pedidoInterno!==datos.pedidoInterno)
+   throw Error('No se confirmó la rectificación del pedido.');
+  guardadoServidor=true;
+  if(!vigente()||!window.ukiCancelacionNubeLista?.()||JSON.stringify(original)!==firma)
+   throw Error('El pedido o la nube cambiaron. Recarga y reintenta la misma rectificación.');
+  const revisado=aplicarRectificacion(original,{constanciaId:result.constanciaId,motivo:result.motivo,en:result.en});
+  const i=S.pedidos.indexOf(original);
+  S.pedidos[i]=revisado;
+  if(!await guardarEnLocalStorage()){
+   if(S===estado&&S.pedidos[i]===revisado)S.pedidos[i]=original;
+   throw Error('No se guardó la copia local. Recarga y reintenta la misma rectificación.');
+  }
+  aplicado=true;
+  if(!await window.ukiRespaldarRectificacionDelivery?.(sucursal))
+   throw Error('Todavía no se confirmó el respaldo de la corrección en Firebase.');
+  if(S===estado)aviso('Pedido #'+id+' rectificado: delivery '+fmt(datos.montoDelivery)+' en efectivo.'+
+   (historico?' El cierre anterior no cambió.':''));
+ }catch(e){
+  if(S!==estado)return;
+  aviso(String(e?.message||e)+(guardadoServidor&&!aplicado?
+   ' El historial de rectificación está guardado; falta actualizar el pedido en este panel.':
+   aplicado?' Revisa el estado de la nube antes de darlo por terminado.':''));
+ }finally{ukiRectificacionDeliveryEnCurso=false;}
+}
 function ukiCorreccionesTurnoUI(p){
  // Solo vista de auditoría: no cambia productos, cobros, caja ni el pedido.
  // Siempre visible para distinguir entre "sin cambios registrados" y una sección oculta.
@@ -4877,6 +4934,7 @@ function vPedidos(){
     ${ukiVCorreccionesPedido(p)}
     ${ukiDiferenciaPedidoUI(p)}
     ${ukiCorreccionesTurnoUI(p)}
+    ${ukiRectificacionDeliveryUI(p)}
     ${ukiTimbrePedidoUI(p)}
     <details class="inner-details"><summary>⚠️ Registrar error / ver soluciones</summary>
     ${(S.incidencias||[]).filter(x=>x.suc===p.suc && x.pedidoId===p.id).map(x=>renderIncidencia(x,"orden")).join("")}
@@ -6505,7 +6563,7 @@ import {getFirestore,doc,getDocFromServer,writeBatch,runTransaction,onSnapshot} 
 import {dividirEstado,reunirEstado} from "./uki-particion-local.js";
 import {nuevaSal,nuevaGeneracion,derivarClave,cifrarBloque,descifrarBloque} from "./uki-cifrado-bloques.js";
 import {crearSnapshotsUki} from "./uki-sushi-nube.js?v=progreso-recuperacion-20261125";
-import {verificarGuardadoUki} from "./uki-seguimiento-guardado-nube-v1.mjs";
+import {verificarGuardadoUki} from "./uki-seguimiento-guardado-nube-v1.mjs?v=rectificacion-delivery-v1";
 import {crearAutoGuardadoOperativo,huellaOperativa} from "./uki-sushi-autoguardado.js?v=refrescos-20261125";
 import {prepararCierreParaDuenos,sincronizarCierreDuenos} from "./uki-duenos-cierre-publicador-live.mjs";
 import {autorizarEquipoQR,obtenerSesionQR,estadoEquipoQR} from "./uki-mesas-dispositivo-live.js";
@@ -6620,7 +6678,7 @@ const auto=crearAutoGuardadoOperativo({
           despues.actualRespaldado===true&&actual?.suc===ctx.suc&&window.ukiCancelacionNubeLista?.()===true){
         const ahora=Date.now();
         const pedidos=(actual.estado?.pedidos||[]).filter(p=>{
-         const stamp=Number(p.registradoEn);return Number.isFinite(stamp)&&stamp<=ahora&&ahora-stamp<7*86400000;
+         const stamp=Math.max(Number(p.registradoEn)||0,Date.parse(p.rectificacionTransferenciaDeliveryV1?.en||'')||0);return stamp>0&&stamp<=ahora&&ahora-stamp<7*86400000;
         }).slice(-80);
         void window.ukiQAPublishSavedState?.({pedidos,revision:remoto.rev,generacion:remoto.generacion});
        }
@@ -6872,6 +6930,34 @@ if(UKI_OPERACION_HABILITADA&&new URLSearchParams(location.search).get('limpieza-
   });
  });
 }
+window.ukiRegistrarRectificacionDelivery=async datos=>{
+ const sucursal=window.ukiQAGet?.()?.suc;
+ const rama={"Uki Regimiento Arica":"regimiento","Uki La Serena":"la-serena"}[sucursal];
+ if(!rama||!auth.currentUser||!window.ukiCancelacionNubeLista?.())
+  throw Error('Usa la cuenta Google de administración y carga la nube de la sucursal.');
+ const antes=auto.resumen();
+ const snap=await getDocFromServer(doc(db,"uki_operacion_v1",rama));
+ const remoto=snap.exists()?snap.data():null;
+ const token=await auth.currentUser?.getIdToken();
+ if(!token||remoto?.branch!==rama||remoto.schemaVersion!==2||remoto.rev!==antes.revision||
+    !/^[a-f0-9]{32}$/.test(remoto.generacion||'')||auto.resumen().revision!==antes.revision||
+    window.ukiQAGet?.()?.suc!==sucursal||!window.ukiCancelacionNubeLista?.())
+  throw Error('La nube cambió. Vuelve a sincronizar para rectificar.');
+ const r=await fetch('https://uki-sushi-pedidos.vercel.app/api/seguimiento-personal-live',{
+  method:'POST',cache:'no-store',credentials:'omit',redirect:'error',
+  headers:{Authorization:'Bearer '+token,Accept:'application/json','Content-Type':'application/json'},
+  signal:AbortSignal.timeout(18000),
+  body:JSON.stringify({...datos,action:'rectificar_transferencia_delivery',noHuboAbono:true,revision:remoto.rev,generacion:remoto.generacion})
+ });
+ const result=await r.json().catch(()=>null);
+ if(!r.ok||result?.ok!==true)throw Error(result?.error||'No se confirmó la rectificación autorizada.');
+ return result;
+};
+window.ukiRespaldarRectificacionDelivery=async sucursal=>{
+ if(window.ukiQAGet?.()?.suc!==sucursal)return false;
+ await auto.enviar();
+ return window.ukiQAGet?.()?.suc===sucursal&&window.ukiCancelacionNubeLista?.()===true;
+};
 window.ukiOperativoActualizar=actualizarBloqueo;
 function contexto(){
  if(!UKI_OPERACION_HABILITADA)throw Error("Versión sin activar: falta aprobar reglas, pruebas y lanzamiento.");
