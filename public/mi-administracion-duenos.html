@@ -2074,6 +2074,40 @@ $('ukiFisicoConsultar').onclick=async()=>{
   for(const store of Object.keys(names)){
    const matches=data.locales.filter(r=>r.store===store),r=matches.length===1?matches[0]:null;
    const box=document.createElement('details');box.className='line';result.append(box);add(box,'summary',names[store]);
+   function renderYields(){
+    add(box,'h3','Rendimientos medidos de ingredientes');
+    if(!Array.isArray(r?.yields)){add(box,'p','Configuración de rendimientos no disponible.');return;}
+    for(const f of r.yields)add(box,'p',f.ingredient+' · '+fmt(f.raw_g,'g de compra')+' → '+fmt(f.prepared_g,'g preparados')+' · '+f.note);
+    for(const c of r.purchaseEstimates||[])add(box,'p',c.ingredient+' · '+(c.status==='estimated'?fmt(c.quantity,c.unit)+' equivalentes de compra (rendimiento vigente; no histórico)':'Pendiente de equivalencia'));
+    const weight=(r.rows||[]).filter(x=>['g','kg'].includes(x.unit));
+    if(!r.available||!weight.length){add(box,'p','Primero se necesita el inventario físico de este local para vincular un insumo.');return;}
+    const details=document.createElement('details');box.append(details);add(details,'summary','Registrar rendimiento medido');
+    add(details,'p','Pesa el ingrediente antes y después de prepararlo. No se guardan porcentajes supuestos ni se modifican existencias.');
+    const select=(label,options)=>{const l=add(details,'label',label),el=document.createElement('select');for(const [id,name] of options)el.add(new Option(name,id));l.append(el);return el;};
+    const field=(label,type)=>{const l=add(details,'label',label),el=document.createElement('input');el.type=type;l.append(el);return el;};
+    const ingredient=select('Ingrediente de la receta',[['','Seleccionar'],...['Arroz cocido y aliñado','pollo','carne','kanicama','camaron','cerdo','salmon','pulpo'].map(n=>[n,n])]);
+    const sku=select('Insumo del inventario',[['','Seleccionar'],...weight.map(i=>[i.sku,i.name+' · '+i.unit])]);
+    const raw=field('Peso inicial en gramos','number'),prepared=field('Peso final preparado en gramos','number'),note=field('Observación de la medición','text'),confirmed=field('Confirmo que son pesos medidos de este local','checkbox');
+    for(const el of [raw,prepared]){el.min='0.001';el.max='1000000';el.step='0.001';}
+    note.maxLength=180;
+    const button=add(details,'button','Guardar rendimiento');button.type='button';button.className='soft';
+    const msg=add(details,'p','');
+    ingredient.onchange=()=>{const old=r.yields.find(f=>f.ingredient===ingredient.value);sku.value=old?.sku||'';raw.value=old?.raw_g??'';prepared.value=old?.prepared_g??'';note.value=old?.note||'';confirmed.checked=false;};
+    button.onclick=async()=>{
+     if(!valid()||button.disabled)return;
+     if(!ingredient.value||!sku.value||!confirmed.checked||!(Number(raw.value)>0)||!(Number(prepared.value)>0)||note.value.trim().length<5){msg.textContent='Completa la medición y confirma los datos.';return;}
+     button.disabled=true;
+     try{
+      const old=r.yields.find(f=>f.ingredient===ingredient.value);
+      const answer=await api('guardar_rendimiento_consumo',{store,ingredient:ingredient.value,sku:sku.value,rawGrams:Number(raw.value),preparedGrams:Number(prepared.value),note:note.value.trim(),confirmed:true,version:Number(old?.revision||0)});
+      if(!valid())return;
+      if(answer.saved!==true||answer.store!==store)throw Error('No se confirmó el guardado.');
+      msg.textContent='Rendimiento guardado. Actualizando consulta…';
+      void $('ukiFisicoConsultar').onclick();
+     }catch(e){if(valid())msg.textContent=e.message;}
+     finally{button.disabled=false;}
+    };
+   }
    function renderLive(){
     if(!r?.liveSales)return;
     add(box,'h3','Consumo de preparación · pedidos sincronizados');
@@ -2084,7 +2118,7 @@ $('ukiFisicoConsultar').onclick=async()=>{
      for(const item of r.liveSales.ingredients||[])add(box,'p',item.name+' · '+fmt(item.quantity/1000,'kg preparados'));
     }
    }
-   if(!r?.available||!Array.isArray(r.rows)){add(box,'p',r?.reason||'Sin información verificable.');renderLive();continue;}
+   if(!r?.available||!Array.isArray(r.rows)){add(box,'p',r?.reason||'Sin información verificable.');renderLive();renderYields();continue;}
    add(box,'p',date(r.start)+' — '+date(r.end));
    add(box,'p',r.rows.filter(x=>x.status==='provisional').length+' insumos con salida física estimada; '+r.rows.filter(x=>x.status!=='provisional').length+' por revisar.');
    const wrap=document.createElement('div');wrap.style.overflowX='auto';box.append(wrap);
@@ -2104,7 +2138,7 @@ $('ukiFisicoConsultar').onclick=async()=>{
      add(box,'p',date(movement.created_at)+' · '+(names[movement.kind]||movement.kind)+' · '+(item?.name||movement.sku)+' · '+fmt(movement.quantity,movement.unit)+' · '+movement.reason+(movement.transfer_ref?' · Folio '+movement.transfer_ref:''));
     }
    }else add(box,'p',r.justifications?.reason||'Salidas justificadas pendientes de consulta.');
-   renderLive();
+   renderLive();renderYields();
    add(box,'p',r.warning||'Salida física provisional. No acredita pérdidas.');
   }
   if(data.traspasos?.readOnly===true){
