@@ -1064,7 +1064,7 @@ function ukiExportarPrecierres(){
 
 function setModalidad(modalidad){
   D.modalidad=modalidad;
-  if(modalidad!=="Delivery"){D.envio=0;D.envioPagadoOtroLocal=false;D.montoEnvioOtroLocal="";}
+  if(modalidad!=="Delivery"){D.envio=0;D.envioPagadoOtroLocal=false;D.montoEnvioOtroLocal="";D.mixtoEnvio=false;D.pagosEnvio=[];}
   render();
 }
 function setEnvioManual(valor){
@@ -1540,7 +1540,7 @@ function ukiTimbreYaEnviadoPedido(p){
 }
 function ukiTimbreObligatorioGuardar(d,original){
  return !!d?.pagado&&!d.productosPagadosOtroLocal&&!!String(d.telefono||'').trim()&&
-   !ukiTimbreYaEnviadoPedido(original)&&(!d.editando||!original?.pagado);
+   !ukiTimbreYaEnviadoPedido(original)&&!d.editando;
 }
 function ukiFirmaTimbreBorrador(d){
  // La prueba de envío se vincula a esta sucursal/pedido y al WhatsApp DESTINO.
@@ -1690,7 +1690,7 @@ function ukiPasoTimbreAntesDeGuardar(pedidoEdicion){
  if(!String(D.telefono||'').trim())
   return '<div class="card"><h2>4 · Timbre del pedido</h2><p class="muted">Sin WhatsApp registrado: el pedido se puede guardar normalmente. La tarjeta de timbres queda acumulada para consultar después.</p></div>';
  if(!ukiTimbreObligatorioGuardar(D,pedidoEdicion))
-  return '<div class="card"><h2>4 · Timbre del pedido</h2><p class="muted">Esta compra ya estaba pagada. No es necesario reenviar el timbre por editarla.</p></div>';
+  return '<div class="card"><h2>4 · Timbre del pedido</h2><p class="muted">No es necesario reenviar el timbre por editar un pedido registrado. Si nunca se envió, se puede consultar desde Timbres.</p></div>';
  const firma=ukiFirmaTimbreBorrador(D);
  const abierto=D.timbreAvisoAbiertoFirma===firma&&!!D.timbreAvisoAbiertoEn;
  const enviado=ukiTimbreBorradorConfirmado(D);
@@ -2049,7 +2049,22 @@ function ukiPuedeRectificarPago(p,d){
  return !!(p&&Number(p.id)===Number(d.editando)&&p.suc===S.suc&&p.estado!=='Cancelado'&&!p.esPremio&&
   ukiPagoTransferenciaMonto(p,ukiPagoAnteriorRectificacion)>0);
 }
+function ukiCambioRetiroSinAbonoQA(p,d){
+ if(!p||!d||p.pagado!==false||p.estado!=='Pendiente'||p.esPremio||p.suc!==S.suc||
+    Number(p.id)!==Number(d.editando)||p.modalidad!=='Delivery'||d.modalidad!=='Retiro'||
+    !Number.isSafeInteger(Number(p.envio))||Number(p.envio)<=0||Number(d.envio||0)!==0||
+    Number(p.propina||0)!==0||ukiMontoPropina(d,Number(p.subtotal))!==0||
+    p.productosPagadosOtroLocal||p.envioPagadoOtroLocal||d.productosPagadosOtroLocal||d.envioPagadoOtroLocal||
+    (p.qrSolicitudes||[]).length||(d.qrSolicitudes||[]).length)return false;
+ const id=String(p.cartaSolicitudRemotaId||p.seguimientoSolicitudId||'');
+ if(!/^[a-f0-9-]{36}$/i.test(id)||id!==String(d.cartaSolicitudRemotaId||d.seguimientoSolicitudId||''))return false;
+ const sub=(d.items||[]).reduce((n,i)=>n+(i.nombre?(Number(i.cant)||0)*(Number(i.precio)||0):0),0);
+ if(sub!==Number(p.subtotal)||!Number.isSafeInteger(sub)||sub<=0)return false;
+ const firma=x=>JSON.stringify(ukiLineasPago(x,'productos',sub).map(l=>[l.medio,l.monto]).sort());
+ return firma(p)===firma({...d,subtotal:sub,pagosProductos:d.mixtoProductos?d.pagosProductos:[]});
+}
 function ukiPideRectificacionPago(p,d){
+ if(ukiCambioRetiroSinAbonoQA(p,d))return false;
  if(!ukiPuedeRectificarPago(p,d))return false;
  const propuesta={...p,medio:d.medio,medioEnvio:d.medioEnvio,
   pagosProductos:d.mixtoProductos?d.pagosProductos:[],pagosEnvio:d.mixtoEnvio?d.pagosEnvio:[]};
@@ -5413,7 +5428,7 @@ function ukiSeguimientoConservarOrigenEdicionQA(){
 }
 // La misma protección se usa en ambos Uki y Romo, antes de modificar caja.
 function ukiSeguimientoValidarCambioMedioQA(original,nuevo){
- if(original&&ukiSeguimientoHayTransferenciaQA(original)&&!ukiSeguimientoHayTransferenciaQA(nuevo)){
+ if(original&&ukiSeguimientoHayTransferenciaQA(original)&&!ukiSeguimientoHayTransferenciaQA(nuevo)&&!(ukiCambioRetiroSinAbonoQA(original,nuevo)&&nuevo.cambioRetiroSinAbonoQA?.pedidoInterno===String(original.id))){
   aviso('No se puede quitar una transferencia registrada desde la edición normal. Requiere una corrección autorizada.');
   return false;
  }
@@ -5437,6 +5452,17 @@ async function ndGuardar(){
   let originalQR=D.editando?S.pedidos.find(p=>p.suc===S.suc&&p.id===D.editando):null;
   if(D.editando&&!originalQR){
    aviso('No se encontró el pedido original. Actualiza la lista antes de editar.');return;
+  }
+  if(ukiCambioRetiroSinAbonoQA(originalQR,D)&&window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED===true){
+   const d=D,sucursal=S.suc;
+   if(!String(d.responsableEdicion||'').trim()){aviso('Identifica quién realiza el cambio de entrega.');return;}
+   if(d.pagado&&!ukiRevisionBancoBorradorValidaQA(d,originalQR)){aviso('Confirma el abono real del nuevo importe antes de guardar como pagado.');return;}
+   const firma=JSON.stringify(d);
+   try{
+    const proof=await window.ukiQACambiarRetiroSinAbono(originalQR,d);
+    if(S.suc!==sucursal||D!==d||!S.pedidos.includes(originalQR)||JSON.stringify(d)!==firma){aviso('El pedido cambió. Reabre la edición antes de guardar.');return;}
+    d.cambioRetiroSinAbonoQA=proof;
+   }catch(e){aviso(String(e?.message||e));return;}
   }
   if(D.rectificacionNubePendiente||ukiPideRectificacionPago(originalQR,D)){
    const sucursal=S.suc,d=D;
@@ -6882,7 +6908,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 <script src="./uki-caja-acumulada-admin.js?v=20261122-calendario1" defer></script>
 <script src="./uki-control-turnos.js" defer></script>
 <script src="./uki-carta-remotas-panel.js?v=limpieza-regimiento-20261125" defer></script>
-<script type="module" src="./uki-seguimiento-operativo-panel-v1.mjs?v=timbre-suave-20261125"></script>
+<script type="module" src="./uki-seguimiento-operativo-panel-v1.mjs?v=retiro-20261126"></script>
 <script src="./uki-archivo-mensual-core.js?v=20261121-retencion-simulada-v2" defer></script>
 <script src="./uki-archivo-agenda.js?v=20261121-agenda-v1" defer></script>
 <script src="./uki-archivo-mensual-panel.js?v=20261121-agenda-v1" defer></script>
@@ -6894,7 +6920,7 @@ import {getFirestore,doc,getDocFromServer,writeBatch,runTransaction,onSnapshot} 
 import {dividirEstado,reunirEstado} from "./uki-particion-local.js";
 import {nuevaSal,nuevaGeneracion,derivarClave,cifrarBloque,descifrarBloque} from "./uki-cifrado-bloques.js";
 import {crearSnapshotsUki} from "./uki-sushi-nube.js?v=progreso-recuperacion-20261125";
-import {verificarGuardadoUki} from "./uki-seguimiento-guardado-nube-v1.mjs?v=edicion-clara-v5";
+import {verificarGuardadoUki} from "./uki-seguimiento-guardado-nube-v1.mjs?v=retiro-20261126";
 import {crearAutoGuardadoOperativo,huellaOperativa} from "./uki-sushi-autoguardado.js?v=refrescos-20261125";
 import {prepararCierreParaDuenos,sincronizarCierreDuenos} from "./uki-duenos-cierre-publicador-live.mjs";
 import {autorizarEquipoQR,obtenerSesionQR,estadoEquipoQR} from "./uki-mesas-dispositivo-live.js";
