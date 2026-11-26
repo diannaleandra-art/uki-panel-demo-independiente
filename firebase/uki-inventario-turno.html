@@ -77,10 +77,10 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 <button type="button" data-inv-view="compras">🛒<strong>Lista de compras</strong><small>Lo que falta</small></button>
 <button type="button" data-inv-view="reporte">📄<strong>Guardar y compartir</strong><small>PDF, Excel y WhatsApp</small></button>
 </nav></section><section id="invAppBar" class="card" hidden><button type="button" id="invAppBack" class="secondary">‹ Inicio</button><h2 id="invAppTitle" style="margin-top:12px"></h2></section>
-<section class="card" id="invListHeader"><h2>Ingredientes e insumos</h2>
+<section class="card" id="invQuickAdd" hidden><h2>Nuevo insumo</h2><p class="muted">Si falta un insumo, agrégalo aquí. Luego registra el conteo físico o la entrada, según corresponda.</p><label for="invQuickName">Nombre</label><input id="invQuickName" maxlength="100" placeholder="Ej. Harina"><label for="invQuickCat">Categoría</label><select id="invQuickCat"><option value="ingrediente">Ingrediente</option><option value="envase">Envase</option><option value="otro">Limpieza u otros</option></select><label for="invQuickUnit">Unidad</label><select id="invQuickUnit"><option value="kg">Kilos</option><option value="g">Gramos</option><option value="l">Litros</option><option value="ml">Mililitros</option><option value="un">Unidades</option><option value="porciones">Porciones</option></select><button type="button" id="invQuickSave">Agregar insumo</button><p id="invQuickStatus" role="status" class="muted"></p></section><section class="card" id="invListHeader"><h2>Ingredientes e insumos</h2>
 <div class="grid"><select id="tipo" aria-label="Tipo de artículo">
 <option value="ingredientes">Ingredientes e insumos</option><option value="productos">Productos para contar</option><option value="todos">Todos</option></select>
-<input id="buscar" placeholder="Buscar pollo, palta…"></div>
+<input id="buscar" placeholder="Buscar pollo, palta…"></div><label for="invCategory">Categoría</label><select id="invCategory"><option value="todos">Todas</option><option value="ingrediente">Ingredientes</option><option value="envase">Envases</option><option value="otro">Limpieza u otros</option></select>
 <div class="grid" style="margin-top:10px"><select id="estadoLista" aria-label="Filtrar inventario por estado">
 <option value="pendiente">Pendientes de contar</option><option value="todos">Todos los artículos</option>
 <option value="contados">Contados en esta sesión</option><option value="reponer">Para reponer</option>
@@ -245,8 +245,9 @@ function render(){
  justRefresh();
  const box=$('items');box.replaceChildren();
  const kind=$('tipo').value,term=$('buscar').value.trim().toLocaleLowerCase('es-CL');
- const progress=$('estadoLista').value;
+ const progress=$('estadoLista').value,category=$('invCategory').value;
  const visible=items.filter(i=>(kind==='todos'||(kind==='ingredientes'?['ingredient','inventory'].includes(i.kind):!['ingredient','inventory'].includes(i.kind)))&&
+  (category==='todos'||(i.category||(i.kind==='ingredient'?'ingrediente':i.group_key))===category)&&
   (!term||String(i.name).toLocaleLowerCase('es-CL').includes(term))&&
   (progress==='todos'||(progress==='pendiente'&&!revisados.has(i.sku))||
   (progress==='contados'&&revisados.has(i.sku))||
@@ -404,7 +405,7 @@ function invAppView(mode){
  $('invAppTitle').textContent=titles[mode]||'';
  const list=['conteo','entrada'].includes(mode);
  $('invListHeader').hidden=!list;$('items').hidden=!list;$('invMoreWrap').hidden=!list;
- $('facturaQA').hidden=!['entrada','alta'].includes(mode);
+ $('facturaQA').hidden=!['entrada','alta'].includes(mode);$('invQuickAdd').hidden=mode!=='alta';
  $('justMov').hidden=!['merma','personal','traspaso'].includes(mode);
  $('invFinish').hidden=!['compras','reporte'].includes(mode);
  if(mode==='entrada'||mode==='conteo'){$('estadoLista').value=mode==='entrada'?'todos':'pendiente';visibleLimit=12;render();}
@@ -416,6 +417,24 @@ function invAppView(mode){
  if(mode==='compras'||mode==='reporte')resumen();
  window.scrollTo({top:0,behavior:'instant'});
 }
+
+$('invQuickSave').onclick=async()=>{
+ if(busy||!branch)return;
+ const name=$('invQuickName').value.trim().replace(/\s+/g,' '),msg=$('invQuickStatus');
+ if(name.length<2){msg.textContent='Escribe el nombre del insumo.';return;}
+ const category=$('invQuickCat').value,stock_unit=$('invQuickUnit').value;
+ setBusy(true);$('invQuickSave').disabled=true;
+ try{
+  const v=await api('crear-insumo-trabajador',{item:{name,category,stock_unit}});
+  if(!v.item?.sku)throw Error('No se confirmó el alta. Actualiza la lista antes de repetir.');
+  items=[...items.filter(i=>i.sku!==v.item.sku),v.item];stockAlAbrir.set(v.item.sku,{qty:0,unit:v.item.stock_unit});
+  $('invQuickName').value='';requestId=null;reporteFinal=null;$('descargasTurno').hidden=true;
+  render();msg.textContent='✓ Insumo agregado. Registra su conteo o entrada desde el menú.';
+ }catch(e){msg.textContent=e.message;}
+ finally{setBusy(false);$('invQuickSave').disabled=false;}
+};
+$('invCategory').onchange=()=>{visibleLimit=12;render();};
+
 $('invAppBack').onclick=()=>invAppView('inicio');
 document.querySelectorAll('[data-inv-view]').forEach(b=>b.onclick=()=>invAppView(b.dataset.invView));
 $('enviarInventarioTexto').onclick=()=>{
