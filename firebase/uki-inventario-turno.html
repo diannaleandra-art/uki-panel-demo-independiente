@@ -75,7 +75,7 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 <button type="button" data-inv-view="personal">🍽<strong>Consumo personal</strong><small>Alimentación del equipo</small></button>
 <button type="button" data-inv-view="traspaso">⇄<strong>Traspasos</strong><small>Entre bodegas</small></button>
 <button type="button" data-inv-view="compras">🛒<strong>Lista de compras</strong><small>Lo que falta</small></button>
-<button type="button" data-inv-view="reporte">📄<strong>Guardar y compartir</strong><small>PDF, Excel y WhatsApp</small></button>
+<button type="button" data-inv-view="historial">🗓<strong>Historial y reportes</strong><small>Consultar por fecha</small></button><button type="button" data-inv-view="reporte">📄<strong>Guardar y compartir</strong><small>PDF, Excel y WhatsApp</small></button>
 </nav></section><section id="invAppBar" class="card" hidden><button type="button" id="invAppBack" class="secondary">‹ Inicio</button><h2 id="invAppTitle" style="margin-top:12px"></h2></section>
 <section class="card" id="invQuickAdd" hidden><h2>Nuevo insumo</h2><p class="muted">Si falta un insumo, agrégalo aquí. Luego registra el conteo físico o la entrada, según corresponda.</p><label for="invQuickName">Nombre</label><input id="invQuickName" maxlength="100" placeholder="Ej. Harina"><label for="invQuickCat">Categoría</label><select id="invQuickCat"><option value="ingrediente">Ingrediente</option><option value="envase">Envase</option><option value="otro">Limpieza u otros</option></select><label for="invQuickUnit">Unidad</label><select id="invQuickUnit"><option value="kg">Kilos</option><option value="g">Gramos</option><option value="l">Litros</option><option value="ml">Mililitros</option><option value="un">Unidades</option><option value="porciones">Porciones</option></select><button type="button" id="invQuickSave">Agregar insumo</button><p id="invQuickStatus" role="status" class="muted"></p></section><section class="card" id="invListHeader"><h2>Ingredientes e insumos</h2>
 <div class="grid"><select id="tipo" aria-label="Tipo de artículo">
@@ -102,7 +102,7 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 <label for="justReason">Motivo</label><input id="justReason" maxlength="180" placeholder="Ej. Producto dañado">
 <button type="button" id="justSave">Guardar registro</button><p id="justStatus" role="status" class="muted"></p>
 </details>
-<section class="card" id="invFinish"><h2>Guardar inventario y reportes</h2><p class="muted">Confirma los conteos guardados. Si faltan artículos por revisar, puedes completar el conteo antes de terminar.</p><p id="resumen" class="muted"></p><div id="resumenIndicadores" class="reporte-colores" aria-label="Resumen del inventario"></div><div id="resumenArticulos" class="reporte-lista" aria-label="Artículos que requieren reposición"></div>
+<section class="card" id="invHistory" hidden><h2>Reportes por fecha</h2><div class="grid"><div><label for="invHistFrom">Desde</label><input id="invHistFrom" type="date"></div><div><label for="invHistTo">Hasta</label><input id="invHistTo" type="date"></div></div><label for="invHistKind">Informe</label><select id="invHistKind"><option value="revision">Inventario guardado</option><option value="compras">Lista de compras guardada</option><option value="todos">Todos los movimientos</option><option value="entrada">Mercadería recibida</option><option value="conteo">Conteos</option><option value="merma">Mermas</option><option value="personal">Consumo personal</option><option value="traspasos">Traspasos</option></select><button id="invHistLoad" type="button">Consultar</button><p id="invHistStatus" role="status" class="muted"></p><div id="invHistList"></div><div id="invHistActions" hidden><div class="grid"><button type="button" id="invHistPDF">PDF</button><button type="button" id="invHistExcel" class="secondary">Excel (.csv)</button></div><button type="button" id="invHistText" style="margin-top:10px">Enviar por WhatsApp en texto</button></div></section><section class="card" id="invFinish"><h2>Guardar inventario y reportes</h2><p class="muted">Confirma los conteos guardados. Si faltan artículos por revisar, puedes completar el conteo antes de terminar.</p><p id="resumen" class="muted"></p><div id="resumenIndicadores" class="reporte-colores" aria-label="Resumen del inventario"></div><div id="resumenArticulos" class="reporte-lista" aria-label="Artículos que requieren reposición"></div>
 <button id="enviar">Guardar inventario en el panel</button>
 <p class="muted">Primero guarda la revisión. Después podrás enviar el PDF completo y, por separado, el texto de los productos que hay que comprar.</p>
 <p id="confirmacion" role="status"></p>
@@ -388,7 +388,7 @@ async function abrir(){
   $('turnoFechaChile').textContent='Inicio del conteo: '+formatoFechaHoraChile(new Date())+' (Chile).';
   $('turnoUltimoRegistro').textContent='Aún no hay artículos guardados en esta sesión.';
   iniciarReloj();
-  render();status('Inventario del turno listo.');invAppView('inicio');
+  render();status('Inventario del turno listo.');invHistInit();invAppView('inicio');
  }catch(e){branch='';items=[];$('activo').hidden=true;status(String(e.message));}
  finally{setBusy(false);}
 }
@@ -403,13 +403,13 @@ function invAppView(mode){
  $('activo').dataset.invMode=mode;
  $('invAppLocal').textContent=branch==='arica'?'Regimiento Arica':bodegaCompartida?'La Serena · Uki y Romo (bodega compartida)':'La Serena';
  $('invAppHome').hidden=mode!=='inicio';$('invAppBar').hidden=mode==='inicio';
- const titles={conteo:'Contar existencias',entrada:'Recibir mercadería',alta:'Agregar insumo',merma:'Registrar merma',personal:'Consumo del personal',traspaso:'Traspasos',compras:'Lista de compras',reporte:'Guardar y compartir'};
+ const titles={conteo:'Contar existencias',entrada:'Recibir mercadería',alta:'Agregar insumo',merma:'Registrar merma',personal:'Consumo del personal',traspaso:'Traspasos',compras:'Lista de compras',reporte:'Guardar y compartir',historial:'Historial y reportes'};
  $('invAppTitle').textContent=titles[mode]||'';
  const list=['conteo','entrada'].includes(mode);
  $('invListHeader').hidden=!list;$('items').hidden=!list;$('invMoreWrap').hidden=!list;
  $('facturaQA').hidden=!['entrada','alta'].includes(mode);$('invQuickAdd').hidden=mode!=='alta';
  $('justMov').hidden=!['merma','personal','traspaso'].includes(mode);
- $('invFinish').hidden=!['compras','reporte'].includes(mode);
+ $('invFinish').hidden=!['compras','reporte'].includes(mode);$('invHistory').hidden=mode!=='historial';
  if(mode==='entrada'||mode==='conteo'){$('estadoLista').value=mode==='entrada'?'todos':'pendiente';visibleLimit=12;render();}
  if(mode==='alta'){$('factModoPreparar')?.click();$('factAltasDetalles').open=true;}
  if(mode==='entrada')$('factModoRecibir')?.click();
@@ -436,6 +436,66 @@ $('invQuickSave').onclick=async()=>{
  finally{setBusy(false);$('invQuickSave').disabled=false;}
 };
 $('invCategory').onchange=()=>{visibleLimit=12;render();};
+
+
+let invHistReport=null,invHistMode='';
+function invHistClear(){
+ invHistReport=null;invHistMode='';$('invHistList').replaceChildren();$('invHistActions').hidden=true;$('invHistStatus').textContent='';
+}
+for(const id of ['invHistFrom','invHistTo','invHistKind'])$(id).onchange=invHistClear;
+function invHistInit(){
+ const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+ $('invHistFrom').value=today;$('invHistTo').value=today;invHistClear();
+}
+$('invHistLoad').onclick=async()=>{
+ if(busy||!branch)return;
+ const current=branch,kind=$('invHistKind').value,desde=$('invHistFrom').value,hasta=$('invHistTo').value;
+ invHistClear();setBusy(true);$('invHistLoad').disabled=true;
+ try{
+  if(kind==='revision'||kind==='compras'){
+   const v=await api('revisiones-trabajador',{desde,hasta});
+   if(current!==branch)return;
+   $('invHistStatus').textContent=v.revisiones.length+' revisiones guardadas. Selecciona una.';
+   for(const row of v.revisiones){
+    const b=elt('button',new Date(row.created_at).toLocaleString('es-CL',{timeZone:'America/Santiago'})+' · '+row.worker_name,'secondary');
+    b.type='button';b.style.cssText='display:block;width:100%;margin:7px 0';
+    b.onclick=async()=>{
+     if(busy||current!==branch)return;setBusy(true);$('invHistActions').hidden=true;invHistReport=null;
+     try{
+      const report=await api('revision-trabajador',{id:row.id});
+      if(current!==branch)return;
+      invHistMode=kind;invHistReport=report.reporte;
+      if(kind==='compras')invHistReport={...invHistReport,items:invHistReport.items.filter(i=>Number(i.min_stock_qty)>0&&Number(i.stock_qty)<=Number(i.min_stock_qty))};
+      $('invHistActions').hidden=false;$('invHistStatus').textContent='Informe seleccionado: '+b.textContent;
+     }catch(e){$('invHistStatus').textContent=e.message;}
+     finally{setBusy(false);}
+    };
+    $('invHistList').append(b);
+   }
+  }else{
+   const v=await api('movimientos-trabajador',{desde,hasta,tipo:kind});
+   if(current!==branch)return;
+   invHistReport=v;invHistMode='movimientos';$('invHistStatus').textContent=v.movimientos.length+' movimientos registrados.'+(!v.justificacionesDisponibles?' Salidas justificadas no disponibles.':'');
+   for(const m of v.movimientos.slice(0,30))$('invHistList').append(elt('p',new Date(m.fecha).toLocaleString('es-CL',{timeZone:'America/Santiago'})+' · '+m.name+' · '+m.cantidad+' '+m.unidad+' · '+m.tipo,'small'));
+   if(v.movimientos.length>30)$('invHistList').append(elt('p','Vista previa de 30 registros; los archivos contienen todos.','muted'));
+   $('invHistActions').hidden=false;
+  }
+ }catch(e){$('invHistStatus').textContent=e.message;}
+ finally{setBusy(false);$('invHistLoad').disabled=false;}
+};
+function invHistExport(format){
+ if(busy||!invHistReport)return;
+ try{
+  const f=window.ukiInventarioExportar;
+  if(format==='texto'){
+   const text=invHistMode==='movimientos'?f.reporteMovimientos(invHistReport).texto:invHistMode==='compras'?f.mensajeCompras(invHistReport):['INVENTARIO COMPLETO',f.branchName(invHistReport.branch),new Date(invHistReport.created_at).toLocaleString('es-CL',{timeZone:'America/Santiago'}),invHistReport.worker_name,...f.filas(invHistReport).map(x=>'• '+x.name+': '+x.stock+' '+x.unit)].join('\n');
+   if(text.length>12000){$('invHistStatus').textContent='El mensaje es demasiado largo. Elige fechas más cortas o descarga PDF/Excel.';return;}
+   const url='https://wa.me/?text='+encodeURIComponent(text),w=window.open(url,'_blank');if(w)w.opener=null;else window.location.href=url;
+  }else if(invHistMode==='movimientos')f.descargarMovimientos(invHistReport,format);
+  else if(format==='pdf')f.guardarPDF(invHistReport);else f.excel(invHistReport);
+ }catch(e){$('invHistStatus').textContent=e.message;}
+}
+$('invHistPDF').onclick=()=>invHistExport('pdf');$('invHistExcel').onclick=()=>invHistExport('csv');$('invHistText').onclick=()=>invHistExport('texto');
 
 $('invAppBack').onclick=()=>invAppView('inicio');
 document.querySelectorAll('[data-inv-view]').forEach(b=>b.onclick=()=>invAppView(b.dataset.invView));
