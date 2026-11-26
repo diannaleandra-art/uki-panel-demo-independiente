@@ -2091,11 +2091,19 @@ $('ukiFisicoConsultar').onclick=async()=>{
    const table=document.createElement('table');wrap.append(table);
    const head=document.createElement('tr');table.append(head);
    if(r.sales?.available)add(box,'p',r.sales.calculated+' pedidos calculados · '+r.sales.pending+' pendientes · '+r.sales.reason);else add(box,'p',r.sales?.reason||'Consumo según ventas no disponible.');
-   for(const t of ['Insumo','Inicial','Recibido','Conteo final','Salida física','Consumo identificado','Saldo estimado parcial','Diferencia preliminar','Valor preliminar','Estado'])add(head,'th',t);
+   for(const t of ['Insumo','Inicial','Recibido','Conteo final','Salida física','Merma registrada','Consumo personal','Traspaso enviado','Traspaso recibido','Consumo identificado','Saldo estimado parcial','Diferencia preliminar','Valor preliminar','Estado'])add(head,'th',t);
    for(const row of r.rows){
     const tr=document.createElement('tr');table.append(tr);
-    for(const x of [row.name,fmt(row.opening,row.unit),fmt(row.received,row.unit),fmt(row.closing,row.unit),fmt(row.outflow,row.unit),fmt(row.salesIdentified,row.unit),fmt(row.expectedPartial,row.unit),fmt(row.differencePartial,row.unit),row.differenceValuePartial==null?'Pendiente':pesos(row.differenceValuePartial),row.status==='provisional'?'Provisional':'Revisar'])add(tr,'td',x);
+    for(const x of [row.name,fmt(row.opening,row.unit),fmt(row.received,row.unit),fmt(row.closing,row.unit),fmt(row.outflow,row.unit),fmt(row.justified?.waste,row.unit),fmt(row.justified?.staff,row.unit),fmt(row.justified?.transferOut,row.unit),fmt(row.justified?.transferIn,row.unit),fmt(row.salesIdentified,row.unit),fmt(row.expectedPartial,row.unit),fmt(row.differencePartial,row.unit),row.differenceValuePartial==null?'Pendiente':pesos(row.differenceValuePartial),row.status==='provisional'?'Provisional':'Revisar'])add(tr,'td',x);
    }
+   if(r.justifications?.available){
+    add(box,'p','Movimientos registrados por el trabajador. Los traspasos todavía requieren conciliación del folio entre locales; los importes no modifican automáticamente el saldo esperado.');
+    for(const movement of r.justifications.rows||[]){
+     const names={merma:'Merma',personal:'Consumo personal',traspaso_salida:'Traspaso enviado',traspaso_entrada:'Traspaso recibido'};
+     const item=r.rows.find(x=>x.sku===movement.sku);
+     add(box,'p',date(movement.created_at)+' · '+(names[movement.kind]||movement.kind)+' · '+(item?.name||movement.sku)+' · '+fmt(movement.quantity,movement.unit)+' · '+movement.reason+(movement.transfer_ref?' · Folio '+movement.transfer_ref:''));
+    }
+   }else add(box,'p',r.justifications?.reason||'Salidas justificadas pendientes de consulta.');
    renderLive();
    add(box,'p',r.warning||'Salida física provisional. No acredita pérdidas.');
   }
