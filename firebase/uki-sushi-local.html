@@ -7020,6 +7020,8 @@ const auto=crearAutoGuardadoOperativo({
       }
      }catch{console.warn("Seguimiento pendiente de sincronización; no repetir el cobro.");}
     }
+    const consumoCtx=window.ukiQAGet?.(),consumoCloud=auto.resumen();
+    if(consumoCloud.actualRespaldado===true&&consumoCtx?.suc===consumoCloud.sucursal)void window.ukiPublicarConsumoLive?.(consumoCtx.estado,consumoCtx.suc,consumoCloud.revision);
     void ukiConciliarCierresDuenos();
     await ukiMesaConfirmarGuardadosSeguro();
     if(UKI_MESAS_ENDPOINT===UKI_MESAS_LIVE_URL)
