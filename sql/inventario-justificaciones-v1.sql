@@ -18,3 +18,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS inventario_justificaciones_traspaso_uq ON publ
 CREATE INDEX IF NOT EXISTS inventario_justificaciones_periodo_idx ON public.inventario_justificaciones_v1(store_id,created_at);
 ALTER TABLE public.inventario_justificaciones_v1 ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.inventario_justificaciones_v1 FROM PUBLIC;
+-- Permisos mínimos de la conexión Romo ya existente. Sin UPDATE ni DELETE.
+GRANT SELECT, INSERT ON public.inventario_justificaciones_v1 TO romos_app_service;
+CREATE POLICY inventario_justificaciones_romo_read_v1 ON public.inventario_justificaciones_v1 FOR SELECT TO romos_app_service USING (store_id='romo:serena');
+CREATE POLICY inventario_justificaciones_romo_insert_v1 ON public.inventario_justificaciones_v1 FOR INSERT TO romos_app_service WITH CHECK (store_id='romo:serena');
