@@ -29,13 +29,13 @@ export function fotoPago(p,leer){
  return {total:subtotal+envio,productos,delivery,propinaTransferencia:medium(p.medioPropina)==='transferencia'?propina:0,
   montoOtroLocal:subtotal+envio-sum(productos)-sum(delivery)};
 }
-export function exigirPlan(prev,nuevo,leer){
+export function exigirPlan(prev,nuevo,leer,leerAnterior=leer){
  const storeId=SUCURSALES[prev?.suc],pedidoInterno=String(prev?.id??'');
  if(!storeId||!/^[1-9][0-9]{0,11}$/.test(pedidoInterno)||prev.suc!==nuevo.suc||
     prev.id!==nuevo.id||ref(prev)!==ref(nuevo)||!['Pendiente','Entregado'].includes(prev.estado)||
     prev.esPremio||prev.ajusteCobroPendiente?.estado==='pendiente'||(!prev.pagado&&!ref(prev)))
   throw Error('El pedido no tiene un cobro que se pueda corregir desde esta edición.');
- const a=fotoPago(prev,leer),b=fotoPago(nuevo,leer);
+ const a=fotoPago(prev,leerAnterior),b=fotoPago(nuevo,leer);
  if(!a||!b||a.total!==b.total||a.montoOtroLocal!==b.montoOtroLocal||a.propinaTransferencia!==b.propinaTransferencia)
   throw Error('Revisa el reparto de los pagos. Esta corrección conserva los importes del pedido.');
  for(const tipo of ['productos','delivery']){
@@ -63,7 +63,7 @@ const igual=(a,b)=>{
  if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
  const keys=Object.keys(a);return keys.length===Object.keys(b).length&&keys.every(k=>Object.hasOwn(b,k)&&igual(a[k],b[k]));
 };
-export function comprobarCambio(prev,next,leer){
+export function comprobarCambio(prev,next,leer,leerAnterior=leer){
  if(!prev||!next)return null;
  try{
   const recibos=next.rectificacionesTransferenciaV2,anteriores=prev.rectificacionesTransferenciaV2||[];
@@ -73,6 +73,6 @@ export function comprobarCambio(prev,next,leer){
   const limpio=pagoCorregido(prev,next);limpio.rectificacionesTransferenciaV2=recibos;
   if(!igual(limpio,next)||typeof r?.id!=='string'||typeof r.firma!=='string'||
      typeof r.motivo!=='string'||!Number.isFinite(Date.parse(r.en)))return null;
-  return {plan:exigirPlan(prev,next,leer),recibo:r};
+  return {plan:exigirPlan(prev,next,leer,leerAnterior),recibo:r};
  }catch{return null;}
 }
