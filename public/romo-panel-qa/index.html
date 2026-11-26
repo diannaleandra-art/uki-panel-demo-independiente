@@ -9020,6 +9020,7 @@ async function ukiRomoConfirmarOlvidoQA(solicitudId){
     result.revision!==revision.revision+1)
    throw Error(result?.error||'No se confirmó una constancia inmutable en Neon');
   sesion.confirmarSobreAceptado({estado:copia,revision:result.revision});
+  void window.ukiPublicarConsumoLive?.(copia,ROMO_SUCURSAL_QA,result.revision);
   S={...S,...copia,suc:ROMO_SUCURSAL_QA,pinSuc:null,vista:'caja',
    msg:'Pedido olvidado confirmado como versión '+result.version+
     ' del cierre original · Neon revisión '+result.revision};
@@ -9308,6 +9309,7 @@ async function ukiRomoConfirmarRectificacionQA(solicitudId){
     result.revision!==before.revision+1)
    throw Error(result?.error||'No se recibió constancia v2 verificable');
   sesion.confirmarSobreAceptado({estado:copia,revision:result.revision});
+  void window.ukiPublicarConsumoLive?.(copia,ROMO_SUCURSAL_QA,result.revision);
   preparado=false;
   S={...S,...copia,suc:ROMO_SUCURSAL_QA,pinSuc:null,vista:'caja',
      msg:'Rectificación v2 confirmada · '+result.fuenteRectificacion};
@@ -10381,6 +10383,7 @@ async function ukiRomoCerrarTurnoQA(){
      result.constancia!==true)
    throw Error(result?.error||'Respuesta de cierre no confirmada');
   session.confirmarSobreAceptado({estado:copia,revision:result.revision});
+  void window.ukiPublicarConsumoLive?.(copia,ROMO_SUCURSAL_QA,result.revision);
   S={...S,...copia,suc:ROMO_SUCURSAL_QA,pinSuc:null,vista:'caja',msg:null};
   ukiCierreReciente={suc:S.suc,ms:fechaCierreMs(closing.cierre)};
   cajaTab='resumen';
@@ -10923,6 +10926,7 @@ async function ukiRomoGuardarPedidoPendienteQA(){
   const saved=await session.guardar(clone);
   if(saved?.changed!==true||saved.revision!==expected.revision+1)
    throw Error('El servidor no confirmó la revisión del pedido; conserva este formulario.');
+  void window.ukiPublicarConsumoLive?.(clone,ROMO_SUCURSAL_QA,saved.revision);
   const quedoPagado=pedido.pagado===true;
   S={...S,...clone,suc:s,pinSuc:null,msg:null,vista:'pedidos'};
   nuevoDraft();ukiRomoBorradorActivoQA=null;
