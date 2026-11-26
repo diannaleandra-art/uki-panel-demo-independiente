@@ -33,7 +33,8 @@ test('Pedido existente con timbre enviado NO exige reenviar al volver a pagado',
  const original={id:77,pagado:false,timbreEnviadoEn:'2026-11-09T15:01:00Z'};
  assert.equal(ctx.ukiTimbreObligatorioGuardar(d,original),false);
  assert.equal(ctx.ukiTimbreObligatorioGuardar(d,{...original,pagado:true}),false);
- assert.equal(ctx.ukiTimbreObligatorioGuardar(d,{...original,timbreEnviadoEn:null}),true);
+ assert.equal(ctx.ukiTimbreObligatorioGuardar(d,{...original,timbreEnviadoEn:null}),false,'la edición no vuelve a exigir timbre');
+ assert.equal(ctx.ukiTimbreObligatorioGuardar({...d,editando:null},null),true,'el pedido nuevo conserva el requisito');
  assert.equal(ctx.ukiTimbreObligatorioGuardar({...d,telefono:''},null),false);
  assert.equal(ctx.ukiTimbreObligatorioGuardar({...d,pagado:false},null),false);
 });
