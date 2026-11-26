@@ -126,7 +126,9 @@ import {iniciarFacturaLive} from './uki-factura-interfaz-live.mjs';
 const $=id=>document.getElementById(id);
 const isLive=['uki-sushi-inventario.vercel.app','uki-sushi-inventario-diannaleandra-7046.vercel.app'].includes(location.hostname);
 const API='/api/inventario-turno-live';
-let branch='',items=[],busy=false,requestId=null,lastSaved=null,reporteFinal=null;
+let branch='',items=[],busy=false,requestId=null,lastSaved=null,reporteFinal=null,bodegaCompartida=false;
+const accesoRomo=new URLSearchParams(location.search).get('acceso')==='romo';
+if(accesoRomo){$('branch').value='serena';$('branch').disabled=true;document.querySelector('header h1').textContent='La Serena · Inventario Uki y Romo';document.querySelector('label[for="codigo"]').textContent='PIN habitual de inventario Romo';}
 const entradasSesion=new Map();
 const stockAlAbrir=new Map();
 const status=s=>{$('estado').textContent=s;};
@@ -137,7 +139,7 @@ async function api(action,extra={}){
  if(!isLive)throw Error('Esta página está disponible únicamente en producción.');
  const response=await fetch(API,{method:'POST',cache:'no-store',credentials:'omit',mode:'cors',
   headers:{'Content-Type':'application/json'},body:JSON.stringify({
-   branch:branch||$('branch').value,action,codigo:codigo(),worker_name:nombre(),...extra
+   branch:branch||$('branch').value,action,codigo:codigo(),worker_name:nombre(),...(accesoRomo?{acceso:'romo'}:{}),...extra
   }),signal:AbortSignal.timeout(20000)});
  const body=await response.json().catch(()=>({}));
  if(!response.ok||!body.ok)throw Error(body.error||'No se pudo guardar. No reintentes sin revisar el estado.');
@@ -379,7 +381,7 @@ async function abrir(){
  setBusy(true);status('Cargando inventario…');
  try{
   const result=await api('listar');
-  branch=$('branch').value;items=result.items||[];stockAlAbrir.clear();
+  branch=$('branch').value;bodegaCompartida=result.bodegaCompartida===true;items=result.items||[];stockAlAbrir.clear();
   for(const item of items)stockAlAbrir.set(item.sku,{qty:Number(item.stock_qty)||0,unit:item.stock_unit});
   revisados.clear();horaConteos.clear();entradasSesion.clear();visibleLimit=12;requestId=null;lastSaved=null;reporteFinal=null;$('descargasTurno').hidden=true;factura.reset();
   $('activo').hidden=false;$('confirmacion').textContent='';
@@ -399,7 +401,7 @@ function invAppView(mode){
  if(busy&&mode!=='inicio')return;
  invAppMode=mode;
  $('activo').dataset.invMode=mode;
- $('invAppLocal').textContent=branch==='arica'?'Regimiento Arica':'La Serena';
+ $('invAppLocal').textContent=branch==='arica'?'Regimiento Arica':bodegaCompartida?'La Serena · Uki y Romo (bodega compartida)':'La Serena';
  $('invAppHome').hidden=mode!=='inicio';$('invAppBar').hidden=mode==='inicio';
  const titles={conteo:'Contar existencias',entrada:'Recibir mercadería',alta:'Agregar insumo',merma:'Registrar merma',personal:'Consumo del personal',traspaso:'Traspasos',compras:'Lista de compras',reporte:'Guardar y compartir'};
  $('invAppTitle').textContent=titles[mode]||'';
@@ -453,7 +455,8 @@ function justRefresh(){
  if([...sel.options].some(x=>x.value===prev))sel.value=prev;
  const other=$('justOther'),prior=other.value;
  other.replaceChildren(new Option('Selecciona sucursal',''));
- for(const [id,name] of [['uki:arica','Uki Regimiento Arica'],['uki:serena','Uki La Serena'],['romo:serena','Romo La Serena']])if(id!==local)other.add(new Option(name,id));
+ const destinos=bodegaCompartida?[['uki:arica','Regimiento Arica'],['uki:serena','La Serena · Uki y Romo']]:[['uki:arica','Uki Regimiento Arica'],['uki:serena','Uki La Serena'],['romo:serena','Romo La Serena']];
+ for(const [id,name] of destinos)if(id!==local)other.add(new Option(name,id));
  if([...other.options].some(x=>x.value===prior))other.value=prior;
 }
 $('justKind').onchange=()=>{$('justTransfer').hidden=!$('justKind').value.startsWith('traspaso_');};
