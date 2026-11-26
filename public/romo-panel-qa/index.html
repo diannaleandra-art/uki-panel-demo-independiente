@@ -8019,6 +8019,7 @@ async function ukiRomoGuardarOperacionQA(copia,descripcion,orden,vista='pedidos'
  if(res?.changed!==true||res.revision!==anterior.revision+1)
   throw Error('No se confirmó una revisión nueva. Verifica antes de volver a intentar.');
  S={...S,...copia,suc:ROMO_SUCURSAL_QA,pinSuc:null,vista,msg:null};
+ void window.ukiPublicarConsumoLive?.(copia,ROMO_SUCURSAL_QA,res.revision);
  S.msg=descripcion+(orden===null?'':' · Pedido #'+orden)+' · revisión '+res.revision+'.';
  render();
  // La proyección se ejecuta sólo tras el CAS confirmado, nunca antes de guardar.
@@ -10031,6 +10032,7 @@ async function ukiRomoAceptarSolicitudCartaQA(){
    },
    aplicarConfirmado:async({estado,revision,pedidoId})=>{
     session.confirmarSobreAceptado({estado,revision});
+    void window.ukiPublicarConsumoLive?.(estado,ROMO_SUCURSAL_QA,revision);
     S={...S,...estado,suc:ROMO_SUCURSAL_QA,pinSuc:null,vista:'pedidos',msg:null};
     nuevoDraft();
     const aceptado=candidatoEstadoPagadoRomoQA(estado,pedidoId);
