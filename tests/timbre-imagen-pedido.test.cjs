@@ -63,7 +63,7 @@ test('La vista prepara un PNG con el logo correcto y permite descargarlo o compa
  const args=[{nombre:'Cliente de prueba',sucursal:suc,modoPedido:true,whatsapp:'56900000000',codigoCliente:'9999',timbres:8},
   {telefonoChat:'56900000000',vigente:()=>vigente,preparada:()=>procesadas++}];
  await ctx.window.ukiTarjetaMostrar(...args);
- assert.deepEqual(logos,[romo?'./romo-logo-original.jpeg':'./uki-logo-original.svg']);
+ assert.deepEqual(logos,[romo?'./romo-logo-original.jpeg':'./uki-logo-timbres.jpeg']);
  assert.ok(trazos.includes('8/10'));assert.ok(!trazos.some(x=>/56900000000|9999/.test(x)));
  const boton=t=>dialogo.nodos.at(-1).nodos.find(n=>n.textContent===t);
  await boton('Compartir imagen').click();

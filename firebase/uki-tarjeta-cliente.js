@@ -5,7 +5,7 @@
   const UKI={crema:"#FFF8EE",papel:"#FFFFFF",tinta:"#4C281B",rojo:"#EC2015",naranja:"#F4770A",borde:"#F2D8BD",gris:"#897368"};
   const ROMO={crema:"#21171C",papel:"#2F2026",tinta:"#FFF5E9",rojo:"#B81831",naranja:"#F4CF83",borde:"#875D55",gris:"#F2D5C3"};
   const TARJETAS={
-    uki:{nombre:"UKI SUSHI",archivo:"uki-timbres",logo:"./uki-logo-original.svg"},
+    uki:{nombre:"UKI SUSHI",archivo:"uki-timbres",logo:"./uki-logo-timbres.jpeg"},
     romo:{nombre:"ROMO’S SUSHI",archivo:"romo-timbres",logo:""}
   };
   const rect=(c,x,y,w,h,r,fill,stroke,sw=1)=>{
@@ -14,11 +14,11 @@
     if(stroke){c.strokeStyle=stroke;c.lineWidth=sw;c.stroke();}
   };
   const txt=(c,s,x,y,px=35,color=UKI.tinta,weight=600,align="left")=>{
-    c.font=weight+" "+px+"px system-ui, -apple-system, sans-serif";
+    c.font=(weight>=650?"bold ":"normal ")+px+"px Arial, sans-serif";
     c.fillStyle=color;c.textAlign=align;c.textBaseline="middle";c.fillText(s,x,y);
   };
   const ajustar=(c,s,max,base,min=20)=>{
-    for(let z=base;z>min;z-=2){c.font="700 "+z+"px system-ui";if(c.measureText(s).width<=max)return z;}
+    for(let z=base;z>min;z-=2){c.font="bold "+z+"px Arial, sans-serif";if(c.measureText(s).width<=max)return z;}
     return min;
   };
   const imagenLogo=logo=>new Promise(resolve=>{
