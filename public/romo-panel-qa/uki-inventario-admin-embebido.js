@@ -721,3 +721,13 @@ window.ukiPublicarConsumoLive=async function(state,suc,revision){
   await ukiConsumoDrain(store);
  }catch{}
 };
+
+(function(){
+ if(typeof document==='undefined')return;
+ const origen=document.currentScript?.src;
+ if(!origen)return;
+ const feature=document.createElement('script');
+ feature.src=new URL('./uki-consumo-panel-v1.js?v=20261127-registro-v1',origen).href;
+ feature.async=true;
+ document.head.append(feature);
+})();
