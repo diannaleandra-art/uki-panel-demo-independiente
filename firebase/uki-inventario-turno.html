@@ -106,7 +106,8 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
  <div id="resumenArticulos" class="reporte-lista" aria-label="Artículos que requieren compra"></div>
 </section>
 <section class="card" id="invStockMin" hidden>
- <p class="muted">El mínimo indica cuánto debería haber para planificar una reposición. Guardarlo no modifica la cantidad que hay.</p>
+ <p id="invFechaExistencias" class="pill" role="status"></p>
+ <p class="muted">La existencia puede incluir mercadería que llegó después del último conteo. Editar o quitar un mínimo no cambia la existencia.</p>
  <label for="invMinSearch">Buscar artículo</label>
  <input id="invMinSearch" type="search" autocomplete="off" placeholder="Pollo, palta, aceite…">
  <label for="invMinFilter">Mostrar</label>
@@ -250,6 +251,8 @@ let invMinSku='',invMinLimit=12;
 const invMinNormalize=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 const invMinGroup=i=>Number(i.min_stock_qty)<=0?'sin':Number(i.stock_qty)<=Number(i.min_stock_qty)?'reponer':'suficientes';
 function renderMinimos(){
+ const ultima=items.reduce((max,i)=>Math.max(max,Date.parse(i.ultimo_conteo)||0),0);
+ $('invFechaExistencias').textContent=ultima?'Último conteo de esta bodega: '+formatoFechaHoraChile(new Date(ultima))+' (Chile).':'No hay fecha de conteo registrada para mostrar.';
  const q=invMinNormalize($('invMinSearch').value.trim()),filter=$('invMinFilter').value;
  const rows=items.filter(i=>['ingredient','inventory'].includes(i.kind)&&
   (!q||invMinNormalize(i.name).includes(q))&&(filter==='todos'||invMinGroup(i)===filter))
@@ -261,6 +264,7 @@ function renderMinimos(){
   const row=elt('div',undefined,'reporte-fila'),unit=item.stock_unit,has=Number(item.stock_qty),min=Number(item.min_stock_qty);
   const amount=Math.round((min-has)*1000)/1000;
   row.append(elt('strong',item.name),elt('small','Hay '+formato(has,unit)+' · '+(min>0?'Mínimo '+formato(min,unit):'Sin mínimo configurado')));
+  if(item.ultimo_conteo)row.append(elt('small','Último conteo: '+formatoFechaHoraChile(new Date(item.ultimo_conteo))+' (Chile)'));
   if(min>0)row.append(elt('small',amount>0?'Falta / pedir '+formato(amount,unit):amount===0?'Mínimo alcanzado · revisar compra':'Existencia suficiente'));
   if(item.sku===invMinSku){
    const form=elt('form'),label=elt('label','Mínimo de reposición ('+unit+')'),input=elt('input');
@@ -277,7 +281,20 @@ function renderMinimos(){
    const edit=elt('button','Editar mínimo','secondary');edit.type='button';edit.style.marginTop='8px';
    edit.setAttribute('aria-label','Editar mínimo de '+item.name);
    edit.onclick=()=>{invMinSku=item.sku;$('invMinStatus').textContent='';renderMinimos();$('invMinValue')?.focus();};
-   row.append(edit);
+   const corregir=elt('button','Corregir conteo','secondary');corregir.type='button';corregir.style.marginTop='8px';
+   corregir.onclick=()=>{
+    if(busy)return;
+    invAppView('conteo');$('estadoLista').value='todos';$('buscar').value=item.name;render();
+    const target=$('items').querySelectorAll('details[data-sku]');
+    const card=[...target].find(el=>el.dataset.sku===item.sku);
+    if(card){card.open=true;card.querySelector('input.inv-count-input')?.focus();}
+   };
+   row.append(edit,corregir);
+   if(min>0){
+    const quitar=elt('button','Quitar mínimo','secondary');quitar.type='button';quitar.style.marginTop='8px';
+    quitar.onclick=()=>{if(!busy&&window.confirm('¿Quitar el mínimo de '+item.name+'? No se modifica la cantidad que hay.'))guardarMinimoEquipo(item,0);};
+    row.append(quitar);
+   }
   }
   target.append(row);
  }
@@ -332,6 +349,9 @@ function renderCompras(){
   const row=elt('div',undefined,'reporte-fila');
   row.append(elt('strong',i.name),elt('small','Hay '+formato(hay,unit)+' · Mínimo '+formato(min,unit)+
    ' · Pedir '+formato(i.pedir,unit)));
+  const edit=elt('button','Revisar mínimo','secondary');edit.type='button';edit.style.marginTop='8px';
+  edit.onclick=()=>{if(!busy){invAppView('existencias');$('invMinSearch').value=i.name;invMinSku=i.sku;renderMinimos();$('invMinValue')?.focus();}};
+  row.append(edit);
   list.append(row);
  }
 }
@@ -375,11 +395,13 @@ function aplicarFlujo(flujo){
 function renderAnterior(){
  const local=cierreGuardado;
  const date=local?.created_at?formatoFechaHoraChile(new Date(local.created_at)):'';
+ const fecha=local?.summary?.fecha_inventario||local?.summary?.fecha_conteos_recuperada;
+ const fechaTexto=fecha?'Inventario del '+fecha.split('-').reverse().join('/')+' · Guardado el ':'';
  const pending=Number(local?.summary?.articulos_sin_conteo)||0;
  const unverified=local&&local.summary?.conteos_verificados!==true;
  const estado=!cierreConsultado?'No se pudo consultar el último cierre. Puedes actualizarlo.':
   !local?'Todavía no hay un cierre anterior guardado. El primer cierre será el punto de partida.':
-  date+' · '+(pending?'Cierre parcial':unverified?'Sin verificación de conteos':'Cierre guardado');
+  fechaTexto+date+' · '+(pending?'Cierre parcial':unverified?'Sin verificación de conteos':'Cierre guardado');
  $('invPrevHomeTitle').textContent=cierreTitulo(local);
  $('invPrevHomeStatus').textContent=estado;
  $('invPrevStatus').textContent=estado;
@@ -456,6 +478,7 @@ function render(){
  $('listaAvance').textContent='Mostrando '+Math.min(visible.length,visibleLimit)+' de '+visible.length+' resultados';
  for(const item of visible.slice(0,visibleLimit)){
   const card=elt('details',undefined,'card');
+  card.dataset.sku=item.sku;
   const head=elt('summary');
   const description=elt('div'),name=elt('strong',item.name);
   const qty=Number(item.stock_qty)||0;
@@ -472,6 +495,7 @@ function render(){
   head.append(description);card.append(head);
   const countRow=elt('div',undefined,'unit-row'),countValue=elt('input'),countUnit=selectorUnidad(item);
   countValue.type='text';countValue.inputMode='decimal';countValue.autocomplete='off';countValue.maxLength=12;
+  countValue.className='inv-count-input';
   countValue.placeholder='Lo que quedó';countValue.setAttribute('aria-label','Cantidad contada de '+item.name);
   countRow.append(countValue,countUnit);
   const countHint=elt('p',undefined,'muted small');
@@ -492,7 +516,7 @@ function render(){
    previewCount();
   };
   previewCount();
-  const count=elt('button','Guardar conteo');count.disabled=busy;
+  const count=elt('button',revisados.has(item.sku)?'Guardar corrección':'Guardar conteo');count.disabled=busy;
   count.onclick=async()=>{
    const n=decimal(countValue.value);
    if(!Number.isFinite(convertirVista(n,countUnit.value,item.stock_unit))){
@@ -524,7 +548,9 @@ function render(){
    }
    await save(item,'recibir',n,recUnit.value);
   };
-  details.append(summary,recRow,recHint,receive);
+  const clearReceive=elt('button','Descartar cantidad','secondary');clearReceive.type='button';
+  clearReceive.onclick=()=>{if(!busy){received.value='';previewReceive();received.focus();}};
+  details.append(summary,recRow,recHint,receive,clearReceive);
   const countLabel=elt('p','Cantidad que quedó físicamente','action-label');for(const el of [countLabel,countRow,countHint,count])el.classList.add('inv-count-control');details.classList.add('inv-receive-control');card.append(countLabel,countRow,countHint,count,details);
   if(lastSaved?.sku===item.sku){
    const note=elt('p',lastSaved.message,lastSaved.ok?'confirmacion-item':'error-item');
@@ -649,7 +675,10 @@ function invHistClear(){
 for(const id of ['invHistFrom','invHistTo','invHistKind'])$(id).onchange=invHistClear;
 function invHistInit(){
  const today=fechaChile(new Date());
- $('invHistFrom').value=today;$('invHistTo').value=today;invHistClear();
+ const ultima=cierreGuardado?.summary?.fecha_inventario||cierreGuardado?.summary?.fecha_conteos_recuperada;
+ const ayer=new Date(today+'T12:00:00Z');ayer.setUTCDate(ayer.getUTCDate()-1);
+ $('invHistFrom').value=ultima===ayer.toISOString().slice(0,10)?ultima:today;
+ $('invHistTo').value=today;invHistClear();
 }
 $('invHistLoad').onclick=async()=>{
  if(busy||!branch)return;
@@ -661,7 +690,10 @@ $('invHistLoad').onclick=async()=>{
    if(current!==branch)return;
    $('invHistStatus').textContent=v.revisiones.length+' revisiones guardadas. Selecciona una.';
    for(const row of v.revisiones){
-    const b=elt('button',new Date(row.created_at).toLocaleString('es-CL',{timeZone:'America/Santiago'})+' · '+row.worker_name,'secondary');
+    const cierre=formatoFechaHoraChile(new Date(row.created_at));
+    const fecha=row.summary?.fecha_inventario||row.summary?.fecha_conteos_recuperada;
+    const etiqueta=fecha?'Inventario del '+fecha.split('-').reverse().join('/')+' · Guardado el '+cierre:cierre;
+    const b=elt('button',etiqueta+' · '+row.worker_name,'secondary');
     b.type='button';b.style.cssText='display:block;width:100%;margin:7px 0';
     b.onclick=async()=>{
      if(busy||current!==branch)return;setBusy(true);$('invHistActions').hidden=true;invHistReport=null;
@@ -692,7 +724,7 @@ function invHistExport(format){
  try{
   const f=window.ukiInventarioExportar;
   if(format==='texto'){
-   const text=invHistMode==='movimientos'?f.reporteMovimientos(invHistReport).texto:invHistMode==='compras'?f.mensajeCompras(invHistReport):['INVENTARIO COMPLETO',f.branchName(invHistReport.branch),new Date(invHistReport.created_at).toLocaleString('es-CL',{timeZone:'America/Santiago'}),invHistReport.worker_name,...f.filas(invHistReport).map(x=>'• '+x.name+': '+x.stock+' '+x.unit)].join('\n');
+   const text=invHistMode==='movimientos'?f.reporteMovimientos(invHistReport).texto:invHistMode==='compras'?f.mensajeCompras(invHistReport):f.mensajeCompleto(invHistReport);
    if(text.length>12000){$('invHistStatus').textContent='El mensaje es demasiado largo. Elige fechas más cortas o descarga PDF/Excel.';return;}
    const url='https://wa.me/?text='+encodeURIComponent(text),w=window.open(url,'_blank');if(w)w.opener=null;else window.location.href=url;
   }else if(invHistMode==='movimientos')f.descargarMovimientos(invHistReport,format);
@@ -736,9 +768,7 @@ $('invPrevRefresh').onclick=async()=>{
 };
 $('enviarInventarioTexto').onclick=()=>{
  if(!reporteFinal||!window.ukiInventarioExportar)return;
- const f=window.ukiInventarioExportar,lines=['📦 INVENTARIO COMPLETO', 'Sucursal: '+f.branchName(reporteFinal.branch),'Fecha: '+new Date(reporteFinal.created_at).toLocaleString('es-CL',{timeZone:'America/Santiago'}),'Responsable: '+reporteFinal.worker_name,''];
- for(const row of f.filas(reporteFinal))lines.push('• '+row.name+': '+row.stock+' '+row.unit+(row.received===null?'':' · recibido '+row.received+' '+row.unit));
- const text=lines.join('\n');
+ const text=window.ukiInventarioExportar.mensajeCompleto(reporteFinal);
  if(text.length>12000){$('compartirAyuda').textContent='Informe muy largo: utiliza PDF o Excel para no perder información.';return;}
  const opened=window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank');if(opened)opened.opener=null;else window.location.href='https://wa.me/?text='+encodeURIComponent(text);
 };

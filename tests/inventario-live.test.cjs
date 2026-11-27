@@ -389,7 +389,7 @@ test('compras comparte por WhatsApp solo cantidades por pedir de la bodega, sin 
   const ctx={
    $:id=>nodes[id],branch:'serena',invAppMode:'compras',busy:false,
    items:[{name:'Aceite',stock_qty:2,min_stock_qty:5,stock_unit:'l'},{name:'Palta',stock_qty:0,min_stock_qty:0,stock_unit:'kg'},{name:'Arroz',stock_qty:2,min_stock_qty:2,stock_unit:'kg'}],
-   elt:()=>({append(){}}),formato:(n,u)=>n+' '+u,
+   elt:()=>({style:{},append(){}}),formato:(n,u)=>n+' '+u,
    window:{open(url,target){assert.equal(target,'_blank');mensajes.push(new URL(url));return {};}}
   };
   const a=html.indexOf('function faltantesParaPedir(){'),b=html.indexOf('function fechaChile(date){',a);
@@ -402,4 +402,20 @@ test('compras comparte por WhatsApp solo cantidades por pedir de la bodega, sin 
   assert.match(text,/Aceite — Pedir 3 l/);assert.doesNotMatch(text,/Arroz|Palta/);
   ctx.items=[];render();assert.equal(buttons.disabled,true);buttons.onclick();assert.equal(mensajes.length,1);
  }
+});
+
+test('las fechas de existencias salen de los conteos de la misma bodega, no de la edición del mínimo',async()=>{
+ const seen=[];
+ const sql={query:async(q,params)=>{
+  seen.push(q);
+  assert.deepEqual(params,['serena']);
+  assert.equal((q.match(/branch=\$1/g)||[]).length,2);
+  assert.match(q,/accion='conteo'/);assert.match(q,/action='conteo'/);
+  assert.doesNotMatch(q,/updated_at|min_stock_qty/);
+  return [{sku:'ingredient:arroz',fecha:'2026-11-27T02:06:22Z'}];
+ }};
+ const dates=await api._testing.ultimosConteos(sql,'serena');
+ assert.equal(dates.get('ingredient:arroz'),'2026-11-27T02:06:22Z');
+ assert.equal(api._testing.fechaInventario(dates.get('ingredient:arroz')),'2026-11-26');
+ assert.equal(seen.length,1);
 });

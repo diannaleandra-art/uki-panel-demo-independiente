@@ -32,6 +32,18 @@ const fechaHoraChile=fecha=>new Intl.DateTimeFormat('es-CL',{
  timeZone:'America/Santiago',weekday:'long',day:'2-digit',month:'2-digit',
  year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'
 }).format(new Date(fecha));
+const fechaInventario=fecha=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago',
+ year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(fecha));
+async function ultimosConteos(sql,branch){
+ const rows=await sql.query(`SELECT sku,MAX(fecha) AS fecha FROM (
+   SELECT sku,MAX(creado_en) AS fecha FROM public.uki_inventario_movimientos_live
+    WHERE branch=$1 AND accion='conteo' GROUP BY sku
+   UNION ALL
+   SELECT sku,MAX(created_at) FROM public.uki_inventario_extras_movimientos_live
+    WHERE branch=$1 AND action='conteo' GROUP BY sku
+  ) AS conteos GROUP BY sku`,[branch]);
+ return new Map(rows.map(row=>[row.sku,row.fecha]));
+}
 function resumen(items){
  const rows=items.map(i=>({
   sku:String(i.sku),name:String(i.name),kind:String(i.kind),stock_qty:Number(i.stock_qty)||0,
@@ -279,7 +291,10 @@ module.exports=async(req,res)=>{
   }
   if(action==='revisiones-trabajador'){
    const {desde,hasta}=require('../lib/inventario-movimientos-reporte-v1.cjs').range({...input,tipo:'todos'});
-   const rows=await sql.query("SELECT id,worker_name,summary,created_at FROM public.uki_inventario_revisiones_live WHERE branch=$1 AND (created_at AT TIME ZONE 'America/Santiago')::date BETWEEN $2::date AND $3::date ORDER BY created_at DESC,id DESC LIMIT 201",[branch,desde,hasta]);
+   const rows=await sql.query(`SELECT id,worker_name,summary,created_at FROM public.uki_inventario_revisiones_live
+    WHERE branch=$1 AND COALESCE(summary->>'fecha_inventario',summary->>'fecha_conteos_recuperada',
+     to_char(created_at AT TIME ZONE 'America/Santiago','YYYY-MM-DD')) BETWEEN $2::text AND $3::text
+    ORDER BY created_at DESC,id DESC LIMIT 201`,[branch,desde,hasta]);
    if(rows.length>200)return fail(res,400,'Consulta un período más corto.');
    return res.status(200).json({ok:true,branch,revisiones:rows});
   }
@@ -301,14 +316,18 @@ module.exports=async(req,res)=>{
    return res.status(201).json({ok:true,branch,item});
   }
   if(action==='listar'){
-   const [data,added,flujo]=await Promise.all([
+   const [data,added,flujo,dates]=await Promise.all([
     leerInventario(sql,branch),extra.listar(sql,branch),
-    input.flujo_cierre===true?flujoCierre(sql,branch).catch(()=>null):null
+    input.flujo_cierre===true?flujoCierre(sql,branch).catch(()=>null):null,
+    input.flujo_cierre===true?ultimosConteos(sql,branch).catch(()=>null):null
    ]);
-   return res.status(200).json({ok:true,branch,...(input.flujo_cierre===true?{flujo}:{}),bodegaCompartida:process.env.UKI_BODEGA_SERENA_COMPARTIDA==='true',items:[...data.map(i=>({
+   const items=[...data.map(i=>({
     sku:i.sku,kind:i.kind,group_key:i.group_key,name:i.name,available:i.available,
     stock_qty:i.stock_qty,stock_unit:i.stock_unit,min_stock_qty:i.min_stock_qty,version:i.version
-   })),...added]});
+   })),...added];
+   return res.status(200).json({ok:true,branch,...(input.flujo_cierre===true?{flujo,fechas_conteo_disponibles:!!dates}:{}),
+    bodegaCompartida:process.env.UKI_BODEGA_SERENA_COMPARTIDA==='true',
+    items:dates?items.map(i=>({...i,ultimo_conteo:dates.get(i.sku)||null})):items});
   }
   // Facturas independientes: el PIN de inventario autoriza la lectura y la recepción;
   // la DB bloquea la misma línea/entrega entre celulares.
@@ -376,7 +395,8 @@ module.exports=async(req,res)=>{
     base,input.expected_version,worker,detalle);
    return res.status(200).json({ok:true,branch,registro:detalle,item:{
     sku:result.sku,stock_qty:result.stock_qty,stock_unit:result.stock_unit,
-    available:result.available,min_stock_qty:result.min_stock_qty,version:result.version
+    available:result.available,min_stock_qty:result.min_stock_qty,version:result.version,
+    ...(result.ultimo_conteo?{ultimo_conteo:result.ultimo_conteo}:{})
    }});
   }
   // El informe se calcula EN EL SERVIDOR sobre el stock vigente, nunca sobre
@@ -411,7 +431,10 @@ module.exports=async(req,res)=>{
    data.items=data.items.map(i=>({...i,conteo_registrado:counts.has(i.sku),conteo_fecha:counts.get(i.sku)||null}));
    data.summary.conteos_verificados=true;
    data.summary.articulos_sin_conteo=data.items.filter(i=>!i.conteo_registrado).length;
+   data.summary.faltantes=resumen(data.items.filter(i=>i.conteo_registrado)).summary.faltantes;
    if(recuperada)data.summary.fecha_conteos_recuperada=recuperada;
+   const ultima=data.items.reduce((max,i)=>Math.max(max,Date.parse(i.conteo_fecha)||0),0);
+   if(ultima)data.summary.fecha_inventario=recuperada||fechaInventario(ultima);
   }else data.summary.conteos_verificados=false;
   const created=await sql.query(`INSERT INTO public.uki_inventario_revisiones_live
    (branch,request_id,worker_name,identity,items,summary)
@@ -439,4 +462,4 @@ function responderCierre(res,branch,worker,result){
   mensaje:textoReporte(branch,responsable,summary,result.created_at),
   reporte:{branch,created_at:result.created_at,worker_name:responsable,items:result.items||[],summary}});
 }
-module.exports._testing={permitido,admin,resumen,textoReporte,validDate,fechaHoraChile,entradasDesdeUltimaRevision,conteosDesdeUltimaRevision,flujoCierre,primerCierrePendiente};
+module.exports._testing={permitido,admin,resumen,textoReporte,validDate,fechaHoraChile,fechaInventario,ultimosConteos,entradasDesdeUltimaRevision,conteosDesdeUltimaRevision,flujoCierre,primerCierrePendiente};

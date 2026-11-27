@@ -26,6 +26,23 @@ test('reportes antiguos sin registro de entradas no muestran un cero falso',()=>
  assert.equal(value[0].received,null);
  assert.equal(reports.tabla({...report,items:[{name:'Test',stock_qty:5,min_stock_qty:1,stock_unit:'kg'}]})[1][8],'');
 });
+test('el reporte completo del trabajador incluye fecha del inventario y sugerencias verificadas',()=>{
+ const r={...report,branch:'serena',created_at:'2026-11-27T04:02:54Z',
+  summary:{fecha_conteos_recuperada:'2026-11-26'},items:[
+   {...report.items[0],conteo_registrado:true},
+   {name:'Ajo',stock_qty:0,min_stock_qty:2,stock_unit:'kg',conteo_registrado:false}
+  ]};
+ const msg=reports.mensajeCompleto(r);
+ assert.match(msg,/Inventario del 26\/11\/2026/);
+ assert.match(msg,/Guardado el 27\/11\/2026/);
+ assert.match(msg,/SUGERENCIA DE LO QUE HAY QUE PEDIR \(1\)/);
+ assert.match(msg,/Pollo: pedir 3 kg/);assert.doesNotMatch(msg,/Ajo: pedir/);
+ assert.match(msg,/Ajo: 0 kg \(saldo no verificado\)/);
+ assert.equal(reports.tabla(r)[1].at(-1),'26/11/2026');
+ const pdf=Buffer.from(reports.pdf(r)).toString('latin1');
+ assert.match(pdf,/Inventario del 26\/11\/2026/);
+ assert.match(pdf,/PENDIENTE VERIFICAR CONTEO/);
+});
 test('CSV abre en Excel y no ejecuta fórmulas de nombres',()=>{
  const csv=reports.csv({...report,items:[{name:'=IMPORTDATA(1)',stock_qty:1,received_qty:0,min_stock_qty:2,stock_unit:'un'}]});
  assert.ok(csv.startsWith('\uFEFFsep=;'));

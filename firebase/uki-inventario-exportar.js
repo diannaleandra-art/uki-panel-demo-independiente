@@ -20,34 +20,40 @@
    hora:v('hour')+':'+v('minute'),iso:v('year')+'-'+v('month')+'-'+v('day')};
  }
  const branchName=b=>b==='arica'?'Regimiento Arica':b==='serena'?'La Serena':'Sucursal';
+ const fechaConteos=report=>{
+  const date=report.summary?.fecha_inventario||report.summary?.fecha_conteos_recuperada;
+  return /^\d{4}-\d{2}-\d{2}$/.test(date||'')?date.split('-').reverse().join('/'):'';
+ };
  function resumenFila(item){
   const stock=Number(item.stock_qty)||0,minimum=Number(item.min_stock_qty)||0;
-  const toBuy=minimum>0?Math.max(0,Math.round((minimum-stock)*1000)/1000):0;
+  const pendiente=item.conteo_registrado===false;
+  const toBuy=!pendiente&&minimum>0?Math.max(0,Math.round((minimum-stock)*1000)/1000):0;
   // Reportes anteriores y estado actual no disponen de entradas por período.
   // No convertir un valor ausente en 0: sería dar a entender que no llegó nada.
   const recibido=item.received_qty===null||item.received_qty===undefined?null:Number(item.received_qty);
   const received=recibido!==null&&Number.isFinite(recibido)&&recibido>=0?Math.round(recibido*1000)/1000:null;
   return {name:String(item.name||''),kind:String(item.kind||''),stock,minimum,unit:String(item.stock_unit||'un'),
-   received,toBuy,status:minimum<=0?'Sin mínimo':stock<=minimum?'Reponer':'Bien'};
+   received,toBuy,status:pendiente?'Sin conteo':minimum<=0?'Sin mínimo':stock<=minimum?'Reponer':'Bien'};
  }
  function filas(report){
   if(!report||!Array.isArray(report.items))throw Error('Falta el detalle del inventario.');
   if(report.items.length>2000)throw Error('El inventario excede el tamaño permitido.');
-  const orden={Reponer:0,Bien:1,'Sin mínimo':2};
+  const orden={Reponer:0,Bien:1,'Sin mínimo':2,'Sin conteo':3};
   return report.items.map(resumenFila).sort((a,b)=>orden[a.status]-orden[b.status]||a.name.localeCompare(b.name,'es'));
  }
  function nombreArchivo(report,ext){
   const meta=fechaChile(report.created_at);
-  return 'uki-inventario-'+fileSafe(branchName(report.branch))+'-'+meta.iso+'-'+
+  const conteos=fechaConteos(report);
+  return 'uki-inventario-'+fileSafe(branchName(report.branch))+'-'+(conteos?conteos.split('/').reverse().join('-'):meta.iso)+'-'+
    meta.hora.replace(':','-')+'.'+ext;
  }
  function tabla(report){
   const f=fechaChile(report.created_at),rows=filas(report);
-  const encabezado=['Fecha','Día','Hora','Sucursal','Responsable','Artículo',
-   'Tipo','Lo que hay','Lo que llegó','Unidad','Mínimo','Lo que falta','Qué pedir','Estado'];
+  const encabezado=['Fecha de guardado','Día','Hora de guardado','Sucursal','Responsable','Artículo',
+   'Tipo','Lo que hay','Lo que llegó','Unidad','Mínimo','Lo que falta','Qué pedir','Estado','Fecha del inventario'];
   const body=rows.map(x=>[f.fecha,f.dia,f.hora,branchName(report.branch),
    String(report.worker_name||''),x.name,x.kind,x.stock,x.received===null?'':x.received,
-   x.unit,x.minimum,x.toBuy,x.status==='Reponer'&&x.toBuy===0?'Mínimo alcanzado: revisar':x.toBuy,x.status]);
+   x.unit,x.minimum,x.status==='Sin conteo'?'':x.toBuy,x.status==='Sin conteo'?'Verificar conteo':x.status==='Reponer'&&x.toBuy===0?'Mínimo alcanzado: revisar':x.toBuy,x.status,fechaConteos(report)]);
   return [encabezado,...body];
  }
  // Se abre en Excel: CSV UTF-8 con BOM y separador de Chile.
@@ -94,14 +100,33 @@
    .sort((a,b)=>a.name.localeCompare(b.name,'es'));
   const msg=['🛒 UKI SUSHI · LISTA PARA COMPRAR',
    'Sucursal: '+branchName(report.branch),
-   'Fecha: '+f.fecha+' · '+f.hora+' h (Chile)',
-   ...(report.summary?.fecha_conteos_recuperada?['Conteos del '+report.summary.fecha_conteos_recuperada]:[]),
+   ...(fechaConteos(report)?['Inventario del '+fechaConteos(report)]:[]),
+   'Guardado el '+f.fecha+' · '+f.hora+' h (Chile)',
    'Productos que se deben pedir: '+faltantes.length,''];
   if(!faltantes.length)msg.push('✅ No hay productos para pedir según los mínimos registrados.');
   else faltantes.forEach((x,i)=>msg.push((i+1)+'. '+x.name+' — PEDIR '+x.toBuy+' '+x.unit+
    ' (hay '+x.stock+' '+x.unit+'; mínimo '+x.minimum+' '+x.unit+')'));
   msg.push('','Cantidades sugeridas según el último inventario guardado.');
   return msg.join('\n');
+ }
+ function mensajeCompleto(report){
+  const f=fechaChile(report.created_at),rows=filas(report);
+  const sugerencias=rows.filter(x=>x.toBuy>0).sort((a,b)=>a.name.localeCompare(b.name,'es'));
+  const cantidad=n=>Number(n).toLocaleString('es-CL',{maximumFractionDigits:3});
+  const lines=['📦 INVENTARIO COMPLETO · '+branchName(report.branch),
+   ...(fechaConteos(report)?['Inventario del '+fechaConteos(report)]:[]),
+   'Guardado el '+f.fecha+' · '+f.hora+' h (Chile)',
+   'Responsable: '+String(report.worker_name||'Sin identificar'),'',
+   '🛒 SUGERENCIA DE LO QUE HAY QUE PEDIR ('+sugerencias.length+')'];
+  if(sugerencias.length)for(const x of sugerencias)
+   lines.push('• '+x.name+': pedir '+cantidad(x.toBuy)+' '+x.unit+' (hay '+cantidad(x.stock)+' · mínimo '+cantidad(x.minimum)+')');
+  else lines.push('Sin pedidos sugeridos según los mínimos y conteos disponibles.');
+  const pendientes=rows.filter(x=>x.status==='Sin conteo').length;
+  if(pendientes)lines.push(pendientes+' artículos sin conteo. Se excluyen de la sugerencia.');
+  lines.push('','📋 EXISTENCIAS');
+  for(const x of rows)lines.push('• '+x.name+': '+cantidad(x.stock)+' '+x.unit+
+   (x.status==='Sin conteo'?' (saldo no verificado)':'')+(x.received===null?'':' · llegó '+cantidad(x.received)+' '+x.unit));
+  return lines.join('\n');
  }
  async function compartirPDF(report){
   const blob=new Blob([pdf(report)],{type:'application/pdf'});
@@ -131,17 +156,17 @@
   const entries=r.filter(x=>x.received!==null&&x.received>0).length;
   const head=[
     'UKI SUSHI  |  INVENTARIO DEL TURNO',
-    branchName(report.branch)+'  |  '+f.dia+' '+f.fecha+'  |  '+f.hora+' h Chile',
+    branchName(report.branch)+' | Guardado: '+f.fecha+' · '+f.hora+' h Chile',
     'Responsable: '+String(report.worker_name||'Sin identificar').slice(0,48),
     'Articulos: '+r.length+'  |  Reponer: '+r.filter(x=>x.status==='Reponer').length+
       '  |  Con entradas: '+entries,
     'Entradas: '+String(report.summary?.entradas_periodo||'sin periodo definido'),
-    ...(report.summary?.fecha_conteos_recuperada?['Conteos del '+report.summary.fecha_conteos_recuperada]:[]),
+    ...(fechaConteos(report)?['Inventario del '+fechaConteos(report)]:[]),
     ''
   ];
   const lines=[...head];
   const groups=[['Reponer','PARA REPONER / LISTA DE COMPRA'],
-   ['Bien','EXISTENCIAS SUFICIENTES'],['Sin mínimo','SIN MINIMO CONFIGURADO']];
+   ['Bien','EXISTENCIAS SUFICIENTES'],['Sin mínimo','SIN MINIMO CONFIGURADO'],['Sin conteo','PENDIENTE VERIFICAR CONTEO']];
   for(const [key,title] of groups){
     const part=r.filter(x=>x.status===key);
     if(!part.length)continue;
@@ -248,5 +273,5 @@
   window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank','noopener');
   return 'texto';
  }
- return {fechaChile,branchName,filas,tabla,csv,pdf,mensaje,mensajeCompras,nombreArchivo,excel,guardarPDF,compartirPDF,whatsapp,reporteMovimientos,descargarMovimientos};
+ return {fechaChile,fechaConteos,branchName,filas,tabla,csv,pdf,mensaje,mensajeCompleto,mensajeCompras,nombreArchivo,excel,guardarPDF,compartirPDF,whatsapp,reporteMovimientos,descargarMovimientos};
 });

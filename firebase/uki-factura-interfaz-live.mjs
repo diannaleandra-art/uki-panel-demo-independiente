@@ -302,6 +302,10 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
    totalInput.oninput=()=>{f.totalCantidad=totalInput.value;nuevaSolicitud();preview();};
    delivery.onchange=()=>{f.entrega=Number(delivery.value);nuevaSolicitud();preview();};
    check.onchange=()=>{f.checked=check.checked;preview();};check.disabled=!!f.saved;
+   if(!f.saved){
+    const omit=make('button',card,'Omitir línea','secondary');omit.type='button';
+    omit.onclick=()=>{if(!busy){f.checked=false;check.checked=false;preview();}};
+   }
    preview();
   });
   renderAltas();
