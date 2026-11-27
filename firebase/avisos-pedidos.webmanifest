@@ -1,0 +1,24 @@
+{
+  "id": "./uki-sushi-local.html",
+  "name": "Uki · Panel de pedidos",
+  "short_name": "Uki Pedidos",
+  "start_url": "./uki-sushi-local.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f9ece2",
+  "theme_color": "#f9ece2",
+  "icons": [
+    {
+      "src": "avisos-pedidos-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "avisos-pedidos-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
