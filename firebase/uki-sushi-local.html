@@ -1659,7 +1659,15 @@ function ukiEdicionMantieneCobro(d,p){
   firma(p,'envio',envio)===firma(nuevo,'envio',envio);
 }
 function ukiResponsableEdicionUI(d){
- return '<label for="ukiResponsableEdicion">Responsable</label><input id="ukiResponsableEdicion" maxlength="80" autocomplete="off" placeholder="Nombre de quien edita" value="'+esc(d.responsableEdicion||'')+'" oninput="D.responsableEdicion=this.value">';
+ return '<label for="ukiResponsableEdicion">¿Quién hizo este cambio? · Obligatorio</label><input id="ukiResponsableEdicion" maxlength="80" autocomplete="off" aria-required="true" placeholder="Nombre de quien edita" value="'+esc(d.responsableEdicion||'')+'" oninput="D.responsableEdicion=this.value">';
+}
+function ukiValidarResponsableEdicion(d){
+ const nombre=String(d?.responsableEdicion||'').trim().slice(0,80);
+ if(nombre)return nombre;
+ aviso('No se guardó: escribe el nombre de quien hizo la corrección.');
+ const campo=document.getElementById('ukiResponsableEdicion');
+ if(campo){campo.focus();campo.scrollIntoView({block:'center',behavior:'smooth'});}
+ return '';
 }
 function ukiRevisionBancoBorradorValidaQA(d,original=null){
  if(!d.pagado||!ukiSeguimientoHayTransferenciaQA(d)||ukiEdicionMantieneCobro(d,original))return true;
@@ -2337,7 +2345,7 @@ function ukiCorreccionesTurnoUI(p){
     fmt(Math.abs(Number(a.importe)||0))+'</p>':
     aclaracion?'<p class="muted">'+aclaracionTexto+' · '+fmt(Math.abs(Number(a.importe)||0))+
     '</p><p class="muted">Motivo: '+esc(a.detalleMotivo||'Sin detalle')+'</p>':'';
-   const responsable=esc(a.responsable||'No identificado en registros antiguos');
+   const responsable=a.responsable?'Editado por '+esc(a.responsable):'No identificado en registros antiguos';
    return '<div style="padding:12px 0;border-top:1px solid #e9d7c9">'+
     '<p style="margin:0 0 5px"><b>Modificación '+(cambios.length-i)+' · '+responsable+'</b></p>'+
     '<p class="muted" style="margin:0 0 8px">Fecha y hora: '+esc(formatoFecha(a.fechaISO))+'</p>'+
@@ -2383,7 +2391,7 @@ montoProductosOtroLocal:p.productosPagadosOtroLocal?Math.min(Number(p.subtotal)|
 envioPagadoOtroLocal:ukiMontoEnvioOtroLocal(p,Number(p.envio)||0,Number(p.subtotal)||0)>0,
 montoEnvioOtroLocal:p.montoEnvioOtroLocal??"",
 localPagoExterno:p.localPagoExterno||"",propinaModo:p.propinaModo||((Number(p.propina)||0)>0?"otro":"ninguna"),propinaPersonalizada:p.propinaModo==="otro"||!p.propinaModo?p.propina||"": "",medioPropina:p.medioPropina||"Efectivo",
-items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||"",...ukiDatosCatalogoItem(pr)})),ajusteCajaRegularizado:false,responsableEdicion:window.ukiIdentidadEdicionQA?.()||"",editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}];
+items:(p.productos||[]).map(pr=>({nombre:pr.nombre,cant:pr.cantidad,precio:pr.precioUnit,det:pr.detalle||"",...ukiDatosCatalogoItem(pr)})),ajusteCajaRegularizado:false,responsableEdicion:"",editando:id}; if(!D.items.length) D.items=[{nombre:"",cant:1,precio:0,det:""}];
  for(const [key,flag,medio] of [['pagosProductos','mixtoProductos','medio'],['pagosEnvio','mixtoEnvio','medioEnvio']]){
   if(Array.isArray(D[key])&&D[key].length===1){D[medio]=D[key][0].medio||D[medio];D[key]=[];D[flag]=false;}
  }
@@ -5465,6 +5473,7 @@ async function ndGuardar(){
   if(D.editando&&!originalQR){
    aviso('No se encontró el pedido original. Actualiza la lista antes de editar.');return;
   }
+  if(D.editando&&!ukiValidarResponsableEdicion(D))return;
   if(ukiCambioRetiroSinAbonoQA(originalQR,D)&&window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED===true){
    const d=D,sucursal=S.suc;
    if(!esDelPeriodo(originalQR)||ukiCierreConfirmadoPedido(originalQR)){aviso('Este cobro no pertenece a la caja abierta. Revísalo en Historial.');return;}
@@ -5618,29 +5627,20 @@ async function ukiGuardarFormularioQA(originalQR,cobroRectificado=false){
        productos:D.items.filter(x=>x.nombre).map(x=>({nombre:x.nombre,cantidad:x.cant,precioUnit:x.precio,detalle:x.det,...ukiDatosCatalogoItem(x)})),...datosPago};
       const cambiaCobro=ukiPagoModificado(snapshot,propuesta);
       const requiereAjuste=cambiaCobro||!!ukiCobroPendiente(snapshot);
-      let autorizacion='';
-      if(!cierreHistorico){
-        if(!esDelPeriodo(snapshot)){aviso('Solo puedes editar directamente pedidos de la caja abierta.');return;}
-        // La persona confirma su identidad, no se asume el nombre del turno.
-        autorizacion=String(D.responsableEdicion||'').trim().slice(0,80);
-        if(!autorizacion){
-          aviso('No se guardó: escribe el nombre de quien hizo la corrección.');
-          const campo=document.getElementById('ukiResponsableEdicion');
-          if(campo){campo.focus();campo.scrollIntoView({block:'center',behavior:'smooth'});}
-          return;
-        }
-      }
+      if(!cierreHistorico&&!esDelPeriodo(snapshot)){aviso('Solo puedes editar directamente pedidos de la caja abierta.');return;}
+      const autorizacion=ukiValidarResponsableEdicion(D);
+      if(!autorizacion)return;
       let correccionHistorica=null;
       if(cierreHistorico){
         if(Array.isArray(p.qrSolicitudes)&&p.qrSolicitudes.length){
           aviso("Los cobros QR de cierres anteriores no se cambian desde el formulario. Registra la incidencia para revisión.");return;
         }
-        const nota=window.prompt("Este pedido ya pertenece a un cierre confirmado. Escribe tu nombre y el motivo de la corrección (obligatorio):","");
+        const nota=window.prompt("Este pedido ya pertenece a un cierre confirmado. Escribe el motivo de la corrección (obligatorio):","");
         if(!nota||!nota.trim()){aviso("No se guardó: la corrección histórica requiere responsable y motivo.");return;}
         if(!window.confirm("Se corregirá el detalle de este pedido, pero los importes, el PDF y los pagos del cierre original NO se modificarán. ¿Continuar?"))return;
         correccionHistorica={cierreMs:fechaCierreMs(cierreHistorico),
           fechaOperativa:cierreHistorico.fechaOperativa||fechaTurnoRegistro(p),
-          nota:nota.trim().slice(0,400),antes:ukiFotoCorreccionPedido(p)};
+          nota:(autorizacion+' · '+nota.trim()).slice(0,400),antes:ukiFotoCorreccionPedido(p)};
       }
       // Si era premio, no afecta tarjeta
       if(!cierreHistorico && !p.esPremio && p.cliente && p.pagado && !p.productosPagadosOtroLocal){
@@ -5700,7 +5700,7 @@ async function ukiGuardarFormularioQA(originalQR,cobroRectificado=false){
           S.ajustesHistoricos.push({id:S.nextId++,suc:S.suc,tipo:"pedido_corregido",
             cierreMs:correccionHistorica.cierreMs,fechaOperativa:correccionHistorica.fechaOperativa,
             pedidoId:p.id,fechaISO:new Date().toISOString(),registradoEn:Date.now(),
-            nota:correccionHistorica.nota,antes:correccionHistorica.antes,despues});
+            responsable:autorizacion,nota:correccionHistorica.nota,antes:correccionHistorica.antes,despues});
         }
       }
       aviso(`Pedido #${p.id} actualizado por ${fmt(total)}${ukiCobroPendiente(p)?" · Diferencia pendiente "+fmt(Math.abs(p.ajusteCobroPendiente.saldo)):""}${ukiCuentaAbierta(p)?" · Cuenta abierta, pendiente de pago":""}`);
@@ -6950,7 +6950,6 @@ const UKI_OPERACION_HABILITADA=location.hostname==='diannaleandra-art.github.io'
 const auth=getAuth(initializeApp(config)),db=getFirestore(auth.app);
 // Para inventario se utiliza esta misma sesión Google, nunca el PIN del trabajador.
 window.ukiInventarioToken=async()=>auth.currentUser?auth.currentUser.getIdToken():null;
-window.ukiIdentidadEdicionQA=()=>String(auth.currentUser?.displayName||auth.currentUser?.email||'').trim().slice(0,80);
 const cloud=crearSnapshotsUki({db,auth,api:{doc,getDocFromServer,writeBatch,runTransaction},
  blocks:{dividirEstado,reunirEstado},
  codec:{nuevaSal,nuevaGeneracion,derivarClave,cifrarBloque,descifrarBloque},

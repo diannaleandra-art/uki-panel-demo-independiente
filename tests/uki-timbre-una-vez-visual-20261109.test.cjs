@@ -69,7 +69,7 @@ test('Cambio de estado del pago se realiza a través de editar y exige responsab
  assert.equal(context.S.pedidos[0].pagado,true,'el original no cambia hasta guardar la corrección');
  assert.equal(calls[0][0],'editar');
  const src=chunk('function ndGuardar(){','function cerrar(){');
- assert.match(src,/autorizacion=String\(D\.responsableEdicion\|\|''\)/);
+ assert.match(src,/autorizacion=ukiValidarResponsableEdicion\(D\)/);
  assert.match(src,/if\(!autorizacion\)/);
  const nuevo=chunk('function vNuevo(){','function uki');
  assert.match(html,/D\.editando&&[\s\S]*?ukiResponsableEdicionUI\(D\)/);

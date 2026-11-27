@@ -8,7 +8,8 @@ const old={id:688,suc,pagado:false,estado:'Pendiente',modalidad:'Delivery',envio
 const pendiente={...old,modalidad:'Retiro',envio:0,total:21700};
 const draft={editando:688,modalidad:'Retiro',envio:0,items:[{nombre:'Roll',cant:1,precio:21700}],medio:'Transferencia',cartaSolicitudRemotaId:id,responsableEdicion:'Prueba'};
 const ctx={S:{suc},ukiMontoPropina:()=>0,ukiLineasPago:(p,t,m)=>m?[{medio:t==='productos'?p.medio:p.medioEnvio,monto:m}]:[]};
-vm.createContext(ctx);vm.runInContext(extract('function extraerMensajeCartaUki','function leerTextoD')+extract('function ukiPlanRetiroSinAbonoQA','function ukiPideRectificacionPago'),ctx);
+vm.createContext(ctx);vm.runInContext(extract('function extraerMensajeCartaUki','function leerTextoD')+extract('function ukiValidarResponsableEdicion(d){','function ukiRevisionBancoBorradorValidaQA(')+
+  extract('function ukiPlanRetiroSinAbonoQA','function ukiPideRectificacionPago'),ctx);
 test('cambio de entrega conserva productos y pedido, incluso si se confirma el pago nuevo',()=>{assert.equal(ctx.ukiCambioRetiroSinAbonoQA(old,draft),true);assert.equal(ctx.ukiCambioRetiroSinAbonoQA(old,{...draft,pagado:true}),true);});
 test('recupera el delivery original de un retiro ya guardado como por cobrar en cada Uki',()=>{
  for(const branch of ['Uki Regimiento Arica','Uki La Serena']){
@@ -49,6 +50,7 @@ test('un solo guardado, incluso desde Retiro por cobrar, y no se intenta guardar
   }}};
  vm.createContext(caja);
  vm.runInContext(extract('function extraerMensajeCartaUki','function leerTextoD')+
+  extract('function ukiValidarResponsableEdicion(d){','function ukiRevisionBancoBorradorValidaQA(')+
   extract('function ukiPlanRetiroSinAbonoQA','function ukiPideRectificacionPago')+
   extract('async function ndGuardar(){','async function ukiGuardarFormularioQA'),caja);
  await caja.ndGuardar();assert.match(trace[0],/abono real/);assert.equal(trace.length,1);

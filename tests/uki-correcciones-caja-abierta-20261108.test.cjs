@@ -75,10 +75,10 @@ test('Si se desmarca pagado sin devolución, el cobro original sigue visible com
 test('Solo registrar responsable en toda edición y conservar el cierre disponible',()=>{
  assert.match(html,/placeholder="Nombre de quien edita"/);
  assert.match(html,/D\.editando&&[\s\S]*?ukiResponsableEdicionUI\(D\)/);
- assert.match(html,/autorizacion=String\(D\.responsableEdicion\|\|''\)/);
+ assert.match(html,/autorizacion=ukiValidarResponsableEdicion\(D\)/);
  assert.match(html,/ukiTimbreResponsableActual\(\)/);
  assert.match(html,/p\.correccionesTurno\.push/);
- assert.match(html,/if\(!esDelPeriodo\(snapshot\)\)/);
+ assert.match(html,/if\(!cierreHistorico&&!esDelPeriodo\(snapshot\)\)/);
  assert.doesNotMatch(html,/Responsable y motivo de la corrección del pedido/);
  assert.doesNotMatch(html,/if\(t\.correccionesPendientes\)\{/);
  assert.match(html,/ukiCierreConfirmadoPedido\(p\)/);
