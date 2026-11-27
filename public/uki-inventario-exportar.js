@@ -95,6 +95,7 @@
   const msg=['🛒 UKI SUSHI · LISTA PARA COMPRAR',
    'Sucursal: '+branchName(report.branch),
    'Fecha: '+f.fecha+' · '+f.hora+' h (Chile)',
+   ...(report.summary?.fecha_conteos_recuperada?['Conteos del '+report.summary.fecha_conteos_recuperada]:[]),
    'Productos que se deben pedir: '+faltantes.length,''];
   if(!faltantes.length)msg.push('✅ No hay productos para pedir según los mínimos registrados.');
   else faltantes.forEach((x,i)=>msg.push((i+1)+'. '+x.name+' — PEDIR '+x.toBuy+' '+x.unit+
@@ -135,6 +136,7 @@
     'Articulos: '+r.length+'  |  Reponer: '+r.filter(x=>x.status==='Reponer').length+
       '  |  Con entradas: '+entries,
     'Entradas: '+String(report.summary?.entradas_periodo||'sin periodo definido'),
+    ...(report.summary?.fecha_conteos_recuperada?['Conteos del '+report.summary.fecha_conteos_recuperada]:[]),
     ''
   ];
   const lines=[...head];

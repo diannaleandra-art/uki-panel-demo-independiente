@@ -51,9 +51,11 @@ function resumen(items){
 }
 // Informe de entradas usando el registro existente del servidor, no datos inventados.
 // Los conteos reemplazan saldos; nunca se suman como ingresos de mercadería.
-async function entradasDesdeUltimaRevision(sql,branch){
- const prev=await sql.query('SELECT created_at FROM public.uki_inventario_revisiones_live WHERE branch=$1 ORDER BY created_at DESC LIMIT 1',[branch]);
- const cutoff=prev[0]?.created_at||null;
+async function entradasDesdeUltimaRevision(sql,branch,cutoff,fechaRecuperada){
+ if(cutoff===undefined){
+  const prev=await sql.query('SELECT created_at FROM public.uki_inventario_revisiones_live WHERE branch=$1 ORDER BY created_at DESC LIMIT 1',[branch]);
+  cutoff=prev[0]?.created_at||null;
+ }
  const desde="COALESCE($2::timestamptz, date_trunc('day',now() AT TIME ZONE 'America/Santiago') AT TIME ZONE 'America/Santiago')";
  const [catalogo,adicionales]=await Promise.all([
   sql.query("SELECT sku,SUM(cantidad_base) AS recibida FROM public.uki_inventario_movimientos_live WHERE branch=$1 AND accion='entrada' AND creado_en > "+desde+" GROUP BY sku",[branch,cutoff]),
@@ -64,7 +66,27 @@ async function entradasDesdeUltimaRevision(sql,branch){
   const n=Number(item.recibida);
   if(Number.isFinite(n)&&n>=0)bySku.set(String(item.sku),Math.round(n*1000)/1000);
  }
- return {bySku,periodo:cutoff?'Desde revisión anterior':'Hoy desde 00:00 (Chile)'};
+ return {bySku,periodo:fechaRecuperada?'Desde '+fechaRecuperada+' · 00:00 (Chile)':cutoff?'Desde revisión anterior':'Hoy desde 00:00 (Chile)'};
+}
+// En el primer cierre, no perder el conteo de la noche anterior al cambiar de fecha.
+// Solo se ofrece si la bodega aún no tiene cierre y no se empezó otro conteo hoy.
+async function primerCierrePendiente(sql,branch){
+ const rows=await sql.query(`WITH reloj AS (
+   SELECT (now() AT TIME ZONE 'America/Santiago')::date AS hoy
+  ), limites AS (
+   SELECT hoy, hoy::timestamp AT TIME ZONE 'America/Santiago' AS inicio_hoy,
+     (hoy-1)::timestamp AT TIME ZONE 'America/Santiago' AS inicio_ayer
+   FROM reloj
+  ), conteos AS (
+   SELECT creado_en AS fecha FROM public.uki_inventario_movimientos_live,limites
+   WHERE branch=$1 AND accion='conteo' AND creado_en>=inicio_ayer
+   UNION ALL
+   SELECT created_at FROM public.uki_inventario_extras_movimientos_live,limites
+   WHERE branch=$1 AND action='conteo' AND created_at>=inicio_ayer
+  ) SELECT inicio_ayer AS desde,(hoy-1)::text AS fecha_recuperada FROM limites
+  WHERE NOT EXISTS (SELECT 1 FROM conteos WHERE fecha>=inicio_hoy)
+    AND EXISTS (SELECT 1 FROM conteos WHERE fecha<inicio_hoy)`,[branch]);
+ return rows[0]||null;
 }
 // Evidencia de conteo desde la revisión anterior. No presume conteo por saldo existente.
 async function conteosDesdeUltimaRevision(sql,branch,cutoff){
@@ -88,8 +110,13 @@ async function flujoCierre(sql,branch){
  const [cierre]=await sql.query(`SELECT id,created_at,worker_name,items,summary
   FROM public.uki_inventario_revisiones_live WHERE branch=$1
   ORDER BY created_at DESC,id DESC LIMIT 1`,[branch]);
- const counts=await conteosDesdeUltimaRevision(sql,branch,cierre?.created_at||null).catch(()=>null);
- return {cierre:cierre||null,conteos:counts?[...counts].map(([sku,fecha])=>({sku,fecha})):null};
+ let recovered=null,counts=null;
+ try{
+  if(!cierre)recovered=await primerCierrePendiente(sql,branch);
+  counts=await conteosDesdeUltimaRevision(sql,branch,cierre?.created_at||recovered?.desde||null);
+ }catch{}
+ return {cierre:cierre||null,conteos:counts?[...counts].map(([sku,fecha])=>({sku,fecha})):null,
+  ...(counts?.size&&recovered?{fecha_conteos_recuperada:recovered.fecha_recuperada}:{} )};
 }
 function textoReporte(branch,worker,summary,fecha){
  const date=fechaHoraChile(fecha);
@@ -356,11 +383,20 @@ module.exports=async(req,res)=>{
   // una lista libre enviada desde el navegador.
   const requestId=String(input.request_id||'');
   if(!/^[a-f0-9-]{36}$/.test(requestId))return fail(res,400,'Código de revisión inválido');
+  const indicada=input.fecha_conteos_recuperada??null;
+  if(indicada!==null&&!validDate(indicada))return fail(res,400,'Fecha de conteos inválida.');
+  const [prev]=await sql.query('SELECT id,request_id,worker_name,items,summary,created_at FROM public.uki_inventario_revisiones_live WHERE branch=$1 ORDER BY created_at DESC,id DESC LIMIT 1',[branch]);
+  if(prev&&String(prev.request_id)===requestId)return responderCierre(res,branch,worker,prev);
+  const periodo=prev?null:await primerCierrePendiente(sql,branch);
+  const cutoff=prev?.created_at||periodo?.desde||null;
+  const counts=await conteosDesdeUltimaRevision(sql,branch,cutoff).catch(()=>null);
+  const recuperada=counts?.size&&periodo?periodo.fecha_recuperada:null;
+  if(indicada!==recuperada)return fail(res,409,'Cambió el período de los conteos. Vuelve a abrir el inventario y revisa el cierre.');
   const [catalog,added]=await Promise.all([leerInventario(sql,branch),extra.listar(sql,branch)]);
   const data=resumen([...catalog,...added]);
   // Solo enriquecemos la copia del informe. No se actualizan existencias ni caja.
   try{
-   const entradas=await entradasDesdeUltimaRevision(sql,branch);
+   const entradas=await entradasDesdeUltimaRevision(sql,branch,cutoff,recuperada);
    data.items=data.items.map(item=>({...item,received_qty:entradas.bySku.get(item.sku)||0}));
    data.summary.entradas_periodo=entradas.periodo;
    data.summary.entradas_verificadas=true;
@@ -371,14 +407,12 @@ module.exports=async(req,res)=>{
    data.summary.entradas_verificadas=false;
   }
   // Se consulta evidencia de catálogo y artículos adicionales.
-  try{
-   const counts=await conteosDesdeUltimaRevision(sql,branch);
+  if(counts){
    data.items=data.items.map(i=>({...i,conteo_registrado:counts.has(i.sku),conteo_fecha:counts.get(i.sku)||null}));
    data.summary.conteos_verificados=true;
    data.summary.articulos_sin_conteo=data.items.filter(i=>!i.conteo_registrado).length;
-  }catch{
-   data.summary.conteos_verificados=false;
-  }
+   if(recuperada)data.summary.fecha_conteos_recuperada=recuperada;
+  }else data.summary.conteos_verificados=false;
   const created=await sql.query(`INSERT INTO public.uki_inventario_revisiones_live
    (branch,request_id,worker_name,identity,items,summary)
    VALUES($1,$2::uuid,$3,$4,$5::jsonb,$6::jsonb)
@@ -389,12 +423,7 @@ module.exports=async(req,res)=>{
     (await sql.query(`SELECT id,created_at,worker_name,items,summary FROM public.uki_inventario_revisiones_live
       WHERE branch=$1 AND request_id=$2::uuid LIMIT 1`,[branch,requestId]))[0];
   if(!result)return fail(res,409,'No se pudo confirmar el guardado; no reenvíes sin comprobar');
-  const summary=result.summary||data.summary;
-  const reportText=textoReporte(branch,result.worker_name||worker,summary,result.created_at);
-  return res.status(200).json({ok:true,branch,id:result.id,
-   fecha:result.created_at,guardado:true,mensaje:reportText,
-   reporte:{branch,created_at:result.created_at,worker_name:result.worker_name||worker,
-    items:result.items||data.items,summary:result.summary||data.summary}});
+  return responderCierre(res,branch,worker,result);
  }catch(e){
   const status=e?.status||(['23505','40001','P0001'].includes(e?.code)?409:e?.code==='22023'?400:(String(e?.message||'').includes('código')?400:503));
   // Solo identificador de etapa: no mostrar SQL, datos ni el código privado.
@@ -404,4 +433,10 @@ module.exports=async(req,res)=>{
    (etapa==='guardar-minimo'?'No se pudo confirmar el mínimo.':etapa==='guardar-movimiento'?'No se pudo confirmar el movimiento.':'No se pudo abrir el inventario.')+' ('+etiqueta+').':String(e.message));
  }
 };
-module.exports._testing={permitido,admin,resumen,textoReporte,validDate,fechaHoraChile,entradasDesdeUltimaRevision,conteosDesdeUltimaRevision,flujoCierre};
+function responderCierre(res,branch,worker,result){
+ const summary=result.summary||{}, responsable=result.worker_name||worker;
+ return res.status(200).json({ok:true,branch,id:result.id,fecha:result.created_at,guardado:true,
+  mensaje:textoReporte(branch,responsable,summary,result.created_at),
+  reporte:{branch,created_at:result.created_at,worker_name:responsable,items:result.items||[],summary}});
+}
+module.exports._testing={permitido,admin,resumen,textoReporte,validDate,fechaHoraChile,entradasDesdeUltimaRevision,conteosDesdeUltimaRevision,flujoCierre,primerCierrePendiente};

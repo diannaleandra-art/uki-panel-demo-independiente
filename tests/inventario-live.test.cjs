@@ -276,6 +276,7 @@ test('flujo de cierre distingue primer cierre, ningún conteo y conteos no consu
  const sql={query:async(statement,params)=>{
   assert.equal(params[0],'arica');
   if(statement.includes('uki_inventario_revisiones_live'))return [];
+  if(statement.startsWith('WITH reloj'))return [];
   assert.equal(params[1],null);
   assert.match(statement,/America\/Santiago/);
   if(fail)throw Error('DB error');
@@ -284,6 +285,31 @@ test('flujo de cierre distingue primer cierre, ningún conteo y conteos no consu
  assert.deepEqual(await api._testing.flujoCierre(sql,'arica'),{cierre:null,conteos:[]});
  fail=true;
  assert.deepEqual(await api._testing.flujoCierre(sql,'arica'),{cierre:null,conteos:null});
+});
+
+test('el primer cierre después de medianoche recupera conteos reales de ayer y no mezcla un conteo nuevo',async()=>{
+ let startedToday=false;
+ const periodo={desde:'2026-11-26T03:00:00Z',fecha_recuperada:'2026-11-26'};
+ const sql={query:async(q,args)=>{
+  assert.equal(args[0],'serena');
+  if(q.includes('uki_inventario_revisiones_live'))return [];
+  if(q.startsWith('WITH reloj')){
+   assert.match(q,/America\/Santiago/);
+   assert.match(q,/NOT EXISTS \(SELECT 1 FROM conteos WHERE fecha>=inicio_hoy\)/);
+   assert.match(q,/EXISTS \(SELECT 1 FROM conteos WHERE fecha<inicio_hoy\)/);
+   return startedToday?[]:[periodo];
+  }
+  assert.equal(args[1],startedToday?null:periodo.desde);
+  assert.match(q,/HAVING MAX/);
+  assert.match(q,/'entrada'/);
+  if(q.includes('_extras_'))return [];
+  return [{sku:'ingredient:vegetal-ajo',contado_en:startedToday?'2026-11-27T03:15:00Z':'2026-11-27T02:03:50Z'}];
+ }};
+ assert.deepEqual(await api._testing.flujoCierre(sql,'serena'),{cierre:null,
+  conteos:[{sku:'ingredient:vegetal-ajo',fecha:'2026-11-27T02:03:50Z'}],fecha_conteos_recuperada:'2026-11-26'});
+ startedToday=true;
+ assert.deepEqual(await api._testing.flujoCierre(sql,'serena'),{cierre:null,
+  conteos:[{sku:'ingredient:vegetal-ajo',fecha:'2026-11-27T03:15:00Z'}]});
 });
 
 test('las dos entradas al inventario separan Compra, Cierre y consulta del cierre anterior',()=>{

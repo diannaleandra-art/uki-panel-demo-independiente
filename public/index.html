@@ -149,6 +149,7 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 </details>
 <section class="card" id="invHistory" hidden><h2>Reportes por fecha</h2><div class="grid"><div><label for="invHistFrom">Desde</label><input id="invHistFrom" type="date"></div><div><label for="invHistTo">Hasta</label><input id="invHistTo" type="date"></div></div><label for="invHistKind">Informe</label><select id="invHistKind"><option value="revision">Inventario guardado</option><option value="compras">Lo que faltaba pedir al cierre</option><option value="todos">Todos los movimientos</option><option value="entrada">Mercadería recibida</option><option value="conteo">Conteos</option><option value="merma">Mermas</option><option value="personal">Consumo personal</option><option value="traspasos">Traspasos</option></select><button id="invHistLoad" type="button">Consultar</button><p id="invHistStatus" role="status" class="muted"></p><div id="invHistList"></div><div id="invHistActions" hidden><div class="grid"><button type="button" id="invHistPDF">PDF</button><button type="button" id="invHistExcel" class="secondary">Excel (.csv)</button></div><button type="button" id="invHistText" style="margin-top:10px">Enviar por WhatsApp en texto</button></div></section><section class="card" id="invFinish" hidden><h2 id="invFinishTitle">Antes de guardar</h2>
 <p id="invFinishProgress" class="muted" role="status"></p>
+<p id="invFinishRecovered" class="confirmacion-item" role="status" hidden></p>
 <button type="button" id="invReturnCount" class="secondary" data-inv-view="conteo">Ir a hacer inventario</button>
 <button id="enviar" style="margin-top:10px">Guardar cierre</button>
 <p id="confirmacion" role="status"></p>
@@ -174,6 +175,7 @@ const isLive=['uki-sushi-inventario.vercel.app','uki-sushi-inventario-diannalean
 const API='/api/inventario-turno-live';
 let branch='',items=[],busy=false,requestId=null,lastSaved=null,reporteFinal=null,bodegaCompartida=false;
 let cierreGuardado=null,cierreConsultado=false,cierreLocalGuardado=false,conteosVerificados=false,prevLimit=12;
+let fechaConteosRecuperada=null;
 const accesoRomo=new URLSearchParams(location.search).get('acceso')==='romo';
 if(accesoRomo){$('branch').value='serena';$('branch').disabled=true;document.querySelector('header h1').textContent='La Serena · Inventario Uki y Romo';document.querySelector('label[for="codigo"]').textContent='PIN habitual de inventario Romo';}
 const entradasSesion=new Map();
@@ -361,6 +363,7 @@ function aplicarFlujo(flujo){
  cierreConsultado=!!flujo;
  cierreGuardado=flujo?.cierre||null;
  conteosVerificados=Array.isArray(flujo?.conteos);
+ fechaConteosRecuperada=conteosVerificados?flujo.fecha_conteos_recuperada||null:null;
  if(conteosVerificados){
   revisados.clear();horaConteos.clear();
   for(const move of flujo.conteos){
@@ -409,10 +412,14 @@ function renderCierre(){
   (Number(cierreGuardado?.summary?.articulos_sin_conteo)>0?'Cierre parcial guardado en el historial.':'Quedó en el historial de esta bodega.'):
   (contados===0?'Primero entra en «Hacer inventario» y registra lo que quedó. ':progreso+' ')+(pendientes?'Quedan '+pendientes+' artículos por contar.':'')+
   (!conteosVerificados?' Aquí solo se muestran los conteos confirmados en esta sesión.':'');
+ const fechaRecuperada=cierreLocalGuardado?cierreGuardado?.summary?.fecha_conteos_recuperada:fechaConteosRecuperada;
+ const aviso=$('invFinishRecovered');
+ aviso.hidden=!fechaRecuperada;
+ aviso.textContent=fechaRecuperada?'Conteos recuperados del '+fechaRecuperada.split('-').reverse().join('/')+'. No necesitas volver a ingresar las cantidades.':'';
  $('invReturnCount').hidden=cierreLocalGuardado;
  $('enviar').hidden=cierreLocalGuardado;
  $('enviar').disabled=busy||contados===0||cierreLocalGuardado;
- $('enviar').textContent=pendientes?'Guardar cierre parcial':'Guardar cierre de hoy';
+ $('enviar').textContent=pendientes?'Guardar cierre parcial':fechaRecuperada?'Guardar cierre con estos conteos':'Guardar cierre de hoy';
 }
 const revisados=new Set();let visibleLimit=12;
 const horaConteos=new Map();
@@ -775,6 +782,7 @@ function cerrarAcceso(){
  detenerReloj();branch='';items=[];revisados.clear();horaConteos.clear();entradasSesion.clear();
  visibleLimit=12;prevLimit=12;lastSaved=null;requestId=null;reporteFinal=null;cierreLocalGuardado=false;
  cierreGuardado=null;cierreConsultado=false;conteosVerificados=false;$('invPrevSearch').value='';
+ fechaConteosRecuperada=null;
  $('descargasTurno').hidden=true;factura.reset();$('activo').hidden=true;$('invAccess').hidden=false;status('');
 }
 $('branch').onchange=cerrarAcceso;
@@ -822,7 +830,7 @@ $('enviar').onclick=async()=>{
  setBusy(true);$('confirmacion').textContent='Guardando el cierre…';
  try{
   if(!requestId)requestId=crypto.randomUUID();
-  const result=await api('finalizar',{request_id:requestId});
+  const result=await api('finalizar',{request_id:requestId,...(fechaConteosRecuperada?{fecha_conteos_recuperada:fechaConteosRecuperada}:{})});
   if(result.guardado!==true)throw Error('No se confirmó el guardado.');
   const chile=new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',weekday:'long',day:'2-digit',
    month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(result.fecha));
