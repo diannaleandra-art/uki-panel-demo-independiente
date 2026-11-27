@@ -53,7 +53,7 @@ test('ambos paneles usan la misma interfaz y API, con sucursal fija',()=>{
  assert.ok(client.includes("const branchActual=()=>String($('invBranch')?.value||'')"));
  assert.ok(client.includes('body:JSON.stringify({...payload,branch,action})'));
  assert.ok(client.includes("post:(action,payload)=>solicitar(action,payload,branch)"));
- assert.ok(worker.includes("import {iniciarFacturaLive} from './uki-factura-interfaz-live.mjs?v=20261127-factura-edicion-v1'"));
+ assert.ok(worker.includes("import {iniciarFacturaLive} from './uki-factura-interfaz-live.mjs?v=20261127-factura-agil-v1'"));
  assert.ok(common.includes('mountTarget=null'));
  assert.ok(common.includes('mountTarget.append(section)'));
  assert.ok(common.includes("document.getElementById('items')"));
@@ -88,4 +88,29 @@ test('módulo compartido incluye señal para montaje admin sin alterar QR',()=>{
  assert.ok(common.includes('mountTarget.append(section)'));
  assert.ok(common.includes("itemsContainer.parentNode.insertBefore(section,itemsContainer)"));
  assert.match(panel,/uki-facturas-error-version-v2-20261111/);
+});
+
+test('vincula artículos inequívocos de facturas y respeta variantes y catálogo', async()=>{
+ const {vinculoAutomaticoFactura} = await import('../public/uki-factura-lectura-live.mjs');
+ const items=[
+  {sku:'inv:15',name:'Pocillos con tapa 1,5 oz',kind:'inventory'},
+  {sku:'inv:2',name:'Pocillos con tapa 2 oz',kind:'inventory'},
+  {sku:'ing:blanco',name:'Panko blanco',kind:'ingredient'},
+  {sku:'ing:amarillo',name:'Panko amarillo',kind:'ingredient'},
+  {sku:'plato:panko',name:'Panko para vender',kind:'menu'}
+ ];
+ assert.equal(vinculoAutomaticoFactura('POCILLO CTAPA 1.5 0Z (100 unds]',items)?.sku,'inv:15');
+ assert.equal(vinculoAutomaticoFactura('Panko blanco X 1 KG',items)?.sku,'ing:blanco');
+ assert.equal(vinculoAutomaticoFactura('Panko',items),null);
+ assert.equal(vinculoAutomaticoFactura('Panko para vender',items),null);
+ assert.equal(vinculoAutomaticoFactura('Panko blanco X 1 KG',
+  [...items,{sku:'ing:japones',name:'Panko blanco japonés',kind:'ingredient'}]),null);
+});
+
+test('muestra el emisor leído y no confunde su nombre con el comprador', async()=>{
+ const {leerCabeceraFacturaPDF} = await import('../public/uki-factura-lectura-live.mjs');
+ const cuerpo='Rut: 77.557.762-2\nN° 80809\nSeñor(es): INVERSIONES ROMO SPA';
+ assert.equal(leerCabeceraFacturaPDF('Comercializadora Bombo SpA\n'+cuerpo).proveedor,'Comercializadora Bombo SpA');
+ assert.equal(leerCabeceraFacturaPDF(cuerpo).proveedor,'');
+ assert.equal(leerCabeceraFacturaPDF('Proveedor: Distribuidora del Norte\n'+cuerpo).proveedor,'Distribuidora del Norte');
 });
