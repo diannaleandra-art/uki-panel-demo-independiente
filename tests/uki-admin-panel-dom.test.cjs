@@ -82,10 +82,10 @@ async function setup(){
  };
  return {dom,w,requests,downloads,shared,nav};
 }
-test('cuatro secciones, lista corta e inventario en administración con sucursal correcta',async()=>{
+test('cinco secciones, lista corta e inventario en administración con sucursal correcta',async()=>{
  const ctx=await setup(),{w,requests,nav}=ctx,d=w.document;
  try{
-  assert.equal(d.querySelectorAll('[data-uki-tab]').length,4);
+  assert.equal(d.querySelectorAll('[data-uki-tab]').length,5);
   assert.equal(d.getElementById('ukiMiniInventario').hidden,false);
   assert.match(d.getElementById('ukiMiniFilas').textContent,/Pollo/);
   assert.match(d.getElementById('ukiMiniEstado').textContent,/para reponer/);

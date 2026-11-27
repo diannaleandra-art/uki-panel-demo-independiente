@@ -20,14 +20,14 @@ async function solicitar(action,payload={},branch=estado.branch){
  if(!['arica','serena'].includes(branch)||branch!==branchActual())
   throw Error('Cambió la sucursal. Abre nuevamente la factura en el local correcto.');
  const token=await window.ukiInventarioToken?.();
- if(!token)throw Error('Para recibir facturas desde el panel, entra con Google autorizado.');
+ if(!token)throw Error('Ingresa al panel con Google autorizado.');
  // Captura y valida la sucursal antes Y después de esperar Google.
  if(branch!==branchActual())throw Error('Cambió la sucursal antes de guardar.');
  const r=await fetch(API,{method:'POST',mode:'cors',cache:'no-store',credentials:'omit',
   headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
   body:JSON.stringify({...payload,branch,action})});
  const body=await r.json().catch(()=>({}));
- if(!r.ok||body.ok!==true)throw Error(body.error||'No se confirmó el registro de la factura.');
+ if(!r.ok||body.ok!==true||(action==='recibir-panel'&&body.branch!==branch))throw Error(body.error||'El servidor no confirmó la operación.');
  if(branch!==branchActual())throw Error('Cambió la sucursal. Actualiza inventario para comprobar las entradas.');
  return body;
 }
@@ -115,40 +115,62 @@ async function mostrarFactura(){
 }
 function montar(){
  anteriorMontar();
- const mini=$('ukiMiniInventario'),branch=branchActual();
- if(!mini||!['arica','serena'].includes(branch))return;
+ const anchor=$('ukiAdminViewHeader'),mini=$('ukiMiniInventario'),branch=branchActual();
+ if(!anchor||!mini||!['arica','serena'].includes(branch))return;
  if(estado.branch!==branch){
   // Nunca conservar un documento iniciado para un local en otro local.
   estado.branch=branch;estado.items=[];estado.form=null;estado.open=false;
  }
- let details=$('ukiFacturaAdminDetails');
- if(!details){
-  details=document.createElement('details');details.id='ukiFacturaAdminDetails';
-  details.style.cssText='border:1.5px solid #e5bb90;border-radius:14px;background:#fffaf5;margin:14px 0;padding:11px 13px';
-  const summary=document.createElement('summary');
-  summary.textContent='📷 Recibir mercadería con factura';
-  summary.style.cssText='cursor:pointer;color:#87460f;font-size:16px;font-weight:800;padding:6px 0';
-  const info=document.createElement('p');
-  info.className='muted';info.textContent=
-   'Disponible también para administración: foto, PDF o ingreso manual. Misma sucursal y mismo control de duplicados que el acceso del trabajador.';
-  const status=document.createElement('p');status.id='ukiFacturaAdminEstado';
-  status.className='mini-help';status.setAttribute('role','status');
-  status.textContent='Abre este apartado para cargar las facturas.';
-  const host=document.createElement('div');host.id='ukiFacturaAdminMount';
-  details.append(summary,info,status,host);
-  const antes=mini.querySelector('.uki-mini-fields');
-  if(antes)mini.insertBefore(details,antes);else mini.append(details);
+ const previo=$('ukiRecepcionPanel');
+ if(previo?.dataset.sucursal===branch)return;
+ previo?.remove();
+ const section=document.createElement('section');section.id='ukiRecepcionPanel';section.className='card';
+ section.dataset.sucursal=branch;
+ section.hidden=!document.querySelector('[data-uki-tab="recibir"][aria-pressed="true"]');
+ anchor.after(section);
+ const guia=document.createElement('p');
+ guia.className='muted';guia.textContent='Elige una opción por entrega. Si ya la registraste en el enlace del equipo, no la ingreses otra vez.';
+ section.append(guia);
+ function apartado(id,titulo){
+  const details=document.createElement('details');details.id=id;
+  details.style.cssText='border:1.5px solid #e5bb90;border-radius:14px;background:#fffaf5;margin:10px 0;padding:10px 13px;min-width:0';
+  const summary=document.createElement('summary');summary.textContent=titulo;
+  summary.style.cssText='cursor:pointer;color:#75441d;font-size:16px;font-weight:800;padding:9px 0';
+  details.append(summary);section.append(details);return details;
  }
- details.open=estado.open;
- if(estado.form&&details.open){
-  const host=$('ukiFacturaAdminMount');
-  if(host&&!estado.form.isConnected)host.append(estado.form);
- }
- details.ontoggle=()=>{
-  estado.open=details.open;
-  if(details.open)void mostrarFactura();
- };
- if(details.open)void mostrarFactura();
+ const manual=apartado('ukiManualAdminDetails','Registrar manualmente');
+ const factura=apartado('ukiFacturaAdminDetails','Registrar con factura');
+ const local=()=>section.isConnected&&branch===branchActual()&&branch===estado.branch;
+ const manualForm=window.ukiMontarRecepcionManual?.({
+  host:manual,local,
+  cargar:()=>solicitar('articulos',{},branch),
+  guardar:({base,cantidad,unidad,sku,expected_version},snapshot)=>{
+   if(!local())throw Error('Cambió el local.');
+   const payload={cantidad,unidad,sku,expected_version};
+   return solicitar('recibir-panel',payload,branch);
+  },
+  alGuardar:()=>{
+   // Actualizar las consultas existentes. La entrada ya se registró una sola vez.
+   $('invRefresh')?.click();
+   $('ukiMiniActualizar')?.click();
+  }
+ });
+ manual.addEventListener('toggle',()=>{
+  if(manual.open){factura.open=false;manualForm?.cargar();}
+ });
+ const info=document.createElement('p');
+ info.className='muted';info.textContent='Toma una foto, sube el archivo o escribe los productos de la factura. Confirma el folio y las cantidades para evitar duplicados.';
+ const status=document.createElement('p');status.id='ukiFacturaAdminEstado';
+ status.className='mini-help';status.setAttribute('role','status');
+ const host=document.createElement('div');host.id='ukiFacturaAdminMount';
+ factura.append(info,status,host);
+
+ factura.open=estado.open;
+ factura.addEventListener('toggle',()=>{
+  estado.open=factura.open;
+  if(factura.open){manual.open=false;void mostrarFactura();}
+ });
+ if(factura.open)void mostrarFactura();
 }
 window.ukiInventarioMontar=montar;
 })();

@@ -391,7 +391,7 @@ function mount(){
  const root=$('invRoot');
  if(root){
   let anterior=root;
-  for(const id of ['ukiMiniInventario','invAdmin','invNewBox','ukiInvWorkerAccess']){
+  for(const id of ['ukiMiniInventario','invAdmin','invNewBox','invCosteo','ukiInvWorkerAccess']){
    const el=$(id);if(el){anterior.insertAdjacentElement('afterend',el);anterior=el;}
   }
  }

@@ -185,9 +185,11 @@ module.exports=async(req,res)=>{
   return fail(res,400,'Solicitud de inventario inválida');
  const branch=String(input.branch||''),action=String(input.action||'');
  if(!BRANCHES.has(branch))return fail(res,400,'Sucursal no válida');
- if(romoOrigin&&(branch!=='serena'||!['articulos','reportes','historial','revision','crear-articulo','editar-articulo','configurar-unidad'].includes(action)&&!sinCobroAdmin.has(action)&&!traspasosAdmin.has(action)))return fail(res,403,'Romo solo puede administrar la bodega compartida La Serena con Google autorizado.');
- if(!sinCobroAdmin.has(action)&&!traspasosAdmin.has(action)&&!['estado','crear-codigo','listar','contar','recibir','factura-consultar','factura-preparar-articulos','factura-recibir','finalizar','reportes','historial','revision','articulos','crear-articulo','editar-articulo','configurar-unidad','justificar','crear-insumo-trabajador','movimientos-trabajador','revisiones-trabajador','revision-trabajador','guardar-minimo-trabajador'].includes(action))
+ if(romoOrigin&&(branch!=='serena'||!['articulos','reportes','historial','revision','crear-articulo','editar-articulo','configurar-unidad','recibir-panel'].includes(action)&&!sinCobroAdmin.has(action)&&!traspasosAdmin.has(action)))return fail(res,403,'Romo solo puede administrar la bodega compartida La Serena con Google autorizado.');
+ if(!sinCobroAdmin.has(action)&&!traspasosAdmin.has(action)&&!['estado','crear-codigo','listar','contar','recibir','recibir-panel','factura-consultar','factura-preparar-articulos','factura-recibir','finalizar','reportes','historial','revision','articulos','crear-articulo','editar-articulo','configurar-unidad','justificar','crear-insumo-trabajador','movimientos-trabajador','revisiones-trabajador','revision-trabajador','guardar-minimo-trabajador'].includes(action))
   return fail(res,400,'Acción no permitida');
+ if(action==='recibir-panel'&&!romoOrigin&&origin!=='https://diannaleandra-art.github.io')
+  return fail(res,403,'Usa el panel del agendador para registrar entradas.');
  const dbUrl=liveDbUrl();
  if(!dbUrl)return fail(res,503,'Base de inventario no habilitada');
  let sql;
@@ -306,7 +308,7 @@ module.exports=async(req,res)=>{
    action==='factura-recibir';
   let worker;
   etapa='verificando-codigo';
-  if(desdePanel&&req.headers?.authorization){
+  if(action==='recibir-panel'||(desdePanel&&req.headers?.authorization)){
    const uid=await admin(req).catch(()=>null);
    if(!uid)return fail(res,403,'Solo administración Google autorizada.');
    worker='Administración Google · '+uid.slice(0,10);
@@ -422,19 +424,19 @@ module.exports=async(req,res)=>{
    const data=lib.validate('uki:'+branch,input,item,worker);
    return res.status(200).json({...await lib.save(sql,data),branch});
   }
-  if(action==='contar'||action==='recibir'){
+  if(action==='contar'||action==='recibir'||action==='recibir-panel'){
    const sku=String(input.sku||''),n=input.cantidad;
    if(!/^[a-z0-9:-]{3,120}$/.test(sku)||!enteroVersion(input.expected_version))
     return fail(res,400,'Cantidad o artículo no válido');
    const esInsumo=sku.startsWith('inv:');
    const listado=esInsumo?await extra.listar(sql,branch):await leerInventario(sql,branch);
    const actual=listado.find(i=>i.sku===sku);
-   if(!actual)return fail(res,404,'Artículo no encontrado en esta sucursal.');
+   if(!actual||(action==='recibir-panel'&&!esInsumo&&actual.kind!=='ingredient'))return fail(res,404,'Artículo no encontrado en esta sucursal.');
    if(Number(actual.version)!==input.expected_version)
     return fail(res,409,'El inventario cambió. Actualiza antes de guardar.');
    const unidadOrigen=String(input.unidad||actual.stock_unit||'');
    const base=unidades.convertir(n,unidadOrigen,actual.stock_unit);
-   if(action==='recibir'&&base===0)return fail(res,400,'La entrada debe ser mayor que cero.');
+   if(action!=='contar'&&base===0)return fail(res,400,'La entrada debe ser mayor que cero.');
    const detalle={cantidad:n,unidad:unidadOrigen,base,unidadBase:actual.stock_unit};
    etapa='guardar-movimiento';
    if(esInsumo){
@@ -442,7 +444,7 @@ module.exports=async(req,res)=>{
     return res.status(200).json({ok:true,branch,item,registro:detalle});
    }
    const result=await core.guardarMovimiento(sql,branch,sku,action==='contar'?'conteo':'entrada',
-    base,input.expected_version,worker,detalle);
+    base,input.expected_version,worker,action==='recibir-panel'?{...detalle,desdePanel:true}:detalle);
    return res.status(200).json({ok:true,branch,registro:detalle,item:{
     sku:result.sku,stock_qty:result.stock_qty,stock_unit:result.stock_unit,
     available:result.available,min_stock_qty:result.min_stock_qty,version:result.version,
