@@ -28,6 +28,15 @@
           "value": "https://diannaleandra-art.github.io"
         }
       ]
+    },
+    {
+      "source": "/uki-factura-foto-v2.mjs",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "https://diannaleandra-art.github.io"
+        }
+      ]
     }
   ]
 }

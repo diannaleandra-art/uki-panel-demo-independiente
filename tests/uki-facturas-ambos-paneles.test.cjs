@@ -53,7 +53,7 @@ test('ambos paneles usan la misma interfaz y API, con sucursal fija',()=>{
  assert.ok(client.includes("const branchActual=()=>String($('invBranch')?.value||'')"));
  assert.ok(client.includes('body:JSON.stringify({...payload,branch,action})'));
  assert.ok(client.includes("post:(action,payload)=>solicitar(action,payload,branch)"));
- assert.ok(worker.includes("import {iniciarFacturaLive} from './uki-factura-interfaz-live.mjs'"));
+ assert.match(worker,/import \{iniciarFacturaLive\} from '\.\/uki-factura-interfaz-live\.mjs(?:\?v=[^']+)?'/);
  assert.ok(common.includes('mountTarget=null'));
  assert.ok(common.includes('mountTarget.append(section)'));
  assert.ok(common.includes("document.getElementById('items')"));
@@ -62,7 +62,7 @@ test('ambos paneles usan la misma interfaz y API, con sucursal fija',()=>{
 });
 test('módulos públicos tienen CORS limitado al origen propio sin alterar rutas',()=>{
  assert.equal(config.rewrites.length,2);
- for(const name of ['uki-factura-interfaz-live.mjs','uki-factura-lectura-live.mjs']){
+ for(const name of ['uki-factura-interfaz-live.mjs','uki-factura-lectura-live.mjs','uki-factura-foto-v2.mjs']){
   const entry=config.headers.find(h=>h.source==='/'+name);
   assert.ok(entry);
   assert.equal(entry.headers.find(h=>h.key==='Access-Control-Allow-Origin').value,
@@ -87,5 +87,5 @@ test('módulo compartido incluye señal para montaje admin sin alterar QR',()=>{
  assert.match(common,/export const facturaAdmiteMontajeAdmin\s*=\s*true/);
  assert.ok(common.includes('mountTarget.append(section)'));
  assert.ok(common.includes("itemsContainer.parentNode.insertBefore(section,itemsContainer)"));
- assert.match(panel,/uki-facturas-error-version-v2-20261111/);
+ assert.match(panel,/uki-factura-inventario-admin-panel\.js\?v=20261127-foto-v2/);
 });
