@@ -7,7 +7,7 @@
 const anteriorMontar=window.ukiInventarioMontar;
 if(typeof anteriorMontar!=='function')return;
 const API='https://uki-sushi-inventario.vercel.app/api/inventario-turno-live';
-const MODULO='https://uki-sushi-inventario.vercel.app/uki-factura-interfaz-live.mjs?v=uki-facturas-montaje-admin-v2-20261111';
+const MODULO='https://uki-sushi-inventario.vercel.app/uki-factura-interfaz-live.mjs?v=20261127-foto-v2';
 const $=id=>document.getElementById(id);
 const estado={branch:'',items:[],form:null,open:false,loading:null,modulo:null};
 const branchActual=()=>String($('invBranch')?.value||'');
@@ -111,7 +111,7 @@ async function mostrarFactura(){
  estado.loading=(async()=>{
   mensaje('Cargando recepción de facturas…');
   // Reutilizar el módulo del QR. No hay una copia distinta de la lógica de facturas.
-  if(!estado.modulo||estado.moduloBranch!==branch){estado.modulo=import(branch==='romo'?'./uki-factura-interfaz-live.mjs?v=romo-20261121':MODULO);estado.moduloBranch=branch;}
+  if(!estado.modulo||estado.moduloBranch!==branch){estado.modulo=import(branch==='romo'?'./uki-factura-interfaz-live.mjs?v=20261127-foto-v2':MODULO);estado.moduloBranch=branch;}
   const [lib]=await Promise.all([estado.modulo,cargarArticulos(branch)]);
   if(branch!==estado.branch||!contenedor.isConnected||!$('ukiFacturaAdminDetails')?.open)return;
   if(lib.facturaAdmiteMontajeAdmin!==true){

@@ -1,4 +1,5 @@
-import {leerDTE,filasDTE,leerTextoFactura,leerCabeceraFacturaPDF,numeroFactura,opcionesRecepcionFactura,nombrePropuestoFactura,categoriaPropuestaFactura,articuloExistenteFactura} from './uki-factura-lectura-live.mjs';
+import {leerDTE,filasDTE,leerTextoFactura,leerCabeceraFacturaPDF,numeroFactura,opcionesRecepcionFactura,nombrePropuestoFactura,categoriaPropuestaFactura,articuloExistenteFactura} from './uki-factura-lectura-live.mjs?v=20261127-foto-v2';
+import {reconocerFotoFactura} from './uki-factura-foto-v2.mjs?v=20261127-foto-v2';
 // Señal de compatibilidad: el módulo antiguo solo sirve para el QR del trabajador.
 export const facturaAdmiteMontajeAdmin = true;
 export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreated,mountTarget=null}){
@@ -347,10 +348,17 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
   });
  }
  async function foto(file){
-  const lib=await script('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js','Tesseract');
-  const worker=await lib.createWorker('spa');
-  try{return String((await worker.recognize(file)).data?.text||'');}
-  finally{await worker.terminate();}
+  const address=URL.createObjectURL(file),img=new Image();
+  let worker;
+  try{
+   await new Promise((resolve,reject)=>{
+    img.onload=resolve;img.onerror=()=>reject(Error('No se pudo abrir esta foto. Usa JPG o PNG, o sube el PDF/XML original.'));
+    img.src=address;
+   });
+   const lib=await script('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js','Tesseract');
+   worker=await lib.createWorker('spa',1,{langPath:'https://tessdata.projectnaptha.com/4.0.0_fast'});
+   return await reconocerFotoFactura(img,worker,{items:getItems(),progreso:estado});
+  }finally{URL.revokeObjectURL(address);if(worker)await worker.terminate();}
  }
  async function pdfTexto(file){
   const lib=await script('https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js','pdfjsLib');
@@ -383,19 +391,22 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
     preparar(filasDTE(dte,getItems()),dte);
    }else{
     if(ext!=='pdf'&&!file.type.startsWith('image/'))throw Error('Solo imagen, PDF o XML.');
-    const texto=ext==='pdf'?await pdfTexto(file):await foto(file);
+    const resultado=ext==='pdf'?null:await foto(file);
+    const texto=resultado?resultado.texto:await pdfTexto(file);
+    const filasLeidas=resultado?.filas||leerTextoFactura(texto,getItems());
     el('factTextoBox').hidden=false;el('factTexto').value=texto.slice(0,20000);
-    preparar(leerTextoFactura(texto,getItems()),leerCabeceraFacturaPDF(texto));
+    preparar(filasLeidas,resultado?.meta||leerCabeceraFacturaPDF(texto));
+    if(resultado?.lecturaParcial&&texto.trim())
+     estado('Lectura posiblemente incompleta: '+filasLeidas.length+' línea(s). Compara todas con la factura antes de registrar. Puedes subir el PDF/XML original o tomar otra foto de la hoja completa.');
     if(/\.pdf\b/i.test(texto)&&/\d+\.pdf/i.test(texto)&&
-       leerTextoFactura(texto,getItems()).length<=1)
+       filasLeidas.length<=1)
      estado('Parece una foto de la pantalla de un PDF. Para leer la factura completa, pulsa «Subir archivo» y elige el PDF original desde Archivos. No guardes hasta verificar cantidades.');
     if(!texto.trim())estado('No se pudo leer texto; prueba otra foto o agrega productos manualmente.');
    }
   }catch(e){estado('No se pudo leer: '+e.message+'. Puedes ingresar manualmente.');el('factAcciones').hidden=false;}
   finally{busy=false;el('factGuardar').disabled=false;mostrarModo(modo);}
  }
- el('factFoto').onchange=e=>importar(e.target.files?.[0]);
- el('factArchivo').onchange=e=>importar(e.target.files?.[0]);
+ for(const id of ['factFoto','factArchivo'])el(id).onchange=e=>{const file=e.target.files?.[0];e.target.value='';void importar(file);};
  el('factReleer').onclick=()=>preparar(leerTextoFactura(el('factTexto').value,getItems()),leerCabeceraFacturaPDF(el('factTexto').value));
  el('factAnadir').onclick=()=>{
   filas.push({nombre:'Producto manual',linea:filas.length+1,cantidad:'',unidad:'',totalCantidad:'',totalUnidad:'',entrega:1,solicitud:crypto.randomUUID(),sku:'',checked:false,saved:false,prev:null,entregas:[],nuevoNombre:'',nuevaUnidad:'',nuevaCategoria:'',prepararNuevo:false});render();

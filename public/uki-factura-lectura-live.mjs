@@ -30,6 +30,7 @@ export function nombrePropuestoFactura(descripcion=''){
   [/champi/,'Champiñones'],
   [/salsa de soya/,'Salsa de soya'],
   [/palillos? de sushi/,'Palillos de sushi'],
+  [/panko\s+blanco/,'Panko blanco'],
   [/panko/,'Panko amarillo'],
   [/arroz/,'Arroz'],
   [/nori/,'Nori'],
@@ -93,7 +94,7 @@ export function coincidencia(nombre,items=[]){
 }
 
 function propuestaPresentacion(nombre,cantidadFactura,unidadOriginal){
- const desc=String(nombre||''),q=numeroFactura(cantidadFactura);
+ const desc=String(nombre||'').replace(/(\d)\s*KL(?=\s|[)]|$)/gi,'$1 KG'),q=numeroFactura(cantidadFactura);
  if(!Number.isFinite(q))return {cantidad:'',unidad:'',nota:'Cantidad de factura no válida; verifica el documento.'};
  if(unidadOriginal!=='un'){
   return {cantidad:cantidadFactura,unidad:unidadOriginal,
@@ -133,9 +134,9 @@ function propuestaPresentacion(nombre,cantidadFactura,unidadOriginal){
 }
 export function leerCabeceraFacturaPDF(texto){
  const s=String(texto||'');
- const folio=s.match(/(?:N[°º]\s*|Folio\s*:?\s*)(\d{4,10})\b/i)?.[1]||'';
+ const folio=s.match(/(?:N[°º?*o]\s*|Folio\s*:?\s*)(\d{4,10})\b/i)?.[1]||'';
  const rut=s.match(/R\.?\s*U\.?\s*T\.?\s*:\s*([\d.]{7,12}-[\dkK])/i)?.[1]||'';
- const proveedor=s.match(/^\s*([A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ\s.]{5,95}\b(?:SPA|S\.A\.|LTDA))\s*$/m)?.[1]?.trim()||'';
+ const proveedor=s.split(/\r?\n/).map(l=>l.trim()).find(l=>/^[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ .]{5,95}\b(?:SPA|S\.A\.|LTDA)$/.test(l))||'';
  const sucursalSugerida=/OBSERVACI[ÓO]N:?\s*REGIMIENTO/i.test(s)?'arica':'';
  return {folio,rut,proveedor,sucursalSugerida};
 }
@@ -143,12 +144,13 @@ export function leerCabeceraFacturaPDF(texto){
 export function leerTextoFactura(texto,items=[]){
  const salida=[],vistas=new Set();
  for(const lineaCruda of String(texto||'').split(/\r?\n/).slice(0,180)){
-  const linea=lineaCruda.replace(/\s+/g,' ').trim();
+  const linea=lineaCruda.replace(/\s+/g,' ').trim()
+   .replace(/(?<=\d)[.':](?=\s*(?:Un|Und|Kg|Kgs|Gr|G|Lt|L|Ml)\b)/gi,' ');
   if(linea.length<3||/^(?:total|subtotal|iva|neto|descuento|rut|fecha|folio|factura|boleta|sucursal|proveedor|cantidad\s|precio\s|monto\s)/i.test(normalizar(linea)))continue;
   // PDF chileno con columnas: descripción | cantidad | unidad | precio | total.
   // Separar desde la derecha: los números en la descripción son presentaciones,
   // mientras que los dos números de la derecha son montos en pesos.
-  const tabla=linea.match(/^(.{3,180}?)\s+(\d{1,6}(?:[.,]\d{1,3})?)\s+(Un|Und|Uds|Kg|Kgs|G|Gr|Grs|Lt|Lts|L|Ml|Porciones?)\s+(\d{1,3}(?:\.\d{3})*|\d+)\s+(?:[-–—]\s*)?(\d{1,3}(?:\.\d{3})*|\d+)$/i);
+  const tabla=linea.replace(/(\d),(?=\d{3}(?:\s|$))/g,'$1.').match(/^(.{3,180}?)\s+(\d{1,6}(?:[.,]\d{1,3})?)\s+(Un|Und|Uds|Kg|Kgs|G|Gr|Grs|Lt|Lts|L|Ml|Porciones?)\s+(\d{1,3}(?:\.\d{3})*|\d+)\s+(?:[-–—]\s*)?(\d{1,3}(?:\.\d{3})*|\d+)$/i);
   if(tabla){
    const nombreTabla=tabla[1],qFactura=tabla[2],uFactura=unidadFactura(tabla[3]);
    const proposed=propuestaPresentacion(nombreTabla,qFactura,uFactura);
