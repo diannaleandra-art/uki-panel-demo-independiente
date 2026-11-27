@@ -194,18 +194,165 @@ function drawReport(root,data){
   }
  }
 }
+function compactReport(data,dia,local){
+ const lines=['📋 Resumen de inventario · '+local,'Fecha del inventario: '+dia.split('-').reverse().join('/'),
+  data.hasClose?'Cierre registrado.':'Sin cierre. El conteo queda pendiente.',''];
+ const output=[];
+ for(const row of data.prepared||[])output.push('• '+row.ingredient+': '+nt(row.grams)+' g · '+(reasons[row.motivo]||row.motivo)+' · '+(brands[row.store]||row.store));
+ const movements=(data.rows||[]).filter(r=>Number(r.received)>0||Number(r.justified?.transferIn)>0||Number(r.justified?.transferOut)>0);
+ lines.push('CONSUMO ESTIMADO SEGÚN RECETAS');
+ if(!output.length)lines.push('Sin cantidades de recetas verificadas.');
+ lines.push(...output.slice(0,24));
+ if(output.length>24)lines.push('… y '+(output.length-24)+' líneas más en el panel.');
+ lines.push('','ENTRADAS Y TRASPASOS REGISTRADOS');
+ if(!movements.length)lines.push('No aparecen movimientos en esta consulta.');
+ for(const r of movements.slice(0,12)){
+  const f=v=>nt(v)+' '+r.unit;
+  const j=r.justified||{};
+  lines.push('• '+r.name+' · '+[Number(r.received)>0?'mercadería '+f(r.received):'',Number(j.transferIn)>0?'entró '+f(j.transferIn):'',Number(j.transferOut)>0?'salió '+f(j.transferOut):''].filter(Boolean).join(' · '));
+ }
+ if(movements.length>12)lines.push('… y '+(movements.length-12)+' insumos más en el panel.');
+ if(data.hasClose){
+  const counted=(data.rows||[]).filter(r=>r.final!=null);
+  lines.push('','CONTEO FÍSICO AL CIERRE','Insumos con conteo de cierre en el reporte: '+counted.length+'.');
+  const ordered=[...counted].sort((a,b)=>Number(!!b.difference)-Number(!!a.difference)||Number(b.final>0)-Number(a.final>0)||a.name.localeCompare(b.name,'es'));
+  for(const r of ordered.slice(0,10)){
+   const f=v=>nt(v)+' '+r.unit;
+   lines.push('• '+r.name+' · quedó '+f(r.final)+(r.initial!=null?' · había '+f(r.initial):'')+(r.difference!=null&&r.difference!==0?' · diferencia por revisar '+f(r.difference):''));
+  }
+  if(counted.length>10)lines.push('… y '+(counted.length-10)+' insumos más en el panel.');
+ }
+ if(data.itemsPending||data.sales?.some(s=>s.partialWindow))lines.push('Hay recetas o períodos de venta incompletos. Revisa el detalle en el panel.');
+ lines.push('','Resumen informativo. No modifica existencias.');
+ return lines.join('\n');
+}
+
+const transferDrafts=new Map(),transferPending=new Map();
+const transferUnits={kg:['kg','g'],g:['g','kg'],l:['l','ml'],ml:['ml','l'],un:['un'],porciones:['porciones']};
+function mountTransfers(calendar){
+ if($('ukiAgendaTraspasos'))return;
+ const active=suc();
+ const details=el('details');details.id='ukiAgendaTraspasos';details.className='card';
+ const title=el('summary','⇄ Traspasos entre locales');title.style.cssText='cursor:pointer;font-weight:750;padding:10px 0';
+ details.append(title,el('p','Registra aquí lo que envías o recibes de otra bodega. Usa el mismo folio en la salida y la recepción. Si ya se registró en el enlace de cocina, no lo repitas.'));
+ const state=statusIn(details),form=el('form');form.hidden=true;
+ form.append(el('p','El traspaso queda en la misma bitácora de cocina. Las existencias se verifican con el conteo físico, sin duplicar el movimiento como compra.'));
+ const direction=field(form,'Movimiento','tipo',[['traspaso_salida','Enviamos a otro local'],['traspaso_entrada','Recibimos de otro local']]);
+ const other=field(form,'Otra bodega','destino',[]);
+ const who=field(form,'Nombre de quien registra','responsable');who.maxLength=60;who.required=true;
+ const search=field(form,'Buscar insumo','buscar',null,'search');search.placeholder='Ej. pollo o arroz';
+ const sku=field(form,'Insumo','sku',[]);sku.required=true;
+ const qty=field(form,'Cantidad','cantidad');qty.inputMode='decimal';qty.placeholder='Ej. 1,5';qty.required=true;
+ const unit=field(form,'Unidad','unidad',[]);unit.required=true;
+ const ref=field(form,'Folio del traspaso','folio');ref.maxLength=40;ref.required=true;ref.autocapitalize='characters';ref.placeholder='Ej. TR-1234';
+ const gen=button('Crear folio para la salida',()=>{ref.value='TR-'+crypto.randomUUID().slice(0,13).replace('-','').toUpperCase();saveDraft();});
+ form.append(gen);
+ const note=field(form,'Motivo o detalle','motivo');note.maxLength=180;note.required=true;note.placeholder='Ej. Reposición entre locales';
+ const submit=el('button','Guardar traspaso');submit.type='submit';submit.className='big';form.append(submit);
+ const confirm=statusIn(form);details.append(form);
+ const history=el('div');details.append(history);
+ const refresh=button('Actualizar traspasos',()=>void load());details.append(refresh);
+ let items=[],names={},loaded=false,loading=false,saving=false;
+ const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+ function units(prior=unit.value){
+  const item=items.find(i=>i.sku===sku.value);
+  unit.replaceChildren(...(transferUnits[item?.unit]||[]).map(u=>new Option(u,u)));
+  if([...unit.options].some(o=>o.value===prior))unit.value=prior;
+ }
+ function products(prior=sku.value){
+  const found=items.filter(i=>i.sku===prior||norm(i.name).includes(norm(search.value)));
+  sku.replaceChildren(new Option('Selecciona el insumo',''),...found.map(i=>new Option(i.name,i.sku)));
+  if(found.some(i=>i.sku===prior))sku.value=prior;
+  units();
+ }
+ function saveDraft(){
+  transferDrafts.set(active,{tipo:direction.value,otro:other.value,quien:who.value,search:search.value,sku:sku.value,cantidad:qty.value,unidad:unit.value,folio:ref.value,motivo:note.value});
+ }
+ function setDirection(){gen.hidden=direction.value!=='traspaso_salida';}
+ direction.onchange=()=>{setDirection();saveDraft();};
+ search.oninput=()=>{products();saveDraft();};
+ sku.onchange=()=>{units();saveDraft();};
+ form.oninput=saveDraft;form.onchange=saveDraft;
+ function renderRows(rows){
+  history.replaceChildren(el('h4','Últimos traspasos de esta bodega'));
+  if(!rows.length){history.append(el('p','Todavía no hay traspasos registrados.'));return;}
+  const t=table(history,['Fecha','Movimiento','Insumo','Bodega / folio']);
+  for(const r of rows)t.row([hour(r.created_at),
+   (r.kind==='traspaso_salida'?'Salida':'Recepción')+' · '+r.worker,r.name+' · '+nt(r.quantity)+' '+r.unit,
+   (names[r.counterparty]||brands[r.counterparty]||r.counterparty)+' · '+r.transfer_ref]);
+ }
+ async function load(){
+  if(loading||saving)return;
+  loading=true;refresh.disabled=true;state.textContent='Consultando traspasos…';
+  try{
+   const data=await request('traspasos-panel');
+   if(!details.isConnected||active!==suc())return;
+   const prev=transferDrafts.get(active);
+   names={'uki:arica':'Regimiento Arica','uki:serena':data.shared?'La Serena · Uki y Romo':'Uki La Serena',...(!data.shared?{'romo:serena':'Romo La Serena'}:{})};
+   items=[...data.items].sort((a,b)=>a.name.localeCompare(b.name,'es'));
+   const alternatives=Object.entries(names).filter(([k])=>k!=='uki:'+data.branch);
+   other.replaceChildren(new Option('Selecciona la otra bodega',''),...alternatives.map(([k,v])=>new Option(v,k)));other.required=true;
+   if(prev){
+    direction.value=prev.tipo;other.value=prev.otro;who.value=prev.quien;search.value=prev.search;qty.value=prev.cantidad;ref.value=prev.folio;note.value=prev.motivo;
+    products(prev.sku);units(prev.unidad);
+   }else products('');
+   if(!other.value&&alternatives.length===1)other.value=alternatives[0][0];
+   setDirection();renderRows(data.transfers);
+   form.hidden=false;loaded=true;state.textContent='';
+  }catch(error){if(details.isConnected)state.textContent=error.message;}
+  finally{loading=false;refresh.disabled=false;}
+ }
+ form.onsubmit=async event=>{
+  event.preventDefault();
+  if(saving||loading||active!==suc())return;
+  const amount=qty.value.trim(),folio=ref.value.trim().toUpperCase();
+  if(!/^\d{1,6}(?:[.,]\d{1,3})?$/.test(amount)||Number(amount.replace(',','.'))<=0||!/^[A-Z0-9-]{4,40}$/.test(folio)){
+   confirm.textContent='Indica una cantidad mayor que cero y un folio de 4 a 40 letras, números o guiones.';return;
+  }
+  const body={tipo:direction.value,contraparte:other.value,responsable:who.value.trim(),sku:sku.value,cantidad:Number(amount.replace(',','.')),unidad:unit.value,folio,motivo:note.value.trim()};
+  const key=JSON.stringify(body),pending=transferPending.get(active);
+  if(pending&&pending.key!==key){confirm.textContent='Hay un traspaso sin confirmar. Reintenta con los mismos datos antes de registrar otro.';return;}
+  const id=pending?.id||crypto.randomUUID();
+  transferPending.set(active,{key,id});
+  saveDraft();saving=true;submit.disabled=true;confirm.textContent='Guardando traspaso…';
+  try{
+   const r=await request('guardar-traspaso-panel',{...body,request_id:id});
+   if(r.request_id!==id||(!r.registered&&!r.duplicated))throw Error('No se pudo verificar. Reintenta con el mismo folio.');
+   transferPending.delete(active);
+   transferDrafts.set(active,{tipo:body.tipo,otro:body.contraparte,quien:body.responsable,search:'',sku:'',cantidad:'',unidad:'',folio:'',motivo:''});
+   if(details.isConnected)confirm.textContent='✓ '+(r.duplicated?'Ya estaba confirmado':'Traspaso registrado')+' · Folio '+r.folio+'. No modificó las existencias.';
+   else $('ukiAgendaTraspasos')?.querySelector('[role=status]')?.append(document.createTextNode('Traspaso confirmado · '+r.folio+'.'));
+  }catch(error){
+   if([400,403,404,409].includes(error.status))transferPending.delete(active);
+   if(details.isConnected)confirm.textContent=error.message;
+   return;
+  }finally{saving=false;submit.disabled=false;}
+  if(details.isConnected)void load();
+ };
+ details.addEventListener('toggle',()=>{if(details.open&&!loaded)void load();});
+ calendar.append(details);
+}
+
 function mountReport(calendar){
  if($('ukiConsumoPorDia'))return;
  const node=card('ukiConsumoPorDia','Consumo por día');
  const text=el('p','Ventas, consumos sin cobro y conteo físico en una misma consulta. No modifica existencias.');
  const content=el('div'),state=statusIn(node);node.append(text,content);
+ const share=el('a','Compartir resumen por WhatsApp');share.className='sm';share.target='_blank';share.rel='noopener noreferrer';
+ share.style.cssText='display:inline-block;margin:4px 8px;';share.style.display='none';
  let run=0;
  const go=button('Ver consumo del día',async()=>{
   const actual=++run, dia=$('ukiInvDia')?.value||today();state.textContent='Consultando '+dia+'…';content.replaceChildren();
-  try{const r=await request('consumo-por-dia',{dia});if(actual!==run||!node.isConnected)return;state.textContent='Día consultado '+dia;drawReport(content,r);}
+  share.removeAttribute('href');share.style.display='none';
+  try{
+   const r=await request('consumo-por-dia',{dia});if(actual!==run||!node.isConnected||dia!==($('ukiInvDia')?.value||today()))return;
+   state.textContent='Día consultado '+dia;drawReport(content,r);
+   share.href='https://wa.me/?text='+encodeURIComponent(compactReport(r,dia,brands[(suc()==='Romo’s Sushi La Serena'?'romo':'uki')+':'+branch()]||suc()));
+   share.style.display='inline-block';
+  }
   catch(error){if(actual===run&&node.isConnected)state.textContent=error.message;}
  });
- node.insertBefore(go,state);
+ node.insertBefore(go,state);node.insertBefore(share,state);
  // Mantener el reporte dentro de la misma tarjeta que contiene el calendario, incluso si cambia de pestaña.
  calendar.append(node);
  calendar.addEventListener('change',e=>{if(e.target.id==='ukiInvDia'&&content.childNodes.length)queueMicrotask(()=>go.click());});
@@ -241,7 +388,7 @@ function setup(){
   scheduled=false;
   if(!branch())return;
   const calendar=$('ukiInvCalendario');
-  if(calendar&&view()==='inventario')mountReport(calendar);
+  if(calendar&&view()==='inventario'){mountTransfers(calendar);mountReport(calendar);}
   const heading=app.querySelector('.section-head');
   if(view()==='nuevo'&&heading&&!$('ukiSinCobroEntrada')&&typeof D!=='undefined'&&!D.editando&&!D.cartaSolicitudRemotaId&&
    heading.querySelector('h2')?.textContent.trim()==='Nuevo pedido')newForm(heading);

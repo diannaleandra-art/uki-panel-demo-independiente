@@ -14,6 +14,7 @@ const PROJECT='uki-panel-f4909';
 const BRANCHES=new Set(['arica','serena']);
 const BRANCH_NAME={arica:'Regimiento Arica',serena:'La Serena'};
 const sinCobroAdmin=new Set(['guardar-salida-sin-cobro','consumo-por-dia','delivery-sin-cobro']);
+const traspasosAdmin=new Set(['traspasos-panel','guardar-traspaso-panel']);
 const fail=(res,status,error)=>res.status(status).json({ok:false,error});
 // Orígenes exactos. Administración se valida además con token Google autorizado.
 const permitido=origin=>new Set([
@@ -184,8 +185,8 @@ module.exports=async(req,res)=>{
   return fail(res,400,'Solicitud de inventario inválida');
  const branch=String(input.branch||''),action=String(input.action||'');
  if(!BRANCHES.has(branch))return fail(res,400,'Sucursal no válida');
- if(romoOrigin&&(branch!=='serena'||!['articulos','reportes','historial','revision','crear-articulo','editar-articulo','configurar-unidad'].includes(action)&&!sinCobroAdmin.has(action)))return fail(res,403,'Romo solo puede administrar la bodega compartida La Serena con Google autorizado.');
- if(!sinCobroAdmin.has(action)&&!['estado','crear-codigo','listar','contar','recibir','factura-consultar','factura-preparar-articulos','factura-recibir','finalizar','reportes','historial','revision','articulos','crear-articulo','editar-articulo','configurar-unidad','justificar','crear-insumo-trabajador','movimientos-trabajador','revisiones-trabajador','revision-trabajador','guardar-minimo-trabajador'].includes(action))
+ if(romoOrigin&&(branch!=='serena'||!['articulos','reportes','historial','revision','crear-articulo','editar-articulo','configurar-unidad'].includes(action)&&!sinCobroAdmin.has(action)&&!traspasosAdmin.has(action)))return fail(res,403,'Romo solo puede administrar la bodega compartida La Serena con Google autorizado.');
+ if(!sinCobroAdmin.has(action)&&!traspasosAdmin.has(action)&&!['estado','crear-codigo','listar','contar','recibir','factura-consultar','factura-preparar-articulos','factura-recibir','finalizar','reportes','historial','revision','articulos','crear-articulo','editar-articulo','configurar-unidad','justificar','crear-insumo-trabajador','movimientos-trabajador','revisiones-trabajador','revision-trabajador','guardar-minimo-trabajador'].includes(action))
   return fail(res,400,'Acción no permitida');
  const dbUrl=liveDbUrl();
  if(!dbUrl)return fail(res,503,'Base de inventario no habilitada');
@@ -194,6 +195,28 @@ module.exports=async(req,res)=>{
  catch{return fail(res,503,'Base de inventario no disponible');}
  let etapa='autorizacion';
  try{
+  if(traspasosAdmin.has(action)){
+   if(!romoOrigin&&origin!=='https://diannaleandra-art.github.io')return fail(res,403,'Usa el panel del agendador.');
+   const uid=await admin(req).catch(()=>null);
+   if(!uid)return fail(res,403,'Abre el panel con Google autorizado para registrar traspasos.');
+   if(process.env.UKI_INVENTARIO_JUSTIFICACIONES_ENABLED!=='true')return fail(res,503,'El registro de traspasos no está habilitado.');
+   const lib=require('../lib/inventario-justificaciones-v1.cjs');
+   const shared=process.env.UKI_BODEGA_SERENA_COMPARTIDA==='true';
+   if(action==='traspasos-panel'){
+    etapa='consulta-catalogo';
+    const [catalog,added,entries]=await Promise.all([leerInventario(sql,branch),extra.listar(sql,branch),lib.recentTransfers(sql,branch)]);
+    const items=[...catalog,...added].filter(i=>['ingredient','inventory'].includes(i.kind)).map(i=>({sku:i.sku,name:i.name,unit:i.stock_unit}));
+    const names=new Map(items.map(i=>[i.sku,i.name]));
+    return res.status(200).json({ok:true,branch,shared,items,transfers:entries.map(i=>({...i,name:names.get(i.sku)||i.sku}))});
+   }
+   const sku=String(input.sku||'');
+   etapa='consulta-catalogo';
+   const catalog=sku.startsWith('inv:')?await extra.listar(sql,branch):await leerInventario(sql,branch);
+   const item=catalog.find(x=>x.sku===sku&&['ingredient','inventory'].includes(x.kind));
+   const data=lib.validatePanelTransfer(branch,input,item,shared);
+   etapa='guardar-traspaso';
+   return res.status(200).json({...await lib.save(sql,data),branch,folio:data.ref});
+  }
   if(sinCobroAdmin.has(action)){
    const uid=await admin(req).catch(()=>null);
    if(!uid)return fail(res,403,'Abre el panel con Google autorizado para usar este registro.');
@@ -477,10 +500,10 @@ module.exports=async(req,res)=>{
  }catch(e){
   const status=e?.status||(['23505','40001','P0001'].includes(e?.code)?409:e?.code==='22023'?400:(String(e?.message||'').includes('código')?400:503));
   // Solo identificador de etapa: no mostrar SQL, datos ni el código privado.
-  const etiqueta=etapa==='guardar-minimo'?'INV-MIN':etapa==='guardar-movimiento'?'INV-GUARDAR':etapa==='consulta-catalogo'?'INV-CAT':etapa==='verificando-codigo'?'INV-PIN':'INV-API';
+  const etiqueta=etapa==='guardar-minimo'?'INV-MIN':etapa==='guardar-traspaso'?'INV-TRASPASO':etapa==='guardar-movimiento'?'INV-GUARDAR':etapa==='consulta-catalogo'?'INV-CAT':etapa==='verificando-codigo'?'INV-PIN':'INV-API';
   console.error('Inventario LIVE error etapa',etiqueta,'tipo',String(e?.code||e?.name||'error').slice(0,70));
   return fail(res,status,status===503?
-   (etapa==='guardar-minimo'?'No se pudo confirmar el mínimo.':etapa==='guardar-movimiento'?'No se pudo confirmar el movimiento.':'No se pudo abrir el inventario.')+' ('+etiqueta+').':String(e.message));
+   (etapa==='guardar-minimo'?'No se pudo confirmar el mínimo.':etapa==='guardar-traspaso'?'No se pudo confirmar el traspaso.':etapa==='guardar-movimiento'?'No se pudo confirmar el movimiento.':'No se pudo abrir el inventario.')+' ('+etiqueta+').':String(e.message));
  }
 };
 function responderCierre(res,branch,worker,result){
