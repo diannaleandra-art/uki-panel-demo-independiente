@@ -53,7 +53,7 @@ test('ambos paneles usan la misma interfaz y API, con sucursal fija',()=>{
  assert.ok(client.includes("const branchActual=()=>String($('invBranch')?.value||'')"));
  assert.ok(client.includes('body:JSON.stringify({...payload,branch,action})'));
  assert.ok(client.includes("post:(action,payload)=>solicitar(action,payload,branch)"));
- assert.ok(worker.includes("import {iniciarFacturaLive} from './uki-factura-interfaz-live.mjs'"));
+ assert.ok(worker.includes("import {iniciarFacturaLive} from './uki-factura-interfaz-live.mjs?v=20261127-factura-edicion-v1'"));
  assert.ok(common.includes('mountTarget=null'));
  assert.ok(common.includes('mountTarget.append(section)'));
  assert.ok(common.includes("document.getElementById('items')"));
