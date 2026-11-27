@@ -16,6 +16,7 @@ test('Romo sincroniza carta y cobra desde Retiro por cobrar en la misma edición
    ukiQACambiarRetiroSinAbono:async (p,d,plan)=>{assert.equal(plan.delivery,1400);trace.push('sincronizar');return {pedidoInterno:'688'};}}};
  vm.createContext(c);
  vm.runInContext(chunk('function extraerMensajeCartaUki','function leerTextoD')+
+  chunk('function ukiValidarResponsableEdicion(d){','function ukiRevisionBancoBorradorValidaQA(')+
   chunk('function ukiPlanRetiroSinAbonoQA','function ukiPideRectificacionPago')+
   chunk('let ukiRomoFormularioGuardandoQA','async function ukiGuardarFormularioQA'),c);
  await c.ndGuardar();assert.deepEqual(trace,['sincronizar','guardar']);assert.equal(d.cambioRetiroSinAbonoQA.pedidoInterno,'688');
