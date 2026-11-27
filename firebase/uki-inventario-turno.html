@@ -100,6 +100,7 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
  <p class="muted">Esta lista muestra lo que el local necesita pedir para reponer. No es un historial de compras realizadas.</p>
  <p id="invPurchaseNote" role="status"></p>
  <p id="resumen" class="muted"></p>
+ <button type="button" id="invPurchaseWhatsApp" disabled>Enviar lo que falta pedir por WhatsApp</button>
  <div id="resumenArticulos" class="reporte-lista" aria-label="Artículos que requieren compra"></div>
 </section>
 <section class="card" id="invQuickAdd" hidden><h2>Crear la ficha de un insumo</h2><p class="muted">Úsalo solo si el insumo no está en la lista. Crear la ficha no suma mercadería ni guarda un conteo.</p><label for="invQuickName">Nombre</label><input id="invQuickName" maxlength="100" placeholder="Ej. Harina"><label for="invQuickCat">Categoría</label><select id="invQuickCat"><option value="ingrediente">Ingrediente</option><option value="envase">Envase</option><option value="otro">Limpieza u otros</option></select><label for="invQuickUnit">Unidad</label><select id="invQuickUnit"><option value="kg">Kilos</option><option value="g">Gramos</option><option value="l">Litros</option><option value="ml">Mililitros</option><option value="un">Unidades</option><option value="porciones">Porciones</option></select><button type="button" id="invQuickSave">Crear insumo</button><p id="invQuickStatus" role="status" class="muted"></p></section><section class="card" id="invListHeader"><h2>Ingredientes e insumos</h2>
@@ -222,11 +223,17 @@ const setBusy=value=>{
  busy=value;$('abrir').disabled=value;$('invPrevRefresh').disabled=value;
  $('items').querySelectorAll('button').forEach(b=>{b.disabled=value;});
  renderCierre();
+ if(invAppMode==='compras')$('invPurchaseWhatsApp').disabled=value||!faltantesParaPedir().length;
 };
+function faltantesParaPedir(){
+ return items.filter(i=>Number(i.min_stock_qty)>0&&Number(i.stock_qty)<Number(i.min_stock_qty))
+  .sort((a,b)=>a.name.localeCompare(b.name,'es'))
+  .map(i=>({...i,pedir:Math.round((Number(i.min_stock_qty)-Number(i.stock_qty))*1000)/1000}));
+}
 function renderCompras(){
  const configured=items.filter(x=>Number(x.min_stock_qty)>0);
- const missing=configured.filter(x=>Number(x.stock_qty)<Number(x.min_stock_qty))
-  .sort((a,b)=>a.name.localeCompare(b.name,'es'));
+ const missing=faltantesParaPedir();
+ $('invPurchaseWhatsApp').disabled=busy||!missing.length;
  $('resumen').textContent=configured.length?
   (items.length-configured.length)+' artículos sin mínimo quedan fuera de esta lista.':'';
  $('invPurchaseNote').textContent=!configured.length?
@@ -238,10 +245,20 @@ function renderCompras(){
   const hay=Number(i.stock_qty)||0,min=Number(i.min_stock_qty),unit=i.stock_unit||'un';
   const row=elt('div',undefined,'reporte-fila');
   row.append(elt('strong',i.name),elt('small','Hay '+formato(hay,unit)+' · Mínimo '+formato(min,unit)+
-   ' · Pedir '+formato(Math.round((min-hay)*1000)/1000,unit)));
+   ' · Pedir '+formato(i.pedir,unit)));
   list.append(row);
  }
 }
+$('invPurchaseWhatsApp').onclick=()=>{
+ if(busy||!branch||invAppMode!=='compras')return;
+ const list=faltantesParaPedir();if(!list.length)return;
+ const sucursal=$('invAppLocal').textContent;
+ const texto=['🛒 LO QUE FALTA PEDIR',sucursal,'',
+  ...list.map(i=>'• '+i.name+' — Pedir '+formato(i.pedir,i.stock_unit||'un')),
+  '','Cantidades sugeridas según las existencias y mínimos registrados.'].join('\n');
+ const enlace='https://wa.me/?text='+encodeURIComponent(texto);
+ const opened=window.open(enlace,'_blank');if(opened)opened.opener=null;else window.location.href=enlace;
+};
 function fechaChile(date){
  const fields=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);
  const get=type=>fields.find(p=>p.type===type).value;

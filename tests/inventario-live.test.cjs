@@ -174,7 +174,7 @@ test('las dos entradas al inventario separan Compra, Cierre y consulta del cierr
   const source=html.match(/<script type="module">([\s\S]+?)<\/script>/)[1];
   assert.doesNotThrow(()=>new (require('node:vm').Script)(source.replace(/^import .*$/gm,'')));
   const purchases=html.match(/<section class="card" id="invPurchases" hidden>[\s\S]*?<\/section>/)[0];
-  assert.doesNotMatch(purchases,/enviar|cierre|reporte.*guardar/i);
+  assert.doesNotMatch(purchases,/id="enviar"|cierre|reporte.*guardar/i);
   assert.match(html,/No se puede calcular cuánto pedir/);
   assert.match(html,/id="invPrevious"/);
   assert.match(source,/invFinish'\)\.hidden=mode!=='reporte'/);
@@ -234,5 +234,28 @@ test('el menú del trabajador separa recepción, conteo, cierre y lo que falta p
   open('reporte');assert.equal(element('invFinish').hidden,false);assert.equal(element('invListHeader').hidden,true);
   open('compras');assert.equal(element('invPurchases').hidden,false);assert.equal(element('invFinish').hidden,true);
   assert.ok(llamadas.includes('factura'));
+ }
+});
+
+test('compras comparte por WhatsApp solo cantidades por pedir de la bodega, sin requerir un cierre',()=>{
+ for(const path of ['public/index.html','firebase/uki-inventario-turno.html']){
+  const html=fs.readFileSync(path,'utf8'),vm=require('node:vm');
+  const buttons={},nodes={invAppLocal:{textContent:'La Serena · Uki y Romo (bodega compartida)'},invPurchaseWhatsApp:buttons,invPurchaseNote:{},resumen:{},resumenArticulos:{replaceChildren(){},append(){}}};
+  const mensajes=[];
+  const ctx={
+   $:id=>nodes[id],branch:'serena',invAppMode:'compras',busy:false,
+   items:[{name:'Aceite',stock_qty:2,min_stock_qty:5,stock_unit:'l'},{name:'Palta',stock_qty:0,min_stock_qty:0,stock_unit:'kg'},{name:'Arroz',stock_qty:2,min_stock_qty:2,stock_unit:'kg'}],
+   elt:()=>({append(){}}),formato:(n,u)=>n+' '+u,
+   window:{open(url,target){assert.equal(target,'_blank');mensajes.push(new URL(url));return {};}}
+  };
+  const a=html.indexOf('function faltantesParaPedir(){'),b=html.indexOf('function fechaChile(date){',a);
+  const render=vm.runInNewContext(html.slice(a,b)+'\nrenderCompras',ctx);
+  render();assert.equal(buttons.disabled,false);
+  buttons.onclick();assert.equal(mensajes.length,1);
+  assert.equal(mensajes[0].hostname,'wa.me');
+  const text=mensajes[0].searchParams.get('text');
+  assert.match(text,/LO QUE FALTA PEDIR/);assert.match(text,/La Serena · Uki y Romo/);
+  assert.match(text,/Aceite — Pedir 3 l/);assert.doesNotMatch(text,/Arroz|Palta/);
+  ctx.items=[];render();assert.equal(buttons.disabled,true);buttons.onclick();assert.equal(mensajes.length,1);
  }
 });
