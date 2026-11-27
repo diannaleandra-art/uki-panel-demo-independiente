@@ -183,3 +183,56 @@ test('las dos entradas al inventario separan Compra, Cierre y consulta del cierr
   assert.doesNotMatch(source,/countValue\.value\s*=\s*String\(qty\)/);
  }
 });
+
+test('el menú del trabajador separa recepción, conteo, cierre y lo que falta pedir',async()=>{
+ for(const page of ['public/index.html','firebase/uki-inventario-turno.html']){
+  const html=fs.readFileSync(path.join(__dirname,'..',page),'utf8');
+  const home=html.slice(html.indexOf('id="invAppHome"'),html.indexOf('id="invAppBar"'));
+  assert.match(home,/data-inv-view="entradas"[^>]*><strong>📦 Mercadería que entra/);
+  assert.match(home,/data-inv-view="conteo"[^>]*><strong>📋 Hacer inventario<\/strong><small>Al finalizar el turno/);
+  assert.match(home,/data-inv-view="reporte"[^>]*><strong>✅ Cerrar inventario de hoy/);
+  assert.match(home,/data-inv-view="compras"[^>]*>[\s\S]*?Lo que falta pedir/);
+  assert.doesNotMatch(home,/data-inv-view="alta"/);
+  assert.match(html,/id="invPurchases" hidden>\s*<p[^>]*>[^<]*No es un historial de compras realizadas/);
+  const nodes=new Map(),nav=[];
+  const element=id=>{if(!nodes.has(id))nodes.set(id,{id,dataset:{},hidden:true,textContent:'',
+   querySelector(){return null;},prepend(el){this.notice=el.textContent;}});return nodes.get(id);};
+  for(const m of html.matchAll(/data-inv-view="([^"]+)"/g))nav.push({dataset:{invView:m[1]}});
+  const llamadas=[],context={
+   $:element,branch:'arica',bodegaCompartida:true,cierreGuardado:null,busy:false,
+   cierreLocalGuardado:false,visibleLimit:12,items:[],reporteFinal:null,requestId:null,
+   cierreTitulo:()=>'',renderAnterior(){},renderCompras(){llamadas.push('compras');},
+   renderCierre(){llamadas.push('cierre');},render(){llamadas.push('lista');},
+   api:async(action,data)=>{llamadas.push({action,data});return {item:{sku:'inv:prueba',name:'Panko'}};},
+   setBusy:v=>{context.busy=v;},elt:(t,value)=>({textContent:value,setAttribute(){}}),
+   window:{scrollTo(){}},document:{querySelectorAll:()=>nav}
+  };
+  element('factModoRecibir').click=()=>llamadas.push('factura');
+  const a=html.indexOf("let invAppMode='inicio'"),b=html.indexOf("$('invCategory').onchange",a);
+  const c=html.indexOf("$('invAppBack').onclick="),d=html.indexOf("$('invPrevSearch').oninput=",c);
+  const vm=require('node:vm');
+  vm.runInNewContext(html.slice(a,b)+html.slice(c,d),context);
+  const open=mode=>nav.find(x=>x.dataset.invView===mode).onclick();
+  open('entradas');
+  assert.deepEqual(['invRecepcion','invListHeader','facturaQA','invFinish'].map(id=>element(id).hidden),[false,true,true,true]);
+  open('entrada');
+  assert.deepEqual(['invRecepcion','invListHeader','facturaQA','invFinish'].map(id=>element(id).hidden),[true,false,true,true]);
+  open('alta');assert.equal(element('invQuickAdd').hidden,false);assert.equal(element('facturaQA').hidden,true);
+  element('invAppBack').onclick();assert.equal(element('invAppTitle').textContent,'Registrar mercadería manualmente');
+  open('alta');element('invQuickName').value='Panko';element('invQuickCat').value='ingrediente';element('invQuickUnit').value='kg';
+  await element('invQuickSave').onclick();
+  assert.equal(element('invAppTitle').textContent,'Registrar mercadería manualmente');
+  assert.equal(element('buscar').value,'Panko');
+  assert.match(element('items').notice,/Ahora registra cuánto llegó/);
+  assert.equal(llamadas.filter(v=>typeof v==='object').length,1);
+  assert.equal(llamadas.find(v=>typeof v==='object').action,'crear-insumo-trabajador');
+  assert.equal(Object.hasOwn(llamadas.find(v=>typeof v==='object').data.item,'stock_qty'),false);
+  element('invAppBack').onclick();open('factura');
+  assert.deepEqual(['invRecepcion','invListHeader','facturaQA','invFinish'].map(id=>element(id).hidden),[true,true,false,true]);
+  element('invAppBack').onclick();element('invAppBack').onclick();
+  open('conteo');assert.equal(element('invCierreBar').hidden,false);
+  open('reporte');assert.equal(element('invFinish').hidden,false);assert.equal(element('invListHeader').hidden,true);
+  open('compras');assert.equal(element('invPurchases').hidden,false);assert.equal(element('invFinish').hidden,true);
+  assert.ok(llamadas.includes('factura'));
+ }
+});

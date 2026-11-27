@@ -56,26 +56,26 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 <label for="nombre">Nombre del trabajador</label><input id="nombre" maxlength="60" placeholder="Nombre de quien cuenta">
 <label for="codigo">Código exclusivo de inventario (6 números)</label>
 <input id="codigo" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="••••••">
-<p class="muted">Este código solo permite contar, registrar mercadería y enviar la revisión. No abre el panel de pedidos.</p>
+<p class="muted">Este código abre solo el inventario, no el panel de pedidos ni la caja.</p>
 <button id="abrir">Abrir inventario</button><p id="estado" role="status" class="muted"></p>
 </section>
 <div id="activo" hidden><section id="invAppHome" class="card inv-app-home">
 <h2>Mi inventario</h2><p id="invAppLocal" class="muted"></p>
+<nav class="inv-app-grid inv-principal" aria-label="Tareas del día">
+ <button type="button" data-inv-view="entradas"><strong>📦 Mercadería que entra</strong><small>Cuando llegue una entrega, registra solo lo recibido, de forma manual o con factura.</small></button>
+ <button type="button" data-inv-view="conteo"><strong>📋 Hacer inventario</strong><small>Al finalizar el turno, anota cuánto quedó de cada producto.</small></button>
+ <button type="button" data-inv-view="reporte"><strong>✅ Cerrar inventario de hoy</strong><small id="invHomeCloseHelp">Después de contar, revisa y guarda el cierre del turno.</small></button>
+</nav>
 <div class="inv-lead">
  <strong id="invPrevHomeTitle">Último cierre guardado</strong>
  <small id="invPrevHomeStatus" class="muted" role="status"></small>
  <button type="button" class="secondary" data-inv-view="anterior">Consultar último cierre</button>
 </div>
-<nav class="inv-app-grid inv-principal" aria-label="Tareas del día">
- <button type="button" data-inv-view="entrada"><strong>📦 Llegó mercadería</strong><small>Registra solo lo que llegó. Puedes usar la foto de la factura.</small></button>
- <button type="button" data-inv-view="conteo"><strong>📋 Cerrar inventario de hoy</strong><small id="invHomeCloseHelp">Al final del turno, cuenta únicamente lo que quedó.</small></button>
-</nav>
 <nav class="inv-app-grid" aria-label="Consultas">
- <button type="button" data-inv-view="compras">🛒<strong>Lista de compras</strong><small>Consulta cuánto pedir</small></button>
+ <button type="button" data-inv-view="compras">🛒<strong>Lo que falta pedir</strong><small>Productos y cantidades que el local necesita reponer.</small></button>
  <button type="button" data-inv-view="historial">🗓<strong>Historial y reportes</strong><small>Consulta y comparte por fecha</small></button>
 </nav>
 <details><summary>Otras tareas</summary><nav class="inv-app-grid" aria-label="Otras tareas">
-<button type="button" data-inv-view="alta">➕<strong>Agregar insumo</strong><small>Preparar artículos nuevos</small></button>
 <button type="button" data-inv-view="merma">🗑<strong>Merma</strong><small>Producto perdido</small></button>
 <button type="button" data-inv-view="personal">🍽<strong>Consumo personal</strong><small>Alimentación del equipo</small></button>
 <button type="button" data-inv-view="traspaso">⇄<strong>Traspasos</strong><small>Entre bodegas</small></button>
@@ -89,15 +89,23 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
  <div id="invPrevList" class="reporte-lista"></div>
  <button type="button" class="secondary" id="invPrevMore" hidden>Mostrar más artículos</button>
 </section>
+<section class="card" id="invRecepcion" hidden>
+ <nav class="inv-app-grid inv-principal" aria-label="Cómo registrar la entrada">
+  <button type="button" data-inv-view="entrada"><strong>Registrar manualmente</strong><small>Busca el insumo y escribe cuánto llegó.</small></button>
+  <button type="button" data-inv-view="factura"><strong>Registrar con factura</strong><small>Toma una foto o sube la factura y revisa las cantidades.</small></button>
+ </nav>
+ <p class="muted">Elige una sola opción por entrega para no sumar la mercadería dos veces.</p>
+</section>
 <section class="card" id="invPurchases" hidden>
+ <p class="muted">Esta lista muestra lo que el local necesita pedir para reponer. No es un historial de compras realizadas.</p>
  <p id="invPurchaseNote" role="status"></p>
  <p id="resumen" class="muted"></p>
  <div id="resumenArticulos" class="reporte-lista" aria-label="Artículos que requieren compra"></div>
 </section>
-<section class="card" id="invQuickAdd" hidden><h2>Nuevo insumo</h2><p class="muted">Si falta un insumo, agrégalo aquí. Luego registra el conteo físico o la entrada, según corresponda.</p><label for="invQuickName">Nombre</label><input id="invQuickName" maxlength="100" placeholder="Ej. Harina"><label for="invQuickCat">Categoría</label><select id="invQuickCat"><option value="ingrediente">Ingrediente</option><option value="envase">Envase</option><option value="otro">Limpieza u otros</option></select><label for="invQuickUnit">Unidad</label><select id="invQuickUnit"><option value="kg">Kilos</option><option value="g">Gramos</option><option value="l">Litros</option><option value="ml">Mililitros</option><option value="un">Unidades</option><option value="porciones">Porciones</option></select><button type="button" id="invQuickSave">Agregar insumo</button><p id="invQuickStatus" role="status" class="muted"></p></section><section class="card" id="invListHeader"><h2>Ingredientes e insumos</h2>
+<section class="card" id="invQuickAdd" hidden><h2>Crear la ficha de un insumo</h2><p class="muted">Úsalo solo si el insumo no está en la lista. Crear la ficha no suma mercadería ni guarda un conteo.</p><label for="invQuickName">Nombre</label><input id="invQuickName" maxlength="100" placeholder="Ej. Harina"><label for="invQuickCat">Categoría</label><select id="invQuickCat"><option value="ingrediente">Ingrediente</option><option value="envase">Envase</option><option value="otro">Limpieza u otros</option></select><label for="invQuickUnit">Unidad</label><select id="invQuickUnit"><option value="kg">Kilos</option><option value="g">Gramos</option><option value="l">Litros</option><option value="ml">Mililitros</option><option value="un">Unidades</option><option value="porciones">Porciones</option></select><button type="button" id="invQuickSave">Crear insumo</button><p id="invQuickStatus" role="status" class="muted"></p></section><section class="card" id="invListHeader"><h2>Ingredientes e insumos</h2>
 <div class="grid"><select id="tipo" aria-label="Tipo de artículo">
 <option value="ingredientes">Ingredientes e insumos</option><option value="productos">Productos para contar</option><option value="todos">Todos</option></select>
-<input id="buscar" placeholder="Buscar pollo, palta…"></div><label for="invCategory">Categoría</label><select id="invCategory"><option value="todos">Todas</option><option value="ingrediente">Ingredientes</option><option value="envase">Envases</option><option value="otro">Limpieza u otros</option></select>
+<input id="buscar" placeholder="Buscar pollo, palta…"></div><p class="muted"><button type="button" class="secondary" data-inv-view="alta">¿No aparece el insumo? Crear ficha</button></p><label for="invCategory">Categoría</label><select id="invCategory"><option value="todos">Todas</option><option value="ingrediente">Ingredientes</option><option value="envase">Envases</option><option value="otro">Limpieza u otros</option></select>
 <div class="grid inv-solo-conteo" style="margin-top:10px"><select id="estadoLista" aria-label="Filtrar inventario por estado">
 <option value="pendiente">Pendientes de contar</option><option value="todos">Todos los artículos</option>
 <option value="contados">Ya contados para este cierre</option>
@@ -112,7 +120,7 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 <div id="items"></div><div id="invMoreWrap" style="text-align:center;margin:10px 16px"><button type="button" id="mostrarMas" class="secondary" hidden>Mostrar 12 artículos más</button></div>
 <section class="card inv-cerrar" id="invCierreBar" hidden>
  <p id="turnoProgreso" role="status" class="pill"></p>
- <button type="button" data-inv-view="reporte">Revisar y guardar cierre</button>
+ <button type="button" data-inv-view="reporte">Ir a cerrar inventario de hoy</button>
 </section>
 <details class="card" id="justMov"><summary><b>Registrar merma, consumo del personal o traspaso</b></summary>
 <p class="muted">Solo deja constancia. No cambia las existencias: cuenta lo que queda al final. Si recibes un traspaso, usa este registro y no lo repitas como compra o entrada de mercadería. Ambas sucursales deben usar el mismo folio.</p>
@@ -123,24 +131,24 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 <label for="justReason">Motivo</label><input id="justReason" maxlength="180" placeholder="Ej. Producto dañado">
 <button type="button" id="justSave">Guardar registro</button><p id="justStatus" role="status" class="muted"></p>
 </details>
-<section class="card" id="invHistory" hidden><h2>Reportes por fecha</h2><div class="grid"><div><label for="invHistFrom">Desde</label><input id="invHistFrom" type="date"></div><div><label for="invHistTo">Hasta</label><input id="invHistTo" type="date"></div></div><label for="invHistKind">Informe</label><select id="invHistKind"><option value="revision">Inventario guardado</option><option value="compras">Lista de compras guardada</option><option value="todos">Todos los movimientos</option><option value="entrada">Mercadería recibida</option><option value="conteo">Conteos</option><option value="merma">Mermas</option><option value="personal">Consumo personal</option><option value="traspasos">Traspasos</option></select><button id="invHistLoad" type="button">Consultar</button><p id="invHistStatus" role="status" class="muted"></p><div id="invHistList"></div><div id="invHistActions" hidden><div class="grid"><button type="button" id="invHistPDF">PDF</button><button type="button" id="invHistExcel" class="secondary">Excel (.csv)</button></div><button type="button" id="invHistText" style="margin-top:10px">Enviar por WhatsApp en texto</button></div></section><section class="card" id="invFinish" hidden><h2 id="invFinishTitle">Antes de guardar</h2>
+<section class="card" id="invHistory" hidden><h2>Reportes por fecha</h2><div class="grid"><div><label for="invHistFrom">Desde</label><input id="invHistFrom" type="date"></div><div><label for="invHistTo">Hasta</label><input id="invHistTo" type="date"></div></div><label for="invHistKind">Informe</label><select id="invHistKind"><option value="revision">Inventario guardado</option><option value="compras">Lo que faltaba pedir al cierre</option><option value="todos">Todos los movimientos</option><option value="entrada">Mercadería recibida</option><option value="conteo">Conteos</option><option value="merma">Mermas</option><option value="personal">Consumo personal</option><option value="traspasos">Traspasos</option></select><button id="invHistLoad" type="button">Consultar</button><p id="invHistStatus" role="status" class="muted"></p><div id="invHistList"></div><div id="invHistActions" hidden><div class="grid"><button type="button" id="invHistPDF">PDF</button><button type="button" id="invHistExcel" class="secondary">Excel (.csv)</button></div><button type="button" id="invHistText" style="margin-top:10px">Enviar por WhatsApp en texto</button></div></section><section class="card" id="invFinish" hidden><h2 id="invFinishTitle">Antes de guardar</h2>
 <p id="invFinishProgress" class="muted" role="status"></p>
-<button type="button" id="invReturnCount" class="secondary" data-inv-view="conteo">Volver al conteo</button>
+<button type="button" id="invReturnCount" class="secondary" data-inv-view="conteo">Ir a hacer inventario</button>
 <button id="enviar" style="margin-top:10px">Guardar cierre</button>
 <p id="confirmacion" role="status"></p>
  <div id="descargasTurno" class="descargas-turno" hidden>
  <strong>Compartir el cierre</strong>
- <p class="muted">Dos envíos distintos: el informe completo en PDF y la lista de compras en un mensaje de WhatsApp.</p>
+ <p class="muted">Puedes compartir el cierre completo en PDF o enviar por WhatsApp solo lo que falta pedir.</p>
  <div style="display:grid;grid-template-columns:1fr;gap:9px;margin:12px 0">
   <button type="button" id="compartirPDFWhatsApp">📄 Compartir PDF por WhatsApp</button>
-  <button type="button" id="enviarInventarioTexto" class="secondary">Enviar inventario completo por WhatsApp (texto)</button><button type="button" id="enviarComprasTexto" class="secondary">🛒 Enviar lista de compras por WhatsApp (texto)</button>
+  <button type="button" id="enviarInventarioTexto" class="secondary">Enviar inventario completo por WhatsApp (texto)</button><button type="button" id="enviarComprasTexto" class="secondary">🛒 Enviar lo que falta pedir por WhatsApp</button>
  </div>
  <p class="muted" id="compartirAyuda">En el iPhone, selecciona WhatsApp al compartir el PDF. El mensaje de compras se envía aparte, con las cantidades para pedir.</p>
  <p class="muted">También puedes descargar los archivos para guardarlos:</p>
  <div class="grid"><button type="button" id="descargarPDF">Descargar PDF</button>
  <button type="button" id="descargarExcel" class="secondary">Excel (.csv)</button></div></div></section>
 </div>
-<footer>Uki Sushi · Revisión independiente de caja y cierres</footer>
+<footer>Uki Sushi · Inventario independiente de pedidos y caja</footer>
 </main>
 <script src="./uki-inventario-exportar.js"></script>
 <script type="module">
@@ -294,11 +302,11 @@ function renderCierre(){
  const progreso=contados+' de '+total+' artículos contados para este cierre.';
  $('turnoProgreso').textContent=progreso;
  $('invHomeCloseHelp').textContent=cierreLocalGuardado?
-  'Cierre guardado. Puedes ver o compartir el informe.':'Al final del turno, cuenta únicamente lo que quedó.';
+  'Cierre guardado. Puedes ver o compartir el informe.':'Después de contar, revisa y guarda el cierre del turno.';
  $('invFinishTitle').textContent=cierreLocalGuardado?'Cierre guardado':'Antes de guardar';
  $('invFinishProgress').textContent=cierreLocalGuardado?
   (Number(cierreGuardado?.summary?.articulos_sin_conteo)>0?'Cierre parcial guardado en el historial.':'Quedó en el historial de esta bodega.'):
-  progreso+(pendientes?' Quedan '+pendientes+' por contar.':'')+
+  (contados===0?'Primero entra en «Hacer inventario» y registra lo que quedó. ':progreso+' ')+(pendientes?'Quedan '+pendientes+' artículos por contar.':'')+
   (!conteosVerificados?' Aquí solo se muestran los conteos confirmados en esta sesión.':'');
  $('invReturnCount').hidden=cierreLocalGuardado;
  $('enviar').hidden=cierreLocalGuardado;
@@ -465,22 +473,24 @@ async function abrir(){
 // Registro independiente: nunca cambia la cantidad de existencias.
 let justPending=null;
 
-let invAppMode='inicio';
+let invAppMode='inicio',invAltaReturn='conteo';
 function invAppView(mode){
  if(busy&&mode!=='inicio')return;
  invAppMode=mode;
  $('activo').dataset.invMode=mode;
  $('invAppLocal').textContent=branch==='arica'?'Regimiento Arica':bodegaCompartida?'La Serena · Uki y Romo (bodega compartida)':'La Serena';
  $('invAppHome').hidden=mode!=='inicio';$('invAppBar').hidden=mode==='inicio';
- const titles={anterior:cierreTitulo(cierreGuardado),conteo:'Cerrar inventario de hoy',entrada:'Llegó mercadería',alta:'Agregar insumo',merma:'Registrar merma',personal:'Consumo del personal',traspaso:'Traspasos',compras:'Lista de compras',reporte:'Cierre de inventario',historial:'Historial y reportes'};
+ $('invAppBack').textContent=['entrada','factura'].includes(mode)?'‹ Mercadería que entra':mode==='alta'?(invAltaReturn==='entrada'?'‹ Registro manual':'‹ Hacer inventario'):'‹ Inicio';
+ const titles={anterior:cierreTitulo(cierreGuardado),conteo:'Hacer inventario',entradas:'Mercadería que entra',entrada:'Registrar mercadería manualmente',factura:'Registrar mercadería con factura',alta:'Crear insumo nuevo',merma:'Registrar merma',personal:'Consumo del personal',traspaso:'Traspasos',compras:'Lo que falta pedir',reporte:'Cerrar inventario de hoy',historial:'Historial y reportes'};
  $('invAppTitle').textContent=titles[mode]||'';
- const hints={conteo:'Al terminar el turno, cuenta lo que realmente quedó.',entrada:'Registra solo lo que llegó. Usa la factura o busca el insumo para ingresar la cantidad manualmente.'};
+ const hints={conteo:'Al finalizar el turno, anota cuánto quedó físicamente de cada producto.',entrada:'Busca el insumo y registra solo la cantidad que llegó.',factura:'Usa esta opción si vas a registrar la entrega con su factura.'};
  $('invAppHint').textContent=hints[mode]||'';$('invAppHint').hidden=!hints[mode];
  const list=['conteo','entrada'].includes(mode);
  $('invListHeader').hidden=!list;$('items').hidden=!list;$('invMoreWrap').hidden=!list;
  $('invCierreBar').hidden=mode!=='conteo';
  $('invPrevious').hidden=mode!=='anterior';$('invPurchases').hidden=mode!=='compras';
- $('facturaQA').hidden=!['entrada','alta'].includes(mode);$('invQuickAdd').hidden=mode!=='alta';
+ $('invRecepcion').hidden=mode!=='entradas';
+ $('facturaQA').hidden=mode!=='factura';$('invQuickAdd').hidden=mode!=='alta';
  $('justMov').hidden=!['merma','personal','traspaso'].includes(mode);
  $('invFinish').hidden=mode!=='reporte';$('invHistory').hidden=mode!=='historial';
  if(mode==='entrada'||mode==='conteo'){
@@ -488,8 +498,7 @@ function invAppView(mode){
   $('tipo').value='todos';$('invCategory').value='todos';$('buscar').value='';
   visibleLimit=12;render();
  }
- if(mode==='alta'){$('factModoPreparar')?.click();$('factAltasDetalles').open=true;}
- if(mode==='entrada')$('factModoRecibir')?.click();
+ if(mode==='factura')$('factModoRecibir')?.click();
  if(['merma','personal','traspaso'].includes(mode)){
   $('justKind').value=mode==='traspaso'?'traspaso_salida':mode;$('justKind').onchange();$('justMov').open=true;
  }
@@ -510,7 +519,13 @@ $('invQuickSave').onclick=async()=>{
   if(!v.item?.sku)throw Error('No se confirmó el alta. Actualiza la lista antes de repetir.');
   items=[...items.filter(i=>i.sku!==v.item.sku),v.item];
   $('invQuickName').value='';requestId=null;reporteFinal=null;cierreLocalGuardado=false;$('descargasTurno').hidden=true;
-  render();msg.textContent='✓ Insumo agregado. Registra su conteo o entrada desde el menú.';
+  if(invAppMode!=='alta'){render();return;}
+  setBusy(false);invAppView(invAltaReturn);
+  $('buscar').value=v.item.name||name;render();
+  $('items').querySelector('details')?.setAttribute('open','');
+  if(invAltaReturn==='entrada')$('items').querySelector('.inv-receive-control')?.setAttribute('open','');
+  const aviso=elt('p','✓ Ficha creada. '+(invAltaReturn==='entrada'?'Ahora registra cuánto llegó.':'Ahora registra cuánto quedó.'),'confirmacion-item');
+  aviso.setAttribute('role','status');$('items').prepend(aviso);
  }catch(e){msg.textContent=e.message;}
  finally{setBusy(false);$('invQuickSave').disabled=false;}
 };
@@ -576,10 +591,18 @@ function invHistExport(format){
 }
 $('invHistPDF').onclick=()=>invHistExport('pdf');$('invHistExcel').onclick=()=>invHistExport('csv');$('invHistText').onclick=()=>invHistExport('texto');
 
-$('invAppBack').onclick=()=>invAppView('inicio');
+$('invAppBack').onclick=()=>{
+ if(busy)return;
+ invAppView(invAppMode==='alta'?invAltaReturn:['entrada','factura'].includes(invAppMode)?'entradas':'inicio');
+};
 document.querySelectorAll('[data-inv-view]').forEach(b=>b.onclick=()=>{
+ if(busy)return;
  const view=b.dataset.invView;
- invAppView(view==='conteo'&&b.closest('#invAppHome')&&cierreLocalGuardado?'reporte':view);
+ if(view==='alta'){
+  invAltaReturn=invAppMode==='entrada'?'entrada':'conteo';
+  $('invQuickStatus').textContent='';
+ }
+ invAppView(view);
 });
 $('invPrevSearch').oninput=()=>{prevLimit=12;renderAnterior();};
 $('invPrevMore').onclick=()=>{prevLimit+=12;renderAnterior();};
