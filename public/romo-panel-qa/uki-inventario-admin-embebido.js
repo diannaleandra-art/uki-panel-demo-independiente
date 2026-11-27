@@ -128,7 +128,7 @@ async function requestRomo(action,data={},branch=X.branch){
     const old=X.legacyItems.find(x=>x.sku==='r_base_'+String(item.sku).replace(/^ingredient:/,'').replaceAll('-','_'));
     return {...item,legacySku:old?.sku||null,available:old?old.available:item.available};
    });
-   return {items,revisiones:b.revisiones||[]};
+   return {items,revisiones:b.revisiones||[],actualizado_en:a.actualizado_en||null};
   }
   const items=state.items.filter(v=>!v.archived).map(v=>({...v,category:v.kind,inventory_only:true,version,available:v.available}));
   const porSku=new Map(state.items.map(v=>[v.sku,v]));
@@ -137,7 +137,7 @@ async function requestRomo(action,data={},branch=X.branch){
    antes:m.antes??null,despues:m.despues??null,
    created_at:new Date(m.fechaMs).toISOString(),worker_name:m.worker_name||m.actor,summary:{sinMinimo:0,faltantes:[]}}));
   X.romoPlantilla=Array.isArray(dataRomo.plantilla_base)?dataRomo.plantilla_base:[];
-  return {items,revisiones};
+  return {items,revisiones,actualizado_en:dataRomo.actualizado_en||dataRomo.actualizadoEn||null};
  }
  if(Number(dataRomo.revision)!==revision+1)
   throw Error('No se confirmó la revisión. Actualiza antes de reintentar.');
@@ -225,7 +225,7 @@ async function loadSnapshot(){
   const snapshot=branch==='romo'?await request('inventario-completo',{},branch):null;
   const [a,r]=snapshot?[snapshot,snapshot]:await Promise.all([request('articulos',{},branch),request('reportes',{},branch)]);
   if(branch!==X.branch||branch!==panelBranch()||root!==$('invRoot'))return;
-  X.items=a.items||[];X.reports=r.revisiones||[];X.loaded=true;X.loadedAt=new Date().toISOString();
+  X.items=a.items||[];X.reports=r.revisiones||[];X.loaded=true;X.loadedAt=new Date().toISOString();X.actualizadoEn=a.actualizado_en||null;
   const box=$('romoInvBootstrap');
   if(box){
    box.hidden=branch!=='romo'||X.items.length!==0||!X.romoPlantilla.length;
@@ -634,7 +634,7 @@ function mount(){
  else void load();
 }
 function inventarioActualRomo(){
- return {items:X.items.slice(),loadedAt:X.loadedAt,root:$('invRoot')};
+ return {items:X.items.slice(),loadedAt:X.loadedAt,actualizado_en:X.actualizadoEn||null,root:$('invRoot')};
 }
 // Lista y edición leen la misma instantánea, con la identidad de este panel.
 window.romoConsultarExistenciasPanelQA=async function({refresh=false}={}){
