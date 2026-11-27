@@ -22,6 +22,8 @@ export function numeroFactura(texto){
 export function nombrePropuestoFactura(descripcion=''){
  const text=normalizar(descripcion);
  if(!text)return '';
+ const pocillo=text.match(/^pocillos? (?:ctapa|c tapa|con tapa) (\d)(?: (\d))? (?:oz|0z)(?: |$)/);
+ if(pocillo)return 'Pocillos con tapa '+pocillo[1]+(pocillo[2]?','+pocillo[2]:'')+' oz';
  const opciones=[
   [/queso gauda/,'Queso gauda'],
   [/queso crema/,'Queso crema'],
@@ -82,6 +84,33 @@ export function opcionesRecepcionFactura(items=[],busqueda='',sugerencia=''){
  return opciones;
 }
 
+// Preselección conservadora: nombres inequívocos y alias específicos.
+// La coincidencia parcial del OCR solo ayuda a buscar, no vincula variantes.
+export function vinculoAutomaticoFactura(nombre,items=[]){
+ const n=normalizar(nombre);
+ if(!n)return null;
+ const catalogo=opcionesRecepcionFactura(items);
+ const exactos=catalogo.filter(x=>normalizar(x.name)===n);
+ if(exactos.length)return exactos.length===1?exactos[0]:null;
+ const alias=[
+  [/^panko (blanco|amarillo)(?: |$)/, m=>['panko '+m[1]]],
+  [/^queso (crema|gauda)(?: |$)/, m=>['queso '+m[1]]],
+  [/^palillos? de sushi(?: |$)/,()=>['palillos de sushi']],
+  [/^arroz tucapel food service nacional g2(?: |$)/,()=>['arroz']],
+  [/^nori gold yaki(?: |$)/,()=>['nori']],
+  [/^pocillos? (?:ctapa|c tapa|con tapa) (?:1 5|15) (?:oz|0z)(?: |$)/,
+   ()=>['pocillo con tapa 1 5 oz','pocillos con tapa 1 5 oz','pocillo c tapa 1 5 oz','pocillos c tapa 1 5 oz']]
+ ];
+ for(const [pattern,names] of alias){
+  const m=n.match(pattern);
+  if(!m)continue;
+  const keys=names(m), compat=catalogo.filter(x=>keys.includes(normalizar(x.name)));
+  const variantes=catalogo.filter(x=>keys.some(k=>normalizar(x.name).startsWith(k+' ')));
+  return compat.length===1&&!variantes.length?compat[0]:null;
+ }
+ return null;
+}
+
 export function coincidencia(nombre,items=[]){
  const n=normalizar(nombre);
  if(!n)return {sku:'',sugerencia:''};
@@ -136,7 +165,14 @@ export function leerCabeceraFacturaPDF(texto){
  const s=String(texto||'');
  const folio=s.match(/(?:N[°º?*o]\s*|Folio\s*:?\s*)(\d{4,10})\b/i)?.[1]||'';
  const rut=s.match(/R\.?\s*U\.?\s*T\.?\s*:\s*([\d.]{7,12}-[\dkK])/i)?.[1]||'';
- const proveedor=s.split(/\r?\n/).map(l=>l.trim()).find(l=>/^[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ .]{5,95}\b(?:SPA|S\.A\.|LTDA)$/.test(l))||'';
+ // Limita la búsqueda a la cabecera del emisor. No toma al comprador.
+ const cabecera=s.split(/^\s*(?:señor(?:es|\(es\))?|senor(?:es|\(es\))?|cliente|receptor|rut receptor)\s*[:.]/im)[0]
+  .split(/\r?\n/).slice(0,35).map(l=>l.trim());
+ const etiquetado=cabecera.map(l=>l.match(/^(?:proveedor|emisor|raz[oó]n social(?: emisor)?)\s*:\s*(.{2,120})$/i)?.[1])
+  .find(x=>x&&!/^(?:rut|folio)\b/i.test(x));
+ const legal=cabecera.map(l=>l.match(/^([\p{L}][\p{L}\p{N} &'.,-]{3,100}\s(?:sp\.?\s*a\.?|s\.?\s*a\.?|ltda\.?|limitada|e\.?i\.?r\.?l\.?))(?:\s+(?:r\.?u\.?t\.?\s*:|\d{1,2}\.\d{3}\.\d{3}-)|$)/iu)?.[1])
+  .find(Boolean);
+ const proveedor=(etiquetado||legal||'').trim().slice(0,120);
  const sucursalSugerida=/OBSERVACI[ÓO]N:?\s*REGIMIENTO/i.test(s)?'arica':'';
  return {folio,rut,proveedor,sucursalSugerida};
 }

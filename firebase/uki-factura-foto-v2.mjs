@@ -1,5 +1,5 @@
 // Lectura de imágenes local. No se envían fotos ni se registra mercadería aquí.
-import {leerTextoFactura, leerCabeceraFacturaPDF} from './uki-factura-lectura-live.mjs?v=20261127-foto-v2';
+import {leerTextoFactura, leerCabeceraFacturaPDF} from './uki-factura-lectura-live.mjs?v=20261127-factura-agil-v1';
 
 export function prepararImagenFactura(img, {x=0,y=0,w=1,h=1,pendiente=0,detalle=false}={},crear=(a,b)=>{
  const cv=document.createElement('canvas');cv.width=a;cv.height=b;return cv;

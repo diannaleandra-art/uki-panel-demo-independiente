@@ -87,5 +87,30 @@ test('módulo compartido incluye señal para montaje admin sin alterar QR',()=>{
  assert.match(common,/export const facturaAdmiteMontajeAdmin\s*=\s*true/);
  assert.ok(common.includes('mountTarget.append(section)'));
  assert.ok(common.includes("itemsContainer.parentNode.insertBefore(section,itemsContainer)"));
- assert.match(panel,/uki-factura-inventario-admin-panel\.js\?v=20261127-factura-edicion-v1/);
+ assert.match(panel,/uki-factura-inventario-admin-panel\.js\?v=20261127-factura-agil-v1/);
+});
+
+test('vincula artículos inequívocos de facturas y respeta variantes y catálogo', async()=>{
+ const {vinculoAutomaticoFactura} = await import('../public/uki-factura-lectura-live.mjs');
+ const items=[
+  {sku:'inv:15',name:'Pocillos con tapa 1,5 oz',kind:'inventory'},
+  {sku:'inv:2',name:'Pocillos con tapa 2 oz',kind:'inventory'},
+  {sku:'ing:blanco',name:'Panko blanco',kind:'ingredient'},
+  {sku:'ing:amarillo',name:'Panko amarillo',kind:'ingredient'},
+  {sku:'plato:panko',name:'Panko para vender',kind:'menu'}
+ ];
+ assert.equal(vinculoAutomaticoFactura('POCILLO CTAPA 1.5 0Z (100 unds]',items)?.sku,'inv:15');
+ assert.equal(vinculoAutomaticoFactura('Panko blanco X 1 KG',items)?.sku,'ing:blanco');
+ assert.equal(vinculoAutomaticoFactura('Panko',items),null);
+ assert.equal(vinculoAutomaticoFactura('Panko para vender',items),null);
+ assert.equal(vinculoAutomaticoFactura('Panko blanco X 1 KG',
+  [...items,{sku:'ing:japones',name:'Panko blanco japonés',kind:'ingredient'}]),null);
+});
+
+test('muestra el emisor leído y no confunde su nombre con el comprador', async()=>{
+ const {leerCabeceraFacturaPDF} = await import('../public/uki-factura-lectura-live.mjs');
+ const cuerpo='Rut: 77.557.762-2\nN° 80809\nSeñor(es): INVERSIONES ROMO SPA';
+ assert.equal(leerCabeceraFacturaPDF('Comercializadora Bombo SpA\n'+cuerpo).proveedor,'Comercializadora Bombo SpA');
+ assert.equal(leerCabeceraFacturaPDF(cuerpo).proveedor,'');
+ assert.equal(leerCabeceraFacturaPDF('Proveedor: Distribuidora del Norte\n'+cuerpo).proveedor,'Distribuidora del Norte');
 });
