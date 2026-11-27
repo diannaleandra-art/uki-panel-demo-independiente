@@ -107,7 +107,7 @@ async function ukiCartaRecuperacionPermisoQA(branch){
   if(branch!==ukiMesaBranch())return false;
   ukiCartaRecuperacionPuedeQA=Boolean(response.ok&&data.ok===true&&
    data.branch===branch&&data.puedeRecuperar===true);
-  if(S.vista==='pedidos')render();
+  ukiCartaRefrescoSilencioso()?.complete(branch,null,true);
   return ukiCartaRecuperacionPuedeQA;
  }catch{return false}
 }
@@ -189,13 +189,27 @@ async function ukiCartaConfirmarRespaldados(){
    }
    catch(e){ukiCartaRemotas.status='Pedido registrado en Uki; el estado de la bandeja sigue pendiente: '+String(e?.message||e);break}
   }
- }finally{ukiCartaConfirmando=false;if(S.vista==='pedidos')render()}
+ }finally{ukiCartaConfirmando=false;ukiCartaRefrescoSilencioso()?.complete(ukiMesaBranch(),null,true);}
+}
+let ukiCartaRefrescoPantalla=null;
+function ukiCartaRefrescoSilencioso(){
+ if(!ukiCartaRefrescoPantalla)ukiCartaRefrescoPantalla=window.ukiCrearRefrescoCarta?.({
+  branch:()=>S.suc?ukiMesaBranch():'',
+  view:()=>S.vista,
+  protectedWork:()=>S.busy||!!S.msg||cancelacionGuardando||ukiRectificacionGuardando||!!D.editando||
+   !!ukiSolicitudWhatsAppActiva||!!ukiCartaRemotaActiva,
+  showsPending:()=>['todos','por-confirmar'].includes(filtroCategoriaPedidos)&&!filtroCodigoCarta&&!filtroDiaPedidos&&!pedidosArchivoDia,
+  render
+ });
+ return ukiCartaRefrescoPantalla;
 }
 async function ukiCartaRemotasActualizar(automatico=false){
  if(!S.suc||ukiCartaRemotas.busy||document.body.classList.contains('uki-operativo-bloqueado'))return;
  const branch=ukiMesaBranch();if(!branch)return;
+ const presentacion=ukiCartaRefrescoSilencioso();
+ let leidas=null;
  const antes=JSON.stringify([ukiCartaRemotas.branch,ukiCartaRemotas.rows,ukiCartaRemotas.status]);
- ukiCartaRemotas.busy=true;ukiCartaRemotas.used=true;ukiCartaRemotas.status='Consultando solicitudes…';
+ ukiCartaRemotas.busy=true;ukiCartaRemotas.used=true;
  try{
   const token=await ukiCartaApiSesion();
   const r=await fetch(UKI_CARTA_REMOTAS_API+'?branch='+encodeURIComponent(branch),{
@@ -213,14 +227,19 @@ async function ukiCartaRemotasActualizar(automatico=false){
    // El permiso solo se consulta si hay reservas vencidas y utiliza la
    // misma sesión que ya permite recibir pedidos en esta sucursal.
    ukiCartaRecuperacionPuedeQA=false;
-   if(ukiCartaRemotas.rows.some(ukiCartaReservaVencidaQA))
+   leidas=ukiCartaRemotas.rows.filter(r=>!ukiCartaSolicitudYaRegistrada(r));
+   if(!presentacion?.blocked()&&ukiCartaRemotas.rows.some(ukiCartaReservaVencidaQA))
     void ukiCartaRecuperacionPermisoQA(branch);
    const sinVinculo=ukiCartaAceptadasSinVinculo().length;
    if(sinVinculo)ukiCartaRemotas.status+=' · '+sinVinculo+' aceptada(s) por revisar tras sincronizar la caja.';
   }
- }catch(e){ukiCartaRemotas.status='Recepción de carta no disponible: '+String(e?.message||e)}
- finally{ukiCartaRemotas.busy=false;if(S.vista==='pedidos'&&(!automatico||antes!==JSON.stringify([ukiCartaRemotas.branch,ukiCartaRemotas.rows,ukiCartaRemotas.status])))render()}
- void ukiCartaConfirmarRespaldados();
+ }catch(e){if(S.suc&&branch===ukiMesaBranch())ukiCartaRemotas.status='Recepción de carta no disponible: '+String(e?.message||e)}
+ finally{
+  ukiCartaRemotas.busy=false;
+  presentacion?.complete(branch,leidas,antes!==JSON.stringify([ukiCartaRemotas.branch,ukiCartaRemotas.rows,ukiCartaRemotas.status]),!automatico);
+ }
+ // Conserva la conciliación existente solo en bandeja libre. La consulta de fondo no hace PATCH.
+ if(S.vista==='pedidos'&&!presentacion?.blocked())void ukiCartaConfirmarRespaldados();
 }
 // Comprobación estricta del cierre: no usar una copia antigua de la bandeja.
 // Si no hay red o autorización, NO declarar que faltan cero solicitudes.
@@ -370,5 +389,6 @@ async function ukiCartaRemotaRechazar(id){
   aviso('Solicitud rechazada y archivada, sin registrar venta.');
  }catch(e){aviso('No se pudo rechazar: '+String(e?.message||e))}
 }
-setInterval(()=>{if(ukiCartaRemotas.used&&!ukiCartaRemotas.busy&&S.suc&&S.vista==='pedidos')
-  void ukiCartaRemotasActualizar(true);},45000);
+// La lectura se puede hacer durante un cobro; el refresco visual espera.
+setInterval(()=>{if(S.suc&&!ukiCartaRemotas.busy&&document.visibilityState!=='hidden')
+ void ukiCartaRemotasActualizar(true);},30000);
