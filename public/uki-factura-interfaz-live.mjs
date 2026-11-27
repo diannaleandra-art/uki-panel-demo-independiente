@@ -4,7 +4,7 @@ import {reconocerFotoFactura} from './uki-factura-foto-v2.mjs?v=20261127-foto-v2
 export const facturaAdmiteMontajeAdmin = true;
 export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreated,mountTarget=null}){
  const section=document.createElement('section');section.id='facturaQA';section.className='card';
- section.innerHTML="<h2>📷 Recibir mercadería con factura</h2>\n<p class=\"muted\">Gratis: toma una foto o sube una factura. Revisa las cantidades antes de guardar. La foto se procesa en tu teléfono y no se envía al servidor.</p>\n<div class=\"fact-botones\"><label for=\"factFoto\">📷 Tomar foto</label><input id=\"factFoto\" type=\"file\" accept=\"image/*\" capture=\"environment\">\n<label for=\"factArchivo\">Subir archivo</label><input id=\"factArchivo\" type=\"file\" accept=\"image/*,.xml,application/xml,.pdf,application/pdf\"></div>\n<p id=\"factEstado\" role=\"status\" class=\"muted\">Fotos, XML y PDF con texto. El ingreso manual sigue disponible.</p>\n<div id=\"factTextoBox\" hidden><label for=\"factTexto\">Texto leído (corrígelo si hay errores)</label>\n<textarea id=\"factTexto\" rows=\"4\" maxlength=\"20000\" style=\"width:100%;font:inherit;border:1px solid #d5c4b6;border-radius:9px\"></textarea>\n<button type=\"button\" class=\"secondary\" id=\"factReleer\">Volver a detectar productos</button></div>\n<div id=\"factLineas\"></div>\n<div id=\"factAcciones\" hidden><button type=\"button\" class=\"secondary\" id=\"factAnadir\">Añadir línea manual</button>\n<button type=\"button\" id=\"factGuardar\">Confirmar mercadería recibida</button>\n<p id=\"factResultado\" role=\"status\"></p><p class=\"muted small\">Las entradas marcadas se guardan individualmente. Si hay un error, revisa el saldo antes de intentar otra vez.</p></div>\n<style>#facturaQA .fact-botones{display:flex;gap:8px;flex-wrap:wrap}\n#facturaQA .fact-botones input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}\n#facturaQA .fact-botones label{display:inline-block;background:#e9822d;color:white;border-radius:9px;padding:12px;cursor:pointer}\n#facturaQA .fact-fila{border:1px solid #eadbcc;border-radius:10px;padding:12px;margin:9px 0}\n#facturaQA .fact-fila select,#facturaQA .fact-fila input[type=text]{width:100%}\n#facturaQA .fact-columnas{display:grid;grid-template-columns:1fr 1fr;gap:8px}\n#facturaQA .fact-mensaje{background:#fff6e9;border-radius:8px;padding:8px}\n#facturaQA .fact-guardada{background:#f0f9ef;border-radius:8px;padding:8px;color:#25612c}\n#facturaQA button{margin:8px 6px 0 0}\n#facturaQA #factAltas[hidden],#facturaQA #factRecibirVista[hidden]{display:none!important}\n#facturaQA #factEtapas button[aria-pressed=true]{background:#ae5414;color:#fff}\n#facturaQA #factEtapas button[aria-pressed=false]{background:#f6e3d2;color:#663a20}\n@media(max-width:470px){#facturaQA .fact-columnas{grid-template-columns:1fr}}</style>";
+ section.innerHTML="<h2>📷 Recibir mercadería con factura</h2>\n<p class=\"muted\">Gratis: toma una foto o sube una factura. Revisa las cantidades antes de guardar. La foto se procesa en tu teléfono y no se envía al servidor.</p>\n<div class=\"fact-botones\"><label for=\"factFoto\">📷 Tomar foto</label><input id=\"factFoto\" type=\"file\" accept=\"image/*\" capture=\"environment\">\n<label for=\"factArchivo\">Subir archivo</label><input id=\"factArchivo\" type=\"file\" accept=\"image/*,.xml,application/xml,.pdf,application/pdf\"></div>\n<p id=\"factEstado\" role=\"status\" class=\"muted\">Fotos, XML y PDF con texto. El ingreso manual sigue disponible.</p>\n<div id=\"factTextoBox\" hidden><label for=\"factTexto\">Texto leído (corrígelo si hay errores)</label>\n<textarea id=\"factTexto\" rows=\"4\" maxlength=\"20000\" style=\"width:100%;font:inherit;border:1px solid #d5c4b6;border-radius:9px\"></textarea>\n<button type=\"button\" class=\"secondary\" id=\"factReleer\">Volver a detectar productos</button></div>\n<div id=\"factLineas\"></div>\n<div id=\"factAcciones\" hidden><button type=\"button\" class=\"secondary\" id=\"factAnadir\">Añadir línea manual</button>\n<button type=\"button\" id=\"factGuardar\">Confirmar mercadería recibida</button>\n<p id=\"factResultado\" role=\"status\"></p><p class=\"muted small\">Las entradas marcadas se guardan individualmente. Si hay un error, revisa el saldo antes de intentar otra vez.</p></div>\n<style>#facturaQA .fact-botones{display:flex;gap:8px;flex-wrap:wrap}\n#facturaQA .fact-botones input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}\n#facturaQA .fact-botones label{display:inline-block;background:#e9822d;color:white;border-radius:9px;padding:12px;cursor:pointer}\n#facturaQA .fact-fila{border:1px solid #eadbcc;border-radius:10px;padding:12px;margin:9px 0}\n#facturaQA .fact-fila select,#facturaQA .fact-fila input[type=text]{width:100%}\n#facturaQA .fact-columnas{display:grid;grid-template-columns:1fr 1fr;gap:8px}\n#facturaQA .fact-mensaje{background:#fff6e9;border-radius:8px;padding:8px}\n#facturaQA .fact-guardada{background:#f0f9ef;border-radius:8px;padding:8px;color:#25612c}\n#facturaQA .fact-cantidades{min-width:0;border:1px solid #eadbcc;border-radius:9px;margin:12px 0;padding:8px 10px}\n#facturaQA .fact-cantidades legend{font-weight:bold;padding:0 4px}\n#facturaQA button{margin:8px 6px 0 0}\n#facturaQA #factAltas[hidden],#facturaQA #factRecibirVista[hidden]{display:none!important}\n#facturaQA #factEtapas button[aria-pressed=true]{background:#ae5414;color:#fff}\n#facturaQA #factEtapas button[aria-pressed=false]{background:#f6e3d2;color:#663a20}\n@media(max-width:470px){#facturaQA .fact-columnas{grid-template-columns:1fr}}</style>";
  const metaBox=document.createElement('div');
  metaBox.id='factDocumentQA';
  metaBox.innerHTML='<h3>Datos para evitar duplicados</h3>'+
@@ -27,8 +27,8 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
  section.insertBefore(recibidor,section.querySelector('#factLineas'));
  recibidor.append(section.querySelector('#factLineas'),section.querySelector('#factAcciones'));
  const nav=document.createElement('div');nav.id='factEtapas';nav.className='fact-botones';
- nav.innerHTML='<button type="button" id="factModoPreparar">1. Preparar artículos</button>'+
-  '<button type="button" id="factModoRecibir">2. Registrar mercadería</button>';
+ nav.innerHTML='<button type="button" id="factModoRecibir">Revisar cantidades y registrar</button>'+
+  '<button type="button" id="factModoPreparar">Preparar artículos que no existen</button>';
  section.insertBefore(nav,altas);
  // En trabajadores se conserva la ubicación original; en el panel normal
  // se monta en su propio contenedor plegable sin duplicar la interfaz.
@@ -46,7 +46,9 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
  };
  const units=['','kg','g','l','ml','un','porciones'],factors={kg:1000,g:1,l:1000,ml:1,un:1,porciones:1};
  const groups={kg:'peso',g:'peso',l:'volumen',ml:'volumen',un:'unidad',porciones:'porcion'};
- let filas=[],meta={},busy=false,modo='preparar';
+ const unitLabels={kg:'Kilos (kg)',g:'Gramos (g)',l:'Litros (l)',ml:'Mililitros (ml)',un:'Unidades (un)',porciones:'Porciones'};
+ let filas=[],meta={},busy=false,modo='recibir',docRevision=0,lookupVersion=0;
+ const previews=new WeakMap();
  function mostrarModo(value){
   modo=value==='recibir'?'recibir':'preparar';
   altas.hidden=modo!=='preparar';recibidor.hidden=modo!=='recibir';
@@ -58,20 +60,22 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
  }
  el('factModoPreparar').onclick=()=>mostrarModo('preparar');
  el('factModoRecibir').onclick=()=>mostrarModo('recibir');
- mostrarModo('preparar');
+ mostrarModo('recibir');
  const doc=()=>({rut_emisor:el('factRut').value.trim(),folio:el('factFolio').value.trim(),
   tipo_doc:el('factTipo').value});
  const documentoValido=()=>/^\d{7,8}-[\dK]$/.test(doc().rut_emisor.replace(/[.\s]/g,'').toUpperCase())&&
   /^\d{1,15}$/.test(doc().folio);
  async function consultarFactura(){
   if(!documentoValido())return false;
-  const value=doc();
+  const value=doc(),lote=filas,revision=docRevision,lookup=++lookupVersion;
   const result=await post('factura-consultar',value);
+  if(lote!==filas||revision!==docRevision||lookup!==lookupVersion)return false;
   const historico=new Map((result.lineas||[]).map(x=>[Number(x.linea),x]));
   const entregas=result.entregas||[];
   for(const f of filas){
    f.prev=historico.get(f.linea)||null;
    f.entregas=(entregas.filter(x=>Number(x.linea)===f.linea)).map(x=>Number(x.entrega));
+   previews.get(f)?.();
   }
   const prev=(result.lineas||[]).length;
   el('factDuplicados').textContent=prev?
@@ -89,13 +93,15 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
  function valido(f){
   const item=getItems().find(x=>x.sku===f.sku),qty=numeroFactura(f.cantidad);
   const base=item?convertir(qty,f.unidad,item.stock_unit):NaN;
-  const limite=item?convertir(numeroFactura(f.totalCantidad),f.totalUnidad,item.stock_unit):NaN;
+  const totalCantidad=f.prev?.cantidad_factura_base??f.totalCantidad;
+  const totalUnidad=f.prev?.unidad_base??f.totalUnidad;
+  const limite=item?convertir(numeroFactura(totalCantidad),totalUnidad,item.stock_unit):NaN;
   const previo=Number(f.prev?.cantidad_recibida_base||0);
   const otroSku=!!f.prev&&f.prev.sku!==f.sku;
   const distintaUnidad=!!f.prev&&f.prev.unidad_base!==item?.stock_unit;
   const cambioLimite=!!f.prev&&Number(f.prev.cantidad_factura_base)!==limite;
   const entregaRepetida=(f.entregas||[]).includes(Number(f.entrega));
-  return {item,base,limite,previo,ok:!!(item&&Number.isFinite(base)&&base>0&&
+  return {item,base,limite,previo,totalCantidad,totalUnidad,ok:!!(item&&Number.isFinite(base)&&base>0&&
    Number.isFinite(limite)&&limite>0&&previo+base<=limite+1e-8&&
    Number(item.stock_qty)+base<=100000&&
    !otroSku&&!distintaUnidad&&!cambioLimite&&!entregaRepetida&&
@@ -114,7 +120,7 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
    yaExistentes.length+' ya existe(n) en el inventario.','muted small');
   if(yaExistentes.length){
    make('p',parent,'Ya registrados: '+yaExistentes.map(f=>f.nuevoNombre).join(', ')+
-    '. Selecciónalos en «2. Registrar mercadería». No se crearán duplicados.','muted small');
+    '. Selecciónalos en «Revisar cantidades y registrar». No se crearán duplicados.','muted small');
   }
   if(!filas.length){
    make('p',parent,'Primero sube una factura para preparar nuevos artículos.','muted small');
@@ -231,14 +237,12 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
  function render(){
   const parent=el('factLineas');parent.replaceChildren();
   if(!filas.length)make('p',parent,'No se reconocieron productos. Corrige el texto o añade una línea manual.','muted');
+  else make('p',parent,'Puedes corregir la cantidad y la unidad en cada producto antes de guardar. Si son 3 paquetes de 100 y llegaron todos, registra 300 unidades.','muted');
   // Las opciones son solo ingredientes e insumos, no productos del menú.
   filas.forEach((f,i)=>{
    const card=make('div',parent,undefined,'fact-fila');
    make('strong',card,f.nombre||'Producto sin identificar');
-   make('p',card,f.cantidadFactura?
-     'Facturado: '+f.cantidadFactura+' '+(f.unidadFacturada||'sin unidad')+
-     '. Sugerido para inventario: '+(f.cantidad||'pendiente')+' '+(f.unidad||''):
-     'Texto reconocido: '+(f.cantidad||'cantidad desconocida')+' '+(f.unidad||'sin unidad'),'muted small');
+   if(f.cantidadFactura)make('p',card,'En el documento se leyó: '+f.cantidadFactura+' '+(f.unidadFacturada||'sin unidad')+'.','muted small');
    if(f.nota)make('p',card,f.nota,'fact-mensaje');
    const grid=make('div',card,undefined,'fact-columnas');
    const box1=make('div',grid);make('label',box1,'Artículo del inventario');
@@ -262,24 +266,34 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
    };
    opciones();
    buscar.oninput=()=>{opciones();preview();};
-   const box2=make('div',grid);make('label',box2,'Cantidad recibida');
-   const input=make('input',box2);input.type='text';input.inputMode='text';input.maxLength=12;
-   input.placeholder='Ej.: 750';input.value=f.cantidad||'';
-   const box3=make('div',grid);make('label',box3,'Unidad');
-   const unit=make('select',box3);
-   for(const u of units)unit.add(new Option(u||'Elige unidad…',u));
-   unit.value=f.unidad||'';
-   const box4=make('div',grid);const label=make('label',box4);
+   const totalForm=make('fieldset',card,undefined,'fact-cantidades');
+   make('legend',totalForm,'Total de la factura');
+   const totalGrid=make('div',totalForm,undefined,'fact-columnas');
+   const recibidoForm=make('fieldset',card,undefined,'fact-cantidades');
+   make('legend',recibidoForm,'Recibido ahora');
+   const recibidoGrid=make('div',recibidoForm,undefined,'fact-columnas');
+   const campo=(parent,tag,titulo,key)=>{
+    const label=make('label',make('div',parent),titulo);
+    const field=make(tag,label);field.id='fact-'+key+'-'+f.linea;
+    label.htmlFor=field.id;
+    if(tag==='input'){
+     field.type='text';field.inputMode='decimal';field.maxLength=12;field.placeholder='Ej.: 300';
+    }else for(const u of units)field.add(new Option(unitLabels[u]||'Elige unidad…',u));
+    return field;
+   };
+   const totalInput=campo(totalGrid,'input','Cantidad total','total-cantidad');
+   const totalUnit=campo(totalGrid,'select','Unidad del total','total-unidad');
+   const input=campo(recibidoGrid,'input','Cantidad recibida','recibido-cantidad');
+   const unit=campo(recibidoGrid,'select','Unidad recibida','recibido-unidad');
+   input.value=f.cantidad||'';unit.value=f.unidad||'';
+   const bloqueoTotal=make('p',totalForm,'El total ya está registrado para este folio. Para otra entrega, indica solo lo que llegó ahora.','muted small');
+   const copiar=make('button',recibidoForm,'Copiar el total a recibido','secondary');copiar.type='button';
+   const label=make('label',card);
    const check=make('input',label);check.type='checkbox';check.style.width='auto';check.checked=!!f.checked;
    label.append(' Recibir esta línea');
    const adicionales=make('details',card);
-   make('summary',adicionales,'Entrega parcial / corregir cantidad total','muted');
+   make('summary',adicionales,'Entregas parciales e historial','muted');
    const extraGrid=make('div',adicionales,undefined,'fact-columnas');
-   const prevBox=make('div',extraGrid);
-   make('label',prevBox,'Total previsto de la factura');
-   const totalInput=make('input',prevBox);totalInput.type='text';
-   totalInput.inputMode='text';totalInput.value=f.totalCantidad||'';
-   totalInput.placeholder='Total en '+(f.totalUnidad||'unidad');
    const deliveryBox=make('div',extraGrid);
    make('label',deliveryBox,'Número de entrega (1, 2…)');
    const delivery=make('input',deliveryBox);delivery.type='number';
@@ -290,15 +304,27 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
    const info=make('p',card,undefined,'fact-mensaje');
    const preview=()=>{
     const x=valido(f);
+    if(document.activeElement!==totalInput||f.prev)totalInput.value=x.totalCantidad||'';
+    totalUnit.value=x.totalUnidad||'';
+    totalInput.disabled=totalUnit.disabled=!!(f.prev||f.saved);
+    bloqueoTotal.hidden=!f.prev;
+    copiar.hidden=!!(f.prev||f.saved);
+    copiar.disabled=!Number.isFinite(numeroFactura(f.totalCantidad))||!f.totalUnidad;
+    recibidoForm.disabled=!!f.saved;
+    if(f.prev&&(f.entregas||[]).includes(Number(f.entrega)))adicionales.open=true;
     previa.textContent=x.previo>0?
       'Registrado anteriormente: '+pretty(x.previo,x.item?.stock_unit||'un')+
       '. Entregas registradas: '+(f.entregas||[]).join(', ')+
       '. Para un despacho nuevo, cambia el número de entrega.':
       'Entrega n.º 1 para la primera recepción; usa n.º 2 solo si llega otra parte después.';
-    info.textContent=f.saved?'✓ Entrada guardada en la inventario de producción. No se sumó dos veces.':
+    info.textContent=f.saved?'✓ Entrada guardada en el inventario. No se sumó dos veces.':
      !x.item?'Elige un ingrediente o insumo de inventario correcto.':
      (f.entregas||[]).includes(Number(f.entrega))?
       'Esta entrega ya se registró desde algún celular. No vuelvas a sumarla.':
+     !Number.isFinite(x.base)||!Number.isFinite(x.limite)?
+      'Revisa las cantidades y unidades. Este artículo se controla en '+(unitLabels[x.item.stock_unit]||x.item.stock_unit)+'.':
+     x.previo+x.base>x.limite+1e-8?
+      'Lo recibido supera el total pendiente. Revisa el total de la factura y lo que llegó ahora.':
      x.ok?'Se recibirán '+pretty(x.base,x.item.stock_unit)+
       '. Quedará pendiente '+pretty(Math.round((x.limite-x.previo-x.base)*1000)/1000,x.item.stock_unit)+
       '. Nuevo saldo previsto: '+pretty(Math.round((Number(x.item.stock_qty)+x.base)*1000)/1000,x.item.stock_unit):
@@ -310,12 +336,20 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
    input.oninput=()=>{f.cantidad=input.value;nuevaSolicitud();preview();};
    unit.onchange=()=>{f.unidad=unit.value;nuevaSolicitud();preview();};
    totalInput.oninput=()=>{f.totalCantidad=totalInput.value;nuevaSolicitud();preview();};
+   totalUnit.onchange=()=>{f.totalUnidad=totalUnit.value;nuevaSolicitud();preview();};
+   copiar.onclick=()=>{
+    if(busy||f.prev||f.saved||copiar.disabled)return;
+    f.cantidad=input.value=f.totalCantidad;
+    f.unidad=unit.value=f.totalUnidad;
+    nuevaSolicitud();preview();
+   };
    delivery.onchange=()=>{f.entrega=Number(delivery.value);nuevaSolicitud();preview();};
    check.onchange=()=>{f.checked=check.checked;preview();};check.disabled=!!f.saved;
    if(!mountTarget&&!f.saved){
     const omit=make('button',card,'Omitir línea','secondary');omit.type='button';
     omit.onclick=()=>{if(!busy){f.checked=false;check.checked=false;preview();}};
    }
+   previews.set(f,preview);
    preview();
   });
   renderAltas();
@@ -326,13 +360,15 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
    nuevoNombre:nombrePropuestoFactura(f.nombre),nuevaUnidad:f.unidad||'',
    nuevaCategoria:categoriaPropuestaFactura(f.nombre),prepararNuevo:false}));
   meta=details;el('factAcciones').hidden=false;el('factResultado').textContent='';
-  mostrarModo('preparar');
+  mostrarModo('recibir');
   el('factRut').value=details.rut||details.rut_emisor||'';
   el('factFolio').value=details.folio||'';
   el('factTipo').value=['33','34','52'].includes(String(details.tipo))?String(details.tipo):'33';
   el('factDuplicados').textContent='Comprobaremos este folio antes de registrar.';
   if(documentoValido()){
-   consultarFactura().then(()=>render()).catch(e=>{
+   const lote=filas,revision=docRevision;
+   consultarFactura().catch(e=>{
+    if(lote!==filas||revision!==docRevision||busy)return;
     el('factDuplicados').textContent='No se pudo consultar el historial: '+e.message;
    });
   }
@@ -406,7 +442,7 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
      estado('Parece una foto de la pantalla de un PDF. Para leer la factura completa, pulsa «Subir archivo» y elige el PDF original desde Archivos. No guardes hasta verificar cantidades.');
     if(!texto.trim())estado('No se pudo leer texto; prueba otra foto o agrega productos manualmente.');
    }
-  }catch(e){estado('No se pudo leer: '+e.message+'. Puedes ingresar manualmente.');el('factAcciones').hidden=false;}
+  }catch(e){estado('No se pudo leer: '+e.message+'. Puedes ingresar manualmente.');el('factAcciones').hidden=false;mostrarModo('recibir');}
   finally{busy=false;el('factGuardar').disabled=false;mostrarModo(modo);}
  }
  for(const id of ['factFoto','factArchivo'])el(id).onchange=e=>{const file=e.target.files?.[0];e.target.value='';void importar(file);};
@@ -416,9 +452,10 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
  };
  for(const id of ['factRut','factFolio','factTipo']){
   el(id).addEventListener('input',()=>{
+   docRevision++;
    for(const f of filas){f.prev=null;f.entregas=[];f.solicitud=crypto.randomUUID();}
    el('factDuplicados').textContent='Datos cambiados: se volverá a verificar antes de guardar.';
-   render();
+   for(const f of filas)previews.get(f)?.();
   });
  }
  el('factGuardar').onclick=async()=>{
@@ -431,10 +468,13 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
    el('factResultado').textContent='Escribe el RUT y el folio reales para evitar registros duplicados en otros celulares.';
    return;
   }
-  let confirmado=false;
-  try{confirmado=await consultarFactura();}
-  catch(e){el('factResultado').textContent='No se pudo consultar si la factura ya está registrada: '+e.message+'. No guardamos nada.';return;}
-  if(!confirmado)return;
+  busy=true;el('factGuardar').disabled=true;mostrarModo(modo);
+  try{
+   if(!await consultarFactura())return;
+  }catch(e){
+   el('factResultado').textContent='No se pudo consultar si la factura ya está registrada: '+e.message+'. No guardamos nada.';return;
+  }finally{busy=false;el('factGuardar').disabled=false;mostrarModo(modo);}
+
   const pending=filas.filter(f=>f.checked&&!f.saved);
   if(!pending.length){el('factResultado').textContent='Marca al menos una línea que realmente llegó.';render();return;}
   if(pending.some(f=>!valido(f).ok)){
@@ -449,10 +489,11 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
     const item=getItems().find(x=>x.sku===row.sku);
     if(!item){error='Artículo inexistente en esta sucursal.';break;}
     try{
+     const {totalCantidad,totalUnidad}=valido(row);
      const respuesta=await post('factura-recibir',{
       ...identidad,linea:row.linea,descripcion:row.nombre,
       sku:item.sku,cantidad:numeroFactura(row.cantidad),unidad:row.unidad,
-      cantidad_total:numeroFactura(row.totalCantidad),unidad_total:row.totalUnidad,
+      cantidad_total:numeroFactura(totalCantidad),unidad_total:totalUnidad,
       entrega:Number(row.entrega),request_id:row.solicitud,
       expected_version:Number(item.version)
      });

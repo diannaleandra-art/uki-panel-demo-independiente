@@ -7,7 +7,7 @@
 const anteriorMontar=window.ukiInventarioMontar;
 if(typeof anteriorMontar!=='function')return;
 const API='https://uki-sushi-inventario.vercel.app/api/inventario-turno-live';
-const MODULO='https://uki-sushi-inventario.vercel.app/uki-factura-interfaz-live.mjs?v=20261127-foto-v2';
+const MODULO='https://uki-sushi-inventario.vercel.app/uki-factura-interfaz-live.mjs?v=20261127-factura-edicion-v1';
 const $=id=>document.getElementById(id);
 const estado={branch:'',items:[],form:null,open:false,loading:null,modulo:null};
 const branchActual=()=>String($('invBranch')?.value||'');
