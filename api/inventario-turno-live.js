@@ -34,6 +34,15 @@ const fechaHoraChile=fecha=>new Intl.DateTimeFormat('es-CL',{
 }).format(new Date(fecha));
 const fechaInventario=fecha=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago',
  year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(fecha));
+const fechaRevisionSQL=`COALESCE(summary->>'fecha_inventario',summary->>'fecha_conteos_recuperada',
+ to_char(created_at AT TIME ZONE 'America/Santiago','YYYY-MM-DD'))`;
+async function ultimaActualizacionInventario(sql,branch){
+ const [row]=await sql.query(`SELECT GREATEST(
+   (SELECT MAX(updated_at) FROM public.uki_inventario_items_live WHERE branch=$1),
+   (SELECT MAX(updated_at) FROM public.uki_inventario_extras_live WHERE branch=$1)
+  ) AS actualizado_en`,[branch]);
+ return row?.actualizado_en||null;
+}
 async function ultimosConteos(sql,branch){
  const rows=await sql.query(`SELECT sku,MAX(fecha) AS fecha FROM (
    SELECT sku,MAX(creado_en) AS fecha FROM public.uki_inventario_movimientos_live
@@ -198,8 +207,10 @@ module.exports=async(req,res)=>{
      fail(res,409,'El código ya fue configurado');
    }
    if(action==='articulos'){
-    const [catalog,added]=await Promise.all([leerInventario(sql,branch),extra.listar(sql,branch)]);
-    return res.status(200).json({ok:true,branch,items:[...catalog.filter(x=>x.kind==='ingredient').map(i=>({sku:i.sku,name:i.name,kind:i.kind,stock_unit:i.stock_unit,stock_qty:i.stock_qty,min_stock_qty:i.min_stock_qty,version:i.version,inventory_only:false})),...added]});
+    const [catalog,added,actualizado_en]=await Promise.all([
+     leerInventario(sql,branch),extra.listar(sql,branch),ultimaActualizacionInventario(sql,branch)
+    ]);
+    return res.status(200).json({ok:true,branch,actualizado_en,items:[...catalog.filter(x=>x.kind==='ingredient').map(i=>({sku:i.sku,name:i.name,kind:i.kind,stock_unit:i.stock_unit,stock_qty:i.stock_qty,min_stock_qty:i.min_stock_qty,version:i.version,inventory_only:false})),...added]});
    }
    if(action==='crear-articulo'){
     const item=await extra.crear(sql,branch,input.item,uid);
@@ -233,11 +244,11 @@ module.exports=async(req,res)=>{
     if((from&&!validDate(from))||(to&&!validDate(to))||(from&&to&&from>to)||
      worker.length>60||!Number.isSafeInteger(offset)||offset<0||offset>100000)
      return fail(res,400,'Filtros del historial inválidos');
-    const rows=await sql.query(`SELECT id,worker_name,summary,created_at,
+    const rows=await sql.query(`SELECT id,worker_name,summary,created_at,${fechaRevisionSQL} AS fecha_inventario,
        COUNT(*) OVER ()::int AS total
       FROM public.uki_inventario_revisiones_live WHERE branch=$1
-       AND ($2::text='' OR (created_at AT TIME ZONE 'America/Santiago')::date >= NULLIF($2::text,'')::date)
-       AND ($3::text='' OR (created_at AT TIME ZONE 'America/Santiago')::date <= NULLIF($3::text,'')::date)
+       AND ($2::text='' OR ${fechaRevisionSQL} >= $2::text)
+       AND ($3::text='' OR ${fechaRevisionSQL} <= $3::text)
        AND ($4::text='' OR worker_name ILIKE '%' || $4 || '%')
       ORDER BY created_at DESC,id DESC LIMIT 25 OFFSET $5`,
       [branch,from,to,worker,offset]);
@@ -462,4 +473,4 @@ function responderCierre(res,branch,worker,result){
   mensaje:textoReporte(branch,responsable,summary,result.created_at),
   reporte:{branch,created_at:result.created_at,worker_name:responsable,items:result.items||[],summary}});
 }
-module.exports._testing={permitido,admin,resumen,textoReporte,validDate,fechaHoraChile,fechaInventario,ultimosConteos,entradasDesdeUltimaRevision,conteosDesdeUltimaRevision,flujoCierre,primerCierrePendiente};
+module.exports._testing={permitido,admin,resumen,textoReporte,validDate,fechaHoraChile,fechaInventario,fechaRevisionSQL,ultimaActualizacionInventario,ultimosConteos,entradasDesdeUltimaRevision,conteosDesdeUltimaRevision,flujoCierre,primerCierrePendiente};

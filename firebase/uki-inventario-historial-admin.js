@@ -6,7 +6,8 @@ if(typeof oldHTML!=='function'||typeof oldMount!=='function')return;
 const API='https://uki-sushi-inventario.vercel.app/api/inventario-turno-live';
 const x={branch:'',items:[],loaded:false,loadedAt:null,limit:12,filter:'todos',query:'',editor:false,
  history:[],historyLoaded:false,historyOffset:0,historyTotal:0,busyHistory:false,
- selected:null,detailLimit:15,detailQuery:'',detailFilter:'todos'};
+ selected:null,detailLimit:15,detailQuery:'',detailFilter:'todos',
+ actualizadoEn:null,calendarDate:'',calendarExact:'',historyRun:0,detailRun:0};
 const $=id=>document.getElementById(id),exports=()=>window.ukiInventarioExportar;
 const fmt=n=>Number(n||0).toLocaleString('es-CL',{maximumFractionDigits:3});
 const button=(caption,fn)=>{const el=document.createElement('button');el.type='button';el.className='sm';el.textContent=caption;el.onclick=fn;return el;};
@@ -46,8 +47,17 @@ const panel=[
 '.uki-mini-fields input,.uki-mini-fields select{min-width:0;width:100%;padding:10px}',
 '@media(max-width:550px){.uki-mini-fields{grid-template-columns:1fr}}',
 '</style>',
+'<section class="card" id="ukiInvCalendario" hidden>',
+'<h2>📅 Inventario por día</h2>',
+'<label for="ukiInvDia">Fecha del inventario</label><input id="ukiInvDia" type="date" style="box-sizing:border-box;width:100%;max-width:340px;min-width:0">',
+'<div class="uki-mini-action">',
+'<button type="button" id="ukiInvDiaAnterior" class="sm">‹ Día anterior</button>',
+'<button type="button" id="ukiInvDiaHoy" class="sm">Hoy</button>',
+'<button type="button" id="ukiInvDiaSiguiente" class="sm">Día siguiente ›</button></div>',
+'<p id="ukiInvDiaEstado" class="muted" role="status"></p></section>',
 '<section class="card" id="ukiMiniInventario" hidden>',
 '<h2>📦 Inventario · Lista rápida</h2>',
+'<p id="ukiMiniFechaActualizacion" class="muted" role="status"></p>',
 '<p class="muted">Busca un artículo y abre sólo el que necesites. Las cantidades no marcan productos como agotados automáticamente.</p>',
 '<details class="uki-mini-manual" id="ukiManualInventario">',
 '<summary>📖 ¿Cómo usar el inventario? · Manual rápido</summary>',
@@ -184,6 +194,8 @@ function pintarResumen(id,items){
 }
 function renderCurrent(){
  const area=$('ukiMiniFilas');if(!area)return;area.replaceChildren();
+ status('ukiMiniFechaActualizacion',x.actualizadoEn?
+  'Última actualización registrada: '+fecha(x.actualizadoEn):'Aún no hay una fecha de actualización registrada.');
  const found=x.items.filter(i=>(x.filter==='todos'||filtro(i)===x.filter)&&
   (!x.query||nombreNormal(i.name).includes(nombreNormal(x.query))))
   .sort((a,b)=>({reponer:0,bien:1,sinminimo:2}[filtro(a)]-({reponer:0,bien:1,sinminimo:2}[filtro(b)]))||
@@ -196,13 +208,20 @@ function renderCurrent(){
  status('ukiMiniEstado',found.length+' artículos encontrados · '+missing+
   ' para reponer · mostrando '+Math.min(found.length,x.limit)+' de '+x.items.length+' del inventario.');
 }
+document.addEventListener('uki:existencias-panel-actualizadas',event=>{
+ const data=event.detail;
+ if(!$('ukiMiniInventario')||data?.root!==$('invRoot')||data.branch!==sucursal())return;
+ x.items=data.items;x.actualizadoEn=data.actualizado_en;x.loaded=true;x.loadedAt=new Date().toISOString();
+ renderCurrent();
+});
 async function loadCurrent(){
  const b=sucursal();status('ukiMiniEstado','Cargando inventario de '+nombreSucursal(b)+'…');
  try{
   const data=await request('articulos',{},b);
   if(b!==sucursal())return;
+  x.actualizadoEn=data.actualizado_en||null;
   x.items=Array.isArray(data.items)?data.items:[];x.loaded=true;x.loadedAt=new Date().toISOString();renderCurrent();
- }catch(e){x.loaded=false;x.loadedAt=null;x.items=[];status('ukiMiniEstado','Error: '+String(e.message||e));$('ukiMiniFilas').replaceChildren();}
+ }catch(e){x.loaded=false;x.loadedAt=null;x.actualizadoEn=null;x.items=[];status('ukiMiniFechaActualizacion','');status('ukiMiniEstado','Error: '+String(e.message||e));$('ukiMiniFilas').replaceChildren();}
 }
 function edit(sku){
  const area=$('invAdmin'),sel=$('invSelect'),search=$('invSearch');
@@ -237,6 +256,7 @@ async function exportar(tipo,report,output){
 function tab(){return document.querySelector('[data-uki-tab][aria-pressed="true"]')?.dataset.ukiTab||'inventario';}
 function show(){
  const t=tab();
+ pintarCalendario(t);
  $('ukiMiniInventario').hidden=t!=='inventario';
  $('ukiHistorial').hidden=t!=='reportes';
  if($('invAdmin'))$('invAdmin').style.display=t==='inventario'&&x.editor?'':'none';
@@ -245,18 +265,66 @@ function show(){
  if(t==='reportes'&&!x.historyLoaded)void loadHistory();
 }
 function fecha(fecha){const d=exports().fechaChile(fecha);return d.dia+' '+d.fecha+' · '+d.hora+' h (Chile)';}
+const hoyInventario=()=>exports().fechaChile(new Date()).iso;
+const diaLegible=value=>value.split('-').reverse().join('/');
+function sumarDia(fecha,dias){
+ const d=new Date(fecha+'T12:00:00Z');
+ if(!Number.isFinite(d.getTime())||d.toISOString().slice(0,10)!==fecha)return '';
+ d.setUTCDate(d.getUTCDate()+dias);
+ return d.toISOString().slice(0,10);
+}
+function fechaRevision(revision){
+ const dia=revision.fecha_inventario||revision.summary?.fecha_inventario||revision.summary?.fecha_conteos_recuperada;
+ return dia&&sumarDia(dia,0)?dia:exports().fechaChile(revision.created_at).iso;
+}
+function pintarCalendario(tabId){
+ const box=$('ukiInvCalendario'),input=$('ukiInvDia');if(!box||!input)return;
+ const visible=['inventario','reportes'].includes(tabId);
+ box.hidden=!visible;if(!visible)return;
+ const target=$(tabId==='reportes'?'ukiHistorial':'ukiMiniInventario');
+ if(target&&target.previousElementSibling!==box)target.insertAdjacentElement('beforebegin',box);
+ const hoy=hoyInventario();
+ input.max=hoy;input.value=tabId==='inventario'?hoy:(x.calendarDate||hoy);
+ $('ukiInvDiaSiguiente').disabled=input.value>=hoy;
+ status('ukiInvDiaEstado',tabId==='inventario'?'Hoy · existencias actuales.':
+  x.calendarExact?'Fecha elegida: '+diaLegible(x.calendarExact)+'.':'Elige un día para consultar su inventario guardado.');
+}
+function consultarDia(value){
+ const hoy=hoyInventario(),dia=sumarDia(value,0);
+ if(!dia||dia>hoy){pintarCalendario(tab());return;}
+ x.historyRun++;x.detailRun++;x.busyHistory=false;x.historyLoaded=false;x.historyOffset=0;
+ x.selected=null;$('ukiHistorialDetalle').hidden=true;
+ x.calendarDate=dia;x.calendarExact=dia<hoy?dia:'';
+ if(dia<hoy){
+  $('ukiHistoriaDesde').value=dia;$('ukiHistoriaHasta').value=dia;$('ukiHistoriaNombre').value='';
+ }else{
+  x.loaded=false;$('ukiHistoriaDesde').value='';$('ukiHistoriaHasta').value='';
+ }
+ const destino=dia<hoy?'reportes':'inventario';
+ const boton=document.querySelector('[data-romo-inv-tab="'+destino+'"]')||document.querySelector('[data-uki-tab="'+destino+'"]');
+ if(tab()!==destino&&boton)boton.click();else show();
+}
+function montarCalendario(){
+ x.calendarDate=hoyInventario();x.calendarExact='';x.actualizadoEn=null;x.historyRun++;x.detailRun++;x.busyHistory=false;
+ $('ukiInvDia').onchange=e=>consultarDia(e.target.value);
+ $('ukiInvDiaAnterior').onclick=()=>consultarDia(sumarDia($('ukiInvDia').value||hoyInventario(),-1));
+ $('ukiInvDiaSiguiente').onclick=()=>consultarDia(sumarDia($('ukiInvDia').value||hoyInventario(),1));
+ $('ukiInvDiaHoy').onclick=()=>consultarDia(hoyInventario());
+}
 function renderHistory(){
  const root=$('ukiHistoriaLista');root.replaceChildren();
- if(!x.history.length)root.textContent='No hay revisiones con esos filtros.';
+ if(!x.history.length)root.textContent=x.calendarExact?
+  'No hay un inventario guardado el '+diaLegible(x.calendarExact)+'.':'No hay revisiones con esos filtros.';
  for(const revision of x.history){
   const row=document.createElement('div');row.className='uki-mini-item';
   const left=document.createElement('div');left.className='uki-mini-info';
-  const title=document.createElement('strong');title.textContent=fecha(revision.created_at);
+  const title=document.createElement('strong');title.textContent='Inventario del '+diaLegible(fechaRevision(revision));
+  const guardado=document.createElement('small');guardado.textContent='Guardado: '+fecha(revision.created_at);
   const details=document.createElement('small');const summary=revision.summary||{};
   details.textContent=String(revision.worker_name||'Trabajador')+' · '+(Number(summary.productos)||0)+
    ' artículos · '+(summary.faltantes?.length||0)+' para reponer'+
   (summary.entradas_verificadas?' · '+(summary.articulos_con_entradas||0)+' con entradas':' · entradas no desglosadas');
-  left.append(title,details);row.append(left,button('Ver inventario',()=>void openRevision(revision.id)));
+  left.append(title,guardado,details);row.append(left,button('Ver inventario',()=>void openRevision(revision.id)));
   root.append(row);
  }
  $('ukiHistoriaAnterior').disabled=x.busyHistory||x.historyOffset<=0;
@@ -265,19 +333,23 @@ function renderHistory(){
   ' · primero las más recientes.');
 }
 async function loadHistory(){
- if(x.busyHistory)return;
- x.busyHistory=true;const b=sucursal();
+ const run=++x.historyRun,b=sucursal(),root=$('ukiHistorial');
+ x.busyHistory=true;x.detailRun++;x.selected=null;
+ $('ukiHistorialDetalle').hidden=true;$('ukiHistoriaLista').replaceChildren();
  status('ukiHistoriaEstado','Buscando revisiones de '+nombreSucursal(b)+'…');
  $('ukiHistoriaAnterior').disabled=true;$('ukiHistoriaSiguiente').disabled=true;
+ const current=()=>run===x.historyRun&&b===sucursal()&&root===$('ukiHistorial');
  try{
   const data=await request('historial',{desde:$('ukiHistoriaDesde').value,
    hasta:$('ukiHistoriaHasta').value,trabajador:$('ukiHistoriaNombre').value,
    offset:x.historyOffset},b);
-  if(b!==sucursal())return;
+  if(!current())return;
   x.history=Array.isArray(data.revisiones)?data.revisiones:[];
-  x.historyTotal=Number(data.total)||0;x.historyLoaded=true;
- }catch(e){x.historyLoaded=false;status('ukiHistoriaEstado','No se pudo consultar: '+String(e.message||e));}
- finally{x.busyHistory=false;if(x.historyLoaded&&b===sucursal())renderHistory();}
+  x.historyTotal=Number(data.total)||0;x.historyLoaded=true;x.busyHistory=false;
+  renderHistory();
+  if(x.calendarExact&&x.history[0]&&tab()==='reportes')void openRevision(x.history[0].id,false);
+ }catch(e){if(current()){x.historyLoaded=false;status('ukiHistoriaEstado','No se pudo consultar: '+String(e.message||e));}}
+ finally{if(current())x.busyHistory=false;}
 }
 function renderDetail(){
  if(!x.selected)return;
@@ -295,18 +367,22 @@ function renderDetail(){
  $('ukiDetalleMas').hidden=filtered.length<=x.detailLimit;
  status('ukiDetalleEstado',filtered.length+' artículos · mostrando '+Math.min(x.detailLimit,filtered.length)+'.');
 }
-async function openRevision(id){
- const b=sucursal();status('ukiHistoriaEstado','Abriendo revisión histórica…');
+async function openRevision(id,scroll=true){
+ const run=++x.detailRun,b=sucursal(),root=$('ukiHistorial');
+ const current=()=>run===x.detailRun&&b===sucursal()&&root===$('ukiHistorial')&&tab()==='reportes';
+ status('ukiHistoriaEstado','Abriendo inventario guardado…');
  try{
   const response=await request('revision',{id:String(id)},b);
-  if(b!==sucursal())return;
+  if(!current())return;
   x.selected={...response.revision,branch:b};x.detailQuery='';x.detailLimit=15;x.detailFilter='todos';
   $('ukiDetalleBuscar').value='';$('ukiDetalleFiltro').value='todos';
   $('ukiHistorialDetalle').hidden=false;
-  status('ukiHistorialFecha',fecha(x.selected.created_at)+' · '+x.selected.worker_name+
-   ' · '+nombreSucursal(b)+'. Es el inventario registrado ese día, no el stock actual.');
-  renderDetail();renderHistory();$('ukiHistorialDetalle').scrollIntoView({behavior:'smooth',block:'start'});
- }catch(e){status('ukiHistoriaEstado','No se pudo abrir el inventario: '+String(e.message||e));}
+  status('ukiHistorialFecha','Inventario del '+diaLegible(fechaRevision(x.selected))+
+   ' · Guardado: '+fecha(x.selected.created_at)+' · '+x.selected.worker_name+
+   ' · '+nombreSucursal(b)+'. Consulta histórica, sin cambios en el stock actual.');
+  renderDetail();renderHistory();
+  if(scroll)$('ukiHistorialDetalle').scrollIntoView({behavior:'smooth',block:'start'});
+ }catch(e){if(current())status('ukiHistoriaEstado','No se pudo abrir el inventario: '+String(e.message||e));}
 }
 function mount(){
  oldMount();if(!$('ukiMiniInventario')||!exports())return;
@@ -319,6 +395,7 @@ function mount(){
   }
  }
  x.branch=sucursal();x.loaded=false;x.loadedAt=null;x.historyLoaded=false;x.selected=null;x.editor=false;
+ montarCalendario();
  $('ukiMiniBuscar').oninput=e=>{x.query=e.target.value;x.limit=12;renderCurrent();};
  $('ukiMiniFiltro').onchange=e=>{x.filter=e.target.value;x.limit=12;renderCurrent();};
  $('ukiMiniActualizar').onclick=()=>void loadCurrent();
@@ -326,8 +403,9 @@ function mount(){
  $('ukiMiniExcel').onclick=()=>void exportar('excel',x.loaded?currentSnapshot():null,'ukiMiniEstado');
  $('ukiMiniPDF').onclick=()=>void exportar('pdf',x.loaded?currentSnapshot():null,'ukiMiniEstado');
  $('ukiMiniCompartir').onclick=()=>void exportar('whatsapp',x.loaded?currentSnapshot():null,'ukiMiniEstado');
- $('ukiHistoriaBuscar').onclick=()=>{x.historyOffset=0;$('ukiHistorialDetalle').hidden=true;void loadHistory();};
+ $('ukiHistoriaBuscar').onclick=()=>{x.calendarExact='';pintarCalendario(tab());x.historyOffset=0;$('ukiHistorialDetalle').hidden=true;void loadHistory();};
  $('ukiHistoriaLimpiar').onclick=()=>{
+  x.calendarExact='';x.calendarDate=hoyInventario();pintarCalendario(tab());
   $('ukiHistoriaDesde').value='';$('ukiHistoriaHasta').value='';$('ukiHistoriaNombre').value='';
   x.historyOffset=0;$('ukiHistorialDetalle').hidden=true;void loadHistory();
  };
@@ -341,7 +419,7 @@ function mount(){
  $('ukiDetalleCompartir').onclick=()=>void exportar('whatsapp',x.selected,'ukiDetalleEstado');
  $('invBranch')?.addEventListener('change',()=>{
   x.branch=sucursal();x.loaded=false;x.loadedAt=null;x.historyLoaded=false;x.historyOffset=0;
-  x.selected=null;x.editor=false;x.limit=12;$('ukiHistorialDetalle').hidden=true;show();
+  x.selected=null;x.editor=false;x.limit=12;$('ukiHistorialDetalle').hidden=true;montarCalendario();show();
  });
  for(const btn of document.querySelectorAll('[data-uki-tab]'))btn.addEventListener('click',show);
  $('invRefresh')?.addEventListener('click',()=>{if(tab()==='inventario')void loadCurrent();});

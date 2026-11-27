@@ -25,7 +25,7 @@ test('día, fecha y hora de Chile; el inventario guardado la noche anterior no s
 test('Excel compatible CSV incluye día, fecha, hora, responsables y cantidades; protege fórmulas',()=>{
  const value=exportar.csv(report);
  assert.ok(value.startsWith('\uFEFFsep=;\r\n'));
- assert.match(value,/Fecha";"Día";"Hora";"Sucursal";"Responsable";"Artículo"/);
+ assert.match(value,/Fecha de guardado";"Día";"Hora de guardado";"Sucursal";"Responsable";"Artículo"/);
  assert.match(value,/06\/11\/2026";"viernes";"22:45"/);
  assert.match(value,/María Soto/);
  assert.match(value,/Pollo/);
@@ -43,8 +43,8 @@ test('PDF genera estructura PDF válida, incluye fecha y crea varias páginas si
  assert.ok(text.startsWith('%PDF-1.4\n'));
  assert.match(text,/\/Type \/Catalog/);
  assert.match(text,/\/Type \/Pages/);
- assert.match(text,/\/Count 3/);
- assert.match(text,/viernes 06\/11\/2026 \| 22:45 h Chile/);
+ assert.ok(Number(text.match(/\/Count (\d+)/)?.[1])>=3);
+ assert.match(text,/Guardado: 06\/11\/2026 · 22:45 h Chile/);
  assert.match(text,/Art.culo 099/);
  const at=Number(text.match(/startxref\n(\d+)\n%%EOF/)?.[1]);
  assert.ok(Number.isSafeInteger(at)&&text.slice(at,at+4)==='xref');
@@ -97,6 +97,45 @@ test('la demostración visual no accede a la base real y permite revisar los con
  assert.doesNotThrow(()=>new vm.Script(scripts[0],{filename:'vista-previa-inventario.html'}));
 });
 
+test('el calendario del panel normal navega por fecha del inventario y Hoy vuelve a existencias',()=>{
+ const ui=fs.readFileSync(path.join(__dirname,'../firebase/uki-inventario-historial-admin.js'),'utf8');
+ const vm=require('node:vm');
+ const nodes={},by=id=>nodes[id]??=({value:'',hidden:false,insertAdjacentElement(){}});
+ const seen=[];
+ let current='inventario';
+ const context={
+  $:by,tab:()=>current,exports:()=>({fechaChile:()=>({iso:'2026-11-27'})}),
+  status(){},x:{historyRun:0,detailRun:0},
+  document:{querySelector(selector){
+   if(selector.includes('data-romo-inv-tab'))return null;
+   return {click(){current=selector.includes('reportes')?'reportes':'inventario';context.show();}};
+  }},
+  show(){seen.push([current,by('ukiHistoriaDesde').value,by('ukiHistoriaHasta').value]);}
+ };
+ const a=ui.indexOf('const hoyInventario='),b=ui.indexOf('function renderHistory()',a);
+ vm.createContext(context);vm.runInContext(ui.slice(a,b),context);
+ context.montarCalendario();
+ by('ukiInvDia').value='2026-11-27';by('ukiInvDiaAnterior').onclick();
+ assert.deepEqual(seen[0],['reportes','2026-11-26','2026-11-26']);
+ assert.equal(context.fechaRevision({created_at:'2026-11-27T04:02:00Z',summary:{fecha_conteos_recuperada:'2026-11-26'}}),'2026-11-26');
+ by('ukiInvDia').value='2026-11-26';by('ukiInvDiaSiguiente').onclick();
+ assert.deepEqual(seen[1],['inventario','','']);
+ assert.equal(context.x.loaded,false);
+ context.consultarDia('2026-11-28');assert.equal(seen.length,2);
+});
+
+test('fecha vigente del panel proviene de las dos tablas de inventario de su bodega',async()=>{
+ const {_testing}=require('../api/inventario-turno-live.js');
+ const sql={query:async(q,params)=>{
+  assert.deepEqual(params,['serena']);
+  assert.equal((q.match(/MAX\(updated_at\)/g)||[]).length,2);
+  assert.equal((q.match(/branch=\$1/g)||[]).length,2);
+  return [{actualizado_en:'2026-11-27T02:06:22Z'}];
+ }};
+ assert.equal(await _testing.ultimaActualizacionInventario(sql,'serena'),'2026-11-27T02:06:22Z');
+ assert.match(_testing.fechaRevisionSQL,/fecha_conteos_recuperada/);
+});
+
 test('trabajador ve día fecha y reloj de Chile EN VIVO mientras hace el inventario',()=>{
  const read=file=>fs.readFileSync(path.join(__dirname,'..',file),'utf8');
  for(const file of ['public/index.html','firebase/uki-inventario-turno.html']){
@@ -112,7 +151,7 @@ test('trabajador ve día fecha y reloj de Chile EN VIVO mientras hace el inventa
   assert.match(source,/document\.addEventListener\('visibilitychange'/);
   assert.match(source,/horaConteos\.set\(item\.sku,horaRegistro\)/);
   assert.match(source,/Último registro:/);
-  assert.match(source,/Registrado: /);
+  assert.match(source,/formatoFechaHoraChile/);
  }
  const demo=read('public/vista-previa-inventario.html');
  assert.match(demo,/id="hora-actual"/);

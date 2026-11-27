@@ -82,6 +82,8 @@ async function load(){
   X.items=a.items||[];X.reports=r.revisiones||[];X.loaded=true;
   $('invAdmin').hidden=false;$('invNewBox').hidden=false;$('invReportsBox').hidden=false;
   populate();reports();status('✓ '+X.items.length+' artículos · '+X.reports.length+' revisiones consultadas.');
+  document.dispatchEvent(new CustomEvent('uki:existencias-panel-actualizadas',{
+   detail:{root:$('invRoot'),branch,items:a.items||[],actualizado_en:a.actualizado_en||null}}));
  }catch(e){X.loaded=false;$('invAdmin').hidden=true;$('invNewBox').hidden=true;$('invReportsBox').hidden=true;status(String(e.message||e));}
  finally{X.busy=false;if($('invRefresh'))$('invRefresh').disabled=false;}
 }
