@@ -4,7 +4,7 @@
 const API='https://uki-sushi-inventario.vercel.app/api/inventario-turno-live';
 const U=[['un','Unidades'],['kg','Kilos'],['g','Gramos'],['l','Litros'],['ml','Mililitros'],['porciones','Porciones']];
 const C=[['ingrediente','Ingrediente'],['envase','Envase'],['otro','Otro insumo']];
-const X={branch:'',items:[],reports:[],selected:'',busy:false,loaded:false,romoRevision:null,romoPlantilla:[],shared:false,legacyItems:[]};
+const X={branch:'',items:[],reports:[],selected:'',busy:false,loaded:false,romoRevision:null,romoPlantilla:[],shared:false,legacyItems:[],loadedAt:null};
 const $=id=>document.getElementById(id);
 const panelBranch=()=>typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena'?'romo':typeof S!=='undefined'&&S?.suc==='Uki La Serena'?'serena':'arica';
 function pick(xs){return xs.map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('');}
@@ -22,13 +22,13 @@ function panel(){return [
 '<p id="romoPinInventarioEstado" role="status" class="muted">Verificando configuración…</p>'+
 '<div id="romoPinInventarioAlta" hidden><label>Crear PIN de inventario Romo (seis números)</label><input id="romoPinInventarioNuevo" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="••••••"><button class="sm ok" type="button" id="romoPinInventarioCrear">Crear código de Romo</button></div>'+
 '<a href="/romo-panel-qa/romo-inventario-trabajador.html" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:12px 15px;border-radius:10px;background:#b32133;color:#fff;font-weight:700;text-decoration:none;margin-top:9px">Abrir inventario del trabajador · Romo</a></section>',
-'<div class="card" id="invAdmin" hidden><h2>Existencias y mínimos</h2><label for="invSearch">Buscar artículo</label><input id="invSearch" type="search" autocomplete="off" placeholder="Pollo, palta, aceite…">',
+'<div class="card" id="invAdmin" tabindex="-1" hidden style="scroll-margin-top:155px"><h2>Existencias y mínimos</h2><label for="invSearch">Buscar artículo</label><input id="invSearch" type="search" autocomplete="off" placeholder="Pollo, palta, aceite…">',
 '<label for="invSelect">Artículo</label><select id="invSelect"></select><div id="invEditor" hidden>',
 '<label for="invName">Nombre</label><input id="invName" maxlength="100"><label for="invCategory">Categoría</label><select id="invCategory">'+pick(C)+'</select>',
 '<label for="invUnit">Unidad</label><select id="invUnit">'+pick(U)+'</select>',
 '<div class="quick-grid"><div><label for="invStock">Cantidad actual</label><input id="invStock" inputmode="decimal" autocomplete="off"></div>',
 '<div><label for="invMin">Mínimo de reposición</label><input id="invMin" inputmode="decimal" autocomplete="off"></div></div>',
-'<p class="muted">Cambiar unidad no convierte las cantidades; escribe las cifras correctas.</p><button id="invSave" class="big" type="button">Guardar cambios</button>'+
+'<p class="muted">Cambiar unidad no convierte las cantidades; escribe las cifras correctas.</p><button id="invSave" class="big" type="button">Guardar cambios</button><p id="invEditorStatus" role="status" class="mini-help"></p>'+
 '<div id="romoInvOperaciones" hidden><button id="romoInvDisponible" class="sm" type="button">Cambiar disponibilidad</button>'+
 '<button id="romoInvArchivar" class="sm" type="button">Eliminar artículo</button></div></div>',
 '<p class="mini-help">Disponible/Agotado sigue siendo manual. El stock nunca lo modifica automáticamente.</p></div>',
@@ -44,7 +44,10 @@ function panel(){return [
 '<button type="button" id="invCreate" class="big">Agregar al inventario</button></details></div>',
 '<div class="card" id="invReportsBox" hidden><h2>Revisiones de trabajadores</h2><div id="invReports"></div></div>'
 ].join('');}
-function status(msg){if($('invStatus'))$('invStatus').textContent=msg;}
+function status(msg){
+ if($('invStatus'))$('invStatus').textContent=msg;
+ if($('invEditorStatus')&&!$('invEditor')?.hidden)$('invEditorStatus').textContent=msg;
+}
 async function request(action,data={},branch=X.branch){
  if(typeof S!=='undefined'&&S?.suc==='Romo’s Sushi La Serena')
   return requestRomo(action,data,branch);
@@ -205,14 +208,24 @@ function reports(){
   target.append(d);
  }
 }
-async function load(){
- if(X.busy||!$('invRoot'))return;X.busy=true;$('invRefresh').disabled=true;
+let loadTask=null;
+function load(){
+ if(loadTask)return loadTask;
+ const root=$('invRoot');if(X.busy||!root)return Promise.resolve();
+ loadTask=loadSnapshot().finally(()=>{
+  loadTask=null;
+  if($('invRoot')&&root!==$('invRoot')&&!X.loaded)void load();
+ });
+ return loadTask;
+}
+async function loadSnapshot(){
+ X.busy=true;$('invRefresh').disabled=true;
  const branch=X.branch,root=$('invRoot');status('Consultando inventario…');
  try{
   const snapshot=branch==='romo'?await request('inventario-completo',{},branch):null;
   const [a,r]=snapshot?[snapshot,snapshot]:await Promise.all([request('articulos',{},branch),request('reportes',{},branch)]);
   if(branch!==X.branch||branch!==panelBranch()||root!==$('invRoot'))return;
-  X.items=a.items||[];X.reports=r.revisiones||[];X.loaded=true;
+  X.items=a.items||[];X.reports=r.revisiones||[];X.loaded=true;X.loadedAt=new Date().toISOString();
   const box=$('romoInvBootstrap');
   if(box){
    box.hidden=branch!=='romo'||X.items.length!==0||!X.romoPlantilla.length;
@@ -227,11 +240,12 @@ async function load(){
   if(branch==='romo'&&X.shared)$('ukiInvSucursalActual').textContent='La Serena · Uki y Romo · bodega compartida';
   $('invAdmin').hidden=false;$('invNewBox').hidden=false;$('invReportsBox').hidden=false;
   populate();reports();status('✓ '+X.items.length+' artículos · '+X.reports.length+' revisiones consultadas.');
-  // Solo lectura de los faltantes de la MISMA sucursal Romo. No copia
-  // existencias de Uki ni escribe datos; refresca el panel al terminar.
-  if(branch==='romo')window.romoActualizarFaltantesQA?.();
+  if(branch==='romo'){
+   document.dispatchEvent(new CustomEvent('romo:existencias-panel-actualizadas',{detail:inventarioActualRomo()}));
+   window.romoActualizarFaltantesQA?.();
+  }
  }catch(e){if(root===$('invRoot')&&branch===panelBranch()){X.loaded=false;$('invAdmin').hidden=true;$('invNewBox').hidden=true;$('invReportsBox').hidden=true;status(String(e.message||e));}}
- finally{X.busy=false;if($('invRefresh'))$('invRefresh').disabled=false;if($('invRoot')&&root!==$('invRoot')&&!X.loaded)void load();}
+ finally{X.busy=false;if($('invRefresh'))$('invRefresh').disabled=false;}
 }
 async function save(){
  const i=X.items.find(x=>x.sku===X.selected);if(!i||X.busy)return;let params;
@@ -244,7 +258,12 @@ async function save(){
   else Object.assign(params,{stock_unit,stock_qty,min_stock_qty});
  }catch(e){status(String(e.message));return;}
  X.busy=true;$('invSave').disabled=true;status('Guardando…');
- try{await request(i.inventory_only?'editar-articulo':'configurar-unidad',params);X.busy=false;await load();status('✓ Cantidad y mínimo guardados correctamente.');}
+ try{
+  await request(i.inventory_only?'editar-articulo':'configurar-unidad',params);
+  X.busy=false;await load();
+  status(X.loaded?'✓ Cantidad y mínimo guardados correctamente.':
+   '✓ Cambios guardados. Actualiza la lista para confirmar que se muestran.');
+ }
  catch(e){status('No se guardó: '+String(e.message||e));}
  finally{X.busy=false;if($('invSave'))$('invSave').disabled=false;}
 }
@@ -614,6 +633,19 @@ function mount(){
  if(X.loaded){$('invAdmin').hidden=false;$('invNewBox').hidden=false;$('invReportsBox').hidden=false;populate();reports();status('Inventario listo.');}
  else void load();
 }
+function inventarioActualRomo(){
+ return {items:X.items.slice(),loadedAt:X.loadedAt,root:$('invRoot')};
+}
+// Lista y edición leen la misma instantánea, con la identidad de este panel.
+window.romoConsultarExistenciasPanelQA=async function({refresh=false}={}){
+ const root=$('invRoot');
+ if(!root||X.branch!=='romo'||panelBranch()!=='romo')throw Error('Abre el inventario de Romo.');
+ if(loadTask)await loadTask;
+ else if(refresh||!X.loaded)await load();
+ if(root!==$('invRoot')||X.branch!=='romo'||panelBranch()!=='romo')throw Error('Cambió el inventario abierto.');
+ if(!X.loaded)throw Error($('invStatus')?.textContent||'No se confirmaron las existencias.');
+ return inventarioActualRomo();
+};
 // Lectura local, sin token nuevo ni acceso a otras sucursales.
 window.romoInventarioFaltantesSoloLecturaQA=function(){
  if(X.branch!=='romo'||S?.suc!=='Romo’s Sushi La Serena'||!X.loaded)return null;

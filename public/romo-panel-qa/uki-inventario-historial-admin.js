@@ -137,8 +137,8 @@ const nombreNormal=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,
 const nombreSucursal=b=>exports().branchName(b);
 async function request(action,payload={},b=sucursal()){
  if(b==='romo'){
-  // Se consulta únicamente el inventario de Romo desde SU API protegida.
-  // No se consulta nunca historial, compras ni existencias del backend Uki.
+  // Esta ruta conserva el historial anterior de Romo.
+  // La lista de existencias actuales se toma del mismo catálogo que usa el editor.
   if(typeof S==='undefined'||S.suc!=='Romo’s Sushi La Serena')
    throw Error('Primero abre la sucursal Romo');
   const token=await window.ukiInventarioToken?.();
@@ -217,24 +217,32 @@ function renderCurrent(){
  status('ukiMiniEstado',found.length+' artículos encontrados · '+missing+
   ' para reponer · mostrando '+Math.min(found.length,x.limit)+' de '+x.items.length+' del inventario.');
 }
-async function loadCurrent(){
+function aplicarExistencias(data){
+ x.items=Array.isArray(data.items)?data.items:[];
+ x.loaded=true;x.loadedAt=data.loadedAt||new Date().toISOString();renderCurrent();
+}
+document.addEventListener('romo:existencias-panel-actualizadas',event=>{
+ if(sucursal()!=='romo'||!$('ukiMiniInventario')||event.detail?.root!==$('invRoot'))return;
+ aplicarExistencias(event.detail);
+});
+async function loadCurrent(refresh=false){
  const b=sucursal(),root=$('ukiMiniInventario');status('ukiMiniEstado','Cargando inventario de '+nombreSucursal(b)+'…');
  try{
-  const data=await request('articulos',{},b);
+  const data=b==='romo'?await window.romoConsultarExistenciasPanelQA({refresh}):await request('articulos',{},b);
   if(b!==sucursal()||root!==$('ukiMiniInventario'))return;
-  x.items=Array.isArray(data.items)?data.items:[];x.loaded=true;x.loadedAt=new Date().toISOString();renderCurrent();
+  aplicarExistencias(data);
  }catch(e){if(root!==$('ukiMiniInventario')||b!==sucursal())return;x.loaded=false;x.loadedAt=null;x.items=[];status('ukiMiniEstado','Error: '+String(e.message||e));$('ukiMiniFilas')?.replaceChildren();}
 }
 function edit(sku){
  const area=$('invAdmin'),sel=$('invSelect'),search=$('invSearch');
- if(!area||!sel||!search)return;
+ if(!area||area.hidden||!sel||!search){status('ukiMiniEstado','No se pudo abrir la edición. Actualiza la lista para volver a intentarlo.');return;}
  search.value='';search.dispatchEvent(new Event('input',{bubbles:true}));
  if(![...sel.options].some(o=>o.value===sku)){
-  status('ukiMiniEstado','Actualiza los artículos antes de editar.');return;
+  status('ukiMiniEstado','No se encontró esta ficha en el inventario vigente. Actualiza la lista.');return;
  }
  x.editor=true;area.style.display='';
  sel.value=sku;sel.dispatchEvent(new Event('change',{bubbles:true}));
- area.scrollIntoView({behavior:'smooth',block:'start'});
+ area.focus({preventScroll:true});area.scrollIntoView({behavior:'smooth',block:'start'});
 }
 function currentSnapshot(){
  if(!x.loaded)throw Error('Primero carga el inventario actual.');
@@ -349,7 +357,7 @@ function mount(){
  x.branch=sucursal();x.loaded=false;x.loadedAt=null;x.historyLoaded=false;x.selected=null;x.editor=false;
  $('ukiMiniBuscar').oninput=e=>{x.query=e.target.value;x.limit=12;renderCurrent();};
  $('ukiMiniFiltro').onchange=e=>{x.filter=e.target.value;x.limit=12;renderCurrent();};
- $('ukiMiniActualizar').onclick=()=>void loadCurrent();
+ $('ukiMiniActualizar').onclick=()=>void loadCurrent(true);
  $('ukiMiniMas').onclick=()=>{x.limit+=12;renderCurrent();};
  $('ukiMiniExcel').onclick=()=>void exportar('excel',x.loaded?currentSnapshot():null,'ukiMiniEstado');
  $('ukiMiniPDF').onclick=()=>void exportar('pdf',x.loaded?currentSnapshot():null,'ukiMiniEstado');
@@ -373,7 +381,7 @@ function mount(){
   x.selected=null;x.editor=false;x.limit=12;$('ukiHistorialDetalle').hidden=true;show();
  });
  for(const btn of document.querySelectorAll('[data-uki-tab]'))btn.addEventListener('click',show);
- $('invRefresh')?.addEventListener('click',()=>{if(tab()==='inventario')void loadCurrent();});
+ $('invRefresh')?.addEventListener('click',()=>{if(sucursal()!=='romo'&&tab()==='inventario')void loadCurrent();});
  show();
 }
 window.ukiInventarioMontar=mount;
