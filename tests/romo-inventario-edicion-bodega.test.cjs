@@ -58,5 +58,5 @@ test('la edición y las consultas de Romo conservan el control del catálogo com
  assert.deepEqual(sent.at(-1).params,{branch:'serena',action:'configurar-unidad',sku:fresh.sku,stock_unit:'kg',stock_qty:0.125,min_stock_qty:2,expected_version:2});
  await assert.rejects(result('configurar-unidad',{},'arica'),/solo consulta/);
  assert.match(local,/uki-inventario-admin-embebido\.js\?v=20261126-editar-bodega-v1/);
- assert.match(local,/uki-inventario-historial-admin\.js\?v=20261126-editar-bodega-v1/);
+ assert.match(local,/uki-inventario-historial-admin\.js\?v=20261127-agenda-recepcion-v1/);
 });

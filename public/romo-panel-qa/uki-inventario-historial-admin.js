@@ -4,7 +4,7 @@
 const oldHTML=window.ukiInventarioPanelHTML,oldMount=window.ukiInventarioMontar;
 if(typeof oldHTML!=='function'||typeof oldMount!=='function')return;
 const API='https://uki-sushi-inventario.vercel.app/api/inventario-turno-live';
-let romoTab='inventario',mountedRoot=null;
+let mountedRoot=null;
 const x={branch:'',items:[],loaded:false,loadedAt:null,limit:12,filter:'todos',query:'',editor:false,
  history:[],historyLoaded:false,historyOffset:0,historyTotal:0,busyHistory:false,
  selected:null,detailLimit:15,detailQuery:'',detailFilter:'todos',
@@ -285,11 +285,10 @@ async function exportar(tipo,report,output){
   status(output,'Archivo preparado. Revisa las descargas del teléfono.');
  }catch(e){status(output,'No fue posible exportar: '+String(e.message||e));}
 }
-function tab(){return sucursal()==='romo'?romoTab:document.querySelector('[data-uki-tab][aria-pressed="true"]')?.dataset.ukiTab||'inventario';}
+function tab(){return document.querySelector('[data-uki-tab][aria-pressed="true"]')?.dataset.ukiTab||'inventario';}
 function show(){
  const t=tab();
  pintarCalendario(t);
- if(sucursal()==='romo')for(const b of document.querySelectorAll('[data-romo-inv-tab]'))b.setAttribute('aria-pressed',String(b.dataset.romoInvTab===t));
  $('ukiMiniInventario').hidden=t!=='inventario';
  $('ukiHistorial').hidden=t!=='reportes';
  if($('invAdmin'))$('invAdmin').style.display=t==='inventario'&&x.editor?'':'none';
@@ -335,7 +334,7 @@ function consultarDia(value){
   x.loaded=false;$('ukiHistoriaDesde').value='';$('ukiHistoriaHasta').value='';
  }
  const destino=dia<hoy?'reportes':'inventario';
- const boton=document.querySelector('[data-romo-inv-tab="'+destino+'"]')||document.querySelector('[data-uki-tab="'+destino+'"]');
+ const boton=document.querySelector('[data-uki-tab="'+destino+'"]');
  if(tab()!==destino&&boton)boton.click();else show();
 }
 function montarCalendario(){
@@ -421,15 +420,11 @@ async function openRevision(id,scroll=true){
 function mount(){
  oldMount();
  const mounted=$('ukiMiniInventario');if(!mounted||!exports()||mounted===mountedRoot)return;mountedRoot=mounted;
- if(sucursal()==='romo'){
-  const nav=document.createElement('div');nav.className='sub-tabs';nav.setAttribute('role','group');nav.setAttribute('aria-label','Inventario Romo');
-  for(const [k,label] of [['inventario','Existencias y compras'],['reportes','Historial de revisiones']]){const b=button(label,()=>{romoTab=k;show();});b.dataset.romoInvTab=k;b.setAttribute('aria-pressed',String(romoTab===k));nav.append(b);} $('invRoot')?.insertAdjacentElement('afterend',nav);
- }
  // Reordenar solamente contenedores existentes, conservando botones y eventos.
  const root=$('invRoot');
  if(root){
-  let anterior=sucursal()==='romo'?(document.querySelector('[data-romo-inv-tab]')?.parentElement||root):root;
-  for(const id of ['ukiMiniInventario','invAdmin','invNewBox','ukiInvWorkerAccess','romoInvWorkerAccess']){
+  let anterior=root;
+  for(const id of ['ukiMiniInventario','invAdmin','invNewBox','invCosteo','ukiInvWorkerAccess','romoInvWorkerAccess']){
    const el=$(id);if(el){anterior.insertAdjacentElement('afterend',el);anterior=el;}
   }
  }
