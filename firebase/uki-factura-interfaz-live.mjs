@@ -2,7 +2,7 @@ import {leerDTE,filasDTE,leerTextoFactura,leerCabeceraFacturaPDF,numeroFactura,o
 import {reconocerFotoFactura} from './uki-factura-foto-v2.mjs?v=20261127-factura-agil-v1';
 export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreated}){
  const section=document.createElement('section');section.id='facturaQA';section.className='card';
- section.innerHTML="<h2>📷 Recibir mercadería con factura</h2>\n<p class=\"muted\">Gratis: toma una foto o sube una factura. Revisa las cantidades antes de guardar. La foto se procesa en tu teléfono y no se envía al servidor.</p>\n<div class=\"fact-botones\"><label for=\"factFoto\">📷 Tomar foto</label><input id=\"factFoto\" type=\"file\" accept=\"image/*\" capture=\"environment\">\n<label for=\"factArchivo\">Subir archivo</label><input id=\"factArchivo\" type=\"file\" accept=\"image/*,.xml,application/xml,.pdf,application/pdf\"></div>\n<p id=\"factEstado\" role=\"status\" class=\"muted\">Fotos, XML y PDF con texto. El ingreso manual sigue disponible.</p>\n<div id=\"factTextoBox\" hidden><label for=\"factTexto\">Texto leído (corrígelo si hay errores)</label>\n<textarea id=\"factTexto\" rows=\"4\" maxlength=\"20000\" style=\"width:100%;font:inherit;border:1px solid #d5c4b6;border-radius:9px\"></textarea>\n<button type=\"button\" class=\"secondary\" id=\"factReleer\">Volver a detectar productos</button></div>\n<div id=\"factLineas\"></div>\n<div id=\"factAcciones\" hidden><button type=\"button\" class=\"secondary\" id=\"factAnadir\">Añadir línea manual</button>\n<button type=\"button\" id=\"factGuardar\">Confirmar mercadería recibida</button>\n<p id=\"factResultado\" role=\"status\"></p><p class=\"muted small\">Las entradas marcadas se guardan individualmente. Si hay un error, revisa el saldo antes de intentar otra vez.</p></div>\n<style>#facturaQA .fact-botones{display:flex;gap:8px;flex-wrap:wrap}\n#facturaQA .fact-botones input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}\n#facturaQA .fact-botones label{display:inline-block;background:#e9822d;color:white;border-radius:9px;padding:12px;cursor:pointer}\n#facturaQA .fact-fila{border:1px solid #eadbcc;border-radius:10px;padding:12px;margin:9px 0}\n#facturaQA .fact-fila select,#facturaQA .fact-fila input[type=text]{width:100%}\n#facturaQA .fact-columnas{display:grid;grid-template-columns:1fr 1fr;gap:8px}\n#facturaQA .fact-mensaje{background:#fff6e9;border-radius:8px;padding:8px}\n#facturaQA .fact-guardada{background:#f0f9ef;border-radius:8px;padding:8px;color:#25612c}\n#facturaQA .fact-cantidades{min-width:0;border:1px solid #eadbcc;border-radius:9px;margin:12px 0;padding:8px 10px}\n#facturaQA .fact-cantidades legend{font-weight:bold;padding:0 4px}\n#facturaQA .fact-atajos{display:flex;gap:6px;flex-wrap:wrap;position:sticky;top:var(--fact-header,0px);z-index:4;background:#fffaf5;border:1px solid #eadbcc;border-radius:10px;padding:6px;margin:10px 0}\n#facturaQA .fact-atajos[hidden],#facturaQA .fact-fila [hidden]{display:none!important}\n#facturaQA .fact-atajos button{margin:0;padding:8px 10px;font-size:.94em}\n#facturaQA .fact-resumen{cursor:pointer;line-height:1.4}\n#facturaQA .fact-resumen small{display:block;margin-left:1em}\n#facturaQA button{margin:8px 6px 0 0}\n#facturaQA #factAltas[hidden],#facturaQA #factRecibirVista[hidden]{display:none!important}\n#facturaQA #factEtapas button[aria-pressed=true]{background:#ae5414;color:#fff}\n#facturaQA #factEtapas button[aria-pressed=false]{background:#f6e3d2;color:#663a20}\n@media(max-width:470px){#facturaQA .fact-columnas{grid-template-columns:1fr}}</style>";
+ section.innerHTML="<h2>📷 Recibir mercadería con factura</h2>\n<p class=\"muted\">Gratis: toma una foto o sube una factura. Revisa las cantidades antes de guardar. La foto se procesa en tu teléfono y no se envía al servidor.</p>\n<div class=\"fact-botones\"><label for=\"factFoto\">📷 Tomar foto</label><input id=\"factFoto\" type=\"file\" accept=\"image/*\" capture=\"environment\">\n<label for=\"factArchivo\">Subir archivo</label><input id=\"factArchivo\" type=\"file\" accept=\"image/*,.xml,application/xml,.pdf,application/pdf\"></div>\n<p id=\"factEstado\" role=\"status\" class=\"muted\">Fotos, XML y PDF con texto. El ingreso manual sigue disponible.</p>\n<div id=\"factTextoBox\" hidden><label for=\"factTexto\">Texto leído (corrígelo si hay errores)</label>\n<textarea id=\"factTexto\" rows=\"4\" maxlength=\"20000\" style=\"width:100%;font:inherit;border:1px solid #d5c4b6;border-radius:9px\"></textarea>\n<button type=\"button\" class=\"secondary\" id=\"factReleer\">Volver a detectar productos</button></div>\n<div id=\"factLineas\"></div>\n<div id=\"factAcciones\" hidden><button type=\"button\" class=\"secondary\" id=\"factAnadir\">Añadir línea manual</button>\n<button type=\"button\" id=\"factGuardar\">Confirmar mercadería recibida</button>\n<p id=\"factResultado\" role=\"status\"></p><p class=\"muted small\">Las entradas marcadas se guardan individualmente. Si hay un error, revisa el saldo antes de intentar otra vez.</p></div>\n<style>#facturaQA .fact-botones{display:flex;gap:8px;flex-wrap:wrap}\n#facturaQA .fact-botones input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}\n#facturaQA .fact-botones label{display:inline-block;background:#e9822d;color:white;border-radius:9px;padding:12px;cursor:pointer}\n#facturaQA .fact-fila{border:1px solid #eadbcc;border-radius:10px;padding:12px;margin:9px 0}\n#facturaQA .fact-fila select,#facturaQA .fact-fila input[type=text]{width:100%}\n#facturaQA .fact-columnas{display:grid;grid-template-columns:1fr 1fr;gap:8px}\n#facturaQA .fact-mensaje{background:#fff6e9;border-radius:8px;padding:8px}\n#facturaQA .fact-guardada{background:#f0f9ef;border-radius:8px;padding:8px;color:#25612c}\n#facturaQA .fact-cantidades{min-width:0;border:1px solid #eadbcc;border-radius:9px;margin:12px 0;padding:8px 10px}\n#facturaQA .fact-cantidades legend{font-weight:bold;padding:0 4px}\n#facturaQA .fact-atajos{display:flex;gap:6px;flex-wrap:wrap;position:sticky;top:var(--fact-header,0px);z-index:4;background:#fffaf5;border:1px solid #eadbcc;border-radius:10px;padding:6px;margin:10px 0}\n#facturaQA .fact-atajos[hidden],#facturaQA #factLimpiar[hidden],#facturaQA .fact-fila [hidden]{display:none!important}\n#facturaQA .fact-atajos button{margin:0;padding:8px 10px;font-size:.94em}\n#facturaQA .fact-resumen{cursor:pointer;line-height:1.4}\n#facturaQA .fact-resumen small{display:block;margin-left:1em}\n#facturaQA button{margin:8px 6px 0 0}\n#facturaQA #factAltas[hidden],#facturaQA #factRecibirVista[hidden]{display:none!important}\n#facturaQA #factEtapas button[aria-pressed=true]{background:#ae5414;color:#fff}\n#facturaQA #factEtapas button[aria-pressed=false]{background:#f6e3d2;color:#663a20}\n@media(max-width:470px){#facturaQA .fact-columnas{grid-template-columns:1fr}}</style>";
  const metaBox=document.createElement('div');
  metaBox.id='factDocumentQA';
  metaBox.innerHTML='<h3>Datos para evitar duplicados</h3>'+
@@ -35,7 +35,10 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
   '<button type="button" class="secondary" id="factIrDatos">Proveedor</button>'+
   '<button type="button" class="secondary" id="factIrLineas">Productos</button>'+
   '<button type="button" class="secondary" id="factIrGuardar">Ir a guardar</button>';
+ atajos.insertAdjacentHTML('beforeend','<button type="button" class="secondary" id="factLimpiarAtajo">Limpiar factura</button>');
  section.insertBefore(atajos,metaBox);
+ const cargar=section.querySelector('.fact-botones');
+ cargar.insertAdjacentHTML('beforeend','<button type="button" class="secondary" id="factLimpiar" hidden>Limpiar factura</button>');
  const textoBox=section.querySelector('#factTextoBox');
  const detalleTexto=document.createElement('details');
  const resumenTexto=document.createElement('summary');resumenTexto.textContent='Ver texto leído o corregirlo';
@@ -51,7 +54,7 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
  const groups={kg:'peso',g:'peso',l:'volumen',ml:'volumen',un:'unidad',porciones:'porcion'};
  const unitLabels={kg:'Kilos (kg)',g:'Gramos (g)',l:'Litros (l)',ml:'Mililitros (ml)',un:'Unidades (un)',porciones:'Porciones'};
  let filas=[],meta={},busy=false,modo='recibir',docRevision=0,lookupVersion=0;
- let proveedorEditado=false;
+ let proveedorEditado=false,documentoGeneracion=0;
  function ajustarCabecera(){
   const header=document.querySelector('body > header');
   const fijo=header&&['sticky','fixed'].includes(window.getComputedStyle(header).position);
@@ -70,7 +73,13 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
  el('factIrDatos').onclick=()=>saltar(metaBox);
  el('factIrLineas').onclick=()=>{if(!busy){mostrarModo('recibir');saltar(el('factLineas'));}};
  el('factIrGuardar').onclick=()=>{if(!busy){mostrarModo('recibir');saltar(el('factAcciones'));}};
- el('factProveedor').oninput=()=>{proveedorEditado=true;};
+ function actualizarLimpiar(){
+  const activa=!el('factAcciones').hidden||!el('factTextoBox').hidden||
+   ['factProveedor','factRut','factFolio'].some(id=>el(id).value.trim())||el('factTipo').value!=='33';
+  el('factLimpiar').hidden=!activa;
+  el('factLimpiar').disabled=el('factLimpiarAtajo').disabled=busy;
+ }
+ el('factProveedor').oninput=()=>{proveedorEditado=true;actualizarLimpiar();};
  const previews=new WeakMap();
  function mostrarModo(value){
   modo=value==='recibir'?'recibir':'preparar';
@@ -80,6 +89,7 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
   el('factModoPreparar').disabled=busy;
   el('factModoRecibir').disabled=busy;
   el('factAltasDetalles').open=true;
+  actualizarLimpiar();
  }
  el('factModoPreparar').onclick=()=>{mostrarModo('preparar');saltar(altas);};
  el('factModoRecibir').onclick=()=>{mostrarModo('recibir');saltar(el('factLineas'));};
@@ -274,6 +284,7 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
  function render(){
   const parent=el('factLineas');parent.replaceChildren();
   atajos.hidden=el('factAcciones').hidden;
+  actualizarLimpiar();
   if(!atajos.hidden)ajustarCabecera();
   if(!filas.length)make('p',parent,'No se reconocieron productos. Corrige el texto o añade una línea manual.','muted');
   else make('p',parent,'Puedes corregir la cantidad y la unidad en cada producto antes de guardar. Si son 3 paquetes de 100 y llegaron todos, registra 300 unidades.','muted');
@@ -451,7 +462,7 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
    document.head.append(tag);
   });
  }
- async function foto(file){
+ async function foto(file,progreso){
   const address=URL.createObjectURL(file),img=new Image();
   let worker;
   try{
@@ -461,7 +472,7 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
    });
    const lib=await script('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js','Tesseract');
    worker=await lib.createWorker('spa',1,{langPath:'https://tessdata.projectnaptha.com/4.0.0_fast'});
-   return await reconocerFotoFactura(img,worker,{items:getItems(),progreso:estado});
+   return await reconocerFotoFactura(img,worker,{items:getItems(),progreso});
   }finally{URL.revokeObjectURL(address);if(worker)await worker.terminate();}
  }
  async function pdfTexto(file){
@@ -486,18 +497,22 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
   if(!file||busy)return;
   if(!getBranch()){estado('Primero abre el inventario de tu sucursal.');return;}
   if(file.size>12*1024*1024){estado('Archivo demasiado grande. Máximo 12 MB.');return;}
-  busy=true;el('factGuardar').disabled=true;estado('Leyendo el documento en el dispositivo…');
+  const generacion=++documentoGeneracion;
+  busy=true;actualizarLimpiar();el('factGuardar').disabled=true;estado('Leyendo el documento en el dispositivo…');
   proveedorEditado=false;detalleTexto.open=false;
   try{
    const ext=(file.name.split('.').pop()||'').toLowerCase();
    if(ext==='xml'||file.type.includes('xml')){
-    const dte=leerDTE(await file.text());
+    const texto=await file.text();
+    if(generacion!==documentoGeneracion)return;
+    const dte=leerDTE(texto);
     el('factTextoBox').hidden=true;el('factTexto').value='';
     preparar(filasDTE(dte,getItems()),dte);
    }else{
     if(ext!=='pdf'&&!file.type.startsWith('image/'))throw Error('Solo imagen, PDF o XML.');
-    const resultado=ext==='pdf'?null:await foto(file);
+    const resultado=ext==='pdf'?null:await foto(file,mensaje=>{if(generacion===documentoGeneracion)estado(mensaje);});
     const texto=resultado?resultado.texto:await pdfTexto(file);
+    if(generacion!==documentoGeneracion)return;
     const filasLeidas=resultado?.filas||leerTextoFactura(texto,getItems());
     el('factTextoBox').hidden=false;el('factTexto').value=texto.slice(0,20000);
     preparar(filasLeidas,resultado?.meta||leerCabeceraFacturaPDF(texto));
@@ -508,7 +523,11 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
      estado('Parece una foto de la pantalla de un PDF. Para leer la factura completa, pulsa «Subir archivo» y elige el PDF original desde Archivos. No guardes hasta verificar cantidades.');
     if(!texto.trim())estado('No se pudo leer texto; prueba otra foto o agrega productos manualmente.');
    }
-  }catch(e){estado('No se pudo leer: '+e.message+'. Puedes ingresar manualmente.');el('factAcciones').hidden=false;mostrarModo('recibir');render();}
+  }catch(e){
+   if(generacion!==documentoGeneracion)return;
+   estado('No se pudo leer: '+e.message+'. Puedes ingresar manualmente.');
+   el('factAcciones').hidden=false;mostrarModo('recibir');render();
+  }
   finally{busy=false;el('factGuardar').disabled=false;mostrarModo(modo);}
  }
  for(const id of ['factFoto','factArchivo'])el(id).onchange=e=>{const file=e.target.files?.[0];e.target.value='';void importar(file);};
@@ -526,7 +545,7 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
  };
  for(const id of ['factRut','factFolio','factTipo']){
   el(id).addEventListener('input',()=>{
-   docRevision++;
+   docRevision++;actualizarLimpiar();
    for(const f of filas){
     f.prev=null;f.entregas=[];f.solicitud=crypto.randomUUID();
     if(!f.skuManual&&!f.saved)f.sku=f.autoSku||'';
@@ -559,7 +578,7 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
    el('factResultado').textContent='Revisa las líneas marcadas: artículo, unidad, total previsto o número de entrega ya usado.';
    porCorregir.abierta=true;render();saltar(el('fact-linea-'+porCorregir.linea));return;
   }
-  busy=true;el('factGuardar').disabled=true;
+  busy=true;actualizarLimpiar();el('factGuardar').disabled=true;
   let totalGuardadas=0,duplicadas=0,error='';
   const identidad=doc();
   try{
@@ -586,9 +605,10 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
    el('factResultado').textContent=totalGuardadas+' entrada(s) nuevas guardadas.'+
      (duplicadas?' '+duplicadas+' repetida(s) no se sumaron.':'')+
      (error?' '+error+' Las demás líneas permanecen pendientes.':' Puedes compartir luego el reporte como antes.');
-  }finally{busy=false;el('factGuardar').disabled=false;}
+  }finally{busy=false;el('factGuardar').disabled=false;actualizarLimpiar();}
  };
- return {reset(){
+ function resetFactura(){
+  documentoGeneracion++;docRevision++;lookupVersion++;
   filas=[];meta={};proveedorEditado=false;atajos.hidden=true;detalleTexto.open=false;
   el('factProveedor').value='';el('factLineas').replaceChildren();
   el('factAltasFilas').replaceChildren();el('factAltasEstado').textContent='';el('factAltasDetalles').open=false;
@@ -597,6 +617,15 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
   el('factFoto').value='';el('factArchivo').value='';
   el('factRut').value='';el('factFolio').value='';el('factTipo').value='33';
   el('factDuplicados').textContent='Las entradas previas se verificarán antes de guardar.';
+  mostrarModo('recibir');
   estado('Toma una foto o sube una factura para preparar las entradas.');
- }};
+ }
+ function limpiarFactura(){
+  if(busy)return;
+  resetFactura();
+  estado('Factura limpiada. Puedes tomar otra foto o subir otro archivo. Las entradas ya guardadas no se modificaron.');
+  saltar(section);
+ }
+ el('factLimpiar').onclick=el('factLimpiarAtajo').onclick=limpiarFactura;
+ return {reset:resetFactura};
 }
