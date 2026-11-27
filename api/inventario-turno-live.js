@@ -13,6 +13,7 @@ const altasFactura=require('../lib/uki-inventario-factura-altas-live.cjs');
 const PROJECT='uki-panel-f4909';
 const BRANCHES=new Set(['arica','serena']);
 const BRANCH_NAME={arica:'Regimiento Arica',serena:'La Serena'};
+const sinCobroAdmin=new Set(['guardar-salida-sin-cobro','consumo-por-dia','delivery-sin-cobro']);
 const fail=(res,status,error)=>res.status(status).json({ok:false,error});
 // Orígenes exactos. Administración se valida además con token Google autorizado.
 const permitido=origin=>new Set([
@@ -183,8 +184,8 @@ module.exports=async(req,res)=>{
   return fail(res,400,'Solicitud de inventario inválida');
  const branch=String(input.branch||''),action=String(input.action||'');
  if(!BRANCHES.has(branch))return fail(res,400,'Sucursal no válida');
- if(romoOrigin&&(branch!=='serena'||!['articulos','reportes','historial','revision','crear-articulo','editar-articulo','configurar-unidad'].includes(action)))return fail(res,403,'Romo solo puede administrar la bodega compartida La Serena con Google autorizado.');
- if(!['estado','crear-codigo','listar','contar','recibir','factura-consultar','factura-preparar-articulos','factura-recibir','finalizar','reportes','historial','revision','articulos','crear-articulo','editar-articulo','configurar-unidad','justificar','crear-insumo-trabajador','movimientos-trabajador','revisiones-trabajador','revision-trabajador','guardar-minimo-trabajador'].includes(action))
+ if(romoOrigin&&(branch!=='serena'||!['articulos','reportes','historial','revision','crear-articulo','editar-articulo','configurar-unidad'].includes(action)&&!sinCobroAdmin.has(action)))return fail(res,403,'Romo solo puede administrar la bodega compartida La Serena con Google autorizado.');
+ if(!sinCobroAdmin.has(action)&&!['estado','crear-codigo','listar','contar','recibir','factura-consultar','factura-preparar-articulos','factura-recibir','finalizar','reportes','historial','revision','articulos','crear-articulo','editar-articulo','configurar-unidad','justificar','crear-insumo-trabajador','movimientos-trabajador','revisiones-trabajador','revision-trabajador','guardar-minimo-trabajador'].includes(action))
   return fail(res,400,'Acción no permitida');
  const dbUrl=liveDbUrl();
  if(!dbUrl)return fail(res,503,'Base de inventario no habilitada');
@@ -193,6 +194,21 @@ module.exports=async(req,res)=>{
  catch{return fail(res,503,'Base de inventario no disponible');}
  let etapa='autorizacion';
  try{
+  if(sinCobroAdmin.has(action)){
+   const uid=await admin(req).catch(()=>null);
+   if(!uid)return fail(res,403,'Abre el panel con Google autorizado para usar este registro.');
+   if(!romoOrigin&&origin!=='https://diannaleandra-art.github.io')return fail(res,403,'Usa el panel operativo de la sucursal.');
+   const store=romoOrigin?'romo:serena':'uki:'+branch;
+   const service=require('../lib/uki-consumo-panel-v1.cjs');
+   if(action==='guardar-salida-sin-cobro')return res.status(200).json(await service.save(sql,store,uid,input));
+   if(action==='delivery-sin-cobro')return res.status(200).json(await service.delivery(sql,store,input.dia));
+   const financeUrl=require('./inventario-ventas-live.js')._testing.config();
+   const finance=financeUrl?require('@neondatabase/serverless').neon(financeUrl):null;
+   const [catalog,added]=await Promise.all([leerInventario(sql,branch),extra.listar(sql,branch)]);
+   return res.status(200).json(await service.report(sql,finance,branch,store,input.dia,[...catalog,...added],{
+    shared:process.env.UKI_BODEGA_SERENA_COMPARTIDA==='true',withJustifications:process.env.UKI_INVENTARIO_JUSTIFICACIONES_ENABLED==='true'
+   }));
+  }
   if(['estado','crear-codigo','reportes','historial','revision','articulos','crear-articulo','editar-articulo','configurar-unidad'].includes(action)){
    const uid=await admin(req).catch(()=>null);
    if(!uid)return fail(res,403,'Solo administración autorizada');
