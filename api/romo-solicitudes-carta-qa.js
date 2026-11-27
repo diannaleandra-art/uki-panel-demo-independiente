@@ -8,6 +8,7 @@ const {entornoPanelRomoAutorizado}=require('../lib/romo-entorno-panel.cjs');
  */
 const {createHash,createHmac,timingSafeEqual}=require('node:crypto');
 const STORE='romo:serena';
+const push=require('../lib/avisos-pedidos-push-v1.cjs');
 const fail=(r,n,msg)=>r.status(n).json({ok:false,storeId:STORE,error:msg});
 const urlOk=v=>/^https:\/\/[a-z0-9.-]+$/i.test(v)&&!String(v).includes('..');
 
@@ -158,6 +159,7 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
    // El cliente recibe su enlace desde la carta en cuanto se guarda la solicitud.
    // El token nunca se gira de nuevo al reintentar el mismo pedido.
    const {trackingId,...publicResult}=result;
+   if(result.repetido===false&&result.estado==='pendiente'&&trackingId)push.enqueue({db:writer,store:STORE,id:trackingId});
    if((process.env.ROMO_SEGUIMIENTO_QA_ENABLED==='true'||process.env.ROMO_SEGUIMIENTO_OPERATIVO_ENABLED==='true')&&trackingId){
     const stage=require('../lib/seguimiento-qa-entorno-v1.cjs').config();
     if(stage&&stage.urls[STORE]===conf.write){
@@ -187,6 +189,16 @@ module.exports=async function romoSolicitudesCartaQA(req,res){
   // El módulo de operaciones verifica por separado lectura, rechazo y aceptación.
   if(!identity||!['duenos','agendador'].includes(identity.role))
    return fail(res,403,'Cuenta sin permiso de pedidos de Romo');
+  if((method==='GET'&&req.query?.modo==='avisos-push')||(method==='PATCH'&&req.body?.action==='avisos-push')){
+   if(!panel||compartido)return fail(res,403,'Usa el panel operativo de Romo.');
+   const confPush=push.config();
+   if(!confPush)return fail(res,503,'Los avisos de pedidos todavía no están habilitados.');
+   if(method==='GET')return res.status(200).json({ok:true,publicKey:confPush.publicKey});
+   if(JSON.stringify(req.body).length>3600)return fail(res,400,'Datos de avisos inválidos.');
+   try{return res.status(200).json(await push.manage({db:dbReader,store:STORE,principal:identity.userId,body:req.body}));}
+   catch(e){return fail(res,e.status||503,e.status?e.message:'No se pudo guardar la configuración de avisos.');}
+  }
+
   if(method==='GET'){
    const data=await core.listarSolicitudesRomo({db:dbReader,identity});
    return res.status(200).json(data);

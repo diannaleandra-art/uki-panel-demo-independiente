@@ -8,7 +8,9 @@
   "dependencies": {
     "@neondatabase/serverless": "1.2.0",
     "jose": "6.2.15",
-    "@vercel/oidc": "4.0.9"
+    "@vercel/oidc": "4.0.9",
+    "@vercel/functions": "3.11.4",
+    "web-push": "4.0.0"
   },
   "scripts": {
     "test": "node --test tests/inventario-live.test.cjs tests/mi-administracion-informes.test.cjs tests/uki-facturas-ambos-paneles.test.cjs tests/uki-inventario-informe-ordenado.test.cjs tests/costeo-regresion-v1.test.cjs tests/seleccion-y-producto-manual-visible-20261122.test.cjs tests/romo-seleccion-visible-20261122.test.cjs tests/romo-dia-fecha-caja-acumulada-20261122.test.cjs tests/romo-seguimiento-transferencia-v1.test.cjs tests/seguimiento-tres-sucursales-v1.test.cjs tests/inventario-conciliacion-diaria-v1.test.cjs tests/inventario-periodo-fisico-v1.test.cjs tests/inventario-sync-concurrencia-v1.test.cjs",
