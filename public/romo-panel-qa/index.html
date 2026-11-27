@@ -645,6 +645,7 @@ function ir(v){
    }
    if(v==='nuevo')modoNuevo='manual';
    S.vista=v;render();
+   if(v==='pedidos')setTimeout(()=>{if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='pedidos')void ukiRomoActualizarSolicitudesCartaQA();},0);
    return;
   }
   if(S.vista==='nuevo'&&v!=='nuevo'&&ukiCartaRemotaActiva)ukiCartaRemotaActiva=null;
@@ -6459,25 +6460,37 @@ function ukiRomoAjustarCotizacionCobroQA(id){
  */
 let ukiRomoSolicitudesCartaQA=null;
 let ukiRomoSolicitudesAvisoQA='';
-let ukiRomoSolicitudesRenderPendienteQA=false;
+let ukiRomoRefrescoCartaUI=null;
 let ukiRomoSolicitudesActualizandoQA=false;
 let ukiRomoSolicitudesLecturaOkQA=false;
 let ukiRomoReservaDesfaseServidorQA=0;
 let ukiRomoReservaAudioQA=null;
 const ukiRomoReservaAlertasQA=new Set();
+function ukiRomoRefrescoCartaSilencioso(){
+ if(!ukiRomoRefrescoCartaUI)ukiRomoRefrescoCartaUI=window.ukiCrearRefrescoCarta?.({
+  branch:()=>S.suc===ROMO_SUCURSAL_QA?'serena':'',view:()=>S.vista,
+  protectedWork:()=>S.busy||!!S.msg||!!D.editando||cancelacionGuardando||
+   !!ukiSolicitudWhatsAppActiva||ukiRomoOperacionesEnCursoQA(),
+  showsPending:()=>['todos','por-confirmar'].includes(ukiRomoFiltroPedidosQA)&&
+   !ukiRomoBusquedaPedidosQA&&!ukiRomoFechaPedidosQA&&!ukiRomoTurnoPedidosQA,
+  render
+ });
+ return ukiRomoRefrescoCartaUI;
+}
 async function ukiRomoActualizarSolicitudesCartaQA(automatico=false){
  if(S.suc!==ROMO_SUCURSAL_QA||ukiRomoSolicitudesActualizandoQA)return;
  const firmaAntes=JSON.stringify([ukiRomoSolicitudesCartaQA,ukiRomoSolicitudesAvisoQA,ukiRomoSolicitudesLecturaOkQA]);
  const sesionVista=S;
+ const presentacion=ukiRomoRefrescoCartaSilencioso();
+ let leidas=null;
  ukiRomoSolicitudesActualizandoQA=true;
  ukiRomoSolicitudesLecturaOkQA=false;
- ukiRomoSolicitudesAvisoQA='Consultando solicitudes propias de Romo…';
  try{
   const token=await window.ukiInventarioToken?.();
   if(typeof token!=='string'||token.length<30)
    throw Error('Inicia sesión Google para consultar la bandeja de Romo.');
   const response=await fetch('/api/romo-solicitudes-carta-qa',{
-   method:'GET',headers:{Authorization:'Bearer '+token},credentials:'same-origin',cache:'no-store'
+   method:'GET',headers:{Authorization:'Bearer '+token},credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(15000)
   });
   const data=await response.json().catch(()=>null);
   if(!response.ok||data?.ok!==true||data?.storeId!=='romo:serena'||
@@ -6508,46 +6521,32 @@ async function ukiRomoActualizarSolicitudesCartaQA(automatico=false){
    }catch{return o;} // Mensaje antiguo: conservar texto, no inventar productos.
   });
   ukiRomoSolicitudesLecturaOkQA=true;
+  leidas=ukiRomoSolicitudesCartaQA;
   const count=data.orders.filter(o=>o.estado==='pendiente').length;
   ukiRomoSolicitudesAvisoQA=count?
    count+' solicitud(es) pendiente(s) de la carta. No cuentan como venta hasta ser aceptadas.':
    'Sin solicitudes pendientes. La carta pública todavía no recibe pedidos por esta integración.';
  }catch(e){
-  ukiRomoSolicitudesAvisoQA=String(e?.message||'No se confirmó la lectura de la bandeja');
+  if(S===sesionVista&&S.suc===ROMO_SUCURSAL_QA){
+   ukiRomoSolicitudesLecturaOkQA=false;
+   ukiRomoSolicitudesAvisoQA=String(e?.message||'No se confirmó la lectura de la bandeja');
+  }
  }finally{
   ukiRomoSolicitudesActualizandoQA=false;
-  if(S===sesionVista&&S.suc===ROMO_SUCURSAL_QA&&S.vista==='pedidos'){
-   if(firmaAntes!==JSON.stringify([ukiRomoSolicitudesCartaQA,ukiRomoSolicitudesAvisoQA,ukiRomoSolicitudesLecturaOkQA]))ukiRomoSolicitudesRenderPendienteQA=true;
-   // Una lectura periódica NO debe borrar un cobro o edición que se está escribiendo.
-   // El GET se conserva, pero se aplaza el render mientras la ficha esté abierta.
-   const fichaAbierta=!!document.querySelector('.romo-pedido-card[open]');
-   const rechazoIniciado=[...document.querySelectorAll('.romo-solicitud-card select')]
-    .some(sel=>String(sel.value||'').trim().length>0);
-   if(fichaAbierta||rechazoIniciado){
-    const estado=document.getElementById('romoSolicitudesEstadoQA');
-    if(estado)estado.textContent=ukiRomoSolicitudesAvisoQA+
-     ' · Para conservar los datos escritos, la ficha abierta no se actualizó automáticamente.';
-   }else if(!automatico||ukiRomoSolicitudesRenderPendienteQA){
-    ukiRomoSolicitudesRenderPendienteQA=false;render();
-   }
-  }
+  if(S===sesionVista&&S.suc===ROMO_SUCURSAL_QA)
+   presentacion?.complete('serena',leidas,firmaAntes!==JSON.stringify([ukiRomoSolicitudesCartaQA,ukiRomoSolicitudesAvisoQA,ukiRomoSolicitudesLecturaOkQA]),!automatico);
  }
 }
-// Misma cadencia de revisión que la bandeja oficial de Uki (45 s).
-// Solo GET del local Romo; nunca acepta solicitudes ni modifica caja por refrescar.
+// Solo GET de carta del local. No renderizar al trabajar en otro formulario.
 setInterval(()=>{
- if(S.suc!==ROMO_SUCURSAL_QA||S.vista!=='pedidos'||
-    !Array.isArray(ukiRomoSolicitudesCartaQA)||
-    ukiRomoSolicitudesActualizandoQA||
-    ukiRomoOperacionesEnCursoQA()||
-    !window.ukiRomoSesionRemotaQA?.disponible())return;
- void ukiRomoActualizarSolicitudesCartaQA(true);
-},45000);
+ if(S.suc===ROMO_SUCURSAL_QA&&document.visibilityState!=='hidden'&&!ukiRomoSolicitudesActualizandoQA&&
+    window.ukiRomoSesionRemotaQA?.disponible())void ukiRomoActualizarSolicitudesCartaQA(true);
+},30000);
 function ukiRomoVistaLimpiaParaActualizarQA(){
  const app=$('app'),focus=document.activeElement;
  return S.suc===ROMO_SUCURSAL_QA&&['inicio','pedidos'].includes(S.vista)&&
   !S.busy&&!S.msg&&!D.editando&&!ukiRomoOperacionesEnCursoQA()&&!ukiRomoSolicitudesActualizandoQA&&
-  !cancelacionGuardando&&!ukiSolicitudWhatsAppActiva&&
+  !cancelacionGuardando&&!ukiSolicitudWhatsAppActiva&&!window.ukiCartaFormularioActivo?.()&&
   (typeof ukiCartaRemotaActiva==='undefined'||!ukiCartaRemotaActiva)&&
   !app?.querySelector('.romo-pedido-card[open],.uki-cancelar-pedido[open]')&&
   ![...(app?.querySelectorAll('.romo-solicitud-card select')||[])].some(sel=>String(sel.value||'').trim())&&
@@ -6571,8 +6570,11 @@ async function ukiRomoActualizarCopiaLimpiaQA(){
   if(cambiado&&S.suc===ROMO_SUCURSAL_QA)render();
  }catch(e){console.warn('Romo: consulta automática sin cambios locales',e?.message||e);}
 }
-// Separar la consulta cifrada de la bandeja de carta (45 s).
-setInterval(()=>void ukiRomoActualizarCopiaLimpiaQA(),30000);
+// Mantener el respaldo cifrado escalonado: no competir con la bandeja cada 30 s.
+setTimeout(()=>{
+ void ukiRomoActualizarCopiaLimpiaQA();
+ setInterval(()=>void ukiRomoActualizarCopiaLimpiaQA(),30000);
+},10000);
 // Réplica del contador aprobado en Uki. Solo informa: nunca libera una reserva.
 function ukiRomoReservaAhoraQA(){return Date.now()+ukiRomoReservaDesfaseServidorQA;}
 function ukiRomoReservaVencidaQA(o){
@@ -12514,6 +12516,7 @@ try { cargarDesdeLocalStorage(); render(); } catch(e) {
 <script type="module" src="./uki-romo-vinculo-duenos-qa.mjs"></script>
 <script src="./uki-tarjeta-cliente.js?v=imagen-en-pedido-v2" defer></script>
 <script src="./uki-cierre-detallado.js" defer></script>
+<script src="./uki-carta-refresco-silencioso.js?v=20261127-30s" defer></script>
 <script src="./avisos-pedidos-panel.js?v=20261127-push-v1" defer></script>
 <script src="./uki-inventario-admin-embebido.js?v=20261127-agenda-traspasos-v2" defer></script>
 <script src="./uki-disponibilidad-admin.js?v=romo-disponibilidad-20261121" defer></script>

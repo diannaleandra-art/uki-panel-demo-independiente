@@ -28,8 +28,11 @@ test('Sin turno o base confirmados, el guardado de dinero se detiene antes de ob
 test('El índice actual contiene código interno, turno, carta original, folio visible y cliente',()=>{
  assert.match(html,/esc\(\[p\.id,p\.numeroTurno,p\.cliente,p\.telefono,p\.codigoCarta,ukiRomoFolioCartaVisibleQA\(p\),p\.codigoCliente,ukiCodigoClienteVisible\(p\)/);
 });
-test('La bandeja automática conserva una ficha abierta y omite repintados repetidos',()=>{
- assert.match(html,/if\(firmaAntes!==JSON\.stringify\(\[ukiRomoSolicitudesCartaQA,ukiRomoSolicitudesAvisoQA,ukiRomoSolicitudesLecturaOkQA\]\)\)ukiRomoSolicitudesRenderPendienteQA=true/);
- assert.match(html,/if\(fichaAbierta\|\|rechazoIniciado\)/);
- assert.match(html,/else if\(!automatico\|\|ukiRomoSolicitudesRenderPendienteQA\)/);
+test('La bandeja de 30 s delega la presentación y conserva abiertas las fichas',()=>{
+ const controller=readFileSync(new URL('../public/romo-panel-qa/uki-carta-refresco-silencioso.js',import.meta.url),'utf8');
+ assert.match(fn('ukiRomoRefrescoCartaSilencioso'),/protectedWork:[^]*ukiRomoOperacionesEnCursoQA/);
+ assert.ok(html.includes("presentacion?.complete('serena',leidas,firmaAntes!==JSON.stringify"));
+ assert.ok(html.includes("void ukiRomoActualizarSolicitudesCartaQA(true);\n},30000);"));
+ assert.ok(controller.includes('details.romo-pedido-card[open]'));
+ assert.ok(controller.includes('if(!local||blocked()){badge();return false;}'));
 });
