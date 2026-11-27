@@ -53,7 +53,7 @@ test('ambos paneles usan la misma interfaz y API, con sucursal fija',()=>{
  assert.ok(client.includes("const branchActual=()=>String($('invBranch')?.value||'')"));
  assert.ok(client.includes('body:JSON.stringify({...payload,branch,action})'));
  assert.ok(client.includes("post:(action,payload)=>solicitar(action,payload,branch)"));
- assert.ok(worker.includes("import {iniciarFacturaLive} from './uki-factura-interfaz-live.mjs?v=20261127-factura-agil-v1'"));
+ assert.ok(worker.includes("import {iniciarFacturaLive} from './uki-factura-interfaz-live.mjs?v=20261127-factura-limpiar-v1'"));
  assert.ok(common.includes('mountTarget=null'));
  assert.ok(common.includes('mountTarget.append(section)'));
  assert.ok(common.includes("document.getElementById('items')"));
@@ -113,4 +113,14 @@ test('muestra el emisor leído y no confunde su nombre con el comprador', async(
  assert.equal(leerCabeceraFacturaPDF('Comercializadora Bombo SpA\n'+cuerpo).proveedor,'Comercializadora Bombo SpA');
  assert.equal(leerCabeceraFacturaPDF(cuerpo).proveedor,'');
  assert.equal(leerCabeceraFacturaPDF('Proveedor: Distribuidora del Norte\n'+cuerpo).proveedor,'Distribuidora del Norte');
+});
+
+test('limpiar la factura descarta solo el formulario e invalida lecturas pendientes',()=>{
+ const reset=common.slice(common.indexOf('function resetFactura()'),common.indexOf('return {reset:resetFactura}'));
+ assert.match(reset,/documentoGeneracion\+\+;docRevision\+\+;lookupVersion\+\+/);
+ assert.match(reset,/filas=\[\];meta=\{\}/);
+ assert.match(reset,/el\('factProveedor'\)\.value=''/);
+ assert.match(reset,/el\('factFolio'\)\.value=''/);
+ assert.match(reset,/if\(busy\)return;\s*resetFactura\(\);/);
+ assert.doesNotMatch(reset,/post\(|onSaved\(|onItemsCreated\(/);
 });
