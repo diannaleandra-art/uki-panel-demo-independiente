@@ -80,10 +80,22 @@ test('bodega La Serena: conteo y entrada de 125 g en la ficha existente en kg si
   assert.equal(r.stock_qty,0.125);assert.equal(r.stock_unit,'kg');
  }
 });
-test('admin puede configurar gramos, litros o kilos sin cambiar disponible/agota-do',async()=>{
- const sql={query:async(q,args)=>[{sku:'ingredient:proteina-pollo',name:'Pollo',stock_unit:'kg',stock_qty:10,min_stock_qty:2,version:1}]};
- const x=await core.configurar(sql,'arica','ingredient:proteina-pollo',{stock_unit:'kg',stock_qty:10,min_stock_qty:2},0,'admin');
- assert.equal(x.stock_qty,10);assert.equal(x.min_stock_qty,2);assert.equal(x.stock_unit,'kg');
+test('admin puede configurar mínimos y mantener el saldo de un ingrediente existente',async()=>{
+ const sku='ingredient:vegetal-aceituna-amarga',patch={stock_unit:'kg',stock_qty:0.125,min_stock_qty:2};
+ for(const version of [0,3]){
+  const sql={query:async(q,args)=>{
+   assert.deepEqual(args,version?[ 'serena',sku,'kg',0.125,2,'admin',3 ]:
+    [ 'serena',sku,'Aceituna amarga','kg',0.125,2,'admin' ]);
+   assert.deepEqual([...new Set([...q.matchAll(/\$(\d+)/g)].map(m=>Number(m[1])))].sort((a,b)=>a-b),args.map((_,i)=>i+1));
+   if(version)assert.match(q,/WHERE branch=\$1 AND sku=\$2 AND version=\$7/);
+   assert.doesNotMatch(q,/availability|available|uki_carta/);
+   return [{sku,name:'Aceituna amarga',...patch,version:version+1}];
+  }};
+  const x=await core.configurar(sql,'serena',sku,patch,version,'admin');
+  assert.equal(x.stock_qty,0.125);assert.equal(x.min_stock_qty,2);assert.equal(x.stock_unit,'kg');
+ }
+ const conflict={query:async()=>[]};
+ await assert.rejects(core.configurar(conflict,'serena',sku,patch,3,'admin'),error=>error.status===409);
 });
 
 test('public inventory pages served from public root',()=>{ const a=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8'); const b=fs.readFileSync(path.join(__dirname,'../public/administracion.html'),'utf8'); assert.match(a,/uki-sushi-inventario\.vercel\.app/);assert.match(b,/uki-sushi-inventario\.vercel\.app/);assert.match(a,/iniciarFacturaLive/);assert.match(b,/GoogleAuthProvider/);assert.match(b,/href="\/"/);});
