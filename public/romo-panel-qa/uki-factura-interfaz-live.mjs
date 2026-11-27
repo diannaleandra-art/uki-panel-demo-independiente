@@ -1,5 +1,5 @@
-import {leerDTE,filasDTE,leerTextoFactura,leerCabeceraFacturaPDF,numeroFactura,opcionesRecepcionFactura,nombrePropuestoFactura,categoriaPropuestaFactura,articuloExistenteFactura,vinculoAutomaticoFactura,normalizar} from './uki-factura-lectura-live.mjs?v=20261127-factura-agil-v1';
-import {reconocerFotoFactura} from './uki-factura-foto-v2.mjs?v=20261127-factura-agil-v1';
+import {leerDTE,filasDTE,leerTextoFactura,leerCabeceraFacturaPDF,numeroFactura,opcionesRecepcionFactura,nombrePropuestoFactura,categoriaPropuestaFactura,articuloExistenteFactura,vinculoAutomaticoFactura,normalizar} from './uki-factura-lectura-live.mjs?v=20261127-factura-precisa-v1';
+import {reconocerFotoFactura} from './uki-factura-foto-v2.mjs?v=20261127-factura-precisa-v1';
 // Señal de compatibilidad: el módulo antiguo solo sirve para el QR del trabajador.
 export const facturaAdmiteMontajeAdmin = true;
 export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreated,mountTarget=null}){
@@ -227,6 +227,11 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
  async function prepararAltas(elegidos,feedback,linea=null){
   const mensaje=t=>{feedback.textContent=t;};
   if(busy||!getBranch())return;
+  if(meta.lecturaFotoIncompleta){
+   const aviso='La foto dejó líneas sin identificar. Sube el PDF/XML original o vuelve a fotografiar la tabla.';
+   mensaje(aviso);
+   return;
+  }
   if(meta.sucursalSugerida&&meta.sucursalSugerida!==getBranch()){
    mensaje('La factura parece de Regimiento Arica. Abre la sucursal correspondiente.');
    return;
@@ -381,7 +386,7 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
     agregar.hidden=!!(x.item||f.prev||f.saved);
     resumenInfo.textContent=(f.saved?'Guardado':f.checked?'Marcado para recibir':x.item?(f.autoSku===f.sku&&!f.skuManual?'Seleccionado automáticamente':'Vinculado'):'Sin vincular')+
      (x.item?' · '+x.item.name:'')+
-     (f.cantidad&&f.unidad?' · '+f.cantidad+' '+f.unidad:'');
+     (f.cantidad&&f.unidad?' · '+f.cantidad+' '+f.unidad:f.origen==='foto-columnas'?' · Cantidad por revisar':'');
     if(document.activeElement!==totalInput||f.prev)totalInput.value=x.totalCantidad||'';
     totalUnit.value=x.totalUnidad||'';
     totalInput.disabled=totalUnit.disabled=!!(f.prev||f.saved);
@@ -433,7 +438,7 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
   const catalogo=getItems();
   filas=data.map((f,i)=>{
    const autoSku=vinculoAutomaticoFactura(f.nombre,catalogo)?.sku||'';
-   return {...f,sku:autoSku,autoSku,linea:i+1,totalCantidad:f.cantidad||'',totalUnidad:f.unidad||'',
+   return {...f,sku:autoSku,autoSku,linea:f.lineaFactura||i+1,totalCantidad:f.cantidad||'',totalUnidad:f.unidad||'',
     entrega:1,solicitud:crypto.randomUUID(),prev:null,entregas:[],checked:false,saved:false,
     nuevoNombre:nombrePropuestoFactura(f.nombre),nuevaUnidad:f.unidad||'',
     nuevaCategoria:categoriaPropuestaFactura(f.nombre),prepararNuevo:false};
@@ -520,9 +525,13 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
     if(generacion!==documentoGeneracion)return;
     const filasLeidas=resultado?.filas||leerTextoFactura(texto,getItems());
     el('factTextoBox').hidden=false;el('factTexto').value=texto.slice(0,20000);
-    preparar(filasLeidas,resultado?.meta||leerCabeceraFacturaPDF(texto));
-    if(resultado?.lecturaParcial&&texto.trim())
-     estado('Lectura posiblemente incompleta: '+filasLeidas.length+' línea(s). Compara todas con la factura antes de registrar. Puedes subir el PDF/XML original o tomar otra foto de la hoja completa.');
+    preparar(filasLeidas,resultado?{...resultado.meta,lecturaFotoIncompleta:resultado.lecturaParcial}:leerCabeceraFacturaPDF(texto));
+    if(resultado?.lecturaParcial)
+     estado('La foto dejó líneas sin identificar. Leímos '+filasLeidas.length+
+      ' productos. Sube el PDF o XML original, o vuelve a fotografiar la tabla. No se guardó mercadería.');
+    else if(resultado?.faltanCantidades)
+     estado(filasLeidas.length+' productos identificados · '+resultado.faltanCantidades+
+      ' cantidad(es) pendientes. Abre solo las filas que indiquen «Cantidad por revisar».');
     if(/\.pdf\b/i.test(texto)&&/\d+\.pdf/i.test(texto)&&
        filasLeidas.length<=1)
      estado('Parece una foto de la pantalla de un PDF. Para leer la factura completa, pulsa «Subir archivo» y elige el PDF original desde Archivos. No guardes hasta verificar cantidades.');
@@ -544,7 +553,7 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
  };
  el('factAnadir').onclick=()=>{
   if(busy)return;
-  const linea=filas.length+1;
+  const linea=Math.max(0,...filas.map(f=>f.linea))+1;
   filas.push({nombre:'Producto manual',linea,abierta:true,cantidad:'',unidad:'',totalCantidad:'',totalUnidad:'',entrega:1,solicitud:crypto.randomUUID(),sku:'',checked:false,saved:false,prev:null,entregas:[],nuevoNombre:'',nuevaUnidad:'',nuevaCategoria:'',prepararNuevo:false});
   render();saltar(el('fact-linea-'+linea));
  };
@@ -561,6 +570,11 @@ export function iniciarFacturaLive({getBranch,getItems,post,onSaved,onItemsCreat
  }
  el('factGuardar').onclick=async()=>{
   if(busy||!getBranch())return;
+  if(meta.lecturaFotoIncompleta){
+   const aviso='La foto dejó líneas sin identificar. Sube el PDF/XML original o vuelve a fotografiar la tabla.';
+   el('factResultado').textContent=aviso;
+   return;
+  }
   if(meta.sucursalSugerida&&meta.sucursalSugerida!==getBranch()){
    el('factResultado').textContent='El documento parece corresponder a Regimiento Arica. Abre la sucursal correcta.';
    return;
