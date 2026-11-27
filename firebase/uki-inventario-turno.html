@@ -73,6 +73,7 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
 </div>
 <nav class="inv-app-grid" aria-label="Consultas">
  <button type="button" data-inv-view="compras">🛒<strong>Lo que falta pedir</strong><small>Productos y cantidades que el local necesita reponer.</small></button>
+ <button type="button" data-inv-view="existencias">📊<strong>Existencias y mínimos</strong><small>Consulta cuánto hay y cambia el mínimo de reposición.</small></button>
  <button type="button" data-inv-view="historial">🗓<strong>Historial y reportes</strong><small>Consulta y comparte por fecha</small></button>
 </nav>
 <details><summary>Otras tareas</summary><nav class="inv-app-grid" aria-label="Otras tareas">
@@ -101,7 +102,21 @@ button:disabled{opacity:.45}button.secondary{background:#fff1e4;color:#8b460f;bo
  <p id="invPurchaseNote" role="status"></p>
  <p id="resumen" class="muted"></p>
  <button type="button" id="invPurchaseWhatsApp" disabled>Enviar lo que falta pedir por WhatsApp</button>
+ <button type="button" class="secondary" data-inv-view="existencias">Ver existencias y mínimos</button>
  <div id="resumenArticulos" class="reporte-lista" aria-label="Artículos que requieren compra"></div>
+</section>
+<section class="card" id="invStockMin" hidden>
+ <p class="muted">El mínimo indica cuánto debería haber para planificar una reposición. Guardarlo no modifica la cantidad que hay.</p>
+ <label for="invMinSearch">Buscar artículo</label>
+ <input id="invMinSearch" type="search" autocomplete="off" placeholder="Pollo, palta, aceite…">
+ <label for="invMinFilter">Mostrar</label>
+ <select id="invMinFilter"><option value="todos">Todos</option><option value="reponer">Para reponer</option><option value="suficientes">Suficientes</option><option value="sin">Sin mínimo</option></select>
+ <p id="invMinCount" class="muted"></p>
+ <button type="button" id="invMinRefresh" class="secondary">Actualizar lista</button>
+ <button type="button" class="secondary" data-inv-view="compras">Ver lo que falta pedir</button>
+ <p id="invMinStatus" role="status" class="muted"></p>
+ <div id="invMinList" class="reporte-lista"></div>
+ <button type="button" id="invMinMore" class="secondary" hidden>Mostrar 12 más</button>
 </section>
 <section class="card" id="invQuickAdd" hidden><h2>Crear la ficha de un insumo</h2><p class="muted">Úsalo solo si el insumo no está en la lista. Crear la ficha no suma mercadería ni guarda un conteo.</p><label for="invQuickName">Nombre</label><input id="invQuickName" maxlength="100" placeholder="Ej. Harina"><label for="invQuickCat">Categoría</label><select id="invQuickCat"><option value="ingrediente">Ingrediente</option><option value="envase">Envase</option><option value="otro">Limpieza u otros</option></select><label for="invQuickUnit">Unidad</label><select id="invQuickUnit"><option value="kg">Kilos</option><option value="g">Gramos</option><option value="l">Litros</option><option value="ml">Mililitros</option><option value="un">Unidades</option><option value="porciones">Porciones</option></select><button type="button" id="invQuickSave">Crear insumo</button><p id="invQuickStatus" role="status" class="muted"></p></section><section class="card" id="invListHeader"><h2>Ingredientes e insumos</h2>
 <div class="grid"><select id="tipo" aria-label="Tipo de artículo">
@@ -224,6 +239,75 @@ const setBusy=value=>{
  $('items').querySelectorAll('button').forEach(b=>{b.disabled=value;});
  renderCierre();
  if(invAppMode==='compras')$('invPurchaseWhatsApp').disabled=value||!faltantesParaPedir().length;
+ if(invAppMode==='existencias'){
+  $('invMinList').querySelectorAll('button,input').forEach(el=>{el.disabled=value;});
+  for(const id of ['invMinRefresh','invMinMore','invMinSearch','invMinFilter'])$(id).disabled=value;
+ }
+};
+let invMinSku='',invMinLimit=12;
+const invMinNormalize=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const invMinGroup=i=>Number(i.min_stock_qty)<=0?'sin':Number(i.stock_qty)<=Number(i.min_stock_qty)?'reponer':'suficientes';
+function renderMinimos(){
+ const q=invMinNormalize($('invMinSearch').value.trim()),filter=$('invMinFilter').value;
+ const rows=items.filter(i=>['ingredient','inventory'].includes(i.kind)&&
+  (!q||invMinNormalize(i.name).includes(q))&&(filter==='todos'||invMinGroup(i)===filter))
+  .sort((a,b)=>a.name.localeCompare(b.name,'es'));
+ const target=$('invMinList');target.replaceChildren();
+ $('invMinCount').textContent=rows.length?'Mostrando '+Math.min(rows.length,invMinLimit)+' de '+rows.length+' artículos.':'No hay artículos que coincidan.';
+ $('invMinMore').hidden=rows.length<=invMinLimit;
+ for(const item of rows.slice(0,invMinLimit)){
+  const row=elt('div',undefined,'reporte-fila'),unit=item.stock_unit,has=Number(item.stock_qty),min=Number(item.min_stock_qty);
+  const amount=Math.round((min-has)*1000)/1000;
+  row.append(elt('strong',item.name),elt('small','Hay '+formato(has,unit)+' · '+(min>0?'Mínimo '+formato(min,unit):'Sin mínimo configurado')));
+  if(min>0)row.append(elt('small',amount>0?'Falta / pedir '+formato(amount,unit):amount===0?'Mínimo alcanzado · revisar compra':'Existencia suficiente'));
+  if(item.sku===invMinSku){
+   const form=elt('form'),label=elt('label','Mínimo de reposición ('+unit+')'),input=elt('input');
+   input.id='invMinValue';input.inputMode='decimal';input.autocomplete='off';input.value=String(min).replace('.',',');
+   label.htmlFor=input.id;
+   const saveButton=elt('button','Guardar mínimo'),cancel=elt('button','Cancelar','secondary');
+   saveButton.type='submit';cancel.type='button';
+   saveButton.style.marginTop=cancel.style.marginTop='8px';cancel.style.marginLeft='8px';
+   form.append(label,input,elt('small','Usa 0 para dejar el artículo sin mínimo.'),saveButton,cancel);
+   form.onsubmit=event=>{event.preventDefault();guardarMinimoEquipo(item,decimal(input.value));};
+   cancel.onclick=()=>{invMinSku='';$('invMinStatus').textContent='';renderMinimos();};
+   row.append(form);
+  }else{
+   const edit=elt('button','Editar mínimo','secondary');edit.type='button';edit.style.marginTop='8px';
+   edit.setAttribute('aria-label','Editar mínimo de '+item.name);
+   edit.onclick=()=>{invMinSku=item.sku;$('invMinStatus').textContent='';renderMinimos();$('invMinValue')?.focus();};
+   row.append(edit);
+  }
+  target.append(row);
+ }
+}
+async function guardarMinimoEquipo(item,min){
+ if(busy||!branch)return;
+ const msg=$('invMinStatus');
+ if(!Number.isFinite(min)){msg.textContent='Escribe un mínimo válido, con hasta 3 decimales.';$('invMinValue')?.focus();return;}
+ setBusy(true);msg.textContent='Guardando mínimo…';
+ try{
+  const result=await api('guardar-minimo-trabajador',{sku:item.sku,min_stock_qty:min,expected_version:Number(item.version)});
+  if(result.branch!==branch||result.item?.sku!==item.sku||Number(result.item.min_stock_qty)!==min)
+   throw Error('No se pudo confirmar el valor guardado.');
+  items=items.map(x=>x.sku===item.sku?{...x,...result.item}:x);
+  invMinSku='';renderMinimos();
+  msg.textContent='Mínimo guardado para '+item.name+' · '+(min>0?formato(min,item.stock_unit):'Sin mínimo')+'. La existencia no cambió.';
+ }catch(e){msg.textContent='No se confirmó el mínimo. '+e.message+' Usa «Actualizar lista» antes de intentar de nuevo.';}
+ finally{setBusy(false);}
+}
+function invMinRefilter(){invMinLimit=12;invMinSku='';$('invMinStatus').textContent='';renderMinimos();}
+$('invMinSearch').oninput=invMinRefilter;$('invMinFilter').onchange=invMinRefilter;
+$('invMinMore').onclick=()=>{invMinLimit+=12;renderMinimos();};
+$('invMinRefresh').onclick=async()=>{
+ if(busy||!branch)return;
+ const msg=$('invMinStatus');setBusy(true);msg.textContent='Actualizando lista…';
+ try{
+  const latest=await api('listar',{flujo_cierre:true});
+  if(latest.branch!==branch||!Array.isArray(latest.items))throw Error('No se recibió la lista de esta bodega.');
+  items=latest.items;if(latest.flujo)aplicarFlujo(latest.flujo);
+  invMinSku='';renderMinimos();msg.textContent='Lista actualizada.';
+ }catch(e){msg.textContent='No se pudo actualizar la lista. '+e.message;}
+ finally{setBusy(false);}
 };
 function faltantesParaPedir(){
  return items.filter(i=>Number(i.min_stock_qty)>0&&Number(i.stock_qty)<Number(i.min_stock_qty))
@@ -237,7 +321,7 @@ function renderCompras(){
  $('resumen').textContent=configured.length?
   (items.length-configured.length)+' artículos sin mínimo quedan fuera de esta lista.':'';
  $('invPurchaseNote').textContent=!configured.length?
-  'No se puede calcular cuánto pedir. Administración aún no ha configurado los mínimos de esta bodega.':
+  'No se puede calcular cuánto pedir. Configura los mínimos de esta bodega en «Existencias y mínimos».':
   missing.length?missing.length+' artículos para comprar según las existencias registradas.':
   'No hay productos por debajo de los mínimos configurados.';
  const list=$('resumenArticulos');list.replaceChildren();
@@ -498,7 +582,7 @@ function invAppView(mode){
  $('invAppLocal').textContent=branch==='arica'?'Regimiento Arica':bodegaCompartida?'La Serena · Uki y Romo (bodega compartida)':'La Serena';
  $('invAppHome').hidden=mode!=='inicio';$('invAppBar').hidden=mode==='inicio';
  $('invAppBack').textContent=['entrada','factura'].includes(mode)?'‹ Mercadería que entra':mode==='alta'?(invAltaReturn==='entrada'?'‹ Registro manual':'‹ Hacer inventario'):'‹ Inicio';
- const titles={anterior:cierreTitulo(cierreGuardado),conteo:'Hacer inventario',entradas:'Mercadería que entra',entrada:'Registrar mercadería manualmente',factura:'Registrar mercadería con factura',alta:'Crear insumo nuevo',merma:'Registrar merma',personal:'Consumo del personal',traspaso:'Traspasos',compras:'Lo que falta pedir',reporte:'Cerrar inventario de hoy',historial:'Historial y reportes'};
+ const titles={anterior:cierreTitulo(cierreGuardado),conteo:'Hacer inventario',entradas:'Mercadería que entra',entrada:'Registrar mercadería manualmente',factura:'Registrar mercadería con factura',alta:'Crear insumo nuevo',merma:'Registrar merma',personal:'Consumo del personal',traspaso:'Traspasos',compras:'Lo que falta pedir',existencias:'Existencias y mínimos',reporte:'Cerrar inventario de hoy',historial:'Historial y reportes'};
  $('invAppTitle').textContent=titles[mode]||'';
  const hints={conteo:'Al finalizar el turno, anota cuánto quedó físicamente de cada producto.',entrada:'Busca el insumo y registra solo la cantidad que llegó.',factura:'Usa esta opción si vas a registrar la entrega con su factura.'};
  $('invAppHint').textContent=hints[mode]||'';$('invAppHint').hidden=!hints[mode];
@@ -506,6 +590,7 @@ function invAppView(mode){
  $('invListHeader').hidden=!list;$('items').hidden=!list;$('invMoreWrap').hidden=!list;
  $('invCierreBar').hidden=mode!=='conteo';
  $('invPrevious').hidden=mode!=='anterior';$('invPurchases').hidden=mode!=='compras';
+ $('invStockMin').hidden=mode!=='existencias';
  $('invRecepcion').hidden=mode!=='entradas';
  $('facturaQA').hidden=mode!=='factura';$('invQuickAdd').hidden=mode!=='alta';
  $('justMov').hidden=!['merma','personal','traspaso'].includes(mode);
@@ -521,6 +606,7 @@ function invAppView(mode){
  }
  if(mode==='inicio'||mode==='anterior')renderAnterior();
  if(mode==='compras')renderCompras();
+ if(mode==='existencias'){$('invMinSearch').value='';$('invMinFilter').value='todos';invMinRefilter();}
  if(mode==='inicio'||mode==='reporte')renderCierre();
  window.scrollTo({top:0,behavior:'instant'});
 }

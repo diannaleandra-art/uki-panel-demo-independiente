@@ -95,7 +95,7 @@ function textoReporte(branch,worker,summary,fecha){
  const date=fechaHoraChile(fecha);
  const a=['📦 UKI SUSHI · LISTA PARA REPONER','Sucursal: '+BRANCH_NAME[branch],
   'Revisión: '+date,'Responsable: '+worker,''];
- if(!summary.configurados)a.push('Falta configurar los mínimos desde administración.');
+ if(!summary.configurados)a.push('Falta configurar los mínimos en Existencias y mínimos.');
  else if(!summary.faltantes.length)a.push('Sin faltantes según los mínimos configurados.');
  else summary.faltantes.forEach((f,i)=>a.push((i+1)+'. '+f.nombre+(f.llevar===0?' · comprar, mínimo alcanzado':' · llevar '+f.llevar+' '+f.unidad)+' (hay '+f.hay+' '+f.unidad+'; mínimo '+f.minimo+' '+f.unidad+')'));
  if(summary.sinMinimo)a.push('','Sin mínimo configurado: '+summary.sinMinimo+' artículos.');
@@ -136,7 +136,7 @@ module.exports=async(req,res)=>{
  const branch=String(input.branch||''),action=String(input.action||'');
  if(!BRANCHES.has(branch))return fail(res,400,'Sucursal no válida');
  if(romoOrigin&&(branch!=='serena'||!['articulos','reportes','historial','revision','crear-articulo','editar-articulo','configurar-unidad'].includes(action)))return fail(res,403,'Romo solo puede administrar la bodega compartida La Serena con Google autorizado.');
- if(!['estado','crear-codigo','listar','contar','recibir','factura-consultar','factura-preparar-articulos','factura-recibir','finalizar','reportes','historial','revision','articulos','crear-articulo','editar-articulo','configurar-unidad','justificar','crear-insumo-trabajador','movimientos-trabajador','revisiones-trabajador','revision-trabajador'].includes(action))
+ if(!['estado','crear-codigo','listar','contar','recibir','factura-consultar','factura-preparar-articulos','factura-recibir','finalizar','reportes','historial','revision','articulos','crear-articulo','editar-articulo','configurar-unidad','justificar','crear-insumo-trabajador','movimientos-trabajador','revisiones-trabajador','revision-trabajador','guardar-minimo-trabajador'].includes(action))
   return fail(res,400,'Acción no permitida');
  const dbUrl=liveDbUrl();
  if(!dbUrl)return fail(res,503,'Base de inventario no habilitada');
@@ -236,6 +236,15 @@ module.exports=async(req,res)=>{
     return fail(res,403,'Código incorrecto o temporalmente bloqueado');
   }
   etapa='consulta-catalogo';
+  if(action==='guardar-minimo-trabajador'){
+   const sku=String(input.sku||'');
+   const esInsumo=/^inv:[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(sku);
+   if(!esInsumo&&!/^ingredient:[a-z0-9-]{3,105}$/.test(sku))return fail(res,400,'Artículo no válido.');
+   etapa='guardar-minimo';
+   const service=esInsumo?extra:core;
+   const item=await service.guardarMinimo(sql,branch,sku,input.min_stock_qty,input.expected_version,worker);
+   return res.status(200).json({ok:true,branch,item});
+  }
   if(action==='movimientos-trabajador'){
    const [base,added]=await Promise.all([leerInventario(sql,branch),extra.listar(sql,branch)]);
    const report=await require('../lib/inventario-movimientos-reporte-v1.cjs').read(sql,branch,input,[...base,...added],process.env.UKI_INVENTARIO_JUSTIFICACIONES_ENABLED==='true');
@@ -389,10 +398,10 @@ module.exports=async(req,res)=>{
  }catch(e){
   const status=e?.status||(['23505','40001','P0001'].includes(e?.code)?409:e?.code==='22023'?400:(String(e?.message||'').includes('código')?400:503));
   // Solo identificador de etapa: no mostrar SQL, datos ni el código privado.
-  const etiqueta=etapa==='guardar-movimiento'?'INV-GUARDAR':etapa==='consulta-catalogo'?'INV-CAT':etapa==='verificando-codigo'?'INV-PIN':'INV-API';
+  const etiqueta=etapa==='guardar-minimo'?'INV-MIN':etapa==='guardar-movimiento'?'INV-GUARDAR':etapa==='consulta-catalogo'?'INV-CAT':etapa==='verificando-codigo'?'INV-PIN':'INV-API';
   console.error('Inventario LIVE error etapa',etiqueta,'tipo',String(e?.code||e?.name||'error').slice(0,70));
   return fail(res,status,status===503?
-   (etapa==='guardar-movimiento'?'No se pudo confirmar el movimiento.':'No se pudo abrir el inventario.')+' ('+etiqueta+').':String(e.message));
+   (etapa==='guardar-minimo'?'No se pudo confirmar el mínimo.':etapa==='guardar-movimiento'?'No se pudo confirmar el movimiento.':'No se pudo abrir el inventario.')+' ('+etiqueta+').':String(e.message));
  }
 };
 module.exports._testing={permitido,admin,resumen,textoReporte,validDate,fechaHoraChile,entradasDesdeUltimaRevision,conteosDesdeUltimaRevision,flujoCierre};
