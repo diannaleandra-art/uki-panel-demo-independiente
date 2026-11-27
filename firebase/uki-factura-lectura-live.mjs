@@ -36,6 +36,10 @@ export function nombrePropuestoFactura(descripcion=''){
   [/panko/,'Panko amarillo'],
   [/arroz/,'Arroz'],
   [/nori/,'Nori'],
+  [/palmitos/,'Palmitos'],
+  [/film aluminio/,'Film aluminio'],
+  [/vinagre (?:de )?manzana/,'Vinagre de manzana'],
+  [/camaron royal/,'Camarón'],
   [/pocillo/,'Pocillos con tapa']
  ];
  const named=opciones.find(([pattern])=>pattern.test(text));
@@ -51,7 +55,7 @@ export function categoriaPropuestaFactura(nombre=''){
   return 'envase';
  if(/\b(tenedor(?:es)?|cucharas?|cuchillos?|palillos?|servilletas?|bombillas?|guantes?|papel aluminio|film|toalla de papel|detergente|jabon|limpiador)\b/.test(n))
   return 'otro';
- if(/\b(queso|pollo|champi[^\s]*|soya|salsa|panko|arroz|nori|atun|salmon|camaron|carne|palta|pepino|cebollin|aceite|vinagre|azucar|sal|harina|huevo|mayo|wasabi|jengibre)\b/.test(n))
+ if(/\b(queso|pollo|champi[^\s]*|soya|salsa|panko|arroz|nori|atun|salmon|camaron|carne|palta|pepino|cebollin|aceite|vinagre|palmitos|azucar|sal|harina|huevo|mayo|wasabi|jengibre)\b/.test(n))
   return 'ingrediente';
  return '';
 }
@@ -98,6 +102,10 @@ export function vinculoAutomaticoFactura(nombre,items=[]){
   [/^palillos? de sushi(?: |$)/,()=>['palillos de sushi']],
   [/^arroz tucapel food service nacional g2(?: |$)/,()=>['arroz']],
   [/^nori gold yaki(?: |$)/,()=>['nori']],
+  [/^film aluminio(?: |$)/,()=>['film aluminio']],
+  [/^palmitos enteros(?: |$)/,()=>['palmitos','palmitos enteros']],
+  [/^vinagre (?:de )?manzana(?: |$)/,()=>['vinagre de manzana','vinagre manzana']],
+  [/^camaron royal(?: |$)/,()=>['camaron']],
   [/^pocillos? (?:ctapa|c tapa|con tapa) (?:1 5|15) (?:oz|0z)(?: |$)/,
    ()=>['pocillo con tapa 1 5 oz','pocillos con tapa 1 5 oz','pocillo c tapa 1 5 oz','pocillos c tapa 1 5 oz']]
  ];
@@ -177,6 +185,18 @@ export function leerCabeceraFacturaPDF(texto){
  return {folio,rut,proveedor,sucursalSugerida};
 }
 
+export function descripcionCreible(s){
+ const n=normalizar(s);
+ return /[a-z]{3,}/.test(n)&&! /^(?:articulo|cantidad|unitario|total|iva|neto|folio|rut|observacion|factura|vendedor|direccion|proveedor)(?: |$)/.test(n);
+}
+export function construirFilaLeida(nombre,q,u,items=[]){
+ const unidadFacturada=unidadFactura(u);
+ if(!descripcionCreible(nombre)||!Number.isFinite(numeroFactura(q))||!unidadFacturada)return null;
+ const propuesta=propuestaPresentacion(nombre,q,unidadFacturada),m=coincidencia(nombre,items);
+ return {nombre,...propuesta,cantidadFactura:q,unidadFacturada,sku:m.exacto?m.sku:'',sugerencia:m.sugerencia,
+  origen:'foto-columnas',confianza:'revisar',requiereConfirmacion:true};
+}
+
 export function leerTextoFactura(texto,items=[]){
  const salida=[],vistas=new Set();
  for(const lineaCruda of String(texto||'').split(/\r?\n/).slice(0,180)){
@@ -188,6 +208,7 @@ export function leerTextoFactura(texto,items=[]){
   // mientras que los dos números de la derecha son montos en pesos.
   const tabla=linea.replace(/(\d),(?=\d{3}(?:\s|$))/g,'$1.').match(/^(.{3,180}?)\s+(\d{1,6}(?:[.,]\d{1,3})?)\s+(Un|Und|Uds|Kg|Kgs|G|Gr|Grs|Lt|Lts|L|Ml|Porciones?)\s+(\d{1,3}(?:\.\d{3})*|\d+)\s+(?:[-–—]\s*)?(\d{1,3}(?:\.\d{3})*|\d+)$/i);
   if(tabla){
+   if(!descripcionCreible(tabla[1]))continue;
    const nombreTabla=tabla[1],qFactura=tabla[2],uFactura=unidadFactura(tabla[3]);
    const proposed=propuestaPresentacion(nombreTabla,qFactura,uFactura);
    const match=coincidencia(nombreTabla,items),key=normalizar(linea);
@@ -226,7 +247,7 @@ export function leerTextoFactura(texto,items=[]){
    if(!m.exacto&&!m.sugerencia)continue;
    nombre=linea;
   }
-  if(!nombre||!Number.isFinite(numeroFactura(cantidad))&&cantidad)continue;
+  if(!descripcionCreible(nombre)||!Number.isFinite(numeroFactura(cantidad))&&cantidad)continue;
   const match=coincidencia(nombre,items);
   const key=normalizar(linea);
   if(vistas.has(key))continue;vistas.add(key);

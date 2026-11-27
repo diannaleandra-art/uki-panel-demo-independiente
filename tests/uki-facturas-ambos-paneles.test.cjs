@@ -87,7 +87,7 @@ test('módulo compartido incluye señal para montaje admin sin alterar QR',()=>{
  assert.match(common,/export const facturaAdmiteMontajeAdmin\s*=\s*true/);
  assert.ok(common.includes('mountTarget.append(section)'));
  assert.ok(common.includes("itemsContainer.parentNode.insertBefore(section,itemsContainer)"));
- assert.match(panel,/uki-factura-inventario-admin-panel\.js\?v=20261127-factura-limpiar-v1/);
+ assert.match(panel,/uki-factura-inventario-admin-panel\.js\?v=20261127-factura-precisa-v1/);
 });
 
 test('vincula artículos inequívocos de facturas y respeta variantes y catálogo', async()=>{

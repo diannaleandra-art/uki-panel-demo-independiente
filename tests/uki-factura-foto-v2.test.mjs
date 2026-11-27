@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {reconocerFotoFactura} from '../public/uki-factura-foto-v2.mjs';
-import {leerTextoFactura,leerCabeceraFacturaPDF,nombrePropuestoFactura} from '../public/uki-factura-lectura-live.mjs';
+import {leerTextoFactura,leerCabeceraFacturaPDF,nombrePropuestoFactura,construirFilaLeida,vinculoAutomaticoFactura} from '../public/uki-factura-lectura-live.mjs';
 
 const rows=`Articulo Cantidad Unid. P. Unitario Total
 POCILLO C/TAPA 1.5 OZ (100 unds) 3 Un 1.748 5,244
@@ -36,4 +36,25 @@ test('un OCR débil queda marcado incompleto, no inventa productos',async()=>{
  const d=await reconocerFotoFactura({width:180,height:300},worker,{crear});
  assert.equal(d.lecturaParcial,true);
  assert.equal(d.filas.length,0);
+});
+
+test('las cifras sin descripción nunca pasan como productos',()=>{
+ const malas='1.748 5.244 3 Un\n742 1.748 5.244 3 Un 1748 5244\nTOTAL 2 Un 50 100';
+ assert.deepEqual(leerTextoFactura(malas),[]);
+ assert.equal(construirFilaLeida('1748 5244','3','Un'),null);
+});
+test('las presentaciones recuperadas separan cantidad facturada y cantidad de inventario',()=>{
+ const casos=[
+  ['QUESO GAUDA','3.59','Kg','3.59','kg'],
+  ['PALMITOS ENTEROS 800 GR (UND)','1','Un','800','g'],
+  ['VINAGRE MANZANA MAXIFOODS 5 LTS','2','Un','10','l'],
+  ['PANKO BLANCO X 1 KG (UND)','3','Un','3','kg'],
+  ['NORI GOLD YAKI 100 HOJAS','1','Un','100','un']
+ ];
+ for(const [nombre,q,u,cantidad,unidad] of casos){
+  const fila=construirFilaLeida(nombre,q,u);
+  assert.deepEqual([fila.cantidad,fila.unidad],[cantidad,unidad]);
+ }
+ assert.ok(vinculoAutomaticoFactura('VINAGRE MANZANA MAXIFOODS 5 LTS',
+  [{name:'Vinagre de manzana',sku:'inv:vinagre',kind:'inventory'}]));
 });
