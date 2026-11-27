@@ -100,7 +100,8 @@ const panel=[
 '<div class="uki-mini-action"><button type="button" id="ukiMiniActualizar" class="sm">Actualizar lista</button>',
 '<button type="button" id="ukiMiniExcel" class="sm">Excel (.csv)</button>',
 '<button type="button" id="ukiMiniPDF" class="sm">PDF</button>',
-'<button type="button" id="ukiMiniCompartir" class="sm">Compartir WhatsApp</button></div>',
+'<button type="button" id="ukiMiniCompartir" class="sm">Compartir inventario</button>',
+'<button type="button" id="ukiMiniComprasWhatsApp" class="sm">Enviar lo que falta pedir por WhatsApp</button></div>',
 '<div id="ukiMiniFilas" class="uki-mini-list"></div>',
 '<button type="button" id="ukiMiniMas" class="sm" hidden>Mostrar 12 más</button>',
 '</section>',
@@ -441,7 +442,19 @@ function mount(){
  $('ukiMiniExcel').onclick=()=>void exportar('excel',x.loaded?currentSnapshot():null,'ukiMiniEstado');
  $('ukiMiniPDF').onclick=()=>void exportar('pdf',x.loaded?currentSnapshot():null,'ukiMiniEstado');
  $('ukiMiniCompartir').onclick=()=>void exportar('whatsapp',x.loaded?currentSnapshot():null,'ukiMiniEstado');
- if(sucursal()==='romo'){const buy=button('Compartir lista para comprar',()=>{if(!x.loaded)return status('ukiMiniEstado','Actualiza el inventario antes de preparar la lista.');const text=exports().mensajeCompras?.(currentSnapshot());if(typeof text!=='string')return status('ukiMiniEstado','Lista no disponible');window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank','noopener');});$('ukiMiniCompartir').insertAdjacentElement('afterend',buy);}
+ $('ukiMiniComprasWhatsApp').onclick=()=>{
+  if(!x.loaded||x.branch!==sucursal())return status('ukiMiniEstado','Actualiza el inventario antes de preparar la lista.');
+  const report=currentSnapshot();
+  const rows=exports().filas(report).filter(f=>f.toBuy>0&&f.minimum>0).sort((a,b)=>a.name.localeCompare(b.name,'es'));
+  const without=exports().filas(report).filter(f=>f.status==='Sin mínimo').length;
+  const msg=['🛒 LO QUE FALTA PEDIR · '+nombreSucursal(report.branch),
+   x.actualizadoEn?'Última actualización: '+fecha(x.actualizadoEn):'Consultado: '+fecha(report.created_at),
+   'Artículos para pedir: '+rows.length,''];
+  for(const f of rows)msg.push('• '+f.name+' — '+fmt(f.toBuy)+' '+f.unit);
+  if(!rows.length)msg.push('No hay faltantes según los mínimos registrados.');
+  if(without)msg.push('','Sin mínimo configurado: '+without+' artículos no incluidos.');
+  window.open('https://wa.me/?text='+encodeURIComponent(msg.join('\n')),'_blank','noopener,noreferrer');
+ };
  $('ukiHistoriaBuscar').onclick=()=>{x.calendarExact='';pintarCalendario(tab());x.historyOffset=0;$('ukiHistorialDetalle').hidden=true;void loadHistory();};
  $('ukiHistoriaLimpiar').onclick=()=>{
   x.calendarExact='';x.calendarDate=hoyInventario();pintarCalendario(tab());
