@@ -414,7 +414,7 @@ body.romo-operativo-preparacion #app .uki-urgentes-carta .card button.sm.ok{
 }
 </style>
 <link rel="manifest" href="./avisos-pedidos.webmanifest"><link rel="apple-touch-icon" href="./avisos-pedidos-192.png">
-<script src="./uki-estado-guardado-pedido.js?v=20261127-guardado-visible-v1" defer></script>
+<script src="./uki-estado-guardado-pedido.js?v=20261127-guardado-visible-v2" defer></script>
 </head>
 <body>
 
@@ -8074,7 +8074,8 @@ async function ukiRomoGuardarOperacionQA(copia,descripcion,orden,vista='pedidos'
  }
 }
 async function ukiRomoConfirmarCobroQA(id){
- if(ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA)return;
+ const guardadoUI=window.ukiEstadoGuardadoPedido;
+ if(guardadoUI?.ocupado()||ukiRomoOperacionesEnCursoQA()||S.suc!==ROMO_SUCURSAL_QA)return;
  const pedidoId=Number(id);
  const original=(S.pedidos||[]).find(x=>x.suc===ROMO_SUCURSAL_QA&&x.id===pedidoId);
  if(!original||!['Pendiente','Entregado'].includes(original.estado)||
@@ -8134,6 +8135,10 @@ async function ukiRomoConfirmarCobroQA(id){
  if(importePropuesto.montoTransferencia>0&&window.UKI_SEGUIMIENTO_AUTO_PAGO_QA_ENABLED!==true){aviso('Actualiza el panel para verificar la transferencia.');return;}
  const comprobacionManual={...original};
  if(!ukiSeguimientoPrepararManualQA(comprobacionManual,{importePropuesto,responsable,revisionBancoMarcada}))return;
+ // El candado cubre también la comprobación asíncrona previa a Neon.
+ ukiRomoOperandoPedidoQA=true;
+ const operacion=guardadoUI?.iniciar(true,'romoCobroGuardar'+pedidoId);
+ try{
  if(!await ukiSeguimientoPermitirCerrarQA(comprobacionManual,{
   metodosAdicionales:[...productos,...delivery].map(x=>x.medio).concat(tipTransferencia?['Transferencia']:[]),importePropuesto,revisionBancoMarcada,
   pagoPropuesto:{...original,medio:productos[0]?.medio||'Efectivo',
@@ -8158,8 +8163,6 @@ async function ukiRomoConfirmarCobroQA(id){
    '? Productos: '+fmt(sub)+' · Delivery: '+fmt(env)+
    ' · Propina separada: '+fmt(propinaMonto)+'. Responsable: '+responsable+
    '. Se guardará UNA sola vez en Neon Romo.'))return;
- ukiRomoOperandoPedidoQA=true;
- try{
   const copia=datosSoloSucursal();
   const mod=await import('./uki-romo-cobro-pendiente-qa.mjs?v=romo-paridad-pagos-20261118');
   mod.prepararCobroPendienteRomoQA(copia,datos);
@@ -8170,9 +8173,12 @@ async function ukiRomoConfirmarCobroQA(id){
    throw Error('La copia de cobro no pertenece a Romo.');
   await ukiRomoGuardarOperacionQA(copia,'Cobro confirmado',pedidoId,'pedidos','confirmar_cobro');
   ukiRomoTimbreCobroQA.delete(pedidoId);
+  guardadoUI?.resultado('✅ Pago confirmado · Pedido #'+pedidoId+' guardado','ok');
  }catch(e){
-  aviso('NO SE CONFIRMÓ el cobro en Neon. Antes de repetir, revisa Pedidos, Caja e Historial: '+String(e.message||e));
- }finally{ukiRomoOperandoPedidoQA=false;}
+  const mensaje='No se confirmó el guardado del pago del pedido #'+pedidoId+'. Revisa Pedidos antes de repetir. No vuelvas a cobrar.';
+  if(operacion)guardadoUI.resultado(mensaje,'duda');
+  else aviso(mensaje);
+ }finally{ukiRomoOperandoPedidoQA=false;guardadoUI?.terminar(operacion);}
 }
 
 async function ukiRomoProbarPermisoNeonQA(){

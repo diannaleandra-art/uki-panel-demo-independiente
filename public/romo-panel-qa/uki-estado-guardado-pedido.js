@@ -22,14 +22,15 @@
   texto.textContent=mensaje;
   if(tipo==='ok')timer=setTimeout(quitar,8500);
  }
- function controlesActuales(){
-  for(const id of ['ukiGuardarPedido','ukiCancelarEdicionPedido']){
+ function controlesActuales(boton=operacion?.boton){
+  for(const id of ['ukiGuardarPedido','ukiCancelarEdicionPedido',...(boton?[boton]:[])]){
    const b=document.getElementById(id);if(!b)continue;
    const antes=controles.get(b);
+   const guardar=id!=='ukiCancelarEdicionPedido';
    if(operacion){
-    if(!antes)controles.set(b,{disabled:b.disabled,nodos:id==='ukiGuardarPedido'?[...b.childNodes]:null});
+    if(!antes)controles.set(b,{disabled:b.disabled,nodos:guardar?[...b.childNodes]:null});
     b.disabled=true;
-    if(id==='ukiGuardarPedido'){b.setAttribute('aria-busy','true');b.textContent=operacion.pago?'Guardando pago…':'Guardando…';}
+    if(guardar){b.setAttribute('aria-busy','true');b.textContent=operacion.pago?'Guardando pago…':'Guardando…';}
    }else if(antes){
     b.disabled=antes.disabled;
     b.removeAttribute('aria-busy');
@@ -44,9 +45,9 @@
   if(antes)antes.disabled=disabled;
   b.disabled=!!operacion||disabled;
  }
- function iniciar(pago){
+ function iniciar(pago,boton=null){
   if(operacion)return null;
-  const actual={pago:pago===true,resultado:null};operacion=actual;
+  const actual={pago:pago===true,boton,resultado:null};operacion=actual;
   controlesActuales();
   mostrar(actual.pago?'Guardando pago… Espera la confirmación.':'Guardando pedido… Espera la confirmación.','proceso');
   return actual;
@@ -56,7 +57,7 @@
  }
  function terminar(actual){
   if(!actual||operacion!==actual)return;
-  operacion=null;controlesActuales();
+  operacion=null;controlesActuales(actual.boton);
   if(actual.resultado)mostrar(actual.resultado.mensaje,actual.resultado.tipo);
   else quitar();
  }
