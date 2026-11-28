@@ -56,5 +56,41 @@ test('El panel enlaza el clic, vuelve a aplicar el bloqueo y confirma solo tras 
  assert.ok(fn.indexOf('guardadoUI?.iniciar(')<fn.indexOf('await'));
  assert.match(fn,/finally\{uki\w+=false;guardadoUI\?\.terminar\(operacion\)/);
  if(romo)assert.match(html,/await ukiRomoGuardarOperacionQA\(copia,cobrar\?'Pago confirmado'[\s\S]{0,300}resultado\('✅ Pago confirmado/);
- else assert.match(html,/confirmado=guardado&&await window\.ukiRespaldarRectificacionDelivery[\s\S]{0,620}else if\(confirmaPago\)\{\s*const mensaje='✅ Pago confirmado/);
+ else assert.match(html,/await window\.ukiConfirmarGuardadoPago[\s\S]{0,840}else if\(confirmaPago\)\{\s*const mensaje='✅ Pago confirmado/);
+});
+
+test('Ambas sucursales Uki esperan la revisión exacta, incluso si había otro guardado en curso',async()=>{
+ const {crearAutoGuardadoOperativo}=await import('../firebase/uki-sushi-autoguardado.js');
+ for(const suc of ['Uki Regimiento Arica','Uki La Serena']){
+  let datos={suc,pedidos:[]},completar;
+  const commits=[];
+  const auto=crearAutoGuardadoOperativo({getEstado:()=>datos,avisar(){},scheduler:()=>1,cancel(){},
+   guardar:({revisionEsperada,estado})=>new Promise((ok,rechazar)=>{
+    commits.push({revisionEsperada,estado});
+    completar=(fallo=false)=>fallo?rechazar(Error('Sin respuesta')):ok({revision:revisionEsperada+1});
+   })});
+  const espera=()=>new Promise(r=>setImmediate(r));
+  auto.activar({suc,rev:7,estadoBase:datos});
+  datos={suc,pedidos:[{id:23,pagado:false}]};
+  const anterior=auto.enviar();await espera();
+  datos={suc,pedidos:[{id:23,pagado:true}]};
+  const coincide=x=>x?.pedidos[0]?.pagado===true;
+  let resultado;
+  const confirmacion=auto.confirmar(suc,coincide).then(v=>{resultado=v;});
+  assert.equal(commits.length,1);
+  completar();await anterior;await espera();
+  assert.equal(resultado,undefined);
+  assert.deepEqual(commits.map(x=>x.revisionEsperada),[7,8]);
+  assert.equal(commits[1].estado.pedidos[0].pagado,true);
+  completar();await confirmacion;
+  assert.equal(resultado,true);
+  assert.equal(await auto.confirmar(suc,coincide),true);
+  assert.equal(commits.length,2);
+  datos={suc,pedidos:[{id:23,pagado:true},{id:24,pagado:true}]};
+  const incierto=auto.confirmar(suc,x=>x?.pedidos[1]?.pagado===true);await espera();
+  completar(true);
+  assert.equal(await incierto,false);
+  assert.equal(await auto.confirmar(suc,coincide),false);
+  assert.equal(commits.length,3);
+ }
 });

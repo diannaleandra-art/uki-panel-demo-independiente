@@ -5486,7 +5486,7 @@ async function ndGuardar(){
  ukiGuardadoSolicitudEnCurso=true;
  const guardadoUI=window.ukiEstadoGuardadoPedido;
  const operacion=guardadoUI?.iniciar(!!D.pagado&&!!D.editando&&
-  (S.pedidos||[]).some(p=>p.suc===S.suc&&p.id===D.editando&&p.pagado===false));
+  (S.pedidos||[]).some(p=>p.suc===S.suc&&p.id===Number(D.editando)&&!p.pagado));
  try{
   let originalQR=D.editando?S.pedidos.find(p=>p.suc===S.suc&&p.id===D.editando):null;
   if(D.editando&&!originalQR){
@@ -5514,6 +5514,9 @@ async function ndGuardar(){
    return await ukiGuardarFormularioQA(originalQR,true);
   }
   return await ukiGuardarFormularioQA(originalQR);
+ }catch(error){
+  if(!operacion?.pago)throw error;
+  guardadoUI.resultado('No se pudo confirmar el guardado. Revisa el pedido y la nube antes de repetir. No vuelvas a cobrar.','duda');
  }finally{ukiGuardadoSolicitudEnCurso=false;guardadoUI?.terminar(operacion);}
 }
 async function ukiGuardarFormularioQA(originalQR,cobroRectificado=false){
@@ -5638,7 +5641,7 @@ async function ukiGuardarFormularioQA(originalQR,cobroRectificado=false){
   if(!ukiValidarTimbreAntesGuardar(D,originalQR))return;
   if(D.editando){
     const p=S.pedidos.find(x=>x.id===D.editando);
-    const confirmaPago=!!p&&p.pagado===false&&D.pagado===true&&!ukiCierreConfirmadoPedido(p);
+    const confirmaPago=!!p&&!p.pagado&&D.pagado===true&&!ukiCierreConfirmadoPedido(p);
     if(p?.estado==="Cancelado"){aviso("El pedido cancelado no se puede modificar.");return;}
     if(p){
       const cierreHistorico=ukiCierreConfirmadoPedido(p);
@@ -5725,6 +5728,7 @@ async function ukiGuardarFormularioQA(originalQR,cobroRectificado=false){
       }
       if(!confirmaPago)S.msg=`Pedido #${p.id} actualizado por ${fmt(total)}${ukiCobroPendiente(p)?" · Diferencia pendiente "+fmt(Math.abs(p.ajusteCobroPendiente.saldo)):""}${ukiCuentaAbierta(p)?" · Cuenta abierta, pendiente de pago":""}`;
     }
+    const huellaPago=confirmaPago&&p?.pagado?JSON.stringify(p):null;
     ukiQuitarBorradorActivo();nuevoDraft();
     S.vista="pedidos"; render();
     if((confirmaPago||cobroRectificado||p?.cambioRetiroSinAbonoQA)&&p?.pagado){
@@ -5732,7 +5736,9 @@ async function ukiGuardarFormularioQA(originalQR,cobroRectificado=false){
       let confirmado=false;
       try{
         const guardado=await guardarEnLocalStorage();
-        confirmado=guardado&&await window.ukiRespaldarRectificacionDelivery?.(sucursal)===true;
+        confirmado=guardado&&(confirmaPago
+          ? await window.ukiConfirmarGuardadoPago?.(sucursal,p.id,huellaPago)===true
+          : await window.ukiRespaldarRectificacionDelivery?.(sucursal)===true);
       }catch{}
       if(S.suc===sucursal){
         if(!confirmado){
@@ -6965,7 +6971,7 @@ import {dividirEstado,reunirEstado} from "./uki-particion-local.js";
 import {nuevaSal,nuevaGeneracion,derivarClave,cifrarBloque,descifrarBloque} from "./uki-cifrado-bloques.js";
 import {crearSnapshotsUki} from "./uki-sushi-nube.js?v=progreso-recuperacion-20261125";
 import {verificarGuardadoUki} from "./uki-seguimiento-guardado-nube-v1.mjs?v=retiro-por-cobrar-20261126";
-import {crearAutoGuardadoOperativo,huellaOperativa} from "./uki-sushi-autoguardado.js?v=refrescos-20261125";
+import {crearAutoGuardadoOperativo,huellaOperativa} from "./uki-sushi-autoguardado.js?v=confirmar-pago-v2";
 import {prepararCierreParaDuenos,sincronizarCierreDuenos} from "./uki-duenos-cierre-publicador-live.mjs";
 import {autorizarEquipoQR,obtenerSesionQR,estadoEquipoQR} from "./uki-mesas-dispositivo-live.js";
 const config={
@@ -7391,6 +7397,11 @@ window.ukiRegistrarRectificacionDelivery=async datos=>{
  if(!r.ok||result?.ok!==true)throw Error(result?.error||'No se confirmó la rectificación autorizada.');
  return result;
 };
+window.ukiConfirmarGuardadoPago=(sucursal,id,huella)=>auto.confirmar(sucursal,estado=>{
+ if(estado?.suc!==sucursal||!huella)return false;
+ const pago=(estado.pedidos||[]).find(p=>p.suc===sucursal&&p.id===id);
+ return pago?.pagado===true&&JSON.stringify(pago)===huella;
+});
 window.ukiRespaldarRectificacionDelivery=async sucursal=>{
  if(window.ukiQAGet?.()?.suc!==sucursal)return false;
  await auto.enviar();

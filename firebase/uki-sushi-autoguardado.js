@@ -17,7 +17,7 @@ export function crearAutoGuardadoOperativo({guardar,getEstado,avisar,delay=1500,
   throw Error("Faltan funciones de guardado");
  let sucursal=null,revision=null,huellaGuardada=null,timer=null;
  let activo=false,bloqueado=false,ocupado=false,estado="desactivado",token=0,remotoPendiente=null;
- let guardados=0;
+ let guardados=0,enCurso=null;
  // Sin el limite de 10 de QA. Conserva deduplicacion, debounce y parada por conflicto.
  function informar(nuevo,detalle=""){
   estado=nuevo;avisar({estado,detalle,revision,sucursal,activo,bloqueado});
@@ -45,7 +45,20 @@ export function crearAutoGuardadoOperativo({guardar,getEstado,avisar,delay=1500,
   pararTimer();informar("pendiente","Cambios guardados solo en este dispositivo");
   timer=scheduler(()=>{timer=null;return enviar()},delay);
  }
- async function enviar(){
+ function enviar(){
+  if(enCurso)return enCurso;
+  enCurso=Promise.resolve().then(enviarRevision).finally(()=>{enCurso=null;});
+  return enCurso;
+ }
+ async function confirmar(suc,coincide){
+  const vigente=()=>activo&&!bloqueado&&sucursal===suc&&coincide(getEstado());
+  // Esperar el commit ya iniciado. Podía contener una edición anterior.
+  if(enCurso)await enCurso;
+  if(!vigente())return false;
+  if(!estadoActualRespaldado())await enviar();
+  return vigente()&&estadoActualRespaldado();
+ }
+ async function enviarRevision(){
   if(!activo||bloqueado||ocupado)return;
 
   const copia=getEstado();
@@ -94,5 +107,5 @@ export function crearAutoGuardadoOperativo({guardar,getEstado,avisar,delay=1500,
  }
  function resumen(){return Object.freeze({estado,revision,sucursal,activo,bloqueado,ocupado,guardados,
   actualRespaldado:estadoActualRespaldado()});}
- return Object.freeze({activar,desactivar,cambioLocal,revisionRemota,enviar,resumen});
+ return Object.freeze({activar,desactivar,cambioLocal,revisionRemota,enviar,confirmar,resumen});
 }
