@@ -39,7 +39,7 @@ test('respaldo rechaza reducción sin constancia y exige abono si se marca pagad
 });
 test('un solo guardado, incluso desde Retiro por cobrar, y no se intenta guardar sin banco',async()=>{
  let trace=[];
- const S={suc,pedidos:[pendiente]};
+ const S={suc,vista:'nuevo',pedidos:[pendiente]};
  const D={...draft,pagado:true};
  const caja={S,D,ukiGuardadoSolicitudEnCurso:false,ukiQRComprobandoCobro:false,esDelPeriodo:()=>true,
   ukiCierreConfirmadoPedido:()=>false,ukiMontoPropina:()=>0,aviso:m=>trace.push(m),

@@ -266,6 +266,7 @@ color:#955115;box-shadow:0 2px 10px rgba(0,0,0,.12);font-weight:800;font-size:19
 #app .uki-fecha-flechas span{text-align:center;flex:1}
 </style>
 <link rel="manifest" href="./avisos-pedidos.webmanifest"><link rel="apple-touch-icon" href="./avisos-pedidos-192.png">
+<script src="./uki-estado-guardado-pedido.js?v=20261127-guardado-visible-v1" defer></script>
 </head>
 <body>
 <header><small id="suc">Elige una sucursal para empezar</small><h1>Uki Sushi · Panel v8.16 · LOCALES</h1><small id="ukiEstadoOperativo" role="status">Nube: desactivada · Abre tu sucursal y carga Firebase</small></header>
@@ -456,6 +457,7 @@ function cambiarModoNuevo(t){modoNuevo=t;render();}
 
 function aviso(t){S.msg=t;render();window.scrollTo({top:0,behavior:"smooth"});}
 function ir(v){
+  if(window.ukiEstadoGuardadoPedido?.ocupado())return;
   if(S.vista==='nuevo'&&v!=='nuevo'&&ukiCartaRemotaActiva)ukiCartaRemotaActiva=null;
   if(S.vista==="nuevo"&&v!=="nuevo"&&S.suc&&ukiSolicitudWhatsAppActiva){
     if(ukiBorradorActivo){
@@ -748,6 +750,7 @@ function render(){
   const msg=S.msg?`<div role="status" class="aviso" style="background:#ffece4;color:#7a2c08">${esc(S.msg)}</div>`:"";
   S.msg=null;
   $("app").innerHTML=msg+f();
+  window.ukiEstadoGuardadoPedido?.controlesActuales();
   ukiRestaurarVistaTrasRender(ukiVistaAnterior);
   ukiUltimaVistaRender=S.vista;ukiUltimaSucursalRender=S.suc;
   guardarEnLocalStorage();
@@ -768,6 +771,7 @@ async function entrarSuc(){
  catch(e){aviso("Clave incorrecta, datos dañados o cifrado no disponible.");}
 }
 async function salirSuc(){
+ if(window.ukiEstadoGuardadoPedido?.ocupado())return;
  if(ukiSolicitudWhatsAppActiva)ukiWhatsAppPausarRevision();
  if(S.suc){const ok=await guardarEnLocalStorage();if(!ok)return;await colaGuardado;}
  revisionGuardado++;claveSesion=null;saltSesion=null;sucursalSesion=null;
@@ -1969,7 +1973,7 @@ function vNuevo(){
    ${ukiRevisionBancoBorradorUIQA(D,pedidoEdicion)}
    ${ukiPasoTimbreAntesDeGuardar(pedidoEdicion)}
    ${D.editando&&(!guardaRectificacion||D.rectificacionNubePendiente)?'<div class="card">'+ukiResponsableEdicionUI(D)+'</div>':''}
-   <button id="ukiGuardarPedido" class="big" onclick="ndGuardar()" ${(!guardaRectificacion&&(ukiTimbreObligatorioGuardar(D,pedidoEdicion)&&!ukiTimbreBorradorConfirmado(D)||!ukiRevisionBancoBorradorValidaQA(D,pedidoEdicion)))?'disabled title="Completa las confirmaciones obligatorias antes de guardar"':''}>${D.editando?(guardaRectificacion&&!pedidoEdicion?.pagado&&D.pagado&&!ukiCierreConfirmadoPedido(pedidoEdicion)?`💾 Guardar cambios y confirmar pago #${D.editando}`:`💾 Guardar cambios #${D.editando}`):D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición (no cancela el pedido)</button><p class="muted">Para cancelar el pedido, guarda primero cualquier corrección de pago. Luego vuelve a Pedidos, abre Ver detalle y selecciona ❌ Cancelar pedido. Si hay una devolución, regularízala primero.</p>`:""}`;
+   <button id="ukiGuardarPedido" class="big" onclick="ndGuardar()" ${(!guardaRectificacion&&(ukiTimbreObligatorioGuardar(D,pedidoEdicion)&&!ukiTimbreBorradorConfirmado(D)||!ukiRevisionBancoBorradorValidaQA(D,pedidoEdicion)))?'disabled title="Completa las confirmaciones obligatorias antes de guardar"':''}>${D.editando?(guardaRectificacion&&!pedidoEdicion?.pagado&&D.pagado&&!ukiCierreConfirmadoPedido(pedidoEdicion)?`💾 Guardar cambios y confirmar pago #${D.editando}`:`💾 Guardar cambios #${D.editando}`):D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button id="ukiCancelarEdicionPedido" class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición (no cancela el pedido)</button><p class="muted">Para cancelar el pedido, guarda primero cualquier corrección de pago. Luego vuelve a Pedidos, abre Ver detalle y selecciona ❌ Cancelar pedido. Si hay una devolución, regularízala primero.</p>`:""}`;
 }
 
 // Corrección histórica: el pedido muestra los datos corregidos, pero el cierre ya emitido nunca cambia.
@@ -2159,8 +2163,10 @@ function ukiRefrescarCorreccionPagoDirecta(){
  const p=(S.pedidos||[]).find(x=>x.suc===S.suc&&Number(x.id)===Number(D.editando));
  zona.innerHTML=ukiRectificacionPagoEdicionUI(p,D);
  const boton=document.getElementById('ukiGuardarPedido');
- if(boton)boton.disabled=ukiRectificacionGuardando||(!D.rectificacionNubePendiente&&!ukiPideRectificacionPago(p,D)&&
+ const bloqueado=ukiRectificacionGuardando||(!D.rectificacionNubePendiente&&!ukiPideRectificacionPago(p,D)&&
   (ukiTimbreObligatorioGuardar(D,p)&&!ukiTimbreBorradorConfirmado(D)||!ukiRevisionBancoBorradorValidaQA(D,p)));
+ if(window.ukiEstadoGuardadoPedido)window.ukiEstadoGuardadoPedido.requisito(boton,bloqueado);
+ else if(boton)boton.disabled=bloqueado;
 }
 function ukiMensajeRectificacionEdicion(d,mensaje,error=false,irAlId=''){
  d.rectificacionMensaje=mensaje;d.rectificacionError=error;
@@ -2701,6 +2707,7 @@ async function ukiCopiarComandaCocina(id){
 
 function copiarComanda(id){const p=(S.pedidos||[]).find(x=>Number(x.id)===Number(id)&&x.suc===S.suc);if(!p)return;if(!p.esPremio&&p.estado!=='Cancelado')return ukiCopiarComandaCocina(id);const txt=[`${ukiReferenciaConCarta(p)} · ${p.modalidad}`, ...(p.productos||[]).map(pr=>`${pr.cantidad}x ${pr.nombre}${pr.detalle?` (${pr.detalle})`:""}`), p.envio?`Delivery ${fmt(p.envio)}`:"", `Total ${fmt(p.total)}`].filter(Boolean).join("\n"); if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>aviso("Comanda copiada")).catch(()=>aviso(txt)); else aviso(txt);}
 function togglePagado(id){
+ if(window.ukiEstadoGuardadoPedido?.ocupado())return;
  const p=(S.pedidos||[]).find(x=>x.suc===S.suc&&x.id===Number(id));
  if(!p||p.esPremio||p.estado==="Cancelado")return;
  if(ukiCierreConfirmadoPedido(p)){
@@ -5474,8 +5481,12 @@ function ukiPedidoTrasRectificarParaConfirmarQA(sucursal,d,recibo,firma){
  return p;
 }
 async function ndGuardar(){
+ if(S.vista!=='nuevo'||window.ukiEstadoGuardadoPedido?.ocupado())return;
  if(ukiGuardadoSolicitudEnCurso||ukiQRComprobandoCobro)return;
  ukiGuardadoSolicitudEnCurso=true;
+ const guardadoUI=window.ukiEstadoGuardadoPedido;
+ const operacion=guardadoUI?.iniciar(!!D.pagado&&!!D.editando&&
+  (S.pedidos||[]).some(p=>p.suc===S.suc&&p.id===D.editando&&p.pagado===false));
  try{
   let originalQR=D.editando?S.pedidos.find(p=>p.suc===S.suc&&p.id===D.editando):null;
   if(D.editando&&!originalQR){
@@ -5503,7 +5514,7 @@ async function ndGuardar(){
    return await ukiGuardarFormularioQA(originalQR,true);
   }
   return await ukiGuardarFormularioQA(originalQR);
- }finally{ukiGuardadoSolicitudEnCurso=false;}
+ }finally{ukiGuardadoSolicitudEnCurso=false;guardadoUI?.terminar(operacion);}
 }
 async function ukiGuardarFormularioQA(originalQR,cobroRectificado=false){
   const originalRevisionBanco=originalQR;
@@ -5627,6 +5638,7 @@ async function ukiGuardarFormularioQA(originalQR,cobroRectificado=false){
   if(!ukiValidarTimbreAntesGuardar(D,originalQR))return;
   if(D.editando){
     const p=S.pedidos.find(x=>x.id===D.editando);
+    const confirmaPago=!!p&&p.pagado===false&&D.pagado===true&&!ukiCierreConfirmadoPedido(p);
     if(p?.estado==="Cancelado"){aviso("El pedido cancelado no se puede modificar.");return;}
     if(p){
       const cierreHistorico=ukiCierreConfirmadoPedido(p);
@@ -5711,19 +5723,25 @@ async function ukiGuardarFormularioQA(originalQR,cobroRectificado=false){
             responsable:autorizacion,nota:correccionHistorica.nota,antes:correccionHistorica.antes,despues});
         }
       }
-      aviso(`Pedido #${p.id} actualizado por ${fmt(total)}${ukiCobroPendiente(p)?" · Diferencia pendiente "+fmt(Math.abs(p.ajusteCobroPendiente.saldo)):""}${ukiCuentaAbierta(p)?" · Cuenta abierta, pendiente de pago":""}`);
+      if(!confirmaPago)S.msg=`Pedido #${p.id} actualizado por ${fmt(total)}${ukiCobroPendiente(p)?" · Diferencia pendiente "+fmt(Math.abs(p.ajusteCobroPendiente.saldo)):""}${ukiCuentaAbierta(p)?" · Cuenta abierta, pendiente de pago":""}`;
     }
     ukiQuitarBorradorActivo();nuevoDraft();
     S.vista="pedidos"; render();
-    if((cobroRectificado||p?.cambioRetiroSinAbonoQA)&&p?.pagado){
-      const sucursal=p.suc;
+    if((confirmaPago||cobroRectificado||p?.cambioRetiroSinAbonoQA)&&p?.pagado){
+      const sucursal=p.suc,guardadoUI=window.ukiEstadoGuardadoPedido;
+      let confirmado=false;
       try{
         const guardado=await guardarEnLocalStorage();
-        const confirmado=guardado&&await window.ukiRespaldarRectificacionDelivery?.(sucursal)===true;
-        if(!confirmado&&S.suc===sucursal)
-          aviso('El cobro se registró en pantalla, pero no se confirmó su respaldo. Revisa la nube sin repetir el cobro ni el timbre.');
-      }catch{
-        if(S.suc===sucursal)aviso('No se confirmó el respaldo del cobro. Revisa la nube sin repetir el cobro ni el timbre.');
+        confirmado=guardado&&await window.ukiRespaldarRectificacionDelivery?.(sucursal)===true;
+      }catch{}
+      if(S.suc===sucursal){
+        if(!confirmado){
+          const mensaje='No se confirmó el respaldo del pago del pedido #'+p.id+'. Revisa Pedidos y la nube antes de repetir. No vuelvas a cobrar.';
+          if(guardadoUI?.ocupado())guardadoUI.resultado(mensaje,'duda');else aviso(mensaje);
+        }else if(confirmaPago){
+          const mensaje='✅ Pago confirmado · Pedido #'+p.id+' guardado';
+          if(guardadoUI?.ocupado())guardadoUI.resultado(mensaje,'ok');else aviso(mensaje);
+        }
       }
     }
     return;
