@@ -414,6 +414,7 @@ body.romo-operativo-preparacion #app .uki-urgentes-carta .card button.sm.ok{
 }
 </style>
 <link rel="manifest" href="./avisos-pedidos.webmanifest"><link rel="apple-touch-icon" href="./avisos-pedidos-192.png">
+<script src="./uki-estado-guardado-pedido.js?v=20261127-guardado-visible-v1" defer></script>
 </head>
 <body>
 
@@ -623,6 +624,7 @@ function cambiarModoNuevo(t){modoNuevo=t;render();}
 
 function aviso(t){S.msg=t;render();window.scrollTo({top:0,behavior:"smooth"});}
 function ir(v){
+  if(window.ukiEstadoGuardadoPedido?.ocupado())return;
   if(S.suc===ROMO_SUCURSAL_QA){
    if(ukiRomoOperacionesEnCursoQA()){
     window.alert('Romo está confirmando una operación. No cambies de pantalla hasta revisar su resultado.');
@@ -1025,6 +1027,7 @@ function render(){
    '<input id="romoCopiaQAMotivo" maxlength="300" autocomplete="off" value="Pedido de prueba sin preparar, entregar ni cobrar">'+
    '<button type="button" class="sm" id="romoCopiaQABoton" onclick="ukiRomoEnsayarCancelacionCopiaQA()">Probar cancelación solo en copia QA</button></details>':'';
   $("app").innerHTML=msg+f();
+  window.ukiEstadoGuardadoPedido?.controlesActuales();
   if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='inventario')setTimeout(()=>{if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='inventario')window.ukiInventarioMontar?.();},0);
   if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='caja'&&cajaTab==='acumulada')setTimeout(()=>{if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='caja'&&cajaTab==='acumulada')window.romoCajaAcumuladaMontar?.();},0);
   if(S.suc===ROMO_SUCURSAL_QA&&S.vista==='promos')
@@ -1319,6 +1322,7 @@ async function entrarSuc(){
  }catch(e){aviso(esRomo?"Romo todavía no pudo abrirse. Revisa la cuenta Google, la clave habitual y la conexión independiente. No se guardó ningún movimiento.":"Clave incorrecta, datos dañados o cifrado no disponible.");}
 }
 async function salirSuc(){
+ if(window.ukiEstadoGuardadoPedido?.ocupado())return;
  if(S.suc===ROMO_SUCURSAL_QA&&ukiRomoOperacionesEnCursoQA()){
   window.alert('Romo tiene una operación pendiente de confirmación. No se cerró la sesión.');
   return;
@@ -2647,7 +2651,7 @@ function vNuevo(){
    ${ukiPasoTimbreAntesDeGuardar(pedidoEdicion)}
    ${D.editando&&(!guardaRectificacion||D.rectificacionNubePendiente)?'<div class="card">'+ukiResponsableEdicionUI(D)+'</div>':''}
 
-   <button id="ukiGuardarPedido" class="big" onclick="ndGuardar()" ${(!guardaRectificacion&&(ukiTimbreObligatorioGuardar(D,pedidoEdicion)&&!ukiTimbreBorradorConfirmado(D)||!ukiRevisionBancoBorradorValidaQA(D,pedidoEdicion)))?'disabled title="Completa las confirmaciones obligatorias antes de guardar"':''}>${D.editando?(guardaRectificacion&&!pedidoEdicion?.pagado&&D.pagado&&!ukiCierreConfirmadoPedido(pedidoEdicion)?`💾 Guardar cambios y confirmar pago #${D.editando}`:`💾 Guardar cambios #${D.editando}`):D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición (no cancela el pedido)</button><p class="muted">Para cancelar el pedido, guarda primero cualquier corrección de pago. Luego vuelve a Pedidos, abre Ver detalle y selecciona ❌ Cancelar pedido. Si hay una devolución, regularízala primero.</p>`:""}`;
+   <button id="ukiGuardarPedido" class="big" onclick="ndGuardar()" ${(!guardaRectificacion&&(ukiTimbreObligatorioGuardar(D,pedidoEdicion)&&!ukiTimbreBorradorConfirmado(D)||!ukiRevisionBancoBorradorValidaQA(D,pedidoEdicion)))?'disabled title="Completa las confirmaciones obligatorias antes de guardar"':''}>${D.editando?(guardaRectificacion&&!pedidoEdicion?.pagado&&D.pagado&&!ukiCierreConfirmadoPedido(pedidoEdicion)?`💾 Guardar cambios y confirmar pago #${D.editando}`:`💾 Guardar cambios #${D.editando}`):D.pagado?`✅ Guardar pedido · pago confirmado`:`✅ Guardar pedido · por cobrar`}</button>${D.editando?`<button id="ukiCancelarEdicionPedido" class="big" style="background:#8a6f5a" onclick="D.editando=null;nuevoDraft();render();">❌ Cancelar edición (no cancela el pedido)</button><p class="muted">Para cancelar el pedido, guarda primero cualquier corrección de pago. Luego vuelve a Pedidos, abre Ver detalle y selecciona ❌ Cancelar pedido. Si hay una devolución, regularízala primero.</p>`:""}`;
 }
 
 // Corrección histórica: el pedido muestra los datos corregidos, pero el cierre ya emitido nunca cambia.
@@ -2836,8 +2840,10 @@ function ukiRefrescarCorreccionPagoDirecta(){
  const p=(S.pedidos||[]).find(x=>x.suc===S.suc&&Number(x.id)===Number(D.editando));
  zona.innerHTML=ukiRectificacionPagoEdicionUI(p,D);
  const boton=document.getElementById('ukiGuardarPedido');
- if(boton)boton.disabled=ukiRectificacionGuardando||(!D.rectificacionNubePendiente&&!ukiPideRectificacionPago(p,D)&&
+ const bloqueado=ukiRectificacionGuardando||(!D.rectificacionNubePendiente&&!ukiPideRectificacionPago(p,D)&&
   (ukiTimbreObligatorioGuardar(D,p)&&!ukiTimbreBorradorConfirmado(D)||!ukiRevisionBancoBorradorValidaQA(D,p)));
+ if(window.ukiEstadoGuardadoPedido)window.ukiEstadoGuardadoPedido.requisito(boton,bloqueado);
+ else if(boton)boton.disabled=bloqueado;
 }
 function ukiMensajeRectificacionEdicion(d,mensaje,error=false,irAlId=''){
  d.rectificacionMensaje=mensaje;d.rectificacionError=error;
@@ -3386,6 +3392,7 @@ async function ukiCopiarComandaCocina(id){
 
 function copiarComanda(id){const p=(S.pedidos||[]).find(x=>Number(x.id)===Number(id)&&x.suc===S.suc);if(!p)return;if(!p.esPremio&&p.estado!=='Cancelado')return ukiCopiarComandaCocina(id);const txt=[`${ukiReferenciaConCarta(p)} · ${p.modalidad}`, ...(p.productos||[]).map(pr=>`${pr.cantidad}x ${pr.nombre}${pr.detalle?` (${pr.detalle})`:""}`), p.envio?`Delivery ${fmt(p.envio)}`:"", `Total ${fmt(p.total)}`].filter(Boolean).join("\n"); if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>aviso("Comanda copiada")).catch(()=>aviso(txt)); else aviso(txt);}
 function togglePagado(id){
+ if(window.ukiEstadoGuardadoPedido?.ocupado())return;
  const p=(S.pedidos||[]).find(x=>x.suc===S.suc&&x.id===Number(id));
  if(!p||p.esPremio||p.estado==="Cancelado")return;
  if(S.suc===ROMO_SUCURSAL_QA&&p.ajusteCobroPendiente?.tipo==='pago_desmarcado')
@@ -10830,10 +10837,15 @@ async function ukiRomoEditarPedidoPendienteQA(){
   }
   if(firma!==JSON.stringify(D)||estadoFirma!==JSON.stringify(datosSoloSucursal())||session.estado().revision!==base.revision||!validarEstadoSucursal(copia,ROMO_SUCURSAL_QA))throw Error('El pedido cambió antes de guardar.');
   await ukiRomoGuardarOperacionQA(copia,cobrar?'Pago confirmado':'Pedido actualizado',id,'pedidos',cobrar?'confirmar_cobro':null);
-  if(cobrar)ukiRomoTimbreCobroQA.delete(id);
+  if(cobrar){
+   ukiRomoTimbreCobroQA.delete(id);
+   window.ukiEstadoGuardadoPedido?.resultado('✅ Pago confirmado · Pedido #'+id+' guardado','ok');
+  }
   nuevoDraft();
- }catch(error){aviso('No se confirmó el cambio. Revisa el pedido antes de repetir. '+String(error?.message||error));}
- finally{ukiRomoGuardandoManualQA=false;}
+ }catch(error){
+  if(cobrar)window.ukiEstadoGuardadoPedido?.resultado('No se confirmó el guardado del pago del pedido #'+id+'. Revisa Pedidos antes de repetir. No vuelvas a cobrar.','duda');
+  aviso('No se confirmó el cambio. Revisa el pedido antes de repetir. '+String(error?.message||error));
+ }finally{ukiRomoGuardandoManualQA=false;}
 }
 
 async function ukiRomoGuardarPedidoPendienteQA(){
@@ -11076,9 +11088,13 @@ function ukiPedidoTrasRectificarParaConfirmarQA(sucursal,d,recibo,firma){
 }
 let ukiRomoFormularioGuardandoQA=false;
 async function ndGuardar(){
+ if(S.vista!=='nuevo'||window.ukiEstadoGuardadoPedido?.ocupado())return;
  if(S.suc!==ROMO_SUCURSAL_QA)return ukiGuardarFormularioQA();
  if(ukiRomoFormularioGuardandoQA||ukiRomoOperacionesEnCursoQA())return;
  ukiRomoFormularioGuardandoQA=true;
+ const guardadoUI=window.ukiEstadoGuardadoPedido;
+ const operacion=guardadoUI?.iniciar(!!D.pagado&&!!D.editando&&
+  (S.pedidos||[]).some(p=>p.suc===S.suc&&p.id===Number(D.editando)&&p.pagado===false));
  try{
   const pedidoRectificacion=D.editando?(S.pedidos||[]).find(p=>p.suc===S.suc&&Number(p.id)===Number(D.editando)):null;
   if(D.editando&&!ukiValidarResponsableEdicion(D))return;
@@ -11104,7 +11120,7 @@ async function ndGuardar(){
    if(!ukiPedidoTrasRectificarParaConfirmarQA(sucursal,d,recibo,firma))return;
   }
   return await ukiGuardarFormularioQA();
- }finally{ukiRomoFormularioGuardandoQA=false;}
+ }finally{ukiRomoFormularioGuardandoQA=false;guardadoUI?.terminar(operacion);}
 }
 async function ukiGuardarFormularioQA(){
   if(S.suc===ROMO_SUCURSAL_QA&&!ukiSeguimientoConservarOrigenEdicionQA())return;
