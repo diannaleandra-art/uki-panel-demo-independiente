@@ -66,6 +66,22 @@ function fechasPendientesLegibles(cierres){
  return fechas.slice(0,8).join('; ')+(fechas.length>8?
   '; y '+(fechas.length-8)+' fecha(s) más (ver lista)':'');
 }
+// El libro guarda el saldo resultante y el importe con signo para cada fila.
+// No depende del saldo de hoy, del orden de pantalla ni de movimientos anteriores.
+function saldosDelGasto(mov){
+ if(mov?.tipo!=='gasto')return null;
+ const entero=v=>Number.isSafeInteger(v)?v:
+  typeof v==='string'&&/^-?[0-9]+$/.test(v)&&Number.isSafeInteger(Number(v))?Number(v):null;
+ const importe=entero(mov.monto),despues=entero(mov.saldo_resultante);
+ if(importe===null||importe>=0||despues===null||despues<0)return null;
+ const antes=despues-importe;
+ return Number.isSafeInteger(antes)?{antes,despues}:null;
+}
+function detalleSaldoGasto(mov){
+ const saldos=saldosDelGasto(mov);
+ if(!saldos)return 'Saldo antes y después no disponible';
+ return 'Antes del gasto: '+money(saldos.antes)+' · Después del gasto: '+money(saldos.despues);
+}
 function status(msg,kind=''){
  const el=$('ukiAcumStatus');if(!el)return;
  el.textContent=msg;el.dataset.kind=kind;
@@ -377,7 +393,14 @@ function draw(){
   }else left.append(title,registrado);
   info.style.display='block';info.textContent=String(x.concepto||'Sin concepto')+' · '+String(x.responsable||'Responsable no registrado');
   sum.textContent=(Number(x.monto)>0?'+':'')+money(x.monto);
-  left.append(info);row.append(left,sum);root.append(row);
+  left.append(info);
+  if(x.tipo==='gasto'){
+   const saldo=document.createElement('small');
+   saldo.style.cssText='display:block;margin:5px 0 2px;line-height:1.45';
+   saldo.textContent=detalleSaldoGasto(x);
+   left.append(saldo);
+  }
+  row.append(left,sum);root.append(row);
  }
 }
 async function load(){
