@@ -17,17 +17,20 @@ function sim(){
  const fields={
   romoAppMedioQA:'Uber Eats',romoAppMontoQA:'9000',romoAppConceptoQA:'Venta manual',
   romoAppResponsableQA:'Encargada',romoChicaConceptoQA:'Detergente',
-  romoChicaMontoQA:'1500',romoChicaResponsableQA:'Encargada',
+  ccCon:'Detergente',ccMon:'1500',romoChicaResponsableQA:'Encargada',
   romoChicaMotivoQA:'Registro equivocado'
  };
  const store={saved:[],alerts:[]};
  const ctx={S,ROMO_SUCURSAL_QA:suc,APPS:['Uber Eats','PedidosYa','Rappi'],
   ukiRomoGastoChicaAnularQA:null,ukiRomoOperacionesEnCursoQA:()=>false,
-  window:{ukiRomoSesionRemotaQA:{disponible:()=>true},confirm:()=>true},
+  window:{ukiRomoSesionRemotaQA:{disponible:()=>true},confirm:()=>true,prompt:()=>fields.romoChicaMotivoQA},
   $:id=>fields[id]===undefined?null:{value:fields[id]},
   datosSoloSucursal:()=>JSON.parse(JSON.stringify(S)),
   fechaOperativaActual:()=>dia,cajaDelDia:()=>caja,
-  totales:()=>({totalMedios:0,pagoDelivery:0}),
+  totales:()=>({totalMedios:0,pagoDelivery:0,envios:3000}),
+  ukiRomoBaseDeliveryQA:c=>c.baseDelivery??0,ukiRomoTotalRepartidorQA:(t,c)=>t.envios+(c.baseDelivery??0),
+  ukiRomoMedioSalidaQA:id=>fields[id],ukiPagoDeliveryDesglose:c=>({dia:c.pagoDeliveryDia??0}),
+  ukiTimbreResponsableActual:()=> 'Encargada',
   delSucHoy:()=>[],ukiRomoCajaDisponibleQA:()=>10000,
   ukiRomoMontoCampoQA:(id,max=1e7,zero=false)=>{
    const t=String(fields[id]??'').trim(),n=Number(t);
@@ -57,7 +60,7 @@ test('Caja chica respeta saldo y no aumenta ni reduce caja mayor',async()=>{
  const c=x.store.saved[0].cajasDiarias[x.S.suc+'|2026-11-17'];
  assert.equal(c.base,10000);assert.equal(c.cajaChica.gastos[0].monto,1500);
  assert.equal(c.cajaChica.gastos[0].responsable,'Encargada');
- x.fields.romoChicaMontoQA='6000';
+ x.fields.ccMon='6000';
  await x.ctx.ukiRomoGuardarMovimientoQA('chica');
  assert.equal(x.store.saved.length,1);
 });
@@ -132,4 +135,39 @@ test('Integración cierre completo Romo: Apps y Caja chica no se duplican',async
  assert.throws(()=>prepararCierreDefinitivoRomoQA(s,{fechaOperativa:dia,
   cierreMs:ms+2000,responsable:'Encargada',efectivoContado:0}),
   /Abre primero un turno Romo|cierre definitivo/);
+});
+
+test('La base de delivery se guarda separada, sin registrar dinero ni alterar la base de efectivo',async()=>{
+ const {ctx,fields,store,caja}=sim();
+ fields.romoBaseDeliveryQA='18000';
+ await ctx.ukiRomoGuardarMovimientoQA('baseDelivery');
+ assert.equal(store.saved.length,1);
+ const guardada=Object.values(store.saved[0].cajasDiarias)[0];
+ assert.equal(guardada.baseDelivery,18000);
+ assert.equal(guardada.base,caja.base);
+ assert.equal(guardada.pagoDeliveryDia,undefined);
+ assert.equal(guardada.movimientosCajaAuditoria[0].tipo,'base_delivery');
+ assert.equal(caja.baseDelivery,undefined);
+ caja.baseDelivery=18000;caja.pagoDeliveryDia=20000;
+ fields.romoBaseDeliveryQA='1000';
+ await ctx.ukiRomoGuardarMovimientoQA('baseDelivery');
+ assert.equal(store.saved.length,1);
+ assert.match(store.alerts.at(-1),/Corrige primero el pago/);
+ caja.turnoAbierto=false;
+ await ctx.ukiRomoGuardarMovimientoQA('baseDelivery');
+ assert.equal(store.saved.length,1);
+ assert.match(store.alerts.at(-1),/turno de Romo no está abierto/);
+});
+
+test('El pago de repartidor admite la base más los envíos, sin duplicar el pago anterior',async()=>{
+ const {ctx,fields,store,caja}=sim();
+ Object.assign(caja,{baseDelivery:18000,pagoDeliveryDia:1000});
+ Object.assign(fields,{romoRepartidorPagoQA:'Repartidor',romoPagoDeliveryMedioQA:'Transferencia',romoPagoDeliveryMontoQA:'20001'});
+ await ctx.ukiRomoGuardarMovimientoQA('pagoRepartidor');
+ assert.equal(store.saved.length,0);
+ assert.match(store.alerts.at(-1),/supera lo pendiente/);
+ fields.romoPagoDeliveryMontoQA='20000';
+ await ctx.ukiRomoGuardarMovimientoQA('pagoRepartidor');
+ assert.equal(store.saved.length,1);
+ assert.equal(Object.values(store.saved[0].cajasDiarias)[0].pagoDeliveryDia,21000);
 });

@@ -368,8 +368,11 @@ export function prepararCierreDefinitivoRomoQA(estado,{
  const propinas=sum(corte.propinas);
  const pagoDeliveryDia=INT(caja.pagoDeliveryDia??caja.pagoDelivery??0,'pago repartidor del día');
  const pagoDeliveryAnterior=INT(caja.pagoDeliveryAnterior??0,'pago reparto anterior');
- CHECK(pagoDeliveryDia<=t.deliveryParaRepartidor+t.entregasManualesAConciliar,
-  'Pago al repartidor supera las entregas de este turno');
+ const baseDelivery=INT(caja.baseDelivery??0,'base diaria del repartidor');
+ CHECK(baseDelivery<=1000000,'Base diaria del repartidor fuera de rango');
+ const totalRepartidor=baseDelivery+t.deliveryParaRepartidor+t.entregasManualesAConciliar;
+ CHECK(pagoDeliveryDia<=totalRepartidor,
+  'Pago al repartidor supera la base más los repartos de este turno');
  const medioDia=String(caja.pagoDeliveryMedioDia||caja.pagoDeliveryMedio||'Efectivo');
  const medioAnterior=String(caja.pagoDeliveryMedioAnterior||'Efectivo');
  const permitidos=['Efectivo','Transferencia','Débito','Edenred','Otros'];
@@ -444,6 +447,7 @@ export function prepararCierreDefinitivoRomoQA(estado,{
   pagoDeliveryMedio:medioDia,
   pagoDeliveryConceptoAnterior:String(caja.pagoDeliveryConceptoAnterior||'').slice(0,180),
   medios,base:INT(caja.base??0,'base'),
+  baseDelivery,totalRepartidor,pendienteRepartidor:totalRepartidor-pagoDeliveryDia,
   cajaChicaInicial:INT(chica.inicial??0,'caja chica inicial'),
   cajaChicaGastos:totalCajaChica,
   envios:t.deliveryParaRepartidor+t.entregasManualesAConciliar,
@@ -460,7 +464,7 @@ export function prepararCierreDefinitivoRomoQA(estado,{
  // Los datos históricos permanecen; el siguiente turno tendrá otra apertura.
  caja.turnoAbierto=false;caja.desdeMs=cierreMs;
  caja.ultimoCierreTurnoId=turnoId;delete caja.inicioMs;delete caja.turnoId;
- caja.apps={};caja.movimientosApps=[];caja.pagoDeliveryDia=0;caja.pagoDeliveryAnterior=0;
+ caja.apps={};caja.movimientosApps=[];delete caja.baseDelivery;caja.pagoDeliveryDia=0;caja.pagoDeliveryAnterior=0;
  caja.pagoDelivery=0;caja.pagoDeliveryMedioDia='Efectivo';
  caja.pagoDeliveryMedioAnterior='Efectivo';
  caja.pagoDeliveryConceptoAnterior='';

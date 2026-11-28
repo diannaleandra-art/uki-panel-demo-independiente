@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {pedidosPreviosSinConciliarRomoQA as revisarPanel} from '../public/romo-panel-qa/uki-romo-cierre-definitivo-qa.mjs';
+import {pedidosPreviosSinConciliarRomoQA as revisarPanel,prepararAperturaTurnoRomoQA,prepararCierreDefinitivoRomoQA} from '../public/romo-panel-qa/uki-romo-cierre-definitivo-qa.mjs';
 import {pedidosPreviosSinConciliarRomoQA as revisarUnificado} from '../firebase/uki-romo-cierre-definitivo-qa.mjs';
 
 const suc='Romo’s Sushi La Serena';
@@ -58,4 +58,22 @@ test('El motor real bloquea cierres de jornada con pedidos antiguos sin concilia
  assert.match(a,/const pedidosAnteriores=pedidosPreviosSinConciliarRomoQA\(estado,/);
  assert.match(a,/CHECK\(pedidosAnteriores.length===0,/);
  assert.match(a,/Hay pedidos anteriores de esta jornada sin cierre conciliado/);
+});
+
+test('Cierre Romo admite un pago con base y conserva deuda sin alterar efectivo',()=>{
+ const s=estado();
+ prepararAperturaTurnoRomoQA(s,{fechaOperativa,inicioMs,responsable:'Encargada',base:10000,cajaChicaInicial:0});
+ const c=s.cajasDiarias[suc+'|'+fechaOperativa];
+ c.baseDelivery=18000;c.pagoDeliveryDia=14000;c.pagoDeliveryMedioDia='Transferencia';
+ const params={fechaOperativa,cierreMs:inicioMs+90000,responsable:'Encargada',efectivoContado:0};
+ c.pagoDeliveryDia=18001;
+ assert.throws(()=>prepararCierreDefinitivoRomoQA(s,params),/supera la base más los repartos/);
+ c.pagoDeliveryDia=14000;
+ const {cierre}=prepararCierreDefinitivoRomoQA(s,params);
+ assert.equal(cierre.base,10000);
+ assert.equal(cierre.baseDelivery,18000);
+ assert.equal(cierre.totalRepartidor,18000);
+ assert.equal(cierre.pendienteRepartidor,4000);
+ assert.equal(cierre.efectivo,0);
+ assert.equal(c.baseDelivery,undefined);
 });
