@@ -36,3 +36,40 @@ test('La prueba y la desactivación están ligadas a dueño y sucursal',async()=
  assert.equal(sent,1);assert.equal(q[1][1][1],'uki:serena');assert.equal(q[1][1][2].length,64);
  assert.equal(q[1][1][2],q[2][1][2]);assert.match(q[1][0],/last_test_at<now\(\)-interval/);
 });
+test('el transporte real prepara el aviso para Apple y verifica la respuesta sin seguir redirecciones',async t=>{
+ const registered={...sub,endpoint:'https://web.push.apple.com/proof/synthetic-device'};
+ const db={query:async()=>[{subscription:registered}]};
+ const req=t.mock.method(globalThis,'fetch',async(url,options)=>{
+  assert.equal(url,registered.endpoint);
+  assert.equal(options.method,'POST');
+  assert.equal(options.redirect,'error');
+  assert.equal(options.headers['Content-Encoding'],'aes128gcm');
+  assert.match(options.headers.Authorization,/^vapid t=.*, k=B/);
+  assert.equal(options.headers['Content-Length'],options.body.length);
+  assert.equal(options.body.includes('Prueba de avisos'),false);
+  assert.equal(options.signal.aborted,false);
+  return new Response(null,{status:201});
+ });
+ assert.deepEqual(await push.manage({db,store:'uki:arica',principal:'test',env,
+  body:{operacion:'prueba',endpoint:registered.endpoint}}),{ok:true});
+ assert.equal(req.mock.callCount(),1);
+});
+test('informa un rechazo de Apple sin revelar dispositivo ni dar instrucciones incorrectas de permisos',async t=>{
+ const registered={...sub,endpoint:'https://web.push.apple.com/proof/synthetic-device'};
+ const warn=t.mock.method(console,'warn',()=>{});
+ t.mock.method(globalThis,'fetch',async()=>Response.json({reason:'BadJwtToken',detail:'no se registra'},{status:403}));
+ const call={db:{query:async()=>[{subscription:registered}]},store:'uki:arica',principal:'test',env,
+  body:{operacion:'prueba',endpoint:registered.endpoint}};
+ await assert.rejects(push.manage(call),e=>e.status===502&&/servidor no pudo autorizar/.test(e.message));
+ const line=warn.mock.calls[0].arguments.join(' ');
+ assert.match(line,/BadJwtToken/);assert.doesNotMatch(line,/synthetic-device|no se registra|Bearer/);
+});
+test('no intenta el envío cuando las claves del servidor no corresponden entre sí',async t=>{
+ const otherKey=webpush.generateVAPIDKeys().publicKey;
+ const fetch=t.mock.method(globalThis,'fetch',()=>{throw Error('I/O inesperada');});
+ const warn=t.mock.method(console,'warn',()=>{});
+ await assert.rejects(push.manage({db:{query:async()=>[{subscription:sub}]},store:'uki:arica',principal:'test',
+  env:{...env,AVISOS_PEDIDOS_PUSH_PUBLIC_KEY:otherKey},body:{operacion:'prueba',endpoint:sub.endpoint}}),
+ e=>e.status===502&&/servidor no pudo autorizar/.test(e.message));
+ assert.equal(fetch.mock.callCount(),0);assert.match(warn.mock.calls[0].arguments.join(' '),/claves_no_coinciden/);
+});
